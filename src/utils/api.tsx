@@ -261,6 +261,43 @@ export async function createOrganization(orgData: {
   return org;
 }
 
+export async function updateOrganization(organizationId: string, orgData: {
+  name?: string;
+  type?: string;
+  url?: string;
+  phone_number?: string;
+  description?: string;
+  address_line1?: string;
+  address_line2?: string;
+  city?: string;
+  state?: string;
+  postal_code?: string;
+  country?: string;
+  allowed_domains?: string;
+}) {
+  const supabase = getSupabase();
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session?.user) throw new Error('Not authenticated');
+  const user = session.user;
+
+  const { data, error } = await supabase
+    .from('organizations')
+    .update({
+      ...orgData,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', organizationId)
+    .select()
+    .single();
+
+  if (error) {
+    console.error('Error updating organization:', error);
+    throw error;
+  }
+
+  return data;
+}
+
 export async function joinOrganization(orgId: string) {
   const supabase = getSupabase();
   // Get current user from session

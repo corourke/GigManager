@@ -11,6 +11,8 @@ import AppHeader from './AppHeader';
 import type { Organization, User, UserRole } from '../App';
 import { getAsset, createAsset, updateAsset } from '../utils/api';
 import type { DbAsset } from '../utils/supabase/types';
+import { useFormWithChanges } from '../utils/hooks/useFormWithChanges';
+import { createSubmissionPayload, normalizeFormData } from '../utils/form-utils';
 
 interface CreateAssetScreenProps {
   organization: Organization;
@@ -71,6 +73,9 @@ export default function CreateAssetScreen({
 }: CreateAssetScreenProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [errors, setErrors] = useState<Record<string, string>>({});
+
+  // Form state with change detection
   const [formData, setFormData] = useState<FormData>({
     category: '',
     manufacturer_model: '',
@@ -86,7 +91,20 @@ export default function CreateAssetScreen({
     insurance_class: '',
     quantity: '',
   });
-  const [errors, setErrors] = useState<Record<string, string>>({});
+
+  // Change detection hook (simplified for manual state)
+  const changeDetection = useFormWithChanges({
+    form: {
+      getValues: () => formData,
+      watch: (callback) => {
+        // Simple watch implementation - could be enhanced
+        return () => {};
+      },
+      reset: (values) => setFormData(values),
+      formState: { isDirty: changeDetection?.hasChanges || false }
+    } as any,
+    initialData: {},
+  });
 
   const isEditMode = !!assetId;
 
@@ -98,11 +116,11 @@ export default function CreateAssetScreen({
 
   const loadAsset = async () => {
     if (!assetId) return;
-    
+
     setIsLoading(true);
     try {
       const asset = await getAsset(assetId);
-      setFormData({
+      const loadedData = {
         category: asset.category || '',
         manufacturer_model: asset.manufacturer_model || '',
         serial_number: asset.serial_number || '',
@@ -116,7 +134,9 @@ export default function CreateAssetScreen({
         insurance_policy_added: asset.insurance_policy_added || false,
         insurance_class: asset.insurance_class || '',
         quantity: asset.quantity?.toString() || '',
-      });
+      };
+      setFormData(loadedData);
+      changeDetection.loadInitialData(loadedData);
     } catch (error: any) {
       console.error('Error loading asset:', error);
       toast.error(error.message || 'Failed to load asset');
@@ -177,31 +197,32 @@ export default function CreateAssetScreen({
 
     setIsSaving(true);
     try {
-      const assetData = {
-        organization_id: organization.id,
-        category: formData.category.trim(),
-        manufacturer_model: formData.manufacturer_model.trim(),
-        serial_number: formData.serial_number.trim() || undefined,
-        acquisition_date: formData.acquisition_date || undefined,
-        vendor: formData.vendor.trim() || undefined,
-        cost: formData.cost ? parseFloat(formData.cost) : undefined,
-        replacement_value: formData.replacement_value
-          ? parseFloat(formData.replacement_value)
-          : undefined,
-        sub_category: formData.sub_category.trim() || undefined,
-        type: formData.type.trim() || undefined,
-        description: formData.description.trim() || undefined,
-        insurance_policy_added: formData.insurance_policy_added,
-        insurance_class: formData.insurance_class.trim() || undefined,
-        quantity: formData.quantity ? parseInt(formData.quantity) : undefined,
-      };
+      // Normalize and get only changed fields for updates
+      const normalizedData = normalizeFormData(formData);
+      const submissionData = isEditMode && changeDetection.hasChanges
+        ? createSubmissionPayload(normalizedData, changeDetection.originalData)
+        : {
+            organization_id: organization.id,
+            ...normalizedData,
+          };
 
       if (isEditMode && assetId) {
-        await updateAsset(assetId, assetData);
+        // For updates, only send changed fields + required organization_id
+        const updateData = {
+          ...submissionData,
+          organization_id: organization.id, // Always include for RLS
+        };
+        await updateAsset(assetId, updateData);
+        changeDetection.markAsSaved(normalizedData);
         toast.success('Asset updated successfully');
         onAssetUpdated();
       } else {
-        const newAsset = await createAsset(assetData);
+        // For creates, send all data
+        const createData = {
+          organization_id: organization.id,
+          ...normalizedData,
+        };
+        const newAsset = await createAsset(createData);
         toast.success('Asset created successfully');
         onAssetCreated(newAsset.id);
       }
@@ -508,13 +529,18 @@ export default function CreateAssetScreen({
               </Button>
               <Button
                 onClick={handleSubmit}
-                disabled={isSaving}
+                disabled={isSaving || (isEditMode && !changeDetection.hasChanges)}
                 className="bg-sky-500 hover:bg-sky-600 text-white"
               >
                 {isSaving ? (
                   <>
                     <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                     Saving...
+                  </>
+                ) : isEditMode && !changeDetection.hasChanges ? (
+                  <>
+                    <Save className="w-4 h-4 mr-2" />
+                    No Changes
                   </>
                 ) : (
                   <>

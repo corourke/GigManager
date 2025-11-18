@@ -13,6 +13,7 @@ import {
 import type { Organization, User, UserRole } from '../App';
 import { projectId, publicAnonKey } from '../utils/supabase/info';
 import { createClient } from '../utils/supabase/client';
+import GigTable, { type Gig } from './tables/GigTable';
 
 interface DashboardProps {
   organization: Organization;
@@ -326,73 +327,25 @@ export default function Dashboard({
                     <p>No upcoming gigs in the next 30 days</p>
                   </div>
                 ) : (
-                  <div className="overflow-x-auto">
-                    <table className="w-full">
-                      <thead>
-                        <tr className="border-b border-gray-200">
-                          <th className="text-left py-3 px-4 text-sm text-gray-600">Date</th>
-                          <th className="text-left py-3 px-4 text-sm text-gray-600">Title</th>
-                          <th className="text-left py-3 px-4 text-sm text-gray-600">Act</th>
-                          <th className="text-left py-3 px-4 text-sm text-gray-600">Venue</th>
-                          <th className="text-left py-3 px-4 text-sm text-gray-600">Status</th>
-                          <th className="text-left py-3 px-4 text-sm text-gray-600">Staffing</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {stats.upcomingGigs.map((gig) => (
-                          <tr key={gig.id} className="border-b border-gray-100 hover:bg-gray-50">
-                            <td className="py-3 px-4 text-sm text-gray-900">
-                              {formatDate(gig.start)}
-                            </td>
-                            <td className="py-3 px-4 text-sm text-gray-900">
-                              {gig.title}
-                            </td>
-                            <td className="py-3 px-4 text-sm text-gray-600">
-                              {gig.act}
-                            </td>
-                            <td className="py-3 px-4 text-sm text-gray-600">
-                              {gig.venue}
-                            </td>
-                            <td className="py-3 px-4">
-                              <Badge variant={getStatusBadgeVariant(gig.status)}>
-                                {gig.status}
-                              </Badge>
-                            </td>
-                            <td className="py-3 px-4">
-                              <div className="flex gap-2 text-xs">
-                                {gig.staffing.confirmedAssignments > 0 && (
-                                  <span className="text-green-600" title="Confirmed">
-                                    ✓ {gig.staffing.confirmedAssignments}
-                                  </span>
-                                )}
-                                {gig.staffing.unconfirmedAssignments > 0 && (
-                                  <span className="text-yellow-600" title="Unconfirmed">
-                                    ? {gig.staffing.unconfirmedAssignments}
-                                  </span>
-                                )}
-                                {gig.staffing.rejectedAssignments > 0 && (
-                                  <span className="text-red-600" title="Rejected">
-                                    ✗ {gig.staffing.rejectedAssignments}
-                                  </span>
-                                )}
-                                {gig.staffing.unfilledSlots > 0 && (
-                                  <span className="text-gray-600" title="Unfilled">
-                                    ○ {gig.staffing.unfilledSlots}
-                                  </span>
-                                )}
-                                {gig.staffing.confirmedAssignments === 0 && 
-                                 gig.staffing.unconfirmedAssignments === 0 && 
-                                 gig.staffing.rejectedAssignments === 0 && 
-                                 gig.staffing.unfilledSlots === 0 && (
-                                  <span className="text-gray-400">No slots</span>
-                                )}
-                              </div>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
+                  <GigTable
+                    gigs={stats.upcomingGigs.map(g => ({
+                      id: g.id,
+                      title: g.title,
+                      start: g.start,
+                      end: g.start, // Use start as end for display purposes
+                      timezone: 'UTC', // Default timezone
+                      status: g.status as any,
+                      tags: [],
+                      venue: g.venue ? { id: '', name: g.venue, type: 'Venue' } : undefined,
+                      act: g.act ? { id: '', name: g.act, type: 'Act' } : undefined,
+                      created_at: g.start,
+                      updated_at: g.start,
+                    }))}
+                    mode="dashboard"
+                    showActions={false}
+                    onGigClick={onNavigateToGigs}
+                    emptyMessage="No upcoming gigs in the next 30 days"
+                  />
                 )}
               </Card>
             </div>
