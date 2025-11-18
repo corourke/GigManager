@@ -1,0 +1,532 @@
+import { useState, useEffect } from 'react';
+import { Package, ArrowLeft, Save, Loader2, AlertCircle } from 'lucide-react';
+import { toast } from 'sonner@2.0.3';
+import { Button } from './ui/button';
+import { Input } from './ui/input';
+import { Label } from './ui/label';
+import { Card } from './ui/card';
+import { Checkbox } from './ui/checkbox';
+import { Textarea } from './ui/textarea';
+import AppHeader from './AppHeader';
+import type { Organization, User, UserRole } from '../App';
+import { getAsset, createAsset, updateAsset } from '../utils/api';
+import type { DbAsset } from '../utils/supabase/types';
+
+interface CreateAssetScreenProps {
+  organization: Organization;
+  user: User;
+  userRole?: UserRole;
+  assetId?: string | null; // If provided, edit mode
+  onCancel: () => void;
+  onAssetCreated: (assetId: string) => void;
+  onAssetUpdated: () => void;
+  onNavigateToDashboard: () => void;
+  onNavigateToGigs: () => void;
+  onSwitchOrganization: () => void;
+  onLogout: () => void;
+}
+
+interface FormData {
+  category: string;
+  manufacturer_model: string;
+  serial_number: string;
+  acquisition_date: string;
+  vendor: string;
+  cost: string;
+  replacement_value: string;
+  sub_category: string;
+  type: string;
+  description: string;
+  insurance_policy_added: boolean;
+  insurance_class: string;
+  quantity: string;
+}
+
+const SUGGESTED_CATEGORIES = [
+  'Audio',
+  'Lighting',
+  'Video',
+  'Staging',
+  'Power',
+  'Rigging',
+  'Communication',
+  'Instruments',
+  'Cables',
+  'Cases',
+  'Other',
+];
+
+export default function CreateAssetScreen({
+  organization,
+  user,
+  userRole,
+  assetId,
+  onCancel,
+  onAssetCreated,
+  onAssetUpdated,
+  onNavigateToDashboard,
+  onNavigateToGigs,
+  onSwitchOrganization,
+  onLogout,
+}: CreateAssetScreenProps) {
+  const [isLoading, setIsLoading] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [formData, setFormData] = useState<FormData>({
+    category: '',
+    manufacturer_model: '',
+    serial_number: '',
+    acquisition_date: '',
+    vendor: '',
+    cost: '',
+    replacement_value: '',
+    sub_category: '',
+    type: '',
+    description: '',
+    insurance_policy_added: false,
+    insurance_class: '',
+    quantity: '',
+  });
+  const [errors, setErrors] = useState<Record<string, string>>({});
+
+  const isEditMode = !!assetId;
+
+  useEffect(() => {
+    if (assetId) {
+      loadAsset();
+    }
+  }, [assetId]);
+
+  const loadAsset = async () => {
+    if (!assetId) return;
+    
+    setIsLoading(true);
+    try {
+      const asset = await getAsset(assetId);
+      setFormData({
+        category: asset.category || '',
+        manufacturer_model: asset.manufacturer_model || '',
+        serial_number: asset.serial_number || '',
+        acquisition_date: asset.acquisition_date || '',
+        vendor: asset.vendor || '',
+        cost: asset.cost?.toString() || '',
+        replacement_value: asset.replacement_value?.toString() || '',
+        sub_category: asset.sub_category || '',
+        type: asset.type || '',
+        description: asset.description || '',
+        insurance_policy_added: asset.insurance_policy_added || false,
+        insurance_class: asset.insurance_class || '',
+        quantity: asset.quantity?.toString() || '',
+      });
+    } catch (error: any) {
+      console.error('Error loading asset:', error);
+      toast.error(error.message || 'Failed to load asset');
+      onCancel();
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleChange = (field: keyof FormData, value: string | boolean) => {
+    setFormData((prev) => ({ ...prev, [field]: value }));
+    // Clear error for this field
+    if (errors[field]) {
+      setErrors((prev) => {
+        const newErrors = { ...prev };
+        delete newErrors[field];
+        return newErrors;
+      });
+    }
+  };
+
+  const validate = (): boolean => {
+    const newErrors: Record<string, string> = {};
+
+    if (!formData.category.trim()) {
+      newErrors.category = 'Category is required';
+    }
+
+    if (!formData.manufacturer_model.trim()) {
+      newErrors.manufacturer_model = 'Manufacturer/Model is required';
+    }
+
+    if (!formData.acquisition_date) {
+      newErrors.acquisition_date = 'Acquisition date is required';
+    }
+
+    if (formData.cost && isNaN(parseFloat(formData.cost))) {
+      newErrors.cost = 'Cost must be a valid number';
+    }
+
+    if (formData.replacement_value && isNaN(parseFloat(formData.replacement_value))) {
+      newErrors.replacement_value = 'Replacement value must be a valid number';
+    }
+
+    if (formData.quantity && (isNaN(parseInt(formData.quantity)) || parseInt(formData.quantity) < 1)) {
+      newErrors.quantity = 'Quantity must be a positive number';
+    }
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  const handleSubmit = async () => {
+    if (!validate()) {
+      toast.error('Please fix the errors before submitting');
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      const assetData = {
+        organization_id: organization.id,
+        category: formData.category.trim(),
+        manufacturer_model: formData.manufacturer_model.trim(),
+        serial_number: formData.serial_number.trim() || undefined,
+        acquisition_date: formData.acquisition_date || undefined,
+        vendor: formData.vendor.trim() || undefined,
+        cost: formData.cost ? parseFloat(formData.cost) : undefined,
+        replacement_value: formData.replacement_value
+          ? parseFloat(formData.replacement_value)
+          : undefined,
+        sub_category: formData.sub_category.trim() || undefined,
+        type: formData.type.trim() || undefined,
+        description: formData.description.trim() || undefined,
+        insurance_policy_added: formData.insurance_policy_added,
+        insurance_class: formData.insurance_class.trim() || undefined,
+        quantity: formData.quantity ? parseInt(formData.quantity) : undefined,
+      };
+
+      if (isEditMode && assetId) {
+        await updateAsset(assetId, assetData);
+        toast.success('Asset updated successfully');
+        onAssetUpdated();
+      } else {
+        const newAsset = await createAsset(assetData);
+        toast.success('Asset created successfully');
+        onAssetCreated(newAsset.id);
+      }
+    } catch (error: any) {
+      console.error('Error saving asset:', error);
+      toast.error(error.message || 'Failed to save asset');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-sky-500" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-gray-50">
+      <AppHeader
+        organization={organization}
+        user={user}
+        userRole={userRole}
+        currentRoute="create-asset"
+        onNavigateToDashboard={onNavigateToDashboard}
+        onNavigateToGigs={onNavigateToGigs}
+        onSwitchOrganization={onSwitchOrganization}
+        onLogout={onLogout}
+      />
+
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Header */}
+        <div className="mb-8">
+          <Button
+            variant="ghost"
+            onClick={onCancel}
+            className="mb-4 -ml-2"
+          >
+            <ArrowLeft className="w-4 h-4 mr-2" />
+            Back to Assets
+          </Button>
+          <h1 className="text-gray-900 flex items-center gap-2">
+            <Package className="w-8 h-8 text-sky-500" />
+            {isEditMode ? 'Edit Asset' : 'Add New Asset'}
+          </h1>
+          <p className="text-sm text-gray-600 mt-1">
+            {isEditMode
+              ? 'Update asset information'
+              : 'Add a new asset to your inventory'}
+          </p>
+        </div>
+
+        {/* Form */}
+        <Card className="p-6">
+          <div className="space-y-6">
+            {/* Basic Information */}
+            <div>
+              <h3 className="text-gray-900 mb-4">Basic Information</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="category">
+                    Category <span className="text-red-500">*</span>
+                  </Label>
+                  <Input
+                    id="category"
+                    list="categories"
+                    value={formData.category}
+                    onChange={(e) => handleChange('category', e.target.value)}
+                    placeholder="e.g., Audio, Lighting, Video"
+                    className={errors.category ? 'border-red-500' : ''}
+                  />
+                  <datalist id="categories">
+                    {SUGGESTED_CATEGORIES.map((cat) => (
+                      <option key={cat} value={cat} />
+                    ))}
+                  </datalist>
+                  {errors.category && (
+                    <p className="text-sm text-red-600 flex items-center gap-1">
+                      <AlertCircle className="w-4 h-4" />
+                      {errors.category}
+                    </p>
+                  )}
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="sub_category">Sub-Category</Label>
+                  <Input
+                    id="sub_category"
+                    value={formData.sub_category}
+                    onChange={(e) => handleChange('sub_category', e.target.value)}
+                    placeholder="e.g., Microphones, LED Fixtures"
+                  />
+                </div>
+
+                <div className="md:col-span-2 space-y-2">
+                  <Label htmlFor="manufacturer_model">
+                    Manufacturer and Model <span className="text-red-500">*</span>
+                  </Label>
+                  <Input
+                    id="manufacturer_model"
+                    value={formData.manufacturer_model}
+                    onChange={(e) => handleChange('manufacturer_model', e.target.value)}
+                    placeholder="e.g., Shure SM58, Martin MAC Aura"
+                    className={errors.manufacturer_model ? 'border-red-500' : ''}
+                  />
+                  {errors.manufacturer_model && (
+                    <p className="text-sm text-red-600 flex items-center gap-1">
+                      <AlertCircle className="w-4 h-4" />
+                      {errors.manufacturer_model}
+                    </p>
+                  )}
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="type">Equipment Type</Label>
+                  <Input
+                    id="type"
+                    value={formData.type}
+                    onChange={(e) => handleChange('type', e.target.value)}
+                    placeholder="e.g., Dynamic Microphone"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="serial_number">Serial Number</Label>
+                  <Input
+                    id="serial_number"
+                    value={formData.serial_number}
+                    onChange={(e) => handleChange('serial_number', e.target.value)}
+                    placeholder="Unique serial number"
+                    className="font-mono"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="quantity">Quantity</Label>
+                  <Input
+                    id="quantity"
+                    type="number"
+                    min="1"
+                    value={formData.quantity}
+                    onChange={(e) => handleChange('quantity', e.target.value)}
+                    placeholder="1"
+                    className={errors.quantity ? 'border-red-500' : ''}
+                  />
+                  <p className="text-xs text-gray-500">
+                    For bulk assets that don't have unique serial numbers
+                  </p>
+                  {errors.quantity && (
+                    <p className="text-sm text-red-600 flex items-center gap-1">
+                      <AlertCircle className="w-4 h-4" />
+                      {errors.quantity}
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Financial Information */}
+            <div>
+              <h3 className="text-gray-900 mb-4">Financial Information</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="acquisition_date">
+                    Acquisition Date <span className="text-red-500">*</span>
+                  </Label>
+                  <Input
+                    id="acquisition_date"
+                    type="date"
+                    value={formData.acquisition_date}
+                    onChange={(e) => handleChange('acquisition_date', e.target.value)}
+                    className={errors.acquisition_date ? 'border-red-500' : ''}
+                  />
+                  {errors.acquisition_date && (
+                    <p className="text-sm text-red-600 flex items-center gap-1">
+                      <AlertCircle className="w-4 h-4" />
+                      {errors.acquisition_date}
+                    </p>
+                  )}
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="vendor">Vendor</Label>
+                  <Input
+                    id="vendor"
+                    value={formData.vendor}
+                    onChange={(e) => handleChange('vendor', e.target.value)}
+                    placeholder="Where was this purchased?"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="cost">Purchase Cost</Label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500">
+                      $
+                    </span>
+                    <Input
+                      id="cost"
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={formData.cost}
+                      onChange={(e) => handleChange('cost', e.target.value)}
+                      placeholder="0.00"
+                      className={`pl-7 ${errors.cost ? 'border-red-500' : ''}`}
+                    />
+                  </div>
+                  {errors.cost && (
+                    <p className="text-sm text-red-600 flex items-center gap-1">
+                      <AlertCircle className="w-4 h-4" />
+                      {errors.cost}
+                    </p>
+                  )}
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="replacement_value">Replacement Value</Label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500">
+                      $
+                    </span>
+                    <Input
+                      id="replacement_value"
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={formData.replacement_value}
+                      onChange={(e) => handleChange('replacement_value', e.target.value)}
+                      placeholder="0.00"
+                      className={`pl-7 ${errors.replacement_value ? 'border-red-500' : ''}`}
+                    />
+                  </div>
+                  {errors.replacement_value && (
+                    <p className="text-sm text-red-600 flex items-center gap-1">
+                      <AlertCircle className="w-4 h-4" />
+                      {errors.replacement_value}
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Insurance */}
+            <div>
+              <h3 className="text-gray-900 mb-4">Insurance</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label className="text-sm font-normal">Insured</Label>
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="insurance_policy_added"
+                      checked={formData.insurance_policy_added}
+                      onCheckedChange={(checked) =>
+                        handleChange('insurance_policy_added', !!checked)
+                      }
+                    />
+                    <Label
+                      htmlFor="insurance_policy_added"
+                      className="text-sm font-normal cursor-pointer"
+                    >This asset has been added to an insurance policy.</Label>
+                  </div>
+                </div>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="insurance_class">Insurance Class</Label>
+                  <Input
+                    id="insurance_class"
+                    value={formData.insurance_class}
+                    onChange={(e) => handleChange('insurance_class', e.target.value)}
+                    placeholder="e.g., Class A, Premium Coverage"
+                  />
+                  <p className="text-xs text-gray-500">
+                    The category used by your insurance company.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Description */}
+            <div>
+              <h3 className="text-gray-900 mb-4">Additional Details</h3>
+              <div className="space-y-2">
+                <Label htmlFor="description">Description</Label>
+                <Textarea
+                  id="description"
+                  value={formData.description}
+                  onChange={(e) => handleChange('description', e.target.value)}
+                  placeholder="Additional notes about this asset..."
+                  rows={4}
+                />
+                <p className="text-xs text-gray-500">
+                  Supports Markdown formatting
+                </p>
+              </div>
+            </div>
+
+            {/* Actions */}
+            <div className="flex items-center justify-end gap-3 pt-4 border-t border-gray-200">
+              <Button variant="outline" onClick={onCancel} disabled={isSaving}>
+                Cancel
+              </Button>
+              <Button
+                onClick={handleSubmit}
+                disabled={isSaving}
+                className="bg-sky-500 hover:bg-sky-600 text-white"
+              >
+                {isSaving ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Saving...
+                  </>
+                ) : (
+                  <>
+                    <Save className="w-4 h-4 mr-2" />
+                    {isEditMode ? 'Update Asset' : 'Create Asset'}
+                  </>
+                )}
+              </Button>
+            </div>
+          </div>
+        </Card>
+      </div>
+    </div>
+  );
+}

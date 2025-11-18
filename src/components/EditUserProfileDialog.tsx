@@ -1,0 +1,191 @@
+import { useState, useEffect } from 'react';
+import { Button } from './ui/button';
+import { Loader2, User as UserIcon } from 'lucide-react';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from './ui/dialog';
+import { toast } from 'sonner@2.0.3';
+import UserProfileForm, { UserProfileFormData } from './UserProfileForm';
+import type { User as UserType } from '../App';
+
+interface EditUserProfileDialogProps {
+  user: UserType;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onProfileUpdated: (updatedUser: UserType) => void;
+}
+
+export default function EditUserProfileDialog({
+  user,
+  open,
+  onOpenChange,
+  onProfileUpdated,
+}: EditUserProfileDialogProps) {
+  const [formData, setFormData] = useState<UserProfileFormData>({
+    first_name: '',
+    last_name: '',
+    email: '',
+    phone: '',
+    avatar_url: '',
+    address_line1: '',
+    address_line2: '',
+    city: '',
+    state: '',
+    postal_code: '',
+    country: '',
+  });
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Populate form when dialog opens or user changes
+  useEffect(() => {
+    if (open && user) {
+      setFormData({
+        first_name: user.first_name || '',
+        last_name: user.last_name || '',
+        email: user.email || '',
+        phone: user.phone || '',
+        avatar_url: user.avatar_url || '',
+        address_line1: user.address_line1 || '',
+        address_line2: user.address_line2 || '',
+        city: user.city || '',
+        state: user.state || '',
+        postal_code: user.postal_code || '',
+        country: user.country || '',
+      });
+    }
+  }, [open, user]);
+
+  const handleSubmit = async () => {
+    if (!formData.first_name.trim() || !formData.last_name.trim()) {
+      toast.error('First name and last name are required');
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const { projectId } = await import('../utils/supabase/info');
+      const { createClient } = await import('../utils/supabase/client');
+      const supabase = createClient();
+      
+      // Get current session
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (!session?.access_token) {
+        toast.error('Not authenticated. Please sign in again.');
+        setIsSubmitting(false);
+        return;
+      }
+
+      const supabaseUrl = `https://${projectId}.supabase.co`;
+      const accessToken = session.access_token;
+      
+      // Update user profile via server endpoint
+      const response = await fetch(`${supabaseUrl}/functions/v1/make-server-de012ad4/users/${user.id}`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          first_name: formData.first_name || undefined,
+          last_name: formData.last_name || undefined,
+          phone: formData.phone || undefined,
+          avatar_url: formData.avatar_url || undefined,
+          address_line1: formData.address_line1 || undefined,
+          address_line2: formData.address_line2 || undefined,
+          city: formData.city || undefined,
+          state: formData.state || undefined,
+          postal_code: formData.postal_code || undefined,
+          country: formData.country || undefined,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to update profile');
+      }
+
+      const userData = await response.json();
+
+      // Update user object
+      const updatedUser: UserType = {
+        ...user,
+        first_name: userData.first_name || user.first_name,
+        last_name: userData.last_name || user.last_name,
+        phone: userData.phone || '',
+        avatar_url: userData.avatar_url || '',
+        address_line1: userData.address_line1 || '',
+        address_line2: userData.address_line2 || '',
+        city: userData.city || '',
+        state: userData.state || '',
+        postal_code: userData.postal_code || '',
+        country: userData.country || '',
+      };
+
+      toast.success('Profile updated successfully!');
+      onProfileUpdated(updatedUser);
+      onOpenChange(false);
+    } catch (err: any) {
+      console.error('Error updating profile:', err);
+      toast.error(err.message || 'Failed to update profile. Please try again.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <UserIcon className="w-5 h-5" />
+            Edit Your Profile
+          </DialogTitle>
+          <DialogDescription>
+            Update your personal information and contact details.
+          </DialogDescription>
+        </DialogHeader>
+        
+        <UserProfileForm
+          formData={formData}
+          onChange={(field, value) => setFormData({ ...formData, [field]: value })}
+          disabled={isSubmitting}
+          emailReadOnly={true}
+          showRole={false}
+          showDefaultStaffRole={false}
+          staffRoles={[]}
+          requiredFields={['first_name', 'last_name', 'email']}
+        />
+        
+        <DialogFooter>
+          <Button
+            variant="outline"
+            onClick={() => onOpenChange(false)}
+            disabled={isSubmitting}
+          >
+            Cancel
+          </Button>
+          <Button
+            onClick={handleSubmit}
+            disabled={isSubmitting}
+            className="bg-sky-500 hover:bg-sky-600 text-white"
+          >
+            {isSubmitting ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Saving...
+              </>
+            ) : (
+              'Save Changes'
+            )}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
