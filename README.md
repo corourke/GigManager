@@ -72,11 +72,12 @@ A comprehensive web application for production and event management companies to
 │   ├── components/          # React components
 │   │   ├── ui/             # Shadcn/ui components
 │   │   └── ...             # Feature components
-│   ├── supabase/           # Database schema and functions
-│   │   ├── migrations/     # Database migrations
-│   │   └── functions/      # Edge functions
 │   ├── utils/              # Utility functions and API clients
+│   │   └── supabase/       # Supabase client utilities
 │   └── styles/             # Global styles and Tailwind config
+├── supabase/               # Supabase backend code
+│   ├── migrations/         # Database migrations
+│   └── functions/          # Edge functions
 ├── docs/                   # Documentation
 └── public/                 # Static assets
 ```

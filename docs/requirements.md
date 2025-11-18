@@ -1,584 +1,611 @@
-# Gig Manager - Requirements Document
-
-## 1. Application Overview
-
-**Name:** Gig Manager  
-**Purpose:** Production and event management web application for production companies, sound/lighting companies, and event producers to manage events, equipment, and staff.
-
-**Target Users:**
-- Production companies
-- Sound/lighting companies
-- Event producers
-- Venues
-- Acts/Performers
-- Agencies
-- Equipment rental companies
-- Staging companies
-
----
-
-## 2. Authentication & Authorization
-
-### 2.1 Authentication Method
-- **Google OAuth** via Supabase Auth (PRIMARY METHOD)
-- After successful sign-in, redirect users to the application
-- Support for social login through Google provider
-- Session management via Supabase Auth
-- **Additional Authentication Methods Available:**
-  - Email/password authentication (if enabled in Supabase)
-  - Other OAuth providers (GitHub, Facebook, etc.) can be enabled in Supabase dashboard
-  - Magic link authentication (if configured)
-- Users must complete provider setup in Supabase dashboard following provider-specific instructions
-
-### 2.2 Post-Authentication Profile Collection (IMPLEMENTED ✓)
-After successful authentication (first-time users):
-1. Check if user profile exists in database
-2. If no profile exists, show ProfileCompletionScreen
-3. Collect required user information:
-   - Full name (required)
-   - Phone number (optional)
-   - Preferred role (Admin, Manager, Staff, Viewer)
-4. Create user profile in database with collected information
-5. Proceed to organization selection flow
-
-### 2.3 User Roles
-The application supports four distinct user roles with different permission levels:
-- **Admin** - Full access to organization data and settings
-- **Manager** - Can create and manage gigs, equipment, and staff
-- **Staff** - Limited access to assigned gigs and tasks
-- **Viewer** - Read-only access to organization data
-
-### 2.4 Organization-Based Access Control
-- Users belong to one or more organizations
-- Access to data is scoped by organization membership
-- User profile includes `org_id` field for primary organization association
-- Row-Level Security (RLS) policies enforce organization-based data access
-
----
-
-## 3. Organization Types
-
-The application supports the following organization types:
-
-1. **Production** - Production companies
-2. **Sound** - Sound companies
-3. **Lighting** - Lighting companies
-4. **Staging** - Staging companies
-5. **Rentals** - Equipment rental companies
-6. **Venue** - Event venues
-7. **Act** - Performers/Acts
-8. **Agency** - Booking/talent agencies
-
----
-
-## 4. Database Architecture
-
-### 4.1 Migration from Mock Data
-- Migrate from mock data to real Supabase PostgreSQL database
-- Maintain ability to use mock sample data for testing/demonstration
-- Support both mock and live data modes
-
-### 4.2 Key Schema Changes
-
-#### Date/Time Field Consolidation
-- **OLD:** Separate `date`, `start_time`, `end_time` fields
-- **NEW:** Combined `start` and `end` DateTime fields
-- Provides more accurate timestamp representation
-
-#### Enum Value Updates
-**GigStatus Enum:**
-- `"date-hold"` → `"DateHold"`
-- `"confirmed"` → `"Confirmed"`
-- `"completed"` → `"Completed"`
-- `"cancelled"` → `"Cancelled"`
-
-**Other standardized enums:**
-- Pascal case for multi-word values
-- Consistent naming convention across all enums
-
-### 4.3 Database Schema (Prisma)
-
-#### Core Tables
-
-**users**
-- `id` (UUID, primary key)
-- `email` (String, unique)
-- `name` (String, optional)
-- `avatar_url` (String, optional)
-- `phone` (String, optional) - Note: Field name is `phone`, not `phone_number`
-- `role` (UserRole enum)
-- `org_id` (UUID, foreign key to organizations)
-- `created_at` (DateTime)
-- `updated_at` (DateTime)
-
-**organizations**
-- `id` (UUID, primary key)
-- `name` (String)
-- `type` (OrganizationType enum)
-- `email` (String, optional)
-- `phone` (String, optional)
-- `address` (String, optional)
-- `city` (String, optional)
-- `state` (String, optional)
-- `zip` (String, optional)
-- `country` (String, optional)
-- `website` (String, optional)
-- `notes` (Text, optional)
-- `created_at` (DateTime)
-- `updated_at` (DateTime)
-
-**gigs**
-- `id` (UUID, primary key)
-- `organization_id` (UUID, foreign key)
-- `title` (String)
-- `description` (Text, optional)
-- `venue` (String, optional)
-- `location` (String, optional)
-- `start` (DateTime) - Consolidated from date + start_time
-- `end` (DateTime) - Consolidated from end_time
-- `status` (GigStatus enum)
-- `budget` (Decimal, optional)
-- `notes` (Text, optional)
-- `created_at` (DateTime)
-- `updated_at` (DateTime)
-
-**gig_participants** (NEW TABLE)
-- `id` (UUID, primary key)
-- `gig_id` (UUID, foreign key to gigs)
-- `organization_id` (UUID, foreign key to organizations)
-- `role` (String) - e.g., "Sound Provider", "Lighting Provider"
-- `status` (ParticipantStatus enum)
-- `notes` (Text, optional)
-- `created_at` (DateTime)
-- `updated_at` (DateTime)
-
-**equipment**
-- `id` (UUID, primary key)
-- `organization_id` (UUID, foreign key)
-- `name` (String)
-- `category` (String)
-- `model` (String, optional)
-- `serial_number` (String, optional)
-- `status` (EquipmentStatus enum)
-- `quantity` (Int)
-- `daily_rate` (Decimal, optional)
-- `replacement_cost` (Decimal, optional)
-- `notes` (Text, optional)
-- `created_at` (DateTime)
-- `updated_at` (DateTime)
-
-**gig_equipment**
-- `id` (UUID, primary key)
-- `gig_id` (UUID, foreign key)
-- `equipment_id` (UUID, foreign key)
-- `quantity` (Int)
-- `notes` (Text, optional)
-- `created_at` (DateTime)
-
-**staff_roles** (NEW TABLE)
-- `id` (UUID, primary key)
-- `organization_id` (UUID, foreign key)
-- `name` (String) - e.g., "Sound Engineer", "Lighting Tech"
-- `description` (Text, optional)
-- `created_at` (DateTime)
-- `updated_at` (DateTime)
-
-**gig_staff**
-- `id` (UUID, primary key)
-- `gig_id` (UUID, foreign key)
-- `user_id` (UUID, foreign key)
-- `staff_role_id` (UUID, foreign key, optional)
-- `role` (String) - Legacy field, may be deprecated in favor of staff_role_id
-- `rate` (Decimal, optional)
-- `notes` (Text, optional)
-- `created_at` (DateTime)
-
-**org_annotations** (NEW TABLE)
-- `id` (UUID, primary key)
-- `organization_id` (UUID, foreign key)
-- `target_org_id` (UUID, foreign key to organizations)
-- `notes` (Text)
-- `tags` (String array, optional)
-- `created_at` (DateTime)
-- `updated_at` (DateTime)
-- Purpose: Allow organizations to add private notes/tags about other organizations
-
----
-
-## 5. Row-Level Security (RLS)
-
-### 5.1 Access Control Requirements
-- Users can only see gigs where `gig.organization_id` matches their `user.org_id`
-- RLS policies must be implemented on all tables
-- Ensure data isolation between organizations
-- Admin users have broader access within their organization
-
-### 5.2 RLS Policy Rules
-- **SELECT:** Users can read records where organization_id = auth.user.org_id
-- **INSERT:** Users can create records for their organization
-- **UPDATE:** Users can update records belonging to their organization
-- **DELETE:** Admin/Manager roles can delete records for their organization
-
----
-
-## 6. Real-Time Features
-
-### 6.1 Real-Time Updates
-Implement Supabase real-time subscriptions for:
-- **INSERT operations** - New gigs, equipment, staff assignments
-- **UPDATE operations** - Changes to existing records
-- **DELETE operations** - Removed records
-
-### 6.2 Use Cases
-- Live dashboard updates when new gigs are created
-- Equipment availability changes reflected immediately
-- Staff assignment notifications
-- Multi-user collaboration without page refresh
-
----
-
-## 7. User Onboarding Flow
-
-### 7.1 Profile Completion (IMPLEMENTED ✓)
-After Google OAuth sign-in:
-1. Check if user profile exists in database
-2. If no profile, show ProfileCompletionScreen
-3. Collect: name, phone number, preferred role
-4. Create user profile in database
-5. Redirect to organization selection
-
-### 7.2 Organization Selection (IMPLEMENTED ✓)
-After profile completion:
-1. **Smart Auto-Selection** (IMPLEMENTED ✓):
-   - If user is a member of only ONE organization, automatically bypass the organization selection screen
-   - Directly redirect to the main application with that organization set as active
-   - Improves UX by reducing unnecessary navigation steps
-
-2. **Organization Selection Screen** (shown only if user belongs to multiple organizations OR has no organizations):
-   - Display list of user's current organizations
-   - Allow selection of existing organization
-   - Allow creation of new organization with name and type
-   - **Enhanced Organization Search** (IMPLEMENTED ✓):
-     - Search for ANY organization in the system (not just user's current organizations)
-     - Display ALL matching organizations in search results
-     - View organization details (name, type, location)
-     - Request to join organization as Viewer role
-     - Backend endpoint: `/make-server-de012ad4/organizations/join`
-
-3. Update user.org_id with selected/created organization
-4. Redirect to main application
-
-### 7.3 Critical Fixes Applied
-- ✓ Fixed database column mismatch: `phone` vs `phone_number`
-- ✓ Fixed user fetch error handling when profiles don't exist
-- ✓ Fixed organization type enum value mismatches in OrganizationSelectionScreen
-- ✓ Proper error handling for authentication failures
-- ✓ Session management and redirect flow
-
----
-
-## 8. Application Screens
-
-### 8.1 Consistent Navigation and Page Header (IMPLEMENTED ✓)
-
-All application screens must include a consistent navigation system:
-
-#### AppHeader Component
-- **Location:** Displayed at the top of every screen in the main application
-- **Content:**
-  - Application logo/branding ("Gig Manager")
-  - Current organization name
-  - User's role in the current organization
-  - User profile menu with logout option
-- **Functionality:**
-  - Provides context to users about which organization they're viewing
-  - Shows their permission level (role) in that organization
-  - Allows quick access to account settings and logout
-  - Maintains consistent branding across all pages
-- **Implementation:**
-  - Reusable component imported across all main application screens
-  - Fetches current user and organization data from Supabase
-  - Updates dynamically when organization context changes
-
-#### Navigation Benefits
-- Users always know which organization they're viewing
-- Clear visibility of their role/permissions
-- Consistent user experience across the application
-- Easy access to account management functions
-
-### 8.2 Screens Requiring Supabase Integration
-
-#### Dashboard (PENDING)
-- Overview of upcoming gigs
-- Equipment utilization metrics
-- Staff availability
-- Real-time updates via Supabase subscriptions
-- Organization-scoped data display
-
-#### CreateGigScreen (PENDING)
-- Form to create new gigs
-- Save directly to Supabase database
-- Support for consolidated start/end DateTime fields
-- Organization participant selection
-- Equipment assignment
-- Staff assignment
-
-#### GigDetailScreen (PENDING)
-- Display comprehensive gig information
-- Show participants, equipment, staff
-- Edit capabilities based on user role
-- Real-time updates when data changes
-- Delete functionality for admins/managers
-
-#### GigListScreen (PENDING)
-- List all gigs for user's organization
-- Filter by status, date range
-- Real-time list updates
-- Pagination or infinite scroll
-- Quick actions (edit, delete, view)
-
-### 8.3 Data Fetching Requirements
-- Replace all mock data calls with Supabase queries
-- Implement proper error handling
-- Show loading states
-- Cache data appropriately
-- Use RLS policies for automatic data filtering
-
----
-
-## 9. Technical Implementation Details
-
-### 9.1 Supabase Configuration
-- Use Supabase client with anon key for frontend operations
-- Store credentials in environment variables
-- Configure Google OAuth provider in Supabase dashboard
-- Set up redirect URLs for OAuth flow
-
-### 9.2 Frontend Architecture
-- React with TypeScript
-- Supabase client for database operations
-- Real-time subscriptions for live updates
-- Form validation and error handling
-- Responsive design for mobile/desktop
-
-### 9.3 Data Operations
-```typescript
-// Example pattern for data fetching with RLS
-const { data, error } = await supabase
-  .from('gigs')
-  .select('*, organization:organizations(*)')
-  .order('start', { ascending: true });
-
-// RLS automatically filters to user's organization
+# GigManager Requirements & Features
+
+**Purpose**: This document defines the functional requirements, business rules, and high-level features of the GigManager application. It focuses on WHAT the system should do and WHY, not HOW it should be implemented.
+
+**Gig Manager** is a production and event management platform used by:
+
+- Production companies managing events and performances;
+- Sound and lighting companies tracking equipment and staff;
+- Event producers coordinating venues, acts, and logistics.
+
+## Overview
+
+This app streamlines the management of gigs (where an act performs at a venue) for operators of sound and lighting companies, and event producers. By centralizing tools for tracking gear inventory, bids/proposals, personnel, venues, loadouts and documentation such as stage plots, we reduce manual errors, save time on preparation, and ensure efficient operations.
+
+### Target Users
+
+- Primary Users (may plan and manage gigs)
+  - Production companies
+  - Sound/lighting companies
+  - Event producers
+
+- Secondary Users (may participate in gigs)
+  - Venues
+  - Acts/Performers
+  - Talent agencies
+  - Equipment rental companies
+  - Staging companies
+
+
+### Key Features
+
+- **Multi-Organization Collaboration:** The different organizations that participate in an event can all share and collaborate on the same gig, while tenants maintaining their own staffing, equipment, and financial information. 
+- **Shared Organizations**: Organization profiles are shared so each tenant doesn't have to create them; users can belong to multiple organizations with role-based access control.
+- **Gig Management**: Full lifecycle tracking from Date-Hold to Completed/Paid.
+- **Asset Inventory**: Track equipment assigned to gigs and export insurance details.
+- **Personnel Management**: Assign staff to roles, notify automatically, and check for conflicts.
+- **Mobile Support**: Offline-first with push notifications and biometric authentication.
+- **Calendar Integration**: Export to ICS and Google Calendar.
+- **Export/Import:** Easy data export and import to/from spreadsheets.
+
+### Key Benefits
+
+- **Improved Coordination**: Collaborative data management across participants improves communication and reduces mistakes and misunderstandings.
+- **Efficiency**: Automates notifications, confirmations, checklists, and tracking.
+- **Integrated**: Track dates, equipment inventory, acts, venues, proposals, and staff in one place.
+- **Risk Mitigation**: Maintain equipment inventory for insurance purposes and avoid double booking.
+- **Purpose-built**: Unlike general event tools, this app specializes in coordinating acts, venues, equipment and supporting services
+
+### User Experience Principles
+
+#### Design Philosophy
+- **Multi-Platform First**: Seamless experience across web browsers, mobile browsers, and native mobile apps
+- **Organization-Centric**: All data and workflows are scoped to the user's active organization context
+- **Progressive Disclosure**: Show essential information first, with advanced options available as needed
+- **Offline-Ready**: Core functionality works without internet connection with automatic sync
+
+#### Interface Design
+- **Spreadsheet-like Tables**: Familiar data entry patterns for power users (desktop)
+- **Card-based Layouts**: Touch-friendly information consumption (mobile)
+- **Contextual Actions**: Right-click menus, swipe actions, and floating action buttons
+- **Consistent Navigation**: Global navigation with organization switcher, breadcrumbs, and search
+
+#### Mobile Experience
+- **Touch-Optimized**: Minimum 44px touch targets, swipe gestures, bottom sheets
+- **Native Integration**: Biometric authentication, camera for asset scanning, push notifications
+- **Offline Support**: Critical workflows work without connectivity, with sync indicators
+
+### Definitions
+
+- **Organization**: Any business or group of people that participate in the delivery of a gig.
+- **User**: A user is someone who can log into the application, and who may be a member of one or more organizations. A user is assigned an application role for each organization they are a member of.
+- **Tenants**: A tenant is an organization with users that are using the application, with a private data scope enforced by RLS.
+- All event participants are a type of **organization**: 
+  - A **Production Company** matches up clients to a venue and one or more bands for an event. They are the prime contractor for the gig and are responsible for coordinating all resources. Data includes name, contacts (staff), contact and bid history, and various notes.
+  - A **Sound/Lighting Company** provides sound reinforcement and lighting equipment, including setup and operations.
+  - A **Client** is an individual (perhaps booking a private party) or corporate entity that is distinct from any band or venue. We may interact directly with a client, or the client might work primarily with a production company, band or venue. Data includes company name, contact person(s), payment terms, contract history, and preferences.
+  - A **Venue** is a place or business where an event (party, reception, dinner, concert) occurs. Can be a bar or restaurant hiring a band directly or through a production company. Data includes address, contact(s), and various notes such as: hours, capacity, stage dimensions, power availability, acoustics notes, and uploaded photos or floor plans.
+  - An **Act** is a solo musician, band of musicians, or other performance act. Data includes act name, members, genre, contact info, rider requirements, and historical notes (e.g., preferred setups or past issues).
+  - A **Rental Company** provides supplemental equipment as needed.
+
+
+## Major Feature Groups
+
+### 1. User Management
+
+#### Authentication & SSO
+- **Supabase SSO Support**: All OAuth providers supported by Supabase
+- **Email/Password Authentication**: Standard signup with email confirmation
+  - Send confirmation email with secure link (email/password signups only)
+  - No configurable email confirmation settings
+
+#### User Types & Data Architecture
+- **Two User Types**:
+  1. **Authenticated Users**: Full Supabase auth.users accounts with complete profiles
+  2. **Placeholder Users**: User records without auth.users entries for planning (data-only, no system access)
+- **Users Table Linking**: Link users table to auth.users via email column
+- **Invitation System**: Use separate `invitations` table
+  - **Secure Token Purpose**: Creates secure, one-time-use URLs for invitation acceptance
+  - **Token Security**: Prevents unauthorized access to invitation acceptance
+
+#### User Roles (Hierarchical)
+- **Admin**: Full system access, manages organizations, users, and system settings
+  - Can do everything Manager can do
+- **Manager**: Can manage gigs, team members, and organization content  
+  - Can do everything Member can do
+- **Member**: Can be assigned to gigs, view relevant content
+- **Viewer**: Read-only access to organization content
+
+#### User Profile Management
+- **Basic Profile Fields**:
+  - first_name, last_name (required)
+  - email (required, unique)
+  - phone (optional)
+  - avatar_url (optional)
+- **Global Requirements**: Same required fields for all users (name and email only)
+
+#### Invitation System & Team Management
+- **Team Member Addition Options**:
+  1. **Add Existing User**: Directly add authenticated users to organization
+  2. **Add New User**: Create placeholder user profile immediately, with option to send invitation later
+- **Invitation Flow**:
+  - Create placeholder user record when adding new team member
+  - User can be assigned to gigs immediately (as placeholder)
+  - Send invitation email later to convert placeholder to authenticated user
+  - Invitation includes secure token for account creation/acceptance
+- **Invitation Features**:
+  - Send invitation immediately or later
+  - Track invitation status (pending, accepted, expired)
+  - Secure token-based acceptance URLs
+
+#### Non-Authenticated User Management
+- **Placeholder User Creation**: Create user records (name, email) immediately when adding new team members
+  - Can be assigned to gigs for planning purposes
+  - Convert to authenticated users via invitation system
+  - Data-only access (no system login)
+
+#### Organization User Management
+- **Team Management**:
+  - Add existing authenticated users directly
+  - Add new users (creates placeholder profile) with optional invitation
+  - Send invitations later for placeholder users
+  - Change user roles
+  - Remove users from organizations
+- **Account Management**:
+  - **Deactivate Account**: Ability to deactivate user accounts
+  - Prevent login while preserving data and gig assignments
+  - Reactivate accounts when needed
+
+#### Technical Architecture
+- **Database Schema**:
+  - Keep existing `users` table, link via email
+  - Keep existing `invitations` table with secure tokens
+  - Add `user_type` field: 'authenticated' | 'placeholder'
+  - Add `account_status` field: 'active' | 'inactive' | 'pending'
+- **API Updates**: Handle placeholder/authenticated user workflows
+- **Backward Compatibility**: Support existing users
+
+#### Integration Points
+- **Email System**: For invitations and basic notifications (per-user Google Mail integration)
+
+
+
+### User Placeholder Feature
+
+#### Current System Analysis
+The current `TeamScreen.tsx` supports two user addition workflows:
+1. **Add Existing User**: Search for and add authenticated users who already have accounts
+2. **Invite New User**: Send invitation email to create new user account (user doesn't exist until they accept)
+
+#### New Feature: User Placeholders
+**Feature Name**: "User Placeholder" with "Pending" user status indicators
+
+**Concept**: When inviting a new user, immediately create a user record that can be assigned to staffing slots, while still sending the invitation email. When the invited user authenticates, the pending user converts to an active authenticated user via a user status update.
+
+#### Required Implementation Changes
+
+##### 1. Database Schema Updates
+```sql
+-- Add new column to users table
+ALTER TABLE users ADD COLUMN user_status TEXT DEFAULT 'active' CHECK (user_status IN ('active', 'inactive', 'pending'));
 ```
 
-### 9.4 Error Handling
-- Graceful degradation when database is unavailable
-- Clear error messages for users
-- Logging of errors for debugging
-- Fallback to mock data if enabled
+##### 2. API Function Updates
 
----
+**Modified Function: `inviteUserToOrganization`**
 
-## 10. Migration Strategy
+```typescript
+// Create user record immediately with user_status = 'pending'
+// Add user to organization_members with specified role
+// Send invitation email (existing functionality)
+// Return both (pending) user and invitation objects
+```
 
-### 10.1 Phased Approach
-1. ✓ **Phase 1:** Authentication and onboarding (COMPLETED)
-   - Google OAuth integration
-   - Profile completion
-   - Organization selection
+**New Function: `convertPendingToActive`**
+```typescript
+// Called during authentication when pending user accepts invitation
+// Update user_status from 'pending' to 'active'
+// Link user record to auth.users account
+// Mark invitation as accepted
+```
 
-2. **Phase 2:** Core screens migration (IN PROGRESS)
-   - Dashboard screen
-   - Gig list screen
-   - Create gig screen
-   - Gig detail screen
+##### 3. TeamScreen UI Updates
 
-3. **Phase 3:** Advanced features
-   - Equipment management
-   - Staff management
-   - Organization annotations
-   - Participant management
+**Keep Existing Two-Tab Structure:**
+- **Add Existing User**: Unchanged (adds authenticated users)
+- **Invite New User**: Modified to create user placeholder immediately
 
-### 10.2 Data Migration
-- Keep mock data system available
-- Add toggle for mock vs. live data (development mode)
-- Ensure schema compatibility
-- Test with sample data before production
+**Invite New User Tab Changes:**
+- Form: first_name, last_name, email, role (unchanged)
+- **Behavior**: Creates user placeholder record immediately + sends invitation
+- Can be assigned to gigs right away
 
----
+**Member List Updates:**
+- Show small "Pending" badge/status indicator for placeholder users (perhaps under the 'Last Login' column.)
 
-## 11. Security Requirements
+##### 4. Invitation Flow Updates
 
-### 11.1 Authentication Security
-- Use Supabase Auth for session management
-- Implement proper token refresh
-- Secure redirect handling after OAuth
-- Logout functionality
+**Modified Flow:**
+```
+Create New User → Add to Organization → Send Email → User Accepts → Convert to Active
+```
 
-### 11.2 Authorization Security
-- Enforce role-based permissions in UI
-- RLS policies as backend enforcement
-- Validate user actions on server side
-- Prevent privilege escalation
+**Invitation Acceptance:**
+- When user clicks invitation link and authenticates:
+  - Check for pending invitations, mark invitation as accepted
+  - Locate existing placeholder user by email
+  - Convert user_status from 'pending' to 'active'
+  - Link to auth.users account
+  - User is already added to organization (happened when placeholder was created)
 
-### 11.3 Data Security
-- All sensitive data encrypted at rest
-- HTTPS for all communications
-- No sensitive data in logs
-- Proper sanitization of user inputs
+#### Implementation Steps
 
----
+1. **Database Schema**: Add user_status column
+2. **API Functions**: Update invite function to create placeholders, add conversion function
+3. **TeamScreen UI**: Modify invite tab to 'Create New User' (with 'pending' status)
+4. **Invitation System**: Update acceptance flow for placeholder conversion
+5. **Authentication**: Handle conversion of 'pending' to 'active' during login/signup
 
-## 12. Google Places API Integration
+#### Key Technical Details
 
-### 12.1 Purpose
-Allow users to quickly find and auto-fill their business information when creating organizations by searching Google Places.
+- **User placeholders** have full user records but user_status = 'pending'
+- **Email uniqueness** maintained across all user statuses
+- **Organization membership** established when placeholder is created
+- **Role assignment** happens during placeholder creation
+- **Invitation acceptance** converts pending → active status
 
-### 12.2 Features
-- **Text Search**: Search for businesses by name, address, or keywords
-  - When searching, allow for a partial match with the beginning of a business name, so 'Milbourne' would match 'Milbourne Sound'.
-  - List businesses in proximity to the user first
-  - Prefer to omit vendor that are clearly not associated with entertainment, staging, lighting, sound, music, venues, etc. If in doubt, include the organization in the list.
-  - List a maximum of 10 busineses.
-- **Auto-fill**: Automatically populate organization form with:
-  - Business name
-  - Full address (street, city, state, postal code, country)
-  - Phone number
-  - Website URL
-  - Business description (from editorial summary)
-- **Place Details**: Fetch comprehensive information for selected places
-- **Fallback**: Manual entry option if business not found
+### 2. Organizations, Multi-Tenancy and Access Control
 
-### 12.3 Technical Implementation
+- Users can be members of multiple organizations and can switch their active organization context as needed.
+- Users can be automatically matched to an organization using their email domain.
+- Organizations can restrict membership by specifying allowed email domains (comma-separated list).
+- Organizations can be configured with automatic membership approval for users from specified email domains.
+- Users can create a new organization during initial login or when switching organizations. 
 
-#### Backend Endpoints
-**Search Places:**
-- `GET /make-server-de012ad4/places/search?query={query}`
-- Uses Google Places API Text Search
-- Returns up to 5 results with basic information
-- Requires authentication
+**Shared Organizations (Global Directory):**
 
-**Get Place Details:**
-- `GET /make-server-de012ad4/places/:placeId`
-- Uses Google Places API Place Details
-- Fetches complete information including phone, website, address components
-- Requires authentication
+- Organization profiles are shared across all tenants.
+- Any user can create a new organization if it doesn't exist.
+  - If the user wishes to be a member of the new organization, the role will be **Admin**
+  - If the user does not wish to be a member of the new organization, the role will be **Viewer**
 
-#### API Key Management
-- Google Maps API key stored as `GOOGLE_MAPS_API_KEY` environment variable
-- Key is never exposed to frontend
-- All API calls proxied through backend server
-- Proper error handling for API quota/billing issues
+- When creating a new organization, basic information can be pulled in from Google Places API.
 
-#### Frontend Integration
-- Search interface in CreateOrganizationScreen
-- Real-time search with loading states
-- Display results with business name, address, phone, website
-- Parse address components to fill individual form fields
-- Mock data fallback for development/testing
+**Tenant-Private Context:**
+- Users work within the data scope of an organization and maintain private, separate data about gigs, equipment, staffing, and bids. 
+- Tenants reference shared organizational profiles while keeping the relationships private. 
+- Tenants can add private notes, tags (preferred vendor, blocked) to organization profiles.
+- All tenant-authored data is isolated using that tenant's `organization_id`
+- Roles per tenant (Admin, Manager, Staff, Viewer) control CRUD on tenant-private data
 
-### 12.4 Setup Requirements
-**User must obtain and configure Google Maps API key:**
-1. Enable Google Places API in Google Cloud Console
-2. Create API key with Places API access
-3. Upload key to `GOOGLE_MAPS_API_KEY` environment variable
-4. Ensure billing is enabled on Google Cloud project
+#### Access Control
 
-**Required Google APIs:**
-- Places API (New) or Places API (Legacy)
-- Enable both "Place Search" and "Place Details" APIs
+**User Roles (per organization):**
 
-### 12.5 Error Handling
-- Graceful fallback when API key not configured
-- Clear error messages for API failures
-- Handle rate limiting and quota exceeded errors
-- Log errors server-side for debugging
-- User-friendly messages in frontend
+Members of an organization are assigned one of four application roles that determine access.
 
-### 12.6 Data Privacy
-- User search queries are sent to Google Places API
-- No search data is stored in application database
-- Selected place information is only stored when user creates organization
-- Complies with Google Places API Terms of Service
+- **Admin**: Full admin for that org, manage members, all data within org. (Is only role that can update shared organization data.)
+- **Manager**: Create/edit gigs, assign personnel, manage assets
+- **Staff**: View assigned gigs, confirm or reject assignments, view checklists and notes
+- **Viewer**: Read-only access
 
----
+#### Organization Management Features
 
-## 13. Current Implementation Status
+- **Search and Filtering**: Quick search by name, location, or attributes
+- **Import/Export**: CSV or Google Contacts sync
+- **Organization Switching**: Switch active organization updates session context
 
-### Completed ✓
-- **Authentication & Authorization:**
-  - Google OAuth authentication flow via Supabase Auth
-  - Support for multiple authentication methods (configurable in Supabase)
-  - Post-authentication profile collection screen
-  - User profile creation and completion
-  - Session management and redirect flow
-  
-- **Organization Management:**
-  - Organization selection and creation
-  - Smart auto-selection for single-organization users (bypasses org selection screen)
-  - Enhanced organization search (displays ALL matching organizations, not just user's)
-  - Backend endpoint for joining organizations as Viewer role
-  - Google Places API integration for organization lookup
-  
-- **Google Places API Integration:**
-  - Backend endpoints for search and place details
-  - Frontend search interface in CreateOrganizationScreen
-  - Auto-fill organization form from Google Places data
-  - Mock data fallback for development
-  
-- **Navigation & UX:**
-  - Consistent AppHeader component across all screens
-  - Display of organization name and user role in header
-  - User profile menu with logout functionality
-  - Context-aware navigation
+#### Acceptance Criteria
 
-- **Database & Security:**
-  - Database schema implementation (Prisma)
-  - Row-Level Security policies
-  - Error handling for authentication
-  - Field name fixes (phone vs phone_number)
-  - Enum value standardization
+- A tenant can switch active organization context; data listings filter by that organization
+- A tenant can create a gig and link it to organizations (venue, client, act, etc.) via roles
+- Any user can search and view shared organizations; only owners/editors can modify them
+- A tenant can attach private notes/tags to a global organization; other tenants cannot see these
+- RLS prevents cross-tenant reads/writes for tenant-private tables
 
-### In Progress 🔄
-- Dashboard screen Supabase integration
-- CreateGigScreen Supabase integration
-- GigDetailScreen Supabase integration
-- GigListScreen Supabase integration
+### 3. Gig Management
 
-### Pending ⏳
-- Equipment management screens
-- Staff management screens
-- Organization annotations interface
-- Participant management interface
-- Real-time subscription implementation
-- Advanced filtering and search
-- Reports and analytics
+#### Core Features
 
----
+**Gig Creation:**
+- Entry of date, time, venue, client/act, status, type, budget, revenue received
+- Staff assigned, equipment from inventory, equipment rentals
+- Basic notes and tags
+- Google Calendar integration for scheduling
 
-## 14. Notes and Considerations
+**Status Tracking:**
+- Statuses: DateHold, Proposed, Booked, Completed, Cancelled, Settled
+- **Status transitions: Any status can transition to any other status (no restrictions)**
+- All status changes recorded in `gig_status_history` for auditability
+- Automated reminders for staff and rental vendors
+- Email/push notifications for upcoming gigs
 
-### 14.1 Google OAuth Setup
-- User must configure Google OAuth provider in Supabase dashboard
-- Follow instructions at: https://supabase.com/docs/guides/auth/social-login/auth-google
-- Required for authentication to work properly
+**Relations Integration:**
+- Link gigs to proposals/bids, bands, venues, clients, personnel, and assets
+- Holistic views of all gig relationships
+- Multiple organizations can participate in a gig with different roles
 
-### 14.2 Database Constraints
-- Organization_id is required for most entities
-- Ensure referential integrity
-- Use UUIDs for all primary keys
-- Timestamps use server-side defaults
+**Reporting:**
+- Generate summaries of past gigs
+- Financial overviews for invoicing
+- Performance analytics
 
-### 14.3 User Experience
-- Smooth onboarding flow
-- Clear error messages
-- Loading states for async operations
-- Responsive design for all screen sizes
-- Intuitive navigation
+#### Core Fields
 
----
+**Required:**
+- Title (1-200 characters)
+- Start date/time (TIMESTAMPTZ)
+- End date/time (TIMESTAMPTZ) - gigs can span midnight, must be after start time
+- Timezone (IANA timezone identifier)
+- Status (enum)
 
-## Document Version
-**Last Updated:** November 7, 2025  
-**Status:** Living document - updated as requirements evolve
+**Optional:**
+- Parent Gig (reference to another gig for hierarchical relationships)
+- Tags (TEXT[], array of strings)
+- Primary contact (user ID)
+- Amount paid (DECIMAL)
+- Notes (TEXT, Markdown-formatted)
+
+#### Gig Hierarchy
+- Gigs can have parent-child relationships to represent complex events (e.g., multi-day festivals, main event + after-parties)
+- Hierarchy depth is tracked for performance and validation (max depth TBD)
+- Child gigs inherit certain properties from parent gigs (timezone, tags)
+- Status changes can optionally cascade from parent to child gigs
+
+#### Organization Relationships
+
+- Link a gig to one or more organizations via roles:
+  - Venue, Client, Act, ProductionCompany, SoundLightingCompany, RentalCompany, Other
+- Multiple links of the same role allowed (e.g., multiple rental companies)
+- Creates `gig_participants` records automatically
+
+#### Calendar Integration
+
+- One-way export: ICS feed per organization and per user (assigned gigs only)
+- Future (MVP+): Google Calendar bi-directional sync with service account
+
+#### Gig Lifecycle Rules
+
+- Booked means client has accepted
+- On transition to Booked, send notification to assigned personnel for confirmation
+- Transitioning to Booked should check for time conflicts (optional warning, not blocking)
+
+### 4. Personnel Management
+
+As a team lead, I want to assign and track hired personnel for each gig so that I can ensure proper staffing and role coverage.
+
+#### Overview
+Assign and track hired personnel for each gig to ensure proper staffing and role coverage.
+
+#### Core Features
+
+**Personnel Database:**
+- List of available staff with skills (sound mixing, lighting design, etc.)
+- Rates, availability calendars, and certifications
+- Contact information and preferences
+
+**Assignment to Gigs:**
+- Select and assign positions (e.g., "FOH Engineer," "Stage Tech") per gig
+- Conflict checks for overlapping schedules
+- Role-based assignments with required counts
+
+**Staff Roles:**
+- Enumerated staff roles (FOH, Monitor, Lighting, Stage, etc.)
+- Global staff_roles table for consistency
+- Enables future staffing template functionality based on gig tags
+
+**Communication Tools:**
+- Basic notifications and messaging
+- Exportable contact lists for gig-day coordination
+- Status tracking (Requested, Confirmed, Declined)
+
+**Performance Tracking:**
+- Log notes, ratings, or feedback post-gig
+- Historical reference for future hiring decisions
+
+#### Assignment Workflow
+
+1. Define staff needs for gig (role, required count, notes)
+2. Create `gig_staff_slots` entries
+3. Assign users to slots via `gig_staff_assignments`
+4. System sends notification to assigned user
+5. User accepts or declines assignment
+6. Status updated, gig manager notified
+
+### 5. Asset Inventory Management
+
+As an inventory manager, I want to track assets for packout and insurance so that I can avoid shortages and maintain accurate records. I want to be able to group assets into kits (there can be many kits with different combinations of the same assets) and then assign kits to gigs. 
+
+#### Overview
+Track assets for packout and insurance to avoid shortages and maintain accurate records.
+
+#### Core Features
+
+**Inventory Catalog:**
+- All assets are scoped to an organization (`organization_id`)
+- Serial numbers must be unique (if provided)
+- Assets can be filtered by category, sub_category, and search query
+- Items with serial numbers, condition, purchase date, value
+- Categories (e.g., mics, lights, cables)
+- Barcode/QR scanning for quick adds
+
+**Kit Management:**
+- Create reusable collections (kits) of equipment that can be assigned to gigs
+- Assets can be included in multiple kits
+- Kits can contain assets from different categories (e.g., "Small Lighting Setup", "XLR Cable Kit")
+- Kit templates for common configurations (e.g., "Wedding DJ Setup", "Concert Front of House")
+- Kit versioning and duplication for variations
+
+**Availability Checks:**
+- Real-time status (available, in use, maintenance)
+- Search by type, location, or condition
+- Low stock alerts
+- Conflict detection to prevent double-booking equipment across overlapping gigs
+
+**Insurance Reporting:**
+- Generate reports on total value, depreciations, item histories
+- Export for insurance claims
+- Track replacement values
+
+**Integration with Gigs:**
+- Assign kits to gigs instead of individual assets
+- Automatic warning of asset conflicts when assigning kits
+- Usage logging for wear-and-tear tracking
+- Packout checklist generation based on assigned kits
+
+#### Core Fields
+
+**Required:**
+- Organization ID
+- Category (1-50 chars, e.g., "Audio", "Lighting", "Video")
+- Manufacturer/model
+
+**Kit Requirements:**
+- Name (1-200 characters)
+- At least one asset must be assigned to each kit
+- Unique constraint: Same asset cannot be added to the same kit multiple times
+- Unique constraint: Same kit cannot be assigned to the same gig multiple times
+
+**Optional but Important:**
+- Serial number (unique per organization if provided)
+- Acquisition date (DATE)
+- Cost (DECIMAL(10,2), >= 0)
+- Replacement value (DECIMAL(10,2), >= 0, for insurance)
+- Sub-category (TEXT)
+- Vendor (TEXT)
+- Type (TEXT)
+- Description (TEXT, Markdown-formatted)
+- Insurance policy added (BOOLEAN, default false)
+
+### 6. Bid Tracking
+
+#### Overview
+Track bids and proposals for gigs throughout the sales process.
+
+#### Core Features
+
+- Link multiple bids to a gig
+- Track amount, date given, result (Pending/Accepted/Rejected/Withdrawn)
+- Notes for context and follow-up
+- Historical reference for pricing and win rates
+
+## Feature Ideas
+
+These are various feature ideas that need more refinement and description
+
+#### Stage Plots
+
+- Interactive editor for diagramming stage layouts
+- Drag-and-drop elements (monitors, lights, instruments)
+- Export to PDF/image
+- Version control and templates
+
+#### Input Lists
+
+- Customizable tables for channels, instruments, mic types
+- Linked to bands for auto-population
+- Export and sharing capabilities
+
+#### Packout Checklists
+
+- Auto-generate based on gig details
+- Include specific equipment for venue type or band needs
+- Checkboxes, quantities, and print/export options
+- Offline support for mobile use
+
+- Templates for recurring setups
+
+#### Technical Riders
+
+- Create and manage rider documents
+- Version control and sharing
+- Template support
+
+## Non-Functional Requirements
+
+### Performance
+- App loads in under 2 seconds
+- Handles up to 500 gigs/assets without lag
+- Efficient database queries with proper indexing
+- Pagination for large result sets
+
+### Security
+- Role-based access control (Admin, Manager, Staff, Viewer)
+- Data encryption at rest and in transit
+- Secure authentication (OAuth, JWT)
+- Row-Level Security for multi-tenant data isolation
+- No sensitive data exposed in error messages or logs
+- HTTPS required in production
+
+### Usability
+- Responsive design for web and mobile
+- Offline support for checklists on mobile
+- Native mobile authentication (biometric)
+- Intuitive navigation and interactions
+- Clear error messages and validation feedback
+- Progressive disclosure of complex forms
+
+### Scalability
+- Cloud-hosted with auto-scaling capability
+- Initial support for 1-10 users per organization
+- Connection pooling for database efficiency
+- Optimized for growth to 100+ users
+
+### Accessibility
+- WCAG AA compliance minimum
+- Proper color contrast
+- Keyboard navigation support
+- Screen reader friendly
+- Touch targets minimum 44x44px
+- Focus states visible
+
+### Mobile Considerations
+- Touch-friendly button sizes (minimum 44x44px)
+- Touch-friendly input heights (minimum 44px)
+- Full-screen layout optimized for mobile viewport
+- Card-based layouts that stack vertically
+- Bottom sheets or modals for secondary actions
+- Sticky headers or action buttons where appropriate
+- Native input types for better mobile keyboard experience
+- Progressive disclosure: Show primary fields first
+
+### Data Integrity
+- Foreign key constraints prevent orphaned records
+- Transactions for multi-step operations
+- Audit trails for critical changes (gig status history)
+- Automatic timestamps (created_at, updated_at)
+- Soft deletes where appropriate
+
+### Technology Constraints
+- Database: PostgreSQL (local dev via Homebrew, Supabase for production)
+- Frontend: React/Next.js with TypeScript
+- No hyperscaler required (Vercel/Render for hosting)
+
+## Competitive Landscape
+
+### Technical Documentation Tools
+- **SoundDocs** - Free, open-source web platform specializing in comprehensive event documentation including patch lists, visual stage plots, mic plots, pixel maps, run of shows, production schedules, comms planning, and audio analysis tools. Strong focus on technical production documentation but lacks business operations like gig booking, personnel management, and equipment inventory tracking.
+- **BandHelper** - Cross-platform (iOS, Android, Mac, web) band management app with stage plots, input lists, set lists, contact databases, and multi-user collaboration. Comprehensive for band operations but lacks equipment inventory tracking and personnel hiring workflows.
+- **Stage Plot Pro**, **StagePlot Guru**, **Stage Plan** - Focus on visual setups and technical specs but lack full gig/personnel/inventory management
+
+### Gig and Venue Management Software
+- **Prism.fm** - Comprehensive music venue platform with gig booking, centralized calendars, artist holds, settlements, staff management/scheduling, technical rider handling, and ticketing integration. Strong on venue operations and artist management but lacks technical production tools like stage plots, input lists, and equipment inventory tracking.
+- **Opendate** - Venue calendar and booking software with artist discovery features and Spotify integrations for band data. Handles booking workflows and management/agent contacts but lacks personnel position tracking, equipment inventory, and technical configuration tools.
+- **My Nightclub Manager** - Closest competitor with staff scheduling, inventory control, and stage plot visualization, but venue-centric
+
+### Personnel and Crew Management
+- **CrewCaller Pro** - Focuses on crew assignments, scheduling, notifications, and availability tracking for roles/shifts. Strong on personnel coordination but requires integration with gig management and equipment systems.
+- **EventPro** - Venue management software with room/resource scheduling, personnel coordination, and event planning capabilities. Comprehensive for venue operations but lacks technical production tools and equipment inventory.
+
+### Additional Tools
+- **Gigwell** - Agent-focused venue booking software with event management and scheduling. Handles client relationships and basic personnel but gaps in inventory and technical production setups.
+
+### Gap Analysis
+The competitive landscape shows significant fragmentation. Technical documentation tools like SoundDocs excel at production paperwork but ignore business operations. Gig management platforms like Prism.fm and BandHelper handle scheduling and basic coordination but lack deep technical production capabilities. Venue-specific tools focus on operations but miss the broader production ecosystem. Most organizations currently combine 2-4 different apps to cover their needs, creating workflow inefficiencies and data silos.
+
+### Differentiation
+
+**What makes GigManager unique:**
+
+- **Complete integration**: Seamlessly connects gig management, equipment inventory, personnel coordination, technical documentation, and financial tracking in a single platform
+- **Multi-stakeholder collaboration**: Enables all participating organizations (production companies, sound/lighting crews, venues, acts) to share data while maintaining appropriate access controls
+- **Technical depth**: Combines business operations with production-specific tools (stage plots, input lists, packout checklists) that general event software lacks
+- **Equipment intelligence**: Advanced inventory management with insurance reporting, conflict detection, and auto-generated checklists
+- **Offline-first mobile experience**: Full functionality in low-connectivity environments with biometric authentication
+- **Open ecosystem**: Shared organization profiles prevent data duplication while maintaining tenant-specific relationships
+
+## Related Documentation
+
+- **Database Schema**: See SPECIFICATIONS/DATABASE.md
+- **User Flows**: See SPECIFICATIONS/UI_FLOWS.md
+- **Tech Stack**: See TECH_STACK.md
