@@ -10,10 +10,10 @@ Supabase's `db dump` command is a wrapper around PostgreSQL's `pg_dump` tool, bu
 
 ```bash
 # Schema only
-supabase db dump --schema public -f schema.sql
+supabase db dump --schema public -f schema_dump.sql
 
 # Data only – you’ll still get the circular FK warning, but the file is created
-supabase db dump --data-only --schema public --use-copy -f data.sql
+supabase db dump --data-only --schema public --use-copy -f data_dump.sql
 ```
 
 To actually restore `data.sql` later without FK errors, 

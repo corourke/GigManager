@@ -42,7 +42,7 @@ A comprehensive web application for production and event management companies to
 
 3. **Set up Supabase**
    - Create a new Supabase project
-   - Run the database migrations in `supabase/migrations/`
+   - Run the database schema in `supabase/schema.sql` in your Supabase SQL Editor
    - Configure Google OAuth in Supabase Auth settings
    - Copy `.env.example` to `.env.local` and add your Supabase credentials
 
@@ -55,10 +55,10 @@ A comprehensive web application for production and event management companies to
    ```
 
 5. **Run database setup**
-   ```bash
-   # Apply migrations (if not done automatically)
-   # Set up RLS policies
-   ```
+   - Open your Supabase project dashboard
+   - Go to SQL Editor
+   - Copy and paste the contents of `supabase/schema.sql`
+   - Execute the script to create all tables, functions, and policies
 
 6. **Start development server**
    ```bash
@@ -76,7 +76,7 @@ A comprehensive web application for production and event management companies to
 │   │   └── supabase/       # Supabase client utilities
 │   └── styles/             # Global styles and Tailwind config
 ├── supabase/               # Supabase backend code
-│   ├── migrations/         # Database migrations
+│   ├── schema.sql         # Complete database schema (single source of truth)
 │   └── functions/          # Edge functions
 ├── docs/                   # Documentation
 └── public/                 # Static assets
@@ -106,7 +106,7 @@ npm test
 
 ### Database Management
 
-Database schema and migrations are managed through Supabase. See `docs/setup/` for detailed setup instructions.
+The database schema is defined in `supabase/schema.sql`. This is the single source of truth for fresh database setups. Simply run the entire file in your Supabase SQL Editor to set up a new database. See `docs/setup/` for detailed setup instructions.
 
 ## Deployment
 
