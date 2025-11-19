@@ -1,7 +1,8 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Building2, Search, Loader2, MapPin, Phone, Globe, Check, AlertCircle, X, ChevronLeft } from 'lucide-react';
 import { toast } from 'sonner@2.0.3';
 import type { Organization, OrganizationType } from '../App';
+import { useFormWithChanges } from '../utils/hooks/useFormWithChanges';
 import { createClient } from '../utils/supabase/client';
 import { projectId } from '../utils/supabase/info';
 import { Button } from './ui/button';
@@ -161,6 +162,25 @@ export default function CreateOrganizationScreen({
     postal_code: organization?.postal_code || '',
     country: organization?.country || '',
     allowed_domains: organization?.allowed_domains || '',
+  });
+
+  // Change detection for efficient updates
+  const changeDetection = useFormWithChanges({
+    initialData: {
+      name: organization?.name || '',
+      type: organization?.type || '',
+      url: organization?.url || '',
+      phone_number: organization?.phone_number || '',
+      description: organization?.description || '',
+      address_line1: organization?.address_line1 || '',
+      address_line2: organization?.address_line2 || '',
+      city: organization?.city || '',
+      state: organization?.state || '',
+      postal_code: organization?.postal_code || '',
+      country: organization?.country || '',
+      allowed_domains: organization?.allowed_domains || '',
+    },
+    currentData: formData,
   });
 
   const [errors, setErrors] = useState<FormErrors>({});
@@ -466,20 +486,64 @@ export default function CreateOrganizationScreen({
         return;
       }
 
-      const requestBody = {
-        name: formData.name.trim(),
-        type: formData.type,
-        url: formData.url.trim() || null,
-        phone_number: formData.phone_number.trim() || null,
-        description: formData.description.trim() || null,
-        address_line1: formData.address_line1.trim() || null,
-        address_line2: formData.address_line2.trim() || null,
-        city: formData.city.trim() || null,
-        state: formData.state.trim() || null,
-        postal_code: formData.postal_code.trim() || null,
-        country: formData.country.trim() || null,
-        allowed_domains: formData.allowed_domains.trim() || null,
-      };
+      // Get only changed fields for efficiency in edit mode
+      const changedFields = isEditMode ? changeDetection.getChangedFields() : {};
+
+      const requestBody: any = {};
+
+      // In create mode, send all fields. In edit mode, only send changed fields
+      if (!isEditMode) {
+        requestBody.name = formData.name.trim();
+        requestBody.type = formData.type;
+        requestBody.url = formData.url.trim() || null;
+        requestBody.phone_number = formData.phone_number.trim() || null;
+        requestBody.description = formData.description.trim() || null;
+        requestBody.address_line1 = formData.address_line1.trim() || null;
+        requestBody.address_line2 = formData.address_line2.trim() || null;
+        requestBody.city = formData.city.trim() || null;
+        requestBody.state = formData.state.trim() || null;
+        requestBody.postal_code = formData.postal_code.trim() || null;
+        requestBody.country = formData.country.trim() || null;
+        requestBody.allowed_domains = formData.allowed_domains.trim() || null;
+      } else {
+        // Only send changed fields in edit mode
+        if (changedFields.name !== undefined) {
+          requestBody.name = formData.name.trim();
+        }
+        if (changedFields.type !== undefined) {
+          requestBody.type = formData.type;
+        }
+        if (changedFields.url !== undefined) {
+          requestBody.url = formData.url.trim() || null;
+        }
+        if (changedFields.phone_number !== undefined) {
+          requestBody.phone_number = formData.phone_number.trim() || null;
+        }
+        if (changedFields.description !== undefined) {
+          requestBody.description = formData.description.trim() || null;
+        }
+        if (changedFields.address_line1 !== undefined) {
+          requestBody.address_line1 = formData.address_line1.trim() || null;
+        }
+        if (changedFields.address_line2 !== undefined) {
+          requestBody.address_line2 = formData.address_line2.trim() || null;
+        }
+        if (changedFields.city !== undefined) {
+          requestBody.city = formData.city.trim() || null;
+        }
+        if (changedFields.state !== undefined) {
+          requestBody.state = formData.state.trim() || null;
+        }
+        if (changedFields.postal_code !== undefined) {
+          requestBody.postal_code = formData.postal_code.trim() || null;
+        }
+        if (changedFields.country !== undefined) {
+          requestBody.country = formData.country.trim() || null;
+        }
+        if (changedFields.allowed_domains !== undefined) {
+          requestBody.allowed_domains = formData.allowed_domains.trim() || null;
+        }
+      }
 
       let url = `https://${projectId}.supabase.co/functions/v1/make-server-de012ad4/organizations`;
       let method = 'POST';
@@ -510,6 +574,23 @@ export default function CreateOrganizationScreen({
 
       if (isEditMode) {
         toast.success('Organization updated successfully!');
+
+        // Mark as saved for change detection
+        changeDetection.markAsSaved({
+          name: resultOrganization.name || '',
+          type: resultOrganization.type || '',
+          url: resultOrganization.url || '',
+          phone_number: resultOrganization.phone_number || '',
+          description: resultOrganization.description || '',
+          address_line1: resultOrganization.address_line1 || '',
+          address_line2: resultOrganization.address_line2 || '',
+          city: resultOrganization.city || '',
+          state: resultOrganization.state || '',
+          postal_code: resultOrganization.postal_code || '',
+          country: resultOrganization.country || '',
+          allowed_domains: resultOrganization.allowed_domains || '',
+        });
+
         onOrganizationUpdated?.(resultOrganization);
       } else {
         toast.success('Organization created successfully!');
@@ -929,7 +1010,7 @@ export default function CreateOrganizationScreen({
                 {isEditMode ? (
                   <Button
                     type="submit"
-                    disabled={isSubmitting}
+                    disabled={isSubmitting || !changeDetection.hasChanges}
                     className="bg-sky-500 hover:bg-sky-600 text-white sm:ml-auto"
                   >
                     {isSubmitting ? (

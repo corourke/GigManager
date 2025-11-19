@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Button } from './ui/button';
 import { Loader2, User as UserIcon } from 'lucide-react';
+import { useFormWithChanges } from '../utils/hooks/useFormWithChanges';
 import {
   Dialog,
   DialogContent,
@@ -39,12 +40,31 @@ export default function EditUserProfileDialog({
     postal_code: '',
     country: '',
   });
+
+  // Change detection for efficient updates
+  const changeDetection = useFormWithChanges({
+    initialData: {
+      first_name: '',
+      last_name: '',
+      email: '',
+      phone: '',
+      avatar_url: '',
+      address_line1: '',
+      address_line2: '',
+      city: '',
+      state: '',
+      postal_code: '',
+      country: '',
+    },
+    currentData: formData,
+  });
+
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Populate form when dialog opens or user changes
   useEffect(() => {
     if (open && user) {
-      setFormData({
+      const loadedData = {
         first_name: user.first_name || '',
         last_name: user.last_name || '',
         email: user.email || '',
@@ -56,7 +76,12 @@ export default function EditUserProfileDialog({
         state: user.state || '',
         postal_code: user.postal_code || '',
         country: user.country || '',
-      });
+      };
+
+      setFormData(loadedData);
+
+      // Load initial data for change detection
+      changeDetection.loadInitialData(loadedData);
     }
   }, [open, user]);
 
@@ -81,9 +106,53 @@ export default function EditUserProfileDialog({
         return;
       }
 
+      // Get only changed fields for efficiency
+      const changedFields = changeDetection.getChangedFields();
+
+      const requestBody: any = {};
+
+      // Only send changed fields
+      if (changedFields.first_name !== undefined) {
+        requestBody.first_name = formData.first_name || undefined;
+      }
+      if (changedFields.last_name !== undefined) {
+        requestBody.last_name = formData.last_name || undefined;
+      }
+      if (changedFields.phone !== undefined) {
+        requestBody.phone = formData.phone || undefined;
+      }
+      if (changedFields.avatar_url !== undefined) {
+        requestBody.avatar_url = formData.avatar_url || undefined;
+      }
+      if (changedFields.address_line1 !== undefined) {
+        requestBody.address_line1 = formData.address_line1 || undefined;
+      }
+      if (changedFields.address_line2 !== undefined) {
+        requestBody.address_line2 = formData.address_line2 || undefined;
+      }
+      if (changedFields.city !== undefined) {
+        requestBody.city = formData.city || undefined;
+      }
+      if (changedFields.state !== undefined) {
+        requestBody.state = formData.state || undefined;
+      }
+      if (changedFields.postal_code !== undefined) {
+        requestBody.postal_code = formData.postal_code || undefined;
+      }
+      if (changedFields.country !== undefined) {
+        requestBody.country = formData.country || undefined;
+      }
+
+      // If no fields changed, don't make the request
+      if (Object.keys(requestBody).length === 0) {
+        toast.info('No changes to save');
+        setIsSubmitting(false);
+        return;
+      }
+
       const supabaseUrl = `https://${projectId}.supabase.co`;
       const accessToken = session.access_token;
-      
+
       // Update user profile via server endpoint
       const response = await fetch(`${supabaseUrl}/functions/v1/make-server-de012ad4/users/${user.id}`, {
         method: 'PUT',
@@ -91,18 +160,7 @@ export default function EditUserProfileDialog({
           'Authorization': `Bearer ${accessToken}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          first_name: formData.first_name || undefined,
-          last_name: formData.last_name || undefined,
-          phone: formData.phone || undefined,
-          avatar_url: formData.avatar_url || undefined,
-          address_line1: formData.address_line1 || undefined,
-          address_line2: formData.address_line2 || undefined,
-          city: formData.city || undefined,
-          state: formData.state || undefined,
-          postal_code: formData.postal_code || undefined,
-          country: formData.country || undefined,
-        }),
+        body: JSON.stringify(requestBody),
       });
 
       if (!response.ok) {
@@ -128,6 +186,22 @@ export default function EditUserProfileDialog({
       };
 
       toast.success('Profile updated successfully!');
+
+      // Mark as saved for change detection
+      changeDetection.markAsSaved({
+        first_name: updatedUser.first_name || '',
+        last_name: updatedUser.last_name || '',
+        email: updatedUser.email || '',
+        phone: updatedUser.phone || '',
+        avatar_url: updatedUser.avatar_url || '',
+        address_line1: updatedUser.address_line1 || '',
+        address_line2: updatedUser.address_line2 || '',
+        city: updatedUser.city || '',
+        state: updatedUser.state || '',
+        postal_code: updatedUser.postal_code || '',
+        country: updatedUser.country || '',
+      });
+
       onProfileUpdated(updatedUser);
       onOpenChange(false);
     } catch (err: any) {
@@ -172,7 +246,7 @@ export default function EditUserProfileDialog({
           </Button>
           <Button
             onClick={handleSubmit}
-            disabled={isSubmitting}
+            disabled={isSubmitting || !changeDetection.hasChanges}
             className="bg-sky-500 hover:bg-sky-600 text-white"
           >
             {isSubmitting ? (

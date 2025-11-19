@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from './ui/button';
+import { useFormWithChanges } from '../utils/hooks/useFormWithChanges';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Card } from './ui/card';
@@ -50,6 +51,22 @@ export default function UserProfileCompletionScreen({
     country: '',
   });
 
+  // Change detection for efficient updates
+  const changeDetection = useFormWithChanges({
+    initialData: {
+      first_name: user.first_name || '',
+      last_name: user.last_name || '',
+      phone: '',
+      address_line1: '',
+      address_line2: '',
+      city: '',
+      state: '',
+      postal_code: '',
+      country: '',
+    },
+    currentData: formData,
+  });
+
   const [errors, setErrors] = useState<FormErrors>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -95,9 +112,50 @@ export default function UserProfileCompletionScreen({
         return;
       }
 
+      // Get only changed fields for efficiency
+      const changedFields = changeDetection.getChangedFields();
+
+      const requestBody: any = {};
+
+      // Only send changed fields
+      if (changedFields.first_name !== undefined) {
+        requestBody.first_name = formData.first_name || undefined;
+      }
+      if (changedFields.last_name !== undefined) {
+        requestBody.last_name = formData.last_name || undefined;
+      }
+      if (changedFields.phone !== undefined) {
+        requestBody.phone = formData.phone || undefined;
+      }
+      if (changedFields.address_line1 !== undefined) {
+        requestBody.address_line1 = formData.address_line1 || undefined;
+      }
+      if (changedFields.address_line2 !== undefined) {
+        requestBody.address_line2 = formData.address_line2 || undefined;
+      }
+      if (changedFields.city !== undefined) {
+        requestBody.city = formData.city || undefined;
+      }
+      if (changedFields.state !== undefined) {
+        requestBody.state = formData.state || undefined;
+      }
+      if (changedFields.postal_code !== undefined) {
+        requestBody.postal_code = formData.postal_code || undefined;
+      }
+      if (changedFields.country !== undefined) {
+        requestBody.country = formData.country || undefined;
+      }
+
+      // If no fields changed, don't make the request
+      if (Object.keys(requestBody).length === 0) {
+        toast.info('No changes to save');
+        setIsSubmitting(false);
+        return;
+      }
+
       const supabaseUrl = `https://${projectId}.supabase.co`;
       const accessToken = session.access_token;
-      
+
       // Update user profile via server endpoint
       const response = await fetch(`${supabaseUrl}/functions/v1/server/users/${user.id}`, {
         method: 'PUT',
@@ -105,17 +163,7 @@ export default function UserProfileCompletionScreen({
           'Authorization': `Bearer ${accessToken}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          first_name: formData.first_name || undefined,
-          last_name: formData.last_name || undefined,
-          phone: formData.phone || undefined,
-          address_line1: formData.address_line1 || undefined,
-          address_line2: formData.address_line2 || undefined,
-          city: formData.city || undefined,
-          state: formData.state || undefined,
-          postal_code: formData.postal_code || undefined,
-          country: formData.country || undefined,
-        }),
+        body: JSON.stringify(requestBody),
       });
 
       if (!response.ok) {
@@ -133,6 +181,20 @@ export default function UserProfileCompletionScreen({
       };
 
       toast.success('Profile updated successfully!');
+
+      // Mark as saved for change detection
+      changeDetection.markAsSaved({
+        first_name: updatedUser.first_name || '',
+        last_name: updatedUser.last_name || '',
+        phone: '',
+        address_line1: '',
+        address_line2: '',
+        city: '',
+        state: '',
+        postal_code: '',
+        country: '',
+      });
+
       onProfileCompleted(updatedUser);
     } catch (err: any) {
       console.error('Error updating profile:', err);
@@ -332,7 +394,7 @@ export default function UserProfileCompletionScreen({
               </Button>
               <Button
                 type="submit"
-                disabled={isSubmitting}
+                disabled={isSubmitting || !changeDetection.hasChanges}
                 className="bg-sky-500 hover:bg-sky-600 text-white sm:ml-auto"
               >
                 {isSubmitting ? (

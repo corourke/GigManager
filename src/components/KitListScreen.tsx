@@ -1,5 +1,6 @@
-import { useState, useEffect } from 'react';
-import { Package, Plus, Search, Loader2, Edit2, Trash2, Copy, Eye } from 'lucide-react';
+import { useState, useEffect, useMemo } from 'react';
+import { Package, Plus, Search, Loader2, Edit2, Trash2, Copy, Eye, AlertCircle } from 'lucide-react';
+import { useRealtimeList } from '../utils/hooks/useRealtimeList';
 import { toast } from 'sonner@2.0.3';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -50,37 +51,45 @@ export default function KitListScreen({
   onSwitchOrganization,
   onLogout,
 }: KitListScreenProps) {
-  const [kits, setKits] = useState<any[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  // Memoize filters to prevent infinite re-renders
+  const kitFilters = useMemo(() => ({ organization_id: organization.id }), [organization.id]);
+
+  // Real-time kit list
+  const { data: allKits, loading: isLoading, error, refresh } = useRealtimeList<any>({
+    table: 'kits',
+    filters: kitFilters,
+    enabled: true,
+  });
+
   const [searchQuery, setSearchQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
 
-  useEffect(() => {
-    loadKits();
-  }, [organization.id, categoryFilter, searchQuery]);
-
-  const loadKits = async () => {
-    setIsLoading(true);
-    try {
-      const filters: any = {};
-      if (categoryFilter && categoryFilter !== 'all') filters.category = categoryFilter;
-      if (searchQuery) filters.search = searchQuery;
-
-      const data = await getKits(organization.id, filters);
-      setKits(data);
-    } catch (error: any) {
-      console.error('Error loading kits:', error);
-      toast.error(error.message || 'Failed to load kits');
-    } finally {
-      setIsLoading(false);
+  // Filter kits based on current filters
+  const kits = allKits.filter((kit) => {
+    // Category filter
+    if (categoryFilter !== 'all' && kit.category !== categoryFilter) {
+      return false;
     }
-  };
+
+    // Search filter
+    if (searchQuery) {
+      const query = searchQuery.toLowerCase();
+      return (
+        kit.name?.toLowerCase().includes(query) ||
+        kit.category?.toLowerCase().includes(query) ||
+        kit.tag_number?.toLowerCase().includes(query) ||
+        kit.description?.toLowerCase().includes(query)
+      );
+    }
+
+    return true;
+  });
 
   const handleDuplicateKit = async (kitId: string, kitName: string) => {
     try {
       const newKit = await duplicateKit(kitId);
       toast.success(`Kit "${kitName}" duplicated successfully`);
-      loadKits();
+      // Real-time list will automatically update
     } catch (error: any) {
       console.error('Error duplicating kit:', error);
       toast.error(error.message || 'Failed to duplicate kit');
@@ -93,7 +102,7 @@ export default function KitListScreen({
     try {
       await deleteKit(kitId);
       toast.success('Kit deleted successfully');
-      loadKits();
+      // Real-time list will automatically update
     } catch (error: any) {
       console.error('Error deleting kit:', error);
       toast.error(error.message || 'Failed to delete kit');
@@ -192,7 +201,16 @@ export default function KitListScreen({
 
         {/* Kits Table */}
         <Card className="p-6">
-          {isLoading ? (
+          {error ? (
+            <div className="text-center py-12">
+              <AlertCircle className="w-16 h-16 text-red-400 mx-auto mb-4" />
+              <h3 className="text-gray-900 mb-2">Error loading kits</h3>
+              <p className="text-gray-600 mb-6">{error}</p>
+              <Button onClick={refresh} variant="outline">
+                Try Again
+              </Button>
+            </div>
+          ) : isLoading ? (
             <div className="flex items-center justify-center py-12">
               <Loader2 className="w-8 h-8 animate-spin text-sky-500" />
             </div>

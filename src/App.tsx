@@ -366,6 +366,7 @@ function App() {
           onNavigateToAssets={handleNavigateToAssets}
           onNavigateToKits={handleNavigateToKits}
           onEditProfile={handleEditProfile}
+          onNavigateToGigEdit={handleViewGig}
         />
       )}
 

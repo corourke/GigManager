@@ -1,5 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { toast } from 'sonner@2.0.3';
+import { useRealtimeList } from '../utils/hooks/useRealtimeList';
 import { 
   Users, 
   Plus, 
@@ -97,7 +98,6 @@ interface OrganizationMember {
     postal_code?: string;
     country?: string;
     user_status?: string;
-    last_sign_in_at?: string | null;
   };
 }
 
@@ -126,7 +126,34 @@ export default function TeamScreen({
   onEditProfile,
   onLogout,
 }: TeamScreenProps) {
-  const [members, setMembers] = useState<OrganizationMember[]>([]);
+  // Memoize filters to prevent infinite re-renders
+  const memberFilters = useMemo(() => ({ organization_id: organization.id }), [organization.id]);
+
+  // Real-time organization members
+  const { data: members, loading: membersLoading, error: membersError, refresh: refreshMembers } = useRealtimeList<OrganizationMember>({
+    table: 'organization_members',
+    select: `
+      *,
+      user:users(
+        id,
+        first_name,
+        last_name,
+        email,
+        phone,
+        avatar_url,
+        address_line1,
+        address_line2,
+        city,
+        state,
+        postal_code,
+        country,
+        user_status
+      )
+    `,
+    filters: memberFilters,
+    enabled: true,
+  });
+
   const [invitations, setInvitations] = useState<Invitation[]>([]);
   const [invitationsTableExists, setInvitationsTableExists] = useState(true);
   const [isLoading, setIsLoading] = useState(true);
@@ -175,7 +202,7 @@ export default function TeamScreen({
   const canManageTeam = userRole === 'Admin' || userRole === 'Manager';
 
   useEffect(() => {
-    loadData();
+    loadInvitationsAndRoles();
   }, [organization.id]);
 
   useEffect(() => {
@@ -190,15 +217,13 @@ export default function TeamScreen({
     return () => clearTimeout(timer);
   }, [userSearchQuery]);
 
-  const loadData = async () => {
+  const loadInvitationsAndRoles = async () => {
     setIsLoading(true);
     try {
-      const [membersData, invitationsData, staffRolesData] = await Promise.all([
-        getOrganizationMembersWithAuth(organization.id),
+      const [invitationsData, staffRolesData] = await Promise.all([
         getOrganizationInvitations(organization.id),
         getStaffRoles(),
       ]);
-      setMembers(membersData);
       setStaffRoles(staffRolesData);
       // Filter to only pending invitations, and handle empty array gracefully
       if (Array.isArray(invitationsData)) {
@@ -209,7 +234,7 @@ export default function TeamScreen({
         setInvitationsTableExists(false);
       }
     } catch (error: any) {
-      console.error('Error loading team data:', error);
+      console.error('Error loading invitations and roles:', error);
       toast.error(error.message || 'Failed to load team data');
     } finally {
       setIsLoading(false);
@@ -240,8 +265,8 @@ export default function TeamScreen({
 
     setIsSubmitting(true);
     try {
-      const newMember = await addExistingUserToOrganization(organization.id, selectedUser.id, selectedUserRole);
-      setMembers([...members, newMember]);
+      await addExistingUserToOrganization(organization.id, selectedUser.id, selectedUserRole);
+      // Real-time list will automatically update
       setShowAddDialog(false);
       setSelectedUser(null);
       setUserSearchQuery('');
@@ -274,9 +299,9 @@ export default function TeamScreen({
       
       // Add invitation to list
       setInvitations([...invitations, result.invitation]);
-      
+
       // Reload members to show the new pending user
-      await loadData();
+      await refreshMembers();
       
       setShowAddDialog(false);
       setInviteFirstName('');
@@ -305,7 +330,7 @@ export default function TeamScreen({
 
   const handleEditMember = async () => {
     if (!memberToEdit) return;
-    
+
     if (!editForm.first_name.trim() || !editForm.last_name.trim() || !editForm.email.trim()) {
       toast.error('Please fill in all required fields');
       return;
@@ -313,8 +338,13 @@ export default function TeamScreen({
 
     setIsSubmitting(true);
     try {
-      const updatedMember = await updateMemberDetails(memberToEdit.id, editForm);
-      setMembers(members.map(m => m.id === memberToEdit.id ? updatedMember : m));
+      // Don't allow role changes for current user
+      const updateData = memberToEdit.user.id === user.id
+        ? { ...editForm, role: undefined, default_staff_role_id: undefined }
+        : editForm;
+
+      await updateMemberDetails(memberToEdit.id, updateData);
+      // Real-time list will automatically update
       setShowEditDialog(false);
       setMemberToEdit(null);
       toast.success('Member updated successfully');
@@ -332,7 +362,7 @@ export default function TeamScreen({
     setIsRemoving(true);
     try {
       await removeMember(memberToRemove.id);
-      setMembers(members.filter(m => m.id !== memberToRemove.id));
+      // Real-time list will automatically update
       setMemberToRemove(null);
       toast.success('Member removed');
     } catch (error: any) {
@@ -468,7 +498,15 @@ export default function TeamScreen({
         {/* Members Table */}
         <Card className="p-6 mb-6">
           <h2 className="mb-4 text-gray-900">Active Members</h2>
-          {isLoading ? (
+          {membersError ? (
+            <div className="text-center py-12">
+              <div className="text-red-500 mb-4">Error loading team members</div>
+              <p className="text-gray-600 mb-4">{membersError}</p>
+              <Button onClick={refreshMembers} variant="outline">
+                Try Again
+              </Button>
+            </div>
+          ) : isLoading || membersLoading ? (
             <div className="flex items-center justify-center py-12">
               <Loader2 className="w-8 h-8 animate-spin text-gray-400" />
             </div>
@@ -491,7 +529,7 @@ export default function TeamScreen({
                 </TableHeader>
                 <TableBody>
                   {members.map((member) => {
-                    const isCurrentUser = member.user.id === user.id;
+                    const isCurrentUser = member.user?.id === user.id;
                     const memberName = `${member.user.first_name} ${member.user.last_name}`.trim();
                     
                     return (
@@ -521,35 +559,30 @@ export default function TeamScreen({
                             </Badge>
                           ) : (
                             <div className="text-sm text-gray-600">
-                              {member.user.last_sign_in_at 
-                                ? format(new Date(member.user.last_sign_in_at), 'MMM d, yyyy h:mm a')
-                                : 'Never'
-                              }
+                              Never
                             </div>
                           )}
                         </TableCell>
                         {canManageTeam && (
                           <TableCell className="text-right">
                             <div className="flex items-center justify-end gap-2">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => openEditDialog(member)}
+                                className="text-gray-600"
+                              >
+                                <Pencil className="w-4 h-4" />
+                              </Button>
                               {!isCurrentUser && (
-                                <>
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() => openEditDialog(member)}
-                                    className="text-gray-600"
-                                  >
-                                    <Pencil className="w-4 h-4" />
-                                  </Button>
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() => setMemberToRemove(member)}
-                                    className="text-red-600"
-                                  >
-                                    <Trash2 className="w-4 h-4" />
-                                  </Button>
-                                </>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => setMemberToRemove(member)}
+                                  className="text-red-600"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </Button>
                               )}
                             </div>
                           </TableCell>
@@ -900,8 +933,8 @@ export default function TeamScreen({
             onChange={(field, value) => setEditForm({ ...editForm, [field]: value })}
             disabled={isSubmitting}
             emailReadOnly={true}
-            showRole={true}
-            showDefaultStaffRole={true}
+            showRole={memberToEdit ? memberToEdit.user.id !== user.id : true}
+            showDefaultStaffRole={memberToEdit ? memberToEdit.user.id !== user.id : true}
             staffRoles={staffRoles}
             requiredFields={['first_name', 'last_name', 'email']}
           />

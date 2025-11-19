@@ -2532,3 +2532,93 @@ export async function deleteGigBid(bidId: string) {
 
   return { success: true };
 }
+
+// ===== Gig Participant Management =====
+
+export async function updateGigVenue(gigId: string, organizationId: string | null) {
+  const supabase = getSupabase();
+
+  if (organizationId) {
+    // First check if there's already a venue participant
+    const { data: existing } = await supabase
+      .from('gig_participants')
+      .select('id')
+      .eq('gig_id', gigId)
+      .eq('role', 'Venue')
+      .single();
+
+    if (existing) {
+      // Update existing venue participant
+      const { error } = await supabase
+        .from('gig_participants')
+        .update({ organization_id: organizationId })
+        .eq('id', existing.id);
+
+      if (error) throw error;
+    } else {
+      // Create new venue participant
+      const { error } = await supabase
+        .from('gig_participants')
+        .insert({
+          gig_id: gigId,
+          organization_id: organizationId,
+          role: 'Venue'
+        });
+
+      if (error) throw error;
+    }
+  } else {
+    // Remove venue participant if organizationId is null
+    const { error } = await supabase
+      .from('gig_participants')
+      .delete()
+      .eq('gig_id', gigId)
+      .eq('role', 'Venue');
+
+    if (error) throw error;
+  }
+}
+
+export async function updateGigAct(gigId: string, organizationId: string | null) {
+  const supabase = getSupabase();
+
+  if (organizationId) {
+    // First check if there's already an act participant
+    const { data: existing } = await supabase
+      .from('gig_participants')
+      .select('id')
+      .eq('gig_id', gigId)
+      .eq('role', 'Act')
+      .single();
+
+    if (existing) {
+      // Update existing act participant
+      const { error } = await supabase
+        .from('gig_participants')
+        .update({ organization_id: organizationId })
+        .eq('id', existing.id);
+
+      if (error) throw error;
+    } else {
+      // Create new act participant
+      const { error } = await supabase
+        .from('gig_participants')
+        .insert({
+          gig_id: gigId,
+          organization_id: organizationId,
+          role: 'Act'
+        });
+
+      if (error) throw error;
+    }
+  } else {
+    // Remove act participant if organizationId is null
+    const { error } = await supabase
+      .from('gig_participants')
+      .delete()
+      .eq('gig_id', gigId)
+      .eq('role', 'Act');
+
+    if (error) throw error;
+  }
+}

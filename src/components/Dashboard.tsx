@@ -27,6 +27,7 @@ interface DashboardProps {
   onNavigateToAssets?: () => void;
   onNavigateToKits?: () => void;
   onEditProfile?: () => void;
+  onNavigateToGigEdit?: (gigId: string) => void;
 }
 
 interface DashboardStats {
@@ -76,6 +77,7 @@ export default function Dashboard({
   onNavigateToAssets,
   onNavigateToKits,
   onEditProfile,
+  onNavigateToGigEdit,
 }: DashboardProps) {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
@@ -332,7 +334,7 @@ export default function Dashboard({
                       id: g.id,
                       title: g.title,
                       start: g.start,
-                      end: g.start, // Use start as end for display purposes
+                      end: g.end || g.start, // Use actual end time if available
                       timezone: 'UTC', // Default timezone
                       status: g.status as any,
                       tags: [],
@@ -343,7 +345,7 @@ export default function Dashboard({
                     }))}
                     mode="dashboard"
                     showActions={false}
-                    onGigClick={onNavigateToGigs}
+                    onGigEdit={onNavigateToGigEdit}
                     emptyMessage="No upcoming gigs in the next 30 days"
                   />
                 )}

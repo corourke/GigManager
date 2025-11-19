@@ -4,6 +4,7 @@ import { RealtimeChannel, RealtimePostgresChangesPayload } from '@supabase/supab
 
 interface UseRealtimeListOptions<T> {
   table: string;
+  select?: string;
   filters?: Record<string, any>;
   orderBy?: string;
   ascending?: boolean;
@@ -22,6 +23,7 @@ interface RealtimeListState<T> {
  */
 export function useRealtimeList<T extends { id: string }>({
   table,
+  select = '*',
   filters = {},
   orderBy,
   ascending = true,
@@ -139,7 +141,7 @@ export function useRealtimeList<T extends { id: string }>({
       setState(prev => ({ ...prev, loading: true, error: null }));
 
       const supabase = createClient();
-      let query = supabase.from(table).select('*');
+      let query = supabase.from(table).select(select);
 
       // Apply filters
       Object.entries(filters).forEach(([key, value]) => {
@@ -173,7 +175,7 @@ export function useRealtimeList<T extends { id: string }>({
         }));
       }
     }
-  }, [table, filters, orderBy, ascending, enabled]);
+  }, [table, select, filters, orderBy, ascending, enabled]);
 
   // Optimistic update for immediate UI feedback
   const optimisticUpdate = useCallback((itemId: string, updates: Partial<T>) => {

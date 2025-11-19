@@ -103,16 +103,6 @@ AS $$
   WHERE user_id = user_uuid;
 $$;
 
-CREATE OR REPLACE FUNCTION get_user_email(user_uuid UUID)
-RETURNS TEXT
-LANGUAGE sql
-SECURITY DEFINER
-STABLE
-SET search_path = public
-AS $$
-  SELECT email FROM auth.users WHERE id = user_uuid;
-$$;
-
 -- ============================================
 -- TRIGGER FUNCTIONS
 -- ============================================
@@ -545,19 +535,34 @@ CREATE POLICY "Admins and Managers can create invitations" ON invitations
 
 CREATE POLICY "Admins and Managers can update invitations, users can accept their own" ON invitations
   FOR UPDATE USING (
-    user_is_admin_or_manager_of_org(organization_id, auth.uid())
+    organization_id IN (
+      SELECT organization_id
+      FROM organization_members
+      WHERE user_id = auth.uid()
+      AND role IN ('Admin', 'Manager')
+    )
     OR
-    email = get_user_email(auth.uid())
+    email = (auth.jwt() ->> 'email')
   )
   WITH CHECK (
-    user_is_admin_or_manager_of_org(organization_id, auth.uid())
+    organization_id IN (
+      SELECT organization_id
+      FROM organization_members
+      WHERE user_id = auth.uid()
+      AND role IN ('Admin', 'Manager')
+    )
     OR
-    email = get_user_email(auth.uid())
+    email = (auth.jwt() ->> 'email')
   );
 
 CREATE POLICY "Admins and Managers can delete invitations" ON invitations
   FOR DELETE USING (
-    user_is_admin_or_manager_of_org(organization_id, auth.uid())
+    organization_id IN (
+      SELECT organization_id 
+      FROM organization_members 
+      WHERE user_id = auth.uid() 
+      AND role IN ('Admin', 'Manager')
+    )
   );
 
 -- Assets policies

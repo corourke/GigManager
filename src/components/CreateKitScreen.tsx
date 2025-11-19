@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Package, ArrowLeft, Save, Loader2, AlertCircle, Plus, X, Search } from 'lucide-react';
+import { useFormWithChanges } from '../utils/hooks/useFormWithChanges';
 import { toast } from 'sonner@2.0.3';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -81,6 +82,20 @@ export default function CreateKitScreen({
     tag_number: '',
     rental_value: '',
   });
+
+  // Change detection for efficient updates
+  const changeDetection = useFormWithChanges({
+    initialData: {
+      name: '',
+      category: '',
+      description: '',
+      tags: [],
+      tag_number: '',
+      rental_value: '',
+    },
+    currentData: formData,
+  });
+
   const [kitAssets, setKitAssets] = useState<KitAsset[]>([]);
   const [errors, setErrors] = useState<Record<string, string>>({});
   
@@ -105,14 +120,19 @@ export default function CreateKitScreen({
     setIsLoading(true);
     try {
       const kit = await getKit(kitId);
-      setFormData({
+      const loadedData = {
         name: kit.name || '',
         category: kit.category || '',
         description: kit.description || '',
         tags: kit.tags || [],
         tag_number: kit.tag_number || '',
         rental_value: kit.rental_value?.toString() || '',
-      });
+      };
+
+      setFormData(loadedData);
+
+      // Load initial data for change detection
+      changeDetection.loadInitialData(loadedData);
       
       setKitAssets(
         (kit.kit_assets || []).map((ka: any) => ({
@@ -234,25 +254,71 @@ export default function CreateKitScreen({
 
     setIsSaving(true);
     try {
-      const kitData = {
+      // Get only changed fields for efficiency in edit mode
+      const changedFields = isEditMode ? changeDetection.getChangedFields() : {};
+
+      const kitData: any = {
         organization_id: organization.id,
-        name: formData.name.trim(),
-        category: formData.category.trim() || undefined,
-        description: formData.description.trim() || undefined,
-        tags: formData.tags,
-        tag_number: formData.tag_number.trim() || undefined,
-        rental_value: formData.rental_value ? parseFloat(formData.rental_value) : undefined,
-        assets: kitAssets.map((ka) => ({
+      };
+
+      // In create mode, send all fields. In edit mode, only send changed fields
+      if (!isEditMode) {
+        kitData.name = formData.name.trim();
+        kitData.category = formData.category.trim() || undefined;
+        kitData.description = formData.description.trim() || undefined;
+        kitData.tags = formData.tags;
+        kitData.tag_number = formData.tag_number.trim() || undefined;
+        kitData.rental_value = formData.rental_value ? parseFloat(formData.rental_value) : undefined;
+        kitData.assets = kitAssets.map((ka) => ({
           id: ka.id,
           asset_id: ka.asset_id,
           quantity: ka.quantity,
           notes: ka.notes.trim() || undefined,
-        })),
-      };
+        }));
+      } else {
+        // Only send changed basic fields in edit mode
+        if (changedFields.name !== undefined) {
+          kitData.name = formData.name.trim();
+        }
+        if (changedFields.category !== undefined) {
+          kitData.category = formData.category.trim() || undefined;
+        }
+        if (changedFields.description !== undefined) {
+          kitData.description = formData.description.trim() || undefined;
+        }
+        if (changedFields.tags !== undefined) {
+          kitData.tags = formData.tags;
+        }
+        if (changedFields.tag_number !== undefined) {
+          kitData.tag_number = formData.tag_number.trim() || undefined;
+        }
+        if (changedFields.rental_value !== undefined) {
+          kitData.rental_value = formData.rental_value ? parseFloat(formData.rental_value) : undefined;
+        }
+
+        // Always send assets in edit mode (complex nested data)
+        kitData.assets = kitAssets.map((ka) => ({
+          id: ka.id,
+          asset_id: ka.asset_id,
+          quantity: ka.quantity,
+          notes: ka.notes.trim() || undefined,
+        }));
+      }
 
       if (isEditMode && kitId) {
         await updateKit(kitId, kitData);
         toast.success('Kit updated successfully');
+
+        // Mark as saved for change detection
+        changeDetection.markAsSaved({
+          name: formData.name.trim(),
+          category: formData.category.trim(),
+          description: formData.description.trim(),
+          tags: formData.tags,
+          tag_number: formData.tag_number.trim(),
+          rental_value: formData.rental_value,
+        });
+
         onKitUpdated();
       } else {
         const newKit = await createKit(kitData);
@@ -574,7 +640,7 @@ export default function CreateKitScreen({
               <div className="space-y-3">
                 <Button
                   onClick={handleSubmit}
-                  disabled={isSaving}
+                  disabled={isSaving || (isEditMode && !changeDetection.hasChanges)}
                   className="w-full bg-sky-500 hover:bg-sky-600 text-white"
                 >
                   {isSaving ? (

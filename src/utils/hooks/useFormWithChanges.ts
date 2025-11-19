@@ -2,9 +2,10 @@ import { useState, useCallback, useRef, useEffect } from 'react';
 import { UseFormReturn, FieldPath, FieldValues } from 'react-hook-form';
 
 export interface UseFormWithChangesOptions<T extends FieldValues> {
-  form: UseFormReturn<T>;
+  form?: UseFormReturn<T>; // Optional for manual state management
   initialData?: Partial<T>;
   enableDeepComparison?: boolean;
+  currentData?: Partial<T>; // For manual state management
 }
 
 export interface FormChangeState<T extends FieldValues> {
@@ -22,6 +23,7 @@ export function useFormWithChanges<T extends FieldValues>({
   form,
   initialData = {},
   enableDeepComparison = true,
+  currentData,
 }: UseFormWithChangesOptions<T>) {
   const [originalData, setOriginalData] = useState<Partial<T>>(initialData);
   const [hasChanges, setHasChanges] = useState(false);
@@ -61,10 +63,17 @@ export function useFormWithChanges<T extends FieldValues>({
   }, []);
 
   /**
+   * Get current values from form or currentData
+   */
+  const getCurrentValues = useCallback((): Partial<T> => {
+    return currentData || (form ? form.getValues() : {});
+  }, [currentData, form]);
+
+  /**
    * Get only the fields that have changed from original data
    */
   const getChangedFields = useCallback((): Partial<T> => {
-    const currentValues = form.getValues();
+    const currentValues = getCurrentValues();
     const changes: Partial<T> = {};
 
     // Check each field in current values
@@ -86,7 +95,7 @@ export function useFormWithChanges<T extends FieldValues>({
     }
 
     return changes;
-  }, [form, originalData, enableDeepComparison, deepEqual]);
+  }, [getCurrentValues, originalData, enableDeepComparison, deepEqual]);
 
   /**
    * Update the changed fields state
@@ -101,15 +110,19 @@ export function useFormWithChanges<T extends FieldValues>({
    * Watch for form changes and update change state
    */
   useEffect(() => {
-    const subscription = form.watch(() => {
-      // Only update if we haven't manually marked as saved
-      if (!markedAsSavedRef.current) {
-        updateChangedFields();
-      }
-    });
-
-    return () => subscription.unsubscribe();
-  }, [form, updateChangedFields]);
+    if (form) {
+      const subscription = form.watch(() => {
+        // Only update if we haven't manually marked as saved
+        if (!markedAsSavedRef.current) {
+          updateChangedFields();
+        }
+      });
+      return () => subscription.unsubscribe();
+    } else if (currentData) {
+      // For manual state management, update when currentData changes
+      updateChangedFields();
+    }
+  }, [form, currentData, updateChangedFields]);
 
   /**
    * Mark the form as saved - update original data to current values
@@ -117,7 +130,7 @@ export function useFormWithChanges<T extends FieldValues>({
   const markAsSaved = useCallback((newData?: Partial<T>) => {
     markedAsSavedRef.current = true;
 
-    const currentValues = form.getValues();
+    const currentValues = getCurrentValues();
     const updatedOriginal = newData || currentValues;
 
     setOriginalData(updatedOriginal);
@@ -128,13 +141,15 @@ export function useFormWithChanges<T extends FieldValues>({
     setTimeout(() => {
       markedAsSavedRef.current = false;
     }, 100);
-  }, [form]);
+  }, [getCurrentValues]);
 
   /**
    * Reset form to original data
    */
   const resetToOriginal = useCallback(() => {
-    form.reset(originalData as T);
+    if (form) {
+      form.reset(originalData as T);
+    }
     setChangedFields({});
     setHasChanges(false);
   }, [form, originalData]);
@@ -144,7 +159,9 @@ export function useFormWithChanges<T extends FieldValues>({
    */
   const loadInitialData = useCallback((data: Partial<T>) => {
     setOriginalData(data);
-    form.reset(data as T);
+    if (form) {
+      form.reset(data as T);
+    }
     setChangedFields({});
     setHasChanges(false);
   }, [form]);
@@ -160,7 +177,7 @@ export function useFormWithChanges<T extends FieldValues>({
     hasChanges,
     changedFields,
     originalData,
-    isDirty: form.formState.isDirty,
+    isDirty: form?.formState.isDirty || false,
   };
 
   return {

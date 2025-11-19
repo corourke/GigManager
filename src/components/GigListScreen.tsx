@@ -6,6 +6,8 @@ import { Card } from './ui/card';
 import { createClient } from '../utils/supabase/client';
 import * as api from '../utils/api';
 import AppHeader from './AppHeader';
+import GigTable from './tables/GigTable';
+import { useRealtimeList } from '../utils/hooks/useRealtimeList';
 import {
   Select,
   SelectContent,
@@ -264,7 +266,12 @@ export default function GigListScreen({
   onLogout,
   useMockData = false,
 }: GigListScreenProps) {
+  // TODO: Implement real-time for gigs (complex due to organization filtering via participants)
+  // For now, load gigs on mount and refresh manually
   const [gigs, setGigs] = useState<Gig[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
   const [venues, setVenues] = useState<Organization[]>(MOCK_VENUES);
   const [acts, setActs] = useState<Organization[]>(MOCK_ACTS);
   const [searchQuery, setSearchQuery] = useState('');
@@ -272,8 +279,127 @@ export default function GigListScreen({
   const [dateFrom, setDateFrom] = useState<Date | undefined>(undefined);
   const [dateTo, setDateTo] = useState<Date | undefined>(undefined);
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
-  const [isLoading, setIsLoading] = useState(true);
   
+  // Handlers for GigTable component
+  const handleGigUpdate = async (gigId: string, field: string, value: any) => {
+    try {
+      // Handle venue and act updates using specialized API functions
+      if (field === 'venue') {
+        await api.updateGigVenue(gigId, value || null);
+        toast.success('Venue updated successfully');
+      } else if (field === 'act') {
+        await api.updateGigAct(gigId, value || null);
+        toast.success('Act updated successfully');
+      } else {
+        let processedValue = value;
+
+        // Handle date field - convert to full ISO datetime string
+        if (field === 'start' && typeof value === 'string') {
+          // Find the existing gig to get the time part
+          const existingGig = gigs.find(g => g.id === gigId);
+          if (existingGig) {
+            const existingDate = new Date(existingGig.start);
+            const newDate = new Date(value);
+            // Preserve the time from the existing date
+            newDate.setHours(existingDate.getHours(), existingDate.getMinutes(), existingDate.getSeconds());
+            processedValue = newDate.toISOString();
+          } else {
+            // Fallback: assume start of day
+            processedValue = new Date(value + 'T00:00:00').toISOString();
+          }
+        }
+
+        await api.updateGig(gigId, { [field]: processedValue });
+        toast.success(`${field} updated successfully`);
+      }
+
+      // Refresh gigs to show the update
+      loadGigs();
+    } catch (error: any) {
+      console.error(`Error updating gig ${field}:`, error);
+      toast.error(`Failed to update ${field}`);
+      throw error;
+    }
+  };
+
+  const handleGigClick = (gigId: string) => {
+    onViewGig(gigId);
+  };
+
+  const handleGigEdit = (gigId: string) => {
+    onViewGig(gigId); // Navigate to edit view
+  };
+
+  const handleGigDuplicate = async (gigId: string) => {
+    try {
+      await api.duplicateGig(gigId);
+      toast.success('Gig duplicated successfully');
+    } catch (error: any) {
+      console.error('Error duplicating gig:', error);
+      toast.error(error.message || 'Failed to duplicate gig');
+    }
+  };
+
+  const handleGigDelete = async (gigId: string) => {
+    if (!confirm('Are you sure you want to delete this gig?')) return;
+
+    try {
+      await api.deleteGig(gigId);
+      toast.success('Gig deleted successfully');
+    } catch (error: any) {
+      console.error('Error deleting gig:', error);
+      toast.error(error.message || 'Failed to delete gig');
+    }
+  };
+
+  // Load gigs on mount
+  useEffect(() => {
+    loadGigs();
+  }, [organization.id]);
+
+  const loadGigs = async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const data = await api.getGigs(organization.id);
+      setGigs(data || []);
+    } catch (error: any) {
+      console.error('Error loading gigs:', error);
+      setError(error.message || 'Failed to load gigs');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Filter gigs based on current filters
+  const filteredGigs = gigs.filter((gig) => {
+    // Search filter
+    if (searchQuery) {
+      const query = searchQuery.toLowerCase();
+      if (!gig.title?.toLowerCase().includes(query)) {
+        return false;
+      }
+    }
+
+    // Status filter
+    if (statusFilter !== 'All' && gig.status !== statusFilter) {
+      return false;
+    }
+
+    // Date range filter
+    if (dateFrom || dateTo) {
+      const gigDate = new Date(gig.start);
+      if (dateFrom && gigDate < dateFrom) return false;
+      if (dateTo && gigDate > dateTo) return false;
+    }
+
+    return true;
+  }).sort((a, b) => {
+    const dateA = new Date(a.start);
+    const dateB = new Date(b.start);
+    return sortOrder === 'asc' ? dateA.getTime() - dateB.getTime() : dateB.getTime() - dateA.getTime();
+  });
+
   // Inline editing state
   const [editingCell, setEditingCell] = useState<EditingCell>(null);
   const [editValue, setEditValue] = useState<any>(null);
@@ -292,104 +418,6 @@ export default function GigListScreen({
   const [actSearch, setActSearch] = useState('');
 
   // Load initial data
-  useEffect(() => {
-    loadData();
-    
-    if (!useMockData) {
-      setupRealtimeSubscription();
-    }
-    
-    return () => {
-      // Cleanup subscription
-      if (!useMockData) {
-        const supabase = createClient();
-        supabase.channel('gigs').unsubscribe();
-      }
-    };
-  }, [organization.id, useMockData]);
-
-  const loadData = async () => {
-    setIsLoading(true);
-    
-    try {
-      if (useMockData) {
-        // Use mock data
-        setGigs(MOCK_GIGS_DATA);
-        setVenues(MOCK_VENUES);
-        setActs(MOCK_ACTS);
-      } else {
-        // Fetch real data
-        const [gigsData, venuesData, actsData] = await Promise.all([
-          api.getGigs(organization.id),
-          api.getOrganizations('Venue'),
-          api.getOrganizations('Act'),
-        ]);
-
-        setGigs(gigsData || []);
-        setVenues(venuesData || []);
-        setActs(actsData || []);
-      }
-    } catch (error: any) {
-      console.error('Error loading data:', error);
-      toast.error('Failed to load data: ' + (error.message || 'Unknown error'));
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const setupRealtimeSubscription = () => {
-    const supabase = createClient();
-    
-    // Subscribe to changes on the gigs table for this organization
-    const channel = supabase
-      .channel('gigs')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'gigs',
-          filter: `organization_id=eq.${organization.id}`,
-        },
-        async (payload) => {
-          console.log('Real-time update:', payload);
-          
-          if (payload.eventType === 'INSERT') {
-            // Fetch the full gig with relations
-            try {
-              const newGig = await api.getGig(payload.new.id);
-              setGigs(prev => [newGig, ...prev]);
-              toast.success('New gig added');
-            } catch (error) {
-              console.error('Error fetching new gig:', error);
-            }
-          } else if (payload.eventType === 'UPDATE') {
-            // For UPDATE, use payload data directly and preserve existing relations
-            // This avoids an unnecessary API call
-            setGigs(prev => prev.map(g => {
-              if (g.id === payload.new.id) {
-                // Update the gig with new data but preserve venue/act relations
-                return {
-                  ...g,
-                  ...payload.new,
-                  // Preserve existing relations (venue/act) since they don't change often
-                  // and would require a separate query to the gig_participants table
-                  venue: g.venue,
-                  act: g.act,
-                };
-              }
-              return g;
-            }));
-          } else if (payload.eventType === 'DELETE') {
-            setGigs(prev => prev.filter(g => g.id !== payload.old.id));
-            toast.success('Gig deleted');
-          }
-        }
-      )
-      .subscribe();
-
-    return channel;
-  };
 
   // Auto-focus input when entering edit mode
   useEffect(() => {
@@ -399,40 +427,6 @@ export default function GigListScreen({
     }
   }, [editingCell]);
 
-  // Filter and sort gigs
-  const filteredGigs = useMemo(() => {
-    let filtered = [...gigs];
-
-    // Search filter
-    if (searchQuery.trim()) {
-      const query = searchQuery.toLowerCase();
-      filtered = filtered.filter((gig) =>
-        gig.title.toLowerCase().includes(query)
-      );
-    }
-
-    // Status filter
-    if (statusFilter !== 'All') {
-      filtered = filtered.filter((gig) => gig.status === statusFilter);
-    }
-
-    // Date range filter
-    if (dateFrom) {
-      filtered = filtered.filter((gig) => new Date(gig.start) >= dateFrom);
-    }
-    if (dateTo) {
-      filtered = filtered.filter((gig) => new Date(gig.start) <= dateTo);
-    }
-
-    // Sort by start datetime
-    filtered.sort((a, b) => {
-      const dateA = new Date(a.start).getTime();
-      const dateB = new Date(b.start).getTime();
-      return sortOrder === 'asc' ? dateA - dateB : dateB - dateA;
-    });
-
-    return filtered;
-  }, [gigs, searchQuery, statusFilter, dateFrom, dateTo, sortOrder]);
 
   const handleClearFilters = () => {
     setSearchQuery('');
@@ -845,37 +839,22 @@ export default function GigListScreen({
 
       {/* Main Content */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        {isLoading ? (
-          <Card>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-12"></TableHead>
-                  <TableHead>Title</TableHead>
-                  <TableHead>Date</TableHead>
-                  <TableHead>Time</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Venue</TableHead>
-                  <TableHead>Act</TableHead>
-                  <TableHead>Tags</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {[1, 2, 3, 4, 5].map((i) => (
-                  <TableRow key={i}>
-                    <TableCell><Skeleton className="h-8 w-8" /></TableCell>
-                    <TableCell><Skeleton className="h-5 w-48" /></TableCell>
-                    <TableCell><Skeleton className="h-5 w-24" /></TableCell>
-                    <TableCell><Skeleton className="h-5 w-28" /></TableCell>
-                    <TableCell><Skeleton className="h-6 w-20" /></TableCell>
-                    <TableCell><Skeleton className="h-5 w-32" /></TableCell>
-                    <TableCell><Skeleton className="h-5 w-32" /></TableCell>
-                    <TableCell><Skeleton className="h-5 w-24" /></TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+        {error ? (
+          <Card className="p-12 text-center">
+            <div className="text-red-500 mb-4">Error loading gigs</div>
+            <p className="text-gray-600 mb-6">{error}</p>
+            <Button onClick={loadGigs} variant="outline">
+              Try Again
+            </Button>
           </Card>
+        ) : isLoading ? (
+          <GigTable
+            gigs={[]}
+            mode="list"
+            showActions={true}
+            loading={true}
+            emptyMessage="Loading gigs..."
+          />
         ) : filteredGigs.length === 0 ? (
           <Card className="p-12 text-center">
             <div className="max-w-md mx-auto">
@@ -903,437 +882,20 @@ export default function GigListScreen({
             </div>
           </Card>
         ) : (
-          <>
-            <div className="mb-4 flex items-center justify-between">
-              <p className="text-sm text-gray-600">
-                Showing {filteredGigs.length} {filteredGigs.length === 1 ? 'gig' : 'gigs'}
-              </p>
-              <p className="text-xs text-gray-500">
-                Click any field to edit inline
-              </p>
-            </div>
-            <Card>
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead className="w-12"></TableHead>
-                      <TableHead>Title</TableHead>
-                      <TableHead>Date</TableHead>
-                      <TableHead>Time</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Venue</TableHead>
-                      <TableHead>Act</TableHead>
-                      <TableHead>Tags</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {filteredGigs.map((gig) => (
-                      <TableRow 
-                        key={gig.id} 
-                        className={`${
-                          editingCell?.gigId === gig.id ? 'bg-sky-50' : ''
-                        }`}
-                      >
-                        {/* Actions Cell */}
-                        <TableCell>
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                                <MoreVertical className="h-4 w-4" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="start">
-                              <DropdownMenuItem onClick={() => onViewGig(gig.id)}>
-                                <Edit className="w-4 h-4 mr-2" />
-                                Edit
-                              </DropdownMenuItem>
-                              <DropdownMenuItem>
-                                <Copy className="w-4 h-4 mr-2" />
-                                Duplicate
-                              </DropdownMenuItem>
-                              <DropdownMenuItem className="text-red-600">
-                                <Trash2 className="w-4 h-4 mr-2" />
-                                Delete
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        </TableCell>
-
-                        {/* Title Cell */}
-                        <TableCell className="relative">
-                          {editingCell?.gigId === gig.id && editingCell?.field === 'title' ? (
-                            <div className="space-y-1">
-                              <Input
-                                ref={inputRef}
-                                value={editValue || ''}
-                                onChange={(e) => setEditValue(e.target.value)}
-                                onBlur={() => saveEdit(gig.id, 'title', editValue)}
-                                onKeyDown={(e) => handleKeyDown(e, gig.id, 'title')}
-                                className={`h-8 ${cellError?.gigId === gig.id && cellError?.field === 'title' ? 'border-red-500' : ''}`}
-                                disabled={savingCell?.gigId === gig.id}
-                              />
-                              {cellError?.gigId === gig.id && cellError?.field === 'title' && (
-                                <p className="text-xs text-red-600 flex items-center gap-1">
-                                  <AlertCircle className="w-3 h-3" />
-                                  {cellError.message}
-                                </p>
-                              )}
-                            </div>
-                          ) : (
-                            <div className="flex items-center gap-2">
-                              <button
-                                onClick={() => startEditing(gig.id, 'title', gig.title)}
-                                className="text-gray-900 hover:bg-gray-100 px-2 py-1 rounded text-left flex-1 w-full"
-                              >
-                                {gig.title}
-                              </button>
-                              {savingCell?.gigId === gig.id && savingCell?.field === 'title' && (
-                                <Loader2 className="w-3 h-3 animate-spin text-sky-500" />
-                              )}
-                            </div>
-                          )}
-                        </TableCell>
-
-                        {/* Date Cell */}
-                        <TableCell className="relative">
-                          {editingCell?.gigId === gig.id && editingCell?.field === 'date' ? (
-                            <div className="relative">
-                              <Popover open={true} onOpenChange={(open) => !open && cancelEditing()}>
-                                <PopoverTrigger asChild>
-                                  <Button
-                                    variant="outline"
-                                    className="w-full h-8 justify-start text-left text-sm"
-                                  >
-                                    <CalendarIcon className="w-4 h-4 mr-2" />
-                                    {editValue ? format(new Date(editValue), 'MMM dd, yyyy') : formatDate(gig.start)}
-                                  </Button>
-                                </PopoverTrigger>
-                                <PopoverContent className="w-auto p-0" align="start" side="bottom">
-                                  <Calendar
-                                    mode="single"
-                                    selected={editValue ? new Date(editValue) : new Date(gig.start)}
-                                    onSelect={(date) => {
-                                      if (date) {
-                                        const isoDate = format(date, 'yyyy-MM-dd');
-                                        saveEdit(gig.id, 'date', isoDate);
-                                      }
-                                    }}
-                                    initialFocus
-                                  />
-                                </PopoverContent>
-                              </Popover>
-                            </div>
-                          ) : (
-                            <div className="flex items-center gap-2">
-                              <button
-                                onClick={() => startEditing(gig.id, 'date', format(new Date(gig.start), 'yyyy-MM-dd'))}
-                                className="text-gray-700 hover:bg-gray-100 px-2 py-1 rounded text-left w-full"
-                              >
-                                {formatDate(gig.start)}
-                              </button>
-                              {savingCell?.gigId === gig.id && savingCell?.field === 'date' && (
-                                <Loader2 className="w-3 h-3 animate-spin text-sky-500" />
-                              )}
-                            </div>
-                          )}
-                        </TableCell>
-
-                        {/* Time Cell */}
-                        <TableCell className="relative">
-                          <div className="flex items-center gap-2">
-                            <button
-                              onClick={() => openTimeDialog(gig)}
-                              className="text-gray-700 hover:bg-gray-100 px-2 py-1 rounded text-left flex items-center gap-2 w-full"
-                            >
-                              <Clock className="w-4 h-4 text-gray-400" />
-                              {formatTime(gig.start, gig.end)}
-                            </button>
-                            {savingCell?.gigId === gig.id && savingCell?.field === 'time' && (
-                              <Loader2 className="w-3 h-3 animate-spin text-sky-500" />
-                            )}
-                          </div>
-                        </TableCell>
-
-                        {/* Status Cell */}
-                        <TableCell className="relative">
-                          {editingCell?.gigId === gig.id && editingCell?.field === 'status' ? (
-                            <Select
-                              value={editValue || gig.status}
-                              onValueChange={(value) => {
-                                setEditValue(value);
-                                saveEdit(gig.id, 'status', value);
-                              }}
-                              open={true}
-                              onOpenChange={(open) => !open && cancelEditing()}
-                            >
-                              <SelectTrigger className="h-8 w-full">
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {Object.keys(STATUS_CONFIG).map((status) => (
-                                  <SelectItem key={status} value={status}>
-                                    <div className="flex items-center gap-2">
-                                      <div className={`w-2 h-2 rounded-full ${STATUS_CONFIG[status as GigStatus].color}`} />
-                                      {status}
-                                    </div>
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          ) : (
-                            <div className="flex items-center gap-2">
-                              <button
-                                onClick={() => startEditing(gig.id, 'status', gig.status)}
-                                className="hover:opacity-80 w-full text-left"
-                              >
-                                <Badge variant="outline" className={STATUS_CONFIG[gig.status].color}>
-                                  {gig.status}
-                                </Badge>
-                              </button>
-                              {savingCell?.gigId === gig.id && savingCell?.field === 'status' && (
-                                <Loader2 className="w-3 h-3 animate-spin text-sky-500" />
-                              )}
-                            </div>
-                          )}
-                        </TableCell>
-
-                        {/* Venue Cell */}
-                        <TableCell className="relative">
-                          {editingCell?.gigId === gig.id && editingCell?.field === 'venue' ? (
-                            <Popover open={true} onOpenChange={(open) => !open && cancelEditing()}>
-                              <PopoverTrigger asChild>
-                                <Button variant="outline" className="h-8 w-full justify-start text-left text-sm">
-                                  {editValue?.name || gig.venue?.name || 'Select venue'}
-                                </Button>
-                              </PopoverTrigger>
-                              <PopoverContent className="w-80 p-0" align="start" side="bottom">
-                                <div className="p-3 border-b">
-                                  <div className="relative">
-                                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                                    <Input
-                                      placeholder="Search venues..."
-                                      value={venueSearch}
-                                      onChange={(e) => setVenueSearch(e.target.value)}
-                                      className="pl-9"
-                                    />
-                                  </div>
-                                </div>
-                                <div className="max-h-64 overflow-y-auto">
-                                  {filteredVenues.map((venue) => (
-                                    <button
-                                      key={venue.id}
-                                      onClick={() => {
-                                        setEditValue(venue);
-                                        saveEdit(gig.id, 'venue', venue);
-                                      }}
-                                      className="w-full px-3 py-2 text-left hover:bg-gray-100 text-sm"
-                                    >
-                                      <div>{venue.name}</div>
-                                      <div className="text-xs text-gray-500">{venue.city}, {venue.state}</div>
-                                    </button>
-                                  ))}
-                                  {filteredVenues.length === 0 && (
-                                    <div className="p-4 text-center text-sm text-gray-500">
-                                      No venues found
-                                    </div>
-                                  )}
-                                </div>
-                                <div className="p-2 border-t">
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    className="w-full"
-                                    onClick={() => {
-                                      setEditValue(null);
-                                      saveEdit(gig.id, 'venue', null);
-                                    }}
-                                  >
-                                    Clear selection
-                                  </Button>
-                                </div>
-                              </PopoverContent>
-                            </Popover>
-                          ) : (
-                            <div className="flex items-center gap-2">
-                              <button
-                                onClick={() => startEditing(gig.id, 'venue', gig.venue || null)}
-                                className="text-gray-700 hover:bg-gray-100 px-2 py-1 rounded text-left w-full"
-                              >
-                                {gig.venue?.name || '-'}
-                              </button>
-                              {savingCell?.gigId === gig.id && savingCell?.field === 'venue' && (
-                                <Loader2 className="w-3 h-3 animate-spin text-sky-500" />
-                              )}
-                            </div>
-                          )}
-                        </TableCell>
-
-                        {/* Act Cell */}
-                        <TableCell className="relative">
-                          {editingCell?.gigId === gig.id && editingCell?.field === 'act' ? (
-                            <Popover open={true} onOpenChange={(open) => !open && cancelEditing()}>
-                              <PopoverTrigger asChild>
-                                <Button variant="outline" className="h-8 w-full justify-start text-left text-sm">
-                                  {editValue?.name || gig.act?.name || 'Select act'}
-                                </Button>
-                              </PopoverTrigger>
-                              <PopoverContent className="w-80 p-0" align="start" side="bottom">
-                                <div className="p-3 border-b">
-                                  <div className="relative">
-                                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                                    <Input
-                                      placeholder="Search acts..."
-                                      value={actSearch}
-                                      onChange={(e) => setActSearch(e.target.value)}
-                                      className="pl-9"
-                                    />
-                                  </div>
-                                </div>
-                                <div className="max-h-64 overflow-y-auto">
-                                  {filteredActs.map((act) => (
-                                    <button
-                                      key={act.id}
-                                      onClick={() => {
-                                        setEditValue(act);
-                                        saveEdit(gig.id, 'act', act);
-                                      }}
-                                      className="w-full px-3 py-2 text-left hover:bg-gray-100 text-sm"
-                                    >
-                                      <div>{act.name}</div>
-                                      <div className="text-xs text-gray-500">{act.city}, {act.state}</div>
-                                    </button>
-                                  ))}
-                                  {filteredActs.length === 0 && (
-                                    <div className="p-4 text-center text-sm text-gray-500">
-                                      No acts found
-                                    </div>
-                                  )}
-                                </div>
-                                <div className="p-2 border-t">
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    className="w-full"
-                                    onClick={() => {
-                                      setEditValue(null);
-                                      saveEdit(gig.id, 'act', null);
-                                    }}
-                                  >
-                                    Clear selection
-                                  </Button>
-                                </div>
-                              </PopoverContent>
-                            </Popover>
-                          ) : (
-                            <div className="flex items-center gap-2">
-                              <button
-                                onClick={() => startEditing(gig.id, 'act', gig.act || null)}
-                                className="text-gray-700 hover:bg-gray-100 px-2 py-1 rounded text-left w-full"
-                              >
-                                {gig.act?.name || '-'}
-                              </button>
-                              {savingCell?.gigId === gig.id && savingCell?.field === 'act' && (
-                                <Loader2 className="w-3 h-3 animate-spin text-sky-500" />
-                              )}
-                            </div>
-                          )}
-                        </TableCell>
-
-                        {/* Tags Cell */}
-                        <TableCell className="relative">
-                          {editingCell?.gigId === gig.id && editingCell?.field === 'tags' ? (
-                            <Popover open={true} onOpenChange={(open) => {
-                              if (!open) {
-                                saveEdit(gig.id, 'tags', editValue || gig.tags);
-                              }
-                            }}>
-                              <PopoverTrigger asChild>
-                                <Button variant="outline" className="h-8 w-full justify-start text-left text-sm">
-                                  {editValue?.length > 0 ? `${editValue.length} selected` : 'Select tags'}
-                                </Button>
-                              </PopoverTrigger>
-                              <PopoverContent className="w-80 p-0" align="start" side="bottom">
-                                <div className="p-3 border-b">
-                                  <p className="text-sm">Select tags</p>
-                                </div>
-                                <div className="max-h-64 overflow-y-auto p-2">
-                                  {ALL_TAGS.map((tag) => {
-                                    const isSelected = (editValue || gig.tags).includes(tag);
-                                    return (
-                                      <div
-                                        key={tag}
-                                        className="flex items-center gap-2 px-2 py-1.5 hover:bg-gray-100 rounded cursor-pointer"
-                                        onClick={() => {
-                                          const currentTags = editValue || gig.tags;
-                                          const newTags = isSelected
-                                            ? currentTags.filter((t: string) => t !== tag)
-                                            : [...currentTags, tag];
-                                          setEditValue(newTags);
-                                        }}
-                                      >
-                                        <Checkbox checked={isSelected} />
-                                        <span className="text-sm">{tag}</span>
-                                      </div>
-                                    );
-                                  })}
-                                </div>
-                                <div className="p-2 border-t flex justify-between">
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() => setEditValue([])}
-                                  >
-                                    Clear all
-                                  </Button>
-                                  <Button
-                                    size="sm"
-                                    onClick={() => saveEdit(gig.id, 'tags', editValue || gig.tags)}
-                                  >
-                                    Done
-                                  </Button>
-                                </div>
-                              </PopoverContent>
-                            </Popover>
-                          ) : (
-                            <div className="flex items-center gap-2">
-                              <button
-                                onClick={() => startEditing(gig.id, 'tags', gig.tags)}
-                                className="flex flex-wrap gap-1 hover:bg-gray-100 px-2 py-1 rounded w-full"
-                              >
-                                {gig.tags.length > 0 ? (
-                                  <>
-                                    {gig.tags.slice(0, 2).map((tag) => (
-                                      <Badge key={tag} variant="secondary" className="text-xs">
-                                        {tag}
-                                      </Badge>
-                                    ))}
-                                    {gig.tags.length > 2 && (
-                                      <Badge variant="secondary" className="text-xs">
-                                        +{gig.tags.length - 2}
-                                      </Badge>
-                                    )}
-                                  </>
-                                ) : (
-                                  <span className="text-gray-400 text-sm">Add tags</span>
-                                )}
-                              </button>
-                              {savingCell?.gigId === gig.id && savingCell?.field === 'tags' && (
-                                <Loader2 className="w-3 h-3 animate-spin text-sky-500" />
-                              )}
-                            </div>
-                          )}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-            </Card>
-          </>
+                        <GigTable
+                          gigs={filteredGigs}
+                          mode="list"
+                          showActions={true}
+                          onGigUpdate={handleGigUpdate}
+                          onGigClick={handleGigClick}
+                          onGigEdit={handleGigEdit}
+                          onGigDuplicate={handleGigDuplicate}
+                          onGigDelete={handleGigDelete}
+                          loading={false}
+                          emptyMessage="No gigs found"
+                        />
         )}
       </div>
-
       {/* Time Edit Dialog */}
       <Dialog open={timeDialogOpen} onOpenChange={setTimeDialogOpen}>
         <DialogContent className="sm:max-w-md">
@@ -1387,4 +949,4 @@ export default function GigListScreen({
       </Dialog>
     </div>
   );
-}
+};

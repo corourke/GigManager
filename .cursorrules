@@ -1,0 +1,90 @@
+# Cursor Rules for GigManager project
+
+## Application Context
+**Gig Manager** is a production and event management platform used by:
+
+- Production companies managing events and performances
+- Sound and lighting companies tracking equipment and staff
+- Event producers coordinating venues, acts, and logistics
+
+## Database Changes
+- All database schema changes (DDL statements) that build on `supabase/schema.sql` must be created as migration files in `supabase/migrations/`
+- Migration files should be named with a timestamp prefix: `YYYYMMDDHHMM_description.sql`
+- After creating a migration file, also update `supabase/schema.sql` to keep it in sync
+- Provide instructions for applying migrations in Supabase SQL Editor when needed
+
+
+## UI guidelines
+
+* Don't create separate components for Add and Update screens, use one form component with logic to correctly handle both Create and Update operations. 
+* Only use absolute positioning when necessary. Opt for responsive and well structured layouts that use flexbox and grid by default.
+* Refactor code as you go to keep code clean.
+* Keep file sizes small and put helper functions and components in their own files.
+
+## Data handling guidelines
+
+* When updating data in the database through a user edit action (whether on a form, or inline editing
+  in a table) ensure that we ONLY update database columns (including rows in related tables) for 
+  values that have been changed in the UI. We should not make changes to column values that have not 
+  changed to avoid triggering change logic in the back-end.
+* It is not necessary to include code to gracefully handle the case where a table 
+  doesn't exist as we will always assume that migrations will be run. 
+* Do not add or maintain any code to handle mock data -- we are using a live database. 
+
+## Coding Principles
+
+### 1. Type Safety First
+
+- **Prefer TypeScript with strict mode enabled**
+
+### 2. Organization Context
+
+- **Every API route must verify user membership** in the organization
+- **Every database query must filter by `organization_id`** (enforced by RLS)
+- **Use middleware or helper functions** to extract and validate organization context
+- **Default to rejecting access** if organization membership cannot be verified
+- **Never trust client-provided organization IDs** without server-side verification
+
+### 3. Error Handling
+
+- **Always use standardized error responses** consistent across the application
+- Always catch and handle errors gracefully
+- Log errors server-side for debugging
+- Return user-friendly error messages (don't expose internal details)
+- Use specific error codes for different error types
+- Include validation details in `details` field for form validation errors
+
+### 4. Database Access
+
+- **Always include `organization_id` in WHERE clauses** for tenant-scoped queries
+- **Use transactions for multi-step operations** that must be atomic
+- Ensure referential integrity
+- Use UUIDs for all primary keys
+- Timestamps use server-side defaults
+
+### 5. Security
+
+- **Never trust client input** - always validate on the server
+- **Verify authentication** before any protected operation
+- **Verify authorization** (organization membership, role) before sensitive operations
+- **Sanitize user input** before displaying (React handles this by default, but be careful with `dangerouslySetInnerHTML`)
+- **Use HTTPS in production**
+- **Never expose sensitive data** in error messages or logs
+
+### 6. Performance
+
+- **Use database indexes** for frequently queried fields
+- **Implement pagination** for large result sets
+- **Use `select` to limit fields** returned from database when possible
+- **Cache frequently accessed data** when appropriate
+- **Use React Server Components by default** (App Router)
+
+### 7. Maintainability
+
+- **Write self-documenting code** with clear variable and function names
+- **Extract reusable logic** into utility functions
+- **Keep functions focused** on a single responsibility
+- **Add comments for complex business logic**
+- Only use absolute positioning when necessary. Opt for responsive and well structured layouts that use flexbox and grid by default
+- Refactor code as you go to keep code clean
+- **Keep components small and focused** -- Keep file sizes small and put helper functions and components in their own files.

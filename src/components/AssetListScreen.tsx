@@ -1,5 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Package, Plus, Search, Filter, Loader2, Edit2, Trash2, AlertCircle, Shield } from 'lucide-react';
+import { useRealtimeList } from '../utils/hooks/useRealtimeList';
 import { toast } from 'sonner@2.0.3';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -51,34 +52,48 @@ export default function AssetListScreen({
   onLogout,
   useMockData = false,
 }: AssetListScreenProps) {
-  const [assets, setAssets] = useState<DbAsset[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  // Memoize filters to prevent infinite re-renders
+  const assetFilters = useMemo(() => ({ organization_id: organization.id }), [organization.id]);
+
+  // Real-time asset list
+  const { data: allAssets, loading: isLoading, error, refresh } = useRealtimeList<DbAsset>({
+    table: 'assets',
+    filters: assetFilters,
+    enabled: true,
+  });
+
   const [searchQuery, setSearchQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
   const [insuranceFilter, setInsuranceFilter] = useState<string>('all');
 
-  useEffect(() => {
-    loadAssets();
-  }, [organization.id, categoryFilter, insuranceFilter, searchQuery]);
-
-  const loadAssets = async () => {
-    setIsLoading(true);
-    try {
-      const filters: any = {};
-      if (categoryFilter !== 'all') filters.category = categoryFilter;
-      if (insuranceFilter === 'yes') filters.insurance_added = true;
-      if (insuranceFilter === 'no') filters.insurance_added = false;
-      if (searchQuery) filters.search = searchQuery;
-
-      const data = await getAssets(organization.id, filters);
-      setAssets(data);
-    } catch (error: any) {
-      console.error('Error loading assets:', error);
-      toast.error(error.message || 'Failed to load assets');
-    } finally {
-      setIsLoading(false);
+  // Filter assets based on current filters
+  const assets = allAssets.filter((asset) => {
+    // Category filter
+    if (categoryFilter !== 'all' && asset.category !== categoryFilter) {
+      return false;
     }
-  };
+
+    // Insurance filter
+    if (insuranceFilter === 'yes' && !asset.insurance_added) {
+      return false;
+    }
+    if (insuranceFilter === 'no' && asset.insurance_added) {
+      return false;
+    }
+
+    // Search filter
+    if (searchQuery) {
+      const query = searchQuery.toLowerCase();
+      return (
+        asset.name?.toLowerCase().includes(query) ||
+        asset.category?.toLowerCase().includes(query) ||
+        asset.tag_number?.toLowerCase().includes(query) ||
+        asset.description?.toLowerCase().includes(query)
+      );
+    }
+
+    return true;
+  });
 
   const handleDeleteAsset = async (assetId: string) => {
     if (!confirm('Are you sure you want to delete this asset?')) return;
@@ -86,7 +101,7 @@ export default function AssetListScreen({
     try {
       await deleteAsset(assetId);
       toast.success('Asset deleted successfully');
-      loadAssets();
+      // Real-time list will automatically update
     } catch (error: any) {
       console.error('Error deleting asset:', error);
       toast.error(error.message || 'Failed to delete asset');
@@ -186,7 +201,16 @@ export default function AssetListScreen({
 
         {/* Assets Table */}
         <Card className="p-6">
-          {isLoading ? (
+          {error ? (
+            <div className="text-center py-12">
+              <AlertCircle className="w-16 h-16 text-red-400 mx-auto mb-4" />
+              <h3 className="text-gray-900 mb-2">Error loading assets</h3>
+              <p className="text-gray-600 mb-6">{error}</p>
+              <Button onClick={refresh} variant="outline">
+                Try Again
+              </Button>
+            </div>
+          ) : isLoading ? (
             <div className="flex items-center justify-center py-12">
               <Loader2 className="w-8 h-8 animate-spin text-sky-500" />
             </div>

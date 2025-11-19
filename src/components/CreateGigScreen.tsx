@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { z } from 'zod';
 import { useForm, Controller } from 'react-hook-form@7.55.0';
 import { zodResolver } from '@hookform/resolvers/zod';
+import { useFormWithChanges } from '../utils/hooks/useFormWithChanges';
 import { format } from 'date-fns';
 import { toast } from 'sonner@2.0.3';
 import { 
@@ -208,9 +209,26 @@ export default function CreateGigScreen({
   onSwitchOrganization,
   onLogout,
 }: CreateGigScreenProps) {
-  const { control, handleSubmit, formState: { errors }, setValue, getValues, watch } = useForm<FormData>({
+  const form = useForm<FormData>({
     resolver: zodResolver(gigSchema),
     defaultValues: {
+      title: '',
+      start_time: undefined,
+      end_time: undefined,
+      timezone: 'America/Los_Angeles',
+      status: 'DateHold',
+      tags: [],
+      notes: '',
+      amount_paid: '',
+    },
+  });
+
+  const { control, handleSubmit, formState: { errors }, setValue, getValues, watch } = form;
+
+  // Change detection for efficient updates
+  const changeDetection = useFormWithChanges({
+    form: form,
+    initialData: {
       title: '',
       start_time: undefined,
       end_time: undefined,
@@ -427,6 +445,19 @@ export default function CreateGigScreen({
       } catch (error) {
         console.error('Error loading kit assignments:', error);
       }
+
+      // Load initial data for change detection
+      const loadedFormData = getValues();
+      changeDetection.loadInitialData({
+        title: loadedFormData.title || '',
+        start_time: loadedFormData.start_time,
+        end_time: loadedFormData.end_time,
+        timezone: loadedFormData.timezone || 'America/Los_Angeles',
+        status: loadedFormData.status || 'DateHold',
+        tags: loadedFormData.tags || [],
+        notes: loadedFormData.notes || '',
+        amount_paid: loadedFormData.amount_paid || '',
+      });
 
       toast.success('Gig loaded successfully');
     } catch (error: any) {
@@ -768,23 +799,44 @@ export default function CreateGigScreen({
         return;
       }
 
-      // Prepare gig data
-      const gigData: any = {
-        title: data.title.trim(), // Use title directly (not name)
-        start: data.start_time!.toISOString(),
-        end: data.end_time!.toISOString(),
-        timezone: data.timezone,
-        status: data.status,
-        tags: data.tags,
-        notes: data.notes?.trim() || null,
-        amount_paid: data.amount_paid?.trim() ? parseFloat(data.amount_paid) : null,
-      };
+      // Get only changed fields for efficiency
+      const changedFields = changeDetection.getChangedFields();
+
+      // Prepare gig data - only send changed fields plus required nested data
+      const gigData: any = {};
+
+      // Only add changed basic fields
+      if (changedFields.title !== undefined) {
+        gigData.title = data.title.trim();
+      }
+      if (changedFields.start_time !== undefined) {
+        gigData.start = data.start_time!.toISOString();
+      }
+      if (changedFields.end_time !== undefined) {
+        gigData.end = data.end_time!.toISOString();
+      }
+      if (changedFields.timezone !== undefined) {
+        gigData.timezone = data.timezone;
+      }
+      if (changedFields.status !== undefined) {
+        gigData.status = data.status;
+      }
+      if (changedFields.tags !== undefined) {
+        gigData.tags = data.tags;
+      }
+      if (changedFields.notes !== undefined) {
+        gigData.notes = data.notes?.trim() || null;
+      }
+      if (changedFields.amount_paid !== undefined) {
+        gigData.amount_paid = data.amount_paid?.trim() ? parseFloat(data.amount_paid) : null;
+      }
 
       if (isEditMode) {
         // Update existing gig - send full participants and staff data with IDs
         // Database UUIDs are 36 chars, client-generated IDs are 9 chars or prefixed with 'temp-' or 'current-org'
         const isDbId = (id: string) => id.length === 36 && id.includes('-');
 
+        // Always send participants in edit mode (they're complex nested data)
         gigData.participants = participants
           .filter(p => p.organization_id && p.organization_id.trim() !== '' && p.role && p.role.trim() !== '')
           .map(p => ({
@@ -909,6 +961,19 @@ export default function CreateGigScreen({
         }
 
         toast.success('Gig updated successfully!');
+
+        // Mark as saved for change detection
+        changeDetection.markAsSaved({
+          title: data.title.trim(),
+          start_time: data.start_time,
+          end_time: data.end_time,
+          timezone: data.timezone,
+          status: data.status,
+          tags: data.tags,
+          notes: data.notes?.trim() || '',
+          amount_paid: data.amount_paid?.trim() || '',
+        });
+
         if (onGigUpdated) {
           onGigUpdated();
         }
@@ -1755,7 +1820,7 @@ export default function CreateGigScreen({
               </Button>
               <Button
                 type="submit"
-                disabled={isSubmitting}
+                disabled={isSubmitting || (isEditMode && !changeDetection.hasChanges)}
                 className="bg-sky-500 hover:bg-sky-600 text-white sm:ml-auto"
               >
                 {isSubmitting ? (
