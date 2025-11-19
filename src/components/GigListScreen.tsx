@@ -282,41 +282,68 @@ export default function GigListScreen({
   
   // Handlers for GigTable component
   const handleGigUpdate = async (gigId: string, field: string, value: any) => {
+    // Store original state for rollback on error
+    const originalGigs = [...gigs];
+    const gigIndex = gigs.findIndex(g => g.id === gigId);
+    const originalGig = gigIndex >= 0 ? { ...gigs[gigIndex] } : null;
+
     try {
       // Handle venue and act updates using specialized API functions
+      // These require full refresh because they affect participant relationships
       if (field === 'venue') {
         await api.updateGigVenue(gigId, value || null);
         toast.success('Venue updated successfully');
+        // Reload for venue/act to get updated participant data
+        loadGigs();
+        return;
       } else if (field === 'act') {
         await api.updateGigAct(gigId, value || null);
         toast.success('Act updated successfully');
-      } else {
-        let processedValue = value;
-
-        // Handle date field - convert to full ISO datetime string
-        if (field === 'start' && typeof value === 'string') {
-          // Find the existing gig to get the time part
-          const existingGig = gigs.find(g => g.id === gigId);
-          if (existingGig) {
-            const existingDate = new Date(existingGig.start);
-            const newDate = new Date(value);
-            // Preserve the time from the existing date
-            newDate.setHours(existingDate.getHours(), existingDate.getMinutes(), existingDate.getSeconds());
-            processedValue = newDate.toISOString();
-          } else {
-            // Fallback: assume start of day
-            processedValue = new Date(value + 'T00:00:00').toISOString();
-          }
-        }
-
-        await api.updateGig(gigId, { [field]: processedValue });
-        toast.success(`${field} updated successfully`);
+        // Reload for venue/act to get updated participant data
+        loadGigs();
+        return;
       }
 
-      // Refresh gigs to show the update
-      loadGigs();
+      // For other fields, update optimistically
+      let processedValue = value;
+
+      // Handle date field - convert to full ISO datetime string
+      if (field === 'start' && typeof value === 'string') {
+        // Find the existing gig to get the time part
+        const existingGig = gigs.find(g => g.id === gigId);
+        if (existingGig) {
+          const existingDate = new Date(existingGig.start);
+          const newDate = new Date(value);
+          // Preserve the time from the existing date
+          newDate.setHours(existingDate.getHours(), existingDate.getMinutes(), existingDate.getSeconds());
+          processedValue = newDate.toISOString();
+        } else {
+          // Fallback: assume start of day
+          processedValue = new Date(value + 'T00:00:00').toISOString();
+        }
+      }
+
+      // Optimistically update local state
+      if (gigIndex >= 0) {
+        setGigs(prevGigs => {
+          const updatedGigs = [...prevGigs];
+          updatedGigs[gigIndex] = {
+            ...updatedGigs[gigIndex],
+            [field]: processedValue,
+          };
+          return updatedGigs;
+        });
+      }
+
+      // Make API call
+      await api.updateGig(gigId, { [field]: processedValue });
+      toast.success(`${field} updated successfully`);
     } catch (error: any) {
       console.error(`Error updating gig ${field}:`, error);
+      // Rollback optimistic update on error
+      if (originalGig) {
+        setGigs(originalGigs);
+      }
       toast.error(`Failed to update ${field}`);
       throw error;
     }

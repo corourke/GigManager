@@ -241,12 +241,12 @@ export default function GigTable({
             <TableHeader>
               <TableRow>
                 {showActions && <TableHead className="w-12"></TableHead>}
-                <TableHead>Title</TableHead>
-                <TableHead>Date & Time</TableHead>
-                <TableHead>Status</TableHead>
-                {showVenueActColumns && <TableHead>Venue</TableHead>}
-                {showVenueActColumns && <TableHead>Act</TableHead>}
-                {showTagsColumn && <TableHead>Tags</TableHead>}
+                <TableHead className="min-w-[200px] whitespace-normal">Title</TableHead>
+                <TableHead className="min-w-[160px] whitespace-normal">Date & Time</TableHead>
+                <TableHead className="min-w-[100px] whitespace-normal">Status</TableHead>
+                {showVenueActColumns && <TableHead className="min-w-[120px] whitespace-normal">Venue</TableHead>}
+                {showVenueActColumns && <TableHead className="min-w-[120px] whitespace-normal">Act</TableHead>}
+                {showTagsColumn && <TableHead className="min-w-[150px] whitespace-normal">Tags</TableHead>}
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -299,7 +299,7 @@ export default function GigTable({
                   )}
 
                   {/* Title Cell */}
-                  <TableCell className="relative" onClick={(e) => mode === 'list' && e.stopPropagation()}>
+                  <TableCell className="relative min-w-[200px] whitespace-normal" onClick={(e) => mode === 'list' && e.stopPropagation()}>
                     {enableInlineEditing ? (
                       <EditableTableCell
                         value={gig.title || ''}
@@ -313,7 +313,7 @@ export default function GigTable({
                   </TableCell>
 
                   {/* Date & Time Cell */}
-                  <TableCell className="text-sm text-gray-700" onClick={(e) => mode === 'list' && e.stopPropagation()}>
+                  <TableCell className="text-sm text-gray-700 min-w-[160px] whitespace-normal" onClick={(e) => mode === 'list' && e.stopPropagation()}>
                     {enableInlineEditing ? (
                       <button
                         onClick={() => onGigEdit?.(gig.id)}
@@ -327,7 +327,7 @@ export default function GigTable({
                   </TableCell>
 
                   {/* Status Cell */}
-                  <TableCell className="text-sm text-gray-700" onClick={(e) => mode === 'list' && e.stopPropagation()}>
+                  <TableCell className="text-sm text-gray-700 min-w-[100px] whitespace-normal" onClick={(e) => mode === 'list' && e.stopPropagation()}>
                     {enableInlineEditing ? (
                       <EditableTableCell
                         value={gig.status}
@@ -353,7 +353,7 @@ export default function GigTable({
 
                   {/* Venue Cell */}
                   {showVenueActColumns && (
-                    <TableCell className="text-sm text-gray-700" onClick={(e) => mode === 'list' && e.stopPropagation()}>
+                    <TableCell className="text-sm text-gray-700 min-w-[120px] whitespace-normal" onClick={(e) => mode === 'list' && e.stopPropagation()}>
                       {enableInlineEditing ? (
                         <EditableTableCell
                           value={gig.venue?.id || ''}
@@ -371,7 +371,7 @@ export default function GigTable({
 
                   {/* Act Cell */}
                   {showVenueActColumns && (
-                    <TableCell className="text-sm text-gray-700" onClick={(e) => mode === 'list' && e.stopPropagation()}>
+                    <TableCell className="text-sm text-gray-700 min-w-[120px] whitespace-normal" onClick={(e) => mode === 'list' && e.stopPropagation()}>
                       {enableInlineEditing ? (
                         <EditableTableCell
                           value={gig.act?.id || ''}
@@ -389,7 +389,7 @@ export default function GigTable({
 
                   {/* Tags Cell */}
                   {showTagsColumn && (
-                    <TableCell className="relative" onClick={(e) => mode === 'list' && e.stopPropagation()}>
+                    <TableCell className="relative min-w-[150px] whitespace-normal" onClick={(e) => mode === 'list' && e.stopPropagation()}>
                       {enableInlineEditing ? (
                         <EditableTableCell
                           value={gig.tags || []}

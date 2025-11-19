@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Input } from '../ui/input';
 import { Button } from '../ui/button';
+import { Badge } from '../ui/badge';
 import { Check, X, Edit2, Loader2 } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { useInlineEdit } from '../../utils/hooks/useInlineEdit';
@@ -70,8 +71,13 @@ export default function EditableTableCell({
 
   // Calculate display value based on type
   const getDisplayValue = () => {
-    if (type === 'organization' && value) {
-      return organizations.find(org => org.id === value)?.name || value;
+    if (type === 'organization') {
+      if (!value || value === '') {
+        return '';
+      }
+      // Try to find organization name, fallback to ID if not loaded yet
+      const org = organizations.find(org => org.id === value);
+      return org?.name || value;
     }
     if (type === 'tags' && Array.isArray(value)) {
       return value.length > 0 ? value.join(', ') : '';
@@ -83,10 +89,25 @@ export default function EditableTableCell({
 
   // Handle cell click to start editing
   const handleCellClick = () => {
-    if (!disabled && !isEditing) {
-      // For editing, we want to use the raw value (ID for organizations, array for tags)
-      const editValue = type === 'organization' ? value : type === 'tags' ? (Array.isArray(value) ? value : []) : displayValue;
-      startEdit(field, editValue);
+    if (!disabled) {
+      // If another field is being edited, cancel it first
+      if (editingField && editingField !== field) {
+        cancelEdit();
+      }
+      
+      if (!isEditing) {
+        // For editing, we want to use the raw value (ID for organizations, array for tags)
+        let editValue: any;
+        if (type === 'organization') {
+          // Use "__none__" if value is empty/null for Select component
+          editValue = value || '__none__';
+        } else if (type === 'tags') {
+          editValue = Array.isArray(value) ? value : [];
+        } else {
+          editValue = displayValue;
+        }
+        startEdit(field, editValue);
+      }
     }
   };
 
@@ -95,21 +116,94 @@ export default function EditableTableCell({
     updateValue(e.target.value);
   };
 
-  // Handle blur to save
-  const handleBlur = async () => {
-    if (isEditing && editValue !== displayValue) {
-      await saveEdit();
-    } else {
-      cancelEdit();
-    }
+  // Handle blur to save - always exit edit mode on blur
+  const handleBlur = async (e: React.FocusEvent) => {
+    // Use setTimeout to allow click events on other cells to process first
+    setTimeout(async () => {
+      if (isEditing) {
+        // Check if focus moved to another editable cell
+        const relatedTarget = e.relatedTarget as HTMLElement;
+        const clickedAnotherCell = relatedTarget?.closest('[data-editable-cell]');
+        
+        // For organization type, compare IDs, not display values
+        if (type === 'organization') {
+          const currentId = editValue === '__none__' ? '' : editValue;
+          const originalId = value || '';
+          if (currentId !== originalId) {
+            await saveEdit();
+          } else {
+            cancelEdit();
+          }
+        } else if (type === 'tags') {
+          // Tags are handled by onChange, so just exit edit mode
+          cancelEdit();
+        } else if (type === 'select') {
+          // Select is handled by onValueChange, so just exit edit mode
+          cancelEdit();
+        } else if (editValue !== displayValue) {
+          await saveEdit();
+        } else {
+          cancelEdit();
+        }
+      }
+    }, 0);
   };
 
-  // Load organizations when editing starts
+  // Handle clicks outside the editing cell to exit edit mode
+  const cellRef = useRef<HTMLDivElement>(null);
+  
   useEffect(() => {
-    if (type === 'organization' && organizationType && editingField === field) {
-      loadOrganizations();
+    if (!isEditing) return;
+
+    const handleDocumentClick = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      
+      // Check if click is inside this cell or its dropdowns/popovers
+      const isClickInsideCell = cellRef.current?.contains(target);
+      // Also check if click is on a Select dropdown or Popover (they render in portals)
+      const isClickOnDropdown = target.closest('[role="listbox"]') || target.closest('[role="dialog"]');
+      
+      // If clicking outside this cell and not on a dropdown, exit edit mode
+      if (!isClickInsideCell && !isClickOnDropdown) {
+        // Save if value changed, otherwise just cancel
+        if (type === 'organization') {
+          const currentId = editValue === '__none__' ? '' : editValue;
+          const originalId = value || '';
+          if (currentId !== originalId) {
+            saveEdit();
+          } else {
+            cancelEdit();
+          }
+        } else if (type === 'tags' || type === 'select') {
+          // These are handled by their own onChange handlers
+          cancelEdit();
+        } else if (editValue !== displayValue) {
+          saveEdit();
+        } else {
+          cancelEdit();
+        }
+      }
+    };
+
+    // Use setTimeout to allow the current click to process first
+    setTimeout(() => {
+      document.addEventListener('mousedown', handleDocumentClick);
+    }, 0);
+
+    return () => {
+      document.removeEventListener('mousedown', handleDocumentClick);
+    };
+  }, [isEditing, field, type, editValue, value, displayValue, cancelEdit, saveEdit]);
+
+  // Load organizations when editing starts OR when component mounts with a value (for display)
+  useEffect(() => {
+    if (type === 'organization' && organizationType) {
+      if (editingField === field || (value && organizations.length === 0)) {
+        loadOrganizations();
+      }
     }
-  }, [type, organizationType, editingField, field]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [type, organizationType, editingField, field, value]);
 
   const loadOrganizations = async () => {
     if (!organizationType) return;
@@ -126,15 +220,27 @@ export default function EditableTableCell({
   };
 
   if (isEditing) {
+    // For title field, ensure minimum width to prevent collapsing on narrow screens
+    const wrapperClassName = field === 'title' 
+      ? "relative min-w-[200px] w-full" 
+      : "relative";
+    
     return (
-      <div className="relative min-w-[200px]">
+      <div ref={cellRef} className={wrapperClassName}>
         {type === 'select' ? (
           <Select
             value={editValue ?? ''}
             onValueChange={async (value) => {
               updateValue(value);
-              // Auto-save on select
+              // Auto-save on select and exit edit mode
               await onSave(field, value);
+              cancelEdit();
+            }}
+            onOpenChange={(open) => {
+              // When select closes, ensure we exit edit mode
+              if (!open && isEditing) {
+                cancelEdit();
+              }
             }}
             disabled={saving}
           >
@@ -167,43 +273,32 @@ export default function EditableTableCell({
           />
         ) : type === 'organization' ? (
           <Select
-            value={editValue ?? ''}
-            onValueChange={async (value) => {
-              updateValue(value);
-              // Auto-save on select
-              await onSave(field, value);
+            value={editValue && editValue !== '__none__' && editValue !== '' ? editValue : '__none__'}
+            onValueChange={async (selectedValue) => {
+              // Convert "__none__" to empty string for saving
+              const saveValue = selectedValue === '__none__' ? '' : selectedValue;
+              updateValue(saveValue);
+              // Auto-save on select and exit edit mode
+              await onSave(field, saveValue);
+              cancelEdit();
             }}
-            disabled={saving}
-          >
-            <SelectTrigger className="h-8 w-full">
-              <SelectValue placeholder={placeholder} />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="">None</SelectItem>
-              {organizations.map((org) => (
-                <SelectItem key={org.id} value={org.id}>
-                  {org.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        ) : type === 'organization' ? (
-          <Select
-            value={editValue ?? ''}
-            onValueChange={async (value) => {
-              updateValue(value);
-              // Auto-save on select
-              await onSave(field, value);
+            onOpenChange={(open) => {
+              // When select closes, ensure we exit edit mode
+              if (!open && isEditing) {
+                cancelEdit();
+              }
             }}
             disabled={saving || isSearching}
           >
             <SelectTrigger className="h-8 w-full">
               <SelectValue placeholder={placeholder}>
-                {editValue ? organizations.find(org => org.id === editValue)?.name || placeholder : placeholder}
+                {editValue && editValue !== '__none__' && editValue !== ''
+                  ? organizations.find(org => org.id === editValue)?.name || placeholder
+                  : placeholder}
               </SelectValue>
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="">None</SelectItem>
+              <SelectItem value="__none__">None</SelectItem>
               {organizations.map((org) => (
                 <SelectItem key={org.id} value={org.id}>
                   {org.name}
@@ -214,10 +309,11 @@ export default function EditableTableCell({
         ) : type === 'tags' ? (
           <TagsInput
             value={Array.isArray(editValue) ? editValue : []}
-            onChange={(tags) => {
+            onChange={async (tags) => {
               updateValue(tags);
-              // Auto-save on change
-              onSave(field, tags);
+              // Auto-save on change and exit edit mode
+              await onSave(field, tags);
+              cancelEdit();
             }}
             suggestions={tagSuggestions}
             placeholder={placeholder}
@@ -237,7 +333,7 @@ export default function EditableTableCell({
             required={required}
             name={field}
             id={field}
-            className="h-8 text-sm"
+            className={`h-8 text-sm ${field === 'title' ? 'w-full min-w-[200px]' : 'w-full'}`}
           />
         )}
         {saving && (
@@ -254,14 +350,33 @@ export default function EditableTableCell({
 
   return (
     <div
+      ref={cellRef}
+      data-editable-cell
+      data-field={field}
       className={`group cursor-pointer ${className}`}
       onClick={handleCellClick}
       title={disabled ? undefined : 'Click to edit'}
     >
       <div className="flex items-center gap-2">
-        <span className="text-sm text-gray-900">
-          {displayValue || <span className="text-gray-400 italic">Empty</span>}
-        </span>
+        {type === 'tags' && Array.isArray(value) ? (
+          <div className="flex flex-wrap gap-1">
+            {value.length > 0 ? (
+              value.map((tag, index) => (
+                <Badge key={index} variant="secondary" className="text-xs">
+                  {tag}
+                </Badge>
+              ))
+            ) : (
+              <span className="text-gray-400">-</span>
+            )}
+          </div>
+        ) : (
+          <span className="text-sm text-gray-900">
+            {type === 'organization' && (!displayValue || displayValue === '')
+              ? '-'
+              : displayValue || <span className="text-gray-400 italic">Empty</span>}
+          </span>
+        )}
         {!disabled && (
           <Edit2 className="h-3 w-3 text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity" />
         )}

@@ -21,6 +21,15 @@
 * Refactor code as you go to keep code clean.
 * Keep file sizes small and put helper functions and components in their own files.
 
+### Tables and Lists
+
+* **Use auto table layout** - Never use `table-layout: fixed` on tables. Use the default auto layout to allow columns to adapt to content naturally.
+* **Use min-width instead of fixed widths** - Set `min-width` values on table columns to prevent collapsing, but allow columns to expand beyond the minimum to accommodate content. Avoid fixed `width` values that force rigid column sizes.
+* **Allow text wrapping** - Override default `whitespace-nowrap` behavior by adding `whitespace-normal` to table headers and cells. This prevents column overlap by allowing text to wrap when space is constrained.
+* **Prevent column collapse** - Set appropriate `min-width` values on columns that should maintain a minimum size (e.g., Title column should have `min-w-[200px]` to prevent collapsing on narrow screens).
+* **Use overflow-x-auto wrapper** - Wrap tables in a container with `overflow-x-auto` to enable horizontal scrolling when content exceeds viewport width, rather than forcing columns to overlap.
+* **Let content determine width** - Columns should size based on their content first, then respect minimum widths, allowing the table to expand naturally while maintaining readability.
+
 ## Data handling guidelines
 
 * When updating data in the database through a user edit action (whether on a form, or inline editing

@@ -2540,12 +2540,16 @@ export async function updateGigVenue(gigId: string, organizationId: string | nul
 
   if (organizationId) {
     // First check if there's already a venue participant
-    const { data: existing } = await supabase
+    const { data: existing, error: fetchError } = await supabase
       .from('gig_participants')
       .select('id')
       .eq('gig_id', gigId)
       .eq('role', 'Venue')
-      .single();
+      .maybeSingle();
+
+    if (fetchError && fetchError.code !== 'PGRST116') {
+      throw fetchError;
+    }
 
     if (existing) {
       // Update existing venue participant
@@ -2584,12 +2588,16 @@ export async function updateGigAct(gigId: string, organizationId: string | null)
 
   if (organizationId) {
     // First check if there's already an act participant
-    const { data: existing } = await supabase
+    const { data: existing, error: fetchError } = await supabase
       .from('gig_participants')
       .select('id')
       .eq('gig_id', gigId)
       .eq('role', 'Act')
-      .single();
+      .maybeSingle();
+
+    if (fetchError && fetchError.code !== 'PGRST116') {
+      throw fetchError;
+    }
 
     if (existing) {
       // Update existing act participant
