@@ -74,6 +74,7 @@ export default function CreateAssetScreen({
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [totalCost, setTotalCost] = useState<string>(''); // Helper field, not saved
 
   // Form state with change detection
   const [formData, setFormData] = useState<FormData>({
@@ -94,15 +95,7 @@ export default function CreateAssetScreen({
 
   // Change detection hook (simplified for manual state)
   const changeDetection = useFormWithChanges({
-    form: {
-      getValues: () => formData,
-      watch: (callback) => {
-        // Simple watch implementation - could be enhanced
-        return () => {};
-      },
-      reset: (values) => setFormData(values),
-      formState: { isDirty: changeDetection?.hasChanges || false }
-    } as any,
+    currentData: formData,
     initialData: {},
   });
 
@@ -358,35 +351,13 @@ export default function CreateAssetScreen({
                     className="font-mono"
                   />
                 </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="quantity">Quantity</Label>
-                  <Input
-                    id="quantity"
-                    type="number"
-                    min="1"
-                    value={formData.quantity}
-                    onChange={(e) => handleChange('quantity', e.target.value)}
-                    placeholder="1"
-                    className={errors.quantity ? 'border-red-500' : ''}
-                  />
-                  <p className="text-xs text-gray-500">
-                    For bulk assets that don't have unique serial numbers
-                  </p>
-                  {errors.quantity && (
-                    <p className="text-sm text-red-600 flex items-center gap-1">
-                      <AlertCircle className="w-4 h-4" />
-                      {errors.quantity}
-                    </p>
-                  )}
-                </div>
               </div>
             </div>
 
             {/* Financial Information */}
             <div>
               <h3 className="text-gray-900 mb-4">Financial Information</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="acquisition_date">
                     Acquisition Date <span className="text-red-500">*</span>
@@ -417,7 +388,68 @@ export default function CreateAssetScreen({
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="cost">Purchase Cost</Label>
+                  <Label htmlFor="quantity">Quantity</Label>
+                  <Input
+                    id="quantity"
+                    type="number"
+                    min="1"
+                    value={formData.quantity}
+                    onChange={(e) => handleChange('quantity', e.target.value)}
+                    placeholder="1"
+                    className={errors.quantity ? 'border-red-500' : ''}
+                  />
+                  <p className="text-xs text-gray-500">
+                    For bulk assets that don't have unique serial numbers
+                  </p>
+                  {errors.quantity && (
+                    <p className="text-sm text-red-600 flex items-center gap-1">
+                      <AlertCircle className="w-4 h-4" />
+                      {errors.quantity}
+                    </p>
+                  )}
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="total_cost">
+                    Total Cost
+                    <span className="text-xs text-gray-400 font-normal ml-2">
+                      (Cost of all items (not saved))
+                    </span>
+                  </Label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500">
+                      $
+                    </span>
+                    <Input
+                      id="total_cost"
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={totalCost}
+                      onChange={(e) => setTotalCost(e.target.value)}
+                      onBlur={() => {
+                        if (totalCost && formData.quantity) {
+                          const total = parseFloat(totalCost);
+                          const qty = parseInt(formData.quantity) || 1;
+                          if (!isNaN(total) && qty > 0) {
+                            const itemCost = (total / qty).toFixed(2);
+                            handleChange('cost', itemCost);
+                          }
+                        }
+                      }}
+                      placeholder="0.00"
+                      className="pl-7"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="cost">
+                    Item Cost
+                    <span className="text-xs text-gray-400 font-normal ml-2">
+                      (Cost per each item)
+                    </span>
+                  </Label>
                   <div className="relative">
                     <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500">
                       $
@@ -442,7 +474,12 @@ export default function CreateAssetScreen({
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="replacement_value">Replacement Value</Label>
+                  <Label htmlFor="replacement_value">
+                    Replacement Value
+                    <span className="text-xs text-gray-400 font-normal ml-2">
+                      (Per item)
+                    </span>
+                  </Label>
                   <div className="relative">
                     <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500">
                       $

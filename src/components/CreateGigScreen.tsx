@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { z } from 'zod';
 import { useForm, Controller } from 'react-hook-form@7.55.0';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -225,21 +225,6 @@ export default function CreateGigScreen({
 
   const { control, handleSubmit, formState: { errors }, setValue, getValues, watch } = form;
 
-  // Change detection for efficient updates
-  const changeDetection = useFormWithChanges({
-    form: form,
-    initialData: {
-      title: '',
-      start_time: undefined,
-      end_time: undefined,
-      timezone: 'America/Los_Angeles',
-      status: 'DateHold',
-      tags: [],
-      notes: '',
-      amount_paid: '',
-    },
-  });
-
   // Watch form values for reactivity
   const formValues = watch();
 
@@ -284,6 +269,49 @@ export default function CreateGigScreen({
   const [bids, setBids] = useState<any[]>([]);
   const [showBidNotes, setShowBidNotes] = useState<string | null>(null);
   const [currentBidNotes, setCurrentBidNotes] = useState('');
+
+  // Create currentData that includes form values + nested data for change detection
+  // Note: We only include staffSlots here for the hook's getCurrentValues, but the hook
+  // watches the form, not currentData, so we need a separate useEffect to trigger updates
+  const currentData = useMemo(() => ({
+    ...formValues,
+    staffSlots: staffSlots,
+  }), [formValues, staffSlots]);
+
+  // Change detection for efficient updates
+  const changeDetection = useFormWithChanges({
+    form: form,
+    initialData: {
+      title: '',
+      start_time: undefined,
+      end_time: undefined,
+      timezone: 'America/Los_Angeles',
+      status: 'DateHold',
+      tags: [],
+      notes: '',
+      amount_paid: '',
+      staffSlots: [],
+    },
+    currentData: currentData,
+  });
+
+  // Trigger change detection when staffSlots change (since form watch doesn't cover nested data)
+  // Store updateChangedFields in a ref to avoid dependency issues (it's stable but changeDetection object isn't)
+  const updateChangedFieldsRef = useRef(changeDetection.updateChangedFields);
+  updateChangedFieldsRef.current = changeDetection.updateChangedFields;
+  
+  const prevStaffSlotsRef = useRef<StaffSlotData[]>([]);
+  useEffect(() => {
+    if (isEditMode) {
+      // Only update if staffSlots actually changed (deep comparison)
+      const currentStr = JSON.stringify(staffSlots);
+      const prevStr = JSON.stringify(prevStaffSlotsRef.current);
+      if (currentStr !== prevStr) {
+        prevStaffSlotsRef.current = staffSlots;
+        updateChangedFieldsRef.current();
+      }
+    }
+  }, [staffSlots, isEditMode]);
 
   // Load staff roles from database
   useEffect(() => {
@@ -380,8 +408,9 @@ export default function CreateGigScreen({
         `)
         .eq('gig_id', gigId);
 
+      let loadedSlots: StaffSlotData[] = [];
       if (slotsData && slotsData.length > 0) {
-        const loadedSlots: StaffSlotData[] = slotsData.map(s => {
+        loadedSlots = slotsData.map(s => {
           const assignments: StaffAssignmentData[] = (s.assignments || []).map((a: any) => ({
             id: a.id || Math.random().toString(36).substr(2, 9), // Use database ID
             user_id: a.user_id || '',
@@ -457,6 +486,7 @@ export default function CreateGigScreen({
         tags: loadedFormData.tags || [],
         notes: loadedFormData.notes || '',
         amount_paid: loadedFormData.amount_paid || '',
+        staffSlots: loadedSlots || [],
       });
 
       toast.success('Gig loaded successfully');
@@ -822,7 +852,7 @@ export default function CreateGigScreen({
         gigData.status = data.status;
       }
       if (changedFields.tags !== undefined) {
-        gigData.tags = data.tags;
+        gigData.tags = data.tags || []; // Ensure empty array is sent when tags are removed
       }
       if (changedFields.notes !== undefined) {
         gigData.notes = data.notes?.trim() || null;
@@ -969,9 +999,10 @@ export default function CreateGigScreen({
           end_time: data.end_time,
           timezone: data.timezone,
           status: data.status,
-          tags: data.tags,
+          tags: data.tags || [],
           notes: data.notes?.trim() || '',
           amount_paid: data.amount_paid?.trim() || '',
+          staffSlots: staffSlots,
         });
 
         if (onGigUpdated) {

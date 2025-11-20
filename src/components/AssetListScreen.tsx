@@ -274,7 +274,7 @@ export default function AssetListScreen({
                       </TableCell>
                       <TableCell>
                         <div className="text-sm text-gray-900">
-                          {formatCurrency(asset.replacement_value)}
+                          {formatCurrency((asset.replacement_value || 0) * (asset.quantity || 1))}
                         </div>
                       </TableCell>
                       <TableCell>
@@ -324,22 +324,26 @@ export default function AssetListScreen({
               <div className="mt-6 pt-6 border-t border-gray-200">
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div>
-                    <p className="text-sm text-gray-600">Total Assets</p>
-                    <p className="text-2xl text-gray-900">{assets.length}</p>
+                    <p className="text-sm text-gray-600">Total Items</p>
+                    <p className="text-2xl text-gray-900">
+                      {assets.reduce((sum, a) => sum + (a.quantity || 1), 0)}
+                    </p>
                   </div>
                   <div>
                     <p className="text-sm text-gray-600">Total Replacement Value</p>
                     <p className="text-2xl text-gray-900">
                       {formatCurrency(
-                        assets.reduce((sum, a) => sum + (a.replacement_value || 0), 0)
+                        assets.reduce((sum, a) => sum + (a.replacement_value || 0) * (a.quantity || 1), 0)
                       )}
                     </p>
                   </div>
                   <div>
-                    <p className="text-sm text-gray-600">Insured Assets</p>
+                    <p className="text-sm text-gray-600">Insured Items</p>
                     <p className="text-2xl text-gray-900">
-                      {assets.filter((a) => a.insurance_policy_added).length} /{' '}
-                      {assets.length}
+                      {assets
+                        .filter((a) => a.insurance_policy_added)
+                        .reduce((sum, a) => sum + (a.quantity || 1), 0)} /{' '}
+                      {assets.reduce((sum, a) => sum + (a.quantity || 1), 0)}
                     </p>
                   </div>
                 </div>

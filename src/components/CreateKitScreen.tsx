@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { Package, ArrowLeft, Save, Loader2, AlertCircle, Plus, X, Search } from 'lucide-react';
 import { useFormWithChanges } from '../utils/hooks/useFormWithChanges';
 import { toast } from 'sonner@2.0.3';
@@ -56,7 +56,6 @@ interface KitAsset {
   asset_id: string;
   asset?: DbAsset;
   quantity: number;
-  notes: string;
 }
 
 export default function CreateKitScreen({
@@ -83,19 +82,6 @@ export default function CreateKitScreen({
     rental_value: '',
   });
 
-  // Change detection for efficient updates
-  const changeDetection = useFormWithChanges({
-    initialData: {
-      name: '',
-      category: '',
-      description: '',
-      tags: [],
-      tag_number: '',
-      rental_value: '',
-    },
-    currentData: formData,
-  });
-
   const [kitAssets, setKitAssets] = useState<KitAsset[]>([]);
   const [errors, setErrors] = useState<Record<string, string>>({});
   
@@ -106,6 +92,43 @@ export default function CreateKitScreen({
   const [tagInput, setTagInput] = useState('');
 
   const isEditMode = !!kitId;
+
+  // Create currentData that includes form values + nested data for change detection
+  const currentData = useMemo(() => ({
+    ...formData,
+    kitAssets: kitAssets,
+  }), [formData, kitAssets]);
+
+  // Change detection for efficient updates
+  const changeDetection = useFormWithChanges({
+    initialData: {
+      name: '',
+      category: '',
+      description: '',
+      tags: [],
+      tag_number: '',
+      rental_value: '',
+      kitAssets: [], // Include kit assets in initial data
+    },
+    currentData: currentData, // Pass the memoized currentData
+  });
+
+  // Trigger change detection when kitAssets change (since form watch doesn't cover nested data)
+  const updateChangedFieldsRef = useRef(changeDetection.updateChangedFields);
+  updateChangedFieldsRef.current = changeDetection.updateChangedFields;
+
+  const prevKitAssetsRef = useRef<KitAsset[]>([]);
+  useEffect(() => {
+    if (isEditMode) {
+      const currentStr = JSON.stringify(kitAssets);
+      const prevStr = JSON.stringify(prevKitAssetsRef.current);
+      if (currentStr !== prevStr) {
+        prevKitAssetsRef.current = kitAssets;
+        updateChangedFieldsRef.current();
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [kitAssets, isEditMode]);
 
   useEffect(() => {
     if (kitId) {
@@ -131,18 +154,21 @@ export default function CreateKitScreen({
 
       setFormData(loadedData);
 
-      // Load initial data for change detection
-      changeDetection.loadInitialData(loadedData);
-      
-      setKitAssets(
-        (kit.kit_assets || []).map((ka: any) => ({
-          id: ka.id,
-          asset_id: ka.asset.id,
-          asset: ka.asset,
-          quantity: ka.quantity,
-          notes: ka.notes || '',
-        }))
-      );
+      let loadedKitAssets: KitAsset[] = [];
+      const mappedAssets = (kit.kit_assets || []).map((ka: any) => ({
+        id: ka.id,
+        asset_id: ka.asset.id,
+        asset: ka.asset,
+        quantity: ka.quantity,
+      }));
+      setKitAssets(mappedAssets);
+      loadedKitAssets = mappedAssets;
+
+      // Load initial data for change detection (including kit assets)
+      changeDetection.loadInitialData({
+        ...loadedData,
+        kitAssets: loadedKitAssets || [],
+      });
     } catch (error: any) {
       console.error('Error loading kit:', error);
       toast.error(error.message || 'Failed to load kit');
@@ -206,7 +232,6 @@ export default function CreateKitScreen({
         asset_id: asset.id,
         asset,
         quantity: 1,
-        notes: '',
       },
     ]);
     setShowAssetPicker(false);
@@ -221,11 +246,6 @@ export default function CreateKitScreen({
     );
   };
 
-  const handleUpdateAssetNotes = (assetId: string, notes: string) => {
-    setKitAssets((prev) =>
-      prev.map((ka) => (ka.asset_id === assetId ? { ...ka, notes } : ka))
-    );
-  };
 
   const handleRemoveAsset = (assetId: string) => {
     setKitAssets((prev) => prev.filter((ka) => ka.asset_id !== assetId));
@@ -273,7 +293,6 @@ export default function CreateKitScreen({
           id: ka.id,
           asset_id: ka.asset_id,
           quantity: ka.quantity,
-          notes: ka.notes.trim() || undefined,
         }));
       } else {
         // Only send changed basic fields in edit mode
@@ -301,7 +320,6 @@ export default function CreateKitScreen({
           id: ka.id,
           asset_id: ka.asset_id,
           quantity: ka.quantity,
-          notes: ka.notes.trim() || undefined,
         }));
       }
 
@@ -317,6 +335,7 @@ export default function CreateKitScreen({
           tags: formData.tags,
           tag_number: formData.tag_number.trim(),
           rental_value: formData.rental_value,
+          kitAssets: kitAssets, // Include current kit assets in saved state
         });
 
         onKitUpdated();
@@ -541,74 +560,71 @@ export default function CreateKitScreen({
                   </Button>
                 </div>
               ) : (
-                <div className="space-y-3">
-                  {kitAssets.map((ka) => (
-                    <div
-                      key={ka.asset_id}
-                      className="p-4 border border-gray-200 rounded-lg space-y-3"
-                    >
-                      <div className="flex items-start justify-between">
-                        <div className="flex-1">
-                          <div className="text-sm text-gray-900">
-                            {ka.asset?.manufacturer_model}
-                          </div>
-                          <div className="text-xs text-gray-500">
-                            {ka.asset?.category}
-                            {ka.asset?.serial_number && ` • SN: ${ka.asset.serial_number}`}
-                          </div>
-                        </div>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleRemoveAsset(ka.asset_id)}
-                          className="text-red-600 hover:text-red-700"
-                        >
-                          <X className="w-4 h-4" />
-                        </Button>
-                      </div>
-                      <div className="grid grid-cols-2 gap-3">
-                        <div>
-                          <Label htmlFor={`quantity-${ka.asset_id}`} className="text-xs">
-                            Quantity
-                          </Label>
-                          <Input
-                            id={`quantity-${ka.asset_id}`}
-                            type="number"
-                            min="1"
-                            value={ka.quantity}
-                            onChange={(e) =>
-                              handleUpdateAssetQuantity(
-                                ka.asset_id,
-                                parseInt(e.target.value) || 1
-                              )
-                            }
-                            className="mt-1"
-                          />
-                        </div>
-                        <div>
-                          <Label className="text-xs">Value</Label>
-                          <div className="mt-1 text-sm text-gray-900">
+                <div className="border rounded-lg overflow-hidden">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Asset</TableHead>
+                        <TableHead>Category</TableHead>
+                        <TableHead className="text-right">Quantity</TableHead>
+                        <TableHead className="text-right">Unit Value</TableHead>
+                        <TableHead className="text-right">Total Value</TableHead>
+                        <TableHead className="text-right">Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {kitAssets.map((ka) => (
+                        <TableRow key={ka.asset_id}>
+                          <TableCell>
+                            <div>
+                              <div className="text-sm text-gray-900">
+                                {ka.asset?.manufacturer_model || 'Unknown Asset'}
+                              </div>
+                              {ka.asset?.serial_number && (
+                                <div className="text-xs text-gray-500">
+                                  SN: {ka.asset.serial_number}
+                                </div>
+                              )}
+                            </div>
+                          </TableCell>
+                          <TableCell>{ka.asset?.category || '-'}</TableCell>
+                          <TableCell className="text-right">
+                            <Input
+                              type="number"
+                              min="1"
+                              value={ka.quantity}
+                              onChange={(e) =>
+                                handleUpdateAssetQuantity(
+                                  ka.asset_id,
+                                  parseInt(e.target.value) || 1
+                                )
+                              }
+                              className="w-20 ml-auto"
+                            />
+                          </TableCell>
+                          <TableCell className="text-right">
+                            {ka.asset?.replacement_value
+                              ? formatCurrency(ka.asset.replacement_value)
+                              : '-'}
+                          </TableCell>
+                          <TableCell className="text-right">
                             {formatCurrency((ka.asset?.replacement_value || 0) * ka.quantity)}
-                          </div>
-                        </div>
-                      </div>
-                      <div>
-                        <Label htmlFor={`notes-${ka.asset_id}`} className="text-xs">
-                          Notes
-                        </Label>
-                        <Input
-                          id={`notes-${ka.asset_id}`}
-                          value={ka.notes}
-                          onChange={(e) =>
-                            handleUpdateAssetNotes(ka.asset_id, e.target.value)
-                          }
-                          placeholder="Optional notes for this asset..."
-                          className="mt-1"
-                        />
-                      </div>
-                    </div>
-                  ))}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleRemoveAsset(ka.asset_id)}
+                              className="text-red-600 hover:text-red-700"
+                            >
+                              <X className="w-4 h-4" />
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
                 </div>
               )}
             </Card>

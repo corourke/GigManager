@@ -54,10 +54,18 @@ export default function KitListScreen({
   // Memoize filters to prevent infinite re-renders
   const kitFilters = useMemo(() => ({ organization_id: organization.id }), [organization.id]);
 
-  // Real-time kit list
+  // Real-time kit list with kit_assets relationship
   const { data: allKits, loading: isLoading, error, refresh } = useRealtimeList<any>({
     table: 'kits',
+    select: `
+      *,
+      kit_assets(
+        quantity,
+        asset:assets(*)
+      )
+    `,
     filters: kitFilters,
+    orderBy: 'name',
     enabled: true,
   });
 
@@ -117,7 +125,8 @@ export default function KitListScreen({
   };
 
   const getKitAssetCount = (kit: any) => {
-    return kit.kit_assets?.length || 0;
+    if (!kit.kit_assets || kit.kit_assets.length === 0) return 0;
+    return kit.kit_assets.reduce((sum: number, ka: any) => sum + (ka.quantity || 1), 0);
   };
 
   const getKitTotalValue = (kit: any) => {
@@ -238,7 +247,7 @@ export default function KitListScreen({
                     <TableHead>Name</TableHead>
                     <TableHead>Category</TableHead>
                     <TableHead>Tag Number</TableHead>
-                    <TableHead>Assets</TableHead>
+                    <TableHead>Items</TableHead>
                     <TableHead>Total Value</TableHead>
                     <TableHead>Rental Value</TableHead>
                     <TableHead>Tags</TableHead>
@@ -344,30 +353,6 @@ export default function KitListScreen({
                   ))}
                 </TableBody>
               </Table>
-
-              {/* Summary */}
-              <div className="mt-6 pt-6 border-t border-gray-200">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div>
-                    <p className="text-sm text-gray-600">Total Kits</p>
-                    <p className="text-2xl text-gray-900">{kits.length}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-gray-600">Total Assets in Kits</p>
-                    <p className="text-2xl text-gray-900">
-                      {kits.reduce((sum, k) => sum + getKitAssetCount(k), 0)}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-gray-600">Combined Kit Value</p>
-                    <p className="text-2xl text-gray-900">
-                      {formatCurrency(
-                        kits.reduce((sum, k) => sum + getKitTotalValue(k), 0)
-                      )}
-                    </p>
-                  </div>
-                </div>
-              </div>
             </div>
           )}
         </Card>
