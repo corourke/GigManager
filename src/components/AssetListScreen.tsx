@@ -65,9 +65,15 @@ export default function AssetListScreen({
   const [searchQuery, setSearchQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
   const [insuranceFilter, setInsuranceFilter] = useState<string>('all');
+  const [deletedAssetIds, setDeletedAssetIds] = useState<Set<string>>(new Set());
 
   // Filter assets based on current filters
   const assets = allAssets.filter((asset) => {
+    // Exclude deleted assets
+    if (deletedAssetIds.has(asset.id)) {
+      return false;
+    }
+
     // Category filter
     if (categoryFilter !== 'all' && asset.category !== categoryFilter) {
       return false;
@@ -98,13 +104,30 @@ export default function AssetListScreen({
   const handleDeleteAsset = async (assetId: string) => {
     if (!confirm('Are you sure you want to delete this asset?')) return;
 
+    // Optimistically remove the asset from the UI immediately
+    setDeletedAssetIds(prev => new Set(prev).add(assetId));
+
     try {
       await deleteAsset(assetId);
       toast.success('Asset deleted successfully');
-      // Real-time list will automatically update
+      // Refresh to ensure consistency with server state and clear the deleted set
+      refresh();
+      setDeletedAssetIds(prev => {
+        const next = new Set(prev);
+        next.delete(assetId);
+        return next;
+      });
     } catch (error: any) {
       console.error('Error deleting asset:', error);
       toast.error(error.message || 'Failed to delete asset');
+      // Restore the asset in the UI if deletion failed
+      setDeletedAssetIds(prev => {
+        const next = new Set(prev);
+        next.delete(assetId);
+        return next;
+      });
+      // Refresh to ensure consistency
+      refresh();
     }
   };
 

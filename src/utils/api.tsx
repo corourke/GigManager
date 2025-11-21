@@ -1901,6 +1901,81 @@ export async function getAssets(organizationId: string, filters?: {
   return data || [];
 }
 
+/**
+ * Get distinct values for a specific field from assets
+ * Much more efficient than fetching all assets
+ */
+export async function getDistinctAssetValues(
+  organizationId: string,
+  field: 'category' | 'sub_category' | 'type' | 'vendor',
+  filterByCategory?: string
+): Promise<string[]> {
+  const supabase = getSupabase();
+  
+  let query = supabase
+    .from('assets')
+    .select(field)
+    .eq('organization_id', organizationId)
+    .not(field, 'is', null); // Exclude null values
+
+  if (filterByCategory && field === 'sub_category') {
+    query = query.eq('category', filterByCategory);
+  }
+
+  const { data, error } = await query;
+
+  if (error) {
+    console.error(`Error fetching distinct ${field} values:`, error);
+    throw error;
+  }
+
+  // Extract unique, non-empty values
+  const uniqueValues = Array.from(
+    new Set(
+      (data || [])
+        .map((item: any) => item[field])
+        .filter((value): value is string => !!value && value.trim() !== '')
+    )
+  ).sort();
+
+  return uniqueValues;
+}
+
+/**
+ * Get distinct values for a specific field from kits
+ * Used for kit_category autocomplete
+ */
+export async function getDistinctKitValues(
+  organizationId: string,
+  field: 'category'
+): Promise<string[]> {
+  const supabase = getSupabase();
+  
+  const query = supabase
+    .from('kits')
+    .select(field)
+    .eq('organization_id', organizationId)
+    .not(field, 'is', null); // Exclude null values
+
+  const { data, error } = await query;
+
+  if (error) {
+    console.error(`Error fetching distinct kit ${field} values:`, error);
+    throw error;
+  }
+
+  // Extract unique, non-empty values
+  const uniqueValues = Array.from(
+    new Set(
+      (data || [])
+        .map((item: any) => item[field])
+        .filter((value): value is string => !!value && value.trim() !== '')
+    )
+  ).sort();
+
+  return uniqueValues;
+}
+
 export async function getAsset(assetId: string) {
   const supabase = getSupabase();
   const { data, error } = await supabase

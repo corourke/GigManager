@@ -27,6 +27,7 @@ import AppHeader from './AppHeader';
 import type { Organization, User, UserRole } from '../App';
 import { getKit, createKit, updateKit, getAssets } from '../utils/api';
 import type { DbAsset } from '../utils/supabase/types';
+import { useAutocompleteSuggestions } from '../utils/hooks/useAutocompleteSuggestions';
 
 interface CreateKitScreenProps {
   organization: Organization;
@@ -92,6 +93,14 @@ export default function CreateKitScreen({
   const [tagInput, setTagInput] = useState('');
 
   const isEditMode = !!kitId;
+
+  // Autocomplete suggestions for kit category
+  const kitCategorySuggestions = useAutocompleteSuggestions({
+    field: 'category',
+    organizationId: organization.id,
+    sourceTable: 'kits',
+    enabled: true,
+  });
 
   // Create currentData that includes form values + nested data for change detection
   const currentData = useMemo(() => ({
@@ -434,10 +443,16 @@ export default function CreateKitScreen({
                   <Label htmlFor="category">Category</Label>
                   <Input
                     id="category"
+                    list="kit_categories"
                     value={formData.category}
                     onChange={(e) => handleChange('category', e.target.value)}
                     placeholder="e.g., Audio, Lighting, Production"
                   />
+                  <datalist id="kit_categories">
+                    {kitCategorySuggestions.suggestions.map((cat) => (
+                      <option key={cat} value={cat} />
+                    ))}
+                  </datalist>
                 </div>
 
                 <div className="space-y-2">

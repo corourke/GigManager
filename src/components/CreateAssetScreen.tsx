@@ -7,12 +7,14 @@ import { Label } from './ui/label';
 import { Card } from './ui/card';
 import { Checkbox } from './ui/checkbox';
 import { Textarea } from './ui/textarea';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import AppHeader from './AppHeader';
 import type { Organization, User, UserRole } from '../App';
 import { getAsset, createAsset, updateAsset } from '../utils/api';
 import type { DbAsset } from '../utils/supabase/types';
 import { useFormWithChanges } from '../utils/hooks/useFormWithChanges';
 import { createSubmissionPayload, normalizeFormData } from '../utils/form-utils';
+import { useAutocompleteSuggestions } from '../utils/hooks/useAutocompleteSuggestions';
 
 interface CreateAssetScreenProps {
   organization: Organization;
@@ -44,19 +46,6 @@ interface FormData {
   quantity: string;
 }
 
-const SUGGESTED_CATEGORIES = [
-  'Audio',
-  'Lighting',
-  'Video',
-  'Staging',
-  'Power',
-  'Rigging',
-  'Communication',
-  'Instruments',
-  'Cables',
-  'Cases',
-  'Other',
-];
 
 export default function CreateAssetScreen({
   organization,
@@ -100,6 +89,36 @@ export default function CreateAssetScreen({
   });
 
   const isEditMode = !!assetId;
+
+  // Autocomplete suggestions for all fields
+  const categorySuggestions = useAutocompleteSuggestions({
+    field: 'category',
+    organizationId: organization.id,
+    sourceTable: 'assets',
+    enabled: true,
+  });
+
+  const subCategorySuggestions = useAutocompleteSuggestions({
+    field: 'sub_category',
+    organizationId: organization.id,
+    sourceTable: 'assets',
+    filterByCategory: formData.category || undefined,
+    enabled: true,
+  });
+
+  const typeSuggestions = useAutocompleteSuggestions({
+    field: 'type',
+    organizationId: organization.id,
+    sourceTable: 'assets',
+    enabled: true,
+  });
+
+  const vendorSuggestions = useAutocompleteSuggestions({
+    field: 'vendor',
+    organizationId: organization.id,
+    sourceTable: 'assets',
+    enabled: true,
+  });
 
   useEffect(() => {
     if (assetId) {
@@ -190,8 +209,29 @@ export default function CreateAssetScreen({
 
     setIsSaving(true);
     try {
-      // Normalize and get only changed fields for updates
+      // Normalize form data first
       const normalizedData = normalizeFormData(formData);
+      
+      // Convert numeric string fields: empty/null -> undefined, non-empty -> parse to number
+      // This prevents sending empty strings or null to numeric database fields
+      if (normalizedData.cost === null || normalizedData.cost === '') {
+        normalizedData.cost = undefined as any;
+      } else if (typeof normalizedData.cost === 'string' && normalizedData.cost.trim()) {
+        normalizedData.cost = parseFloat(normalizedData.cost) as any;
+      }
+      
+      if (normalizedData.replacement_value === null || normalizedData.replacement_value === '') {
+        normalizedData.replacement_value = undefined as any;
+      } else if (typeof normalizedData.replacement_value === 'string' && normalizedData.replacement_value.trim()) {
+        normalizedData.replacement_value = parseFloat(normalizedData.replacement_value) as any;
+      }
+      
+      if (normalizedData.quantity === null || normalizedData.quantity === '') {
+        normalizedData.quantity = undefined as any;
+      } else if (typeof normalizedData.quantity === 'string' && normalizedData.quantity.trim()) {
+        normalizedData.quantity = parseInt(normalizedData.quantity) as any;
+      }
+
       const submissionData = isEditMode && changeDetection.hasChanges
         ? createSubmissionPayload(normalizedData, changeDetection.originalData)
         : {
@@ -290,7 +330,7 @@ export default function CreateAssetScreen({
                     className={errors.category ? 'border-red-500' : ''}
                   />
                   <datalist id="categories">
-                    {SUGGESTED_CATEGORIES.map((cat) => (
+                    {categorySuggestions.suggestions.map((cat) => (
                       <option key={cat} value={cat} />
                     ))}
                   </datalist>
@@ -306,10 +346,16 @@ export default function CreateAssetScreen({
                   <Label htmlFor="sub_category">Sub-Category</Label>
                   <Input
                     id="sub_category"
+                    list="sub_categories"
                     value={formData.sub_category}
                     onChange={(e) => handleChange('sub_category', e.target.value)}
                     placeholder="e.g., Microphones, LED Fixtures"
                   />
+                  <datalist id="sub_categories">
+                    {subCategorySuggestions.suggestions.map((subCat) => (
+                      <option key={subCat} value={subCat} />
+                    ))}
+                  </datalist>
                 </div>
 
                 <div className="md:col-span-2 space-y-2">
@@ -335,10 +381,16 @@ export default function CreateAssetScreen({
                   <Label htmlFor="type">Equipment Type</Label>
                   <Input
                     id="type"
+                    list="types"
                     value={formData.type}
                     onChange={(e) => handleChange('type', e.target.value)}
                     placeholder="e.g., Dynamic Microphone"
                   />
+                  <datalist id="types">
+                    {typeSuggestions.suggestions.map((type) => (
+                      <option key={type} value={type} />
+                    ))}
+                  </datalist>
                 </div>
 
                 <div className="space-y-2">
@@ -381,10 +433,16 @@ export default function CreateAssetScreen({
                   <Label htmlFor="vendor">Vendor</Label>
                   <Input
                     id="vendor"
+                    list="vendors"
                     value={formData.vendor}
                     onChange={(e) => handleChange('vendor', e.target.value)}
                     placeholder="Where was this purchased?"
                   />
+                  <datalist id="vendors">
+                    {vendorSuggestions.suggestions.map((vendor) => (
+                      <option key={vendor} value={vendor} />
+                    ))}
+                  </datalist>
                 </div>
 
                 <div className="space-y-2">
