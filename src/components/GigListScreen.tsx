@@ -55,6 +55,7 @@ import {
   Edit,
   Copy,
   Trash2,
+  Upload,
 } from 'lucide-react';
 import { Calendar } from './ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
@@ -94,6 +95,7 @@ interface GigListScreenProps {
   onNavigateToDashboard: () => void;
   onNavigateToGigs: () => void;
   onNavigateToAssets: () => void;
+  onNavigateToImport?: () => void;
   onSwitchOrganization: () => void;
   onLogout: () => void;
   useMockData?: boolean;
@@ -262,6 +264,7 @@ export default function GigListScreen({
   onNavigateToDashboard,
   onNavigateToGigs,
   onNavigateToAssets,
+  onNavigateToImport,
   onSwitchOrganization,
   onLogout,
   useMockData = false,
@@ -729,13 +732,25 @@ export default function GigListScreen({
             <div>
               <h1 className="text-gray-900">Gigs</h1>
             </div>
-            <Button
-              onClick={onCreateGig}
-              className="bg-sky-500 hover:bg-sky-600 text-white"
-            >
-              <Plus className="w-4 h-4 mr-2" />
-              New Gig
-            </Button>
+            <div className="flex gap-2">
+              <Button
+                onClick={onCreateGig}
+                className="bg-sky-500 hover:bg-sky-600 text-white"
+              >
+                <Plus className="w-4 h-4 mr-2" />
+                New Gig
+              </Button>
+              {onNavigateToImport && (
+                <Button
+                  onClick={onNavigateToImport}
+                  variant="outline"
+                  className="border-sky-500 text-sky-600 hover:bg-sky-50"
+                >
+                  <Upload className="w-4 h-4 mr-2" />
+                  Import
+                </Button>
+              )}
+            </div>
           </div>
         </div>
       </div>
@@ -901,10 +916,22 @@ export default function GigListScreen({
                   Clear Filters
                 </Button>
               ) : (
-                <Button onClick={onCreateGig} className="bg-sky-500 hover:bg-sky-600 text-white">
-                  <Plus className="w-4 h-4 mr-2" />
-                  Create First Gig
-                </Button>
+                <div className="flex gap-2">
+                  <Button onClick={onCreateGig} className="bg-sky-500 hover:bg-sky-600 text-white">
+                    <Plus className="w-4 h-4 mr-2" />
+                    Create First Gig
+                  </Button>
+                  {onNavigateToImport && (
+                    <Button
+                      onClick={onNavigateToImport}
+                      variant="outline"
+                      className="border-sky-500 text-sky-600 hover:bg-sky-50"
+                    >
+                      <Upload className="w-4 h-4 mr-2" />
+                      Import
+                    </Button>
+                  )}
+                </div>
               )}
             </div>
           </Card>

@@ -10,7 +10,7 @@ export const AUTCOMPLETE_SEEDS = {
     category: [
       'PA',
       'Audio',
-      'Lighting',
+      'Lighting'
       'Video',
       'Staging',
       'Power',

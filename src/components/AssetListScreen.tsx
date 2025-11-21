@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Package, Plus, Search, Filter, Loader2, Edit2, Trash2, AlertCircle, Shield } from 'lucide-react';
+import { Package, Plus, Search, Filter, Loader2, Edit2, Trash2, AlertCircle, Shield, Upload } from 'lucide-react';
 import { useRealtimeList } from '../utils/hooks/useRealtimeList';
 import { toast } from 'sonner@2.0.3';
 import { Button } from './ui/button';
@@ -32,6 +32,7 @@ interface AssetListScreenProps {
   onNavigateToGigs: () => void;
   onNavigateToAssets: () => void;
   onNavigateToKits: () => void;
+  onNavigateToImport?: () => void;
   onSwitchOrganization: () => void;
   onLogout: () => void;
   useMockData?: boolean;
@@ -48,6 +49,7 @@ export default function AssetListScreen({
   onNavigateToGigs,
   onNavigateToAssets,
   onNavigateToKits,
+  onNavigateToImport,
   onSwitchOrganization,
   onLogout,
   useMockData = false,
@@ -175,10 +177,22 @@ export default function AssetListScreen({
               Manage your equipment inventory
             </p>
           </div>
-          <Button onClick={onCreateAsset} className="bg-sky-500 hover:bg-sky-600 text-white">
-            <Plus className="w-4 h-4 mr-2" />
-            Add Asset
-          </Button>
+          <div className="flex gap-2">
+            <Button onClick={onCreateAsset} className="bg-sky-500 hover:bg-sky-600 text-white">
+              <Plus className="w-4 h-4 mr-2" />
+              Add Asset
+            </Button>
+            {onNavigateToImport && (
+              <Button
+                onClick={onNavigateToImport}
+                variant="outline"
+                className="border-sky-500 text-sky-600 hover:bg-sky-50"
+              >
+                <Upload className="w-4 h-4 mr-2" />
+                Import
+              </Button>
+            )}
+          </div>
         </div>
 
         {/* Filters */}

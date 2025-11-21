@@ -14,6 +14,7 @@ import CreateAssetScreen from './components/CreateAssetScreen';
 import KitListScreen from './components/KitListScreen';
 import CreateKitScreen from './components/CreateKitScreen';
 import KitDetailScreen from './components/KitDetailScreen';
+import ImportScreen from './components/ImportScreen';
 import EditUserProfileDialog from './components/EditUserProfileDialog';
 import { Toaster } from './components/ui/sonner';
 import { createClient } from './utils/supabase/client';
@@ -89,7 +90,8 @@ type Route =
   | 'create-asset'
   | 'kit-list'
   | 'create-kit'
-  | 'kit-detail';
+  | 'kit-detail'
+  | 'import';
 
 function App() {
   const [currentRoute, setCurrentRoute] = useState<Route>('login');
@@ -302,6 +304,10 @@ function App() {
     setCurrentRoute('org-selection');
   };
 
+  const handleNavigateToImport = () => {
+    setCurrentRoute('import');
+  };
+
   const handleEditProfile = () => {
     setShowEditProfileDialog(true);
   };
@@ -381,6 +387,7 @@ function App() {
           onNavigateToDashboard={handleBackToDashboard}
           onNavigateToGigs={handleBackToGigList}
           onNavigateToAssets={handleNavigateToAssets}
+          onNavigateToImport={handleNavigateToImport}
           onSwitchOrganization={handleBackToSelection}
           onEditProfile={handleEditProfile}
           onLogout={handleLogout}
@@ -446,6 +453,7 @@ function App() {
           onNavigateToGigs={handleBackToGigList}
           onNavigateToAssets={handleNavigateToAssets}
           onNavigateToKits={handleNavigateToKits}
+          onNavigateToImport={handleNavigateToImport}
           onSwitchOrganization={handleBackToSelection}
           onLogout={handleLogout}
           useMockData={USE_MOCK_DATA}
@@ -524,6 +532,19 @@ function App() {
           onEditOrganization={handleAdminEditOrganization}
           onCreateOrganization={handleCreateOrganization}
           onBack={handleBackFromAdmin}
+        />
+      )}
+
+      {currentRoute === 'import' && selectedOrganization && currentUser && (
+        <ImportScreen
+          organization={selectedOrganization}
+          user={currentUser}
+          userRole={getCurrentUserRole()}
+          onCancel={handleBackToDashboard}
+          onNavigateToDashboard={handleBackToDashboard}
+          onNavigateToGigs={handleNavigateToGigs}
+          onSwitchOrganization={handleBackToSelection}
+          onLogout={handleLogout}
         />
       )}
       

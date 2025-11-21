@@ -2005,6 +2005,8 @@ export async function createAsset(assetData: {
   type?: string;
   description?: string;
   insurance_policy_added?: boolean;
+  insurance_class?: string;
+  quantity?: number;
 }) {
   const supabase = getSupabase();
   const { data: { session } } = await supabase.auth.getSession();

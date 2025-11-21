@@ -14,7 +14,8 @@ export type RouteType =
   | 'kit-list' 
   | 'create-kit' 
   | 'edit-kit'
-  | 'kit-detail';
+  | 'kit-detail'
+  | 'import';
 
 interface NavigationMenuItem {
   id: string;
