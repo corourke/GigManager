@@ -14,18 +14,31 @@ const API_BASE_URL = `https://${projectId}.supabase.co/functions/v1/make-server-
 
 export async function getUserProfile(userId: string) {
   const supabase = getSupabase();
-  const { data, error } = await supabase
-    .from('users')
-    .select('*')
-    .eq('id', userId)
-    .maybeSingle();
+  
+  try {
+    const { data, error } = await supabase
+      .from('users')
+      .select('*')
+      .eq('id', userId)
+      .maybeSingle();
 
-  if (error) {
-    console.error('Error fetching user profile:', error);
-    throw error;
+    if (error) {
+      console.error('Error fetching user profile:', error);
+      throw error;
+    }
+
+    return data;
+  } catch (err: any) {
+    // Re-throw network errors with more context
+    if (err?.message?.includes('Failed to fetch') || 
+        err?.code === 'ERR_NETWORK' ||
+        err?.name === 'TypeError') {
+      const networkError = new Error('Network error: Unable to fetch user profile');
+      networkError.name = 'NetworkError';
+      throw networkError;
+    }
+    throw err;
   }
-
-  return data;
 }
 
 export async function createUserProfile(userData: {

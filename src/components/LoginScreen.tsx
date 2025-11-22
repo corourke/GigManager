@@ -46,49 +46,112 @@ export default function LoginScreen({ onLogin, useMockData = false }: LoginScree
         // User has active session, fetch their data
         await handleAuthenticatedUser(session.access_token, session.user.id);
       }
-    } catch (err) {
+    } catch (err: any) {
+      // Handle network errors gracefully - don't show error if it's a network issue
+      const isNetworkError = err?.message?.includes('Failed to fetch') || 
+                            err?.message?.includes('ERR_INTERNET_DISCONNECTED') ||
+                            err?.code === 'ERR_NETWORK' ||
+                            err?.name === 'TypeError';
+      
+      if (isNetworkError) {
+        console.warn('Network error checking session - user may be offline:', err);
+        // Silently fail - user can still log in manually
+        return;
+      }
+      
       console.error('Error checking session:', err);
     }
   };
 
   const handleAuthenticatedUser = async (accessToken: string, userId: string) => {
     try {
+      setIsLoading(true);
       console.log('=== AUTHENTICATING USER ===');
       console.log('User ID:', userId);
 
       // Get user metadata from Supabase auth
       const supabase = createClient();
-      const { data: { user: authUser } } = await supabase.auth.getUser();
+      let authUser;
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        authUser = user;
+      } catch (authErr: any) {
+        const isNetworkError = authErr?.message?.includes('Failed to fetch') || 
+                              authErr?.code === 'ERR_NETWORK' ||
+                              authErr?.name === 'TypeError';
+        if (isNetworkError) {
+          throw new Error('Network error: Unable to connect to server. Please check your internet connection.');
+        }
+        throw authErr;
+      }
+
       const userEmail = authUser?.email || email;
 
       // Check if there's a pending user with this email and convert to active
       if (userEmail) {
-        const convertedUser = await convertPendingToActive(userEmail, userId);
-        if (convertedUser) {
-          console.log('Converted pending user to active:', convertedUser);
+        try {
+          const convertedUser = await convertPendingToActive(userEmail, userId);
+          if (convertedUser) {
+            console.log('Converted pending user to active:', convertedUser);
+          }
+        } catch (convertErr: any) {
+          // Non-critical error, continue
+          console.warn('Error converting pending user:', convertErr);
         }
       }
 
       // Fetch or create user profile using direct Supabase client
-      let userProfile = await getUserProfile(userId);
+      let userProfile;
+      try {
+        userProfile = await getUserProfile(userId);
+      } catch (profileErr: any) {
+        const isNetworkError = profileErr?.message?.includes('Failed to fetch') || 
+                              profileErr?.code === 'ERR_NETWORK' ||
+                              profileErr?.name === 'TypeError';
+        if (isNetworkError) {
+          throw new Error('Network error: Unable to fetch user profile. Please check your internet connection.');
+        }
+        throw profileErr;
+      }
 
       if (!userProfile) {
         // User doesn't exist, create profile
         console.log('User profile not found, creating new profile...');
         
-        userProfile = await createUserProfile({
-          id: userId,
-          email: userEmail,
-          first_name: firstName || authUser?.user_metadata?.first_name || 'User',
-          last_name: lastName || authUser?.user_metadata?.last_name || '',
-          avatar_url: authUser?.user_metadata?.avatar_url || authUser?.user_metadata?.picture,
-        });
-        
-        console.log('User profile created successfully');
+        try {
+          userProfile = await createUserProfile({
+            id: userId,
+            email: userEmail,
+            first_name: firstName || authUser?.user_metadata?.first_name || 'User',
+            last_name: lastName || authUser?.user_metadata?.last_name || '',
+            avatar_url: authUser?.user_metadata?.avatar_url || authUser?.user_metadata?.picture,
+          });
+          
+          console.log('User profile created successfully');
+        } catch (createErr: any) {
+          const isNetworkError = createErr?.message?.includes('Failed to fetch') || 
+                                createErr?.code === 'ERR_NETWORK' ||
+                                createErr?.name === 'TypeError';
+          if (isNetworkError) {
+            throw new Error('Network error: Unable to create user profile. Please check your internet connection.');
+          }
+          throw createErr;
+        }
       }
 
       // Fetch user's organizations
-      const orgsData = await getUserOrganizations(userId);
+      let orgsData;
+      try {
+        orgsData = await getUserOrganizations(userId);
+      } catch (orgErr: any) {
+        const isNetworkError = orgErr?.message?.includes('Failed to fetch') || 
+                              orgErr?.code === 'ERR_NETWORK' ||
+                              orgErr?.name === 'TypeError';
+        if (isNetworkError) {
+          throw new Error('Network error: Unable to fetch organizations. Please check your internet connection.');
+        }
+        throw orgErr;
+      }
 
       // Transform to app format
       const user: User = {
@@ -108,9 +171,11 @@ export default function LoginScreen({ onLogin, useMockData = false }: LoginScree
 
       // Call onLogin callback
       onLogin(user, organizations);
+      setIsLoading(false);
     } catch (err: any) {
       console.error('Error handling authenticated user:', err);
-      setError(err.message || 'Failed to load user data');
+      const errorMessage = err?.message || 'Failed to load user data';
+      setError(errorMessage);
       setIsLoading(false);
     }
   };

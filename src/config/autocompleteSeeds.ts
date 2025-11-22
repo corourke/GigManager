@@ -8,14 +8,14 @@ export const AUTCOMPLETE_SEEDS = {
   // Asset fields
   asset: {
     category: [
-      'PA',
       'Audio',
-      'Lighting'
+      'Lighting',
       'Video',
       'Staging',
       'Power',
       'Rigging',
       'Network',
+      'Comms',
       'Instruments',
       'Cases',
       'Other',
@@ -77,7 +77,7 @@ export const AUTCOMPLETE_SEEDS = {
       'Power',
       'Rigging',
       'Networking',
-      'Communications',
+      'Comms',
       'Instruments',
       'Cables',
       'Other',
@@ -91,7 +91,7 @@ export const AUTCOMPLETE_SEEDS = {
 export function getSeedValues(
   formType: 'asset' | 'kit',
   field: string
-): string[] {
+): readonly string[] {
   return AUTCOMPLETE_SEEDS[formType]?.[field as keyof typeof AUTCOMPLETE_SEEDS[typeof formType]] || [];
 }
 

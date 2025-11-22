@@ -502,6 +502,10 @@ CREATE POLICY "Users can view organizations they belong to" ON organizations
 CREATE POLICY "Users can view all organizations for participant selection" ON organizations
   FOR SELECT USING (true);
 
+CREATE POLICY "Authenticated users can create organizations" ON organizations
+  FOR INSERT TO authenticated
+  WITH CHECK (true);
+
 CREATE POLICY "Admins can update their organizations" ON organizations
   FOR UPDATE USING (user_is_admin_of_org(organizations.id, auth.uid()));
 
