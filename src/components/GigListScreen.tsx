@@ -7,7 +7,6 @@ import { createClient } from '../utils/supabase/client';
 import * as api from '../utils/api';
 import AppHeader from './AppHeader';
 import GigTable from './tables/GigTable';
-import { useRealtimeList } from '../utils/hooks/useRealtimeList';
 import {
   Select,
   SelectContent,

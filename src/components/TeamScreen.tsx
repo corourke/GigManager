@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { toast } from 'sonner@2.0.3';
-import { useRealtimeList } from '../utils/hooks/useRealtimeList';
+import { getOrganizationMembers } from '../utils/api';
 import { 
   Users, 
   Plus, 
@@ -129,30 +129,27 @@ export default function TeamScreen({
   // Memoize filters to prevent infinite re-renders
   const memberFilters = useMemo(() => ({ organization_id: organization.id }), [organization.id]);
 
-  // Real-time organization members
-  const { data: members, loading: membersLoading, error: membersError, refresh: refreshMembers } = useRealtimeList<OrganizationMember>({
-    table: 'organization_members',
-    select: `
-      *,
-      user:users(
-        id,
-        first_name,
-        last_name,
-        email,
-        phone,
-        avatar_url,
-        address_line1,
-        address_line2,
-        city,
-        state,
-        postal_code,
-        country,
-        user_status
-      )
-    `,
-    filters: memberFilters,
-    enabled: true,
-  });
+  // Organization members data
+  const [members, setMembers] = useState<OrganizationMember[]>([]);
+  const [membersLoading, setMembersLoading] = useState(true);
+  const [membersError, setMembersError] = useState<string | null>(null);
+
+  const refreshMembers = async () => {
+    try {
+      setMembersLoading(true);
+      setMembersError(null);
+      const memberData = await getOrganizationMembers(organization.id);
+      setMembers(memberData);
+    } catch (err: any) {
+      setMembersError(err.message || 'Failed to load members');
+    } finally {
+      setMembersLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    refreshMembers();
+  }, [organization.id]);
 
   const [invitations, setInvitations] = useState<Invitation[]>([]);
   const [invitationsTableExists, setInvitationsTableExists] = useState(true);

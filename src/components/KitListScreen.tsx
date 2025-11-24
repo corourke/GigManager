@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Package, Plus, Search, Loader2, Edit2, Trash2, Copy, Eye, AlertCircle } from 'lucide-react';
-import { useRealtimeList } from '../utils/hooks/useRealtimeList';
 import { toast } from 'sonner@2.0.3';
+import { getKits } from '../utils/api';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Card } from './ui/card';
@@ -54,20 +54,27 @@ export default function KitListScreen({
   // Memoize filters to prevent infinite re-renders
   const kitFilters = useMemo(() => ({ organization_id: organization.id }), [organization.id]);
 
-  // Real-time kit list with kit_assets relationship
-  const { data: allKits, loading: isLoading, error, refresh } = useRealtimeList<any>({
-    table: 'kits',
-    select: `
-      *,
-      kit_assets(
-        quantity,
-        asset:assets(*)
-      )
-    `,
-    filters: kitFilters,
-    orderBy: 'name',
-    enabled: true,
-  });
+  // Kit list data
+  const [allKits, setAllKits] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const refresh = async () => {
+    try {
+      setIsLoading(true);
+      setError(null);
+      const kits = await getKits(organization.id);
+      setAllKits(kits);
+    } catch (err: any) {
+      setError(err.message || 'Failed to load kits');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    refresh();
+  }, [organization.id]);
 
   const [searchQuery, setSearchQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<string>('all');

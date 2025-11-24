@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Package, Plus, Search, Filter, Loader2, Edit2, Trash2, AlertCircle, Shield, Upload } from 'lucide-react';
-import { useRealtimeList } from '../utils/hooks/useRealtimeList';
 import { toast } from 'sonner@2.0.3';
+import { getAssets } from '../utils/api';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Card } from './ui/card';
@@ -57,12 +57,27 @@ export default function AssetListScreen({
   // Memoize filters to prevent infinite re-renders
   const assetFilters = useMemo(() => ({ organization_id: organization.id }), [organization.id]);
 
-  // Real-time asset list
-  const { data: allAssets, loading: isLoading, error, refresh } = useRealtimeList<DbAsset>({
-    table: 'assets',
-    filters: assetFilters,
-    enabled: true,
-  });
+  // Asset list data
+  const [allAssets, setAllAssets] = useState<DbAsset[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const refresh = async () => {
+    try {
+      setIsLoading(true);
+      setError(null);
+      const assets = await getAssets(organization.id);
+      setAllAssets(assets);
+    } catch (err: any) {
+      setError(err.message || 'Failed to load assets');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    refresh();
+  }, [organization.id]);
 
   const [searchQuery, setSearchQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
