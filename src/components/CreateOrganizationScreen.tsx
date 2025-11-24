@@ -3,6 +3,7 @@ import { Building2, Search, Loader2, MapPin, Phone, Globe, Check, AlertCircle, X
 import { toast } from 'sonner@2.0.3';
 import type { Organization, OrganizationType } from '../App';
 import { useFormWithChanges } from '../utils/hooks/useFormWithChanges';
+import { createSubmissionPayload, normalizeFormData } from '../utils/form-utils';
 import { createClient } from '../utils/supabase/client';
 import { projectId } from '../utils/supabase/info';
 import { Button } from './ui/button';
@@ -486,64 +487,26 @@ export default function CreateOrganizationScreen({
         return;
       }
 
-      // Get only changed fields for efficiency in edit mode
-      const changedFields = isEditMode ? changeDetection.getChangedFields() : {};
-
-      const requestBody: any = {};
+      // Normalize form data
+      const normalizedData = normalizeFormData({
+        name: formData.name,
+        type: formData.type,
+        url: formData.url,
+        phone_number: formData.phone_number,
+        description: formData.description,
+        address_line1: formData.address_line1,
+        address_line2: formData.address_line2,
+        city: formData.city,
+        state: formData.state,
+        postal_code: formData.postal_code,
+        country: formData.country,
+        allowed_domains: formData.allowed_domains,
+      });
 
       // In create mode, send all fields. In edit mode, only send changed fields
-      if (!isEditMode) {
-        requestBody.name = formData.name.trim();
-        requestBody.type = formData.type;
-        requestBody.url = formData.url.trim() || null;
-        requestBody.phone_number = formData.phone_number.trim() || null;
-        requestBody.description = formData.description.trim() || null;
-        requestBody.address_line1 = formData.address_line1.trim() || null;
-        requestBody.address_line2 = formData.address_line2.trim() || null;
-        requestBody.city = formData.city.trim() || null;
-        requestBody.state = formData.state.trim() || null;
-        requestBody.postal_code = formData.postal_code.trim() || null;
-        requestBody.country = formData.country.trim() || null;
-        requestBody.allowed_domains = formData.allowed_domains.trim() || null;
-      } else {
-        // Only send changed fields in edit mode
-        if (changedFields.name !== undefined) {
-          requestBody.name = formData.name.trim();
-        }
-        if (changedFields.type !== undefined) {
-          requestBody.type = formData.type;
-        }
-        if (changedFields.url !== undefined) {
-          requestBody.url = formData.url.trim() || null;
-        }
-        if (changedFields.phone_number !== undefined) {
-          requestBody.phone_number = formData.phone_number.trim() || null;
-        }
-        if (changedFields.description !== undefined) {
-          requestBody.description = formData.description.trim() || null;
-        }
-        if (changedFields.address_line1 !== undefined) {
-          requestBody.address_line1 = formData.address_line1.trim() || null;
-        }
-        if (changedFields.address_line2 !== undefined) {
-          requestBody.address_line2 = formData.address_line2.trim() || null;
-        }
-        if (changedFields.city !== undefined) {
-          requestBody.city = formData.city.trim() || null;
-        }
-        if (changedFields.state !== undefined) {
-          requestBody.state = formData.state.trim() || null;
-        }
-        if (changedFields.postal_code !== undefined) {
-          requestBody.postal_code = formData.postal_code.trim() || null;
-        }
-        if (changedFields.country !== undefined) {
-          requestBody.country = formData.country.trim() || null;
-        }
-        if (changedFields.allowed_domains !== undefined) {
-          requestBody.allowed_domains = formData.allowed_domains.trim() || null;
-        }
-      }
+      const requestBody = isEditMode
+        ? createSubmissionPayload(normalizedData, changeDetection.originalData)
+        : normalizedData;
 
       let url = `https://${projectId}.supabase.co/functions/v1/make-server-de012ad4/organizations`;
       let method = 'POST';

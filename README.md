@@ -101,8 +101,13 @@ A comprehensive web application for production and event management companies to
 ### Testing
 
 ```bash
-npm test
+npm test              # Run tests in watch mode
+npm run test:run      # Run tests once (CI mode)
+npm run test:ui       # Run tests with UI
+npm run test:coverage # Run tests with coverage report
 ```
+
+See [Testing Guide](./docs/development/testing.md) for detailed testing documentation.
 
 ### Database Management
 

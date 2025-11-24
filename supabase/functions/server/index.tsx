@@ -246,22 +246,34 @@ Deno.serve(async (req) => {
       }
 
       const body = await req.json();
-      const { first_name, last_name, phone, address_line1, address_line2, city, state, postal_code, country } = body;
+      
+      // Only include fields that are present in the request body (partial updates)
+      const updateData: Record<string, any> = {};
+      const allowedFields = [
+        'first_name', 'last_name', 'phone', 'address_line1', 'address_line2',
+        'city', 'state', 'postal_code', 'country'
+      ];
+
+      for (const field of allowedFields) {
+        if (body[field] !== undefined) {
+          updateData[field] = body[field];
+        }
+      }
+
+      // Only update if there are fields to update
+      if (Object.keys(updateData).length === 0) {
+        return new Response(JSON.stringify({ error: 'No fields provided for update' }), {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      // Always set updated_at when any field is updated
+      updateData.updated_at = new Date().toISOString();
 
       const { data, error } = await supabaseAdmin
         .from('users')
-        .update({
-          first_name,
-          last_name,
-          phone,
-          address_line1,
-          address_line2,
-          city,
-          state,
-          postal_code,
-          country,
-          updated_at: new Date().toISOString(),
-        })
+        .update(updateData)
         .eq('id', userId)
         .select()
         .single();
@@ -468,47 +480,51 @@ Deno.serve(async (req) => {
 
       // Parse request body
       const body = await req.json();
-      const {
-        name,
-        type,
-        url,
-        phone_number,
-        description,
-        address_line1,
-        address_line2,
-        city,
-        state,
-        postal_code,
-        country,
-        allowed_domains,
-      } = body;
+      
+      // Only include fields that are present in the request body (partial updates)
+      const updateData: Record<string, any> = {};
+      const allowedFields = [
+        'name', 'type', 'url', 'phone_number', 'description',
+        'address_line1', 'address_line2', 'city', 'state',
+        'postal_code', 'country', 'allowed_domains'
+      ];
 
-      // Validate required fields
-      if (!name || !type) {
-        return new Response(JSON.stringify({ error: 'Name and type are required' }), {
+      for (const field of allowedFields) {
+        if (body[field] !== undefined) {
+          updateData[field] = body[field];
+        }
+      }
+
+      // Validate required fields if they're being updated
+      if (updateData.name !== undefined && !updateData.name) {
+        return new Response(JSON.stringify({ error: 'Name is required' }), {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      
+      if (updateData.type !== undefined && !updateData.type) {
+        return new Response(JSON.stringify({ error: 'Type is required' }), {
           status: 400,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
       }
 
+      // Only update if there are fields to update
+      if (Object.keys(updateData).length === 0) {
+        return new Response(JSON.stringify({ error: 'No fields provided for update' }), {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      // Always set updated_at when any field is updated
+      updateData.updated_at = new Date().toISOString();
+
       // Update organization
       const { data: updatedOrg, error: updateError } = await supabaseAdmin
         .from('organizations')
-        .update({
-          name,
-          type,
-          url,
-          phone_number: phone_number,
-          description,
-          address_line1,
-          address_line2,
-          city,
-          state,
-          postal_code,
-          country,
-          allowed_domains,
-          updated_at: new Date().toISOString(),
-        })
+        .update(updateData)
         .eq('id', orgId)
         .select()
         .single();

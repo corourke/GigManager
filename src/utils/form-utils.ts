@@ -7,7 +7,11 @@
  */
 export function deepEqual(a: any, b: any): boolean {
   if (a === b) return true;
-  if (a == null || b == null) return a === b;
+  // Treat null and undefined as equal for form comparison purposes
+  if ((a == null && b == null) || (a === null && b === undefined) || (a === undefined && b === null)) {
+    return true;
+  }
+  if (a == null || b == null) return false;
   if (typeof a !== typeof b) return false;
 
   if (Array.isArray(a) && Array.isArray(b)) {
@@ -70,24 +74,26 @@ export function normalizeFormData<T extends Record<string, any>>(data: T): T {
 
   for (const key in normalized) {
     if (normalized.hasOwnProperty(key)) {
-      const value = normalized[key];
+      let value = normalized[key];
 
-      // Convert empty strings to null for optional fields
-      if (value === '') {
-        normalized[key] = null as any;
+      // Trim strings first
+      if (typeof value === 'string') {
+        value = value.trim();
       }
 
-      // Trim strings
-      if (typeof value === 'string') {
-        normalized[key] = value.trim() as any;
+      // Convert empty strings to null for optional fields (after trimming)
+      if (value === '') {
+        value = null;
       }
 
       // Handle arrays
       if (Array.isArray(value)) {
-        normalized[key] = value.filter(item =>
+        value = value.filter(item =>
           item !== null && item !== undefined && item !== ''
         ) as any;
       }
+
+      normalized[key] = value as any;
     }
   }
 

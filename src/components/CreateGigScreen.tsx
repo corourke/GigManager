@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { useForm, Controller } from 'react-hook-form@7.55.0';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useFormWithChanges } from '../utils/hooks/useFormWithChanges';
+import { createSubmissionPayload, normalizeFormData } from '../utils/form-utils';
 import { format } from 'date-fns';
 import { toast } from 'sonner@2.0.3';
 import { 
@@ -829,37 +830,38 @@ export default function CreateGigScreen({
         return;
       }
 
-      // Get only changed fields for efficiency
-      const changedFields = changeDetection.getChangedFields();
+      // Prepare normalized form data for basic gig fields (using API field names)
+      const normalizedFormData = {
+        title: data.title,
+        start: data.start_time?.toISOString(),
+        end: data.end_time?.toISOString(),
+        timezone: data.timezone,
+        status: data.status,
+        tags: data.tags || [],
+        notes: data.notes,
+        amount_paid: data.amount_paid?.trim() ? parseFloat(data.amount_paid) : null,
+      };
 
-      // Prepare gig data - only send changed fields plus required nested data
-      const gigData: any = {};
+      // Transform originalData to match API field names for comparison
+      const originalDataForComparison = isEditMode && changeDetection.originalData ? {
+        title: changeDetection.originalData.title || '',
+        start: changeDetection.originalData.start_time?.toISOString(),
+        end: changeDetection.originalData.end_time?.toISOString(),
+        timezone: changeDetection.originalData.timezone || 'America/Los_Angeles',
+        status: changeDetection.originalData.status || 'DateHold',
+        tags: changeDetection.originalData.tags || [],
+        notes: changeDetection.originalData.notes || '',
+        amount_paid: changeDetection.originalData.amount_paid || null,
+      } : {};
 
-      // Only add changed basic fields
-      if (changedFields.title !== undefined) {
-        gigData.title = data.title.trim();
-      }
-      if (changedFields.start_time !== undefined) {
-        gigData.start = data.start_time!.toISOString();
-      }
-      if (changedFields.end_time !== undefined) {
-        gigData.end = data.end_time!.toISOString();
-      }
-      if (changedFields.timezone !== undefined) {
-        gigData.timezone = data.timezone;
-      }
-      if (changedFields.status !== undefined) {
-        gigData.status = data.status;
-      }
-      if (changedFields.tags !== undefined) {
-        gigData.tags = data.tags || []; // Ensure empty array is sent when tags are removed
-      }
-      if (changedFields.notes !== undefined) {
-        gigData.notes = data.notes?.trim() || null;
-      }
-      if (changedFields.amount_paid !== undefined) {
-        gigData.amount_paid = data.amount_paid?.trim() ? parseFloat(data.amount_paid) : null;
-      }
+      // Normalize and get only changed fields for basic gig data
+      const normalizedData = normalizeFormData(normalizedFormData);
+      const basicGigData = isEditMode
+        ? createSubmissionPayload(normalizedData, originalDataForComparison)
+        : normalizedData;
+
+      // Prepare gig data - combine basic fields with nested data
+      const gigData: any = { ...basicGigData };
 
       if (isEditMode) {
         // Update existing gig - send full participants and staff data with IDs

@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { Package, ArrowLeft, Save, Loader2, AlertCircle, Plus, X, Search } from 'lucide-react';
 import { useFormWithChanges } from '../utils/hooks/useFormWithChanges';
+import { createSubmissionPayload, normalizeFormData } from '../utils/form-utils';
 import { toast } from 'sonner@2.0.3';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -283,54 +284,45 @@ export default function CreateKitScreen({
 
     setIsSaving(true);
     try {
-      // Get only changed fields for efficiency in edit mode
-      const changedFields = isEditMode ? changeDetection.getChangedFields() : {};
-
-      const kitData: any = {
-        organization_id: organization.id,
+      // Normalize form data for basic kit fields
+      const normalizedFormData = {
+        name: formData.name,
+        category: formData.category,
+        description: formData.description,
+        tags: formData.tags,
+        tag_number: formData.tag_number,
+        rental_value: formData.rental_value ? parseFloat(formData.rental_value) : null,
       };
 
-      // In create mode, send all fields. In edit mode, only send changed fields
-      if (!isEditMode) {
-        kitData.name = formData.name.trim();
-        kitData.category = formData.category.trim() || undefined;
-        kitData.description = formData.description.trim() || undefined;
-        kitData.tags = formData.tags;
-        kitData.tag_number = formData.tag_number.trim() || undefined;
-        kitData.rental_value = formData.rental_value ? parseFloat(formData.rental_value) : undefined;
-        kitData.assets = kitAssets.map((ka) => ({
-          id: ka.id,
-          asset_id: ka.asset_id,
-          quantity: ka.quantity,
-        }));
-      } else {
-        // Only send changed basic fields in edit mode
-        if (changedFields.name !== undefined) {
-          kitData.name = formData.name.trim();
-        }
-        if (changedFields.category !== undefined) {
-          kitData.category = formData.category.trim() || undefined;
-        }
-        if (changedFields.description !== undefined) {
-          kitData.description = formData.description.trim() || undefined;
-        }
-        if (changedFields.tags !== undefined) {
-          kitData.tags = formData.tags;
-        }
-        if (changedFields.tag_number !== undefined) {
-          kitData.tag_number = formData.tag_number.trim() || undefined;
-        }
-        if (changedFields.rental_value !== undefined) {
-          kitData.rental_value = formData.rental_value ? parseFloat(formData.rental_value) : undefined;
-        }
+      // Normalize and get only changed fields for basic kit data
+      const normalizedData = normalizeFormData(normalizedFormData);
+      
+      // Transform originalData to match normalized structure (rental_value is number | null in normalized, string in original)
+      const originalDataForComparison = isEditMode && changeDetection.originalData ? {
+        name: changeDetection.originalData.name || '',
+        category: changeDetection.originalData.category || '',
+        description: changeDetection.originalData.description || '',
+        tags: changeDetection.originalData.tags || [],
+        tag_number: changeDetection.originalData.tag_number || '',
+        rental_value: changeDetection.originalData.rental_value ? parseFloat(changeDetection.originalData.rental_value) : null,
+      } : {};
 
-        // Always send assets in edit mode (complex nested data)
-        kitData.assets = kitAssets.map((ka) => ({
-          id: ka.id,
-          asset_id: ka.asset_id,
-          quantity: ka.quantity,
-        }));
-      }
+      const basicKitData = isEditMode
+        ? createSubmissionPayload(normalizedData, originalDataForComparison)
+        : normalizedData;
+
+      // Prepare kit data - combine basic fields with nested assets
+      const kitData: any = {
+        organization_id: organization.id,
+        ...basicKitData,
+      };
+
+      // Always send assets (complex nested data)
+      kitData.assets = kitAssets.map((ka) => ({
+        id: ka.id,
+        asset_id: ka.asset_id,
+        quantity: ka.quantity,
+      }));
 
       if (isEditMode && kitId) {
         await updateKit(kitId, kitData);
