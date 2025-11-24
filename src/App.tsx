@@ -19,6 +19,7 @@ import EditUserProfileDialog from './components/EditUserProfileDialog';
 import { Toaster } from './components/ui/sonner';
 import { createClient } from './utils/supabase/client';
 import { toast } from 'sonner';
+import { NavigationProvider } from './contexts/NavigationContext';
 
 export type OrganizationType = 
   | 'Production'
@@ -359,192 +360,190 @@ function App() {
         />
       )}
       
-      {currentRoute === 'dashboard' && selectedOrganization && currentUser && (
-        <Dashboard
-          organization={selectedOrganization}
-          user={currentUser}
-          userRole={getCurrentUserRole()}
-          onBackToSelection={handleBackToSelection}
-          onLogout={handleLogout}
+      {/* Wrap all screens that use AppHeader with NavigationProvider */}
+      {selectedOrganization && currentUser && (
+        <NavigationProvider
+          onNavigateToDashboard={handleBackToDashboard}
           onNavigateToGigs={handleNavigateToGigs}
           onNavigateToTeam={handleNavigateToTeam}
-          onNavigateToDashboard={handleBackToDashboard}
           onNavigateToAssets={handleNavigateToAssets}
-          onNavigateToKits={handleNavigateToKits}
-          onEditProfile={handleEditProfile}
-          onNavigateToGigEdit={handleViewGig}
-        />
+        >
+              {currentRoute === 'dashboard' && (
+            <Dashboard
+              organization={selectedOrganization}
+              user={currentUser}
+              userRole={getCurrentUserRole()}
+              onBackToSelection={handleBackToSelection}
+              onLogout={handleLogout}
+              onNavigateToGigs={handleNavigateToGigs}
+              onNavigateToTeam={handleNavigateToTeam}
+              onNavigateToDashboard={handleBackToDashboard}
+              onNavigateToAssets={handleNavigateToAssets}
+              onNavigateToKits={handleNavigateToKits}
+              onEditProfile={handleEditProfile}
+              onNavigateToGigEdit={handleViewGig}
+            />
+          )}
+
+          {currentRoute === 'gig-list' && (
+            <GigListScreen
+              organization={selectedOrganization}
+              user={currentUser}
+              userRole={getCurrentUserRole()}
+              onBack={handleBackToDashboard}
+              onCreateGig={handleCreateGig}
+              onViewGig={handleViewGig}
+              onNavigateToDashboard={handleBackToDashboard}
+              onNavigateToGigs={handleBackToGigList}
+              onNavigateToAssets={handleNavigateToAssets}
+              onNavigateToImport={handleNavigateToImport}
+              onSwitchOrganization={handleBackToSelection}
+              onEditProfile={handleEditProfile}
+              onLogout={handleLogout}
+              useMockData={USE_MOCK_DATA}
+            />
+          )}
+
+          {currentRoute === 'create-gig' && (
+            <CreateGigScreen
+              organization={selectedOrganization}
+              user={currentUser}
+              userRole={getCurrentUserRole()}
+              gigId={selectedGigId} // Pass gigId for edit mode
+              onCancel={handleBackToGigList}
+              onGigCreated={handleGigCreated}
+              onGigUpdated={handleBackToGigList} // After updating, go back to list
+              onGigDeleted={handleBackToGigList} // After deleting, go back to list
+              onSwitchOrganization={handleBackToSelection}
+              onLogout={handleLogout}
+            />
+          )}
+
+          {currentRoute === 'gig-detail' && selectedGigId && (
+            <GigDetailScreen
+              gigId={selectedGigId}
+              organization={selectedOrganization}
+              user={currentUser}
+              userRole={getCurrentUserRole()}
+              onBack={handleBackToGigList}
+              onSwitchOrganization={handleBackToSelection}
+              onLogout={handleLogout}
+            />
+          )}
+          
+          {currentRoute === 'team' && (
+            <TeamScreen
+              organization={selectedOrganization}
+              user={currentUser}
+              userRole={getCurrentUserRole()}
+              onNavigateToDashboard={handleBackToDashboard}
+              onNavigateToGigs={handleBackToGigList}
+              onNavigateToTeam={handleNavigateToTeam}
+              onNavigateToAssets={handleNavigateToAssets}
+              onSwitchOrganization={handleBackToSelection}
+              onEditProfile={handleEditProfile}
+              onLogout={handleLogout}
+            />
+          )}
+          
+          {currentRoute === 'asset-list' && (
+            <AssetListScreen
+              organization={selectedOrganization}
+              user={currentUser}
+              userRole={getCurrentUserRole()}
+              onBack={handleBackToDashboard}
+              onCreateAsset={handleCreateAsset}
+              onViewAsset={handleViewAsset}
+              onNavigateToDashboard={handleBackToDashboard}
+              onNavigateToGigs={handleBackToGigList}
+              onNavigateToAssets={handleNavigateToAssets}
+              onNavigateToKits={handleNavigateToKits}
+              onNavigateToImport={handleNavigateToImport}
+              onSwitchOrganization={handleBackToSelection}
+              onLogout={handleLogout}
+              useMockData={USE_MOCK_DATA}
+            />
+          )}
+
+          {currentRoute === 'create-asset' && (
+            <CreateAssetScreen
+              organization={selectedOrganization}
+              user={currentUser}
+              userRole={getCurrentUserRole()}
+              assetId={selectedAssetId} // Pass assetId for edit mode
+              onCancel={handleBackToAssetList}
+              onAssetCreated={handleAssetCreated}
+              onAssetUpdated={handleBackToAssetList} // After updating, go back to list
+              onAssetDeleted={handleBackToAssetList} // After deleting, go back to list
+              onSwitchOrganization={handleBackToSelection}
+              onLogout={handleLogout}
+            />
+          )}
+          
+          {currentRoute === 'kit-list' && (
+            <KitListScreen
+              organization={selectedOrganization}
+              user={currentUser}
+              userRole={getCurrentUserRole()}
+              onBack={handleBackToDashboard}
+              onCreateKit={handleCreateKit}
+              onViewKit={handleViewKit}
+              onEditKit={handleEditKit}
+              onNavigateToDashboard={handleBackToDashboard}
+              onNavigateToGigs={handleBackToGigList}
+              onNavigateToAssets={handleNavigateToAssets}
+              onNavigateToKits={handleNavigateToKits}
+              onSwitchOrganization={handleBackToSelection}
+              onLogout={handleLogout}
+            />
+          )}
+
+          {currentRoute === 'create-kit' && (
+            <CreateKitScreen
+              organization={selectedOrganization}
+              user={currentUser}
+              userRole={getCurrentUserRole()}
+              kitId={selectedKitId} // Pass kitId for edit mode
+              onCancel={handleBackToKitList}
+              onKitCreated={handleKitCreated}
+              onKitUpdated={handleBackToKitList} // After updating, go back to list
+              onKitDeleted={handleBackToKitList} // After deleting, go back to list
+              onSwitchOrganization={handleBackToSelection}
+              onLogout={handleLogout}
+            />
+          )}
+          
+          {currentRoute === 'kit-detail' && selectedKitId && (
+            <KitDetailScreen
+              kitId={selectedKitId}
+              organization={selectedOrganization}
+              user={currentUser}
+              userRole={getCurrentUserRole()}
+              onBack={handleBackToKitList}
+              onEdit={handleEditKit}
+              onSwitchOrganization={handleBackToSelection}
+              onLogout={handleLogout}
+            />
+          )}
+
+          {currentRoute === 'import' && (
+            <ImportScreen
+              organization={selectedOrganization}
+              user={currentUser}
+              userRole={getCurrentUserRole()}
+              onCancel={handleBackToDashboard}
+              onSwitchOrganization={handleBackToSelection}
+              onLogout={handleLogout}
+            />
+          )}
+        </NavigationProvider>
       )}
 
-      {currentRoute === 'gig-list' && selectedOrganization && currentUser && (
-        <GigListScreen
-          organization={selectedOrganization}
-          user={currentUser}
-          userRole={getCurrentUserRole()}
-          onBack={handleBackToDashboard}
-          onCreateGig={handleCreateGig}
-          onViewGig={handleViewGig}
-          onNavigateToDashboard={handleBackToDashboard}
-          onNavigateToGigs={handleBackToGigList}
-          onNavigateToAssets={handleNavigateToAssets}
-          onNavigateToImport={handleNavigateToImport}
-          onSwitchOrganization={handleBackToSelection}
-          onEditProfile={handleEditProfile}
-          onLogout={handleLogout}
-          useMockData={USE_MOCK_DATA}
-        />
-      )}
-
-      {currentRoute === 'create-gig' && selectedOrganization && currentUser && (
-        <CreateGigScreen
-          organization={selectedOrganization}
-          user={currentUser}
-          userRole={getCurrentUserRole()}
-          gigId={selectedGigId} // Pass gigId for edit mode
-          onCancel={handleBackToGigList}
-          onGigCreated={handleGigCreated}
-          onGigUpdated={handleBackToGigList} // After updating, go back to list
-          onGigDeleted={handleBackToGigList} // After deleting, go back to list
-          onNavigateToDashboard={handleBackToDashboard}
-          onNavigateToGigs={handleBackToGigList}
-          onSwitchOrganization={handleBackToSelection}
-          onLogout={handleLogout}
-        />
-      )}
-
-      {currentRoute === 'gig-detail' && selectedOrganization && currentUser && selectedGigId && (
-        <GigDetailScreen
-          gigId={selectedGigId}
-          organization={selectedOrganization}
-          user={currentUser}
-          userRole={getCurrentUserRole()}
-          onBack={handleBackToGigList}
-          onNavigateToDashboard={handleBackToDashboard}
-          onNavigateToGigs={handleBackToGigList}
-          onSwitchOrganization={handleBackToSelection}
-          onLogout={handleLogout}
-        />
-      )}
-      
-      {currentRoute === 'team' && selectedOrganization && currentUser && (
-        <TeamScreen
-          organization={selectedOrganization}
-          user={currentUser}
-          userRole={getCurrentUserRole()}
-          onNavigateToDashboard={handleBackToDashboard}
-          onNavigateToGigs={handleBackToGigList}
-          onNavigateToTeam={handleNavigateToTeam}
-          onNavigateToAssets={handleNavigateToAssets}
-          onSwitchOrganization={handleBackToSelection}
-          onEditProfile={handleEditProfile}
-          onLogout={handleLogout}
-        />
-      )}
-      
-      {currentRoute === 'asset-list' && selectedOrganization && currentUser && (
-        <AssetListScreen
-          organization={selectedOrganization}
-          user={currentUser}
-          userRole={getCurrentUserRole()}
-          onBack={handleBackToDashboard}
-          onCreateAsset={handleCreateAsset}
-          onViewAsset={handleViewAsset}
-          onNavigateToDashboard={handleBackToDashboard}
-          onNavigateToGigs={handleBackToGigList}
-          onNavigateToAssets={handleNavigateToAssets}
-          onNavigateToKits={handleNavigateToKits}
-          onNavigateToImport={handleNavigateToImport}
-          onSwitchOrganization={handleBackToSelection}
-          onLogout={handleLogout}
-          useMockData={USE_MOCK_DATA}
-        />
-      )}
-
-      {currentRoute === 'create-asset' && selectedOrganization && currentUser && (
-        <CreateAssetScreen
-          organization={selectedOrganization}
-          user={currentUser}
-          userRole={getCurrentUserRole()}
-          assetId={selectedAssetId} // Pass assetId for edit mode
-          onCancel={handleBackToAssetList}
-          onAssetCreated={handleAssetCreated}
-          onAssetUpdated={handleBackToAssetList} // After updating, go back to list
-          onAssetDeleted={handleBackToAssetList} // After deleting, go back to list
-          onNavigateToDashboard={handleBackToDashboard}
-          onNavigateToGigs={handleBackToGigList}
-          onSwitchOrganization={handleBackToSelection}
-          onLogout={handleLogout}
-        />
-      )}
-      
-      {currentRoute === 'kit-list' && selectedOrganization && currentUser && (
-        <KitListScreen
-          organization={selectedOrganization}
-          user={currentUser}
-          userRole={getCurrentUserRole()}
-          onBack={handleBackToDashboard}
-          onCreateKit={handleCreateKit}
-          onViewKit={handleViewKit}
-          onEditKit={handleEditKit}
-          onNavigateToDashboard={handleBackToDashboard}
-          onNavigateToGigs={handleBackToGigList}
-          onNavigateToAssets={handleNavigateToAssets}
-          onNavigateToKits={handleNavigateToKits}
-          onSwitchOrganization={handleBackToSelection}
-          onLogout={handleLogout}
-        />
-      )}
-
-      {currentRoute === 'create-kit' && selectedOrganization && currentUser && (
-        <CreateKitScreen
-          organization={selectedOrganization}
-          user={currentUser}
-          userRole={getCurrentUserRole()}
-          kitId={selectedKitId} // Pass kitId for edit mode
-          onCancel={handleBackToKitList}
-          onKitCreated={handleKitCreated}
-          onKitUpdated={handleBackToKitList} // After updating, go back to list
-          onKitDeleted={handleBackToKitList} // After deleting, go back to list
-          onNavigateToDashboard={handleBackToDashboard}
-          onNavigateToGigs={handleBackToGigList}
-          onSwitchOrganization={handleBackToSelection}
-          onLogout={handleLogout}
-        />
-      )}
-      
-      {currentRoute === 'kit-detail' && selectedOrganization && currentUser && selectedKitId && (
-        <KitDetailScreen
-          kitId={selectedKitId}
-          organization={selectedOrganization}
-          user={currentUser}
-          userRole={getCurrentUserRole()}
-          onBack={handleBackToKitList}
-          onEdit={handleEditKit}
-          onNavigateToDashboard={handleBackToDashboard}
-          onNavigateToGigs={handleBackToGigList}
-          onSwitchOrganization={handleBackToSelection}
-          onLogout={handleLogout}
-        />
-      )}
-      
       {currentRoute === 'admin-orgs' && currentUser && (
         <AdminOrganizationsScreen
           onEditOrganization={handleAdminEditOrganization}
           onCreateOrganization={handleCreateOrganization}
           onBack={handleBackFromAdmin}
-        />
-      )}
-
-      {currentRoute === 'import' && selectedOrganization && currentUser && (
-        <ImportScreen
-          organization={selectedOrganization}
-          user={currentUser}
-          userRole={getCurrentUserRole()}
-          onCancel={handleBackToDashboard}
-          onNavigateToDashboard={handleBackToDashboard}
-          onNavigateToGigs={handleNavigateToGigs}
-          onSwitchOrganization={handleBackToSelection}
-          onLogout={handleLogout}
         />
       )}
       

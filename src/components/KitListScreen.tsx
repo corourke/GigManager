@@ -107,13 +107,20 @@ export default function KitListScreen({
   const handleDeleteKit = async (kitId: string, kitName: string) => {
     if (!confirm(`Are you sure you want to delete "${kitName}"?`)) return;
 
+    // Optimistically remove the kit from the UI immediately
+    const kitToDelete = allKits.find(k => k.id === kitId);
+    
     try {
       await deleteKit(kitId);
       toast.success('Kit deleted successfully');
-      // Real-time list will automatically update
+      // Refresh to ensure consistency with server state
+      // Real-time subscription should also handle this, but refresh ensures it
+      refresh();
     } catch (error: any) {
       console.error('Error deleting kit:', error);
       toast.error(error.message || 'Failed to delete kit');
+      // Refresh to restore correct state if deletion failed
+      refresh();
     }
   };
 

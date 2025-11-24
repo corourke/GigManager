@@ -373,12 +373,28 @@ export default function GigListScreen({
   const handleGigDelete = async (gigId: string) => {
     if (!confirm('Are you sure you want to delete this gig?')) return;
 
+    // Optimistically remove the gig from the UI immediately
+    const gigToDelete = gigs.find(g => g.id === gigId);
+    if (gigToDelete) {
+      setGigs(prevGigs => prevGigs.filter(g => g.id !== gigId));
+    }
+
     try {
       await api.deleteGig(gigId);
       toast.success('Gig deleted successfully');
+      // Refresh to ensure consistency with server state
+      loadGigs();
     } catch (error: any) {
       console.error('Error deleting gig:', error);
       toast.error(error.message || 'Failed to delete gig');
+      // Restore the gig in the UI if deletion failed
+      if (gigToDelete) {
+        setGigs(prevGigs => [...prevGigs, gigToDelete].sort((a, b) => {
+          const dateA = new Date(a.start).getTime();
+          const dateB = new Date(b.start).getTime();
+          return sortOrder === 'asc' ? dateA - dateB : dateB - dateA;
+        }));
+      }
     }
   };
 

@@ -38,8 +38,6 @@ interface CreateKitScreenProps {
   onCancel: () => void;
   onKitCreated: (kitId: string) => void;
   onKitUpdated: () => void;
-  onNavigateToDashboard: () => void;
-  onNavigateToGigs: () => void;
   onSwitchOrganization: () => void;
   onLogout: () => void;
 }
@@ -68,8 +66,6 @@ export default function CreateKitScreen({
   onCancel,
   onKitCreated,
   onKitUpdated,
-  onNavigateToDashboard,
-  onNavigateToGigs,
   onSwitchOrganization,
   onLogout,
 }: CreateKitScreenProps) {
@@ -123,22 +119,27 @@ export default function CreateKitScreen({
     currentData: currentData, // Pass the memoized currentData
   });
 
-  // Trigger change detection when kitAssets change (since form watch doesn't cover nested data)
+  // Trigger change detection when formData or kitAssets change
+  // The hook's useEffect watches currentData, but we also trigger manually to ensure immediate updates
   const updateChangedFieldsRef = useRef(changeDetection.updateChangedFields);
   updateChangedFieldsRef.current = changeDetection.updateChangedFields;
 
-  const prevKitAssetsRef = useRef<KitAsset[]>([]);
+  const prevFormDataRef = useRef<FormData>(formData);
+  const prevKitAssetsRef = useRef<KitAsset[]>(kitAssets);
+  
   useEffect(() => {
     if (isEditMode) {
-      const currentStr = JSON.stringify(kitAssets);
-      const prevStr = JSON.stringify(prevKitAssetsRef.current);
-      if (currentStr !== prevStr) {
+      const formDataChanged = JSON.stringify(formData) !== JSON.stringify(prevFormDataRef.current);
+      const kitAssetsChanged = JSON.stringify(kitAssets) !== JSON.stringify(prevKitAssetsRef.current);
+      
+      if (formDataChanged || kitAssetsChanged) {
+        prevFormDataRef.current = formData;
         prevKitAssetsRef.current = kitAssets;
         updateChangedFieldsRef.current();
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [kitAssets, isEditMode]);
+  }, [formData, kitAssets, isEditMode]);
 
   useEffect(() => {
     if (kitId) {
@@ -381,8 +382,6 @@ export default function CreateKitScreen({
         user={user}
         userRole={userRole}
         currentRoute="create-kit"
-        onNavigateToDashboard={onNavigateToDashboard}
-        onNavigateToGigs={onNavigateToGigs}
         onSwitchOrganization={onSwitchOrganization}
         onLogout={onLogout}
       />
@@ -441,8 +440,8 @@ export default function CreateKitScreen({
                     placeholder="e.g., Audio, Lighting, Production"
                   />
                   <datalist id="kit_categories">
-                    {kitCategorySuggestions.suggestions.map((cat) => (
-                      <option key={cat} value={cat} />
+                    {kitCategorySuggestions.suggestions.map((cat, index) => (
+                      <option key={`kit-category-${index}-${cat}`} value={cat} />
                     ))}
                   </datalist>
                 </div>

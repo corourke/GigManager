@@ -24,8 +24,6 @@ interface CreateAssetScreenProps {
   onCancel: () => void;
   onAssetCreated: (assetId: string) => void;
   onAssetUpdated: () => void;
-  onNavigateToDashboard: () => void;
-  onNavigateToGigs: () => void;
   onSwitchOrganization: () => void;
   onLogout: () => void;
 }
@@ -55,8 +53,6 @@ export default function CreateAssetScreen({
   onCancel,
   onAssetCreated,
   onAssetUpdated,
-  onNavigateToDashboard,
-  onNavigateToGigs,
   onSwitchOrganization,
   onLogout,
 }: CreateAssetScreenProps) {
@@ -282,8 +278,6 @@ export default function CreateAssetScreen({
         user={user}
         userRole={userRole}
         currentRoute="create-asset"
-        onNavigateToDashboard={onNavigateToDashboard}
-        onNavigateToGigs={onNavigateToGigs}
         onSwitchOrganization={onSwitchOrganization}
         onLogout={onLogout}
       />
@@ -330,8 +324,8 @@ export default function CreateAssetScreen({
                     className={errors.category ? 'border-red-500' : ''}
                   />
                   <datalist id="categories">
-                    {categorySuggestions.suggestions.map((cat) => (
-                      <option key={cat} value={cat} />
+                    {categorySuggestions.suggestions.map((cat, index) => (
+                      <option key={`category-${index}-${cat}`} value={cat} />
                     ))}
                   </datalist>
                   {errors.category && (
@@ -352,8 +346,8 @@ export default function CreateAssetScreen({
                     placeholder="e.g., Microphones, LED Fixtures"
                   />
                   <datalist id="sub_categories">
-                    {subCategorySuggestions.suggestions.map((subCat) => (
-                      <option key={subCat} value={subCat} />
+                    {subCategorySuggestions.suggestions.map((subCat, index) => (
+                      <option key={`subcategory-${index}-${subCat}`} value={subCat} />
                     ))}
                   </datalist>
                 </div>
@@ -387,8 +381,8 @@ export default function CreateAssetScreen({
                     placeholder="e.g., Dynamic Microphone"
                   />
                   <datalist id="types">
-                    {typeSuggestions.suggestions.map((type) => (
-                      <option key={type} value={type} />
+                    {typeSuggestions.suggestions.map((type, index) => (
+                      <option key={`type-${index}-${type}`} value={type} />
                     ))}
                   </datalist>
                 </div>
@@ -439,8 +433,8 @@ export default function CreateAssetScreen({
                     placeholder="Where was this purchased?"
                   />
                   <datalist id="vendors">
-                    {vendorSuggestions.suggestions.map((vendor) => (
-                      <option key={vendor} value={vendor} />
+                    {vendorSuggestions.suggestions.map((vendor, index) => (
+                      <option key={`vendor-${index}-${vendor}`} value={vendor} />
                     ))}
                   </datalist>
                 </div>

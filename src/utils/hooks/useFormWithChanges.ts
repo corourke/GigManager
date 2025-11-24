@@ -34,11 +34,18 @@ export function useFormWithChanges<T extends FieldValues>({
 
   /**
    * Deep equality check for objects and arrays
+   * Handles Date objects by comparing their time values
    */
   const deepEqual = useCallback((a: any, b: any): boolean => {
     if (a === b) return true;
     if (a == null || b == null) return a === b;
     if (typeof a !== typeof b) return false;
+
+    // Handle Date objects - compare by time value
+    if (a instanceof Date && b instanceof Date) {
+      return a.getTime() === b.getTime();
+    }
+    if (a instanceof Date || b instanceof Date) return false;
 
     if (Array.isArray(a) && Array.isArray(b)) {
       if (a.length !== b.length) return false;
@@ -64,9 +71,36 @@ export function useFormWithChanges<T extends FieldValues>({
 
   /**
    * Get current values from form or currentData
+   * When form is provided, always use form.getValues() for form fields
+   * and merge with currentData for nested data that's not in the form
    */
   const getCurrentValues = useCallback((): Partial<T> => {
-    return currentData || (form ? form.getValues() : {});
+    if (form) {
+      // When form is provided, always get values directly from form (most up-to-date)
+      // This ensures we always have the latest form values, not stale memoized values
+      const formValues = form.getValues();
+      
+      // Merge with currentData to include nested data (like staffSlots, participants, etc.)
+      // that might not be in the form. Since currentData may include formValues,
+      // we prioritize the fresh form.getValues() and only add fields from currentData
+      // that aren't already in formValues
+      if (currentData) {
+        // Get form field names to identify what's a form field vs nested data
+        const formFieldNames = new Set(Object.keys(formValues));
+        
+        // Extract nested data fields from currentData (fields not in form)
+        const nestedData: Partial<T> = {};
+        for (const key in currentData) {
+          if (currentData.hasOwnProperty(key) && !formFieldNames.has(key)) {
+            nestedData[key] = currentData[key];
+          }
+        }
+        return { ...formValues, ...nestedData };
+      }
+      return formValues;
+    }
+    // For manual state management, use currentData
+    return currentData || {};
   }, [currentData, form]);
 
   /**

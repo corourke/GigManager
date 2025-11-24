@@ -39,8 +39,6 @@ interface ImportScreenProps {
   user: User;
   userRole?: UserRole;
   onCancel: () => void;
-  onNavigateToDashboard: () => void;
-  onNavigateToGigs: () => void;
   onSwitchOrganization: () => void;
   onLogout: () => void;
 }
@@ -50,8 +48,6 @@ export default function ImportScreen({
   user,
   userRole,
   onCancel,
-  onNavigateToDashboard,
-  onNavigateToGigs,
   onSwitchOrganization,
   onLogout,
 }: ImportScreenProps) {
@@ -306,8 +302,6 @@ export default function ImportScreen({
         user={user}
         userRole={userRole}
         currentRoute="import"
-        onNavigateToDashboard={onNavigateToDashboard}
-        onNavigateToGigs={onNavigateToGigs}
         onSwitchOrganization={onSwitchOrganization}
         onLogout={onLogout}
       />

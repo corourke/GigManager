@@ -19,16 +19,13 @@ import {
 import React from 'react';
 import type { Organization, User, UserRole } from '../App';
 import NavigationMenu, { type RouteType } from './NavigationMenu';
+import { useNavigation } from '../contexts/NavigationContext';
 
 interface AppHeaderProps {
   organization?: Organization;
   user: User;
   userRole?: UserRole;
   currentRoute: RouteType;
-  onNavigateToDashboard?: () => void;
-  onNavigateToGigs?: () => void;
-  onNavigateToTeam?: () => void;
-  onNavigateToAssets?: () => void;
   onSwitchOrganization?: () => void;
   onEditProfile?: () => void;
   onLogout: () => void;
@@ -46,14 +43,13 @@ const AppHeader = React.memo(function AppHeader({
   user,
   userRole,
   currentRoute,
-  onNavigateToDashboard,
-  onNavigateToGigs,
-  onNavigateToTeam,
-  onNavigateToAssets,
   onSwitchOrganization,
   onEditProfile,
   onLogout,
 }: AppHeaderProps) {
+  // Get navigation handlers from context (only if organization exists)
+  const navigation = organization ? useNavigation() : null;
+
   const getInitials = (firstName: string, lastName: string) => {
     return `${firstName[0]}${lastName[0]}`.toUpperCase();
   };
@@ -131,14 +127,14 @@ const AppHeader = React.memo(function AppHeader({
           </div>
         </div>
 
-        {/* Navigation Bar - Only show if organization exists */}
-        {organization && (
+        {/* Navigation Bar - Only show if organization exists and navigation context is available */}
+        {organization && navigation && (
           <NavigationMenu
             currentRoute={currentRoute}
-            onNavigateToDashboard={onNavigateToDashboard}
-            onNavigateToGigs={onNavigateToGigs}
-            onNavigateToTeam={onNavigateToTeam}
-            onNavigateToAssets={onNavigateToAssets}
+            onNavigateToDashboard={navigation.onNavigateToDashboard}
+            onNavigateToGigs={navigation.onNavigateToGigs}
+            onNavigateToTeam={navigation.onNavigateToTeam}
+            onNavigateToAssets={navigation.onNavigateToAssets}
           />
         )}
       </div>

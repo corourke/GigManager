@@ -12,8 +12,6 @@ interface GigDetailScreenProps {
   user: User;
   userRole?: UserRole;
   onBack: () => void;
-  onNavigateToDashboard: () => void;
-  onNavigateToGigs: () => void;
   onSwitchOrganization: () => void;
   onLogout: () => void;
 }
@@ -62,8 +60,6 @@ export default function GigDetailScreen({
   user,
   userRole,
   onBack,
-  onNavigateToDashboard,
-  onNavigateToGigs,
   onSwitchOrganization,
   onLogout,
 }: GigDetailScreenProps) {
@@ -77,8 +73,6 @@ export default function GigDetailScreen({
         user={user}
         userRole={userRole}
         currentRoute="gig-detail"
-        onNavigateToDashboard={onNavigateToDashboard}
-        onNavigateToGigs={onNavigateToGigs}
         onSwitchOrganization={onSwitchOrganization}
         onLogout={onLogout}
       />

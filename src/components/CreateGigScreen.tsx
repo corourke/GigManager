@@ -84,8 +84,6 @@ interface CreateGigScreenProps {
   onGigCreated: (gigId: string) => void;
   onGigUpdated?: () => void; // Add callback for updates
   onGigDeleted?: () => void; // Add callback for deletion
-  onNavigateToDashboard: () => void;
-  onNavigateToGigs: () => void;
   onSwitchOrganization: () => void;
   onLogout: () => void;
 }
@@ -205,8 +203,6 @@ export default function CreateGigScreen({
   onGigCreated,
   onGigUpdated,
   onGigDeleted,
-  onNavigateToDashboard,
-  onNavigateToGigs,
   onSwitchOrganization,
   onLogout,
 }: CreateGigScreenProps) {
@@ -1130,8 +1126,6 @@ export default function CreateGigScreen({
         user={user}
         userRole={userRole}
         currentRoute="create-gig"
-        onNavigateToDashboard={onNavigateToDashboard}
-        onNavigateToGigs={onNavigateToGigs}
         onSwitchOrganization={onSwitchOrganization}
         onLogout={onLogout}
       />
@@ -2072,8 +2066,8 @@ export default function CreateGigScreen({
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {showKitDetails.kit.kit_assets.map((ka: any) => (
-                          <TableRow key={ka.asset?.id || Math.random()}>
+                        {showKitDetails.kit.kit_assets.map((ka: any, index: number) => (
+                          <TableRow key={ka.asset?.id || ka.id || `kit-asset-${index}`}>
                             <TableCell>{ka.asset?.name || 'Unknown'}</TableCell>
                             <TableCell>{ka.asset?.category || '-'}</TableCell>
                             <TableCell className="text-right">{ka.quantity || 1}</TableCell>

@@ -82,12 +82,11 @@ const NavigationMenu = React.memo(function NavigationMenu({
           <button
             key={item.id}
             onClick={item.onClick}
-            disabled={!item.onClick}
             className={`px-4 py-2 text-sm rounded-lg transition-colors flex items-center gap-2 ${
               isActive
                 ? 'text-sky-600 bg-sky-50'
                 : 'text-gray-700 hover:text-gray-900 hover:bg-gray-100'
-            } ${!item.onClick ? 'opacity-50 cursor-not-allowed' : ''}`}
+            }`}
           >
             <Icon className="w-4 h-4" />
             {item.label}

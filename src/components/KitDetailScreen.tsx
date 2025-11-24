@@ -23,8 +23,6 @@ interface KitDetailScreenProps {
   kitId: string;
   onBack: () => void;
   onEdit: (kitId: string) => void;
-  onNavigateToDashboard: () => void;
-  onNavigateToGigs: () => void;
   onSwitchOrganization: () => void;
   onLogout: () => void;
 }
@@ -36,8 +34,6 @@ export default function KitDetailScreen({
   kitId,
   onBack,
   onEdit,
-  onNavigateToDashboard,
-  onNavigateToGigs,
   onSwitchOrganization,
   onLogout,
 }: KitDetailScreenProps) {
@@ -125,8 +121,6 @@ export default function KitDetailScreen({
         user={user}
         userRole={userRole}
         currentRoute="kit-detail"
-        onNavigateToDashboard={onNavigateToDashboard}
-        onNavigateToGigs={onNavigateToGigs}
         onSwitchOrganization={onSwitchOrganization}
         onLogout={onLogout}
       />
