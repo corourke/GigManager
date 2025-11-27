@@ -2366,6 +2366,109 @@ export async function duplicateKit(kitId: string, newName?: string) {
   return newKit;
 }
 
+export async function duplicateGig(gigId: string, newTitle?: string) {
+  const supabase = getSupabase();
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session?.user) throw new Error('Not authenticated');
+  const user = session.user;
+
+  // Get original gig with related data
+  const originalGig = await getGig(gigId);
+
+  // Create new gig
+  const { data: newGig, error: gigError } = await supabase
+    .from('gigs')
+    .insert({
+      title: newTitle || `${originalGig.title} (Copy)`,
+      description: originalGig.description,
+      start_time: originalGig.start_time,
+      end_time: originalGig.end_time,
+      timezone: originalGig.timezone,
+      status: 'Proposed', // Reset to proposed for the copy
+      venue: originalGig.venue,
+      address: originalGig.address,
+      city: originalGig.city,
+      state: originalGig.state,
+      zip_code: originalGig.zip_code,
+      country: originalGig.country,
+      tags: originalGig.tags || [],
+      notes: originalGig.notes,
+      amount_paid: originalGig.amount_paid,
+      created_by: user.id,
+      updated_by: user.id,
+    })
+    .select()
+    .single();
+
+  if (gigError) {
+    console.error('Error duplicating gig:', gigError);
+    throw gigError;
+  }
+
+  // Copy participants
+  if (originalGig.gig_participants && originalGig.gig_participants.length > 0) {
+    const participants = originalGig.gig_participants.map((gp: any) => ({
+      gig_id: newGig.id,
+      organization_id: gp.organization_id,
+      role: gp.role,
+      notes: gp.notes,
+    }));
+
+    const { error: participantsError } = await supabase
+      .from('gig_participants')
+      .insert(participants);
+
+    if (participantsError) {
+      console.error('Error copying gig participants:', participantsError);
+      await supabase.from('gigs').delete().eq('id', newGig.id);
+      throw participantsError;
+    }
+  }
+
+  // Copy staff slots
+  if (originalGig.staff_slots && originalGig.staff_slots.length > 0) {
+    const staffSlots = originalGig.staff_slots.map((slot: any) => ({
+      gig_id: newGig.id,
+      role: slot.role,
+      organization_id: slot.organization_id,
+      notes: slot.notes,
+      user_id: slot.user_id,
+    }));
+
+    const { error: slotsError } = await supabase
+      .from('staff_slots')
+      .insert(staffSlots);
+
+    if (slotsError) {
+      console.error('Error copying staff slots:', slotsError);
+      await supabase.from('gigs').delete().eq('id', newGig.id);
+      throw slotsError;
+    }
+  }
+
+  // Copy equipment assignments (kit assignments)
+  if (originalGig.gig_kit_assignments && originalGig.gig_kit_assignments.length > 0) {
+    const kitAssignments = originalGig.gig_kit_assignments.map((gka: any) => ({
+      gig_id: newGig.id,
+      kit_id: gka.kit_id,
+      organization_id: gka.organization_id,
+      notes: gka.notes,
+    }));
+
+    const { error: assignmentsError } = await supabase
+      .from('gig_kit_assignments')
+      .insert(kitAssignments);
+
+    if (assignmentsError) {
+      console.error('Error copying kit assignments:', assignmentsError);
+      await supabase.from('gigs').delete().eq('id', newGig.id);
+      throw assignmentsError;
+    }
+  }
+
+  return newGig;
+}
+
 // ===== Gig Kit Assignment =====
 
 export async function assignKitToGig(gigId: string, kitId: string, organizationId: string, notes?: string) {
