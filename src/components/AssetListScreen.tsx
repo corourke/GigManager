@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Package, Plus, Search, Filter, Loader2, Edit2, Trash2, AlertCircle, Shield, Upload } from 'lucide-react';
 import { toast } from 'sonner@2.0.3';
-import { getAssets } from '../utils/api';
+import { getAssets, deleteAsset } from '../utils/api';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Card } from './ui/card';
@@ -18,7 +18,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import AppHeader from './AppHeader';
 import EquipmentTabs from './EquipmentTabs';
 import type { Organization, User, UserRole } from '../App';
-import { getAssets, deleteAsset } from '../utils/api';
 import type { DbAsset } from '../utils/supabase/types';
 
 interface AssetListScreenProps {

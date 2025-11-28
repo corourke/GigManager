@@ -172,11 +172,17 @@ function App() {
   };
 
   const handleLogout = async () => {
-    if (!USE_MOCK_DATA) {
-      const supabase = createClient();
-      await supabase.auth.signOut();
+    try {
+      if (!USE_MOCK_DATA) {
+        const supabase = createClient();
+        await supabase.auth.signOut();
+      }
+    } catch (error) {
+      console.error('Error signing out from Supabase:', error);
+      // Continue with logout even if Supabase signOut fails
     }
     
+    // Always update UI state to ensure user is logged out locally
     setCurrentUser(null);
     setSelectedOrganization(null);
     setUserOrganizations([]);

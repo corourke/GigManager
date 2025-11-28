@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Package, Plus, Search, Loader2, Edit2, Trash2, Copy, Eye, AlertCircle } from 'lucide-react';
 import { toast } from 'sonner@2.0.3';
-import { getKits } from '../utils/api';
+import { getKits, deleteKit, duplicateKit } from '../utils/api';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Card } from './ui/card';
@@ -18,7 +18,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import AppHeader from './AppHeader';
 import EquipmentTabs from './EquipmentTabs';
 import type { Organization, User, UserRole } from '../App';
-import { getKits, deleteKit, duplicateKit } from '../utils/api';
 
 interface KitListScreenProps {
   organization: Organization;

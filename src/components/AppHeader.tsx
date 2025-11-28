@@ -28,7 +28,7 @@ interface AppHeaderProps {
   currentRoute: RouteType;
   onSwitchOrganization?: () => void;
   onEditProfile?: () => void;
-  onLogout: () => void;
+  onLogout: () => void | Promise<void>;
 }
 
 const ROLE_CONFIG: Record<UserRole, { color: string }> = {
@@ -118,7 +118,17 @@ const AppHeader = React.memo(function AppHeader({
                     <DropdownMenuSeparator />
                   </>
                 )}
-                <DropdownMenuItem onClick={onLogout} className="text-red-600">
+                <DropdownMenuItem 
+                  onClick={async (e) => {
+                    e.preventDefault();
+                    try {
+                      await Promise.resolve(onLogout());
+                    } catch (error) {
+                      console.error('Logout error:', error);
+                    }
+                  }} 
+                  className="text-red-600"
+                >
                   <LogOut className="w-4 h-4 mr-2" />
                   Sign Out
                 </DropdownMenuItem>
