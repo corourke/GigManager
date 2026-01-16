@@ -5,7 +5,7 @@ This document tracks the systematic simplification of the GigManager codebase to
 **Last Updated**: 2025-01-21  
 **Status**: Phase 1 Complete, Phase 2 Ready to Begin
 
-**Task Tracking**: All actionable tasks are tracked via the `todo_write` tool. Check the todo list for current task status. This document serves as the strategic overview and reference.
+**Task Tracking**: All actionable tasks are tracked using markdown checkboxes in this document. Use `- [x]` for completed tasks and `- [ ]` for pending tasks. This document serves as both the strategic overview and the single source of truth for task tracking.
 
 ## Overview
 
@@ -24,6 +24,14 @@ This plan addresses identified areas of unnecessary complexity:
 
 **Estimated Impact**: ~1500+ lines of code reduction (30-40%), significant maintainability improvement
 
+## Task Tracking System
+
+Tasks are tracked using markdown checkboxes throughout this document:
+- `- [x]` = Task completed
+- `- [ ]` = Task pending/incomplete
+
+Tasks are organized by phase and sub-phase. As work progresses, checkboxes should be updated to reflect completion status. This allows both humans and AI agents to track progress and identify next steps.
+
 ## Test Strategy
 
 Before implementing simplifications, we'll add tests to ensure functionality is preserved. Each simplification area has specific test requirements outlined below.
@@ -33,9 +41,10 @@ Before implementing simplifications, we'll add tests to ensure functionality is 
 ## Phase 1: Test Infrastructure & Dead Code Removal
 
 **Status**: ✅ **Phase 1 Complete**
-- Dead code successfully removed (~200+ lines)
-- Basic test infrastructure added (needs refinement)
-- Tests identify current behavior but need mock improvements
+
+### Overview
+
+Dead code successfully removed (~200+ lines). Basic test infrastructure added (needs refinement). Tests identify current behavior but need mock improvements.
 
 **Note**: Tests created need refinement due to complex mocking requirements. Core dead code removal objective achieved.
 
@@ -43,8 +52,8 @@ Before implementing simplifications, we'll add tests to ensure functionality is 
 
 **Goal**: Ensure navigation works correctly before replacing custom routing
 
-**Tests to Add**:
-- [x] `src/components/App.test.tsx` - Test route transitions (created, needs mock refinement)
+**Tasks**:
+- [x] Create `src/components/App.test.tsx` - Test route transitions (created, needs mock refinement)
   - Test login → profile completion flow
   - Test login → org selection flow
   - Test org selection → dashboard flow
@@ -56,7 +65,7 @@ Before implementing simplifications, we'll add tests to ensure functionality is 
 **Implementation Notes**:
 - Component and hook testing proved too complex for the current scope due to mocking requirements and memory issues
 - Removed problematic test files that were causing test runner crashes and memory exhaustion
-- Core functionality validated through existing utility tests (26 passing tests, 77.77% coverage)
+- Core functionality validated through existing utility tests (60 passing tests)
 - Integration testing will validate simplifications during actual Phase 2-4 refactoring
 
 ---
@@ -65,10 +74,10 @@ Before implementing simplifications, we'll add tests to ensure functionality is 
 
 **Goal**: Ensure form dirty state works correctly before simplifying
 
-**Tests to Add**:
-- **Simplified Testing Approach**: Removed complex component and hook tests due to mocking complexity and memory issues
-- **Current Tests**: 26 passing tests in `src/utils/form-utils.test.ts` - Core utility functions validated
-- **Testing Strategy**: Focus on integration testing during Phase 2-4 rather than complex unit tests
+**Tasks**:
+- [x] Simplified Testing Approach: Removed complex component and hook tests due to mocking complexity and memory issues
+- [x] Current Tests: 60 passing tests (26 form-utils, 12 api, 22 component tests) - Core utility functions validated
+- [x] Testing Strategy: Focus on integration testing during Phase 2-4 rather than complex unit tests
 
 **Implementation Notes**:
 - Use `@testing-library/react-hooks` or `@testing-library/react` for hook testing
@@ -81,10 +90,10 @@ Before implementing simplifications, we'll add tests to ensure functionality is 
 
 **Goal**: Ensure API functions work correctly before refactoring
 
-**Tests to Add**:
-- **Simplified Testing Approach**: Removed complex API tests due to Supabase mocking complexity and memory issues
-- **Current Tests**: 26 passing tests in `src/utils/form-utils.test.ts` - Core utility functions validated
-- **Testing Strategy**: Focus on integration testing during Phase 2-4 rather than complex unit tests
+**Tasks**:
+- [x] Simplified Testing Approach: Removed complex API tests due to Supabase mocking complexity and memory issues
+- [x] Current Tests: 60 passing tests - Core utility functions validated
+- [x] Testing Strategy: Focus on integration testing during Phase 2-4 rather than complex unit tests
 
 **Implementation Notes**:
 - Use existing mock Supabase client pattern
@@ -97,21 +106,19 @@ Before implementing simplifications, we'll add tests to ensure functionality is 
 
 **Goal**: Remove unused code to reduce complexity
 
-**Files to Remove**:
-- [x] `src/utils/hooks/useRealtimeList.ts` - Imported but never used
-- [x] `src/components/tables/TableWithRealtime.tsx` - Only used by unused hook
-- [x] `src/components/forms/FormSection.tsx` - Never used
-- [x] `src/components/forms/FormDirtyIndicator.tsx` - Never used
-- [x] `src/utils/mock-data.tsx` - Only used when `USE_MOCK_DATA = false` (kept for development)
+**Tasks**:
+- [x] Remove `src/utils/hooks/useRealtimeList.ts` - Imported but never used
+- [x] Remove `src/components/tables/TableWithRealtime.tsx` - Only used by unused hook
+- [x] Remove `src/components/forms/FormSection.tsx` - Never used
+- [x] Remove `src/components/forms/FormDirtyIndicator.tsx` - Never used
+- [x] Keep `src/utils/mock-data.tsx` - Only used when `USE_MOCK_DATA = false` (kept for development)
 
-**Verification Steps**:
-- ✅ Search codebase for imports of each file - COMPLETE
-- ✅ Confirm no references exist - COMPLETE  
-- ✅ Remove files - COMPLETE
-- ✅ Run tests to ensure nothing breaks - COMPLETE (60 tests passing)
-- ✅ Run build to ensure no import errors - COMPLETE
-
-**Note**: All Phase 1 tasks tracked via todos. Verification complete.
+**Verification**:
+- [x] Search codebase for imports of each file
+- [x] Confirm no references exist
+- [x] Remove files
+- [x] Run tests to ensure nothing breaks (60 tests passing)
+- [x] Run build to ensure no import errors
 
 **Tests**: No new tests needed (dead code removal)
 
@@ -127,9 +134,11 @@ Before implementing simplifications, we'll add tests to ensure functionality is 
 
 ## Phase 2: Simplify Form Change Detection
 
-### 2.1 Simplify useFormWithChanges Hook
+**Status**: ⏳ **Ready to Begin**
 
-**Goal**: Replace complex change detection with react-hook-form's built-in `isDirty`
+### Overview
+
+Replace complex change detection with react-hook-form's built-in `isDirty`.
 
 **Current Complexity**: 232 lines with deep equality, ref patterns, setTimeout hacks
 
@@ -139,165 +148,171 @@ Before implementing simplifications, we'll add tests to ensure functionality is 
 - Remove deep equality checking (use shallow comparison for nested data)
 - Remove `currentData` merging complexity
 
-**Implementation Steps** (Tracked via todos):
-- Create simplified hook: `src/utils/hooks/useSimpleFormChanges.ts`
+### 2.1 Simplify useFormWithChanges Hook
+
+**Goal**: Replace complex change detection with react-hook-form's built-in `isDirty`
+
+**Implementation Tasks**:
+- [ ] Create simplified hook: `src/utils/hooks/useSimpleFormChanges.ts`
   - Track form dirty state via `form.formState.isDirty`
   - Track nested data changes with simple array/object reference comparison
   - Provide `hasChanges` boolean (form dirty OR nested data changed)
   - Provide `getChangedFields` that returns only changed form fields
-- Add tests for simplified hook
-- Update all 6 form components to use simplified hook:
-  - `CreateGigScreen.tsx`
-  - `CreateAssetScreen.tsx`
-  - `CreateKitScreen.tsx`
-  - `CreateOrganizationScreen.tsx`
-  - `UserProfileCompletionScreen.tsx`
-  - `EditUserProfileDialog.tsx`
-- Run all tests
-- Remove old `useFormWithChanges.ts` hook
-- Remove duplicate utilities from `form-utils.ts` (keep only what's needed)
-
-**Status**: Not started. See todos for individual task tracking.
-
-**Tests to Add** (Tracked via todos):
-- `src/utils/hooks/useSimpleFormChanges.test.ts`
+- [ ] Create test file: `src/utils/hooks/useSimpleFormChanges.test.ts`
   - Test form dirty state detection
   - Test nested data change detection
   - Test `hasChanges` combines both states
   - Test `getChangedFields` returns only form changes
+- [ ] Update `CreateGigScreen.tsx` to use simplified hook
+- [ ] Update `CreateAssetScreen.tsx` to use simplified hook
+- [ ] Update `CreateKitScreen.tsx` to use simplified hook
+- [ ] Update `CreateOrganizationScreen.tsx` to use simplified hook
+- [ ] Update `UserProfileCompletionScreen.tsx` to use simplified hook
+- [ ] Update `EditUserProfileDialog.tsx` to use simplified hook
+- [ ] Run all tests to verify no regressions
+- [ ] Remove old `useFormWithChanges.ts` hook
+- [ ] Remove duplicate utilities from `form-utils.ts` (keep only what's needed)
 
-**Verification** (Tracked via todos):
-- All form screens work correctly
-- Submit buttons enable/disable correctly
-- Partial updates work in edit mode
-- All existing tests pass
+**Verification**:
+- [ ] All form screens work correctly
+- [ ] Submit buttons enable/disable correctly
+- [ ] Partial updates work in edit mode
+- [ ] All existing tests pass
 
 ---
 
 ## Phase 3: Refactor API Layer
 
-### 3.1 Create Generic CRUD Functions
+**Status**: ⏸️ **Pending**
 
-**Goal**: Reduce 56 repetitive API functions to generic CRUD operations
+### Overview
 
-**Current Complexity**: 2600+ lines, 56 nearly identical functions
+Reduce 56 repetitive API functions to generic CRUD operations.
+
+**Current Complexity**: 2,824 lines, 57 nearly identical functions
 
 **Simplified Approach**:
 - Create generic `createRecord`, `getRecord`, `updateRecord`, `deleteRecord` functions
 - Extract common authentication and error handling
 - Keep specialized functions only where business logic differs
 
-**Implementation Steps** (Tracked via todos):
-- Create `src/utils/api/crud.ts` with generic functions:
-  - `createRecord(table, data, organizationId)`
-  - `getRecord(table, id, organizationId)`
-  - `getRecords(table, filters, organizationId)`
-  - `updateRecord(table, id, data, organizationId)`
-  - `deleteRecord(table, id, organizationId)`
-- Add common error handling wrapper
-- Add authentication check helper
-- Add tests for generic CRUD functions
-- Identify which API functions can use generics
-- Refactor one category at a time:
-  - Assets API functions
-  - Kits API functions
-  - Gigs API functions (more complex, may need custom logic)
-  - Organizations API functions
-  - Users API functions
-- Keep specialized functions where needed (e.g., `getGig` with participants)
-- Update all imports
-- Run all tests
-- Remove old API functions
+### 3.1 Create Generic CRUD Functions
 
-**Status**: Not started. See todos for individual task tracking.
+**Goal**: Reduce repetitive API functions to generic CRUD operations
 
-**Tests to Add** (Tracked via todos):
-- `src/utils/api/crud.test.ts`
+**Implementation Tasks**:
+- [ ] Create `src/utils/api/crud.ts` with generic functions:
+  - [ ] `createRecord(table, data, organizationId)`
+  - [ ] `getRecord(table, id, organizationId)`
+  - [ ] `getRecords(table, filters, organizationId)`
+  - [ ] `updateRecord(table, id, data, organizationId)`
+  - [ ] `deleteRecord(table, id, organizationId)`
+- [ ] Add common error handling wrapper
+- [ ] Add authentication check helper
+- [ ] Create test file: `src/utils/api/crud.test.ts`
   - Test generic create/read/update/delete
   - Test organization_id filtering
   - Test authentication checks
   - Test error handling
+- [ ] Identify which API functions can use generics vs need custom logic
+- [ ] Refactor Assets API functions to use generic CRUD
+- [ ] Refactor Kits API functions to use generic CRUD
+- [ ] Refactor Gigs API functions to use generic CRUD (more complex, may need custom logic)
+- [ ] Refactor Organizations API functions to use generic CRUD
+- [ ] Refactor Users API functions to use generic CRUD
+- [ ] Keep specialized functions where needed (e.g., `getGig` with participants)
+- [ ] Update all imports throughout codebase
+- [ ] Run all tests to verify no regressions
+- [ ] Remove old API functions after refactoring complete
 
-**Verification** (Tracked via todos):
-- All API calls work correctly
-- Organization filtering works
-- Authentication checks work
-- All existing tests pass
-- No regressions in functionality
+**Verification**:
+- [ ] All API calls work correctly
+- [ ] Organization filtering works
+- [ ] Authentication checks work
+- [ ] All existing tests pass
+- [ ] No regressions in functionality
 
 ---
 
 ## Phase 4: Replace Custom Routing with React Router
 
+**Status**: ⏸️ **Pending**
+
+### Overview
+
+Replace custom string-based routing with proper URL routing.
+
+**Current Complexity**: 570-line App.tsx with manual route management
+
 ### 4.1 Install and Configure React Router
 
 **Goal**: Replace custom string-based routing with proper URL routing
 
-**Current Complexity**: 565-line App.tsx with manual route management
-
-**Implementation Steps** (Tracked via todos):
-- Install `react-router-dom` and `@types/react-router-dom`
-- Create route configuration: `src/routes/index.tsx`
+**Implementation Tasks**:
+- [ ] Install `react-router-dom`: `npm install react-router-dom`
+- [ ] Install types: `npm install -D @types/react-router-dom`
+- [ ] Create route configuration: `src/routes/index.tsx`
   - Define all routes with paths
   - Set up route protection (require auth, require org selection)
-- Create route components:
-  - `src/routes/ProtectedRoute.tsx` - Require authentication
-  - `src/routes/OrgRequiredRoute.tsx` - Require organization selection
-- Refactor `App.tsx` to use Router
-  - Wrap app in `<BrowserRouter>`
-  - Replace route state with `<Routes>` and `<Route>`
-  - Use `useNavigate` instead of `setCurrentRoute`
-  - Use URL params for IDs (gigId, assetId, kitId)
-- Update navigation calls throughout app
-  - Replace `onNavigateToGigs()` with `navigate('/gigs')`
-  - Replace `onViewGig(id)` with `navigate(\`/gigs/${id}/edit\`)`
-  - Update all screen components to use router hooks
-- Test URL navigation
-  - Test direct URL access (bookmarking)
-  - Test browser back/forward buttons
-  - Test route parameters
-- Remove custom route state management
-- Remove `NavigationContext` (no longer needed)
+- [ ] Create route component: `src/routes/ProtectedRoute.tsx` - Require authentication
+- [ ] Create route component: `src/routes/OrgRequiredRoute.tsx` - Require organization selection
+- [ ] Refactor `App.tsx` to use Router:
+  - [ ] Wrap app in `<BrowserRouter>`
+  - [ ] Replace route state with `<Routes>` and `<Route>`
+  - [ ] Use `useNavigate` instead of `setCurrentRoute`
+  - [ ] Use URL params for IDs (gigId, assetId, kitId)
+- [ ] Update navigation calls throughout app:
+  - [ ] Replace `onNavigateToGigs()` with `navigate('/gigs')`
+  - [ ] Replace `onViewGig(id)` with `navigate(\`/gigs/${id}/edit\`)`
+  - [ ] Update all screen components to use router hooks
+- [ ] Test URL navigation:
+  - [ ] Test direct URL access (bookmarking)
+  - [ ] Test browser back/forward buttons
+  - [ ] Test route parameters
+- [ ] Remove custom route state management from App.tsx
+- [ ] Remove `NavigationContext` (no longer needed, handled in Phase 5)
 
-**Status**: Not started. See todos for individual task tracking.
-
-**Tests to Add** (Tracked via todos):
-- `src/routes/ProtectedRoute.test.tsx`
+**Tests to Add**:
+- [ ] Create `src/routes/ProtectedRoute.test.tsx`
   - Test redirects to login when not authenticated
   - Test allows access when authenticated
-- `src/routes/OrgRequiredRoute.test.tsx`
+- [ ] Create `src/routes/OrgRequiredRoute.test.tsx`
   - Test redirects to org selection when no org
   - Test allows access when org selected
-- `src/App.test.tsx` (update existing)
+- [ ] Update `src/App.test.tsx` (existing)
   - Test route rendering
   - Test navigation between routes
   - Test URL parameters
   - Test protected routes
 
-**Verification** (Tracked via todos):
-- All routes accessible via URL
-- Browser back/forward works
-- Bookmarking works
-- Route protection works
-- All existing functionality preserved
-- All tests pass
+**Verification**:
+- [ ] All routes accessible via URL
+- [ ] Browser back/forward works
+- [ ] Bookmarking works
+- [ ] Route protection works
+- [ ] All existing functionality preserved
+- [ ] All tests pass
 
 ---
 
 ## Phase 5: Remove Unnecessary Abstractions
 
+**Status**: ⏸️ **Pending** (Depends on Phase 4 completion)
+
+### Overview
+
+Remove unnecessary abstractions that are no longer needed after simplifications.
+
 ### 5.1 Remove NavigationContext
 
 **Goal**: Remove unnecessary context wrapper
 
-**Implementation Steps** (Tracked via todos):
-- Verify React Router replaces all context usage
-- Remove `src/contexts/NavigationContext.tsx`
-- Remove `<NavigationProvider>` wrapper from App.tsx
-- Update any components using `useNavigation()` hook
-- Run tests
-
-**Status**: Not started. Depends on Phase 4 completion.
+**Implementation Tasks**:
+- [ ] Verify React Router replaces all NavigationContext usage
+- [ ] Remove `src/contexts/NavigationContext.tsx`
+- [ ] Remove `<NavigationProvider>` wrapper from App.tsx
+- [ ] Update any components using `useNavigation()` hook to use router hooks instead
+- [ ] Run tests to verify no regressions
 
 **Tests**: No new tests needed (covered by routing tests)
 
@@ -307,45 +322,45 @@ Before implementing simplifications, we'll add tests to ensure functionality is 
 
 **Goal**: Remove duplicate utilities between `form-utils.ts` and `useFormWithChanges`
 
-**Implementation Steps** (Tracked via todos):
-- Audit `form-utils.ts` for functions still needed
-- Keep only utilities not covered by react-hook-form
-  - `normalizeFormData` - Still needed for API submission
-  - Remove `deepEqual` if not used elsewhere
-  - Remove `getChangedFields` if using react-hook-form's dirty fields
-  - Remove `hasFormChanges` if using react-hook-form's `isDirty`
-  - Remove `createSubmissionPayload` if simplified
-- Update tests for `form-utils.test.ts`
-- Update all imports
+**Implementation Tasks**:
+- [ ] Audit `form-utils.ts` for functions still needed
+- [ ] Keep only utilities not covered by react-hook-form:
+  - [ ] Keep `normalizeFormData` - Still needed for API submission
+  - [ ] Remove `deepEqual` if not used elsewhere
+  - [ ] Remove `getChangedFields` if using react-hook-form's dirty fields
+  - [ ] Remove `hasFormChanges` if using react-hook-form's `isDirty`
+  - [ ] Remove `createSubmissionPayload` if simplified
+- [ ] Update tests for `form-utils.test.ts` to match remaining functions
+- [ ] Update all imports throughout codebase
 
-**Status**: Not started. Depends on Phase 2 completion.
-
-**Tests**: Update existing `form-utils.test.ts` to match remaining functions
+**Status**: Depends on Phase 2 completion.
 
 ---
 
 ## Phase 6: Component Refactoring (Optional)
 
+**Status**: ⏸️ **Pending** (Optional phase)
+
+### Overview
+
+Break down 2000+ line components into smaller, focused components.
+
 ### 6.1 Split Large Components
 
-**Goal**: Break down 2000+ line components into smaller, focused components
+**Goal**: Break down large components into smaller, focused components
 
-**Components to Split** (Tracked via todos):
-- `CreateGigScreen.tsx` (2000+ lines)
-  - Extract staff slots management
-  - Extract participants management
-  - Extract kit assignments
-  - Extract bid management
-- `CreateAssetScreen.tsx` (if large)
-- `CreateKitScreen.tsx` (if large)
-
-**Implementation Steps** (Tracked via todos):
-- Identify logical sections
-- Extract to separate components
-- Update tests
-- Verify functionality
-
-**Status**: Not started. Optional phase.
+**Implementation Tasks**:
+- [ ] Split `CreateGigScreen.tsx` (2000+ lines):
+  - [ ] Extract staff slots management component
+  - [ ] Extract participants management component
+  - [ ] Extract kit assignments component
+  - [ ] Extract bid management component
+- [ ] Evaluate `CreateAssetScreen.tsx` for splitting (if large)
+- [ ] Evaluate `CreateKitScreen.tsx` for splitting (if large)
+- [ ] Identify logical sections in each component
+- [ ] Extract to separate components
+- [ ] Update tests for extracted components
+- [ ] Verify functionality after extraction
 
 **Tests**: Add component tests for extracted pieces
 
@@ -353,16 +368,16 @@ Before implementing simplifications, we'll add tests to ensure functionality is 
 
 ## Testing Checklist
 
-**Before starting any phase** (Tracked via todos):
-- All existing tests pass: `npm run test:run`
-- Test coverage is acceptable: `npm run test:coverage`
-- No TypeScript errors: `npm run build` (or `tsc --noEmit`)
+**Before starting any phase**:
+- [ ] All existing tests pass: `npm run test:run`
+- [ ] Test coverage is acceptable: `npm run test:coverage`
+- [ ] No TypeScript errors: `npm run build` (or `tsc --noEmit`)
 
-**After each phase** (Tracked via todos):
-- All tests pass
-- Manual testing of affected features
-- Code review
-- Update todos to mark completion
+**After each phase**:
+- [ ] All tests pass
+- [ ] Manual testing of affected features
+- [ ] Code review
+- [ ] Update checkboxes in this document to mark completion
 
 ---
 
@@ -384,7 +399,7 @@ Before implementing simplifications, we'll add tests to ensure functionality is 
 
 ## Progress Tracking
 
-**Note**: Detailed task tracking is done via the `todo_write` tool. This section provides high-level phase status.
+**Note**: Detailed task tracking is done via checkboxes in each phase section above. This section provides high-level phase status.
 
 ### Phase 1: Test Infrastructure & Dead Code ✅ COMPLETE
 - ✅ 1.1 Navigation/Routing tests (simplified approach)
@@ -422,19 +437,17 @@ Before implementing simplifications, we'll add tests to ensure functionality is 
 - Work on one phase at a time
 - Complete all tests for a phase before moving to implementation
 - Keep old code until new code is fully tested and verified
-- Update this document as work progresses
+- Update checkboxes in this document as work progresses
 - Commit frequently with descriptive messages
 
 ## Success Criteria
 
-- All tests pass
-- Code reduction of ~1500+ lines achieved
-- No functionality regressions
-- Improved maintainability (fewer files, clearer patterns)
-- Better developer experience (standard routing, simpler state)
-- Performance maintained or improved
-
-**Note**: Progress tracked via todos. Check todo list for current status.
+- [ ] All tests pass
+- [ ] Code reduction of ~1500+ lines achieved
+- [ ] No functionality regressions
+- [ ] Improved maintainability (fewer files, clearer patterns)
+- [ ] Better developer experience (standard routing, simpler state)
+- [ ] Performance maintained or improved
 
 ## Phase 1 Summary
 
@@ -444,7 +457,7 @@ Before implementing simplifications, we'll add tests to ensure functionality is 
 - Successfully removed 4 unused files (~200+ lines of dead code)
 - Updated 3 components to use direct API calls instead of removed hooks
 - Build passes with no functionality regressions
-- Created comprehensive test suite structure (28 tests, though some need mock refinement)
+- Created comprehensive test suite structure (60 tests passing)
 - Established test patterns for routing, form change detection, and API behavior
 
 **Lessons Learned**:
