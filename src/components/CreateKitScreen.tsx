@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { Package, ArrowLeft, Save, Loader2, AlertCircle, Plus, X, Search } from 'lucide-react';
-import { useFormWithChanges } from '../utils/hooks/useFormWithChanges';
+import { useSimpleFormChanges } from '../utils/hooks/useSimpleFormChanges';
 import { createSubmissionPayload, normalizeFormData } from '../utils/form-utils';
 import { toast } from 'sonner@2.0.3';
 import { Button } from './ui/button';
@@ -106,7 +106,7 @@ export default function CreateKitScreen({
   }), [formData, kitAssets]);
 
   // Change detection for efficient updates
-  const changeDetection = useFormWithChanges({
+  const changeDetection = useSimpleFormChanges({
     initialData: {
       name: '',
       category: '',
@@ -119,27 +119,7 @@ export default function CreateKitScreen({
     currentData: currentData, // Pass the memoized currentData
   });
 
-  // Trigger change detection when formData or kitAssets change
-  // The hook's useEffect watches currentData, but we also trigger manually to ensure immediate updates
-  const updateChangedFieldsRef = useRef(changeDetection.updateChangedFields);
-  updateChangedFieldsRef.current = changeDetection.updateChangedFields;
-
-  const prevFormDataRef = useRef<FormData>(formData);
-  const prevKitAssetsRef = useRef<KitAsset[]>(kitAssets);
-  
-  useEffect(() => {
-    if (isEditMode) {
-      const formDataChanged = JSON.stringify(formData) !== JSON.stringify(prevFormDataRef.current);
-      const kitAssetsChanged = JSON.stringify(kitAssets) !== JSON.stringify(prevKitAssetsRef.current);
-      
-      if (formDataChanged || kitAssetsChanged) {
-        prevFormDataRef.current = formData;
-        prevKitAssetsRef.current = kitAssets;
-        updateChangedFieldsRef.current();
-      }
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [formData, kitAssets, isEditMode]);
+  // Data changes are automatically detected by the simplified hook
 
   useEffect(() => {
     if (kitId) {

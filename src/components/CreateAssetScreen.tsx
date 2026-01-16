@@ -12,7 +12,7 @@ import AppHeader from './AppHeader';
 import type { Organization, User, UserRole } from '../App';
 import { getAsset, createAsset, updateAsset } from '../utils/api';
 import type { DbAsset } from '../utils/supabase/types';
-import { useFormWithChanges } from '../utils/hooks/useFormWithChanges';
+import { useSimpleFormChanges } from '../utils/hooks/useSimpleFormChanges';
 import { createSubmissionPayload, normalizeFormData } from '../utils/form-utils';
 import { useAutocompleteSuggestions } from '../utils/hooks/useAutocompleteSuggestions';
 
@@ -79,7 +79,7 @@ export default function CreateAssetScreen({
   });
 
   // Change detection hook (simplified for manual state)
-  const changeDetection = useFormWithChanges({
+  const changeDetection = useSimpleFormChanges({
     currentData: formData,
     initialData: {},
   });

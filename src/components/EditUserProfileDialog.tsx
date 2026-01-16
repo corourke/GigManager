@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Button } from './ui/button';
 import { Loader2, User as UserIcon } from 'lucide-react';
-import { useFormWithChanges } from '../utils/hooks/useFormWithChanges';
+import { useSimpleFormChanges } from '../utils/hooks/useSimpleFormChanges';
 import { createSubmissionPayload, normalizeFormData } from '../utils/form-utils';
 import {
   Dialog,
@@ -43,7 +43,7 @@ export default function EditUserProfileDialog({
   });
 
   // Change detection for efficient updates
-  const changeDetection = useFormWithChanges({
+  const changeDetection = useSimpleFormChanges({
     initialData: {
       first_name: '',
       last_name: '',

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Button } from './ui/button';
-import { useFormWithChanges } from '../utils/hooks/useFormWithChanges';
+import { useSimpleFormChanges } from '../utils/hooks/useSimpleFormChanges';
 import { createSubmissionPayload, normalizeFormData } from '../utils/form-utils';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
@@ -53,7 +53,7 @@ export default function UserProfileCompletionScreen({
   });
 
   // Change detection for efficient updates
-  const changeDetection = useFormWithChanges({
+  const changeDetection = useSimpleFormChanges({
     initialData: {
       first_name: user.first_name || '',
       last_name: user.last_name || '',

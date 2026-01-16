@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useRef } from 'react';
 import { z } from 'zod';
 import { useForm, Controller } from 'react-hook-form@7.55.0';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useFormWithChanges } from '../utils/hooks/useFormWithChanges';
+import { useSimpleFormChanges } from '../utils/hooks/useSimpleFormChanges';
 import { createSubmissionPayload, normalizeFormData } from '../utils/form-utils';
 import { format } from 'date-fns';
 import { toast } from 'sonner@2.0.3';
@@ -276,7 +276,7 @@ export default function CreateGigScreen({
   }), [formValues, staffSlots]);
 
   // Change detection for efficient updates
-  const changeDetection = useFormWithChanges({
+  const changeDetection = useSimpleFormChanges({
     form: form,
     initialData: {
       title: '',
@@ -292,23 +292,7 @@ export default function CreateGigScreen({
     currentData: currentData,
   });
 
-  // Trigger change detection when staffSlots change (since form watch doesn't cover nested data)
-  // Store updateChangedFields in a ref to avoid dependency issues (it's stable but changeDetection object isn't)
-  const updateChangedFieldsRef = useRef(changeDetection.updateChangedFields);
-  updateChangedFieldsRef.current = changeDetection.updateChangedFields;
-  
-  const prevStaffSlotsRef = useRef<StaffSlotData[]>([]);
-  useEffect(() => {
-    if (isEditMode) {
-      // Only update if staffSlots actually changed (deep comparison)
-      const currentStr = JSON.stringify(staffSlots);
-      const prevStr = JSON.stringify(prevStaffSlotsRef.current);
-      if (currentStr !== prevStr) {
-        prevStaffSlotsRef.current = staffSlots;
-        updateChangedFieldsRef.current();
-      }
-    }
-  }, [staffSlots, isEditMode]);
+  // Nested data changes are automatically detected by the simplified hook
 
   // Load staff roles from database
   useEffect(() => {

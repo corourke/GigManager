@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { Building2, Search, Loader2, MapPin, Phone, Globe, Check, AlertCircle, X, ChevronLeft } from 'lucide-react';
 import { toast } from 'sonner@2.0.3';
 import type { Organization, OrganizationType } from '../App';
-import { useFormWithChanges } from '../utils/hooks/useFormWithChanges';
+import { useSimpleFormChanges } from '../utils/hooks/useSimpleFormChanges';
 import { createSubmissionPayload, normalizeFormData } from '../utils/form-utils';
 import { createClient } from '../utils/supabase/client';
 import { projectId } from '../utils/supabase/info';
@@ -166,7 +166,7 @@ export default function CreateOrganizationScreen({
   });
 
   // Change detection for efficient updates
-  const changeDetection = useFormWithChanges({
+  const changeDetection = useSimpleFormChanges({
     initialData: {
       name: organization?.name || '',
       type: organization?.type || '',
