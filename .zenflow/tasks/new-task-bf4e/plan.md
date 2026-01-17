@@ -142,158 +142,9 @@ Save to `{@artifacts_path}/plan.md`.
 
 ---
 
-### Phase 3: Technical Reference Documentation
+### Phase 3: Developer Documentation
 
-#### [ ] Task 3.1: Create Architecture Documentation
-
-**Objective**: Document system architecture and design patterns
-
-**File**: `docs/technical/architecture.md`
-
-**Actions**:
-- Document application type (client-side SPA, not Next.js)
-- Describe current routing architecture (custom string-based in App.tsx:78-96)
-- Document state management approach (React useState, Context API)
-- Explain database architecture (Supabase, PostgreSQL, RLS)
-- Document authentication & authorization flows
-- Describe data flow patterns
-- Identify key design patterns used
-- Note planned architectural changes (React Router migration in Phase 4)
-
-**Content Sections**:
-1. Application Type & Deployment Model
-2. Routing Architecture (Current & Planned)
-3. State Management Strategy
-4. Database Architecture & RLS
-5. Authentication & Authorization
-6. Data Flow Patterns
-7. Design Patterns & Conventions
-8. Technology Stack Summary
-
-**Verification**:
-- [ ] Accurately describes current implementation
-- [ ] References specific files with line numbers
-- [ ] Notes planned changes from code-simplification-plan.md
-- [ ] Includes architecture diagrams (text-based)
-
-**Deliverable**: `docs/technical/architecture.md`
-
----
-
-#### [ ] Task 3.2: Create Component Hierarchy Documentation
-
-**Objective**: Map component structure and relationships
-
-**File**: `docs/technical/component-hierarchy.md`
-
-**Actions**:
-- Categorize all components (Screen, Shared, UI)
-- Map authentication flow components
-- Document main application screens
-- List shared/reusable components
-- Identify component dependencies and data flow
-- Document component size and complexity
-- Note components targeted for refactoring (Phase 6)
-
-**Content Sections**:
-1. Component Organization Overview
-2. Screen Components (Page-level)
-   - Authentication Flow
-   - Main Application Screens
-3. Shared Components
-4. UI Components (Shadcn/ui)
-5. Component Dependencies Map
-6. Data Flow Patterns
-7. Component Size Analysis
-
-**Verification**:
-- [ ] All components in src/components/ listed
-- [ ] Component relationships mapped
-- [ ] Data flow documented
-- [ ] Import dependencies identified
-
-**Deliverable**: `docs/technical/component-hierarchy.md`
-
----
-
-#### [ ] Task 3.3: Create API Reference Documentation
-
-**Objective**: Document all API functions with signatures and usage
-
-**File**: `docs/technical/api-reference.md`
-
-**Actions**:
-- Read entire src/utils/api.tsx file (2,824 lines)
-- Extract all function signatures
-- Document parameters and return types
-- Group functions by domain (Gigs, Assets, Kits, Organizations, Users, etc.)
-- Document error handling patterns
-- Note organization scoping requirements
-- Identify repetitive patterns (to inform Phase 3 refactoring)
-
-**Content Sections**:
-1. API Layer Overview
-2. Authentication Functions
-3. Gigs API
-4. Assets API
-5. Kits API
-6. Organizations API
-7. Users API
-8. Organization Scoping Pattern
-9. Error Handling Conventions
-10. Planned Refactoring (Phase 3)
-
-**Verification**:
-- [ ] All 56+ API functions documented
-- [ ] Function signatures accurate
-- [ ] Parameters and return types complete
-- [ ] Organization scoping explained
-
-**Deliverable**: `docs/technical/api-reference.md`
-
----
-
-### Phase 4: Developer Documentation
-
-#### [ ] Task 4.1: Create Getting Started Guide
-
-**Objective**: Provide comprehensive developer onboarding
-
-**File**: `docs/development/getting-started.md`
-
-**Actions**:
-- Document prerequisites (Node.js version, tools)
-- Write step-by-step setup instructions
-- Include Supabase configuration steps
-- Document environment variables
-- Provide troubleshooting guidance
-- Reference existing setup docs in docs/setup/
-
-**Content Sections**:
-1. Prerequisites
-2. Setup Steps
-   - Clone repository
-   - Install dependencies
-   - Configure Supabase
-   - Set environment variables
-   - Run database schema
-   - Start development server
-3. Common Development Tasks
-4. Running Tests
-5. Troubleshooting Guide
-6. Additional Resources
-
-**Verification**:
-- [ ] Instructions are complete and accurate
-- [ ] Cross-references with docs/setup/ preserved
-- [ ] Environment variables documented
-- [ ] Common issues addressed
-
-**Deliverable**: `docs/development/getting-started.md`
-
----
-
-#### [ ] Task 4.2: Create Coding Conventions Documentation
+#### [ ] Task 3.1: Create Coding Conventions Documentation
 
 **Objective**: Document TypeScript and React patterns used in the project
 
@@ -330,43 +181,9 @@ Save to `{@artifacts_path}/plan.md`.
 
 ---
 
-#### [ ] Task 4.3: Create Contributing Guide
+### Phase 4: Development Planning
 
-**Objective**: Define contribution workflow and expectations
-
-**File**: `docs/development/contributing.md`
-
-**Actions**:
-- Document contribution process
-- Define code review expectations
-- Specify testing requirements before PRs
-- Document commit message conventions
-- Explain branching strategy
-- Reference relevant development docs
-
-**Content Sections**:
-1. How to Contribute
-2. Development Workflow
-3. Code Review Process
-4. Testing Requirements
-5. Commit Message Conventions
-6. Branching Strategy
-7. Pull Request Guidelines
-8. Documentation Update Expectations
-
-**Verification**:
-- [ ] Workflow is clear and actionable
-- [ ] Testing requirements specified
-- [ ] Code review process defined
-- [ ] Links to related docs included
-
-**Deliverable**: `docs/development/contributing.md`
-
----
-
-### Phase 5: Development Planning
-
-#### [ ] Task 5.1: Update Code Simplification Plan
+#### [ ] Task 4.1: Update Code Simplification Plan
 
 **Objective**: Update plan with current codebase analysis
 
@@ -398,7 +215,7 @@ Save to `{@artifacts_path}/plan.md`.
 
 ---
 
-#### [ ] Task 5.2: Create Development Plan
+#### [ ] Task 4.2: Create Development Plan
 
 **Objective**: Create comprehensive development roadmap
 
@@ -457,9 +274,9 @@ Save to `{@artifacts_path}/plan.md`.
 
 ---
 
-### Phase 6: Final Verification
+### Phase 5: Final Verification
 
-#### [ ] Task 6.1: Verify Documentation Cross-References
+#### [ ] Task 5.1: Verify Documentation Cross-References
 
 **Objective**: Ensure all documentation links and references are accurate
 
@@ -478,7 +295,7 @@ Save to `{@artifacts_path}/plan.md`.
 
 ---
 
-#### [ ] Task 6.2: Documentation Quality Review
+#### [ ] Task 5.2: Documentation Quality Review
 
 **Objective**: Final quality assurance for all documentation
 
@@ -505,23 +322,25 @@ Save to `{@artifacts_path}/plan.md`.
 
 ## Summary
 
-**Total Tasks**: 12 main tasks across 6 phases
+**Total Tasks**: 8 main tasks across 5 phases
 
 **Deliverables**:
 1. Validated/Updated README.md
 2. docs/features/feature-catalog.md (NEW)
-3. docs/technical/architecture.md (NEW)
-4. docs/technical/component-hierarchy.md (NEW)
-5. docs/technical/api-reference.md (NEW)
-6. docs/development/getting-started.md (NEW)
-7. docs/development/coding-conventions.md (NEW)
-8. docs/development/contributing.md (NEW)
-9. docs/development/development-plan.md (NEW)
-10. docs/development/code-simplification-plan.md (UPDATED)
+3. docs/development/coding-conventions.md (NEW)
+4. docs/development/development-plan.md (NEW)
+5. docs/development/code-simplification-plan.md (UPDATED)
+
+**Deferred Documentation** (will be created after codebase simplification):
+- docs/technical/architecture.md
+- docs/technical/component-hierarchy.md
+- docs/technical/api-reference.md
+- docs/development/getting-started.md
+- docs/development/contributing.md
 
 **Verification Approach**:
 - Each task includes verification checklist
-- Cross-reference validation in Phase 6
+- Cross-reference validation in Phase 5
 - Final quality review before completion
 
 **Notes**:
@@ -529,3 +348,4 @@ Save to `{@artifacts_path}/plan.md`.
 - Analysis requires reading 104 TypeScript files
 - Must preserve all existing documentation in docs/
 - Focus on accuracy and completeness for future development work
+- Technical reference documentation deferred until after code simplification
