@@ -78,22 +78,22 @@ export function useSimpleFormChanges<T extends FieldValues>({
     if (currentData) {
       const changed = hasDataChanged();
       setNestedDataChanged(changed);
-      if (!changed) {
-        // Update previous reference if no change
-        if (form) {
-          // React-hook-form mode: store nested data only
-          const formFieldNames = new Set(Object.keys(form.getValues()));
-          const nestedData: Partial<T> = {};
-          for (const key in currentData) {
-            if (currentData.hasOwnProperty(key) && !formFieldNames.has(key)) {
-              nestedData[key] = currentData[key];
-            }
+
+      // Always update the previous reference to the current data
+      // This ensures future comparisons work correctly
+      if (form) {
+        // React-hook-form mode: store nested data only
+        const formFieldNames = new Set(Object.keys(form.getValues()));
+        const nestedData: Partial<T> = {};
+        for (const key in currentData) {
+          if (currentData.hasOwnProperty(key) && !formFieldNames.has(key)) {
+            nestedData[key] = currentData[key];
           }
-          prevDataRef.current = nestedData;
-        } else {
-          // Manual mode: store all data
-          prevDataRef.current = { ...currentData };
         }
+        prevDataRef.current = nestedData;
+      } else {
+        // Manual mode: store all data
+        prevDataRef.current = { ...currentData };
       }
     }
   }, [currentData, hasDataChanged, form]);
@@ -185,29 +185,29 @@ export function useSimpleFormChanges<T extends FieldValues>({
       // React-hook-form mode
       form.reset(data as T);
 
-      // Initialize previous nested data reference
-      if (currentData) {
-        const formFieldNames = new Set(Object.keys(form.getValues()));
-        const nestedData: Partial<T> = {};
-        for (const key in currentData) {
-          if (currentData.hasOwnProperty(key) && !formFieldNames.has(key)) {
-            nestedData[key] = currentData[key];
-          }
+      // Initialize previous nested data reference from the loaded data
+      // Extract nested data (fields not in form) from the data parameter
+      const formFieldNames = new Set(Object.keys(form.getValues()));
+      const nestedData: Partial<T> = {};
+      for (const key in data) {
+        if (data.hasOwnProperty(key) && !formFieldNames.has(key)) {
+          nestedData[key] = data[key];
         }
-        prevDataRef.current = nestedData;
       }
+      prevDataRef.current = nestedData;
     } else {
       // Manual mode: initialize previous data reference
       prevDataRef.current = { ...data };
     }
-  }, [form, currentData]);
+  }, [form]);
 
   /**
    * Check if a specific field has changes
    */
   const hasFieldChanged = useCallback((fieldName: FieldPath<T>) => {
     if (form) {
-      return form.formState.dirtyFields[fieldName] === true;
+      const currentValues = form.getValues();
+      return currentValues[fieldName] !== originalData[fieldName];
     } else if (currentData) {
       return currentData[fieldName] !== originalData[fieldName];
     }
@@ -219,8 +219,25 @@ export function useSimpleFormChanges<T extends FieldValues>({
     updateDataChanges();
   }, [updateDataChanges]);
 
+  // Calculate if there are any changes by comparing current data with original data
+  const hasAnyChanges = (() => {
+    if (form) {
+      // Compare form values with original data
+      const currentValues = form.getValues();
+      for (const key in originalData) {
+        if (originalData.hasOwnProperty(key) && currentValues.hasOwnProperty(key)) {
+          if (currentValues[key] !== originalData[key]) {
+            return true;
+          }
+        }
+      }
+    }
+    // Also check nested data changes
+    return nestedDataChanged;
+  })();
+
   const changeState: SimpleFormChangeState<T> = {
-    hasChanges: (form ? form.formState.isDirty : false) || nestedDataChanged,
+    hasChanges: hasAnyChanges,
     changedFields: getChangedFields(),
     originalData,
     isDirty: form ? form.formState.isDirty : false,
