@@ -44,7 +44,6 @@ A comprehensive web application for production and event management companies to
    - Create a new Supabase project
    - Run the database schema in `supabase/schema.sql` in your Supabase SQL Editor
    - Configure Google OAuth in Supabase Auth settings
-   - Copy `.env.example` to `.env.local` and add your Supabase credentials
 
 4. **Configure environment variables**
    Create a `.env.local` file in the root directory:
@@ -78,8 +77,7 @@ A comprehensive web application for production and event management companies to
 ├── supabase/               # Supabase backend code
 │   ├── schema.sql         # Complete database schema (single source of truth)
 │   └── functions/          # Edge functions
-├── docs/                   # Documentation
-└── public/                 # Static assets
+└── docs/                   # Documentation
 ```
 
 ## User Roles
@@ -124,7 +122,7 @@ This is a static React SPA that can be deployed to any static hosting service:
 ## Documentation
 
 - [Requirements](./docs/requirements.md) - Detailed feature specifications
-- [Tech Stack](./docs/tech-stack.md) - Technology choices and architecture
+- [Tech Stack](./docs/TECH_STACK.md) - Technology choices and architecture
 - [Setup Guide](./docs/setup/) - Detailed setup and configuration
 
 ## Contributing
