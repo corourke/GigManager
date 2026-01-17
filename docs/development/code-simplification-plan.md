@@ -2,8 +2,8 @@
 
 This document tracks the systematic simplification of the GigManager codebase to remove unnecessary complexity while maintaining functionality, maintainability, and reliability.
 
-**Last Updated**: 2025-01-21  
-**Status**: Phase 1 Complete, Phase 2 Ready to Begin
+**Last Updated**: 2026-01-17  
+**Status**: Phase 1 Complete, Phase 2 Complete, Phases 3-6 Pending
 
 **Task Tracking**: All actionable tasks are tracked using markdown checkboxes in this document. Use `- [x]` for completed tasks and `- [ ]` for pending tasks. This document serves as both the strategic overview and the single source of truth for task tracking.
 
@@ -16,11 +16,53 @@ This plan addresses identified areas of unnecessary complexity:
 - Dead code and unused features
 - Unnecessary abstractions
 
+### Codebase Metrics (As of 2026-01-17)
+
+**File Counts**:
+- Total TypeScript files: 104
+- Screen components: 15
+- Shared components: 10
+- Shadcn/ui components: 46
+- Table components: 2
+- Total components: 73
+
+**Component Sizes** (Large components requiring refactoring):
+- `CreateGigScreen.tsx`: 2,091 lines
+- `CreateOrganizationScreen.tsx`: 1,028 lines
+- `TeamScreen.tsx`: 1,034 lines
+- `GigListScreen.tsx`: 1,021 lines
+
+**API Layer**:
+- Size: 2,824 lines
+- Exported functions: 57
+- Pattern: Repetitive CRUD operations (target for Phase 3 refactoring)
+
+**Routing**:
+- Implementation: Custom string-based routing in App.tsx
+- Size: 570 lines
+- Target: Migrate to React Router in Phase 4
+
+**Database**:
+- Tables: 16
+- Multi-tenant: RLS policies with organization_id scoping
+
+**Tests**:
+- Total passing: 60 tests
+- Form utilities: 26 tests
+- API tests: 12 tests
+- Component tests: 22 tests
+
 **Phase 1 Results**: ✅ **Dead code removal successful**
 - Removed: `useRealtimeList.ts`, `TableWithRealtime.tsx`, `FormSection.tsx`, `FormDirtyIndicator.tsx`
 - Updated: Components to use direct API calls instead of removed hooks
 - Impact: ~200+ lines removed, build passes, no functionality broken
-- Tests: Basic test infrastructure created (needs refinement for complex mocking)
+- Tests: 60 passing tests (26 form-utils, 12 api, 22 component tests)
+
+**Phase 2 Results**: ✅ **Form change detection simplified**
+- Created: `useSimpleFormChanges.ts` (~200 lines, down from 232 lines)
+- Updated: 6 form components to use simplified hook
+- Removed: Complex `useFormWithChanges.ts` with deep equality and ref patterns
+- Impact: Simpler, more maintainable form change detection using react-hook-form's built-in `isDirty`
 
 **Estimated Impact**: ~1500+ lines of code reduction (30-40%), significant maintainability improvement
 
@@ -187,14 +229,51 @@ Replace complex change detection with react-hook-form's built-in `isDirty`.
 
 ### Overview
 
-Reduce 56 repetitive API functions to generic CRUD operations.
+Reduce 57 repetitive API functions to generic CRUD operations.
 
-**Current Complexity**: 2,824 lines, 57 nearly identical functions
+**Current Complexity**:
+- File: `src/utils/api.tsx`
+- Size: 2,824 lines
+- Functions: 57 exported functions
+- Pattern: Nearly identical CRUD operations for each entity type
+
+**API Function Categories**:
+- User management: 3 functions (`getUserProfile`, `createUserProfile`, `updateUserProfile`)
+- Organization management: 6 functions (create, get, update, delete, list, invitations)
+- Gig management: 15+ functions (CRUD + bids, staff slots, kit assignments, duplication)
+- Asset management: 8 functions (CRUD + kit assignments, insurance tracking)
+- Kit management: 8 functions (CRUD + asset assignments, duplication)
+- Import/Export: 4 functions (CSV import for assets, kits)
+- Supporting entities: 13+ functions (venues, clients, contacts, etc.)
+
+**Common Patterns** (repeated across all entities):
+```typescript
+// Pattern 1: Organization-scoped queries
+const { data, error } = await supabase
+  .from('table_name')
+  .select('*')
+  .eq('organization_id', organizationId);
+
+// Pattern 2: Network error handling
+catch (err: any) {
+  if (err?.message?.includes('Failed to fetch')) {
+    throw new Error('Network error: ...');
+  }
+}
+
+// Pattern 3: Timestamp updates
+.update({
+  ...updates,
+  updated_at: new Date().toISOString(),
+})
+```
 
 **Simplified Approach**:
 - Create generic `createRecord`, `getRecord`, `updateRecord`, `deleteRecord` functions
 - Extract common authentication and error handling
-- Keep specialized functions only where business logic differs
+- Extract organization scoping logic
+- Keep specialized functions only where business logic differs (e.g., `getGig` with joins)
+- Estimated reduction: ~1,200+ lines (40-50% of API layer)
 
 ### 3.1 Create Generic CRUD Functions
 
@@ -242,7 +321,48 @@ Reduce 56 repetitive API functions to generic CRUD operations.
 
 Replace custom string-based routing with proper URL routing.
 
-**Current Complexity**: 570-line App.tsx with manual route management
+**Current Complexity**:
+- File: `src/App.tsx`
+- Size: 570 lines (excluding imports)
+- Routes: 15 custom string-based routes
+- State management: 7+ useState hooks for route and entity state
+
+**Current Route Types**:
+```typescript
+type Route = 
+  | 'login' 
+  | 'profile-completion'
+  | 'org-selection' 
+  | 'create-org'
+  | 'edit-org'
+  | 'admin-orgs'
+  | 'dashboard' 
+  | 'gig-list'
+  | 'create-gig'
+  | 'gig-detail'
+  | 'team'
+  | 'asset-list'
+  | 'create-asset'
+  | 'kit-list'
+  | 'create-kit'
+  | 'kit-detail'
+  | 'import';
+```
+
+**Current State Management Issues**:
+- No URL persistence (refresh loses state)
+- No browser back/forward support
+- No bookmarking capability
+- Entity IDs passed via state instead of URL params
+- Complex navigation callback props (onCancel, onNavigateToX, etc.)
+
+**React Router Benefits**:
+- URL-based navigation with browser history
+- URL parameters for entity IDs
+- Protected routes with guards
+- Reduced state management (~4 useState hooks can be removed)
+- Simplified component props (remove navigation callbacks)
+- Better developer experience (standard patterns)
 
 ### 4.1 Install and Configure React Router
 
@@ -345,20 +465,72 @@ Remove unnecessary abstractions that are no longer needed after simplifications.
 
 Break down 2000+ line components into smaller, focused components.
 
+**Components Requiring Refactoring** (>1000 lines):
+
+1. **CreateGigScreen.tsx** - 2,091 lines
+   - Current structure: Single monolithic component
+   - Candidate sections for extraction:
+     - Staff slots management (~300 lines)
+     - Participants/clients management (~200 lines)
+     - Kit assignments (~250 lines)
+     - Bid management (~200 lines)
+     - Venue/location form (~150 lines)
+   - Estimated reduction: 1,000+ lines to main component
+
+2. **GigListScreen.tsx** - 1,021 lines
+   - Current structure: List with filters and search
+   - Candidate sections:
+     - Filter panel component
+     - Gig card/row component
+     - Search/sort component
+
+3. **TeamScreen.tsx** - 1,034 lines
+   - Current structure: Team member list with invitations
+   - Candidate sections:
+     - Member list component
+     - Invitation form component
+     - Role management component
+
+4. **CreateOrganizationScreen.tsx** - 1,028 lines
+   - Current structure: Organization form with multiple sections
+   - Candidate sections:
+     - Organization details form
+     - Address form component
+     - Settings panel
+
+**Benefits**:
+- Improved code maintainability
+- Easier testing (test smaller components)
+- Better code reusability
+- Reduced cognitive load when editing
+- Improved performance (potential memo optimizations)
+
+**Estimated Impact**: ~1,500 lines moved to smaller, focused components
+
 ### 6.1 Split Large Components
 
 **Goal**: Break down large components into smaller, focused components
 
 **Implementation Tasks**:
-- [ ] Split `CreateGigScreen.tsx` (2000+ lines):
-  - [ ] Extract staff slots management component
-  - [ ] Extract participants management component
-  - [ ] Extract kit assignments component
-  - [ ] Extract bid management component
-- [ ] Evaluate `CreateAssetScreen.tsx` for splitting (if large)
-- [ ] Evaluate `CreateKitScreen.tsx` for splitting (if large)
-- [ ] Identify logical sections in each component
-- [ ] Extract to separate components
+- [ ] Split `CreateGigScreen.tsx` (2,091 lines):
+  - [ ] Extract `GigStaffSlotsManager.tsx` component
+  - [ ] Extract `GigParticipantsManager.tsx` component
+  - [ ] Extract `GigKitAssignments.tsx` component
+  - [ ] Extract `GigBidManager.tsx` component
+  - [ ] Extract `GigVenueForm.tsx` component
+- [ ] Split `GigListScreen.tsx` (1,021 lines):
+  - [ ] Extract `GigFilterPanel.tsx` component
+  - [ ] Extract `GigListItem.tsx` component
+  - [ ] Extract `GigSearchBar.tsx` component
+- [ ] Split `TeamScreen.tsx` (1,034 lines):
+  - [ ] Extract `TeamMemberList.tsx` component
+  - [ ] Extract `TeamInvitationForm.tsx` component
+  - [ ] Extract `TeamMemberRoleManager.tsx` component
+- [ ] Split `CreateOrganizationScreen.tsx` (1,028 lines):
+  - [ ] Extract `OrganizationDetailsForm.tsx` component
+  - [ ] Extract `OrganizationAddressForm.tsx` component
+  - [ ] Extract `OrganizationSettingsPanel.tsx` component
+- [ ] Update imports in all parent components
 - [ ] Update tests for extracted components
 - [ ] Verify functionality after extraction
 
@@ -442,12 +614,30 @@ Break down 2000+ line components into smaller, focused components.
 
 ## Success Criteria
 
-- [ ] All tests pass
-- [ ] Code reduction of ~1500+ lines achieved
+**Overall Goals**:
+- [ ] All tests pass (currently 60 tests passing)
+- [ ] Code reduction achieved (see breakdown below)
 - [ ] No functionality regressions
 - [ ] Improved maintainability (fewer files, clearer patterns)
 - [ ] Better developer experience (standard routing, simpler state)
 - [ ] Performance maintained or improved
+
+**Code Reduction Targets**:
+- ✅ Phase 1: ~200 lines removed (dead code)
+- ✅ Phase 2: ~32 lines reduced (form change detection hook)
+- [ ] Phase 3: ~1,200 lines (API layer refactoring - 40-50% reduction)
+- [ ] Phase 4: ~200 lines (routing simplification in App.tsx)
+- [ ] Phase 5: ~100 lines (remove NavigationContext, consolidate utilities)
+- [ ] Phase 6: ~1,500 lines (component refactoring - extract to smaller components)
+- **Total Estimated Reduction**: ~3,232 lines (25-30% of codebase)
+
+**Quality Metrics**:
+- [ ] Average component size reduced from 143 lines to <100 lines
+- [ ] Largest component reduced from 2,091 lines to <500 lines
+- [ ] API layer reduced from 2,824 lines to <1,600 lines
+- [ ] App.tsx reduced from 570 lines to <370 lines
+- [ ] Zero TypeScript errors
+- [ ] Test coverage maintained or improved
 
 ## Phase 1 Summary
 
@@ -469,3 +659,28 @@ Break down 2000+ line components into smaller, focused components.
 **Next Steps**: Proceed to Phase 2 (form change detection simplification) or refine test mocks for better reliability.
 
 **Risk Assessment**: Dead code removal was successful with zero risk. Test refinement needed before proceeding to high-risk phases (routing, API refactoring).
+
+## Phase 2 Summary
+
+**Completed**: ✅ Form change detection simplified
+
+**Key Achievements**:
+- Created simplified `useSimpleFormChanges.ts` hook (~200 lines, replacing 232-line `useFormWithChanges.ts`)
+- Migrated 6 form components to use new hook: CreateGigScreen, CreateAssetScreen, CreateKitScreen, CreateOrganizationScreen, UserProfileCompletionScreen, EditUserProfileDialog
+- Removed complex deep equality checking and ref patterns
+- Leverages react-hook-form's built-in `isDirty` for form field changes
+- Simple reference comparison for nested data (arrays, objects)
+- All functionality preserved with simpler, more maintainable code
+
+**Technical Improvements**:
+- Eliminated `setTimeout` hacks for change detection
+- Removed complex `currentData` merging logic
+- Cleaner API with `hasChanges` boolean and `changedFields` object
+- Better TypeScript support with generic types
+
+**Lessons Learned**:
+- react-hook-form's built-in features are sufficient for most use cases
+- Simple reference comparison is adequate for nested data in this application
+- Removing complexity makes code easier to understand and debug
+
+**Next Steps**: Proceed to Phase 3 (API layer refactoring) to reduce repetitive CRUD functions.
