@@ -219,6 +219,6 @@ The asset import CSV should include these columns:
 ## Related Documentation
 
 - **Requirements**: See [requirements.md](../requirements.md) Section 3: CSV Import Feature Requirements
-- **Asset Workflows**: See [equipment-management-workflows.md](./equipment-management-workflows.md) for asset management flows
+- **Asset Workflows**: See [4-equipment-management-workflows.md](./4-equipment-management-workflows.md) for asset management flows
 - **Database Schema**: See [technical/database.md](../../technical/database.md) for data model and constraints
 - **Coding Guide**: See [development/ai-agents/coding-guide.md](../../development/ai-agents/coding-guide.md) for implementation patterns

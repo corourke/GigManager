@@ -8,7 +8,7 @@
 
 ## Workflow Documents
 
-### 1. [Authentication Workflows](./authentication-workflows.md)
+### 1. [Authentication Workflows](./1-authentication-workflows.md)
 User authentication, profile management, and organization selection/creation.
 
 **Key Flows:**
@@ -19,7 +19,7 @@ User authentication, profile management, and organization selection/creation.
 
 ---
 
-### 2. [Organization Management Workflows](./team-management-workflows.md)
+### 2. [Organization Management Workflows](./2-organization-management-workflows.md)
 Staff roles, personnel assignments, and organization directory.
 
 **Key Flows:**
@@ -35,7 +35,7 @@ Staff roles, personnel assignments, and organization directory.
 
 ---
 
-### 3. [Gig Management Workflows](./gig-management-workflows.md)
+### 3. [Gig Management Workflows](./3-gig-management-workflows.md)
 Complete gig lifecycle: browsing, creating, viewing, editing, and managing events.
 
 **Key Flows:**
@@ -51,7 +51,7 @@ Complete gig lifecycle: browsing, creating, viewing, editing, and managing event
 
 ---
 
-### 4. [Equipment Management Workflows](./equipment-management-workflows.md)
+### 4. [Equipment Management Workflows](./4-equipment-management-workflows.md)
 Asset inventory and kit management, including conflict resolution.
 
 **Key Flows:**
@@ -66,7 +66,7 @@ Asset inventory and kit management, including conflict resolution.
 
 ---
 
-### 5. [Dashboard & Analytics Workflows](./dashboard-analytics-workflows.md)
+### 5. [Dashboard & Analytics Workflows](./5-dashboard-analytics-workflows.md)
 Dashboard interface, reporting features, and analytics for gig revenue, asset utilization, and staff performance.
 
 **Key Flows:**
@@ -82,7 +82,7 @@ Dashboard interface, reporting features, and analytics for gig revenue, asset ut
 
 ---
 
-### 6. [Data Import & Export Workflows](./data-import-workflows.md)
+### 6. [Data Import & Export Workflows](./6-data-import-workflows.md)
 Bulk data operations via CSV import/export.
 
 **Key Flows:**
@@ -95,7 +95,7 @@ Bulk data operations via CSV import/export.
 
 ---
 
-### 7. [Notifications & Reminders Workflows](./notifications-workflows.md)
+### 7. [Notifications & Reminders Workflows](./7-notifications-workflows.md)
 Email notifications, in-app notifications, push notifications, and automated reminders.
 
 **Key Flows:**
@@ -111,7 +111,7 @@ Email notifications, in-app notifications, push notifications, and automated rem
 
 ---
 
-### 8. [Calendar Integration & Scheduling Workflows](./calendar-scheduling-workflows.md)
+### 8. [Calendar Integration & Scheduling Workflows](./8-calendar-scheduling-workflows.md)
 Calendar views, ICS export, Google Calendar integration, and conflict detection.
 
 **Key Flows:**
@@ -127,7 +127,7 @@ Calendar views, ICS export, Google Calendar integration, and conflict detection.
 
 ---
 
-### 9. [Technical Documentation Workflows](./technical-documentation-workflows.md)
+### 9. [Technical Documentation Workflows](./9-technical-documentation-workflows.md)
 File attachments, stage plots, technical documentation, and annotations.
 
 **Key Flows:**
@@ -143,7 +143,7 @@ File attachments, stage plots, technical documentation, and annotations.
 
 ---
 
-### 10. [Mobile Features Workflows](./mobile-workflows.md)
+### 10. [Mobile Features Workflows](./10-mobile-workflows.md)
 Mobile-optimized interface, offline support, native device features, and PWA capabilities.
 
 **Key Flows:**

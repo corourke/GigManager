@@ -256,4 +256,4 @@ These workflows cover asset inventory management (individual equipment items) an
 - **Requirements**: See [requirements.md](../requirements.md) for feature requirements (Sections 4-5: Asset & Kit Management)
 - **Database Schema**: See [technical/database.md](../../technical/database.md) for data model
 - **Coding Guide**: See [development/ai-agents/coding-guide.md](../../development/ai-agents/coding-guide.md) for implementation patterns
-- **Data Import**: See [data-import-workflows.md](./data-import-workflows.md) for CSV import/export of assets
+- **Data Import**: See [6-data-import-workflows.md](./6-data-import-workflows.md) for CSV import/export of assets

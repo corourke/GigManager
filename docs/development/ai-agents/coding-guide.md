@@ -117,7 +117,7 @@ This is a full production application with:
 
 ### 2. Organization Context
 
-Users are allowed to see
+Users are allowed to see gigs, and the tables related to gigs, if they are a member of an organization that is a participant in the gig. They are also able to see assets, kits and documents that are owned by an organization that they are a member of. They can also view users within their organization. 
 
 - **Every API route must verify user membership** in the organization
 - **Every database query must filter by `organization_id`** (enforced by RLS)
@@ -210,7 +210,6 @@ interface FormData {
 ```typescript
 // In App.tsx
 export type UserRole = 'Admin' | 'Manager' | 'Staff' | 'Viewer';
-export type OrganizationType = 'Production Company' | 'Sound/Lighting Company' | 'Client' | 'Venue' | 'Act' | 'Rental Company' | 'Other';
 
 // Usage
 const role: UserRole = 'Admin';

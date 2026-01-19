@@ -440,8 +440,8 @@ These workflows cover how users upload and manage attachments (contracts, stage 
 
 - [Requirements: Technical Documentation](../requirements.md#9-technical-documentation)
 - [Feature Catalog: Technical Documentation](../feature-catalog.md#9-technical-documentation)
-- [Gig Management Workflows](./gig-management-workflows.md) - Related gig workflows
-- [Equipment Management Workflows](./equipment-management-workflows.md) - Asset attachment workflows
+- [Gig Management Workflows](./3-gig-management-workflows.md) - Related gig workflows
+- [Equipment Management Workflows](./4-equipment-management-workflows.md) - Asset attachment workflows
 
 ---
 

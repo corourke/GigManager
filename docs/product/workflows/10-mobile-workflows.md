@@ -441,8 +441,8 @@ These workflows cover mobile-specific functionality including touch-optimized UI
 
 - [Requirements: Mobile Features](../requirements.md#10-mobile-features)
 - [Feature Catalog: Mobile Features](../feature-catalog.md#10-mobile-features)
-- [Notifications Workflows](./notifications-workflows.md) - Push notification details
-- [Technical Documentation Workflows](./technical-documentation-workflows.md) - Camera/photo workflows
+- [Notifications & Reminders Workflows](./7-notifications-workflows.md) - Push notification details
+- [Technical Documentation Workflows](./9-technical-documentation-workflows.md) - Camera/photo workflows
 
 ---
 

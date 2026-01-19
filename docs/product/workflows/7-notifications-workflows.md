@@ -398,9 +398,9 @@ These workflows cover how users receive notifications about invitations, gig ass
 
 - [Requirements: Notifications & Reminders](../requirements.md#7-notifications--reminders)
 - [Feature Catalog: Notifications & Reminders](../feature-catalog.md#7-notifications--reminders)
-- [Team Management Workflows](./team-management-workflows.md) - Invitation workflows
-- [Gig Management Workflows](./gig-management-workflows.md) - Assignment workflows
-- [Mobile Workflows](./mobile-workflows.md) - Push notification details
+- [Organization Management Workflows](./2-organization-management-workflows.md) - Invitation workflows
+- [Gig Management Workflows](./3-gig-management-workflows.md) - Assignment workflows
+- [Mobile Features Workflows](./10-mobile-workflows.md) - Push notification details
 
 ---
 

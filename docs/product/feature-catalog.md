@@ -359,6 +359,21 @@
 
 ---
 
+### 3.7 Bid Tracking
+
+**Status**: 🟡 Partial
+
+**Implemented Features**
+
+* Create / Update / Delete bid records attached to gigs
+
+**Planned Features** (from requirements):
+
+- More comprehensive bid management including documentation
+- Win rate analytics
+
+---
+
 ## 4. Equipment Management
 
 ### 4.1 Asset Inventory
@@ -715,28 +730,13 @@
 
 **Current Status**: Standard web app, no PWA manifest or service workers
 
----
 
-## 11. Additional Features
-
-### 11.1 Bid Tracking
-**Status**: 🚫 Deferred
-
-**Planned Features** (from requirements):
-- Link bids to gigs
-- Track amount, date, result (Pending/Accepted/Rejected/Withdrawn)
-- Historical pricing reference
-- Win rate analytics
-
-**Current Status**: No bid tracking components or API functions found
-
-**Database**: `gig_bids` table exists in schema but unused
 
 ---
 
-## 12. Navigation & UI Components
+## 11. Navigation & UI Components
 
-### 12.1 Application Shell
+### 11.1 Application Shell
 **Status**: ✅ Implemented
 
 **Implemented Features**:
@@ -754,7 +754,7 @@
 
 ---
 
-### 12.2 Shared UI Components
+### 11.2 Shared UI Components
 **Status**: ✅ Implemented
 
 **Reusable Components**:

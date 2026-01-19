@@ -329,8 +329,8 @@ These workflows cover how users view gigs in calendar format, export events to e
 
 - [Requirements: Calendar Integration & Scheduling](../requirements.md#8-calendar-integration--scheduling)
 - [Feature Catalog: Calendar Integration & Scheduling](../feature-catalog.md#8-calendar-integration--scheduling)
-- [Gig Management Workflows](./gig-management-workflows.md) - Related gig creation/editing
-- [Team Management Workflows](./team-management-workflows.md) - Staff assignment workflows
+- [Gig Management Workflows](./3-gig-management-workflows.md) - Related gig creation/editing
+- [Organization Management Workflows](./2-organization-management-workflows.md) - Staff assignment workflows
 
 ---
 

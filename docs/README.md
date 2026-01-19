@@ -66,16 +66,16 @@ Located in [`./product/`](./product/)
 
 Located in [`./product/workflows/`](./product/workflows/)
 
-- **[authentication-workflows.md](./product/workflows/authentication-workflows.md)** - Login, profile, organization setup
-- **[team-management-workflows.md](./product/workflows/team-management-workflows.md)** - Staff roles, assignments, and organization directory
-- **[gig-management-workflows.md](./product/workflows/gig-management-workflows.md)** - Event creation, editing, and management
-- **[equipment-management-workflows.md](./product/workflows/equipment-management-workflows.md)** - Asset and kit management
-- **[dashboard-analytics-workflows.md](./product/workflows/dashboard-analytics-workflows.md)** - Dashboard, reporting, and analytics
-- **[data-import-workflows.md](./product/workflows/data-import-workflows.md)** - CSV import/export functionality
-- **[notifications-workflows.md](./product/workflows/notifications-workflows.md)** - Notifications and reminders
-- **[calendar-scheduling-workflows.md](./product/workflows/calendar-scheduling-workflows.md)** - Calendar views and scheduling
-- **[technical-documentation-workflows.md](./product/workflows/technical-documentation-workflows.md)** - File attachments and technical docs
-- **[mobile-workflows.md](./product/workflows/mobile-workflows.md)** - Mobile features and PWA
+1. **[Authentication Workflows](./product/workflows/1-authentication-workflows.md)** - Login, profile, organization setup
+2. **[Organization Management Workflows](./product/workflows/2-organization-management-workflows.md)** - Staff roles, assignments, and organization directory
+3. **[Gig Management Workflows](./product/workflows/3-gig-management-workflows.md)** - Event creation, editing, and management
+4. **[Equipment Management Workflows](./product/workflows/4-equipment-management-workflows.md)** - Asset and kit management
+5. **[Dashboard & Analytics Workflows](./product/workflows/5-dashboard-analytics-workflows.md)** - Dashboard, reporting, and analytics
+6. **[Data Import & Export Workflows](./product/workflows/6-data-import-workflows.md)** - CSV import/export functionality
+7. **[Notifications & Reminders Workflows](./product/workflows/7-notifications-workflows.md)** - Notifications and reminders
+8. **[Calendar Integration & Scheduling Workflows](./product/workflows/8-calendar-scheduling-workflows.md)** - Calendar views and scheduling
+9. **[Technical Documentation Workflows](./product/workflows/9-technical-documentation-workflows.md)** - File attachments and technical docs
+10. **[Mobile Features Workflows](./product/workflows/10-mobile-workflows.md)** - Mobile features and PWA
 
 ---
 
