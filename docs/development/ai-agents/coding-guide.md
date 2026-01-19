@@ -31,11 +31,7 @@
 
 ## Application Context
 
-**GigManager** is a production and event management platform used by:
-
-- Production companies managing events and performances
-- Sound and lighting companies tracking equipment and staff
-- Event producers coordinating venues, acts, and logistics
+**GigManager** is a production and event management platform used by sound and lighting companies to track gigs, venues, acts, equipment, staffing, and finances. It can also be used by organizations participating in the delivery of events such as production companies, talent agents, venues, and rental companies. 
 
 **Brand Values**: Professional, Efficient, Modern, Accessible
 
@@ -44,7 +40,7 @@ This is a full production application with:
 - Complete Supabase PostgreSQL database with custom schema
 - Multiple custom tables (users, organizations, gigs, assets, etc.)
 - Existing migration files in `/supabase/migrations/`
-- Direct Supabase database access outside of Figma Make environment
+- User authentication via Supabase
 - Custom RLS policies managed at application layer
 
 ### Database Modifications
@@ -56,7 +52,7 @@ This is a full production application with:
 
 **Migration Workflow**:
 1. Create migration SQL files in `/supabase/migrations/`
-2. Update documentation files (RLS_FIX_SUMMARY.md, APPLY_DATABASE_FIXES.md, etc.)
+2. Update database documentation files in `/docs/technical/database.md`
 3. Provide instructions for running migrations in Supabase SQL Editor
 
 **Note**: The KV store limitations DO NOT apply to this project.
@@ -112,14 +108,16 @@ This is a full production application with:
 
 ## Coding Principles
 
-### 1. Type Safety First
+### 1. Code Readability First, Type Safety Second
 
-- **Always use TypeScript with strict mode enabled**
-- Define explicit types for props, state, and function returns
+- This is a TypeScript project, however, don't sacrifice code readability to achieve strict mode compliance. Strive for type safety, but don't go to unnatural lengths to do so, and keep readability and maintainability of the code at the forefront. 
+- Where practical, define explicit types for props, state, and function returns
 - Avoid `any` types except in necessary edge cases
 - Use type inference where appropriate
 
 ### 2. Organization Context
+
+Users are allowed to see
 
 - **Every API route must verify user membership** in the organization
 - **Every database query must filter by `organization_id`** (enforced by RLS)

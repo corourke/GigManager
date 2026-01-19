@@ -73,12 +73,7 @@ This app streamlines the management of gigs (where an act performs at a venue) f
 - **Card-based Layouts**: Touch-friendly information consumption (mobile)
 - **Contextual Actions**: Right-click menus, swipe actions, and floating action buttons
 - **Consistent Navigation**: Global navigation with organization switcher, breadcrumbs, and search
-
-#### Mobile Experience
-
-- **Touch-Optimized**: Minimum 44px touch targets, swipe gestures, bottom sheets
-- **Native Integration**: Biometric authentication, camera for asset scanning, push notifications
-- **Offline Support**: Critical workflows work without connectivity, with sync indicators
+- **Mobile-First Design**: Responsive layouts with touch-optimized controls (see [Mobile Features](#10-mobile-features) for details)
 
 ### Definitions
 
@@ -97,7 +92,7 @@ This app streamlines the management of gigs (where an act performs at a venue) f
 
 ## Major Feature Groups
 
-### 1. User Management
+### 1. Authentication & User Management
 
 #### Authentication & SSO
 
@@ -243,7 +238,7 @@ This app streamlines the management of gigs (where an act performs at a venue) f
 
 ---
 
-### 4. Asset & Kit Management
+### 4. Equipment Management
 
 #### Assets
 
@@ -282,50 +277,7 @@ This app streamlines the management of gigs (where an act performs at a venue) f
 
 ---
 
-### 5. Data Import/Export
-
-#### CSV Import
-
-- **Import Types**: Gigs, Assets
-- **Validation**: Client-side validation before import
-- **Error Handling**: Display errors inline, allow correction before import
-- **Batch Import**: Import multiple records at once
-- **Organization Mapping**: Auto-create organizations if they don't exist (for gig imports)
-
-See [CSV Import Feature Requirements](#csv-import-feature-requirements) for detailed specifications.
-
-#### CSV Export
-
-- **Export Types**: Gigs, Assets, Kits, Organizations
-- **Filters**: Export filtered/searched data
-- **All Fields**: Include all database columns in export
-
----
-
-### 6. Calendar & Scheduling
-
-#### Calendar View
-
-- **Month View**: Display gigs in calendar format
-- **Week View**: Detailed weekly schedule
-- **Day View**: Hour-by-hour breakdown
-- **Filters**: Filter by status, staff, venue, act
-
-#### ICS Export
-
-- **Individual Gigs**: Export single gig to calendar app
-- **Bulk Export**: Export multiple gigs at once
-- **Google Calendar Integration**: Direct integration with Google Calendar API
-
-#### Conflict Detection
-
-- **Staff Conflicts**: Warn when staff assigned to overlapping gigs
-- **Equipment Conflicts**: Warn when equipment assigned to overlapping gigs
-- **Venue Conflicts**: Warn when scheduling multiple gigs at same venue/time
-
----
-
-### 7. Reporting & Analytics
+### 5. Dashboard, Reporting & Analytics
 
 #### Gig Reports
 
@@ -349,7 +301,27 @@ See [CSV Import Feature Requirements](#csv-import-feature-requirements) for deta
 
 ---
 
-### 8. Notifications & Reminders
+### 6. Data Import/Export
+
+#### CSV Import
+
+- **Import Types**: Gigs, Assets
+- **Validation**: Client-side validation before import
+- **Error Handling**: Display errors inline, allow correction before import
+- **Batch Import**: Import multiple records at once
+- **Organization Mapping**: Auto-create organizations if they don't exist (for gig imports)
+
+See [CSV Import Feature Requirements](#csv-import-feature-requirements) for detailed specifications.
+
+#### CSV Export
+
+- **Export Types**: Gigs, Assets, Kits, Organizations
+- **Filters**: Export filtered/searched data
+- **All Fields**: Include all database columns in export
+
+---
+
+### 7. Notifications & Reminders
 
 #### Email Notifications
 
@@ -369,6 +341,89 @@ See [CSV Import Feature Requirements](#csv-import-feature-requirements) for deta
 - **Assignment Notifications**: Staff assignments
 - **Gig Reminders**: Upcoming gigs
 - **Status Updates**: Gig status changes
+
+---
+
+### 8. Calendar Integration & Scheduling
+
+#### Calendar View
+
+- **Month View**: Display gigs in calendar format
+- **Week View**: Detailed weekly schedule
+- **Day View**: Hour-by-hour breakdown
+- **Filters**: Filter by status, staff, venue, act
+
+#### ICS Export
+
+- **Individual Gigs**: Export single gig to calendar app
+- **Bulk Export**: Export multiple gigs at once
+- **Google Calendar Integration**: Direct integration with Google Calendar API
+
+#### Conflict Detection
+
+- **Staff Conflicts**: Warn when staff assigned to overlapping gigs
+- **Equipment Conflicts**: Warn when equipment assigned to overlapping gigs
+- **Venue Conflicts**: Warn when scheduling multiple gigs at same venue/time
+
+---
+
+### 9. Technical Documentation
+
+#### Attachments & File Management
+
+- **Organization Attachments**: Upload contracts, insurance certificates, W-9s, vendor agreements
+- **Gig Attachments**: Upload stage plots, input lists, contracts, riders, production schedules
+- **Asset Attachments**: Upload purchase receipts, manuals, warranty documents, calibration certificates
+- **Kit Attachments**: Upload packing lists, setup diagrams, transport manifests
+- **Supported File Types**: PDFs, images (JPG, PNG), documents (DOC, XLSX), CAD files (DWG, DXF)
+- **File Organization**: Tag and categorize attachments for easy retrieval
+- **Version Control**: Track document versions and revision history
+
+#### Stage Plots & Technical Documentation
+
+- **Stage Plot Editor**: Interactive editor for creating stage layouts
+- **Input Lists**: Track microphone and line assignments
+- **Packout Checklists**: Auto-generated from kit assignments
+- **Technical Riders**: Document technical requirements for acts
+
+#### Notes & Annotations
+
+- **Rich Text Notes**: Markdown support for formatting notes
+- **Private Notes**: Organization-specific notes on shared entities
+- **Tagging System**: Categorize notes for easy filtering
+- **Search**: Full-text search across all notes and attachments
+
+---
+
+### 10. Mobile Features
+
+#### Mobile-Optimized Interface
+
+- **Touch-Optimized UI**: Minimum 44px touch targets, swipe gestures, bottom sheets
+- **Responsive Design**: Adaptive layouts for mobile browsers
+- **Card-based Layouts**: Touch-friendly information consumption
+- **Bottom Navigation**: Easy thumb access to primary actions
+
+#### Offline Support
+
+- **Offline-First Architecture**: Core functionality works without internet connection
+- **Automatic Sync**: Background synchronization when connection restored
+- **Sync Indicators**: Visual feedback for sync status
+- **Conflict Resolution**: Handle concurrent offline edits
+
+#### Native Features
+
+- **Biometric Authentication**: Face ID, Touch ID, fingerprint authentication
+- **Camera Integration**: Scan asset barcodes/QR codes, capture photos
+- **Push Notifications**: Real-time alerts for assignments, reminders, status changes
+- **Location Services**: GPS for venue check-in, travel distance calculations
+
+#### Progressive Web App (PWA)
+
+- **Installable**: Add to home screen functionality
+- **App-like Experience**: Full-screen mode, splash screen
+- **Background Sync**: Queue actions when offline
+- **Push Notifications**: Web push for real-time updates
 
 ---
 

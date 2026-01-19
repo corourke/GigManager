@@ -449,9 +449,45 @@
 
 ---
 
-## 5. Data Import/Export
+## 5. Dashboard, Reporting & Analytics
 
-### 5.1 CSV Import
+### 5.1 Dashboard
+**Status**: ✅ Implemented
+
+**Implemented Features**:
+- Dashboard screen (Dashboard.tsx)
+- Organization context display
+- Quick navigation to main features
+
+**Technical Details**:
+- Component: `Dashboard.tsx` (12.99 KB, 403 lines)
+- Entry point after authentication and org selection
+
+**Known Limitations**:
+- Minimal analytics/metrics shown
+- No upcoming gig summary
+- No quick stats (total gigs, assets, etc.)
+- No recent activity feed
+
+---
+
+### 5.2 Reporting & Analytics
+**Status**: ⏸️ Planned
+
+**Planned Features** (from requirements):
+- Gig summaries (revenue by month, gigs by status, gigs by venue)
+- Staff utilization tracking
+- Asset reports (inventory, insurance, utilization, depreciation)
+- Financial overviews (revenue vs. expenses, outstanding payments)
+- Win rate tracking for bids
+
+**Current Status**: No reporting functionality implemented
+
+---
+
+## 6. Data Import/Export
+
+### 6.1 CSV Import
 **Status**: ✅ Implemented
 
 **Implemented Features**:
@@ -477,7 +513,7 @@
 
 ---
 
-### 5.2 Data Export
+### 6.2 Data Export
 **Status**: ⏸️ Planned
 
 **Planned Features** (from requirements):
@@ -490,44 +526,200 @@
 
 ---
 
-## 6. Dashboard & Reporting
+## 7. Notifications & Reminders
 
-### 6.1 Dashboard
-**Status**: ✅ Implemented
-
-**Implemented Features**:
-- Dashboard screen (Dashboard.tsx)
-- Organization context display
-- Quick navigation to main features
-
-**Technical Details**:
-- Component: `Dashboard.tsx` (12.99 KB, 403 lines)
-- Entry point after authentication and org selection
-
-**Known Limitations**:
-- Minimal analytics/metrics shown
-- No upcoming gig summary
-- No quick stats (total gigs, assets, etc.)
-- No recent activity feed
-
----
-
-### 6.2 Reporting & Analytics
+### 7.1 Email Notifications
 **Status**: ⏸️ Planned
 
 **Planned Features** (from requirements):
-- Gig summaries
-- Financial overviews
-- Performance analytics
-- Win rate tracking for bids
+- Invitation emails when user invited to organization
+- Staff assignment notifications
+- Gig reminders (day before gig starts)
+- Status change notifications
 
-**Current Status**: No reporting functionality implemented
+**Current Status**: Supabase Auth handles invitation emails; app-specific notifications not implemented
 
 ---
 
-## 7. Additional Features
+### 7.2 In-App Notifications
+**Status**: ⏸️ Planned
 
-### 7.1 Bid Tracking
+**Planned Features** (from requirements):
+- Bell icon with notification count badge
+- Notification list view
+- Mark as read functionality
+
+**Current Status**: Not implemented
+
+---
+
+### 7.3 Push Notifications (Mobile)
+**Status**: 🚫 Deferred
+
+**Planned Features** (from requirements):
+- Assignment notifications
+- Gig reminders
+- Status updates
+
+**Current Status**: Not implemented, requires mobile app or PWA
+
+---
+
+## 8. Calendar Integration & Scheduling
+
+### 8.1 Calendar View
+**Status**: ⏸️ Planned
+
+**Planned Features** (from requirements):
+- Month view displaying gigs
+- Week view with detailed schedule
+- Day view with hour-by-hour breakdown
+- Filters by status, staff, venue, act
+
+**Current Status**: No calendar view implemented (only list view)
+
+---
+
+### 8.2 ICS Export & Calendar Integration
+**Status**: ⏸️ Planned
+
+**Planned Features** (from requirements):
+- ICS feed export per organization
+- ICS feed per user (assigned gigs only)
+- Google Calendar bi-directional sync
+- Export individual gigs to calendar app
+- Bulk export multiple gigs
+
+**Current Status**: No calendar integration implemented
+
+---
+
+### 8.3 Conflict Detection
+**Status**: ⏸️ Planned
+
+**Planned Features** (from requirements):
+- Staff conflicts: Warn when staff assigned to overlapping gigs
+- Equipment conflicts: Warn when equipment assigned to overlapping gigs
+- Venue conflicts: Warn when scheduling multiple gigs at same venue/time
+
+**Current Status**: No conflict detection implemented
+
+---
+
+## 9. Technical Documentation
+
+### 9.1 Attachments & File Management
+**Status**: 🚫 Deferred
+
+**Planned Features** (from requirements):
+- Organization attachments (contracts, insurance certificates, W-9s)
+- Gig attachments (stage plots, input lists, contracts, riders)
+- Asset attachments (receipts, manuals, warranty documents, calibration certificates)
+- Kit attachments (packing lists, setup diagrams, transport manifests)
+- Supported file types: PDFs, images, documents, CAD files
+- File organization with tags and categories
+- Version control for documents
+
+**Current Status**: No attachment functionality implemented
+
+**Database**: No file storage tables in current schema
+
+---
+
+### 9.2 Stage Plots & Technical Documentation
+**Status**: 🚫 Deferred
+
+**Feature Ideas** (from requirements, not prioritized):
+- Interactive stage plot editor
+- Input lists for microphone/line assignments
+- Packout checklists (auto-generated from kits)
+- Technical riders for acts
+
+**Current Status**: Not implemented, marked as feature ideas in requirements
+
+---
+
+### 9.3 Notes & Annotations
+**Status**: 🟡 Partial
+
+**Implemented Features**:
+- Markdown notes fields on gigs, assets, kits, organizations
+- Rich text editing via MarkdownEditor component
+
+**Partially Implemented**:
+- ⏸️ **Private notes on shared entities**: Requirements specify tenant-specific notes but unclear if implemented
+- ⏸️ **Tagging system**: Not visible in UI
+- ⏸️ **Full-text search**: Search functionality limited
+
+**Technical Details**:
+- Component: `MarkdownEditor.tsx` for rich text input
+- Database: Notes fields exist on main tables
+
+---
+
+## 10. Mobile Features
+
+### 10.1 Mobile-Optimized Interface
+**Status**: 🟡 Partial
+
+**Implemented Features**:
+- Responsive web design
+- Works in mobile browsers
+- Basic touch interaction support
+
+**Partially Implemented**:
+- ⏸️ **Card-based layouts**: Desktop uses tables, mobile optimization unclear
+- ⏸️ **Bottom navigation**: Not implemented
+- ⏸️ **Touch targets**: Not verified to meet 44px minimum
+
+**Known Limitations**:
+- No native mobile app
+- Interface optimized for desktop primarily
+
+---
+
+### 10.2 Offline Support
+**Status**: 🚫 Deferred
+
+**Planned Features** (from requirements):
+- Offline-first architecture
+- Automatic background sync
+- Sync indicators
+- Conflict resolution for concurrent edits
+
+**Current Status**: Requires internet connection; no offline functionality
+
+---
+
+### 10.3 Native Features
+**Status**: 🚫 Deferred
+
+**Planned Features** (from requirements):
+- Biometric authentication (Face ID, Touch ID, fingerprint)
+- Camera integration for barcode/QR scanning and photos
+- Push notifications
+- Location services for venue check-in
+
+**Current Status**: Not implemented, requires native app or PWA
+
+---
+
+### 10.4 Progressive Web App (PWA)
+**Status**: 🚫 Deferred
+
+**Planned Features** (from requirements):
+- Installable (add to home screen)
+- App-like experience (full-screen mode, splash screen)
+- Background sync
+- Web push notifications
+
+**Current Status**: Standard web app, no PWA manifest or service workers
+
+---
+
+## 11. Additional Features
+
+### 11.1 Bid Tracking
 **Status**: 🚫 Deferred
 
 **Planned Features** (from requirements):
@@ -542,47 +734,9 @@
 
 ---
 
-### 7.2 Calendar Integration
-**Status**: ⏸️ Planned
+## 12. Navigation & UI Components
 
-**Planned Features** (from requirements):
-- ICS feed export per organization
-- ICS feed per user (assigned gigs only)
-- Google Calendar bi-directional sync
-
-**Current Status**: No calendar integration implemented
-
----
-
-### 7.3 Stage Plots & Technical Documentation
-**Status**: 🚫 Deferred
-
-**Feature Ideas** (from requirements, not prioritized):
-- Interactive stage plot editor
-- Input lists
-- Packout checklists (auto-generated from kits)
-- Technical riders
-
-**Current Status**: Not implemented, marked as feature ideas in requirements
-
----
-
-### 7.4 Mobile Features
-**Status**: 🚫 Deferred
-
-**Planned Features** (from requirements):
-- Offline-first functionality
-- Push notifications
-- Biometric authentication
-- Camera for asset scanning
-
-**Current Status**: Web-only application, mobile web responsive but no native features
-
----
-
-## 8. Navigation & UI Components
-
-### 8.1 Application Shell
+### 12.1 Application Shell
 **Status**: ✅ Implemented
 
 **Implemented Features**:
@@ -600,7 +754,7 @@
 
 ---
 
-### 8.2 Shared UI Components
+### 12.2 Shared UI Components
 **Status**: ✅ Implemented
 
 **Reusable Components**:

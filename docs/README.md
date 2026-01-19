@@ -67,10 +67,15 @@ Located in [`./product/`](./product/)
 Located in [`./product/workflows/`](./product/workflows/)
 
 - **[authentication-workflows.md](./product/workflows/authentication-workflows.md)** - Login, profile, organization setup
+- **[team-management-workflows.md](./product/workflows/team-management-workflows.md)** - Staff roles, assignments, and organization directory
 - **[gig-management-workflows.md](./product/workflows/gig-management-workflows.md)** - Event creation, editing, and management
 - **[equipment-management-workflows.md](./product/workflows/equipment-management-workflows.md)** - Asset and kit management
-- **[team-management-workflows.md](./product/workflows/team-management-workflows.md)** - Staff roles, assignments, and organization directory
+- **[dashboard-analytics-workflows.md](./product/workflows/dashboard-analytics-workflows.md)** - Dashboard, reporting, and analytics
 - **[data-import-workflows.md](./product/workflows/data-import-workflows.md)** - CSV import/export functionality
+- **[notifications-workflows.md](./product/workflows/notifications-workflows.md)** - Notifications and reminders
+- **[calendar-scheduling-workflows.md](./product/workflows/calendar-scheduling-workflows.md)** - Calendar views and scheduling
+- **[technical-documentation-workflows.md](./product/workflows/technical-documentation-workflows.md)** - File attachments and technical docs
+- **[mobile-workflows.md](./product/workflows/mobile-workflows.md)** - Mobile features and PWA
 
 ---
 

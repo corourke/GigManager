@@ -19,38 +19,7 @@ User authentication, profile management, and organization selection/creation.
 
 ---
 
-### 2. [Gig Management Workflows](./gig-management-workflows.md)
-Complete gig lifecycle: browsing, creating, viewing, editing, and managing events.
-
-**Key Flows:**
-- View Gig List & Filter
-- Create a New Gig
-- View Gig Details
-- View Gig Calendar
-- Update Gig Status
-- Modify Organization Participants
-- Link Bids to Gig
-
-**Use Cases:** Event planning, gig tracking, participant coordination, bid management
-
----
-
-### 3. [Equipment Management Workflows](./equipment-management-workflows.md)
-Asset inventory and kit management, including conflict resolution.
-
-**Key Flows:**
-- View & Filter Assets
-- Create/Update Assets
-- View & Filter Kits
-- Create/Edit/Duplicate Kits
-- Assign Kit to Gig
-- Conflict Resolution
-
-**Use Cases:** Equipment inventory tracking, kit creation, gig equipment assignment, conflict detection
-
----
-
-### 4. [Team & Personnel Management Workflows](./team-management-workflows.md)
+### 2. [Organization Management Workflows](./team-management-workflows.md)
 Staff roles, personnel assignments, and organization directory.
 
 **Key Flows:**
@@ -66,7 +35,54 @@ Staff roles, personnel assignments, and organization directory.
 
 ---
 
-### 5. [Data Import & Export Workflows](./data-import-workflows.md)
+### 3. [Gig Management Workflows](./gig-management-workflows.md)
+Complete gig lifecycle: browsing, creating, viewing, editing, and managing events.
+
+**Key Flows:**
+- View Gig List & Filter
+- Create a New Gig
+- View Gig Details
+- View Gig Calendar
+- Update Gig Status
+- Modify Organization Participants
+- Link Bids to Gig
+
+**Use Cases:** Event planning, gig tracking, participant coordination, bid management
+
+---
+
+### 4. [Equipment Management Workflows](./equipment-management-workflows.md)
+Asset inventory and kit management, including conflict resolution.
+
+**Key Flows:**
+- View & Filter Assets
+- Create/Update Assets
+- View & Filter Kits
+- Create/Edit/Duplicate Kits
+- Assign Kit to Gig
+- Conflict Resolution
+
+**Use Cases:** Equipment inventory tracking, kit creation, gig equipment assignment, conflict detection
+
+---
+
+### 5. [Dashboard & Analytics Workflows](./dashboard-analytics-workflows.md)
+Dashboard interface, reporting features, and analytics for gig revenue, asset utilization, and staff performance.
+
+**Key Flows:**
+- Dashboard Overview
+- Gig Reports & Analytics
+- Asset Reports & Insurance
+- Financial Reports
+- Staff Utilization & Performance
+
+**Use Cases:** Business insights, performance tracking, financial reporting, insurance documentation
+
+**Status:** ⏸️ Planned - Most features not yet implemented
+
+---
+
+### 6. [Data Import & Export Workflows](./data-import-workflows.md)
 Bulk data operations via CSV import/export.
 
 **Key Flows:**
@@ -76,6 +92,70 @@ Bulk data operations via CSV import/export.
 - Template Downloads
 
 **Use Cases:** Initial data migration, bulk updates, backup/archival, reporting
+
+---
+
+### 7. [Notifications & Reminders Workflows](./notifications-workflows.md)
+Email notifications, in-app notifications, push notifications, and automated reminders.
+
+**Key Flows:**
+- Email Notifications (invitations, assignments, reminders, status changes)
+- In-App Notifications (notification center, bell icon)
+- Push Notifications (mobile)
+- Reminder Scheduling
+- Notification Preferences & Opt-Out
+
+**Use Cases:** Team communication, assignment tracking, gig reminders, status updates
+
+**Status:** ⏸️ Planned - Most features not yet implemented
+
+---
+
+### 8. [Calendar Integration & Scheduling Workflows](./calendar-scheduling-workflows.md)
+Calendar views, ICS export, Google Calendar integration, and conflict detection.
+
+**Key Flows:**
+- Calendar View (Month/Week/Day)
+- Calendar Filters & Search
+- ICS Export (Individual & Bulk)
+- Google Calendar Integration
+- Conflict Detection (staff, equipment, venue)
+
+**Use Cases:** Schedule visualization, external calendar sync, double-booking prevention
+
+**Status:** ⏸️ Planned - Calendar features not yet implemented
+
+---
+
+### 9. [Technical Documentation Workflows](./technical-documentation-workflows.md)
+File attachments, stage plots, technical documentation, and annotations.
+
+**Key Flows:**
+- Attachments & File Management (gigs, organizations, assets, kits)
+- Stage Plots & Technical Documentation
+- Notes & Annotations
+- Version Control & Document History
+- Collaborative Editing (future)
+
+**Use Cases:** Document storage, stage planning, equipment documentation, team collaboration
+
+**Status:** 🚫 Deferred - Most features deferred pending file storage implementation
+
+---
+
+### 10. [Mobile Features Workflows](./mobile-workflows.md)
+Mobile-optimized interface, offline support, native device features, and PWA capabilities.
+
+**Key Flows:**
+- Mobile-Optimized Interface (responsive design, bottom navigation)
+- Offline Support & Sync
+- Native Device Features (biometrics, camera, location)
+- Progressive Web App (PWA)
+- Mobile-Specific Workflows (on-site checklists, quick actions)
+
+**Use Cases:** On-site gig management, offline work, barcode scanning, location check-in
+
+**Status:** 🚫 Deferred - Mobile features pending native app or PWA development
 
 ---
 
