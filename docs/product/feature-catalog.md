@@ -666,11 +666,11 @@ After code quality improvements:
 ## Cross-References
 
 **Related Documentation**:
-- [Requirements](../requirements.md) - Detailed feature specifications
-- [Tech Stack](../TECH_STACK.md) - Technology choices and architecture
-- [Database Schema](../DATABASE.md) - Database structure and RLS policies
-- [UI Flows](../UI_FLOWS.md) - User interface flows and interactions
-- [Code Simplification Plan](../development/code-simplification-plan.md) - Refactoring roadmap
+- [Requirements](./requirements.md) - Detailed feature specifications
+- [Tech Stack](../technical/tech-stack.md) - Technology choices and architecture
+- [Database Schema](../technical/database.md) - Database structure and RLS policies
+- [UI Workflows](./workflows/) - User interface flows and interactions
+- [Development Plan](../development/development-plan.md) - Refactoring roadmap (consolidates code-simplification-plan.md)
 - [Testing Guide](../development/testing.md) - Testing approach and coverage
 
 **Component Inventory**:
