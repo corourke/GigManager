@@ -9,7 +9,7 @@
 
 ## Overview
 
-GigManager is a production and event management platform for production companies, sound/lighting companies, and event producers. This catalog tracks all features across the application lifecycle from planned to fully implemented.
+**GigManager** is a production and event management platform for production companies, sound/lighting companies, acts, and venues. It facilitates tracking venue details, gigs, booked acts, supporting staff and services, and equipment.  It centralizes tools for tracking all the participants in an event, bids and proposals, gear inventory and can manage schedules, staff, equipment, and payments.
 
 ### Feature Status Legend
 

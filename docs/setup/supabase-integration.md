@@ -310,4 +310,4 @@ Your Gig Manager app now has enterprise-grade backend infrastructure with:
 - Comprehensive data model
 - Scalable architecture
 
-Switch `USE_MOCK_DATA` to `false` and start managing your gigs! 🎭🎸🎬
+Switch `USE_MOCK_DATA` to `false` and start managing your gigs! 🎭🎸🎬 
