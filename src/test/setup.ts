@@ -8,10 +8,10 @@ import { createClient } from '../utils/supabase/client'
 vi.mock('../utils/supabase/client', () => ({
   createClient: vi.fn(() => ({
     auth: {
-      getSession: vi.fn(),
-      getUser: vi.fn(),
-      signOut: vi.fn(),
-      signInWithOAuth: vi.fn(),
+      getSession: vi.fn().mockResolvedValue({ data: { session: null } }),
+      getUser: vi.fn().mockResolvedValue({ data: { user: null } }),
+      signOut: vi.fn().mockResolvedValue({ error: null }),
+      signInWithOAuth: vi.fn().mockResolvedValue({ data: {}, error: null }),
     },
     from: vi.fn(() => ({
       select: vi.fn().mockReturnThis(),
