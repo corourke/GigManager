@@ -67,25 +67,6 @@ See [Feature Catalog](../product/feature-catalog.md) for detailed feature status
 - Multi-tenant: RLS policies with organization_id scoping
 - Backend: Supabase PostgreSQL
 
-### Test Coverage
-
-**Current Status** (as of Phase 1-2 completion):
-- Total passing tests: 60
-- Form utilities: 26 tests
-- API tests: 12 tests
-- Component tests: 22 tests
-
-**Test Approach**:
-- Framework: Vitest 4.0.10
-- Testing library: @testing-library/react 14.1.2
-- DOM environment: jsdom 23.0.1
-- Simplified approach (complex mocks removed in Phase 1)
-
-**Coverage Gaps**:
-- Limited screen component testing (complex mocking requirements)
-- No end-to-end tests
-- No integration tests for routing
-- Limited API integration testing
 
 ### Completed Refactoring
 
@@ -114,101 +95,9 @@ See [Feature Catalog](../product/feature-catalog.md) for detailed feature status
 **Low Priority**:
 6. **Performance** - No identified performance issues yet, but large components may benefit from optimization
 
----
-
 ## Test Strategy
 
-### Testing Philosophy
-
-**Approach**: Pragmatic testing focused on critical paths and business logic
-- Unit tests for utilities and pure functions
-- Integration tests for API interactions
-- Component tests for complex user interactions
-- Simplified mocking (avoid complex test infrastructure)
-
-**Trade-offs**:
-- Prioritize maintainability over 100% coverage
-- Focus on high-value tests that catch real bugs
-- Avoid complex mocking that becomes a maintenance burden
-
-### Existing Test Review
-
-**Current Tests** (60 passing):
-
-1. **Form Utilities** (26 tests) - ✅ Good coverage
-   - File: `src/utils/form-utils.test.ts`
-   - Coverage: `normalizeFormData`, `createSubmissionPayload`, data transformation
-   - Status: Comprehensive, well-maintained
-
-2. **API Tests** (12 tests) - 🟡 Basic coverage
-   - Coverage: Core API functions (create, read, update, delete)
-   - Gaps: Complex queries with joins, organization scoping edge cases
-   - Status: Adequate for current needs, expand during Phase 3
-
-3. **Component Tests** (22 tests) - 🟡 Limited coverage
-   - Coverage: Basic component rendering and interactions
-   - Gaps: Screen components, complex user workflows
-   - Status: Simplified approach (complex mocking removed)
-
-### Coverage Gap Analysis
-
-**High-Value Gaps**:
-1. **Routing Integration** - No tests for navigation flows
-   - Impact: High (routing migration is Phase 4)
-   - Plan: Add integration tests during Phase 4 React Router migration
-
-2. **Form Submission Workflows** - Limited end-to-end form tests
-   - Impact: Medium (forms are critical user interaction)
-   - Plan: Add integration tests for key forms (CreateGig, CreateAsset)
-
-3. **Organization Scoping** - Limited tests for multi-tenant isolation
-   - Impact: High (security critical)
-   - Plan: Add tests during Phase 3 API refactoring
-
-**Low-Value Gaps**:
-4. **Screen Component Unit Tests** - Complex mocking requirements
-   - Impact: Low (high maintenance burden, low bug detection)
-   - Plan: Skip detailed unit tests, rely on integration tests
-
-### Testing Approach for Simplifications
-
-**Phase 3: API Layer Refactoring**
-- **Before**: Add tests for current API behavior (organization scoping, error handling)
-- **During**: Test new generic CRUD functions
-- **After**: Verify all existing functionality preserved
-- **Focus**: Organization scoping, authentication, error handling
-
-**Phase 4: React Router Migration**
-- **Before**: Document current navigation flows
-- **During**: Add tests for protected routes, URL parameters
-- **After**: Verify browser history, bookmarking, back/forward buttons
-- **Focus**: Route protection, URL persistence, navigation flows
-
-**Phase 5: Remove Abstractions**
-- **Before**: Verify NavigationContext usage is replaced by React Router
-- **During**: No new tests needed (covered by Phase 4)
-- **After**: Verify no regressions
-- **Focus**: Ensure removal doesn't break functionality
-
-**Phase 6: Component Refactoring**
-- **Before**: Test current component behavior (integration tests)
-- **During**: Test extracted components in isolation
-- **After**: Verify parent components work with extracted children
-- **Focus**: Component props, state management, user interactions
-
-### Test Refactoring Needs
-
-**Cleanup Tasks**:
-- Remove unused test files from Phase 1
-- Consolidate similar test patterns
-- Update test documentation
-
-**Improvement Tasks**:
-- Add integration tests for critical paths
-- Improve error handling test coverage
-- Add performance benchmarks for large components
-
----
+See [Testing](./testing.md) for test methodology.
 
 ## Refactoring Phases
 
@@ -218,20 +107,25 @@ This section provides comprehensive refactoring guidance with detailed task trac
 
 | Phase | Status | Estimated Impact | Priority | Dependencies |
 |-------|--------|------------------|----------|--------------|
-| Phase 1: Dead Code Removal | ✅ Complete | ~200 lines removed | Completed | None |
-| Phase 2: Form Change Detection | ✅ Complete | ~32 lines reduced | Completed | None |
-| Phase 3: API Layer Refactoring | ⏸️ Pending | ~1,200 lines reduced | High | Phase 1-2 |
+| Phase 2A: Form Architecture Refactor | ⏸️ Pending | Complexity reduction | High | None |
+| Phase 3: API Layer Refactoring | ⏸️ Pending | ~1,200 lines reduced | High | Phase 2A |
 | Phase 4: React Router Migration | ⏸️ Pending | ~200 lines reduced | High | Phase 3 |
 | Phase 5: Remove Abstractions | ⏸️ Pending | ~100 lines reduced | Medium | Phase 4 |
 | Phase 6: Component Refactoring | ⏸️ Pending | ~1,500 lines moved | Medium | Phase 5 |
+
+**Completed Phases**:
+- ✅ Phase 1: Dead Code Removal (~200 lines removed)
+- ✅ Phase 2: Form Change Detection Simplification (~32 lines reduced)
 
 **Total Estimated Reduction**: ~3,232 lines (25-30% of codebase)
 
 ---
 
+## Completed Phases
+
 ### Phase 1: Test Infrastructure & Dead Code Removal
 
-**Status**: ✅ **Phase 1 Complete**
+**Status**: ✅ **Complete** (2026-01-17)
 
 **Overview**: Dead code successfully removed (~200+ lines). Basic test infrastructure added (needs refinement). Tests identify current behavior but need mock improvements.
 
@@ -319,7 +213,7 @@ This section provides comprehensive refactoring guidance with detailed task trac
 
 ### Phase 2: Simplify Form Change Detection
 
-**Status**: ✅ **Phase 2 Complete**
+**Status**: ✅ **Complete** (2026-01-19) - **Interim Solution**
 
 **Overview**: Replace complex change detection with react-hook-form's built-in `isDirty`.
 
@@ -336,6 +230,7 @@ This section provides comprehensive refactoring guidance with detailed task trac
 - Updated: 6 form components to use simplified hook
 - Removed: Complex `useFormWithChanges.ts` with deep equality and ref patterns
 - Impact: Simpler, more maintainable form change detection using react-hook-form's built-in `isDirty`
+- **Interim Fix (2026-01-20)**: Disabled change detection for Submit button in edit mode to resolve persistent bugs with nested data tracking
 
 #### 2.1 Simplify useFormWithChanges Hook
 
@@ -390,8 +285,201 @@ This section provides comprehensive refactoring guidance with detailed task trac
 - react-hook-form's built-in features are sufficient for most use cases
 - Simple reference comparison is adequate for nested data in this application
 - Removing complexity makes code easier to understand and debug
+- **Hybrid state management** (react-hook-form + useState for nested data) introduces complexity and fragility
+- Change detection for nested arrays requires proper architecture (see Phase 2A)
 
-**Next Steps**: Proceed to Phase 3 (API layer refactoring) to reduce repetitive CRUD functions.
+**Known Limitations**:
+- Submit button always enabled in edit mode (change detection disabled as interim fix)
+- Nested data (participants, staffSlots, kitAssignments, bids) not properly tracked for changes
+- Complex coordination between form state and nested state
+- Form fields vs nested data separation creates multiple sources of truth
+
+**Next Steps**: 
+- **Short-term**: Phase 2A (Form Architecture Refactor) to properly handle nested data with `useFieldArray`
+- **Long-term**: Proceed to Phase 3 (API layer refactoring) after form architecture is stable
+
+---
+
+## Active Phases
+
+### Phase 2A: Form Architecture Refactor with useFieldArray
+
+**Status**: ⏸️ **Pending** (High Priority)
+
+**Objective**: Properly handle nested data in forms using react-hook-form's `useFieldArray` instead of separate useState
+
+**Current Problems**:
+1. **Hybrid State Management**: Form fields in react-hook-form, nested data (participants, staffSlots, kitAssignments, bids) in useState
+2. **Change Detection Failures**: Reference-based comparison for nested data is fragile and error-prone
+3. **Multiple Sources of Truth**: Form state, nested state arrays, change tracking state, prevDataRef
+4. **Complex Coordination**: Separating form/nested data during load, save, and change detection
+5. **Submit Button Issues**: Always enabled in edit mode due to disabled change detection
+
+**Current Architecture** (Problematic):
+```typescript
+// Form fields managed by react-hook-form
+const form = useForm({ title, start_time, end_time, tags, notes, ... });
+
+// Nested data managed by useState (PROBLEM)
+const [participants, setParticipants] = useState([]);
+const [staffSlots, setStaffSlots] = useState([]);
+const [kitAssignments, setKitAssignments] = useState([]);
+const [bids, setBids] = useState([]);
+
+// Complex change detection trying to track both
+const changeDetection = useSimpleFormChanges({
+  form: form,
+  currentData: { ...formValues, participants, staffSlots, kitAssignments, bids }
+});
+```
+
+**Target Architecture** (Clean):
+```typescript
+// ALL data managed by react-hook-form
+const form = useForm({
+  defaultValues: {
+    title: '',
+    start_time: undefined,
+    end_time: undefined,
+    tags: [],
+    notes: '',
+    participants: [],      // ← Now in form
+    staffSlots: [],        // ← Now in form
+    kitAssignments: [],    // ← Now in form
+    bids: [],              // ← Now in form
+  }
+});
+
+// Use useFieldArray for nested data
+const { fields: participantFields, append: addParticipant, remove: removeParticipant } 
+  = useFieldArray({ control: form.control, name: "participants" });
+
+// Change detection "just works" - single source of truth
+const hasChanges = form.formState.isDirty;
+```
+
+**Benefits**:
+- ✅ **Single source of truth**: All data in react-hook-form
+- ✅ **Built-in change detection**: `form.formState.isDirty` handles everything
+- ✅ **No coordination needed**: No separating form/nested data during load/save
+- ✅ **Type safety**: TypeScript understands nested structure
+- ✅ **Validation**: Can validate nested data with zod schema
+- ✅ **Submit button**: Properly disabled when no changes
+
+**Affected Forms** (All need same refactoring):
+1. `CreateGigScreen.tsx` (2,091 lines) - Most complex
+   - Nested data: participants, staffSlots, kitAssignments, bids
+2. `CreateKitScreen.tsx` (739 lines)
+   - Nested data: kitAssets
+3. `CreateAssetScreen.tsx` (647 lines)
+   - Simple form, no nested arrays
+4. `CreateOrganizationScreen.tsx` (1,029 lines)
+   - Simple form, no nested arrays
+5. `EditUserProfileDialog.tsx` (236 lines)
+   - Simple form, no nested arrays
+6. `UserProfileCompletionScreen.tsx` (393 lines)
+   - Simple form, no nested arrays
+
+**Implementation Tasks**:
+
+#### 2A.1 Refactor CreateGigScreen to use useFieldArray
+
+**Goal**: Convert CreateGigScreen from hybrid state to full react-hook-form + useFieldArray
+
+**Tasks**:
+- [ ] Update form schema to include nested data types
+  - [ ] Add participants array to zod schema
+  - [ ] Add staffSlots array to zod schema
+  - [ ] Add kitAssignments array to zod schema
+  - [ ] Add bids array to zod schema
+- [ ] Replace useState with useFieldArray
+  - [ ] Convert `participants` from useState to useFieldArray
+  - [ ] Convert `staffSlots` from useState to useFieldArray
+  - [ ] Convert `kitAssignments` from useState to useFieldArray
+  - [ ] Convert `bids` from useState to useFieldArray
+- [ ] Update all handlers to use field array methods
+  - [ ] Update `handleAddParticipant` to use `append()`
+  - [ ] Update `handleRemoveParticipant` to use `remove()`
+  - [ ] Update `handleAddStaffSlot` to use `append()`
+  - [ ] Update `handleRemoveStaffSlot` to use `remove()`
+  - [ ] Update `handleAssignKit` to use `append()`
+  - [ ] Update `handleRemoveKit` to use `remove()`
+  - [ ] Update bid handlers to use field array methods
+- [ ] Simplify loadGig to load all data into form
+  - [ ] Remove separation of form/nested data
+  - [ ] Single `form.reset()` call with all data
+- [ ] Simplify onSubmit
+  - [ ] Remove complex coordination logic
+  - [ ] Single `form.getValues()` gets everything
+  - [ ] Remove `changeDetection.markAsSaved()` - use `form.reset()` instead
+- [ ] Enable Submit button change detection
+  - [ ] Change: `disabled={isSubmitting || (isEditMode && !form.formState.isDirty)}`
+  - [ ] Remove `useSimpleFormChanges` hook entirely from this component
+- [ ] Update tests
+  - [ ] Test nested data changes trigger isDirty
+  - [ ] Test Submit button enables/disables correctly
+  - [ ] Test form validation with nested data
+- [ ] Manual testing
+  - [ ] Test create mode with nested data
+  - [ ] Test edit mode - add/remove participants
+  - [ ] Test edit mode - add/remove staff slots
+  - [ ] Test edit mode - add/remove kit assignments
+  - [ ] Test edit mode - add/remove bids
+  - [ ] Test Submit button state in all scenarios
+
+**Verification**:
+- [ ] All nested data operations work correctly
+- [ ] Submit button enables when changes made
+- [ ] Submit button disabled when no changes
+- [ ] Form validation works for nested data
+- [ ] No console errors
+- [ ] All tests pass
+
+#### 2A.2 Refactor CreateKitScreen to use useFieldArray
+
+**Goal**: Convert CreateKitScreen from useState to useFieldArray for kitAssets
+
+**Tasks**:
+- [ ] Add kitAssets array to form schema
+- [ ] Replace `kitAssets` useState with useFieldArray
+- [ ] Update `handleAddAsset` to use `append()`
+- [ ] Update `handleRemoveAsset` to use `remove()`
+- [ ] Update `handleUpdateQuantity` to use field array methods
+- [ ] Simplify loadKit to reset form with all data
+- [ ] Simplify onSubmit
+- [ ] Enable Submit button change detection
+- [ ] Update tests
+- [ ] Manual testing
+
+**Verification**: Same as 2A.1
+
+#### 2A.3 Remove useSimpleFormChanges Hook (Optional)
+
+**Goal**: Remove the hook if no longer needed after useFieldArray refactor
+
+**Tasks**:
+- [ ] Verify all forms using useSimpleFormChanges have been refactored
+- [ ] Check if any forms still need the hook (simple forms without nested data may keep it)
+- [ ] Remove `useSimpleFormChanges.ts` if unused
+- [ ] Remove `useSimpleFormChanges.test.ts` if hook removed
+- [ ] Update documentation
+
+**Note**: Simple forms (CreateAssetScreen, EditUserProfileDialog, etc.) may still benefit from keeping the hook for consistency, or can just use `form.formState.isDirty` directly.
+
+**Success Criteria**:
+- All forms use consistent architecture (react-hook-form + useFieldArray for nested data)
+- Submit button change detection works correctly in all forms
+- No hybrid state management (useState + useForm)
+- Single source of truth for all form data
+- All tests pass
+- No regressions in functionality
+
+**Estimated Timeline**: 3-5 days
+- CreateGigScreen refactor: 2-3 days (most complex)
+- CreateKitScreen refactor: 1 day
+- Testing and verification: 1 day
+
+**Priority**: High - Blocks proper form functionality and change detection
 
 ---
 
