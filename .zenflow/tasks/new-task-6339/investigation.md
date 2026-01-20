@@ -279,8 +279,43 @@ The bug was exactly as diagnosed in the investigation:
 - **Solution**: Use react-hook-form's `isDirty` which handles all types correctly
 - **Result**: Submit button now correctly enables/disables based on actual changes
 
+### Critical Issue Found - Initial Implementation Was Incomplete
+
+**Date**: 2026-01-19 (evening)
+
+**Problem**: Manual testing revealed the submit button still doesn't enable when changes are made.
+
+**Root Cause**: The initial fix only changed `hasAnyChanges` to use `form.formState.isDirty`, but **`setValue` calls weren't updated to mark fields as dirty**.
+
+From react-hook-form documentation, `setValue` requires `{ shouldDirty: true }` option to update dirty state:
+
+```typescript
+setValue("field", "value", { shouldDirty: true })
+```
+
+Without this option, `form.formState.isDirty` stays `false` even when fields are changed.
+
+**Fix Applied** (2026-01-19):
+- Updated `handleInputChange` in `src/components/CreateGigScreen.tsx` (line 483):
+  ```typescript
+  setValue(field, value, { shouldDirty: true });
+  ```
+
+**Note**: The `setValue` calls when loading initial data (lines 357-364) correctly do NOT have `shouldDirty` - we don't want to mark the form dirty when loading. The subsequent `changeDetection.loadInitialData()` call properly resets the form with `form.reset()`.
+
+### Manual Testing Required
+
+The component integration tests are still mocked (CreateGigScreen.test.tsx lines 16-26), so automated tests don't verify the actual submit button behavior. Manual testing is required to verify:
+
+1. **Edit mode, no changes**: Submit button should be disabled
+2. **Edit mode, change text field**: Submit button should enable
+3. **Edit mode, change Date field**: Submit button should enable
+4. **Edit mode, change array field (tags)**: Submit button should enable
+5. **Create mode**: Submit button should be enabled (allow creation with filled fields)
+
 ### Next Steps
 
-Phase 2 is now properly implemented and verified. The investigation recommended that Phase 3 is **not required** before completing Phase 2, and this was correct. The form change detection bug has been fixed independently of any API layer changes.
-
-**Recommendation**: Continue with Phase 3 (API Layer Refactoring) as planned in the development roadmap.
+1. ✅ Fix `setValue` to include `shouldDirty: true` option
+2. ⏸️ **PENDING**: Manual testing to verify fix works
+3. ⏸️ **RECOMMENDED**: Add integration tests that use real hook (remove mocks)
+4. ⏸️ Continue with Phase 3 (API Layer Refactoring) after verification

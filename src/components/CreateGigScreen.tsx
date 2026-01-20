@@ -480,7 +480,7 @@ export default function CreateGigScreen({
   };
 
   const handleInputChange = (field: keyof FormData, value: string | string[] | Date | undefined) => {
-    setValue(field, value);
+    setValue(field, value, { shouldDirty: true });
   };
 
   const validateForm = (): boolean => {
