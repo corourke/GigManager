@@ -1854,7 +1854,7 @@ export default function CreateGigScreen({
               </Button>
               <Button
                 type="submit"
-                disabled={isSubmitting || (isEditMode && !changeDetection.hasChanges)}
+                disabled={isSubmitting}
                 className="bg-sky-500 hover:bg-sky-600 text-white sm:ml-auto"
               >
                 {isSubmitting ? (

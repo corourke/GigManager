@@ -63,36 +63,23 @@ See [Feature Catalog](../product/feature-catalog.md) for detailed feature status
 - Issue: No URL persistence, browser history, or bookmarking
 
 **Database**:
-- Tables: 16
 - Multi-tenant: RLS policies with organization_id scoping
 - Backend: Supabase PostgreSQL
 
 
-### Completed Refactoring
-
-**Phase 1: Dead Code Removal** ✅
-- Removed: `useRealtimeList.ts`, `TableWithRealtime.tsx`, `FormSection.tsx`, `FormDirtyIndicator.tsx`
-- Impact: ~200+ lines removed
-- Status: Build passes, all tests passing, no functionality broken
-
-**Phase 2: Form Change Detection Simplification** ✅
-- Created: `useSimpleFormChanges.ts` (~200 lines, replacing 232-line `useFormWithChanges.ts`)
-- Updated: 6 form components
-- Impact: Simpler, more maintainable form change detection
-- Status: All functionality preserved
 
 ### Known Technical Debt
 
-**High Priority**:
+**High Priority**
 1. **Custom Routing** (Phase 4) - No URL persistence, affects user experience
 2. **API Layer Repetition** (Phase 3) - 2,824 lines with repetitive CRUD, hard to maintain
 3. **Large Components** (Phase 6) - 2,091-line components hard to maintain and test
 
-**Medium Priority**:
+**Medium Priority**
 4. **Unnecessary Abstractions** (Phase 5) - NavigationContext can be removed after routing migration
 5. **Test Coverage Gaps** - Limited integration and E2E testing
 
-**Low Priority**:
+**Low Priority**
 6. **Performance** - No identified performance issues yet, but large components may benefit from optimization
 
 ## Test Strategy
@@ -129,141 +116,10 @@ This section provides comprehensive refactoring guidance with detailed task trac
 
 **Overview**: Dead code successfully removed (~200+ lines). Basic test infrastructure added (needs refinement). Tests identify current behavior but need mock improvements.
 
-**Phase 1 Results**:
-- Removed: `useRealtimeList.ts`, `TableWithRealtime.tsx`, `FormSection.tsx`, `FormDirtyIndicator.tsx`
-- Updated: Components to use direct API calls instead of removed hooks
-- Impact: ~200+ lines removed, build passes, no functionality broken
-- Tests: 60 passing tests (26 form-utils, 12 api, 22 component tests)
-
-#### 1.1 Add Tests for Navigation/Routing
-
-**Goal**: Ensure navigation works correctly before replacing custom routing
-
-**Tasks**:
-- [x] Create `src/components/App.test.tsx` - Test route transitions (created, needs mock refinement)
-  - Test login → profile completion flow
-  - Test login → org selection flow
-  - Test org selection → dashboard flow
-  - Test navigation between screens (dashboard ↔ gigs ↔ assets ↔ kits)
-  - Test back button behavior
-  - Test organization switching
-  - Test logout flow
-
-**Implementation Notes**:
-- Component and hook testing proved too complex for the current scope due to mocking requirements and memory issues
-- Removed problematic test files that were causing test runner crashes and memory exhaustion
-- Core functionality validated through existing utility tests (60 passing tests)
-- Integration testing will validate simplifications during actual Phase 2-4 refactoring
-
-#### 1.2 Add Tests for Form Change Detection
-
-**Goal**: Ensure form dirty state works correctly before simplifying
-
-**Tasks**:
-- [x] Simplified Testing Approach: Removed complex component and hook tests due to mocking complexity and memory issues
-- [x] Current Tests: 60 passing tests (26 form-utils, 12 api, 22 component tests) - Core utility functions validated
-- [x] Testing Strategy: Focus on integration testing during Phase 2-4 rather than complex unit tests
-
-**Implementation Notes**:
-- Use `@testing-library/react-hooks` or `@testing-library/react` for hook testing
-- Mock react-hook-form if needed
-- Test both create and edit modes
-
-#### 1.3 Add Tests for API Layer
-
-**Goal**: Ensure API functions work correctly before refactoring
-
-**Tasks**:
-- [x] Simplified Testing Approach: Removed complex API tests due to Supabase mocking complexity and memory issues
-- [x] Current Tests: 60 passing tests - Core utility functions validated
-- [x] Testing Strategy: Focus on integration testing during Phase 2-4 rather than complex unit tests
-
-**Implementation Notes**:
-- Use existing mock Supabase client pattern
-- Test both success and error paths
-- Verify organization_id is always included in queries
-
-#### 1.4 Remove Dead Code
-
-**Goal**: Remove unused code to reduce complexity
-
-**Tasks**:
-- [x] Remove `src/utils/hooks/useRealtimeList.ts` - Imported but never used
-- [x] Remove `src/components/tables/TableWithRealtime.tsx` - Only used by unused hook
-- [x] Remove `src/components/forms/FormSection.tsx` - Never used
-- [x] Remove `src/components/forms/FormDirtyIndicator.tsx` - Never used
-- [x] Keep `src/utils/mock-data.tsx` - Only used when `USE_MOCK_DATA = false` (kept for development)
-
-**Verification**:
-- [x] Search codebase for imports of each file
-- [x] Confirm no references exist
-- [x] Remove files
-- [x] Run tests to ensure nothing breaks (60 tests passing)
-- [x] Run build to ensure no import errors
-
-**✅ Phase 1 Complete - SUCCESS**
-- Dead code removal: **SUCCESS** - 200+ lines removed, build passes
-- Testing: **Simplified approach** - Removed complex tests causing memory issues, kept essential form-utils tests
-- Current tests: **60 tests passing** (26 form-utils, 12 api, 22 component tests) - Core functionality validated
-- Build verification: **SUCCESS** - Application builds and runs correctly
-- Missing API function: **FIXED** - Implemented `duplicateGig` function to resolve build error
-- Ready for Phase 2: Form change detection simplification
-
----
 
 ### Phase 2: Simplify Form Change Detection
 
 **Status**: ✅ **Complete** (2026-01-19) - **Interim Solution**
-
-**Overview**: Replace complex change detection with react-hook-form's built-in `isDirty`.
-
-**Current Complexity**: 232 lines with deep equality, ref patterns, setTimeout hacks
-
-**Simplified Approach**:
-- Use `form.formState.isDirty` for form fields
-- Track nested data changes separately with simple state comparison
-- Remove deep equality checking (use shallow comparison for nested data)
-- Remove `currentData` merging complexity
-
-**Phase 2 Results**:
-- Created: `useSimpleFormChanges.ts` (~200 lines, down from 232 lines)
-- Updated: 6 form components to use simplified hook
-- Removed: Complex `useFormWithChanges.ts` with deep equality and ref patterns
-- Impact: Simpler, more maintainable form change detection using react-hook-form's built-in `isDirty`
-- **Interim Fix (2026-01-20)**: Disabled change detection for Submit button in edit mode to resolve persistent bugs with nested data tracking
-
-#### 2.1 Simplify useFormWithChanges Hook
-
-**Goal**: Replace complex change detection with react-hook-form's built-in `isDirty`
-
-**Implementation Tasks**:
-- [x] Create simplified hook: `src/utils/hooks/useSimpleFormChanges.ts`
-  - Track form dirty state via `form.formState.isDirty`
-  - Track nested data changes with simple array/object reference comparison
-  - Provide `hasChanges` boolean (form dirty OR nested data changed)
-  - Provide `getChangedFields` that returns only changed form fields
-- [x] Create test file: `src/utils/hooks/useSimpleFormChanges.test.ts`
-  - Test form dirty state detection
-  - Test nested data change detection
-  - Test `hasChanges` combines both states
-  - Test `getChangedFields` returns only form changes
-- [x] Update `CreateGigScreen.tsx` to use simplified hook
-- [x] Update `CreateAssetScreen.tsx` to use simplified hook
-- [x] Update `CreateKitScreen.tsx` to use simplified hook
-- [x] Update `CreateOrganizationScreen.tsx` to use simplified hook
-- [x] Update `UserProfileCompletionScreen.tsx` to use simplified hook
-- [x] Update `EditUserProfileDialog.tsx` to use simplified hook
-- [x] Run all tests to verify no regressions
-- [x] Remove old `useFormWithChanges.ts` hook
-- [x] Remove duplicate utilities from `form-utils.ts` (keep only what's needed)
-
-**Verification**:
-- [x] All form screens work correctly
-- [x] Submit buttons enable/disable correctly
-- [x] Partial updates work in edit mode
-- [x] All existing tests pass
-
-**✅ Phase 2 Complete - SUCCESS**
 
 **Key Achievements**:
 - Created simplified `useSimpleFormChanges.ts` hook (~200 lines, replacing 232-line `useFormWithChanges.ts`)
@@ -1262,12 +1118,6 @@ Phase 2 (Complete) ──┘
   - Extensive manual testing after each refactor
 - **Contingency**: Revert to specific entity functions if generic approach fails
 
-**3. Form Change Detection (Phase 2)** ✅ Complete
-- **Risk**: Used in all forms, could break dirty state detection
-- **Impact**: Medium - affects form UX but not data integrity
-- **Probability**: Low - react-hook-form is well-tested
-- **Status**: COMPLETE - No issues encountered
-
 ### Medium Risk Areas
 
 **4. Component Refactoring (Phase 6)**
@@ -1280,12 +1130,6 @@ Phase 2 (Complete) ──┘
   - Keep old component until verified
   - Manual testing of affected features
 - **Contingency**: Revert to monolithic component if extraction causes issues
-
-**5. Dead Code Removal (Phase 1)** ✅ Complete
-- **Risk**: Removing "unused" code that's actually needed
-- **Impact**: Medium - could break features if code is needed
-- **Probability**: Low - thorough search for references
-- **Status**: COMPLETE - No issues encountered
 
 ### Low Risk Areas
 
@@ -1300,7 +1144,7 @@ Phase 2 (Complete) ──┘
 
 ### Risk Monitoring
 
-**Weekly Risk Review**:
+**Periodic Risk Review**:
 - Review progress against timeline
 - Identify new risks or issues
 - Adjust mitigation strategies
@@ -1339,12 +1183,6 @@ Phase 2 (Complete) ──┘
 - [Tech Stack](../technical/tech-stack.md) - Technology overview
 
 **Note**: This document consolidates the Code Simplification Plan into Section 3 (Refactoring Phases) with detailed task tracking via markdown checkboxes.
-
-### Version History
-
-| Version | Date | Changes |
-|---------|------|---------|
-| 0.1.0 | 2026-01-17 | Initial development plan created |
 
 ### Feedback and Updates
 
