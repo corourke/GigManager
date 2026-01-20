@@ -267,13 +267,14 @@ export default function CreateGigScreen({
   const [showBidNotes, setShowBidNotes] = useState<string | null>(null);
   const [currentBidNotes, setCurrentBidNotes] = useState('');
 
-  // Create currentData that includes form values + nested data for change detection
-  // Note: We only include staffSlots here for the hook's getCurrentValues, but the hook
-  // watches the form, not currentData, so we need a separate useEffect to trigger updates
+  // Create currentData that includes form values + ALL nested data for change detection
   const currentData = useMemo(() => ({
     ...formValues,
+    participants: participants,
     staffSlots: staffSlots,
-  }), [formValues, staffSlots]);
+    kitAssignments: kitAssignments,
+    bids: bids,
+  }), [formValues, participants, staffSlots, kitAssignments, bids]);
 
   // Change detection for efficient updates
   const changeDetection = useSimpleFormChanges({
@@ -287,7 +288,10 @@ export default function CreateGigScreen({
       tags: [],
       notes: '',
       amount_paid: '',
+      participants: [],
       staffSlots: [],
+      kitAssignments: [],
+      bids: [],
     },
     currentData: currentData,
   });
@@ -364,8 +368,9 @@ export default function CreateGigScreen({
       setValue('amount_paid', gig.amount_paid ? gig.amount_paid.toString() : '');
 
       // Load participants from the gig response
+      let loadedParticipants: ParticipantData[] = [];
       if (gig.participants && gig.participants.length > 0) {
-        const loadedParticipants: ParticipantData[] = gig.participants.map((p: any) => ({
+        loadedParticipants = gig.participants.map((p: any) => ({
           id: p.id || Math.random().toString(36).substr(2, 9), // Use database ID
           organization_id: p.organization_id,
           organization_name: p.organization?.name || '',
@@ -437,8 +442,9 @@ export default function CreateGigScreen({
         .eq('organization_id', organization.id)
         .order('date_given', { ascending: false });
 
+      let loadedBids: any[] = [];
       if (bidsData && bidsData.length > 0) {
-        const loadedBids = bidsData.map((b: any) => ({
+        loadedBids = bidsData.map((b: any) => ({
           id: b.id || Math.random().toString(36).substr(2, 9),
           date_given: b.date_given || format(new Date(), 'yyyy-MM-dd'),
           amount: b.amount ? b.amount.toString() : '',
@@ -449,9 +455,11 @@ export default function CreateGigScreen({
       }
 
       // Load kit assignments
+      let loadedKitAssignments: any[] = [];
       try {
         const kitAssignmentsData = await getGigKits(gigId, organization.id);
-        setKitAssignments(kitAssignmentsData || []);
+        loadedKitAssignments = kitAssignmentsData || [];
+        setKitAssignments(loadedKitAssignments);
       } catch (error) {
         console.error('Error loading kit assignments:', error);
       }
@@ -467,7 +475,10 @@ export default function CreateGigScreen({
         tags: loadedFormData.tags || [],
         notes: loadedFormData.notes || '',
         amount_paid: loadedFormData.amount_paid || '',
+        participants: loadedParticipants,
         staffSlots: loadedSlots || [],
+        kitAssignments: loadedKitAssignments,
+        bids: loadedBids,
       });
 
       toast.success('Gig loaded successfully');
@@ -738,52 +749,35 @@ export default function CreateGigScreen({
 
   // Kit Assignment Management
   const handleAssignKit = async (kitId: string) => {
-    if (!gigId) {
-      // If not in edit mode, just add to local state
-      const kit = availableKits.find(k => k.id === kitId);
-      if (kit) {
-        const newAssignment = {
-          id: Math.random().toString(36).substr(2, 9),
-          kit_id: kitId,
-          kit: kit,
-          notes: '',
-          assigned_at: new Date().toISOString(),
-        };
-        setKitAssignments([...kitAssignments, newAssignment]);
-        toast.success('Kit assigned');
-      }
+    // Check if kit already assigned
+    if (kitAssignments.find(a => a.kit_id === kitId)) {
+      toast.error('Kit already assigned');
       return;
     }
-
-    // In edit mode, save to database
-    try {
-      await assignKitToGig(gigId, kitId, organization.id);
-      const updatedAssignments = await getGigKits(gigId, organization.id);
-      setKitAssignments(updatedAssignments || []);
-      toast.success('Kit assigned to gig');
-    } catch (error: any) {
-      console.error('Error assigning kit:', error);
-      toast.error(error.message || 'Failed to assign kit');
+    
+    // Find kit in available kits
+    const kit = availableKits.find(k => k.id === kitId);
+    if (!kit) {
+      toast.error('Kit not found');
+      return;
     }
+    
+    // Add to local state only (will be saved on Submit)
+    const newAssignment = {
+      id: Math.random().toString(36).substr(2, 9), // Temporary ID
+      kit_id: kitId,
+      kit: kit,
+      notes: '',
+      assigned_at: new Date().toISOString(),
+    };
+    setKitAssignments([...kitAssignments, newAssignment]);
+    toast.success('Kit assigned (save to persist)');
   };
 
   const handleRemoveKit = async (assignmentId: string) => {
-    if (!gigId) {
-      // If not in edit mode, just remove from local state
-      setKitAssignments(kitAssignments.filter(a => a.id !== assignmentId));
-      toast.success('Kit removed');
-      return;
-    }
-
-    // In edit mode, delete from database
-    try {
-      await removeKitFromGig(assignmentId);
-      setKitAssignments(kitAssignments.filter(a => a.id !== assignmentId));
-      toast.success('Kit removed from gig');
-    } catch (error: any) {
-      console.error('Error removing kit:', error);
-      toast.error(error.message || 'Failed to remove kit');
-    }
+    // Remove from local state (will be saved on Submit)
+    setKitAssignments(kitAssignments.filter(a => a.id !== assignmentId));
+    toast.success('Kit removed (save to persist)');
   };
 
   const handleUpdateKitNotes = (assignmentId: string, notes: string) => {
@@ -959,17 +953,41 @@ export default function CreateGigScreen({
           toast.error('Failed to save staff slots: ' + (staffError.message || 'Unknown error'));
         }
 
-        // Save kit assignment notes (kits themselves are already saved immediately)
+        // Save kit assignments
         try {
+          const createdKitIds: string[] = [];
+          
           for (const kitAssignment of kitAssignments) {
-            if (isDbId(kitAssignment.id) && kitAssignment.notes) {
-              console.log('Updating kit assignment notes:', kitAssignment.id, kitAssignment.notes);
-              await updateGigKitAssignment(kitAssignment.id, { notes: kitAssignment.notes });
+            if (isDbId(kitAssignment.id)) {
+              // Update existing kit assignment (notes only, assignment already exists)
+              if (kitAssignment.notes) {
+                console.log('Updating kit assignment notes:', kitAssignment.id, kitAssignment.notes);
+                await updateGigKitAssignment(kitAssignment.id, { notes: kitAssignment.notes });
+              }
+            } else {
+              // Create new kit assignment
+              console.log('Creating new kit assignment:', kitAssignment.kit_id);
+              await assignKitToGig(gigId, kitAssignment.kit_id, organization.id);
+              // Note: We can't easily get the created ID back, so we'll reload all assignments below
+              createdKitIds.push(kitAssignment.kit_id);
+            }
+          }
+
+          // Delete removed kit assignments (were in database but not in current state)
+          const existingAssignments = await getGigKits(gigId, organization.id);
+          if (existingAssignments) {
+            const currentKitIds = kitAssignments.map(k => k.kit_id);
+            const assignmentsToDelete = existingAssignments.filter(
+              ea => !currentKitIds.includes(ea.kit_id)
+            );
+            for (const assignmentToDelete of assignmentsToDelete) {
+              console.log('Deleting kit assignment:', assignmentToDelete.id);
+              await removeKitFromGig(assignmentToDelete.id);
             }
           }
         } catch (kitError: any) {
-          console.error('Error saving kit assignment notes:', kitError);
-          toast.error('Failed to save kit notes: ' + (kitError.message || 'Unknown error'));
+          console.error('Error saving kit assignments:', kitError);
+          toast.error('Failed to save kit assignments: ' + (kitError.message || 'Unknown error'));
         }
 
         toast.success('Gig updated successfully!');
@@ -984,7 +1002,10 @@ export default function CreateGigScreen({
           tags: data.tags || [],
           notes: data.notes?.trim() || '',
           amount_paid: data.amount_paid?.trim() || '',
+          participants: participants,
           staffSlots: staffSlots,
+          kitAssignments: kitAssignments,
+          bids: bids,
         });
 
         if (onGigUpdated) {
