@@ -48,7 +48,9 @@ export function useSimpleFormChanges<T extends FieldValues>({
 
       // Simple reference comparison for nested data
       const prevNestedData = prevDataRef.current;
-      if (prevNestedData === undefined) return false;
+      if (prevNestedData === undefined) {
+        return false;
+      }
 
       for (const key in nestedData) {
         if (nestedData[key] !== prevNestedData[key]) {
@@ -79,21 +81,24 @@ export function useSimpleFormChanges<T extends FieldValues>({
       const changed = hasDataChanged();
       setNestedDataChanged(changed);
 
-      // Always update the previous reference to the current data
-      // This ensures future comparisons work correctly
-      if (form) {
-        // React-hook-form mode: store nested data only
-        const formFieldNames = new Set(Object.keys(form.getValues()));
-        const nestedData: Partial<T> = {};
-        for (const key in currentData) {
-          if (currentData.hasOwnProperty(key) && !formFieldNames.has(key)) {
-            nestedData[key] = currentData[key];
+      // Only update prevDataRef if this is the initial check (prevDataRef is undefined)
+      // Otherwise, keep the original reference for comparison
+      // prevDataRef should only be updated via loadInitialData or markAsSaved
+      if (prevDataRef.current === undefined) {
+        if (form) {
+          // React-hook-form mode: store nested data only
+          const formFieldNames = new Set(Object.keys(form.getValues()));
+          const nestedData: Partial<T> = {};
+          for (const key in currentData) {
+            if (currentData.hasOwnProperty(key) && !formFieldNames.has(key)) {
+              nestedData[key] = currentData[key];
+            }
           }
+          prevDataRef.current = nestedData;
+        } else {
+          // Manual mode: store all data
+          prevDataRef.current = { ...currentData };
         }
-        prevDataRef.current = nestedData;
-      } else {
-        // Manual mode: store all data
-        prevDataRef.current = { ...currentData };
       }
     }
   }, [currentData, hasDataChanged, form]);
@@ -141,18 +146,37 @@ export function useSimpleFormChanges<T extends FieldValues>({
       setOriginalData(updatedOriginal);
       setNestedDataChanged(false);
 
-      // Reset form dirty state
-      form.reset(updatedOriginal as T);
-
-      // Update previous nested data reference
-      if (currentData) {
-        const formFieldNames = new Set(Object.keys(form.getValues()));
-        const nestedData: Partial<T> = {};
-        for (const key in currentData) {
-          if (currentData.hasOwnProperty(key) && !formFieldNames.has(key)) {
-            nestedData[key] = currentData[key];
+      // Get form field names BEFORE reset
+      const formFieldNames = new Set(Object.keys(form.getValues()));
+      
+      // Extract form data and nested data
+      const formData: Partial<T> = {};
+      const nestedData: Partial<T> = {};
+      
+      for (const key in updatedOriginal) {
+        if (updatedOriginal.hasOwnProperty(key)) {
+          if (formFieldNames.has(key)) {
+            formData[key] = updatedOriginal[key];
+          } else {
+            nestedData[key] = updatedOriginal[key];
           }
         }
+      }
+
+      // Reset form dirty state with only form fields
+      form.reset(formData as T);
+
+      // Update previous nested data reference with nested data from currentData if available
+      // This ensures we track the latest nested data state
+      if (currentData) {
+        const currentNestedData: Partial<T> = {};
+        for (const key in currentData) {
+          if (currentData.hasOwnProperty(key) && !formFieldNames.has(key)) {
+            currentNestedData[key] = currentData[key];
+          }
+        }
+        prevDataRef.current = currentNestedData;
+      } else {
         prevDataRef.current = nestedData;
       }
     } else if (currentData) {
@@ -183,17 +207,28 @@ export function useSimpleFormChanges<T extends FieldValues>({
 
     if (form) {
       // React-hook-form mode
-      form.reset(data as T);
-
-      // Initialize previous nested data reference from the loaded data
-      // Extract nested data (fields not in form) from the data parameter
+      // Only reset form with fields that are actually in the form schema/defaultValues
+      // First, get the current form field names BEFORE reset
       const formFieldNames = new Set(Object.keys(form.getValues()));
+      
+      // Extract form data (fields in form) and nested data (fields not in form)
+      const formData: Partial<T> = {};
       const nestedData: Partial<T> = {};
+      
       for (const key in data) {
-        if (data.hasOwnProperty(key) && !formFieldNames.has(key)) {
-          nestedData[key] = data[key];
+        if (data.hasOwnProperty(key)) {
+          if (formFieldNames.has(key)) {
+            formData[key] = data[key];
+          } else {
+            nestedData[key] = data[key];
+          }
         }
       }
+      
+      // Reset form with only form fields
+      form.reset(formData as T);
+      
+      // Initialize previous nested data reference
       prevDataRef.current = nestedData;
     } else {
       // Manual mode: initialize previous data reference

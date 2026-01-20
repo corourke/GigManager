@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Edit2, Trash2, Users, Loader2, AlertCircle, Plus, Shield, Building2 } from 'lucide-react';
-import { toast } from 'sonner@2.0.3';
+import { toast } from 'sonner';
 import type { Organization } from '../App';
 import { createClient } from '../utils/supabase/client';
 import { projectId } from '../utils/supabase/info';

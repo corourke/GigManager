@@ -1,11 +1,11 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { z } from 'zod';
-import { useForm, Controller } from 'react-hook-form@7.55.0';
+import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useSimpleFormChanges } from '../utils/hooks/useSimpleFormChanges';
 import { createSubmissionPayload, normalizeFormData } from '../utils/form-utils';
 import { format } from 'date-fns';
-import { toast } from 'sonner@2.0.3';
+import { toast } from 'sonner';
 import { 
   Calendar, 
   Clock, 
@@ -95,6 +95,8 @@ const gigSchema = z.object({
   end_time: z.date({ required_error: 'End date/time is required' }),
   timezone: z.string().min(1, 'Timezone is required'),
   status: z.enum(['DateHold', 'Proposed', 'Booked', 'Completed', 'Cancelled', 'Settled']),
+  tags: z.array(z.string()).optional(),
+  notes: z.string().optional(),
   amount_paid: z.string().refine((val) => {
     if (!val.trim()) return true;
     const num = parseFloat(val);

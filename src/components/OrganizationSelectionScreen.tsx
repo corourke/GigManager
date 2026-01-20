@@ -14,7 +14,7 @@ import {
   Loader2,
   UserPlus
 } from 'lucide-react';
-import { toast } from 'sonner@2.0.3';
+import { toast } from 'sonner';
 import { searchOrganizations, joinOrganization } from '../utils/api';
 import { ORG_TYPE_CONFIG } from '../utils/org-icons';
 import type { User, Organization, OrganizationMembership, UserRole } from '../App';

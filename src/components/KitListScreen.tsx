@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Package, Plus, Search, Loader2, Edit2, Trash2, Copy, Eye, AlertCircle } from 'lucide-react';
-import { toast } from 'sonner@2.0.3';
+import { toast } from 'sonner';
 import { getKits, deleteKit, duplicateKit } from '../utils/api';
 import { Button } from './ui/button';
 import { Input } from './ui/input';

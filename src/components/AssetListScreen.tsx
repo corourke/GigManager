@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Package, Plus, Search, Filter, Loader2, Edit2, Trash2, AlertCircle, Shield, Upload } from 'lucide-react';
-import { toast } from 'sonner@2.0.3';
+import { toast } from 'sonner';
 import { getAssets, deleteAsset } from '../utils/api';
 import { Button } from './ui/button';
 import { Input } from './ui/input';

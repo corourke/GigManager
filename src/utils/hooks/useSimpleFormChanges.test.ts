@@ -267,6 +267,178 @@ describe('useSimpleFormChanges', () => {
       expect(changedFields.name).toBe('Updated Name');
       expect(changedFields).not.toHaveProperty('email');
     });
+
+    it('should detect changes in nested data (data not in form)', () => {
+      const initialNestedData = [{ id: '1', name: 'Item 1' }];
+
+      const { result, rerender } = renderHook(
+        ({ currentData }) => {
+          const form = useForm<TestFormData>({
+            defaultValues: {
+              name: 'Test',
+              email: 'test@example.com',
+              start_time: new Date('2024-01-01'),
+              end_time: new Date('2024-01-02'),
+              tags: ['tag1', 'tag2'],
+            },
+          });
+
+          const changes = useSimpleFormChanges({
+            form,
+            initialData: {
+              name: 'Test',
+              email: 'test@example.com',
+              start_time: new Date('2024-01-01'),
+              end_time: new Date('2024-01-02'),
+              tags: ['tag1', 'tag2'],
+              nested: initialNestedData,
+            },
+            currentData,
+          });
+
+          return { form, changes };
+        },
+        {
+          initialProps: {
+            currentData: {
+              name: 'Test',
+              email: 'test@example.com',
+              start_time: new Date('2024-01-01'),
+              end_time: new Date('2024-01-02'),
+              tags: ['tag1', 'tag2'],
+              nested: initialNestedData,
+            },
+          },
+        }
+      );
+
+      // Initial state - no changes
+      expect(result.current.changes.hasChanges).toBe(false);
+
+      // Load initial data to set up prevDataRef
+      act(() => {
+        result.current.changes.loadInitialData({
+          name: 'Test',
+          email: 'test@example.com',
+          start_time: new Date('2024-01-01'),
+          end_time: new Date('2024-01-02'),
+          tags: ['tag1', 'tag2'],
+          nested: initialNestedData,
+        });
+      });
+
+      expect(result.current.changes.hasChanges).toBe(false);
+
+      // Change nested data (new array reference)
+      const updatedNestedData = [{ id: '1', name: 'Item 1' }, { id: '2', name: 'Item 2' }];
+      rerender({
+        currentData: {
+          name: 'Test',
+          email: 'test@example.com',
+          start_time: new Date('2024-01-01'),
+          end_time: new Date('2024-01-02'),
+          tags: ['tag1', 'tag2'],
+          nested: updatedNestedData,
+        },
+      });
+
+      // Should detect change in nested data
+      expect(result.current.changes.hasChanges).toBe(true);
+    });
+
+    it('should continue detecting nested data changes after multiple changes', () => {
+      const initialNestedData = [{ id: '1', name: 'Item 1' }];
+
+      const { result, rerender } = renderHook(
+        ({ currentData }) => {
+          const form = useForm<TestFormData>({
+            defaultValues: {
+              name: 'Test',
+              email: 'test@example.com',
+              start_time: new Date('2024-01-01'),
+              end_time: new Date('2024-01-02'),
+              tags: ['tag1', 'tag2'],
+            },
+          });
+
+          const changes = useSimpleFormChanges({
+            form,
+            initialData: {
+              name: 'Test',
+              email: 'test@example.com',
+              start_time: new Date('2024-01-01'),
+              end_time: new Date('2024-01-02'),
+              tags: ['tag1', 'tag2'],
+              nested: initialNestedData,
+            },
+            currentData,
+          });
+
+          return { form, changes };
+        },
+        {
+          initialProps: {
+            currentData: {
+              name: 'Test',
+              email: 'test@example.com',
+              start_time: new Date('2024-01-01'),
+              end_time: new Date('2024-01-02'),
+              tags: ['tag1', 'tag2'],
+              nested: initialNestedData,
+            },
+          },
+        }
+      );
+
+      // Load initial data to set up prevDataRef
+      act(() => {
+        result.current.changes.loadInitialData({
+          name: 'Test',
+          email: 'test@example.com',
+          start_time: new Date('2024-01-01'),
+          end_time: new Date('2024-01-02'),
+          tags: ['tag1', 'tag2'],
+          nested: initialNestedData,
+        });
+      });
+
+      expect(result.current.changes.hasChanges).toBe(false);
+
+      // First change - add item
+      const updatedNestedData1 = [{ id: '1', name: 'Item 1' }, { id: '2', name: 'Item 2' }];
+      rerender({
+        currentData: {
+          name: 'Test',
+          email: 'test@example.com',
+          start_time: new Date('2024-01-01'),
+          end_time: new Date('2024-01-02'),
+          tags: ['tag1', 'tag2'],
+          nested: updatedNestedData1,
+        },
+      });
+
+      expect(result.current.changes.hasChanges).toBe(true);
+
+      // Second change - add another item
+      const updatedNestedData2 = [
+        { id: '1', name: 'Item 1' },
+        { id: '2', name: 'Item 2' },
+        { id: '3', name: 'Item 3' },
+      ];
+      rerender({
+        currentData: {
+          name: 'Test',
+          email: 'test@example.com',
+          start_time: new Date('2024-01-01'),
+          end_time: new Date('2024-01-02'),
+          tags: ['tag1', 'tag2'],
+          nested: updatedNestedData2,
+        },
+      });
+
+      // Should still show changes
+      expect(result.current.changes.hasChanges).toBe(true);
+    });
   });
 
   describe('with manual state management', () => {
