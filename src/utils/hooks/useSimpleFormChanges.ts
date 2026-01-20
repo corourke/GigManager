@@ -219,20 +219,11 @@ export function useSimpleFormChanges<T extends FieldValues>({
     updateDataChanges();
   }, [updateDataChanges]);
 
-  // Calculate if there are any changes by comparing current data with original data
+  // Calculate if there are any changes using react-hook-form's isDirty or nested data changes
   const hasAnyChanges = (() => {
     if (form) {
-      // Compare form values with original data
-      const currentValues = form.getValues();
-      for (const key in originalData) {
-        if (originalData.hasOwnProperty(key) && currentValues.hasOwnProperty(key)) {
-          if (currentValues[key] !== originalData[key]) {
-            return true;
-          }
-        }
-      }
+      return form.formState.isDirty || nestedDataChanged;
     }
-    // Also check nested data changes
     return nestedDataChanged;
   })();
 
