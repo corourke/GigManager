@@ -70,7 +70,13 @@ import MarkdownEditor from './MarkdownEditor';
 import type { User, Organization, OrganizationType, UserRole } from '../App';
 import { createClient } from '../utils/supabase/client';
 import { projectId } from '../utils/supabase/info';
-import { getGig, updateGig, createGig, deleteGig, createGigBid, updateGigBid, deleteGigBid, getGigKits, assignKitToGig, removeKitFromGig, getKits, updateGigStaffSlots, updateGigKitAssignment } from '../utils/api';
+import { getGig, updateGig, createGig, deleteGig, createGigBid, updateGigBid, deleteGigBid, getGigKits, assignKitToGig, removeKitFromGig, getKits, updateGigStaffSlots, updateGigKitAssignment, duplicateGig } from '../utils/api';
+import GigHeader from './gig/GigHeader';
+import GigBasicInfoSection from './gig/GigBasicInfoSection';
+import GigParticipantsSection from './gig/GigParticipantsSection';
+import GigStaffSlotsSection from './gig/GigStaffSlotsSection';
+import GigBidsSection from './gig/GigBidsSection';
+import GigKitAssignmentsSection from './gig/GigKitAssignmentsSection';
 
 type GigStatus = 'DateHold' | 'Proposed' | 'Booked' | 'Completed' | 'Cancelled' | 'Settled';
 
@@ -1089,6 +1095,23 @@ export default function CreateGigScreen({
     }
   };
 
+  const handleDuplicate = async (currentGigId: string) => {
+    try {
+      const newGig = await duplicateGig(currentGigId);
+      toast.success('Gig duplicated successfully!');
+      onGigCreated(newGig.id);
+    } catch (err: any) {
+      console.error('Error duplicating gig:', err);
+      toast.error(err.message || 'Failed to duplicate gig');
+    }
+  };
+
+  const handleDeleteFromHeader = () => {
+    setShowDeleteConfirm(true);
+  };
+
+  const participantOrgIds = participants.map(p => p.organization_id);
+
   return (
     <div className="min-h-screen bg-gray-50">
       <AppHeader
@@ -1100,34 +1123,68 @@ export default function CreateGigScreen({
         onLogout={onLogout}
       />
 
-      <div className="bg-white border-b border-gray-200">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <div className="flex items-center gap-3">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={onCancel}
-              className="text-gray-600 hover:text-gray-900"
-              disabled={isSubmitting || isLoading}
-            >
-              <ChevronLeft className="w-5 h-5 mr-1" />
-              Back
-            </Button>
-            <div>
-              <h1 className="text-gray-900">{isEditMode ? 'Edit Gig' : 'Create New Gig'}</h1>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {isLoading ? (
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-24">
-          <div className="flex flex-col items-center justify-center">
-            <Loader2 className="h-12 w-12 animate-spin text-sky-500 mb-4" />
-            <p className="text-gray-600">Loading gig...</p>
+      {isEditMode && !isLoading ? (
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          <GigHeader
+            gigId={gigId}
+            onBack={onCancel}
+            onDelete={handleDeleteFromHeader}
+            onDuplicate={handleDuplicate}
+          />
+          
+          <div className="space-y-6">
+            <GigBasicInfoSection gigId={gigId} />
+            <GigParticipantsSection
+              gigId={gigId}
+              currentOrganizationId={organization.id}
+              currentOrganizationName={organization.name}
+              currentOrganizationType={organization.type}
+            />
+            <GigStaffSlotsSection
+              gigId={gigId}
+              currentOrganizationId={organization.id}
+              participantOrganizationIds={participantOrgIds}
+            />
+            <GigBidsSection
+              gigId={gigId}
+              currentOrganizationId={organization.id}
+            />
+            <GigKitAssignmentsSection
+              gigId={gigId}
+              currentOrganizationId={organization.id}
+            />
           </div>
         </div>
       ) : (
+        <>
+          <div className="bg-white border-b border-gray-200">
+            <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+              <div className="flex items-center gap-3">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={onCancel}
+                  className="text-gray-600 hover:text-gray-900"
+                  disabled={isSubmitting || isLoading}
+                >
+                  <ChevronLeft className="w-5 h-5 mr-1" />
+                  Back
+                </Button>
+                <div>
+                  <h1 className="text-gray-900">{isEditMode ? 'Edit Gig' : 'Create New Gig'}</h1>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {isLoading ? (
+            <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-24">
+              <div className="flex flex-col items-center justify-center">
+                <Loader2 className="h-12 w-12 animate-spin text-sky-500 mb-4" />
+                <p className="text-gray-600">Loading gig...</p>
+              </div>
+            </div>
+          ) : (
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           <form onSubmit={handleSubmit(onSubmit)}>
             {generalError && (
@@ -1832,6 +1889,8 @@ export default function CreateGigScreen({
             </div>
           </form>
         </div>
+          )}
+        </>
       )}
 
       {/* Delete Confirmation Dialog */}

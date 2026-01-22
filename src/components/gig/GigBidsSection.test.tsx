@@ -1,0 +1,69 @@
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { render, screen, waitFor } from '@testing-library/react';
+import GigBidsSection from './GigBidsSection';
+
+vi.mock('../../utils/api', () => ({
+  getGig: vi.fn().mockResolvedValue({}),
+  createGigBid: vi.fn().mockResolvedValue({ id: 'new-bid-id' }),
+  updateGigBid: vi.fn().mockResolvedValue({}),
+  deleteGigBid: vi.fn().mockResolvedValue({}),
+}));
+
+vi.mock('../../utils/supabase/client', () => ({
+  createClient: vi.fn(() => ({
+    from: vi.fn(() => ({
+      select: vi.fn().mockReturnThis(),
+      eq: vi.fn().mockReturnThis(),
+      order: vi.fn().mockResolvedValue({
+        data: [
+          {
+            id: 'bid-1',
+            date_given: '2024-01-15',
+            amount: 5000,
+            result: 'Accepted',
+            notes: 'Test bid notes',
+          },
+        ],
+        error: null,
+      }),
+    })),
+  })),
+}));
+
+describe('GigBidsSection', () => {
+  const mockProps = {
+    gigId: 'test-gig-id',
+    currentOrganizationId: 'current-org-id',
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('renders without throwing errors', () => {
+    expect(() => {
+      render(<GigBidsSection {...mockProps} />);
+    }).not.toThrow();
+  });
+
+  it('displays loading state initially', () => {
+    render(<GigBidsSection {...mockProps} />);
+    expect(screen.getByText('Loading...')).toBeInTheDocument();
+  });
+
+  it('renders add bid button', async () => {
+    render(<GigBidsSection {...mockProps} />);
+    
+    await waitFor(() => {
+      expect(screen.getByText('Add Bid')).toBeInTheDocument();
+    });
+  });
+
+  it('renders save button', async () => {
+    render(<GigBidsSection {...mockProps} />);
+    
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /save/i })).toBeInTheDocument();
+    });
+  });
+});
