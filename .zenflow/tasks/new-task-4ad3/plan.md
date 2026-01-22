@@ -18,47 +18,128 @@ Do not make assumptions on important decisions — get clarification first.
 
 ## Workflow Steps
 
-### [ ] Step: Technical Specification
+### [x] Step: Technical Specification
+<!-- chat-id: b383cfca-8427-4ca6-97f2-099778e8723b -->
 
-Assess the task's difficulty, as underestimating it leads to poor outcomes.
-- easy: Straightforward implementation, trivial bug fix or feature
-- medium: Moderate complexity, some edge cases or caveats to consider
-- hard: Complex logic, many caveats, architectural considerations, or high-risk changes
+**Complexity**: HARD - Large-scale architectural refactoring with high risk
 
-Create a technical specification for the task that is appropriate for the complexity level:
-- Review the existing codebase architecture and identify reusable components.
-- Define the implementation approach based on established patterns in the project.
-- Identify all source code files that will be created or modified.
-- Define any necessary data model, API, or interface changes.
-- Describe verification steps using the project's test and lint commands.
+**Outputs**:
+- `spec.md`: Comprehensive technical specification
+- `implementation-plan.md`: Detailed 28-task breakdown across 4 sub-phases
 
-Save the output to `{@artifacts_path}/spec.md` with:
-- Technical context (language, dependencies)
-- Implementation approach
-- Source code structure changes
-- Data model / API / interface changes
-- Verification approach
-
-If the task is complex enough, create a detailed implementation plan based on `{@artifacts_path}/spec.md`:
-- Break down the work into concrete tasks (incrementable, testable milestones)
-- Each task should reference relevant contracts and include verification steps
-- Replace the Implementation step below with the planned tasks
-
-Rule of thumb for step size: each step should represent a coherent unit of work (e.g., implement a component, add an API endpoint, write tests for a module). Avoid steps that are too granular (single function).
-
-Save to `{@artifacts_path}/plan.md`. If the feature is trivial and doesn't warrant this breakdown, keep the Implementation step below as is.
+**Summary**: Refactor monolithic CreateGigScreen (2,078 lines) into modern auto-saving form architecture with section components, useFieldArray, and server-side reconciliation.
 
 ---
 
-### [ ] Step: Implementation
+### [ ] Step: Phase 2A-1 - Component Separation & Navigation
 
-Implement the task according to the technical specification and general engineering best practices.
+**Duration**: 2-3 days  
+**Status**: Pending
 
-1. Break the task into steps where possible.
-2. Implement the required changes in the codebase.
-3. Add and run relevant tests and linters.
-4. Perform basic manual verification if applicable.
-5. After completion, write a report to `{@artifacts_path}/report.md` describing:
-   - What was implemented
-   - How the solution was tested
-   - The biggest issues or challenges encountered
+Create directory structure and break monolithic component into sections.
+
+- [ ] Task 1.1: Create directory and GigHeader component with back button and actions dropdown
+- [ ] Task 1.2: Create GigBasicInfoSection stub component (title, dates, status, etc.)
+- [ ] Task 1.3: Create GigParticipantsSection stub component
+- [ ] Task 1.4: Create GigStaffSlotsSection stub component
+- [ ] Task 1.5: Create GigKitAssignmentsSection and GigBidsSection stub components
+- [ ] Task 1.6: Refactor CreateGigScreen to use section components in edit mode
+- [ ] Task 1.7: Manual verification (create mode unchanged, edit mode with sections, delete/duplicate work)
+
+**Verification**: `npm test` - All tests pass, no regressions
+
+---
+
+### [ ] Step: Phase 2A-2 - Auto-save Infrastructure & Basic Info
+
+**Duration**: 2 days  
+**Status**: Pending (depends on 2A-1)
+
+Implement auto-save pattern for basic info section, establish reusable hook.
+
+- [ ] Task 2.1: Create useAutoSave hook with debouncing, state management, error handling
+- [ ] Task 2.2: Create SaveStateIndicator component (spinner → checkmark)
+- [ ] Task 2.3: Implement auto-save in GigBasicInfoSection (onBlur for text, onChange for selects)
+- [ ] Task 2.4: Ensure updateGig API supports partial updates
+- [ ] Task 2.5: Manual verification (auto-save works, debouncing, error handling)
+
+**Verification**: `npm test` - Auto-save tests pass, debouncing works
+
+---
+
+### [ ] Step: Phase 2A-3 - Auto-save Nested Sections with useFieldArray
+
+**Duration**: 3-4 days  
+**Status**: Pending (depends on 2A-2)
+
+Implement auto-save for all nested sections using react-hook-form's useFieldArray.
+
+- [ ] Task 3.1: Implement auto-save in GigParticipantsSection with useFieldArray
+- [ ] Task 3.2: Implement auto-save in GigStaffSlotsSection with nested useFieldArray (slots + assignments)
+- [ ] Task 3.3: Implement auto-save in GigBidsSection with useFieldArray
+- [ ] Task 3.4: Implement auto-save in GigKitAssignmentsSection with useFieldArray
+- [ ] Task 3.5: Manual verification (all sections auto-save, no useState for nested data)
+
+**Verification**: `npm test` - All section tests pass, useFieldArray works
+
+---
+
+### [ ] Step: Phase 2A-4 - Server-side Reconciliation for Nested Data
+
+**Duration**: 2-3 days  
+**Status**: Pending (depends on 2A-3)
+
+Standardize all nested data on server-side reconciliation pattern.
+
+- [ ] Task 4.1: Create/update updateGigParticipants API with server reconciliation
+- [ ] Task 4.2: Update updateGigStaffSlots API for nested reconciliation (slots + assignments)
+- [ ] Task 4.3: Create updateGigBids API with server reconciliation (org-scoped)
+- [ ] Task 4.4: Create updateGigKits API with server reconciliation (org-scoped)
+- [ ] Task 4.5: Update section components to use new reconciliation APIs
+- [ ] Task 4.6: Remove old client-side differential API functions (createGigBid, deleteGigBid, etc.)
+- [ ] Task 4.7: Manual verification (reconciliation works, no duplicates, org-scoping, transactions)
+
+**Verification**: `npm test` - All API tests pass, reconciliation works correctly
+
+---
+
+### [ ] Step: Final Verification & Documentation
+
+**Duration**: 1 day  
+**Status**: Pending (depends on 2A-4)
+
+Comprehensive testing and documentation updates.
+
+- [ ] Task 5.1: Run full test suite and fix any failures
+- [ ] Task 5.2: Manual end-to-end testing (gig lifecycle, edge cases, performance, accessibility)
+- [ ] Task 5.3: Update documentation (development-plan.md, JSDoc comments)
+- [ ] Task 5.4: Create report.md with completion summary
+
+**Verification**: All 66+ tests pass, no regressions, documentation updated
+
+---
+
+### Success Criteria
+
+**Architecture**:
+- [ ] CreateGigScreen reduced from 2,078 to ~600 lines (71% reduction)
+- [ ] 6 new section components created (~1,500 lines total)
+- [ ] All nested data uses useFieldArray (no useState)
+- [ ] All nested data uses server-side reconciliation (consistent pattern)
+
+**UX**:
+- [ ] Edit mode uses auto-save (no Submit/Cancel buttons)
+- [ ] Create mode keeps Submit button (unchanged)
+- [ ] Back button and actions dropdown menu work
+- [ ] Visual save feedback per section
+
+**Quality**:
+- [ ] All tests pass (66+ tests)
+- [ ] No functionality regressions
+- [ ] Performance acceptable (auto-save feels instant)
+- [ ] Error handling works (no data loss)
+
+---
+
+**See**: `.zenflow/tasks/new-task-4ad3/spec.md` for detailed technical specification  
+**See**: `.zenflow/tasks/new-task-4ad3/implementation-plan.md` for full task breakdown (28 tasks)
