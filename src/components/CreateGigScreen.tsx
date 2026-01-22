@@ -2,7 +2,6 @@ import { useState, useEffect, useMemo, useRef } from 'react';
 import { z } from 'zod';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useSimpleFormChanges } from '../utils/hooks/useSimpleFormChanges';
 import { createSubmissionPayload, normalizeFormData } from '../utils/form-utils';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
@@ -269,36 +268,8 @@ export default function CreateGigScreen({
   const [showBidNotes, setShowBidNotes] = useState<string | null>(null);
   const [currentBidNotes, setCurrentBidNotes] = useState('');
 
-  // Create currentData that includes form values + ALL nested data for change detection
-  const currentData = useMemo(() => ({
-    ...formValues,
-    participants: participants,
-    staffSlots: staffSlots,
-    kitAssignments: kitAssignments,
-    bids: bids,
-  }), [formValues, participants, staffSlots, kitAssignments, bids]);
-
-  // Change detection for efficient updates
-  const changeDetection = useSimpleFormChanges({
-    form: form,
-    initialData: {
-      title: '',
-      start_time: undefined,
-      end_time: undefined,
-      timezone: 'America/Los_Angeles',
-      status: 'DateHold',
-      tags: [],
-      notes: '',
-      amount_paid: '',
-      participants: [],
-      staffSlots: [],
-      kitAssignments: [],
-      bids: [],
-    },
-    currentData: currentData,
-  });
-
-  // Nested data changes are automatically detected by the simplified hook
+  // Track original data for comparison when saving (edit mode only)
+  const [originalData, setOriginalData] = useState<any>({});
 
   // Load staff roles from database
   useEffect(() => {
@@ -466,9 +437,9 @@ export default function CreateGigScreen({
         console.error('Error loading kit assignments:', error);
       }
 
-      // Load initial data for change detection
+      // Track original data for comparison when saving
       const loadedFormData = getValues();
-      changeDetection.loadInitialData({
+      setOriginalData({
         title: loadedFormData.title || '',
         start_time: loadedFormData.start_time,
         end_time: loadedFormData.end_time,
@@ -477,10 +448,6 @@ export default function CreateGigScreen({
         tags: loadedFormData.tags || [],
         notes: loadedFormData.notes || '',
         amount_paid: loadedFormData.amount_paid || '',
-        participants: loadedParticipants,
-        staffSlots: loadedSlots || [],
-        kitAssignments: loadedKitAssignments,
-        bids: loadedBids,
       });
 
       toast.success('Gig loaded successfully');
@@ -819,15 +786,15 @@ export default function CreateGigScreen({
       };
 
       // Transform originalData to match API field names for comparison
-      const originalDataForComparison = isEditMode && changeDetection.originalData ? {
-        title: changeDetection.originalData.title || '',
-        start: changeDetection.originalData.start_time?.toISOString(),
-        end: changeDetection.originalData.end_time?.toISOString(),
-        timezone: changeDetection.originalData.timezone || 'America/Los_Angeles',
-        status: changeDetection.originalData.status || 'DateHold',
-        tags: changeDetection.originalData.tags || [],
-        notes: changeDetection.originalData.notes || '',
-        amount_paid: changeDetection.originalData.amount_paid || null,
+      const originalDataForComparison = isEditMode && originalData ? {
+        title: originalData.title || '',
+        start: originalData.start_time?.toISOString(),
+        end: originalData.end_time?.toISOString(),
+        timezone: originalData.timezone || 'America/Los_Angeles',
+        status: originalData.status || 'DateHold',
+        tags: originalData.tags || [],
+        notes: originalData.notes || '',
+        amount_paid: originalData.amount_paid || null,
       } : {};
 
       // Normalize and get only changed fields for basic gig data
@@ -994,8 +961,8 @@ export default function CreateGigScreen({
 
         toast.success('Gig updated successfully!');
 
-        // Mark as saved for change detection
-        changeDetection.markAsSaved({
+        // Update original data after successful save
+        setOriginalData({
           title: data.title.trim(),
           start_time: data.start_time,
           end_time: data.end_time,
@@ -1004,10 +971,6 @@ export default function CreateGigScreen({
           tags: data.tags || [],
           notes: data.notes?.trim() || '',
           amount_paid: data.amount_paid?.trim() || '',
-          participants: participants,
-          staffSlots: staffSlots,
-          kitAssignments: kitAssignments,
-          bids: bids,
         });
 
         if (onGigUpdated) {
