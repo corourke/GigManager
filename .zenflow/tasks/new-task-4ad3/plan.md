@@ -32,6 +32,7 @@ Do not make assumptions on important decisions — get clarification first.
 ---
 
 ### [ ] Step: Phase 2A-1 - Component Separation & Navigation
+<!-- chat-id: 3869f35a-cc6c-4cc9-aedd-7b7806677c79 -->
 
 **Duration**: 2-3 days  
 **Status**: Pending
