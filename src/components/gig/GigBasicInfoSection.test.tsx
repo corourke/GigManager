@@ -54,7 +54,6 @@ describe('GigBasicInfoSection', () => {
     expect(screen.getByPlaceholderText(/Add tags to categorize/i)).toBeInTheDocument();
     expect(screen.getByPlaceholderText(/Add notes about this gig/i)).toBeInTheDocument();
     expect(screen.getByPlaceholderText('0.00')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Save/i })).toBeInTheDocument();
   });
 
   it('shows validation error for empty title', async () => {
@@ -68,9 +67,6 @@ describe('GigBasicInfoSection', () => {
     const titleInput = screen.getByPlaceholderText('Enter gig title');
     await user.clear(titleInput);
     
-    const saveButton = screen.getByRole('button', { name: /Save/i });
-    await user.click(saveButton);
-
     await waitFor(() => {
       expect(screen.getByText(/Title is required/i)).toBeInTheDocument();
     });
@@ -78,7 +74,7 @@ describe('GigBasicInfoSection', () => {
     expect(api.updateGig).not.toHaveBeenCalled();
   });
 
-  it('calls updateGig on form submit', async () => {
+  it('calls updateGig on form change', async () => {
     const user = userEvent.setup();
     render(<GigBasicInfoSection gigId={mockGigId} />);
 
@@ -86,17 +82,16 @@ describe('GigBasicInfoSection', () => {
       expect(screen.getByDisplayValue('Test Gig')).toBeInTheDocument();
     });
 
-    const saveButton = screen.getByRole('button', { name: /Save/i });
-    await user.click(saveButton);
+    const titleInput = screen.getByPlaceholderText('Enter gig title');
+    await user.type(titleInput, ' Updated');
 
     await waitFor(() => {
       expect(api.updateGig).toHaveBeenCalledWith(
         mockGigId,
         expect.objectContaining({
-          title: 'Test Gig',
-          status: 'Booked',
+          title: 'Test Gig Updated',
         })
       );
-    });
+    }, { timeout: 2000 }); // Account for debounce
   });
 });

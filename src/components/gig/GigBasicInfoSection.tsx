@@ -94,6 +94,7 @@ export default function GigBasicInfoSection({ gigId }: GigBasicInfoSectionProps)
 
   const { control, handleSubmit, formState: { errors, isDirty }, setValue, watch, reset } = useForm<BasicInfoFormData>({
     resolver: zodResolver(basicInfoSchema),
+    mode: 'onChange',
     defaultValues: {
       title: '',
       start_time: undefined,

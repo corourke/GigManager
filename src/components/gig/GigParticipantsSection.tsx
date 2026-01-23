@@ -1,6 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useForm, useFieldArray, Controller } from 'react-hook-form';
+import { z } from 'zod';
+import { zodResolver } from '@hookform/resolvers/zod';
 import { toast } from 'sonner';
-import { Building2, FileText, Loader2, Plus, Save, Trash2 } from 'lucide-react';
+import { Building2, FileText, Loader2, Plus, Trash2, AlertCircle } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
@@ -12,6 +15,21 @@ import { getGig, updateGig } from '../../utils/api';
 import type { Organization, OrganizationType } from '../../App';
 import { useAutoSave } from '../../utils/hooks/useAutoSave';
 import SaveStateIndicator from './SaveStateIndicator';
+
+const participantSchema = z.object({
+  id: z.string(),
+  organization_id: z.string().min(1, 'Organization is required'),
+  organization_name: z.string(),
+  role: z.string().min(1, 'Role is required'),
+  notes: z.string().optional(),
+  organization: z.any().optional(), // For the selector
+});
+
+const participantsFormSchema = z.object({
+  participants: z.array(participantSchema),
+});
+
+type ParticipantsFormData = z.infer<typeof participantsFormSchema>;
 
 interface ParticipantData {
   id: string;
@@ -47,17 +65,29 @@ export default function GigParticipantsSection({
   currentOrganizationType,
 }: GigParticipantsSectionProps) {
   const [isLoading, setIsLoading] = useState(true);
-  const [participants, setParticipants] = useState<ParticipantData[]>([]);
-  const [showParticipantNotes, setShowParticipantNotes] = useState<string | null>(null);
+  const [showParticipantNotes, setShowParticipantNotes] = useState<number | null>(null);
   const [currentParticipantNotes, setCurrentParticipantNotes] = useState('');
 
-  const { saveState, triggerSave } = useAutoSave<ParticipantData[]>({
+  const { control, handleSubmit, formState: { errors, isDirty }, watch, reset, setValue } = useForm<ParticipantsFormData>({
+    resolver: zodResolver(participantsFormSchema),
+    mode: 'onChange',
+    defaultValues: {
+      participants: [],
+    },
+  });
+
+  const { fields, append, remove } = useFieldArray({
+    control,
+    name: 'participants',
+  });
+
+  const { saveState, triggerSave } = useAutoSave<ParticipantsFormData>({
     gigId,
     onSave: async (data) => {
-      const participantsData = data
+      const participantsData = data.participants
         .filter(p => p.organization_id && p.organization_id.trim() !== '' && p.role && p.role.trim() !== '')
         .map(p => ({
-          id: p.id.startsWith('current-org') || !p.id.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i) ? undefined : p.id,
+          id: p.id.startsWith('temp-') || p.id === 'current-org' || !p.id.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i) ? undefined : p.id,
           organization_id: p.organization_id,
           role: p.role,
           notes: p.notes || null,
@@ -69,10 +99,16 @@ export default function GigParticipantsSection({
     }
   });
 
-  const updateParticipantsAndSave = useCallback((newParticipants: ParticipantData[]) => {
-    setParticipants(newParticipants);
-    triggerSave(newParticipants);
-  }, [triggerSave]);
+  const formValues = watch();
+
+  useEffect(() => {
+    if (isDirty) {
+      const isValid = Object.keys(errors).length === 0;
+      if (isValid) {
+        triggerSave(formValues);
+      }
+    }
+  }, [formValues, isDirty, errors, triggerSave]);
 
   useEffect(() => {
     loadParticipantsData();
@@ -84,7 +120,11 @@ export default function GigParticipantsSection({
       const gig = await getGig(gigId);
       
       const loadedParticipants = (gig.participants || []).map((p: any) => ({
-        ...p,
+        id: p.id,
+        organization_id: p.organization_id,
+        organization_name: p.organization_name,
+        role: p.role,
+        notes: p.notes || '',
         organization: p.organization || (p.organization_id && p.organization_name ? {
           id: p.organization_id,
           name: p.organization_name,
@@ -92,74 +132,79 @@ export default function GigParticipantsSection({
         } : null)
       }));
       
-      if (loadedParticipants.length === 0 || !loadedParticipants.some((p: any) => p.organization_id === currentOrganizationId)) {
-        setParticipants([
+      let initialParticipants = [...loadedParticipants];
+      if (initialParticipants.length === 0 || !initialParticipants.some((p: any) => p.organization_id === currentOrganizationId)) {
+        initialParticipants = [
           {
             id: 'current-org',
             organization_id: currentOrganizationId,
             organization_name: currentOrganizationName,
             role: currentOrganizationType,
             notes: '',
+            organization: {
+              id: currentOrganizationId,
+              name: currentOrganizationName,
+              type: currentOrganizationType,
+            }
           },
-          ...loadedParticipants,
-        ]);
-      } else {
-        setParticipants(loadedParticipants);
+          ...initialParticipants,
+        ];
       }
+      
+      reset({ participants: initialParticipants });
     } catch (error: any) {
       console.error('Error loading participants:', error);
       toast.error('Failed to load participants');
-      setParticipants([
-        {
-          id: 'current-org',
-          organization_id: currentOrganizationId,
-          organization_name: currentOrganizationName,
-          role: currentOrganizationType,
-          notes: '',
-        },
-      ]);
+      reset({
+        participants: [
+          {
+            id: 'current-org',
+            organization_id: currentOrganizationId,
+            organization_name: currentOrganizationName,
+            role: currentOrganizationType,
+            notes: '',
+            organization: {
+              id: currentOrganizationId,
+              name: currentOrganizationName,
+              type: currentOrganizationType,
+            }
+          },
+        ]
+      });
     } finally {
       setIsLoading(false);
     }
   };
 
   const handleAddParticipant = () => {
-    const newParticipant: ParticipantData = {
-      id: Math.random().toString(36).substr(2, 9),
+    append({
+      id: `temp-${Math.random().toString(36).substr(2, 9)}`,
       organization_id: '',
       organization_name: '',
       organization: null,
       role: '',
       notes: '',
-    };
-    updateParticipantsAndSave([...participants, newParticipant]);
+    });
   };
 
-  const handleUpdateParticipant = (id: string, field: keyof ParticipantData, value: string) => {
-    updateParticipantsAndSave(participants.map(p => 
-      p.id === id ? { ...p, [field]: value } : p
-    ));
-  };
-
-  const handleRemoveParticipant = (id: string) => {
-    if (id === 'current-org') {
+  const handleRemoveParticipant = (index: number) => {
+    const participant = fields[index];
+    if (participant.id === 'current-org' || participant.organization_id === currentOrganizationId) {
       toast.error('Cannot remove the current organization from participants');
       return;
     }
-    updateParticipantsAndSave(participants.filter(p => p.id !== id));
+    remove(index);
   };
 
-  const handleOpenParticipantNotes = (id: string) => {
-    const participant = participants.find(p => p.id === id);
-    if (participant) {
-      setCurrentParticipantNotes(participant.notes);
-      setShowParticipantNotes(id);
-    }
+  const handleOpenParticipantNotes = (index: number) => {
+    const participant = fields[index];
+    setCurrentParticipantNotes(participant.notes || '');
+    setShowParticipantNotes(index);
   };
 
   const handleSaveParticipantNotes = () => {
-    if (showParticipantNotes) {
-      handleUpdateParticipant(showParticipantNotes, 'notes', currentParticipantNotes);
+    if (showParticipantNotes !== null) {
+      setValue(`participants.${showParticipantNotes}.notes`, currentParticipantNotes, { shouldDirty: true });
       setShowParticipantNotes(null);
       setCurrentParticipantNotes('');
     }
@@ -212,58 +257,74 @@ export default function GigParticipantsSection({
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {participants.map((participant) => (
-                  <TableRow key={participant.id}>
+                {fields.map((field, index) => (
+                  <TableRow key={field.id}>
                     <TableCell>
-                      <Select
-                        value={participant.role}
-                        onValueChange={(value) => handleUpdateParticipant(participant.id, 'role', value)}
-                        disabled={participant.id === 'current-org'}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select role" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {ORGANIZATION_TYPES.map((type) => (
-                            <SelectItem key={type} value={type}>
-                              {type}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      <Controller
+                        name={`participants.${index}.role`}
+                        control={control}
+                        render={({ field: selectField }) => (
+                          <Select
+                            value={selectField.value}
+                            onValueChange={selectField.onChange}
+                            disabled={field.id === 'current-org'}
+                          >
+                            <SelectTrigger className={errors.participants?.[index]?.role ? 'border-red-500' : ''}>
+                              <SelectValue placeholder="Select role" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {ORGANIZATION_TYPES.map((type) => (
+                                <SelectItem key={type} value={type}>
+                                  {type}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        )}
+                      />
+                      {errors.participants?.[index]?.role && (
+                        <p className="text-[10px] text-red-600 mt-1 flex items-center gap-1">
+                          <AlertCircle className="w-3 h-3" />
+                          {errors.participants[index]?.role?.message}
+                        </p>
+                      )}
                     </TableCell>
                     <TableCell>
-                      {participant.id === 'current-org' ? (
+                      {field.id === 'current-org' ? (
                         <div className="text-sm text-gray-900 py-2">
-                          {participant.organization_name}
+                          {field.organization_name}
                         </div>
                       ) : (
-                        <OrganizationSelector
-                          onSelect={(org) => {
-                            if (org) {
-                              updateParticipantsAndSave(participants.map(p => 
-                                p.id === participant.id ? {
-                                  ...p,
-                                  organization_id: org.id,
-                                  organization_name: org.name,
-                                  organization: org,
-                                } : p
-                              ));
-                            } else {
-                              updateParticipantsAndSave(participants.map(p => 
-                                p.id === participant.id ? {
-                                  ...p,
-                                  organization_id: '',
-                                  organization_name: '',
-                                  organization: null,
-                                } : p
-                              ));
-                            }
-                          }}
-                          selectedOrganization={participant.organization || null}
-                          organizationType={participant.role ? participant.role as OrganizationType : undefined}
-                          placeholder="Search organizations..."
-                        />
+                        <div className="space-y-1">
+                          <Controller
+                            name={`participants.${index}.organization`}
+                            control={control}
+                            render={({ field: orgField }) => (
+                              <OrganizationSelector
+                                onSelect={(org) => {
+                                  orgField.onChange(org);
+                                  if (org) {
+                                    setValue(`participants.${index}.organization_id`, org.id, { shouldDirty: true });
+                                    setValue(`participants.${index}.organization_name`, org.name, { shouldDirty: true });
+                                  } else {
+                                    setValue(`participants.${index}.organization_id`, '', { shouldDirty: true });
+                                    setValue(`participants.${index}.organization_name`, '', { shouldDirty: true });
+                                  }
+                                }}
+                                selectedOrganization={orgField.value || null}
+                                organizationType={watch(`participants.${index}.role`) as OrganizationType || undefined}
+                                placeholder="Search organizations..."
+                                className={errors.participants?.[index]?.organization_id ? 'border-red-500' : ''}
+                              />
+                            )}
+                          />
+                          {errors.participants?.[index]?.organization_id && (
+                            <p className="text-[10px] text-red-600 flex items-center gap-1">
+                              <AlertCircle className="w-3 h-3" />
+                              {errors.participants[index]?.organization_id?.message}
+                            </p>
+                          )}
+                        </div>
                       )}
                     </TableCell>
                     <TableCell>
@@ -271,7 +332,7 @@ export default function GigParticipantsSection({
                         type="button"
                         variant="outline"
                         size="sm"
-                        onClick={() => handleOpenParticipantNotes(participant.id)}
+                        onClick={() => handleOpenParticipantNotes(index)}
                       >
                         <FileText className="w-4 h-4" />
                       </Button>
@@ -281,8 +342,8 @@ export default function GigParticipantsSection({
                         type="button"
                         variant="ghost"
                         size="sm"
-                        onClick={() => handleRemoveParticipant(participant.id)}
-                        disabled={participant.id === 'current-org'}
+                        onClick={() => handleRemoveParticipant(index)}
+                        disabled={field.id === 'current-org'}
                       >
                         <Trash2 className="w-4 h-4" />
                       </Button>

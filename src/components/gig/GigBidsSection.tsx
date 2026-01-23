@@ -1,8 +1,11 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useForm, useFieldArray, Controller } from 'react-hook-form';
+import { z } from 'zod';
+import { zodResolver } from '@hookform/resolvers/zod';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
 import { createClient } from '../../utils/supabase/client';
-import { DollarSign, FileText, Loader2, Plus, Save, Trash2 } from 'lucide-react';
+import { DollarSign, FileText, Loader2, Plus, Trash2, AlertCircle } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
@@ -10,9 +13,27 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '../ui/dialog';
 import { Textarea } from '../ui/textarea';
-import { getGig, createGigBid, updateGigBid, deleteGigBid } from '../../utils/api';
+import { getGig, updateGigBids } from '../../utils/api';
 import { useAutoSave } from '../../utils/hooks/useAutoSave';
 import SaveStateIndicator from './SaveStateIndicator';
+
+const bidSchema = z.object({
+  id: z.string(),
+  date_given: z.string().min(1, 'Date is required'),
+  amount: z.string().refine((val) => {
+    if (!val.trim()) return false;
+    const num = parseFloat(val);
+    return !isNaN(num) && num >= 0;
+  }, 'Amount must be a positive number'),
+  result: z.string().optional(),
+  notes: z.string().optional(),
+});
+
+const bidsFormSchema = z.object({
+  bids: z.array(bidSchema),
+});
+
+type BidsFormData = z.infer<typeof bidsFormSchema>;
 
 interface BidData {
   id: string;

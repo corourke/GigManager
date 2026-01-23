@@ -2726,6 +2726,88 @@ export async function deleteGigBid(bidId: string) {
   return { success: true };
 }
 
+export async function updateGigBids(gigId: string, organizationId: string, bids: Array<{
+  id?: string;
+  amount: number;
+  date_given: string;
+  result?: string | null;
+  notes?: string | null;
+}>) {
+  const supabase = getSupabase();
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session?.user) throw new Error('Not authenticated');
+  const user = session.user;
+
+  // Get existing bids for this gig and organization
+  const { data: existingBids, error: fetchError } = await supabase
+    .from('gig_bids')
+    .select('id')
+    .eq('gig_id', gigId)
+    .eq('organization_id', organizationId);
+
+  if (fetchError) {
+    console.error('Error fetching existing bids:', fetchError);
+    throw fetchError;
+  }
+
+  const existingBidIds = existingBids?.map(b => b.id) || [];
+  const incomingBidIds = bids.filter(b => b.id && b.id.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i)).map(b => b.id!);
+
+  // Delete bids that are no longer in the list
+  const bidIdsToDelete = existingBidIds.filter(id => !incomingBidIds.includes(id));
+  if (bidIdsToDelete.length > 0) {
+    const { error: deleteError } = await supabase
+      .from('gig_bids')
+      .delete()
+      .in('id', bidIdsToDelete);
+    
+    if (deleteError) {
+      console.error('Error deleting bids:', deleteError);
+      throw deleteError;
+    }
+  }
+
+  // Update or insert bids
+  for (const bid of bids) {
+    const isDbId = bid.id && bid.id.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
+    
+    const bidData = {
+      gig_id: gigId,
+      organization_id: organizationId,
+      amount: bid.amount,
+      date_given: bid.date_given,
+      result: bid.result || null,
+      notes: bid.notes || null,
+    };
+
+    if (isDbId) {
+      const { error: updateError } = await supabase
+        .from('gig_bids')
+        .update(bidData)
+        .eq('id', bid.id);
+      
+      if (updateError) {
+        console.error('Error updating bid:', updateError);
+        throw updateError;
+      }
+    } else {
+      const { error: insertError } = await supabase
+        .from('gig_bids')
+        .insert({
+          ...bidData,
+          created_by: user.id,
+        });
+      
+      if (insertError) {
+        console.error('Error creating bid:', insertError);
+        throw insertError;
+      }
+    }
+  }
+
+  return { success: true };
+}
+
 // ===== Gig Participant Management =====
 
 export async function updateGigVenue(gigId: string, organizationId: string | null) {

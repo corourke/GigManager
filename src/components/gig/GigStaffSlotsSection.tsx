@@ -1,7 +1,10 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useForm, useFieldArray, Controller } from 'react-hook-form';
+import { z } from 'zod';
+import { zodResolver } from '@hookform/resolvers/zod';
 import { toast } from 'sonner';
 import { createClient } from '../../utils/supabase/client';
-import { FileText, Loader2, Plus, Save, Trash2, Users } from 'lucide-react';
+import { FileText, Loader2, Plus, Trash2, Users, AlertCircle } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
@@ -13,6 +16,35 @@ import UserSelector from '../UserSelector';
 import { getGig, updateGigStaffSlots } from '../../utils/api';
 import { useAutoSave } from '../../utils/hooks/useAutoSave';
 import SaveStateIndicator from './SaveStateIndicator';
+
+const staffAssignmentSchema = z.object({
+  id: z.string(),
+  user_id: z.string(),
+  user_name: z.string(),
+  status: z.enum(['Requested', 'Confirmed', 'Declined']),
+  compensation_type: z.enum(['rate', 'fee']),
+  amount: z.string().refine((val) => {
+    if (!val.trim()) return true;
+    const num = parseFloat(val);
+    return !isNaN(num) && num >= 0;
+  }, 'Amount must be a positive number'),
+  notes: z.string().optional(),
+});
+
+const staffSlotSchema = z.object({
+  id: z.string(),
+  organization_id: z.string().optional(),
+  role: z.string().min(1, 'Role is required'),
+  count: z.number().min(1, 'Count must be at least 1'),
+  notes: z.string().optional(),
+  assignments: z.array(staffAssignmentSchema),
+});
+
+const staffSlotsFormSchema = z.object({
+  slots: z.array(staffSlotSchema),
+});
+
+type StaffSlotsFormData = z.infer<typeof staffSlotsFormSchema>;
 
 interface StaffAssignmentData {
   id: string;
@@ -46,20 +78,32 @@ export default function GigStaffSlotsSection({
 }: GigStaffSlotsSectionProps) {
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadingRoles, setIsLoadingRoles] = useState(false);
-  const [staffSlots, setStaffSlots] = useState<StaffSlotData[]>([]);
   const [staffRoles, setStaffRoles] = useState<string[]>([]);
-  const [showSlotNotes, setShowSlotNotes] = useState<string | null>(null);
+  const [showSlotNotes, setShowSlotNotes] = useState<number | null>(null);
   const [currentSlotNotes, setCurrentSlotNotes] = useState('');
-  const [showAssignmentNotes, setShowAssignmentNotes] = useState<{ slotId: string; assignmentId: string } | null>(null);
+  const [showAssignmentNotes, setShowAssignmentNotes] = useState<{ slotIndex: number; assignmentIndex: number } | null>(null);
   const [currentAssignmentNotes, setCurrentAssignmentNotes] = useState('');
 
-  const { saveState, triggerSave } = useAutoSave<StaffSlotData[]>({
+  const { control, handleSubmit, formState: { errors, isDirty }, watch, reset, setValue, getValues } = useForm<StaffSlotsFormData>({
+    resolver: zodResolver(staffSlotsFormSchema),
+    mode: 'onChange',
+    defaultValues: {
+      slots: [],
+    },
+  });
+
+  const { fields, append, remove } = useFieldArray({
+    control,
+    name: 'slots',
+  });
+
+  const { saveState, triggerSave } = useAutoSave<StaffSlotsFormData>({
     gigId,
     onSave: async (data) => {
-      const slotsData = data
+      const slotsData = data.slots
         .filter(s => s.role && s.role.trim() !== '')
         .map(s => ({
-          id: s.id.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i) ? s.id : undefined,
+          id: s.id.startsWith('temp-') || !s.id.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i) ? undefined : s.id,
           organization_id: currentOrganizationId,
           role: s.role,
           count: s.count,
@@ -67,7 +111,7 @@ export default function GigStaffSlotsSection({
           assignments: (s.assignments || [])
             .filter(a => a.user_id && a.user_id.trim() !== '')
             .map(a => ({
-              id: a.id.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i) ? a.id : undefined,
+              id: a.id.startsWith('temp-') || !a.id.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i) ? undefined : a.id,
               user_id: a.user_id,
               status: a.status,
               rate: a.compensation_type === 'rate' ? (a.amount ? parseFloat(a.amount) : null) : null,
@@ -80,10 +124,16 @@ export default function GigStaffSlotsSection({
     }
   });
 
-  const updateStaffSlotsAndSave = useCallback((newSlots: StaffSlotData[]) => {
-    setStaffSlots(newSlots);
-    triggerSave(newSlots);
-  }, [triggerSave]);
+  const formValues = watch();
+
+  useEffect(() => {
+    if (isDirty) {
+      const isValid = Object.keys(errors).length === 0;
+      if (isValid) {
+        triggerSave(formValues);
+      }
+    }
+  }, [formValues, isDirty, errors, triggerSave]);
 
   useEffect(() => {
     loadStaffRoles();
@@ -142,7 +192,7 @@ export default function GigStaffSlotsSection({
         })),
       }));
       
-      setStaffSlots(formattedSlots);
+      reset({ slots: formattedSlots });
     } catch (error: any) {
       console.error('Error loading staff slots:', error);
       toast.error('Failed to load staff slots');
@@ -152,93 +202,68 @@ export default function GigStaffSlotsSection({
   };
 
   const handleAddStaffSlot = () => {
-    const newSlot: StaffSlotData = {
-      id: Math.random().toString(36).substr(2, 9),
+    append({
+      id: `temp-${Math.random().toString(36).substr(2, 9)}`,
       role: '',
       count: 1,
       notes: '',
       assignments: [],
-    };
-    updateStaffSlotsAndSave([...staffSlots, newSlot]);
+    });
   };
 
-  const handleUpdateStaffSlot = (id: string, field: keyof Omit<StaffSlotData, 'assignments'>, value: string | number) => {
-    updateStaffSlotsAndSave(staffSlots.map(s => {
-      if (s.id === id) {
-        const updatedSlot = { ...s, [field]: value };
-        
-        if (field === 'count' && typeof value === 'number') {
-          const currentCount = s.assignments.length;
-          if (value > currentCount) {
-            const newAssignments = [...s.assignments];
-            for (let i = currentCount; i < value; i++) {
-              newAssignments.push({
-                id: Math.random().toString(36).substr(2, 9),
-                user_id: '',
-                user_name: '',
-                status: 'Requested',
-                compensation_type: 'rate',
-                amount: '',
-                notes: '',
-              });
-            }
-            updatedSlot.assignments = newAssignments;
-          } else if (value < currentCount) {
-            updatedSlot.assignments = s.assignments.slice(0, value);
-          }
-        }
-        
-        return updatedSlot;
+  const handleCountChange = (index: number, value: number) => {
+    const currentCount = watch(`slots.${index}.assignments`).length;
+    if (value > currentCount) {
+      const currentAssignments = getValues(`slots.${index}.assignments`);
+      const newAssignments = [...currentAssignments];
+      for (let i = currentCount; i < value; i++) {
+        newAssignments.push({
+          id: `temp-${Math.random().toString(36).substr(2, 9)}`,
+          user_id: '',
+          user_name: '',
+          status: 'Requested',
+          compensation_type: 'rate',
+          amount: '',
+          notes: '',
+        });
       }
-      return s;
-    }));
-  };
-
-  const handleRemoveStaffSlot = (id: string) => {
-    updateStaffSlotsAndSave(staffSlots.filter(s => s.id !== id));
-  };
-
-  const handleOpenSlotNotes = (id: string) => {
-    const slot = staffSlots.find(s => s.id === id);
-    if (slot) {
-      setCurrentSlotNotes(slot.notes);
-      setShowSlotNotes(id);
+      setValue(`slots.${index}.assignments`, newAssignments, { shouldDirty: true });
+    } else if (value < currentCount) {
+      const currentAssignments = getValues(`slots.${index}.assignments`);
+      setValue(`slots.${index}.assignments`, currentAssignments.slice(0, value), { shouldDirty: true });
     }
+    setValue(`slots.${index}.count`, value, { shouldDirty: true });
+  };
+
+  const handleRemoveStaffSlot = (index: number) => {
+    remove(index);
+  };
+
+  const handleOpenSlotNotes = (index: number) => {
+    const slot = fields[index];
+    setCurrentSlotNotes(slot.notes || '');
+    setShowSlotNotes(index);
   };
 
   const handleSaveSlotNotes = () => {
-    if (showSlotNotes) {
-      handleUpdateStaffSlot(showSlotNotes, 'notes', currentSlotNotes);
+    if (showSlotNotes !== null) {
+      setValue(`slots.${showSlotNotes}.notes`, currentSlotNotes, { shouldDirty: true });
       setShowSlotNotes(null);
       setCurrentSlotNotes('');
     }
   };
 
-  const handleUpdateStaffAssignment = (slotId: string, assignmentId: string, field: keyof StaffAssignmentData, value: string) => {
-    updateStaffSlotsAndSave(staffSlots.map(slot => 
-      slot.id === slotId
-        ? {
-            ...slot,
-            assignments: slot.assignments.map(a => 
-              a.id === assignmentId ? { ...a, [field]: value } : a
-            )
-          }
-        : slot
-    ));
-  };
-
-  const handleOpenAssignmentNotes = (slotId: string, assignmentId: string) => {
-    const slot = staffSlots.find(s => s.id === slotId);
-    const assignment = slot?.assignments.find(a => a.id === assignmentId);
+  const handleOpenAssignmentNotes = (slotIndex: number, assignmentIndex: number) => {
+    const assignment = watch(`slots.${slotIndex}.assignments.${assignmentIndex}`);
     if (assignment) {
-      setCurrentAssignmentNotes(assignment.notes);
-      setShowAssignmentNotes({ slotId, assignmentId });
+      setCurrentAssignmentNotes(assignment.notes || '');
+      setShowAssignmentNotes({ slotIndex, assignmentIndex });
     }
   };
 
   const handleSaveAssignmentNotes = () => {
     if (showAssignmentNotes) {
-      handleUpdateStaffAssignment(showAssignmentNotes.slotId, showAssignmentNotes.assignmentId, 'notes', currentAssignmentNotes);
+      setValue(`slots.${showAssignmentNotes.slotIndex}.assignments.${showAssignmentNotes.assignmentIndex}.notes`, currentAssignmentNotes, { shouldDirty: true });
       setShowAssignmentNotes(null);
       setCurrentAssignmentNotes('');
     }
@@ -280,47 +305,59 @@ export default function GigStaffSlotsSection({
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
-            {staffSlots.map((slot) => (
+            {fields.map((slot, slotIndex) => (
               <div key={slot.id} className="border border-gray-200 rounded-lg overflow-hidden">
                 <div className="bg-gray-100 px-4 py-3 flex items-center justify-between">
                   <div className="flex items-center gap-4 flex-1">
-                    <Select
-                      value={slot.role}
-                      onValueChange={(value) => handleUpdateStaffSlot(slot.id, 'role', value)}
-                      disabled={isLoadingRoles}
-                    >
-                      <SelectTrigger className="max-w-xs bg-white">
-                        <SelectValue placeholder="Select role" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {staffRoles.length > 0 ? (
-                          staffRoles.map((role) => (
-                            <SelectItem key={role} value={role}>
-                              {role}
-                            </SelectItem>
-                          ))
-                        ) : (
-                          <SelectItem value="" disabled>
-                            {isLoadingRoles ? 'Loading roles...' : 'No roles available'}
-                          </SelectItem>
-                        )}
-                      </SelectContent>
-                    </Select>
+                    <Controller
+                      name={`slots.${slotIndex}.role`}
+                      control={control}
+                      render={({ field: roleField }) => (
+                        <Select
+                          value={roleField.value}
+                          onValueChange={roleField.onChange}
+                          disabled={isLoadingRoles}
+                        >
+                          <SelectTrigger className={`max-w-xs bg-white ${errors.slots?.[slotIndex]?.role ? 'border-red-500' : ''}`}>
+                            <SelectValue placeholder="Select role" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {staffRoles.length > 0 ? (
+                              staffRoles.map((role) => (
+                                <SelectItem key={role} value={role}>
+                                  {role}
+                                </SelectItem>
+                              ))
+                            ) : (
+                              <SelectItem value="" disabled>
+                                {isLoadingRoles ? 'Loading roles...' : 'No roles available'}
+                              </SelectItem>
+                            )}
+                          </SelectContent>
+                        </Select>
+                      )}
+                    />
                     <div className="flex items-center gap-2">
                       <Label className="text-xs text-gray-600">Required:</Label>
-                      <Input
-                        type="number"
-                        min="1"
-                        value={slot.count}
-                        onChange={(e) => handleUpdateStaffSlot(slot.id, 'count', parseInt(e.target.value) || 1)}
-                        className="w-16 bg-white"
+                      <Controller
+                        name={`slots.${slotIndex}.count`}
+                        control={control}
+                        render={({ field: countField }) => (
+                          <Input
+                            type="number"
+                            min="1"
+                            value={countField.value}
+                            onChange={(e) => handleCountChange(slotIndex, parseInt(e.target.value) || 1)}
+                            className={`w-16 bg-white ${errors.slots?.[slotIndex]?.count ? 'border-red-500' : ''}`}
+                          />
+                        )}
                       />
                     </div>
                     <Button
                       type="button"
                       variant="outline"
                       size="sm"
-                      onClick={() => handleOpenSlotNotes(slot.id)}
+                      onClick={() => handleOpenSlotNotes(slotIndex)}
                     >
                       <FileText className="w-4 h-4 mr-1" />
                       Notes
@@ -330,7 +367,7 @@ export default function GigStaffSlotsSection({
                     type="button"
                     variant="ghost"
                     size="sm"
-                    onClick={() => handleRemoveStaffSlot(slot.id)}
+                    onClick={() => handleRemoveStaffSlot(slotIndex)}
                     className="text-red-600"
                   >
                     <Trash2 className="w-4 h-4" />
@@ -339,67 +376,90 @@ export default function GigStaffSlotsSection({
 
                 <div className="p-4">
                   <div className="space-y-2">
-                    {slot.assignments.map((assignment) => (
+                    {watch(`slots.${slotIndex}.assignments`)?.map((assignment: any, assignmentIndex: number) => (
                       <div
                         key={assignment.id}
                         className="flex items-center gap-2 p-2 bg-gray-50 rounded border border-gray-200"
                       >
                         <div className="flex-1">
-                          <UserSelector
-                            onSelect={(selectedUser) => {
-                              const fullName = `${selectedUser.first_name} ${selectedUser.last_name}`.trim();
-                              handleUpdateStaffAssignment(slot.id, assignment.id, 'user_id', selectedUser.id);
-                              handleUpdateStaffAssignment(slot.id, assignment.id, 'user_name', fullName);
-                            }}
-                            placeholder="Search for user..."
-                            value={assignment.user_name}
-                            organizationIds={participantOrganizationIds}
+                          <Controller
+                            name={`slots.${slotIndex}.assignments.${assignmentIndex}.user_name`}
+                            control={control}
+                            render={({ field: nameField }) => (
+                              <UserSelector
+                                onSelect={(selectedUser) => {
+                                  const fullName = `${selectedUser.first_name} ${selectedUser.last_name}`.trim();
+                                  setValue(`slots.${slotIndex}.assignments.${assignmentIndex}.user_id`, selectedUser.id, { shouldDirty: true });
+                                  nameField.onChange(fullName);
+                                }}
+                                placeholder="Search for user..."
+                                value={nameField.value}
+                                organizationIds={participantOrganizationIds}
+                              />
+                            )}
                           />
                         </div>
-                        <Select
-                          value={assignment.status}
-                          onValueChange={(value) => handleUpdateStaffAssignment(slot.id, assignment.id, 'status', value)}
-                        >
-                          <SelectTrigger className="w-32 bg-white">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="Requested">Requested</SelectItem>
-                            <SelectItem value="Confirmed">Confirmed</SelectItem>
-                            <SelectItem value="Declined">Declined</SelectItem>
-                          </SelectContent>
-                        </Select>
-                        <Select
-                          value={assignment.compensation_type}
-                          onValueChange={(value) => handleUpdateStaffAssignment(slot.id, assignment.id, 'compensation_type', value)}
-                        >
-                          <SelectTrigger className="w-24 bg-white">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="rate">Rate</SelectItem>
-                            <SelectItem value="fee">Fee</SelectItem>
-                          </SelectContent>
-                        </Select>
+                        <Controller
+                          name={`slots.${slotIndex}.assignments.${assignmentIndex}.status`}
+                          control={control}
+                          render={({ field: statusField }) => (
+                            <Select
+                              value={statusField.value}
+                              onValueChange={statusField.onChange}
+                            >
+                              <SelectTrigger className="w-32 bg-white">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="Requested">Requested</SelectItem>
+                                <SelectItem value="Confirmed">Confirmed</SelectItem>
+                                <SelectItem value="Declined">Declined</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          )}
+                        />
+                        <Controller
+                          name={`slots.${slotIndex}.assignments.${assignmentIndex}.compensation_type`}
+                          control={control}
+                          render={({ field: compField }) => (
+                            <Select
+                              value={compField.value}
+                              onValueChange={compField.onChange}
+                            >
+                              <SelectTrigger className="w-24 bg-white">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="rate">Rate</SelectItem>
+                                <SelectItem value="fee">Fee</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          )}
+                        />
                         <div className="relative w-24">
                           <span className="absolute left-2 top-1/2 transform -translate-y-1/2 text-xs text-gray-500">
                             $
                           </span>
-                          <Input
-                            type="number"
-                            step="0.01"
-                            min="0"
-                            value={assignment.amount}
-                            onChange={(e) => handleUpdateStaffAssignment(slot.id, assignment.id, 'amount', e.target.value)}
-                            placeholder="0.00"
-                            className="pl-5 bg-white"
+                          <Controller
+                            name={`slots.${slotIndex}.assignments.${assignmentIndex}.amount`}
+                            control={control}
+                            render={({ field: amountField }) => (
+                              <Input
+                                {...amountField}
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                placeholder="0.00"
+                                className={`pl-5 bg-white ${errors.slots?.[slotIndex]?.assignments?.[assignmentIndex]?.amount ? 'border-red-500' : ''}`}
+                              />
+                            )}
                           />
                         </div>
                         <Button
                           type="button"
                           variant="outline"
                           size="sm"
-                          onClick={() => handleOpenAssignmentNotes(slot.id, assignment.id)}
+                          onClick={() => handleOpenAssignmentNotes(slotIndex, assignmentIndex)}
                         >
                           <FileText className="w-4 h-4" />
                         </Button>
@@ -409,7 +469,7 @@ export default function GigStaffSlotsSection({
                 </div>
               </div>
             ))}
-        </div>
+          </div>
         </CardContent>
       </Card>
 
