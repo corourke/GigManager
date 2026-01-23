@@ -9,23 +9,23 @@ Refactor CreateGigScreen (2,078 lines) into modern auto-saving form architecture
 
 ---
 
-## Phase 2A-1: Component Separation & Navigation (2-3 days)
+## Phase 2A-1: Component Separation & Navigation (2-3 days) [COMPLETED]
 
 ### Task 1.1: Create directory structure and GigHeader component
 **Duration**: 0.5 days
 
-- [ ] Create directory `src/components/gig/`
-- [ ] Create `GigHeader.tsx` component
-  - [ ] Add back button with ArrowLeft icon (calls onBack prop)
-  - [ ] Add DropdownMenu with MoreVertical icon trigger
-  - [ ] Add "Duplicate Gig" menu item (calls onDuplicate)
-  - [ ] Add "Delete Gig" menu item with red text and Trash2 icon (calls onDelete)
-  - [ ] Import shadcn/ui components: Button, DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem
-- [ ] Create `GigHeader.test.tsx`
-  - [ ] Test back button click calls onBack
-  - [ ] Test delete menu item click calls onDelete
-  - [ ] Test duplicate menu item click calls onDuplicate
-  - [ ] Test rendering with correct icons
+- [x] Create directory `src/components/gig/`
+- [x] Create `GigHeader.tsx` component
+  - [x] Add back button with ArrowLeft icon (calls onBack prop)
+  - [x] Add DropdownMenu with MoreVertical icon trigger
+  - [x] Add "Duplicate Gig" menu item (calls onDuplicate)
+  - [x] Add "Delete Gig" menu item with red text and Trash2 icon (calls onDelete)
+  - [x] Import shadcn/ui components: Button, DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem
+- [x] Create `GigHeader.test.tsx`
+  - [x] Test back button click calls onBack
+  - [x] Test delete menu item click calls onDelete
+  - [x] Test duplicate menu item click calls onDuplicate
+  - [x] Test rendering with correct icons
 
 **Verification**:
 ```bash
@@ -37,20 +37,20 @@ npm test GigHeader.test.tsx
 ### Task 1.2: Create GigBasicInfoSection stub component
 **Duration**: 0.5 days
 
-- [ ] Create `GigBasicInfoSection.tsx`
-  - [ ] Accept `gigId` prop
-  - [ ] Load gig data with `getGig(gigId)` on mount
-  - [ ] Render Card with CardHeader and CardTitle "Basic Information"
-  - [ ] Copy basic info fields from CreateGigScreen (title, dates, timezone, status, tags, notes, amount)
-  - [ ] Use existing form components (Input, Textarea, Select, TagsInput, MarkdownEditor)
-  - [ ] Use react-hook-form with existing gigSchema validation
-  - [ ] No auto-save yet (just stub rendering)
-  - [ ] Add temporary Save button for testing
-- [ ] Create `GigBasicInfoSection.test.tsx`
-  - [ ] Test component renders with gigId
-  - [ ] Test loads gig data on mount
-  - [ ] Test form fields render correctly
-  - [ ] Test validation works (zod schema)
+- [x] Create `GigBasicInfoSection.tsx`
+  - [x] Accept `gigId` prop
+  - [x] Load gig data with `getGig(gigId)` on mount
+  - [x] Render Card with CardHeader and CardTitle "Basic Information"
+  - [x] Copy basic info fields from CreateGigScreen (title, dates, timezone, status, tags, notes, amount)
+  - [x] Use existing form components (Input, Textarea, Select, TagsInput, MarkdownEditor)
+  - [x] Use react-hook-form with existing gigSchema validation
+  - [x] No auto-save yet (just stub rendering)
+  - [x] Add temporary Save button for testing
+- [x] Create `GigBasicInfoSection.test.tsx`
+  - [x] Test component renders with gigId
+  - [x] Test loads gig data on mount
+  - [x] Test form fields render correctly
+  - [x] Test validation works (zod schema)
 
 **Verification**:
 ```bash
@@ -62,18 +62,18 @@ npm test GigBasicInfoSection.test.tsx
 ### Task 1.3: Create GigParticipantsSection stub component
 **Duration**: 0.5 days
 
-- [ ] Create `GigParticipantsSection.tsx`
-  - [ ] Accept `gigId` prop
-  - [ ] Load participants from gig data
-  - [ ] Render Card with CardHeader and CardTitle "Participants"
-  - [ ] Copy participants UI from CreateGigScreen
-  - [ ] Use react-hook-form with useState (temporary, will change in 2A-3)
-  - [ ] Add/remove/edit participant functionality (no auto-save yet)
-  - [ ] Add temporary Save button
-- [ ] Create `GigParticipantsSection.test.tsx`
-  - [ ] Test add participant
-  - [ ] Test remove participant
-  - [ ] Test edit participant
+- [x] Create `GigParticipantsSection.tsx`
+  - [x] Accept `gigId` prop
+  - [x] Load participants from gig data
+  - [x] Render Card with CardHeader and CardTitle "Participants"
+  - [x] Copy participants UI from CreateGigScreen
+  - [x] Use react-hook-form with useState (temporary, will change in 2A-3)
+  - [x] Add/remove/edit participant functionality (no auto-save yet)
+  - [x] Add temporary Save button
+- [x] Create `GigParticipantsSection.test.tsx`
+  - [x] Test add participant
+  - [x] Test remove participant
+  - [x] Test edit participant
 
 **Verification**:
 ```bash
@@ -85,17 +85,17 @@ npm test GigParticipantsSection.test.tsx
 ### Task 1.4: Create GigStaffSlotsSection stub component
 **Duration**: 0.5 days
 
-- [ ] Create `GigStaffSlotsSection.tsx`
-  - [ ] Accept `gigId` prop
-  - [ ] Load staff slots from gig data
-  - [ ] Render Card with CardHeader and CardTitle "Staff"
-  - [ ] Copy staff slots UI from CreateGigScreen
-  - [ ] Use react-hook-form with useState (temporary)
-  - [ ] Add/remove/edit staff slots and assignments (no auto-save yet)
-  - [ ] Add temporary Save button
-- [ ] Create `GigStaffSlotsSection.test.tsx`
-  - [ ] Test add/remove staff slot
-  - [ ] Test add/remove staff assignment
+- [x] Create `GigStaffSlotsSection.tsx`
+  - [x] Accept `gigId` prop
+  - [x] Load staff slots from gig data
+  - [x] Render Card with CardHeader and CardTitle "Staff"
+  - [x] Copy staff slots UI from CreateGigScreen
+  - [x] Use react-hook-form with useState (temporary)
+  - [x] Add/remove/edit staff slots and assignments (no auto-save yet)
+  - [x] Add temporary Save button
+- [x] Create `GigStaffSlotsSection.test.tsx`
+  - [x] Test add/remove staff slot
+  - [x] Test add/remove staff assignment
 
 **Verification**:
 ```bash
@@ -107,23 +107,23 @@ npm test GigStaffSlotsSection.test.tsx
 ### Task 1.5: Create GigKitAssignmentsSection and GigBidsSection stub components
 **Duration**: 0.5 days
 
-- [ ] Create `GigKitAssignmentsSection.tsx`
-  - [ ] Accept `gigId` prop
-  - [ ] Load kit assignments from gig data
-  - [ ] Render Card with CardHeader and CardTitle "Kit Assignments"
-  - [ ] Copy kit assignments UI from CreateGigScreen
-  - [ ] Use react-hook-form with useState (temporary)
-  - [ ] Assign/remove kits (no auto-save yet)
-  - [ ] Add temporary Save button
-- [ ] Create `GigBidsSection.tsx`
-  - [ ] Accept `gigId` prop
-  - [ ] Load bids from gig data
-  - [ ] Render Card with CardHeader and CardTitle "Bids"
-  - [ ] Copy bids UI from CreateGigScreen
-  - [ ] Use react-hook-form with useState (temporary)
-  - [ ] Add/remove/edit bids (no auto-save yet)
-  - [ ] Add temporary Save button
-- [ ] Create tests for both components
+- [x] Create `GigKitAssignmentsSection.tsx`
+  - [x] Accept `gigId` prop
+  - [x] Load kit assignments from gig data
+  - [x] Render Card with CardHeader and CardTitle "Kit Assignments"
+  - [x] Copy kit assignments UI from CreateGigScreen
+  - [x] Use react-hook-form with useState (temporary)
+  - [x] Assign/remove kits (no auto-save yet)
+  - [x] Add temporary Save button
+- [x] Create `GigBidsSection.tsx`
+  - [x] Accept `gigId` prop
+  - [x] Load bids from gig data
+  - [x] Render Card with CardHeader and CardTitle "Bids"
+  - [x] Copy bids UI from CreateGigScreen
+  - [x] Use react-hook-form with useState (temporary)
+  - [x] Add/remove/edit bids (no auto-save yet)
+  - [x] Add temporary Save button
+- [x] Create tests for both components
 
 **Verification**:
 ```bash
@@ -136,25 +136,25 @@ npm test GigBidsSection.test.tsx
 ### Task 1.6: Refactor CreateGigScreen to use section components in edit mode
 **Duration**: 0.5 days
 
-- [ ] Modify `CreateGigScreen.tsx`
-  - [ ] Keep create mode unchanged (if !gigId, render existing single form)
-  - [ ] For edit mode (if gigId), render new section layout:
-    - [ ] Import all section components
-    - [ ] Render GigHeader with onBack, onDelete, onDuplicate handlers
-    - [ ] Render all section components (pass gigId prop)
-    - [ ] Remove Submit/Cancel buttons in edit mode
-  - [ ] Implement onDelete handler:
-    - [ ] Show confirmation AlertDialog
-    - [ ] Call deleteGig(gigId)
-    - [ ] Call onGigDeleted() callback
-  - [ ] Implement onDuplicate handler:
-    - [ ] Call duplicateGig API (need to check if exists, or manually copy)
-    - [ ] Navigate to new gig edit screen
-- [ ] Update `CreateGigScreen.test.tsx`
-  - [ ] Test create mode still renders single form
-  - [ ] Test edit mode renders section layout
-  - [ ] Test delete confirmation and navigation
-  - [ ] Test duplicate and navigation
+- [x] Modify `CreateGigScreen.tsx`
+  - [x] Keep create mode unchanged (if !gigId, render existing single form)
+  - [x] For edit mode (if gigId), render new section layout:
+    - [x] Import all section components
+    - [x] Render GigHeader with onBack, onDelete, onDuplicate handlers
+    - [x] Render all section components (pass gigId prop)
+    - [x] Remove Submit/Cancel buttons in edit mode
+  - [x] Implement onDelete handler:
+    - [x] Show confirmation AlertDialog
+    - [x] Call deleteGig(gigId)
+    - [x] Call onGigDeleted() callback
+  - [x] Implement onDuplicate handler:
+    - [x] Call duplicateGig API (need to check if exists, or manually copy)
+    - [x] Navigate to new gig edit screen
+- [x] Update `CreateGigScreen.test.tsx`
+  - [x] Test create mode still renders single form
+  - [x] Test edit mode renders section layout
+  - [x] Test delete confirmation and navigation
+  - [x] Test duplicate and navigation
 
 **Verification**:
 ```bash
@@ -167,19 +167,19 @@ npm test  # Run all tests
 ### Task 1.7: Manual verification of Phase 2A-1
 **Duration**: 0.5 days
 
-- [ ] Test create mode in browser
-  - [ ] Create new gig works with Submit button
-  - [ ] All fields save correctly
-  - [ ] Validation works
-- [ ] Test edit mode in browser
-  - [ ] Back button navigates to gig list
-  - [ ] Delete action shows confirmation
-  - [ ] Delete removes gig and navigates back
-  - [ ] Duplicate creates new gig and navigates to it
-  - [ ] All sections render correctly
-  - [ ] Temporary Save buttons work in each section
-  - [ ] No console errors
-- [ ] Fix any bugs found
+- [x] Test create mode in browser
+  - [x] Create new gig works with Submit button
+  - [x] All fields save correctly
+  - [x] Validation works
+- [x] Test edit mode in browser
+  - [x] Back button navigates to gig list
+  - [x] Delete action shows confirmation
+  - [x] Delete removes gig and navigates back
+  - [x] Duplicate creates new gig and navigates to it
+  - [x] All sections render correctly
+  - [x] Temporary Save buttons work in each section
+  - [x] No console errors
+- [x] Fix any bugs found
 
 **Phase 2A-1 Complete**: Components separated, navigation working, all tests pass
 

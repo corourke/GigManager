@@ -59,9 +59,16 @@ export default function GigParticipantsSection({
     try {
       const gig = await getGig(gigId);
       
-      const loadedParticipants = gig.participants || [];
+      const loadedParticipants = (gig.participants || []).map((p: any) => ({
+        ...p,
+        organization: p.organization || (p.organization_id && p.organization_name ? {
+          id: p.organization_id,
+          name: p.organization_name,
+          type: p.role as OrganizationType,
+        } : null)
+      }));
       
-      if (loadedParticipants.length === 0 || !loadedParticipants.some(p => p.organization_id === currentOrganizationId)) {
+      if (loadedParticipants.length === 0 || !loadedParticipants.some((p: any) => p.organization_id === currentOrganizationId)) {
         setParticipants([
           {
             id: 'current-org',
