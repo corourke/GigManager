@@ -179,7 +179,7 @@ Users are allowed to see gigs, and the tables related to gigs, if they are a mem
 
 ```typescript
 // Component props interface
-interface CreateAssetScreenProps {
+interface AssetScreenProps {
   organization: Organization;
   user: User;
   userRole?: UserRole;
@@ -319,7 +319,7 @@ export function MyComponent({ title, onSave, isLoading = false }: MyComponentPro
 **Screen components follow this pattern:**
 
 ```typescript
-interface CreateAssetScreenProps {
+interface AssetScreenProps {
   organization: Organization;
   user: User;
   assetId?: string | null;
@@ -327,13 +327,13 @@ interface CreateAssetScreenProps {
   onAssetCreated: (assetId: string) => void;
 }
 
-export function CreateAssetScreen({
+export function AssetScreen({
   organization,
   user,
   assetId,
   onCancel,
   onAssetCreated,
-}: CreateAssetScreenProps) {
+}: AssetScreenProps) {
   // 1. State hooks
   const [isLoading, setIsLoading] = useState(false);
   const [asset, setAsset] = useState<DbAsset | null>(null);
@@ -626,7 +626,7 @@ const [data, setData] = useState<Asset[]>([]);
 // - currentRoute: Route
 
 // Pass down to screens:
-<CreateAssetScreen
+<AssetScreen
   organization={selectedOrganization}
   user={user}
   onCancel={handleCancel}
@@ -777,7 +777,7 @@ src/
 
 ### File Naming
 
-- **Components**: PascalCase (e.g., `CreateAssetScreen.tsx`)
+- **Components**: PascalCase (e.g., `AssetScreen.tsx`)
 - **Utilities**: camelCase (e.g., `form-utils.ts`)
 - **Tests**: Same as source + `.test` (e.g., `form-utils.test.ts`)
 - **Types**: Same as source or `types.ts`
@@ -788,7 +788,7 @@ src/
 
 ### Components
 
-- **Screens**: `{Feature}Screen.tsx` (e.g., `CreateGigScreen.tsx`)
+- **Screens**: `{Feature}Screen.tsx` (e.g., `GigScreen.tsx`)
 - **Dialogs**: `{Feature}Dialog.tsx` (e.g., `EditUserProfileDialog.tsx`)
 - **Shared**: Descriptive names (e.g., `UserProfileForm.tsx`)
 

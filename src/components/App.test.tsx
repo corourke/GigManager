@@ -48,8 +48,8 @@ vi.mock('./GigListScreen', () => ({
 vi.mock('./GigDetailScreen', () => ({
   default: () => <div>GigDetailScreen</div>,
 }))
-vi.mock('./CreateGigScreen', () => ({
-  default: () => <div>CreateGigScreen</div>,
+vi.mock('./GigScreen', () => ({
+  default: () => <div>GigScreen</div>,
 }))
 vi.mock('./TeamScreen', () => ({
   default: () => <div>TeamScreen</div>,
@@ -57,20 +57,20 @@ vi.mock('./TeamScreen', () => ({
 vi.mock('./AssetListScreen', () => ({
   default: () => <div>AssetListScreen</div>,
 }))
-vi.mock('./CreateAssetScreen', () => ({
-  default: () => <div>CreateAssetScreen</div>,
+vi.mock('./AssetScreen', () => ({
+  default: () => <div>AssetScreen</div>,
 }))
 vi.mock('./KitListScreen', () => ({
   default: () => <div>KitListScreen</div>,
 }))
-vi.mock('./CreateKitScreen', () => ({
-  default: () => <div>CreateKitScreen</div>,
+vi.mock('./KitScreen', () => ({
+  default: () => <div>KitScreen</div>,
 }))
 vi.mock('./KitDetailScreen', () => ({
   default: () => <div>KitDetailScreen</div>,
 }))
-vi.mock('./CreateOrganizationScreen', () => ({
-  default: () => <div>CreateOrganizationScreen</div>,
+vi.mock('./OrganizationScreen', () => ({
+  default: () => <div>OrganizationScreen</div>,
 }))
 vi.mock('./ImportScreen', () => ({
   default: () => <div>ImportScreen</div>,

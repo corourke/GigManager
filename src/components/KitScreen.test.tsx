@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest'
 import { render } from '@testing-library/react'
-import CreateKitScreen from './CreateKitScreen'
+import KitScreen from './KitScreen'
 
 // Mock all dependencies
 vi.mock('../utils/api', () => ({
@@ -54,16 +54,16 @@ const mockProps = {
   onLogout: vi.fn(),
 }
 
-describe('CreateKitScreen', () => {
+describe('KitScreen', () => {
   it('renders without throwing errors', () => {
     expect(() => {
-      render(<CreateKitScreen {...mockProps} />)
+      render(<KitScreen {...mockProps} />)
     }).not.toThrow()
   })
 
   it('renders in edit mode without throwing errors', () => {
     expect(() => {
-      render(<CreateKitScreen {...mockProps} kitId="test-id" />)
+      render(<KitScreen {...mockProps} kitId="test-id" />)
     }).not.toThrow()
   })
 })

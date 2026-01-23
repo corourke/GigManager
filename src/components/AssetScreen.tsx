@@ -16,7 +16,7 @@ import { useSimpleFormChanges } from '../utils/hooks/useSimpleFormChanges';
 import { createSubmissionPayload, normalizeFormData } from '../utils/form-utils';
 import { useAutocompleteSuggestions } from '../utils/hooks/useAutocompleteSuggestions';
 
-interface CreateAssetScreenProps {
+interface AssetScreenProps {
   organization: Organization;
   user: User;
   userRole?: UserRole;
@@ -45,7 +45,7 @@ interface FormData {
 }
 
 
-export default function CreateAssetScreen({
+export default function AssetScreen({
   organization,
   user,
   userRole,
@@ -55,7 +55,7 @@ export default function CreateAssetScreen({
   onAssetUpdated,
   onSwitchOrganization,
   onLogout,
-}: CreateAssetScreenProps) {
+}: AssetScreenProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});

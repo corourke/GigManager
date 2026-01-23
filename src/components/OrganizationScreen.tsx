@@ -22,7 +22,7 @@ import {
 } from './ui/select';
 import MarkdownEditor from './MarkdownEditor';
 
-interface CreateOrganizationScreenProps {
+interface OrganizationScreenProps {
   organization?: Organization; // If provided, we're in edit mode
   onOrganizationCreated: (org: Organization) => void;
   onOrganizationUpdated?: (org: Organization) => void;
@@ -133,14 +133,14 @@ const MOCK_PLACES: GooglePlace[] = [
   },
 ];
 
-export default function CreateOrganizationScreen({
+export default function OrganizationScreen({
   organization,
   onOrganizationCreated,
   onOrganizationUpdated,
   onCancel,
   userId,
   useMockData = false,
-}: CreateOrganizationScreenProps) {
+}: OrganizationScreenProps) {
   const isEditMode = !!organization;
   
   const [searchQuery, setSearchQuery] = useState('');

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { toast } from 'sonner';
 import { createClient } from '../../utils/supabase/client';
 import { FileText, Loader2, Plus, Save, Trash2, Users } from 'lucide-react';
@@ -11,6 +11,8 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Textarea } from '../ui/textarea';
 import UserSelector from '../UserSelector';
 import { getGig, updateGigStaffSlots } from '../../utils/api';
+import { useAutoSave } from '../../utils/hooks/useAutoSave';
+import SaveStateIndicator from './SaveStateIndicator';
 
 interface StaffAssignmentData {
   id: string;
@@ -44,13 +46,44 @@ export default function GigStaffSlotsSection({
 }: GigStaffSlotsSectionProps) {
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadingRoles, setIsLoadingRoles] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
   const [staffSlots, setStaffSlots] = useState<StaffSlotData[]>([]);
   const [staffRoles, setStaffRoles] = useState<string[]>([]);
   const [showSlotNotes, setShowSlotNotes] = useState<string | null>(null);
   const [currentSlotNotes, setCurrentSlotNotes] = useState('');
   const [showAssignmentNotes, setShowAssignmentNotes] = useState<{ slotId: string; assignmentId: string } | null>(null);
   const [currentAssignmentNotes, setCurrentAssignmentNotes] = useState('');
+
+  const { saveState, triggerSave } = useAutoSave<StaffSlotData[]>({
+    gigId,
+    onSave: async (data) => {
+      const slotsData = data
+        .filter(s => s.role && s.role.trim() !== '')
+        .map(s => ({
+          id: s.id.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i) ? s.id : undefined,
+          organization_id: currentOrganizationId,
+          role: s.role,
+          count: s.count,
+          notes: s.notes || null,
+          assignments: (s.assignments || [])
+            .filter(a => a.user_id && a.user_id.trim() !== '')
+            .map(a => ({
+              id: a.id.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i) ? a.id : undefined,
+              user_id: a.user_id,
+              status: a.status,
+              rate: a.compensation_type === 'rate' ? (a.amount ? parseFloat(a.amount) : null) : null,
+              fee: a.compensation_type === 'fee' ? (a.amount ? parseFloat(a.amount) : null) : null,
+              notes: a.notes || null,
+            })),
+        }));
+
+      await updateGigStaffSlots(gigId, slotsData);
+    }
+  });
+
+  const updateStaffSlotsAndSave = useCallback((newSlots: StaffSlotData[]) => {
+    setStaffSlots(newSlots);
+    triggerSave(newSlots);
+  }, [triggerSave]);
 
   useEffect(() => {
     loadStaffRoles();
@@ -126,11 +159,11 @@ export default function GigStaffSlotsSection({
       notes: '',
       assignments: [],
     };
-    setStaffSlots([...staffSlots, newSlot]);
+    updateStaffSlotsAndSave([...staffSlots, newSlot]);
   };
 
   const handleUpdateStaffSlot = (id: string, field: keyof Omit<StaffSlotData, 'assignments'>, value: string | number) => {
-    setStaffSlots(staffSlots.map(s => {
+    updateStaffSlotsAndSave(staffSlots.map(s => {
       if (s.id === id) {
         const updatedSlot = { ...s, [field]: value };
         
@@ -162,7 +195,7 @@ export default function GigStaffSlotsSection({
   };
 
   const handleRemoveStaffSlot = (id: string) => {
-    setStaffSlots(staffSlots.filter(s => s.id !== id));
+    updateStaffSlotsAndSave(staffSlots.filter(s => s.id !== id));
   };
 
   const handleOpenSlotNotes = (id: string) => {
@@ -182,18 +215,16 @@ export default function GigStaffSlotsSection({
   };
 
   const handleUpdateStaffAssignment = (slotId: string, assignmentId: string, field: keyof StaffAssignmentData, value: string) => {
-    setStaffSlots(prevSlots => 
-      prevSlots.map(slot => 
-        slot.id === slotId
-          ? {
-              ...slot,
-              assignments: slot.assignments.map(a => 
-                a.id === assignmentId ? { ...a, [field]: value } : a
-              )
-            }
-          : slot
-      )
-    );
+    updateStaffSlotsAndSave(staffSlots.map(slot => 
+      slot.id === slotId
+        ? {
+            ...slot,
+            assignments: slot.assignments.map(a => 
+              a.id === assignmentId ? { ...a, [field]: value } : a
+            )
+          }
+        : slot
+    ));
   };
 
   const handleOpenAssignmentNotes = (slotId: string, assignmentId: string) => {
@@ -210,40 +241,6 @@ export default function GigStaffSlotsSection({
       handleUpdateStaffAssignment(showAssignmentNotes.slotId, showAssignmentNotes.assignmentId, 'notes', currentAssignmentNotes);
       setShowAssignmentNotes(null);
       setCurrentAssignmentNotes('');
-    }
-  };
-
-  const handleSave = async () => {
-    setIsSaving(true);
-    try {
-      const slotsData = staffSlots
-        .filter(s => s.role && s.role.trim() !== '')
-        .map(s => ({
-          id: s.id.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i) ? s.id : undefined,
-          organization_id: currentOrganizationId,
-          role: s.role,
-          count: s.count,
-          notes: s.notes || null,
-          assignments: (s.assignments || [])
-            .filter(a => a.user_id && a.user_id.trim() !== '')
-            .map(a => ({
-              id: a.id.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i) ? a.id : undefined,
-              user_id: a.user_id,
-              status: a.status,
-              rate: a.compensation_type === 'rate' ? (a.amount ? parseFloat(a.amount) : null) : null,
-              fee: a.compensation_type === 'fee' ? (a.amount ? parseFloat(a.amount) : null) : null,
-              notes: a.notes || null,
-            })),
-        }));
-
-      await updateGigStaffSlots(gigId, slotsData);
-      toast.success('Staff slots saved');
-      await loadStaffSlotsData();
-    } catch (error: any) {
-      console.error('Error saving staff slots:', error);
-      toast.error('Failed to save staff slots');
-    } finally {
-      setIsSaving(false);
     }
   };
 
@@ -268,13 +265,13 @@ export default function GigStaffSlotsSection({
             <div className="flex items-center gap-2">
               <Users className="w-5 h-5 text-gray-600" />
               <CardTitle>Staff Assignments</CardTitle>
+              <SaveStateIndicator state={saveState} />
             </div>
             <Button
               type="button"
               variant="outline"
               size="sm"
               onClick={handleAddStaffSlot}
-              disabled={isSaving}
             >
               <Plus className="w-4 h-4 mr-1" />
               Add Staff Slot
@@ -290,7 +287,7 @@ export default function GigStaffSlotsSection({
                     <Select
                       value={slot.role}
                       onValueChange={(value) => handleUpdateStaffSlot(slot.id, 'role', value)}
-                      disabled={isSaving || isLoadingRoles}
+                      disabled={isLoadingRoles}
                     >
                       <SelectTrigger className="max-w-xs bg-white">
                         <SelectValue placeholder="Select role" />
@@ -316,7 +313,6 @@ export default function GigStaffSlotsSection({
                         min="1"
                         value={slot.count}
                         onChange={(e) => handleUpdateStaffSlot(slot.id, 'count', parseInt(e.target.value) || 1)}
-                        disabled={isSaving}
                         className="w-16 bg-white"
                       />
                     </div>
@@ -325,7 +321,6 @@ export default function GigStaffSlotsSection({
                       variant="outline"
                       size="sm"
                       onClick={() => handleOpenSlotNotes(slot.id)}
-                      disabled={isSaving}
                     >
                       <FileText className="w-4 h-4 mr-1" />
                       Notes
@@ -336,7 +331,6 @@ export default function GigStaffSlotsSection({
                     variant="ghost"
                     size="sm"
                     onClick={() => handleRemoveStaffSlot(slot.id)}
-                    disabled={isSaving}
                     className="text-red-600"
                   >
                     <Trash2 className="w-4 h-4" />
@@ -358,7 +352,6 @@ export default function GigStaffSlotsSection({
                               handleUpdateStaffAssignment(slot.id, assignment.id, 'user_name', fullName);
                             }}
                             placeholder="Search for user..."
-                            disabled={isSaving}
                             value={assignment.user_name}
                             organizationIds={participantOrganizationIds}
                           />
@@ -366,7 +359,6 @@ export default function GigStaffSlotsSection({
                         <Select
                           value={assignment.status}
                           onValueChange={(value) => handleUpdateStaffAssignment(slot.id, assignment.id, 'status', value)}
-                          disabled={isSaving}
                         >
                           <SelectTrigger className="w-32 bg-white">
                             <SelectValue />
@@ -380,7 +372,6 @@ export default function GigStaffSlotsSection({
                         <Select
                           value={assignment.compensation_type}
                           onValueChange={(value) => handleUpdateStaffAssignment(slot.id, assignment.id, 'compensation_type', value)}
-                          disabled={isSaving}
                         >
                           <SelectTrigger className="w-24 bg-white">
                             <SelectValue />
@@ -401,7 +392,6 @@ export default function GigStaffSlotsSection({
                             value={assignment.amount}
                             onChange={(e) => handleUpdateStaffAssignment(slot.id, assignment.id, 'amount', e.target.value)}
                             placeholder="0.00"
-                            disabled={isSaving}
                             className="pl-5 bg-white"
                           />
                         </div>
@@ -410,7 +400,6 @@ export default function GigStaffSlotsSection({
                           variant="outline"
                           size="sm"
                           onClick={() => handleOpenAssignmentNotes(slot.id, assignment.id)}
-                          disabled={isSaving}
                         >
                           <FileText className="w-4 h-4" />
                         </Button>
@@ -420,13 +409,7 @@ export default function GigStaffSlotsSection({
                 </div>
               </div>
             ))}
-            
-            <Button onClick={handleSave} disabled={isSaving}>
-              {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              <Save className="mr-2 h-4 w-4" />
-              Save
-            </Button>
-          </div>
+        </div>
         </CardContent>
       </Card>
 

@@ -80,7 +80,7 @@ import GigKitAssignmentsSection from './gig/GigKitAssignmentsSection';
 
 type GigStatus = 'DateHold' | 'Proposed' | 'Booked' | 'Completed' | 'Cancelled' | 'Settled';
 
-interface CreateGigScreenProps {
+interface GigScreenProps {
   organization: Organization;
   user: User;
   userRole?: UserRole;
@@ -201,7 +201,7 @@ const ORGANIZATION_TYPES: OrganizationType[] = [
   'Agency',
 ];
 
-export default function CreateGigScreen({
+export default function GigScreen({
   organization,
   user,
   userRole,
@@ -212,7 +212,7 @@ export default function CreateGigScreen({
   onGigDeleted,
   onSwitchOrganization,
   onLogout,
-}: CreateGigScreenProps) {
+}: GigScreenProps) {
   const form = useForm<FormData>({
     resolver: zodResolver(gigSchema),
     defaultValues: {
@@ -234,6 +234,7 @@ export default function CreateGigScreen({
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [gig, setGig] = useState<any>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [generalError, setGeneralError] = useState<string>('');
@@ -334,22 +335,23 @@ export default function CreateGigScreen({
       const supabase = createClient();
       
       // Use the API function instead of Edge Function
-      const gig = await getGig(gigId);
+      const gigData = await getGig(gigId);
+      setGig(gigData);
 
       // Populate form with gig data
-      setValue('title', gig.title || '');
-      setValue('start_time', gig.start ? new Date(gig.start) : undefined);
-      setValue('end_time', gig.end ? new Date(gig.end) : undefined);
-      setValue('timezone', gig.timezone || 'America/Los_Angeles');
-      setValue('status', gig.status || 'DateHold');
-      setValue('tags', gig.tags || []);
-      setValue('notes', gig.notes || '');
-      setValue('amount_paid', gig.amount_paid ? gig.amount_paid.toString() : '');
+      setValue('title', gigData.title || '');
+      setValue('start_time', gigData.start ? new Date(gigData.start) : undefined);
+      setValue('end_time', gigData.end ? new Date(gigData.end) : undefined);
+      setValue('timezone', gigData.timezone || 'America/Los_Angeles');
+      setValue('status', gigData.status || 'DateHold');
+      setValue('tags', gigData.tags || []);
+      setValue('notes', gigData.notes || '');
+      setValue('amount_paid', gigData.amount_paid ? gigData.amount_paid.toString() : '');
 
       // Load participants from the gig response
       let loadedParticipants: ParticipantData[] = [];
-      if (gig.participants && gig.participants.length > 0) {
-        loadedParticipants = gig.participants.map((p: any) => ({
+      if (gigData.participants && gigData.participants.length > 0) {
+        loadedParticipants = gigData.participants.map((p: any) => ({
           id: p.id || Math.random().toString(36).substr(2, 9), // Use database ID
           organization_id: p.organization_id,
           organization_name: p.organization?.name || '',
@@ -1110,7 +1112,9 @@ export default function CreateGigScreen({
     setShowDeleteConfirm(true);
   };
 
-  const participantOrgIds = participants.map(p => p.organization_id);
+  const participantOrgIds = gig?.participants 
+    ? gig.participants.map((p: any) => p.organization_id)
+    : participants.map(p => p.organization_id);
 
   return (
     <div className="min-h-screen bg-gray-50">

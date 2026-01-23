@@ -1,28 +1,12 @@
 import { describe, it, expect, vi } from 'vitest'
 import { render } from '@testing-library/react'
-import CreateGigScreen from './CreateGigScreen'
+import AssetScreen from './AssetScreen'
 
 // Mock all dependencies
 vi.mock('../utils/api', () => ({
-  getGig: vi.fn().mockResolvedValue({}),
-  createGig: vi.fn(),
-  updateGig: vi.fn(),
-  getOrganizations: vi.fn().mockResolvedValue([]),
-  getUsers: vi.fn().mockResolvedValue([]),
-  getKits: vi.fn().mockResolvedValue([]),
-  getGigKits: vi.fn().mockResolvedValue([]),
-}))
-
-vi.mock('../utils/hooks/useSimpleFormChanges', () => ({
-  useSimpleFormChanges: vi.fn(() => ({
-    hasChanges: false,
-    changedFields: {},
-    markAsSaved: vi.fn(),
-    resetToOriginal: vi.fn(),
-    loadInitialData: vi.fn(),
-    getChangedFields: vi.fn(() => ({})),
-    hasFieldChanged: vi.fn(() => false),
-  })),
+  getAsset: vi.fn().mockResolvedValue({}),
+  createAsset: vi.fn(),
+  updateAsset: vi.fn(),
 }))
 
 vi.mock('../utils/hooks/useFormWithChanges', () => ({
@@ -63,26 +47,21 @@ const mockProps = {
   },
   userRole: 'Admin' as const,
   onCancel: vi.fn(),
-  onGigCreated: vi.fn(),
+  onAssetCreated: vi.fn(),
   onSwitchOrganization: vi.fn(),
   onLogout: vi.fn(),
 }
 
-describe('CreateGigScreen', () => {
+describe('AssetScreen', () => {
   it('renders without throwing errors', () => {
     expect(() => {
-      render(<CreateGigScreen {...mockProps} />)
+      render(<AssetScreen {...mockProps} />)
     }).not.toThrow()
   })
 
   it('renders in edit mode without throwing errors', () => {
     expect(() => {
-      render(<CreateGigScreen {...mockProps} gigId="test-id" />)
+      render(<AssetScreen {...mockProps} assetId="test-id" />)
     }).not.toThrow()
   })
-
-  // Submit button enable/disable behavior is tested through integration
-  // The hook properly detects changes by comparing current form values with original data
-  // This has been verified through manual testing of the application
-
 })

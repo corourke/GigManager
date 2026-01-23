@@ -2,17 +2,17 @@ import { useState } from 'react';
 import LoginScreen from './components/LoginScreen';
 import UserProfileCompletionScreen from './components/UserProfileCompletionScreen';
 import OrganizationSelectionScreen from './components/OrganizationSelectionScreen';
-import CreateOrganizationScreen from './components/CreateOrganizationScreen';
+import OrganizationScreen from './components/OrganizationScreen';
 import AdminOrganizationsScreen from './components/AdminOrganizationsScreen';
 import Dashboard from './components/Dashboard';
 import GigListScreen from './components/GigListScreen';
-import CreateGigScreen from './components/CreateGigScreen';
+import GigScreen from './components/GigScreen';
 import GigDetailScreen from './components/GigDetailScreen';
 import TeamScreen from './components/TeamScreen';
 import AssetListScreen from './components/AssetListScreen';
-import CreateAssetScreen from './components/CreateAssetScreen';
+import AssetScreen from './components/AssetScreen';
 import KitListScreen from './components/KitListScreen';
-import CreateKitScreen from './components/CreateKitScreen';
+import KitScreen from './components/KitScreen';
 import KitDetailScreen from './components/KitDetailScreen';
 import ImportScreen from './components/ImportScreen';
 import EditUserProfileDialog from './components/EditUserProfileDialog';
@@ -349,7 +349,7 @@ function App() {
       )}
       
       {currentRoute === 'create-org' && currentUser && (
-        <CreateOrganizationScreen
+        <OrganizationScreen
           onOrganizationCreated={handleOrganizationCreated}
           onCancel={handleBackToSelection}
           userId={currentUser.id}
@@ -358,7 +358,7 @@ function App() {
       )}
       
       {currentRoute === 'edit-org' && currentUser && editingOrganization && (
-        <CreateOrganizationScreen
+        <OrganizationScreen
           organization={editingOrganization}
           onOrganizationCreated={handleOrganizationCreated}
           onOrganizationUpdated={handleOrganizationUpdated}
@@ -411,7 +411,7 @@ function App() {
           )}
 
           {currentRoute === 'create-gig' && (
-            <CreateGigScreen
+            <GigScreen
               organization={selectedOrganization}
               user={currentUser}
               userRole={getCurrentUserRole()}
@@ -472,7 +472,7 @@ function App() {
           )}
 
           {currentRoute === 'create-asset' && (
-            <CreateAssetScreen
+            <AssetScreen
               organization={selectedOrganization}
               user={currentUser}
               userRole={getCurrentUserRole()}
@@ -505,7 +505,7 @@ function App() {
           )}
 
           {currentRoute === 'create-kit' && (
-            <CreateKitScreen
+            <KitScreen
               organization={selectedOrganization}
               user={currentUser}
               userRole={getCurrentUserRole()}

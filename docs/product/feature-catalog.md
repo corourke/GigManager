@@ -159,7 +159,7 @@
 **Status**: ✅ Implemented
 
 **Implemented Features**:
-- Create new organization (CreateOrganizationScreen.tsx)
+- Create new organization (OrganizationScreen.tsx)
 - Edit existing organization
 - Organization types: Production, Sound, Lighting, Staging, Rentals, Venue, Act, Agency
 - Basic fields: name, type, url, phone, description, notes
@@ -171,7 +171,7 @@
 2. **Edit organization**: Admin Orgs screen → Select org → Edit → Update → Save
 
 **Technical Details**:
-- Component: `CreateOrganizationScreen.tsx` (38.39 KB, 1,028 lines)
+- Component: `OrganizationScreen.tsx` (38.39 KB, 1,028 lines)
 - API Functions: `createOrganization`, `updateOrganization`
 - Database: `organizations` table
 
@@ -208,7 +208,7 @@
 **Status**: ✅ Implemented
 
 **Implemented Features**:
-- Create new gigs (CreateGigScreen.tsx)
+- Create new gigs (GigScreen.tsx)
 - Edit existing gigs (same component, edit mode)
 - Duplicate gigs functionality
 - Required fields: title, start date/time, end date/time, timezone
@@ -222,7 +222,7 @@
 3. **Duplicate gig**: Gig List → Select gig → Duplicate → Modify → Save
 
 **Technical Details**:
-- Component: `CreateGigScreen.tsx` (79.21 KB, 2,091 lines) - **largest component**
+- Component: `GigScreen.tsx` (79.21 KB, 2,091 lines) - **largest component**
 - API Functions: `createGig`, `updateGig`, `getGig`, `duplicateGig`
 - Database: `gigs`, `gig_status_history`
 - Form handling: react-hook-form + zod validation + useSimpleFormChanges
@@ -293,7 +293,7 @@
 **Status**: 🟡 Partial
 
 **Implemented Features**:
-- Create staff slots for gig (within CreateGigScreen)
+- Create staff slots for gig (within GigScreen)
 - Define role, required count, notes per slot
 - Assign users to slots
 - Track assignment status (Requested, Confirmed, Declined)
@@ -303,7 +303,7 @@
 2. **Assign staff**: Gig → Staff slot → Select user → Assign
 
 **Technical Details**:
-- Integrated in `CreateGigScreen.tsx` (staff slots management)
+- Integrated in `GigScreen.tsx` (staff slots management)
 - Component: `UserSelector.tsx` for user selection
 - API Functions: staff slot CRUD operations
 - Database: `gig_staff_slots`, `gig_staff_assignments`, `staff_roles`
@@ -325,12 +325,12 @@
 **Status**: ✅ Implemented
 
 **Implemented Features**:
-- Assign kits to gigs (within CreateGigScreen)
+- Assign kits to gigs (within GigScreen)
 - View assigned kits
 - Remove kit assignments
 
 **Technical Details**:
-- Integrated in `CreateGigScreen.tsx` (kit assignments section)
+- Integrated in `GigScreen.tsx` (kit assignments section)
 - API Functions: kit assignment CRUD operations
 - Database: `gig_kit_assignments`
 
@@ -381,7 +381,7 @@
 
 **Implemented Features**:
 - List assets (AssetListScreen.tsx)
-- Create new assets (CreateAssetScreen.tsx)
+- Create new assets (AssetScreen.tsx)
 - Edit existing assets
 - Required fields: organization_id, category, manufacturer/model
 - Optional fields: serial number, acquisition date, cost, replacement value, sub-category, vendor, type, description (Markdown), insurance policy flag
@@ -396,7 +396,7 @@
 **Technical Details**:
 - Components:
   - `AssetListScreen.tsx` (14.82 KB, 479 lines)
-  - `CreateAssetScreen.tsx` (23.56 KB, 646 lines)
+  - `AssetScreen.tsx` (23.56 KB, 646 lines)
 - API Functions: `createAsset`, `updateAsset`, `getAsset`, `getAssets`
 - Database: `assets` table with organization_id scoping
 - Serial number uniqueness enforced per organization
@@ -415,7 +415,7 @@
 
 **Implemented Features**:
 - List kits (KitListScreen.tsx)
-- Create new kits (CreateKitScreen.tsx)
+- Create new kits (KitScreen.tsx)
 - Edit existing kits
 - View kit details (KitDetailScreen.tsx)
 - Add assets to kits
@@ -431,7 +431,7 @@
 **Technical Details**:
 - Components:
   - `KitListScreen.tsx` (13.79 KB, 437 lines)
-  - `CreateKitScreen.tsx` (25.26 KB, 738 lines)
+  - `KitScreen.tsx` (25.26 KB, 738 lines)
   - `KitDetailScreen.tsx` (10.38 KB, 331 lines)
 - API Functions: `createKit`, `updateKit`, `getKit`, `getKits`, kit-asset associations
 - Database: `kits`, `kit_assets` (many-to-many relationship)
@@ -784,7 +784,7 @@
 - **Planned refactoring**: Phase 3 will introduce generic CRUD operations
 
 ### Component Size
-- **Very large components**: CreateGigScreen (2,091 lines), CreateOrganizationScreen (1,028 lines)
+- **Very large components**: GigScreen (2,091 lines), OrganizationScreen (1,028 lines)
 - **Planned refactoring**: Phase 6 will split large components
 
 ### Testing

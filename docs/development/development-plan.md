@@ -47,7 +47,7 @@ See [Feature Catalog](../product/feature-catalog.md) for detailed feature status
 
 **Component Sizes**:
 - Average component: 143 lines
-- Largest component: `CreateGigScreen.tsx` (2,091 lines)
+- Largest component: `GigScreen.tsx` (2,091 lines)
 - Components >1000 lines: 4 (require refactoring)
 
 **API Layer**:
@@ -123,21 +123,21 @@ This section provides comprehensive refactoring guidance with detailed task trac
 
 **Key Achievements**:
 - Created simplified `useSimpleFormChanges.ts` hook (~200 lines, replacing 232-line `useFormWithChanges.ts`)
-- Migrated 6 form components to use new hook: CreateGigScreen, CreateAssetScreen, CreateKitScreen, CreateOrganizationScreen, UserProfileCompletionScreen, EditUserProfileDialog
+- Migrated 6 form components to use new hook: GigScreen, AssetScreen, KitScreen, OrganizationScreen, UserProfileCompletionScreen, EditUserProfileDialog
 - Removed complex deep equality checking and ref patterns
 - Leverages react-hook-form's built-in `isDirty` for form field changes
 - Simple reference comparison for nested data (arrays, objects)
 - All functionality preserved with simpler, more maintainable code
 - **Bug Fix (2026-01-19)**: Fixed `hasAnyChanges` calculation to properly use `form.formState.isDirty` instead of shallow comparison, resolving false positives with Date and array fields
 - Added comprehensive tests (9 new tests) covering Date fields, array fields, and nested data changes
-- **Final Fix (2026-01-20)**: Implemented Option 1 - disabled change detection for Submit button in edit mode, removed `useSimpleFormChanges` from CreateGigScreen
+- **Final Fix (2026-01-20)**: Implemented Option 1 - disabled change detection for Submit button in edit mode, removed `useSimpleFormChanges` from GigScreen
 
 **Technical Improvements**:
 - Eliminated `setTimeout` hacks for change detection
 - Removed complex `currentData` merging logic
 - Cleaner API with `hasChanges` boolean and `changedFields` object
 - Better TypeScript support with generic types
-- Removed fragile change detection logic from CreateGigScreen entirely
+- Removed fragile change detection logic from GigScreen entirely
 
 **Lessons Learned**:
 - react-hook-form's built-in features are sufficient for most use cases
@@ -150,7 +150,7 @@ This section provides comprehensive refactoring guidance with detailed task trac
 
 **What We Actually Did (Option 1)**:
 - ✅ Disabled Submit button change detection: `disabled={isSubmitting}` (always enabled in edit mode)
-- ✅ Removed `useSimpleFormChanges` hook import and usage from CreateGigScreen
+- ✅ Removed `useSimpleFormChanges` hook import and usage from GigScreen
 - ✅ Replaced with simple `useState` for `originalData` (used only for efficient partial updates)
 - ✅ Kept efficient partial update logic (only changed form fields sent to API)
 - ✅ All tests pass (66 tests)
@@ -183,7 +183,7 @@ This section provides comprehensive refactoring guidance with detailed task trac
 
 **What Changed (2026-01-20)**:
 - ✅ Implemented Option 1 (disabled change detection for Submit button in edit mode)
-- ✅ Removed `useSimpleFormChanges` from CreateGigScreen
+- ✅ Removed `useSimpleFormChanges` from GigScreen
 - Identified fundamental architectural issues requiring comprehensive refactor
 - Decided to adopt modern auto-save pattern instead of Submit buttons in edit mode
 
@@ -192,7 +192,7 @@ This section provides comprehensive refactoring guidance with detailed task trac
 ## Current Problems
 
 **Architecture Issues**:
-1. **Monolithic Component**: CreateGigScreen is 2,078 lines (unmaintainable)
+1. **Monolithic Component**: GigScreen is 2,078 lines (unmaintainable)
 2. **Hybrid State Management**: Form fields in react-hook-form, nested data in useState
 3. **Poor UX**: Can't save partial progress, must scroll to find Submit, lose work on validation errors
 4. **Inconsistent Save Patterns**: 4 different approaches for nested data (participants, staff, bids, kits)
@@ -218,7 +218,7 @@ This section provides comprehensive refactoring guidance with detailed task trac
 
 ```tsx
 // Create mode: Keep single form with Submit (works fine)
-<CreateGigForm onSubmit={handleCreate} />
+<GigForm onSubmit={handleCreate} />
 
 // Edit mode: Separate auto-saving sections
 <div>
@@ -379,7 +379,7 @@ Phase 2A is broken into 4 sub-phases (each ~2-3 days, manageable for AI agents):
 
 ### Phase 2A-1: Component Separation & Navigation
 
-**Goal**: Break monolithic CreateGigScreen into separate components, add modern navigation
+**Goal**: Break monolithic GigScreen into separate components, add modern navigation
 
 **Status**: ⏸️ Pending
 
@@ -391,7 +391,7 @@ Phase 2A is broken into 4 sub-phases (each ~2-3 days, manageable for AI agents):
   - [ ] `GigStaffSlotsSection.tsx` - Staff roles and assignments
   - [ ] `GigKitAssignmentsSection.tsx` - Kit assignments
   - [ ] `GigBidsSection.tsx` - Organization bids
-- [ ] Refactor CreateGigScreen layout
+- [ ] Refactor GigScreen layout
   - [ ] Keep single form for create mode (no changes needed)
   - [ ] Use section components for edit mode
   - [ ] Add GigHeader with back button and dropdown menu
@@ -536,7 +536,7 @@ Phase 2A is broken into 4 sub-phases (each ~2-3 days, manageable for AI agents):
   - [ ] May need to update Supabase Edge Functions for reconciliation logic
   - [ ] Or keep in `api.tsx` client-side (current approach)
 - [ ] Remove old client-side differential logic
-  - [ ] Remove individual create/update/delete loops from CreateGigScreen
+  - [ ] Remove individual create/update/delete loops from GigScreen
   - [ ] Replace with single API call per nested data type
 - [ ] Tests
   - [ ] Test adding new items
@@ -560,10 +560,10 @@ Phase 2A is broken into 4 sub-phases (each ~2-3 days, manageable for AI agents):
 
 ## Affected Forms
 
-**Primary focus**: `CreateGigScreen.tsx` (2,078 lines → ~1,200 lines + 5 new components)
+**Primary focus**: `GigScreen.tsx` (2,078 lines → ~1,200 lines + 5 new components)
 
-**Also consider** (after CreateGigScreen proves pattern):
-- `CreateKitScreen.tsx` (739 lines) - kitAssets section with auto-save
+**Also consider** (after GigScreen proves pattern):
+- `KitScreen.tsx` (739 lines) - kitAssets section with auto-save
 - Other forms can keep current architecture (simpler, no nested data)
 
 ---
@@ -571,7 +571,7 @@ Phase 2A is broken into 4 sub-phases (each ~2-3 days, manageable for AI agents):
 ## Success Criteria
 
 **Architecture**:
-- [x] CreateGigScreen broken into manageable components (<500 lines each)
+- [x] GigScreen broken into manageable components (<500 lines each)
 - [ ] All nested data uses useFieldArray
 - [ ] All nested data uses server-side reconciliation (consistent pattern)
 - [ ] No hybrid state management (useState + useForm)
@@ -884,10 +884,10 @@ type Route =
 **Overview**: Break down 2000+ line components into smaller, focused components.
 
 **Current State**:
-- CreateGigScreen.tsx: 2,091 lines
+- GigScreen.tsx: 2,091 lines
 - GigListScreen.tsx: 1,021 lines
 - TeamScreen.tsx: 1,034 lines
-- CreateOrganizationScreen.tsx: 1,028 lines
+- OrganizationScreen.tsx: 1,028 lines
 
 **Target State**:
 - Largest component: <500 lines
@@ -896,7 +896,7 @@ type Route =
 
 **Components Requiring Refactoring** (>1000 lines):
 
-1. **CreateGigScreen.tsx** - 2,091 lines
+1. **GigScreen.tsx** - 2,091 lines
    - Current structure: Single monolithic component
    - Candidate sections for extraction:
      - Staff slots management (~300 lines)
@@ -920,7 +920,7 @@ type Route =
      - Invitation form component
      - Role management component
 
-4. **CreateOrganizationScreen.tsx** - 1,028 lines
+4. **OrganizationScreen.tsx** - 1,028 lines
    - Current structure: Organization form with multiple sections
    - Candidate sections:
      - Organization details form
@@ -941,7 +941,7 @@ type Route =
 **Goal**: Break down large components into smaller, focused components
 
 **Implementation Tasks**:
-- [ ] Split `CreateGigScreen.tsx` (2,091 lines):
+- [ ] Split `GigScreen.tsx` (2,091 lines):
   - [ ] Extract `GigStaffSlotsManager.tsx` component
   - [ ] Extract `GigParticipantsManager.tsx` component
   - [ ] Extract `GigKitAssignments.tsx` component
@@ -955,7 +955,7 @@ type Route =
   - [ ] Extract `TeamMemberList.tsx` component
   - [ ] Extract `TeamInvitationForm.tsx` component
   - [ ] Extract `TeamMemberRoleManager.tsx` component
-- [ ] Split `CreateOrganizationScreen.tsx` (1,028 lines):
+- [ ] Split `OrganizationScreen.tsx` (1,028 lines):
   - [ ] Extract `OrganizationDetailsForm.tsx` component
   - [ ] Extract `OrganizationAddressForm.tsx` component
   - [ ] Extract `OrganizationSettingsPanel.tsx` component

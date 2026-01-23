@@ -29,7 +29,7 @@ These workflows cover how users receive notifications about invitations, gig ass
 6. User receives confirmation email: "You've joined [Organization Name]"
 
 **Staff Assignment Email:**
-1. Manager assigns staff to gig slot (CreateGigScreen → Staff Slots section)
+1. Manager assigns staff to gig slot (GigScreen → Staff Slots section)
 2. System sends email to assigned staff member:
    - Subject: "You've been assigned to [Gig Title]"
    - Body: Gig details (date, time, venue, role, notes)

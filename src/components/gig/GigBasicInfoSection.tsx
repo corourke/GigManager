@@ -1,18 +1,19 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useForm, Controller } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { format } from 'date-fns';
-import { toast } from 'sonner';
 import { Clock, DollarSign, Tag, AlertCircle } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
-import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import TagsInput from '../TagsInput';
 import MarkdownEditor from '../MarkdownEditor';
 import { getGig, updateGig } from '../../utils/api';
+import { useAutoSave } from '../../utils/hooks/useAutoSave';
+import SaveStateIndicator from './SaveStateIndicator';
+import { toast } from 'sonner';
 
 type GigStatus = 'DateHold' | 'Proposed' | 'Booked' | 'Completed' | 'Cancelled' | 'Settled';
 
@@ -90,9 +91,8 @@ interface GigBasicInfoSectionProps {
 
 export default function GigBasicInfoSection({ gigId }: GigBasicInfoSectionProps) {
   const [isLoading, setIsLoading] = useState(true);
-  const [isSaving, setIsSaving] = useState(false);
 
-  const { control, handleSubmit, formState: { errors }, setValue, watch } = useForm<BasicInfoFormData>({
+  const { control, handleSubmit, formState: { errors, isDirty }, setValue, watch, reset } = useForm<BasicInfoFormData>({
     resolver: zodResolver(basicInfoSchema),
     defaultValues: {
       title: '',
@@ -106,36 +106,9 @@ export default function GigBasicInfoSection({ gigId }: GigBasicInfoSectionProps)
     },
   });
 
-  const formValues = watch();
-
-  useEffect(() => {
-    loadGigData();
-  }, [gigId]);
-
-  const loadGigData = async () => {
-    setIsLoading(true);
-    try {
-      const gig = await getGig(gigId);
-
-      setValue('title', gig.title || '');
-      setValue('start_time', gig.start ? new Date(gig.start) : undefined);
-      setValue('end_time', gig.end ? new Date(gig.end) : undefined);
-      setValue('timezone', gig.timezone || 'America/Los_Angeles');
-      setValue('status', gig.status || 'DateHold');
-      setValue('tags', gig.tags || []);
-      setValue('notes', gig.notes || '');
-      setValue('amount_paid', gig.amount_paid ? gig.amount_paid.toString() : '');
-    } catch (error: any) {
-      console.error('Error loading gig data:', error);
-      toast.error(error.message || 'Failed to load gig data');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const onSave = async (data: BasicInfoFormData) => {
-    setIsSaving(true);
-    try {
+  const { saveState, triggerSave } = useAutoSave<BasicInfoFormData>({
+    gigId,
+    onSave: async (data) => {
       await updateGig(gigId, {
         title: data.title,
         start: data.start_time?.toISOString(),
@@ -146,12 +119,46 @@ export default function GigBasicInfoSection({ gigId }: GigBasicInfoSectionProps)
         notes: data.notes,
         amount_paid: data.amount_paid ? parseFloat(data.amount_paid) : null,
       });
-      toast.success('Basic info saved');
+    }
+  });
+
+  const formValues = watch();
+
+  useEffect(() => {
+    if (isDirty) {
+      // Validate before triggering auto-save
+      const isValid = Object.keys(errors).length === 0;
+      if (isValid) {
+        triggerSave(formValues);
+      }
+    }
+  }, [formValues, isDirty, errors, triggerSave]);
+
+  useEffect(() => {
+    loadGigData();
+  }, [gigId]);
+
+  const loadGigData = async () => {
+    setIsLoading(true);
+    try {
+      const gig = await getGig(gigId);
+
+      const data = {
+        title: gig.title || '',
+        start_time: gig.start ? new Date(gig.start) : undefined,
+        end_time: gig.end ? new Date(gig.end) : undefined,
+        timezone: gig.timezone || 'America/Los_Angeles',
+        status: gig.status || 'DateHold',
+        tags: gig.tags || [],
+        notes: gig.notes || '',
+        amount_paid: gig.amount_paid ? gig.amount_paid.toString() : '',
+      };
+      reset(data);
     } catch (error: any) {
-      console.error('Error saving basic info:', error);
-      toast.error(error.message || 'Failed to save basic info');
+      console.error('Error loading gig data:', error);
+      toast.error(error.message || 'Failed to load gig data');
     } finally {
-      setIsSaving(false);
+      setIsLoading(false);
     }
   };
 
@@ -169,221 +176,208 @@ export default function GigBasicInfoSection({ gigId }: GigBasicInfoSectionProps)
   }
 
   return (
-    <form onSubmit={handleSubmit(onSave)}>
-      <Card className="mb-6">
-        <CardHeader>
-          <CardTitle>Basic Information</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-6">
-            <div className="space-y-2">
-              <Label htmlFor="title">
-                Gig Title <span className="text-red-500">*</span>
-              </Label>
-              <Controller
-                name="title"
-                control={control}
-                render={({ field }) => (
-                  <Input
-                    {...field}
-                    id="title"
-                    placeholder="Enter gig title"
-                    className={errors.title ? 'border-red-500' : ''}
-                    disabled={isSaving}
-                  />
-                )}
-              />
-              {errors.title && (
-                <p className="text-sm text-red-600 flex items-center gap-1">
-                  <AlertCircle className="w-4 h-4" />
-                  {errors.title.message}
-                </p>
+    <Card className="mb-6">
+      <CardHeader className="flex flex-row items-center justify-between">
+        <CardTitle>Basic Information</CardTitle>
+        <SaveStateIndicator state={saveState} />
+      </CardHeader>
+      <CardContent>
+        <div className="space-y-6">
+          <div className="space-y-2">
+            <Label htmlFor="title">
+              Gig Title <span className="text-red-500">*</span>
+            </Label>
+            <Controller
+              name="title"
+              control={control}
+              render={({ field }) => (
+                <Input
+                  {...field}
+                  id="title"
+                  placeholder="Enter gig title"
+                  className={errors.title ? 'border-red-500' : ''}
+                />
               )}
-            </div>
+            />
+            {errors.title && (
+              <p className="text-sm text-red-600 flex items-center gap-1">
+                <AlertCircle className="w-4 h-4" />
+                {errors.title.message}
+              </p>
+            )}
+          </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="start_time">
-                  Start Date/Time <span className="text-red-500">*</span>
-                </Label>
-                <div className="relative">
-                  <Clock className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                  <Controller
-                    name="start_time"
-                    control={control}
-                    render={({ field }) => (
-                      <Input
-                        id="start_time"
-                        type="datetime-local"
-                        value={field.value ? format(field.value, "yyyy-MM-dd'T'HH:mm") : ''}
-                        onChange={(e) => field.onChange(e.target.value ? new Date(e.target.value) : undefined)}
-                        className={`pl-9 ${errors.start_time ? 'border-red-500' : ''}`}
-                        disabled={isSaving}
-                      />
-                    )}
-                  />
-                </div>
-                {errors.start_time && (
-                  <p className="text-sm text-red-600 flex items-center gap-1">
-                    <AlertCircle className="w-4 h-4" />
-                    {errors.start_time.message}
-                  </p>
-                )}
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="end_time">
-                  End Date/Time <span className="text-red-500">*</span>
-                </Label>
-                <div className="relative">
-                  <Clock className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                  <Controller
-                    name="end_time"
-                    control={control}
-                    render={({ field }) => (
-                      <Input
-                        id="end_time"
-                        type="datetime-local"
-                        value={field.value ? format(field.value, "yyyy-MM-dd'T'HH:mm") : ''}
-                        onChange={(e) => field.onChange(e.target.value ? new Date(e.target.value) : undefined)}
-                        className={`pl-9 ${errors.end_time ? 'border-red-500' : ''}`}
-                        disabled={isSaving}
-                      />
-                    )}
-                  />
-                </div>
-                {errors.end_time && (
-                  <p className="text-sm text-red-600 flex items-center gap-1">
-                    <AlertCircle className="w-4 h-4" />
-                    {errors.end_time.message}
-                  </p>
-                )}
-              </div>
-            </div>
-
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="timezone">
-                Timezone <span className="text-red-500">*</span>
-              </Label>
-              <Controller
-                name="timezone"
-                control={control}
-                render={({ field }) => (
-                  <Select value={field.value} onValueChange={field.onChange} disabled={isSaving}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select timezone" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {TIMEZONES.map((tz) => (
-                        <SelectItem key={tz.value} value={tz.value}>
-                          {tz.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                )}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="status">
-                Status <span className="text-red-500">*</span>
-              </Label>
-              <Controller
-                name="status"
-                control={control}
-                render={({ field }) => (
-                  <Select value={field.value} onValueChange={field.onChange} disabled={isSaving}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select status" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {STATUS_OPTIONS.map((status) => (
-                        <SelectItem key={status.value} value={status.value}>
-                          {status.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                )}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="tags">Tags</Label>
-              <Controller
-                name="tags"
-                control={control}
-                render={({ field }) => (
-                  <TagsInput
-                    value={field.value || []}
-                    onChange={field.onChange}
-                    suggestions={SUGGESTED_TAGS}
-                    placeholder="Add tags to categorize this gig..."
-                    disabled={isSaving}
-                  />
-                )}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="notes">Notes</Label>
-              <Controller
-                name="notes"
-                control={control}
-                render={({ field }) => (
-                  <MarkdownEditor
-                    value={field.value || ''}
-                    onChange={field.onChange}
-                    placeholder="Add notes about this gig..."
-                    disabled={isSaving}
-                  />
-                )}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="amount_paid">
-                <DollarSign className="inline w-4 h-4 mr-1" />
-                Amount Paid
+              <Label htmlFor="start_time">
+                Start Date/Time <span className="text-red-500">*</span>
               </Label>
               <div className="relative">
-                <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500">
-                  $
-                </span>
+                <Clock className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
                 <Controller
-                  name="amount_paid"
+                  name="start_time"
                   control={control}
                   render={({ field }) => (
                     <Input
-                      {...field}
-                      id="amount_paid"
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      placeholder="0.00"
-                      className={`pl-7 ${errors.amount_paid ? 'border-red-500' : ''}`}
-                      disabled={isSaving}
+                      id="start_time"
+                      type="datetime-local"
+                      value={field.value ? format(field.value, "yyyy-MM-dd'T'HH:mm") : ''}
+                      onChange={(e) => field.onChange(e.target.value ? new Date(e.target.value) : undefined)}
+                      className={`pl-9 ${errors.start_time ? 'border-red-500' : ''}`}
                     />
                   )}
                 />
               </div>
-              {errors.amount_paid && (
+              {errors.start_time && (
                 <p className="text-sm text-red-600 flex items-center gap-1">
                   <AlertCircle className="w-4 h-4" />
-                  {errors.amount_paid.message}
+                  {errors.start_time.message}
                 </p>
               )}
             </div>
 
-            <div className="flex justify-end">
-              <Button type="submit" disabled={isSaving}>
-                {isSaving ? 'Saving...' : 'Save'}
-              </Button>
+            <div className="space-y-2">
+              <Label htmlFor="end_time">
+                End Date/Time <span className="text-red-500">*</span>
+              </Label>
+              <div className="relative">
+                <Clock className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <Controller
+                  name="end_time"
+                  control={control}
+                  render={({ field }) => (
+                    <Input
+                      id="end_time"
+                      type="datetime-local"
+                      value={field.value ? format(field.value, "yyyy-MM-dd'T'HH:mm") : ''}
+                      onChange={(e) => field.onChange(e.target.value ? new Date(e.target.value) : undefined)}
+                      className={`pl-9 ${errors.end_time ? 'border-red-500' : ''}`}
+                    />
+                  )}
+                />
+              </div>
+              {errors.end_time && (
+                <p className="text-sm text-red-600 flex items-center gap-1">
+                  <AlertCircle className="w-4 h-4" />
+                  {errors.end_time.message}
+                </p>
+              )}
             </div>
           </div>
-        </CardContent>
-      </Card>
-    </form>
+
+          <div className="space-y-2">
+            <Label htmlFor="timezone">
+              Timezone <span className="text-red-500">*</span>
+            </Label>
+            <Controller
+              name="timezone"
+              control={control}
+              render={({ field }) => (
+                <Select value={field.value} onValueChange={field.onChange}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select timezone" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {TIMEZONES.map((tz) => (
+                      <SelectItem key={tz.value} value={tz.value}>
+                        {tz.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="status">
+              Status <span className="text-red-500">*</span>
+            </Label>
+            <Controller
+              name="status"
+              control={control}
+              render={({ field }) => (
+                <Select value={field.value} onValueChange={field.onChange}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {STATUS_OPTIONS.map((status) => (
+                      <SelectItem key={status.value} value={status.value}>
+                        {status.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="tags">Tags</Label>
+            <Controller
+              name="tags"
+              control={control}
+              render={({ field }) => (
+                <TagsInput
+                  value={field.value || []}
+                  onChange={field.onChange}
+                  suggestions={SUGGESTED_TAGS}
+                  placeholder="Add tags to categorize this gig..."
+                />
+              )}
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="notes">Notes</Label>
+            <Controller
+              name="notes"
+              control={control}
+              render={({ field }) => (
+                <MarkdownEditor
+                  value={field.value || ''}
+                  onChange={field.onChange}
+                  placeholder="Add notes about this gig..."
+                />
+              )}
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="amount_paid">
+              <DollarSign className="inline w-4 h-4 mr-1" />
+              Amount Paid
+            </Label>
+            <div className="relative">
+              <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500">
+                $
+              </span>
+              <Controller
+                name="amount_paid"
+                control={control}
+                render={({ field }) => (
+                  <Input
+                    {...field}
+                    id="amount_paid"
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    placeholder="0.00"
+                    className={`pl-7 ${errors.amount_paid ? 'border-red-500' : ''}`}
+                  />
+                )}
+              />
+            </div>
+            {errors.amount_paid && (
+              <p className="text-sm text-red-600 flex items-center gap-1">
+                <AlertCircle className="w-4 h-4" />
+                {errors.amount_paid.message}
+              </p>
+            )}
+          </div>
+        </div>
+      </CardContent>
+    </Card>
   );
 }

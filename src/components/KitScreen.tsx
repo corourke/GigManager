@@ -30,7 +30,7 @@ import { getKit, createKit, updateKit, getAssets } from '../utils/api';
 import type { DbAsset } from '../utils/supabase/types';
 import { useAutocompleteSuggestions } from '../utils/hooks/useAutocompleteSuggestions';
 
-interface CreateKitScreenProps {
+interface KitScreenProps {
   organization: Organization;
   user: User;
   userRole?: UserRole;
@@ -58,7 +58,7 @@ interface KitAsset {
   quantity: number;
 }
 
-export default function CreateKitScreen({
+export default function KitScreen({
   organization,
   user,
   userRole,
@@ -68,7 +68,7 @@ export default function CreateKitScreen({
   onKitUpdated,
   onSwitchOrganization,
   onLogout,
-}: CreateKitScreenProps) {
+}: KitScreenProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [formData, setFormData] = useState<FormData>({

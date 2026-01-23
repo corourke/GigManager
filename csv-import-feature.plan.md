@@ -8,12 +8,12 @@ Standardize all frontend forms to use the existing `createSubmissionPayload` hel
 
 ### Frontend Forms with Repetitive Change Detection Code:
 
-1. **CreateOrganizationScreen** - 12 fields, ~36 lines of manual if statements
-2. **CreateGigScreen** - 8 fields, ~24 lines of manual if statements
-3. **CreateKitScreen** - 6 fields, ~18 lines of manual if statements
+1. **OrganizationScreen** - 12 fields, ~36 lines of manual if statements
+2. **GigScreen** - 8 fields, ~24 lines of manual if statements
+3. **KitScreen** - 6 fields, ~18 lines of manual if statements
 4. **EditUserProfileDialog** - 10 fields, ~30 lines of manual if statements
 5. **UserProfileCompletionScreen** - 9 fields, ~27 lines of manual if statements
-6. **CreateAssetScreen** - Already uses `createSubmissionPayload` ✅
+6. **AssetScreen** - Already uses `createSubmissionPayload` ✅
 
 **Total frontend code to eliminate: ~135 lines**
 
@@ -23,7 +23,7 @@ Standardize all frontend forms to use the existing `createSubmissionPayload` hel
   - Normalization (nulls, empty strings, trimming)
   - Deep comparison for arrays/objects
   - Returns only changed fields
-  - Used successfully in CreateAssetScreen
+  - Used successfully in AssetScreen
 
 ### Backend Current State:
 
@@ -164,7 +164,7 @@ Some forms may need special handling:
 1. **Consistency** - All forms use same change detection logic
 2. **Maintainability** - Single helper function to maintain
 3. **Less code** - Eliminate repetitive if statements
-4. **Proven pattern** - Already working in CreateAssetScreen
+4. **Proven pattern** - Already working in AssetScreen
 5. **Frontend-only change detection** - No backend complexity needed
 6. **Performance** - Prevents unnecessary database writes
 7. **Database efficiency** - Only updates changed columns
@@ -173,12 +173,12 @@ Some forms may need special handling:
 ## Implementation Order
 
 ### Phase 1: Frontend Standardization
-1. Update CreateOrganizationScreen to use `createSubmissionPayload` (12 fields)
-2. Update CreateGigScreen to use helper (8 fields)
-3. Update CreateKitScreen to use helper (6 fields)
+1. Update OrganizationScreen to use `createSubmissionPayload` (12 fields)
+2. Update GigScreen to use helper (8 fields)
+3. Update KitScreen to use helper (6 fields)
 4. Update EditUserProfileDialog to use helper (10 fields)
 5. Update UserProfileCompletionScreen to use helper (9 fields)
-6. Verify CreateAssetScreen already uses helper correctly (no changes needed)
+6. Verify AssetScreen already uses helper correctly (no changes needed)
 
 ### Phase 2: Backend Simplification
 7. Update organizations edge function endpoint to accept partial updates
@@ -242,18 +242,18 @@ describe('createSubmissionPayload', () => {
 
 #### Form Component Tests
 
-**CreateOrganizationScreen.test.tsx** (NEW FILE):
+**OrganizationScreen.test.tsx** (NEW FILE):
 - Test that only changed fields are sent in edit mode
 - Test that all fields are sent in create mode
 - Test normalization (trimming, empty strings to null)
 - Test submit button disabled when no changes
 
-**CreateGigScreen.test.tsx** (NEW FILE):
+**GigScreen.test.tsx** (NEW FILE):
 - Test partial updates for gig fields
 - Test nested participants handling
 - Test nested staff_slots handling
 
-**CreateKitScreen.test.tsx** (NEW FILE):
+**KitScreen.test.tsx** (NEW FILE):
 - Test partial updates for kit fields
 - Test nested assets handling
 
@@ -459,17 +459,17 @@ describe('Database Partial Updates', () => {
 
 ### Frontend Changes
 
-#### CreateOrganizationScreen.tsx
+#### OrganizationScreen.tsx
 - Replace lines 492-604 (manual field checking) with `createSubmissionPayload` call
 - Use `normalizeFormData` before calling helper
 - Ensure `changeDetection.originalData` is properly set
 
-#### CreateGigScreen.tsx
+#### GigScreen.tsx
 - Replace manual field checking with `createSubmissionPayload`
 - Handle nested `participants` and `staff_slots` separately (always send if provided)
 - Use `createSubmissionPayload` for basic gig fields only
 
-#### CreateKitScreen.tsx
+#### KitScreen.tsx
 - Replace lines 308-325 (manual field checking) with `createSubmissionPayload`
 - Handle nested `assets` separately (always send if provided)
 - Use `createSubmissionPayload` for basic kit fields only

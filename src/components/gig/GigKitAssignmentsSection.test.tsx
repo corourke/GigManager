@@ -82,11 +82,11 @@ describe('GigKitAssignmentsSection', () => {
     });
   });
 
-  it('renders save button', async () => {
+  it('does not render manual save button', async () => {
     render(<GigKitAssignmentsSection {...mockProps} />);
     
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: /save/i })).toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: /save/i })).not.toBeInTheDocument();
     });
   });
 });

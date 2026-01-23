@@ -68,7 +68,7 @@ Generates a coverage report showing which parts of your code are covered by test
 
 ```bash
 npm run test:run -- src/utils/form-utils.test.ts
-npm run test:run -- src/components/CreateGigScreen.test.tsx
+npm run test:run -- src/components/GigScreen.test.tsx
 ```
 
 You can specify individual test files or use patterns to run multiple files.
@@ -172,9 +172,9 @@ The project aims for good test coverage of:
 - **12 API tests** (`api.test.ts`) - Error-checking tests ensuring API functions don't throw
 - **8 component tests** - Minimal error-checking tests ensuring components render without errors
   - `App.test.tsx` (2 tests)
-  - `CreateGigScreen.test.tsx` (2 tests)
-  - `CreateAssetScreen.test.tsx` (2 tests)
-  - `CreateKitScreen.test.tsx` (2 tests)
+  - `GigScreen.test.tsx` (2 tests)
+  - `AssetScreen.test.tsx` (2 tests)
+  - `KitScreen.test.tsx` (2 tests)
 
 **Total: 53 tests passing, 0 failures**
 

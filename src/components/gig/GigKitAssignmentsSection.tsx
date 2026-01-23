@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { toast } from 'sonner';
 import { createClient } from '../../utils/supabase/client';
 import { Info, Loader2, Package, Save, Trash2 } from 'lucide-react';
@@ -8,6 +8,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '../ui/dialog';
 import { getGigKits, assignKitToGig, removeKitFromGig, getKits } from '../../utils/api';
+import { useAutoSave } from '../../utils/hooks/useAutoSave';
+import SaveStateIndicator from './SaveStateIndicator';
 
 interface Kit {
   id: string;
@@ -35,17 +37,52 @@ export default function GigKitAssignmentsSection({
   currentOrganizationId,
 }: GigKitAssignmentsSectionProps) {
   const [isLoading, setIsLoading] = useState(true);
-  const [isSaving, setIsSaving] = useState(false);
   const [kitAssignments, setKitAssignments] = useState<KitAssignment[]>([]);
   const [availableKits, setAvailableKits] = useState<Kit[]>([]);
   const [showKitDetails, setShowKitDetails] = useState<KitAssignment | null>(null);
 
+  const { saveState, triggerSave } = useAutoSave<KitAssignment[]>({
+    onSave: async (currentAssignments) => {
+      const supabase = createClient();
+      const { data: existingAssignments } = await supabase
+        .from('gig_kit_assignments')
+        .select(`
+          *,
+          kit:kits(
+            organization_id
+          )
+        `)
+        .eq('gig_id', gigId);
+
+      const organizationAssignments = existingAssignments?.filter(
+        (a: any) => a.kit?.organization_id === currentOrganizationId
+      ) || [];
+
+      // Add new assignments
+      for (const assignment of currentAssignments) {
+        if (!isDbId(assignment.id)) {
+          await assignKitToGig(gigId, assignment.kit_id, currentOrganizationId, assignment.notes || null);
+        }
+      }
+
+      // Remove deleted assignments
+      const currentKitIds = currentAssignments.map(a => a.kit_id);
+      for (const existingAssignment of organizationAssignments) {
+        if (!currentKitIds.includes(existingAssignment.kit_id)) {
+          await removeKitFromGig(existingAssignment.id);
+        }
+      }
+
+      await loadKitsData(false);
+    }
+  });
+
   useEffect(() => {
-    loadKitsData();
+    loadKitsData(true);
   }, [gigId]);
 
-  const loadKitsData = async () => {
-    setIsLoading(true);
+  const loadKitsData = async (showLoading = true) => {
+    if (showLoading) setIsLoading(true);
     try {
       const [assignmentsData, kitsData] = await Promise.all([
         getGigKits(gigId),
@@ -74,7 +111,7 @@ export default function GigKitAssignmentsSection({
       console.error('Error loading kits:', error);
       toast.error('Failed to load kits');
     } finally {
-      setIsLoading(false);
+      if (showLoading) setIsLoading(false);
     }
   };
 
@@ -97,11 +134,16 @@ export default function GigKitAssignmentsSection({
       notes: '',
       assigned_at: new Date().toISOString(),
     };
-    setKitAssignments([...kitAssignments, newAssignment]);
+    
+    const updatedAssignments = [...kitAssignments, newAssignment];
+    setKitAssignments(updatedAssignments);
+    triggerSave(updatedAssignments);
   };
 
   const handleRemoveKit = (assignmentId: string) => {
-    setKitAssignments(kitAssignments.filter(a => a.id !== assignmentId));
+    const updatedAssignments = kitAssignments.filter(a => a.id !== assignmentId);
+    setKitAssignments(updatedAssignments);
+    triggerSave(updatedAssignments);
   };
 
   const handleOpenKitDetails = (assignment: KitAssignment) => {
@@ -110,42 +152,6 @@ export default function GigKitAssignmentsSection({
 
   const isDbId = (id: string) => {
     return id.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
-  };
-
-  const handleSave = async () => {
-    setIsSaving(true);
-    try {
-      const supabase = createClient();
-      const { data: existingAssignments } = await supabase
-        .from('gig_kits')
-        .select('*')
-        .eq('gig_id', gigId);
-
-      const organizationAssignments = existingAssignments?.filter(
-        (a: any) => a.kit?.organization_id === currentOrganizationId
-      ) || [];
-
-      for (const assignment of kitAssignments) {
-        if (!isDbId(assignment.id)) {
-          await assignKitToGig(gigId, assignment.kit_id, assignment.notes || null);
-        }
-      }
-
-      const currentKitIds = kitAssignments.map(a => a.kit_id);
-      for (const existingAssignment of organizationAssignments) {
-        if (!currentKitIds.includes(existingAssignment.kit_id)) {
-          await removeKitFromGig(existingAssignment.id);
-        }
-      }
-
-      toast.success('Kit assignments saved');
-      await loadKitsData();
-    } catch (error: any) {
-      console.error('Error saving kit assignments:', error);
-      toast.error('Failed to save kit assignments');
-    } finally {
-      setIsSaving(false);
-    }
   };
 
   if (isLoading) {
@@ -166,13 +172,16 @@ export default function GigKitAssignmentsSection({
       <Card className="mb-6">
         <CardHeader>
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Package className="w-5 h-5 text-gray-600" />
-              <CardTitle>Equipment</CardTitle>
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-2">
+                <Package className="w-5 h-5 text-gray-600" />
+                <CardTitle>Equipment</CardTitle>
+              </div>
+              <SaveStateIndicator state={saveState} />
             </div>
             <Select
               onValueChange={handleAssignKit}
-              disabled={isSaving || availableKits.length === 0}
+              disabled={saveState === 'saving' || availableKits.length === 0}
             >
               <SelectTrigger className="w-64">
                 <SelectValue placeholder="Select kit to assign..." />
@@ -221,7 +230,7 @@ export default function GigKitAssignmentsSection({
                               variant="ghost"
                               size="sm"
                               onClick={() => handleOpenKitDetails(assignment)}
-                              disabled={isSaving}
+                              disabled={saveState === 'saving'}
                             >
                               <Info className="w-4 h-4" />
                             </Button>
@@ -230,7 +239,7 @@ export default function GigKitAssignmentsSection({
                               variant="ghost"
                               size="sm"
                               onClick={() => handleRemoveKit(assignment.id)}
-                              disabled={isSaving}
+                              disabled={saveState === 'saving'}
                               className="text-red-600"
                             >
                               <Trash2 className="w-4 h-4" />
@@ -249,12 +258,6 @@ export default function GigKitAssignmentsSection({
             {availableKits.length === 0 && (
               <p className="text-sm text-gray-500">No kits available to assign</p>
             )}
-            
-            <Button onClick={handleSave} disabled={isSaving}>
-              {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              <Save className="mr-2 h-4 w-4" />
-              Save
-            </Button>
           </div>
         </CardContent>
       </Card>

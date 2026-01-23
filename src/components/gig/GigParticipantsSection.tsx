@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { toast } from 'sonner';
 import { Building2, FileText, Loader2, Plus, Save, Trash2 } from 'lucide-react';
 import { Button } from '../ui/button';
@@ -10,6 +10,8 @@ import { Textarea } from '../ui/textarea';
 import OrganizationSelector from '../OrganizationSelector';
 import { getGig, updateGig } from '../../utils/api';
 import type { Organization, OrganizationType } from '../../App';
+import { useAutoSave } from '../../utils/hooks/useAutoSave';
+import SaveStateIndicator from './SaveStateIndicator';
 
 interface ParticipantData {
   id: string;
@@ -45,10 +47,32 @@ export default function GigParticipantsSection({
   currentOrganizationType,
 }: GigParticipantsSectionProps) {
   const [isLoading, setIsLoading] = useState(true);
-  const [isSaving, setIsSaving] = useState(false);
   const [participants, setParticipants] = useState<ParticipantData[]>([]);
   const [showParticipantNotes, setShowParticipantNotes] = useState<string | null>(null);
   const [currentParticipantNotes, setCurrentParticipantNotes] = useState('');
+
+  const { saveState, triggerSave } = useAutoSave<ParticipantData[]>({
+    gigId,
+    onSave: async (data) => {
+      const participantsData = data
+        .filter(p => p.organization_id && p.organization_id.trim() !== '' && p.role && p.role.trim() !== '')
+        .map(p => ({
+          id: p.id.startsWith('current-org') || !p.id.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i) ? undefined : p.id,
+          organization_id: p.organization_id,
+          role: p.role,
+          notes: p.notes || null,
+        }));
+
+      await updateGig(gigId, {
+        participants: participantsData,
+      });
+    }
+  });
+
+  const updateParticipantsAndSave = useCallback((newParticipants: ParticipantData[]) => {
+    setParticipants(newParticipants);
+    triggerSave(newParticipants);
+  }, [triggerSave]);
 
   useEffect(() => {
     loadParticipantsData();
@@ -108,11 +132,11 @@ export default function GigParticipantsSection({
       role: '',
       notes: '',
     };
-    setParticipants([...participants, newParticipant]);
+    updateParticipantsAndSave([...participants, newParticipant]);
   };
 
   const handleUpdateParticipant = (id: string, field: keyof ParticipantData, value: string) => {
-    setParticipants(participants.map(p => 
+    updateParticipantsAndSave(participants.map(p => 
       p.id === id ? { ...p, [field]: value } : p
     ));
   };
@@ -122,7 +146,7 @@ export default function GigParticipantsSection({
       toast.error('Cannot remove the current organization from participants');
       return;
     }
-    setParticipants(participants.filter(p => p.id !== id));
+    updateParticipantsAndSave(participants.filter(p => p.id !== id));
   };
 
   const handleOpenParticipantNotes = (id: string) => {
@@ -138,32 +162,6 @@ export default function GigParticipantsSection({
       handleUpdateParticipant(showParticipantNotes, 'notes', currentParticipantNotes);
       setShowParticipantNotes(null);
       setCurrentParticipantNotes('');
-    }
-  };
-
-  const handleSave = async () => {
-    setIsSaving(true);
-    try {
-      const participantsData = participants
-        .filter(p => p.organization_id && p.organization_id.trim() !== '' && p.role && p.role.trim() !== '')
-        .map(p => ({
-          id: p.id.startsWith('current-org') || !p.id.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i) ? undefined : p.id,
-          organization_id: p.organization_id,
-          role: p.role,
-          notes: p.notes || null,
-        }));
-
-      await updateGig(gigId, {
-        participants: participantsData,
-      });
-      
-      toast.success('Participants saved');
-      await loadParticipantsData();
-    } catch (error: any) {
-      console.error('Error saving participants:', error);
-      toast.error('Failed to save participants');
-    } finally {
-      setIsSaving(false);
     }
   };
 
@@ -183,128 +181,120 @@ export default function GigParticipantsSection({
   return (
     <>
       <Card className="mb-6">
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Building2 className="w-5 h-5 text-gray-600" />
-              <CardTitle>Participants</CardTitle>
-            </div>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={handleAddParticipant}
-              disabled={isSaving}
-            >
-              <Plus className="w-4 h-4 mr-1" />
-              Add Participant
-            </Button>
+      <CardHeader>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Building2 className="w-5 h-5 text-gray-600" />
+            <CardTitle>Participants</CardTitle>
+            <SaveStateIndicator state={saveState} />
           </div>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="w-[150px]">Role</TableHead>
-                    <TableHead>Organization</TableHead>
-                    <TableHead className="w-[100px]">Notes</TableHead>
-                    <TableHead className="w-[60px]"></TableHead>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={handleAddParticipant}
+          >
+            <Plus className="w-4 h-4 mr-1" />
+            Add Participant
+          </Button>
+        </div>
+      </CardHeader>
+      <CardContent>
+        <div className="space-y-4">
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-[150px]">Role</TableHead>
+                  <TableHead>Organization</TableHead>
+                  <TableHead className="w-[100px]">Notes</TableHead>
+                  <TableHead className="w-[60px]"></TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {participants.map((participant) => (
+                  <TableRow key={participant.id}>
+                    <TableCell>
+                      <Select
+                        value={participant.role}
+                        onValueChange={(value) => handleUpdateParticipant(participant.id, 'role', value)}
+                        disabled={participant.id === 'current-org'}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select role" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {ORGANIZATION_TYPES.map((type) => (
+                            <SelectItem key={type} value={type}>
+                              {type}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </TableCell>
+                    <TableCell>
+                      {participant.id === 'current-org' ? (
+                        <div className="text-sm text-gray-900 py-2">
+                          {participant.organization_name}
+                        </div>
+                      ) : (
+                        <OrganizationSelector
+                          onSelect={(org) => {
+                            if (org) {
+                              updateParticipantsAndSave(participants.map(p => 
+                                p.id === participant.id ? {
+                                  ...p,
+                                  organization_id: org.id,
+                                  organization_name: org.name,
+                                  organization: org,
+                                } : p
+                              ));
+                            } else {
+                              updateParticipantsAndSave(participants.map(p => 
+                                p.id === participant.id ? {
+                                  ...p,
+                                  organization_id: '',
+                                  organization_name: '',
+                                  organization: null,
+                                } : p
+                              ));
+                            }
+                          }}
+                          selectedOrganization={participant.organization || null}
+                          organizationType={participant.role ? participant.role as OrganizationType : undefined}
+                          placeholder="Search organizations..."
+                        />
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleOpenParticipantNotes(participant.id)}
+                      >
+                        <FileText className="w-4 h-4" />
+                      </Button>
+                    </TableCell>
+                    <TableCell>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleRemoveParticipant(participant.id)}
+                        disabled={participant.id === 'current-org'}
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </TableCell>
                   </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {participants.map((participant) => (
-                    <TableRow key={participant.id}>
-                      <TableCell>
-                        <Select
-                          value={participant.role}
-                          onValueChange={(value) => handleUpdateParticipant(participant.id, 'role', value)}
-                          disabled={isSaving || participant.id === 'current-org'}
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select role" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {ORGANIZATION_TYPES.map((type) => (
-                              <SelectItem key={type} value={type}>
-                                {type}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </TableCell>
-                      <TableCell>
-                        {participant.id === 'current-org' ? (
-                          <div className="text-sm text-gray-900 py-2">
-                            {participant.organization_name}
-                          </div>
-                        ) : (
-                          <OrganizationSelector
-                            onSelect={(org) => {
-                              if (org) {
-                                setParticipants(participants.map(p => 
-                                  p.id === participant.id ? {
-                                    ...p,
-                                    organization_id: org.id,
-                                    organization_name: org.name,
-                                    organization: org,
-                                  } : p
-                                ));
-                              } else {
-                                setParticipants(participants.map(p => 
-                                  p.id === participant.id ? {
-                                    ...p,
-                                    organization_id: '',
-                                    organization_name: '',
-                                    organization: null,
-                                  } : p
-                                ));
-                              }
-                            }}
-                            selectedOrganization={participant.organization || null}
-                            organizationType={participant.role ? participant.role as OrganizationType : undefined}
-                            placeholder="Search organizations..."
-                            disabled={isSaving}
-                          />
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleOpenParticipantNotes(participant.id)}
-                          disabled={isSaving}
-                        >
-                          <FileText className="w-4 h-4" />
-                        </Button>
-                      </TableCell>
-                      <TableCell>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleRemoveParticipant(participant.id)}
-                          disabled={isSaving || participant.id === 'current-org'}
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-            
-            <Button onClick={handleSave} disabled={isSaving}>
-              {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              <Save className="mr-2 h-4 w-4" />
-              Save
-            </Button>
+                ))}
+              </TableBody>
+            </Table>
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </CardContent>
+    </Card>
 
       <Dialog open={showParticipantNotes !== null} onOpenChange={(open) => {
         if (!open) {

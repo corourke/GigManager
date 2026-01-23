@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
 import { createClient } from '../../utils/supabase/client';
@@ -11,6 +11,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '../ui/dialog';
 import { Textarea } from '../ui/textarea';
 import { getGig, createGigBid, updateGigBid, deleteGigBid } from '../../utils/api';
+import { useAutoSave } from '../../utils/hooks/useAutoSave';
+import SaveStateIndicator from './SaveStateIndicator';
 
 interface BidData {
   id: string;
@@ -30,10 +32,68 @@ export default function GigBidsSection({
   currentOrganizationId,
 }: GigBidsSectionProps) {
   const [isLoading, setIsLoading] = useState(true);
-  const [isSaving, setIsSaving] = useState(false);
   const [bids, setBids] = useState<BidData[]>([]);
   const [showBidNotes, setShowBidNotes] = useState<string | null>(null);
   const [currentBidNotes, setCurrentBidNotes] = useState('');
+
+  const { saveState, triggerSave } = useAutoSave<BidData[]>({
+    gigId,
+    onSave: async (data) => {
+      const isDbId = (id: string) => {
+        return id.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
+      };
+
+      const createdBidIds: string[] = [];
+      
+      for (const bid of data) {
+        if (bid.date_given && bid.amount && bid.amount.trim() !== '') {
+          const bidData = {
+            gig_id: gigId,
+            organization_id: currentOrganizationId,
+            date_given: bid.date_given,
+            amount: parseFloat(bid.amount),
+            result: bid.result || null,
+            notes: bid.notes || null,
+          };
+
+          if (isDbId(bid.id)) {
+            await updateGigBid(bid.id, {
+              date_given: bidData.date_given,
+              amount: bidData.amount,
+              result: bidData.result,
+              notes: bidData.notes,
+            });
+          } else {
+            const createdBid = await createGigBid(bidData);
+            createdBidIds.push(createdBid.id);
+          }
+        }
+      }
+
+      const supabase = createClient();
+      const { data: existingBids } = await supabase
+        .from('gig_bids')
+        .select('id')
+        .eq('gig_id', gigId)
+        .eq('organization_id', currentOrganizationId);
+      
+      if (existingBids) {
+        const currentBidIds = [
+          ...data.filter(b => isDbId(b.id)).map(b => b.id),
+          ...createdBidIds
+        ];
+        const bidsToDelete = existingBids.filter((eb: any) => !currentBidIds.includes(eb.id));
+        for (const bidToDelete of bidsToDelete) {
+          await deleteGigBid(bidToDelete.id);
+        }
+      }
+    }
+  });
+
+  const updateBidsAndSave = useCallback((newBids: BidData[]) => {
+    setBids(newBids);
+    triggerSave(newBids);
+  }, [triggerSave]);
 
   useEffect(() => {
     loadBidsData();
@@ -77,17 +137,17 @@ export default function GigBidsSection({
       result: '',
       notes: '',
     };
-    setBids([...bids, newBid]);
+    updateBidsAndSave([...bids, newBid]);
   };
 
   const handleUpdateBid = (id: string, field: keyof BidData, value: string) => {
-    setBids(bids.map(b => 
+    updateBidsAndSave(bids.map(b => 
       b.id === id ? { ...b, [field]: value } : b
     ));
   };
 
   const handleRemoveBid = (id: string) => {
-    setBids(bids.filter(b => b.id !== id));
+    updateBidsAndSave(bids.filter(b => b.id !== id));
   };
 
   const handleOpenBidNotes = (id: string) => {
@@ -103,68 +163,6 @@ export default function GigBidsSection({
       handleUpdateBid(showBidNotes, 'notes', currentBidNotes);
       setShowBidNotes(null);
       setCurrentBidNotes('');
-    }
-  };
-
-  const isDbId = (id: string) => {
-    return id.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
-  };
-
-  const handleSave = async () => {
-    setIsSaving(true);
-    try {
-      const createdBidIds: string[] = [];
-      
-      for (const bid of bids) {
-        if (bid.date_given && bid.amount && bid.amount.trim() !== '') {
-          const bidData = {
-            gig_id: gigId,
-            organization_id: currentOrganizationId,
-            date_given: bid.date_given,
-            amount: parseFloat(bid.amount),
-            result: bid.result || null,
-            notes: bid.notes || null,
-          };
-
-          if (isDbId(bid.id)) {
-            await updateGigBid(bid.id, {
-              date_given: bidData.date_given,
-              amount: bidData.amount,
-              result: bidData.result,
-              notes: bidData.notes,
-            });
-          } else {
-            const createdBid = await createGigBid(bidData);
-            createdBidIds.push(createdBid.id);
-          }
-        }
-      }
-
-      const supabase = createClient();
-      const { data: existingBids } = await supabase
-        .from('gig_bids')
-        .select('id')
-        .eq('gig_id', gigId)
-        .eq('organization_id', currentOrganizationId);
-      
-      if (existingBids) {
-        const currentBidIds = [
-          ...bids.filter(b => isDbId(b.id)).map(b => b.id),
-          ...createdBidIds
-        ];
-        const bidsToDelete = existingBids.filter((eb: any) => !currentBidIds.includes(eb.id));
-        for (const bidToDelete of bidsToDelete) {
-          await deleteGigBid(bidToDelete.id);
-        }
-      }
-
-      toast.success('Bids saved');
-      await loadBidsData();
-    } catch (error: any) {
-      console.error('Error saving bids:', error);
-      toast.error('Failed to save bids');
-    } finally {
-      setIsSaving(false);
     }
   };
 
@@ -184,105 +182,94 @@ export default function GigBidsSection({
   return (
     <>
       <Card className="mb-6">
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <DollarSign className="w-5 h-5 text-gray-600" />
-              <CardTitle>Bids</CardTitle>
-            </div>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={handleAddBid}
-              disabled={isSaving}
-            >
-              <Plus className="w-4 h-4 mr-1" />
-              Add Bid
-            </Button>
+      <CardHeader>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <DollarSign className="w-5 h-5 text-gray-600" />
+            <CardTitle>Bids</CardTitle>
+            <SaveStateIndicator state={saveState} />
           </div>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            {bids.map((bid) => (
-              <div key={bid.id} className="border border-gray-200 rounded-lg overflow-hidden">
-                <div className="bg-gray-100 px-4 py-3 flex items-center justify-between">
-                  <div className="flex items-center gap-4 flex-1">
-                    <Label className="text-xs text-gray-600">Date Given:</Label>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={handleAddBid}
+          >
+            <Plus className="w-4 h-4 mr-1" />
+            Add Bid
+          </Button>
+        </div>
+      </CardHeader>
+      <CardContent>
+        <div className="space-y-4">
+          {bids.map((bid) => (
+            <div key={bid.id} className="border border-gray-200 rounded-lg overflow-hidden">
+              <div className="bg-gray-100 px-4 py-3 flex items-center justify-between">
+                <div className="flex items-center gap-4 flex-1">
+                  <Label className="text-xs text-gray-600">Date Given:</Label>
+                  <Input
+                    type="date"
+                    value={bid.date_given}
+                    onChange={(e) => handleUpdateBid(bid.id, 'date_given', e.target.value)}
+                    className="w-32 bg-white"
+                  />
+                  <Label className="text-xs text-gray-600">Amount:</Label>
+                  <div className="relative w-24">
+                    <span className="absolute left-2 top-1/2 transform -translate-y-1/2 text-xs text-gray-500">
+                      $
+                    </span>
                     <Input
-                      type="date"
-                      value={bid.date_given}
-                      onChange={(e) => handleUpdateBid(bid.id, 'date_given', e.target.value)}
-                      disabled={isSaving}
-                      className="w-32 bg-white"
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={bid.amount}
+                      onChange={(e) => handleUpdateBid(bid.id, 'amount', e.target.value)}
+                      placeholder="0.00"
+                      className="pl-5 bg-white"
                     />
-                    <Label className="text-xs text-gray-600">Amount:</Label>
-                    <div className="relative w-24">
-                      <span className="absolute left-2 top-1/2 transform -translate-y-1/2 text-xs text-gray-500">
-                        $
-                      </span>
-                      <Input
-                        type="number"
-                        step="0.01"
-                        min="0"
-                        value={bid.amount}
-                        onChange={(e) => handleUpdateBid(bid.id, 'amount', e.target.value)}
-                        placeholder="0.00"
-                        disabled={isSaving}
-                        className="pl-5 bg-white"
-                      />
-                    </div>
-                    <Label className="text-xs text-gray-600">Result:</Label>
-                    <Select
-                      value={bid.result}
-                      onValueChange={(value) => handleUpdateBid(bid.id, 'result', value)}
-                      disabled={isSaving}
-                    >
-                      <SelectTrigger className="w-32 bg-white">
-                        <SelectValue placeholder="Select result" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="Accepted">Accepted</SelectItem>
-                        <SelectItem value="Rejected">Rejected</SelectItem>
-                        <SelectItem value="Pending">Pending</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleOpenBidNotes(bid.id)}
-                      disabled={isSaving}
-                    >
-                      <FileText className="w-4 h-4" />
-                    </Button>
                   </div>
+                  <Label className="text-xs text-gray-600">Result:</Label>
+                  <Select
+                    value={bid.result}
+                    onValueChange={(value) => handleUpdateBid(bid.id, 'result', value)}
+                  >
+                    <SelectTrigger className="w-32 bg-white">
+                      <SelectValue placeholder="Select result" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Accepted">Accepted</SelectItem>
+                      <SelectItem value="Rejected">Rejected</SelectItem>
+                      <SelectItem value="Pending">Pending</SelectItem>
+                    </SelectContent>
+                  </Select>
                   <Button
                     type="button"
-                    variant="ghost"
+                    variant="outline"
                     size="sm"
-                    onClick={() => handleRemoveBid(bid.id)}
-                    disabled={isSaving}
-                    className="text-red-600"
+                    onClick={() => handleOpenBidNotes(bid.id)}
                   >
-                    <Trash2 className="w-4 h-4" />
+                    <FileText className="w-4 h-4" />
                   </Button>
                 </div>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => handleRemoveBid(bid.id)}
+                  className="text-red-600"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </Button>
               </div>
-            ))}
-            
-            {bids.length === 0 && (
-              <p className="text-sm text-gray-500">No bids yet</p>
-            )}
-            
-            <Button onClick={handleSave} disabled={isSaving}>
-              {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              <Save className="mr-2 h-4 w-4" />
-              Save
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+            </div>
+          ))}
+          
+          {bids.length === 0 && (
+            <p className="text-sm text-gray-500">No bids yet</p>
+          )}
+        </div>
+      </CardContent>
+    </Card>
 
       <Dialog open={showBidNotes !== null} onOpenChange={(open) => {
         if (!open) {
