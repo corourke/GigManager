@@ -134,7 +134,8 @@ export default function GigBasicInfoSection({ gigId, onCreate, isSubmitting: ext
   const { saveState, triggerSave } = useAutoSave<BasicInfoFormData>({
     gigId: gigId || '',
     onSave: handleSave,
-    onSuccess: handleSaveSuccess
+    onSuccess: handleSaveSuccess,
+    debounceMs: 2000
   });
 
   const formValues = watch();
@@ -169,7 +170,7 @@ export default function GigBasicInfoSection({ gigId, onCreate, isSubmitting: ext
         status: gig.status || 'DateHold',
         tags: gig.tags || [],
         notes: gig.notes || '',
-        amount_paid: gig.amount_paid ? gig.amount_paid.toString() : '',
+        amount_paid: (gig.amount_paid !== null && gig.amount_paid !== undefined) ? gig.amount_paid.toString() : '',
       };
       reset(data);
     } catch (error: any) {

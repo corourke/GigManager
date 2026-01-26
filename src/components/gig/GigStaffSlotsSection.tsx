@@ -128,7 +128,8 @@ export default function GigStaffSlotsSection({
   const { saveState, triggerSave } = useAutoSave<StaffSlotsFormData>({
     gigId,
     onSave: handleSave,
-    onSuccess: handleSaveSuccess
+    onSuccess: handleSaveSuccess,
+    debounceMs: 1000
   });
 
   const formValues = watch();

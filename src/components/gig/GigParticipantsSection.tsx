@@ -101,7 +101,8 @@ export default function GigParticipantsSection({
   const { saveState, triggerSave } = useAutoSave<ParticipantsFormData>({
     gigId,
     onSave: handleSave,
-    onSuccess: handleSaveSuccess
+    onSuccess: handleSaveSuccess,
+    debounceMs: 1000
   });
 
   const formValues = watch();

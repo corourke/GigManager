@@ -86,7 +86,8 @@ export default function GigKitAssignmentsSection({
   const { saveState, triggerSave } = useAutoSave<KitFormData>({
     gigId,
     onSave: handleSave,
-    onSuccess: handleSaveSuccess
+    onSuccess: handleSaveSuccess,
+    debounceMs: 1000
   });
 
   const formValues = watch();

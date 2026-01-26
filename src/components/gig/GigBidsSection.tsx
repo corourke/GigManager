@@ -86,7 +86,8 @@ export default function GigBidsSection({
   const { saveState, triggerSave } = useAutoSave<BidsFormData>({
     gigId,
     onSave: handleSave,
-    onSuccess: handleSaveSuccess
+    onSuccess: handleSaveSuccess,
+    debounceMs: 1000
   });
 
   const formValues = watch();
@@ -120,7 +121,7 @@ export default function GigBidsSection({
       const loadedBids = data.map((b: any) => ({
         id: b.id,
         date_given: b.date_given || format(new Date(), 'yyyy-MM-dd'),
-        amount: b.amount ? b.amount.toString() : '',
+        amount: (b.amount !== null && b.amount !== undefined) ? b.amount.toString() : '',
         result: b.result || '',
         notes: b.notes || '',
       }));
@@ -203,37 +204,53 @@ export default function GigBidsSection({
               <div className="bg-gray-100 px-4 py-3 flex items-center justify-between">
                 <div className="flex items-center gap-4 flex-1">
                   <Label className="text-xs text-gray-600">Date Given:</Label>
-                  <Controller
-                    name={`bids.${index}.date_given`}
-                    control={control}
-                    render={({ field: dateField }) => (
-                      <Input
-                        type="date"
-                        value={dateField.value}
-                        onChange={dateField.onChange}
-                        className={`w-40 bg-white ${errors.bids?.[index]?.date_given ? 'border-red-500' : ''}`}
-                      />
-                    )}
-                  />
-                  <Label className="text-xs text-gray-600">Amount:</Label>
-                  <div className="relative w-32">
-                    <span className="absolute left-2 top-1/2 transform -translate-y-1/2 text-xs text-gray-500">
-                      $
-                    </span>
+                  <div className="flex flex-col gap-1">
                     <Controller
-                      name={`bids.${index}.amount`}
+                      name={`bids.${index}.date_given`}
                       control={control}
-                      render={({ field: amountField }) => (
+                      render={({ field: dateField }) => (
                         <Input
-                          {...amountField}
-                          type="number"
-                          step="0.01"
-                          min="0"
-                          placeholder="0.00"
-                          className={`pl-5 bg-white ${errors.bids?.[index]?.amount ? 'border-red-500' : ''}`}
+                          type="date"
+                          value={dateField.value}
+                          onChange={dateField.onChange}
+                          className={`w-40 bg-white ${errors.bids?.[index]?.date_given ? 'border-red-500' : ''}`}
                         />
                       )}
                     />
+                    {errors.bids?.[index]?.date_given && (
+                      <p className="text-[10px] text-red-600 flex items-center gap-1">
+                        <AlertCircle className="w-3 h-3" />
+                        {errors.bids[index]?.date_given?.message}
+                      </p>
+                    )}
+                  </div>
+                  <Label className="text-xs text-gray-600">Amount:</Label>
+                  <div className="flex flex-col gap-1">
+                    <div className="relative w-32">
+                      <span className="absolute left-2 top-1/2 transform -translate-y-1/2 text-xs text-gray-500">
+                        $
+                      </span>
+                      <Controller
+                        name={`bids.${index}.amount`}
+                        control={control}
+                        render={({ field: amountField }) => (
+                          <Input
+                            {...amountField}
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            placeholder="0.00"
+                            className={`pl-5 bg-white ${errors.bids?.[index]?.amount ? 'border-red-500' : ''}`}
+                          />
+                        )}
+                      />
+                    </div>
+                    {errors.bids?.[index]?.amount && (
+                      <p className="text-[10px] text-red-600 flex items-center gap-1">
+                        <AlertCircle className="w-3 h-3" />
+                        {errors.bids[index]?.amount?.message}
+                      </p>
+                    )}
                   </div>
                   <Label className="text-xs text-gray-600">Result:</Label>
                   <Controller
