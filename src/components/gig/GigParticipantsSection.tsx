@@ -11,7 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '.
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '../ui/dialog';
 import { Textarea } from '../ui/textarea';
 import OrganizationSelector from '../OrganizationSelector';
-import { getGig, updateGig } from '../../utils/api';
+import { getGig, updateGigParticipants } from '../../utils/api';
 import type { Organization, OrganizationType } from '../../App';
 import { useAutoSave } from '../../utils/hooks/useAutoSave';
 import SaveStateIndicator from './SaveStateIndicator';
@@ -93,9 +93,7 @@ export default function GigParticipantsSection({
           notes: p.notes || null,
         }));
 
-      await updateGig(gigId, {
-        participants: participantsData,
-      });
+      await updateGigParticipants(gigId, participantsData);
     }
   });
 

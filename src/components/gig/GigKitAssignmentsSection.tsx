@@ -1,15 +1,36 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
+import { useForm, useFieldArray } from 'react-hook-form';
+import { z } from 'zod';
+import { zodResolver } from '@hookform/resolvers/zod';
 import { toast } from 'sonner';
-import { createClient } from '../../utils/supabase/client';
-import { Info, Loader2, Package, Save, Trash2 } from 'lucide-react';
+import { Package, Trash2, Info, Loader2 } from 'lucide-react';
 import { Button } from '../ui/button';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '../ui/dialog';
-import { getGigKits, assignKitToGig, removeKitFromGig, getKits } from '../../utils/api';
+import { Textarea } from '../ui/textarea';
+import { getGigKits, getKits, updateGigKitAssignments } from '../../utils/api';
 import { useAutoSave } from '../../utils/hooks/useAutoSave';
 import SaveStateIndicator from './SaveStateIndicator';
+
+const kitAssignmentSchema = z.object({
+  id: z.string(),
+  kit_id: z.string(),
+  notes: z.string().optional(),
+  kit: z.object({
+    name: z.string(),
+    tag_number: z.string().optional().nullable(),
+    category: z.string().optional().nullable(),
+    rental_value: z.string().optional().nullable(),
+  }).optional(),
+});
+
+const kitFormSchema = z.object({
+  assignments: z.array(kitAssignmentSchema),
+});
+
+type KitFormData = z.infer<typeof kitFormSchema>;
 
 interface Kit {
   id: string;
@@ -17,14 +38,6 @@ interface Kit {
   tag_number?: string;
   category?: string;
   rental_value?: string;
-}
-
-interface KitAssignment {
-  id: string;
-  kit_id: string;
-  kit?: Kit;
-  notes: string;
-  assigned_at: string;
 }
 
 interface GigKitAssignmentsSectionProps {
@@ -37,121 +50,115 @@ export default function GigKitAssignmentsSection({
   currentOrganizationId,
 }: GigKitAssignmentsSectionProps) {
   const [isLoading, setIsLoading] = useState(true);
-  const [kitAssignments, setKitAssignments] = useState<KitAssignment[]>([]);
   const [availableKits, setAvailableKits] = useState<Kit[]>([]);
-  const [showKitDetails, setShowKitDetails] = useState<KitAssignment | null>(null);
+  const [showNotesDialog, setShowNotesDialog] = useState<number | null>(null);
+  const [currentNotes, setCurrentNotes] = useState('');
 
-  const { saveState, triggerSave } = useAutoSave<KitAssignment[]>({
-    onSave: async (currentAssignments) => {
-      const supabase = createClient();
-      const { data: existingAssignments } = await supabase
-        .from('gig_kit_assignments')
-        .select(`
-          *,
-          kit:kits(
-            organization_id
-          )
-        `)
-        .eq('gig_id', gigId);
+  const { control, reset, watch, setValue, formState: { isDirty, errors } } = useForm<KitFormData>({
+    resolver: zodResolver(kitFormSchema),
+    mode: 'onChange',
+    defaultValues: {
+      assignments: [],
+    },
+  });
 
-      const organizationAssignments = existingAssignments?.filter(
-        (a: any) => a.kit?.organization_id === currentOrganizationId
-      ) || [];
+  const { fields, append, remove } = useFieldArray({
+    control,
+    name: 'assignments',
+  });
 
-      // Add new assignments
-      for (const assignment of currentAssignments) {
-        if (!isDbId(assignment.id)) {
-          await assignKitToGig(gigId, assignment.kit_id, currentOrganizationId, assignment.notes || null);
-        }
-      }
-
-      // Remove deleted assignments
-      const currentKitIds = currentAssignments.map(a => a.kit_id);
-      for (const existingAssignment of organizationAssignments) {
-        if (!currentKitIds.includes(existingAssignment.kit_id)) {
-          await removeKitFromGig(existingAssignment.id);
-        }
-      }
-
-      await loadKitsData(false);
+  const { saveState, triggerSave } = useAutoSave<KitFormData>({
+    gigId,
+    onSave: async (data) => {
+      await updateGigKitAssignments(
+        gigId,
+        currentOrganizationId,
+        data.assignments.map(a => ({
+          id: a.id.startsWith('temp-') ? undefined : a.id,
+          kit_id: a.kit_id,
+          notes: a.notes || null,
+        }))
+      );
     }
   });
 
+  const formValues = watch();
+
   useEffect(() => {
-    loadKitsData(true);
+    if (isDirty) {
+      const isValid = Object.keys(errors).length === 0;
+      if (isValid) {
+        triggerSave(formValues);
+      }
+    }
+  }, [formValues, isDirty, errors, triggerSave]);
+
+  useEffect(() => {
+    loadData();
   }, [gigId]);
 
-  const loadKitsData = async (showLoading = true) => {
-    if (showLoading) setIsLoading(true);
+  const loadData = async () => {
+    setIsLoading(true);
     try {
       const [assignmentsData, kitsData] = await Promise.all([
         getGigKits(gigId),
         getKits(),
       ]);
-      
+
       const organizationAssignments = assignmentsData.filter(
         (a: any) => a.kit?.organization_id === currentOrganizationId
       );
-      
-      const formattedAssignments = organizationAssignments.map((assignment: any) => ({
-        id: assignment.id,
-        kit_id: assignment.kit_id,
-        kit: assignment.kit,
-        notes: assignment.notes || '',
-        assigned_at: assignment.assigned_at,
+
+      const formattedAssignments = organizationAssignments.map((a: any) => ({
+        id: a.id,
+        kit_id: a.kit_id,
+        notes: a.notes || '',
+        kit: a.kit,
       }));
-      
+
       const organizationKits = kitsData.filter(
         (k: any) => k.organization_id === currentOrganizationId
       );
-      
-      setKitAssignments(formattedAssignments);
+
+      reset({ assignments: formattedAssignments });
       setAvailableKits(organizationKits);
     } catch (error: any) {
       console.error('Error loading kits:', error);
       toast.error('Failed to load kits');
     } finally {
-      if (showLoading) setIsLoading(false);
+      setIsLoading(false);
     }
   };
 
-  const handleAssignKit = async (kitId: string) => {
-    if (kitAssignments.find(a => a.kit_id === kitId)) {
-      toast.error('Kit already assigned');
-      return;
-    }
-    
+  const handleAssignKit = (kitId: string) => {
     const kit = availableKits.find(k => k.id === kitId);
-    if (!kit) {
-      toast.error('Kit not found');
-      return;
-    }
-    
-    const newAssignment: KitAssignment = {
-      id: Math.random().toString(36).substr(2, 9),
+    if (!kit) return;
+
+    append({
+      id: `temp-${Math.random().toString(36).substr(2, 9)}`,
       kit_id: kitId,
-      kit: kit,
       notes: '',
-      assigned_at: new Date().toISOString(),
-    };
-    
-    const updatedAssignments = [...kitAssignments, newAssignment];
-    setKitAssignments(updatedAssignments);
-    triggerSave(updatedAssignments);
+      kit: {
+        name: kit.name,
+        tag_number: kit.tag_number,
+        category: kit.category,
+        rental_value: kit.rental_value,
+      },
+    });
   };
 
-  const handleRemoveKit = (assignmentId: string) => {
-    const updatedAssignments = kitAssignments.filter(a => a.id !== assignmentId);
-    setKitAssignments(updatedAssignments);
-    triggerSave(updatedAssignments);
+  const handleOpenNotes = (index: number) => {
+    const assignment = fields[index];
+    setCurrentNotes(assignment.notes || '');
+    setShowNotesDialog(index);
   };
 
-  const handleOpenKitDetails = (assignment: KitAssignment) => {
-    setShowKitDetails(assignment);
-  };
-
-  const isDbId = (id: string) => {
-    return id.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
+  const handleSaveNotes = () => {
+    if (showNotesDialog !== null) {
+      setValue(`assignments.${showNotesDialog}.notes`, currentNotes, { shouldDirty: true });
+      setShowNotesDialog(null);
+      setCurrentNotes('');
+    }
   };
 
   if (isLoading) {
@@ -172,11 +179,9 @@ export default function GigKitAssignmentsSection({
       <Card className="mb-6">
         <CardHeader>
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <div className="flex items-center gap-2">
-                <Package className="w-5 h-5 text-gray-600" />
-                <CardTitle>Equipment</CardTitle>
-              </div>
+            <div className="flex items-center gap-2">
+              <Package className="w-5 h-5 text-gray-600" />
+              <CardTitle>Equipment</CardTitle>
               <SaveStateIndicator state={saveState} />
             </div>
             <Select
@@ -188,7 +193,7 @@ export default function GigKitAssignmentsSection({
               </SelectTrigger>
               <SelectContent>
                 {availableKits
-                  .filter(kit => !kitAssignments.some(a => a.kit_id === kit.id))
+                  .filter(kit => !fields.some(a => a.kit_id === kit.id))
                   .map((kit) => (
                     <SelectItem key={kit.id} value={kit.id}>
                       {kit.name} {kit.tag_number && `(${kit.tag_number})`}
@@ -200,7 +205,7 @@ export default function GigKitAssignmentsSection({
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
-            {kitAssignments.length > 0 ? (
+            {fields.length > 0 ? (
               <div className="border rounded-lg overflow-hidden">
                 <Table>
                   <TableHeader>
@@ -213,14 +218,14 @@ export default function GigKitAssignmentsSection({
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {kitAssignments.map((assignment) => (
-                      <TableRow key={assignment.id}>
-                        <TableCell>{assignment.kit?.name || 'Unknown Kit'}</TableCell>
-                        <TableCell>{assignment.kit?.tag_number || '-'}</TableCell>
-                        <TableCell>{assignment.kit?.category || '-'}</TableCell>
+                    {fields.map((field, index) => (
+                      <TableRow key={field.id}>
+                        <TableCell>{field.kit?.name || 'Unknown Kit'}</TableCell>
+                        <TableCell>{field.kit?.tag_number || '-'}</TableCell>
+                        <TableCell>{field.kit?.category || '-'}</TableCell>
                         <TableCell className="text-right">
-                          {assignment.kit?.rental_value 
-                            ? `$${parseFloat(assignment.kit.rental_value).toFixed(2)}` 
+                          {field.kit?.rental_value 
+                            ? `$${parseFloat(field.kit.rental_value).toFixed(2)}` 
                             : '-'}
                         </TableCell>
                         <TableCell className="text-right">
@@ -229,7 +234,7 @@ export default function GigKitAssignmentsSection({
                               type="button"
                               variant="ghost"
                               size="sm"
-                              onClick={() => handleOpenKitDetails(assignment)}
+                              onClick={() => handleOpenNotes(index)}
                               disabled={saveState === 'saving'}
                             >
                               <Info className="w-4 h-4" />
@@ -238,7 +243,7 @@ export default function GigKitAssignmentsSection({
                               type="button"
                               variant="ghost"
                               size="sm"
-                              onClick={() => handleRemoveKit(assignment.id)}
+                              onClick={() => remove(index)}
                               disabled={saveState === 'saving'}
                               className="text-red-600"
                             >
@@ -262,40 +267,34 @@ export default function GigKitAssignmentsSection({
         </CardContent>
       </Card>
 
-      <Dialog open={showKitDetails !== null} onOpenChange={(open) => {
+      <Dialog open={showNotesDialog !== null} onOpenChange={(open) => {
         if (!open) {
-          setShowKitDetails(null);
+          setShowNotesDialog(null);
+          setCurrentNotes('');
         }
       }}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Kit Details</DialogTitle>
+            <DialogTitle>Equipment Notes</DialogTitle>
             <DialogDescription>
-              Information about this kit.
+              Add notes about this kit assignment.
             </DialogDescription>
           </DialogHeader>
-          {showKitDetails && (
-            <div className="space-y-2">
-              <div>
-                <strong>Name:</strong> {showKitDetails.kit?.name || 'Unknown'}
-              </div>
-              <div>
-                <strong>Tag Number:</strong> {showKitDetails.kit?.tag_number || 'N/A'}
-              </div>
-              <div>
-                <strong>Category:</strong> {showKitDetails.kit?.category || 'N/A'}
-              </div>
-              <div>
-                <strong>Rental Value:</strong>{' '}
-                {showKitDetails.kit?.rental_value 
-                  ? `$${parseFloat(showKitDetails.kit.rental_value).toFixed(2)}` 
-                  : 'N/A'}
-              </div>
-            </div>
-          )}
+          <Textarea
+            value={currentNotes}
+            onChange={(e) => setCurrentNotes(e.target.value)}
+            placeholder="Enter notes..."
+            rows={6}
+          />
           <DialogFooter>
-            <Button onClick={() => setShowKitDetails(null)}>
-              Close
+            <Button variant="outline" onClick={() => {
+              setShowNotesDialog(null);
+              setCurrentNotes('');
+            }}>
+              Cancel
+            </Button>
+            <Button onClick={handleSaveNotes}>
+              Save Notes
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -53,68 +53,45 @@ export default function GigBidsSection({
   currentOrganizationId,
 }: GigBidsSectionProps) {
   const [isLoading, setIsLoading] = useState(true);
-  const [bids, setBids] = useState<BidData[]>([]);
-  const [showBidNotes, setShowBidNotes] = useState<string | null>(null);
+  const [showBidNotes, setShowBidNotes] = useState<number | null>(null);
   const [currentBidNotes, setCurrentBidNotes] = useState('');
 
-  const { saveState, triggerSave } = useAutoSave<BidData[]>({
+  const { control, handleSubmit, formState: { errors, isDirty }, watch, reset, setValue } = useForm<BidsFormData>({
+    resolver: zodResolver(bidsFormSchema),
+    mode: 'onChange',
+    defaultValues: {
+      bids: [],
+    },
+  });
+
+  const { fields, append, remove } = useFieldArray({
+    control,
+    name: 'bids',
+  });
+
+  const { saveState, triggerSave } = useAutoSave<BidsFormData>({
     gigId,
     onSave: async (data) => {
-      const isDbId = (id: string) => {
-        return id.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
-      };
-
-      const createdBidIds: string[] = [];
-      
-      for (const bid of data) {
-        if (bid.date_given && bid.amount && bid.amount.trim() !== '') {
-          const bidData = {
-            gig_id: gigId,
-            organization_id: currentOrganizationId,
-            date_given: bid.date_given,
-            amount: parseFloat(bid.amount),
-            result: bid.result || null,
-            notes: bid.notes || null,
-          };
-
-          if (isDbId(bid.id)) {
-            await updateGigBid(bid.id, {
-              date_given: bidData.date_given,
-              amount: bidData.amount,
-              result: bidData.result,
-              notes: bidData.notes,
-            });
-          } else {
-            const createdBid = await createGigBid(bidData);
-            createdBidIds.push(createdBid.id);
-          }
-        }
-      }
-
-      const supabase = createClient();
-      const { data: existingBids } = await supabase
-        .from('gig_bids')
-        .select('id')
-        .eq('gig_id', gigId)
-        .eq('organization_id', currentOrganizationId);
-      
-      if (existingBids) {
-        const currentBidIds = [
-          ...data.filter(b => isDbId(b.id)).map(b => b.id),
-          ...createdBidIds
-        ];
-        const bidsToDelete = existingBids.filter((eb: any) => !currentBidIds.includes(eb.id));
-        for (const bidToDelete of bidsToDelete) {
-          await deleteGigBid(bidToDelete.id);
-        }
-      }
+      await updateGigBids(gigId, currentOrganizationId, data.bids.map(b => ({
+        id: b.id.startsWith('temp-') ? undefined : b.id,
+        amount: parseFloat(b.amount),
+        date_given: b.date_given,
+        result: b.result || null,
+        notes: b.notes || null,
+      })));
     }
   });
 
-  const updateBidsAndSave = useCallback((newBids: BidData[]) => {
-    setBids(newBids);
-    triggerSave(newBids);
-  }, [triggerSave]);
+  const formValues = watch();
+
+  useEffect(() => {
+    if (isDirty) {
+      const isValid = Object.keys(errors).length === 0;
+      if (isValid) {
+        triggerSave(formValues);
+      }
+    }
+  }, [formValues, isDirty, errors, triggerSave]);
 
   useEffect(() => {
     loadBidsData();
@@ -141,7 +118,7 @@ export default function GigBidsSection({
         notes: b.notes || '',
       }));
 
-      setBids(loadedBids);
+      reset({ bids: loadedBids });
     } catch (error: any) {
       console.error('Error loading bids:', error);
       toast.error('Failed to load bids');
@@ -151,37 +128,28 @@ export default function GigBidsSection({
   };
 
   const handleAddBid = () => {
-    const newBid: BidData = {
-      id: Math.random().toString(36).substr(2, 9),
+    append({
+      id: `temp-${Math.random().toString(36).substr(2, 9)}`,
       date_given: format(new Date(), 'yyyy-MM-dd'),
       amount: '',
-      result: '',
+      result: 'Pending',
       notes: '',
-    };
-    updateBidsAndSave([...bids, newBid]);
+    });
   };
 
-  const handleUpdateBid = (id: string, field: keyof BidData, value: string) => {
-    updateBidsAndSave(bids.map(b => 
-      b.id === id ? { ...b, [field]: value } : b
-    ));
+  const handleRemoveBid = (index: number) => {
+    remove(index);
   };
 
-  const handleRemoveBid = (id: string) => {
-    updateBidsAndSave(bids.filter(b => b.id !== id));
-  };
-
-  const handleOpenBidNotes = (id: string) => {
-    const bid = bids.find(b => b.id === id);
-    if (bid) {
-      setCurrentBidNotes(bid.notes);
-      setShowBidNotes(id);
-    }
+  const handleOpenBidNotes = (index: number) => {
+    const bid = fields[index];
+    setCurrentBidNotes(bid.notes || '');
+    setShowBidNotes(index);
   };
 
   const handleSaveBidNotes = () => {
-    if (showBidNotes) {
-      handleUpdateBid(showBidNotes, 'notes', currentBidNotes);
+    if (showBidNotes !== null) {
+      setValue(`bids.${showBidNotes}.notes`, currentBidNotes, { shouldDirty: true });
       setShowBidNotes(null);
       setCurrentBidNotes('');
     }
@@ -223,51 +191,68 @@ export default function GigBidsSection({
       </CardHeader>
       <CardContent>
         <div className="space-y-4">
-          {bids.map((bid) => (
-            <div key={bid.id} className="border border-gray-200 rounded-lg overflow-hidden">
+          {fields.map((field, index) => (
+            <div key={field.id} className="border border-gray-200 rounded-lg overflow-hidden">
               <div className="bg-gray-100 px-4 py-3 flex items-center justify-between">
                 <div className="flex items-center gap-4 flex-1">
                   <Label className="text-xs text-gray-600">Date Given:</Label>
-                  <Input
-                    type="date"
-                    value={bid.date_given}
-                    onChange={(e) => handleUpdateBid(bid.id, 'date_given', e.target.value)}
-                    className="w-32 bg-white"
+                  <Controller
+                    name={`bids.${index}.date_given`}
+                    control={control}
+                    render={({ field: dateField }) => (
+                      <Input
+                        type="date"
+                        value={dateField.value}
+                        onChange={dateField.onChange}
+                        className={`w-40 bg-white ${errors.bids?.[index]?.date_given ? 'border-red-500' : ''}`}
+                      />
+                    )}
                   />
                   <Label className="text-xs text-gray-600">Amount:</Label>
-                  <div className="relative w-24">
+                  <div className="relative w-32">
                     <span className="absolute left-2 top-1/2 transform -translate-y-1/2 text-xs text-gray-500">
                       $
                     </span>
-                    <Input
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      value={bid.amount}
-                      onChange={(e) => handleUpdateBid(bid.id, 'amount', e.target.value)}
-                      placeholder="0.00"
-                      className="pl-5 bg-white"
+                    <Controller
+                      name={`bids.${index}.amount`}
+                      control={control}
+                      render={({ field: amountField }) => (
+                        <Input
+                          {...amountField}
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          placeholder="0.00"
+                          className={`pl-5 bg-white ${errors.bids?.[index]?.amount ? 'border-red-500' : ''}`}
+                        />
+                      )}
                     />
                   </div>
                   <Label className="text-xs text-gray-600">Result:</Label>
-                  <Select
-                    value={bid.result}
-                    onValueChange={(value) => handleUpdateBid(bid.id, 'result', value)}
-                  >
-                    <SelectTrigger className="w-32 bg-white">
-                      <SelectValue placeholder="Select result" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="Accepted">Accepted</SelectItem>
-                      <SelectItem value="Rejected">Rejected</SelectItem>
-                      <SelectItem value="Pending">Pending</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  <Controller
+                    name={`bids.${index}.result`}
+                    control={control}
+                    render={({ field: resultField }) => (
+                      <Select
+                        value={resultField.value}
+                        onValueChange={resultField.onChange}
+                      >
+                        <SelectTrigger className="w-32 bg-white">
+                          <SelectValue placeholder="Select result" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="Accepted">Accepted</SelectItem>
+                          <SelectItem value="Rejected">Rejected</SelectItem>
+                          <SelectItem value="Pending">Pending</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    )}
+                  />
                   <Button
                     type="button"
                     variant="outline"
                     size="sm"
-                    onClick={() => handleOpenBidNotes(bid.id)}
+                    onClick={() => handleOpenBidNotes(index)}
                   >
                     <FileText className="w-4 h-4" />
                   </Button>
@@ -276,7 +261,7 @@ export default function GigBidsSection({
                   type="button"
                   variant="ghost"
                   size="sm"
-                  onClick={() => handleRemoveBid(bid.id)}
+                  onClick={() => handleRemoveBid(index)}
                   className="text-red-600"
                 >
                   <Trash2 className="w-4 h-4" />
@@ -285,7 +270,7 @@ export default function GigBidsSection({
             </div>
           ))}
           
-          {bids.length === 0 && (
+          {fields.length === 0 && (
             <p className="text-sm text-gray-500">No bids yet</p>
           )}
         </div>

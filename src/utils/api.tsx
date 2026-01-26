@@ -1283,6 +1283,85 @@ export async function createGig(gigData: {
   }
 }
 
+export async function updateGigParticipants(gigId: string, participants: Array<{
+  id?: string;
+  organization_id: string;
+  role: string;
+  notes?: string | null;
+}>) {
+  const supabase = getSupabase();
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session?.user) throw new Error('Not authenticated');
+
+  // Get existing participants
+  const { data: existingParticipants, error: fetchError } = await supabase
+    .from('gig_participants')
+    .select('id')
+    .eq('gig_id', gigId);
+
+  if (fetchError) {
+    console.error('Error fetching existing participants:', fetchError);
+    throw fetchError;
+  }
+
+  const existingIds = existingParticipants?.map(p => p.id) || [];
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  const incomingIds = participants
+    .filter(p => p.id && uuidRegex.test(p.id))
+    .map(p => p.id!);
+
+  // Delete participants that are no longer in the list
+  const idsToDelete = existingIds.filter(id => !incomingIds.includes(id));
+  if (idsToDelete.length > 0) {
+    const { error: deleteError } = await supabase
+      .from('gig_participants')
+      .delete()
+      .in('id', idsToDelete);
+    
+    if (deleteError) {
+      console.error('Error deleting participants:', deleteError);
+      throw deleteError;
+    }
+  }
+
+  // Update or insert participants
+  for (const participant of participants) {
+    const isDbId = participant.id && uuidRegex.test(participant.id);
+    
+    const participantData = {
+      organization_id: participant.organization_id,
+      role: participant.role,
+      notes: participant.notes || null,
+    };
+
+    if (isDbId && existingIds.includes(participant.id!)) {
+      const { error: updateError } = await supabase
+        .from('gig_participants')
+        .update(participantData)
+        .eq('id', participant.id);
+      
+      if (updateError) {
+        console.error('Error updating participant:', updateError);
+        throw updateError;
+      }
+    } else if (participant.organization_id && participant.role) {
+      const { error: insertError } = await supabase
+        .from('gig_participants')
+        .insert({
+          gig_id: gigId,
+          ...participantData,
+        });
+      
+      if (insertError) {
+        console.error('Error inserting participant:', insertError);
+        throw insertError;
+      }
+    }
+  }
+
+  return { success: true };
+}
+
 export async function updateGig(gigId: string, gigData: {
   title?: string;
   start?: string;
@@ -2527,6 +2606,87 @@ export async function updateGigKitAssignment(assignmentId: string, updates: { no
   }
 
   return data;
+}
+
+export async function updateGigKitAssignments(gigId: string, organizationId: string, assignments: Array<{
+  id?: string;
+  kit_id: string;
+  notes?: string | null;
+}>) {
+  const supabase = getSupabase();
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session?.user) throw new Error('Not authenticated');
+  const user = session.user;
+
+  // Get existing assignments for this gig and organization
+  const { data: existingAssignments, error: fetchError } = await supabase
+    .from('gig_kit_assignments')
+    .select('id, kit_id')
+    .eq('gig_id', gigId)
+    .eq('organization_id', organizationId);
+
+  if (fetchError) {
+    console.error('Error fetching existing kit assignments:', fetchError);
+    throw fetchError;
+  }
+
+  const existingAssignmentIds = existingAssignments?.map(a => a.id) || [];
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  const incomingAssignmentIds = assignments
+    .filter(a => a.id && uuidRegex.test(a.id))
+    .map(a => a.id!);
+
+  // Delete assignments that are no longer in the list
+  const assignmentIdsToDelete = existingAssignmentIds.filter(id => !incomingAssignmentIds.includes(id));
+  if (assignmentIdsToDelete.length > 0) {
+    const { error: deleteError } = await supabase
+      .from('gig_kit_assignments')
+      .delete()
+      .in('id', assignmentIdsToDelete);
+    
+    if (deleteError) {
+      console.error('Error deleting kit assignments:', deleteError);
+      throw deleteError;
+    }
+  }
+
+  // Update or insert assignments
+  for (const assignment of assignments) {
+    const isDbId = assignment.id && uuidRegex.test(assignment.id);
+    
+    const assignmentData = {
+      gig_id: gigId,
+      kit_id: assignment.kit_id,
+      organization_id: organizationId,
+      notes: assignment.notes || null,
+    };
+
+    if (isDbId) {
+      const { error: updateError } = await supabase
+        .from('gig_kit_assignments')
+        .update(assignmentData)
+        .eq('id', assignment.id);
+      
+      if (updateError) {
+        console.error('Error updating kit assignment:', updateError);
+        throw updateError;
+      }
+    } else {
+      const { error: insertError } = await supabase
+        .from('gig_kit_assignments')
+        .insert({
+          ...assignmentData,
+          assigned_by: user.id,
+        });
+      
+      if (insertError) {
+        console.error('Error inserting kit assignment:', insertError);
+        throw insertError;
+      }
+    }
+  }
+
+  return { success: true };
 }
 
 export async function getGigKits(gigId: string, organizationId?: string) {
