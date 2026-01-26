@@ -6,6 +6,7 @@ export type SaveState = 'idle' | 'saving' | 'saved' | 'error';
 interface UseAutoSaveOptions<T> {
   gigId: string;
   onSave: (data: T) => Promise<void>;
+  onSuccess?: (data: T) => void;
   debounceMs?: number;
 }
 
@@ -18,6 +19,7 @@ interface UseAutoSaveReturn<T> {
 export function useAutoSave<T>({
   gigId,
   onSave,
+  onSuccess,
   debounceMs = 500,
 }: UseAutoSaveOptions<T>): UseAutoSaveReturn<T> {
   const [saveState, setSaveState] = useState<SaveState>('idle');
@@ -31,6 +33,10 @@ export function useAutoSave<T>({
     try {
       await onSave(data);
       setSaveState('saved');
+      
+      if (onSuccess) {
+        onSuccess(data);
+      }
       
       // Reset to idle after 2 seconds
       setTimeout(() => {

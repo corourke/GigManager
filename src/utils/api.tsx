@@ -1030,9 +1030,33 @@ export async function getGig(gigId: string) {
     .select('*, organization:organization_id(*)')
     .eq('gig_id', gig.id);
 
+  // Fetch staff slots with roles and assignments
+  const { data: staff_slots_raw } = await supabase
+    .from('gig_staff_slots')
+    .select(`
+      *,
+      staff_roles(name),
+      gig_staff_assignments(
+        *,
+        user:user_id(id, first_name, last_name)
+      )
+    `)
+    .eq('gig_id', gig.id);
+
+  const staff_slots = staff_slots_raw?.map((slot: any) => ({
+    ...slot,
+    role: slot.staff_roles?.name || '',
+    count: slot.required_count,
+    staff_assignments: slot.gig_staff_assignments?.map((assignment: any) => ({
+      ...assignment,
+      user: assignment.user
+    }))
+  }));
+
   return {
     ...gig,
     participants: participants || [],
+    staff_slots: staff_slots || [],
   };
 }
 
@@ -2701,6 +2725,7 @@ export async function getGigKits(gigId: string, organizationId?: string) {
         category,
         tag_number,
         rental_value,
+        organization_id,
         kit_assets(
           quantity,
           notes,

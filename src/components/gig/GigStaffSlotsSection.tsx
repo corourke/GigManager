@@ -97,31 +97,38 @@ export default function GigStaffSlotsSection({
     name: 'slots',
   });
 
+  const handleSave = useCallback(async (data: StaffSlotsFormData) => {
+    const slotsData = data.slots
+      .filter(s => s.role && s.role.trim() !== '')
+      .map(s => ({
+        id: s.id.startsWith('temp-') || !s.id.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i) ? undefined : s.id,
+        organization_id: currentOrganizationId,
+        role: s.role,
+        count: s.count,
+        notes: s.notes || null,
+        assignments: (s.assignments || [])
+          .filter(a => a.user_id && a.user_id.trim() !== '')
+          .map(a => ({
+            id: a.id.startsWith('temp-') || !a.id.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i) ? undefined : a.id,
+            user_id: a.user_id,
+            status: a.status,
+            rate: a.compensation_type === 'rate' ? (a.amount ? parseFloat(a.amount) : null) : null,
+            fee: a.compensation_type === 'fee' ? (a.amount ? parseFloat(a.amount) : null) : null,
+            notes: a.notes || null,
+          })),
+      }));
+
+    await updateGigStaffSlots(gigId, slotsData);
+  }, [gigId, currentOrganizationId]);
+
+  const handleSaveSuccess = useCallback((data: StaffSlotsFormData) => {
+    reset(data, { keepDirty: false, keepValues: true });
+  }, [reset]);
+
   const { saveState, triggerSave } = useAutoSave<StaffSlotsFormData>({
     gigId,
-    onSave: async (data) => {
-      const slotsData = data.slots
-        .filter(s => s.role && s.role.trim() !== '')
-        .map(s => ({
-          id: s.id.startsWith('temp-') || !s.id.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i) ? undefined : s.id,
-          organization_id: currentOrganizationId,
-          role: s.role,
-          count: s.count,
-          notes: s.notes || null,
-          assignments: (s.assignments || [])
-            .filter(a => a.user_id && a.user_id.trim() !== '')
-            .map(a => ({
-              id: a.id.startsWith('temp-') || !a.id.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i) ? undefined : a.id,
-              user_id: a.user_id,
-              status: a.status,
-              rate: a.compensation_type === 'rate' ? (a.amount ? parseFloat(a.amount) : null) : null,
-              fee: a.compensation_type === 'fee' ? (a.amount ? parseFloat(a.amount) : null) : null,
-              notes: a.notes || null,
-            })),
-        }));
-
-      await updateGigStaffSlots(gigId, slotsData);
-    }
+    onSave: handleSave,
+    onSuccess: handleSaveSuccess
   });
 
   const formValues = watch();

@@ -81,20 +81,27 @@ export default function GigParticipantsSection({
     name: 'participants',
   });
 
+  const handleSave = useCallback(async (data: ParticipantsFormData) => {
+    const participantsData = data.participants
+      .filter(p => p.organization_id && p.organization_id.trim() !== '' && p.role && p.role.trim() !== '')
+      .map(p => ({
+        id: p.id.startsWith('temp-') || p.id === 'current-org' || !p.id.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i) ? undefined : p.id,
+        organization_id: p.organization_id,
+        role: p.role,
+        notes: p.notes || null,
+      }));
+
+    await updateGigParticipants(gigId, participantsData);
+  }, [gigId]);
+
+  const handleSaveSuccess = useCallback((data: ParticipantsFormData) => {
+    reset(data, { keepDirty: false, keepValues: true });
+  }, [reset]);
+
   const { saveState, triggerSave } = useAutoSave<ParticipantsFormData>({
     gigId,
-    onSave: async (data) => {
-      const participantsData = data.participants
-        .filter(p => p.organization_id && p.organization_id.trim() !== '' && p.role && p.role.trim() !== '')
-        .map(p => ({
-          id: p.id.startsWith('temp-') || p.id === 'current-org' || !p.id.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i) ? undefined : p.id,
-          organization_id: p.organization_id,
-          role: p.role,
-          notes: p.notes || null,
-        }));
-
-      await updateGigParticipants(gigId, participantsData);
-    }
+    onSave: handleSave,
+    onSuccess: handleSaveSuccess
   });
 
   const formValues = watch();

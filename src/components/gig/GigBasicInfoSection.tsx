@@ -113,21 +113,28 @@ export default function GigBasicInfoSection({ gigId, onCreate, isSubmitting: ext
 
   const isSubmitting = externalIsSubmitting || internalIsSubmitting;
 
+  const handleSave = useCallback(async (data: BasicInfoFormData) => {
+    if (!gigId) return;
+    await updateGig(gigId, {
+      title: data.title,
+      start: data.start_time?.toISOString(),
+      end: data.end_time?.toISOString(),
+      timezone: data.timezone,
+      status: data.status,
+      tags: data.tags,
+      notes: data.notes,
+      amount_paid: data.amount_paid ? parseFloat(data.amount_paid) : null,
+    });
+  }, [gigId]);
+
+  const handleSaveSuccess = useCallback((data: BasicInfoFormData) => {
+    reset(data, { keepDirty: false, keepValues: true });
+  }, [reset]);
+
   const { saveState, triggerSave } = useAutoSave<BasicInfoFormData>({
     gigId: gigId || '',
-    onSave: async (data) => {
-      if (!gigId) return;
-      await updateGig(gigId, {
-        title: data.title,
-        start: data.start_time?.toISOString(),
-        end: data.end_time?.toISOString(),
-        timezone: data.timezone,
-        status: data.status,
-        tags: data.tags,
-        notes: data.notes,
-        amount_paid: data.amount_paid ? parseFloat(data.amount_paid) : null,
-      });
-    }
+    onSave: handleSave,
+    onSuccess: handleSaveSuccess
   });
 
   const formValues = watch();

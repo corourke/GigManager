@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useForm, useFieldArray } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -67,19 +67,26 @@ export default function GigKitAssignmentsSection({
     name: 'assignments',
   });
 
+  const handleSave = useCallback(async (data: KitFormData) => {
+    await updateGigKitAssignments(
+      gigId,
+      currentOrganizationId,
+      data.assignments.map(a => ({
+        id: a.id.startsWith('temp-') ? undefined : a.id,
+        kit_id: a.kit_id,
+        notes: a.notes || null,
+      }))
+    );
+  }, [gigId, currentOrganizationId]);
+
+  const handleSaveSuccess = useCallback((data: KitFormData) => {
+    reset(data, { keepDirty: false, keepValues: true });
+  }, [reset]);
+
   const { saveState, triggerSave } = useAutoSave<KitFormData>({
     gigId,
-    onSave: async (data) => {
-      await updateGigKitAssignments(
-        gigId,
-        currentOrganizationId,
-        data.assignments.map(a => ({
-          id: a.id.startsWith('temp-') ? undefined : a.id,
-          kit_id: a.kit_id,
-          notes: a.notes || null,
-        }))
-      );
-    }
+    onSave: handleSave,
+    onSuccess: handleSaveSuccess
   });
 
   const formValues = watch();
@@ -102,7 +109,7 @@ export default function GigKitAssignmentsSection({
     try {
       const [assignmentsData, kitsData] = await Promise.all([
         getGigKits(gigId),
-        getKits(),
+        getKits(currentOrganizationId),
       ]);
 
       const organizationAssignments = assignmentsData.filter(

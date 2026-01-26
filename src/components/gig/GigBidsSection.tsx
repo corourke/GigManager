@@ -69,17 +69,24 @@ export default function GigBidsSection({
     name: 'bids',
   });
 
+  const handleSave = useCallback(async (data: BidsFormData) => {
+    await updateGigBids(gigId, currentOrganizationId, data.bids.map(b => ({
+      id: b.id.startsWith('temp-') ? undefined : b.id,
+      amount: parseFloat(b.amount),
+      date_given: b.date_given,
+      result: b.result || null,
+      notes: b.notes || null,
+    })));
+  }, [gigId, currentOrganizationId]);
+
+  const handleSaveSuccess = useCallback((data: BidsFormData) => {
+    reset(data, { keepDirty: false, keepValues: true });
+  }, [reset]);
+
   const { saveState, triggerSave } = useAutoSave<BidsFormData>({
     gigId,
-    onSave: async (data) => {
-      await updateGigBids(gigId, currentOrganizationId, data.bids.map(b => ({
-        id: b.id.startsWith('temp-') ? undefined : b.id,
-        amount: parseFloat(b.amount),
-        date_given: b.date_given,
-        result: b.result || null,
-        notes: b.notes || null,
-      })));
-    }
+    onSave: handleSave,
+    onSuccess: handleSaveSuccess
   });
 
   const formValues = watch();
