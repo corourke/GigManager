@@ -183,13 +183,8 @@ export default function GigStaffSlotsSection({
         (slot: any) => slot.organization_id === currentOrganizationId
       );
       
-      const formattedSlots = organizationSlots.map((slot: any) => ({
-        id: slot.id,
-        organization_id: slot.organization_id,
-        role: slot.role,
-        count: slot.count || 1,
-        notes: slot.notes || '',
-        assignments: (slot.staff_assignments || []).map((assignment: any) => ({
+      const formattedSlots = organizationSlots.map((slot: any) => {
+        const assignments = (slot.staff_assignments || []).map((assignment: any) => ({
           id: assignment.id,
           user_id: assignment.user_id,
           user_name: `${assignment.user?.first_name || ''} ${assignment.user?.last_name || ''}`.trim(),
@@ -197,8 +192,31 @@ export default function GigStaffSlotsSection({
           compensation_type: assignment.rate !== null ? 'rate' : 'fee',
           amount: assignment.rate !== null ? assignment.rate.toString() : (assignment.fee !== null ? assignment.fee.toString() : ''),
           notes: assignment.notes || '',
-        })),
-      }));
+        }));
+
+        // Pad with empty assignments if count is greater than current assignments
+        const count = slot.count || 1;
+        while (assignments.length < count) {
+          assignments.push({
+            id: `temp-${Math.random().toString(36).substr(2, 9)}`,
+            user_id: '',
+            user_name: '',
+            status: 'Requested',
+            compensation_type: 'rate',
+            amount: '',
+            notes: '',
+          });
+        }
+
+        return {
+          id: slot.id,
+          organization_id: slot.organization_id,
+          role: slot.role,
+          count: count,
+          notes: slot.notes || '',
+          assignments: assignments,
+        };
+      });
       
       reset({ slots: formattedSlots });
     } catch (error: any) {

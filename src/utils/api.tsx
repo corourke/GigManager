@@ -2483,17 +2483,10 @@ export async function duplicateGig(gigId: string, newTitle?: string) {
     .from('gigs')
     .insert({
       title: newTitle || `${originalGig.title} (Copy)`,
-      description: originalGig.description,
-      start_time: originalGig.start_time,
-      end_time: originalGig.end_time,
+      start: originalGig.start,
+      end: originalGig.end,
       timezone: originalGig.timezone,
       status: 'Proposed', // Reset to proposed for the copy
-      venue: originalGig.venue,
-      address: originalGig.address,
-      city: originalGig.city,
-      state: originalGig.state,
-      zip_code: originalGig.zip_code,
-      country: originalGig.country,
       tags: originalGig.tags || [],
       notes: originalGig.notes,
       amount_paid: originalGig.amount_paid,
@@ -2532,14 +2525,14 @@ export async function duplicateGig(gigId: string, newTitle?: string) {
   if (originalGig.staff_slots && originalGig.staff_slots.length > 0) {
     const staffSlots = originalGig.staff_slots.map((slot: any) => ({
       gig_id: newGig.id,
-      role: slot.role,
+      staff_role_id: slot.staff_role_id,
       organization_id: slot.organization_id,
+      required_count: slot.required_count,
       notes: slot.notes,
-      user_id: slot.user_id,
     }));
 
     const { error: slotsError } = await supabase
-      .from('staff_slots')
+      .from('gig_staff_slots')
       .insert(staffSlots);
 
     if (slotsError) {

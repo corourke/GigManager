@@ -232,7 +232,7 @@ export default function GigKitAssignmentsSection({
                         <TableCell>{field.kit?.tag_number || '-'}</TableCell>
                         <TableCell>{field.kit?.category || '-'}</TableCell>
                         <TableCell className="text-right">
-                          {field.kit?.rental_value 
+                          {(field.kit?.rental_value !== null && field.kit?.rental_value !== undefined) 
                             ? `$${parseFloat(field.kit.rental_value).toFixed(2)}` 
                             : '-'}
                         </TableCell>
