@@ -6,26 +6,7 @@
 
 **Last Updated**: 2026-01-18
 
----
 
-## Table of Contents
-
-1. [Application Context](#application-context)
-2. [Technology Stack](#technology-stack)
-3. [Coding Principles](#coding-principles)
-4. [TypeScript Conventions](#typescript-conventions)
-5. [Component Structure](#component-structure)
-6. [Form Handling Patterns](#form-handling-patterns)
-7. [API Integration Patterns](#api-integration-patterns)
-8. [State Management](#state-management)
-9. [Styling Conventions](#styling-conventions)
-10. [Testing Conventions](#testing-conventions)
-11. [File Organization](#file-organization)
-12. [Naming Conventions](#naming-conventions)
-13. [Error Handling](#error-handling)
-14. [Security & Organization Context](#security--organization-context)
-15. [UI/UX Guidelines](#uiux-guidelines)
-16. [Quick Checklist](#quick-checklist)
 
 ---
 
@@ -43,7 +24,21 @@ This is a full production application with:
 - User authentication via Supabase
 - Custom RLS policies managed at application layer
 
-### Database Modifications
+## General Instructions
+
+Ask the user questions when anything is unclear or needs their input. This includes:
+- Ambiguous or incomplete requirements
+- Technical decisions that affect architecture or user experience
+- Trade-offs that require business context
+
+Do not make assumptions on important decisions — get clarification first.
+
+Be sure to keep the plan documents updated, marking tasks done as they are completed. This includes both high-level plans (i.e. @plan.md) as well as 
+detailed implementation plans (i.e. implementation-plan.md).
+
+Allow the user to complete manual verfication steps in the plan before moving on.
+
+## Database Modifications
 
 **You CAN**:
 - Write migration files to `/supabase/migrations/`

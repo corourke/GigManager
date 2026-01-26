@@ -212,7 +212,8 @@ function App() {
 
   const handleGigCreated = (gigId: string) => {
     setSelectedGigId(gigId);
-    setCurrentRoute('gig-list'); // Navigate back to gig list instead of gig detail
+    // Stay on the same route, which will now render in Edit mode because gigId is set
+    setCurrentRoute('create-gig');
   };
 
   const handleBackToDashboard = () => {

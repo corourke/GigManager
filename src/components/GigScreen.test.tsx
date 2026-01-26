@@ -7,48 +7,15 @@ vi.mock('../utils/api', () => ({
   getGig: vi.fn().mockResolvedValue({}),
   createGig: vi.fn(),
   updateGig: vi.fn(),
-  getOrganizations: vi.fn().mockResolvedValue([]),
-  getUsers: vi.fn().mockResolvedValue([]),
-  getKits: vi.fn().mockResolvedValue([]),
-  getGigKits: vi.fn().mockResolvedValue([]),
+  deleteGig: vi.fn(),
+  duplicateGig: vi.fn(),
 }))
 
-vi.mock('../utils/hooks/useSimpleFormChanges', () => ({
-  useSimpleFormChanges: vi.fn(() => ({
-    hasChanges: false,
-    changedFields: {},
-    markAsSaved: vi.fn(),
-    resetToOriginal: vi.fn(),
-    loadInitialData: vi.fn(),
-    getChangedFields: vi.fn(() => ({})),
-    hasFieldChanged: vi.fn(() => false),
-  })),
-}))
-
-vi.mock('../utils/hooks/useFormWithChanges', () => ({
-  useFormWithChanges: vi.fn(() => ({
-    hasChanges: false,
-    changedFields: {},
-    updateChangedFields: vi.fn(),
-    markAsSaved: vi.fn(),
-  })),
-}))
-
-vi.mock('../utils/hooks/useAutocompleteSuggestions', () => ({
-  useAutocompleteSuggestions: vi.fn(() => ({
-    suggestions: [],
-    isLoading: false,
-    error: null,
-  })),
-}))
-
-vi.mock('../contexts/NavigationContext', () => ({
-  useNavigation: vi.fn(() => ({
-    navigateToGigs: vi.fn(),
-    navigateToAssets: vi.fn(),
-    navigateToKits: vi.fn(),
-    navigateToTeam: vi.fn(),
-    navigateToDashboard: vi.fn(),
+vi.mock('../utils/supabase/client', () => ({
+  createClient: vi.fn(() => ({
+    auth: {
+      getSession: vi.fn().mockResolvedValue({ data: { session: null } }),
+    },
   })),
 }))
 
