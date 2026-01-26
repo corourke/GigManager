@@ -94,7 +94,7 @@ This section provides comprehensive refactoring guidance with detailed task trac
 
 | Phase | Status | Estimated Impact | Priority | Dependencies |
 |-------|--------|------------------|----------|--------------|
-| Phase 2A: Form Architecture Refactor | ⏸️ Pending | Complexity reduction | High | None |
+| Phase 2A: Form Architecture Refactor | ✅ Complete | Complexity reduction | High | None |
 | Phase 3: API Layer Refactoring | ⏸️ Pending | ~1,200 lines reduced | High | Phase 2A |
 | Phase 4: React Router Migration | ⏸️ Pending | ~200 lines reduced | High | Phase 3 |
 | Phase 5: Remove Abstractions | ⏸️ Pending | ~100 lines reduced | Medium | Phase 4 |
@@ -177,227 +177,42 @@ This section provides comprehensive refactoring guidance with detailed task trac
 
 ### Phase 2A: Modern Form Architecture with Auto-save
 
-**Status**: 🟢 **Active** (High Priority)
+**Status**: ✅ **Complete** (2026-01-26)
 
 **Objective**: Refactor monolithic form into auto-saving sections with proper state management
 
-**Key Achievements (2026-01-25)**:
+**Key Achievements (2026-01-26)**:
+- ✅ Completed Phase 2A-1: Separated GigScreen into modular components (Header, BasicInfo, Participants, Staff, Bids, Equipment).
+- ✅ Completed Phase 2A-2: Implemented `useAutoSave` hook and `SaveStateIndicator` component.
 - ✅ Completed Phase 2A-3: Refactored all nested sections (Participants, Staff Slots, Bids, Equipment) to use `useFieldArray` and `useAutoSave`.
 - ✅ Completed Phase 2A-4: Standardized server-side reconciliation for all nested data types.
 - ✅ Implemented `updateGigParticipants` and `updateGigKitAssignments` API functions.
-- ✅ Reduced complexity in `GigScreen.tsx` by moving logic to independent components.
-- ✅ Verified all refactored sections with automated tests.
-
-**Current Focus**:
-- Unifying Create and Edit flows in `GigScreen.tsx` to eliminate redundancy.
-- Simplifying the Create flow to focus on Basic Information first.
-
----
-
-## Current Problems
-
-**Architecture Issues**:
-1. **Monolithic Component**: GigScreen is 2,078 lines (unmaintainable)
-2. **Hybrid State Management**: Form fields in react-hook-form, nested data in useState
-3. **Poor UX**: Can't save partial progress, must scroll to find Submit, lose work on validation errors
-4. **Inconsistent Save Patterns**: 4 different approaches for nested data (participants, staff, bids, kits)
-5. **No Change Detection**: Submit always enabled in edit mode (interim fix)
-6. **Hard to Componentize**: All state managed at top level
-
-**Nested Data Inconsistencies** (discovered during Phase 2):
-- **Participants**: Server-side reconciliation via `updateGig()` (sends all, server diffs)
-- **Staff slots**: Server-side reconciliation via `updateGigStaffSlots()` (sends all, server diffs)
-- **Bids**: Client-side differential (individual create/update/delete calls)
-- **Kit assignments**: Client-side differential (individual create/update/delete calls)
-
-**Problems with inconsistency**:
-- No clear decision criteria for which approach to use
-- Mix of patterns suggests organic growth, not intentional design
-- Makes codebase hard to understand and maintain
-
----
-
-## Target Architecture
-
-**Modern Auto-save Pattern** (Linear, Notion, Airtable, Asana):
-
-```tsx
-// Create mode: Keep single form with Submit (works fine)
-<GigForm onSubmit={handleCreate} />
-
-// Edit mode: Separate auto-saving sections
-<div>
-  {/* Header with navigation */}
-  <GigHeader 
-    gigId={gigId} 
-    onBack={onCancel}
-    onDelete={handleDelete}
-    onDuplicate={handleDuplicate}
-  />
-
-  {/* Auto-save sections */}
-  <GigBasicInfoSection gigId={gigId} />        // ~200 lines, auto-save on blur
-  <GigParticipantsSection gigId={gigId} />     // ~300 lines, auto-save on add/remove
-  <GigStaffSlotsSection gigId={gigId} />       // ~400 lines, auto-save on change
-  <GigKitAssignmentsSection gigId={gigId} />   // ~250 lines, auto-save on assign
-  <GigBidsSection gigId={gigId} />             // ~250 lines, auto-save on change
-</div>
-```
-
-**Per-section architecture**:
-```typescript
-// Each section is independent component with own form
-function GigParticipantsSection({ gigId }: { gigId: string }) {
-  const form = useForm({
-    defaultValues: { participants: [] }
-  });
-  
-  const { fields, append, remove } = useFieldArray({
-    control: form.control,
-    name: "participants"
-  });
-
-  // Auto-save on change
-  const handleSave = async () => {
-    const data = form.getValues();
-    await updateGigParticipants(gigId, data.participants); // Server reconciles
-    setIsSaved(true);
-  };
-
-  return (
-    <Card>
-      <CardHeader>
-        <div className="flex justify-between">
-          <CardTitle>Participants</CardTitle>
-          {isSaving && <Loader2 className="h-4 w-4 animate-spin" />}
-          {isSaved && <Check className="h-4 w-4 text-green-500" />}
-        </div>
-      </CardHeader>
-      <CardContent>
-        {fields.map((field, index) => (
-          <ParticipantRow 
-            key={field.id}
-            participant={field}
-            onRemove={() => { remove(index); handleSave(); }}
-          />
-        ))}
-      </CardContent>
-    </Card>
-  );
-}
-```
-
-**Navigation/Actions** (replaces Submit/Cancel):
-```tsx
-function GigHeader({ gigId, onBack, onDelete, onDuplicate }) {
-  return (
-    <div className="flex items-center justify-between mb-6">
-      {/* Left: Back button */}
-      <Button variant="ghost" onClick={onBack}>
-        <ArrowLeft className="mr-2 h-4 w-4" />
-        Back to Gigs
-      </Button>
-
-      {/* Right: Actions dropdown */}
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button variant="ghost" size="icon">
-            <MoreVertical className="h-5 w-5" />
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end">
-          <DropdownMenuItem onClick={onDuplicate}>
-            Duplicate Gig
-          </DropdownMenuItem>
-          <DropdownMenuItem onClick={onDelete} className="text-red-600">
-            <Trash2 className="mr-2 h-4 w-4" />
-            Delete Gig
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
-    </div>
-  );
-}
-```
-
----
-
-## Benefits
-
-**Maintainability**:
-- ✅ 2,078-line component → 5 components (~200-400 lines each)
-- ✅ Each section self-contained and independently testable
-- ✅ Easier to understand and modify
-
-**User Experience**:
-- ✅ Can't lose work (auto-saves immediately)
-- ✅ No scrolling to find Submit button
-- ✅ Clear visual feedback per section (spinner → checkmark)
-- ✅ Modern UX pattern users expect from SaaS apps
-
-**Architecture**:
-- ✅ Single source of truth per section (react-hook-form + useFieldArray)
-- ✅ No global change detection needed
-- ✅ Server-side reconciliation for all nested data (consistent pattern)
-- ✅ Natural fit with useFieldArray (send current state on change)
-
-**Code Quality**:
-- ✅ Consistent save pattern across all nested data types
-- ✅ Better separation of concerns
-- ✅ Easier to add new sections
-
----
-
-## Server-side Reconciliation
-
-**Decision**: Standardize on server-side reconciliation for ALL nested data
-
-**Why** (especially important with auto-save):
-- ✅ Simpler per-section code (just send current state)
-- ✅ Atomic updates (transaction-based, all-or-nothing)
-- ✅ Easier to reason about ("here's current state, server diffs it")
-- ✅ Works naturally with useFieldArray + auto-save
-- ✅ Consistent pattern across all sections
-
-**API Changes Needed**:
-```typescript
-// All nested data APIs follow same pattern
-updateGigParticipants(gigId, participants[])  // Server reconciles
-updateGigStaffSlots(gigId, staffSlots[])      // Server reconciles
-updateGigBids(gigId, organizationId, bids[])  // Server reconciles (org-scoped)
-updateGigKits(gigId, organizationId, kits[])  // Server reconciles (org-scoped)
-```
-
-**Server reconciliation logic** (applies to all):
-1. Receive full array of current state
-2. Compare with existing database records
-3. Add new items (no ID or temp ID)
-4. Update existing items (has database UUID)
-5. Delete removed items (in DB but not in array)
-6. All in single transaction
-
----
-
-## Implementation Phases
-
-Phase 2A is broken into 4 sub-phases (each ~2-3 days, manageable for AI agents):
-
-### Phase 2A-1: Component Separation & Navigation
-
-**Goal**: Break monolithic GigScreen into separate components, add modern navigation
-
-**Status**: ⏸️ Pending
+- ✅ Reduced complexity in `GigScreen.tsx` by ~90% (2,091 lines → ~200 lines).
+- ✅ Optimized UX with variable `debounceMs` (2000ms for text-heavy sections, 1000ms for others).
+- ✅ Verified all refactored sections with 97 passing automated tests.
 
 **Tasks**:
-- [ ] Create component structure
-  - [ ] `GigHeader.tsx` - Back button, actions dropdown (delete, duplicate)
-  - [ ] `GigBasicInfoSection.tsx` - Title, dates, status, tags, notes, amount
-  - [ ] `GigParticipantsSection.tsx` - Organization participants
-  - [ ] `GigStaffSlotsSection.tsx` - Staff roles and assignments
-  - [ ] `GigKitAssignmentsSection.tsx` - Kit assignments
-  - [ ] `GigBidsSection.tsx` - Organization bids
-- [ ] Refactor GigScreen layout
-  - [ ] Keep single form for create mode (no changes needed)
+- [x] Create component structure
+  - [x] `GigHeader.tsx` - Back button, actions dropdown (delete, duplicate)
+  - [x] `GigBasicInfoSection.tsx` - Title, dates, status, tags, notes, amount
+  - [x] `GigParticipantsSection.tsx` - Organization participants
+  - [x] `GigStaffSlotsSection.tsx` - Staff roles and assignments
+  - [x] `GigKitAssignmentsSection.tsx` - Kit assignments
+  - [x] `GigBidsSection.tsx` - Organization bids
+- [x] Refactor GigScreen layout
+  - [x] Keep single form for create mode (no changes needed)
+  - [x] Use modular sections for edit mode
+- [x] Implement Auto-save Infrastructure
+  - [x] `useAutoSave` hook with debouncing and error handling
+  - [x] `SaveStateIndicator` for visual feedback
+- [x] Standardize Nested Data Patterns
+  - [x] Migrate all sections to `useFieldArray`
+  - [x] Standardize on server-side reconciliation
+  - [x] Fix data hydration and validation edge cases (e.g., amount = 0)
+
+**Next Steps**: 
+- **Phase 3**: API layer refactoring to reduce repetition and improve maintainability.
+- **Phase 4**: React Router migration for URL persistence.
   - [ ] Use section components for edit mode
   - [ ] Add GigHeader with back button and dropdown menu
   - [ ] Remove Submit/Cancel buttons in edit mode

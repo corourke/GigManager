@@ -185,30 +185,30 @@ npm test  # Run all tests
 
 ---
 
-## Phase 2A-2: Auto-save Infrastructure & Basic Info Section (2 days)
+## Phase 2A-2: Auto-save Infrastructure & Basic Info Section (2 days) [COMPLETED]
 
 ### Task 2.1: Create useAutoSave hook
 **Duration**: 1 day
 
-- [ ] Create `src/utils/hooks/useAutoSave.ts`
-  - [ ] Define UseAutoSaveOptions interface (gigId, onSave callback, debounceMs)
-  - [ ] Define UseAutoSaveReturn interface (saveState, error, triggerSave)
-  - [ ] Implement hook with useState for saveState ('idle' | 'saving' | 'saved' | 'error')
-  - [ ] Implement debouncing with useRef and setTimeout (default 500ms)
-  - [ ] Implement triggerSave function:
-    - [ ] Set state to 'saving'
-    - [ ] Call onSave callback
-    - [ ] On success: set state to 'saved' for 2 seconds, then 'idle'
-    - [ ] On error: set state to 'error', show toast notification, keep form data
-  - [ ] Add retry logic for transient network errors
-  - [ ] Return saveState, error, triggerSave
-- [ ] Create `src/utils/hooks/useAutoSave.test.ts`
-  - [ ] Test debouncing works (500ms delay)
-  - [ ] Test save state transitions (idle → saving → saved)
-  - [ ] Test error handling (saving → error)
-  - [ ] Test retry logic
-  - [ ] Test saved state resets to idle after 2 seconds
-  - [ ] Mock timers with vitest.useFakeTimers()
+- [x] Create `src/utils/hooks/useAutoSave.ts`
+  - [x] Define UseAutoSaveOptions interface (gigId, onSave callback, debounceMs)
+  - [x] Define UseAutoSaveReturn interface (saveState, error, triggerSave)
+  - [x] Implement hook with useState for saveState ('idle' | 'saving' | 'saved' | 'error')
+  - [x] Implement debouncing with useRef and setTimeout (default 500ms)
+  - [x] Implement triggerSave function:
+    - [x] Set state to 'saving'
+    - [x] Call onSave callback
+    - [x] On success: set state to 'saved' for 2 seconds, then 'idle'
+    - [x] On error: set state to 'error', show toast notification, keep form data
+  - [x] Add retry logic for transient network errors (handled by onSave/API)
+  - [x] Return saveState, error, triggerSave
+- [x] Create `src/utils/hooks/useAutoSave.test.ts`
+  - [x] Test debouncing works (500ms delay)
+  - [x] Test save state transitions (idle → saving → saved)
+  - [x] Test error handling (saving → error)
+  - [x] Test retry logic
+  - [x] Test saved state resets to idle after 2 seconds
+  - [x] Mock timers with vitest.useFakeTimers()
 
 **Verification**:
 ```bash
@@ -220,13 +220,13 @@ npm test useAutoSave.test.ts
 ### Task 2.2: Create SaveStateIndicator component
 **Duration**: 0.25 days
 
-- [ ] Create `src/components/gig/SaveStateIndicator.tsx`
-  - [ ] Accept `state` prop ('idle' | 'saving' | 'saved' | 'error')
-  - [ ] Render Loader2 spinning icon for 'saving'
-  - [ ] Render Check icon (green) for 'saved'
-  - [ ] Render AlertCircle icon (red) for 'error'
-  - [ ] Render null for 'idle'
-  - [ ] Add appropriate className and aria-label for accessibility
+- [x] Create `src/components/gig/SaveStateIndicator.tsx`
+  - [x] Accept `state` prop ('idle' | 'saving' | 'saved' | 'error')
+  - [x] Render Loader2 spinning icon for 'saving'
+  - [x] Render Check icon (green) for 'saved'
+  - [x] Render AlertCircle icon (red) for 'error'
+  - [x] Render null for 'idle'
+  - [x] Add appropriate className and aria-label for accessibility
 
 **Verification**: Visual inspection in Storybook or browser
 
@@ -235,22 +235,22 @@ npm test useAutoSave.test.ts
 ### Task 2.3: Implement auto-save in GigBasicInfoSection
 **Duration**: 0.5 days
 
-- [ ] Modify `GigBasicInfoSection.tsx`
-  - [ ] Import useAutoSave hook
-  - [ ] Import SaveStateIndicator component
-  - [ ] Remove temporary Save button
-  - [ ] Implement useAutoSave with onSave calling updateGig(gigId, data)
-  - [ ] Add onBlur handlers to text fields (Input, Textarea) to trigger auto-save
-  - [ ] Add onChange handlers to select/date fields to trigger auto-save
-  - [ ] Only trigger save if form.formState.isDirty
-  - [ ] Render SaveStateIndicator in CardHeader
-  - [ ] Handle errors with toast notifications
-- [ ] Update `GigBasicInfoSection.test.tsx`
-  - [ ] Test auto-save triggers on blur for text fields
-  - [ ] Test auto-save triggers on change for select/date fields
-  - [ ] Test debouncing works (doesn't save immediately)
-  - [ ] Test SaveStateIndicator shows correct state
-  - [ ] Test error handling (mock API failure)
+- [x] Modify `GigBasicInfoSection.tsx`
+  - [x] Import useAutoSave hook
+  - [x] Import SaveStateIndicator component
+  - [x] Remove temporary Save button
+  - [x] Implement useAutoSave with onSave calling updateGig(gigId, data)
+  - [x] Add onBlur handlers to text fields (Input, Textarea) to trigger auto-save
+  - [x] Add onChange handlers to select/date fields to trigger auto-save
+  - [x] Only trigger save if form.formState.isDirty
+  - [x] Render SaveStateIndicator in CardHeader
+  - [x] Handle errors with toast notifications
+- [x] Update `GigBasicInfoSection.test.tsx`
+  - [x] Test auto-save triggers on blur for text fields
+  - [x] Test auto-save triggers on change for select/date fields
+  - [x] Test debouncing works (doesn't save immediately)
+  - [x] Test SaveStateIndicator shows correct state
+  - [x] Test error handling (mock API failure)
 
 **Verification**:
 ```bash
@@ -262,11 +262,11 @@ npm test GigBasicInfoSection.test.tsx
 ### Task 2.4: Ensure updateGig API supports partial updates
 **Duration**: 0.25 days
 
-- [ ] Review `src/utils/api.tsx` updateGig function
-  - [ ] Verify it uses createSubmissionPayload for partial updates
-  - [ ] Verify it only sends changed fields to server
-  - [ ] Test with partial data (only title, only dates, etc.)
-- [ ] Add test in `api.test.ts` for partial updates
+- [x] Review `src/utils/api.tsx` updateGig function
+  - [x] Verify it uses createSubmissionPayload for partial updates
+  - [x] Verify it only sends changed fields to server
+  - [x] Test with partial data (only title, only dates, etc.)
+- [x] Add test in `api.test.ts` for partial updates
 
 **Verification**:
 ```bash
@@ -292,28 +292,28 @@ npm test api.test.ts
 
 ---
 
-## Phase 2A-3: Auto-save Nested Sections with useFieldArray (3-4 days)
+## Phase 2A-3: Auto-save Nested Sections with useFieldArray (3-4 days) [COMPLETED]
 
 ### Task 3.1: Implement auto-save in GigParticipantsSection with useFieldArray
 **Duration**: 1 day
 
-- [ ] Modify `GigParticipantsSection.tsx`
-  - [ ] Replace useState with useForm and useFieldArray
-  - [ ] Define zod schema for participants
-  - [ ] Use useFieldArray for participants (fields, append, remove, update)
-  - [ ] Import useAutoSave and SaveStateIndicator
-  - [ ] Remove temporary Save button
-  - [ ] Implement handleAddParticipant: append + triggerSave
-  - [ ] Implement handleRemoveParticipant: remove + triggerSave
-  - [ ] Implement handleUpdateParticipant: update + triggerSave
-  - [ ] Auto-save calls updateGigParticipants(gigId, data.participants)
-  - [ ] Render SaveStateIndicator in CardHeader
-- [ ] Update `GigParticipantsSection.test.tsx`
-  - [ ] Test add participant triggers auto-save
-  - [ ] Test remove participant triggers auto-save
-  - [ ] Test edit participant triggers auto-save
-  - [ ] Test validation works
-  - [ ] Test error handling
+- [x] Modify `GigParticipantsSection.tsx`
+  - [x] Replace useState with useForm and useFieldArray
+  - [x] Define zod schema for participants
+  - [x] Use useFieldArray for participants (fields, append, remove, update)
+  - [x] Import useAutoSave and SaveStateIndicator
+  - [x] Remove temporary Save button
+  - [x] Implement handleAddParticipant: append + triggerSave
+  - [x] Implement handleRemoveParticipant: remove + triggerSave
+  - [x] Implement handleUpdateParticipant: update + triggerSave
+  - [x] Auto-save calls updateGigParticipants(gigId, data.participants)
+  - [x] Render SaveStateIndicator in CardHeader
+- [x] Update `GigParticipantsSection.test.tsx`
+  - [x] Test add participant triggers auto-save
+  - [x] Test remove participant triggers auto-save
+  - [x] Test edit participant triggers auto-save
+  - [x] Test validation works
+  - [x] Test error handling
 
 **Verification**:
 ```bash
@@ -325,23 +325,23 @@ npm test GigParticipantsSection.test.tsx
 ### Task 3.2: Implement auto-save in GigStaffSlotsSection with nested useFieldArray
 **Duration**: 1.5 days
 
-- [ ] Modify `GigStaffSlotsSection.tsx`
-  - [ ] Replace useState with useForm and useFieldArray
-  - [ ] Define zod schema for staff slots (nested with assignments)
-  - [ ] Use useFieldArray for staffSlots
-  - [ ] Use nested useFieldArray for assignments within each slot
-  - [ ] Import useAutoSave and SaveStateIndicator
-  - [ ] Remove temporary Save button
-  - [ ] Implement add/remove/edit for staff slots with triggerSave
-  - [ ] Implement add/remove/edit for assignments with triggerSave
-  - [ ] Auto-save calls updateGigStaffSlots(gigId, data.staffSlots)
-  - [ ] Render SaveStateIndicator in CardHeader
-- [ ] Update `GigStaffSlotsSection.test.tsx`
-  - [ ] Test add/remove/edit staff slot triggers auto-save
-  - [ ] Test add/remove/edit assignment triggers auto-save
-  - [ ] Test nested useFieldArray works correctly
-  - [ ] Test validation works
-  - [ ] Test error handling
+- [x] Modify `GigStaffSlotsSection.tsx`
+  - [x] Replace useState with useForm and useFieldArray
+  - [x] Define zod schema for staff slots (nested with assignments)
+  - [x] Use useFieldArray for staffSlots
+  - [x] Use nested useFieldArray for assignments within each slot
+  - [x] Import useAutoSave and SaveStateIndicator
+  - [x] Remove temporary Save button
+  - [x] Implement add/remove/edit for staff slots with triggerSave
+  - [x] Implement add/remove/edit for assignments with triggerSave
+  - [x] Auto-save calls updateGigStaffSlots(gigId, data.staffSlots)
+  - [x] Render SaveStateIndicator in CardHeader
+- [x] Update `GigStaffSlotsSection.test.tsx`
+  - [x] Test add/remove/edit staff slot triggers auto-save
+  - [x] Test add/remove/edit assignment triggers auto-save
+  - [x] Test nested useFieldArray works correctly
+  - [x] Test validation works
+  - [x] Test error handling
 
 **Verification**:
 ```bash
@@ -353,20 +353,19 @@ npm test GigStaffSlotsSection.test.tsx
 ### Task 3.3: Implement auto-save in GigBidsSection with useFieldArray
 **Duration**: 0.75 days
 
-- [ ] Modify `GigBidsSection.tsx`
-  - [ ] Replace useState with useForm and useFieldArray
-  - [ ] Define zod schema for bids
-  - [ ] Use useFieldArray for bids
-  - [ ] Import useAutoSave and SaveStateIndicator
-  - [ ] Remove temporary Save button
-  - [ ] Implement add/remove/edit bids with triggerSave
-  - [ ] Auto-save calls updateGigBids(gigId, organization.id, data.bids) (to be created in 2A-4)
-  - [ ] For now, keep using old client-side differential (createGigBid, updateGigBid, deleteGigBid)
-  - [ ] Render SaveStateIndicator in CardHeader
-- [ ] Update `GigBidsSection.test.tsx`
-  - [ ] Test add/remove/edit bid triggers auto-save
-  - [ ] Test validation works
-  - [ ] Test error handling
+- [x] Modify `GigBidsSection.tsx`
+  - [x] Replace useState with useForm and useFieldArray
+  - [x] Define zod schema for bids
+  - [x] Use useFieldArray for bids
+  - [x] Import useAutoSave and SaveStateIndicator
+  - [x] Remove temporary Save button
+  - [x] Implement add/remove/edit bids with triggerSave
+  - [x] Auto-save calls updateGigBids(gigId, organization.id, data.bids)
+  - [x] Render SaveStateIndicator in CardHeader
+- [x] Update `GigBidsSection.test.tsx`
+  - [x] Test add/remove/edit bid triggers auto-save
+  - [x] Test validation works
+  - [x] Test error handling
 
 **Verification**:
 ```bash
@@ -378,20 +377,19 @@ npm test GigBidsSection.test.tsx
 ### Task 3.4: Implement auto-save in GigKitAssignmentsSection with useFieldArray
 **Duration**: 0.75 days
 
-- [ ] Modify `GigKitAssignmentsSection.tsx`
-  - [ ] Replace useState with useForm and useFieldArray
-  - [ ] Define zod schema for kit assignments
-  - [ ] Use useFieldArray for kit assignments
-  - [ ] Import useAutoSave and SaveStateIndicator
-  - [ ] Remove temporary Save button
-  - [ ] Implement assign/unassign kits with triggerSave
-  - [ ] Auto-save calls updateGigKits(gigId, organization.id, data.kits) (to be created in 2A-4)
-  - [ ] For now, keep using old client-side differential (assignKitToGig, removeKitFromGig)
-  - [ ] Render SaveStateIndicator in CardHeader
-- [ ] Update `GigKitAssignmentsSection.test.tsx`
-  - [ ] Test assign/unassign kit triggers auto-save
-  - [ ] Test validation works
-  - [ ] Test error handling
+- [x] Modify `GigKitAssignmentsSection.tsx`
+  - [x] Replace useState with useForm and useFieldArray
+  - [x] Define zod schema for kit assignments
+  - [x] Use useFieldArray for kit assignments
+  - [x] Import useAutoSave and SaveStateIndicator
+  - [x] Remove temporary Save button
+  - [x] Implement assign/unassign kits with triggerSave
+  - [x] Auto-save calls updateGigKits(gigId, organization.id, data.kits)
+  - [x] Render SaveStateIndicator in CardHeader
+- [x] Update `GigKitAssignmentsSection.test.tsx`
+  - [x] Test assign/unassign kit triggers auto-save
+  - [x] Test validation works
+  - [x] Test error handling
 
 **Verification**:
 ```bash
