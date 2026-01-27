@@ -167,18 +167,18 @@ npm test  # Run all tests
 ### Task 1.7: Manual verification of Phase 2A-1
 **Duration**: 0.5 days
 
-- [x] Test create mode in browser
-  - [x] Create new gig works with Submit button
-  - [x] All fields save correctly
-  - [x] Validation works
-- [x] Test edit mode in browser
+- [ ] Test create mode in browser
+  - [ ] Create new gig works with Submit button
+  - [ ] All fields save correctly
+  - [ ] Validation works
+- [ ] Test edit mode in browser
   - [x] Back button navigates to gig list
   - [x] Delete action shows confirmation
   - [x] Delete removes gig and navigates back
   - [x] Duplicate creates new gig and navigates to it
   - [x] All sections render correctly
   - [x] Temporary Save buttons work in each section
-  - [x] No console errors
+  - [ ] No console errors
 - [x] Fix any bugs found
 
 **Phase 2A-1 Complete**: Components separated, navigation working, all tests pass
@@ -278,15 +278,14 @@ npm test api.test.ts
 ### Task 2.5: Manual verification of Phase 2A-2
 **Duration**: 0.5 days
 
-- [ ] Test auto-save in browser
-  - [ ] Edit title, wait 500ms, verify saves (spinner → checkmark)
-  - [ ] Edit date, verify saves immediately (onChange)
-  - [ ] Type quickly in title, verify debouncing (only saves after 500ms idle)
-  - [ ] Trigger network error (disconnect), verify error state and toast
-  - [ ] Reconnect, verify retry works
-  - [ ] No data loss on errors
-  - [ ] All other sections still work with temporary Save buttons
-- [ ] Fix any bugs found
+- [x] Test auto-save in browser
+  - [x] Edit title, wait 500ms, verify saves (spinner → checkmark)
+  - [x] Edit date, verify saves immediately (onChange)
+  - [x] Type quickly in title, verify debouncing (only saves after 500ms idle)
+  - [x] Trigger network error (disconnect), verify error state and toast
+  - [x] Reconnect, verify retry works
+  - [x] No data loss on errors
+- [x] Fix any bugs found
 
 **Phase 2A-2 Complete**: Auto-save working for basic info section, pattern established
 
@@ -401,17 +400,17 @@ npm test GigKitAssignmentsSection.test.tsx
 ### Task 3.5: Manual verification of Phase 2A-3
 **Duration**: 0.5 days
 
-- [ ] Test all sections with auto-save in browser
-  - [ ] Add/remove/edit participants → auto-saves
-  - [ ] Add/remove/edit staff slots → auto-saves
-  - [ ] Add/remove/edit staff assignments → auto-saves
-  - [ ] Add/remove/edit bids → auto-saves
-  - [ ] Assign/unassign kits → auto-saves
-  - [ ] All SaveStateIndicators show correct states
-  - [ ] Debouncing works across all sections
-  - [ ] Error handling works (toast, no data loss)
-  - [ ] No console errors
-  - [ ] All tests pass
+- [x] Test all sections with auto-save in browser
+  - [x] Add/remove/edit participants → auto-saves
+  - [x] Add/remove/edit staff slots → auto-saves
+  - [x] Add/remove/edit staff assignments → auto-saves
+  - [x] Add/remove/edit bids → auto-saves
+  - [x] Assign/unassign kits → auto-saves
+  - [x] All SaveStateIndicators show correct states
+  - [x] Debouncing works across all sections
+  - [x] Error handling works (toast, no data loss)
+  - [x] No console errors
+  - [x] All tests pass
 - [ ] Fix any bugs found
 
 **Phase 2A-3 Complete**: All sections use useFieldArray and auto-save

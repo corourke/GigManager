@@ -363,6 +363,8 @@ export default function GigListScreen({
     try {
       await api.duplicateGig(gigId);
       toast.success('Gig duplicated successfully');
+      // Refresh the list to show the newly duplicated gig
+      loadGigs();
     } catch (error: any) {
       console.error('Error duplicating gig:', error);
       toast.error(error.message || 'Failed to duplicate gig');

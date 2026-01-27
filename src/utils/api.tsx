@@ -8,6 +8,20 @@ import { projectId, publicAnonKey } from './supabase/info';
 
 // Get a fresh client instance for each API call to ensure we have the latest session
 const getSupabase = () => createClient();
+
+/**
+ * Helper to identify network/connection errors
+ */
+const isNetworkError = (err: any): boolean => {
+  return (
+    err?.message?.includes('Failed to fetch') || 
+    err?.code === 'ERR_NETWORK' ||
+    err?.name === 'TypeError' ||
+    // Supabase error codes for connection issues
+    err?.code === 'PGRST301' || // JWT expired or connection issue
+    err?.status === 0
+  );
+};
 const API_BASE_URL = `https://${projectId}.supabase.co/functions/v1/make-server-de012ad4`;
 
 // ===== User Management =====
@@ -1144,15 +1158,7 @@ export async function getGig(gigId: string) {
     };
   } catch (err: any) {
     // Re-throw network errors with more context to prevent confusing "Access Denied" messages
-    const isNetworkError = 
-      err?.message?.includes('Failed to fetch') || 
-      err?.code === 'ERR_NETWORK' ||
-      err?.name === 'TypeError' ||
-      // Supabase error codes for connection issues
-      err?.code === 'PGRST301' || // JWT expired or connection issue
-      err?.status === 0;
-
-    if (isNetworkError) {
+    if (isNetworkError(err)) {
       const networkError = new Error('Network error: Unable to connect to server to fetch gig details. Please check your internet connection.');
       networkError.name = 'NetworkError';
       throw networkError;
@@ -1523,11 +1529,12 @@ export async function updateGig(gigId: string, gigData: {
   if (!session?.user) throw new Error('Not authenticated');
   const user = session.user;
 
-  // Verify user has access to this gig
-  const { data: gigParticipants } = await supabase
-    .from('gig_participants')
-    .select('organization_id')
-    .eq('gig_id', gigId);
+  try {
+    // Verify user has access to this gig
+    const { data: gigParticipants } = await supabase
+      .from('gig_participants')
+      .select('organization_id')
+      .eq('gig_id', gigId);
 
   if (!gigParticipants || gigParticipants.length === 0) {
     throw new Error('Access denied - no participants found');
@@ -1792,9 +1799,17 @@ export async function updateGig(gigId: string, gigData: {
   }
   // NOTE: If staff_slots is undefined, we don't touch existing staff slots at all
 
-  // Fetch updated gig with participants
-  const updatedGig = await getGig(gigId);
-  return updatedGig;
+    // Fetch updated gig with participants
+    const updatedGig = await getGig(gigId);
+    return updatedGig;
+  } catch (err: any) {
+    if (isNetworkError(err)) {
+      const networkError = new Error('Network error: Unable to connect to server to update gig. Please check your internet connection.');
+      networkError.name = 'NetworkError';
+      throw networkError;
+    }
+    throw err;
+  }
 }
 
 export async function deleteGig(gigId: string) {
@@ -1838,11 +1853,12 @@ export async function updateGigStaffSlots(gigId: string, staff_slots: Array<{
   if (!session?.user) throw new Error('Not authenticated');
   const user = session.user;
 
-  // Verify user has access to this gig
-  const { data: gigParticipants } = await supabase
-    .from('gig_participants')
-    .select('organization_id')
-    .eq('gig_id', gigId);
+  try {
+    // Verify user has access to this gig
+    const { data: gigParticipants } = await supabase
+      .from('gig_participants')
+      .select('organization_id')
+      .eq('gig_id', gigId);
 
   if (!gigParticipants || gigParticipants.length === 0) {
     throw new Error('Access denied - no participants found');
@@ -2049,6 +2065,14 @@ export async function updateGigStaffSlots(gigId: string, staff_slots: Array<{
   }
 
   return { success: true };
+  } catch (err: any) {
+    if (isNetworkError(err)) {
+      const networkError = new Error('Network error: Unable to connect to server to update staff slots. Please check your internet connection.');
+      networkError.name = 'NetworkError';
+      throw networkError;
+    }
+    throw err;
+  }
 }
 
 // ===== Google Places Integration =====

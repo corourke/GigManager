@@ -10,21 +10,16 @@ The primary goal of tests at this stage is to **ensure that code simplifications
 
 1. **Utility Function Tests** - Comprehensive coverage of core business logic
    - These tests validate that utility functions work correctly
-   - Currently: **33 passing tests** in `src/utils/form-utils.test.ts`
    - These are the most reliable and should always pass
 
 2. **API Function Tests** - Validate API layer behavior
-   - Tests API functions with mocked Supabase client
-   - Currently: **18 failures, 6 passing** in `src/utils/api.test.ts`
-   - Complex mocking required - work in progress
+   - Tests API functions
    - These tests ensure API functions don't throw errors and handle data correctly
 
-3. **Minimal UI Component Tests** - Error-checking only
+3. **UI Component Tests**
    - **Purpose**: Verify components render without throwing errors
    - **Not comprehensive**: These tests don't validate full functionality
    - **Focus**: Catch rendering errors, missing props, or undefined access
-   - Currently: **4 passing, 9 failing** across component tests
-   - These tests ensure simplifications don't break component rendering
 
 ## Test Framework
 
@@ -75,11 +70,7 @@ You can specify individual test files or use patterns to run multiple files.
 
 ## Test Structure
 
-Tests are located alongside the code they test, using the `.test.ts` or `.test.tsx` extension:
-
-- `src/utils/form-utils.test.ts` - **33 passing tests** - Form utility functions
-- `src/utils/api.test.ts` - **6 passing, 18 failing** - API functions (with mocked Supabase client)
-- `src/components/*.test.tsx` - **4 passing, 9 failing** - Minimal error-checking component tests
+Tests are located alongside the code they test, using the `.test.ts` or `.test.tsx` extension.
 
 ## Test Configuration
 
