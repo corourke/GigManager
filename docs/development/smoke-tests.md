@@ -13,5 +13,6 @@ Manual smoke tests for Phase 2A:
 [x] Under Team, when editing a team member, changing a phone number field and hitting submit does not save it to the database.
 [x] Attempting to delete an expired pending invitation gives an error: ‘duplicate key value violates unique constraint “uniquependinginvitation”’.
 [x] The ‘Back to Gigs’ link should be duplicated at the bottom of the page for user convenience.
+[x] On 'Duplicate Gig' all data is replicated correctly except for Bids and staff slot assignments.
 
 [x] On unassigned staff slots, I need the number of assignment rows to equal the slot count, but do not count any slots that have status of "Declined". Also, I need a new slot assignment status: "Open" (for unassigned slots).

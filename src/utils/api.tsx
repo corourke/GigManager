@@ -1124,18 +1124,36 @@ export async function getGig(gigId: string) {
       throw kitError;
     }
 
+    // Fetch bids
+    const { data: bids, error: bidsError } = await supabase
+      .from('gig_bids')
+      .select('*')
+      .eq('gig_id', gig.id);
+
+    if (bidsError) {
+      console.error('Error fetching bids:', bidsError);
+      throw bidsError;
+    }
+
     return {
       ...gig,
       participants: participants || [],
       staff_slots: staff_slots || [],
       kit_assignments: kit_assignments || [],
+      bids: bids || [],
     };
   } catch (err: any) {
     // Re-throw network errors with more context to prevent confusing "Access Denied" messages
-    if (err?.message?.includes('Failed to fetch') || 
-        err?.code === 'ERR_NETWORK' ||
-        err?.name === 'TypeError') {
-      const networkError = new Error('Network error: Unable to connect to server to fetch gig details');
+    const isNetworkError = 
+      err?.message?.includes('Failed to fetch') || 
+      err?.code === 'ERR_NETWORK' ||
+      err?.name === 'TypeError' ||
+      // Supabase error codes for connection issues
+      err?.code === 'PGRST301' || // JWT expired or connection issue
+      err?.status === 0;
+
+    if (isNetworkError) {
+      const networkError = new Error('Network error: Unable to connect to server to fetch gig details. Please check your internet connection.');
       networkError.name = 'NetworkError';
       throw networkError;
     }
@@ -2609,24 +2627,66 @@ export async function duplicateGig(gigId: string, newTitle?: string) {
     }
   }
 
-  // Copy staff slots
+  // Copy staff slots and assignments
   if (originalGig.staff_slots && originalGig.staff_slots.length > 0) {
-    const staffSlots = originalGig.staff_slots.map((slot: any) => ({
+    for (const slot of originalGig.staff_slots) {
+      const { data: newSlot, error: slotError } = await supabase
+        .from('gig_staff_slots')
+        .insert({
+          gig_id: newGig.id,
+          staff_role_id: slot.staff_role_id,
+          organization_id: slot.organization_id,
+          required_count: slot.required_count,
+          notes: slot.notes,
+        })
+        .select()
+        .single();
+
+      if (slotError) {
+        console.error('Error copying staff slot:', slotError);
+        continue; // Try next slot even if one fails
+      }
+
+      // Copy assignments for this slot
+      if (slot.staff_assignments && slot.staff_assignments.length > 0) {
+        const assignments = slot.staff_assignments.map((sa: any) => ({
+          slot_id: newSlot.id,
+          user_id: sa.user_id,
+          status: sa.status,
+          rate: sa.rate,
+          fee: sa.fee,
+          notes: sa.notes,
+        }));
+
+        const { error: assignmentsError } = await supabase
+          .from('gig_staff_assignments')
+          .insert(assignments);
+
+        if (assignmentsError) {
+          console.error('Error copying staff assignments:', assignmentsError);
+        }
+      }
+    }
+  }
+
+  // Copy bids
+  if (originalGig.bids && originalGig.bids.length > 0) {
+    const bids = originalGig.bids.map((bid: any) => ({
       gig_id: newGig.id,
-      staff_role_id: slot.staff_role_id,
-      organization_id: slot.organization_id,
-      required_count: slot.required_count,
-      notes: slot.notes,
+      organization_id: bid.organization_id,
+      amount: bid.amount,
+      date_given: bid.date_given,
+      result: bid.result,
+      notes: bid.notes,
+      created_by: user.id,
     }));
 
-    const { error: slotsError } = await supabase
-      .from('gig_staff_slots')
-      .insert(staffSlots);
+    const { error: bidsError } = await supabase
+      .from('gig_bids')
+      .insert(bids);
 
-    if (slotsError) {
-      console.error('Error copying staff slots:', slotsError);
-      await supabase.from('gigs').delete().eq('id', newGig.id);
-      throw slotsError;
+    if (bidsError) {
+      console.error('Error copying bids:', bidsError);
     }
   }
 
