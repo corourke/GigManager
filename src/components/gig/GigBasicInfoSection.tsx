@@ -3,9 +3,8 @@ import { useForm, Controller } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { format } from 'date-fns';
-import { Clock, DollarSign, Tag, AlertCircle, Loader2 } from 'lucide-react';
+import { Clock, DollarSign, AlertCircle } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
-import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
@@ -200,24 +199,6 @@ export default function GigBasicInfoSection({ gigId, onCreate, isSubmitting: ext
         <CardTitle>{isCreateMode ? 'Create New Gig' : 'Basic Information'}</CardTitle>
         <div className="flex items-center gap-2">
           {!isCreateMode && <SaveStateIndicator state={saveState} />}
-          {isCreateMode && (
-            <Button 
-              type="submit" 
-              form="gig-basic-info-form"
-              disabled={isSubmitting}
-              size="sm"
-              className="bg-sky-600 hover:bg-sky-700 text-white"
-            >
-              {isSubmitting ? (
-                <>
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  Creating...
-                </>
-              ) : (
-                'Create Gig'
-              )}
-            </Button>
-          )}
         </div>
       </CardHeader>
       <CardContent>
@@ -425,25 +406,6 @@ export default function GigBasicInfoSection({ gigId, onCreate, isSubmitting: ext
                 </p>
               )}
             </div>
-
-            {isCreateMode && (
-              <div className="pt-4 border-t border-gray-100 flex justify-end gap-3">
-                <Button
-                  type="submit"
-                  disabled={isSubmitting}
-                  className="bg-sky-600 hover:bg-sky-700 text-white"
-                >
-                  {isSubmitting ? (
-                    <>
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      Creating...
-                    </>
-                  ) : (
-                    'Create Gig'
-                  )}
-                </Button>
-              </div>
-            )}
           </div>
         </form>
       </CardContent>

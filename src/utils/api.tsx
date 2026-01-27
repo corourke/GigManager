@@ -44,10 +44,8 @@ export async function getUserProfile(userId: string) {
     return data;
   } catch (err: any) {
     // Re-throw network errors with more context
-    if (err?.message?.includes('Failed to fetch') || 
-        err?.code === 'ERR_NETWORK' ||
-        err?.name === 'TypeError') {
-      const networkError = new Error('Network error: Unable to fetch user profile');
+    if (isNetworkError(err)) {
+      const networkError = new Error('Network error: Unable to fetch user profile. Please check your internet connection.');
       networkError.name = 'NetworkError';
       throw networkError;
     }
@@ -213,27 +211,36 @@ export async function getUserOrganizations(userId: string) {
 
 export async function searchOrganizations(filters?: { type?: string; search?: string }) {
   const supabase = getSupabase();
-  let query = supabase
-    .from('organizations')
-    .select('*')
-    .order('name');
+  try {
+    let query = supabase
+      .from('organizations')
+      .select('*')
+      .order('name');
 
-  if (filters?.type) {
-    query = query.eq('type', filters.type);
+    if (filters?.type) {
+      query = query.eq('type', filters.type);
+    }
+
+    if (filters?.search) {
+      query = query.ilike('name', `%${filters.search}%`);
+    }
+
+    const { data, error } = await query.limit(20);
+
+    if (error) {
+      console.error('Error searching organizations:', error);
+      throw error;
+    }
+
+    return data || [];
+  } catch (err: any) {
+    if (isNetworkError(err)) {
+      const networkError = new Error('Network error: Unable to connect to server to search organizations. Please check your internet connection.');
+      networkError.name = 'NetworkError';
+      throw networkError;
+    }
+    throw err;
   }
-
-  if (filters?.search) {
-    query = query.ilike('name', `%${filters.search}%`);
-  }
-
-  const { data, error } = await query.limit(20);
-
-  if (error) {
-    console.error('Error searching organizations:', error);
-    throw error;
-  }
-
-  return data || [];
 }
 
 export async function createOrganization(orgData: {
@@ -252,40 +259,49 @@ export async function createOrganization(orgData: {
   place_id?: string;
 }) {
   const supabase = getSupabase();
-  // Get current user from session
-  const { data: { session } } = await supabase.auth.getSession();
-  if (!session?.user) throw new Error('Not authenticated');
-  const user = session.user;
+  try {
+    // Get current user from session
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.user) throw new Error('Not authenticated');
+    const user = session.user;
 
-  // Create organization
-  const { data: org, error: orgError } = await supabase
-    .from('organizations')
-    .insert(orgData)
-    .select()
-    .single();
+    // Create organization
+    const { data: org, error: orgError } = await supabase
+      .from('organizations')
+      .insert(orgData)
+      .select()
+      .single();
 
-  if (orgError) {
-    console.error('Error creating organization:', orgError);
-    throw orgError;
+    if (orgError) {
+      console.error('Error creating organization:', orgError);
+      throw orgError;
+    }
+
+    // Add creator as Admin member
+    const { error: memberError } = await supabase
+      .from('organization_members')
+      .insert({
+        organization_id: org.id,
+        user_id: user.id,
+        role: 'Admin',
+      });
+
+    if (memberError) {
+      console.error('Error adding organization member:', memberError);
+      // Try to clean up the created org
+      await supabase.from('organizations').delete().eq('id', org.id);
+      throw memberError;
+    }
+
+    return org;
+  } catch (err: any) {
+    if (isNetworkError(err)) {
+      const networkError = new Error('Network error: Unable to connect to server to create organization. Please check your internet connection.');
+      networkError.name = 'NetworkError';
+      throw networkError;
+    }
+    throw err;
   }
-
-  // Add creator as Admin member
-  const { error: memberError } = await supabase
-    .from('organization_members')
-    .insert({
-      organization_id: org.id,
-      user_id: user.id,
-      role: 'Admin',
-    });
-
-  if (memberError) {
-    console.error('Error adding organization member:', memberError);
-    // Try to clean up the created org
-    await supabase.from('organizations').delete().eq('id', org.id);
-    throw memberError;
-  }
-
-  return org;
 }
 
 export async function updateOrganization(organizationId: string, orgData: {
@@ -303,26 +319,35 @@ export async function updateOrganization(organizationId: string, orgData: {
   allowed_domains?: string;
 }) {
   const supabase = getSupabase();
-  const { data: { session } } = await supabase.auth.getSession();
-  if (!session?.user) throw new Error('Not authenticated');
-  const user = session.user;
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.user) throw new Error('Not authenticated');
+    const user = session.user;
 
-  const { data, error } = await supabase
-    .from('organizations')
-    .update({
-      ...orgData,
-      updated_at: new Date().toISOString(),
-    })
-    .eq('id', organizationId)
-    .select()
-    .single();
+    const { data, error } = await supabase
+      .from('organizations')
+      .update({
+        ...orgData,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', organizationId)
+      .select()
+      .single();
 
-  if (error) {
-    console.error('Error updating organization:', error);
-    throw error;
+    if (error) {
+      console.error('Error updating organization:', error);
+      throw error;
+    }
+
+    return data;
+  } catch (err: any) {
+    if (isNetworkError(err)) {
+      const networkError = new Error('Network error: Unable to connect to server to update organization. Please check your internet connection.');
+      networkError.name = 'NetworkError';
+      throw networkError;
+    }
+    throw err;
   }
-
-  return data;
 }
 
 export async function joinOrganization(orgId: string) {
@@ -1408,9 +1433,14 @@ export async function createGig(gigData: {
 
     console.log('createGig returning:', result);
     return result;
-  } catch (error) {
-    console.error('createGig error:', error);
-    throw error;
+  } catch (err: any) {
+    console.error('createGig error:', err);
+    if (isNetworkError(err)) {
+      const networkError = new Error('Network error: Unable to connect to server to create gig. Please check your internet connection.');
+      networkError.name = 'NetworkError';
+      throw networkError;
+    }
+    throw err;
   }
 }
 
@@ -1814,17 +1844,26 @@ export async function updateGig(gigId: string, gigData: {
 
 export async function deleteGig(gigId: string) {
   const supabase = getSupabase();
-  const { error } = await supabase
-    .from('gigs')
-    .delete()
-    .eq('id', gigId);
+  try {
+    const { error } = await supabase
+      .from('gigs')
+      .delete()
+      .eq('id', gigId);
 
-  if (error) {
-    console.error('Error deleting gig:', error);
-    throw error;
+    if (error) {
+      console.error('Error deleting gig:', error);
+      throw error;
+    }
+
+    return { success: true };
+  } catch (err: any) {
+    if (isNetworkError(err)) {
+      const networkError = new Error('Network error: Unable to connect to server to delete gig. Please check your internet connection.');
+      networkError.name = 'NetworkError';
+      throw networkError;
+    }
+    throw err;
   }
-
-  return { success: true };
 }
 
 // ============================================
@@ -2596,7 +2635,8 @@ export async function duplicateKit(kitId: string, newName?: string) {
 
 export async function duplicateGig(gigId: string, newTitle?: string) {
   const supabase = getSupabase();
-  const { data: { session } } = await supabase.auth.getSession();
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
   if (!session?.user) throw new Error('Not authenticated');
   const user = session.user;
 
@@ -2736,6 +2776,14 @@ export async function duplicateGig(gigId: string, newTitle?: string) {
   }
 
   return newGig;
+  } catch (err: any) {
+    if (isNetworkError(err)) {
+      const networkError = new Error('Network error: Unable to connect to server to duplicate gig. Please check your internet connection.');
+      networkError.name = 'NetworkError';
+      throw networkError;
+    }
+    throw err;
+  }
 }
 
 // ===== Gig Kit Assignment =====
