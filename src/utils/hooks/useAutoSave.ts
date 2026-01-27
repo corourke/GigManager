@@ -14,6 +14,7 @@ interface UseAutoSaveReturn<T> {
   saveState: SaveState;
   error: Error | null;
   triggerSave: (data: T) => void;
+  flush: () => void;
 }
 
 export function useAutoSave<T>({
@@ -26,12 +27,19 @@ export function useAutoSave<T>({
   const [error, setError] = useState<Error | null>(null);
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
   const dataToSaveRef = useRef<T | null>(null);
+  const lastSavedDataRef = useRef<string>('');
 
   const performSave = useCallback(async (data: T) => {
+    const dataString = JSON.stringify(data);
+    if (dataString === lastSavedDataRef.current) {
+      return;
+    }
+
     setSaveState('saving');
     setError(null);
     try {
       await onSave(data);
+      lastSavedDataRef.current = dataString;
       setSaveState('saved');
       
       if (onSuccess) {
@@ -48,7 +56,17 @@ export function useAutoSave<T>({
       setError(err);
       toast.error(err.message || 'Failed to auto-save changes');
     }
-  }, [onSave]);
+  }, [onSave, onSuccess]);
+
+  const flush = useCallback(() => {
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+      timeoutRef.current = null;
+      if (dataToSaveRef.current) {
+        performSave(dataToSaveRef.current);
+      }
+    }
+  }, [performSave]);
 
   const triggerSave = useCallback((data: T) => {
     dataToSaveRef.current = data;
@@ -58,24 +76,31 @@ export function useAutoSave<T>({
     }
 
     timeoutRef.current = setTimeout(() => {
+      timeoutRef.current = null;
       if (dataToSaveRef.current) {
         performSave(dataToSaveRef.current);
       }
     }, debounceMs);
   }, [debounceMs, performSave]);
 
-  // Cleanup on unmount
+  // Cleanup on unmount - trigger save if pending
   useEffect(() => {
     return () => {
       if (timeoutRef.current) {
         clearTimeout(timeoutRef.current);
+        if (dataToSaveRef.current) {
+          // Note: performSave is async and we are unmounting,
+          // but the promise will still execute.
+          performSave(dataToSaveRef.current);
+        }
       }
     };
-  }, []);
+  }, [performSave]);
 
   return {
     saveState,
     error,
     triggerSave,
+    flush,
   };
 }

@@ -21,7 +21,7 @@ const staffAssignmentSchema = z.object({
   id: z.string(),
   user_id: z.string(),
   user_name: z.string(),
-  status: z.enum(['Requested', 'Confirmed', 'Declined']),
+  status: z.enum(['Open', 'Requested', 'Confirmed', 'Declined']),
   compensation_type: z.enum(['rate', 'fee']),
   amount: z.string().refine((val) => {
     if (!val.trim()) return true;
@@ -50,7 +50,7 @@ interface StaffAssignmentData {
   id: string;
   user_id: string;
   user_name: string;
-  status: 'Requested' | 'Confirmed' | 'Declined';
+  status: 'Open' | 'Requested' | 'Confirmed' | 'Declined';
   compensation_type: 'rate' | 'fee';
   amount: string;
   notes: string;
@@ -188,24 +188,29 @@ export default function GigStaffSlotsSection({
           id: assignment.id,
           user_id: assignment.user_id,
           user_name: `${assignment.user?.first_name || ''} ${assignment.user?.last_name || ''}`.trim(),
-          status: assignment.status || 'Requested',
+          status: (assignment.status as any) || 'Open',
           compensation_type: assignment.rate !== null ? 'rate' : 'fee',
           amount: assignment.rate !== null ? assignment.rate.toString() : (assignment.fee !== null ? assignment.fee.toString() : ''),
           notes: assignment.notes || '',
         }));
 
-        // Pad with empty assignments if count is greater than current assignments
         const count = slot.count || 1;
-        while (assignments.length < count) {
-          assignments.push({
-            id: `temp-${Math.random().toString(36).substr(2, 9)}`,
-            user_id: '',
-            user_name: '',
-            status: 'Requested',
-            compensation_type: 'rate',
-            amount: '',
-            notes: '',
-          });
+        // Count non-declined assignments
+        const activeAssignmentsCount = assignments.filter(a => a.status !== 'Declined').length;
+        
+        // Pad with 'Open' assignments if active count is less than required count
+        if (activeAssignmentsCount < count) {
+          for (let i = 0; i < (count - activeAssignmentsCount); i++) {
+            assignments.push({
+              id: `temp-${Math.random().toString(36).substr(2, 9)}`,
+              user_id: '',
+              user_name: '',
+              status: 'Open',
+              compensation_type: 'rate',
+              amount: '',
+              notes: '',
+            });
+          }
         }
 
         return {
@@ -238,25 +243,46 @@ export default function GigStaffSlotsSection({
   };
 
   const handleCountChange = (index: number, value: number) => {
-    const currentCount = watch(`slots.${index}.assignments`).length;
-    if (value > currentCount) {
-      const currentAssignments = getValues(`slots.${index}.assignments`);
-      const newAssignments = [...currentAssignments];
-      for (let i = currentCount; i < value; i++) {
+    const assignments = getValues(`slots.${index}.assignments`);
+    const activeAssignments = assignments.filter(a => a.status !== 'Declined');
+    const declinedAssignments = assignments.filter(a => a.status === 'Declined');
+    
+    if (value > activeAssignments.length) {
+      // Add more 'Open' assignments
+      const newAssignments = [...assignments];
+      for (let i = activeAssignments.length; i < value; i++) {
         newAssignments.push({
           id: `temp-${Math.random().toString(36).substr(2, 9)}`,
           user_id: '',
           user_name: '',
-          status: 'Requested',
+          status: 'Open',
           compensation_type: 'rate',
           amount: '',
           notes: '',
         });
       }
       setValue(`slots.${index}.assignments`, newAssignments, { shouldDirty: true });
-    } else if (value < currentCount) {
-      const currentAssignments = getValues(`slots.${index}.assignments`);
-      setValue(`slots.${index}.assignments`, currentAssignments.slice(0, value), { shouldDirty: true });
+    } else if (value < activeAssignments.length) {
+      // Remove 'Open' assignments first, then others if needed, but keep 'Declined'
+      const newActiveAssignments = [...activeAssignments];
+      // Try to remove 'Open' assignments that don't have a user first
+      let removedCount = 0;
+      const targetToRemove = activeAssignments.length - value;
+      
+      const resultActive = [];
+      // Keep assignments with users or that are not 'Open' if possible
+      // Actually, let's just slice from the end of active ones for simplicity, 
+      // but prefer keeping those with data.
+      
+      const sortedActive = [...activeAssignments].sort((a, b) => {
+        // Prefer keeping those with user_id
+        if (a.user_id && !b.user_id) return -1;
+        if (!a.user_id && b.user_id) return 1;
+        return 0;
+      });
+      
+      const keptActive = sortedActive.slice(0, value);
+      setValue(`slots.${index}.assignments`, [...declinedAssignments, ...keptActive], { shouldDirty: true });
     }
     setValue(`slots.${index}.count`, value, { shouldDirty: true });
   };
@@ -437,6 +463,7 @@ export default function GigStaffSlotsSection({
                                 <SelectValue />
                               </SelectTrigger>
                               <SelectContent>
+                                <SelectItem value="Open">Open</SelectItem>
                                 <SelectItem value="Requested">Requested</SelectItem>
                                 <SelectItem value="Confirmed">Confirmed</SelectItem>
                                 <SelectItem value="Declined">Declined</SelectItem>

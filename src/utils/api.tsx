@@ -395,7 +395,16 @@ export async function getOrganizationMembers(organizationId: string) {
         id,
         first_name,
         last_name,
-        email
+        email,
+        phone,
+        avatar_url,
+        address_line1,
+        address_line2,
+        city,
+        state,
+        postal_code,
+        country,
+        user_status
       )
     `)
     .eq('organization_id', organizationId)
@@ -470,7 +479,16 @@ export async function addExistingUserToOrganization(
         id,
         first_name,
         last_name,
-        email
+        email,
+        phone,
+        avatar_url,
+        address_line1,
+        address_line2,
+        city,
+        state,
+        postal_code,
+        country,
+        user_status
       )
     `)
     .single();
@@ -643,13 +661,15 @@ export async function cancelInvitation(invitationId: string) {
   const { data: { session } } = await supabase.auth.getSession();
   if (!session?.user) throw new Error('Not authenticated');
 
+  // Hard delete instead of update to 'cancelled' to avoid unique constraint violations
+  // (organization_id, email, status) when multiple invitations are cancelled for the same email.
   const { error } = await supabase
     .from('invitations')
-    .update({ status: 'cancelled' })
+    .delete()
     .eq('id', invitationId);
 
   if (error) {
-    console.error('Error cancelling invitation:', error);
+    console.error('Error deleting invitation:', error);
     throw error;
   }
 
@@ -823,7 +843,16 @@ export async function updateMemberDetails(
         id,
         first_name,
         last_name,
-        email
+        email,
+        phone,
+        avatar_url,
+        address_line1,
+        address_line2,
+        city,
+        state,
+        postal_code,
+        country,
+        user_status
       )
     `)
     .eq('id', memberId)
@@ -917,7 +946,16 @@ export async function inviteMember(organizationId: string, email: string, role: 
         id,
         first_name,
         last_name,
-        email
+        email,
+        phone,
+        avatar_url,
+        address_line1,
+        address_line2,
+        city,
+        state,
+        postal_code,
+        country,
+        user_status
       )
     `)
     .single();
@@ -985,79 +1023,124 @@ export async function getGigsForOrganization(organizationId: string) {
 
 export async function getGig(gigId: string) {
   const supabase = getSupabase();
-  // Get current user from session
-  const { data: { session } } = await supabase.auth.getSession();
-  if (!session?.user) throw new Error('Not authenticated');
-  const user = session.user;
-
-  const { data: gig, error } = await supabase
-    .from('gigs')
-    .select('*')
-    .eq('id', gigId)
-    .single();
-
-  if (error) {
-    console.error('Error fetching gig:', error);
-    throw error;
-  }
-
-  // Verify user has access through gig participants
-  const { data: gigParticipants } = await supabase
-    .from('gig_participants')
-    .select('organization_id')
-    .eq('gig_id', gigId);
-
-  if (!gigParticipants || gigParticipants.length === 0) {
-    throw new Error('Access denied - no participants found');
-  }
-
-  const orgIds = gigParticipants.map(gp => gp.organization_id);
   
-  // Check if user is member of any participating organization
-  const { data: userMemberships } = await supabase
-    .from('organization_members')
-    .select('organization_id')
-    .eq('user_id', user.id)
-    .in('organization_id', orgIds);
+  try {
+    // Get current user from session
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.user) throw new Error('Not authenticated');
+    const user = session.user;
 
-  if (!userMemberships || userMemberships.length === 0) {
-    throw new Error('Access denied - not a member of participating organizations');
-  }
+    const { data: gig, error } = await supabase
+      .from('gigs')
+      .select('*')
+      .eq('id', gigId)
+      .single();
 
-  // Fetch full participant data with organization details
-  const { data: participants } = await supabase
-    .from('gig_participants')
-    .select('*, organization:organization_id(*)')
-    .eq('gig_id', gig.id);
+    if (error) {
+      console.error('Error fetching gig:', error);
+      throw error;
+    }
 
-  // Fetch staff slots with roles and assignments
-  const { data: staff_slots_raw } = await supabase
-    .from('gig_staff_slots')
-    .select(`
-      *,
-      staff_roles(name),
-      gig_staff_assignments(
+    // Verify user has access through gig participants
+    const { data: gigParticipants, error: participantsFetchError } = await supabase
+      .from('gig_participants')
+      .select('organization_id')
+      .eq('gig_id', gigId);
+
+    if (participantsFetchError) {
+      console.error('Error fetching gig participants:', participantsFetchError);
+      throw participantsFetchError;
+    }
+
+    if (!gigParticipants || gigParticipants.length === 0) {
+      throw new Error('Access denied - no participants found for this gig');
+    }
+
+    const orgIds = gigParticipants.map(gp => gp.organization_id);
+    
+    // Check if user is member of any participating organization
+    const { data: userMemberships, error: membershipsError } = await supabase
+      .from('organization_members')
+      .select('organization_id')
+      .eq('user_id', user.id)
+      .in('organization_id', orgIds);
+
+    if (membershipsError) {
+      console.error('Error fetching user memberships:', membershipsError);
+      throw membershipsError;
+    }
+
+    if (!userMemberships || userMemberships.length === 0) {
+      throw new Error('Access denied - you are not a member of any organization participating in this gig');
+    }
+
+    // Fetch full participant data with organization details
+    const { data: participants, error: fullParticipantsError } = await supabase
+      .from('gig_participants')
+      .select('*, organization:organization_id(*)')
+      .eq('gig_id', gig.id);
+
+    if (fullParticipantsError) {
+      console.error('Error fetching full participants:', fullParticipantsError);
+      throw fullParticipantsError;
+    }
+
+    // Fetch staff slots with roles and assignments
+    const { data: staff_slots_raw, error: slotsError } = await supabase
+      .from('gig_staff_slots')
+      .select(`
         *,
-        user:user_id(id, first_name, last_name)
-      )
-    `)
-    .eq('gig_id', gig.id);
+        staff_roles(name),
+        gig_staff_assignments(
+          *,
+          user:user_id(id, first_name, last_name)
+        )
+      `)
+      .eq('gig_id', gig.id);
 
-  const staff_slots = staff_slots_raw?.map((slot: any) => ({
-    ...slot,
-    role: slot.staff_roles?.name || '',
-    count: slot.required_count,
-    staff_assignments: slot.gig_staff_assignments?.map((assignment: any) => ({
-      ...assignment,
-      user: assignment.user
-    }))
-  }));
+    if (slotsError) {
+      console.error('Error fetching staff slots:', slotsError);
+      throw slotsError;
+    }
 
-  return {
-    ...gig,
-    participants: participants || [],
-    staff_slots: staff_slots || [],
-  };
+    const staff_slots = staff_slots_raw?.map((slot: any) => ({
+      ...slot,
+      role: slot.staff_roles?.name || '',
+      count: slot.required_count,
+      staff_assignments: slot.gig_staff_assignments?.map((assignment: any) => ({
+        ...assignment,
+        user: assignment.user
+      }))
+    }));
+
+    // Fetch kit assignments
+    const { data: kit_assignments, error: kitError } = await supabase
+      .from('gig_kit_assignments')
+      .select('*')
+      .eq('gig_id', gig.id);
+
+    if (kitError) {
+      console.error('Error fetching kit assignments:', kitError);
+      throw kitError;
+    }
+
+    return {
+      ...gig,
+      participants: participants || [],
+      staff_slots: staff_slots || [],
+      kit_assignments: kit_assignments || [],
+    };
+  } catch (err: any) {
+    // Re-throw network errors with more context to prevent confusing "Access Denied" messages
+    if (err?.message?.includes('Failed to fetch') || 
+        err?.code === 'ERR_NETWORK' ||
+        err?.name === 'TypeError') {
+      const networkError = new Error('Network error: Unable to connect to server to fetch gig details');
+      networkError.name = 'NetworkError';
+      throw networkError;
+    }
+    throw err;
+  }
 }
 
 export async function createGig(gigData: {
@@ -2479,6 +2562,11 @@ export async function duplicateGig(gigId: string, newTitle?: string) {
   const originalGig = await getGig(gigId);
 
   // Create new gig
+  if (!originalGig.start || !originalGig.end) {
+    console.error('Original gig missing start or end dates:', originalGig);
+    throw new Error('Original gig missing start or end dates');
+  }
+
   const { data: newGig, error: gigError } = await supabase
     .from('gigs')
     .insert({
@@ -2502,8 +2590,8 @@ export async function duplicateGig(gigId: string, newTitle?: string) {
   }
 
   // Copy participants
-  if (originalGig.gig_participants && originalGig.gig_participants.length > 0) {
-    const participants = originalGig.gig_participants.map((gp: any) => ({
+  if (originalGig.participants && originalGig.participants.length > 0) {
+    const participants = originalGig.participants.map((gp: any) => ({
       gig_id: newGig.id,
       organization_id: gp.organization_id,
       role: gp.role,
@@ -2543,12 +2631,13 @@ export async function duplicateGig(gigId: string, newTitle?: string) {
   }
 
   // Copy equipment assignments (kit assignments)
-  if (originalGig.gig_kit_assignments && originalGig.gig_kit_assignments.length > 0) {
-    const kitAssignments = originalGig.gig_kit_assignments.map((gka: any) => ({
+  if (originalGig.kit_assignments && originalGig.kit_assignments.length > 0) {
+    const kitAssignments = originalGig.kit_assignments.map((gka: any) => ({
       gig_id: newGig.id,
       kit_id: gka.kit_id,
       organization_id: gka.organization_id,
       notes: gka.notes,
+      assigned_by: user.id, // Add assigned_by which is required in schema
     }));
 
     const { error: assignmentsError } = await supabase

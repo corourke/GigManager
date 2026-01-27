@@ -70,7 +70,18 @@ export default function GigBidsSection({
   });
 
   const handleSave = useCallback(async (data: BidsFormData) => {
-    await updateGigBids(gigId, currentOrganizationId, data.bids.map(b => ({
+    // Only save bids that have a valid amount
+    const validBids = data.bids.filter(b => {
+      const amount = parseFloat(b.amount);
+      return !isNaN(amount) && b.date_given;
+    });
+
+    if (validBids.length === 0 && data.bids.length > 0) {
+      // If there are bids but none are valid yet, don't save
+      return;
+    }
+
+    await updateGigBids(gigId, currentOrganizationId, validBids.map(b => ({
       id: b.id.startsWith('temp-') ? undefined : b.id,
       amount: parseFloat(b.amount),
       date_given: b.date_given,
@@ -94,12 +105,18 @@ export default function GigBidsSection({
 
   useEffect(() => {
     if (isDirty) {
-      const isValid = Object.keys(errors).length === 0;
+      // Validate before triggering auto-save
+      // We check if all bids in the form are valid according to our schema
+      const isValid = formValues.bids.every(bid => {
+        const amount = parseFloat(bid.amount);
+        return !isNaN(amount) && amount >= 0 && bid.date_given;
+      });
+
       if (isValid) {
         triggerSave(formValues);
       }
     }
-  }, [formValues, isDirty, errors, triggerSave]);
+  }, [formValues, isDirty, triggerSave]);
 
   useEffect(() => {
     loadBidsData();

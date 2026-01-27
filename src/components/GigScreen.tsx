@@ -2,9 +2,11 @@ import { useState, useEffect } from 'react';
 import { toast } from 'sonner';
 import { 
   Loader2, 
-  AlertCircle
+  AlertCircle,
+  ArrowLeft
 } from 'lucide-react';
 import { Alert, AlertDescription } from './ui/alert';
+import { Button } from './ui/button';
 import AppHeader from './AppHeader';
 import type { User, Organization, UserRole } from '../App';
 import { getGig, deleteGig, duplicateGig, createGig } from '../utils/api';
@@ -191,6 +193,13 @@ export default function GigScreen({
                 currentOrganizationId={organization.id}
               />
             </div>
+
+            <div className="mt-8 flex justify-center pb-12">
+              <Button variant="ghost" onClick={onCancel}>
+                <ArrowLeft className="mr-2 h-4 w-4" />
+                Back to Gigs
+              </Button>
+            </div>
           </>
         ) : (
           <div className="space-y-6">
@@ -198,6 +207,12 @@ export default function GigScreen({
               onCreate={handleCreateGig} 
               isSubmitting={isSubmitting}
             />
+            <div className="mt-8 flex justify-center pb-12">
+              <Button variant="ghost" onClick={onCancel}>
+                <ArrowLeft className="mr-2 h-4 w-4" />
+                Cancel and Go Back
+              </Button>
+            </div>
           </div>
         )}
       </div>

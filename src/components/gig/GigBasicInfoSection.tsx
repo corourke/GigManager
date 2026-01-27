@@ -198,10 +198,33 @@ export default function GigBasicInfoSection({ gigId, onCreate, isSubmitting: ext
     <Card className="mb-6">
       <CardHeader className="flex flex-row items-center justify-between">
         <CardTitle>{isCreateMode ? 'Create New Gig' : 'Basic Information'}</CardTitle>
-        {!isCreateMode && <SaveStateIndicator state={saveState} />}
+        <div className="flex items-center gap-2">
+          {!isCreateMode && <SaveStateIndicator state={saveState} />}
+          {isCreateMode && (
+            <Button 
+              type="submit" 
+              form="gig-basic-info-form"
+              disabled={isSubmitting}
+              size="sm"
+              className="bg-sky-600 hover:bg-sky-700 text-white"
+            >
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Creating...
+                </>
+              ) : (
+                'Create Gig'
+              )}
+            </Button>
+          )}
+        </div>
       </CardHeader>
       <CardContent>
-        <form onSubmit={isCreateMode ? handleSubmit(onCreate!) : (e) => e.preventDefault()}>
+        <form 
+          id="gig-basic-info-form"
+          onSubmit={isCreateMode ? handleSubmit(onCreate!) : (e) => e.preventDefault()}
+        >
           <div className="space-y-6">
             <div className="space-y-2">
               <Label htmlFor="title">
