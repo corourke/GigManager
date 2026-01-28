@@ -9,7 +9,7 @@ import { Checkbox } from './ui/checkbox';
 import { Textarea } from './ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import AppHeader from './AppHeader';
-import type { Organization, User, UserRole } from '../App';
+import { Organization, User, UserRole } from '../utils/supabase/types';
 import { getAsset, createAsset, updateAsset } from '../utils/api';
 import type { DbAsset } from '../utils/supabase/types';
 import { useSimpleFormChanges } from '../utils/hooks/useSimpleFormChanges';

@@ -5,6 +5,14 @@
 
 import { createClient } from './supabase/client';
 import { projectId, publicAnonKey } from './supabase/info';
+import { 
+  OrganizationType, 
+  UserRole,
+  Organization,
+  User,
+  OrganizationMembershipWithOrg,
+  GigStatus
+} from './supabase/types';
 
 // Get a fresh client instance for each API call to ensure we have the latest session
 const getSupabase = () => createClient();
@@ -26,7 +34,7 @@ const API_BASE_URL = `https://${projectId}.supabase.co/functions/v1/make-server-
 
 // ===== User Management =====
 
-export async function getUserProfile(userId: string) {
+export async function getUserProfile(userId: string): Promise<User | null> {
   const supabase = getSupabase();
   
   try {
@@ -59,7 +67,7 @@ export async function createUserProfile(userData: {
   first_name?: string;
   last_name?: string;
   avatar_url?: string;
-}) {
+}): Promise<User> {
   const supabase = getSupabase();
   // Check if user already exists
   const existing = await getUserProfile(userData.id);
@@ -91,7 +99,7 @@ export async function updateUserProfile(userId: string, updates: {
   state?: string;
   postal_code?: string;
   country?: string;
-}) {
+}): Promise<User> {
   const supabase = getSupabase();
   const { data, error } = await supabase
     .from('users')
@@ -111,7 +119,7 @@ export async function updateUserProfile(userId: string, updates: {
   return data;
 }
 
-export async function searchUsers(search?: string, organizationIds?: string[]) {
+export async function searchUsers(search?: string, organizationIds?: string[]): Promise<User[]> {
   const supabase = getSupabase();
   // Get current authenticated user
   const { data: { session } } = await supabase.auth.getSession();
@@ -171,7 +179,7 @@ export async function searchUsers(search?: string, organizationIds?: string[]) {
   return data || [];
 }
 
-export async function getUserOrganizations(userId: string) {
+export async function getUserOrganizations(userId: string): Promise<OrganizationMembershipWithOrg[]> {
   const supabase = getSupabase();
   // Get current authenticated user
   const { data: { session } } = await supabase.auth.getSession();
@@ -209,7 +217,7 @@ export async function getUserOrganizations(userId: string) {
 
 // ===== Organization Management =====
 
-export async function searchOrganizations(filters?: { type?: string; search?: string }) {
+export async function searchOrganizations(filters?: { type?: OrganizationType; search?: string }): Promise<Organization[]> {
   const supabase = getSupabase();
   try {
     let query = supabase
@@ -245,7 +253,7 @@ export async function searchOrganizations(filters?: { type?: string; search?: st
 
 export async function createOrganization(orgData: {
   name: string;
-  type: string;
+  type: OrganizationType;
   description?: string;
   phone?: string;
   email?: string;
@@ -257,7 +265,7 @@ export async function createOrganization(orgData: {
   postal_code?: string;
   country?: string;
   place_id?: string;
-}) {
+}): Promise<Organization> {
   const supabase = getSupabase();
   try {
     // Get current user from session
@@ -306,7 +314,7 @@ export async function createOrganization(orgData: {
 
 export async function updateOrganization(organizationId: string, orgData: {
   name?: string;
-  type?: string;
+  type?: OrganizationType;
   url?: string;
   phone_number?: string;
   description?: string;
@@ -317,7 +325,7 @@ export async function updateOrganization(organizationId: string, orgData: {
   postal_code?: string;
   country?: string;
   allowed_domains?: string;
-}) {
+}): Promise<Organization> {
   const supabase = getSupabase();
   try {
     const { data: { session } } = await supabase.auth.getSession();
@@ -350,7 +358,7 @@ export async function updateOrganization(organizationId: string, orgData: {
   }
 }
 
-export async function joinOrganization(orgId: string) {
+export async function joinOrganization(orgId: string): Promise<{ organization: Organization; role: UserRole }> {
   const supabase = getSupabase();
   // Get current user from session
   const { data: { session } } = await supabase.auth.getSession();
@@ -1528,7 +1536,7 @@ export async function updateGig(gigId: string, gigData: {
   start?: string;
   end?: string;
   timezone?: string;
-  status?: string;
+  status?: GigStatus;
   tags?: string[];
   notes?: string;
   amount_paid?: number | null;

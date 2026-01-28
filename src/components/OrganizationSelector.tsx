@@ -5,7 +5,11 @@ import { Badge } from './ui/badge';
 import { Command, CommandEmpty, CommandGroup, CommandItem, CommandList } from './ui/command';
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
 import { Search, X, Building2, MapPin, Loader2 } from 'lucide-react';
-import type { Organization, OrganizationType } from '../App';
+import { 
+  Organization, 
+  OrganizationType 
+} from '../utils/supabase/types';
+import { ORG_TYPE_CONFIG } from '../utils/supabase/constants';
 import { searchOrganizations } from '../utils/api';
 
 interface OrganizationSelectorProps {
@@ -15,17 +19,6 @@ interface OrganizationSelectorProps {
   placeholder?: string;
   disabled?: boolean;
 }
-
-const TYPE_CONFIG: Record<OrganizationType, { label: string; color: string }> = {
-  Production: { label: 'Production', color: 'bg-purple-100 text-purple-700' },
-  Sound: { label: 'Sound', color: 'bg-orange-100 text-orange-700' },
-  Lighting: { label: 'Lighting', color: 'bg-yellow-100 text-yellow-700' },
-  Staging: { label: 'Staging', color: 'bg-indigo-100 text-indigo-700' },
-  Rentals: { label: 'Rentals', color: 'bg-blue-100 text-blue-700' },
-  Venue: { label: 'Venue', color: 'bg-green-100 text-green-700' },
-  Act: { label: 'Act', color: 'bg-pink-100 text-pink-700' },
-  Agency: { label: 'Agency', color: 'bg-teal-100 text-teal-700' },
-};
 
 export default function OrganizationSelector({
   onSelect,
@@ -87,8 +80,8 @@ export default function OrganizationSelector({
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-1">
               <p className="text-sm truncate">{selectedOrganization.name}</p>
-              <Badge variant="secondary" className={`${TYPE_CONFIG[selectedOrganization.type].color} text-xs`}>
-                {TYPE_CONFIG[selectedOrganization.type].label}
+              <Badge variant="secondary" className={`${ORG_TYPE_CONFIG[selectedOrganization.type].color} text-xs`}>
+                {ORG_TYPE_CONFIG[selectedOrganization.type].label}
               </Badge>
             </div>
             {(selectedOrganization.city || selectedOrganization.state) && (
@@ -155,8 +148,8 @@ export default function OrganizationSelector({
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2 mb-1">
                               <p className="text-sm truncate">{org.name}</p>
-                              <Badge variant="secondary" className={`${TYPE_CONFIG[org.type].color} text-xs`}>
-                                {TYPE_CONFIG[org.type].label}
+                              <Badge variant="secondary" className={`${ORG_TYPE_CONFIG[org.type].color} text-xs`}>
+                                {ORG_TYPE_CONFIG[org.type].label}
                               </Badge>
                             </div>
                             {(org.city || org.state) && (
@@ -184,7 +177,7 @@ export default function OrganizationSelector({
                   <div className="p-8 text-center">
                     <Search className="h-8 w-8 mx-auto mb-2 text-gray-400" />
                     <p className="text-sm text-gray-600">
-                      Start typing to search for {organizationType ? TYPE_CONFIG[organizationType].label.toLowerCase() : 'organizations'}
+                      Start typing to search for {organizationType ? ORG_TYPE_CONFIG[organizationType].label.toLowerCase() : 'organizations'}
                     </p>
                   </div>
                 )}

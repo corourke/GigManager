@@ -17,7 +17,7 @@ import { Badge } from './ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import AppHeader from './AppHeader';
 import EquipmentTabs from './EquipmentTabs';
-import type { Organization, User, UserRole } from '../App';
+import { Organization, User, UserRole } from '../utils/supabase/types';
 
 interface KitListScreenProps {
   organization: Organization;

@@ -51,7 +51,13 @@ import {
   TableRow,
 } from './ui/table';
 import AppHeader from './AppHeader';
-import type { User, Organization, UserRole } from '../App';
+import { 
+  User, 
+  Organization, 
+  UserRole,
+  OrganizationMemberWithUser as OrganizationMember,
+  InvitationWithInviter as Invitation
+} from '../utils/supabase/types';
 import { 
   getOrganizationMembersWithAuth, 
   updateMemberDetails, 
@@ -77,41 +83,6 @@ interface TeamScreenProps {
   onSwitchOrganization: () => void;
   onEditProfile?: () => void;
   onLogout: () => void;
-}
-
-interface OrganizationMember {
-  id: string;
-  role: string;
-  default_staff_role_id?: string;
-  created_at: string;
-  user: {
-    id: string;
-    first_name: string;
-    last_name: string;
-    email: string;
-    phone?: string;
-    avatar_url?: string;
-    address_line1?: string;
-    address_line2?: string;
-    city?: string;
-    state?: string;
-    postal_code?: string;
-    country?: string;
-    user_status?: string;
-  };
-}
-
-interface Invitation {
-  id: string;
-  email: string;
-  role: string;
-  status: string;
-  created_at: string;
-  expires_at: string;
-  invited_by_user: {
-    first_name: string;
-    last_name: string;
-  };
 }
 
 export default function TeamScreen({

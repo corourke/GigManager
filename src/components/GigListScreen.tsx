@@ -60,9 +60,8 @@ import { Calendar } from './ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
 import { format, parse } from 'date-fns';
 import { toast } from 'sonner';
-import type { Organization, User, UserRole } from '../App';
-
-export type GigStatus = 'DateHold' | 'Proposed' | 'Booked' | 'Completed' | 'Cancelled' | 'Settled';
+import { Organization, User, UserRole, GigStatus } from '../utils/supabase/types';
+import { GIG_STATUS_CONFIG } from '../utils/supabase/constants';
 
 export interface Gig {
   id: string;
@@ -241,15 +240,6 @@ const MOCK_GIGS_DATA: Gig[] = [
     updated_at: '2025-03-20T16:00:00Z',
   },
 ];
-
-const STATUS_CONFIG: Record<GigStatus, { color: string; label: string }> = {
-  'DateHold': { color: 'bg-gray-100 text-gray-700 border-gray-300', label: 'Date Hold' },
-  'Proposed': { color: 'bg-blue-100 text-blue-700 border-blue-300', label: 'Proposed' },
-  'Booked': { color: 'bg-green-100 text-green-700 border-green-300', label: 'Booked' },
-  'Completed': { color: 'bg-purple-100 text-purple-700 border-purple-300', label: 'Completed' },
-  'Cancelled': { color: 'bg-red-100 text-red-700 border-red-300', label: 'Cancelled' },
-  'Settled': { color: 'bg-emerald-100 text-emerald-700 border-emerald-300', label: 'Settled' },
-};
 
 const ALL_TAGS = ['Festival', 'Concert', 'Corporate Event', 'Wedding', 'Theater', 'Conference', 'Charity', 'Gala', 'Outdoor', 'Multi-Day', 'Series', 'Private Event', 'Jazz', 'Formal', 'Live Performance', 'Holiday'];
 
@@ -806,9 +796,9 @@ export default function GigListScreen({
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="All">All Statuses</SelectItem>
-                {Object.keys(STATUS_CONFIG).map((status) => (
-                  <SelectItem key={status} value={status}>
-                    {status}
+                {Object.entries(GIG_STATUS_CONFIG).map(([value, config]) => (
+                  <SelectItem key={value} value={value}>
+                    {config.label}
                   </SelectItem>
                 ))}
               </SelectContent>

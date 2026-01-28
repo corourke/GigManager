@@ -2,7 +2,7 @@ import type {
   User,
   OrganizationMembership,
   Organization,
-} from "./App";
+} from "./supabase/types";
 import type {
   Gig,
   GigStatus,

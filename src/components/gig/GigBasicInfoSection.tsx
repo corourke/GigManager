@@ -14,15 +14,15 @@ import { getGig, updateGig } from '../../utils/api';
 import { useAutoSave } from '../../utils/hooks/useAutoSave';
 import SaveStateIndicator from './SaveStateIndicator';
 import { toast } from 'sonner';
-
-type GigStatus = 'DateHold' | 'Proposed' | 'Booked' | 'Completed' | 'Cancelled' | 'Settled';
+import { GigStatus } from '../../utils/supabase/types';
+import { GIG_STATUS_CONFIG } from '../../utils/supabase/constants';
 
 const basicInfoSchema = z.object({
   title: z.string().min(1, 'Title is required').max(200, 'Title must be less than 200 characters'),
   start_time: z.date({ required_error: 'Start date/time is required' }),
   end_time: z.date({ required_error: 'End date/time is required' }),
   timezone: z.string().min(1, 'Timezone is required'),
-  status: z.enum(['DateHold', 'Proposed', 'Booked', 'Completed', 'Cancelled', 'Settled']),
+  status: z.enum(Object.keys(GIG_STATUS_CONFIG) as [string, ...string[]]),
   tags: z.array(z.string()).optional(),
   notes: z.string().optional(),
   amount_paid: z.string().refine((val) => {
@@ -61,14 +61,10 @@ const TIMEZONES = [
   { value: 'Pacific/Honolulu', label: 'Hawaii (HST)' },
 ];
 
-const STATUS_OPTIONS: { value: GigStatus; label: string }[] = [
-  { value: 'DateHold', label: 'Hold Date' },
-  { value: 'Proposed', label: 'Proposed' },
-  { value: 'Booked', label: 'Booked' },
-  { value: 'Completed', label: 'Completed' },
-  { value: 'Cancelled', label: 'Cancelled' },
-  { value: 'Settled', label: 'Paid' },
-];
+const STATUS_OPTIONS: { value: GigStatus; label: string }[] = Object.entries(GIG_STATUS_CONFIG).map(([value, config]) => ({
+  value: value as GigStatus,
+  label: config.label,
+}));
 
 const SUGGESTED_TAGS = [
   'Concert',

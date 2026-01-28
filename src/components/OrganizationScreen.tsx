@@ -1,7 +1,11 @@
 import { useState, useRef, useEffect } from 'react';
 import { Building2, Search, Loader2, MapPin, Phone, Globe, Check, AlertCircle, X, ChevronLeft } from 'lucide-react';
 import { toast } from 'sonner';
-import type { Organization, OrganizationType } from '../App';
+import { 
+  Organization, 
+  OrganizationType 
+} from '../utils/supabase/types';
+import { ORG_TYPE_CONFIG } from '../utils/supabase/constants';
 import { useSimpleFormChanges } from '../utils/hooks/useSimpleFormChanges';
 import { createSubmissionPayload, normalizeFormData } from '../utils/form-utils';
 import { createClient } from '../utils/supabase/client';
@@ -68,18 +72,10 @@ interface GooglePlace {
   }>;
 }
 
-const ORG_TYPES: { value: OrganizationType; label: string }[] = [
-  { value: 'Production', label: 'Production Company' },
-  { value: 'Sound', label: 'Sound Company' },
-  { value: 'Lighting', label: 'Lighting Company' },
-  { value: 'Staging', label: 'Staging Company' },
-  { value: 'Rentals', label: 'Rental Company' },
-  { value: 'Venue', label: 'Venue' },
-  { value: 'Act', label: 'Act' },
-  { value: 'Agency', label: 'Agency' },
-];
-
-
+const ORG_TYPES = Object.entries(ORG_TYPE_CONFIG).map(([value, config]) => ({
+  value: value as OrganizationType,
+  label: config.label,
+}));
 
 // Mock Google Places data
 const MOCK_PLACES: GooglePlace[] = [

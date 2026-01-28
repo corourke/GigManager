@@ -17,7 +17,7 @@ import {
 } from './ui/table';
 import { Badge } from './ui/badge';
 import AppHeader from './AppHeader';
-import type { Organization, User, UserRole } from '../App';
+import { Organization, User, UserRole } from '../utils/supabase/types';
 import {
   parseAndValidateCSV,
   downloadTemplate,

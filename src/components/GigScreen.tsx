@@ -9,7 +9,7 @@ import {
 import { Alert, AlertDescription } from './ui/alert';
 import { Button } from './ui/button';
 import AppHeader from './AppHeader';
-import type { User, Organization, UserRole } from '../App';
+import { User, Organization, UserRole } from '../utils/supabase/types';
 import { getGig, deleteGig, duplicateGig, createGig } from '../utils/api';
 import GigHeader from './gig/GigHeader';
 import GigBasicInfoSection from './gig/GigBasicInfoSection';

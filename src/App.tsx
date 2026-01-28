@@ -20,57 +20,12 @@ import { Toaster } from './components/ui/sonner';
 import { createClient } from './utils/supabase/client';
 import { toast } from 'sonner';
 import { NavigationProvider } from './contexts/NavigationContext';
-
-export type OrganizationType = 
-  | 'Production'
-  | 'Sound'
-  | 'Lighting'
-  | 'Staging'
-  | 'Rentals'
-  | 'Venue'
-  | 'Act'
-  | 'Agency';
-
-export type UserRole = 'Admin' | 'Manager' | 'Staff' | 'Viewer';
-
-export interface Organization {
-  id: string;
-  name: string;
-  type: OrganizationType;
-  url?: string;
-  phone_number?: string;
-  description?: string;
-  notes?: string;
-  address_line1?: string;
-  address_line2?: string;
-  city?: string;
-  state?: string;
-  postal_code?: string;
-  country?: string;
-  allowed_domains?: string;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface OrganizationMembership {
-  organization: Organization;
-  role: UserRole;
-}
-
-export interface User {
-  id: string;
-  email: string;
-  first_name: string;
-  last_name: string;
-  avatar_url?: string;
-  phone?: string;
-  address_line1?: string;
-  address_line2?: string;
-  city?: string;
-  state?: string;
-  postal_code?: string;
-  country?: string;
-}
+import { 
+  User, 
+  Organization, 
+  OrganizationMembership, 
+  UserRole 
+} from './utils/supabase/types';
 
 // Set to true to use mock data instead of real Supabase
 const USE_MOCK_DATA = false;

@@ -13,7 +13,7 @@ import {
   TableRow,
 } from './ui/table';
 import AppHeader from './AppHeader';
-import type { Organization, User, UserRole } from '../App';
+import { Organization, User, UserRole } from '../utils/supabase/types';
 import { getKit, deleteKit, duplicateKit } from '../utils/api';
 
 interface KitDetailScreenProps {

@@ -3,7 +3,7 @@ import { Input } from './ui/input';
 import { Command, CommandEmpty, CommandGroup, CommandItem, CommandList } from './ui/command';
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
 import { Search, User as UserIcon, Loader2 } from 'lucide-react';
-import type { User } from '../App';
+import { User } from '../utils/supabase/types';
 import { searchUsers } from '../utils/api';
 
 interface UserSelectorProps {

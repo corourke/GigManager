@@ -40,8 +40,8 @@ import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
 import { Skeleton } from '../ui/skeleton';
 import EditableTableCell from './EditableTableCell';
 import * as api from '../../utils/api';
-
-export type GigStatus = 'DateHold' | 'Proposed' | 'Booked' | 'Completed' | 'Cancelled' | 'Settled';
+import { GigStatus } from '../../utils/supabase/types';
+import { GIG_STATUS_CONFIG } from '../../utils/supabase/constants';
 
 export interface Gig {
   id: string;
@@ -98,15 +98,6 @@ const SUGGESTED_TAGS = [
   'Folk',
   'Blues'
 ];
-
-const STATUS_CONFIG: Record<GigStatus, { color: string }> = {
-  DateHold: 'bg-gray-100 text-gray-800 border-gray-300',
-  Proposed: 'bg-blue-100 text-blue-800 border-blue-300',
-  Booked: 'bg-green-100 text-green-800 border-green-300',
-  Completed: 'bg-purple-100 text-purple-800 border-purple-300',
-  Cancelled: 'bg-red-100 text-red-800 border-red-300',
-  Settled: 'bg-indigo-100 text-indigo-800 border-indigo-300',
-};
 
 export default function GigTable({
   gigs,
@@ -335,18 +326,14 @@ export default function GigTable({
                         type="select"
                         placeholder="Select status"
                         onSave={(field, value) => onGigUpdate(gig.id, 'status', value)}
-                        selectOptions={[
-                          { value: 'DateHold', label: 'Date Hold' },
-                          { value: 'Proposed', label: 'Proposed' },
-                          { value: 'Booked', label: 'Booked' },
-                          { value: 'Completed', label: 'Completed' },
-                          { value: 'Cancelled', label: 'Cancelled' },
-                          { value: 'Settled', label: 'Settled' },
-                        ]}
+                        selectOptions={Object.entries(GIG_STATUS_CONFIG).map(([value, config]) => ({
+                          value,
+                          label: config.label,
+                        }))}
                       />
                     ) : (
-                      <Badge variant="outline" className={STATUS_CONFIG[gig.status]}>
-                        {gig.status}
+                      <Badge variant="outline" className={GIG_STATUS_CONFIG[gig.status].color}>
+                        {GIG_STATUS_CONFIG[gig.status].label}
                       </Badge>
                     )}
                   </TableCell>

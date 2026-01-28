@@ -25,7 +25,7 @@ import {
   DialogTitle,
 } from './ui/dialog';
 import AppHeader from './AppHeader';
-import type { Organization, User, UserRole } from '../App';
+import { Organization, User, UserRole } from '../utils/supabase/types';
 import { getKit, createKit, updateKit, getAssets } from '../utils/api';
 import type { DbAsset } from '../utils/supabase/types';
 import { useAutocompleteSuggestions } from '../utils/hooks/useAutocompleteSuggestions';

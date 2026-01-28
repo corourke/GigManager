@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import Dashboard from './Dashboard'
-import type { Organization, User } from '../App'
+import { Organization, User } from '../utils/supabase/types'
 
 // Mock the createClient function
 vi.mock('../utils/supabase/client', () => ({

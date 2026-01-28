@@ -10,7 +10,7 @@ import {
   Package,
   Loader2,
 } from 'lucide-react';
-import type { Organization, User, UserRole } from '../App';
+import { Organization, User, UserRole } from '../utils/supabase/types';
 import { projectId, publicAnonKey } from '../utils/supabase/info';
 import { createClient } from '../utils/supabase/client';
 import GigTable, { type Gig } from './tables/GigTable';

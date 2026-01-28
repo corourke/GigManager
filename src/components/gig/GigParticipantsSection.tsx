@@ -12,7 +12,11 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Textarea } from '../ui/textarea';
 import OrganizationSelector from '../OrganizationSelector';
 import { getGig, updateGigParticipants } from '../../utils/api';
-import type { Organization, OrganizationType } from '../../App';
+import { 
+  Organization, 
+  OrganizationType 
+} from '../../utils/supabase/types';
+import { ORG_TYPE_CONFIG } from '../../utils/supabase/constants';
 import { useAutoSave } from '../../utils/hooks/useAutoSave';
 import SaveStateIndicator from './SaveStateIndicator';
 
@@ -39,17 +43,6 @@ interface ParticipantData {
   role: string;
   notes: string;
 }
-
-const ORGANIZATION_TYPES: OrganizationType[] = [
-  'Production',
-  'Sound',
-  'Lighting',
-  'Staging',
-  'Rentals',
-  'Venue',
-  'Act',
-  'Agency',
-];
 
 interface GigParticipantsSectionProps {
   gigId: string;
@@ -279,12 +272,12 @@ export default function GigParticipantsSection({
                               <SelectValue placeholder="Select role" />
                             </SelectTrigger>
                             <SelectContent>
-                              {ORGANIZATION_TYPES.map((type) => (
-                                <SelectItem key={type} value={type}>
-                                  {type}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
+  {Object.keys(ORG_TYPE_CONFIG).map((type) => (
+    <SelectItem key={type} value={type}>
+      {type}
+    </SelectItem>
+  ))}
+</SelectContent>
                           </Select>
                         )}
                       />

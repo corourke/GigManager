@@ -1,10 +1,16 @@
 import { useState, useEffect } from 'react';
 import { Edit2, Trash2, Users, Loader2, AlertCircle, Plus, Shield, Building2 } from 'lucide-react';
 import { toast } from 'sonner';
-import type { Organization } from '../App';
+import { 
+  Organization, 
+  OrganizationType 
+} from '../utils/supabase/types';
+import { 
+  ORG_TYPE_CONFIG, 
+  getOrgTypeColor 
+} from '../utils/supabase/constants';
 import { createClient } from '../utils/supabase/client';
 import { projectId } from '../utils/supabase/info';
-import { ORG_TYPE_CONFIG } from '../utils/org-icons';
 import { Button } from './ui/button';
 import { Card } from './ui/card';
 import { Badge } from './ui/badge';
@@ -157,20 +163,6 @@ export default function AdminOrganizationsScreen({
       toast.error(err.message || 'Failed to delete organization');
       setIsDeleting(false);
     }
-  };
-
-  const getOrgTypeColor = (type: string) => {
-    const colors: Record<string, string> = {
-      Production: 'bg-purple-100 text-purple-700',
-      Sound: 'bg-blue-100 text-blue-700',
-      Lighting: 'bg-yellow-100 text-yellow-700',
-      Staging: 'bg-green-100 text-green-700',
-      Rentals: 'bg-orange-100 text-orange-700',
-      Venue: 'bg-pink-100 text-pink-700',
-      Act: 'bg-red-100 text-red-700',
-      Agency: 'bg-indigo-100 text-indigo-700',
-    };
-    return colors[type] || 'bg-gray-100 text-gray-700';
   };
 
   if (isLoading) {

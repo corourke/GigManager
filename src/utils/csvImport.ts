@@ -1,5 +1,5 @@
 import Papa from 'papaparse';
-import type { Organization } from '../App';
+import { Organization } from './supabase/types';
 
 export type ImportType = 'gigs' | 'assets';
 

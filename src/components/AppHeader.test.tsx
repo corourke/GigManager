@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import AppHeader from './AppHeader'
-import type { Organization, User } from '../App'
+import { Organization, User } from '../utils/supabase/types'
 
 // Mock NavigationContext
 vi.mock('../contexts/NavigationContext', () => ({

@@ -3,7 +3,8 @@ import { Card } from './ui/card';
 import { Badge } from './ui/badge';
 import AppHeader from './AppHeader';
 import { ChevronLeft, Calendar, Clock, MapPin, User, Tag } from 'lucide-react';
-import type { Organization, User, UserRole } from '../App';
+import { Organization, User, UserRole } from '../utils/supabase/types';
+import { GIG_STATUS_CONFIG } from '../utils/supabase/constants';
 import type { Gig } from './GigListScreen';
 
 interface GigDetailScreenProps {
@@ -48,10 +49,6 @@ const MOCK_GIG: Gig = {
   },
   created_at: '2025-01-15T10:00:00Z',
   updated_at: '2025-01-15T10:00:00Z',
-};
-
-const STATUS_CONFIG = {
-  'Booked': { color: 'bg-green-100 text-green-700 border-green-300', label: 'Booked' },
 };
 
 export default function GigDetailScreen({
@@ -109,8 +106,8 @@ export default function GigDetailScreen({
           <div>
             <div className="flex items-start justify-between gap-4 mb-3">
               <h1 className="text-gray-900">{gig.title}</h1>
-              <Badge variant="outline" className={STATUS_CONFIG[gig.status].color}>
-                {gig.status}
+              <Badge variant="outline" className={GIG_STATUS_CONFIG[gig.status].color}>
+                {GIG_STATUS_CONFIG[gig.status].label}
               </Badge>
             </div>
             <p className="text-gray-600">{organization.name}</p>

@@ -1,18 +1,9 @@
+import { OrganizationType, UserRole, GigStatus } from './constants';
+
+// Re-export constants types for convenience
+export type { OrganizationType, UserRole, GigStatus };
+
 // Database types for Supabase tables
-
-export type OrganizationType = 
-  | 'Production'
-  | 'Sound'
-  | 'Lighting'
-  | 'Staging'
-  | 'Rentals'
-  | 'Venue'
-  | 'Act'
-  | 'Agency';
-
-export type UserRole = 'Admin' | 'Manager' | 'Staff' | 'Viewer';
-
-export type GigStatus = 'DateHold' | 'Proposed' | 'Booked' | 'Completed' | 'Cancelled' | 'Settled';
 
 // Database row types
 export interface DbUser {
@@ -34,6 +25,9 @@ export interface DbUser {
   updated_at: string;
 }
 
+// Aliases for core entities
+export type User = DbUser;
+
 export interface DbOrganization {
   id: string;
   name: string;
@@ -51,6 +45,8 @@ export interface DbOrganization {
   created_at: string;
   updated_at: string;
 }
+
+export type Organization = DbOrganization;
 
 export interface DbOrganizationMember {
   id: string;
@@ -154,6 +150,8 @@ export interface DbInvitation {
   updated_at: string;
 }
 
+export type Invitation = DbInvitation;
+
 export interface DbKvStore {
   key: string;
   value: any;
@@ -222,4 +220,20 @@ export interface GigWithParticipants extends DbGig {
 
 export interface OrganizationMembershipWithOrg extends DbOrganizationMember {
   organization: DbOrganization;
+}
+
+export interface OrganizationMembership {
+  organization: Organization;
+  role: UserRole;
+}
+
+export interface OrganizationMemberWithUser extends DbOrganizationMember {
+  user: User;
+}
+
+export interface InvitationWithInviter extends Invitation {
+  invited_by_user: {
+    first_name: string;
+    last_name: string;
+  };
 }

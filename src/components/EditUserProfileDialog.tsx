@@ -13,7 +13,7 @@ import {
 } from './ui/dialog';
 import { toast } from 'sonner';
 import UserProfileForm, { UserProfileFormData } from './UserProfileForm';
-import type { User as UserType } from '../App';
+import { User as UserType } from '../utils/supabase/types';
 
 interface EditUserProfileDialogProps {
   user: UserType;

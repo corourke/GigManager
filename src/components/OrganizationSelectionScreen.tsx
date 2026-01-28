@@ -16,8 +16,16 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { searchOrganizations, joinOrganization } from '../utils/api';
-import { ORG_TYPE_CONFIG } from '../utils/org-icons';
-import type { User, Organization, OrganizationMembership, UserRole } from '../App';
+import { 
+  ORG_TYPE_CONFIG, 
+  USER_ROLE_CONFIG 
+} from '../utils/supabase/constants';
+import { 
+  User, 
+  Organization, 
+  OrganizationMembership, 
+  UserRole 
+} from '../utils/supabase/types';
 
 interface OrganizationSelectionScreenProps {
   user: User;
@@ -26,13 +34,6 @@ interface OrganizationSelectionScreenProps {
   onCreateOrganization: () => void;
   onAdminViewAll?: () => void;
 }
-
-const ROLE_CONFIG: Record<UserRole, { color: string }> = {
-  Admin: { color: 'bg-red-100 text-red-700 border-red-200' },
-  Manager: { color: 'bg-blue-100 text-blue-700 border-blue-200' },
-  Staff: { color: 'bg-gray-100 text-gray-700 border-gray-200' },
-  Viewer: { color: 'bg-slate-100 text-slate-700 border-slate-200' }
-};
 
 type ViewState = 'default' | 'loading' | 'searching' | 'error';
 
@@ -246,7 +247,7 @@ export default function OrganizationSelectionScreen({
                             <Badge variant="secondary" className={`${typeConfig.color} text-xs px-2 py-0`}>
                               {typeConfig.label}
                             </Badge>
-                            <Badge variant="outline" className={`${ROLE_CONFIG[role].color} text-xs px-2 py-0`}>
+                            <Badge variant="outline" className={`${USER_ROLE_CONFIG[role].color} text-xs px-2 py-0`}>
                               {role}
                             </Badge>
                           </div>
@@ -301,7 +302,7 @@ export default function OrganizationSelectionScreen({
                               {typeConfig.label}
                             </Badge>
                             {isMember && role && (
-                              <Badge variant="outline" className={`${ROLE_CONFIG[role].color} text-xs px-2 py-0`}>
+                              <Badge variant="outline" className={`${USER_ROLE_CONFIG[role].color} text-xs px-2 py-0`}>
                                 {role}
                               </Badge>
                             )}

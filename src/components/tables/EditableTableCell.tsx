@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { useInlineEdit } from '../../utils/hooks/useInlineEdit';
 import { getOrganizations } from '../../utils/api';
 import TagsInput from '../TagsInput';
-import type { Organization } from '../../App';
+import { Organization } from '../../utils/supabase/types';
 
 interface SelectOption {
   value: string;

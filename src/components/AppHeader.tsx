@@ -17,7 +17,7 @@ import {
   UserCircle,
 } from 'lucide-react';
 import React from 'react';
-import type { Organization, User, UserRole } from '../App';
+import { Organization, User, UserRole } from '../utils/supabase/types';
 import NavigationMenu, { type RouteType } from './NavigationMenu';
 import { useNavigation } from '../contexts/NavigationContext';
 

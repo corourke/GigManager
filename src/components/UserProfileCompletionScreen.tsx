@@ -9,7 +9,7 @@ import { Alert, AlertDescription } from './ui/alert';
 import AppHeader from './AppHeader';
 import { Building2, AlertCircle, Loader2, User } from 'lucide-react';
 import { toast } from 'sonner';
-import type { User as UserType } from '../App';
+import { User as UserType } from '../utils/supabase/types';
 
 interface UserProfileCompletionScreenProps {
   user: UserType;
