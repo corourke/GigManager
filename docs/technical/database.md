@@ -83,6 +83,7 @@ The database uses **PostgreSQL 15+** hosted on **Supabase** with Row-Level Secur
 └── supabase/
     └── migrations/
         └── *.sql                        # Database migrations
+    └── schema.sql                       # Current database schema (after migrations)
 ```
 
 ---
@@ -125,34 +126,7 @@ erDiagram
 
 ## Enum Types
 
-```prisma
-enum OrganizationType {
-  Production
-  Sound
-  Lighting
-  Staging
-  Rentals
-  Venue
-  Act
-  Agency
-}
-
-enum UserRole {
-  Admin
-  Manager
-  Staff
-  Viewer
-}
-
-enum GigStatus {
-  DateHold
-  Proposed
-  Booked
-  Completed
-  Cancelled
-  Settled
-}
-```
+TODO: Need to mention where enumerations and types for use by application code are defined.
 
 ---
 
