@@ -3,7 +3,8 @@ import { toast } from 'sonner';
 import { 
   Loader2, 
   AlertCircle,
-  ArrowLeft
+  ArrowLeft,
+  Plus
 } from 'lucide-react';
 import { Alert, AlertDescription } from './ui/alert';
 import { Button } from './ui/button';
@@ -207,26 +208,22 @@ export default function GigScreen({
               onCreate={handleCreateGig} 
               isSubmitting={isSubmitting}
             />
-            <div className="mt-8 flex flex-col items-center gap-4 pb-12">
+            <div className="mt-8 flex items-center justify-end gap-4 pb-12">
               <Button 
-                type="submit" 
-                form="gig-basic-info-form"
-                disabled={isSubmitting}
-                className="w-full max-w-xs bg-sky-600 hover:bg-sky-700 text-white"
+                onClick={onCancel}
+                variant="outline"
               >
-                {isSubmitting ? (
-                  <>
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    Creating...
-                  </>
-                ) : (
-                  'Create Gig'
-                )}
-              </Button>
-              <Button variant="ghost" onClick={onCancel}>
                 <ArrowLeft className="mr-2 h-4 w-4" />
                 Cancel and Go Back
               </Button>
+              <Button 
+                type="submit" 
+                form="gig-basic-info-form"
+                className="bg-sky-500 hover:bg-sky-600 text-white">
+                  <Plus className="w-4 h-4 mr-2" />
+                  Create Gig
+              </Button>
+
             </div>
           </div>
         )}
