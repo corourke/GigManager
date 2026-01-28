@@ -11,6 +11,7 @@ import {
   Loader2,
 } from 'lucide-react';
 import { Organization, User, UserRole } from '../utils/supabase/types';
+import { USER_ROLE_CONFIG, GIG_STATUS_CONFIG } from '../utils/supabase/constants';
 import { projectId, publicAnonKey } from '../utils/supabase/info';
 import { createClient } from '../utils/supabase/client';
 import GigTable, { type Gig } from './tables/GigTable';
@@ -166,21 +167,6 @@ export default function Dashboard({
     });
   };
 
-  const getStatusBadgeVariant = (status: string): "default" | "secondary" | "outline" | "destructive" => {
-    switch (status) {
-      case 'Booked':
-      case 'Confirmed':
-        return 'default';
-      case 'Completed':
-      case 'Settled':
-        return 'secondary';
-      case 'Cancelled':
-        return 'destructive';
-      default:
-        return 'outline';
-    }
-  };
-
   return (
     <div className="min-h-screen bg-gray-50">
       <AppHeader
@@ -230,15 +216,15 @@ export default function Dashboard({
                 </div>
                 <div className="space-y-1">
                   <div className="flex items-baseline justify-between">
-                    <p className="text-xs text-gray-500">Booked</p>
+                    <p className="text-xs text-gray-500">{GIG_STATUS_CONFIG.Booked.label}</p>
                     <p className="text-gray-900">{stats.gigsByStatus.Booked}</p>
                   </div>
                   <div className="flex items-baseline justify-between">
-                    <p className="text-xs text-gray-500">Proposed</p>
+                    <p className="text-xs text-gray-500">{GIG_STATUS_CONFIG.Proposed.label}</p>
                     <p className="text-gray-900">{stats.gigsByStatus.Proposed}</p>
                   </div>
                   <div className="flex items-baseline justify-between">
-                    <p className="text-xs text-gray-500">Date Hold</p>
+                    <p className="text-xs text-gray-500">{GIG_STATUS_CONFIG.DateHold.label}</p>
                     <p className="text-gray-900">{stats.gigsByStatus.DateHold}</p>
                   </div>
                 </div>
@@ -293,15 +279,15 @@ export default function Dashboard({
                 </div>
                 <div className="space-y-1">
                   <div className="flex items-baseline justify-between">
-                    <p className="text-xs text-gray-500">Completed</p>
+                    <p className="text-xs text-gray-500">{GIG_STATUS_CONFIG.Completed.label}</p>
                     <p className="text-gray-900">{stats.gigsByStatus.Completed}</p>
                   </div>
                   <div className="flex items-baseline justify-between">
-                    <p className="text-xs text-gray-500">Settled</p>
+                    <p className="text-xs text-gray-500">{GIG_STATUS_CONFIG.Settled.label}</p>
                     <p className="text-gray-900">{stats.gigsByStatus.Settled}</p>
                   </div>
                   <div className="flex items-baseline justify-between">
-                    <p className="text-xs text-gray-500">Cancelled</p>
+                    <p className="text-xs text-gray-500">{GIG_STATUS_CONFIG.Cancelled.label}</p>
                     <p className="text-gray-900">{stats.gigsByStatus.Cancelled}</p>
                   </div>
                 </div>

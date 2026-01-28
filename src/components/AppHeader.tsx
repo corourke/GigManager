@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import React from 'react';
 import { Organization, User, UserRole } from '../utils/supabase/types';
+import { USER_ROLE_CONFIG } from '../utils/supabase/constants';
 import NavigationMenu, { type RouteType } from './NavigationMenu';
 import { useNavigation } from '../contexts/NavigationContext';
 
@@ -30,13 +31,6 @@ interface AppHeaderProps {
   onEditProfile?: () => void;
   onLogout: () => void | Promise<void>;
 }
-
-const ROLE_CONFIG: Record<UserRole, { color: string }> = {
-  Admin: { color: 'bg-red-100 text-red-700 border-red-200' },
-  Manager: { color: 'bg-blue-100 text-blue-700 border-blue-200' },
-  Staff: { color: 'bg-gray-100 text-gray-700 border-gray-200' },
-  Viewer: { color: 'bg-slate-100 text-slate-700 border-slate-200' }
-};
 
 const AppHeader = React.memo(function AppHeader({
   organization,
@@ -67,8 +61,8 @@ const AppHeader = React.memo(function AppHeader({
             <div>
               <h2 className="text-gray-900">{organization?.name || 'Gig Manager'}</h2>
               {userRole && organization && (
-                <Badge className={`text-xs ${ROLE_CONFIG[userRole].color}`} variant="outline">
-                  {userRole}
+                <Badge className={`text-xs ${USER_ROLE_CONFIG[userRole].color}`} variant="outline">
+                  {USER_ROLE_CONFIG[userRole].label}
                 </Badge>
               )}
             </div>
