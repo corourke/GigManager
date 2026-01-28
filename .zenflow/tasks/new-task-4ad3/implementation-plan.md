@@ -167,18 +167,18 @@ npm test  # Run all tests
 ### Task 1.7: Manual verification of Phase 2A-1
 **Duration**: 0.5 days
 
-- [ ] Test create mode in browser
-  - [ ] Create new gig works with Submit button
-  - [ ] All fields save correctly
-  - [ ] Validation works
-- [ ] Test edit mode in browser
+- [x] Test create mode in browser
+  - [x] Create new gig works with Submit button
+  - [x] All fields save correctly
+  - [x] Validation works
+- [x] Test edit mode in browser
   - [x] Back button navigates to gig list
   - [x] Delete action shows confirmation
   - [x] Delete removes gig and navigates back
   - [x] Duplicate creates new gig and navigates to it
   - [x] All sections render correctly
   - [x] Temporary Save buttons work in each section
-  - [ ] No console errors
+  - [x] No console errors
 - [x] Fix any bugs found
 
 **Phase 2A-1 Complete**: Components separated, navigation working, all tests pass
@@ -411,7 +411,7 @@ npm test GigKitAssignmentsSection.test.tsx
   - [x] Error handling works (toast, no data loss)
   - [x] No console errors
   - [x] All tests pass
-- [ ] Fix any bugs found
+- [x] Fix any bugs found
 
 **Phase 2A-3 Complete**: All sections use useFieldArray and auto-save
 
