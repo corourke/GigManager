@@ -148,7 +148,7 @@ cbde0a46-3125-4b19-b965-c4f90c834761	c65a2ec2-7897-473b-97c7-562ae34dd884	d22f9f
 COPY "public"."users" ("id", "email", "first_name", "last_name", "phone", "avatar_url", "address_line1", "address_line2", "city", "state", "postal_code", "country", "role_hint", "created_at", "updated_at", "user_status") FROM stdin;
 7e7e8ad7-6951-4dc4-8310-eff2f1b30060	cameron.orourke+mark@gmail.com	Mark	Milbourne	\N	\N	\N	\N	\N	\N	\N	\N	\N	2025-11-06 01:02:51.178587+00	2025-11-06 01:02:51.178587+00	active
 1d9bdc13-cae3-437b-83ec-ae5359fbc3a8	cameron.orourke+john@gmail.com	John	Smith									\N	2025-11-05 21:34:54.008103+00	2025-11-16 19:53:26.331787+00	active
-d0a35726-0993-40b4-b41d-c61806a4670e	cameron.orourke@gmail.com	Cameron	O'Rourke	925 858-0411		24 Lynnbrook Ct	 	San Ramon	CA	94582		\N	2025-11-16 06:34:54.751247+00	2025-11-17 05:13:01.299607+00	active
+d0a35726-0993-40b4-b41d-c61806a4670e	cameron.orourke@gmail.com	Cameron	"O'Rourke"	925 858-0411		24 Lynnbrook Ct	 	San Ramon	CA	94582		\N	2025-11-16 06:34:54.751247+00	2025-11-17 05:13:01.299607+00	active
 \.
 
 

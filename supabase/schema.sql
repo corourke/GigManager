@@ -141,8 +141,8 @@ $$ LANGUAGE plpgsql;
 -- ============================================
 
 -- Users table (extends Supabase auth.users)
--- Note: RLS is DISABLED - access control handled in application layer
--- This allows searching users across organizations for gig staffing
+-- Note: RLS is PARTIALLY ENABLED - profile access controlled by policies, 
+-- but cross-organization search is still permitted at application layer.
 CREATE TABLE users (
   id UUID PRIMARY KEY,
   email TEXT UNIQUE NOT NULL,
@@ -477,9 +477,9 @@ ALTER TABLE assets ENABLE ROW LEVEL SECURITY;
 ALTER TABLE kits ENABLE ROW LEVEL SECURITY;
 ALTER TABLE kit_assets ENABLE ROW LEVEL SECURITY;
 ALTER TABLE kv_store_de012ad4 ENABLE ROW LEVEL SECURITY;
+ALTER TABLE users ENABLE ROW LEVEL SECURITY;
 
 -- Tables with RLS DISABLED (access control in application layer)
-ALTER TABLE users DISABLE ROW LEVEL SECURITY;
 ALTER TABLE organization_members DISABLE ROW LEVEL SECURITY;
 ALTER TABLE gigs DISABLE ROW LEVEL SECURITY;
 ALTER TABLE gig_participants DISABLE ROW LEVEL SECURITY;
@@ -492,8 +492,18 @@ ALTER TABLE gig_kit_assignments DISABLE ROW LEVEL SECURITY;
 -- RLS POLICIES
 -- ============================================
 
--- Users policies (RLS disabled, but keeping policy for reference)
--- Access control handled in application layer to allow cross-org user searches
+-- Users policies
+CREATE POLICY "Users can update their own profile" ON users
+  FOR UPDATE USING (auth.uid() = id);
+
+CREATE POLICY "Users can view their own profile" ON users
+  FOR SELECT USING (auth.uid() = id);
+
+CREATE POLICY "Users can view other user profiles" ON users
+  FOR SELECT USING (
+    auth.uid() = id OR 
+    EXISTS (SELECT 1 FROM organization_members WHERE user_id = auth.uid())
+  );
 
 -- Organizations policies
 CREATE POLICY "Users can view organizations they belong to" ON organizations

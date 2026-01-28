@@ -4,7 +4,7 @@ This document explains the testing strategy and how to run tests for the GigMana
 
 ## Testing Philosophy
 
-The primary goal of tests at this stage is to **ensure that code simplifications don't break existing functionality or introduce errors**. Tests serve as a safety net during refactoring work outlined in the [Code Simplification Plan](./code-simplification-plan.md).
+The primary goal of tests at this stage is to **ensure that code refactorings or simplifications don't break existing functionality or introduce errors**.
 
 ### Test Strategy
 
@@ -156,27 +156,6 @@ The project aims for good test coverage of:
 - ⚠️ **API functions** - Data fetching and manipulation (6 passing, needs work)
 - ⚠️ **Component rendering** - Basic error checking (4 passing, needs work)
 
-## Current Test Status
-
-### All Tests Passing ✅
-- **33 utility tests** (`form-utils.test.ts`) - Comprehensive coverage of form utilities
-- **12 API tests** (`api.test.ts`) - Error-checking tests ensuring API functions don't throw
-- **8 component tests** - Minimal error-checking tests ensuring components render without errors
-  - `App.test.tsx` (2 tests)
-  - `GigScreen.test.tsx` (2 tests)
-  - `AssetScreen.test.tsx` (2 tests)
-  - `KitScreen.test.tsx` (2 tests)
-
-**Total: 53 tests passing, 0 failures**
-
-### Test Strategy Summary
-
-1. **Utility tests** - Comprehensive coverage of core business logic (33 tests)
-2. **API tests** - Error-checking to ensure functions don't throw (12 tests)
-3. **Component tests** - Minimal error-checking to ensure components render (8 tests)
-
-All tests are designed to catch regressions during code simplification work, not to test full functionality.
-
 ## Troubleshooting
 
 ### Tests failing due to Supabase mocking
@@ -201,16 +180,6 @@ Ensure:
 1. Dependencies are installed: `npm install`
 2. Test files use `.test.ts` or `.test.tsx` extension
 3. Test files are in the `src/` directory or configured paths
-
-## Testing During Code Simplification
-
-When working through the [Code Simplification Plan](./code-simplification-plan.md):
-
-1. **Before making changes**: Run `npm run test:run` to ensure all tests pass
-2. **After making changes**: Run tests again to catch regressions
-3. **Focus on utility tests**: These are most reliable and catch logic errors
-4. **Component tests**: These catch rendering errors but may need updates as components change
-5. **API tests**: These validate API behavior but may need mock updates
 
 ## Continuous Integration
 
