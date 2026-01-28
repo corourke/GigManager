@@ -29,6 +29,7 @@ export interface DbUser {
   postal_code?: string;
   country?: string;
   role_hint?: string;
+  user_status: 'active' | 'inactive' | 'pending';
   created_at: string;
   updated_at: string;
 }
@@ -56,8 +57,8 @@ export interface DbOrganizationMember {
   organization_id: string;
   user_id: string;
   role: UserRole;
+  default_staff_role_id?: string;
   created_at: string;
-  updated_at: string;
 }
 
 export interface DbGig {
@@ -138,14 +139,24 @@ export interface DbGigBid {
   created_at: string;
 }
 
-export interface DbOrgAnnotation {
+export interface DbInvitation {
   id: string;
   organization_id: string;
-  target_org_id: string;
-  notes?: string;
-  tags: string[];
-  created_by: string;
+  email: string;
+  role: UserRole;
+  invited_by: string;
+  status: 'pending' | 'accepted' | 'expired' | 'cancelled';
+  token: string;
+  expires_at: string;
+  accepted_at?: string;
+  accepted_by?: string;
   created_at: string;
+  updated_at: string;
+}
+
+export interface DbKvStore {
+  key: string;
+  value: any;
 }
 
 export interface DbAsset {
