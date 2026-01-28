@@ -5,7 +5,7 @@
 - **Dependencies**: `lucide-react` (for icons)
 
 ## Implementation Approach
-The goal is to establish `src/utils/supabase/` as the single source of truth for types and constants that are currently duplicated or scattered across the codebase.
+The goal is to establish `src/utils/supabase/` as the single source of truth for types and constants, that correlate to database objects, which are currently duplicated or scattered across the codebase.
 
 ### 1. Establish Constants (`src/utils/supabase/constants.ts`)
 Create a new file to hold metadata-rich objects for core enums.
