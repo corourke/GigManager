@@ -109,6 +109,8 @@ export default function Dashboard({
         return;
       }
 
+      console.log('Dashboard: Making API call for organization:', organization.id, organization.name);
+
       const response = await fetch(
         `https://${projectId}.supabase.co/functions/v1/make-server-de012ad4/organizations/${organization.id}/dashboard`,
         {
@@ -119,6 +121,8 @@ export default function Dashboard({
           },
         }
       );
+
+      console.log('Dashboard: API response status:', response.status);
 
       if (!response.ok) {
         const errorData = await response.json();
@@ -140,6 +144,7 @@ export default function Dashboard({
       }
 
       const data = await response.json();
+      console.log('Dashboard: API response data:', data);
       setStats(data);
     } catch (err: any) {
       console.error('Error fetching dashboard stats:', err);

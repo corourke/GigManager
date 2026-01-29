@@ -1136,10 +1136,10 @@ export async function getGig(gigId: string) {
     const { data: staff_slots_raw, error: slotsError } = await supabase
       .from('gig_staff_slots')
       .select(`
-        *,
+        id, gig_id, staff_role_id, organization_id, required_count, notes, created_at, updated_at,
         staff_roles(name),
         gig_staff_assignments(
-          *,
+          id, slot_id, user_id, status, rate, fee, notes, assigned_at, confirmed_at,
           user:user_id(id, first_name, last_name)
         )
       `)
@@ -1384,7 +1384,7 @@ export async function createGig(gigData: {
             required_count: slot.count || slot.required_count || 1,
             notes: slot.notes || null,
           })
-          .select()
+          .select('id')
           .single();
         
         if (slotError) {
@@ -2711,7 +2711,7 @@ export async function duplicateGig(gigId: string, newTitle?: string) {
           required_count: slot.required_count,
           notes: slot.notes,
         })
-        .select()
+        .select('id')
         .single();
 
       if (slotError) {

@@ -1838,6 +1838,7 @@ Deno.serve(async (req) => {
         .eq('organization_id', orgId)
         .gte('gigs.start', now.toISOString())
         .lte('gigs.start', thirtyDaysFromNow.toISOString())
+        .in('gigs.status', ['DateHold', 'Proposed', 'Booked'])
         .order('gigs(start)', { ascending: true })
         .limit(10);
 

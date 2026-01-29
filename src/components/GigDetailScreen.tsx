@@ -2,7 +2,7 @@ import { Button } from './ui/button';
 import { Card } from './ui/card';
 import { Badge } from './ui/badge';
 import AppHeader from './AppHeader';
-import { ChevronLeft, Calendar, Clock, MapPin, User, Tag } from 'lucide-react';
+import { ChevronLeft, Calendar, Clock, MapPin, User as UserIcon, Tag } from 'lucide-react';
 import { Organization, User, UserRole } from '../utils/supabase/types';
 import { GIG_STATUS_CONFIG } from '../utils/supabase/constants';
 import type { Gig } from './GigListScreen';
@@ -156,7 +156,7 @@ export default function GigDetailScreen({
 
               {gig.act && (
                 <div className="flex items-start gap-3">
-                  <User className="w-5 h-5 text-gray-400 mt-0.5" />
+                  <UserIcon className="w-5 h-5 text-gray-400 mt-0.5" />
                   <div>
                     <p className="text-sm text-gray-600">Act</p>
                     <p className="text-gray-900">{gig.act.name}</p>
