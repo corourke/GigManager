@@ -103,6 +103,35 @@ AS $$
   WHERE user_id = user_uuid;
 $$;
 
+CREATE OR REPLACE FUNCTION user_has_access_to_gig(gig_id UUID, user_uuid UUID)
+RETURNS BOOLEAN
+LANGUAGE sql
+SECURITY DEFINER
+STABLE
+SET search_path = public
+AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM gig_participants gp
+    WHERE gp.gig_id = user_has_access_to_gig.gig_id
+    AND EXISTS (
+      SELECT 1 FROM organization_members om
+      WHERE om.organization_id = gp.organization_id
+      AND om.user_id = user_uuid
+    )
+  );
+$$;
+
+CREATE OR REPLACE FUNCTION get_user_role_in_org(org_id UUID, user_uuid UUID)
+RETURNS user_role
+LANGUAGE sql
+SECURITY DEFINER
+STABLE
+SET search_path = public
+AS $$
+  SELECT role FROM organization_members
+  WHERE organization_id = org_id AND user_id = user_uuid;
+$$;
+
 CREATE OR REPLACE FUNCTION get_user_email(user_uuid UUID)
 RETURNS TEXT
 LANGUAGE sql
@@ -184,8 +213,6 @@ CREATE TABLE organizations (
 );
 
 -- Organization members (junction table)
--- Note: RLS is DISABLED - access control handled in application layer
--- This prevents circular dependencies in RLS policies
 CREATE TABLE organization_members (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
@@ -208,8 +235,6 @@ CREATE TABLE staff_roles (
 );
 
 -- Gigs table
--- Note: RLS is DISABLED - access control handled in application layer
--- Gigs are accessed through gig_participants which also has RLS disabled
 CREATE TABLE gigs (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   title TEXT NOT NULL,
@@ -239,8 +264,6 @@ CREATE TABLE gig_status_history (
 );
 
 -- Gig participants table
--- Note: RLS is DISABLED - access control handled in application layer
--- This prevents circular dependencies when checking gig access
 CREATE TABLE gig_participants (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   gig_id UUID NOT NULL REFERENCES gigs(id) ON DELETE CASCADE,
@@ -251,7 +274,6 @@ CREATE TABLE gig_participants (
 );
 
 -- Gig staff slots table
--- Note: RLS is DISABLED - access control handled in application layer
 CREATE TABLE gig_staff_slots (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   gig_id UUID NOT NULL REFERENCES gigs(id) ON DELETE CASCADE,
@@ -264,7 +286,6 @@ CREATE TABLE gig_staff_slots (
 );
 
 -- Gig staff assignments table
--- Note: RLS is DISABLED - access control handled in application layer
 CREATE TABLE gig_staff_assignments (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   slot_id UUID NOT NULL REFERENCES gig_staff_slots(id) ON DELETE CASCADE,
@@ -278,7 +299,6 @@ CREATE TABLE gig_staff_assignments (
 );
 
 -- Gig bids table
--- Note: RLS is DISABLED - access control handled in application layer
 CREATE TABLE gig_bids (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   gig_id UUID NOT NULL REFERENCES gigs(id) ON DELETE CASCADE,
@@ -361,7 +381,6 @@ CREATE TABLE kit_assets (
 );
 
 -- Gig kit assignments table
--- Note: RLS is DISABLED - access control handled in application layer
 CREATE TABLE gig_kit_assignments (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
@@ -502,10 +521,7 @@ CREATE POLICY "Users can view other user profiles" ON users
   );
 
 -- Organizations policies
-CREATE POLICY "Users can view organizations they belong to" ON organizations
-  FOR SELECT USING (user_is_member_of_org(organizations.id, auth.uid()));
-
-CREATE POLICY "Users can view all organizations for participant selection" ON organizations
+CREATE POLICY "Anyone can view all organizations for participant selection" ON organizations
   FOR SELECT USING (true);
 
 CREATE POLICY "Authenticated users can create organizations" ON organizations
@@ -533,13 +549,7 @@ CREATE POLICY "Anyone can view staff roles" ON staff_roles
 
 -- Gigs policies
 CREATE POLICY "Users can view gigs they are participating in" ON gigs
-  FOR SELECT USING (
-    EXISTS (
-      SELECT 1 FROM gig_participants gp
-      WHERE gp.gig_id = gigs.id
-      AND user_is_member_of_org(gp.organization_id, auth.uid())
-    )
-  );
+  FOR SELECT USING (user_has_access_to_gig(id, auth.uid()));
 
 CREATE POLICY "Authenticated users can create gigs" ON gigs
   FOR INSERT TO authenticated WITH CHECK (true);
@@ -564,26 +574,20 @@ CREATE POLICY "Admins of participating orgs can delete gigs" ON gigs
 
 -- Gig status history policies
 CREATE POLICY "Users can view status history for accessible gigs" ON gig_status_history
-  FOR SELECT USING (
+  FOR SELECT USING (user_has_access_to_gig(gig_id, auth.uid()));
+
+CREATE POLICY "Allow inserting status history for authorized users" ON gig_status_history
+  FOR INSERT TO authenticated WITH CHECK (
     EXISTS (
       SELECT 1 FROM gig_participants gp
       WHERE gp.gig_id = gig_status_history.gig_id
-      AND user_is_member_of_org(gp.organization_id, auth.uid())
+      AND user_is_admin_or_manager_of_org(gp.organization_id, auth.uid())
     )
   );
-
-CREATE POLICY "Allow inserting status history" ON gig_status_history
-  FOR INSERT TO authenticated WITH CHECK (true);
 
 -- Gig participants policies
 CREATE POLICY "Users can view participants for accessible gigs" ON gig_participants
-  FOR SELECT USING (
-    EXISTS (
-      SELECT 1 FROM gig_participants gp2
-      WHERE gp2.gig_id = gig_participants.gig_id
-      AND user_is_member_of_org(gp2.organization_id, auth.uid())
-    )
-  );
+  FOR SELECT USING (user_has_access_to_gig(gig_id, auth.uid()));
 
 CREATE POLICY "Admins and Managers can manage gig participants" ON gig_participants
   FOR ALL USING (
@@ -596,13 +600,7 @@ CREATE POLICY "Admins and Managers can manage gig participants" ON gig_participa
 
 -- Gig staff slots policies
 CREATE POLICY "Users can view staff slots for accessible gigs" ON gig_staff_slots
-  FOR SELECT USING (
-    EXISTS (
-      SELECT 1 FROM gig_participants gp
-      WHERE gp.gig_id = gig_staff_slots.gig_id
-      AND user_is_member_of_org(gp.organization_id, auth.uid())
-    )
-  );
+  FOR SELECT USING (user_has_access_to_gig(gig_id, auth.uid()));
 
 CREATE POLICY "Admins and Managers can manage gig staff slots" ON gig_staff_slots
   FOR ALL USING (
@@ -618,13 +616,12 @@ CREATE POLICY "Users can view assignments for accessible gigs" ON gig_staff_assi
   FOR SELECT USING (
     EXISTS (
       SELECT 1 FROM gig_staff_slots gss
-      JOIN gig_participants gp ON gp.gig_id = gss.gig_id
       WHERE gss.id = gig_staff_assignments.slot_id
-      AND user_is_member_of_org(gp.organization_id, auth.uid())
+      AND user_has_access_to_gig(gss.gig_id, auth.uid())
     )
   );
 
-CREATE POLICY "Admins and Managers can manage assignments for accessible gigs" ON gig_staff_assignments
+CREATE POLICY "Admins and Managers can manage all assignments for accessible gigs" ON gig_staff_assignments
   FOR ALL USING (
     EXISTS (
       SELECT 1 FROM gig_staff_slots gss
@@ -634,13 +631,17 @@ CREATE POLICY "Admins and Managers can manage assignments for accessible gigs" O
     )
   );
 
+CREATE POLICY "Staff can update their own assignments" ON gig_staff_assignments
+  FOR UPDATE USING (user_id = auth.uid())
+  WITH CHECK (user_id = auth.uid());
+
 -- Gig bids policies
-CREATE POLICY "Users can view bids for accessible gigs" ON gig_bids
+CREATE POLICY "Admins and Managers can view bids for accessible gigs" ON gig_bids
   FOR SELECT USING (
     EXISTS (
       SELECT 1 FROM gig_participants gp
       WHERE gp.gig_id = gig_bids.gig_id
-      AND user_is_member_of_org(gp.organization_id, auth.uid())
+      AND user_is_admin_or_manager_of_org(gp.organization_id, auth.uid())
     )
   );
 
@@ -725,13 +726,7 @@ CREATE POLICY "Admins and Managers can manage kit assets" ON kit_assets
 
 -- Gig kit assignments policies
 CREATE POLICY "Users can view kit assignments for accessible gigs" ON gig_kit_assignments
-  FOR SELECT USING (
-    EXISTS (
-      SELECT 1 FROM gig_participants gp
-      WHERE gp.gig_id = gig_kit_assignments.gig_id
-      AND user_is_member_of_org(gp.organization_id, auth.uid())
-    )
-  );
+  FOR SELECT USING (user_has_access_to_gig(gig_id, auth.uid()));
 
 CREATE POLICY "Admins and Managers can manage kit assignments" ON gig_kit_assignments
   FOR ALL USING (
