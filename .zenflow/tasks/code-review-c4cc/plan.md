@@ -1,64 +1,50 @@
-# Spec and build
+# Code Review Implementation Plan
 
 ## Configuration
-- **Artifacts Path**: {@artifacts_path} → `.zenflow/tasks/{task_id}`
-
----
-
-## Agent Instructions
-
-Ask the user questions when anything is unclear or needs their input. This includes:
-- Ambiguous or incomplete requirements
-- Technical decisions that affect architecture or user experience
-- Trade-offs that require business context
-
-Do not make assumptions on important decisions — get clarification first.
+- **Artifacts Path**: `.zenflow/tasks/code-review-c4cc`
 
 ---
 
 ## Workflow Steps
 
-### [ ] Step: Technical Specification
+### [x] Step: Technical Specification
+Assess the task's difficulty and create a technical specification.
+- **Difficulty**: hard (Deep architectural and security review)
+- **Output**: `spec.md`
 
-Assess the task's difficulty, as underestimating it leads to poor outcomes.
-- easy: Straightforward implementation, trivial bug fix or feature
-- medium: Moderate complexity, some edge cases or caveats to consider
-- hard: Complex logic, many caveats, architectural considerations, or high-risk changes
+### [ ] Step: Exploration & Security Audit
+Perform a deep dive into the current security implementation and identify vulnerabilities.
+- Audit `supabase/schema.sql` for missing RLS policies.
+- Audit `src/utils/api.tsx` for application-layer security logic.
+- Verify authentication flows in `src/contexts/AuthContext.tsx`.
 
-Create a technical specification for the task that is appropriate for the complexity level:
-- Review the existing codebase architecture and identify reusable components.
-- Define the implementation approach based on established patterns in the project.
-- Identify all source code files that will be created or modified.
-- Define any necessary data model, API, or interface changes.
-- Describe verification steps using the project's test and lint commands.
+### [ ] Step: Dead Code & Maintenance Analysis
+Identify unused code and areas for refactoring.
+- Search for unused exports and components.
+- Analyze `src/utils/api.tsx` for refactoring opportunities (splitting into smaller modules).
+- Review `package.json` for unused dependencies.
 
-Save the output to `{@artifacts_path}/spec.md` with:
-- Technical context (language, dependencies)
-- Implementation approach
-- Source code structure changes
-- Data model / API / interface changes
-- Verification approach
+### [ ] Step: Database & Performance Review
+Ensure Supabase is used effectively.
+- Check for missing indexes on foreign keys and filter columns.
+- Review complex query patterns and suggest improvements (Views, RPCs).
 
-If the task is complex enough, create a detailed implementation plan based on `{@artifacts_path}/spec.md`:
-- Break down the work into concrete tasks (incrementable, testable milestones)
-- Each task should reference relevant contracts and include verification steps
-- Replace the Implementation step below with the planned tasks
+### [ ] Step: Requirement Gap Analysis
+Compare current implementation against product requirements.
+- Review `docs/product/requirements.md`.
+- Map requirements to existing features.
+- Identify missing or incomplete features.
 
-Rule of thumb for step size: each step should represent a coherent unit of work (e.g., implement a component, add an API endpoint, write tests for a module). Avoid steps that are too granular (single function).
-
-Save to `{@artifacts_path}/plan.md`. If the feature is trivial and doesn't warrant this breakdown, keep the Implementation step below as is.
+### [ ] Step: Final Review Report & Implementation Plan
+Consolidate findings into a final report with an actionable plan for fixes.
+- Document dead code findings.
+- Document security vulnerabilities and RLS migration plan.
+- Document maintainability and performance recommendations.
+- Create a prioritized list of tasks for the next phase.
 
 ---
 
-### [ ] Step: Implementation
-
-Implement the task according to the technical specification and general engineering best practices.
-
-1. Break the task into steps where possible.
-2. Implement the required changes in the codebase.
-3. Add and run relevant tests and linters.
-4. Perform basic manual verification if applicable.
-5. After completion, write a report to `{@artifacts_path}/report.md` describing:
-   - What was implemented
-   - How the solution was tested
-   - The biggest issues or challenges encountered
+## Verification
+- Run `npm test` to ensure existing tests pass.
+- Use `tsc --noEmit` for type checking.
+- Manual verification of core features.
