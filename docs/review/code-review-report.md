@@ -15,19 +15,23 @@
 ## 2. Dead Code & Maintenance
 ### Findings
 - **Unused UI Components**: 17 components in `src/components/ui/` are unreferenced (e.g., `accordion`, `carousel`, `chart`, `drawer`, `menubar`).
-- **Unused API Functions**: 9 functions in `src/utils/api.tsx` are unreferenced (e.g., `updateUserProfile`, `updateOrganization`, `searchGooglePlaces`).
+- **Unused API Functions**: Functions like `updateUserProfile`, `updateOrganization`, and `searchGooglePlaces` are unreferenced. 
+    - *Note*: `getGigsForOrganization` is an alias for `getGigs`, which is actively used.
 - **Dead Utility Code**: `src/utils/role-helper.tsx` is completely unused.
 - **Large Component/Utility Files**:
-    - `src/utils/api.tsx`: 3314 lines.
+    - `src/utils/api.tsx`: 3,314 lines.
+    - `src/components/OrganizationScreen.tsx`: ~1,000 lines.
+    - `src/components/TeamScreen.tsx`: ~1,000 lines.
+    - `src/components/GigListScreen.tsx`: ~1,000 lines.
 
 ### Recommendations
 - **Remove Dead Code**: Delete unused UI components, API functions, and utility files.
 - **Refactor `api.tsx`**: Split into domain-specific modules (e.g., `services/gig.service.ts`, `services/user.service.ts`, `services/organization.service.ts`).
-- **Refactor `GigScreen.tsx`**: Break down into smaller, focused sub-components.
+- **Modularize Large Components**: Break down "god files" like `GigListScreen.tsx` into smaller, focused sub-components.
 
 ## 3. Database Utilization
 ### Findings
-- **Inefficient Data Access**: `getGigsForOrganization` suffers from an N+1 query problem, fetching participants for each gig individually.
+- **Inefficient Data Access**: `getGigs` suffers from an N+1 query problem, fetching participants for each gig individually.
 - **Non-Atomic Operations**: `createGig` performs multiple sequential client-side inserts without transaction safety.
 
 ### Recommendations
@@ -44,19 +48,20 @@
 ## 5. Prioritized Implementation Plan
 
 ### Phase 1: Security & Core Infrastructure (Highest Priority)
-1. **Enable RLS** on all tables and migrate `api.tsx` logic to PostgreSQL policies.
-2. **Implement `AuthContext`** to centralize auth state.
-3. **Refactor `api.tsx`** into modular services.
+1.  **Enable RLS** on all tables and migrate `api.tsx` logic to PostgreSQL policies.
+2.  **Implement `AuthContext`** to centralize auth state.
+3.  **Refactor `api.tsx`** into modular services.
 
 ### Phase 2: Maintenance & Optimization
-1. **Remove all identified dead code**.
-2. Implement RPC for `createGig`** and optimize `getGigs` query.
+1.  **Remove all identified dead code**.
+2.  **Implement RPC for `createGig`** and optimize `getGigs` query.
+3.  **Refactor large components** (`GigListScreen.tsx`, etc.).
 
 ### Phase 3: Feature Gap Closure
-1. **Implement Email/Password Authentication**.
-2. **Implement File Attachments** using Supabase Storage.
-3. **Develop Conflict Detection** logic (server-side).
-4. **Create Calendar View** for gigs.
+1.  **Implement Email/Password Authentication**.
+2.  **Implement File Attachments** using Supabase Storage.
+3.  **Develop Conflict Detection** logic (server-side).
+4.  **Create Calendar View** for gigs.
 
 ---
 **Report Date**: January 28, 2026
