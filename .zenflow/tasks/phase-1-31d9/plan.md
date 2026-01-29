@@ -18,7 +18,8 @@ Do not make assumptions on important decisions — get clarification first.
 
 ## Workflow Steps
 
-### [ ] Step: Technical Specification
+### [x] Step: Technical Specification
+<!-- chat-id: f2d4bf97-dab7-4190-9447-bf645707648c -->
 
 Assess the task's difficulty, as underestimating it leads to poor outcomes.
 - easy: Straightforward implementation, trivial bug fix or feature
@@ -50,15 +51,22 @@ Save to `{@artifacts_path}/plan.md`. If the feature is trivial and doesn't warra
 
 ---
 
-### [ ] Step: Implementation
+### [ ] Step: Implement PostgreSQL RLS & Policies
+Enable RLS on all tables and migrate application-layer security to PostgreSQL policies.
+- **Task**: Update `supabase/schema.sql` to enable RLS and add policies.
+- **Verification**: Manual verification via Supabase SQL editor or integration tests.
 
-Implement the task according to the technical specification and general engineering best practices.
+### [ ] Step: Implement `AuthContext`
+Centralize authentication and organization state to simplify `App.tsx` and provide a consistent interface for components.
+- **Task**: Create `src/contexts/AuthContext.tsx` and refactor `App.tsx`.
+- **Verification**: `npm test`, verify login/logout and org selection flow.
 
-1. Break the task into steps where possible.
-2. Implement the required changes in the codebase.
-3. Add and run relevant tests and linters.
-4. Perform basic manual verification if applicable.
-5. After completion, write a report to `{@artifacts_path}/report.md` describing:
-   - What was implemented
-   - How the solution was tested
-   - The biggest issues or challenges encountered
+### [ ] Step: Modularize API Services
+Refactor `src/utils/api.tsx` into domain-specific service modules.
+- **Task**: Create `src/services/` modules and update all component imports.
+- **Verification**: `npm run lint`, `npm run typecheck`, `npm test`.
+
+### [ ] Step: Final Verification & Report
+- **Task**: Run full test suite and write report.
+- **Verification**: `npm test`, `npm run build`.
+- **Report**: Write to `{@artifacts_path}/report.md`.
