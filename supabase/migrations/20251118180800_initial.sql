@@ -96,7 +96,7 @@ COMMENT ON COLUMN users.user_status IS 'User account status: active (authenticat
 
 -- Organizations table
 CREATE TABLE organizations (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT extensions.uuid_generate_v4(),
   name TEXT NOT NULL,
   type organization_type NOT NULL,
   url TEXT,
@@ -115,7 +115,7 @@ CREATE TABLE organizations (
 
 -- Staff roles table
 CREATE TABLE staff_roles (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT extensions.uuid_generate_v4(),
   name TEXT UNIQUE NOT NULL,
   description TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
@@ -126,7 +126,7 @@ CREATE TABLE staff_roles (
 -- Note: RLS is DISABLED - access control handled in application layer
 -- This prevents circular dependencies in RLS policies
 CREATE TABLE organization_members (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT extensions.uuid_generate_v4(),
   organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
   user_id UUID NOT NULL REFERENCES users(id) ON UPDATE CASCADE ON DELETE CASCADE,
   role user_role NOT NULL,
@@ -141,7 +141,7 @@ COMMENT ON COLUMN organization_members.default_staff_role_id IS 'The default sta
 -- Note: RLS is DISABLED - access control handled in application layer
 -- Gigs are accessed through gig_participants which also has RLS disabled
 CREATE TABLE gigs (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT extensions.uuid_generate_v4(),
   title TEXT NOT NULL,
   status gig_status NOT NULL,
   tags TEXT[] DEFAULT '{}',
@@ -160,7 +160,7 @@ CREATE TABLE gigs (
 
 -- Gig status history table
 CREATE TABLE gig_status_history (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT extensions.uuid_generate_v4(),
   gig_id UUID NOT NULL REFERENCES gigs(id) ON DELETE CASCADE,
   from_status gig_status,
   to_status gig_status NOT NULL,
@@ -172,7 +172,7 @@ CREATE TABLE gig_status_history (
 -- Note: RLS is DISABLED - access control handled in application layer
 -- This prevents circular dependencies when checking gig access
 CREATE TABLE gig_participants (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT extensions.uuid_generate_v4(),
   gig_id UUID NOT NULL REFERENCES gigs(id) ON DELETE CASCADE,
   organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
   role organization_type NOT NULL,
@@ -183,7 +183,7 @@ CREATE TABLE gig_participants (
 -- Gig staff slots table
 -- Note: RLS is DISABLED - access control handled in application layer
 CREATE TABLE gig_staff_slots (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT extensions.uuid_generate_v4(),
   gig_id UUID NOT NULL REFERENCES gigs(id) ON DELETE CASCADE,
   staff_role_id UUID NOT NULL REFERENCES staff_roles(id) ON DELETE RESTRICT,
   organization_id UUID REFERENCES organizations(id) ON DELETE CASCADE,
@@ -196,7 +196,7 @@ CREATE TABLE gig_staff_slots (
 -- Gig staff assignments table
 -- Note: RLS is DISABLED - access control handled in application layer
 CREATE TABLE gig_staff_assignments (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT extensions.uuid_generate_v4(),
   slot_id UUID NOT NULL REFERENCES gig_staff_slots(id) ON DELETE CASCADE,
   user_id UUID NOT NULL REFERENCES users(id) ON UPDATE CASCADE ON DELETE CASCADE,
   status TEXT NOT NULL,
@@ -210,7 +210,7 @@ CREATE TABLE gig_staff_assignments (
 -- Gig bids table
 -- Note: RLS is DISABLED - access control handled in application layer
 CREATE TABLE gig_bids (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT extensions.uuid_generate_v4(),
   gig_id UUID NOT NULL REFERENCES gigs(id) ON DELETE CASCADE,
   organization_id UUID REFERENCES organizations(id) ON DELETE CASCADE,
   amount DECIMAL(10, 2) NOT NULL,
@@ -242,7 +242,7 @@ COMMENT ON TABLE invitations IS 'Tracks pending and completed invitations to joi
 
 -- Assets table
 CREATE TABLE assets (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT extensions.uuid_generate_v4(),
   organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
   acquisition_date DATE NOT NULL,
   vendor TEXT,
@@ -265,7 +265,7 @@ CREATE TABLE assets (
 
 -- Kits table (reusable equipment collections)
 CREATE TABLE kits (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT extensions.uuid_generate_v4(),
   organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
   name TEXT NOT NULL,
   category TEXT,
@@ -281,7 +281,7 @@ CREATE TABLE kits (
 
 -- Kit assets junction table
 CREATE TABLE kit_assets (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT extensions.uuid_generate_v4(),
   kit_id UUID NOT NULL REFERENCES kits(id) ON DELETE CASCADE,
   asset_id UUID NOT NULL REFERENCES assets(id) ON DELETE CASCADE,
   quantity INTEGER DEFAULT 1 NOT NULL,
@@ -293,7 +293,7 @@ CREATE TABLE kit_assets (
 -- Gig kit assignments table
 -- Note: RLS is DISABLED - access control handled in application layer
 CREATE TABLE gig_kit_assignments (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT extensions.uuid_generate_v4(),
   organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
   gig_id UUID NOT NULL REFERENCES gigs(id) ON DELETE CASCADE,
   kit_id UUID NOT NULL REFERENCES kits(id) ON DELETE CASCADE,
@@ -627,23 +627,6 @@ CREATE POLICY "Admins and Managers can manage kit assets" ON kit_assets
       AND om.role IN ('Admin', 'Manager')
     )
   );
-
--- ============================================
--- SEED DATA
--- ============================================
-
--- Insert default staff roles
-INSERT INTO staff_roles (name, description) VALUES
-  ('FOH', 'Front of House - Sound engineer managing audience-facing audio'),
-  ('Monitor', 'Monitor Engineer - Manages on-stage audio for performers'),
-  ('Lighting', 'Lighting Technician - Operates and designs lighting systems'),
-  ('Stage', 'Stage Manager - Coordinates all stage activities and crew'),
-  ('CameraOp', 'Camera Operator - Operates video cameras for live production'),
-  ('Video', 'Video Engineer - Manages video switching and routing'),
-  ('Rigger', 'Rigger - Installs and maintains rigging systems'),
-  ('Loader', 'Loader - Assists with loading and unloading equipment'),
-  ('Runner', 'Runner - General support and errands during production')
-ON CONFLICT (name) DO NOTHING;
 
 -- ============================================
 -- GRANTS (Required for Supabase)
