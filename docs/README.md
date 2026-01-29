@@ -37,7 +37,7 @@ Development plans, AI coding guides, and testing strategies
 
 **Ready to code?** Check these out:
 
-1. **[AI Coding Guide](./development/ai-agents/coding-guide.md)** - Comprehensive coding conventions and patterns
+1. **[AI Coding Guide](./development/coding-guide.md)** - Comprehensive coding conventions and patterns
 2. **[Development Plan](./development/development-plan.md)** - Refactoring roadmap and current status
 3. **[Database Schema](./technical/database.md)** - Complete data model and RLS policies
 4. **[Feature Catalog](./product/feature-catalog.md)** - Feature status and implementation details
@@ -97,12 +97,6 @@ Located in [`./development/`](./development/)
 
 - **[development-plan.md](./development/development-plan.md)** - Development roadmap, refactoring phases, bug management, quality gates
 
-### AI Agent Guidance
-
-Located in [`./development/ai-agents/`](./development/ai-agents/)
-
-- **[coding-guide.md](./development/ai-agents/coding-guide.md)** - Comprehensive coding conventions, TypeScript patterns, React patterns, and best practices for AI agents
-
 ---
 
 ## Document Types & Purposes
@@ -125,7 +119,7 @@ Located in [`./development/ai-agents/`](./development/ai-agents/)
 ### Development Guides
 **Purpose**: Guide implementation and maintain code quality  
 **Audience**: Developers, AI coding agents  
-**Key Files**: [coding-guide.md](./development/ai-agents/coding-guide.md), [development-plan.md](./development/development-plan.md)
+**Key Files**: [coding-guide.md](./development/coding-guide.md), [development-plan.md](./development/development-plan.md)
 
 ---
 
@@ -172,26 +166,6 @@ See [feature-catalog.md](./product/feature-catalog.md) for complete feature list
 
 ---
 
-## Development Status
-
-**Current Phase**: Phase 2 Complete (Form Change Detection Simplification)
-
-**Completed:**
-- ✅ Phase 1: Dead Code Removal (~200 lines removed)
-- ✅ Phase 2: Form Change Detection Simplification (~32 lines reduced)
-
-**Next Up:**
-- ⏸️ Phase 3: API Layer Refactoring (~1,200 lines reduction estimated)
-- ⏸️ Phase 4: React Router Migration (~200 lines reduction estimated)
-- ⏸️ Phase 5: Remove Unnecessary Abstractions (~100 lines reduction estimated)
-- ⏸️ Phase 6: Component Refactoring (~1,500 lines refactored estimated)
-
-**Total Estimated Reduction**: ~3,232 lines (25-30% of codebase)
-
-See [development-plan.md](./development/development-plan.md) for detailed phase specifications and task tracking.
-
----
-
 ## Contributing
 
 ### For AI Coding Agents
@@ -208,7 +182,7 @@ Before making code changes:
 1. **Setup**: Follow [setup-guide.md](./technical/setup-guide.md)
 2. **Understand requirements**: Read [requirements.md](./product/requirements.md)
 3. **Check conventions**: Review [coding-guide.md](./development/ai-agents/coding-guide.md)
-4. **Run tests**: `npm test` (60 tests should pass)
+4. **Run tests**: `npm test`
 5. **Submit changes**: Follow git workflow in project root
 
 ---
@@ -229,7 +203,7 @@ Before making code changes:
 
 **Development Changes:**
 - Update [development-plan.md](./development/development-plan.md) when phases complete or tasks change
-- Update [coding-guide.md](./development/ai-agents/coding-guide.md) when new patterns emerge
+- Update [coding-guide.md](./development/coding-guide.md) when new patterns emerge
 
 ### Documentation Standards
 
@@ -250,7 +224,7 @@ See [setup-guide.md](./technical/setup-guide.md) for step-by-step instructions.
 See [database.md](./technical/database.md) for complete schema with all tables, relationships, and RLS policies.
 
 ### What coding conventions should I follow?
-See [coding-guide.md](./development/ai-agents/coding-guide.md) for comprehensive guidelines.
+See [coding-guide.md](./development/coding-guide.md) for comprehensive guidelines.
 
 ### What features are currently implemented?
 See [feature-catalog.md](./product/feature-catalog.md) for complete feature inventory with status.

@@ -27,12 +27,12 @@ This app streamlines the management of gigs (where an act performs at a venue) f
 
 ### Target Users
 
-- Primary Users (may plan and manage gigs)
+- Primary Users (may plan and manage gigs, bids, staffing and equipment.)
   - Production companies
   - Sound/lighting companies
   - Event producers
 
-- Secondary Users (may participate in gigs)
+- Secondary Users (may participate in gig planning)
   - Venues
   - Acts/Performers
   - Talent agencies
@@ -41,13 +41,13 @@ This app streamlines the management of gigs (where an act performs at a venue) f
 
 ### Key Features
 
-- **Multi-Organization Collaboration:** The different organizations that participate in an event can all share and collaborate on the same gig, while tenants maintaining their own staffing, equipment, and financial information. 
+- **Multi-Organization Collaboration:** The different organizations that participate in an event can all share and collaborate on the same gig, with tenants maintaining their own staffing, equipment, and financial information. 
 - **Shared Organizations**: Organization profiles are shared so each tenant doesn't have to create them; users can belong to multiple organizations with role-based access control.
 - **Gig Management**: Full lifecycle tracking from Date-Hold to Completed/Paid.
-- **Asset Inventory**: Track equipment assigned to gigs and export insurance details.
-- **Personnel Management**: Assign staff to roles, notify automatically, and check for conflicts.
+- **Asset Inventory**: Track owned assets, group assets into kits, assign equipment to gigs, reporting on conflicts, handle rentals, and export insurance details.
+- **Personnel Management**: Create staffings slots on gigs, assign staff to roles, notify staff automatically, and check for conflicts.
 - **Mobile Support**: Offline-first with push notifications and biometric authentication.
-- **Calendar Integration**: Export to ICS and Google Calendar.
+- **Calendar Integration**: Syncronize gig dates with Google Calendar.
 - **Export/Import:** Easy data export and import to/from spreadsheets.
 
 ### Key Benefits
@@ -56,7 +56,7 @@ This app streamlines the management of gigs (where an act performs at a venue) f
 - **Efficiency**: Automates notifications, confirmations, checklists, and tracking.
 - **Integrated**: Track dates, equipment inventory, acts, venues, proposals, and staff in one place.
 - **Risk Mitigation**: Maintain equipment inventory for insurance purposes and avoid double booking.
-- **Purpose-built**: Unlike general event tools, this app specializes in coordinating acts, venues, equipment and supporting services
+- **Purpose-built**: Unlike general event tools, this app specializes in coordinating acts, venues, equipment and supporting services.
 
 ### User Experience Principles
 
@@ -106,8 +106,8 @@ This app streamlines the management of gigs (where an act performs at a venue) f
 - **Two User Types**:
   1. **Authenticated Users**: Full Supabase auth.users accounts with complete profiles
   2. **Placeholder Users**: User records without auth.users entries for planning (data-only, no system access)
-- **Users Table Linking**: Link users table to auth.users via email column
-- **Invitation System**: Use separate `invitations` table
+- **Users Table Linking**: Link users table to supabase auth.users via email column
+- **Invitation System**: Use separate `invitations` table to track invited placeholder users
   - **Secure Token Purpose**: Creates secure, one-time-use URLs for invitation acceptance
   - **Token Security**: Prevents unauthorized access to invitation acceptance
 
@@ -153,16 +153,6 @@ This app streamlines the management of gigs (where an act performs at a venue) f
 
 ### 2. Organization Management
 
-#### Organization Types
-
-- Production Company
-- Sound/Lighting Company
-- Client
-- Venue
-- Act
-- Rental Company
-- Other
-
 #### Organization Data
 
 - **Required**: name, type
@@ -193,18 +183,10 @@ This app streamlines the management of gigs (where an act performs at a venue) f
 - **Required**: title, start (datetime), end (datetime), timezone, status
 - **Optional**: notes, amount_paid, tags (array)
 
-**Status Enum**:
-- Date Hold
-- Proposed
-- Booked
-- Completed
-- Cancelled
-- Settled
-
 **Related Entities**:
 - **Participants**: Organizations involved (act, venue, clients, production companies, sound/lighting companies)
 - **Staff Slots**: Defined roles with optional staff assignments
-- **Bids**: Financial proposals from organizations
+- **Bids**: Financial proposals to other organizations
 - **Kit Assignments**: Equipment packages assigned to gig
 
 #### Gig Participants
@@ -311,13 +293,10 @@ This app streamlines the management of gigs (where an act performs at a venue) f
 - **Batch Import**: Import multiple records at once
 - **Organization Mapping**: Auto-create organizations if they don't exist (for gig imports)
 
-See [CSV Import Feature Requirements](#csv-import-feature-requirements) for detailed specifications.
-
 #### CSV Export
 
-- **Export Types**: Gigs, Assets, Kits, Organizations
+- **Export Types**: Gigs, Assets & Kits
 - **Filters**: Export filtered/searched data
-- **All Fields**: Include all database columns in export
 
 ---
 
@@ -353,10 +332,8 @@ See [CSV Import Feature Requirements](#csv-import-feature-requirements) for deta
 - **Day View**: Hour-by-hour breakdown
 - **Filters**: Filter by status, staff, venue, act
 
-#### ICS Export
+#### Calendar Integration
 
-- **Individual Gigs**: Export single gig to calendar app
-- **Bulk Export**: Export multiple gigs at once
 - **Google Calendar Integration**: Direct integration with Google Calendar API
 
 #### Conflict Detection
