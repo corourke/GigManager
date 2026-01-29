@@ -42,66 +42,6 @@ CREATE TYPE gig_status AS ENUM (
   'Settled'
 );
 
--- ============================================
--- HELPER FUNCTIONS
--- ============================================
--- These SECURITY DEFINER functions bypass RLS to prevent infinite recursion
--- when policies need to check organization membership
-
-CREATE OR REPLACE FUNCTION user_is_member_of_org(org_id UUID, user_uuid UUID)
-RETURNS BOOLEAN
-LANGUAGE sql
-SECURITY DEFINER
-STABLE
-SET search_path = public
-AS $$
-  SELECT EXISTS (
-    SELECT 1 FROM organization_members
-    WHERE organization_id = org_id AND user_id = user_uuid
-  );
-$$;
-
-CREATE OR REPLACE FUNCTION user_is_admin_of_org(org_id UUID, user_uuid UUID)
-RETURNS BOOLEAN
-LANGUAGE sql
-SECURITY DEFINER
-STABLE
-SET search_path = public
-AS $$
-  SELECT EXISTS (
-    SELECT 1 FROM organization_members
-    WHERE organization_id = org_id 
-    AND user_id = user_uuid
-    AND role = 'Admin'
-  );
-$$;
-
-CREATE OR REPLACE FUNCTION user_is_admin_or_manager_of_org(org_id UUID, user_uuid UUID)
-RETURNS BOOLEAN
-LANGUAGE sql
-SECURITY DEFINER
-STABLE
-SET search_path = public
-AS $$
-  SELECT EXISTS (
-    SELECT 1 FROM organization_members
-    WHERE organization_id = org_id 
-    AND user_id = user_uuid
-    AND role IN ('Admin', 'Manager')
-  );
-$$;
-
-CREATE OR REPLACE FUNCTION user_organization_ids(user_uuid UUID)
-RETURNS TABLE(organization_id UUID)
-LANGUAGE sql
-SECURITY DEFINER
-STABLE
-SET search_path = public
-AS $$
-  SELECT organization_id 
-  FROM organization_members
-  WHERE user_id = user_uuid;
-$$;
 
 -- ============================================
 -- TRIGGER FUNCTIONS
@@ -173,6 +113,15 @@ CREATE TABLE organizations (
   updated_at TIMESTAMPTZ DEFAULT NOW() NOT NULL
 );
 
+-- Staff roles table
+CREATE TABLE staff_roles (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  name TEXT UNIQUE NOT NULL,
+  description TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+  updated_at TIMESTAMPTZ DEFAULT NOW() NOT NULL
+);
+
 -- Organization members (junction table)
 -- Note: RLS is DISABLED - access control handled in application layer
 -- This prevents circular dependencies in RLS policies
@@ -187,15 +136,6 @@ CREATE TABLE organization_members (
 );
 
 COMMENT ON COLUMN organization_members.default_staff_role_id IS 'The default staff role for this member when they are assigned to gigs';
-
--- Staff roles table
-CREATE TABLE staff_roles (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  name TEXT UNIQUE NOT NULL,
-  description TEXT,
-  created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
-  updated_at TIMESTAMPTZ DEFAULT NOW() NOT NULL
-);
 
 -- Gigs table
 -- Note: RLS is DISABLED - access control handled in application layer
@@ -423,6 +363,67 @@ CREATE INDEX idx_gig_kit_assignments_kit_id ON gig_kit_assignments(kit_id);
 
 -- KV store indexes
 CREATE INDEX kv_store_de012ad4_key_idx ON kv_store_de012ad4(key text_pattern_ops);
+
+-- ============================================
+-- HELPER FUNCTIONS
+-- ============================================
+-- These SECURITY DEFINER functions bypass RLS to prevent infinite recursion
+-- when policies need to check organization membership
+
+CREATE OR REPLACE FUNCTION user_is_member_of_org(org_id UUID, user_uuid UUID)
+RETURNS BOOLEAN
+LANGUAGE sql
+SECURITY DEFINER
+STABLE
+SET search_path = public
+AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM organization_members
+    WHERE organization_id = org_id AND user_id = user_uuid
+  );
+$$;
+
+CREATE OR REPLACE FUNCTION user_is_admin_of_org(org_id UUID, user_uuid UUID)
+RETURNS BOOLEAN
+LANGUAGE sql
+SECURITY DEFINER
+STABLE
+SET search_path = public
+AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM organization_members
+    WHERE organization_id = org_id 
+    AND user_id = user_uuid
+    AND role = 'Admin'
+  );
+$$;
+
+CREATE OR REPLACE FUNCTION user_is_admin_or_manager_of_org(org_id UUID, user_uuid UUID)
+RETURNS BOOLEAN
+LANGUAGE sql
+SECURITY DEFINER
+STABLE
+SET search_path = public
+AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM organization_members
+    WHERE organization_id = org_id 
+    AND user_id = user_uuid
+    AND role IN ('Admin', 'Manager')
+  );
+$$;
+
+CREATE OR REPLACE FUNCTION user_organization_ids(user_uuid UUID)
+RETURNS TABLE(organization_id UUID)
+LANGUAGE sql
+SECURITY DEFINER
+STABLE
+SET search_path = public
+AS $$
+  SELECT organization_id 
+  FROM organization_members
+  WHERE user_id = user_uuid;
+$$;
 
 -- ============================================
 -- TRIGGERS
