@@ -121,24 +121,7 @@ AS $$
   );
 $$;
 
-CREATE OR REPLACE FUNCTION user_can_manage_gig(gig_id UUID, user_uuid UUID)
-RETURNS BOOLEAN
-LANGUAGE sql
-SECURITY DEFINER
-STABLE
-SET search_path = public
-AS $$
-  SELECT EXISTS (
-    SELECT 1 FROM gig_participants gp
-    WHERE gp.gig_id = user_can_manage_gig.gig_id
-    AND EXISTS (
-      SELECT 1 FROM organization_members om
-      WHERE om.organization_id = gp.organization_id
-      AND om.user_id = user_uuid
-      AND om.role IN ('Admin', 'Manager')
-    )
-  );
-$$;
+
 
 CREATE OR REPLACE FUNCTION get_user_role_in_org(org_id UUID, user_uuid UUID)
 RETURNS user_role
@@ -574,7 +557,13 @@ CREATE POLICY "Authenticated users can create gigs" ON gigs
   FOR INSERT TO authenticated WITH CHECK (true);
 
 CREATE POLICY "Admins and Managers of participating orgs can update gigs" ON gigs
-  FOR UPDATE USING (user_can_manage_gig(id, auth.uid()));
+  FOR UPDATE USING (
+    EXISTS (
+      SELECT 1 FROM gig_participants gp
+      WHERE gp.gig_id = gigs.id
+      AND user_is_admin_or_manager_of_org(gp.organization_id, auth.uid())
+    )
+  );
 
 CREATE POLICY "Admins of participating orgs can delete gigs" ON gigs
   FOR DELETE USING (
@@ -603,14 +592,26 @@ CREATE POLICY "Users can view participants for accessible gigs" ON gig_participa
   FOR SELECT USING (user_has_access_to_gig(gig_id, auth.uid()));
 
 CREATE POLICY "Admins and Managers can manage gig participants" ON gig_participants
-  FOR ALL USING (user_can_manage_gig(gig_id, auth.uid()));
+  FOR ALL USING (
+    EXISTS (
+      SELECT 1 FROM gig_participants gp2
+      WHERE gp2.gig_id = gig_participants.gig_id
+      AND user_is_admin_or_manager_of_org(gp2.organization_id, auth.uid())
+    )
+  );
 
 -- Gig staff slots policies
 CREATE POLICY "Users can view staff slots for accessible gigs" ON gig_staff_slots
   FOR SELECT USING (user_has_access_to_gig(gig_id, auth.uid()));
 
 CREATE POLICY "Admins and Managers can manage gig staff slots" ON gig_staff_slots
-  FOR ALL USING (user_can_manage_gig(gig_id, auth.uid()));
+  FOR ALL USING (
+    EXISTS (
+      SELECT 1 FROM gig_participants gp
+      WHERE gp.gig_id = gig_staff_slots.gig_id
+      AND user_is_admin_or_manager_of_org(gp.organization_id, auth.uid())
+    )
+  );
 
 -- Gig staff assignments policies
 CREATE POLICY "Users can view assignments for accessible gigs" ON gig_staff_assignments
@@ -626,8 +627,9 @@ CREATE POLICY "Admins and Managers can manage all assignments for accessible gig
   FOR ALL USING (
     EXISTS (
       SELECT 1 FROM gig_staff_slots gss
+      JOIN gig_participants gp ON gp.gig_id = gss.gig_id
       WHERE gss.id = gig_staff_assignments.slot_id
-      AND user_can_manage_gig(gss.gig_id, auth.uid())
+      AND user_is_admin_or_manager_of_org(gp.organization_id, auth.uid())
     )
   );
 
@@ -637,10 +639,22 @@ CREATE POLICY "Staff can update their own assignments" ON gig_staff_assignments
 
 -- Gig bids policies
 CREATE POLICY "Admins and Managers can view bids for accessible gigs" ON gig_bids
-  FOR SELECT USING (user_can_manage_gig(gig_id, auth.uid()));
+  FOR SELECT USING (
+    EXISTS (
+      SELECT 1 FROM gig_participants gp
+      WHERE gp.gig_id = gig_bids.gig_id
+      AND user_is_admin_or_manager_of_org(gp.organization_id, auth.uid())
+    )
+  );
 
 CREATE POLICY "Admins and Managers can manage gig bids" ON gig_bids
-  FOR ALL USING (user_can_manage_gig(gig_id, auth.uid()));
+  FOR ALL USING (
+    EXISTS (
+      SELECT 1 FROM gig_participants gp
+      WHERE gp.gig_id = gig_bids.gig_id
+      AND user_is_admin_or_manager_of_org(gp.organization_id, auth.uid())
+    )
+  );
 
 -- Invitations policies
 CREATE POLICY "Users can view invitations for their organizations" ON invitations
@@ -717,7 +731,13 @@ CREATE POLICY "Users can view kit assignments for accessible gigs" ON gig_kit_as
   FOR SELECT USING (user_has_access_to_gig(gig_id, auth.uid()));
 
 CREATE POLICY "Admins and Managers can manage kit assignments" ON gig_kit_assignments
-  FOR ALL USING (user_can_manage_gig(gig_id, auth.uid()));
+  FOR ALL USING (
+    EXISTS (
+      SELECT 1 FROM gig_participants gp
+      WHERE gp.gig_id = gig_kit_assignments.gig_id
+      AND user_is_admin_or_manager_of_org(gp.organization_id, auth.uid())
+    )
+  );
 
 -- ============================================
 -- SEED DATA
