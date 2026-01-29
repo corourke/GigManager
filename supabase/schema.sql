@@ -465,28 +465,24 @@ CREATE TRIGGER log_gig_status_changes AFTER UPDATE ON gigs
 -- ============================================
 -- ROW LEVEL SECURITY (RLS)
 -- ============================================
--- Note: Some tables have RLS DISABLED to prevent circular dependencies.
--- Access control for those tables is handled at the application layer in /utils/api.tsx
 
 -- Tables with RLS ENABLED
+ALTER TABLE users ENABLE ROW LEVEL SECURITY;
 ALTER TABLE organizations ENABLE ROW LEVEL SECURITY;
+ALTER TABLE organization_members ENABLE ROW LEVEL SECURITY;
 ALTER TABLE staff_roles ENABLE ROW LEVEL SECURITY;
+ALTER TABLE gigs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE gig_status_history ENABLE ROW LEVEL SECURITY;
+ALTER TABLE gig_participants ENABLE ROW LEVEL SECURITY;
+ALTER TABLE gig_staff_slots ENABLE ROW LEVEL SECURITY;
+ALTER TABLE gig_staff_assignments ENABLE ROW LEVEL SECURITY;
+ALTER TABLE gig_bids ENABLE ROW LEVEL SECURITY;
 ALTER TABLE invitations ENABLE ROW LEVEL SECURITY;
 ALTER TABLE assets ENABLE ROW LEVEL SECURITY;
 ALTER TABLE kits ENABLE ROW LEVEL SECURITY;
 ALTER TABLE kit_assets ENABLE ROW LEVEL SECURITY;
+ALTER TABLE gig_kit_assignments ENABLE ROW LEVEL SECURITY;
 ALTER TABLE kv_store_de012ad4 ENABLE ROW LEVEL SECURITY;
-ALTER TABLE users ENABLE ROW LEVEL SECURITY;
-
--- Tables with RLS DISABLED (access control in application layer)
-ALTER TABLE organization_members DISABLE ROW LEVEL SECURITY;
-ALTER TABLE gigs DISABLE ROW LEVEL SECURITY;
-ALTER TABLE gig_participants DISABLE ROW LEVEL SECURITY;
-ALTER TABLE gig_staff_slots DISABLE ROW LEVEL SECURITY;
-ALTER TABLE gig_staff_assignments DISABLE ROW LEVEL SECURITY;
-ALTER TABLE gig_bids DISABLE ROW LEVEL SECURITY;
-ALTER TABLE gig_kit_assignments DISABLE ROW LEVEL SECURITY;
 
 -- ============================================
 -- RLS POLICIES
@@ -502,7 +498,7 @@ CREATE POLICY "Users can view their own profile" ON users
 CREATE POLICY "Users can view other user profiles" ON users
   FOR SELECT USING (
     auth.uid() = id OR 
-    EXISTS (SELECT 1 FROM organization_members WHERE user_id = auth.uid())
+    EXISTS (SELECT 1 FROM user_organization_ids(auth.uid()))
   );
 
 -- Organizations policies
@@ -519,23 +515,143 @@ CREATE POLICY "Authenticated users can create organizations" ON organizations
 CREATE POLICY "Admins can update their organizations" ON organizations
   FOR UPDATE USING (user_is_admin_of_org(organizations.id, auth.uid()));
 
+-- Organization members policies
+CREATE POLICY "Users can view members of their organizations" ON organization_members
+  FOR SELECT USING (
+    user_id = auth.uid() OR 
+    organization_id IN (SELECT organization_id FROM user_organization_ids(auth.uid()))
+  );
+
+CREATE POLICY "Admins can manage organization members" ON organization_members
+  FOR ALL USING (
+    user_is_admin_of_org(organization_id, auth.uid())
+  );
+
 -- Staff roles policies
 CREATE POLICY "Anyone can view staff roles" ON staff_roles
   FOR SELECT USING (true);
+
+-- Gigs policies
+CREATE POLICY "Users can view gigs they are participating in" ON gigs
+  FOR SELECT USING (
+    EXISTS (
+      SELECT 1 FROM gig_participants gp
+      WHERE gp.gig_id = gigs.id
+      AND user_is_member_of_org(gp.organization_id, auth.uid())
+    )
+  );
+
+CREATE POLICY "Authenticated users can create gigs" ON gigs
+  FOR INSERT TO authenticated WITH CHECK (true);
+
+CREATE POLICY "Admins and Managers of participating orgs can update gigs" ON gigs
+  FOR UPDATE USING (
+    EXISTS (
+      SELECT 1 FROM gig_participants gp
+      WHERE gp.gig_id = gigs.id
+      AND user_is_admin_or_manager_of_org(gp.organization_id, auth.uid())
+    )
+  );
+
+CREATE POLICY "Admins of participating orgs can delete gigs" ON gigs
+  FOR DELETE USING (
+    EXISTS (
+      SELECT 1 FROM gig_participants gp
+      WHERE gp.gig_id = gigs.id
+      AND user_is_admin_of_org(gp.organization_id, auth.uid())
+    )
+  );
 
 -- Gig status history policies
 CREATE POLICY "Users can view status history for accessible gigs" ON gig_status_history
   FOR SELECT USING (
     EXISTS (
       SELECT 1 FROM gig_participants gp
-      JOIN organization_members om ON om.organization_id = gp.organization_id
       WHERE gp.gig_id = gig_status_history.gig_id
-      AND om.user_id = auth.uid()
+      AND user_is_member_of_org(gp.organization_id, auth.uid())
     )
   );
 
 CREATE POLICY "Allow inserting status history" ON gig_status_history
   FOR INSERT TO authenticated WITH CHECK (true);
+
+-- Gig participants policies
+CREATE POLICY "Users can view participants for accessible gigs" ON gig_participants
+  FOR SELECT USING (
+    EXISTS (
+      SELECT 1 FROM gig_participants gp2
+      WHERE gp2.gig_id = gig_participants.gig_id
+      AND user_is_member_of_org(gp2.organization_id, auth.uid())
+    )
+  );
+
+CREATE POLICY "Admins and Managers can manage gig participants" ON gig_participants
+  FOR ALL USING (
+    EXISTS (
+      SELECT 1 FROM gig_participants gp2
+      WHERE gp2.gig_id = gig_participants.gig_id
+      AND user_is_admin_or_manager_of_org(gp2.organization_id, auth.uid())
+    )
+  );
+
+-- Gig staff slots policies
+CREATE POLICY "Users can view staff slots for accessible gigs" ON gig_staff_slots
+  FOR SELECT USING (
+    EXISTS (
+      SELECT 1 FROM gig_participants gp
+      WHERE gp.gig_id = gig_staff_slots.gig_id
+      AND user_is_member_of_org(gp.organization_id, auth.uid())
+    )
+  );
+
+CREATE POLICY "Admins and Managers can manage gig staff slots" ON gig_staff_slots
+  FOR ALL USING (
+    EXISTS (
+      SELECT 1 FROM gig_participants gp
+      WHERE gp.gig_id = gig_staff_slots.gig_id
+      AND user_is_admin_or_manager_of_org(gp.organization_id, auth.uid())
+    )
+  );
+
+-- Gig staff assignments policies
+CREATE POLICY "Users can view assignments for accessible gigs" ON gig_staff_assignments
+  FOR SELECT USING (
+    EXISTS (
+      SELECT 1 FROM gig_staff_slots gss
+      JOIN gig_participants gp ON gp.gig_id = gss.gig_id
+      WHERE gss.id = gig_staff_assignments.slot_id
+      AND user_is_member_of_org(gp.organization_id, auth.uid())
+    )
+  );
+
+CREATE POLICY "Admins and Managers can manage assignments for accessible gigs" ON gig_staff_assignments
+  FOR ALL USING (
+    EXISTS (
+      SELECT 1 FROM gig_staff_slots gss
+      JOIN gig_participants gp ON gp.gig_id = gss.gig_id
+      WHERE gss.id = gig_staff_assignments.slot_id
+      AND user_is_admin_or_manager_of_org(gp.organization_id, auth.uid())
+    )
+  );
+
+-- Gig bids policies
+CREATE POLICY "Users can view bids for accessible gigs" ON gig_bids
+  FOR SELECT USING (
+    EXISTS (
+      SELECT 1 FROM gig_participants gp
+      WHERE gp.gig_id = gig_bids.gig_id
+      AND user_is_member_of_org(gp.organization_id, auth.uid())
+    )
+  );
+
+CREATE POLICY "Admins and Managers can manage gig bids" ON gig_bids
+  FOR ALL USING (
+    EXISTS (
+      SELECT 1 FROM gig_participants gp
+      WHERE gp.gig_id = gig_bids.gig_id
+      AND user_is_admin_or_manager_of_org(gp.organization_id, auth.uid())
+    )
+  );
 
 -- Invitations policies
 CREATE POLICY "Users can view invitations for their organizations" ON invitations
@@ -576,52 +692,25 @@ CREATE POLICY "Admins and Managers can delete invitations" ON invitations
 
 -- Assets policies
 CREATE POLICY "Users can view their organization's assets" ON assets
-  FOR SELECT USING (
-    EXISTS (
-      SELECT 1 FROM organization_members
-      WHERE organization_id = assets.organization_id
-      AND user_id = auth.uid()
-    )
-  );
+  FOR SELECT USING (user_is_member_of_org(assets.organization_id, auth.uid()));
 
 CREATE POLICY "Admins and Managers can manage assets" ON assets
-  FOR ALL USING (
-    EXISTS (
-      SELECT 1 FROM organization_members
-      WHERE organization_id = assets.organization_id
-      AND user_id = auth.uid()
-      AND role IN ('Admin', 'Manager')
-    )
-  );
+  FOR ALL USING (user_is_admin_or_manager_of_org(assets.organization_id, auth.uid()));
 
 -- Kits policies
 CREATE POLICY "Users can view their organization's kits" ON kits
-  FOR SELECT USING (
-    EXISTS (
-      SELECT 1 FROM organization_members
-      WHERE organization_id = kits.organization_id
-      AND user_id = auth.uid()
-    )
-  );
+  FOR SELECT USING (user_is_member_of_org(kits.organization_id, auth.uid()));
 
 CREATE POLICY "Admins and Managers can manage kits" ON kits
-  FOR ALL USING (
-    EXISTS (
-      SELECT 1 FROM organization_members
-      WHERE organization_id = kits.organization_id
-      AND user_id = auth.uid()
-      AND role IN ('Admin', 'Manager')
-    )
-  );
+  FOR ALL USING (user_is_admin_or_manager_of_org(kits.organization_id, auth.uid()));
 
 -- Kit assets policies
 CREATE POLICY "Users can view kit assets for their organization's kits" ON kit_assets
   FOR SELECT USING (
     EXISTS (
       SELECT 1 FROM kits k
-      JOIN organization_members om ON om.organization_id = k.organization_id
       WHERE k.id = kit_assets.kit_id
-      AND om.user_id = auth.uid()
+      AND user_is_member_of_org(k.organization_id, auth.uid())
     )
   );
 
@@ -629,10 +718,27 @@ CREATE POLICY "Admins and Managers can manage kit assets" ON kit_assets
   FOR ALL USING (
     EXISTS (
       SELECT 1 FROM kits k
-      JOIN organization_members om ON om.organization_id = k.organization_id
       WHERE k.id = kit_assets.kit_id
-      AND om.user_id = auth.uid()
-      AND om.role IN ('Admin', 'Manager')
+      AND user_is_admin_or_manager_of_org(k.organization_id, auth.uid())
+    )
+  );
+
+-- Gig kit assignments policies
+CREATE POLICY "Users can view kit assignments for accessible gigs" ON gig_kit_assignments
+  FOR SELECT USING (
+    EXISTS (
+      SELECT 1 FROM gig_participants gp
+      WHERE gp.gig_id = gig_kit_assignments.gig_id
+      AND user_is_member_of_org(gp.organization_id, auth.uid())
+    )
+  );
+
+CREATE POLICY "Admins and Managers can manage kit assignments" ON gig_kit_assignments
+  FOR ALL USING (
+    EXISTS (
+      SELECT 1 FROM gig_participants gp
+      WHERE gp.gig_id = gig_kit_assignments.gig_id
+      AND user_is_admin_or_manager_of_org(gp.organization_id, auth.uid())
     )
   );
 

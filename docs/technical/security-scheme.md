@@ -13,7 +13,7 @@ Users belong to organizations via the `organization_members` table.
 |------|-------------|
 | **Admin** | Full control over the tenancy. Can manage organization settings, members, and all data (CRUD). |
 | **Manager** | CRUD all application data (Gigs, Assets, Kits, Bids, Staffing). Can view and edit team member profiles. Cannot manage organization members or roles. |
-| **Staff** | Read-only access to organization data. Can edit their own profile. Can view all gigs (EXCEPT Bids). Can accept/decline their own staff assignments. Can view equipment and the team. |
+| **Staff** | Read-only access to organization data. Can edit their own profile. Can view all participating gigs (EXCEPT Bids). Can accept/decline their own staff assignments. Can view equipment and the team. |
 | **Viewer** | Read-only access to basic gig information for participating gigs. Can edit their own profile. |
 
 ## 3. Gig Access Logic (The Intersection)

@@ -56,7 +56,8 @@ Thoroughly understand and articulate the intersection-based access logic for Gig
 - **Task**: Document the exact logic for Gigs, Organizations, and Staff access in a dedicated section of the spec or a new tech doc.
 - **Verification**: User approval of `docs/technical/security-scheme.md`.
 
-### [ ] Step: Implement PostgreSQL RLS & Policies
+### [x] Step: Implement PostgreSQL RLS & Policies
+<!-- chat-id: 9237490f-2bf1-4d54-979f-7e10d1158cf7 -->
 Enable RLS on all tables and migrate application-layer security to PostgreSQL policies.
 - **Task**: Update `supabase/schema.sql` to enable RLS and add policies.
 - **Verification**: Manual verification via Supabase SQL editor.
