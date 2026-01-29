@@ -51,10 +51,10 @@ Save to `{@artifacts_path}/plan.md`. If the feature is trivial and doesn't warra
 
 ---
 
-### [ ] Step: Analyze & Document Security Scheme
-Thoroughly understand and articulate the intersection-based access logic for Gigs.
+### [x] Step: Analyze & Document Security Scheme
+Thoroughly understand and articulate the intersection-based access logic for Gigs and the RBAC (Admin, Manager, Staff, Viewer) hierarchy.
 - **Task**: Document the exact logic for Gigs, Organizations, and Staff access in a dedicated section of the spec or a new tech doc.
-- **Verification**: User approval of the documented scheme.
+- **Verification**: User approval of `docs/technical/security-scheme.md`.
 
 ### [ ] Step: Implement PostgreSQL RLS & Policies
 Enable RLS on all tables and migrate application-layer security to PostgreSQL policies.
