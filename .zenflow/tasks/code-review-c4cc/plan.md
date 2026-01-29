@@ -13,6 +13,7 @@ Assess the task's difficulty and create a technical specification.
 - **Output**: `spec.md`
 
 ### [ ] Step: Exploration & Security Audit
+<!-- chat-id: 6c8cd474-88cb-4875-9377-67c41ecf90f1 -->
 Perform a deep dive into the current security implementation and identify vulnerabilities.
 - Audit `supabase/schema.sql` for missing RLS policies.
 - Audit `src/utils/api.tsx` for application-layer security logic.
@@ -24,9 +25,11 @@ Identify unused code and areas for refactoring.
 - Analyze `src/utils/api.tsx` for refactoring opportunities (splitting into smaller modules).
 - Review `package.json` for unused dependencies.
 
-### [ ] Step: Database & Performance Review
-Ensure Supabase is used effectively.
-- Check for missing indexes on foreign keys and filter columns.
+### [ ] Step: Database Utilization Review
+Ensure Supabase is used effectively as it is a powerful and wide-ranging platform.
+- Check that data access and modification is done efficiently.
+- Check that database features and functionality are being effectively utilized.
+- Check that things that should be run in the database are not being duplicated or run in application code.
 - Review complex query patterns and suggest improvements (Views, RPCs).
 
 ### [ ] Step: Requirement Gap Analysis

@@ -7,7 +7,7 @@ GigManager is a full-stack event management application using React, TypeScript,
 1.  **Dead Code Removal**: Identify unused files, components, and functions.
 2.  **Maintainability**: Improve code organization, readability, and reduce complexity in large files.
 3.  **Security Audit**: Transition from application-layer access control to robust Supabase RLS policies.
-4.  **Database Efficiency**: Optimize schema, indexing, and query patterns.
+4.  **Database Efficiency**: Utilizing database features, such as stored functions, SSO, and other server-side facilities.
 5.  **Requirement Alignment**: Ensure the codebase implements the specified requirements and identify gaps.
 
 ## Implementation Approach
@@ -27,14 +27,14 @@ GigManager is a full-stack event management application using React, TypeScript,
 
 ### 4. Supabase Utilization
 - **Schema**: Review table relationships and constraints.
-- **Indexes**: Verify that all foreign keys and frequently filtered columns have indexes.
+- **Indexes**: Verify that all foreign keys and frequently filtered columns have indexes as needed for integrity. Performance is not yet an issue at this stage.
 - **Queries**: Optimize multi-step queries in `api.tsx` to use Postgres views or functions where appropriate.
 
 ### 5. Requirement Verification
-- **Doc Reference**: Compare `docs/product/requirements.md` and `docs/product/feature-catalog.md` with the current UI and API functionality.
+- **Doc Reference**: Compare `docs/product/requirements.md` and `docs/product/feature-catalog.md` and update with the current UI and API functionality.
 
 ## Verification Approach
 - **Linting**: Run `npm run lint` (if available, otherwise check configuration).
 - **Type Checking**: Run `tsc --noEmit`.
 - **Testing**: Run `npm test` to ensure no regressions during refactoring (if any).
-- **Manual Verification**: Verify core flows (Auth, Org creation, Gig management) after security changes.
+- **Manual Verification**: Prompt user to verify core flows (Auth, Org creation, Gig management) across different organizations and user roles after security changes.
