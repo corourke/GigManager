@@ -1,7 +1,7 @@
 -- Migration: Fix RLS Recursion in Gig Participants Policies
 -- Created at: 2026-01-29
 
--- Add helper function to avoid recursion in RLS policies
+-- Add helper functions to avoid recursion in RLS policies
 CREATE OR REPLACE FUNCTION user_can_manage_gig(gig_id UUID, user_uuid UUID)
 RETURNS BOOLEAN
 LANGUAGE sql
@@ -17,6 +17,25 @@ AS $$
       WHERE om.organization_id = gp.organization_id
       AND om.user_id = user_uuid
       AND om.role IN ('Admin', 'Manager')
+    )
+  );
+$$;
+
+CREATE OR REPLACE FUNCTION user_is_admin_of_gig(gig_id UUID, user_uuid UUID)
+RETURNS BOOLEAN
+LANGUAGE sql
+SECURITY DEFINER
+STABLE
+SET search_path = public
+AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM gig_participants gp
+    WHERE gp.gig_id = user_is_admin_of_gig.gig_id
+    AND EXISTS (
+      SELECT 1 FROM organization_members om
+      WHERE om.organization_id = gp.organization_id
+      AND om.user_id = user_uuid
+      AND om.role = 'Admin'
     )
   );
 $$;
@@ -60,3 +79,13 @@ CREATE POLICY "Admins and Managers can manage gig bids" ON gig_bids
 DROP POLICY IF EXISTS "Admins and Managers can manage kit assignments" ON gig_kit_assignments;
 CREATE POLICY "Admins and Managers can manage kit assignments" ON gig_kit_assignments
   FOR ALL USING (user_can_manage_gig(gig_id, auth.uid()));
+
+-- Update gig_status_history policies to use the helper function
+DROP POLICY IF EXISTS "Allow inserting status history for authorized users" ON gig_status_history;
+CREATE POLICY "Allow inserting status history for authorized users" ON gig_status_history
+  FOR INSERT TO authenticated WITH CHECK (user_can_manage_gig(gig_id, auth.uid()));
+
+-- Update gigs policies to use the helper functions
+DROP POLICY IF EXISTS "Admins of participating orgs can delete gigs" ON gigs;
+CREATE POLICY "Admins of participating orgs can delete gigs" ON gigs
+  FOR DELETE USING (user_is_admin_of_gig(id, auth.uid()));

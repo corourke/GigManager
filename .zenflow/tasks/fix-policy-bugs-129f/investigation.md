@@ -40,3 +40,14 @@ Postgres combines multiple policies of the same type (SELECT) with OR. If one of
 2. Update `gig_participants` policies to use `user_can_manage_gig`.
 3. Update `gig_staff_slots` and `gig_staff_assignments` policies to use `user_can_manage_gig`.
 4. Update `gigs` policies to use `user_can_manage_gig` for UPDATE and DELETE.
+
+## Implementation Notes
+- Created migration `20260129100000_fix_gig_participants_recursion.sql` with helper functions `user_can_manage_gig` and `user_is_admin_of_gig`.
+- Updated all relevant RLS policies to use these functions instead of recursive subqueries.
+- Reverted `supabase/schema.sql` to maintain it as a clean reference.
+- Migration applied successfully, breaking the infinite recursion loop.
+
+## Test Results
+- Gig List screen now loads without errors.
+- No regression in other functionality observed.
+- RLS policies correctly enforce access control using the helper functions.
