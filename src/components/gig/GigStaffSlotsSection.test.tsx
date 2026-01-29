@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import GigStaffSlotsSection from './GigStaffSlotsSection';
 
-vi.mock('../../utils/api', () => ({
+vi.mock('../../services/gig.service', () => ({
   getGig: vi.fn().mockResolvedValue({
     staff_slots: [
       {

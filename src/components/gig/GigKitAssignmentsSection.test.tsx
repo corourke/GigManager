@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import GigKitAssignmentsSection from './GigKitAssignmentsSection';
 
-vi.mock('../../utils/api', () => ({
+vi.mock('../../services/gig.service', () => ({
   getGigKits: vi.fn().mockResolvedValue([
     {
       id: 'assignment-1',
@@ -19,6 +19,10 @@ vi.mock('../../utils/api', () => ({
       assigned_at: '2024-01-15T10:00:00',
     },
   ]),
+  updateGigKitAssignments: vi.fn().mockResolvedValue({}),
+}));
+
+vi.mock('../../services/kit.service', () => ({
   getKits: vi.fn().mockResolvedValue([
     {
       id: 'kit-1',
@@ -37,19 +41,16 @@ vi.mock('../../utils/api', () => ({
       organization_id: 'current-org-id',
     },
   ]),
-  assignKitToGig: vi.fn().mockResolvedValue({}),
-  removeKitFromGig: vi.fn().mockResolvedValue({}),
 }));
 
 vi.mock('../../utils/supabase/client', () => ({
   createClient: vi.fn(() => ({
-    from: vi.fn(() => ({
-      select: vi.fn().mockReturnThis(),
-      eq: vi.fn().mockResolvedValue({
-        data: [],
+    auth: {
+      getSession: vi.fn().mockResolvedValue({
+        data: { session: { user: { id: 'test-user' } } },
         error: null,
       }),
-    })),
+    },
   })),
 }));
 

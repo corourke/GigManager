@@ -3,7 +3,7 @@ import { render } from '@testing-library/react'
 import GigScreen from './GigScreen'
 
 // Mock all dependencies
-vi.mock('../utils/api', () => ({
+vi.mock('../services/gig.service', () => ({
   getGig: vi.fn().mockResolvedValue({}),
   createGig: vi.fn(),
   updateGig: vi.fn(),

@@ -15,7 +15,7 @@ import {
   UserPlus
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { searchOrganizations, joinOrganization } from '../utils/api';
+import { searchOrganizations, joinOrganization } from '../services/organization.service';
 import { 
   ORG_TYPE_CONFIG, 
   USER_ROLE_CONFIG 

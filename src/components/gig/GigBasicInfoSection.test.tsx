@@ -2,9 +2,9 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import GigBasicInfoSection from './GigBasicInfoSection';
-import * as api from '../../utils/api';
+import * as gigService from '../../services/gig.service';
 
-vi.mock('../../utils/api');
+vi.mock('../../services/gig.service');
 
 describe('GigBasicInfoSection', () => {
   const mockGigId = 'gig-123';
@@ -22,8 +22,8 @@ describe('GigBasicInfoSection', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.mocked(api.getGig).mockResolvedValue(mockGigData as any);
-    vi.mocked(api.updateGig).mockResolvedValue(mockGigData as any);
+    vi.mocked(gigService.getGig).mockResolvedValue(mockGigData as any);
+    vi.mocked(gigService.updateGig).mockResolvedValue(mockGigData as any);
   });
 
   it('renders loading state initially', () => {
@@ -35,7 +35,7 @@ describe('GigBasicInfoSection', () => {
     render(<GigBasicInfoSection gigId={mockGigId} />);
 
     await waitFor(() => {
-      expect(api.getGig).toHaveBeenCalledWith(mockGigId);
+      expect(gigService.getGig).toHaveBeenCalledWith(mockGigId);
     });
 
     await waitFor(() => {
@@ -71,7 +71,7 @@ describe('GigBasicInfoSection', () => {
       expect(screen.getByText(/Title is required/i)).toBeInTheDocument();
     });
 
-    expect(api.updateGig).not.toHaveBeenCalled();
+    expect(gigService.updateGig).not.toHaveBeenCalled();
   });
 
   it('calls updateGig on form change', async () => {
@@ -86,7 +86,7 @@ describe('GigBasicInfoSection', () => {
     await user.type(titleInput, ' Updated');
 
     await waitFor(() => {
-      expect(api.updateGig).toHaveBeenCalledWith(
+      expect(gigService.updateGig).toHaveBeenCalledWith(
         mockGigId,
         expect.objectContaining({
           title: 'Test Gig Updated',

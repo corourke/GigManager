@@ -214,6 +214,19 @@ export interface DbGigKitAssignment {
 }
 
 // Joined query types
+export interface Gig extends Partial<DbGig> {
+  id: string;
+  title: string;
+  status: GigStatus;
+  start: string;
+  end: string;
+  timezone: string;
+  tags: string[];
+  venue?: Partial<Organization>;
+  act?: Partial<Organization>;
+  participants?: (DbGigParticipant & { organization?: Partial<Organization> })[];
+}
+
 export interface GigWithParticipants extends DbGig {
   participants?: (DbGigParticipant & { organization?: DbOrganization })[];
 }

@@ -13,7 +13,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '../ui/dialog';
 import { Textarea } from '../ui/textarea';
 import UserSelector from '../UserSelector';
-import { getGig, updateGigStaffSlots } from '../../utils/api';
+import { getGig, updateGigStaffSlots } from '../../services/gig.service';
 import { useAutoSave } from '../../utils/hooks/useAutoSave';
 import SaveStateIndicator from './SaveStateIndicator';
 

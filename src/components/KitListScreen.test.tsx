@@ -3,7 +3,7 @@ import { render } from '@testing-library/react'
 import KitListScreen from './KitListScreen'
 
 // Mock all dependencies
-vi.mock('../utils/api', () => ({
+vi.mock('../services/kit.service', () => ({
   getKits: vi.fn().mockResolvedValue([]),
   deleteKit: vi.fn().mockResolvedValue({ success: true }),
   duplicateKit: vi.fn().mockResolvedValue({ id: 'new-kit-id' }),

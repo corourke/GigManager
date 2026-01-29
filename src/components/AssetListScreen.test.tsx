@@ -3,7 +3,7 @@ import { render } from '@testing-library/react'
 import AssetListScreen from './AssetListScreen'
 
 // Mock all dependencies
-vi.mock('../utils/api', () => ({
+vi.mock('../services/asset.service', () => ({
   getAssets: vi.fn().mockResolvedValue([]),
   deleteAsset: vi.fn().mockResolvedValue({ success: true }),
 }))

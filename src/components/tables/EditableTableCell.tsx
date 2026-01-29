@@ -5,7 +5,7 @@ import { Badge } from '../ui/badge';
 import { Check, X, Edit2, Loader2 } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { useInlineEdit } from '../../utils/hooks/useInlineEdit';
-import { getOrganizations } from '../../utils/api';
+import { getOrganizations } from '../../services/organization.service';
 import TagsInput from '../TagsInput';
 import { Organization } from '../../utils/supabase/types';
 

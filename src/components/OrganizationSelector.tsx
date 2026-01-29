@@ -10,7 +10,7 @@ import {
   OrganizationType 
 } from '../utils/supabase/types';
 import { ORG_TYPE_CONFIG } from '../utils/supabase/constants';
-import { searchOrganizations } from '../utils/api';
+import { searchOrganizations } from '../services/organization.service';
 
 interface OrganizationSelectorProps {
   onSelect: (org: Organization | null) => void;

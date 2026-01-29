@@ -31,7 +31,9 @@ import {
   parseTags,
   findOrCreateOrganization,
 } from '../utils/csvImport';
-import { createGig, createAsset, searchOrganizations, createOrganization } from '../utils/api';
+import { createGig } from '../services/gig.service';
+import { createAsset } from '../services/asset.service';
+import { searchOrganizations, createOrganization } from '../services/organization.service';
 import { createClient } from '../utils/supabase/client';
 
 interface ImportScreenProps {
@@ -39,6 +41,7 @@ interface ImportScreenProps {
   user: User;
   userRole?: UserRole;
   onCancel: () => void;
+  onNavigateToGigs: () => void;
   onSwitchOrganization: () => void;
   onLogout: () => void;
 }
@@ -48,6 +51,7 @@ export default function ImportScreen({
   user,
   userRole,
   onCancel,
+  onNavigateToGigs,
   onSwitchOrganization,
   onLogout,
 }: ImportScreenProps) {

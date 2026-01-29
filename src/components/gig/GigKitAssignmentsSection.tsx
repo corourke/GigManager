@@ -10,7 +10,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '../ui/dialog';
 import { Textarea } from '../ui/textarea';
-import { getGigKits, getKits, updateGigKitAssignments } from '../../utils/api';
+import { getGigKits, updateGigKitAssignments } from '../../services/gig.service';
+import { getKits } from '../../services/kit.service';
 import { useAutoSave } from '../../utils/hooks/useAutoSave';
 import SaveStateIndicator from './SaveStateIndicator';
 

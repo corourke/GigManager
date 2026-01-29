@@ -10,7 +10,7 @@ import { Label } from '../ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import TagsInput from '../TagsInput';
 import MarkdownEditor from '../MarkdownEditor';
-import { getGig, updateGig } from '../../utils/api';
+import { getGig, updateGig } from '../../services/gig.service';
 import { useAutoSave } from '../../utils/hooks/useAutoSave';
 import SaveStateIndicator from './SaveStateIndicator';
 import { toast } from 'sonner';
