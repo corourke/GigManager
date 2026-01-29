@@ -9,11 +9,25 @@
 
 ### 2.1. Enable RLS & PostgreSQL Policies
 - **Objective**: Move security logic from the application layer to the database.
+- **Complexity**: Access to gigs is determined by the intersection of a user's organizational membership (`organization_members`) and the organizations participating in a gig (`gig_participants`).
 - **Actions**:
     - Enable RLS for all tables in `supabase/schema.sql`.
     - Implement policies based on organization membership.
+    - **Gig Access Policy**: A user can see a gig IF they are a member of an organization that is a participant in that gig.
+    - **Broader Access**: Certain operations (like searching for organizations to add as participants) will require authenticated access beyond membership boundaries.
     - Use existing helper functions (`user_is_member_of_org`, etc.) to prevent recursion and simplify policy logic.
     - **Target Tables**: `users`, `organizations`, `organization_members`, `gigs`, `gig_participants`, `gig_staff_slots`, `gig_staff_assignments`, `gig_bids`, `assets`, `kits`, `kit_assets`, `gig_kit_assignments`.
+
+### 2.2. Security Verification & Testing
+- **Objective**: Ensure the complex RLS logic is correctly implemented and cannot be bypassed.
+- **Actions**:
+    - Create a suite of security tests in `src/test/security.test.ts`.
+    - Test scenarios:
+        - User A (Org 1) cannot see Gig X (Org 2).
+        - User A (Org 1) can see Gig Y (Org 1 participant).
+        - User A (Org 1) can see Gig Z (Org 1 and Org 2 participants).
+        - Verify "Broader Access" operations (e.g., searching for organizations) work for authenticated users.
+        - Verify that deleting a membership correctly revokes access.
 
 ### 2.2. Implement `AuthContext`
 - **Objective**: Centralize authentication and organization state.

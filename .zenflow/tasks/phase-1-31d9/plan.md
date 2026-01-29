@@ -51,10 +51,20 @@ Save to `{@artifacts_path}/plan.md`. If the feature is trivial and doesn't warra
 
 ---
 
+### [ ] Step: Analyze & Document Security Scheme
+Thoroughly understand and articulate the intersection-based access logic for Gigs.
+- **Task**: Document the exact logic for Gigs, Organizations, and Staff access in a dedicated section of the spec or a new tech doc.
+- **Verification**: User approval of the documented scheme.
+
 ### [ ] Step: Implement PostgreSQL RLS & Policies
 Enable RLS on all tables and migrate application-layer security to PostgreSQL policies.
 - **Task**: Update `supabase/schema.sql` to enable RLS and add policies.
-- **Verification**: Manual verification via Supabase SQL editor or integration tests.
+- **Verification**: Manual verification via Supabase SQL editor.
+
+### [ ] Step: Implement Security Tests
+Create automated tests to verify the RLS policies and ensure no data leakage between organizations.
+- **Task**: Create `src/test/security.test.ts` with scenarios for isolation and intersection access.
+- **Verification**: `npm test src/test/security.test.ts`.
 
 ### [ ] Step: Implement `AuthContext`
 Centralize authentication and organization state to simplify `App.tsx` and provide a consistent interface for components.
