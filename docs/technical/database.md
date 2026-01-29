@@ -679,12 +679,10 @@ To optimize performance, the following indexes are implemented:
 
 ### Role Hierarchy
 
-| Role | Create | Read | Update | Delete |
-|------|--------|------|--------|--------|
-| **Admin** | ✅ | ✅ | ✅ | ✅ |
-| **Manager** | ✅ | ✅ | ✅ | ❌ |
-| **Staff** | ❌ | ✅ | ❌ | ❌ |
-| **Viewer** | ❌ | ✅ | ❌ | ❌ |
+1. Admins have full control over the tenancy including user management, account settings, and so forth. They of course can manage all data. 
+2. Managers are intended to be able to manage (CRUD) all of the application data like Gigs, Assets, staffing, etc. We just wouldn't allow them to manage organization members or user roles. However they should be allowed to view and edit team member profiles. Bids (and all the nested tables), Assets, Kits, etc. are all avaiable to a Manager.
+3. Staff would be able to edit their own profile, View all gigs for their organization (excepting the Bids section), Accept/Decline staff assignments directed at them, View equipment including assets and kits, and view the team for their organization. 
+4. Viewers can only edit their own profile, View basic gig information for gigs that their organization is a participant of. 
 
 ### Data Isolation
 
