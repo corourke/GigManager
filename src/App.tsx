@@ -70,35 +70,48 @@ function App() {
   const [editingOrganization, setEditingOrganization] = useState<Organization | null>(null);
   const [showEditProfileDialog, setShowEditProfileDialog] = useState(false);
 
-  // Synchronize route with auth state
+  // Send to login and profile completion if needed, otherwise, attempt to
+  // auto-select an organization if user belongs to only one.
   useEffect(() => {
     if (isLoading) return;
 
     if (!user) {
       setCurrentRoute('login');
-    } else if (!user.first_name?.trim() && !user.last_name?.trim()) {
-      setCurrentRoute('profile-completion');
+    } else if (!user.first_name?.trim() || !user.last_name?.trim()) {
+      setCurrentRoute('profile-completion'); // Fill out profile if incomplete
     } else if (!selectedOrganization) {
       if (organizations.length === 0) {
-        setCurrentRoute('create-org');
+        setCurrentRoute('org-selection'); // Choose an org if user belongs to none
       } else if (organizations.length === 1) {
-        selectOrganization(organizations[0].organization);
-        setCurrentRoute('dashboard');
+        const membership = organizations[0];
+        selectOrganization(membership.organization);  // Auto-select if only one org
       } else {
-        setCurrentRoute('org-selection');
+        setCurrentRoute('org-selection'); // Otherwise user has to select which org to use
       }
     }
   }, [user, selectedOrganization, organizations, isLoading, selectOrganization]);
 
+  // Set landing route based on role after an organization is selected
+  useEffect(() => {
+    if (isLoading || !user || !selectedOrganization || userRole === undefined) return;
+
+    if (userRole === 'Viewer') {
+      setCurrentRoute('gig-list');
+    } else {
+      setCurrentRoute('dashboard');
+    }
+  }, [isLoading, user, selectedOrganization, userRole]);  
+
   const handleLogin = (userData: User, userOrgs: OrganizationMembership[]) => {
+    console.log("handleLogin()");
     login(userData, userOrgs);
   };
 
   const handleProfileCompleted = (updatedUser: User) => {
     setUser(updatedUser);
     if (organizations.length === 1) {
-      selectOrganization(organizations[0].organization);
-      setCurrentRoute('dashboard');
+      const membership = organizations[0];
+      selectOrganization(membership.organization);
     } else {
       setCurrentRoute('org-selection');
     }
@@ -110,7 +123,6 @@ function App() {
 
   const handleSelectOrganization = (org: Organization) => {
     selectOrganization(org);
-    setCurrentRoute('dashboard');
   };
 
   const handleCreateOrganization = () => {
@@ -124,7 +136,6 @@ function App() {
     };
     setOrganizations([...organizations, newMembership]);
     selectOrganization(org);
-    setCurrentRoute('dashboard');
   };
 
   const handleBackToSelection = () => {
@@ -279,6 +290,8 @@ function App() {
       </div>
     );
   }
+
+  console.log("currentRoute: " + currentRoute);
 
   return (
     <>

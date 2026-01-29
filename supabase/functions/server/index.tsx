@@ -1700,7 +1700,7 @@ Deno.serve(async (req) => {
       const orgId = dashboardMatch[1];
       const authHeader = req.headers.get('Authorization');
       const { user, error: authError } = await getAuthenticatedUser(authHeader);
-      
+
       if (authError || !user) {
         return new Response(JSON.stringify({ error: authError ?? 'Unauthorized' }), {
           status: 401,
@@ -1708,10 +1708,10 @@ Deno.serve(async (req) => {
         });
       }
 
-      // Verify user is a member of the organization
-      const { error: memberError } = await verifyOrgMembership(user.id, orgId);
+      // Verify user is an admin or manager of the organization (dashboard access is restricted)
+      const { error: memberError } = await verifyOrgMembership(user.id, orgId, ['Admin', 'Manager']);
       if (memberError) {
-        return new Response(JSON.stringify({ error: memberError }), {
+        return new Response(JSON.stringify({ error: 'Dashboard access is restricted to administrators and managers only.' }), {
           status: 403,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });

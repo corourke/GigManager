@@ -10,7 +10,9 @@ There are user instructions to all AI Agents that are of highest priority.
 
 These are instructions to AI agents to help them stay on track. 
 
-1. Avoid Logic Loops: If you find yourself repeating the same steps more than twice, are confounded by the code base or file system not being as expected, are not getting expected results from terminal commands, stop and seek input from the user. There may be additional context which can be provided. 
-2. Limit Internal Monologue: If you find yourself reconsidering a decision ("Wait...", "Actually...") more than twice, stop and perform a specific search or test to resolve the uncertainty rather than continuing to speculate.
-3. State Management: Use the TodoWrite tool to break down the implementation into small, discrete steps. Mark them complete immediately after each action to maintain clear context.
-4. Strict Phase Adherence: Ensure the Implementation phase is explicitly started and the task state is updated before modifying any functional code or configuration.
+1. Stop and Research: If you reconsider a decision more than twice, stop speculating. Perform a specific search or read a file to get concrete data instead of continuing the internal debate.
+2. Commit Atomic Changes: Commit your progress as soon as a discrete part of the solution is verified. This anchors your work and prevents circular reasoning.
+3. Proactive Todo Management: Update your TodoWrite list before starting complex logic. Use it as an anchor to keep your thought process aligned with the original objective.
+4. Externalize Logic: Write out complex SQL or logic in an artifact first. Visualizing the logic outside of your thought stream helps prevent logic traps.
+5. Maintain a Clean Working Tree: Always ensure the filesystem matches the git index before concluding a task. If a tool (like Supabase CLI) modifies or deletes files, reconcile those changes (either commit, revert, or explain them) to avoid confusing the user.
+6. Strict Phase Adherence: Ensure the Implementation phase is explicitly started and the task state is updated before modifying any functional code or configuration.
