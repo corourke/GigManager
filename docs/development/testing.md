@@ -152,9 +152,9 @@ describe('MyComponent', () => {
 
 The project aims for good test coverage of:
 
-- ✅ **Utility functions** - Core business logic and helpers (33 tests passing)
-- ⚠️ **API functions** - Data fetching and manipulation (6 passing, needs work)
-- ⚠️ **Component rendering** - Basic error checking (4 passing, needs work)
+- ✅ **Utility functions** - Core business logic and helpers
+- ⚠️ **API functions** - Data fetching and manipulation
+- ⚠️ **Component rendering** - Basic error checking
 
 ## Troubleshooting
 
