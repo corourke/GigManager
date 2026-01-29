@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import LoginScreen from './components/LoginScreen';
 import UserProfileCompletionScreen from './components/UserProfileCompletionScreen';
 import OrganizationSelectionScreen from './components/OrganizationSelectionScreen';
@@ -17,14 +17,13 @@ import KitDetailScreen from './components/KitDetailScreen';
 import ImportScreen from './components/ImportScreen';
 import EditUserProfileDialog from './components/EditUserProfileDialog';
 import { Toaster } from './components/ui/sonner';
-import { createClient } from './utils/supabase/client';
 import { toast } from 'sonner';
 import { NavigationProvider } from './contexts/NavigationContext';
+import { useAuth } from './contexts/AuthContext';
 import { 
   User, 
   Organization, 
   OrganizationMembership, 
-  UserRole 
 } from './utils/supabase/types';
 
 // Set to true to use mock data instead of real Supabase
@@ -50,47 +49,55 @@ type Route =
   | 'import';
 
 function App() {
+  const { 
+    user, 
+    organizations, 
+    selectedOrganization, 
+    isLoading, 
+    userRole, 
+    login, 
+    logout, 
+    selectOrganization,
+    setOrganizations,
+    setSelectedOrganization,
+    setUser
+  } = useAuth();
+
   const [currentRoute, setCurrentRoute] = useState<Route>('login');
-  const [currentUser, setCurrentUser] = useState<User | null>(null);
-  const [selectedOrganization, setSelectedOrganization] = useState<Organization | null>(null);
-  const [userOrganizations, setUserOrganizations] = useState<OrganizationMembership[]>([]);
   const [selectedGigId, setSelectedGigId] = useState<string | null>(null);
   const [selectedAssetId, setSelectedAssetId] = useState<string | null>(null);
   const [selectedKitId, setSelectedKitId] = useState<string | null>(null);
   const [editingOrganization, setEditingOrganization] = useState<Organization | null>(null);
   const [showEditProfileDialog, setShowEditProfileDialog] = useState(false);
 
-  // Get user's role in the current organization
-  const getCurrentUserRole = (): UserRole | undefined => {
-    if (!selectedOrganization) return undefined;
-    const membership = userOrganizations.find(
-      (m) => m.organization.id === selectedOrganization.id
-    );
-    return membership?.role;
-  };
+  // Synchronize route with auth state
+  useEffect(() => {
+    if (isLoading) return;
 
-  const handleLogin = (user: User, organizations: OrganizationMembership[]) => {
-    setCurrentUser(user);
-    setUserOrganizations(organizations);
-    
-    // Check if user needs to complete their profile
-    // Profile is considered incomplete if both first_name and last_name are empty
-    if (!user.first_name?.trim() && !user.last_name?.trim()) {
+    if (!user) {
+      setCurrentRoute('login');
+    } else if (!user.first_name?.trim() && !user.last_name?.trim()) {
       setCurrentRoute('profile-completion');
-    } else if (organizations.length === 1) {
-      // Auto-select if user is only a member of one organization
-      setSelectedOrganization(organizations[0].organization);
-      setCurrentRoute('dashboard');
-    } else {
-      setCurrentRoute('org-selection');
+    } else if (!selectedOrganization) {
+      if (organizations.length === 0) {
+        setCurrentRoute('create-org');
+      } else if (organizations.length === 1) {
+        selectOrganization(organizations[0].organization);
+        setCurrentRoute('dashboard');
+      } else {
+        setCurrentRoute('org-selection');
+      }
     }
+  }, [user, selectedOrganization, organizations, isLoading, selectOrganization]);
+
+  const handleLogin = (userData: User, userOrgs: OrganizationMembership[]) => {
+    login(userData, userOrgs);
   };
 
   const handleProfileCompleted = (updatedUser: User) => {
-    setCurrentUser(updatedUser);
-    // After profile completion, check if user has only one org
-    if (userOrganizations.length === 1) {
-      setSelectedOrganization(userOrganizations[0].organization);
+    setUser(updatedUser);
+    if (organizations.length === 1) {
+      selectOrganization(organizations[0].organization);
       setCurrentRoute('dashboard');
     } else {
       setCurrentRoute('org-selection');
@@ -102,7 +109,7 @@ function App() {
   };
 
   const handleSelectOrganization = (org: Organization) => {
-    setSelectedOrganization(org);
+    selectOrganization(org);
     setCurrentRoute('dashboard');
   };
 
@@ -111,36 +118,22 @@ function App() {
   };
 
   const handleOrganizationCreated = (org: Organization) => {
-    // Add new organization to user's list with Admin role
     const newMembership: OrganizationMembership = {
       organization: org,
       role: 'Admin'
     };
-    const updatedOrgs = [...userOrganizations, newMembership];
-    setUserOrganizations(updatedOrgs);
-    setSelectedOrganization(org);
+    setOrganizations([...organizations, newMembership]);
+    selectOrganization(org);
     setCurrentRoute('dashboard');
   };
 
   const handleBackToSelection = () => {
+    setSelectedOrganization(null);
     setCurrentRoute('org-selection');
   };
 
   const handleLogout = async () => {
-    try {
-      if (!USE_MOCK_DATA) {
-        const supabase = createClient();
-        await supabase.auth.signOut();
-      }
-    } catch (error) {
-      console.error('Error signing out from Supabase:', error);
-      // Continue with logout even if Supabase signOut fails
-    }
-    
-    // Always update UI state to ensure user is logged out locally
-    setCurrentUser(null);
-    setSelectedOrganization(null);
-    setUserOrganizations([]);
+    await logout();
     setSelectedGigId(null);
     setSelectedAssetId(null);
     setSelectedKitId(null);
@@ -241,12 +234,12 @@ function App() {
 
   const handleOrganizationUpdated = (updatedOrg: Organization) => {
     // Update the organization in the user's organizations list
-    const updatedOrgs = userOrganizations.map(membership => 
+    const updatedOrgs = organizations.map(membership => 
       membership.organization.id === updatedOrg.id
         ? { ...membership, organization: updatedOrg }
         : membership
     );
-    setUserOrganizations(updatedOrgs);
+    setOrganizations(updatedOrgs);
     
     // If this is the currently selected organization, update it
     if (selectedOrganization?.id === updatedOrg.id) {
@@ -276,8 +269,16 @@ function App() {
   };
 
   const handleProfileUpdated = (updatedUser: User) => {
-    setCurrentUser(updatedUser);
+    setUser(updatedUser);
   };
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
 
   return (
     <>
@@ -285,35 +286,35 @@ function App() {
         <LoginScreen onLogin={handleLogin} useMockData={USE_MOCK_DATA} />
       )}
       
-      {currentRoute === 'profile-completion' && currentUser && (
+      {currentRoute === 'profile-completion' && user && (
         <UserProfileCompletionScreen
-          user={currentUser}
+          user={user}
           onProfileCompleted={handleProfileCompleted}
           onSkip={handleSkipProfile}
           useMockData={USE_MOCK_DATA}
         />
       )}
       
-      {currentRoute === 'org-selection' && currentUser && (
+      {currentRoute === 'org-selection' && user && (
         <OrganizationSelectionScreen
-          user={currentUser}
-          organizations={userOrganizations}
+          user={user}
+          organizations={organizations}
           onSelectOrganization={handleSelectOrganization}
           onCreateOrganization={handleCreateOrganization}
           onAdminViewAll={handleNavigateToAdminOrgs}
         />
       )}
       
-      {currentRoute === 'create-org' && currentUser && (
+      {currentRoute === 'create-org' && user && (
         <OrganizationScreen
           onOrganizationCreated={handleOrganizationCreated}
           onCancel={handleBackToSelection}
-          userId={currentUser.id}
+          userId={user.id}
           useMockData={USE_MOCK_DATA}
         />
       )}
       
-      {currentRoute === 'edit-org' && currentUser && editingOrganization && (
+      {currentRoute === 'edit-org' && user && editingOrganization && (
         <OrganizationScreen
           organization={editingOrganization}
           onOrganizationCreated={handleOrganizationCreated}
@@ -323,7 +324,7 @@ function App() {
       )}
       
       {/* Wrap all screens that use AppHeader with NavigationProvider */}
-      {selectedOrganization && currentUser && (
+      {selectedOrganization && user && (
         <NavigationProvider
           onNavigateToDashboard={handleBackToDashboard}
           onNavigateToGigs={handleNavigateToGigs}
@@ -333,8 +334,8 @@ function App() {
               {currentRoute === 'dashboard' && (
             <Dashboard
               organization={selectedOrganization}
-              user={currentUser}
-              userRole={getCurrentUserRole()}
+              user={user}
+              userRole={userRole}
               onBackToSelection={handleBackToSelection}
               onLogout={handleLogout}
               onNavigateToGigs={handleNavigateToGigs}
@@ -350,8 +351,8 @@ function App() {
           {currentRoute === 'gig-list' && (
             <GigListScreen
               organization={selectedOrganization}
-              user={currentUser}
-              userRole={getCurrentUserRole()}
+              user={user}
+              userRole={userRole}
               onBack={handleBackToDashboard}
               onCreateGig={handleCreateGig}
               onViewGig={handleViewGig}
@@ -369,8 +370,8 @@ function App() {
           {currentRoute === 'create-gig' && (
             <GigScreen
               organization={selectedOrganization}
-              user={currentUser}
-              userRole={getCurrentUserRole()}
+              user={user}
+              userRole={userRole}
               gigId={selectedGigId} // Pass gigId for edit mode
               onCancel={handleBackToGigList}
               onGigCreated={handleGigCreated}
@@ -385,8 +386,8 @@ function App() {
             <GigDetailScreen
               gigId={selectedGigId}
               organization={selectedOrganization}
-              user={currentUser}
-              userRole={getCurrentUserRole()}
+              user={user}
+              userRole={userRole}
               onBack={handleBackToGigList}
               onSwitchOrganization={handleBackToSelection}
               onLogout={handleLogout}
@@ -396,8 +397,8 @@ function App() {
           {currentRoute === 'team' && (
             <TeamScreen
               organization={selectedOrganization}
-              user={currentUser}
-              userRole={getCurrentUserRole()}
+              user={user}
+              userRole={userRole}
               onNavigateToDashboard={handleBackToDashboard}
               onNavigateToGigs={handleBackToGigList}
               onNavigateToTeam={handleNavigateToTeam}
@@ -411,8 +412,8 @@ function App() {
           {currentRoute === 'asset-list' && (
             <AssetListScreen
               organization={selectedOrganization}
-              user={currentUser}
-              userRole={getCurrentUserRole()}
+              user={user}
+              userRole={userRole}
               onBack={handleBackToDashboard}
               onCreateAsset={handleCreateAsset}
               onViewAsset={handleViewAsset}
@@ -430,8 +431,8 @@ function App() {
           {currentRoute === 'create-asset' && (
             <AssetScreen
               organization={selectedOrganization}
-              user={currentUser}
-              userRole={getCurrentUserRole()}
+              user={user}
+              userRole={userRole}
               assetId={selectedAssetId} // Pass assetId for edit mode
               onCancel={handleBackToAssetList}
               onAssetCreated={handleAssetCreated}
@@ -445,8 +446,8 @@ function App() {
           {currentRoute === 'kit-list' && (
             <KitListScreen
               organization={selectedOrganization}
-              user={currentUser}
-              userRole={getCurrentUserRole()}
+              user={user}
+              userRole={userRole}
               onBack={handleBackToDashboard}
               onCreateKit={handleCreateKit}
               onViewKit={handleViewKit}
@@ -463,8 +464,8 @@ function App() {
           {currentRoute === 'create-kit' && (
             <KitScreen
               organization={selectedOrganization}
-              user={currentUser}
-              userRole={getCurrentUserRole()}
+              user={user}
+              userRole={userRole}
               kitId={selectedKitId} // Pass kitId for edit mode
               onCancel={handleBackToKitList}
               onKitCreated={handleKitCreated}
@@ -479,8 +480,8 @@ function App() {
             <KitDetailScreen
               kitId={selectedKitId}
               organization={selectedOrganization}
-              user={currentUser}
-              userRole={getCurrentUserRole()}
+              user={user}
+              userRole={userRole}
               onBack={handleBackToKitList}
               onEdit={handleEditKit}
               onSwitchOrganization={handleBackToSelection}
@@ -491,9 +492,10 @@ function App() {
           {currentRoute === 'import' && (
             <ImportScreen
               organization={selectedOrganization}
-              user={currentUser}
-              userRole={getCurrentUserRole()}
+              user={user}
+              userRole={userRole}
               onCancel={handleBackToDashboard}
+              onNavigateToGigs={handleNavigateToGigs}
               onSwitchOrganization={handleBackToSelection}
               onLogout={handleLogout}
             />
@@ -501,7 +503,7 @@ function App() {
         </NavigationProvider>
       )}
 
-      {currentRoute === 'admin-orgs' && currentUser && (
+      {currentRoute === 'admin-orgs' && user && (
         <AdminOrganizationsScreen
           onEditOrganization={handleAdminEditOrganization}
           onCreateOrganization={handleCreateOrganization}
@@ -512,9 +514,9 @@ function App() {
       <Toaster />
       
       {/* Edit Profile Dialog - Available on all screens */}
-      {currentUser && (
+      {user && (
         <EditUserProfileDialog
-          user={currentUser}
+          user={user}
           open={showEditProfileDialog}
           onOpenChange={setShowEditProfileDialog}
           onProfileUpdated={handleProfileUpdated}

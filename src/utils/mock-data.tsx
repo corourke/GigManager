@@ -378,6 +378,72 @@ export const MOCK_GIGS_DATA: any[] = [
   },
 ];
 
+// Mock Google Places data
+export interface GooglePlace {
+  place_id: string;
+  name: string;
+  formatted_address: string;
+  formatted_phone_number?: string;
+  website?: string;
+  editorial_summary?: string;
+  address_components: Array<{
+    long_name: string;
+    short_name: string;
+    types: string[];
+  }>;
+}
+
+export const MOCK_PLACES: GooglePlace[] = [
+  {
+    place_id: '1',
+    name: 'Soundwave Productions LLC',
+    formatted_address: '1234 Music Ave, Los Angeles, CA 90028, USA',
+    formatted_phone_number: '+1 (323) 555-0123',
+    website: 'https://soundwaveprod.com',
+    editorial_summary: 'Full-service production company specializing in live events, concerts, and corporate productions. Award-winning team with over 20 years of experience.',
+    address_components: [
+      { long_name: '1234', short_name: '1234', types: ['street_number'] },
+      { long_name: 'Music Avenue', short_name: 'Music Ave', types: ['route'] },
+      { long_name: 'Los Angeles', short_name: 'LA', types: ['locality'] },
+      { long_name: 'California', short_name: 'CA', types: ['administrative_area_level_1'] },
+      { long_name: '90028', short_name: '90028', types: ['postal_code'] },
+      { long_name: 'United States', short_name: 'US', types: ['country'] },
+    ]
+  },
+  {
+    place_id: '2',
+    name: 'The Roxy Theatre',
+    formatted_address: '9009 Sunset Blvd, West Hollywood, CA 90069, USA',
+    formatted_phone_number: '+1 (310) 555-0199',
+    website: 'https://theroxy.com',
+    editorial_summary: 'Historic music venue on the Sunset Strip. Intimate 500-capacity room featuring live music and performances since 1973.',
+    address_components: [
+      { long_name: '9009', short_name: '9009', types: ['street_number'] },
+      { long_name: 'Sunset Boulevard', short_name: 'Sunset Blvd', types: ['route'] },
+      { long_name: 'West Hollywood', short_name: 'West Hollywood', types: ['locality'] },
+      { long_name: 'California', short_name: 'CA', types: ['administrative_area_level_1'] },
+      { long_name: '90069', short_name: '90069', types: ['postal_code'] },
+      { long_name: 'United States', short_name: 'US', types: ['country'] },
+    ]
+  },
+  {
+    place_id: '3',
+    name: 'Lumina Lighting Solutions',
+    formatted_address: '567 Broadway, Nashville, TN 37203, USA',
+    formatted_phone_number: '+1 (615) 555-0187',
+    website: 'https://luminalighting.com',
+    editorial_summary: 'Professional lighting and sound equipment rental company. Serving concerts, theaters, and corporate events throughout the Southeast.',
+    address_components: [
+      { long_name: '567', short_name: '567', types: ['street_number'] },
+      { long_name: 'Broadway', short_name: 'Broadway', types: ['route'] },
+      { long_name: 'Nashville', short_name: 'Nashville', types: ['locality'] },
+      { long_name: 'Tennessee', short_name: 'TN', types: ['administrative_area_level_1'] },
+      { long_name: '37203', short_name: '37203', types: ['postal_code'] },
+      { long_name: 'United States', short_name: 'US', types: ['country'] },
+    ]
+  },
+];
+
 // Common tags
 export const COMMON_TAGS = [
   "Wedding",

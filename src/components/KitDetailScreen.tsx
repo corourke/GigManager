@@ -14,7 +14,7 @@ import {
 } from './ui/table';
 import AppHeader from './AppHeader';
 import { Organization, User, UserRole } from '../utils/supabase/types';
-import { getKit, deleteKit, duplicateKit } from '../utils/api';
+import { getKit, deleteKit, duplicateKit } from '../services/kit.service';
 
 interface KitDetailScreenProps {
   organization: Organization;

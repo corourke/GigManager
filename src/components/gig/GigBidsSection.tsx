@@ -4,7 +4,6 @@ import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
-import { createClient } from '../../utils/supabase/client';
 import { DollarSign, FileText, Loader2, Plus, Trash2, AlertCircle } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
@@ -13,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '../ui/dialog';
 import { Textarea } from '../ui/textarea';
-import { getGig, updateGigBids } from '../../utils/api';
+import { getGigBids, updateGigBids } from '../../services/gig.service';
 import { useAutoSave } from '../../utils/hooks/useAutoSave';
 import SaveStateIndicator from './SaveStateIndicator';
 
@@ -125,15 +124,7 @@ export default function GigBidsSection({
   const loadBidsData = async () => {
     setIsLoading(true);
     try {
-      const supabase = createClient();
-      const { data, error } = await supabase
-        .from('gig_bids')
-        .select('*')
-        .eq('gig_id', gigId)
-        .eq('organization_id', currentOrganizationId)
-        .order('date_given', { ascending: false });
-
-      if (error) throw error;
+      const data = await getGigBids(gigId, currentOrganizationId);
 
       const loadedBids = data.map((b: any) => ({
         id: b.id,

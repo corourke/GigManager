@@ -10,7 +10,7 @@ import { Textarea } from './ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import AppHeader from './AppHeader';
 import { Organization, User, UserRole } from '../utils/supabase/types';
-import { getAsset, createAsset, updateAsset } from '../utils/api';
+import { getAsset, createAsset, updateAsset } from '../services/asset.service';
 import type { DbAsset } from '../utils/supabase/types';
 import { useSimpleFormChanges } from '../utils/hooks/useSimpleFormChanges';
 import { createSubmissionPayload, normalizeFormData } from '../utils/form-utils';

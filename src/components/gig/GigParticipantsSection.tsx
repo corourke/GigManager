@@ -11,7 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '.
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '../ui/dialog';
 import { Textarea } from '../ui/textarea';
 import OrganizationSelector from '../OrganizationSelector';
-import { getGig, updateGigParticipants } from '../../utils/api';
+import { getGig, updateGigParticipants } from '../../services/gig.service';
 import { 
   Organization, 
   OrganizationType 

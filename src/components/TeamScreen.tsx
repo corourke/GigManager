@@ -1,6 +1,17 @@
 import { useState, useEffect, useMemo } from 'react';
 import { toast } from 'sonner';
-import { getOrganizationMembers } from '../utils/api';
+import { 
+  getOrganizationMembers,
+  getOrganizationMembersWithAuth, 
+  updateMemberDetails, 
+  removeMember,
+  addExistingUserToOrganization,
+  inviteUserToOrganization,
+  getOrganizationInvitations,
+  cancelInvitation,
+  getStaffRoles
+} from '../services/organization.service';
+import { searchAllUsers } from '../services/user.service';
 import { 
   Users, 
   Plus, 
@@ -58,17 +69,6 @@ import {
   OrganizationMemberWithUser as OrganizationMember,
   InvitationWithInviter as Invitation
 } from '../utils/supabase/types';
-import { 
-  getOrganizationMembersWithAuth, 
-  updateMemberDetails, 
-  removeMember,
-  searchAllUsers,
-  addExistingUserToOrganization,
-  inviteUserToOrganization,
-  getOrganizationInvitations,
-  cancelInvitation,
-  getStaffRoles
-} from '../utils/api';
 import { format } from 'date-fns';
 import UserProfileForm, { UserProfileFormData } from './UserProfileForm';
 

@@ -3,10 +3,13 @@ import { render } from '@testing-library/react'
 import KitScreen from './KitScreen'
 
 // Mock all dependencies
-vi.mock('../utils/api', () => ({
+vi.mock('../services/kit.service', () => ({
   getKit: vi.fn().mockResolvedValue({}),
   createKit: vi.fn(),
   updateKit: vi.fn(),
+}))
+
+vi.mock('../services/asset.service', () => ({
   getAssets: vi.fn().mockResolvedValue([]),
 }))
 

@@ -39,29 +39,9 @@ import { Calendar } from '../ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
 import { Skeleton } from '../ui/skeleton';
 import EditableTableCell from './EditableTableCell';
-import * as api from '../../utils/api';
-import { GigStatus } from '../../utils/supabase/types';
+import * as api from '../../services/gig.service';
+import { GigStatus, Gig } from '../../utils/supabase/types';
 import { GIG_STATUS_CONFIG } from '../../utils/supabase/constants';
-
-export interface Gig {
-  id: string;
-  organization_id?: string;
-  title: string;
-  start: string; // ISO DateTime string
-  end: string; // ISO DateTime string
-  timezone: string;
-  status: GigStatus;
-  tags: string[];
-  notes?: string;
-  amount_paid?: number;
-  // Participants (from gig_participants table)
-  venue?: { id: string; name: string; type: string };
-  act?: { id: string; name: string; type: string };
-  created_at: string;
-  updated_at: string;
-  created_by?: string;
-  updated_by?: string;
-}
 
 interface GigTableProps {
   gigs: Gig[];

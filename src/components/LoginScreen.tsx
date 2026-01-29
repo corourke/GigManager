@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { Building2, Mail, Lock, Loader2, AlertCircle } from 'lucide-react';
 import { createClient } from '../utils/supabase/client';
-import { getUserProfile, createUserProfile, getUserOrganizations, convertPendingToActive } from '../utils/api';
+import { getUserProfile, createUserProfile, getUserOrganizations } from '../services/user.service';
+import { convertPendingToActive } from '../services/organization.service';
 import { User, OrganizationMembership } from '../utils/supabase/types';
 import { MOCK_USER, MOCK_ORGANIZATIONS } from '../utils/mock-data';
 import { Button } from './ui/button';

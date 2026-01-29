@@ -3,7 +3,7 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import GigParticipantsSection from './GigParticipantsSection';
 
-vi.mock('../../utils/api', () => ({
+vi.mock('../../services/gig.service', () => ({
   getGig: vi.fn().mockResolvedValue({
     participants: [
       {
@@ -15,7 +15,7 @@ vi.mock('../../utils/api', () => ({
       },
     ],
   }),
-  updateGig: vi.fn().mockResolvedValue({}),
+  updateGigParticipants: vi.fn().mockResolvedValue({}),
 }));
 
 describe('GigParticipantsSection', () => {

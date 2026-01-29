@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Package, Plus, Search, Filter, Loader2, Edit2, Trash2, AlertCircle, Shield, Upload } from 'lucide-react';
 import { toast } from 'sonner';
-import { getAssets, deleteAsset } from '../utils/api';
+import { getAssets, deleteAsset } from '../services/asset.service';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Card } from './ui/card';

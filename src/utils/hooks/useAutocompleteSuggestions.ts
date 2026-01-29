@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
-import { getDistinctAssetValues, getDistinctKitValues } from '../api';
+import { getDistinctAssetValues } from '../../services/asset.service';
+import { getDistinctKitValues } from '../../services/kit.service';
 import { getSeedValues } from '../../config/autocompleteSeeds';
 
 interface UseAutocompleteSuggestionsOptions {

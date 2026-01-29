@@ -9,8 +9,8 @@ import {
 import { Alert, AlertDescription } from './ui/alert';
 import { Button } from './ui/button';
 import AppHeader from './AppHeader';
-import { User, Organization, UserRole } from '../utils/supabase/types';
-import { getGig, deleteGig, duplicateGig, createGig } from '../utils/api';
+import { User, Organization, UserRole, Gig } from '../utils/supabase/types';
+import { getGig, deleteGig, duplicateGig, createGig } from '../services/gig.service';
 import GigHeader from './gig/GigHeader';
 import GigBasicInfoSection from './gig/GigBasicInfoSection';
 import GigParticipantsSection from './gig/GigParticipantsSection';
@@ -44,7 +44,7 @@ export default function GigScreen({
   onLogout,
 }: GigScreenProps) {
   const [isLoading, setIsLoading] = useState(!!gigId);
-  const [gig, setGig] = useState<any>(null);
+  const [gig, setGig] = useState<Gig | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [generalError, setGeneralError] = useState<string>('');
   const isEditMode = !!gigId;

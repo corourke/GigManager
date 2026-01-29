@@ -62,12 +62,13 @@ Enable RLS on all tables and migrate application-layer security to PostgreSQL po
 - **Task**: Update `supabase/schema.sql` to enable RLS and add policies.
 - **Verification**: Manual verification via Supabase SQL editor.
 
-### [ ] Step: Implement Security Tests
+### [x] Step: Implement Security Tests
+<!-- chat-id: b730241e-7ad6-4d29-a4f1-b4478f16d1fa -->
 Create automated tests to verify the RLS policies and ensure no data leakage between organizations.
 - **Task**: Create `src/test/security.test.ts` with scenarios for isolation and intersection access.
 - **Verification**: `npm test src/test/security.test.ts`.
 
-### [ ] Step: Implement `AuthContext`
+### [x] Step: Implement `AuthContext`
 Centralize authentication and organization state to simplify `App.tsx` and provide a consistent interface for components.
 - **Task**: Create `src/contexts/AuthContext.tsx` and refactor `App.tsx`.
 - **Verification**: `npm test`, verify login/logout and org selection flow.

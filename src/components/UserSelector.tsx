@@ -4,7 +4,7 @@ import { Command, CommandEmpty, CommandGroup, CommandItem, CommandList } from '.
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
 import { Search, User as UserIcon, Loader2 } from 'lucide-react';
 import { User } from '../utils/supabase/types';
-import { searchUsers } from '../utils/api';
+import { searchUsers } from '../services/user.service';
 
 interface UserSelectorProps {
   onSelect: (user: User) => void;

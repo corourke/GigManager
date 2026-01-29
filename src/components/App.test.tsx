@@ -1,6 +1,14 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render } from '@testing-library/react'
 import App from '../App'
+import { AuthProvider } from '../contexts/AuthContext'
+import * as userService from '../services/user.service'
+
+// Mock user service functions
+vi.mock('../services/user.service', () => ({
+  getUserProfile: vi.fn(),
+  getUserOrganizations: vi.fn(),
+}))
 
 // Mock Supabase client
 vi.mock('../utils/supabase/client', () => ({
@@ -99,14 +107,22 @@ describe('App', () => {
   it('renders without throwing errors', () => {
     // This test just ensures the App component can render without crashing
     expect(() => {
-      render(<App />)
+      render(
+        <AuthProvider>
+          <App />
+        </AuthProvider>
+      )
     }).not.toThrow()
-  })
+  });
 
   it('handles missing session gracefully', () => {
     // Test that app handles null session without errors
     expect(() => {
-      render(<App />)
+      render(
+        <AuthProvider>
+          <App />
+        </AuthProvider>
+      )
     }).not.toThrow()
-  })
+  });
 })
