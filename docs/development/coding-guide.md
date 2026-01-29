@@ -11,20 +11,6 @@
 - User authentication via Supabase.
 - Multi-tenant isolation enforced by RLS and application logic.
 
-## General Instructions
-
-Ask the user questions when anything is unclear or needs their input. This includes:
-- Ambiguous or incomplete requirements
-- Technical decisions that affect architecture or user experience
-- Trade-offs that require business context
-
-Do not make assumptions on important decisions — get clarification first.
-
-Be sure to keep the plan documents updated, marking tasks done as they are completed. This includes both high-level plans (i.e. @plan.md) as well as 
-detailed implementation plans (i.e. implementation-plan.md).
-
-Allow the user to complete manual verfication steps in the plan before moving on.
-
 ## Database 
 
 ### Schema Modifications
@@ -39,7 +25,7 @@ Allow the user to complete manual verfication steps in the plan before moving on
 
 - **Partial Updates**: When updating data through user edit actions (form or inline editing), ONLY update database columns for values that have been changed in the UI. Do not make changes to column values that haven't changed to avoid triggering unnecessary change logic in the back-end.
 - **Migration Assumptions**: It is not necessary to gracefully handle cases where tables don't exist - we will always assume migrations have been run.
-- **No Mock Data**: Do not add or maintain any code to handle mock data - we are using a live database.
+- **No Mock Data**: Do not add or maintain any code to handle mock data outside of tests - we are using a live database.
 
 ---
 
