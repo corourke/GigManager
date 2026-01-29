@@ -73,12 +73,13 @@ Centralize authentication and organization state to simplify `App.tsx` and provi
 - **Task**: Create `src/contexts/AuthContext.tsx` and refactor `App.tsx`.
 - **Verification**: `npm test`, verify login/logout and org selection flow.
 
-### [ ] Step: Modularize API Services
+### [x] Step: Modularize API Services
 Refactor `src/utils/api.tsx` into domain-specific service modules.
 - **Task**: Create `src/services/` modules and update all component imports.
 - **Verification**: `npm run lint`, `npm run typecheck`, `npm test`.
 
-### [ ] Step: Final Verification & Report
+### [x] Step: Final Verification & Report
+<!-- chat-id: a80b3043-9268-42ce-ad82-31c7a40db706 -->
 - **Task**: Run full test suite and write report.
 - **Verification**: `npm test`, `npm run build`.
 - **Report**: Write to `{@artifacts_path}/report.md`.
