@@ -23,11 +23,13 @@
 - **Actions**:
     - Create a suite of security tests in `src/test/security.test.ts`.
     - Test scenarios:
-        - User A (Org 1) cannot see Gig X (Org 2).
-        - User A (Org 1) can see Gig Y (Org 1 participant).
-        - User A (Org 1) can see Gig Z (Org 1 and Org 2 participants).
+        - User A (Org 1) cannot see Gig X (in which it is not a participant in Gig x).
+        - User A (Org 1) can see Gig Y (as Org 1 is a participant in Gig Y).
+        - User A (Org 1) can see Gig Z (Org 1 and Org 2 are participants).
+        - Only Admins can delete a Gig.
         - Verify "Broader Access" operations (e.g., searching for organizations) work for authenticated users.
         - Verify that deleting a membership correctly revokes access.
+    - Have the user validate these test scenarios before proceeding. 
 
 ### 2.2. Implement `AuthContext`
 - **Objective**: Centralize authentication and organization state.
