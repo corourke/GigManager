@@ -15,11 +15,10 @@
 ## 2. Dead Code & Maintenance
 ### Findings
 - **Unused UI Components**: 17 components in `src/components/ui/` are unreferenced (e.g., `accordion`, `carousel`, `chart`, `drawer`, `menubar`).
-- **Unused API Functions**: 9 functions in `src/utils/api.tsx` are unreferenced (e.g., `updateUserProfile`, `updateOrganization`, `getGigsForOrganization`, `searchGooglePlaces`).
+- **Unused API Functions**: 9 functions in `src/utils/api.tsx` are unreferenced (e.g., `updateUserProfile`, `updateOrganization`, `searchGooglePlaces`).
 - **Dead Utility Code**: `src/utils/role-helper.tsx` is completely unused.
 - **Large Component/Utility Files**:
     - `src/utils/api.tsx`: 3314 lines.
-    - `src/components/GigScreen.tsx`: 2091 lines.
 
 ### Recommendations
 - **Remove Dead Code**: Delete unused UI components, API functions, and utility files.
@@ -51,8 +50,7 @@
 
 ### Phase 2: Maintenance & Optimization
 1. **Remove all identified dead code**.
-2. **Refactor `GigScreen.tsx`** into smaller components.
-3. **Implement RPC for `createGig`** and optimize `getGigs` query.
+2. Implement RPC for `createGig`** and optimize `getGigs` query.
 
 ### Phase 3: Feature Gap Closure
 1. **Implement Email/Password Authentication**.
