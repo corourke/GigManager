@@ -71,6 +71,9 @@ export default function GigListScreen({
   const [timeDialogGig, setTimeDialogGig] = useState<Gig | null>(null);
   const [tempStartTime, setTempStartTime] = useState('');
   const [tempEndTime, setTempEndTime] = useState('');
+  const [tempDate, setTempDate] = useState('');
+
+  const canEdit = userRole === 'Admin' || userRole === 'Manager';
 
   // Load gigs on mount
   useEffect(() => {
