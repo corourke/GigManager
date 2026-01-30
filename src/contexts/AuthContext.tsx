@@ -39,16 +39,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [selectedOrganization, organizations]);
 
   const refreshProfile = useCallback(async () => {
+    console.log('AuthContext: refreshProfile starting');
     const supabase = createClient();
-    const { data: { session } } = await supabase.auth.getSession();
     
-    if (session?.user) {
-      try {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (session?.user) {
+        console.log('AuthContext: Session found for user', session.user.id);
         const [profile, orgs] = await Promise.all([
           getUserProfile(session.user.id),
           getUserOrganizations(session.user.id)
         ]);
         
+        console.log('AuthContext: Fetched profile and orgs', { 
+          hasProfile: !!profile, 
+          orgCount: orgs?.length 
+        });
+
         if (profile) {
           setUser(profile);
           setOrganizations(orgs);
@@ -66,12 +74,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           } else if (orgs.length === 1) {
             selectOrganization(orgs[0].organization);
           }
+        } else {
+          console.warn('AuthContext: No profile found for authenticated user');
         }
-      } catch (error) {
-        console.error('Error refreshing profile:', error);
+      } else {
+        console.log('AuthContext: No session found in refreshProfile');
       }
+    } catch (error) {
+      console.error('AuthContext: Error refreshing profile:', error);
+    } finally {
+      console.log('AuthContext: Setting isLoading to false');
+      setIsLoading(false);
     }
-    setIsLoading(false);
   }, [selectedOrganization]);
 
   const refreshProfileRef = React.useRef(refreshProfile);
@@ -82,20 +96,37 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     
     // Initial session check
     const initAuth = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session?.user) {
-        await refreshProfileRef.current();
-      } else {
+      console.log('AuthContext: initAuth starting');
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.user) {
+          console.log('AuthContext: initAuth session found, calling refreshProfile');
+          await refreshProfileRef.current();
+        } else {
+          console.log('AuthContext: initAuth no session found');
+          setIsLoading(false);
+        }
+      } catch (err) {
+        console.error('AuthContext: Error in initAuth:', err);
         setIsLoading(false);
       }
     };
 
     initAuth();
 
+    // Safety timeout to prevent perpetual loading spinner
+    const timeoutId = setTimeout(() => {
+      if (isLoading) {
+        console.warn('AuthContext: Initial auth check timed out, forcing isLoading to false');
+        setIsLoading(false);
+      }
+    }, 5000);
+
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
-        if (event === 'SIGNED_IN' && session) {
+        console.log('AuthContext: onAuthStateChange event:', event);
+        if ((event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') && session) {
           await refreshProfileRef.current();
         } else if (event === 'SIGNED_OUT') {
           setUser(null);
@@ -107,6 +138,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     );
 
     return () => {
+      clearTimeout(timeoutId);
       subscription.unsubscribe();
     };
   }, []); // Remove refreshProfile from dependencies to avoid infinite loop

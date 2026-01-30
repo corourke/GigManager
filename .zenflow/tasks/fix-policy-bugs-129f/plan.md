@@ -44,6 +44,6 @@ included adding RLS to additional tables. These will be driven by manual tests a
 - Be sure you understand the problem fully before proceeding. Ask if not sure. 
 - Consult docs/development/ZENFLOW.md
 - Add at least one failing regression test BEFORE fixing the issue.
-- Propose a solution and get approval.
+- Propose a solution and get approval BEFORE proceeing with code changes.
 - Fix the issue and then prompt for additional observations and issues from the user. 
 <!-- agent: grok -->

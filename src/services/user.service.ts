@@ -11,6 +11,7 @@ const getSupabase = () => createClient();
  * Fetch a user profile by ID
  */
 export async function getUserProfile(userId: string): Promise<User | null> {
+  console.log('user.service: getUserProfile starting for', userId);
   const supabase = getSupabase();
   try {
     const { data, error } = await supabase
@@ -19,7 +20,11 @@ export async function getUserProfile(userId: string): Promise<User | null> {
       .eq('id', userId)
       .maybeSingle();
 
-    if (error) throw error;
+    if (error) {
+      console.error('user.service: getUserProfile error', error);
+      throw error;
+    }
+    console.log('user.service: getUserProfile success', !!data);
     return data;
   } catch (err) {
     return handleApiError(err, 'fetch user profile');
@@ -174,27 +179,11 @@ export async function searchAllUsers(search: string): Promise<User[]> {
 export async function getUserOrganizations(userId: string): Promise<OrganizationMembershipWithOrg[]> {
   const supabase = getSupabase();
   try {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session?.user) throw new Error('Not authenticated');
-    const user = session.user;
-
-    let query = supabase
+    const { data, error } = await supabase
       .from('organization_members')
       .select('*, organization:organizations(*)')
       .eq('user_id', userId);
 
-    if (user.id !== userId) {
-      const { data: userOrgs } = await supabase
-        .from('organization_members')
-        .select('organization_id')
-        .eq('user_id', user.id);
-      
-      const orgIds = userOrgs?.map(o => o.organization_id) || [];
-      if (orgIds.length === 0) return [];
-      query = query.in('organization_id', orgIds);
-    }
-
-    const { data, error } = await query;
     if (error) throw error;
     return data || [];
   } catch (err) {
