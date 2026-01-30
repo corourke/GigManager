@@ -48,6 +48,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     
     console.log('AuthContext: refreshProfile starting');
     isRefreshing.current = true;
+    
+    // Safety timeout for this specific refresh attempt
+    const refreshTimeoutId = setTimeout(() => {
+      if (isRefreshing.current) {
+        console.warn('AuthContext: refreshProfile timed out after 15s, forcing reset');
+        isRefreshing.current = false;
+        setIsLoading(false);
+      }
+    }, 15000);
+
     const supabase = createClient();
     
     try {
@@ -91,11 +101,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } catch (error) {
       console.error('AuthContext: Error refreshing profile:', error);
     } finally {
+      clearTimeout(refreshTimeoutId);
       console.log('AuthContext: Setting isLoading to false');
       setIsLoading(false);
       isRefreshing.current = false;
     }
-  }, [selectedOrganization]);
+  }, [selectedOrganization, organizations]);
 
   const refreshProfileRef = React.useRef(refreshProfile);
   refreshProfileRef.current = refreshProfile;
