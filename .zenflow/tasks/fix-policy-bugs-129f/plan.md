@@ -35,3 +35,15 @@ Implement the bug fix.
 4. Update `{@artifacts_path}/investigation.md` with implementation notes and test results
 
 If blocked or uncertain, ask the user for direction.
+
+### [ ] Step: Debug Issues From Policy Refactor
+<!-- chat-id: 66de5688-2cde-4784-8cf5-e330a1d2108d -->
+We need to continue debugging issues from the security refactoring that 
+included adding RLS to additional tables. These will be driven by manual tests and observations. 
+- No need to reopen the branch (which has been deleted). OK to do the work on the main branch. 
+- Be sure you understand the problem fully before proceeding. Ask if not sure. 
+- Consult docs/development/ZENFLOW.md
+- Add at least one failing regression test BEFORE fixing the issue.
+- Propose a solution and get approval.
+- Fix the issue and then prompt for additional observations and issues from the user. 
+<!-- agent: grok -->
