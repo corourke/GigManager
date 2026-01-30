@@ -25,7 +25,7 @@ Save findings to `{@artifacts_path}/investigation.md` with:
 - Affected components
 - Proposed solution
 
-### [x] Step: Implementation
+### [ ] Step: Implementation
 Read `{@artifacts_path}/investigation.md`
 Implement the bug fix.
 
