@@ -59,7 +59,6 @@ function App() {
     logout, 
     selectOrganization,
     setOrganizations,
-    setSelectedOrganization,
     setUser
   } = useAuth();
 
@@ -122,7 +121,13 @@ function App() {
   };
 
   const handleSelectOrganization = (org: Organization) => {
+    console.log("handleSelectOrganization(): " + org.name);
     selectOrganization(org);
+    if (userRole === 'Viewer') {
+      setCurrentRoute('gig-list');
+    } else {
+      setCurrentRoute('dashboard');
+    }
   };
 
   const handleCreateOrganization = () => {
@@ -139,7 +144,7 @@ function App() {
   };
 
   const handleBackToSelection = () => {
-    setSelectedOrganization(null);
+    selectOrganization(null);
     setCurrentRoute('org-selection');
   };
 
@@ -254,7 +259,7 @@ function App() {
     
     // If this is the currently selected organization, update it
     if (selectedOrganization?.id === updatedOrg.id) {
-      setSelectedOrganization(updatedOrg);
+      selectOrganization(updatedOrg);
     }
     
     // Navigate back to admin orgs list

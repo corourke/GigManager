@@ -36,7 +36,7 @@ Implement the bug fix.
 
 If blocked or uncertain, ask the user for direction.
 
-### [ ] Step: Debug Issues From Policy Refactor
+### [x] Step: Debug Issues From Policy Refactor
 <!-- chat-id: 66de5688-2cde-4784-8cf5-e330a1d2108d -->
 We need to continue debugging issues from the security refactoring that 
 included adding RLS to additional tables. These will be driven by manual tests and observations. 

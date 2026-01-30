@@ -19,7 +19,6 @@ interface AuthContextType {
   selectOrganization: (org: Organization) => void;
   refreshProfile: () => Promise<void>;
   setOrganizations: (organizations: OrganizationMembership[]) => void;
-  setSelectedOrganization: (org: Organization | null) => void;
   setUser: (user: User | null) => void;
 }
 
@@ -28,7 +27,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [organizations, setOrganizations] = useState<OrganizationMembership[]>([]);
-  const [selectedOrganization, setSelectedOrganization] = useState<Organization | null>(null);
+  const [selectedOrganization, selectOrganization] = useState<Organization | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   const userRole = React.useMemo(() => {
@@ -58,14 +57,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           if (selectedOrganization) {
             const stillMember = orgs.find(m => m.organization.id === selectedOrganization.id);
             if (stillMember) {
-              setSelectedOrganization(stillMember.organization);
+              selectOrganization(stillMember.organization);
             } else if (orgs.length === 1) {
-              setSelectedOrganization(orgs[0].organization);
+              selectOrganization(orgs[0].organization);
             } else {
-              setSelectedOrganization(null);
+              selectOrganization(null);
             }
           } else if (orgs.length === 1) {
-            setSelectedOrganization(orgs[0].organization);
+            selectOrganization(orgs[0].organization);
           }
         }
       } catch (error) {
@@ -75,6 +74,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setIsLoading(false);
   }, [selectedOrganization]);
 
+  const refreshProfileRef = React.useRef(refreshProfile);
+  refreshProfileRef.current = refreshProfile;
+
   useEffect(() => {
     const supabase = createClient();
     
@@ -82,7 +84,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const initAuth = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (session?.user) {
-        await refreshProfile();
+        await refreshProfileRef.current();
       } else {
         setIsLoading(false);
       }
@@ -94,11 +96,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         if (event === 'SIGNED_IN' && session) {
-          await refreshProfile();
+          await refreshProfileRef.current();
         } else if (event === 'SIGNED_OUT') {
           setUser(null);
           setOrganizations([]);
-          setSelectedOrganization(null);
+          selectOrganization(null);
           setIsLoading(false);
         }
       }
@@ -107,13 +109,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return () => {
       subscription.unsubscribe();
     };
-  }, [refreshProfile]);
+  }, []); // Remove refreshProfile from dependencies to avoid infinite loop
 
   const login = (userData: User, userOrgs: OrganizationMembership[]) => {
     setUser(userData);
     setOrganizations(userOrgs);
     if (userOrgs.length === 1) {
-      setSelectedOrganization(userOrgs[0].organization);
+      selectOrganization(userOrgs[0].organization);
     }
   };
 
@@ -122,11 +124,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     await supabase.auth.signOut();
     setUser(null);
     setOrganizations([]);
-    setSelectedOrganization(null);
-  };
-
-  const selectOrganization = (org: Organization) => {
-    setSelectedOrganization(org);
+    selectOrganization(null);
   };
 
   const value = {
@@ -140,7 +138,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     selectOrganization,
     refreshProfile,
     setOrganizations,
-    setSelectedOrganization,
     setUser,
   };
 
