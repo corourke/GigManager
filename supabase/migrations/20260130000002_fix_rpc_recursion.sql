@@ -3,7 +3,9 @@
 
 -- 1. Convert secure RPC functions to plpgsql to truly bypass RLS
 -- SECURITY DEFINER in LANGUAGE sql is inlined and DOES NOT bypass RLS in many cases.
+-- We DROP first because CREATE OR REPLACE cannot change return types.
 
+DROP FUNCTION IF EXISTS get_user_profile_secure(UUID);
 CREATE OR REPLACE FUNCTION get_user_profile_secure(user_uuid UUID)
 RETURNS SETOF users
 LANGUAGE plpgsql
@@ -16,6 +18,7 @@ BEGIN
 END;
 $$;
 
+DROP FUNCTION IF EXISTS get_user_organizations_secure(UUID);
 CREATE OR REPLACE FUNCTION get_user_organizations_secure(user_uuid UUID)
 RETURNS TABLE(
   user_id UUID,
