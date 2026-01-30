@@ -14,7 +14,6 @@ There are user instructions to all AI Agents that are of highest priority.
 5. Before applying any fix, show me the test code you have written that currently fails but will pass after your changes.
 
 ### Implementing the Solution
-
  
 1. Test-Driven Fixes: Always implement a failing test case first. This proves you understand the bug and ensures it doesn't return.
 2. Important: Changes to schema.sql don't do anything! If we want to change the schema, we need to create migrations and apply them to the remote supabase database. 

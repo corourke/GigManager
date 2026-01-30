@@ -15,10 +15,7 @@ export async function getUserProfile(userId: string): Promise<User | null> {
   const supabase = getSupabase();
   try {
     const { data, error } = await supabase
-      .from('users')
-      .select('*')
-      .eq('id', userId)
-      .maybeSingle();
+      .rpc('get_user_profile_secure', { user_uuid: userId });
 
     if (error) {
       console.error('user.service: getUserProfile error', error);
@@ -184,26 +181,29 @@ export async function getUserOrganizations(userId: string): Promise<Organization
     if (!session?.user) throw new Error('Not authenticated');
     const currentUser = session.user;
 
-    let query = supabase
-      .from('organization_members')
-      .select('*, organization:organizations(*)')
-      .eq('user_id', userId);
+    const { data, error } = await supabase
+      .rpc('get_user_organizations_secure', { user_uuid: userId });
 
-    // If querying someone else, only show shared organizations
+    if (error) throw error;
+
+    // If querying someone else, filter to only shared organizations
+    let orgs = data || [];
     if (currentUser.id !== userId) {
       const { data: currentUserOrgs } = await supabase
-        .from('organization_members')
-        .select('organization_id')
-        .eq('user_id', currentUser.id);
-      
-      const orgIds = currentUserOrgs?.map(o => o.organization_id) || [];
-      if (orgIds.length === 0) return [];
-      query = query.in('organization_id', orgIds);
+        .rpc('get_user_organizations_secure', { user_uuid: currentUser.id });
+
+      const currentOrgIds = new Set(currentUserOrgs?.map(o => o.organization_id) || []);
+      orgs = orgs.filter(o => currentOrgIds.has(o.organization_id));
     }
 
-    const { data, error } = await query;
-    if (error) throw error;
-    return data || [];
+    // Transform the data to match the expected format
+    return orgs.map(org => ({
+      user_id: org.user_id,
+      organization_id: org.organization_id,
+      role: org.role,
+      joined_at: org.created_at,
+      organization: org.organization
+    }));
   } catch (err) {
     return handleApiError(err, 'fetch user organizations');
   }
