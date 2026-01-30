@@ -49,15 +49,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     console.log('AuthContext: refreshProfile starting');
     isRefreshing.current = true;
     
-    // Safety timeout for this specific refresh attempt
-    const refreshTimeoutId = setTimeout(() => {
-      if (isRefreshing.current) {
-        console.warn('AuthContext: refreshProfile timed out after 15s, forcing reset');
-        isRefreshing.current = false;
-        setIsLoading(false);
-      }
-    }, 15000);
-
     const supabase = createClient();
     
     try {
@@ -101,7 +92,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } catch (error) {
       console.error('AuthContext: Error refreshing profile:', error);
     } finally {
-      clearTimeout(refreshTimeoutId);
       console.log('AuthContext: Setting isLoading to false');
       setIsLoading(false);
       isRefreshing.current = false;
@@ -115,15 +105,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const supabase = createClient();
     let mounted = true;
     
-    // Safety timeout to prevent perpetual loading spinner
-    const timeoutId = setTimeout(() => {
-      if (mounted && isLoading) {
-        console.warn('AuthContext: Initial auth check timed out, forcing isLoading to false');
-        setIsLoading(false);
-        isRefreshing.current = false;
-      }
-    }, 10000); // 10 second safety timeout
-
     // Listen for auth changes - this also handles the initial session check
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
@@ -145,7 +126,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     return () => {
       mounted = false;
-      clearTimeout(timeoutId);
       subscription.unsubscribe();
     };
   }, []); // Remove refreshProfile from dependencies to avoid infinite loop
