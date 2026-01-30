@@ -12,6 +12,9 @@ if (!supabaseUrl || !supabaseAnonKey) {
   );
 }
 
-// Extract project ID from URL
-export const projectId = supabaseUrl.replace('https://', '').replace('.supabase.co', '');
-export const publicAnonKey = supabaseAnonKey;
+// Export values directly
+export const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+export const publicAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+// Extract project ID from URL for any other uses, but keep it robust
+export const projectId = supabaseUrl?.replace('https://', '').split('.')[0] || '';

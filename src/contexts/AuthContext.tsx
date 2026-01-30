@@ -102,51 +102,38 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   useEffect(() => {
     const supabase = createClient();
+    let mounted = true;
     
-    // Initial session check
-    const initAuth = async () => {
-      console.log('AuthContext: initAuth starting');
-      try {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (session?.user) {
-          console.log('AuthContext: initAuth session found, calling refreshProfile');
-          await refreshProfileRef.current(session);
-        } else {
-          console.log('AuthContext: initAuth no session found');
-          setIsLoading(false);
-        }
-      } catch (err) {
-        console.error('AuthContext: Error in initAuth:', err);
-        setIsLoading(false);
-      }
-    };
-
-    initAuth();
-
     // Safety timeout to prevent perpetual loading spinner
     const timeoutId = setTimeout(() => {
-      if (isLoading) {
+      if (mounted && isLoading) {
         console.warn('AuthContext: Initial auth check timed out, forcing isLoading to false');
         setIsLoading(false);
+        isRefreshing.current = false;
       }
-    }, 5000);
+    }, 10000); // 10 second safety timeout
 
-    // Listen for auth changes
+    // Listen for auth changes - this also handles the initial session check
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
+        if (!mounted) return;
+        
         console.log('AuthContext: onAuthStateChange event:', event);
+        
         if ((event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'INITIAL_SESSION') && session) {
           await refreshProfileRef.current(session);
-        } else if (event === 'SIGNED_OUT') {
+        } else if (event === 'SIGNED_OUT' || (event === 'INITIAL_SESSION' && !session)) {
           setUser(null);
           setOrganizations([]);
           selectOrganization(null);
           setIsLoading(false);
+          isRefreshing.current = false;
         }
       }
     );
 
     return () => {
+      mounted = false;
       clearTimeout(timeoutId);
       subscription.unsubscribe();
     };

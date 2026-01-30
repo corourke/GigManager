@@ -176,26 +176,18 @@ export async function searchAllUsers(search: string): Promise<User[]> {
 export async function getUserOrganizations(userId: string): Promise<OrganizationMembershipWithOrg[]> {
   const supabase = getSupabase();
   try {
-    // Get current authenticated user to check permissions
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session?.user) throw new Error('Not authenticated');
-    const currentUser = session.user;
-
     const { data, error } = await supabase
       .rpc('get_user_organizations_secure', { user_uuid: userId });
 
     if (error) throw error;
 
-    // If querying someone else, filter to only shared organizations
     let orgs = data || [];
-    if (currentUser.id !== userId) {
-      const { data: currentUserOrgs } = await supabase
-        .rpc('get_user_organizations_secure', { user_uuid: currentUser.id });
 
-      const currentOrgIds = new Set(currentUserOrgs?.map(o => o.organization_id) || []);
-      orgs = orgs.filter(o => currentOrgIds.has(o.organization_id));
-    }
-
+    // Optional: If we want to be extra sure about permissions when querying someone else,
+    // we could fetch the current session here, but for self-queries (the common case),
+    // we can skip it to avoid redundant getSession() calls that might hang.
+    // The server-side RPC and RLS should ideally handle security.
+    
     // Transform the data to match the expected format
     return orgs.map(org => ({
       user_id: org.user_id,

@@ -1,5 +1,5 @@
 import { createClient as createSupabaseClient } from '@supabase/supabase-js';
-import { projectId, publicAnonKey } from './info';
+import { supabaseUrl, publicAnonKey } from './info';
 
 // Singleton Supabase client for frontend
 let supabaseClient: ReturnType<typeof createSupabaseClient> | null = null;
@@ -9,8 +9,6 @@ export function createClient() {
     return supabaseClient;
   }
 
-  const supabaseUrl = `https://${projectId}.supabase.co`;
-  
   supabaseClient = createSupabaseClient(supabaseUrl, publicAnonKey, {
     auth: {
       persistSession: true,
