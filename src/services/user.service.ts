@@ -179,11 +179,29 @@ export async function searchAllUsers(search: string): Promise<User[]> {
 export async function getUserOrganizations(userId: string): Promise<OrganizationMembershipWithOrg[]> {
   const supabase = getSupabase();
   try {
-    const { data, error } = await supabase
+    // Get current authenticated user to check permissions
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.user) throw new Error('Not authenticated');
+    const currentUser = session.user;
+
+    let query = supabase
       .from('organization_members')
       .select('*, organization:organizations(*)')
       .eq('user_id', userId);
 
+    // If querying someone else, only show shared organizations
+    if (currentUser.id !== userId) {
+      const { data: currentUserOrgs } = await supabase
+        .from('organization_members')
+        .select('organization_id')
+        .eq('user_id', currentUser.id);
+      
+      const orgIds = currentUserOrgs?.map(o => o.organization_id) || [];
+      if (orgIds.length === 0) return [];
+      query = query.in('organization_id', orgIds);
+    }
+
+    const { data, error } = await query;
     if (error) throw error;
     return data || [];
   } catch (err) {

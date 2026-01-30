@@ -38,12 +38,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return membership?.role;
   }, [selectedOrganization, organizations]);
 
-  const refreshProfile = useCallback(async () => {
+  const isRefreshing = React.useRef(false);
+
+  const refreshProfile = useCallback(async (providedSession?: any) => {
+    if (isRefreshing.current) {
+      console.log('AuthContext: refreshProfile already in progress, skipping');
+      return;
+    }
+    
     console.log('AuthContext: refreshProfile starting');
+    isRefreshing.current = true;
     const supabase = createClient();
     
     try {
-      const { data: { session } } = await supabase.auth.getSession();
+      const session = providedSession || (await supabase.auth.getSession()).data.session;
       
       if (session?.user) {
         console.log('AuthContext: Session found for user', session.user.id);
@@ -85,6 +93,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } finally {
       console.log('AuthContext: Setting isLoading to false');
       setIsLoading(false);
+      isRefreshing.current = false;
     }
   }, [selectedOrganization]);
 
@@ -101,7 +110,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const { data: { session } } = await supabase.auth.getSession();
         if (session?.user) {
           console.log('AuthContext: initAuth session found, calling refreshProfile');
-          await refreshProfileRef.current();
+          await refreshProfileRef.current(session);
         } else {
           console.log('AuthContext: initAuth no session found');
           setIsLoading(false);
@@ -126,8 +135,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         console.log('AuthContext: onAuthStateChange event:', event);
-        if ((event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') && session) {
-          await refreshProfileRef.current();
+        if ((event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'INITIAL_SESSION') && session) {
+          await refreshProfileRef.current(session);
         } else if (event === 'SIGNED_OUT') {
           setUser(null);
           setOrganizations([]);
