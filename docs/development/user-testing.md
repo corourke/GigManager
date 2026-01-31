@@ -68,6 +68,7 @@
 [ ]] I'm unable to get to the Edit Gig screen via the edit icon in the Gig List. I get this error: GigListScreen.tsx:151 Uncaught TypeError: onEditGig is not a function
     at handleGigEdit (GigListScreen.tsx:151:5)
     at onClick (GigTable.tsx:387:42)
+[ ] Gig detail view should not show financials if we are not the gig owner. 
 
 ## Smoke Tests to Perform
 After applying migrations and before proceeding to the next issue, perform these manual smoke tests to ensure the changes work as intended:
