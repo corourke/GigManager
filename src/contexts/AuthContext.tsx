@@ -110,28 +110,26 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       async (event, session) => {
         if (!mounted) return;
         
-        console.log('AuthContext: onAuthStateChange event:', event);
-        
-        // Safety timeout to prevent permanent hang if database calls are stuck
-        const timeoutId = setTimeout(() => {
-          if (mounted) {
-            console.log('AuthContext: Initial auth check timed out, forcing isLoading to false');
-            setIsLoading(false);
-          }
-        }, 5000);
+        const startTime = Date.now();
+        console.log(`[TRACE] AuthContext: onAuthStateChange event: ${event} for user: ${session?.user?.id} at ${new Date(startTime).toISOString()}`);
         
         try {
           if ((event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'INITIAL_SESSION') && session) {
+            console.log(`[TRACE] AuthContext: Triggering refreshProfile for ${event}`);
             await refreshProfileRef.current(session);
+            console.log(`[TRACE] AuthContext: refreshProfile completed for ${event} in ${Date.now() - startTime}ms`);
           } else if (event === 'SIGNED_OUT' || (event === 'INITIAL_SESSION' && !session)) {
+            console.log(`[TRACE] AuthContext: Handling ${event} (no session)`);
             setUser(null);
             setOrganizations([]);
             selectOrganization(null);
             setIsLoading(false);
             isRefreshing.current = false;
+            console.log(`[TRACE] AuthContext: ${event} handling completed in ${Date.now() - startTime}ms`);
           }
-        } finally {
-          clearTimeout(timeoutId);
+        } catch (error) {
+          console.error(`[TRACE] AuthContext: Error in onAuthStateChange handler for ${event} after ${Date.now() - startTime}ms:`, error);
+          setIsLoading(false); // Ensure we don't stay loading on error
         }
       }
     );

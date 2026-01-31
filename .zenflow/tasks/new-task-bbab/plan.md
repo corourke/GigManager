@@ -7,33 +7,25 @@
 
 ## Workflow Steps
 
-### [x] Step: Investigation and Planning
+### [x] Step: Investigation and Planning (Tracing Phase)
 <!-- chat-id: a83c0776-30e8-45ee-a4f1-4770afb9aa6f -->
 
-Analyze the bug report and design a solution.
+Analyze the bug report and design a solution with tracing.
 
-1. Review the bug description, error messages, and logs
-2. Clarify reproduction steps with the user if unclear
-3. Check existing tests for clues about expected behavior
-4. Locate relevant code sections and identify root cause
-5. Propose a fix based on the investigation
-6. Consider edge cases and potential side effects
+1. [x] Add detailed `[TRACE]` logging to `AuthContext.tsx` and `user.service.ts`.
+2. [x] Remove the 5-second timeout band-aid from `AuthContext.tsx`.
+3. [x] Audit RLS policies and identify additional recursion points in `gig` tables.
+4. [x] Create `20260130000003_fix_gig_security_functions.sql` to convert gig helpers to `plpgsql`.
+5. [x] Present findings and refined migration plan for approval.
 
-Save findings to `{@artifacts_path}/investigation.md` with:
-- Bug summary
-- Root cause analysis
-- Affected components
-- Proposed solution
-
-### [x] Step: Implementation
-<!-- chat-id: 037822b2-8d38-49ba-acd9-1b11f0823713 -->
+### [ ] Step: Implementation
 Read `{@artifacts_path}/investigation.md`
-Implement the bug fix.
+Implement the bug fix after approval.
 
-1. [x] Create `src/contexts/AuthContext.test.tsx` with tests that simulate hanging database calls to verify frontend robustness.
-2. [x] Apply the refined SQL migration (`20260130000002_fix_rpc_recursion.sql`) to convert secure RPCs to `plpgsql`.
-3. [x] Verify that the login hang is resolved in the application.
-4. [x] Run all existing tests to ensure no regressions.
-5. [x] Update `{@artifacts_path}/investigation.md` with implementation notes and test results.
+1. Apply the migration `20260130000001_fix_rls_recursion.sql`.
+2. Apply the migration `20260130000002_fix_rpc_recursion.sql`.
+3. Apply the migration `20260130000003_fix_gig_security_functions.sql`.
+4. Verify the logs in the application to confirm no hangs occur during login.
+5. Run all existing tests to ensure no regressions.
 
 If blocked or uncertain, ask the user for direction.

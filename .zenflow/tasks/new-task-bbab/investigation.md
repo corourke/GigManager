@@ -57,16 +57,16 @@ CREATE POLICY "Users can view members of their organizations" ON organization_me
 ```
 Actually, even better is to use the `SECURITY DEFINER` functions we already have, but ensuring they are used correctly to break the loop.
 
-## Implementation Notes
-1.  **Frontend Safety Mechanism**: Added a 5-second timeout in `AuthContext.tsx` within `onAuthStateChange`. If the initial profile/organization fetch hangs (e.g., due to RLS recursion), `isLoading` is forced to `false`, allowing the user to at least see the login screen and not be stuck on a blank loading screen.
-2.  **SQL Migrations**: 
-    *   `20260130000001_fix_rls_recursion.sql`: Redefines core helper functions (like `user_organization_ids`) as `SECURITY DEFINER` and `LANGUAGE plpgsql` to prevent inlining and bypass RLS, breaking the infinite recursion loop in table policies.
-    *   `20260130000002_fix_rpc_recursion.sql`: Converts `get_user_profile_secure` and `get_user_organizations_secure` to `LANGUAGE plpgsql` to ensure they also bypass RLS during the authentication flow.
-3.  **Testing**:
-    *   Created/Updated `src/contexts/AuthContext.test.tsx` to simulate hanging database calls and verify that the application recovers after the timeout.
-    *   Ran all existing tests (95 tests across 19 files) to ensure no regressions were introduced.
+## Tracing and Re-evaluation (Update)
+As part of a deeper investigation, the following steps were taken:
+1.  **Tracing**: Added detailed `[TRACE]` logs with timestamps to `AuthContext.tsx` and `user.service.ts` to identify the exact point of the hang in the production/development environment.
+2.  **Timeout Removal**: Removed the 5-second timeout "band-aid" from `AuthContext.tsx` to ensure the tracing captures the full extent of the hang and that we don't prematurely mask the issue during diagnostics.
+3.  **Deeper Policy Audit**: Identified additional recursive paths in `gig` related tables. Functions like `user_has_access_to_gig`, `user_can_manage_gig`, and `user_is_admin_of_gig` were using `LANGUAGE sql`, allowing them to be inlined into RLS policies and potentially cause infinite loops when queried during the auth flow (since `AuthContext` triggers profile/org fetches which might touch these tables).
 
-## Verification Results
-- `AuthContext.test.tsx` passes with the simulated hang.
-- All system tests pass.
-- Root cause (RLS recursion) is addressed by the migration scripts, and frontend robustness is improved to handle any potential future hangs in the auth flow.
+## Proposed Solution (Refined)
+1.  **Tracing Deployment**: Keep the tracing logs in place for the next deployment/test run to confirm the exact sequence leading to the hang.
+2.  **Comprehensive plpgsql Migration**:
+    - **`20260130000001_fix_rls_recursion.sql`**: Converts core user/org helpers to `plpgsql`.
+    - **`20260130000002_fix_rpc_recursion.sql`**: Converts auth RPCs to `plpgsql`.
+    - **`20260130000003_fix_gig_security_functions.sql`**: Converts gig security helpers to `plpgsql`.
+    These changes collectively ensure that any RLS check triggered during authentication or initial data fetch will use `SECURITY DEFINER` functions that *truly* bypass RLS by running as `plpgsql`, breaking all identified recursion loops.
