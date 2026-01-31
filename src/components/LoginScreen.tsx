@@ -27,34 +27,11 @@ export default function LoginScreen({ onLogin, useMockData = false }: LoginScree
 
   // Check for existing session on mount
   useEffect(() => {
-    checkExistingSession();
+    // We rely on AuthContext to handle the initial session detection
+    // through its onAuthStateChange listener. This prevents redundant
+    // calls that could cause race conditions or deadlocks.
+    console.log('[TRACE] LoginScreen: Mounted, waiting for AuthContext to detect session');
   }, []);
-
-  const checkExistingSession = async () => {
-    if (useMockData) return;
-
-    console.log('[TRACE] LoginScreen: checkExistingSession starting');
-    try {
-      const supabase = createClient();
-      console.log('[TRACE] LoginScreen: Calling supabase.auth.getSession()');
-      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-      
-      if (sessionError) {
-        console.error('[TRACE] LoginScreen: Session check error:', sessionError);
-        return;
-      }
-
-      if (session?.user) {
-        console.log('[TRACE] LoginScreen: Existing session found for', session.user.id);
-        // User has active session, fetch their data
-        await handleAuthenticatedUser(session.access_token, session.user.id);
-      } else {
-        console.log('[TRACE] LoginScreen: No existing session found');
-      }
-    } catch (err: any) {
-      console.error('[TRACE] LoginScreen: Exception in checkExistingSession:', err);
-    }
-  };
 
   const handleAuthenticatedUser = async (accessToken: string, userId: string) => {
     try {

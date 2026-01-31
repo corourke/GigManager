@@ -108,37 +108,31 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     
     // Listen for auth changes - this also handles the initial session check
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
+      (event, session) => {
         if (!mounted) {
           console.log(`[TRACE] AuthContext: onAuthStateChange event ${event} ignored - unmounted`);
           return;
         }
         
-        const startTime = Date.now();
-        console.log(`[TRACE] AuthContext: onAuthStateChange event: ${event} for user: ${session?.user?.id} at ${new Date(startTime).toISOString()}`);
+        console.log(`[TRACE] AuthContext: onAuthStateChange event: ${event} for user: ${session?.user?.id}`);
         
-        try {
-          if ((event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'INITIAL_SESSION') && session) {
-            console.log(`[TRACE] AuthContext: Triggering refreshProfile for ${event}`);
-            await refreshProfileRef.current(session);
-            console.log(`[TRACE] AuthContext: refreshProfile completed for ${event} in ${Date.now() - startTime}ms`);
-          } else if (event === 'SIGNED_OUT' || (event === 'INITIAL_SESSION' && !session)) {
-            console.log(`[TRACE] AuthContext: Handling ${event} (no session)`);
-            setUser(null);
-            setOrganizations([]);
-            selectOrganization(null);
-            setIsLoading(false);
-            isRefreshing.current = false;
-            console.log(`[TRACE] AuthContext: ${event} handling completed in ${Date.now() - startTime}ms`);
-          }
-        } catch (error) {
-          console.error(`[TRACE] AuthContext: Error in onAuthStateChange handler for ${event} after ${Date.now() - startTime}ms:`, error);
-        } finally {
-          // Always ensure loading is false after initial check or event handling
-          if (mounted) {
-            console.log(`[TRACE] AuthContext: Finally setting isLoading=false for ${event}`);
-            setIsLoading(false);
-          }
+        if ((event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'INITIAL_SESSION') && session) {
+          console.log(`[TRACE] AuthContext: Scheduling refreshProfile for ${event}`);
+          // Use setTimeout to break the call stack and avoid deadlocking the Supabase client initialization
+          setTimeout(() => {
+            if (mounted) {
+              refreshProfileRef.current(session).catch(err => {
+                console.error(`[TRACE] AuthContext: Error in scheduled refreshProfile for ${event}:`, err);
+              });
+            }
+          }, 0);
+        } else if (event === 'SIGNED_OUT' || (event === 'INITIAL_SESSION' && !session)) {
+          console.log(`[TRACE] AuthContext: Handling ${event} (no session)`);
+          setUser(null);
+          setOrganizations([]);
+          selectOrganization(null);
+          setIsLoading(false);
+          isRefreshing.current = false;
         }
       }
     );

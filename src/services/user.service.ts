@@ -15,19 +15,9 @@ export async function getCompleteUserData(userId: string): Promise<{ profile: Us
   console.log(`[TRACE] user.service: getCompleteUserData starting for ${userId}`);
   const supabase = getSupabase();
   
-  // Create a timeout promise
-  const timeoutPromise = new Promise<{ profile: null, organizations: [] }>((_, reject) => {
-    setTimeout(() => {
-      console.error(`[TRACE] user.service: getCompleteUserData TIMEOUT after 15s for ${userId}`);
-      reject(new Error('RPC call get_complete_user_data timed out after 15s'));
-    }, 15000);
-  });
-
   try {
     console.log(`[TRACE] user.service: Initiating rpc('get_complete_user_data')`);
-    const rpcPromise = supabase.rpc('get_complete_user_data', { user_uuid: userId });
-    
-    const { data, error } = await Promise.race([rpcPromise, timeoutPromise]) as any;
+    const { data, error } = await supabase.rpc('get_complete_user_data', { user_uuid: userId });
 
     const duration = Date.now() - startTime;
     if (error) {
