@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Package, Plus, Search, Loader2, Edit2, Trash2, Copy, Eye, AlertCircle } from 'lucide-react';
+import { Package, Plus, Search, Loader2, Edit, Trash2, Copy, Eye, AlertCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import { getKits, deleteKit, duplicateKit } from '../services/kit.service';
 import { Button } from './ui/button';
@@ -324,40 +324,43 @@ export default function KitListScreen({
                         </div>
                       </TableCell>
                       <TableCell className="text-right">
-                        <div className="flex items-center justify-end gap-2">
+                        <div className="flex items-center justify-end gap-1">
                           <Button
                             variant="ghost"
                             size="sm"
+                            className="h-8 w-8 p-0 text-gray-500 hover:text-sky-600"
                             onClick={() => onViewKit(kit.id)}
-                            title="View Details"
+                            title="View"
                           >
-                            <Eye className="w-4 h-4" />
+                            <Eye className="h-4 w-4" />
                           </Button>
                           <Button
                             variant="ghost"
                             size="sm"
+                            className="h-8 w-8 p-0 text-gray-500 hover:text-sky-600"
                             onClick={() => onEditKit(kit.id)}
-                            title="Edit Kit"
+                            title="Edit"
                           >
-                            <Edit2 className="w-4 h-4" />
+                            <Edit className="h-4 w-4" />
                           </Button>
                           <Button
                             variant="ghost"
                             size="sm"
+                            className="h-8 w-8 p-0 text-gray-500 hover:text-sky-600"
                             onClick={() => handleDuplicateKit(kit.id, kit.name)}
-                            title="Duplicate Kit"
+                            title="Duplicate"
                           >
-                            <Copy className="w-4 h-4" />
+                            <Copy className="h-4 w-4" />
                           </Button>
                           {userRole === 'Admin' && (
                             <Button
                               variant="ghost"
                               size="sm"
+                              className="h-8 w-8 p-0 text-gray-500 hover:text-red-600"
                               onClick={() => handleDeleteKit(kit.id, kit.name)}
-                              className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                              title="Delete Kit"
+                              title="Delete"
                             >
-                              <Trash2 className="w-4 h-4" />
+                              <Trash2 className="h-4 w-4" />
                             </Button>
                           )}
                         </div>

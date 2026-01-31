@@ -9,6 +9,7 @@ import { X, Plus, Check } from 'lucide-react';
 interface TagsInputProps {
   value: string[];
   onChange: (tags: string[]) => void;
+  onKeyDown?: (e: React.KeyboardEvent<HTMLInputElement>) => void;
   suggestions?: string[];
   placeholder?: string;
   disabled?: boolean;
@@ -17,6 +18,7 @@ interface TagsInputProps {
 export default function TagsInput({
   value,
   onChange,
+  onKeyDown,
   suggestions = [],
   placeholder = 'Add tags...',
   disabled = false
@@ -47,13 +49,16 @@ export default function TagsInput({
     onChange(value.filter(tag => tag !== tagToRemove));
   };
 
-  const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter' && inputValue.trim()) {
+  const handleLocalKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
+    if ((e.key === 'Enter' || e.key === 'Tab') && inputValue.trim()) {
       e.preventDefault();
       addTag(inputValue);
     } else if (e.key === 'Backspace' && !inputValue && value.length > 0) {
       // Remove last tag if input is empty and backspace is pressed
       onChange(value.slice(0, -1));
+    } else if (onKeyDown) {
+      // Pass through other keys (like Tab when input is empty)
+      onKeyDown(e);
     }
   };
 
@@ -101,7 +106,7 @@ export default function TagsInput({
                 type="text"
                 value={inputValue}
                 onChange={(e) => handleInputChange(e.target.value)}
-                onKeyDown={handleKeyDown}
+                onKeyDown={handleLocalKeyDown}
                 onFocus={() => {
                   if (inputValue.trim() && availableSuggestions.length > 0) {
                     setIsOpen(true);

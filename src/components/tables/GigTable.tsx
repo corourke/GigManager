@@ -6,6 +6,7 @@ import {
   Edit,
   Copy,
   Trash2,
+  Eye,
   MoreVertical,
   AlertCircle,
   Loader2,
@@ -208,23 +209,30 @@ export default function GigTable({
 
       <Card>
         <div className="overflow-x-auto">
-          <Table>
+            <Table className="border-collapse">
             <TableHeader>
-              <TableRow>
-                {showActions && <TableHead className="w-12"></TableHead>}
-                <TableHead className="min-w-[200px] whitespace-normal">Title</TableHead>
-                <TableHead className="min-w-[160px] whitespace-normal">Date & Time</TableHead>
-                <TableHead className="min-w-[100px] whitespace-normal">Status</TableHead>
-                {showVenueActColumns && <TableHead className="min-w-[120px] whitespace-normal">Venue</TableHead>}
-                {showVenueActColumns && <TableHead className="min-w-[120px] whitespace-normal">Act</TableHead>}
-                {showTagsColumn && <TableHead className="min-w-[150px] whitespace-normal">Tags</TableHead>}
+              <TableRow className="hover:bg-transparent">
+                <TableHead className="min-w-[200px] whitespace-normal border">Title</TableHead>
+                {enableInlineEditing ? (
+                  <>
+                    <TableHead className="min-w-[180px] whitespace-normal border">Start</TableHead>
+                    <TableHead className="min-w-[180px] whitespace-normal border">End</TableHead>
+                  </>
+                ) : (
+                  <TableHead className="min-w-[160px] whitespace-normal border">Date & Time</TableHead>
+                )}
+                <TableHead className="min-w-[100px] whitespace-normal border">Status</TableHead>
+                {showVenueActColumns && <TableHead className="min-w-[120px] whitespace-normal border">Venue</TableHead>}
+                {showVenueActColumns && <TableHead className="min-w-[120px] whitespace-normal border">Act</TableHead>}
+                {showTagsColumn && <TableHead className="min-w-[150px] whitespace-normal border">Tags</TableHead>}
+                {showActions && <TableHead className="w-40 text-right border">Actions</TableHead>}
               </TableRow>
             </TableHeader>
             <TableBody>
               {displayGigs.map((gig) => (
                 <TableRow
                   key={gig.id}
-                  className={(onGigClick || onGigEdit) ? 'cursor-pointer hover:bg-gray-50' : ''}
+                  className={(onGigClick || onGigEdit) ? 'hover:bg-gray-50' : ''}
                   onClick={() => {
                     if (mode === 'dashboard' && onGigEdit) {
                       onGigEdit(gig.id);
@@ -233,44 +241,8 @@ export default function GigTable({
                     }
                   }}
                 >
-                  {/* Actions Cell */}
-                  {showActions && (
-                    <TableCell onClick={(e) => mode === 'list' && e.stopPropagation()}>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                            <MoreVertical className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="start">
-                          {onGigEdit && (
-                            <DropdownMenuItem onClick={() => onGigEdit(gig.id)}>
-                              <Edit className="w-4 h-4 mr-2" />
-                              Edit
-                            </DropdownMenuItem>
-                          )}
-                          {onGigDuplicate && (
-                            <DropdownMenuItem onClick={() => onGigDuplicate(gig.id)}>
-                              <Copy className="w-4 h-4 mr-2" />
-                              Duplicate
-                            </DropdownMenuItem>
-                          )}
-                          {onGigDelete && (
-                            <DropdownMenuItem
-                              className="text-red-600"
-                              onClick={() => onGigDelete(gig.id)}
-                            >
-                              <Trash2 className="w-4 h-4 mr-2" />
-                              Delete
-                            </DropdownMenuItem>
-                          )}
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </TableCell>
-                  )}
-
                   {/* Title Cell */}
-                  <TableCell className="relative min-w-[200px] whitespace-normal" onClick={(e) => mode === 'list' && e.stopPropagation()}>
+                  <TableCell className={`relative min-w-[200px] whitespace-normal border ${enableInlineEditing ? 'p-0' : 'p-2'}`} onClick={(e) => mode === 'list' && e.stopPropagation()}>
                     {enableInlineEditing ? (
                       <EditableTableCell
                         value={gig.title || ''}
@@ -283,22 +255,36 @@ export default function GigTable({
                     )}
                   </TableCell>
 
-                  {/* Date & Time Cell */}
-                  <TableCell className="text-sm text-gray-700 min-w-[160px] whitespace-normal" onClick={(e) => mode === 'list' && e.stopPropagation()}>
-                    {enableInlineEditing ? (
-                      <button
-                        onClick={() => onGigEdit?.(gig.id)}
-                        className="hover:text-sky-600 hover:underline w-full text-left"
-                      >
-                        {formatDateTime(gig.start, gig.end)}
-                      </button>
-                    ) : (
-                      formatDateTime(gig.start, gig.end)
-                    )}
-                  </TableCell>
+                  {/* Date & Time Cell(s) */}
+                  {enableInlineEditing ? (
+                    <>
+                      <TableCell className="relative min-w-[180px] whitespace-normal border p-0" onClick={(e) => e.stopPropagation()}>
+                        <EditableTableCell
+                          value={gig.start}
+                          field="start"
+                          type="datetime-local"
+                          placeholder="Start time"
+                          onSave={(field, value) => onGigUpdate(gig.id, 'start', value)}
+                        />
+                      </TableCell>
+                      <TableCell className="relative min-w-[180px] whitespace-normal border p-0" onClick={(e) => e.stopPropagation()}>
+                        <EditableTableCell
+                          value={gig.end}
+                          field="end"
+                          type="datetime-local"
+                          placeholder="End time"
+                          onSave={(field, value) => onGigUpdate(gig.id, 'end', value)}
+                        />
+                      </TableCell>
+                    </>
+                  ) : (
+                    <TableCell className="text-sm text-gray-700 min-w-[160px] whitespace-normal border p-2" onClick={(e) => mode === 'list' && e.stopPropagation()}>
+                      {formatDateTime(gig.start, gig.end)}
+                    </TableCell>
+                  )}
 
                   {/* Status Cell */}
-                  <TableCell className="text-sm text-gray-700 min-w-[100px] whitespace-normal" onClick={(e) => mode === 'list' && e.stopPropagation()}>
+                  <TableCell className={`text-sm text-gray-700 min-w-[100px] whitespace-normal border ${enableInlineEditing ? 'p-0' : 'p-2'}`} onClick={(e) => mode === 'list' && e.stopPropagation()}>
                     {enableInlineEditing ? (
                       <EditableTableCell
                         value={gig.status}
@@ -320,7 +306,7 @@ export default function GigTable({
 
                   {/* Venue Cell */}
                   {showVenueActColumns && (
-                    <TableCell className="text-sm text-gray-700 min-w-[120px] whitespace-normal" onClick={(e) => mode === 'list' && e.stopPropagation()}>
+                    <TableCell className={`text-sm text-gray-700 min-w-[120px] whitespace-normal border ${enableInlineEditing ? 'p-0' : 'p-2'}`} onClick={(e) => mode === 'list' && e.stopPropagation()}>
                       {enableInlineEditing ? (
                         <EditableTableCell
                           value={gig.venue?.id || ''}
@@ -338,7 +324,7 @@ export default function GigTable({
 
                   {/* Act Cell */}
                   {showVenueActColumns && (
-                    <TableCell className="text-sm text-gray-700 min-w-[120px] whitespace-normal" onClick={(e) => mode === 'list' && e.stopPropagation()}>
+                    <TableCell className={`text-sm text-gray-700 min-w-[120px] whitespace-normal border ${enableInlineEditing ? 'p-0' : 'p-2'}`} onClick={(e) => mode === 'list' && e.stopPropagation()}>
                       {enableInlineEditing ? (
                         <EditableTableCell
                           value={gig.act?.id || ''}
@@ -356,7 +342,7 @@ export default function GigTable({
 
                   {/* Tags Cell */}
                   {showTagsColumn && (
-                    <TableCell className="relative min-w-[150px] whitespace-normal" onClick={(e) => mode === 'list' && e.stopPropagation()}>
+                    <TableCell className={`relative min-w-[150px] whitespace-normal border ${enableInlineEditing ? 'p-0' : 'p-2'}`} onClick={(e) => mode === 'list' && e.stopPropagation()}>
                       {enableInlineEditing ? (
                         <EditableTableCell
                           value={gig.tags || []}
@@ -377,9 +363,61 @@ export default function GigTable({
                       )}
                     </TableCell>
                   )}
-                </TableRow>
-              ))}
-            </TableBody>
+
+                  {/* Actions Cell */}
+                  {showActions && (
+                    <TableCell className="text-right border p-2" onClick={(e) => e.stopPropagation()}>
+                    <div className="flex justify-end gap-1">
+                      {onGigClick && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 w-8 p-0 text-gray-500 hover:text-sky-600"
+                          onClick={() => onGigClick(gig.id)}
+                          title="View"
+                        >
+                          <Eye className="h-4 w-4" />
+                        </Button>
+                      )}
+                      {onGigEdit && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 w-8 p-0 text-gray-500 hover:text-sky-600"
+                          onClick={() => onGigEdit(gig.id)}
+                          title="Edit"
+                        >
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                      )}
+                      {onGigDuplicate && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 w-8 p-0 text-gray-500 hover:text-sky-600"
+                          onClick={() => onGigDuplicate(gig.id)}
+                          title="Duplicate"
+                        >
+                          <Copy className="h-4 w-4" />
+                        </Button>
+                      )}
+                      {onGigDelete && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 w-8 p-0 text-gray-500 hover:text-red-600"
+                          onClick={() => onGigDelete(gig.id)}
+                          title="Delete"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      )}
+                    </div>
+                  </TableCell>
+                )}
+              </TableRow>
+            ))}
+          </TableBody>
           </Table>
         </div>
       </Card>

@@ -2,12 +2,16 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Input } from '../ui/input';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
-import { Check, X, Edit2, Loader2 } from 'lucide-react';
+import { Check, X, Edit2, Loader2, Clock, ChevronsUpDown } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
+import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '../ui/command';
 import { useInlineEdit } from '../../utils/hooks/useInlineEdit';
 import { getOrganizations } from '../../services/organization.service';
 import TagsInput from '../TagsInput';
 import { Organization } from '../../utils/supabase/types';
+import { format } from 'date-fns';
+import { cn } from '../ui/utils';
 
 interface SelectOption {
   value: string;
@@ -17,7 +21,7 @@ interface SelectOption {
 interface EditableTableCellProps {
   value: string | number | null;
   field: string;
-  type?: 'text' | 'number' | 'email' | 'textarea' | 'select' | 'organization' | 'tags';
+  type?: 'text' | 'number' | 'email' | 'textarea' | 'select' | 'organization' | 'tags' | 'datetime-local';
   placeholder?: string;
   onSave: (field: string, value: any) => Promise<void>;
   onCancel?: (field: string) => void;
@@ -50,6 +54,8 @@ export default function EditableTableCell({
   const [organizations, setOrganizations] = useState<Organization[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearching, setIsSearching] = useState(false);
+  const [comboOpen, setComboOpen] = useState(true);
+  const [highlightedValue, setHighlightedValue] = useState<string | null>(null);
 
   const {
     editingField,
@@ -219,48 +225,171 @@ export default function EditableTableCell({
     }
   };
 
+  // Handle Tab key navigation
+  const handleTabKey = async (shiftKey: boolean) => {
+    // Find all editable cells in the document
+    const allCells = Array.from(document.querySelectorAll('[data-editable-cell]')) as HTMLElement[];
+    const currentCell = cellRef.current;
+    
+    if (!currentCell) return;
+    
+    const currentIndex = allCells.indexOf(currentCell);
+    if (currentIndex === -1) return;
+
+    // Save current value before moving
+    if (type === 'organization') {
+      const currentId = editValue === '__none__' ? '' : editValue;
+      if (currentId !== value) {
+        await saveEdit();
+      } else {
+        cancelEdit();
+      }
+    } else if (type === 'tags' || type === 'select') {
+      // These usually auto-save, but let's be safe
+      cancelEdit();
+    } else if (editValue !== displayValue) {
+      await saveEdit();
+    } else {
+      cancelEdit();
+    }
+
+    // Determine next cell index
+    let nextIndex;
+    if (shiftKey) {
+      nextIndex = currentIndex - 1;
+      // Wrap around if needed
+      if (nextIndex < 0) nextIndex = allCells.length - 1;
+    } else {
+      nextIndex = (currentIndex + 1) % allCells.length;
+    }
+
+    // Focus next cell in next tick to ensure previous one closed
+    setTimeout(() => {
+      const nextCell = allCells[nextIndex];
+      if (nextCell) {
+        nextCell.click();
+      }
+    }, 0);
+  };
+
+  // Enhanced key down handler to support Tab
+  const onKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Tab') {
+      e.preventDefault();
+      handleTabKey(e.shiftKey);
+    } else {
+      handleKeyDown(e);
+    }
+  };
+
   if (isEditing) {
     // For title field, ensure minimum width to prevent collapsing on narrow screens
-    const wrapperClassName = field === 'title' 
-      ? "relative min-w-[200px] w-full" 
-      : "relative";
+    const wrapperClassName = `relative w-full h-full flex items-center p-2 bg-sky-50/30 transition-colors ${
+      field === 'title' ? "min-w-[200px]" : ""
+    }`;
     
     return (
-      <div ref={cellRef} className={wrapperClassName}>
-        {type === 'select' ? (
-          <Select
-            value={editValue ?? ''}
-            onValueChange={async (value) => {
-              updateValue(value);
-              // Auto-save on select and exit edit mode
-              await onSave(field, value);
-              cancelEdit();
-            }}
+      <div ref={cellRef} className={wrapperClassName} data-editable-cell data-field={field}>
+        {type === 'select' || type === 'organization' ? (
+          <Popover 
+            open={comboOpen} 
             onOpenChange={(open) => {
-              // When select closes, ensure we exit edit mode
-              if (!open && isEditing) {
-                cancelEdit();
-              }
+              setComboOpen(open);
+              if (!open) cancelEdit();
             }}
-            disabled={saving}
           >
-            <SelectTrigger className="h-8 w-full">
-              <SelectValue placeholder={placeholder} />
-            </SelectTrigger>
-            <SelectContent>
-              {selectOptions.map((option) => (
-                <SelectItem key={option.value} value={option.value}>
-                  {option.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+            <PopoverTrigger asChild>
+              <Button
+                variant="outline"
+                role="combobox"
+                aria-expanded={comboOpen}
+                className="h-8 w-full justify-between border-sky-200 bg-white/50 px-2 font-normal hover:bg-white/80"
+              >
+                <span className="truncate">
+                  {type === 'select' 
+                    ? (selectOptions.find((opt) => opt.value === editValue)?.label || placeholder)
+                    : (organizations.find((org) => org.id === editValue)?.name || (editValue === '__none__' ? 'None' : placeholder))}
+                </span>
+                <ChevronsUpDown className="ml-2 h-3 w-3 shrink-0 opacity-50" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
+              <Command 
+                onValueChange={(val) => setHighlightedValue(val)}
+                value={highlightedValue || (editValue === '__none__' ? '' : editValue)}
+              >
+                <CommandInput 
+                  placeholder={`Search ${field}...`} 
+                  className="h-8"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Tab') {
+                      // If we have a highlighted value, select it before tabbing away
+                      if (highlightedValue) {
+                        const saveValue = type === 'organization' && highlightedValue === '__none__' ? '' : highlightedValue;
+                        updateValue(saveValue);
+                        onSave(field, saveValue);
+                      }
+                      e.preventDefault();
+                      handleTabKey(e.shiftKey);
+                    } else if (e.key === 'Enter' && highlightedValue) {
+                      const saveValue = type === 'organization' && highlightedValue === '__none__' ? '' : highlightedValue;
+                      updateValue(saveValue);
+                      onSave(field, saveValue);
+                      cancelEdit();
+                    }
+                  }}
+                />
+                <CommandList>
+                  <CommandEmpty>No results found.</CommandEmpty>
+                  <CommandGroup>
+                    {type === 'organization' && (
+                      <CommandItem
+                        value="__none__"
+                        onSelect={() => {
+                          updateValue('');
+                          onSave(field, '');
+                          cancelEdit();
+                        }}
+                      >
+                        <Check
+                          className={cn(
+                            "mr-2 h-4 w-4",
+                            editValue === '__none__' || editValue === '' ? "opacity-100" : "opacity-0"
+                          )}
+                        />
+                        None
+                      </CommandItem>
+                    )}
+                    {(type === 'select' ? selectOptions : organizations.map(o => ({ value: o.id, label: o.name }))).map((option) => (
+                      <CommandItem
+                        key={option.value}
+                        value={option.value}
+                        onSelect={() => {
+                          updateValue(option.value);
+                          onSave(field, option.value);
+                          cancelEdit();
+                        }}
+                      >
+                        <Check
+                          className={cn(
+                            "mr-2 h-4 w-4",
+                            editValue === option.value ? "opacity-100" : "opacity-0"
+                          )}
+                        />
+                        {option.label}
+                      </CommandItem>
+                    ))}
+                  </CommandGroup>
+                </CommandList>
+              </Command>
+            </PopoverContent>
+          </Popover>
         ) : type === 'textarea' ? (
           <textarea
             ref={inputRef as React.RefObject<HTMLTextAreaElement>}
             value={editValue ?? ''}
             onChange={handleInputChange}
-            onKeyDown={handleKeyDown}
+            onKeyDown={onKeyDown}
             onBlur={handleBlur}
             placeholder={placeholder}
             disabled={saving}
@@ -268,64 +397,48 @@ export default function EditableTableCell({
             required={required}
             name={field}
             id={field}
-            className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent resize-none"
+            className="w-full px-2 py-1 text-sm border border-sky-200 rounded bg-white/50 focus:outline-none focus:ring-0 resize-none"
             rows={3}
           />
-        ) : type === 'organization' ? (
-          <Select
-            value={editValue && editValue !== '__none__' && editValue !== '' ? editValue : '__none__'}
-            onValueChange={async (selectedValue) => {
-              // Convert "__none__" to empty string for saving
-              const saveValue = selectedValue === '__none__' ? '' : selectedValue;
-              updateValue(saveValue);
-              // Auto-save on select and exit edit mode
-              await onSave(field, saveValue);
-              cancelEdit();
-            }}
-            onOpenChange={(open) => {
-              // When select closes, ensure we exit edit mode
-              if (!open && isEditing) {
-                cancelEdit();
-              }
-            }}
-            disabled={saving || isSearching}
-          >
-            <SelectTrigger className="h-8 w-full">
-              <SelectValue placeholder={placeholder}>
-                {editValue && editValue !== '__none__' && editValue !== ''
-                  ? organizations.find(org => org.id === editValue)?.name || placeholder
-                  : placeholder}
-              </SelectValue>
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="__none__">None</SelectItem>
-              {organizations.map((org) => (
-                <SelectItem key={org.id} value={org.id}>
-                  {org.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
         ) : type === 'tags' ? (
-          <TagsInput
-            value={Array.isArray(editValue) ? editValue : []}
-            onChange={async (tags) => {
-              updateValue(tags);
-              // Auto-save on change and exit edit mode
-              await onSave(field, tags);
-              cancelEdit();
-            }}
-            suggestions={tagSuggestions}
-            placeholder={placeholder}
-            disabled={saving}
-          />
+          <div className="w-full">
+            <TagsInput
+              value={Array.isArray(editValue) ? editValue : []}
+              onChange={async (tags) => {
+                updateValue(tags);
+                // Auto-save on change but DON'T exit edit mode yet
+                await onSave(field, tags);
+              }}
+              onKeyDown={onKeyDown}
+              suggestions={tagSuggestions}
+              placeholder={placeholder}
+              disabled={saving}
+            />
+          </div>
+        ) : type === 'datetime-local' ? (
+          <div className="relative w-full">
+            <Clock className="absolute left-2 top-1/2 transform -translate-y-1/2 h-3 w-3 text-gray-400" />
+            <Input
+              ref={inputRef as React.RefObject<HTMLInputElement>}
+              type="datetime-local"
+              value={editValue ? (typeof editValue === 'string' ? editValue : format(new Date(editValue), "yyyy-MM-dd'T'HH:mm")) : ''}
+              onChange={(e) => updateValue(e.target.value)}
+              onKeyDown={onKeyDown}
+              onBlur={handleBlur}
+              disabled={saving}
+              required={required}
+              name={field}
+              id={field}
+              className="h-8 pl-7 pr-2 text-xs border-sky-200 bg-white/50 focus-visible:ring-0 w-full"
+            />
+          </div>
         ) : (
           <Input
             ref={inputRef as React.RefObject<HTMLInputElement>}
             type={type}
             value={editValue ?? ''}
             onChange={handleInputChange}
-            onKeyDown={handleKeyDown}
+            onKeyDown={onKeyDown}
             onBlur={handleBlur}
             placeholder={placeholder}
             disabled={saving}
@@ -333,7 +446,7 @@ export default function EditableTableCell({
             required={required}
             name={field}
             id={field}
-            className={`h-8 text-sm ${field === 'title' ? 'w-full min-w-[200px]' : 'w-full'}`}
+            className={`h-8 text-sm border-sky-200 bg-white/50 focus-visible:ring-0 px-2 ${field === 'title' ? 'w-full min-w-[200px]' : 'w-full'}`}
           />
         )}
         {saving && (
@@ -353,7 +466,7 @@ export default function EditableTableCell({
       ref={cellRef}
       data-editable-cell
       data-field={field}
-      className={`group cursor-pointer ${className}`}
+      className={`group cursor-pointer p-2 h-full min-h-[40px] flex items-center ${className}`}
       onClick={handleCellClick}
       title={disabled ? undefined : 'Click to edit'}
     >

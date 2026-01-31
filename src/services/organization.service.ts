@@ -179,6 +179,28 @@ export async function joinOrganization(orgId: string): Promise<{ organization: O
 }
 
 /**
+ * Fetch a single organization member by ID
+ */
+export async function getOrganizationMember(memberId: string) {
+  const supabase = getSupabase();
+  try {
+    const { data, error } = await supabase
+      .from('organization_members')
+      .select(`
+        *,
+        user:users(*)
+      `)
+      .eq('id', memberId)
+      .single();
+
+    if (error) throw error;
+    return data;
+  } catch (err) {
+    return handleApiError(err, 'fetch organization member');
+  }
+}
+
+/**
  * Fetch organization members using the Edge Function for elevated privileges
  */
 export async function getOrganizationMembersWithAuth(organizationId: string) {
@@ -306,96 +328,22 @@ export async function addExistingUserToOrganization(
 export async function inviteUserToOrganization(
   organizationId: string,
   email: string,
-  role: 'Admin' | 'Manager' | 'Member',
+  role: UserRole | 'Member',
   firstName?: string,
   lastName?: string
 ) {
   const supabase = getSupabase();
   try {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session?.user) throw new Error('Not authenticated');
+    const { data, error } = await supabase.rpc('invite_user_to_organization', {
+      p_organization_id: organizationId,
+      p_email: email,
+      p_role: role === 'Member' ? 'Staff' : role,
+      p_first_name: firstName || null,
+      p_last_name: lastName || null,
+    });
 
-    const { data: existingUser } = await supabase
-      .from('users')
-      .select('id, user_status')
-      .eq('email', email)
-      .maybeSingle();
-
-    if (existingUser && existingUser.user_status === 'active') {
-      throw new Error('A user with this email already exists. Please use "Add Existing User" instead.');
-    }
-
-    if (existingUser && existingUser.user_status === 'pending') {
-      throw new Error('An invitation has already been sent to this email address');
-    }
-
-    if (existingUser && existingUser.user_status === 'inactive') {
-      throw new Error('A user with this email exists but is inactive. Please contact support.');
-    }
-
-    const { data: existingInvitation } = await supabase
-      .from('invitations')
-      .select('id')
-      .eq('organization_id', organizationId)
-      .eq('email', email)
-      .eq('status', 'pending')
-      .maybeSingle();
-
-    if (existingInvitation) throw new Error('An invitation has already been sent to this email address');
-
-    const userId = crypto.randomUUID();
-    const { data: newUser, error: userError } = await supabase
-      .from('users')
-      .insert({
-        id: userId,
-        email,
-        first_name: firstName || null,
-        last_name: lastName || null,
-        user_status: 'pending',
-      })
-      .select()
-      .single();
-
-    if (userError) throw userError;
-
-    const { error: memberError } = await supabase
-      .from('organization_members')
-      .insert({
-        organization_id: organizationId,
-        user_id: userId,
-        role,
-      });
-
-    if (memberError) {
-      await supabase.from('users').delete().eq('id', userId);
-      throw memberError;
-    }
-
-    const token = crypto.randomUUID();
-    const expiresAt = new Date();
-    expiresAt.setDate(expiresAt.getDate() + 7);
-
-    const { data: invitation, error } = await supabase
-      .from('invitations')
-      .insert({
-        organization_id: organizationId,
-        email,
-        role,
-        invited_by: session.user.id,
-        token,
-        expires_at: expiresAt.toISOString(),
-        status: 'pending',
-      })
-      .select()
-      .single();
-
-    if (error) {
-      await supabase.from('organization_members').delete().eq('user_id', userId);
-      await supabase.from('users').delete().eq('id', userId);
-      throw error;
-    }
-
-    return { invitation, user: newUser };
+    if (error) throw error;
+    return data as { invitation: any; user: any };
   } catch (err) {
     return handleApiError(err, 'invite user to organization');
   }
@@ -454,42 +402,13 @@ export async function cancelInvitation(invitationId: string) {
 export async function convertPendingToActive(email: string, authUserId: string) {
   const supabase = getSupabase();
   try {
-    const { data: pendingUser, error: findError } = await supabase
-      .from('users')
-      .select('id, user_status')
-      .eq('email', email)
-      .eq('user_status', 'pending')
-      .maybeSingle();
+    const { data, error } = await supabase.rpc('convert_pending_user_to_active', {
+      p_email: email,
+      p_auth_user_id: authUserId,
+    });
 
-    if (findError) throw findError;
-    if (!pendingUser) return null;
-
-    const { data: updatedUser, error: updateError } = await supabase
-      .from('users')
-      .update({
-        id: authUserId,
-        user_status: 'active',
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', pendingUser.id)
-      .select()
-      .single();
-
-    if (updateError) throw updateError;
-
-    const { error: inviteError } = await supabase
-      .from('invitations')
-      .update({ 
-        status: 'accepted',
-        accepted_at: new Date().toISOString(),
-        accepted_by: authUserId,
-      })
-      .eq('email', email)
-      .eq('status', 'pending');
-
-    if (inviteError) throw inviteError;
-
-    return updatedUser;
+    if (error) throw error;
+    return data;
   } catch (err) {
     return handleApiError(err, 'convert pending user to active');
   }

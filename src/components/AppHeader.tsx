@@ -41,8 +41,8 @@ const AppHeader = React.memo(function AppHeader({
   onEditProfile,
   onLogout,
 }: AppHeaderProps) {
-  // Get navigation handlers from context (only if organization exists)
-  const navigation = organization ? useNavigation() : null;
+  const navigation = useNavigation();
+  const effectiveEditProfile = onEditProfile || navigation?.onEditProfile;
 
   const getInitials = (firstName: string = '', lastName: string = '') => {
     const f = firstName?.[0] || '';
@@ -105,15 +105,11 @@ const AppHeader = React.memo(function AppHeader({
                   Settings
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
-                {onEditProfile && (
-                  <>
-                    <DropdownMenuItem onClick={onEditProfile}>
-                      <UserCircle className="w-4 h-4 mr-2" />
-                      Edit Profile
-                    </DropdownMenuItem>
-                    <DropdownMenuSeparator />
-                  </>
-                )}
+                <DropdownMenuItem onClick={effectiveEditProfile} disabled={!effectiveEditProfile}>
+                  <UserCircle className="w-4 h-4 mr-2" />
+                  Edit Profile
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
                 <DropdownMenuItem 
                   onClick={async (e) => {
                     e.preventDefault();

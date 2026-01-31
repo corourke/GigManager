@@ -195,3 +195,46 @@ export async function deleteAsset(assetId: string) {
     return handleApiError(err, 'delete asset');
   }
 }
+
+/**
+ * Duplicate an existing asset
+ */
+export async function duplicateAsset(assetId: string) {
+  const supabase = getSupabase();
+  try {
+    // 1. Get the original asset
+    const original = await getAsset(assetId);
+    if (!original) throw new Error('Original asset not found');
+
+    // 2. Prepare new asset data (omit ID and timestamps, prefix name)
+    const {
+      id,
+      created_at,
+      updated_at,
+      created_by,
+      updated_by,
+      ...assetData
+    } = original;
+
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.user) throw new Error('Not authenticated');
+    const user = session.user;
+
+    // 3. Insert as new asset
+    const { data, error } = await supabase
+      .from('assets')
+      .insert({
+        ...assetData,
+        manufacturer_model: `${original.manufacturer_model} (Copy)`,
+        created_by: user.id,
+        updated_by: user.id,
+      })
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data;
+  } catch (err) {
+    return handleApiError(err, 'duplicate asset');
+  }
+}

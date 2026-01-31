@@ -13,7 +13,6 @@ import {
 import AppHeader from './AppHeader';
 import GigTable from './tables/GigTable';
 import { GigListFilters } from './gigs/GigListFilters';
-import { TimeEditDialog } from './gigs/TimeEditDialog';
 import { GigListEmptyState } from './gigs/GigListEmptyState';
 import {
   Plus,
@@ -32,6 +31,7 @@ interface GigListScreenProps {
   onBack: () => void;
   onCreateGig: () => void;
   onViewGig: (gigId: string) => void;
+  onEditGig: (gigId: string) => void;
   onNavigateToDashboard: () => void;
   onNavigateToGigs: () => void;
   onNavigateToAssets: () => void;
@@ -48,6 +48,7 @@ export default function GigListScreen({
   onBack,
   onCreateGig,
   onViewGig,
+  onEditGig,
   onNavigateToDashboard,
   onNavigateToGigs,
   onNavigateToAssets,
@@ -65,13 +66,6 @@ export default function GigListScreen({
   const [dateFrom, setDateFrom] = useState<Date | undefined>(undefined);
   const [dateTo, setDateTo] = useState<Date | undefined>(undefined);
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
-  
-  // Time editing dialog state
-  const [timeDialogOpen, setTimeDialogOpen] = useState(false);
-  const [timeDialogGig, setTimeDialogGig] = useState<Gig | null>(null);
-  const [tempStartTime, setTempStartTime] = useState('');
-  const [tempEndTime, setTempEndTime] = useState('');
-  const [tempDate, setTempDate] = useState('');
 
   const canEdit = userRole === 'Admin' || userRole === 'Manager';
 
@@ -154,13 +148,7 @@ export default function GigListScreen({
   };
 
   const handleGigEdit = (gigId: string) => {
-    const gig = gigs.find(g => g.id === gigId);
-    if (gig) {
-      setTimeDialogGig(gig);
-      setTempStartTime(gig.start);
-      setTempEndTime(gig.end);
-      setTimeDialogOpen(true);
-    }
+    onEditGig(gigId);
   };
 
   const handleGigDuplicate = async (gigId: string) => {
@@ -204,28 +192,6 @@ export default function GigListScreen({
     setStatusFilter('All');
     setDateFrom(undefined);
     setDateTo(undefined);
-  };
-
-  const saveTimeDialog = async () => {
-    if (!timeDialogGig) return;
-    
-    if (new Date(tempEndTime) <= new Date(tempStartTime)) {
-      toast.error('End time must be after start time');
-      return;
-    }
-
-    try {
-      await updateGig(timeDialogGig.id, {
-        start: tempStartTime,
-        end: tempEndTime
-      });
-      toast.success('Time updated successfully');
-      setTimeDialogOpen(false);
-      loadGigs();
-    } catch (err: any) {
-      console.error('Error updating time:', err);
-      toast.error('Failed to update time');
-    }
   };
 
   const hasActiveFilters = searchQuery || statusFilter !== 'All' || dateFrom || dateTo;
@@ -343,17 +309,6 @@ export default function GigListScreen({
           />
         )}
       </div>
-
-      <TimeEditDialog
-        open={timeDialogOpen}
-        onOpenChange={setTimeDialogOpen}
-        gigTitle={timeDialogGig?.title}
-        startTime={tempStartTime}
-        setStartTime={setTempStartTime}
-        endTime={tempEndTime}
-        setEndTime={setTempEndTime}
-        onSave={saveTimeDialog}
-      />
     </div>
   );
 }

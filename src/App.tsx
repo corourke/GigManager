@@ -11,9 +11,11 @@ import GigDetailScreen from './components/GigDetailScreen';
 import TeamScreen from './components/TeamScreen';
 import AssetListScreen from './components/AssetListScreen';
 import AssetScreen from './components/AssetScreen';
+import AssetDetailScreen from './components/AssetDetailScreen';
 import KitListScreen from './components/KitListScreen';
 import KitScreen from './components/KitScreen';
 import KitDetailScreen from './components/KitDetailScreen';
+import TeamMemberDetailScreen from './components/TeamMemberDetailScreen';
 import ImportScreen from './components/ImportScreen';
 import EditUserProfileDialog from './components/EditUserProfileDialog';
 import { Toaster } from './components/ui/sonner';
@@ -41,8 +43,10 @@ type Route =
   | 'create-gig'
   | 'gig-detail'
   | 'team'
+  | 'team-member-detail'
   | 'asset-list'
   | 'create-asset'
+  | 'asset-detail'
   | 'kit-list'
   | 'create-kit'
   | 'kit-detail'
@@ -66,6 +70,7 @@ function App() {
   const [selectedGigId, setSelectedGigId] = useState<string | null>(null);
   const [selectedAssetId, setSelectedAssetId] = useState<string | null>(null);
   const [selectedKitId, setSelectedKitId] = useState<string | null>(null);
+  const [selectedMemberId, setSelectedMemberId] = useState<string | null>(null);
   const [editingOrganization, setEditingOrganization] = useState<Organization | null>(null);
   const [showEditProfileDialog, setShowEditProfileDialog] = useState(false);
 
@@ -171,7 +176,12 @@ function App() {
 
   const handleViewGig = (gigId: string) => {
     setSelectedGigId(gigId);
-    setCurrentRoute('create-gig'); // Use create-gig route for editing too
+    setCurrentRoute('gig-detail');
+  };
+
+  const handleEditGig = (gigId: string) => {
+    setSelectedGigId(gigId);
+    setCurrentRoute('create-gig');
   };
 
   const handleGigCreated = (gigId: string) => {
@@ -199,16 +209,30 @@ function App() {
 
   const handleViewAsset = (assetId: string) => {
     setSelectedAssetId(assetId);
-    setCurrentRoute('create-asset'); // Use create-asset route for editing too
+    setCurrentRoute('asset-detail');
+  };
+
+  const handleEditAsset = (assetId: string) => {
+    setSelectedAssetId(assetId);
+    setCurrentRoute('create-asset');
   };
 
   const handleAssetCreated = (assetId: string) => {
     setSelectedAssetId(assetId);
-    setCurrentRoute('asset-list'); // Navigate back to asset list instead of asset detail
+    setCurrentRoute('asset-list');
   };
 
   const handleBackToAssetList = () => {
     setCurrentRoute('asset-list');
+  };
+
+  const handleViewTeamMember = (memberId: string) => {
+    setSelectedMemberId(memberId);
+    setCurrentRoute('team-member-detail');
+  };
+
+  const handleBackToTeam = () => {
+    setCurrentRoute('team');
   };
 
   const handleNavigateToKits = () => {
@@ -299,7 +323,13 @@ function App() {
   console.log("currentRoute: " + currentRoute);
 
   return (
-    <>
+    <NavigationProvider
+      onNavigateToDashboard={handleBackToDashboard}
+      onNavigateToGigs={handleNavigateToGigs}
+      onNavigateToTeam={handleNavigateToTeam}
+      onNavigateToAssets={handleNavigateToAssets}
+      onEditProfile={handleEditProfile}
+    >
       {currentRoute === 'login' && (
         <LoginScreen onLogin={handleLogin} useMockData={USE_MOCK_DATA} />
       )}
@@ -341,15 +371,10 @@ function App() {
         />
       )}
       
-      {/* Wrap all screens that use AppHeader with NavigationProvider */}
+      {/* Org-specific screens */}
       {selectedOrganization && user && (
-        <NavigationProvider
-          onNavigateToDashboard={handleBackToDashboard}
-          onNavigateToGigs={handleNavigateToGigs}
-          onNavigateToTeam={handleNavigateToTeam}
-          onNavigateToAssets={handleNavigateToAssets}
-        >
-              {currentRoute === 'dashboard' && (
+        <>
+          {currentRoute === 'dashboard' && (
             <Dashboard
               organization={selectedOrganization}
               user={user}
@@ -421,8 +446,24 @@ function App() {
               onNavigateToGigs={handleBackToGigList}
               onNavigateToTeam={handleNavigateToTeam}
               onNavigateToAssets={handleNavigateToAssets}
+              onViewMember={handleViewTeamMember}
               onSwitchOrganization={handleBackToSelection}
               onEditProfile={handleEditProfile}
+              onLogout={handleLogout}
+            />
+          )}
+
+          {currentRoute === 'team-member-detail' && selectedMemberId && (
+            <TeamMemberDetailScreen
+              organization={selectedOrganization}
+              user={user}
+              userRole={userRole}
+              memberId={selectedMemberId}
+              onBack={handleBackToTeam}
+              onEdit={(member) => {
+                handleBackToTeam();
+              }}
+              onSwitchOrganization={handleBackToSelection}
               onLogout={handleLogout}
             />
           )}
@@ -435,6 +476,7 @@ function App() {
               onBack={handleBackToDashboard}
               onCreateAsset={handleCreateAsset}
               onViewAsset={handleViewAsset}
+              onEditAsset={handleEditAsset}
               onNavigateToDashboard={handleBackToDashboard}
               onNavigateToGigs={handleBackToGigList}
               onNavigateToAssets={handleNavigateToAssets}
@@ -443,6 +485,19 @@ function App() {
               onSwitchOrganization={handleBackToSelection}
               onLogout={handleLogout}
               useMockData={USE_MOCK_DATA}
+            />
+          )}
+
+          {currentRoute === 'asset-detail' && selectedAssetId && (
+            <AssetDetailScreen
+              organization={selectedOrganization}
+              user={user}
+              userRole={userRole}
+              assetId={selectedAssetId}
+              onBack={handleBackToAssetList}
+              onEdit={handleEditAsset}
+              onSwitchOrganization={handleBackToSelection}
+              onLogout={handleLogout}
             />
           )}
 
@@ -518,7 +573,7 @@ function App() {
               onLogout={handleLogout}
             />
           )}
-        </NavigationProvider>
+        </>
       )}
 
       {currentRoute === 'admin-orgs' && user && (
@@ -540,7 +595,7 @@ function App() {
           onProfileUpdated={handleProfileUpdated}
         />
       )}
-    </>
+    </NavigationProvider>
   );
 }
 

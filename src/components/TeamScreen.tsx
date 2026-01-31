@@ -21,12 +21,13 @@ import {
   Shield,
   Crown,
   User as UserIcon,
-  Pencil,
+  Pencil as Edit,
   Search,
   UserPlus,
   Send,
   X,
-  Clock
+  Clock,
+  Eye
 } from 'lucide-react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -76,10 +77,11 @@ interface TeamScreenProps {
   organization: Organization;
   user: User;
   userRole?: UserRole;
-  onNavigateToDashboard: () => void;
+  onBackToDashboard?: () => void;
   onNavigateToGigs: () => void;
   onNavigateToTeam?: () => void;
   onNavigateToAssets?: () => void;
+  onViewMember?: (memberId: string) => void;
   onSwitchOrganization: () => void;
   onEditProfile?: () => void;
   onLogout: () => void;
@@ -89,10 +91,11 @@ export default function TeamScreen({
   organization,
   user,
   userRole,
-  onNavigateToDashboard,
+  onBackToDashboard,
   onNavigateToGigs,
   onNavigateToTeam,
   onNavigateToAssets,
+  onViewMember,
   onSwitchOrganization,
   onEditProfile,
   onLogout,
@@ -531,30 +534,41 @@ export default function TeamScreen({
                             </div>
                           )}
                         </TableCell>
-                        {canManageTeam && (
-                          <TableCell className="text-right">
-                            <div className="flex items-center justify-end gap-2">
+                        <TableCell className="text-right">
+                          <div className="flex items-center justify-end gap-1">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-8 w-8 p-0 text-gray-500 hover:text-sky-600"
+                              onClick={() => onViewMember?.(member.id)}
+                              title="View"
+                            >
+                              <Eye className="w-4 h-4" />
+                            </Button>
+                            {canManageTeam && (
                               <Button
                                 variant="ghost"
                                 size="sm"
+                                className="h-8 w-8 p-0 text-gray-500 hover:text-sky-600"
                                 onClick={() => openEditDialog(member)}
-                                className="text-gray-600"
+                                title="Edit"
                               >
-                                <Pencil className="w-4 h-4" />
+                                <Edit className="w-4 h-4" />
                               </Button>
-                              {!isCurrentUser && (
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => setMemberToRemove(member)}
-                                  className="text-red-600"
-                                >
-                                  <Trash2 className="w-4 h-4" />
-                                </Button>
-                              )}
-                            </div>
-                          </TableCell>
-                        )}
+                            )}
+                            {canManageTeam && !isCurrentUser && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-8 w-8 p-0 text-gray-500 hover:text-red-600"
+                                onClick={() => setMemberToRemove(member)}
+                                title="Remove"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </Button>
+                            )}
+                          </div>
+                        </TableCell>
                       </TableRow>
                     );
                   })}
