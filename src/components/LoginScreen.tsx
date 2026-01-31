@@ -33,33 +33,26 @@ export default function LoginScreen({ onLogin, useMockData = false }: LoginScree
   const checkExistingSession = async () => {
     if (useMockData) return;
 
+    console.log('[TRACE] LoginScreen: checkExistingSession starting');
     try {
       const supabase = createClient();
+      console.log('[TRACE] LoginScreen: Calling supabase.auth.getSession()');
       const { data: { session }, error: sessionError } = await supabase.auth.getSession();
       
       if (sessionError) {
-        console.error('Session check error:', sessionError);
+        console.error('[TRACE] LoginScreen: Session check error:', sessionError);
         return;
       }
 
       if (session?.user) {
+        console.log('[TRACE] LoginScreen: Existing session found for', session.user.id);
         // User has active session, fetch their data
         await handleAuthenticatedUser(session.access_token, session.user.id);
+      } else {
+        console.log('[TRACE] LoginScreen: No existing session found');
       }
     } catch (err: any) {
-      // Handle network errors gracefully - don't show error if it's a network issue
-      const isNetworkError = err?.message?.includes('Failed to fetch') || 
-                            err?.message?.includes('ERR_INTERNET_DISCONNECTED') ||
-                            err?.code === 'ERR_NETWORK' ||
-                            err?.name === 'TypeError';
-      
-      if (isNetworkError) {
-        console.warn('Network error checking session - user may be offline:', err);
-        // Silently fail - user can still log in manually
-        return;
-      }
-      
-      console.error('Error checking session:', err);
+      console.error('[TRACE] LoginScreen: Exception in checkExistingSession:', err);
     }
   };
 

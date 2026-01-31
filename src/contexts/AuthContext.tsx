@@ -104,10 +104,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const supabase = createClient();
     let mounted = true;
     
+    console.log('[TRACE] AuthContext: Initializing onAuthStateChange listener');
+    
     // Listen for auth changes - this also handles the initial session check
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
-        if (!mounted) return;
+        if (!mounted) {
+          console.log(`[TRACE] AuthContext: onAuthStateChange event ${event} ignored - unmounted`);
+          return;
+        }
         
         const startTime = Date.now();
         console.log(`[TRACE] AuthContext: onAuthStateChange event: ${event} for user: ${session?.user?.id} at ${new Date(startTime).toISOString()}`);
