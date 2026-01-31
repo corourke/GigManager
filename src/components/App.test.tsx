@@ -8,6 +8,7 @@ import * as userService from '../services/user.service'
 vi.mock('../services/user.service', () => ({
   getUserProfile: vi.fn(),
   getUserOrganizations: vi.fn(),
+  getCompleteUserData: vi.fn(),
 }))
 
 // Mock Supabase client

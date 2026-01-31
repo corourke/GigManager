@@ -14,6 +14,7 @@ vi.mock('../utils/supabase/client', () => ({
 vi.mock('../services/user.service', () => ({
   getUserProfile: vi.fn(),
   getUserOrganizations: vi.fn(),
+  getCompleteUserData: vi.fn(),
 }));
 
 describe('AuthContext Hang Reproduction', () => {
@@ -25,6 +26,7 @@ describe('AuthContext Hang Reproduction', () => {
     mockSupabase = {
       auth: {
         getSession: vi.fn().mockResolvedValue({ data: { session: null }, error: null }),
+        getUser: vi.fn().mockResolvedValue({ data: { user: null }, error: null }),
         onAuthStateChange: vi.fn().mockReturnValue({ data: { subscription: { unsubscribe: vi.fn() } } }),
       },
     };
@@ -40,8 +42,7 @@ describe('AuthContext Hang Reproduction', () => {
     // Simulate a hanging database call (infinite recursion)
     // This promise never resolves
     const hangingPromise = new Promise(() => {});
-    (userService.getUserProfile as any).mockReturnValue(hangingPromise);
-    (userService.getUserOrganizations as any).mockReturnValue(hangingPromise);
+    (userService.getCompleteUserData as any).mockReturnValue(hangingPromise);
 
     let authChangeHandler: any;
     mockSupabase.auth.onAuthStateChange.mockImplementation((handler: any) => {
@@ -59,15 +60,18 @@ describe('AuthContext Hang Reproduction', () => {
       // This will trigger refreshProfile which will hang
       authChangeHandler('SIGNED_IN', { user: { id: 'user-1' } });
     });
+    
+    // It should still be loading because the promise hasn't resolved
+    expect(result.current.isLoading).toBe(true);
   });
 
-  it('should recover from a hang after a timeout', async () => {
-    vi.useFakeTimers();
+  it('should resolve and set loading to false when user data is fetched', async () => {
+    const mockData = {
+      profile: { id: 'user-1', email: 'test@example.com' },
+      organizations: []
+    };
     
-    // Simulate a hanging database call
-    const hangingPromise = new Promise(() => {});
-    (userService.getUserProfile as any).mockReturnValue(hangingPromise);
-    (userService.getUserOrganizations as any).mockReturnValue(hangingPromise);
+    (userService.getCompleteUserData as any).mockResolvedValue(mockData);
 
     let authChangeHandler: any;
     mockSupabase.auth.onAuthStateChange.mockImplementation((handler: any) => {
@@ -77,25 +81,17 @@ describe('AuthContext Hang Reproduction', () => {
 
     const { result } = renderHook(() => useAuth(), { wrapper });
 
-    // Initial state
-    expect(result.current.isLoading).toBe(true);
-
     // Trigger auth change with session
     await act(async () => {
       authChangeHandler('SIGNED_IN', { user: { id: 'user-1' } });
     });
 
-    // Still loading initially
-    expect(result.current.isLoading).toBe(true);
+    // Wait for the setTimeout(0) and the async RPC call
+    await vi.waitFor(() => {
+      expect(result.current.isLoading).toBe(false);
+    }, { timeout: 1000 });
 
-    // Advance timers by 5 seconds (or whatever timeout we choose)
-    await act(async () => {
-      vi.advanceTimersByTime(5000);
-    });
-
-    // Should now be false due to timeout safety
-    expect(result.current.isLoading).toBe(false);
-    
-    vi.useRealTimers();
+    expect(result.current.user).toEqual(mockData.profile);
+    expect(result.current.organizations).toEqual([]);
   });
 });

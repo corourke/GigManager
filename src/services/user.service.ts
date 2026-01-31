@@ -11,21 +11,14 @@ const getSupabase = () => createClient();
  * Fetch complete user data (profile + organizations) in one secure call
  */
 export async function getCompleteUserData(userId: string): Promise<{ profile: User | null; organizations: OrganizationMembershipWithOrg[] }> {
-  const startTime = Date.now();
-  console.log(`[TRACE] user.service: getCompleteUserData starting for ${userId}`);
   const supabase = getSupabase();
   
   try {
-    console.log(`[TRACE] user.service: Initiating rpc('get_complete_user_data')`);
     const { data, error } = await supabase.rpc('get_complete_user_data', { user_uuid: userId });
 
-    const duration = Date.now() - startTime;
     if (error) {
-      console.error(`[TRACE] user.service: getCompleteUserData error after ${duration}ms:`, error);
       throw error;
     }
-
-    console.log(`[TRACE] user.service: getCompleteUserData success after ${duration}ms`);
     
     const profile = data?.profile || null;
     const orgs = (data?.organizations || []).map((org: any) => ({
@@ -38,8 +31,6 @@ export async function getCompleteUserData(userId: string): Promise<{ profile: Us
 
     return { profile, organizations: orgs };
   } catch (err) {
-    const duration = Date.now() - startTime;
-    console.error(`[TRACE] user.service: getCompleteUserData exception after ${duration}ms:`, err);
     return { profile: null, organizations: [] };
   }
 }
@@ -48,27 +39,19 @@ export async function getCompleteUserData(userId: string): Promise<{ profile: Us
  * Fetch a user profile by ID
  */
 export async function getUserProfile(userId: string): Promise<User | null> {
-  const startTime = Date.now();
-  console.log(`[TRACE] user.service: getUserProfile starting for ${userId} at ${new Date(startTime).toISOString()}`);
   const supabase = getSupabase();
   try {
-    console.log(`[TRACE] user.service: Calling get_user_profile_secure RPC for ${userId}`);
     const { data, error } = await supabase
       .rpc('get_user_profile_secure', { user_uuid: userId });
 
-    const duration = Date.now() - startTime;
     if (error) {
-      console.error(`[TRACE] user.service: getUserProfile error after ${duration}ms:`, error);
       throw error;
     }
     
     // The RPC returns a SETOF users which comes as an array
     const profile = Array.isArray(data) ? data[0] : data;
-    console.log(`[TRACE] user.service: getUserProfile success after ${duration}ms, found profile: ${!!profile}`);
     return profile || null;
   } catch (err) {
-    const duration = Date.now() - startTime;
-    console.error(`[TRACE] user.service: getUserProfile exception after ${duration}ms:`, err);
     return handleApiError(err, 'fetch user profile');
   }
 }
@@ -219,22 +202,16 @@ export async function searchAllUsers(search: string): Promise<User[]> {
  * Get organizations a user belongs to
  */
 export async function getUserOrganizations(userId: string): Promise<OrganizationMembershipWithOrg[]> {
-  const startTime = Date.now();
-  console.log(`[TRACE] user.service: getUserOrganizations starting for ${userId} at ${new Date(startTime).toISOString()}`);
   const supabase = getSupabase();
   try {
-    console.log(`[TRACE] user.service: Calling get_user_organizations_secure RPC for ${userId}`);
     const { data, error } = await supabase
       .rpc('get_user_organizations_secure', { user_uuid: userId });
 
-    const duration = Date.now() - startTime;
     if (error) {
-      console.error(`[TRACE] user.service: getUserOrganizations error after ${duration}ms:`, error);
       throw error;
     }
 
     let orgs = data || [];
-    console.log(`[TRACE] user.service: getUserOrganizations success after ${duration}ms, found ${orgs.length} orgs`);
 
     // Optional: If we want to be extra sure about permissions when querying someone else,
     // we could fetch the current session here, but for self-queries (the common case),
@@ -250,8 +227,6 @@ export async function getUserOrganizations(userId: string): Promise<Organization
       organization: org.organization
     }));
   } catch (err) {
-    const duration = Date.now() - startTime;
-    console.error(`[TRACE] user.service: getUserOrganizations exception after ${duration}ms:`, err);
     return handleApiError(err, 'fetch user organizations');
   }
 }
