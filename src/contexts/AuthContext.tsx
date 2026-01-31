@@ -6,7 +6,7 @@ import {
   OrganizationMembership, 
   UserRole 
 } from '../utils/supabase/types';
-import { getUserProfile, getUserOrganizations } from '../services/user.service';
+import { getCompleteUserData } from '../services/user.service';
 
 interface AuthContextType {
   user: User | null;
@@ -42,11 +42,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const refreshProfile = useCallback(async (providedSession?: any) => {
     if (isRefreshing.current) {
-      console.log('AuthContext: refreshProfile already in progress, skipping');
+      console.log('[TRACE] AuthContext: refreshProfile already in progress, skipping');
       return;
     }
     
-    console.log('AuthContext: refreshProfile starting');
+    console.log('[TRACE] AuthContext: refreshProfile starting');
     isRefreshing.current = true;
     
     const supabase = createClient();
@@ -55,17 +55,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const session = providedSession || (await supabase.auth.getSession()).data.session;
       
       if (session?.user) {
-        console.log('AuthContext: Session found for user', session.user.id);
+        console.log('[TRACE] AuthContext: Session found for user', session.user.id);
         
-        console.log('[TRACE] AuthContext: Fetching profile...');
-        const profile = await getUserProfile(session.user.id);
-        console.log('[TRACE] AuthContext: Profile fetch complete');
+        // Fetch complete user data in one single secure RPC call
+        console.log('[TRACE] AuthContext: Fetching complete user data...');
+        const { profile, organizations: orgs } = await getCompleteUserData(session.user.id);
         
-        console.log('[TRACE] AuthContext: Fetching organizations...');
-        const orgs = await getUserOrganizations(session.user.id);
-        console.log('[TRACE] AuthContext: Organizations fetch complete');
-        
-        console.log('AuthContext: Fetched profile and orgs', { 
+        console.log('[TRACE] AuthContext: Complete user data fetch finished', { 
           hasProfile: !!profile, 
           orgCount: orgs?.length 
         });
@@ -74,33 +70,32 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           setUser(profile);
           setOrganizations(orgs);
           
-          // If we had a selected org before, try to keep it
-          if (selectedOrganization) {
-            const stillMember = orgs.find(m => m.organization.id === selectedOrganization.id);
-            if (stillMember) {
-              selectOrganization(stillMember.organization);
-            } else if (orgs.length === 1) {
-              selectOrganization(orgs[0].organization);
-            } else {
-              selectOrganization(null);
-            }
-          } else if (orgs.length === 1) {
+          // Auto-select organization if appropriate
+          if (!selectedOrganization && orgs.length === 1) {
             selectOrganization(orgs[0].organization);
+          } else if (selectedOrganization) {
+            const stillMember = orgs.find(m => m.organization.id === selectedOrganization.id);
+            if (!stillMember) {
+              selectOrganization(orgs.length === 1 ? orgs[0].organization : null);
+            }
           }
         } else {
-          console.warn('AuthContext: No profile found for authenticated user');
+          console.warn('[TRACE] AuthContext: No profile found for authenticated user');
         }
       } else {
-        console.log('AuthContext: No session found in refreshProfile');
+        console.log('[TRACE] AuthContext: No session found in refreshProfile');
+        setUser(null);
+        setOrganizations([]);
+        selectOrganization(null);
       }
     } catch (error) {
-      console.error('AuthContext: Error refreshing profile:', error);
+      console.error('[TRACE] AuthContext: Error refreshing profile:', error);
     } finally {
-      console.log('AuthContext: Setting isLoading to false');
+      console.log('[TRACE] AuthContext: refreshProfile complete, setting isLoading=false');
       setIsLoading(false);
       isRefreshing.current = false;
     }
-  }, [selectedOrganization, organizations]);
+  }, [selectedOrganization]); // Removed organizations from deps to reduce re-creation
 
   const refreshProfileRef = React.useRef(refreshProfile);
   refreshProfileRef.current = refreshProfile;
@@ -133,7 +128,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           }
         } catch (error) {
           console.error(`[TRACE] AuthContext: Error in onAuthStateChange handler for ${event} after ${Date.now() - startTime}ms:`, error);
-          setIsLoading(false); // Ensure we don't stay loading on error
+        } finally {
+          // Always ensure loading is false after initial check or event handling
+          if (mounted) {
+            console.log(`[TRACE] AuthContext: Finally setting isLoading=false for ${event}`);
+            setIsLoading(false);
+          }
         }
       }
     );

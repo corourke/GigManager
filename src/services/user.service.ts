@@ -8,6 +8,42 @@ import { handleApiError } from '../utils/api-error-utils';
 const getSupabase = () => createClient();
 
 /**
+ * Fetch complete user data (profile + organizations) in one secure call
+ */
+export async function getCompleteUserData(userId: string): Promise<{ profile: User | null; organizations: OrganizationMembershipWithOrg[] }> {
+  const startTime = Date.now();
+  console.log(`[TRACE] user.service: getCompleteUserData starting for ${userId}`);
+  const supabase = getSupabase();
+  try {
+    const { data, error } = await supabase
+      .rpc('get_complete_user_data', { user_uuid: userId });
+
+    const duration = Date.now() - startTime;
+    if (error) {
+      console.error(`[TRACE] user.service: getCompleteUserData error after ${duration}ms:`, error);
+      throw error;
+    }
+
+    console.log(`[TRACE] user.service: getCompleteUserData success after ${duration}ms`);
+    
+    const profile = data?.profile || null;
+    const orgs = (data?.organizations || []).map((org: any) => ({
+      user_id: org.user_id,
+      organization_id: org.organization_id,
+      role: org.role,
+      joined_at: org.created_at,
+      organization: org.organization
+    }));
+
+    return { profile, organizations: orgs };
+  } catch (err) {
+    const duration = Date.now() - startTime;
+    console.error(`[TRACE] user.service: getCompleteUserData exception after ${duration}ms:`, err);
+    return { profile: null, organizations: [] };
+  }
+}
+
+/**
  * Fetch a user profile by ID
  */
 export async function getUserProfile(userId: string): Promise<User | null> {

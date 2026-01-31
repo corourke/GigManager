@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Building2, Mail, Lock, Loader2, AlertCircle } from 'lucide-react';
 import { createClient } from '../utils/supabase/client';
-import { getUserProfile, createUserProfile, getUserOrganizations } from '../services/user.service';
 import { convertPendingToActive } from '../services/organization.service';
 import { User, OrganizationMembership } from '../utils/supabase/types';
 import { MOCK_USER, MOCK_ORGANIZATIONS } from '../utils/mock-data';
@@ -66,117 +65,32 @@ export default function LoginScreen({ onLogin, useMockData = false }: LoginScree
 
   const handleAuthenticatedUser = async (accessToken: string, userId: string) => {
     try {
+      console.log('[TRACE] LoginScreen: handleAuthenticatedUser starting for', userId);
       setIsLoading(true);
-      console.log('=== AUTHENTICATING USER ===');
-      console.log('User ID:', userId);
 
-      // Get user metadata from Supabase auth
+      // Get user metadata from Supabase auth for conversion check
       const supabase = createClient();
-      let authUser;
-      try {
-        const { data: { user } } = await supabase.auth.getUser();
-        authUser = user;
-      } catch (authErr: any) {
-        const isNetworkError = authErr?.message?.includes('Failed to fetch') || 
-                              authErr?.code === 'ERR_NETWORK' ||
-                              authErr?.name === 'TypeError';
-        if (isNetworkError) {
-          throw new Error('Network error: Unable to connect to server. Please check your internet connection.');
-        }
-        throw authErr;
-      }
-
+      const { data: { user: authUser } } = await supabase.auth.getUser();
       const userEmail = authUser?.email || email;
 
       // Check if there's a pending user with this email and convert to active
       if (userEmail) {
         try {
-          const convertedUser = await convertPendingToActive(userEmail, userId);
-          if (convertedUser) {
-            console.log('Converted pending user to active:', convertedUser);
-          }
-        } catch (convertErr: any) {
-          // Non-critical error, continue
-          console.warn('Error converting pending user:', convertErr);
+          console.log('[TRACE] LoginScreen: Checking for pending user conversion...');
+          await convertPendingToActive(userEmail, userId);
+        } catch (convertErr) {
+          console.warn('[TRACE] LoginScreen: Error converting pending user:', convertErr);
         }
       }
 
-      // Fetch or create user profile using direct Supabase client
-      let userProfile;
-      try {
-        userProfile = await getUserProfile(userId);
-      } catch (profileErr: any) {
-        const isNetworkError = profileErr?.message?.includes('Failed to fetch') || 
-                              profileErr?.code === 'ERR_NETWORK' ||
-                              profileErr?.name === 'TypeError';
-        if (isNetworkError) {
-          throw new Error('Network error: Unable to fetch user profile. Please check your internet connection.');
-        }
-        throw profileErr;
-      }
-
-      if (!userProfile) {
-        // User doesn't exist, create profile
-        console.log('User profile not found, creating new profile...');
-        
-        try {
-          userProfile = await createUserProfile({
-            id: userId,
-            email: userEmail,
-            first_name: firstName || authUser?.user_metadata?.first_name || 'User',
-            last_name: lastName || authUser?.user_metadata?.last_name || '',
-            avatar_url: authUser?.user_metadata?.avatar_url || authUser?.user_metadata?.picture,
-          });
-          
-          console.log('User profile created successfully');
-        } catch (createErr: any) {
-          const isNetworkError = createErr?.message?.includes('Failed to fetch') || 
-                                createErr?.code === 'ERR_NETWORK' ||
-                                createErr?.name === 'TypeError';
-          if (isNetworkError) {
-            throw new Error('Network error: Unable to create user profile. Please check your internet connection.');
-          }
-          throw createErr;
-        }
-      }
-
-      // Fetch user's organizations
-      let orgsData;
-      try {
-        orgsData = await getUserOrganizations(userId);
-      } catch (orgErr: any) {
-        const isNetworkError = orgErr?.message?.includes('Failed to fetch') || 
-                              orgErr?.code === 'ERR_NETWORK' ||
-                              orgErr?.name === 'TypeError';
-        if (isNetworkError) {
-          throw new Error('Network error: Unable to fetch organizations. Please check your internet connection.');
-        }
-        throw orgErr;
-      }
-
-      // Transform to app format
-      const user: User = {
-        id: userProfile.id,
-        email: userProfile.email,
-        first_name: userProfile.first_name || '',
-        last_name: userProfile.last_name || '',
-        avatar_url: userProfile.avatar_url,
-      };
-
-      const organizations: OrganizationMembership[] = orgsData.map((membership: any) => ({
-        organization: membership.organization,
-        role: membership.role,
-      }));
-
-      console.log('Authentication successful:', { user, organizations: organizations.length });
-
-      // Call onLogin callback
-      onLogin(user, organizations);
-      setIsLoading(false);
+      console.log('[TRACE] LoginScreen: Authentication handling complete. Relying on AuthContext for data fetching.');
+      // Note: We don't call onLogin here because AuthContext's onAuthStateChange 
+      // will detect the session and call refreshProfile automatically.
+      
     } catch (err: any) {
-      console.error('Error handling authenticated user:', err);
-      const errorMessage = err?.message || 'Failed to load user data';
-      setError(errorMessage);
+      console.error('[TRACE] LoginScreen: Error handling authenticated user:', err);
+      setError(err?.message || 'Failed to handle authentication');
+    } finally {
       setIsLoading(false);
     }
   };
