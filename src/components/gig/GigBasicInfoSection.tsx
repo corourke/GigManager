@@ -16,6 +16,7 @@ import SaveStateIndicator from './SaveStateIndicator';
 import { toast } from 'sonner';
 import { GigStatus } from '../../utils/supabase/types';
 import { GIG_STATUS_CONFIG } from '../../utils/supabase/constants';
+import { formatForDateTimeInput, parseLocalToUTC } from '../../utils/dateUtils';
 
 const basicInfoSchema = z.object({
   title: z.string().min(1, 'Title is required').max(200, 'Title must be less than 200 characters'),
@@ -242,8 +243,11 @@ export default function GigBasicInfoSection({ gigId, onCreate, isSubmitting: ext
                       <Input
                         id="start_time"
                         type="datetime-local"
-                        value={field.value ? format(field.value, "yyyy-MM-dd'T'HH:mm") : ''}
-                        onChange={(e) => field.onChange(e.target.value ? new Date(e.target.value) : undefined)}
+                        value={formatForDateTimeInput(field.value || '', watch('timezone'))}
+                        onChange={(e) => {
+                          const utcIso = parseLocalToUTC(e.target.value, watch('timezone'));
+                          field.onChange(utcIso ? new Date(utcIso) : undefined);
+                        }}
                         className={`pl-9 ${errors.start_time ? 'border-red-500' : ''}`}
                         disabled={isSubmitting}
                       />
@@ -271,8 +275,11 @@ export default function GigBasicInfoSection({ gigId, onCreate, isSubmitting: ext
                       <Input
                         id="end_time"
                         type="datetime-local"
-                        value={field.value ? format(field.value, "yyyy-MM-dd'T'HH:mm") : ''}
-                        onChange={(e) => field.onChange(e.target.value ? new Date(e.target.value) : undefined)}
+                        value={formatForDateTimeInput(field.value || '', watch('timezone'))}
+                        onChange={(e) => {
+                          const utcIso = parseLocalToUTC(e.target.value, watch('timezone'));
+                          field.onChange(utcIso ? new Date(utcIso) : undefined);
+                        }}
                         className={`pl-9 ${errors.end_time ? 'border-red-500' : ''}`}
                         disabled={isSubmitting}
                       />

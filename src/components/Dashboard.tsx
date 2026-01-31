@@ -319,7 +319,7 @@ export default function Dashboard({
                       title: g.title,
                       start: g.start,
                       end: g.end || g.start, // Use actual end time if available
-                      timezone: g.timezone || 'America/Los_Angeles', // Use gig timezone or default
+                      timezone: g.timezone, // Pass whatever the API gives (undefined will fallback to local)
                       status: g.status as any,
                       tags: [],
                       venue: g.venue ? { id: '', name: g.venue, type: 'Venue' } as any : undefined,

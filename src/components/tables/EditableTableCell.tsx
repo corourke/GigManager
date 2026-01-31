@@ -12,6 +12,7 @@ import TagsInput from '../TagsInput';
 import { Organization } from '../../utils/supabase/types';
 import { format } from 'date-fns';
 import { cn } from '../ui/utils';
+import { formatInTimeZone, formatForDateTimeInput } from '../../utils/dateUtils';
 
 interface SelectOption {
   value: string;
@@ -91,23 +92,14 @@ export default function EditableTableCell({
       return value.length > 0 ? value.join(', ') : '';
     }
     if (type === 'datetime-local' && value) {
-      try {
-        const date = new Date(value as string);
-        if (isNaN(date.getTime())) return value as string;
-        
-        const options: Intl.DateTimeFormatOptions = {
-          month: 'short',
-          day: 'numeric',
-          year: 'numeric',
-          hour: 'numeric',
-          minute: '2-digit',
-          hour12: true,
-          timeZone: timezone
-        };
-        return date.toLocaleString('en-US', options);
-      } catch (e) {
-        return value as string;
-      }
+      return formatInTimeZone(value as string, timezone, {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true,
+      });
     }
     return value ?? '';
   };
@@ -442,16 +434,7 @@ export default function EditableTableCell({
             <Input
               ref={inputRef as React.RefObject<HTMLInputElement>}
               type="datetime-local"
-              value={(() => {
-                if (!editValue) return '';
-                try {
-                  const date = new Date(editValue);
-                  if (isNaN(date.getTime())) return typeof editValue === 'string' ? editValue : '';
-                  return format(date, "yyyy-MM-dd'T'HH:mm");
-                } catch (e) {
-                  return typeof editValue === 'string' ? editValue : '';
-                }
-              })()}
+              value={formatForDateTimeInput(editValue as string, timezone)}
               onChange={(e) => updateValue(e.target.value)}
               onKeyDown={onKeyDown}
               onBlur={handleBlur}

@@ -43,6 +43,7 @@ import EditableTableCell from './EditableTableCell';
 import * as api from '../../services/gig.service';
 import { GigStatus, Gig } from '../../utils/supabase/types';
 import { GIG_STATUS_CONFIG } from '../../utils/supabase/constants';
+import { formatDateDisplay, formatTimeRangeDisplay } from '../../utils/dateUtils';
 
 interface GigTableProps {
   gigs: Gig[];
@@ -94,56 +95,9 @@ export default function GigTable({
   onCreateGig,
 }: GigTableProps) {
 
-  const formatDate = (dateString: string, timezone?: string) => {
-    try {
-      const date = new Date(dateString);
-      return date.toLocaleDateString('en-US', {
-        month: 'short',
-        day: 'numeric',
-        year: 'numeric',
-        timeZone: timezone
-      });
-    } catch (e) {
-      // Fallback to local time if timezone is invalid
-      return new Date(dateString).toLocaleDateString('en-US', {
-        month: 'short',
-        day: 'numeric',
-        year: 'numeric'
-      });
-    }
-  };
-
-  const formatTime = (start: string, end: string, timezone?: string) => {
-    const options: Intl.DateTimeFormatOptions = {
-      hour: 'numeric',
-      minute: '2-digit',
-      hour12: true,
-      timeZone: timezone
-    };
-    
-    try {
-      const startTime = new Date(start).toLocaleTimeString('en-US', options);
-      const endTime = new Date(end).toLocaleTimeString('en-US', options);
-      return `${startTime} - ${endTime}`;
-    } catch (e) {
-      // Fallback to local time if timezone is invalid
-      const startTime = new Date(start).toLocaleTimeString('en-US', {
-        hour: 'numeric',
-        minute: '2-digit',
-        hour12: true
-      });
-      const endTime = new Date(end).toLocaleTimeString('en-US', {
-        hour: 'numeric',
-        minute: '2-digit',
-        hour12: true
-      });
-      return `${startTime} - ${endTime}`;
-    }
-  };
-
   const formatDateTime = (start: string, end: string, timezone?: string) => {
-    const date = formatDate(start, timezone);
-    const time = formatTime(start, end, timezone);
+    const date = formatDateDisplay(start, timezone);
+    const time = formatTimeRangeDisplay(start, end, timezone);
     return `${date} ${time}`;
   };
 

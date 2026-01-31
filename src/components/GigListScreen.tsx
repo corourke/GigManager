@@ -23,6 +23,7 @@ import { toast } from 'sonner';
 import { Organization, User, UserRole, GigStatus, Gig } from '../utils/supabase/types';
 import { GIG_STATUS_CONFIG } from '../utils/supabase/constants';
 import { MOCK_VENUES, MOCK_ACTS } from '../utils/mock-data';
+import { parseLocalToUTC } from '../utils/dateUtils';
 
 interface GigListScreenProps {
   organization: Organization;
@@ -112,11 +113,8 @@ export default function GigListScreen({
       // Process date fields
       let processedValue = value;
       if ((field === 'start' || field === 'end') && typeof value === 'string' && value.includes('T')) {
-        try {
-          processedValue = new Date(value).toISOString();
-        } catch (e) {
-          console.error(`Invalid date value for ${field}:`, value);
-        }
+        const gig = gigs.find(g => g.id === gigId);
+        processedValue = parseLocalToUTC(value, gig?.timezone);
       }
 
       // Optimistic update
