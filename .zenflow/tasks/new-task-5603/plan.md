@@ -37,15 +37,15 @@ Save the output to `.zenflow/tasks/new-task-5603/spec.md`.
 
 ### [ ] Step: Implementation
 
-#### [ ] Substep: Fix Team Screen RLS and Invitation Bug
+#### [x] Substep: Fix Team Screen RLS and Invitation Bug
 - Add `INSERT` policy for `users` table in a new migration.
 - Verify invitation works.
 
-#### [ ] Substep: Standardize Row Actions Across Lists
+#### [x] Substep: Standardize Row Actions Across Lists
 - Modify `GigTable.tsx`, `TeamScreen.tsx`, and `AssetListScreen.tsx`.
 - Move actions to the end of the row as individual buttons.
 
-#### [ ] Substep: Enhance Gig List Spreadsheet Experience
+#### [x] Substep: Enhance Gig List Spreadsheet Experience
 - Implement `Tab`/`Shift+Tab` navigation in `EditableTableCell.tsx` and `GigTable.tsx`.
 - Update cell styling and prevent layout shifts.
 - Restore inline date/time editing in `GigTable.tsx`.

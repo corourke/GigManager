@@ -41,23 +41,74 @@ export const formatDateDisplay = (date: string | Date, timeZone?: string): strin
 };
 
 /**
- * Formats a time range for display (e.g., "12:00 PM - 3:00 PM")
+ * Formats a date with full month name and weekday (e.g., "Saturday, January 31, 2026")
  */
-export const formatTimeRangeDisplay = (
+export const formatDateLong = (date: string | Date, timeZone?: string): string => {
+  return formatInTimeZone(date, timeZone, {
+    weekday: 'long',
+    month: 'long',
+    day: 'numeric',
+    year: 'numeric',
+  });
+};
+
+/**
+ * Formats only the time portion (e.g., "8:00 PM")
+ */
+export const formatTimeDisplay = (date: string | Date, timeZone?: string): string => {
+  return formatInTimeZone(date, timeZone, {
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+  });
+};
+
+/**
+ * Formats a date and time range for display according to business rules:
+ * - Always show start date.
+ * - If gig is < 24h and ends on a different day: Show "Start Date, Start Time - End Time"
+ * - If gig is >= 24h: Show "Start Date, Start Time - End Date, End Time"
+ */
+export const formatDateTimeDisplay = (
   start: string | Date,
   end: string | Date,
   timeZone?: string
 ): string => {
-  const options: Intl.DateTimeFormatOptions = {
+  if (!start) return '';
+  const startDate = typeof start === 'string' ? new Date(start) : start;
+  const endDate = typeof end === 'string' ? new Date(end) : end;
+  
+  const dateStr = formatDateDisplay(start, timeZone);
+  const timeOptions: Intl.DateTimeFormatOptions = {
     hour: 'numeric',
     minute: '2-digit',
     hour12: true,
   };
 
-  const startTime = formatInTimeZone(start, timeZone, options);
-  const endTime = formatInTimeZone(end, timeZone, options);
-  
-  return `${startTime} - ${endTime}`;
+  const startTimeStr = formatInTimeZone(start, timeZone, timeOptions);
+  const endTimeStr = formatInTimeZone(end, timeZone, timeOptions);
+
+  // If start and end are the same, just show start date and time
+  if (startDate.getTime() === endDate.getTime()) {
+    return `${dateStr} ${startTimeStr}`;
+  }
+
+  // Calculate duration in hours
+  const durationHours = (endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60);
+
+  // Check if they are on the same calendar day in the target timezone
+  const startDay = formatInTimeZone(start, timeZone, { day: 'numeric' });
+  const endDay = formatInTimeZone(end, timeZone, { day: 'numeric' });
+  const sameDay = startDay === endDay;
+
+  if (durationHours < 24) {
+    // Less than 24 hours: "Date StartTime - EndTime" (even if it crosses midnight)
+    return `${dateStr} ${startTimeStr} - ${endTimeStr}`;
+  } else {
+    // 24 hours or more: "Date StartTime - Date EndTime"
+    const endDateStr = formatDateDisplay(end, timeZone);
+    return `${dateStr} ${startTimeStr} - ${endDateStr} ${endTimeStr}`;
+  }
 };
 
 /**

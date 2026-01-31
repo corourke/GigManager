@@ -21,6 +21,7 @@ import AppHeader from './AppHeader';
 import { Organization, User, UserRole, Gig } from '../utils/supabase/types';
 import { GIG_STATUS_CONFIG } from '../utils/supabase/constants';
 import { getGig, deleteGig, duplicateGig } from '../services/gig.service';
+import { formatDateLong, formatTimeDisplay, formatInTimeZone } from '../utils/dateUtils';
 
 interface GigDetailScreenProps {
   gigId: string;
@@ -108,17 +109,6 @@ export default function GigDetailScreen({
     return null;
   }
 
-  const startDate = new Date(gig.start);
-  const endDate = new Date(gig.end);
-
-  const formatTime = (date: Date) => {
-    return date.toLocaleTimeString('en-US', {
-      hour: 'numeric',
-      minute: '2-digit',
-      hour12: true
-    });
-  };
-
   return (
     <div className="min-h-screen bg-gray-50">
       <AppHeader
@@ -193,12 +183,7 @@ export default function GigDetailScreen({
                     <div>
                       <p className="text-xs font-medium text-gray-500 uppercase">Date</p>
                       <p className="text-gray-900 font-medium">
-                        {startDate.toLocaleDateString('en-US', { 
-                          weekday: 'long', 
-                          year: 'numeric', 
-                          month: 'long', 
-                          day: 'numeric' 
-                        })}
+                        {formatDateLong(gig.start, gig.timezone)}
                       </p>
                     </div>
                   </div>
@@ -208,7 +193,7 @@ export default function GigDetailScreen({
                     <div>
                       <p className="text-xs font-medium text-gray-500 uppercase">Time</p>
                       <p className="text-gray-900 font-medium">
-                        {formatTime(startDate)} - {formatTime(endDate)}
+                        {formatTimeDisplay(gig.start, gig.timezone)} - {formatTimeDisplay(gig.end, gig.timezone)}
                       </p>
                       <p className="text-xs text-gray-500 mt-0.5">{gig.timezone}</p>
                     </div>
@@ -313,10 +298,10 @@ export default function GigDetailScreen({
             {/* Timestamps */}
             <div className="px-2 space-y-1">
               <p className="text-[10px] text-gray-400 uppercase">
-                Created: {new Date(gig.created_at || '').toLocaleString()}
+                Created: {formatInTimeZone(gig.created_at || '', undefined, { dateStyle: 'medium', timeStyle: 'short' })}
               </p>
               <p className="text-[10px] text-gray-400 uppercase">
-                Last Updated: {new Date(gig.updated_at || '').toLocaleString()}
+                Last Updated: {formatInTimeZone(gig.updated_at || '', undefined, { dateStyle: 'medium', timeStyle: 'short' })}
               </p>
             </div>
           </div>

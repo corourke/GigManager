@@ -1,8 +1,9 @@
 ## When logged in as an Admin user. 
 
 ### At the Gig List Screen
-[ ] There is no way to navigate to the Gig Edit Screen because when clicking the Edit row menu choice, the Time and Date dialog appears instead. The Edit choice should take the user to the Gig Edit screen. 
+[x] There is no way to navigate to the Gig Edit Screen because when clicking the Edit row menu choice, the Time and Date dialog appears instead. The Edit choice should take the user to the Gig Edit screen. 
 [ ] The Gig List was intended to be a spreadsheet-like experience that allows for rapid entry and editing of rows. Right now you click into controls, rather than tabbing between columns. This needs to be more fluid, similar to the way tables operate in Coda or Notion. 
+    [ ] Make the table dimensions fixed so that it is not changing all the time.
     [ ] Allow TAB to go forward a column, and Shift-TAB to go backwards. 
     [ ] When in a cell, make the cell selection less jarring. Don't add a large outline, a subtle shading will do, don't allow the data to shift around due to padding, don't change the column width. 
     [ ] For select lists, allow typing in the field and allow the typing to narrow a list of selections, with a TAB selecting the highlighted selection. Similar to how Excel works. Also Coda does a good job of this. 
@@ -69,6 +70,7 @@
     at handleGigEdit (GigListScreen.tsx:151:5)
     at onClick (GigTable.tsx:387:42)
 [ ] Gig detail view should not show financials if we are not the gig owner. 
+[ ] Note that if the End date/time goes into another day, we only show the starting date and end time, unless the gig is more than 24 hours long
 
 ## Smoke Tests to Perform
 After applying migrations and before proceeding to the next issue, perform these manual smoke tests to ensure the changes work as intended:

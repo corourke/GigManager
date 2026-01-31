@@ -122,6 +122,8 @@ export default function EditableTableCell({
           editValue = value || '__none__';
         } else if (type === 'tags') {
           editValue = Array.isArray(value) ? value : [];
+        } else if (type === 'datetime-local') {
+          editValue = formatForDateTimeInput(value as string, timezone);
         } else {
           editValue = displayValue;
         }
@@ -434,7 +436,7 @@ export default function EditableTableCell({
             <Input
               ref={inputRef as React.RefObject<HTMLInputElement>}
               type="datetime-local"
-              value={formatForDateTimeInput(editValue as string, timezone)}
+              value={(editValue as string) || ''}
               onChange={(e) => updateValue(e.target.value)}
               onKeyDown={onKeyDown}
               onBlur={handleBlur}

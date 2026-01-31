@@ -35,6 +35,7 @@ import { createGig } from '../services/gig.service';
 import { createAsset } from '../services/asset.service';
 import { searchOrganizations, createOrganization } from '../services/organization.service';
 import { createClient } from '../utils/supabase/client';
+import { parseLocalToUTC } from '../utils/dateUtils';
 
 interface ImportScreenProps {
   organization: Organization;
@@ -216,8 +217,8 @@ export default function ImportScreen({
 
             const createdGig = await createGig({
               title: gigData.title,
-              start: new Date(gigData.start).toISOString(),
-              end: new Date(gigData.end).toISOString(),
+              start: parseLocalToUTC(gigData.start, gigData.timezone),
+              end: parseLocalToUTC(gigData.end, gigData.timezone),
               timezone: gigData.timezone,
               status: gigData.status as any,
               tags: parseTags(gigData.tags),

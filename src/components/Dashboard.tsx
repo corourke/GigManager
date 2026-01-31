@@ -55,6 +55,8 @@ interface DashboardStats {
     title: string;
     start: string;
     end?: string;
+    end_time?: string;
+    endTime?: string;
     timezone?: string;
     status: string;
     act: string;
@@ -318,7 +320,7 @@ export default function Dashboard({
                       id: g.id,
                       title: g.title,
                       start: g.start,
-                      end: g.end || g.start, // Use actual end time if available
+                      end: g.end || g.end_time || g.endTime || g.start, // Try various field names for end time
                       timezone: g.timezone, // Pass whatever the API gives (undefined will fallback to local)
                       status: g.status as any,
                       tags: [],

@@ -43,7 +43,7 @@ import EditableTableCell from './EditableTableCell';
 import * as api from '../../services/gig.service';
 import { GigStatus, Gig } from '../../utils/supabase/types';
 import { GIG_STATUS_CONFIG } from '../../utils/supabase/constants';
-import { formatDateDisplay, formatTimeRangeDisplay } from '../../utils/dateUtils';
+import { formatDateDisplay, formatDateTimeDisplay } from '../../utils/dateUtils';
 
 interface GigTableProps {
   gigs: Gig[];
@@ -96,9 +96,7 @@ export default function GigTable({
 }: GigTableProps) {
 
   const formatDateTime = (start: string, end: string, timezone?: string) => {
-    const date = formatDateDisplay(start, timezone);
-    const time = formatTimeRangeDisplay(start, end, timezone);
-    return `${date} ${time}`;
+    return formatDateTimeDisplay(start, end, timezone);
   };
 
 
