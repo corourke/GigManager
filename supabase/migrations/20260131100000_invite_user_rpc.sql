@@ -1,7 +1,7 @@
 -- Migration: Add secure RPC for inviting users
 -- Created at: 2026-01-31
 
-=CREATE OR REPLACE FUNCTION invite_user_to_organization(
+CREATE OR REPLACE FUNCTION invite_user_to_organization(
   p_organization_id UUID,
   p_email TEXT,
   p_role TEXT,

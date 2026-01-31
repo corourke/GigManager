@@ -28,6 +28,7 @@ interface GigScreenProps {
   onGigUpdated?: () => void;
   onGigDeleted?: () => void;
   onSwitchOrganization: () => void;
+  onEditProfile?: () => void;
   onLogout: () => void;
 }
 
@@ -41,6 +42,7 @@ export default function GigScreen({
   onGigUpdated,
   onGigDeleted,
   onSwitchOrganization,
+  onEditProfile,
   onLogout,
 }: GigScreenProps) {
   const [isLoading, setIsLoading] = useState(!!gigId);
@@ -145,6 +147,7 @@ export default function GigScreen({
         userRole={userRole}
         currentRoute="create-gig"
         onSwitchOrganization={onSwitchOrganization}
+        onEditProfile={onEditProfile}
         onLogout={onLogout}
       />
 

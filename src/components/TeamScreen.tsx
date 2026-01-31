@@ -77,7 +77,7 @@ interface TeamScreenProps {
   organization: Organization;
   user: User;
   userRole?: UserRole;
-  onBackToDashboard?: () => void;
+  onNavigateToDashboard?: () => void;
   onNavigateToGigs: () => void;
   onNavigateToTeam?: () => void;
   onNavigateToAssets?: () => void;
@@ -91,7 +91,7 @@ export default function TeamScreen({
   organization,
   user,
   userRole,
-  onBackToDashboard,
+  onNavigateToDashboard,
   onNavigateToGigs,
   onNavigateToTeam,
   onNavigateToAssets,
@@ -419,9 +419,9 @@ export default function TeamScreen({
         onLogout={onLogout}
       />
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
         {/* Header */}
-        <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-3">
             <Users className="w-8 h-8 text-gray-700" />
             <div>
@@ -467,8 +467,8 @@ export default function TeamScreen({
         )}
 
         {/* Members Table */}
-        <Card className="p-6 mb-6">
-          <h2 className="mb-4 text-gray-900">Active Members</h2>
+        <Card className="p-4 mb-4">
+          <h2 className="mb-3 text-gray-900">Active Members</h2>
           {membersError ? (
             <div className="text-center py-12">
               <div className="text-red-500 mb-4">Error loading team members</div>

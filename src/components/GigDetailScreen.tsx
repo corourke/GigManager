@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { 
-  ChevronLeft, 
+  ArrowLeft, 
   Calendar, 
   Clock, 
   MapPin, 
@@ -11,7 +11,8 @@ import {
   Copy, 
   Loader2,
   DollarSign,
-  FileText
+  FileText,
+  Music
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from './ui/button';
@@ -21,7 +22,7 @@ import AppHeader from './AppHeader';
 import { Organization, User, UserRole, Gig } from '../utils/supabase/types';
 import { GIG_STATUS_CONFIG } from '../utils/supabase/constants';
 import { getGig, deleteGig, duplicateGig } from '../services/gig.service';
-import { formatDateLong, formatTimeDisplay, formatInTimeZone } from '../utils/dateUtils';
+import { formatDateLong, formatTimeDisplay, formatInTimeZone, formatDateTimeDisplay } from '../utils/dateUtils';
 
 interface GigDetailScreenProps {
   gigId: string;
@@ -109,6 +110,8 @@ export default function GigDetailScreen({
     return null;
   }
 
+  const canViewFinancials = gig.created_by === user.id || userRole === 'Admin' || userRole === 'Manager';
+
   return (
     <div className="min-h-screen bg-gray-50">
       <AppHeader
@@ -120,18 +123,19 @@ export default function GigDetailScreen({
         onLogout={onLogout}
       />
 
-      <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
         {/* Navigation & Actions */}
-        <div className="mb-8">
-          <Button variant="ghost" onClick={onBack} className="mb-4 -ml-2">
-            <ChevronLeft className="w-4 h-4 mr-2" />
+        <div className="mb-4">
+          <Button variant="ghost" onClick={onBack} className="mb-2 -ml-2">
+            <ArrowLeft className="w-4 h-4 mr-2" />
             Back to Gigs
           </Button>
 
-          <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
+          <div className="flex items-start justify-between">
             <div className="flex-1">
               <div className="flex items-center gap-3 mb-2">
-                <h1 className="text-gray-900 leading-tight">{gig.title}</h1>
+                <Music className="w-8 h-8 text-sky-500" />
+                <h1 className="text-2xl font-bold text-gray-900 leading-tight">{gig.title}</h1>
               </div>
               <div className="flex flex-wrap items-center gap-2">
                 <Badge variant="outline" className={GIG_STATUS_CONFIG[gig.status].color}>
@@ -170,37 +174,27 @@ export default function GigDetailScreen({
           </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
           {/* Main Info Columns */}
-          <div className="lg:col-span-2 space-y-6">
+          <div className="lg:col-span-2 space-y-4">
             {/* Details Card */}
-            <Card className="p-6">
-              <h3 className="text-sm font-semibold text-gray-900 uppercase tracking-wider mb-6">Gig Details</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                <div className="space-y-6">
+            <Card className="p-4">
+              <h3 className="text-sm font-semibold text-gray-900 uppercase tracking-wider mb-4">Gig Details</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-4">
                   <div className="flex items-start gap-3">
                     <Calendar className="w-5 h-5 text-gray-400 mt-0.5" />
                     <div>
-                      <p className="text-xs font-medium text-gray-500 uppercase">Date</p>
+                      <p className="text-xs font-medium text-gray-500 uppercase">Date & Time</p>
                       <p className="text-gray-900 font-medium">
-                        {formatDateLong(gig.start, gig.timezone)}
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="flex items-start gap-3">
-                    <Clock className="w-5 h-5 text-gray-400 mt-0.5" />
-                    <div>
-                      <p className="text-xs font-medium text-gray-500 uppercase">Time</p>
-                      <p className="text-gray-900 font-medium">
-                        {formatTimeDisplay(gig.start, gig.timezone)} - {formatTimeDisplay(gig.end, gig.timezone)}
+                        {formatDateTimeDisplay(gig.start, gig.end, gig.timezone)}
                       </p>
                       <p className="text-xs text-gray-500 mt-0.5">{gig.timezone}</p>
                     </div>
                   </div>
                 </div>
 
-                <div className="space-y-6">
+                <div className="space-y-4">
                   <div className="flex items-start gap-3">
                     <MapPin className="w-5 h-5 text-gray-400 mt-0.5" />
                     <div>
@@ -244,8 +238,8 @@ export default function GigDetailScreen({
 
             {/* Notes Section */}
             {gig.notes && (
-              <Card className="p-6">
-                <div className="flex items-center gap-2 mb-4">
+              <Card className="p-4">
+                <div className="flex items-center gap-2 mb-3">
                   <FileText className="w-5 h-5 text-gray-400" />
                   <h3 className="text-sm font-semibold text-gray-900 uppercase tracking-wider">Notes</h3>
                 </div>
@@ -257,28 +251,30 @@ export default function GigDetailScreen({
           </div>
 
           {/* Sidebar Columns */}
-          <div className="space-y-6">
+          <div className="space-y-4">
             {/* Financial Card */}
-            <Card className="p-6">
-              <div className="flex items-center gap-2 mb-4">
-                <DollarSign className="w-5 h-5 text-gray-400" />
-                <h3 className="text-sm font-semibold text-gray-900 uppercase tracking-wider">Financials</h3>
-              </div>
-              <div>
-                <p className="text-xs font-medium text-gray-500 uppercase mb-1">Amount Paid</p>
-                {gig.amount_paid ? (
-                  <p className="text-2xl font-bold text-gray-900">
-                    ${gig.amount_paid.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                  </p>
-                ) : (
-                  <p className="text-gray-400 italic">Not specified</p>
-                )}
-              </div>
-            </Card>
+            {canViewFinancials && (
+              <Card className="p-4">
+                <div className="flex items-center gap-2 mb-3">
+                  <DollarSign className="w-5 h-5 text-gray-400" />
+                  <h3 className="text-sm font-semibold text-gray-900 uppercase tracking-wider">Financials</h3>
+                </div>
+                <div>
+                  <p className="text-xs font-medium text-gray-500 uppercase mb-1">Amount Paid</p>
+                  {gig.amount_paid ? (
+                    <p className="text-2xl font-bold text-gray-900">
+                      ${gig.amount_paid.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </p>
+                  ) : (
+                    <p className="text-gray-400 italic">Not specified</p>
+                  )}
+                </div>
+              </Card>
+            )}
 
             {/* Tags Card */}
-            <Card className="p-6">
-              <div className="flex items-center gap-2 mb-4">
+            <Card className="p-4">
+              <div className="flex items-center gap-2 mb-3">
                 <Tag className="w-5 h-5 text-gray-400" />
                 <h3 className="text-sm font-semibold text-gray-900 uppercase tracking-wider">Tags</h3>
               </div>

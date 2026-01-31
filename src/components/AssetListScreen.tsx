@@ -34,6 +34,7 @@ interface AssetListScreenProps {
   onNavigateToImport?: () => void;
   onSwitchOrganization: () => void;
   onLogout: () => void;
+  onEditProfile?: () => void;
   useMockData?: boolean;
 }
 
@@ -51,6 +52,7 @@ export default function AssetListScreen({
   onNavigateToImport,
   onSwitchOrganization,
   onLogout,
+  onEditProfile,
   useMockData = false,
 }: AssetListScreenProps) {
   // Memoize filters to prevent infinite re-renders
@@ -165,10 +167,8 @@ export default function AssetListScreen({
         user={user}
         userRole={userRole}
         currentRoute="asset-list"
-        onNavigateToDashboard={onNavigateToDashboard}
-        onNavigateToGigs={onNavigateToGigs}
-        onNavigateToAssets={onNavigateToAssets}
         onSwitchOrganization={onSwitchOrganization}
+        onEditProfile={onEditProfile}
         onLogout={onLogout}
       />
 

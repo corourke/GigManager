@@ -396,6 +396,8 @@ function App() {
           onSelectOrganization={handleSelectOrganization}
           onCreateOrganization={handleCreateOrganization}
           onAdminViewAll={handleNavigateToAdminOrgs}
+          onLogout={handleLogout}
+          onEditProfile={handleEditProfile}
         />
       )}
       
@@ -468,6 +470,7 @@ function App() {
               onGigUpdated={handleBackToGigList} // After updating, go back to list
               onGigDeleted={handleBackToGigList} // After deleting, go back to list
               onSwitchOrganization={handleBackToSelection}
+              onEditProfile={handleEditProfile}
               onLogout={handleLogout}
             />
           )}
@@ -479,6 +482,7 @@ function App() {
               user={user}
               userRole={userRole}
               onBack={handleBackToGigList}
+              onEdit={handleEditGig}
               onSwitchOrganization={handleBackToSelection}
               onLogout={handleLogout}
             />
@@ -530,6 +534,7 @@ function App() {
               onNavigateToKits={handleNavigateToKits}
               onNavigateToImport={handleNavigateToImport}
               onSwitchOrganization={handleBackToSelection}
+              onEditProfile={handleEditProfile}
               onLogout={handleLogout}
               useMockData={USE_MOCK_DATA}
             />
@@ -544,6 +549,7 @@ function App() {
               onBack={handleBackToAssetList}
               onEdit={handleEditAsset}
               onSwitchOrganization={handleBackToSelection}
+              onEditProfile={handleEditProfile}
               onLogout={handleLogout}
             />
           )}
@@ -559,6 +565,7 @@ function App() {
               onAssetUpdated={handleBackToAssetList} // After updating, go back to list
               onAssetDeleted={handleBackToAssetList} // After deleting, go back to list
               onSwitchOrganization={handleBackToSelection}
+              onEditProfile={handleEditProfile}
               onLogout={handleLogout}
             />
           )}
@@ -625,9 +632,12 @@ function App() {
 
       {currentRoute === 'admin-orgs' && user && (
         <AdminOrganizationsScreen
+          user={user}
           onEditOrganization={handleAdminEditOrganization}
           onCreateOrganization={handleCreateOrganization}
           onBack={handleBackFromAdmin}
+          onLogout={handleLogout}
+          onEditProfile={handleEditProfile}
         />
       )}
       

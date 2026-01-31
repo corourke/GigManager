@@ -12,6 +12,7 @@ import {
 import { createClient } from '../utils/supabase/client';
 import { projectId } from '../utils/supabase/info';
 import { Button } from './ui/button';
+import AppHeader from './AppHeader';
 import { Card } from './ui/card';
 import { Badge } from './ui/badge';
 import { Alert, AlertDescription } from './ui/alert';
@@ -39,15 +40,21 @@ interface OrganizationWithMembers extends Organization {
 }
 
 interface AdminOrganizationsScreenProps {
+  user: User;
   onEditOrganization: (org: Organization) => void;
   onCreateOrganization: () => void;
   onBack: () => void;
+  onLogout: () => void;
+  onEditProfile: () => void;
 }
 
 export default function AdminOrganizationsScreen({
+  user,
   onEditOrganization,
   onCreateOrganization,
   onBack,
+  onLogout,
+  onEditProfile,
 }: AdminOrganizationsScreenProps) {
   const [organizations, setOrganizations] = useState<OrganizationWithMembers[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -168,19 +175,12 @@ export default function AdminOrganizationsScreen({
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gray-50">
-        <div className="bg-white border-b border-gray-200">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-            <div className="flex items-center gap-3">
-              <div className="inline-flex items-center justify-center w-10 h-10 bg-sky-500 rounded-lg">
-                <Shield className="w-6 h-6 text-white" />
-              </div>
-              <div>
-                <h1 className="text-gray-900">Admin: All Organizations</h1>
-                <p className="text-sm text-gray-600">Manage all organizations in the system</p>
-              </div>
-            </div>
-          </div>
-        </div>
+        <AppHeader
+          user={user}
+          currentRoute="dashboard"
+          onLogout={onLogout}
+          onEditProfile={onEditProfile}
+        />
 
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
           <div className="flex items-center justify-center">
@@ -193,7 +193,14 @@ export default function AdminOrganizationsScreen({
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header */}
+      <AppHeader
+        user={user}
+        currentRoute="dashboard"
+        onLogout={onLogout}
+        onEditProfile={onEditProfile}
+      />
+
+      {/* Admin Header Info */}
       <div className="bg-white border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex items-center justify-between">

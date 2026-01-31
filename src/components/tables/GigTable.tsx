@@ -185,23 +185,23 @@ export default function GigTable({
 
       <Card>
         <div className="overflow-x-auto">
-            <Table className="border-collapse">
+            <Table className="border-collapse table-fixed w-full">
             <TableHeader>
               <TableRow className="hover:bg-transparent">
-                <TableHead className="min-w-[200px] whitespace-normal border">Title</TableHead>
+                <TableHead className="w-[250px] whitespace-nowrap border">Title</TableHead>
                 {enableInlineEditing ? (
                   <>
-                    <TableHead className="min-w-[180px] whitespace-normal border">Start</TableHead>
-                    <TableHead className="min-w-[180px] whitespace-normal border">End</TableHead>
+                    <TableHead className="w-[180px] whitespace-nowrap border">Start</TableHead>
+                    <TableHead className="w-[180px] whitespace-nowrap border">End</TableHead>
                   </>
                 ) : (
-                  <TableHead className="min-w-[160px] whitespace-normal border">Date & Time</TableHead>
+                  <TableHead className="w-[200px] whitespace-nowrap border">Date & Time</TableHead>
                 )}
-                <TableHead className="min-w-[100px] whitespace-normal border">Status</TableHead>
-                {showVenueActColumns && <TableHead className="min-w-[120px] whitespace-normal border">Venue</TableHead>}
-                {showVenueActColumns && <TableHead className="min-w-[120px] whitespace-normal border">Act</TableHead>}
-                {showTagsColumn && <TableHead className="min-w-[150px] whitespace-normal border">Tags</TableHead>}
-                {showActions && <TableHead className="w-40 text-right border">Actions</TableHead>}
+                <TableHead className="w-[120px] whitespace-nowrap border">Status</TableHead>
+                {showVenueActColumns && <TableHead className="w-[180px] whitespace-nowrap border">Venue</TableHead>}
+                {showVenueActColumns && <TableHead className="w-[180px] whitespace-nowrap border">Act</TableHead>}
+                {showTagsColumn && <TableHead className="w-[220px] whitespace-nowrap border">Tags</TableHead>}
+                {showActions && <TableHead className="w-[160px] text-right border">Actions</TableHead>}
               </TableRow>
             </TableHeader>
             <TableBody>

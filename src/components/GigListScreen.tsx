@@ -39,6 +39,7 @@ interface GigListScreenProps {
   onNavigateToImport?: () => void;
   onSwitchOrganization: () => void;
   onLogout: () => void;
+  onEditProfile?: () => void;
   useMockData?: boolean;
 }
 
@@ -56,6 +57,7 @@ export default function GigListScreen({
   onNavigateToImport,
   onSwitchOrganization,
   onLogout,
+  onEditProfile,
   useMockData = false,
 }: GigListScreenProps) {
   const [gigs, setGigs] = useState<Gig[]>([]);
@@ -215,10 +217,8 @@ export default function GigListScreen({
         user={user}
         userRole={userRole}
         currentRoute="gig-list"
-        onNavigateToDashboard={onNavigateToDashboard}
-        onNavigateToGigs={onNavigateToGigs}
-        onNavigateToAssets={onNavigateToAssets}
         onSwitchOrganization={onSwitchOrganization}
+        onEditProfile={onEditProfile}
         onLogout={onLogout}
       />
 

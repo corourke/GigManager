@@ -299,9 +299,10 @@ export default function EditableTableCell({
 
   if (isEditing) {
     // For title field, ensure minimum width to prevent collapsing on narrow screens
-    const wrapperClassName = `relative w-full h-full flex items-center p-2 bg-sky-50/30 transition-colors ${
-      field === 'title' ? "min-w-[200px]" : ""
-    }`;
+    const wrapperClassName = cn(
+      "relative w-full h-full flex items-center p-2 bg-sky-50 transition-colors cursor-text min-h-[40px]",
+      field === 'title' && "min-w-[200px]"
+    );
     
     return (
       <div ref={cellRef} className={wrapperClassName} data-editable-cell data-field={field}>
@@ -315,12 +316,12 @@ export default function EditableTableCell({
           >
             <PopoverTrigger asChild>
               <Button
-                variant="outline"
+                variant="ghost"
                 role="combobox"
                 aria-expanded={comboOpen}
-                className="h-8 w-full justify-between border-sky-200 bg-white/50 px-2 font-normal hover:bg-white/80"
+                className="h-8 w-full justify-between px-0 font-normal hover:bg-transparent"
               >
-                <span className="truncate">
+                <span className="truncate text-sm text-gray-900">
                   {type === 'select' 
                     ? (selectOptions.find((opt) => opt.value === editValue)?.label || placeholder)
                     : (organizations.find((org) => org.id === editValue)?.name || (editValue === '__none__' ? 'None' : placeholder))}
@@ -412,7 +413,7 @@ export default function EditableTableCell({
             required={required}
             name={field}
             id={field}
-            className="w-full px-2 py-1 text-sm border border-sky-200 rounded bg-white/50 focus:outline-none focus:ring-0 resize-none"
+            className="w-full px-0 py-1 text-sm bg-transparent focus:outline-none focus:ring-0 resize-none"
             rows={3}
           />
         ) : type === 'tags' ? (
@@ -432,7 +433,6 @@ export default function EditableTableCell({
           </div>
         ) : type === 'datetime-local' ? (
           <div className="relative w-full">
-            <Clock className="absolute left-2 top-1/2 transform -translate-y-1/2 h-3 w-3 text-gray-400" />
             <Input
               ref={inputRef as React.RefObject<HTMLInputElement>}
               type="datetime-local"
@@ -444,7 +444,7 @@ export default function EditableTableCell({
               required={required}
               name={field}
               id={field}
-              className="h-8 pl-7 pr-2 text-xs border-sky-200 bg-white/50 focus-visible:ring-0 w-full"
+              className="h-8 px-0 text-sm border-none bg-transparent focus-visible:ring-0 w-full"
             />
           </div>
         ) : (
@@ -461,11 +461,11 @@ export default function EditableTableCell({
             required={required}
             name={field}
             id={field}
-            className={`h-8 text-sm border-sky-200 bg-white/50 focus-visible:ring-0 px-2 ${field === 'title' ? 'w-full min-w-[200px]' : 'w-full'}`}
+            className={`h-8 text-sm border-none bg-transparent focus-visible:ring-0 px-0 ${field === 'title' ? 'w-full min-w-[200px]' : 'w-full'}`}
           />
         )}
         {saving && (
-          <Loader2 className="absolute right-2 top-1/2 transform -translate-y-1/2 h-4 w-4 animate-spin text-sky-500" />
+          <Loader2 className="absolute right-2 top-1/2 transform -translate-y-1/2 h-3 w-3 animate-spin text-sky-500" />
         )}
         {error && (
           <div className="absolute top-full left-0 mt-1 px-2 py-1 text-xs text-red-600 bg-red-50 border border-red-200 rounded shadow-sm z-10">
@@ -481,7 +481,10 @@ export default function EditableTableCell({
       ref={cellRef}
       data-editable-cell
       data-field={field}
-      className={`group cursor-pointer p-2 h-full min-h-[40px] flex items-center ${className}`}
+      className={cn(
+        "group cursor-pointer p-2 h-full min-h-[40px] flex items-center transition-colors hover:bg-gray-100/50",
+        className
+      )}
       onClick={handleCellClick}
       title={disabled ? undefined : 'Click to edit'}
     >

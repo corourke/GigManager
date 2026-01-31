@@ -25,6 +25,7 @@ interface AssetScreenProps {
   onAssetCreated: (assetId: string) => void;
   onAssetUpdated: () => void;
   onSwitchOrganization: () => void;
+  onEditProfile?: () => void;
   onLogout: () => void;
 }
 
@@ -54,6 +55,7 @@ export default function AssetScreen({
   onAssetCreated,
   onAssetUpdated,
   onSwitchOrganization,
+  onEditProfile,
   onLogout,
 }: AssetScreenProps) {
   const [isLoading, setIsLoading] = useState(false);
@@ -279,16 +281,17 @@ export default function AssetScreen({
         userRole={userRole}
         currentRoute="create-asset"
         onSwitchOrganization={onSwitchOrganization}
+        onEditProfile={onEditProfile}
         onLogout={onLogout}
       />
 
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
         {/* Header */}
-        <div className="mb-8">
+        <div className="mb-4">
           <Button
             variant="ghost"
             onClick={onCancel}
-            className="mb-4 -ml-2"
+            className="mb-2 -ml-2"
           >
             <ArrowLeft className="w-4 h-4 mr-2" />
             Back to Assets
@@ -305,11 +308,11 @@ export default function AssetScreen({
         </div>
 
         {/* Form */}
-        <Card className="p-6">
-          <div className="space-y-6">
+        <Card className="p-4">
+          <div className="space-y-4">
             {/* Basic Information */}
             <div>
-              <h3 className="text-gray-900 mb-4">Basic Information</h3>
+              <h3 className="text-gray-900 mb-2">Basic Information</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="category">
@@ -402,7 +405,7 @@ export default function AssetScreen({
 
             {/* Financial Information */}
             <div>
-              <h3 className="text-gray-900 mb-4">Financial Information</h3>
+              <h3 className="text-gray-900 mb-2">Financial Information</h3>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="acquisition_date">
@@ -559,7 +562,7 @@ export default function AssetScreen({
 
             {/* Insurance */}
             <div>
-              <h3 className="text-gray-900 mb-4">Insurance</h3>
+              <h3 className="text-gray-900 mb-2">Insurance</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label className="text-sm font-normal">Insured</Label>
@@ -595,7 +598,7 @@ export default function AssetScreen({
 
             {/* Description */}
             <div>
-              <h3 className="text-gray-900 mb-4">Additional Details</h3>
+              <h3 className="text-gray-900 mb-2">Additional Details</h3>
               <div className="space-y-2">
                 <Label htmlFor="description">Description</Label>
                 <Textarea

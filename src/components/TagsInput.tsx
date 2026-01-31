@@ -30,10 +30,10 @@ export default function TagsInput({
   // Filter suggestions to only show tags not already selected
   const availableSuggestions = suggestions.filter(tag => !value.includes(tag));
   
-  // Check if the input matches an available suggestion
-  const matchedSuggestion = availableSuggestions.find(
-    tag => tag.toLowerCase() === inputValue.toLowerCase().trim()
-  );
+  // Find the best matching suggestion based on current input
+  const topSuggestion = inputValue.trim() 
+    ? availableSuggestions.find(tag => tag.toLowerCase().startsWith(inputValue.toLowerCase().trim()))
+    : null;
 
   const addTag = (tag: string) => {
     const trimmedTag = tag.trim();
@@ -51,8 +51,18 @@ export default function TagsInput({
 
   const handleLocalKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
     if ((e.key === 'Enter' || e.key === 'Tab') && inputValue.trim()) {
-      e.preventDefault();
-      addTag(inputValue);
+      const tagToAdd = topSuggestion || inputValue.trim();
+      
+      // For Tab, we want to add the tag AND let the event propagate or handle navigation
+      if (e.key === 'Tab') {
+        addTag(tagToAdd);
+        if (onKeyDown) {
+          onKeyDown(e);
+        }
+      } else {
+        e.preventDefault();
+        addTag(tagToAdd);
+      }
     } else if (e.key === 'Backspace' && !inputValue && value.length > 0) {
       // Remove last tag if input is empty and backspace is pressed
       onChange(value.slice(0, -1));
@@ -72,36 +82,35 @@ export default function TagsInput({
   };
 
   return (
-    <div className="space-y-3">
-      {/* Display Selected Tags */}
-      {value.length > 0 && (
-        <div className="flex flex-wrap gap-2">
-          {value.map((tag) => (
-            <Badge
-              key={tag}
-              variant="secondary"
-              className="pl-2.5 pr-1.5 py-1 text-sm bg-sky-100 text-sky-700 hover:bg-sky-200"
-            >
-              {tag}
-              <button
-                type="button"
-                onClick={() => removeTag(tag)}
-                disabled={disabled}
-                className="ml-1.5 rounded-sm hover:bg-sky-300 p-0.5 transition-colors disabled:opacity-50"
-              >
-                <X className="w-3 h-3" />
-              </button>
-            </Badge>
-          ))}
-        </div>
-      )}
+    <div className="flex flex-wrap items-center gap-1 min-h-[32px]">
+      {/* Display Selected Tags inline */}
+      {value.map((tag) => (
+        <Badge
+          key={tag}
+          variant="secondary"
+          className="pl-2 pr-1 py-0 h-6 text-xs bg-sky-100 text-sky-700 hover:bg-sky-200 border-none"
+        >
+          {tag}
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              removeTag(tag);
+            }}
+            disabled={disabled}
+            className="ml-1 rounded-sm hover:bg-sky-300 p-0.5 transition-colors disabled:opacity-50"
+          >
+            <X className="w-2.5 h-2.5" />
+          </button>
+        </Badge>
+      ))}
 
       {/* Input with Suggestions */}
       <Popover open={isOpen} onOpenChange={setIsOpen}>
-        <div className="flex gap-2">
+        <div className="flex-1 min-w-[80px]">
           <PopoverTrigger asChild>
-            <div className="flex-1 relative">
-              <Input
+            <div className="relative">
+              <input
                 ref={inputRef}
                 type="text"
                 value={inputValue}
@@ -112,42 +121,20 @@ export default function TagsInput({
                     setIsOpen(true);
                   }
                 }}
-                placeholder={placeholder}
+                placeholder={value.length === 0 ? placeholder : ''}
                 disabled={disabled}
-                className="pr-10"
+                className="w-full h-7 bg-transparent border-none focus:outline-none focus:ring-0 text-xs p-0"
               />
-              {inputValue.trim() && !matchedSuggestion && (
-                <div className="absolute right-2 top-1/2 -translate-y-1/2">
-                  <Badge variant="outline" className="text-xs bg-white">
-                    New
-                  </Badge>
-                </div>
-              )}
             </div>
           </PopoverTrigger>
-          
-          <Button
-            type="button"
-            onClick={() => {
-              if (inputValue.trim()) {
-                addTag(inputValue);
-              }
-            }}
-            disabled={disabled || !inputValue.trim()}
-            variant="outline"
-            size="sm"
-            className="px-3"
-          >
-            <Plus className="w-4 h-4" />
-          </Button>
         </div>
 
         <PopoverContent 
-          className="p-0 w-[var(--radix-popover-trigger-width)]" 
+          className="p-0 w-[200px]" 
           align="start"
           onOpenAutoFocus={(e) => e.preventDefault()}
         >
-          <Command>
+          <Command value={topSuggestion || undefined}>
             <CommandList>
               {availableSuggestions.length > 0 ? (
                 <CommandGroup heading="Suggested tags">
@@ -167,16 +154,12 @@ export default function TagsInput({
                     ))}
                 </CommandGroup>
               ) : (
-                <CommandEmpty>No suggestions available</CommandEmpty>
+                <CommandEmpty>No suggestions</CommandEmpty>
               )}
             </CommandList>
           </Command>
         </PopoverContent>
       </Popover>
-
-      <p className="text-xs text-gray-500">
-        Press Enter or click + to add a tag. Select from suggestions or create your own.
-      </p>
     </div>
   );
 }

@@ -33,6 +33,8 @@ interface OrganizationSelectionScreenProps {
   onSelectOrganization: (org: Organization) => void;
   onCreateOrganization: () => void;
   onAdminViewAll?: () => void;
+  onLogout: () => void;
+  onEditProfile: () => void;
 }
 
 type ViewState = 'default' | 'loading' | 'searching' | 'error';
@@ -42,7 +44,9 @@ export default function OrganizationSelectionScreen({
   organizations,
   onSelectOrganization,
   onCreateOrganization,
-  onAdminViewAll
+  onAdminViewAll,
+  onLogout,
+  onEditProfile
 }: OrganizationSelectionScreenProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [viewState, setViewState] = useState<ViewState>('default');
@@ -134,7 +138,8 @@ export default function OrganizationSelectionScreen({
       <AppHeader 
         user={user} 
         currentRoute="dashboard"
-        onLogout={() => {}}
+        onLogout={onLogout}
+        onEditProfile={onEditProfile}
       />
 
       {/* Main Content */}

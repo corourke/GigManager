@@ -17,6 +17,7 @@ interface AssetDetailScreenProps {
   onBack: () => void;
   onEdit: (assetId: string) => void;
   onSwitchOrganization: () => void;
+  onEditProfile?: () => void;
   onLogout: () => void;
 }
 
@@ -28,6 +29,7 @@ export default function AssetDetailScreen({
   onBack,
   onEdit,
   onSwitchOrganization,
+  onEditProfile,
   onLogout,
 }: AssetDetailScreenProps) {
   const [asset, setAsset] = useState<any>(null);
@@ -102,13 +104,14 @@ export default function AssetDetailScreen({
         userRole={userRole}
         currentRoute="asset-list"
         onSwitchOrganization={onSwitchOrganization}
+        onEditProfile={onEditProfile}
         onLogout={onLogout}
       />
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
         {/* Header */}
-        <div className="mb-8">
-          <Button variant="ghost" onClick={onBack} className="mb-4 -ml-2">
+        <div className="mb-4">
+          <Button variant="ghost" onClick={onBack} className="mb-2 -ml-2">
             <ArrowLeft className="w-4 h-4 mr-2" />
             Back to Assets
           </Button>
@@ -167,12 +170,12 @@ export default function AssetDetailScreen({
           </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
           {/* Main Details */}
-          <div className="lg:col-span-2 space-y-6">
-            <Card className="p-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">Asset Information</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="lg:col-span-2 space-y-4">
+            <Card className="p-4">
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">Asset Information</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <p className="text-sm font-medium text-gray-500 uppercase tracking-wider">Manufacturer & Model</p>
                   <p className="mt-1 text-gray-900">{asset.manufacturer_model}</p>
@@ -188,9 +191,9 @@ export default function AssetDetailScreen({
               </div>
             </Card>
 
-            <Card className="p-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">Financial Details</h3>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <Card className="p-4">
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">Financial Details</h3>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
                   <div className="flex items-center gap-2 text-gray-500 mb-1">
                     <DollarSign className="w-4 h-4" />
@@ -219,9 +222,9 @@ export default function AssetDetailScreen({
           </div>
 
           {/* Sidebar Info */}
-          <div className="space-y-6">
-            <Card className="p-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">Inventory Info</h3>
+          <div className="space-y-4">
+            <Card className="p-4">
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">Inventory Info</h3>
               <div className="space-y-4">
                 <div>
                   <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">Vendor</p>
@@ -245,7 +248,7 @@ export default function AssetDetailScreen({
               </div>
             </Card>
 
-            <Card className="p-6 bg-sky-50 border-sky-100">
+            <Card className="p-4 bg-sky-50 border-sky-100">
               <h4 className="text-sm font-semibold text-sky-900 mb-2">Asset QR / Tag</h4>
               <div className="bg-white p-4 rounded-lg border border-sky-200 flex flex-col items-center justify-center aspect-square">
                 <Tag className="w-12 h-12 text-sky-300 mb-2" />

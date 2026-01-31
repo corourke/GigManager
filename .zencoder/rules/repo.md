@@ -59,7 +59,6 @@ npm run build
 **Database**: PostgreSQL 17  
 **Auth**: Integrated Supabase Auth (Email, OAuth)  
 **Edge Functions**: Located in [./supabase/functions/](./supabase/functions/), running on Deno.  
-**Configuration**: Defined in [./supabase/config.toml](./supabase/config.toml).
 
 ## Testing
 **Framework**: Vitest  
