@@ -59,9 +59,43 @@ describe('AuthContext Hang Reproduction', () => {
       // This will trigger refreshProfile which will hang
       authChangeHandler('SIGNED_IN', { user: { id: 'user-1' } });
     });
+  });
 
-    // It should still be loading because the profile fetch is hanging
-    // Without a safety mechanism, this is a permanent hang
+  it('should recover from a hang after a timeout', async () => {
+    vi.useFakeTimers();
+    
+    // Simulate a hanging database call
+    const hangingPromise = new Promise(() => {});
+    (userService.getUserProfile as any).mockReturnValue(hangingPromise);
+    (userService.getUserOrganizations as any).mockReturnValue(hangingPromise);
+
+    let authChangeHandler: any;
+    mockSupabase.auth.onAuthStateChange.mockImplementation((handler: any) => {
+      authChangeHandler = handler;
+      return { data: { subscription: { unsubscribe: vi.fn() } } };
+    });
+
+    const { result } = renderHook(() => useAuth(), { wrapper });
+
+    // Initial state
     expect(result.current.isLoading).toBe(true);
+
+    // Trigger auth change with session
+    await act(async () => {
+      authChangeHandler('SIGNED_IN', { user: { id: 'user-1' } });
+    });
+
+    // Still loading initially
+    expect(result.current.isLoading).toBe(true);
+
+    // Advance timers by 5 seconds (or whatever timeout we choose)
+    await act(async () => {
+      vi.advanceTimersByTime(5000);
+    });
+
+    // Should now be false due to timeout safety
+    expect(result.current.isLoading).toBe(false);
+    
+    vi.useRealTimers();
   });
 });

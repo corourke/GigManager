@@ -112,14 +112,26 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         
         console.log('AuthContext: onAuthStateChange event:', event);
         
-        if ((event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'INITIAL_SESSION') && session) {
-          await refreshProfileRef.current(session);
-        } else if (event === 'SIGNED_OUT' || (event === 'INITIAL_SESSION' && !session)) {
-          setUser(null);
-          setOrganizations([]);
-          selectOrganization(null);
-          setIsLoading(false);
-          isRefreshing.current = false;
+        // Safety timeout to prevent permanent hang if database calls are stuck
+        const timeoutId = setTimeout(() => {
+          if (mounted) {
+            console.log('AuthContext: Initial auth check timed out, forcing isLoading to false');
+            setIsLoading(false);
+          }
+        }, 5000);
+        
+        try {
+          if ((event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'INITIAL_SESSION') && session) {
+            await refreshProfileRef.current(session);
+          } else if (event === 'SIGNED_OUT' || (event === 'INITIAL_SESSION' && !session)) {
+            setUser(null);
+            setOrganizations([]);
+            selectOrganization(null);
+            setIsLoading(false);
+            isRefreshing.current = false;
+          }
+        } finally {
+          clearTimeout(timeoutId);
         }
       }
     );
