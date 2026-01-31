@@ -66,13 +66,48 @@ function App() {
     setUser
   } = useAuth();
 
-  const [currentRoute, setCurrentRoute] = useState<Route>('login');
-  const [selectedGigId, setSelectedGigId] = useState<string | null>(null);
-  const [selectedAssetId, setSelectedAssetId] = useState<string | null>(null);
-  const [selectedKitId, setSelectedKitId] = useState<string | null>(null);
-  const [selectedMemberId, setSelectedMemberId] = useState<string | null>(null);
+  const [currentRoute, setCurrentRoute] = useState<Route>(() => {
+    return (localStorage.getItem('currentRoute') as Route) || 'login';
+  });
+  const [selectedGigId, setSelectedGigId] = useState<string | null>(() => {
+    return localStorage.getItem('selectedGigId');
+  });
+  const [selectedAssetId, setSelectedAssetId] = useState<string | null>(() => {
+    return localStorage.getItem('selectedAssetId');
+  });
+  const [selectedKitId, setSelectedKitId] = useState<string | null>(() => {
+    return localStorage.getItem('selectedKitId');
+  });
+  const [selectedMemberId, setSelectedMemberId] = useState<string | null>(() => {
+    return localStorage.getItem('selectedMemberId');
+  });
   const [editingOrganization, setEditingOrganization] = useState<Organization | null>(null);
   const [showEditProfileDialog, setShowEditProfileDialog] = useState(false);
+
+  // Persist state to localStorage
+  useEffect(() => {
+    localStorage.setItem('currentRoute', currentRoute);
+  }, [currentRoute]);
+
+  useEffect(() => {
+    if (selectedGigId) localStorage.setItem('selectedGigId', selectedGigId);
+    else localStorage.removeItem('selectedGigId');
+  }, [selectedGigId]);
+
+  useEffect(() => {
+    if (selectedAssetId) localStorage.setItem('selectedAssetId', selectedAssetId);
+    else localStorage.removeItem('selectedAssetId');
+  }, [selectedAssetId]);
+
+  useEffect(() => {
+    if (selectedKitId) localStorage.setItem('selectedKitId', selectedKitId);
+    else localStorage.removeItem('selectedKitId');
+  }, [selectedKitId]);
+
+  useEffect(() => {
+    if (selectedMemberId) localStorage.setItem('selectedMemberId', selectedMemberId);
+    else localStorage.removeItem('selectedMemberId');
+  }, [selectedMemberId]);
 
   // Send to login and profile completion if needed, otherwise, attempt to
   // auto-select an organization if user belongs to only one.
@@ -99,12 +134,17 @@ function App() {
   useEffect(() => {
     if (isLoading || !user || !selectedOrganization || userRole === undefined) return;
 
-    if (userRole === 'Viewer') {
-      setCurrentRoute('gig-list');
-    } else {
-      setCurrentRoute('dashboard');
+    // Only auto-navigate to landing page if we are on a transitional route
+    // This prevents kicking the user back to dashboard on every background profile refresh
+    const transitionalRoutes: Route[] = ['login', 'profile-completion', 'org-selection', 'create-org'];
+    if (transitionalRoutes.includes(currentRoute)) {
+      if (userRole === 'Viewer') {
+        setCurrentRoute('gig-list');
+      } else {
+        setCurrentRoute('dashboard');
+      }
     }
-  }, [isLoading, user, selectedOrganization, userRole]);  
+  }, [isLoading, user, selectedOrganization, userRole, currentRoute]);
 
   const handleLogin = (userData: User, userOrgs: OrganizationMembership[]) => {
     console.log("handleLogin()");
@@ -158,7 +198,13 @@ function App() {
     setSelectedGigId(null);
     setSelectedAssetId(null);
     setSelectedKitId(null);
+    setSelectedMemberId(null);
     setCurrentRoute('login');
+    localStorage.removeItem('currentRoute');
+    localStorage.removeItem('selectedGigId');
+    localStorage.removeItem('selectedAssetId');
+    localStorage.removeItem('selectedKitId');
+    localStorage.removeItem('selectedMemberId');
   };
 
   const handleNavigateToGigs = () => {
