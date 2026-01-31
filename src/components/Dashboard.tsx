@@ -54,6 +54,8 @@ interface DashboardStats {
     id: string;
     title: string;
     start: string;
+    end?: string;
+    timezone?: string;
     status: string;
     act: string;
     venue: string;
@@ -161,15 +163,6 @@ export default function Dashboard({
       return `$${(value / 1000).toFixed(1)}K`;
     }
     return `$${value.toFixed(0)}`;
-  };
-
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', { 
-      month: 'short', 
-      day: 'numeric',
-      year: 'numeric'
-    });
   };
 
   return (
@@ -326,11 +319,11 @@ export default function Dashboard({
                       title: g.title,
                       start: g.start,
                       end: g.end || g.start, // Use actual end time if available
-                      timezone: 'UTC', // Default timezone
+                      timezone: g.timezone || 'America/Los_Angeles', // Use gig timezone or default
                       status: g.status as any,
                       tags: [],
-                      venue: g.venue ? { id: '', name: g.venue, type: 'Venue' } : undefined,
-                      act: g.act ? { id: '', name: g.act, type: 'Act' } : undefined,
+                      venue: g.venue ? { id: '', name: g.venue, type: 'Venue' } as any : undefined,
+                      act: g.act ? { id: '', name: g.act, type: 'Act' } as any : undefined,
                       created_at: g.start,
                       updated_at: g.start,
                     }))}
