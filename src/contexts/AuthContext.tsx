@@ -56,10 +56,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       
       if (session?.user) {
         console.log('AuthContext: Session found for user', session.user.id);
-        const [profile, orgs] = await Promise.all([
-          getUserProfile(session.user.id),
-          getUserOrganizations(session.user.id)
-        ]);
+        
+        console.log('[TRACE] AuthContext: Fetching profile...');
+        const profile = await getUserProfile(session.user.id);
+        console.log('[TRACE] AuthContext: Profile fetch complete');
+        
+        console.log('[TRACE] AuthContext: Fetching organizations...');
+        const orgs = await getUserOrganizations(session.user.id);
+        console.log('[TRACE] AuthContext: Organizations fetch complete');
         
         console.log('AuthContext: Fetched profile and orgs', { 
           hasProfile: !!profile, 

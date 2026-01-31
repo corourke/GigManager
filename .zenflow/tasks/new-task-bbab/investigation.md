@@ -63,10 +63,16 @@ As part of a deeper investigation, the following steps were taken:
 2.  **Timeout Removal**: Removed the 5-second timeout "band-aid" from `AuthContext.tsx` to ensure the tracing captures the full extent of the hang and that we don't prematurely mask the issue during diagnostics.
 3.  **Deeper Policy Audit**: Identified additional recursive paths in `gig` related tables. Functions like `user_has_access_to_gig`, `user_can_manage_gig`, and `user_is_admin_of_gig` were using `LANGUAGE sql`, allowing them to be inlined into RLS policies and potentially cause infinite loops when queried during the auth flow (since `AuthContext` triggers profile/org fetches which might touch these tables).
 
-## Proposed Solution (Refined)
-1.  **Tracing Deployment**: Keep the tracing logs in place for the next deployment/test run to confirm the exact sequence leading to the hang.
-2.  **Comprehensive plpgsql Migration**:
-    - **`20260130000001_fix_rls_recursion.sql`**: Converts core user/org helpers to `plpgsql`.
-    - **`20260130000002_fix_rpc_recursion.sql`**: Converts auth RPCs to `plpgsql`.
-    - **`20260130000003_fix_gig_security_functions.sql`**: Converts gig security helpers to `plpgsql`.
-    These changes collectively ensure that any RLS check triggered during authentication or initial data fetch will use `SECURITY DEFINER` functions that *truly* bypass RLS by running as `plpgsql`, breaking all identified recursion loops.
+## Refined Analysis (Sequential Tracing)
+Sequential tracing revealed that both `get_user_profile_secure` and `get_user_organizations_secure` continue to hang even after converting core helpers to `plpgsql`. 
+
+**Critical Discovery**: 
+The `users` table has redundant, overlapping policies from multiple migrations. Specifically, the policy `"Users can view other user profiles"` (from `schema_dump.sql` L1290) was using a recursive `LANGUAGE sql` helper and was **NOT** dropped by later migrations. In PostgreSQL RLS, multiple policies for the same action are OR-ed together. Even if one policy is safe, a single recursive policy on the same table can cause the entire query to hang.
+
+## Final Proposed Solution
+1.  **Cleanup Migration (`20260130000004_cleanup_recursive_policies.sql`)**: 
+    - Explicitly drops the legacy `"Users can view other user profiles"` and `"Users can view their own profile"` policies.
+    - Re-establishes the unified, non-recursive `"Users can view profiles in their organizations"` policy.
+    - Re-establishes the clean `"Users can view members of their organizations"` policy on `organization_members`.
+2.  **Sequential Execution**: Keep the sequential call order in `AuthContext.tsx` temporarily to ensure that if a hang persists, we know exactly which table/query is responsible.
+3.  **Comprehensive plpgsql Conversion**: Ensure all security-related functions are `LANGUAGE plpgsql`.
