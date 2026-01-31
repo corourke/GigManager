@@ -29,9 +29,10 @@ Save findings to `{@artifacts_path}/investigation.md` with:
 Read `{@artifacts_path}/investigation.md`
 Implement the bug fix.
 
-1. Add/adjust regression test(s) that fail before the fix and pass after
-2. Implement the fix
-3. Run relevant tests
-4. Update `{@artifacts_path}/investigation.md` with implementation notes and test results
+1. Create `src/contexts/AuthContext.test.tsx` with tests that simulate hanging database calls to verify frontend robustness.
+2. Apply the refined SQL migration (`20260130000002_fix_rpc_recursion.sql`) to convert secure RPCs to `plpgsql`.
+3. Verify that the login hang is resolved in the application.
+4. Run all existing tests to ensure no regressions.
+5. Update `{@artifacts_path}/investigation.md` with implementation notes and test results.
 
 If blocked or uncertain, ask the user for direction.
