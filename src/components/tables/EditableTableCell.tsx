@@ -33,6 +33,7 @@ interface EditableTableCellProps {
   organizationType?: 'Venue' | 'Act';
   organizationId?: string;
   tagSuggestions?: string[];
+  timezone?: string;
 }
 
 export default function EditableTableCell({
@@ -50,6 +51,7 @@ export default function EditableTableCell({
   organizationType,
   organizationId,
   tagSuggestions = [],
+  timezone,
 }: EditableTableCellProps) {
   const [organizations, setOrganizations] = useState<Organization[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -87,6 +89,25 @@ export default function EditableTableCell({
     }
     if (type === 'tags' && Array.isArray(value)) {
       return value.length > 0 ? value.join(', ') : '';
+    }
+    if (type === 'datetime-local' && value) {
+      try {
+        const date = new Date(value as string);
+        if (isNaN(date.getTime())) return value as string;
+        
+        const options: Intl.DateTimeFormatOptions = {
+          month: 'short',
+          day: 'numeric',
+          year: 'numeric',
+          hour: 'numeric',
+          minute: '2-digit',
+          hour12: true,
+          timeZone: timezone
+        };
+        return date.toLocaleString('en-US', options);
+      } catch (e) {
+        return value as string;
+      }
     }
     return value ?? '';
   };
@@ -421,7 +442,16 @@ export default function EditableTableCell({
             <Input
               ref={inputRef as React.RefObject<HTMLInputElement>}
               type="datetime-local"
-              value={editValue ? (typeof editValue === 'string' ? editValue : format(new Date(editValue), "yyyy-MM-dd'T'HH:mm")) : ''}
+              value={(() => {
+                if (!editValue) return '';
+                try {
+                  const date = new Date(editValue);
+                  if (isNaN(date.getTime())) return typeof editValue === 'string' ? editValue : '';
+                  return format(date, "yyyy-MM-dd'T'HH:mm");
+                } catch (e) {
+                  return typeof editValue === 'string' ? editValue : '';
+                }
+              })()}
               onChange={(e) => updateValue(e.target.value)}
               onKeyDown={onKeyDown}
               onBlur={handleBlur}

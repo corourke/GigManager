@@ -94,32 +94,56 @@ export default function GigTable({
   onCreateGig,
 }: GigTableProps) {
 
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric'
-    });
+  const formatDate = (dateString: string, timezone?: string) => {
+    try {
+      const date = new Date(dateString);
+      return date.toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+        timeZone: timezone
+      });
+    } catch (e) {
+      // Fallback to local time if timezone is invalid
+      return new Date(dateString).toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric'
+      });
+    }
   };
 
-  const formatTime = (start: string, end: string) => {
-    const startTime = new Date(start).toLocaleTimeString('en-US', {
+  const formatTime = (start: string, end: string, timezone?: string) => {
+    const options: Intl.DateTimeFormatOptions = {
       hour: 'numeric',
       minute: '2-digit',
-      hour12: true
-    });
-    const endTime = new Date(end).toLocaleTimeString('en-US', {
-      hour: 'numeric',
-      minute: '2-digit',
-      hour12: true
-    });
-    return `${startTime} - ${endTime}`;
+      hour12: true,
+      timeZone: timezone
+    };
+    
+    try {
+      const startTime = new Date(start).toLocaleTimeString('en-US', options);
+      const endTime = new Date(end).toLocaleTimeString('en-US', options);
+      return `${startTime} - ${endTime}`;
+    } catch (e) {
+      // Fallback to local time if timezone is invalid
+      const startTime = new Date(start).toLocaleTimeString('en-US', {
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true
+      });
+      const endTime = new Date(end).toLocaleTimeString('en-US', {
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true
+      });
+      return `${startTime} - ${endTime}`;
+    }
   };
 
-  const formatDateTime = (start: string, end: string) => {
-    const date = formatDate(start);
-    const time = formatTime(start, end);
+  const formatDateTime = (start: string, end: string, timezone?: string) => {
+    const date = formatDate(start, timezone);
+    const time = formatTime(start, end, timezone);
     return `${date} ${time}`;
   };
 
@@ -263,6 +287,7 @@ export default function GigTable({
                           value={gig.start}
                           field="start"
                           type="datetime-local"
+                          timezone={gig.timezone}
                           placeholder="Start time"
                           onSave={(field, value) => onGigUpdate(gig.id, 'start', value)}
                         />
@@ -272,6 +297,7 @@ export default function GigTable({
                           value={gig.end}
                           field="end"
                           type="datetime-local"
+                          timezone={gig.timezone}
                           placeholder="End time"
                           onSave={(field, value) => onGigUpdate(gig.id, 'end', value)}
                         />
@@ -279,7 +305,7 @@ export default function GigTable({
                     </>
                   ) : (
                     <TableCell className="text-sm text-gray-700 min-w-[160px] whitespace-normal border p-2" onClick={(e) => mode === 'list' && e.stopPropagation()}>
-                      {formatDateTime(gig.start, gig.end)}
+                      {formatDateTime(gig.start, gig.end, gig.timezone)}
                     </TableCell>
                   )}
 

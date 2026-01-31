@@ -399,6 +399,7 @@ function App() {
               onBack={handleBackToDashboard}
               onCreateGig={handleCreateGig}
               onViewGig={handleViewGig}
+              onEditGig={handleEditGig}
               onNavigateToDashboard={handleBackToDashboard}
               onNavigateToGigs={handleBackToGigList}
               onNavigateToAssets={handleNavigateToAssets}

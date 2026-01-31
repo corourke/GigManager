@@ -171,15 +171,172 @@ $$;
 ALTER FUNCTION "public"."create_gig_complex"("p_gig_data" "jsonb", "p_participants" "jsonb", "p_staff_slots" "jsonb") OWNER TO "postgres";
 
 
-CREATE OR REPLACE FUNCTION "public"."get_user_email"("user_uuid" "uuid") RETURNS "text"
-    LANGUAGE "sql" STABLE SECURITY DEFINER
+CREATE OR REPLACE FUNCTION "public"."get_complete_user_data"("user_uuid" "uuid") RETURNS "jsonb"
+    LANGUAGE "plpgsql" STABLE SECURITY DEFINER
     SET "search_path" TO 'public'
     AS $$
-  SELECT email FROM auth.users WHERE id = user_uuid;
+DECLARE
+    profile_data JSONB;
+    orgs_data JSONB;
+BEGIN
+    -- 1. Fetch user profile
+    SELECT jsonb_build_object(
+        'id', u.id,
+        'email', u.email,
+        'first_name', u.first_name,
+        'last_name', u.last_name,
+        'avatar_url', u.avatar_url,
+        'phone', u.phone,
+        'address_line1', u.address_line1,
+        'address_line2', u.address_line2,
+        'city', u.city,
+        'state', u.state,
+        'postal_code', u.postal_code,
+        'country', u.country,
+        'user_status', u.user_status,
+        'created_at', u.created_at,
+        'updated_at', u.updated_at
+    ) INTO profile_data
+    FROM users u
+    WHERE u.id = user_uuid;
+
+    -- 2. Fetch organizations
+    SELECT jsonb_agg(
+        jsonb_build_object(
+            'user_id', om.user_id,
+            'organization_id', om.organization_id,
+            'role', om.role,
+            'created_at', om.created_at,
+            'organization', jsonb_build_object(
+                'id', o.id,
+                'name', o.name,
+                'description', o.description,
+                'type', o.type,
+                'created_at', o.created_at,
+                'updated_at', o.updated_at
+            )
+        )
+    ) INTO orgs_data
+    FROM organization_members om
+    JOIN organizations o ON o.id = om.organization_id
+    WHERE om.user_id = user_uuid;
+
+    -- 3. Return combined result
+    RETURN jsonb_build_object(
+        'profile', profile_data,
+        'organizations', COALESCE(orgs_data, '[]'::jsonb)
+    );
+END;
+$$;
+
+
+ALTER FUNCTION "public"."get_complete_user_data"("user_uuid" "uuid") OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."get_user_email"("user_uuid" "uuid") RETURNS "text"
+    LANGUAGE "plpgsql" STABLE SECURITY DEFINER
+    SET "search_path" TO 'public'
+    AS $$
+BEGIN
+  RETURN (SELECT email FROM auth.users WHERE id = user_uuid);
+END;
 $$;
 
 
 ALTER FUNCTION "public"."get_user_email"("user_uuid" "uuid") OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."get_user_ids_in_same_orgs"("user_uuid" "uuid") RETURNS TABLE("member_user_id" "uuid")
+    LANGUAGE "plpgsql" STABLE SECURITY DEFINER
+    SET "search_path" TO 'public'
+    AS $$
+BEGIN
+  RETURN QUERY
+  SELECT DISTINCT om.user_id
+  FROM organization_members om
+  WHERE om.organization_id IN (
+    SELECT om2.organization_id
+    FROM organization_members om2
+    WHERE om2.user_id = user_uuid
+  );
+END;
+$$;
+
+
+ALTER FUNCTION "public"."get_user_ids_in_same_orgs"("user_uuid" "uuid") OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."get_user_organizations_secure"("user_uuid" "uuid") RETURNS TABLE("user_id" "uuid", "organization_id" "uuid", "role" "public"."user_role", "created_at" timestamp with time zone, "organization" "jsonb")
+    LANGUAGE "plpgsql" STABLE SECURITY DEFINER
+    SET "search_path" TO 'public'
+    AS $$
+BEGIN
+  RETURN QUERY
+  SELECT
+    om.user_id,
+    om.organization_id,
+    om.role,
+    om.created_at,
+    jsonb_build_object(
+      'id', o.id,
+      'name', o.name,
+      'description', o.description,
+      'created_at', o.created_at,
+      'updated_at', o.updated_at
+    ) as organization
+  FROM organization_members om
+  JOIN organizations o ON o.id = om.organization_id
+  WHERE om.user_id = user_uuid;
+END;
+$$;
+
+
+ALTER FUNCTION "public"."get_user_organizations_secure"("user_uuid" "uuid") OWNER TO "postgres";
+
+SET default_tablespace = '';
+
+SET default_table_access_method = "heap";
+
+
+CREATE TABLE IF NOT EXISTS "public"."users" (
+    "id" "uuid" NOT NULL,
+    "email" "text" NOT NULL,
+    "first_name" "text" NOT NULL,
+    "last_name" "text" NOT NULL,
+    "phone" "text",
+    "avatar_url" "text",
+    "address_line1" "text",
+    "address_line2" "text",
+    "city" "text",
+    "state" "text",
+    "postal_code" "text",
+    "country" "text",
+    "role_hint" "text",
+    "user_status" "text" DEFAULT 'active'::"text",
+    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    CONSTRAINT "users_user_status_check" CHECK (("user_status" = ANY (ARRAY['active'::"text", 'inactive'::"text", 'pending'::"text"])))
+);
+
+
+ALTER TABLE "public"."users" OWNER TO "postgres";
+
+
+COMMENT ON COLUMN "public"."users"."user_status" IS 'User account status: active (authenticated), pending (invited but not yet authenticated), inactive (disabled)';
+
+
+
+CREATE OR REPLACE FUNCTION "public"."get_user_profile_secure"("user_uuid" "uuid") RETURNS SETOF "public"."users"
+    LANGUAGE "plpgsql" STABLE SECURITY DEFINER
+    SET "search_path" TO 'public'
+    AS $$
+BEGIN
+  RETURN QUERY SELECT * FROM users WHERE id = user_uuid;
+END;
+$$;
+
+
+ALTER FUNCTION "public"."get_user_profile_secure"("user_uuid" "uuid") OWNER TO "postgres";
 
 
 CREATE OR REPLACE FUNCTION "public"."get_user_role_in_org"("org_id" "uuid", "user_uuid" "uuid") RETURNS "public"."user_role"
@@ -224,10 +381,11 @@ ALTER FUNCTION "public"."update_updated_at_column"() OWNER TO "postgres";
 
 
 CREATE OR REPLACE FUNCTION "public"."user_can_manage_gig"("gig_id" "uuid", "user_uuid" "uuid") RETURNS boolean
-    LANGUAGE "sql" STABLE SECURITY DEFINER
+    LANGUAGE "plpgsql" STABLE SECURITY DEFINER
     SET "search_path" TO 'public'
     AS $$
-  SELECT EXISTS (
+BEGIN
+  RETURN EXISTS (
     SELECT 1 FROM gig_participants gp
     WHERE gp.gig_id = user_can_manage_gig.gig_id
     AND EXISTS (
@@ -237,6 +395,7 @@ CREATE OR REPLACE FUNCTION "public"."user_can_manage_gig"("gig_id" "uuid", "user
       AND om.role IN ('Admin', 'Manager')
     )
   );
+END;
 $$;
 
 
@@ -244,10 +403,11 @@ ALTER FUNCTION "public"."user_can_manage_gig"("gig_id" "uuid", "user_uuid" "uuid
 
 
 CREATE OR REPLACE FUNCTION "public"."user_has_access_to_gig"("gig_id" "uuid", "user_uuid" "uuid") RETURNS boolean
-    LANGUAGE "sql" STABLE SECURITY DEFINER
+    LANGUAGE "plpgsql" STABLE SECURITY DEFINER
     SET "search_path" TO 'public'
     AS $$
-  SELECT EXISTS (
+BEGIN
+  RETURN EXISTS (
     SELECT 1 FROM gig_participants gp
     WHERE gp.gig_id = user_has_access_to_gig.gig_id
     AND EXISTS (
@@ -256,6 +416,7 @@ CREATE OR REPLACE FUNCTION "public"."user_has_access_to_gig"("gig_id" "uuid", "u
       AND om.user_id = user_uuid
     )
   );
+END;
 $$;
 
 
@@ -263,10 +424,11 @@ ALTER FUNCTION "public"."user_has_access_to_gig"("gig_id" "uuid", "user_uuid" "u
 
 
 CREATE OR REPLACE FUNCTION "public"."user_is_admin_of_gig"("gig_id" "uuid", "user_uuid" "uuid") RETURNS boolean
-    LANGUAGE "sql" STABLE SECURITY DEFINER
+    LANGUAGE "plpgsql" STABLE SECURITY DEFINER
     SET "search_path" TO 'public'
     AS $$
-  SELECT EXISTS (
+BEGIN
+  RETURN EXISTS (
     SELECT 1 FROM gig_participants gp
     WHERE gp.gig_id = user_is_admin_of_gig.gig_id
     AND EXISTS (
@@ -276,6 +438,7 @@ CREATE OR REPLACE FUNCTION "public"."user_is_admin_of_gig"("gig_id" "uuid", "use
       AND om.role = 'Admin'
     )
   );
+END;
 $$;
 
 
@@ -283,15 +446,17 @@ ALTER FUNCTION "public"."user_is_admin_of_gig"("gig_id" "uuid", "user_uuid" "uui
 
 
 CREATE OR REPLACE FUNCTION "public"."user_is_admin_of_org"("org_id" "uuid", "user_uuid" "uuid") RETURNS boolean
-    LANGUAGE "sql" STABLE SECURITY DEFINER
+    LANGUAGE "plpgsql" STABLE SECURITY DEFINER
     SET "search_path" TO 'public'
     AS $$
-  SELECT EXISTS (
+BEGIN
+  RETURN EXISTS (
     SELECT 1 FROM organization_members
     WHERE organization_id = org_id 
     AND user_id = user_uuid
     AND role = 'Admin'
   );
+END;
 $$;
 
 
@@ -299,15 +464,17 @@ ALTER FUNCTION "public"."user_is_admin_of_org"("org_id" "uuid", "user_uuid" "uui
 
 
 CREATE OR REPLACE FUNCTION "public"."user_is_admin_or_manager_of_org"("org_id" "uuid", "user_uuid" "uuid") RETURNS boolean
-    LANGUAGE "sql" STABLE SECURITY DEFINER
+    LANGUAGE "plpgsql" STABLE SECURITY DEFINER
     SET "search_path" TO 'public'
     AS $$
-  SELECT EXISTS (
+BEGIN
+  RETURN EXISTS (
     SELECT 1 FROM organization_members
     WHERE organization_id = org_id 
     AND user_id = user_uuid
     AND role IN ('Admin', 'Manager')
   );
+END;
 $$;
 
 
@@ -315,13 +482,16 @@ ALTER FUNCTION "public"."user_is_admin_or_manager_of_org"("org_id" "uuid", "user
 
 
 CREATE OR REPLACE FUNCTION "public"."user_is_member_of_org"("org_id" "uuid", "user_uuid" "uuid") RETURNS boolean
-    LANGUAGE "sql" STABLE SECURITY DEFINER
+    LANGUAGE "plpgsql" STABLE SECURITY DEFINER
     SET "search_path" TO 'public'
     AS $$
-  SELECT EXISTS (
+BEGIN
+  RETURN EXISTS (
     SELECT 1 FROM organization_members
-    WHERE organization_id = org_id AND user_id = user_uuid
+    WHERE organization_id = org_id 
+    AND user_id = user_uuid
   );
+END;
 $$;
 
 
@@ -329,20 +499,19 @@ ALTER FUNCTION "public"."user_is_member_of_org"("org_id" "uuid", "user_uuid" "uu
 
 
 CREATE OR REPLACE FUNCTION "public"."user_organization_ids"("user_uuid" "uuid") RETURNS TABLE("organization_id" "uuid")
-    LANGUAGE "sql" STABLE SECURITY DEFINER
+    LANGUAGE "plpgsql" STABLE SECURITY DEFINER
     SET "search_path" TO 'public'
     AS $$
-  SELECT organization_id 
-  FROM organization_members
-  WHERE user_id = user_uuid;
+BEGIN
+  RETURN QUERY
+  SELECT om.organization_id 
+  FROM organization_members om
+  WHERE om.user_id = user_uuid;
+END;
 $$;
 
 
 ALTER FUNCTION "public"."user_organization_ids"("user_uuid" "uuid") OWNER TO "postgres";
-
-SET default_tablespace = '';
-
-SET default_table_access_method = "heap";
 
 
 CREATE TABLE IF NOT EXISTS "public"."assets" (
@@ -359,12 +528,12 @@ CREATE TABLE IF NOT EXISTS "public"."assets" (
     "serial_number" "text",
     "description" "text",
     "replacement_value" numeric(10,2),
+    "insurance_class" "text",
+    "quantity" integer DEFAULT 1,
     "created_by" "uuid" NOT NULL,
     "updated_by" "uuid" NOT NULL,
     "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
-    "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL,
-    "insurance_class" "text",
-    "quantity" integer DEFAULT 1
+    "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL
 );
 
 
@@ -374,13 +543,13 @@ ALTER TABLE "public"."assets" OWNER TO "postgres";
 CREATE TABLE IF NOT EXISTS "public"."gig_bids" (
     "id" "uuid" DEFAULT "extensions"."uuid_generate_v4"() NOT NULL,
     "gig_id" "uuid" NOT NULL,
+    "organization_id" "uuid",
     "amount" numeric(10,2) NOT NULL,
     "date_given" "date" NOT NULL,
     "result" "text",
     "notes" "text",
     "created_by" "uuid" NOT NULL,
-    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
-    "organization_id" "uuid"
+    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL
 );
 
 
@@ -433,11 +602,11 @@ CREATE TABLE IF NOT EXISTS "public"."gig_staff_slots" (
     "id" "uuid" DEFAULT "extensions"."uuid_generate_v4"() NOT NULL,
     "gig_id" "uuid" NOT NULL,
     "staff_role_id" "uuid" NOT NULL,
+    "organization_id" "uuid",
     "required_count" integer DEFAULT 1 NOT NULL,
     "notes" "text",
     "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
-    "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL,
-    "organization_id" "uuid"
+    "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL
 );
 
 
@@ -467,12 +636,12 @@ CREATE TABLE IF NOT EXISTS "public"."gigs" (
     "timezone" "text" NOT NULL,
     "amount_paid" numeric(10,2),
     "notes" "text",
+    "parent_gig_id" "uuid",
+    "hierarchy_depth" integer DEFAULT 0 NOT NULL,
     "created_by" "uuid" NOT NULL,
     "updated_by" "uuid" NOT NULL,
     "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
-    "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL,
-    "parent_gig_id" "uuid",
-    "hierarchy_depth" integer DEFAULT 0 NOT NULL
+    "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL
 );
 
 
@@ -524,12 +693,12 @@ CREATE TABLE IF NOT EXISTS "public"."kits" (
     "category" "text",
     "description" "text",
     "tags" "text"[] DEFAULT '{}'::"text"[],
+    "tag_number" "text",
+    "rental_value" numeric(10,2),
     "created_by" "uuid" NOT NULL,
     "updated_by" "uuid" NOT NULL,
     "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
-    "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL,
-    "tag_number" "text",
-    "rental_value" numeric(10,2)
+    "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL
 );
 
 
@@ -550,8 +719,8 @@ CREATE TABLE IF NOT EXISTS "public"."organization_members" (
     "organization_id" "uuid" NOT NULL,
     "user_id" "uuid" NOT NULL,
     "role" "public"."user_role" NOT NULL,
-    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
-    "default_staff_role_id" "uuid"
+    "default_staff_role_id" "uuid",
+    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL
 );
 
 
@@ -594,34 +763,6 @@ CREATE TABLE IF NOT EXISTS "public"."staff_roles" (
 
 
 ALTER TABLE "public"."staff_roles" OWNER TO "postgres";
-
-
-CREATE TABLE IF NOT EXISTS "public"."users" (
-    "id" "uuid" NOT NULL,
-    "email" "text" NOT NULL,
-    "first_name" "text" NOT NULL,
-    "last_name" "text" NOT NULL,
-    "phone" "text",
-    "avatar_url" "text",
-    "address_line1" "text",
-    "address_line2" "text",
-    "city" "text",
-    "state" "text",
-    "postal_code" "text",
-    "country" "text",
-    "role_hint" "text",
-    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
-    "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL,
-    "user_status" "text" DEFAULT 'active'::"text",
-    CONSTRAINT "users_user_status_check" CHECK (("user_status" = ANY (ARRAY['active'::"text", 'inactive'::"text", 'pending'::"text"])))
-);
-
-
-ALTER TABLE "public"."users" OWNER TO "postgres";
-
-
-COMMENT ON COLUMN "public"."users"."user_status" IS 'User account status: active (authenticated), pending (invited but not yet authenticated), inactive (disabled)';
-
 
 
 ALTER TABLE ONLY "public"."assets"
@@ -876,134 +1017,6 @@ CREATE INDEX "kv_store_de012ad4_key_idx" ON "public"."kv_store_de012ad4" USING "
 
 
 
-CREATE INDEX "kv_store_de012ad4_key_idx1" ON "public"."kv_store_de012ad4" USING "btree" ("key" "text_pattern_ops");
-
-
-
-CREATE INDEX "kv_store_de012ad4_key_idx10" ON "public"."kv_store_de012ad4" USING "btree" ("key" "text_pattern_ops");
-
-
-
-CREATE INDEX "kv_store_de012ad4_key_idx11" ON "public"."kv_store_de012ad4" USING "btree" ("key" "text_pattern_ops");
-
-
-
-CREATE INDEX "kv_store_de012ad4_key_idx12" ON "public"."kv_store_de012ad4" USING "btree" ("key" "text_pattern_ops");
-
-
-
-CREATE INDEX "kv_store_de012ad4_key_idx13" ON "public"."kv_store_de012ad4" USING "btree" ("key" "text_pattern_ops");
-
-
-
-CREATE INDEX "kv_store_de012ad4_key_idx14" ON "public"."kv_store_de012ad4" USING "btree" ("key" "text_pattern_ops");
-
-
-
-CREATE INDEX "kv_store_de012ad4_key_idx15" ON "public"."kv_store_de012ad4" USING "btree" ("key" "text_pattern_ops");
-
-
-
-CREATE INDEX "kv_store_de012ad4_key_idx16" ON "public"."kv_store_de012ad4" USING "btree" ("key" "text_pattern_ops");
-
-
-
-CREATE INDEX "kv_store_de012ad4_key_idx17" ON "public"."kv_store_de012ad4" USING "btree" ("key" "text_pattern_ops");
-
-
-
-CREATE INDEX "kv_store_de012ad4_key_idx18" ON "public"."kv_store_de012ad4" USING "btree" ("key" "text_pattern_ops");
-
-
-
-CREATE INDEX "kv_store_de012ad4_key_idx19" ON "public"."kv_store_de012ad4" USING "btree" ("key" "text_pattern_ops");
-
-
-
-CREATE INDEX "kv_store_de012ad4_key_idx2" ON "public"."kv_store_de012ad4" USING "btree" ("key" "text_pattern_ops");
-
-
-
-CREATE INDEX "kv_store_de012ad4_key_idx20" ON "public"."kv_store_de012ad4" USING "btree" ("key" "text_pattern_ops");
-
-
-
-CREATE INDEX "kv_store_de012ad4_key_idx21" ON "public"."kv_store_de012ad4" USING "btree" ("key" "text_pattern_ops");
-
-
-
-CREATE INDEX "kv_store_de012ad4_key_idx22" ON "public"."kv_store_de012ad4" USING "btree" ("key" "text_pattern_ops");
-
-
-
-CREATE INDEX "kv_store_de012ad4_key_idx23" ON "public"."kv_store_de012ad4" USING "btree" ("key" "text_pattern_ops");
-
-
-
-CREATE INDEX "kv_store_de012ad4_key_idx24" ON "public"."kv_store_de012ad4" USING "btree" ("key" "text_pattern_ops");
-
-
-
-CREATE INDEX "kv_store_de012ad4_key_idx25" ON "public"."kv_store_de012ad4" USING "btree" ("key" "text_pattern_ops");
-
-
-
-CREATE INDEX "kv_store_de012ad4_key_idx26" ON "public"."kv_store_de012ad4" USING "btree" ("key" "text_pattern_ops");
-
-
-
-CREATE INDEX "kv_store_de012ad4_key_idx27" ON "public"."kv_store_de012ad4" USING "btree" ("key" "text_pattern_ops");
-
-
-
-CREATE INDEX "kv_store_de012ad4_key_idx28" ON "public"."kv_store_de012ad4" USING "btree" ("key" "text_pattern_ops");
-
-
-
-CREATE INDEX "kv_store_de012ad4_key_idx29" ON "public"."kv_store_de012ad4" USING "btree" ("key" "text_pattern_ops");
-
-
-
-CREATE INDEX "kv_store_de012ad4_key_idx3" ON "public"."kv_store_de012ad4" USING "btree" ("key" "text_pattern_ops");
-
-
-
-CREATE INDEX "kv_store_de012ad4_key_idx30" ON "public"."kv_store_de012ad4" USING "btree" ("key" "text_pattern_ops");
-
-
-
-CREATE INDEX "kv_store_de012ad4_key_idx31" ON "public"."kv_store_de012ad4" USING "btree" ("key" "text_pattern_ops");
-
-
-
-CREATE INDEX "kv_store_de012ad4_key_idx32" ON "public"."kv_store_de012ad4" USING "btree" ("key" "text_pattern_ops");
-
-
-
-CREATE INDEX "kv_store_de012ad4_key_idx4" ON "public"."kv_store_de012ad4" USING "btree" ("key" "text_pattern_ops");
-
-
-
-CREATE INDEX "kv_store_de012ad4_key_idx5" ON "public"."kv_store_de012ad4" USING "btree" ("key" "text_pattern_ops");
-
-
-
-CREATE INDEX "kv_store_de012ad4_key_idx6" ON "public"."kv_store_de012ad4" USING "btree" ("key" "text_pattern_ops");
-
-
-
-CREATE INDEX "kv_store_de012ad4_key_idx7" ON "public"."kv_store_de012ad4" USING "btree" ("key" "text_pattern_ops");
-
-
-
-CREATE INDEX "kv_store_de012ad4_key_idx8" ON "public"."kv_store_de012ad4" USING "btree" ("key" "text_pattern_ops");
-
-
-
-CREATE INDEX "kv_store_de012ad4_key_idx9" ON "public"."kv_store_de012ad4" USING "btree" ("key" "text_pattern_ops");
-
-
-
 CREATE OR REPLACE TRIGGER "log_gig_status_changes" AFTER UPDATE ON "public"."gigs" FOR EACH ROW EXECUTE FUNCTION "public"."log_gig_status_change"();
 
 
@@ -1218,9 +1231,7 @@ CREATE POLICY "Admins can manage organization members" ON "public"."organization
 
 
 
-CREATE POLICY "Admins can update their organizations" ON "public"."organizations" FOR UPDATE USING ((EXISTS ( SELECT 1
-   FROM "public"."organization_members"
-  WHERE (("organization_members"."organization_id" = "organizations"."id") AND ("organization_members"."user_id" = "auth"."uid"()) AND ("organization_members"."role" = 'Admin'::"public"."user_role")))));
+CREATE POLICY "Admins can update their organizations" ON "public"."organizations" FOR UPDATE USING ("public"."user_is_admin_of_org"("id", "auth"."uid"()));
 
 
 
@@ -1252,7 +1263,7 @@ CREATE POLICY "Staff can update their own assignments" ON "public"."gig_staff_as
 
 
 
-CREATE POLICY "Users can update their own profile" ON "public"."users" FOR UPDATE USING (("auth"."uid"() = "id"));
+CREATE POLICY "Users can join organizations as viewers" ON "public"."organization_members" FOR INSERT TO "authenticated" WITH CHECK ((("user_id" = "auth"."uid"()) AND ("role" = 'Viewer'::"public"."user_role")));
 
 
 
@@ -1287,11 +1298,6 @@ CREATE POLICY "Users can view members of their organizations" ON "public"."organ
 
 
 
-CREATE POLICY "Users can view other user profiles" ON "public"."users" FOR SELECT USING ((("auth"."uid"() = "id") OR (EXISTS ( SELECT 1
-   FROM "public"."user_organization_ids"("auth"."uid"()) "user_organization_ids"("organization_id")))));
-
-
-
 CREATE POLICY "Users can view participants for accessible gigs" ON "public"."gig_participants" FOR SELECT USING ("public"."user_has_access_to_gig"("gig_id", "auth"."uid"()));
 
 
@@ -1309,10 +1315,6 @@ CREATE POLICY "Users can view their organization's assets" ON "public"."assets" 
 
 
 CREATE POLICY "Users can view their organization's kits" ON "public"."kits" FOR SELECT USING ("public"."user_is_member_of_org"("organization_id", "auth"."uid"()));
-
-
-
-CREATE POLICY "Users can view their own profile" ON "public"."users" FOR SELECT USING (("auth"."uid"() = "id"));
 
 
 
@@ -1352,13 +1354,33 @@ ALTER TABLE "public"."kits" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "public"."kv_store_de012ad4" ENABLE ROW LEVEL SECURITY;
 
 
+CREATE POLICY "org_view" ON "public"."users" FOR SELECT USING (("id" IN ( SELECT "get_user_ids_in_same_orgs"."member_user_id"
+   FROM "public"."get_user_ids_in_same_orgs"("auth"."uid"()) "get_user_ids_in_same_orgs"("member_user_id"))));
+
+
+
 ALTER TABLE "public"."organization_members" ENABLE ROW LEVEL SECURITY;
 
 
 ALTER TABLE "public"."organizations" ENABLE ROW LEVEL SECURITY;
 
 
+CREATE POLICY "self_insert" ON "public"."users" FOR INSERT TO "authenticated" WITH CHECK (("auth"."uid"() = "id"));
+
+
+
+CREATE POLICY "self_update" ON "public"."users" FOR UPDATE USING (("auth"."uid"() = "id")) WITH CHECK (("auth"."uid"() = "id"));
+
+
+
+CREATE POLICY "self_view" ON "public"."users" FOR SELECT USING (("auth"."uid"() = "id"));
+
+
+
 ALTER TABLE "public"."staff_roles" ENABLE ROW LEVEL SECURITY;
+
+
+ALTER TABLE "public"."users" ENABLE ROW LEVEL SECURITY;
 
 
 GRANT USAGE ON SCHEMA "public" TO "postgres";
@@ -1374,9 +1396,39 @@ GRANT ALL ON FUNCTION "public"."create_gig_complex"("p_gig_data" "jsonb", "p_par
 
 
 
+GRANT ALL ON FUNCTION "public"."get_complete_user_data"("user_uuid" "uuid") TO "anon";
+GRANT ALL ON FUNCTION "public"."get_complete_user_data"("user_uuid" "uuid") TO "authenticated";
+GRANT ALL ON FUNCTION "public"."get_complete_user_data"("user_uuid" "uuid") TO "service_role";
+
+
+
 GRANT ALL ON FUNCTION "public"."get_user_email"("user_uuid" "uuid") TO "anon";
 GRANT ALL ON FUNCTION "public"."get_user_email"("user_uuid" "uuid") TO "authenticated";
 GRANT ALL ON FUNCTION "public"."get_user_email"("user_uuid" "uuid") TO "service_role";
+
+
+
+GRANT ALL ON FUNCTION "public"."get_user_ids_in_same_orgs"("user_uuid" "uuid") TO "anon";
+GRANT ALL ON FUNCTION "public"."get_user_ids_in_same_orgs"("user_uuid" "uuid") TO "authenticated";
+GRANT ALL ON FUNCTION "public"."get_user_ids_in_same_orgs"("user_uuid" "uuid") TO "service_role";
+
+
+
+GRANT ALL ON FUNCTION "public"."get_user_organizations_secure"("user_uuid" "uuid") TO "anon";
+GRANT ALL ON FUNCTION "public"."get_user_organizations_secure"("user_uuid" "uuid") TO "authenticated";
+GRANT ALL ON FUNCTION "public"."get_user_organizations_secure"("user_uuid" "uuid") TO "service_role";
+
+
+
+GRANT ALL ON TABLE "public"."users" TO "anon";
+GRANT ALL ON TABLE "public"."users" TO "authenticated";
+GRANT ALL ON TABLE "public"."users" TO "service_role";
+
+
+
+GRANT ALL ON FUNCTION "public"."get_user_profile_secure"("user_uuid" "uuid") TO "anon";
+GRANT ALL ON FUNCTION "public"."get_user_profile_secure"("user_uuid" "uuid") TO "authenticated";
+GRANT ALL ON FUNCTION "public"."get_user_profile_secure"("user_uuid" "uuid") TO "service_role";
 
 
 
@@ -1527,12 +1579,6 @@ GRANT ALL ON TABLE "public"."organizations" TO "service_role";
 GRANT ALL ON TABLE "public"."staff_roles" TO "anon";
 GRANT ALL ON TABLE "public"."staff_roles" TO "authenticated";
 GRANT ALL ON TABLE "public"."staff_roles" TO "service_role";
-
-
-
-GRANT ALL ON TABLE "public"."users" TO "anon";
-GRANT ALL ON TABLE "public"."users" TO "authenticated";
-GRANT ALL ON TABLE "public"."users" TO "service_role";
 
 
 

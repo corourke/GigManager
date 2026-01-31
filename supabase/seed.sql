@@ -171,14 +171,6 @@ INSERT INTO gig_status_history (id, gig_id, from_status, to_status, changed_by, 
 
 
 
-
---
--- Data for Name: kv_store_de012ad4; Type: TABLE DATA; Schema: public; Owner: postgres
---
-
-
-
-
 --
 -- PostgreSQL database dump complete
 --

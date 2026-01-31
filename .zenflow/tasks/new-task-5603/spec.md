@@ -18,7 +18,7 @@
   - Apply similar standardization to `TeamScreen.tsx` (View, Edit) and `AssetListScreen.tsx` (View, Edit, Duplicate, Trash).
 
 ### 2. Gig List Spreadsheet Experience
-- **Issue**: Tabbing between columns is missing. Styling is jarring. Inline date/time editing is a regression.
+- **Issue**: Tabbing between columns is missing. Styling is jarring. Modal date/time editing is a regression.
 - **Approach**:
   - **Keyboard Navigation**:
     - Update `EditableTableCell.tsx` to handle `Tab` (forward) and `Shift+Tab` (backward).

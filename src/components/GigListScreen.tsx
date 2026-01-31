@@ -109,15 +109,13 @@ export default function GigListScreen({
         return;
       }
 
-      // Process other fields
+      // Process date fields
       let processedValue = value;
-      if (field === 'start' && typeof value === 'string') {
-        const existingGig = gigs.find(g => g.id === gigId);
-        if (existingGig) {
-          const existingDate = new Date(existingGig.start);
-          const newDate = new Date(value);
-          newDate.setHours(existingDate.getHours(), existingDate.getMinutes(), existingDate.getSeconds());
-          processedValue = newDate.toISOString();
+      if ((field === 'start' || field === 'end') && typeof value === 'string' && value.includes('T')) {
+        try {
+          processedValue = new Date(value).toISOString();
+        } catch (e) {
+          console.error(`Invalid date value for ${field}:`, value);
         }
       }
 

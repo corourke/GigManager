@@ -62,3 +62,18 @@
     dispatchEventWithEnableCapturePhaseSelectiveHydrationWithoutDiscreteEventReplay @ chunk-3LEBMX3J.js?v=624f4b5c:5484
     dispatchEvent @ chunk-3LEBMX3J.js?v=624f4b5c:5478
     dispatchDiscreteEvent @ chunk-3LEBMX3J.js?v=624f4b5c:5455Understand this error
+
+[ ]] If I navigate to another browser tab and come back, the browser is refreshed
+[ ]] In the GIg List, the Start and End dates are not populating correctly, it also appears that time zone conversion isn't working properly. Simply follow what is done in src/components/gig/GigBasicInfoSection.tsx
+[ ]] I'm unable to get to the Edit Gig screen via the edit icon in the Gig List. I get this error: GigListScreen.tsx:151 Uncaught TypeError: onEditGig is not a function
+    at handleGigEdit (GigListScreen.tsx:151:5)
+    at onClick (GigTable.tsx:387:42)
+
+## Smoke Tests to Perform
+After applying migrations and before proceeding to the next issue, perform these manual smoke tests to ensure the changes work as intended:
+
+[ ] Invitation Flow: As an Admin or Manager, attempt to invite a new user to an organization. Verify that the invitation is created without RLS errors, and that the pending user record is properly linked.
+[ ] IUser Activation: Have a test user accept an invitation and sign up. Confirm that the pending user is converted to active status and that all organization memberships and invitations are updated correctly.
+[ ] IGlobal Navigation: Navigate through all authenticated routes (e.g., organization selection, admin screens, gig lists). Ensure the "Edit Profile" menu item is consistently visible and functional in the header.
+[ ] IBuild and Tests: Run npm test to confirm no regressions in automated tests. Run npm run lint and npm run typecheck to ensure code quality.
+[ ] IRole Permissions: Verify that only Admins/Managers can perform invitations, and that other roles are blocked appropriately.
