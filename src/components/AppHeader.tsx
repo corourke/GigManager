@@ -44,8 +44,10 @@ const AppHeader = React.memo(function AppHeader({
   // Get navigation handlers from context (only if organization exists)
   const navigation = organization ? useNavigation() : null;
 
-  const getInitials = (firstName: string, lastName: string) => {
-    return `${firstName[0]}${lastName[0]}`.toUpperCase();
+  const getInitials = (firstName: string = '', lastName: string = '') => {
+    const f = firstName?.[0] || '';
+    const l = lastName?.[0] || '';
+    return `${f}${l}`.toUpperCase() || '?';
   };
 
   return (

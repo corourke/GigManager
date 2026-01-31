@@ -21,8 +21,11 @@ export async function getUserProfile(userId: string): Promise<User | null> {
       console.error('user.service: getUserProfile error', error);
       throw error;
     }
-    console.log('user.service: getUserProfile success', !!data);
-    return data;
+    
+    // The RPC returns a SETOF users which comes as an array
+    const profile = Array.isArray(data) ? data[0] : data;
+    console.log('user.service: getUserProfile success', !!profile);
+    return profile || null;
   } catch (err) {
     return handleApiError(err, 'fetch user profile');
   }
