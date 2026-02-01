@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react';
 import { 
   ArrowLeft, 
   Calendar, 
-  Clock, 
   MapPin, 
   User as UserIcon, 
   Tag, 
@@ -10,7 +9,6 @@ import {
   Trash2, 
   Copy, 
   Loader2,
-  DollarSign,
   FileText,
   Music
 } from 'lucide-react';
@@ -22,7 +20,7 @@ import AppHeader from './AppHeader';
 import { Organization, User, UserRole, Gig } from '../utils/supabase/types';
 import { GIG_STATUS_CONFIG } from '../utils/supabase/constants';
 import { getGig, deleteGig, duplicateGig } from '../services/gig.service';
-import { formatDateLong, formatTimeDisplay, formatInTimeZone, formatDateTimeDisplay } from '../utils/dateUtils';
+import { formatTimeDisplay, formatInTimeZone, formatDateTimeDisplay } from '../utils/dateUtils';
 
 interface GigDetailScreenProps {
   gigId: string;
@@ -252,25 +250,25 @@ export default function GigDetailScreen({
 
           {/* Sidebar Columns */}
           <div className="space-y-4">
-            {/* Financial Card */}
-            {canViewFinancials && (
-              <Card className="p-4">
-                <div className="flex items-center gap-2 mb-3">
-                  <DollarSign className="w-5 h-5 text-gray-400" />
-                  <h3 className="text-sm font-semibold text-gray-900 uppercase tracking-wider">Financials</h3>
-                </div>
-                <div>
-                  <p className="text-xs font-medium text-gray-500 uppercase mb-1">Amount Paid</p>
-                  {gig.amount_paid ? (
-                    <p className="text-2xl font-bold text-gray-900">
-                      ${gig.amount_paid.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                    </p>
-                  ) : (
-                    <p className="text-gray-400 italic">Not specified</p>
-                  )}
-                </div>
-              </Card>
-            )}
+            {/* Participants Card */}
+            <Card className="p-4">
+              <div className="flex items-center gap-2 mb-3">
+                <UserIcon className="w-5 h-5 text-gray-400" />
+                <h3 className="text-sm font-semibold text-gray-900 uppercase tracking-wider">Participants</h3>
+              </div>
+              <div className="space-y-3">
+                {gig.participants && gig.participants.length > 0 ? (
+                  gig.participants.map((participant: any) => (
+                    <div key={participant.id} className="flex flex-col">
+                      <p className="text-xs font-medium text-gray-500 uppercase">{participant.role}</p>
+                      <p className="text-sm font-medium text-gray-900">{participant.organization?.name || 'Unknown'}</p>
+                    </div>
+                  ))
+                ) : (
+                  <p className="text-sm text-gray-400 italic">No participants</p>
+                )}
+              </div>
+            </Card>
 
             {/* Tags Card */}
             <Card className="p-4">

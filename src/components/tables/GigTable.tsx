@@ -188,20 +188,20 @@ export default function GigTable({
             <Table className="border-collapse table-fixed w-full">
             <TableHeader>
               <TableRow className="hover:bg-transparent">
-                <TableHead className="w-[250px] whitespace-nowrap border">Title</TableHead>
+                <TableHead className="w-[200px] whitespace-nowrap border overflow-hidden">Title</TableHead>
                 {enableInlineEditing ? (
                   <>
-                    <TableHead className="w-[180px] whitespace-nowrap border">Start</TableHead>
-                    <TableHead className="w-[180px] whitespace-nowrap border">End</TableHead>
+                    <TableHead className="w-[160px] whitespace-nowrap border overflow-hidden">Start</TableHead>
+                    <TableHead className="w-[160px] whitespace-nowrap border overflow-hidden">End</TableHead>
                   </>
                 ) : (
-                  <TableHead className="w-[200px] whitespace-nowrap border">Date & Time</TableHead>
+                  <TableHead className="w-[180px] whitespace-nowrap border overflow-hidden">Date & Time</TableHead>
                 )}
-                <TableHead className="w-[120px] whitespace-nowrap border">Status</TableHead>
-                {showVenueActColumns && <TableHead className="w-[180px] whitespace-nowrap border">Venue</TableHead>}
-                {showVenueActColumns && <TableHead className="w-[180px] whitespace-nowrap border">Act</TableHead>}
-                {showTagsColumn && <TableHead className="w-[220px] whitespace-nowrap border">Tags</TableHead>}
-                {showActions && <TableHead className="w-[160px] text-right border">Actions</TableHead>}
+                <TableHead className="w-[110px] whitespace-nowrap border overflow-hidden">Status</TableHead>
+                {showVenueActColumns && <TableHead className="w-[160px] whitespace-nowrap border overflow-hidden">Venue</TableHead>}
+                {showVenueActColumns && <TableHead className="w-[160px] whitespace-nowrap border overflow-hidden">Act</TableHead>}
+                {showTagsColumn && <TableHead className="w-[200px] whitespace-nowrap border overflow-hidden">Tags</TableHead>}
+                {showActions && <TableHead className="w-[140px] text-right border overflow-hidden">Actions</TableHead>}
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -218,7 +218,7 @@ export default function GigTable({
                   }}
                 >
                   {/* Title Cell */}
-                  <TableCell className={`relative min-w-[200px] whitespace-normal border ${enableInlineEditing ? 'p-0' : 'p-2'}`} onClick={(e) => mode === 'list' && e.stopPropagation()}>
+                  <TableCell className={`relative w-[200px] border p-0 overflow-hidden`} onClick={(e) => mode === 'list' && e.stopPropagation()}>
                     {enableInlineEditing ? (
                       <EditableTableCell
                         value={gig.title || ''}
@@ -227,14 +227,16 @@ export default function GigTable({
                         onSave={(field, value) => onGigUpdate(gig.id, 'title', value)}
                       />
                     ) : (
-                      <span className="text-sm text-gray-900">{gig.title || <span className="text-gray-400 italic">Untitled Gig</span>}</span>
+                      <div className="px-2 py-1.5 truncate text-sm text-gray-900">
+                        {gig.title || <span className="text-gray-400 italic">Untitled Gig</span>}
+                      </div>
                     )}
                   </TableCell>
 
                   {/* Date & Time Cell(s) */}
                   {enableInlineEditing ? (
                     <>
-                      <TableCell className="relative min-w-[180px] whitespace-normal border p-0" onClick={(e) => e.stopPropagation()}>
+                      <TableCell className="relative w-[160px] border p-0 overflow-hidden" onClick={(e) => e.stopPropagation()}>
                         <EditableTableCell
                           value={gig.start}
                           field="start"
@@ -244,7 +246,7 @@ export default function GigTable({
                           onSave={(field, value) => onGigUpdate(gig.id, 'start', value)}
                         />
                       </TableCell>
-                      <TableCell className="relative min-w-[180px] whitespace-normal border p-0" onClick={(e) => e.stopPropagation()}>
+                      <TableCell className="relative w-[160px] border p-0 overflow-hidden" onClick={(e) => e.stopPropagation()}>
                         <EditableTableCell
                           value={gig.end}
                           field="end"
@@ -256,13 +258,15 @@ export default function GigTable({
                       </TableCell>
                     </>
                   ) : (
-                    <TableCell className="text-sm text-gray-700 min-w-[160px] whitespace-normal border p-2" onClick={(e) => mode === 'list' && e.stopPropagation()}>
-                      {formatDateTime(gig.start, gig.end, gig.timezone)}
+                    <TableCell className="w-[180px] border p-0 overflow-hidden" onClick={(e) => mode === 'list' && e.stopPropagation()}>
+                      <div className="px-2 py-1.5 truncate text-sm text-gray-700">
+                        {formatDateTime(gig.start, gig.end, gig.timezone)}
+                      </div>
                     </TableCell>
                   )}
 
                   {/* Status Cell */}
-                  <TableCell className={`text-sm text-gray-700 min-w-[100px] whitespace-normal border ${enableInlineEditing ? 'p-0' : 'p-2'}`} onClick={(e) => mode === 'list' && e.stopPropagation()}>
+                  <TableCell className={`w-[110px] border p-0 overflow-hidden`} onClick={(e) => mode === 'list' && e.stopPropagation()}>
                     {enableInlineEditing ? (
                       <EditableTableCell
                         value={gig.status}
@@ -276,15 +280,17 @@ export default function GigTable({
                         }))}
                       />
                     ) : (
-                      <Badge variant="outline" className={GIG_STATUS_CONFIG[gig.status].color}>
-                        {GIG_STATUS_CONFIG[gig.status].label}
-                      </Badge>
+                      <div className="px-2 py-1.5">
+                        <Badge variant="outline" className={cn("truncate", GIG_STATUS_CONFIG[gig.status].color)}>
+                          {GIG_STATUS_CONFIG[gig.status].label}
+                        </Badge>
+                      </div>
                     )}
                   </TableCell>
 
                   {/* Venue Cell */}
                   {showVenueActColumns && (
-                    <TableCell className={`text-sm text-gray-700 min-w-[120px] whitespace-normal border ${enableInlineEditing ? 'p-0' : 'p-2'}`} onClick={(e) => mode === 'list' && e.stopPropagation()}>
+                    <TableCell className={`w-[160px] border p-0 overflow-hidden`} onClick={(e) => mode === 'list' && e.stopPropagation()}>
                       {enableInlineEditing ? (
                         <EditableTableCell
                           value={gig.venue?.id || ''}
@@ -295,14 +301,16 @@ export default function GigTable({
                           onSave={(field, value) => onGigUpdate(gig.id, field, value)}
                         />
                       ) : (
-                        gig.venue?.name || '-'
+                        <div className="px-2 py-1.5 truncate text-sm text-gray-700">
+                          {gig.venue?.name || '-'}
+                        </div>
                       )}
                     </TableCell>
                   )}
 
                   {/* Act Cell */}
                   {showVenueActColumns && (
-                    <TableCell className={`text-sm text-gray-700 min-w-[120px] whitespace-normal border ${enableInlineEditing ? 'p-0' : 'p-2'}`} onClick={(e) => mode === 'list' && e.stopPropagation()}>
+                    <TableCell className={`w-[160px] border p-0 overflow-hidden`} onClick={(e) => mode === 'list' && e.stopPropagation()}>
                       {enableInlineEditing ? (
                         <EditableTableCell
                           value={gig.act?.id || ''}
@@ -313,14 +321,16 @@ export default function GigTable({
                           onSave={(field, value) => onGigUpdate(gig.id, field, value)}
                         />
                       ) : (
-                        gig.act?.name || '-'
+                        <div className="px-2 py-1.5 truncate text-sm text-gray-700">
+                          {gig.act?.name || '-'}
+                        </div>
                       )}
                     </TableCell>
                   )}
 
                   {/* Tags Cell */}
                   {showTagsColumn && (
-                    <TableCell className={`relative min-w-[150px] whitespace-normal border ${enableInlineEditing ? 'p-0' : 'p-2'}`} onClick={(e) => mode === 'list' && e.stopPropagation()}>
+                    <TableCell className={`relative w-[200px] border p-0 overflow-hidden`} onClick={(e) => mode === 'list' && e.stopPropagation()}>
                       {enableInlineEditing ? (
                         <EditableTableCell
                           value={gig.tags || []}
@@ -331,9 +341,9 @@ export default function GigTable({
                           onSave={(field, value) => onGigUpdate(gig.id, 'tags', value)}
                         />
                       ) : (
-                        <div className="flex flex-wrap gap-1">
+                        <div className="px-2 py-1.5 truncate flex flex-wrap gap-1">
                           {gig.tags?.map((tag, index) => (
-                            <Badge key={index} variant="secondary" className="text-xs">
+                            <Badge key={index} variant="secondary" className="text-[10px] h-4 py-0">
                               {tag}
                             </Badge>
                           )) || <span className="text-gray-400">-</span>}
@@ -344,7 +354,7 @@ export default function GigTable({
 
                   {/* Actions Cell */}
                   {showActions && (
-                    <TableCell className="text-right border p-2" onClick={(e) => e.stopPropagation()}>
+                    <TableCell className="w-[140px] text-right border p-1 overflow-hidden" onClick={(e) => e.stopPropagation()}>
                     <div className="flex justify-end gap-1">
                       {onGigClick && (
                         <Button

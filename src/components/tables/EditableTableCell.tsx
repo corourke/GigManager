@@ -134,7 +134,26 @@ export default function EditableTableCell({
 
   // Handle input change
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-    updateValue(e.target.value);
+    const newVal = e.target.value;
+    updateValue(newVal);
+    
+    // For select/organization, update search and find top match
+    if (type === 'select' || type === 'organization') {
+      setSearchQuery(newVal);
+      const options = type === 'select' 
+        ? selectOptions 
+        : organizations.map(o => ({ value: o.id, label: o.name }));
+      
+      const match = options.find(opt => 
+        opt.label.toLowerCase().startsWith(newVal.toLowerCase())
+      );
+      
+      if (match) {
+        setHighlightedValue(match.value);
+      } else {
+        setHighlightedValue(null);
+      }
+    }
   };
 
   // Handle blur to save - always exit edit mode on blur
@@ -259,8 +278,14 @@ export default function EditableTableCell({
       } else {
         cancelEdit();
       }
-    } else if (type === 'tags' || type === 'select') {
-      // These usually auto-save, but let's be safe
+    } else if (type === 'select') {
+      if (editValue !== value) {
+        await saveEdit();
+      } else {
+        cancelEdit();
+      }
+    } else if (type === 'tags') {
+      // Tags auto-save on change in TagsInput
       cancelEdit();
     } else if (editValue !== displayValue) {
       await saveEdit();
@@ -300,7 +325,7 @@ export default function EditableTableCell({
   if (isEditing) {
     // For title field, ensure minimum width to prevent collapsing on narrow screens
     const wrapperClassName = cn(
-      "relative w-full h-full flex items-center p-2 bg-sky-50 transition-colors cursor-text min-h-[40px]",
+      "relative w-full h-full flex items-center px-2 py-1.5 bg-white transition-colors cursor-text min-h-[38px] border-2 border-sky-400 ring-1 ring-sky-400 z-10",
       field === 'title' && "min-w-[200px]"
     );
     
@@ -331,12 +356,28 @@ export default function EditableTableCell({
             </PopoverTrigger>
             <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
               <Command 
-                onValueChange={(val) => setHighlightedValue(val)}
                 value={highlightedValue || (editValue === '__none__' ? '' : editValue)}
               >
                 <CommandInput 
                   placeholder={`Search ${field}...`} 
                   className="h-8"
+                  value={searchQuery}
+                  onValueChange={(val) => {
+                    setSearchQuery(val);
+                    const options = type === 'select' 
+                      ? selectOptions 
+                      : organizations.map(o => ({ value: o.id, label: o.name }));
+                    
+                    const match = options.find(opt => 
+                      opt.label.toLowerCase().startsWith(val.toLowerCase())
+                    );
+                    
+                    if (match) {
+                      setHighlightedValue(match.value);
+                    } else {
+                      setHighlightedValue(null);
+                    }
+                  }}
                   onKeyDown={(e) => {
                     if (e.key === 'Tab') {
                       // If we have a highlighted value, select it before tabbing away
@@ -351,6 +392,8 @@ export default function EditableTableCell({
                       const saveValue = type === 'organization' && highlightedValue === '__none__' ? '' : highlightedValue;
                       updateValue(saveValue);
                       onSave(field, saveValue);
+                      cancelEdit();
+                    } else if (e.key === 'Escape') {
                       cancelEdit();
                     }
                   }}

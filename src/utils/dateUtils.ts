@@ -97,9 +97,9 @@ export const formatDateTimeDisplay = (
   const durationHours = (endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60);
 
   // Check if they are on the same calendar day in the target timezone
-  const startDay = formatInTimeZone(start, timeZone, { day: 'numeric' });
-  const endDay = formatInTimeZone(end, timeZone, { day: 'numeric' });
-  const sameDay = startDay === endDay;
+  const startDayStr = formatDateDisplay(start, timeZone);
+  const endDayStr = formatDateDisplay(end, timeZone);
+  const sameDay = startDayStr === endDayStr;
 
   if (durationHours < 24) {
     // Less than 24 hours: "Date StartTime - EndTime" (even if it crosses midnight)
