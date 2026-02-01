@@ -10,6 +10,7 @@ import { useInlineEdit } from '../../utils/hooks/useInlineEdit';
 import { getOrganizations } from '../../services/organization.service';
 import TagsInput from '../TagsInput';
 import { Organization } from '../../utils/supabase/types';
+import { GIG_STATUS_CONFIG, ORG_TYPE_CONFIG } from '../../utils/supabase/constants';
 import { format } from 'date-fns';
 import { cn } from '../ui/utils';
 import { formatInTimeZone, formatForDateTimeInput } from '../../utils/dateUtils';
@@ -106,6 +107,28 @@ export default function EditableTableCell({
 
   const displayValue = getDisplayValue();
 
+  const getValueColor = (val: any, displayVal: string) => {
+    if (field === 'status' && GIG_STATUS_CONFIG[val as keyof typeof GIG_STATUS_CONFIG]) {
+      return GIG_STATUS_CONFIG[val as keyof typeof GIG_STATUS_CONFIG].color;
+    } else if (type === 'organization' && organizationType) {
+      return ORG_TYPE_CONFIG[organizationType].color;
+    } else {
+      // Rotating color logic based on the value string for other selects
+      const colors = [
+        'bg-blue-100 text-blue-700 border-blue-200',
+        'bg-purple-100 text-purple-700 border-purple-200',
+        'bg-emerald-100 text-emerald-700 border-emerald-200',
+        'bg-amber-100 text-amber-700 border-amber-200',
+        'bg-rose-100 text-rose-700 border-rose-200',
+        'bg-indigo-100 text-indigo-700 border-indigo-200',
+        'bg-cyan-100 text-cyan-700 border-cyan-200',
+        'bg-teal-100 text-teal-700 border-teal-200',
+      ];
+      const colorIndex = Math.abs(displayVal.toString().split('').reduce((acc, char) => acc + char.charCodeAt(0), 0)) % colors.length;
+      return colors[colorIndex];
+    }
+  };
+
   // Handle cell click to start editing
   const handleCellClick = () => {
     if (!disabled) {
@@ -115,6 +138,8 @@ export default function EditableTableCell({
       }
       
       if (!isEditing) {
+        setSearchQuery('');
+        setComboOpen(true);
         // For editing, we want to use the raw value (ID for organizations, array for tags)
         let editValue: any;
         if (type === 'organization') {
@@ -344,13 +369,21 @@ export default function EditableTableCell({
                 variant="ghost"
                 role="combobox"
                 aria-expanded={comboOpen}
-                className="h-8 w-full justify-between px-0 font-normal hover:bg-transparent"
+                className="h-8 w-full justify-start px-0 font-normal hover:bg-transparent"
               >
-                <span className="truncate text-sm text-gray-900">
-                  {type === 'select' 
+                {(() => {
+                  const currentDisplayVal = type === 'select' 
                     ? (selectOptions.find((opt) => opt.value === editValue)?.label || placeholder)
-                    : (organizations.find((org) => org.id === editValue)?.name || (editValue === '__none__' ? 'None' : placeholder))}
-                </span>
+                    : (organizations.find((org) => org.id === editValue)?.name || (editValue === '__none__' ? 'None' : placeholder));
+                  
+                  const currentColor = getValueColor(editValue === '__none__' ? '' : editValue, currentDisplayVal);
+                  
+                  return (
+                    <Badge variant="outline" className={cn("font-medium truncate", currentColor)}>
+                      {currentDisplayVal}
+                    </Badge>
+                  );
+                })()}
                 <ChevronsUpDown className="ml-2 h-3 w-3 shrink-0 opacity-50" />
               </Button>
             </PopoverTrigger>
@@ -519,42 +552,68 @@ export default function EditableTableCell({
     );
   }
 
+  // Render view value with consistent formatting
+  const renderViewValue = () => {
+    if ((type === 'select' || type === 'organization' || field === 'status') && displayValue && displayValue !== '-') {
+      const colorClass = getValueColor(value, displayValue);
+      
+      return (
+        <Badge variant="outline" className={cn("font-medium truncate", colorClass)}>
+          {displayValue}
+        </Badge>
+      );
+    }
+    
+    if (type === 'tags' && Array.isArray(value)) {
+      return (
+        <div className="flex flex-wrap gap-1">
+          {value.length > 0 ? (
+            value.map((tag, index) => (
+              <Badge key={index} variant="secondary" className="bg-sky-50 text-sky-700 border-sky-100 text-[10px] h-5 py-0">
+                {tag}
+              </Badge>
+            ))
+          ) : (
+            <span className="text-gray-400 italic text-xs">No tags</span>
+          )}
+        </div>
+      );
+    }
+    
+    return (
+      <span className={cn(
+        "text-sm text-gray-900 truncate block w-full",
+        (!displayValue || displayValue === '-') && "text-gray-400 italic"
+      )}>
+        {displayValue || placeholder || '-'}
+      </span>
+    );
+  };
+
   return (
     <div
       ref={cellRef}
       data-editable-cell
       data-field={field}
       className={cn(
-        "group cursor-pointer p-2 h-full min-h-[40px] flex items-center transition-colors hover:bg-gray-100/50",
+        "relative w-full h-full flex items-center px-2 py-1.5 transition-colors border-2 border-transparent outline-none focus:border-blue-500 ring-offset-0 focus:ring-1 focus:ring-blue-500",
+        !disabled && "cursor-pointer hover:bg-gray-50/80",
         className
       )}
       onClick={handleCellClick}
+      onKeyDown={(e) => {
+        if (!disabled && (e.key === 'Enter' || e.key === ' ')) {
+          e.preventDefault();
+          handleCellClick();
+        } else if (e.key === 'Tab') {
+          e.preventDefault();
+          handleTabKey(e.shiftKey);
+        }
+      }}
+      tabIndex={disabled ? -1 : 0}
       title={disabled ? undefined : 'Click to edit'}
     >
-      <div className="flex items-center gap-2">
-        {type === 'tags' && Array.isArray(value) ? (
-          <div className="flex flex-wrap gap-1">
-            {value.length > 0 ? (
-              value.map((tag, index) => (
-                <Badge key={index} variant="secondary" className="text-xs">
-                  {tag}
-                </Badge>
-              ))
-            ) : (
-              <span className="text-gray-400">-</span>
-            )}
-          </div>
-        ) : (
-          <span className="text-sm text-gray-900">
-            {type === 'organization' && (!displayValue || displayValue === '')
-              ? '-'
-              : displayValue || <span className="text-gray-400 italic">Empty</span>}
-          </span>
-        )}
-        {!disabled && (
-          <Edit2 className="h-3 w-3 text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity" />
-        )}
-      </div>
+      {renderViewValue()}
     </div>
   );
 }

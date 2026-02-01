@@ -18,8 +18,9 @@ import { Card } from './ui/card';
 import { Badge } from './ui/badge';
 import AppHeader from './AppHeader';
 import { Organization, User, UserRole, Gig } from '../utils/supabase/types';
-import { GIG_STATUS_CONFIG } from '../utils/supabase/constants';
+import { GIG_STATUS_CONFIG, ORG_TYPE_CONFIG } from '../utils/supabase/constants';
 import { getGig, deleteGig, duplicateGig } from '../services/gig.service';
+import { cn } from './ui/utils';
 import { formatTimeDisplay, formatInTimeZone, formatDateTimeDisplay } from '../utils/dateUtils';
 
 interface GigDetailScreenProps {
@@ -196,16 +197,18 @@ export default function GigDetailScreen({
                   <div className="flex items-start gap-3">
                     <MapPin className="w-5 h-5 text-gray-400 mt-0.5" />
                     <div>
-                      <p className="text-xs font-medium text-gray-500 uppercase">Venue</p>
+                      <p className="text-xs font-medium text-gray-500 uppercase mb-1">Venue</p>
                       {gig.venue ? (
-                        <>
-                          <p className="text-gray-900 font-medium">{gig.venue.name}</p>
+                        <div className="space-y-1">
+                          <Badge variant="outline" className={cn("font-medium", ORG_TYPE_CONFIG.Venue.color)}>
+                            {gig.venue.name}
+                          </Badge>
                           {(gig.venue.city || gig.venue.state) && (
                             <p className="text-sm text-gray-500">
                               {[gig.venue.city, gig.venue.state].filter(Boolean).join(', ')}
                             </p>
                           )}
-                        </>
+                        </div>
                       ) : (
                         <p className="text-gray-400 italic">No venue assigned</p>
                       )}
@@ -215,16 +218,18 @@ export default function GigDetailScreen({
                   <div className="flex items-start gap-3">
                     <UserIcon className="w-5 h-5 text-gray-400 mt-0.5" />
                     <div>
-                      <p className="text-xs font-medium text-gray-500 uppercase">Act</p>
+                      <p className="text-xs font-medium text-gray-500 uppercase mb-1">Act</p>
                       {gig.act ? (
-                        <>
-                          <p className="text-gray-900 font-medium">{gig.act.name}</p>
+                        <div className="space-y-1">
+                          <Badge variant="outline" className={cn("font-medium", ORG_TYPE_CONFIG.Act.color)}>
+                            {gig.act.name}
+                          </Badge>
                           {(gig.act.city || gig.act.state) && (
                             <p className="text-sm text-gray-500">
                               {[gig.act.city, gig.act.state].filter(Boolean).join(', ')}
                             </p>
                           )}
-                        </>
+                        </div>
                       ) : (
                         <p className="text-gray-400 italic">No act assigned</p>
                       )}
@@ -259,9 +264,21 @@ export default function GigDetailScreen({
               <div className="space-y-3">
                 {gig.participants && gig.participants.length > 0 ? (
                   gig.participants.map((participant: any) => (
-                    <div key={participant.id} className="flex flex-col">
+                    <div key={participant.id} className="flex flex-col gap-1">
                       <p className="text-xs font-medium text-gray-500 uppercase">{participant.role}</p>
-                      <p className="text-sm font-medium text-gray-900">{participant.organization?.name || 'Unknown'}</p>
+                      <div>
+                        <Badge 
+                          variant="outline" 
+                          className={cn(
+                            "font-medium", 
+                            participant.role === 'Venue' ? ORG_TYPE_CONFIG.Venue.color : 
+                            participant.role === 'Act' ? ORG_TYPE_CONFIG.Act.color : 
+                            'bg-gray-100 text-gray-700 border-gray-200'
+                          )}
+                        >
+                          {participant.organization?.name || 'Unknown'}
+                        </Badge>
+                      </div>
                     </div>
                   ))
                 ) : (

@@ -39,10 +39,11 @@ import {
 import { Calendar } from '../ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
 import { Skeleton } from '../ui/skeleton';
+import { cn } from '../ui/utils';
 import EditableTableCell from './EditableTableCell';
 import * as api from '../../services/gig.service';
 import { GigStatus, Gig } from '../../utils/supabase/types';
-import { GIG_STATUS_CONFIG } from '../../utils/supabase/constants';
+import { GIG_STATUS_CONFIG, ORG_TYPE_CONFIG } from '../../utils/supabase/constants';
 import { formatDateDisplay, formatDateTimeDisplay } from '../../utils/dateUtils';
 
 interface GigTableProps {
@@ -98,7 +99,6 @@ export default function GigTable({
   const formatDateTime = (start: string, end: string, timezone?: string) => {
     return formatDateTimeDisplay(start, end, timezone);
   };
-
 
   const openTimeDialog = (gig: Gig) => {
     // This would open a time editing dialog
@@ -301,8 +301,14 @@ export default function GigTable({
                           onSave={(field, value) => onGigUpdate(gig.id, field, value)}
                         />
                       ) : (
-                        <div className="px-2 py-1.5 truncate text-sm text-gray-700">
-                          {gig.venue?.name || '-'}
+                        <div className="px-2 py-1.5">
+                          {gig.venue ? (
+                            <Badge variant="outline" className={cn("truncate", ORG_TYPE_CONFIG.Venue.color)}>
+                              {gig.venue.name}
+                            </Badge>
+                          ) : (
+                            <span className="text-gray-400 italic px-1">-</span>
+                          )}
                         </div>
                       )}
                     </TableCell>
@@ -321,8 +327,14 @@ export default function GigTable({
                           onSave={(field, value) => onGigUpdate(gig.id, field, value)}
                         />
                       ) : (
-                        <div className="px-2 py-1.5 truncate text-sm text-gray-700">
-                          {gig.act?.name || '-'}
+                        <div className="px-2 py-1.5">
+                          {gig.act ? (
+                            <Badge variant="outline" className={cn("truncate", ORG_TYPE_CONFIG.Act.color)}>
+                              {gig.act.name}
+                            </Badge>
+                          ) : (
+                            <span className="text-gray-400 italic px-1">-</span>
+                          )}
                         </div>
                       )}
                     </TableCell>
