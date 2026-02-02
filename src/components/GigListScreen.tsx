@@ -102,12 +102,12 @@ export default function GigListScreen({
       // Specialized updates for venue/act
       if (field === 'venue') {
         await updateGigVenue(gigId, value || null);
-        toast.success('Venue updated successfully');
+        // toast.success('Venue updated successfully');
         loadGigs();
         return;
       } else if (field === 'act') {
         await updateGigAct(gigId, value || null);
-        toast.success('Act updated successfully');
+        // toast.success('Act updated successfully');
         loadGigs();
         return;
       }
@@ -132,7 +132,8 @@ export default function GigListScreen({
       }
 
       await updateGig(gigId, { [field]: processedValue });
-      toast.success(`${field} updated successfully`);
+      // Remove noisy toasts for inline updates
+      // toast.success(`${field} updated successfully`);
     } catch (err: any) {
       console.error(`Error updating gig ${field}:`, err);
       if (originalGig) setGigs(originalGigs);

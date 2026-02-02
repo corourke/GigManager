@@ -249,6 +249,7 @@ export default function GigBidsSection({
                             min="0"
                             placeholder="0.00"
                             className={`pl-5 bg-white ${errors.bids?.[index]?.amount ? 'border-red-500' : ''}`}
+                            onFocus={(e) => e.target.select()}
                           />
                         )}
                       />
@@ -327,6 +328,10 @@ export default function GigBidsSection({
             onChange={(e) => setCurrentBidNotes(e.target.value)}
             placeholder="Enter notes..."
             rows={6}
+            onFocus={(e) => {
+              const len = e.target.value.length;
+              e.target.setSelectionRange(len, len);
+            }}
           />
           <DialogFooter>
             <Button variant="outline" onClick={() => {

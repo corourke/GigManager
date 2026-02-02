@@ -401,6 +401,7 @@ export default function GigStaffSlotsSection({
                             value={countField.value}
                             onChange={(e) => handleCountChange(slotIndex, parseInt(e.target.value) || 1)}
                             className={`w-16 bg-white ${errors.slots?.[slotIndex]?.count ? 'border-red-500' : ''}`}
+                            onFocus={(e) => e.target.select()}
                           />
                         )}
                       />
@@ -504,6 +505,7 @@ export default function GigStaffSlotsSection({
                                 min="0"
                                 placeholder="0.00"
                                 className={`pl-5 bg-white ${errors.slots?.[slotIndex]?.assignments?.[assignmentIndex]?.amount ? 'border-red-500' : ''}`}
+                                onFocus={(e) => e.target.select()}
                               />
                             )}
                           />
@@ -544,6 +546,10 @@ export default function GigStaffSlotsSection({
             onChange={(e) => setCurrentSlotNotes(e.target.value)}
             placeholder="Enter notes..."
             rows={6}
+            onFocus={(e) => {
+              const len = e.target.value.length;
+              e.target.setSelectionRange(len, len);
+            }}
           />
           <DialogFooter>
             <Button variant="outline" onClick={() => {
@@ -577,6 +583,10 @@ export default function GigStaffSlotsSection({
             onChange={(e) => setCurrentAssignmentNotes(e.target.value)}
             placeholder="Enter notes..."
             rows={6}
+            onFocus={(e) => {
+              const len = e.target.value.length;
+              e.target.setSelectionRange(len, len);
+            }}
           />
           <DialogFooter>
             <Button variant="outline" onClick={() => {

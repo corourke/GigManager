@@ -294,6 +294,10 @@ export default function GigKitAssignmentsSection({
             onChange={(e) => setCurrentNotes(e.target.value)}
             placeholder="Enter notes..."
             rows={6}
+            onFocus={(e) => {
+              const len = e.target.value.length;
+              e.target.setSelectionRange(len, len);
+            }}
           />
           <DialogFooter>
             <Button variant="outline" onClick={() => {

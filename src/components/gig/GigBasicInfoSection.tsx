@@ -218,6 +218,10 @@ export default function GigBasicInfoSection({ gigId, onCreate, isSubmitting: ext
                     placeholder="Enter gig title"
                     className={errors.title ? 'border-red-500' : ''}
                     disabled={isSubmitting}
+                    onFocus={(e) => {
+                      const len = e.target.value.length;
+                      e.target.setSelectionRange(len, len);
+                    }}
                   />
                 )}
               />
@@ -398,6 +402,7 @@ export default function GigBasicInfoSection({ gigId, onCreate, isSubmitting: ext
                       placeholder="0.00"
                       className={`pl-7 ${errors.amount_paid ? 'border-red-500' : ''}`}
                       disabled={isSubmitting}
+                      onFocus={(e) => e.target.select()}
                     />
                   )}
                 />

@@ -12,6 +12,12 @@
         - [ ] I want each item in the list to automatically display using a different, rotating color. 
         - [ ] Clicking into any of these columns causes the column width to change.
         - [ ] The filtering action is not working on Venue and Act. 
+        - [ ] Fixes
+          - Let's totally remove the outline around the Title when clicked, when the user enters the cell, just put a cursor after the end of the name. Don't select the whole name.
+          - When tabbing past the Start and End dates without changing them, don't update the database.
+          - I asked for cells being edited to have the cell border turned blue, not the contents outlined.
+          - I want the start and end data editing to work exactly like it does on the Gig Edit screen. No formatting changes, tab moves from date element to date element (month, day, year, hour, minute).
+          - On the status field, I want the search to be in the cell, see this image of how Coda does it:  https://www.dropbox.com/scl/fi/22hvqs5pkw9o69v6w9f2x/Screenshot-2026-02-01-at-4.27.08-PM.png?rlkey=hziufostdoixmpa7sww5jx49n&dl=0
       - [ ] For tags, I want the way tags display when not being edited, and when being edited to be the same. I want to be able to type in the cell like a text field in order to select tags. This is similar to how Coda works. 
         - [ ] If no tag yet, typing filters the select list, then the highlighted tag can be selected with Tab or Return. 
         - [ ] If there is already one or more tags, then the user is given a text edit cursor to the right of the existing tags, and if they type, they are selecting from a list of tags. If they instead hit backspace, the tag is deleted. 

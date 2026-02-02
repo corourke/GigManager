@@ -43,6 +43,10 @@ export default function MarkdownEditor({
             disabled={disabled}
             className="min-h-[300px] border-0 rounded-none focus-visible:ring-0 focus-visible:ring-offset-0 resize-none"
             rows={12}
+            onFocus={(e) => {
+              const len = e.target.value.length;
+              e.target.setSelectionRange(len, len);
+            }}
           />
         </TabsContent>
 

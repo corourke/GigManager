@@ -36,6 +36,7 @@ interface EditableTableCellProps {
   organizationId?: string;
   tagSuggestions?: string[];
   timezone?: string;
+  onEditingChange?: (isEditing: boolean) => void;
 }
 
 export default function EditableTableCell({
@@ -54,6 +55,7 @@ export default function EditableTableCell({
   organizationId,
   tagSuggestions = [],
   timezone,
+  onEditingChange,
 }: EditableTableCellProps) {
   const [organizations, setOrganizations] = useState<Organization[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -78,6 +80,13 @@ export default function EditableTableCell({
   });
 
   const isEditing = editingField === field;
+
+  // Sync isEditing state with parent
+  useEffect(() => {
+    if (onEditingChange) {
+      onEditingChange(isEditing);
+    }
+  }, [isEditing, onEditingChange]);
 
   // Calculate display value based on type
   const getDisplayValue = () => {
@@ -138,7 +147,13 @@ export default function EditableTableCell({
       }
       
       if (!isEditing) {
-        setSearchQuery('');
+        // For select/organization, initialize search with current display value
+        if (type === 'select' || type === 'organization') {
+          setSearchQuery(displayValue === '-' ? '' : displayValue);
+        } else {
+          setSearchQuery('');
+        }
+        
         setComboOpen(true);
         // For editing, we want to use the raw value (ID for organizations, array for tags)
         let editValue: any;
@@ -205,6 +220,13 @@ export default function EditableTableCell({
         } else if (type === 'select') {
           // Select is handled by onValueChange, so just exit edit mode
           cancelEdit();
+        } else if (type === 'datetime-local') {
+          const originalValue = formatForDateTimeInput(value as string, timezone);
+          if (editValue !== originalValue) {
+            await saveEdit();
+          } else {
+            cancelEdit();
+          }
         } else if (editValue !== displayValue) {
           await saveEdit();
         } else {
@@ -270,6 +292,24 @@ export default function EditableTableCell({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [type, organizationType, editingField, field, value]);
 
+  // Handle focus and cursor placement for text inputs
+  useEffect(() => {
+    if (isEditing && inputRef.current) {
+      const input = inputRef.current as HTMLInputElement | HTMLTextAreaElement;
+      // Focus the input
+      input.focus();
+      
+      if (type === 'select' || type === 'organization' || type === 'number') {
+        // For search inputs and numbers, select all text so it can be easily replaced or edited
+        input.select();
+      } else if (type === 'text' || type === 'email' || type === 'textarea') {
+        // For regular text, move cursor to the end
+        const length = input.value.length;
+        input.setSelectionRange(length, length);
+      }
+    }
+  }, [isEditing, type, inputRef]);
+
   const loadOrganizations = async () => {
     if (!organizationType) return;
 
@@ -312,6 +352,13 @@ export default function EditableTableCell({
     } else if (type === 'tags') {
       // Tags auto-save on change in TagsInput
       cancelEdit();
+    } else if (type === 'datetime-local') {
+      const originalValue = formatForDateTimeInput(value as string, timezone);
+      if (editValue !== originalValue) {
+        await saveEdit();
+      } else {
+        cancelEdit();
+      }
     } else if (editValue !== displayValue) {
       await saveEdit();
     } else {
@@ -350,132 +397,119 @@ export default function EditableTableCell({
   if (isEditing) {
     // For title field, ensure minimum width to prevent collapsing on narrow screens
     const wrapperClassName = cn(
-      "relative w-full h-full flex items-center px-2 py-1.5 bg-white transition-colors cursor-text min-h-[38px] border-2 border-sky-400 ring-1 ring-sky-400 z-10",
+      "relative w-full h-full flex items-center px-2 bg-white transition-colors cursor-text min-h-[38px] z-10 border-blue-500 ring-1 ring-blue-500",
       field === 'title' && "min-w-[200px]"
     );
     
     return (
       <div ref={cellRef} className={wrapperClassName} data-editable-cell data-field={field}>
         {type === 'select' || type === 'organization' ? (
-          <Popover 
-            open={comboOpen} 
-            onOpenChange={(open) => {
-              setComboOpen(open);
-              if (!open) cancelEdit();
-            }}
-          >
-            <PopoverTrigger asChild>
-              <Button
-                variant="ghost"
-                role="combobox"
-                aria-expanded={comboOpen}
-                className="h-8 w-full justify-start px-0 font-normal hover:bg-transparent"
-              >
-                {(() => {
-                  const currentDisplayVal = type === 'select' 
-                    ? (selectOptions.find((opt) => opt.value === editValue)?.label || placeholder)
-                    : (organizations.find((org) => org.id === editValue)?.name || (editValue === '__none__' ? 'None' : placeholder));
-                  
-                  const currentColor = getValueColor(editValue === '__none__' ? '' : editValue, currentDisplayVal);
-                  
-                  return (
-                    <Badge variant="outline" className={cn("font-medium truncate", currentColor)}>
-                      {currentDisplayVal}
-                    </Badge>
-                  );
-                })()}
-                <ChevronsUpDown className="ml-2 h-3 w-3 shrink-0 opacity-50" />
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
-              <Command 
-                value={highlightedValue || (editValue === '__none__' ? '' : editValue)}
-              >
-                <CommandInput 
-                  placeholder={`Search ${field}...`} 
-                  className="h-8"
-                  value={searchQuery}
-                  onValueChange={(val) => {
-                    setSearchQuery(val);
-                    const options = type === 'select' 
-                      ? selectOptions 
-                      : organizations.map(o => ({ value: o.id, label: o.name }));
-                    
-                    const match = options.find(opt => 
-                      opt.label.toLowerCase().startsWith(val.toLowerCase())
-                    );
-                    
-                    if (match) {
-                      setHighlightedValue(match.value);
-                    } else {
-                      setHighlightedValue(null);
+          <div className="w-full flex items-center">
+            <Popover 
+              open={comboOpen} 
+              onOpenChange={(open) => {
+                setComboOpen(open);
+                if (!open) {
+                  // Wait a bit to see if we focus something else
+                  setTimeout(() => {
+                    if (document.activeElement?.closest('[data-editable-cell]') === null) {
+                      cancelEdit();
                     }
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Tab') {
-                      // If we have a highlighted value, select it before tabbing away
-                      if (highlightedValue) {
-                        const saveValue = type === 'organization' && highlightedValue === '__none__' ? '' : highlightedValue;
-                        updateValue(saveValue);
-                        onSave(field, saveValue);
+                  }, 100);
+                }
+              }}
+            >
+              <PopoverTrigger asChild>
+                <div className="flex-1 flex items-center h-8">
+                  <Input
+                    ref={inputRef as React.RefObject<HTMLInputElement>}
+                    value={searchQuery}
+                    onChange={handleInputChange}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Tab') {
+                        // If we have a highlighted value, select it before tabbing away
+                        if (highlightedValue) {
+                          const saveValue = type === 'organization' && highlightedValue === '__none__' ? '' : highlightedValue;
+                          updateValue(saveValue);
+                          onSave(field, saveValue);
+                        }
+                        e.preventDefault();
+                        handleTabKey(e.shiftKey);
+                      } else if (e.key === 'Enter') {
+                        if (highlightedValue) {
+                          const saveValue = type === 'organization' && highlightedValue === '__none__' ? '' : highlightedValue;
+                          updateValue(saveValue);
+                          onSave(field, saveValue);
+                        }
+                        cancelEdit();
+                      } else if (e.key === 'Escape') {
+                        cancelEdit();
+                      } else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+                        // Let the command list handle arrows if it's open
+                        setComboOpen(true);
                       }
-                      e.preventDefault();
-                      handleTabKey(e.shiftKey);
-                    } else if (e.key === 'Enter' && highlightedValue) {
-                      const saveValue = type === 'organization' && highlightedValue === '__none__' ? '' : highlightedValue;
-                      updateValue(saveValue);
-                      onSave(field, saveValue);
-                      cancelEdit();
-                    } else if (e.key === 'Escape') {
-                      cancelEdit();
-                    }
-                  }}
-                />
-                <CommandList>
-                  <CommandEmpty>No results found.</CommandEmpty>
-                  <CommandGroup>
-                    {type === 'organization' && (
-                      <CommandItem
-                        value="__none__"
-                        onSelect={() => {
-                          updateValue('');
-                          onSave(field, '');
-                          cancelEdit();
-                        }}
-                      >
-                        <Check
-                          className={cn(
-                            "mr-2 h-4 w-4",
-                            editValue === '__none__' || editValue === '' ? "opacity-100" : "opacity-0"
-                          )}
-                        />
-                        None
-                      </CommandItem>
-                    )}
-                    {(type === 'select' ? selectOptions : organizations.map(o => ({ value: o.id, label: o.name }))).map((option) => (
-                      <CommandItem
-                        key={option.value}
-                        value={option.value}
-                        onSelect={() => {
-                          updateValue(option.value);
-                          onSave(field, option.value);
-                          cancelEdit();
-                        }}
-                      >
-                        <Check
-                          className={cn(
-                            "mr-2 h-4 w-4",
-                            editValue === option.value ? "opacity-100" : "opacity-0"
-                          )}
-                        />
-                        {option.label}
-                      </CommandItem>
-                    ))}
-                  </CommandGroup>
-                </CommandList>
-              </Command>
-            </PopoverContent>
-          </Popover>
+                    }}
+                    onFocus={() => setComboOpen(true)}
+                    placeholder={placeholder}
+                    className="h-full border-none bg-transparent focus-visible:ring-0 px-0 py-0 text-sm w-full"
+                  />
+                </div>
+              </PopoverTrigger>
+              <PopoverContent 
+                className="w-[var(--radix-popover-trigger-width)] p-0" 
+                align="start"
+                onOpenAutoFocus={(e) => e.preventDefault()}
+              >
+                <Command 
+                  value={highlightedValue || (editValue === '__none__' ? '' : editValue)}
+                >
+                  <CommandList>
+                    <CommandEmpty>No results found.</CommandEmpty>
+                    <CommandGroup>
+                      {type === 'organization' && (
+                        <CommandItem
+                          value="__none__"
+                          onSelect={() => {
+                            updateValue('');
+                            onSave(field, '');
+                            cancelEdit();
+                          }}
+                        >
+                          <Check
+                            className={cn(
+                              "mr-2 h-4 w-4",
+                              editValue === '__none__' || editValue === '' ? "opacity-100" : "opacity-0"
+                            )}
+                          />
+                          None
+                        </CommandItem>
+                      )}
+                      {(type === 'select' ? selectOptions : organizations.map(o => ({ value: o.id, label: o.name }))).map((option) => (
+                        <CommandItem
+                          key={option.value}
+                          value={option.value}
+                          onSelect={() => {
+                            updateValue(option.value);
+                            onSave(field, option.value);
+                            cancelEdit();
+                          }}
+                        >
+                          <Check
+                            className={cn(
+                              "mr-2 h-4 w-4",
+                              editValue === option.value ? "opacity-100" : "opacity-0"
+                            )}
+                          />
+                          {option.label}
+                        </CommandItem>
+                      ))}
+                    </CommandGroup>
+                  </CommandList>
+                </Command>
+              </PopoverContent>
+            </Popover>
+            <ChevronsUpDown className="ml-1 h-3 w-3 shrink-0 opacity-50" />
+          </div>
         ) : type === 'textarea' ? (
           <textarea
             ref={inputRef as React.RefObject<HTMLTextAreaElement>}
@@ -489,7 +523,7 @@ export default function EditableTableCell({
             required={required}
             name={field}
             id={field}
-            className="w-full px-0 py-1 text-sm bg-transparent focus:outline-none focus:ring-0 resize-none"
+            className="w-full px-0 py-0 text-sm bg-transparent focus:outline-none focus:ring-0 resize-none leading-relaxed"
             rows={3}
           />
         ) : type === 'tags' ? (
@@ -508,21 +542,19 @@ export default function EditableTableCell({
             />
           </div>
         ) : type === 'datetime-local' ? (
-          <div className="relative w-full">
-            <Input
-              ref={inputRef as React.RefObject<HTMLInputElement>}
-              type="datetime-local"
-              value={(editValue as string) || ''}
-              onChange={(e) => updateValue(e.target.value)}
-              onKeyDown={onKeyDown}
-              onBlur={handleBlur}
-              disabled={saving}
-              required={required}
-              name={field}
-              id={field}
-              className="h-8 px-0 text-sm border-none bg-transparent focus-visible:ring-0 w-full"
-            />
-          </div>
+          <Input
+            ref={inputRef as React.RefObject<HTMLInputElement>}
+            type="datetime-local"
+            value={(editValue as string) || ''}
+            onChange={(e) => updateValue(e.target.value)}
+            onKeyDown={onKeyDown}
+            onBlur={handleBlur}
+            disabled={saving}
+            required={required}
+            name={field}
+            id={field}
+            className="h-full px-0 py-0 text-sm border-none bg-transparent focus-visible:ring-0 w-full cursor-text"
+          />
         ) : (
           <Input
             ref={inputRef as React.RefObject<HTMLInputElement>}
@@ -537,7 +569,7 @@ export default function EditableTableCell({
             required={required}
             name={field}
             id={field}
-            className={`h-8 text-sm border-none bg-transparent focus-visible:ring-0 px-0 ${field === 'title' ? 'w-full min-w-[200px]' : 'w-full'}`}
+            className={`h-full text-sm border-none bg-transparent focus-visible:ring-0 px-0 py-0 ${field === 'title' ? 'w-full min-w-[200px]' : 'w-full'}`}
           />
         )}
         {saving && (
@@ -596,7 +628,7 @@ export default function EditableTableCell({
       data-editable-cell
       data-field={field}
       className={cn(
-        "relative w-full h-full flex items-center px-2 py-1.5 transition-colors border-2 border-transparent outline-none focus:border-blue-500 ring-offset-0 focus:ring-1 focus:ring-blue-500",
+        "relative w-full h-full flex items-center px-2 py-1.5 transition-colors border-2 border-transparent outline-none ring-offset-0",
         !disabled && "cursor-pointer hover:bg-gray-50/80",
         className
       )}

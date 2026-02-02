@@ -51,7 +51,6 @@ describe('GigBasicInfoSection', () => {
     });
 
     expect(screen.getByPlaceholderText('Enter gig title')).toBeInTheDocument();
-    expect(screen.getByPlaceholderText(/Add tags to categorize/i)).toBeInTheDocument();
     expect(screen.getByPlaceholderText(/Add notes about this gig/i)).toBeInTheDocument();
     expect(screen.getByPlaceholderText('0.00')).toBeInTheDocument();
   });

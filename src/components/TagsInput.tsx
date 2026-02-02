@@ -116,10 +116,11 @@ export default function TagsInput({
                 value={inputValue}
                 onChange={(e) => handleInputChange(e.target.value)}
                 onKeyDown={handleLocalKeyDown}
-                onFocus={() => {
+                onFocus={(e) => {
                   if (inputValue.trim() && availableSuggestions.length > 0) {
                     setIsOpen(true);
                   }
+                  e.target.select();
                 }}
                 placeholder={value.length === 0 ? placeholder : ''}
                 disabled={disabled}
