@@ -431,7 +431,7 @@ export default function EditableTableCell({
   if (isEditing) {
     // For title field, ensure minimum width to prevent collapsing on narrow screens
     const wrapperClassName = cn(
-      "relative w-full h-full flex items-center px-2 py-1.5 transition-colors cursor-text z-30 ring-2 ring-inset ring-sky-500",
+      "relative w-full h-full flex items-center px-2 py-1.5 bg-white transition-colors cursor-text z-30 outline-2 outline-sky-500 -outline-offset-2",
       field === 'title' && "min-w-[200px]",
       className
     );
