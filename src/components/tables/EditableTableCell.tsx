@@ -431,7 +431,7 @@ export default function EditableTableCell({
   if (isEditing) {
     // For title field, ensure minimum width to prevent collapsing on narrow screens
     const wrapperClassName = cn(
-      "relative w-full h-full flex items-center px-2 py-1.5 bg-white transition-colors cursor-text z-30 ring-2 ring-inset ring-sky-500",
+      "relative w-full h-full flex items-center px-2 py-1.5 transition-colors cursor-text z-30 ring-2 ring-inset ring-sky-500",
       field === 'title' && "min-w-[200px]",
       className
     );
@@ -456,36 +456,44 @@ export default function EditableTableCell({
             >
               <PopoverTrigger asChild>
                 <div className="flex-1 flex items-center h-8">
-                  <Input
-                    ref={inputRef as React.RefObject<HTMLInputElement>}
-                    value={searchQuery}
-                    onChange={handleInputChange}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Tab') {
-                        // If we have a highlighted value, select it before tabbing away
-                        if (highlightedValue) {
-                          const saveValue = type === 'organization' && highlightedValue === '__none__' ? '' : highlightedValue;
-                          updateValue(saveValue);
+                  <div className={cn(
+                    "flex-1 flex items-center",
+                    (type === 'select' || type === 'organization') && "bg-gray-100 text-gray-800 border border-gray-200 rounded-md px-2 py-0.5 h-6"
+                  )}>
+                    <Input
+                      ref={inputRef as React.RefObject<HTMLInputElement>}
+                      value={searchQuery}
+                      onChange={handleInputChange}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Tab') {
+                          // If we have a highlighted value, select it before tabbing away
+                          if (highlightedValue) {
+                            const saveValue = type === 'organization' && highlightedValue === '__none__' ? '' : highlightedValue;
+                            updateValue(saveValue);
+                          }
+                          e.preventDefault();
+                          handleTabKey(e.shiftKey);
+                        } else if (e.key === 'Enter') {
+                          if (highlightedValue) {
+                            const saveValue = type === 'organization' && highlightedValue === '__none__' ? '' : highlightedValue;
+                            updateValue(saveValue);
+                          }
+                          cancelEdit();
+                        } else if (e.key === 'Escape') {
+                          cancelEdit();
+                        } else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+                          // Let the command list handle arrows if it's open
+                          setComboOpen(true);
                         }
-                        e.preventDefault();
-                        handleTabKey(e.shiftKey);
-                      } else if (e.key === 'Enter') {
-                        if (highlightedValue) {
-                          const saveValue = type === 'organization' && highlightedValue === '__none__' ? '' : highlightedValue;
-                          updateValue(saveValue);
-                        }
-                        cancelEdit();
-                      } else if (e.key === 'Escape') {
-                        cancelEdit();
-                      } else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
-                        // Let the command list handle arrows if it's open
-                        setComboOpen(true);
-                      }
-                    }}
-                    onFocus={() => setComboOpen(true)}
-                    placeholder={placeholder}
-                    className="h-full border-none bg-transparent focus-visible:ring-0 px-0 py-0 text-sm w-full"
-                  />
+                      }}
+                      onFocus={() => setComboOpen(true)}
+                      placeholder={placeholder}
+                      className={cn(
+                        "h-full border-none bg-transparent focus-visible:ring-0 px-0 py-0 w-full",
+                        (type === 'select' || type === 'organization') ? "text-xs font-medium text-gray-800" : "text-sm"
+                      )}
+                    />
+                  </div>
                 </div>
               </PopoverTrigger>
               <PopoverContent 
