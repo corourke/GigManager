@@ -56,42 +56,34 @@ export function useInlineEdit({ onSave, onCancel }: UseInlineEditOptions = {}) {
 
   // Save the edit
   const saveEdit = useCallback(async (): Promise<boolean> => {
-    if (!state.editingField || onSave) {
-      try {
-        setState(prev => ({ ...prev, saving: true, error: null }));
-
-        if (onSave && state.editingField) {
-          await onSave(state.editingField, state.editValue);
-        }
-
-        setState({
-          editingField: null,
-          editValue: null,
-          saving: false,
-          error: null,
-        });
-
-        return true;
-      } catch (error: any) {
-        setState(prev => ({
-          ...prev,
-          saving: false,
-          error: error.message || 'Failed to save',
-        }));
-        return false;
-      }
+    if (state.saving || !state.editingField) {
+      return true; // Already saving or not editing
     }
 
-    // If no onSave callback, just finish editing
-    setState({
-      editingField: null,
-      editValue: null,
-      saving: false,
-      error: null,
-    });
+    try {
+      setState(prev => ({ ...prev, saving: true, error: null }));
 
-    return true;
-  }, [state.editingField, state.editValue, onSave]);
+      if (onSave) {
+        await onSave(state.editingField, state.editValue);
+      }
+
+      setState({
+        editingField: null,
+        editValue: null,
+        saving: false,
+        error: null,
+      });
+
+      return true;
+    } catch (error: any) {
+      setState(prev => ({
+        ...prev,
+        saving: false,
+        error: error.message || 'Failed to save',
+      }));
+      return false;
+    }
+  }, [state.saving, state.editingField, state.editValue, onSave]);
 
   // Cancel the edit
   const cancelEdit = useCallback(() => {

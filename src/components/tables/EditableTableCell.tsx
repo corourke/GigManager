@@ -231,36 +231,58 @@ export default function EditableTableCell({
 
   // Handle clicks outside the editing cell to exit edit mode
   const cellRef = useRef<HTMLDivElement>(null);
-  
+
+  // Use refs to avoid re-creating the effect when values change
+  const editValueRef = useRef(editValue);
+  const valueRef = useRef(value);
+  const displayValueRef = useRef(displayValue);
+  const typeRef = useRef(type);
+
+  useEffect(() => {
+    editValueRef.current = editValue;
+  }, [editValue]);
+
+  useEffect(() => {
+    valueRef.current = value;
+  }, [value]);
+
+  useEffect(() => {
+    displayValueRef.current = displayValue;
+  }, [displayValue]);
+
+  useEffect(() => {
+    typeRef.current = type;
+  }, [type]);
+
   useEffect(() => {
     if (!isEditing) return;
 
     const handleDocumentClick = (e: MouseEvent) => {
       const target = e.target as HTMLElement;
-      
+
       // Check if click is inside this cell or its dropdowns/popovers
       const isClickInsideCell = cellRef.current?.contains(target);
       // Also check if click is on a Select dropdown or Popover (they render in portals)
       const isClickOnDropdown = target.closest('[role="listbox"]') || target.closest('[role="dialog"]');
-      
+
       // If clicking outside this cell and not on a dropdown, exit edit mode
       if (!isClickInsideCell && !isClickOnDropdown) {
         // Save if value changed, otherwise just cancel
-        if (type === 'organization') {
-          const currentId = editValue === '__none__' ? '' : editValue;
-          const originalId = value || '';
+        if (typeRef.current === 'organization') {
+          const currentId = editValueRef.current === '__none__' ? '' : editValueRef.current;
+          const originalId = valueRef.current || '';
           if (currentId !== originalId) {
             saveEdit();
           } else {
             cancelEdit();
           }
-        } else if (type === 'tags') {
+        } else if (typeRef.current === 'tags') {
           // Save tags on outside click
           saveEdit();
-        } else if (type === 'select') {
+        } else if (typeRef.current === 'select') {
           // Select is handled by onValueChange, so just exit edit mode
           cancelEdit();
-        } else if (editValue !== displayValue) {
+        } else if (editValueRef.current !== displayValueRef.current) {
           saveEdit();
         } else {
           cancelEdit();
@@ -276,7 +298,7 @@ export default function EditableTableCell({
     return () => {
       document.removeEventListener('mousedown', handleDocumentClick);
     };
-  }, [isEditing, field, type, editValue, value, displayValue, cancelEdit, saveEdit]);
+  }, [isEditing, field, cancelEdit, saveEdit]);
 
   // Load organizations when editing starts OR when component mounts with a value (for display)
   useEffect(() => {
@@ -396,7 +418,7 @@ export default function EditableTableCell({
   if (isEditing) {
     // For title field, ensure minimum width to prevent collapsing on narrow screens
     const wrapperClassName = cn(
-      "flex items-center px-2 bg-white transition-colors cursor-text z-20 border border-blue-500 shadow-sm",
+      "relative w-full h-full flex items-center px-2 py-1.5 bg-white transition-colors cursor-text z-20 border border-blue-500 shadow-sm",
       field === 'title' && "min-w-[200px]",
       className
     );
