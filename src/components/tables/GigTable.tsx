@@ -1,18 +1,12 @@
-import React, { useState, useRef } from 'react';
-import { format } from 'date-fns';
+import React from 'react';
 import {
   Calendar as CalendarIcon,
-  Clock,
   Edit,
   Copy,
   Trash2,
   Eye,
-  MoreVertical,
-  AlertCircle,
-  Loader2,
 } from 'lucide-react';
 import { Button } from '../ui/button';
-import { Input } from '../ui/input';
 import { Badge } from '../ui/badge';
 import { Card } from '../ui/card';
 import {
@@ -23,34 +17,16 @@ import {
   TableHeader,
   TableRow,
 } from '../ui/table';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '../ui/dropdown-menu';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '../ui/select';
-import { Calendar } from '../ui/calendar';
-import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
 import { Skeleton } from '../ui/skeleton';
 import { cn } from '../ui/utils';
-import EditableTableCell from './EditableTableCell';
-import * as api from '../../services/gig.service';
 import { GigStatus, Gig } from '../../utils/supabase/types';
-import { GIG_STATUS_CONFIG, ORG_TYPE_CONFIG } from '../../utils/supabase/constants';
-import { formatDateDisplay, formatDateTimeDisplay } from '../../utils/dateUtils';
+import { GIG_STATUS_CONFIG } from '../../utils/supabase/constants';
+import { formatDateTimeDisplay } from '../../utils/dateUtils';
 
 interface GigTableProps {
   gigs: Gig[];
   mode: 'list' | 'dashboard'; // Controls which columns and features to show
   showActions?: boolean;
-  onGigUpdate?: (gigId: string, field: string, value: any) => Promise<void>;
   onGigClick?: (gigId: string) => void;
   onGigEdit?: (gigId: string) => void;
   onGigDuplicate?: (gigId: string) => void;
@@ -86,7 +62,6 @@ export default function GigTable({
   gigs,
   mode,
   showActions = true,
-  onGigUpdate,
   onGigClick,
   onGigEdit,
   onGigDuplicate,
@@ -95,36 +70,14 @@ export default function GigTable({
   emptyMessage = 'No gigs found',
   onCreateGig,
 }: GigTableProps) {
-  const [editingCell, setEditingCell] = useState<{ id: string, field: string } | null>(null);
-
-  const handleEditingChange = React.useCallback((gigId: string, field: string, isEditing: boolean) => {
-    setEditingCell(isEditing ? { id: gigId, field } : null);
-  }, []);
-
   const formatDateTime = (start: string, end: string, timezone?: string) => {
     return formatDateTimeDisplay(start, end, timezone);
-  };
-
-  const openTimeDialog = (gig: Gig) => {
-    // This would open a time editing dialog
-    // For now, just log it
-    console.log('Open time dialog for gig:', gig.id);
-  };
-
-  const getTableCellClass = (gigId: string, field: string, baseClass: string = '') => {
-    const isEditing = editingCell?.id === gigId && editingCell?.field === field;
-    return cn(
-      "relative p-0 overflow-visible transition-colors border border-gray-200",
-      isEditing ? "z-30 ring-2 ring-inset ring-sky-500" : "z-10",
-      baseClass
-    );
   };
 
   // Dashboard mode shows all columns but no inline editing, limited rows
   const displayGigs = mode === 'dashboard' ? gigs.slice(0, 5) : gigs;
   const showVenueActColumns = true; // Show in both modes
   const showTagsColumn = mode === 'list'; // Only show tags in list mode
-  const enableInlineEditing = mode === 'list' && !!onGigUpdate;
 
   if (loading) {
     return (
@@ -191,31 +144,21 @@ export default function GigTable({
           <p className="text-sm text-gray-600">
             Showing {displayGigs.length} {displayGigs.length === 1 ? 'gig' : 'gigs'}
           </p>
-          <p className="text-xs text-gray-500">
-            Click any field to edit inline
-          </p>
         </div>
       )}
 
       <Card>
         <div className="overflow-x-auto">
-            <Table className="border-collapse table-fixed w-full">
+            <Table>
             <TableHeader>
               <TableRow className="hover:bg-transparent">
-                <TableHead className="w-[200px] whitespace-nowrap border overflow-hidden">Title</TableHead>
-                {enableInlineEditing ? (
-                  <>
-                    <TableHead className="w-[160px] whitespace-nowrap border overflow-hidden">Start</TableHead>
-                    <TableHead className="w-[160px] whitespace-nowrap border overflow-hidden">End</TableHead>
-                  </>
-                ) : (
-                  <TableHead className="w-[180px] whitespace-nowrap border overflow-hidden">Date & Time</TableHead>
-                )}
-                <TableHead className="w-[110px] whitespace-nowrap border overflow-hidden">Status</TableHead>
-                {showVenueActColumns && <TableHead className="w-[160px] whitespace-nowrap border overflow-hidden">Venue</TableHead>}
-                {showVenueActColumns && <TableHead className="w-[160px] whitespace-nowrap border overflow-hidden">Act</TableHead>}
-                {showTagsColumn && <TableHead className="w-[200px] whitespace-nowrap border overflow-hidden">Tags</TableHead>}
-                {showActions && <TableHead className="w-[140px] text-right border overflow-hidden">Actions</TableHead>}
+                <TableHead>Title</TableHead>
+                <TableHead>Date & Time</TableHead>
+                <TableHead>Status</TableHead>
+                {showVenueActColumns && <TableHead>Venue</TableHead>}
+                {showVenueActColumns && <TableHead>Act</TableHead>}
+                {showTagsColumn && <TableHead>Tags</TableHead>}
+                {showActions && <TableHead className="text-right">Actions</TableHead>}
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -223,8 +166,7 @@ export default function GigTable({
                 <TableRow
                   key={gig.id}
                   className={cn(
-                    (onGigClick || onGigEdit) ? 'hover:bg-gray-50' : '',
-                    "border-none"
+                    (onGigClick || onGigEdit) ? 'hover:bg-gray-50' : ''
                   )}
                   onClick={() => {
                     if (mode === 'dashboard' && onGigEdit) {
@@ -234,177 +176,62 @@ export default function GigTable({
                     }
                   }}
                 >
-                  {/* Title Cell */}
-                  <TableCell className={getTableCellClass(gig.id, 'title', 'w-[200px]')} onClick={(e) => mode === 'list' && e.stopPropagation()}>
-                    {enableInlineEditing ? (
-                      <EditableTableCell
-                        value={gig.title || ''}
-                        field="title"
-                        placeholder="Gig title"
-                        onSave={(f, v) => onGigUpdate(gig.id, f, v)}
-                        onEditingChange={(isEditing) => handleEditingChange(gig.id, 'title', isEditing)}
-                        isEditingGlobal={editingCell?.id === gig.id && editingCell?.field === 'title'}
-                        isAnotherCellEditing={editingCell !== null && (editingCell.id !== gig.id || editingCell.field !== 'title')}
-                      />
-                    ) : (
-                      <div className="px-2 py-1.5 truncate text-sm text-gray-900">
-                        {gig.title || <span className="text-gray-400 italic">Untitled Gig</span>}
-                      </div>
-                    )}
+                  <TableCell>
+                    <div className="text-sm text-gray-900">
+                      {gig.title || <span className="text-gray-400 italic">Untitled Gig</span>}
+                    </div>
                   </TableCell>
 
-                  {/* Date & Time Cell(s) */}
-                  {enableInlineEditing ? (
-                    <>
-                      <TableCell className={getTableCellClass(gig.id, 'start', 'w-[160px]')} onClick={(e) => e.stopPropagation()}>
-                        <EditableTableCell
-                          value={gig.start}
-                          field="start"
-                          type="datetime-local"
-                          timezone={gig.timezone}
-                          placeholder="Start time"
-                          onSave={(f, v) => onGigUpdate(gig.id, f, v)}
-                          onEditingChange={(isEditing) => handleEditingChange(gig.id, 'start', isEditing)}
-                          isEditingGlobal={editingCell?.id === gig.id && editingCell?.field === 'start'}
-                          isAnotherCellEditing={editingCell !== null && (editingCell.id !== gig.id || editingCell.field !== 'start')}
-                        />
-                      </TableCell>
-                      <TableCell className={getTableCellClass(gig.id, 'end', 'w-[160px]')} onClick={(e) => e.stopPropagation()}>
-                        <EditableTableCell
-                          value={gig.end}
-                          field="end"
-                          type="datetime-local"
-                          timezone={gig.timezone}
-                          placeholder="End time"
-                          onSave={(f, v) => onGigUpdate(gig.id, f, v)}
-                          onEditingChange={(isEditing) => handleEditingChange(gig.id, 'end', isEditing)}
-                          isEditingGlobal={editingCell?.id === gig.id && editingCell?.field === 'end'}
-                          isAnotherCellEditing={editingCell !== null && (editingCell.id !== gig.id || editingCell.field !== 'end')}
-                        />
-                      </TableCell>
-                    </>
-                  ) : (
-                    <TableCell className={getTableCellClass(gig.id, 'datetime', 'w-[180px]')} onClick={(e) => mode === 'list' && e.stopPropagation()}>
-                      <div className="px-2 py-1.5 truncate text-sm text-gray-700">
-                        {formatDateTime(gig.start, gig.end, gig.timezone)}
-                      </div>
-                    </TableCell>
-                  )}
+                  <TableCell>
+                    <div className="text-sm text-gray-700">
+                      {formatDateTime(gig.start, gig.end, gig.timezone)}
+                    </div>
+                  </TableCell>
 
-                  {/* Status Cell */}
-                  <TableCell className={getTableCellClass(gig.id, 'status', 'w-[110px]')} onClick={(e) => mode === 'list' && e.stopPropagation()}>
-                    {enableInlineEditing ? (
-                      <EditableTableCell
-                        value={gig.status}
-                        field="status"
-                        type="select"
-                        placeholder="Select status"
-                        onSave={(f, v) => onGigUpdate(gig.id, f, v)}
-                        onEditingChange={(isEditing) => handleEditingChange(gig.id, 'status', isEditing)}
-                        isEditingGlobal={editingCell?.id === gig.id && editingCell?.field === 'status'}
-                        isAnotherCellEditing={editingCell !== null && (editingCell.id !== gig.id || editingCell.field !== 'status')}
-                        selectOptions={Object.entries(GIG_STATUS_CONFIG).map(([value, config]) => ({
-                          value,
-                          label: config.label,
-                        }))}
-                      />
-                    ) : (
-                      <div className="px-2 py-1.5">
+                  <TableCell>
+                    <Badge variant="outline" className="truncate bg-gray-100 text-gray-800 border-gray-200">
+                      {GIG_STATUS_CONFIG[gig.status].label}
+                    </Badge>
+                  </TableCell>
+
+                  {showVenueActColumns && (
+                    <TableCell>
+                      {gig.venue ? (
                         <Badge variant="outline" className="truncate bg-gray-100 text-gray-800 border-gray-200">
-                          {GIG_STATUS_CONFIG[gig.status].label}
+                          {gig.venue.name}
                         </Badge>
-                      </div>
-                    )}
-                  </TableCell>
-
-                  {/* Venue Cell */}
-                  {showVenueActColumns && (
-                    <TableCell className={getTableCellClass(gig.id, 'venue', 'w-[160px]')} onClick={(e) => mode === 'list' && e.stopPropagation()}>
-                      {enableInlineEditing ? (
-                        <EditableTableCell
-                          value={gig.venue?.id || ''}
-                          field="venue"
-                          type="organization"
-                          organizationType="Venue"
-                          placeholder="Select venue"
-                          onSave={(f, v) => onGigUpdate(gig.id, f, v)}
-                          onEditingChange={(isEditing) => handleEditingChange(gig.id, 'venue', isEditing)}
-                          isEditingGlobal={editingCell?.id === gig.id && editingCell?.field === 'venue'}
-                          isAnotherCellEditing={editingCell !== null && (editingCell.id !== gig.id || editingCell.field !== 'venue')}
-                        />
                       ) : (
-                        <div className="px-2 py-1.5">
-                          {gig.venue ? (
-                            <Badge variant="outline" className="truncate bg-gray-100 text-gray-800 border-gray-200">
-                              {gig.venue.name}
-                            </Badge>
-                          ) : (
-                            <span className="text-gray-400 italic px-1">-</span>
-                          )}
-                        </div>
+                        <span className="text-gray-400 italic">-</span>
                       )}
                     </TableCell>
                   )}
 
-                  {/* Act Cell */}
                   {showVenueActColumns && (
-                    <TableCell className={getTableCellClass(gig.id, 'act', 'w-[160px]')} onClick={(e) => mode === 'list' && e.stopPropagation()}>
-                      {enableInlineEditing ? (
-                        <EditableTableCell
-                          value={gig.act?.id || ''}
-                          field="act"
-                          type="organization"
-                          organizationType="Act"
-                          placeholder="Select act"
-                          onSave={(f, v) => onGigUpdate(gig.id, f, v)}
-                          onEditingChange={(isEditing) => handleEditingChange(gig.id, 'act', isEditing)}
-                          isEditingGlobal={editingCell?.id === gig.id && editingCell?.field === 'act'}
-                          isAnotherCellEditing={editingCell !== null && (editingCell.id !== gig.id || editingCell.field !== 'act')}
-                        />
+                    <TableCell>
+                      {gig.act ? (
+                        <Badge variant="outline" className="truncate bg-gray-100 text-gray-800 border-gray-200">
+                          {gig.act.name}
+                        </Badge>
                       ) : (
-                        <div className="px-2 py-1.5">
-                          {gig.act ? (
-                            <Badge variant="outline" className="truncate bg-gray-100 text-gray-800 border-gray-200">
-                              {gig.act.name}
-                            </Badge>
-                          ) : (
-                            <span className="text-gray-400 italic px-1">-</span>
-                          )}
-                        </div>
+                        <span className="text-gray-400 italic">-</span>
                       )}
                     </TableCell>
                   )}
 
-                  {/* Tags Cell */}
                   {showTagsColumn && (
-                    <TableCell className={getTableCellClass(gig.id, 'tags', 'w-[200px]')} onClick={(e) => mode === 'list' && e.stopPropagation()}>
-                      {enableInlineEditing ? (
-                        <EditableTableCell
-                          value={gig.tags || []}
-                          field="tags"
-                          type="tags"
-                          tagSuggestions={SUGGESTED_TAGS}
-                          placeholder="Add tags..."
-                          onSave={(f, v) => onGigUpdate(gig.id, f, v)}
-                          onEditingChange={(isEditing) => handleEditingChange(gig.id, 'tags', isEditing)}
-                          isEditingGlobal={editingCell?.id === gig.id && editingCell?.field === 'tags'}
-                          isAnotherCellEditing={editingCell !== null && (editingCell.id !== gig.id || editingCell.field !== 'tags')}
-                        />
-                      ) : (
-                        <div className="px-2 py-1.5 truncate flex flex-wrap gap-1">
-                          {gig.tags?.map((tag, index) => (
-                            <Badge key={index} variant="secondary" className="bg-gray-100 text-gray-700 border-gray-200 text-[10px] h-4 py-0">
-                              {tag}
-                            </Badge>
-                          )) || <span className="text-gray-400">-</span>}
-                        </div>
-                      )}
+                    <TableCell>
+                      <div className="flex flex-wrap gap-1">
+                        {gig.tags?.map((tag, index) => (
+                          <Badge key={index} variant="secondary" className="bg-gray-100 text-gray-700 border-gray-200 text-[10px] h-4 py-0">
+                            {tag}
+                          </Badge>
+                        )) || <span className="text-gray-400">-</span>}
+                      </div>
                     </TableCell>
                   )}
 
-                  {/* Actions Cell */}
                   {showActions && (
-                    <TableCell className="w-[140px] text-right border p-1 overflow-hidden" onClick={(e) => e.stopPropagation()}>
+                    <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
                     <div className="flex justify-end gap-1">
                       {onGigClick && (
                         <Button

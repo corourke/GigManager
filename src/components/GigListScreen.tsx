@@ -1,12 +1,8 @@
-import { useState, useMemo, useRef, useEffect } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { Button } from './ui/button';
-import { Badge } from './ui/badge';
 import { Card } from './ui/card';
 import { 
   getGigsForOrganization, 
-  updateGig, 
-  updateGigVenue, 
-  updateGigAct, 
   duplicateGig, 
   deleteGig 
 } from '../services/gig.service';
@@ -16,14 +12,10 @@ import { GigListFilters } from './gigs/GigListFilters';
 import { GigListEmptyState } from './gigs/GigListEmptyState';
 import {
   Plus,
-  Loader2,
   Upload,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Organization, User, UserRole, GigStatus, Gig } from '../utils/supabase/types';
-import { GIG_STATUS_CONFIG } from '../utils/supabase/constants';
-import { MOCK_VENUES, MOCK_ACTS } from '../utils/mock-data';
-import { parseLocalToUTC } from '../utils/dateUtils';
 
 interface GigListScreenProps {
   organization: Organization;
@@ -88,67 +80,6 @@ export default function GigListScreen({
       setError(err.message || 'Failed to load gigs');
     } finally {
       setIsLoading(false);
-    }
-  };
-
-  const isUpdatingRef = useRef<Record<string, boolean>>({});
-
-  // Handlers for GigTable component
-  const handleGigUpdate = async (gigId: string, field: string, value: any) => {
-    const lockKey = `${gigId}-${field}`;
-    if (isUpdatingRef.current[lockKey]) {
-      console.warn(`[GigListScreen] Update already in progress for ${lockKey}, skipping`);
-      return;
-    }
-
-    console.log(`[GigListScreen] Starting update for ${lockKey}`, { value });
-    isUpdatingRef.current[lockKey] = true;
-
-    // Store original state for rollback on error
-    const originalGigs = [...gigs];
-    const gigIndex = gigs.findIndex(g => g.id === gigId);
-    const originalGig = gigIndex >= 0 ? { ...gigs[gigIndex] } : null;
-
-    try {
-      // Specialized updates for venue/act
-      if (field === 'venue') {
-        await updateGigVenue(gigId, value || null);
-        await loadGigs();
-        return;
-      } else if (field === 'act') {
-        await updateGigAct(gigId, value || null);
-        await loadGigs();
-        return;
-      }
-
-      // Process date fields
-      let processedValue = value;
-      if ((field === 'start' || field === 'end') && typeof value === 'string' && value.includes('T')) {
-        const gig = gigs.find(g => g.id === gigId);
-        processedValue = parseLocalToUTC(value, gig?.timezone);
-      }
-
-      // Optimistic update
-      if (gigIndex >= 0) {
-        setGigs(prevGigs => {
-          const updatedGigs = [...prevGigs];
-          updatedGigs[gigIndex] = {
-            ...updatedGigs[gigIndex],
-            [field]: processedValue,
-          };
-          return updatedGigs;
-        });
-      }
-
-      await updateGig(gigId, { [field]: processedValue });
-      console.log(`[GigListScreen] Update successful for ${lockKey}`);
-    } catch (err: any) {
-      console.error(`[GigListScreen] Error updating gig ${field}:`, err);
-      if (originalGig) setGigs(originalGigs);
-      toast.error(`Failed to update ${field}`);
-      throw err;
-    } finally {
-      delete isUpdatingRef.current[lockKey];
     }
   };
 
@@ -306,7 +237,6 @@ export default function GigListScreen({
             gigs={filteredGigs}
             mode="list"
             showActions={true}
-            onGigUpdate={handleGigUpdate}
             onGigClick={handleGigClick}
             onGigEdit={handleGigEdit}
             onGigDuplicate={handleGigDuplicate}
