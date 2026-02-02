@@ -91,8 +91,19 @@ export default function GigListScreen({
     }
   };
 
+  const isUpdatingRef = useRef<Record<string, boolean>>({});
+
   // Handlers for GigTable component
   const handleGigUpdate = async (gigId: string, field: string, value: any) => {
+    const lockKey = `${gigId}-${field}`;
+    if (isUpdatingRef.current[lockKey]) {
+      console.warn(`[GigListScreen] Update already in progress for ${lockKey}, skipping`);
+      return;
+    }
+
+    console.log(`[GigListScreen] Starting update for ${lockKey}`, { value });
+    isUpdatingRef.current[lockKey] = true;
+
     // Store original state for rollback on error
     const originalGigs = [...gigs];
     const gigIndex = gigs.findIndex(g => g.id === gigId);
@@ -102,13 +113,11 @@ export default function GigListScreen({
       // Specialized updates for venue/act
       if (field === 'venue') {
         await updateGigVenue(gigId, value || null);
-        // toast.success('Venue updated successfully');
-        loadGigs();
+        await loadGigs();
         return;
       } else if (field === 'act') {
         await updateGigAct(gigId, value || null);
-        // toast.success('Act updated successfully');
-        loadGigs();
+        await loadGigs();
         return;
       }
 
@@ -132,13 +141,14 @@ export default function GigListScreen({
       }
 
       await updateGig(gigId, { [field]: processedValue });
-      // Remove noisy toasts for inline updates
-      // toast.success(`${field} updated successfully`);
+      console.log(`[GigListScreen] Update successful for ${lockKey}`);
     } catch (err: any) {
-      console.error(`Error updating gig ${field}:`, err);
+      console.error(`[GigListScreen] Error updating gig ${field}:`, err);
       if (originalGig) setGigs(originalGigs);
       toast.error(`Failed to update ${field}`);
       throw err;
+    } finally {
+      delete isUpdatingRef.current[lockKey];
     }
   };
 

@@ -37,6 +37,8 @@ interface EditableTableCellProps {
   tagSuggestions?: string[];
   timezone?: string;
   onEditingChange?: (isEditing: boolean) => void;
+  isEditingGlobal?: boolean;
+  isAnotherCellEditing?: boolean;
 }
 
 export default function EditableTableCell({
@@ -56,12 +58,16 @@ export default function EditableTableCell({
   tagSuggestions = [],
   timezone,
   onEditingChange,
+  isEditingGlobal,
+  isAnotherCellEditing,
 }: EditableTableCellProps) {
   const [organizations, setOrganizations] = useState<Organization[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearching, setIsSearching] = useState(false);
   const [comboOpen, setComboOpen] = useState(true);
   const [highlightedValue, setHighlightedValue] = useState<string | null>(null);
+
+  const cellId = useRef(Math.random().toString(36).substring(2, 9));
 
   const {
     editingField,
@@ -92,6 +98,14 @@ export default function EditableTableCell({
       onEditingChangeRef.current(isEditing);
     }
   }, [isEditing]);
+
+  // If we think we are editing but the global state says another cell is editing, cancel our local edit
+  useEffect(() => {
+    if (isEditing && isAnotherCellEditing) {
+      console.log(`[EditableTableCell:${cellId.current}] Force cancelling local edit for ${field} because another cell started editing`);
+      cancelEdit();
+    }
+  }, [isEditing, isAnotherCellEditing, field, cancelEdit]);
 
   // Calculate display value based on type
   const getDisplayValue = () => {

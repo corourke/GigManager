@@ -243,6 +243,8 @@ export default function GigTable({
                         placeholder="Gig title"
                         onSave={(f, v) => onGigUpdate(gig.id, f, v)}
                         onEditingChange={(isEditing) => handleEditingChange(gig.id, 'title', isEditing)}
+                        isEditingGlobal={editingCell?.id === gig.id && editingCell?.field === 'title'}
+                        isAnotherCellEditing={editingCell !== null && (editingCell.id !== gig.id || editingCell.field !== 'title')}
                       />
                     ) : (
                       <div className="px-2 py-1.5 truncate text-sm text-gray-900">
@@ -263,6 +265,8 @@ export default function GigTable({
                           placeholder="Start time"
                           onSave={(f, v) => onGigUpdate(gig.id, f, v)}
                           onEditingChange={(isEditing) => handleEditingChange(gig.id, 'start', isEditing)}
+                          isEditingGlobal={editingCell?.id === gig.id && editingCell?.field === 'start'}
+                          isAnotherCellEditing={editingCell !== null && (editingCell.id !== gig.id || editingCell.field !== 'start')}
                         />
                       </TableCell>
                       <TableCell className={getTableCellClass(gig.id, 'end', 'w-[160px]')} onClick={(e) => e.stopPropagation()}>
@@ -274,6 +278,8 @@ export default function GigTable({
                           placeholder="End time"
                           onSave={(f, v) => onGigUpdate(gig.id, f, v)}
                           onEditingChange={(isEditing) => handleEditingChange(gig.id, 'end', isEditing)}
+                          isEditingGlobal={editingCell?.id === gig.id && editingCell?.field === 'end'}
+                          isAnotherCellEditing={editingCell !== null && (editingCell.id !== gig.id || editingCell.field !== 'end')}
                         />
                       </TableCell>
                     </>
@@ -295,6 +301,8 @@ export default function GigTable({
                         placeholder="Select status"
                         onSave={(f, v) => onGigUpdate(gig.id, f, v)}
                         onEditingChange={(isEditing) => handleEditingChange(gig.id, 'status', isEditing)}
+                        isEditingGlobal={editingCell?.id === gig.id && editingCell?.field === 'status'}
+                        isAnotherCellEditing={editingCell !== null && (editingCell.id !== gig.id || editingCell.field !== 'status')}
                         selectOptions={Object.entries(GIG_STATUS_CONFIG).map(([value, config]) => ({
                           value,
                           label: config.label,
@@ -321,6 +329,8 @@ export default function GigTable({
                           placeholder="Select venue"
                           onSave={(f, v) => onGigUpdate(gig.id, f, v)}
                           onEditingChange={(isEditing) => handleEditingChange(gig.id, 'venue', isEditing)}
+                          isEditingGlobal={editingCell?.id === gig.id && editingCell?.field === 'venue'}
+                          isAnotherCellEditing={editingCell !== null && (editingCell.id !== gig.id || editingCell.field !== 'venue')}
                         />
                       ) : (
                         <div className="px-2 py-1.5">
@@ -348,6 +358,8 @@ export default function GigTable({
                           placeholder="Select act"
                           onSave={(f, v) => onGigUpdate(gig.id, f, v)}
                           onEditingChange={(isEditing) => handleEditingChange(gig.id, 'act', isEditing)}
+                          isEditingGlobal={editingCell?.id === gig.id && editingCell?.field === 'act'}
+                          isAnotherCellEditing={editingCell !== null && (editingCell.id !== gig.id || editingCell.field !== 'act')}
                         />
                       ) : (
                         <div className="px-2 py-1.5">
@@ -375,6 +387,8 @@ export default function GigTable({
                           placeholder="Add tags..."
                           onSave={(f, v) => onGigUpdate(gig.id, f, v)}
                           onEditingChange={(isEditing) => handleEditingChange(gig.id, 'tags', isEditing)}
+                          isEditingGlobal={editingCell?.id === gig.id && editingCell?.field === 'tags'}
+                          isAnotherCellEditing={editingCell !== null && (editingCell.id !== gig.id || editingCell.field !== 'tags')}
                         />
                       ) : (
                         <div className="px-2 py-1.5 truncate flex flex-wrap gap-1">
