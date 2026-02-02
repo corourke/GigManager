@@ -459,9 +459,6 @@ export default function EditableTableCell({
     
     return (
       <div ref={cellRef} className={wrapperClassName} data-editable-cell data-field={field}>
-        {/* Blue inner border overlay */}
-        <div className="absolute inset-0 border-2 border-sky-500 pointer-events-none z-50" />
-        
         {type === 'select' || type === 'organization' ? (
           <div className="w-full flex items-center">
             <Popover 
@@ -509,7 +506,7 @@ export default function EditableTableCell({
                       }}
                       onFocus={() => setComboOpen(true)}
                       placeholder={placeholder}
-                      className="h-full border-none bg-transparent focus-visible:ring-0 px-0 py-0 w-full text-sm"
+                      className="h-full border-none bg-transparent focus-visible:ring-0 shadow-none px-0 py-0 w-full text-sm"
                     />
                   </div>
                 </div>
@@ -520,7 +517,14 @@ export default function EditableTableCell({
                 onOpenAutoFocus={(e) => e.preventDefault()}
               >
                 <Command 
-                  value={highlightedValue || (editValue === '__none__' ? '' : editValue)}
+                  value={editValue === '__none__' ? '' : editValue}
+                  filter={(value, search) => {
+                    const option = type === 'select' 
+                      ? selectOptions.find(o => o.value === value)
+                      : organizations.find(o => o.id === value);
+                    if (option?.label.toLowerCase().includes(search.toLowerCase())) return 1;
+                    return 0;
+                  }}
                 >
                   <CommandList>
                     <CommandEmpty>No results found.</CommandEmpty>
@@ -547,7 +551,7 @@ export default function EditableTableCell({
                       {(type === 'select' ? selectOptions : organizations.map(o => ({ value: o.id, label: o.name }))).map((option) => (
                         <CommandItem
                           key={option.value}
-                          value={option.label}
+                          value={option.value}
                           onSelect={() => {
                             updateValue(option.value);
                             setSearchQuery(option.label);
@@ -584,7 +588,7 @@ export default function EditableTableCell({
             required={required}
             name={field}
             id={field}
-            className="w-full px-0 py-0 text-sm bg-transparent focus:outline-none focus:ring-0 resize-none leading-relaxed"
+            className="w-full px-0 py-0 text-sm bg-transparent focus:outline-none focus:ring-0 shadow-none border-none resize-none leading-relaxed"
             rows={3}
           />
         ) : type === 'tags' ? (
@@ -602,7 +606,7 @@ export default function EditableTableCell({
           </div>
         ) : type === 'datetime-local' ? (
           <div className="relative w-full">
-            <Clock className="absolute left-1 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+            <Clock className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
             <Input
               ref={inputRef as React.RefObject<HTMLInputElement>}
               type="datetime-local"
@@ -614,7 +618,7 @@ export default function EditableTableCell({
               required={required}
               name={field}
               id={field}
-              className="h-full pl-6 pr-0 py-0 text-sm border-none bg-transparent focus-visible:ring-0 w-full cursor-text"
+              className="h-full pl-9 pr-0 py-0 text-sm border-none bg-transparent focus-visible:ring-0 shadow-none w-full cursor-text"
             />
           </div>
         ) : (
@@ -631,7 +635,7 @@ export default function EditableTableCell({
             required={required}
             name={field}
             id={field}
-            className={`h-full text-sm border-none bg-transparent focus-visible:ring-0 px-0 py-0 ${field === 'title' ? 'w-full min-w-[200px]' : 'w-full'}`}
+            className={`h-full text-sm border-none bg-transparent focus-visible:ring-0 shadow-none px-0 py-0 ${field === 'title' ? 'w-full min-w-[200px]' : 'w-full'}`}
           />
         )}
         {saving && (
