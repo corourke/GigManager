@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import LoginScreen from './components/LoginScreen';
 import UserProfileCompletionScreen from './components/UserProfileCompletionScreen';
+import AcceptInvitationScreen from './components/AcceptInvitationScreen';
 import OrganizationSelectionScreen from './components/OrganizationSelectionScreen';
 import OrganizationScreen from './components/OrganizationScreen';
 import AdminOrganizationsScreen from './components/AdminOrganizationsScreen';
@@ -34,6 +35,7 @@ const USE_MOCK_DATA = false;
 type Route = 
   | 'login' 
   | 'profile-completion'
+  | 'accept-invitation'
   | 'org-selection' 
   | 'create-org'
   | 'edit-org'
@@ -67,6 +69,10 @@ function App() {
   } = useAuth();
 
   const [currentRoute, setCurrentRoute] = useState<Route>(() => {
+    // Check for invitation in URL
+    if (window.location.pathname === '/accept-invitation' || window.location.hash.includes('type=invite')) {
+      return 'accept-invitation';
+    }
     return (localStorage.getItem('currentRoute') as Route) || 'login';
   });
   const [selectedGigId, setSelectedGigId] = useState<string | null>(() => {
@@ -386,6 +392,14 @@ function App() {
           onProfileCompleted={handleProfileCompleted}
           onSkip={handleSkipProfile}
           useMockData={USE_MOCK_DATA}
+        />
+      )}
+      
+      {currentRoute === 'accept-invitation' && user && (
+        <AcceptInvitationScreen
+          user={user}
+          organizations={organizations}
+          onContinue={handleBackToDashboard}
         />
       )}
       

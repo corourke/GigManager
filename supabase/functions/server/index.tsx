@@ -116,6 +116,11 @@ Deno.serve(async (req) => {
     path = path.substring('/make-server-de012ad4'.length);
   }
 
+  // Also strip /server prefix if present (common when calling from frontend)
+  if (path.startsWith('/server')) {
+    path = path.substring('/server'.length);
+  }
+
   // Handle CORS preflight
   if (method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -769,6 +774,95 @@ Deno.serve(async (req) => {
       );
 
       return new Response(JSON.stringify(enrichedMembers), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    // Invite user to organization
+    if (path.match(/^\/organizations\/([^\/]+)\/invitations$/) && method === 'POST') {
+      const orgIdMatch = path.match(/^\/organizations\/([^\/]+)\/invitations$/);
+      const orgId = orgIdMatch ? orgIdMatch[1] : null;
+      
+      if (!orgId) {
+        return new Response(JSON.stringify({ error: 'Organization ID required' }), {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      const authHeader = req.headers.get('Authorization');
+      const { user, error: authError } = await getAuthenticatedUser(authHeader);
+      
+      if (authError || !user) {
+        return new Response(JSON.stringify({ error: authError ?? 'Unauthorized' }), {
+          status: 401,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      // Verify user is Admin or Manager of the organization
+      const { error: memberError } = await verifyOrgMembership(user.id, orgId, ['Admin', 'Manager']);
+      if (memberError) {
+        return new Response(JSON.stringify({ error: memberError }), {
+          status: 403,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      const body = await req.json();
+      const { email, role, first_name, last_name } = body;
+
+      if (!email || !role) {
+        return new Response(JSON.stringify({ error: 'Email and role are required' }), {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      // 1. Call the RPC to handle DB records
+      const { data, error: rpcError } = await supabaseAdmin.rpc('invite_user_to_organization', {
+        p_organization_id: orgId,
+        p_email: email,
+        p_role: role,
+        p_first_name: first_name || null,
+        p_last_name: last_name || null,
+      });
+
+      if (rpcError) {
+        console.error('Error calling invite_user_to_organization RPC:', rpcError);
+        return new Response(JSON.stringify({ error: rpcError.message }), {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      // 2. Trigger Supabase Auth invitation email
+      // This will create a user in auth.users if they don't exist
+      // and send them an email with a link to join.
+      const origin = req.headers.get('origin') || 'http://localhost:3000';
+      const { error: inviteError } = await supabaseAdmin.auth.admin.inviteUserByEmail(email, {
+        redirectTo: `${origin}/accept-invitation`,
+        data: {
+          organization_id: orgId,
+          invited_by: user.id,
+          first_name: first_name || '',
+          last_name: last_name || '',
+        }
+      });
+
+      if (inviteError) {
+        console.warn('Error sending invitation email:', inviteError);
+        // We don't fail the whole request if email fails, but we should return the DB result
+        return new Response(JSON.stringify({ 
+          ...data, 
+          email_sent: false, 
+          email_error: inviteError.message 
+        }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      return new Response(JSON.stringify({ ...data, email_sent: true }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }

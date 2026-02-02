@@ -7,6 +7,7 @@ import {
   UserRole 
 } from '../utils/supabase/types';
 import { getCompleteUserData } from '../services/user.service';
+import { convertPendingToActive } from '../services/organization.service';
 
 interface AuthContextType {
   user: User | null;
@@ -57,6 +58,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (session?.user) {
         console.log('[TRACE] AuthContext: Session found for user', session.user.id);
         
+        // Ensure pending user is converted to active (e.g. after accepting invitation)
+        if (session.user.email) {
+          try {
+            await convertPendingToActive(session.user.email, session.user.id);
+          } catch (e) {
+            console.warn('[TRACE] AuthContext: Error converting pending user:', e);
+          }
+        }
+
         // Fetch complete user data in one single secure RPC call
         console.log('[TRACE] AuthContext: Fetching complete user data...');
         const { profile, organizations: orgs } = await getCompleteUserData(session.user.id);

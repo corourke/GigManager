@@ -280,12 +280,12 @@ export default function TeamScreen({
       setInviteEmail('');
       setInviteRole('Staff');
       
-      // Show placeholder message about the invitation
+      // Show success message
       toast.success(
         <div className="space-y-2">
-          <p className="font-medium">User created and invitation sent!</p>
+          <p className="font-medium">Invitation sent!</p>
           <p className="text-sm text-gray-600">
-            In production, an email would be sent to {inviteEmail} with a link to accept the invitation.
+            An email has been sent to {inviteEmail} with a link to join the organization.
             The user can now be assigned to gigs.
           </p>
         </div>,

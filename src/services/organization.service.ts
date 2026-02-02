@@ -334,16 +334,18 @@ export async function inviteUserToOrganization(
 ) {
   const supabase = getSupabase();
   try {
-    const { data, error } = await supabase.rpc('invite_user_to_organization', {
-      p_organization_id: organizationId,
-      p_email: email,
-      p_role: role === 'Member' ? 'Staff' : role,
-      p_first_name: firstName || null,
-      p_last_name: lastName || null,
+    const { data, error } = await supabase.functions.invoke(`server/organizations/${organizationId}/invitations`, {
+      method: 'POST',
+      body: {
+        email,
+        role: role === 'Member' ? 'Staff' : role,
+        first_name: firstName || null,
+        last_name: lastName || null,
+      }
     });
 
     if (error) throw error;
-    return data as { invitation: any; user: any };
+    return data as { invitation: any; user: any; email_sent: boolean };
   } catch (err) {
     return handleApiError(err, 'invite user to organization');
   }
