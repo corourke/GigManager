@@ -7,16 +7,16 @@
     - [ ] Allow TAB to go forward a column, and Shift-TAB to go backwards. It is working in some places but not consistently. 
     - [ ] When in an editable cell, don't add an outline around the content, put a blue outline around the inside of the cell borders. Don't change the way the cell contents are displayed to make them editable, keep the formatting essentially the same. 
       - [ ] For Status, Venue and Act -- these are select lists. 
-        - [ ] I want the selected item to be displayed as a pill. 
+        - [x] I want the selected item to be displayed as a pill. 
         - [ ] If the user starts to type, then the cell immediately becomes text entry for the select list and the list is filtered as the user types. Pressing Enter or TAB selects the highlighted choice. The effect is natural, intuitive, and efficient.	
-        - [ ] I want each item in the list to automatically display using a different, rotating color. 
         - [ ] Clicking into any of these columns causes the column width to change.
+        - [ ]  I want the tags to all display using different colors as Coda does. 
         - [ ] The filtering action is not working on Venue and Act. 
         - [ ] Fixes
           - Let's totally remove the outline around the Title when clicked, when the user enters the cell, just put a cursor after the end of the name. Don't select the whole name.
           - When tabbing past the Start and End dates without changing them, don't update the database.
           - I asked for cells being edited to have the cell border turned blue, not the contents outlined.
-          - I want the start and end data editing to work exactly like it does on the Gig Edit screen. No formatting changes, tab moves from date element to date element (month, day, year, hour, minute).
+          - I want the start and end data editing to work EXACTLY like it does on the Gig Edit screen. No formatting changes, tab moves from date element to date element (month, day, year, hour, minute).
           - On the status field, I want the search to be in the cell, see this image of how Coda does it:  https://www.dropbox.com/scl/fi/22hvqs5pkw9o69v6w9f2x/Screenshot-2026-02-01-at-4.27.08-PM.png?rlkey=hziufostdoixmpa7sww5jx49n&dl=0
       - [ ] For tags, I want the way tags display when not being edited, and when being edited to be the same. I want to be able to type in the cell like a text field in order to select tags. This is similar to how Coda works. 
         - [ ] If no tag yet, typing filters the select list, then the highlighted tag can be selected with Tab or Return. 
