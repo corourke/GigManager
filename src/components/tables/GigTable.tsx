@@ -97,6 +97,10 @@ export default function GigTable({
 }: GigTableProps) {
   const [editingCell, setEditingCell] = useState<{ id: string, field: string } | null>(null);
 
+  const handleEditingChange = React.useCallback((gigId: string, field: string, isEditing: boolean) => {
+    setEditingCell(isEditing ? { id: gigId, field } : null);
+  }, []);
+
   const formatDateTime = (start: string, end: string, timezone?: string) => {
     return formatDateTimeDisplay(start, end, timezone);
   };
@@ -234,8 +238,8 @@ export default function GigTable({
                         value={gig.title || ''}
                         field="title"
                         placeholder="Gig title"
-                        onSave={(field, value) => onGigUpdate(gig.id, 'title', value)}
-                        onEditingChange={(isEditing) => setEditingCell(isEditing ? { id: gig.id, field: 'title' } : null)}
+                        onSave={(f, v) => onGigUpdate(gig.id, f, v)}
+                        onEditingChange={(isEditing) => handleEditingChange(gig.id, 'title', isEditing)}
                       />
                     ) : (
                       <div className="px-2 py-1.5 truncate text-sm text-gray-900">
@@ -254,8 +258,8 @@ export default function GigTable({
                           type="datetime-local"
                           timezone={gig.timezone}
                           placeholder="Start time"
-                          onSave={(field, value) => onGigUpdate(gig.id, 'start', value)}
-                          onEditingChange={(isEditing) => setEditingCell(isEditing ? { id: gig.id, field: 'start' } : null)}
+                          onSave={(f, v) => onGigUpdate(gig.id, f, v)}
+                          onEditingChange={(isEditing) => handleEditingChange(gig.id, 'start', isEditing)}
                         />
                       </TableCell>
                       <TableCell className={getTableCellClass(gig.id, 'end', 'w-[160px]')} onClick={(e) => e.stopPropagation()}>
@@ -265,8 +269,8 @@ export default function GigTable({
                           type="datetime-local"
                           timezone={gig.timezone}
                           placeholder="End time"
-                          onSave={(field, value) => onGigUpdate(gig.id, 'end', value)}
-                          onEditingChange={(isEditing) => setEditingCell(isEditing ? { id: gig.id, field: 'end' } : null)}
+                          onSave={(f, v) => onGigUpdate(gig.id, f, v)}
+                          onEditingChange={(isEditing) => handleEditingChange(gig.id, 'end', isEditing)}
                         />
                       </TableCell>
                     </>
@@ -286,8 +290,8 @@ export default function GigTable({
                         field="status"
                         type="select"
                         placeholder="Select status"
-                        onSave={(field, value) => onGigUpdate(gig.id, 'status', value)}
-                        onEditingChange={(isEditing) => setEditingCell(isEditing ? { id: gig.id, field: 'status' } : null)}
+                        onSave={(f, v) => onGigUpdate(gig.id, f, v)}
+                        onEditingChange={(isEditing) => handleEditingChange(gig.id, 'status', isEditing)}
                         selectOptions={Object.entries(GIG_STATUS_CONFIG).map(([value, config]) => ({
                           value,
                           label: config.label,
@@ -295,7 +299,7 @@ export default function GigTable({
                       />
                     ) : (
                       <div className="px-2 py-1.5">
-                        <Badge variant="outline" className={cn("truncate", GIG_STATUS_CONFIG[gig.status].color)}>
+                        <Badge variant="outline" className="truncate bg-gray-100 text-gray-800 border-gray-200">
                           {GIG_STATUS_CONFIG[gig.status].label}
                         </Badge>
                       </div>
@@ -312,13 +316,13 @@ export default function GigTable({
                           type="organization"
                           organizationType="Venue"
                           placeholder="Select venue"
-                          onSave={(field, value) => onGigUpdate(gig.id, field, value)}
-                          onEditingChange={(isEditing) => setEditingCell(isEditing ? { id: gig.id, field: 'venue' } : null)}
+                          onSave={(f, v) => onGigUpdate(gig.id, f, v)}
+                          onEditingChange={(isEditing) => handleEditingChange(gig.id, 'venue', isEditing)}
                         />
                       ) : (
                         <div className="px-2 py-1.5">
                           {gig.venue ? (
-                            <Badge variant="outline" className={cn("truncate", ORG_TYPE_CONFIG.Venue.color)}>
+                            <Badge variant="outline" className="truncate bg-gray-100 text-gray-800 border-gray-200">
                               {gig.venue.name}
                             </Badge>
                           ) : (
@@ -339,13 +343,13 @@ export default function GigTable({
                           type="organization"
                           organizationType="Act"
                           placeholder="Select act"
-                          onSave={(field, value) => onGigUpdate(gig.id, field, value)}
-                          onEditingChange={(isEditing) => setEditingCell(isEditing ? { id: gig.id, field: 'act' } : null)}
+                          onSave={(f, v) => onGigUpdate(gig.id, f, v)}
+                          onEditingChange={(isEditing) => handleEditingChange(gig.id, 'act', isEditing)}
                         />
                       ) : (
                         <div className="px-2 py-1.5">
                           {gig.act ? (
-                            <Badge variant="outline" className={cn("truncate", ORG_TYPE_CONFIG.Act.color)}>
+                            <Badge variant="outline" className="truncate bg-gray-100 text-gray-800 border-gray-200">
                               {gig.act.name}
                             </Badge>
                           ) : (
@@ -366,13 +370,13 @@ export default function GigTable({
                           type="tags"
                           tagSuggestions={SUGGESTED_TAGS}
                           placeholder="Add tags..."
-                          onSave={(field, value) => onGigUpdate(gig.id, 'tags', value)}
-                          onEditingChange={(isEditing) => setEditingCell(isEditing ? { id: gig.id, field: 'tags' } : null)}
+                          onSave={(f, v) => onGigUpdate(gig.id, f, v)}
+                          onEditingChange={(isEditing) => handleEditingChange(gig.id, 'tags', isEditing)}
                         />
                       ) : (
                         <div className="px-2 py-1.5 truncate flex flex-wrap gap-1">
                           {gig.tags?.map((tag, index) => (
-                            <Badge key={index} variant="secondary" className="text-[10px] h-4 py-0">
+                            <Badge key={index} variant="secondary" className="bg-gray-100 text-gray-700 border-gray-200 text-[10px] h-4 py-0">
                               {tag}
                             </Badge>
                           )) || <span className="text-gray-400">-</span>}

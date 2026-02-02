@@ -81,12 +81,17 @@ export default function EditableTableCell({
 
   const isEditing = editingField === field;
 
-  // Sync isEditing state with parent
+  // Sync isEditing state with parent using a ref to avoid infinite loops from unstable callbacks
+  const onEditingChangeRef = useRef(onEditingChange);
   useEffect(() => {
-    if (onEditingChange) {
-      onEditingChange(isEditing);
+    onEditingChangeRef.current = onEditingChange;
+  }, [onEditingChange]);
+
+  useEffect(() => {
+    if (onEditingChangeRef.current) {
+      onEditingChangeRef.current(isEditing);
     }
-  }, [isEditing, onEditingChange]);
+  }, [isEditing]);
 
   // Calculate display value based on type
   const getDisplayValue = () => {
@@ -118,23 +123,11 @@ export default function EditableTableCell({
 
   const getValueColor = (val: any, displayVal: string) => {
     if (field === 'status' && GIG_STATUS_CONFIG[val as keyof typeof GIG_STATUS_CONFIG]) {
-      return GIG_STATUS_CONFIG[val as keyof typeof GIG_STATUS_CONFIG].color;
+      return 'bg-gray-100 text-gray-800 border-gray-200';
     } else if (type === 'organization' && organizationType) {
-      return ORG_TYPE_CONFIG[organizationType].color;
+      return 'bg-gray-100 text-gray-800 border-gray-200';
     } else {
-      // Rotating color logic based on the value string for other selects
-      const colors = [
-        'bg-blue-100 text-blue-700 border-blue-200',
-        'bg-purple-100 text-purple-700 border-purple-200',
-        'bg-emerald-100 text-emerald-700 border-emerald-200',
-        'bg-amber-100 text-amber-700 border-amber-200',
-        'bg-rose-100 text-rose-700 border-rose-200',
-        'bg-indigo-100 text-indigo-700 border-indigo-200',
-        'bg-cyan-100 text-cyan-700 border-cyan-200',
-        'bg-teal-100 text-teal-700 border-teal-200',
-      ];
-      const colorIndex = Math.abs(displayVal.toString().split('').reduce((acc, char) => acc + char.charCodeAt(0), 0)) % colors.length;
-      return colors[colorIndex];
+      return 'bg-gray-100 text-gray-800 border-gray-200';
     }
   };
 
@@ -304,8 +297,11 @@ export default function EditableTableCell({
         input.select();
       } else if (type === 'text' || type === 'email' || type === 'textarea') {
         // For regular text, move cursor to the end
-        const length = input.value.length;
-        input.setSelectionRange(length, length);
+        // Use setTimeout to ensure the cursor position is set after focus is complete
+        setTimeout(() => {
+          const length = input.value.length;
+          input.setSelectionRange(length, length);
+        }, 0);
       }
     }
   }, [isEditing, type, inputRef]);
@@ -397,8 +393,9 @@ export default function EditableTableCell({
   if (isEditing) {
     // For title field, ensure minimum width to prevent collapsing on narrow screens
     const wrapperClassName = cn(
-      "relative w-full h-full flex items-center px-2 bg-white transition-colors cursor-text min-h-[38px] z-10 border-blue-500 ring-1 ring-blue-500",
-      field === 'title' && "min-w-[200px]"
+      "absolute inset-0 flex items-center px-2 bg-white transition-colors cursor-text z-20 border-2 border-blue-500",
+      field === 'title' && "min-w-[200px]",
+      className
     );
     
     return (
@@ -601,7 +598,7 @@ export default function EditableTableCell({
         <div className="flex flex-wrap gap-1">
           {value.length > 0 ? (
             value.map((tag, index) => (
-              <Badge key={index} variant="secondary" className="bg-sky-50 text-sky-700 border-sky-100 text-[10px] h-5 py-0">
+              <Badge key={index} variant="secondary" className="bg-gray-100 text-gray-700 border-gray-200 text-[10px] h-5 py-0">
                 {tag}
               </Badge>
             ))

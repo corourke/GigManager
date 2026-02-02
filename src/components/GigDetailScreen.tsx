@@ -137,7 +137,7 @@ export default function GigDetailScreen({
                 <h1 className="text-2xl font-bold text-gray-900 leading-tight">{gig.title}</h1>
               </div>
               <div className="flex flex-wrap items-center gap-2">
-                <Badge variant="outline" className={GIG_STATUS_CONFIG[gig.status].color}>
+                <Badge variant="outline" className="bg-gray-100 text-gray-800 border-gray-200">
                   {GIG_STATUS_CONFIG[gig.status].label}
                 </Badge>
                 <span className="text-sm text-gray-500">{organization.name}</span>
@@ -200,7 +200,7 @@ export default function GigDetailScreen({
                       <p className="text-xs font-medium text-gray-500 uppercase mb-1">Venue</p>
                       {gig.venue ? (
                         <div className="space-y-1">
-                          <Badge variant="outline" className={cn("font-medium", ORG_TYPE_CONFIG.Venue.color)}>
+                          <Badge variant="outline" className="font-medium bg-gray-100 text-gray-800 border-gray-200">
                             {gig.venue.name}
                           </Badge>
                           {(gig.venue.city || gig.venue.state) && (
@@ -221,7 +221,7 @@ export default function GigDetailScreen({
                       <p className="text-xs font-medium text-gray-500 uppercase mb-1">Act</p>
                       {gig.act ? (
                         <div className="space-y-1">
-                          <Badge variant="outline" className={cn("font-medium", ORG_TYPE_CONFIG.Act.color)}>
+                          <Badge variant="outline" className="font-medium bg-gray-100 text-gray-800 border-gray-200">
                             {gig.act.name}
                           </Badge>
                           {(gig.act.city || gig.act.state) && (
