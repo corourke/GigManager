@@ -99,6 +99,13 @@ export default function EditableTableCell({
     }
   }, [isEditing]);
 
+  // Sync with global editing state from parent
+  useEffect(() => {
+    if (isEditingGlobal && !isEditing) {
+      handleCellClick();
+    }
+  }, [isEditingGlobal, isEditing]);
+
   // If we think we are editing but the global state says another cell is editing, cancel our local edit
   useEffect(() => {
     if (isEditing && isAnotherCellEditing) {
@@ -445,7 +452,7 @@ export default function EditableTableCell({
   if (isEditing) {
     // For title field, ensure minimum width to prevent collapsing on narrow screens
     const wrapperClassName = cn(
-      "relative w-full h-full flex items-center px-2 py-1.5 bg-white transition-colors cursor-text z-30 outline-2 outline-sky-500 -outline-offset-2",
+      "relative w-full h-full flex items-center px-2 py-1.5 bg-white transition-colors cursor-text z-30 ring-1 ring-inset ring-sky-500",
       field === 'title' && "min-w-[200px]",
       className
     );

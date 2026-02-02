@@ -114,8 +114,8 @@ export default function GigTable({
   const getTableCellClass = (gigId: string, field: string, baseClass: string = '') => {
     const isEditing = editingCell?.id === gigId && editingCell?.field === field;
     return cn(
-      "relative p-0 overflow-visible transition-colors border border-gray-200",
-      isEditing ? "z-30" : "z-10",
+      "relative p-0 overflow-visible transition-colors border",
+      isEditing ? "z-30 border-sky-500" : "z-10 border-gray-200",
       baseClass
     );
   };
