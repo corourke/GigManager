@@ -81,7 +81,7 @@ export default function GigTable({
 
   if (loading) {
     return (
-      <Card>
+      <Card className="p-6">
         <Table>
           <TableHeader>
             <TableRow>
@@ -115,7 +115,7 @@ export default function GigTable({
 
   if (displayGigs.length === 0) {
     return (
-      <Card className="p-12 text-center">
+      <Card className="p-6">
         <div className="max-w-md mx-auto">
           <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
             <CalendarIcon className="w-8 h-8 text-gray-400" />
@@ -147,7 +147,7 @@ export default function GigTable({
         </div>
       )}
 
-      <Card>
+      <Card className="p-6">
         <div className="overflow-x-auto">
             <Table>
             <TableHeader>

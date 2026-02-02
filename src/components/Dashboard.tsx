@@ -295,7 +295,7 @@ export default function Dashboard({
             </div>
 
             {/* Main Dashboard Content */}
-            <div className="grid grid-cols-1 gap-6">
+            <div className="grid grid-cols-1">
               {/* Upcoming Events */}
               <Card className="p-6">
                 <div className="flex items-center justify-between mb-4">

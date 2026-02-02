@@ -487,7 +487,7 @@ export default function TeamScreen({
               <p className="text-gray-600">No team members yet</p>
             </div>
           ) : (
-            <div className="border rounded-lg overflow-hidden">
+            <div className="border rounded-lg overflow-hidden p-6">
               <Table>
                 <TableHeader>
                   <TableRow>
