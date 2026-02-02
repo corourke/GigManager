@@ -452,13 +452,16 @@ export default function EditableTableCell({
   if (isEditing) {
     // For title field, ensure minimum width to prevent collapsing on narrow screens
     const wrapperClassName = cn(
-      "relative w-full h-full flex items-center px-2 py-1.5 bg-white transition-colors cursor-text z-30 ring-1 ring-inset ring-sky-500",
+      "relative w-full h-full flex items-center px-2 py-1.5 bg-white transition-colors cursor-text z-30",
       field === 'title' && "min-w-[200px]",
       className
     );
     
     return (
       <div ref={cellRef} className={wrapperClassName} data-editable-cell data-field={field}>
+        {/* Blue inner border overlay */}
+        <div className="absolute inset-0 border-2 border-sky-500 pointer-events-none z-50" />
+        
         {type === 'select' || type === 'organization' ? (
           <div className="w-full flex items-center">
             <Popover 
@@ -477,10 +480,7 @@ export default function EditableTableCell({
             >
               <PopoverTrigger asChild>
                 <div className="flex-1 flex items-center h-8">
-                  <div className={cn(
-                    "flex-1 flex items-center",
-                    (type === 'select' || type === 'organization') && "bg-gray-100 text-gray-800 border border-gray-200 rounded-md px-2 py-0.5 h-6"
-                  )}>
+                  <div className="flex-1 flex items-center">
                     <Input
                       ref={inputRef as React.RefObject<HTMLInputElement>}
                       value={searchQuery}
@@ -509,10 +509,7 @@ export default function EditableTableCell({
                       }}
                       onFocus={() => setComboOpen(true)}
                       placeholder={placeholder}
-                      className={cn(
-                        "h-full border-none bg-transparent focus-visible:ring-0 px-0 py-0 w-full",
-                        (type === 'select' || type === 'organization') ? "text-xs font-medium text-gray-800" : "text-sm"
-                      )}
+                      className="h-full border-none bg-transparent focus-visible:ring-0 px-0 py-0 w-full text-sm"
                     />
                   </div>
                 </div>
@@ -533,7 +530,9 @@ export default function EditableTableCell({
                           value="__none__"
                           onSelect={() => {
                             updateValue('');
+                            setSearchQuery('');
                             setComboOpen(false);
+                            saveEdit();
                           }}
                         >
                           <Check
@@ -548,10 +547,12 @@ export default function EditableTableCell({
                       {(type === 'select' ? selectOptions : organizations.map(o => ({ value: o.id, label: o.name }))).map((option) => (
                         <CommandItem
                           key={option.value}
-                          value={option.value}
+                          value={option.label}
                           onSelect={() => {
                             updateValue(option.value);
+                            setSearchQuery(option.label);
                             setComboOpen(false);
+                            saveEdit();
                           }}
                         >
                           <Check
@@ -600,19 +601,22 @@ export default function EditableTableCell({
             />
           </div>
         ) : type === 'datetime-local' ? (
-          <Input
-            ref={inputRef as React.RefObject<HTMLInputElement>}
-            type="datetime-local"
-            value={(editValue as string) || ''}
-            onChange={(e) => updateValue(e.target.value)}
-            onKeyDown={onKeyDown}
-            onBlur={handleBlur}
-            disabled={saving}
-            required={required}
-            name={field}
-            id={field}
-            className="h-full px-0 py-0 text-sm border-none bg-transparent focus-visible:ring-0 w-full cursor-text"
-          />
+          <div className="relative w-full">
+            <Clock className="absolute left-1 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+            <Input
+              ref={inputRef as React.RefObject<HTMLInputElement>}
+              type="datetime-local"
+              value={(editValue as string) || ''}
+              onChange={(e) => updateValue(e.target.value)}
+              onKeyDown={onKeyDown}
+              onBlur={handleBlur}
+              disabled={saving}
+              required={required}
+              name={field}
+              id={field}
+              className="h-full pl-6 pr-0 py-0 text-sm border-none bg-transparent focus-visible:ring-0 w-full cursor-text"
+            />
+          </div>
         ) : (
           <Input
             ref={inputRef as React.RefObject<HTMLInputElement>}
