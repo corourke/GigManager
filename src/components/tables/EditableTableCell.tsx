@@ -254,6 +254,18 @@ export default function EditableTableCell({
     typeRef.current = type;
   }, [type]);
 
+  // Use refs for callbacks to avoid re-registering event listeners when they change
+  const saveEditRef = useRef(saveEdit);
+  const cancelEditRef = useRef(cancelEdit);
+
+  useEffect(() => {
+    saveEditRef.current = saveEdit;
+  }, [saveEdit]);
+
+  useEffect(() => {
+    cancelEditRef.current = cancelEdit;
+  }, [cancelEdit]);
+
   useEffect(() => {
     if (!isEditing) return;
 
@@ -263,7 +275,7 @@ export default function EditableTableCell({
       // Check if click is inside this cell or its dropdowns/popovers
       const isClickInsideCell = cellRef.current?.contains(target);
       // Also check if click is on a Select dropdown or Popover (they render in portals)
-      const isClickOnDropdown = target.closest('[role="listbox"]') || target.closest('[role="dialog"]');
+      const isClickOnDropdown = (target instanceof Element) && (target.closest('[role="listbox"]') || target.closest('[role="dialog"]'));
 
       // If clicking outside this cell and not on a dropdown, exit edit mode
       if (!isClickInsideCell && !isClickOnDropdown) {
@@ -272,33 +284,34 @@ export default function EditableTableCell({
           const currentId = editValueRef.current === '__none__' ? '' : editValueRef.current;
           const originalId = valueRef.current || '';
           if (currentId !== originalId) {
-            saveEdit();
+            saveEditRef.current();
           } else {
-            cancelEdit();
+            cancelEditRef.current();
           }
         } else if (typeRef.current === 'tags') {
           // Save tags on outside click
-          saveEdit();
+          saveEditRef.current();
         } else if (typeRef.current === 'select') {
           // Select is handled by onValueChange, so just exit edit mode
-          cancelEdit();
+          cancelEditRef.current();
         } else if (editValueRef.current !== displayValueRef.current) {
-          saveEdit();
+          saveEditRef.current();
         } else {
-          cancelEdit();
+          cancelEditRef.current();
         }
       }
     };
 
     // Use setTimeout to allow the current click to process first
-    setTimeout(() => {
+    const timer = setTimeout(() => {
       document.addEventListener('mousedown', handleDocumentClick);
     }, 0);
 
     return () => {
+      clearTimeout(timer);
       document.removeEventListener('mousedown', handleDocumentClick);
     };
-  }, [isEditing, field, cancelEdit, saveEdit]);
+  }, [isEditing, field]); // Stable dependencies
 
   // Load organizations when editing starts OR when component mounts with a value (for display)
   useEffect(() => {
@@ -418,7 +431,7 @@ export default function EditableTableCell({
   if (isEditing) {
     // For title field, ensure minimum width to prevent collapsing on narrow screens
     const wrapperClassName = cn(
-      "relative w-full h-full flex items-center px-2 py-1.5 bg-white transition-colors cursor-text z-20 border border-blue-500 shadow-sm",
+      "relative w-full h-full flex items-center px-2 py-1.5 bg-white transition-colors cursor-text z-30 ring-2 ring-inset ring-sky-500",
       field === 'title' && "min-w-[200px]",
       className
     );

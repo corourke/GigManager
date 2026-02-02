@@ -24,9 +24,11 @@ export function useInlineEdit({ onSave, onCancel }: UseInlineEditOptions = {}) {
   });
 
   const inputRef = useRef<HTMLInputElement | HTMLTextAreaElement | null>(null);
+  const isSavingRef = useRef(false);
 
   // Start editing a field
   const startEdit = useCallback((field: string, currentValue: any = '') => {
+    isSavingRef.current = false;
     setState({
       editingField: field,
       editValue: currentValue,
@@ -56,26 +58,31 @@ export function useInlineEdit({ onSave, onCancel }: UseInlineEditOptions = {}) {
 
   // Save the edit
   const saveEdit = useCallback(async (): Promise<boolean> => {
-    if (state.saving || !state.editingField) {
+    if (isSavingRef.current || !state.editingField) {
       return true; // Already saving or not editing
     }
 
     try {
+      isSavingRef.current = true;
       setState(prev => ({ ...prev, saving: true, error: null }));
 
       if (onSave) {
         await onSave(state.editingField, state.editValue);
       }
 
-      setState({
-        editingField: null,
-        editValue: null,
-        saving: false,
-        error: null,
-      });
+      if (isSavingRef.current) {
+        setState({
+          editingField: null,
+          editValue: null,
+          saving: false,
+          error: null,
+        });
+        isSavingRef.current = false;
+      }
 
       return true;
     } catch (error: any) {
+      isSavingRef.current = false;
       setState(prev => ({
         ...prev,
         saving: false,
@@ -83,7 +90,7 @@ export function useInlineEdit({ onSave, onCancel }: UseInlineEditOptions = {}) {
       }));
       return false;
     }
-  }, [state.saving, state.editingField, state.editValue, onSave]);
+  }, [state.editingField, state.editValue, onSave]);
 
   // Cancel the edit
   const cancelEdit = useCallback(() => {
