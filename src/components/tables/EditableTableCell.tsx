@@ -208,8 +208,8 @@ export default function EditableTableCell({
             cancelEdit();
           }
         } else if (type === 'tags') {
-          // Tags are handled by onChange, so just exit edit mode
-          cancelEdit();
+          // Save tags on blur
+          await saveEdit();
         } else if (type === 'select') {
           // Select is handled by onValueChange, so just exit edit mode
           cancelEdit();
@@ -254,8 +254,11 @@ export default function EditableTableCell({
           } else {
             cancelEdit();
           }
-        } else if (type === 'tags' || type === 'select') {
-          // These are handled by their own onChange handlers
+        } else if (type === 'tags') {
+          // Save tags on outside click
+          saveEdit();
+        } else if (type === 'select') {
+          // Select is handled by onValueChange, so just exit edit mode
           cancelEdit();
         } else if (editValue !== displayValue) {
           saveEdit();
@@ -346,8 +349,8 @@ export default function EditableTableCell({
         cancelEdit();
       }
     } else if (type === 'tags') {
-      // Tags auto-save on change in TagsInput
-      cancelEdit();
+      // Save tags before tabbing
+      await saveEdit();
     } else if (type === 'datetime-local') {
       const originalValue = formatForDateTimeInput(value as string, timezone);
       if (editValue !== originalValue) {
@@ -393,7 +396,7 @@ export default function EditableTableCell({
   if (isEditing) {
     // For title field, ensure minimum width to prevent collapsing on narrow screens
     const wrapperClassName = cn(
-      "absolute -inset-[1px] flex items-center px-2 bg-white transition-colors cursor-text z-20 border-2 border-blue-500 shadow-sm",
+      "flex items-center px-2 bg-white transition-colors cursor-text z-20 border border-blue-500 shadow-sm",
       field === 'title' && "min-w-[200px]",
       className
     );
@@ -428,7 +431,6 @@ export default function EditableTableCell({
                         if (highlightedValue) {
                           const saveValue = type === 'organization' && highlightedValue === '__none__' ? '' : highlightedValue;
                           updateValue(saveValue);
-                          onSave(field, saveValue);
                         }
                         e.preventDefault();
                         handleTabKey(e.shiftKey);
@@ -436,7 +438,6 @@ export default function EditableTableCell({
                         if (highlightedValue) {
                           const saveValue = type === 'organization' && highlightedValue === '__none__' ? '' : highlightedValue;
                           updateValue(saveValue);
-                          onSave(field, saveValue);
                         }
                         cancelEdit();
                       } else if (e.key === 'Escape') {
@@ -468,8 +469,7 @@ export default function EditableTableCell({
                           value="__none__"
                           onSelect={() => {
                             updateValue('');
-                            onSave(field, '');
-                            cancelEdit();
+                            setComboOpen(false);
                           }}
                         >
                           <Check
@@ -487,8 +487,7 @@ export default function EditableTableCell({
                           value={option.value}
                           onSelect={() => {
                             updateValue(option.value);
-                            onSave(field, option.value);
-                            cancelEdit();
+                            setComboOpen(false);
                           }}
                         >
                           <Check
@@ -527,10 +526,8 @@ export default function EditableTableCell({
           <div className="w-full">
             <TagsInput
               value={Array.isArray(editValue) ? editValue : []}
-              onChange={async (tags) => {
+              onChange={(tags) => {
                 updateValue(tags);
-                // Auto-save on change but DON'T exit edit mode yet
-                await onSave(field, tags);
               }}
               onKeyDown={onKeyDown}
               suggestions={tagSuggestions}
