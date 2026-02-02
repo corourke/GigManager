@@ -114,8 +114,8 @@ export default function GigTable({
   const getTableCellClass = (gigId: string, field: string, baseClass: string = '') => {
     const isEditing = editingCell?.id === gigId && editingCell?.field === field;
     return cn(
-      "relative border p-0 overflow-hidden transition-colors",
-      isEditing ? "z-20" : "border-gray-200",
+      "relative p-0 overflow-visible transition-colors border border-gray-200",
+      isEditing ? "z-20" : "",
       baseClass
     );
   };
@@ -222,7 +222,10 @@ export default function GigTable({
               {displayGigs.map((gig) => (
                 <TableRow
                   key={gig.id}
-                  className={(onGigClick || onGigEdit) ? 'hover:bg-gray-50' : ''}
+                  className={cn(
+                    (onGigClick || onGigEdit) ? 'hover:bg-gray-50' : '',
+                    "border-none"
+                  )}
                   onClick={() => {
                     if (mode === 'dashboard' && onGigEdit) {
                       onGigEdit(gig.id);
