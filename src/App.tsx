@@ -19,6 +19,7 @@ import KitDetailScreen from './components/KitDetailScreen';
 import TeamMemberDetailScreen from './components/TeamMemberDetailScreen';
 import ImportScreen from './components/ImportScreen';
 import EditUserProfileDialog from './components/EditUserProfileDialog';
+import InvitationErrorScreen from './components/InvitationErrorScreen';
 import { Toaster } from './components/ui/sonner';
 import { toast } from 'sonner';
 import { NavigationProvider } from './contexts/NavigationContext';
@@ -89,6 +90,21 @@ function App() {
   });
   const [editingOrganization, setEditingOrganization] = useState<Organization | null>(null);
   const [showEditProfileDialog, setShowEditProfileDialog] = useState(false);
+
+  const [invitationError, setInvitationError] = useState<{ error: string, description?: string } | null>(() => {
+    const hash = window.location.hash;
+    if (hash && hash.startsWith('#')) {
+      const params = new URLSearchParams(hash.substring(1));
+      const error = params.get('error');
+      if (error) {
+        return {
+          error,
+          description: params.get('error_description')?.replace(/\+/g, ' ') || undefined
+        };
+      }
+    }
+    return null;
+  });
 
   // Persist state to localStorage
   useEffect(() => {
@@ -396,6 +412,20 @@ function App() {
   }
 
   console.log("currentRoute: " + currentRoute);
+
+  if (invitationError) {
+    return (
+      <InvitationErrorScreen
+        error={invitationError.error}
+        errorDescription={invitationError.description}
+        onBackToLogin={() => {
+          setInvitationError(null);
+          window.location.hash = '';
+          setCurrentRoute('login');
+        }}
+      />
+    );
+  }
 
   return (
     <NavigationProvider

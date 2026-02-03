@@ -6,7 +6,7 @@ import {
   OrganizationMembershipWithOrg,
   User
 } from '../utils/supabase/types';
-import { handleApiError } from '../utils/api-error-utils';
+import { handleApiError, handleFunctionsError } from '../utils/api-error-utils';
 
 const getSupabase = () => createClient();
 
@@ -69,10 +69,10 @@ export async function createOrganization(orgData: {
       body: orgData
     });
 
-    if (error) throw error;
+    if (error) return await handleFunctionsError(error, 'create organization');
     return data;
   } catch (err) {
-    return handleApiError(err, 'create organization');
+    return await handleFunctionsError(err, 'create organization');
   }
 }
 
@@ -100,10 +100,10 @@ export async function updateOrganization(organizationId: string, orgData: {
       body: orgData
     });
 
-    if (error) throw error;
+    if (error) return await handleFunctionsError(error, 'update organization');
     return data;
   } catch (err) {
-    return handleApiError(err, 'update organization');
+    return await handleFunctionsError(err, 'update organization');
   }
 }
 
@@ -118,10 +118,10 @@ export async function joinOrganization(orgId: string): Promise<{ organization: O
       body: {} // No user_id or role means self-join as Viewer
     });
 
-    if (error) throw error;
+    if (error) return await handleFunctionsError(error, 'join organization');
     return data;
   } catch (err) {
-    return handleApiError(err, 'join organization');
+    return await handleFunctionsError(err, 'join organization');
   }
 }
 
@@ -213,11 +213,11 @@ export async function addExistingUserToOrganization(
       }
     });
 
-    if (error) throw error;
+    if (error) return await handleFunctionsError(error, 'add user to organization');
     // Return the member data from the response
     return data.member;
   } catch (err) {
-    return handleApiError(err, 'add user to organization');
+    return await handleFunctionsError(err, 'add user to organization');
   }
 }
 
@@ -243,10 +243,10 @@ export async function inviteUserToOrganization(
       }
     });
 
-    if (error) throw error;
+    if (error) return await handleFunctionsError(error, 'invite user to organization');
     return data as { invitation: any; user: any; email_sent: boolean };
   } catch (err) {
-    return handleApiError(err, 'invite user to organization');
+    return await handleFunctionsError(err, 'invite user to organization');
   }
 }
 

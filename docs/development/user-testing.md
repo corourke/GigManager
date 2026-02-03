@@ -25,12 +25,79 @@
 
 - [x] Note that if the End date/time goes into another day, we should only show the starting date and end time, unless the gig is more than 24 hours long
 
+- [ ] On the Team page, Active Members table, lets add a column to show the default staffing role -- show just the short value, and label it 'Position'. 
+
 ### User Invitation Flow
 
-- [ ] The profile completion screen should not allow the user to skip inputting their name and password at a minimum
-- [ ] If the invitation link is navigated to after the invitation has been accepted, it should give some kind of message, not just a blank page. 
-- [ ] When a member is removed from the Team screen, we need to redraw the table so that it displays the current state
-- [ ] In Add Team Member, Add Existing User when searching for existing users, no users are shown. We should show existing users that are not already members of the current organization. 
+- [x] The profile completion screen should not allow the user to skip inputting their name and password at a minimum
+
+- [ ] If the invitation link is navigated to after the invitation has been accepted, it should give some kind of message, not just a blank page. We are getting this URL: `http://localhost:3000/accept-invitation#error=access_denied&error_code=otp_expired&error_description=Email+link+is+invalid+or+has+expired`
+
+- [x] When a member is removed from the Team screen, we need to redraw the table so that it displays the current state
+
+- [x] In Add Team Member, Add Existing User when searching for existing users, no users are shown. We should show existing users that are not already members of the current organization. 
+
+- [ ] When inviting a new user, if you enter an email address that is already present in the system, you get: "Edge Function returned a non-2xx status code". 
+
+```
+organization.service.ts:236  POST https://qcrzwsazasaojqoqxwnr.supabase.co/functions/v1/server/organizations/09fca024-b5c1-4f81-a71b-a68361548948/invitations 400 (Bad Request)
+  (anonymous) @ @supabase_supabase-js.js?v=6c5230be:5827
+  (anonymous) @ @supabase_supabase-js.js?v=6c5230be:5845
+  await in (anonymous)
+  (anonymous) @ @supabase_supabase-js.js?v=6c5230be:1205
+  (anonymous) @ @supabase_supabase-js.js?v=6c5230be:1317
+  (anonymous) @ chunk-UACSDUIX.js?v=6c5230be:147
+  __awaiter @ chunk-UACSDUIX.js?v=6c5230be:129
+  invoke @ @supabase_supabase-js.js?v=6c5230be:1273
+  inviteUserToOrganization @ organization.service.ts:236
+  handleInviteNewUser @ TeamScreen.tsx:288
+  callCallback2 @ chunk-3LEBMX3J.js?v=6c5230be:3680
+  invokeGuardedCallbackDev @ chunk-3LEBMX3J.js?v=6c5230be:3705
+  invokeGuardedCallback @ chunk-3LEBMX3J.js?v=6c5230be:3739
+  invokeGuardedCallbackAndCatchFirstError @ chunk-3LEBMX3J.js?v=6c5230be:3742
+  executeDispatch @ chunk-3LEBMX3J.js?v=6c5230be:7046
+  processDispatchQueueItemsInOrder @ chunk-3LEBMX3J.js?v=6c5230be:7066
+  processDispatchQueue @ chunk-3LEBMX3J.js?v=6c5230be:7075
+  dispatchEventsForPlugins @ chunk-3LEBMX3J.js?v=6c5230be:7083
+  (anonymous) @ chunk-3LEBMX3J.js?v=6c5230be:7206
+  batchedUpdates$1 @ chunk-3LEBMX3J.js?v=6c5230be:18966
+  batchedUpdates @ chunk-3LEBMX3J.js?v=6c5230be:3585
+  dispatchEventForPluginEventSystem @ chunk-3LEBMX3J.js?v=6c5230be:7205
+  dispatchEventWithEnableCapturePhaseSelectiveHydrationWithoutDiscreteEventReplay @ chunk-3LEBMX3J.js?v=6c5230be:5484
+  dispatchEvent @ chunk-3LEBMX3J.js?v=6c5230be:5478
+  dispatchDiscreteEvent @ chunk-3LEBMX3J.js?v=6c5230be:5455Understand this error
+  api-error-utils.ts:29 Error invite user to organization: FunctionsHttpError: Edge Function returned a non-2xx status code
+      at FunctionsClient.<anonymous> (@supabase_supabase-js.js?v=6c5230be:1334:17)
+      at Generator.next (<anonymous>)
+      at fulfilled (chunk-UACSDUIX.js?v=6c5230be:132:24)
+  handleApiError @ api-error-utils.ts:29
+  inviteUserToOrganization @ organization.service.ts:249
+  await in inviteUserToOrganization
+  handleInviteNewUser @ TeamScreen.tsx:288
+  callCallback2 @ chunk-3LEBMX3J.js?v=6c5230be:3680
+  invokeGuardedCallbackDev @ chunk-3LEBMX3J.js?v=6c5230be:3705
+  invokeGuardedCallback @ chunk-3LEBMX3J.js?v=6c5230be:3739
+  invokeGuardedCallbackAndCatchFirstError @ chunk-3LEBMX3J.js?v=6c5230be:3742
+  executeDispatch @ chunk-3LEBMX3J.js?v=6c5230be:7046
+  processDispatchQueueItemsInOrder @ chunk-3LEBMX3J.js?v=6c5230be:7066
+  processDispatchQueue @ chunk-3LEBMX3J.js?v=6c5230be:7075
+  dispatchEventsForPlugins @ chunk-3LEBMX3J.js?v=6c5230be:7083
+  (anonymous) @ chunk-3LEBMX3J.js?v=6c5230be:7206
+  batchedUpdates$1 @ chunk-3LEBMX3J.js?v=6c5230be:18966
+  batchedUpdates @ chunk-3LEBMX3J.js?v=6c5230be:3585
+  dispatchEventForPluginEventSystem @ chunk-3LEBMX3J.js?v=6c5230be:7205
+  dispatchEventWithEnableCapturePhaseSelectiveHydrationWithoutDiscreteEventReplay @ chunk-3LEBMX3J.js?v=6c5230be:5484
+  dispatchEvent @ chunk-3LEBMX3J.js?v=6c5230be:5478
+  dispatchDiscreteEvent @ chunk-3LEBMX3J.js?v=6c5230be:5455Understand this error
+  TeamScreen.tsx:320 Error inviting user: FunctionsHttpError: Edge Function returned a non-2xx status code
+      at FunctionsClient.<anonymous> (@supabase_supabase-js.js?v=6c5230be:1334:17)
+      at Generator.next (<anonymous>)
+      at fulfilled (chunk-UACSDUIX.js?v=6c5230be:132:24)
+```
+
+- [ ] When opening an invite link that was sent a few hours ago, I'm seeing a blank page, and the URL is: `http://localhost:3000/accept-invitation#error=access_denied&error_code=otp_expired&error_description=Email+link+is+invalid+or+has+expired`
+- [ ] Links should last a few days at least, and should display a message if they have expired, not just a blank page. 
+
 
 **Tests**
 

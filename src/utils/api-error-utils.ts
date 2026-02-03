@@ -29,3 +29,28 @@ export const handleApiError = (err: any, context: string) => {
   console.error(`Error ${context}:`, err);
   throw err;
 };
+
+/**
+ * Specifically handle errors from Supabase Functions
+ * Attempts to parse the error message from the response body
+ */
+export const handleFunctionsError = async (error: any, context: string) => {
+  if (error && error.name === 'FunctionsHttpError' && error.context) {
+    try {
+      // In some versions context is the Response, in others it's an object containing it
+      const response = error.context instanceof Response ? error.context : (error.context as any).response;
+      if (response && typeof response.json === 'function') {
+        const body = await response.clone().json();
+        if (body && body.error) {
+          const customError = new Error(body.error);
+          (customError as any).status = response.status;
+          return handleApiError(customError, context);
+        }
+      }
+    } catch (e) {
+      // Fall back to standard error handling
+    }
+  }
+  return handleApiError(error, context);
+};
+

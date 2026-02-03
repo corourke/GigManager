@@ -148,6 +148,13 @@ export default function TeamScreen({
     };
   }, [organization.id]);
 
+  // Create a map of staff roles for easy lookup
+  const staffRoleMap = useMemo(() => {
+    const map = new Map<string, string>();
+    staffRoles.forEach(role => map.set(role.id, role.name));
+    return map;
+  }, [staffRoles]);
+
   const [invitations, setInvitations] = useState<Invitation[]>([]);
   const [invitationsTableExists, setInvitationsTableExists] = useState(true);
   const [isLoading, setIsLoading] = useState(true);
@@ -522,6 +529,7 @@ export default function TeamScreen({
                   <TableRow>
                     <TableHead>Name</TableHead>
                     <TableHead>Email</TableHead>
+                    <TableHead>Position</TableHead>
                     <TableHead>Role</TableHead>
                     <TableHead>Last Login</TableHead>
                     {canManageTeam && <TableHead className="text-right">Actions</TableHead>}
@@ -543,6 +551,13 @@ export default function TeamScreen({
                           </div>
                         </TableCell>
                         <TableCell>{member.user.email}</TableCell>
+                        <TableCell>
+                          <span className="text-sm text-gray-600">
+                            {member.default_staff_role_id 
+                              ? staffRoleMap.get(member.default_staff_role_id) || 'None'
+                              : 'None'}
+                          </span>
+                        </TableCell>
                         <TableCell>
                           <Badge className={getRoleBadgeColor(member.role as UserRole)}>
                             <div className="flex items-center gap-1">
