@@ -867,6 +867,7 @@ Deno.serve(async (req) => {
         p_role: role,
         p_first_name: first_name || null,
         p_last_name: last_name || null,
+        p_inviter_id: user.id,
       });
 
       if (rpcError) {
