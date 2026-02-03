@@ -1,13 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.8";
 
-// ===== CORS Headers =====
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-auth, x-supabase-client-version',
-  'Access-Control-Allow-Methods': 'POST, GET, PUT, DELETE, OPTIONS',
-  'Access-Control-Max-Age': '86400',
-};
-
 // Create Supabase client with service role key
 const supabaseAdmin = createClient(
   Deno.env.get('SUPABASE_URL') ?? '',
@@ -108,23 +100,25 @@ async function getOrCreateStaffRole(roleName: string) {
 
 // ===== Main Handler =====
 Deno.serve(async (req) => {
-  const origin = req.headers.get('Origin');
+  const origin = req.headers.get('Origin') || '*';
+  const method = req.method;
   
   // Dynamic CORS headers
   const responseHeaders = {
-    ...corsHeaders,
+    'Access-Control-Allow-Origin': origin,
+    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-auth, x-supabase-client-version, x-requested-with',
+    'Access-Control-Allow-Methods': 'POST, GET, PUT, DELETE, OPTIONS',
+    'Access-Control-Max-Age': '86400',
+    'Access-Control-Allow-Credentials': 'true',
   };
-  
-  if (origin) {
-    responseHeaders['Access-Control-Allow-Origin'] = origin;
-    responseHeaders['Access-Control-Allow-Credentials'] = 'true';
-  }
+
+  console.log(`${method} request received from origin: ${origin}`);
 
   // Handle CORS preflight as early as possible
-  if (req.method === 'OPTIONS') {
+  if (method === 'OPTIONS') {
     return new Response('ok', { 
       status: 200, 
-      headers: responseHeaders 
+      headers: { ...responseHeaders, 'Content-Type': 'text/plain' }
     });
   }
 
@@ -175,7 +169,15 @@ Deno.serve(async (req) => {
         });
       }
 
-      const body = await req.json();
+      let body;
+      try {
+        body = await req.json();
+      } catch (e) {
+        return new Response(JSON.stringify({ error: 'Invalid JSON body' }), {
+          status: 400,
+          headers: { ...responseHeaders, 'Content-Type': 'application/json' },
+        });
+      }
       const { first_name, last_name, avatar_url } = body;
 
       // Check if user profile already exists
@@ -836,7 +838,15 @@ Deno.serve(async (req) => {
         });
       }
 
-      const body = await req.json();
+      let body;
+      try {
+        body = await req.json();
+      } catch (e) {
+        return new Response(JSON.stringify({ error: 'Invalid JSON body' }), {
+          status: 400,
+          headers: { ...responseHeaders, 'Content-Type': 'application/json' },
+        });
+      }
       const { email, role, first_name, last_name } = body;
 
       if (!email || !role) {
