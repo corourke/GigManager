@@ -42,18 +42,29 @@ async function verifyOrgMembership(
   orgId: string,
   allowedRoles?: string[]
 ) {
-  const { data: membership } = await supabaseAdmin
+  console.log(`Verifying membership: user=${userId}, org=${orgId}, allowedRoles=${allowedRoles?.join(',') || 'any'}`);
+  
+  const { data: membership, error: dbError } = await supabaseAdmin
     .from('organization_members')
     .select('*, organization:organizations(*)')
     .eq('organization_id', orgId)
     .eq('user_id', userId)
-    .single();
+    .maybeSingle();
+
+  if (dbError) {
+    console.error('Database error in verifyOrgMembership:', dbError);
+    return { membership: null, error: `Database error: ${dbError.message}` };
+  }
 
   if (!membership) {
+    console.warn(`Membership not found: user=${userId}, org=${orgId}`);
     return { membership: null, error: 'Not a member of this organization' };
   }
 
+  console.log(`Membership found: role=${membership.role}`);
+
   if (allowedRoles && !allowedRoles.includes(membership.role)) {
+    console.warn(`Insufficient permissions: user=${userId}, role=${membership.role}, allowedRoles=${allowedRoles.join(',')}`);
     return { membership: null, error: 'Insufficient permissions' };
   }
 
@@ -1844,14 +1855,16 @@ Deno.serve(async (req) => {
         });
       }
 
-      // Verify user is an admin or manager of the organization (dashboard access is restricted)
-      const { error: memberError } = await verifyOrgMembership(user.id, orgId, ['Admin', 'Manager']);
+      // Verify user is a member of the organization (dashboard access allowed for Staff, Manager, Admin)
+      const { membership, error: memberError } = await verifyOrgMembership(user.id, orgId, ['Admin', 'Manager', 'Staff']);
       if (memberError) {
-        return new Response(JSON.stringify({ error: 'Dashboard access is restricted to administrators and managers only.' }), {
+        return new Response(JSON.stringify({ error: memberError }), {
           status: 403,
           headers: { ...responseHeaders, 'Content-Type': 'application/json' },
         });
       }
+
+      const isAdminOrManager = ['Admin', 'Manager'].includes(membership.role);
 
       // Get gigs by status
       const { data: gigsByStatus } = await supabaseAdmin
@@ -1884,14 +1897,16 @@ Deno.serve(async (req) => {
       let totalAssetValue = 0;
       let totalInsuredValue = 0;
 
-      (assets || []).forEach((asset: any) => {
-        if (asset.cost) {
-          totalAssetValue += parseFloat(asset.cost);
-        }
-        if (asset.insurance_policy_added && asset.replacement_value) {
-          totalInsuredValue += parseFloat(asset.replacement_value);
-        }
-      });
+      if (isAdminOrManager) {
+        (assets || []).forEach((asset: any) => {
+          if (asset.cost) {
+            totalAssetValue += parseFloat(asset.cost);
+          }
+          if (asset.insurance_policy_added && asset.replacement_value) {
+            totalInsuredValue += parseFloat(asset.replacement_value);
+          }
+        });
+      }
 
       // Get kits rental value
       const { data: kits } = await supabaseAdmin
@@ -1900,11 +1915,13 @@ Deno.serve(async (req) => {
         .eq('organization_id', orgId);
 
       let totalRentalValue = 0;
-      (kits || []).forEach((kit: any) => {
-        if (kit.rental_value) {
-          totalRentalValue += parseFloat(kit.rental_value);
-        }
-      });
+      if (isAdminOrManager) {
+        (kits || []).forEach((kit: any) => {
+          if (kit.rental_value) {
+            totalRentalValue += parseFloat(kit.rental_value);
+          }
+        });
+      }
 
       // Calculate revenue for different periods
       const now = new Date();
@@ -1921,11 +1938,13 @@ Deno.serve(async (req) => {
         .gte('gigs.start', startOfMonth.toISOString());
 
       let revenueThisMonth = 0;
-      (thisMonthGigs || []).forEach((gp: any) => {
-        if (gp.gigs?.amount_paid) {
-          revenueThisMonth += parseFloat(gp.gigs.amount_paid);
-        }
-      });
+      if (isAdminOrManager) {
+        (thisMonthGigs || []).forEach((gp: any) => {
+          if (gp.gigs?.amount_paid) {
+            revenueThisMonth += parseFloat(gp.gigs.amount_paid);
+          }
+        });
+      }
 
       // Revenue last month
       const { data: lastMonthGigs } = await supabaseAdmin
@@ -1936,11 +1955,13 @@ Deno.serve(async (req) => {
         .lte('gigs.start', endOfLastMonth.toISOString());
 
       let revenueLastMonth = 0;
-      (lastMonthGigs || []).forEach((gp: any) => {
-        if (gp.gigs?.amount_paid) {
-          revenueLastMonth += parseFloat(gp.gigs.amount_paid);
-        }
-      });
+      if (isAdminOrManager) {
+        (lastMonthGigs || []).forEach((gp: any) => {
+          if (gp.gigs?.amount_paid) {
+            revenueLastMonth += parseFloat(gp.gigs.amount_paid);
+          }
+        });
+      }
 
       // Revenue this year
       const { data: thisYearGigs } = await supabaseAdmin
@@ -1950,11 +1971,13 @@ Deno.serve(async (req) => {
         .gte('gigs.start', startOfYear.toISOString());
 
       let revenueThisYear = 0;
-      (thisYearGigs || []).forEach((gp: any) => {
-        if (gp.gigs?.amount_paid) {
-          revenueThisYear += parseFloat(gp.gigs.amount_paid);
-        }
-      });
+      if (isAdminOrManager) {
+        (thisYearGigs || []).forEach((gp: any) => {
+          if (gp.gigs?.amount_paid) {
+            revenueThisYear += parseFloat(gp.gigs.amount_paid);
+          }
+        });
+      }
 
       // Get upcoming gigs (next 30 days)
       const thirtyDaysFromNow = new Date();
