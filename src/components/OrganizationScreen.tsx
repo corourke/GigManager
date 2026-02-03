@@ -9,7 +9,6 @@ import { ORG_TYPE_CONFIG } from '../utils/supabase/constants';
 import { useSimpleFormChanges } from '../utils/hooks/useSimpleFormChanges';
 import { createSubmissionPayload, normalizeFormData } from '../utils/form-utils';
 import { createClient } from '../utils/supabase/client';
-import { projectId } from '../utils/supabase/info';
 import { MOCK_PLACES, GooglePlace } from '../utils/mock-data';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -240,29 +239,27 @@ export default function OrganizationScreen({
         console.log('Geolocation not available or denied:', geoError);
       }
 
-      // Build search URL with optional location parameters
-      let searchUrl = `https://${projectId}.supabase.co/functions/v1/server/integrations/google-places/search?query=${encodeURIComponent(searchQuery)}`;
+      // Build search params
+      const searchParams: any = { query: searchQuery };
       if (userLocation) {
-        searchUrl += `&latitude=${userLocation.latitude}&longitude=${userLocation.longitude}`;
+        searchParams.latitude = userLocation.latitude;
+        searchParams.longitude = userLocation.longitude;
       }
 
-      // Search places
-      const searchResponse = await fetch(searchUrl, {
-        headers: {
-          'Authorization': `Bearer ${session.access_token}`,
-        },
+      const queryStr = new URLSearchParams(searchParams).toString();
+      const { data: searchResult, error: invokeError } = await supabase.functions.invoke(`server/integrations/google-places/search?${queryStr}`, {
+        method: 'GET'
       });
 
-      if (!searchResponse.ok) {
-        const errorData = await searchResponse.json();
-        console.error('Places search error:', errorData);
-        toast.error(errorData.error || 'Failed to search places');
+      if (invokeError) {
+        console.error('Places search error:', invokeError);
+        toast.error(invokeError.message || 'Failed to search places');
         setSearchResults([]);
         setIsSearching(false);
         return;
       }
 
-      const { results: placeResults } = await searchResponse.json();
+      const placeResults = searchResult?.results;
 
       if (!placeResults || placeResults.length === 0) {
         setSearchResults([]);
@@ -274,17 +271,12 @@ export default function OrganizationScreen({
       const detailedResults = await Promise.all(
         placeResults.map(async (place: any) => {
           try {
-            const detailsResponse = await fetch(
-              `https://${projectId}.supabase.co/functions/v1/server/integrations/google-places/${place.place_id}`,
-              {
-                headers: {
-                  'Authorization': `Bearer ${session.access_token}`,
-                },
-              }
-            );
+            const { data: details, error: detailsError } = await supabase.functions.invoke(`server/integrations/google-places/${place.place_id}`, {
+              method: 'GET'
+            });
 
-            if (detailsResponse.ok) {
-              return await detailsResponse.json();
+            if (!detailsError && details) {
+              return details;
             }
             // If details fetch fails, return basic info
             return place;
@@ -505,32 +497,25 @@ export default function OrganizationScreen({
         ? createSubmissionPayload(normalizedData, changeDetection.originalData)
         : normalizedData;
 
-      let url = `https://${projectId}.supabase.co/functions/v1/server/organizations`;
+      let path = 'server/organizations';
       let method = 'POST';
       
       if (isEditMode && organization) {
-        url += `/${organization.id}`;
+        path += `/${organization.id}`;
         method = 'PUT';
       } else {
         // Only include auto_join for create mode
         (requestBody as any).auto_join = autoJoinOrg;
       }
 
-      const response = await fetch(url, {
+      const { data: resultOrganization, error: invokeError } = await supabase.functions.invoke(path, {
         method,
-        headers: {
-          'Authorization': `Bearer ${session.access_token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(requestBody),
+        body: requestBody,
       });
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || `Failed to ${isEditMode ? 'update' : 'create'} organization`);
+      if (invokeError) {
+        throw invokeError;
       }
-
-      const resultOrganization = await response.json();
 
       if (isEditMode) {
         toast.success('Organization updated successfully!');

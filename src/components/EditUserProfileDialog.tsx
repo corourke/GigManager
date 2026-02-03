@@ -94,19 +94,9 @@ export default function EditUserProfileDialog({
 
     setIsSubmitting(true);
     try {
-      const { projectId } = await import('../utils/supabase/info');
       const { createClient } = await import('../utils/supabase/client');
       const supabase = createClient();
       
-      // Get current session
-      const { data: { session } } = await supabase.auth.getSession();
-      
-      if (!session?.access_token) {
-        toast.error('Not authenticated. Please sign in again.');
-        setIsSubmitting(false);
-        return;
-      }
-
       // Normalize form data
       const normalizedData = normalizeFormData(formData);
       
@@ -120,25 +110,15 @@ export default function EditUserProfileDialog({
         return;
       }
 
-      const supabaseUrl = `https://${projectId}.supabase.co`;
-      const accessToken = session.access_token;
-
       // Update user profile via server endpoint
-      const response = await fetch(`${supabaseUrl}/functions/v1/server/users/${user.id}`, {
+      const { data: userData, error: invokeError } = await supabase.functions.invoke(`server/users/${user.id}`, {
         method: 'PUT',
-        headers: {
-          'Authorization': `Bearer ${accessToken}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(requestBody),
+        body: requestBody,
       });
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to update profile');
+      if (invokeError) {
+        throw new Error(invokeError.message || 'Failed to update profile');
       }
-
-      const userData = await response.json();
 
       // Update user object
       const updatedUser: UserType = {

@@ -10,7 +10,6 @@ import {
   getOrgTypeColor 
 } from '../utils/supabase/constants';
 import { createClient } from '../utils/supabase/client';
-import { projectId } from '../utils/supabase/info';
 import { Button } from './ui/button';
 import AppHeader from './AppHeader';
 import { Card } from './ui/card';
@@ -72,46 +71,23 @@ export default function AdminOrganizationsScreen({
 
     try {
       const supabase = createClient();
-      const { data: { session } } = await supabase.auth.getSession();
       
-      if (!session?.access_token) {
-        setError('Not authenticated. Please sign in again.');
-        setIsLoading(false);
-        return;
-      }
-
       // Fetch all organizations
-      const orgResponse = await fetch(
-        `https://${projectId}.supabase.co/functions/v1/server/organizations`,
-        {
-          headers: {
-            'Authorization': `Bearer ${session.access_token}`,
-          },
-        }
-      );
+      const { data: orgs, error: orgError } = await supabase.functions.invoke('server/organizations', {
+        method: 'GET'
+      });
 
-      if (!orgResponse.ok) {
-        const errorData = await orgResponse.json();
-        throw new Error(errorData.error || 'Failed to load organizations');
-      }
-
-      const orgs = await orgResponse.json();
+      if (orgError) throw orgError;
 
       // Fetch member counts for each organization
       const orgsWithCounts = await Promise.all(
-        orgs.map(async (org: Organization) => {
+        (orgs || []).map(async (org: Organization) => {
           try {
-            const membersResponse = await fetch(
-              `https://${projectId}.supabase.co/functions/v1/server/organizations/${org.id}/members`,
-              {
-                headers: {
-                  'Authorization': `Bearer ${session.access_token}`,
-                },
-              }
-            );
+            const { data: members, error: membersError } = await supabase.functions.invoke(`server/organizations/${org.id}/members`, {
+              method: 'GET'
+            });
 
-            if (membersResponse.ok) {
-              const members = await membersResponse.json();
+            if (!membersError && members) {
               return { ...org, member_count: members.length };
             }
             
@@ -138,28 +114,12 @@ export default function AdminOrganizationsScreen({
 
     try {
       const supabase = createClient();
-      const { data: { session } } = await supabase.auth.getSession();
       
-      if (!session?.access_token) {
-        toast.error('Not authenticated. Please sign in again.');
-        setIsDeleting(false);
-        return;
-      }
+      const { error } = await supabase.functions.invoke(`server/organizations/${deleteOrgId}`, {
+        method: 'DELETE'
+      });
 
-      const response = await fetch(
-        `https://${projectId}.supabase.co/functions/v1/server/organizations/${deleteOrgId}`,
-        {
-          method: 'DELETE',
-          headers: {
-            'Authorization': `Bearer ${session.access_token}`,
-          },
-        }
-      );
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to delete organization');
-      }
+      if (error) throw error;
 
       toast.success('Organization deleted successfully');
       setOrganizations(prev => prev.filter(org => org.id !== deleteOrgId));

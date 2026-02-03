@@ -12,7 +12,6 @@ import {
 } from 'lucide-react';
 import { Organization, User, UserRole } from '../utils/supabase/types';
 import { USER_ROLE_CONFIG, GIG_STATUS_CONFIG } from '../utils/supabase/constants';
-import { projectId, publicAnonKey } from '../utils/supabase/info';
 import { createClient } from '../utils/supabase/client';
 import GigTable, { type Gig } from './tables/GigTable';
 
@@ -115,39 +114,24 @@ export default function Dashboard({
 
       console.log('Dashboard: Making API call for organization:', organization.id, organization.name);
 
-      const response = await fetch(
-        `https://${projectId}.supabase.co/functions/v1/server/organizations/${organization.id}/dashboard`,
-        {
-          method: 'GET',
-          headers: {
-            'Authorization': `Bearer ${session.access_token}`,
-            'Content-Type': 'application/json',
-          },
-        }
-      );
+      const { data, error: invokeError } = await supabase.functions.invoke(`server/organizations/${organization.id}/dashboard`, {
+        method: 'GET'
+      });
 
-      console.log('Dashboard: API response status:', response.status);
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        console.error('Dashboard API error:', {
-          status: response.status,
-          error: errorData,
-          organizationId: organization.id,
-        });
+      if (invokeError) {
+        console.error('Dashboard API error:', invokeError);
         
-        if (response.status === 401) {
+        if (invokeError.status === 401) {
           setError('Session expired. Please sign in again.');
-        } else if (response.status === 403) {
+        } else if (invokeError.status === 403) {
           setError('You do not have permission to view this organization\'s dashboard.');
         } else {
-          setError(errorData.error || 'Failed to fetch dashboard stats');
+          setError(invokeError.message || 'Failed to fetch dashboard stats');
         }
         setLoading(false);
         return;
       }
 
-      const data = await response.json();
       console.log('Dashboard: API response data:', data);
       setStats(data);
     } catch (err: any) {

@@ -1,5 +1,4 @@
 import { createClient } from '../utils/supabase/client';
-import { projectId } from '../utils/supabase/info';
 import { 
   Organization, 
   OrganizationType, 
@@ -10,7 +9,6 @@ import {
 import { handleApiError } from '../utils/api-error-utils';
 
 const getSupabase = () => createClient();
-const API_BASE_URL = `https://${projectId}.supabase.co/functions/v1/server`;
 
 /**
  * Search for organizations
@@ -206,25 +204,12 @@ export async function getOrganizationMember(memberId: string) {
 export async function getOrganizationMembersWithAuth(organizationId: string) {
   try {
     const supabase = getSupabase();
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session?.user) throw new Error('Not authenticated');
+    const { data, error } = await supabase.functions.invoke(`server/organizations/${organizationId}/members`, {
+      method: 'GET'
+    });
 
-    const response = await fetch(
-      `${API_BASE_URL}/organizations/${organizationId}/members`,
-      {
-        headers: {
-          'Authorization': `Bearer ${session.access_token}`,
-          'Content-Type': 'application/json',
-        },
-      }
-    );
-
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.error || 'Failed to fetch organization members');
-    }
-
-    return await response.json();
+    if (error) throw error;
+    return data;
   } catch (err) {
     return handleApiError(err, 'fetch organization members with auth');
   }

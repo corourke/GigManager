@@ -14,4 +14,6 @@ if (!supabaseUrl || !publicAnonKey) {
 }
 
 // Extract project ID from URL for any other uses, but keep it robust
-export const projectId = supabaseUrl?.replace('https://', '').split('.')[0] || '';
+export const projectId = supabaseUrl?.includes('supabase.co') 
+  ? supabaseUrl.replace('https://', '').split('.')[0] 
+  : 'localhost';

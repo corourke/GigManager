@@ -1,4 +1,12 @@
-import { createClient } from "jsr:@supabase/supabase-js@2.49.8";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.8";
+
+// ===== CORS Headers =====
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-auth, x-supabase-client-version',
+  'Access-Control-Allow-Methods': 'POST, GET, PUT, DELETE, OPTIONS',
+  'Access-Control-Max-Age': '86400',
+};
 
 // Create Supabase client with service role key
 const supabaseAdmin = createClient(
@@ -98,30 +106,31 @@ async function getOrCreateStaffRole(roleName: string) {
   return newRole.id;
 }
 
-// ===== CORS Headers =====
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-auth, x-supabase-client-version',
-  'Access-Control-Allow-Methods': 'POST, GET, PUT, DELETE, OPTIONS',
-  'Access-Control-Max-Age': '86400',
-};
-
 // ===== Main Handler =====
 Deno.serve(async (req) => {
+  const origin = req.headers.get('Origin');
+  
+  // Dynamic CORS headers
+  const responseHeaders = {
+    ...corsHeaders,
+  };
+  
+  if (origin) {
+    responseHeaders['Access-Control-Allow-Origin'] = origin;
+    responseHeaders['Access-Control-Allow-Credentials'] = 'true';
+  }
+
+  // Handle CORS preflight as early as possible
+  if (req.method === 'OPTIONS') {
+    return new Response('ok', { 
+      status: 200, 
+      headers: responseHeaders 
+    });
+  }
+
   const url = new URL(req.url);
   let path = url.pathname;
   const method = req.method;
-
-  // Log headers for debugging CORS issues
-  console.log(`${method} ${path} - Headers:`, JSON.stringify(Object.fromEntries(req.headers.entries())));
-
-  // Handle CORS preflight as early as possible
-  if (method === 'OPTIONS') {
-    return new Response('ok', { 
-      status: 200, 
-      headers: corsHeaders 
-    });
-  }
 
   console.log(`${method} ${path}`);
 
@@ -130,9 +139,11 @@ Deno.serve(async (req) => {
     path = path.substring('/functions/v1'.length);
   }
 
-  // Also strip /server prefix if present (common when calling from frontend)
+  // Support both 'server' and 'make-server-de012ad4' prefixes
   if (path.startsWith('/server')) {
     path = path.substring('/server'.length);
+  } else if (path.startsWith('/make-server-de012ad4')) {
+    path = path.substring('/make-server-de012ad4'.length);
   }
 
   // Ensure path starts with /
@@ -146,7 +157,7 @@ Deno.serve(async (req) => {
     // Health check
     if (path === '/health' && method === 'GET') {
       return new Response(JSON.stringify({ status: 'ok' }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        headers: { ...responseHeaders, 'Content-Type': 'application/json' },
       });
     }
 
@@ -160,7 +171,7 @@ Deno.serve(async (req) => {
       if (authError || !user) {
         return new Response(JSON.stringify({ error: authError ?? 'Unauthorized' }), {
           status: 401,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          headers: { ...responseHeaders, 'Content-Type': 'application/json' },
         });
       }
 
@@ -176,7 +187,7 @@ Deno.serve(async (req) => {
 
       if (existingUser) {
         return new Response(JSON.stringify(existingUser), {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          headers: { ...responseHeaders, 'Content-Type': 'application/json' },
         });
       }
 
@@ -197,12 +208,12 @@ Deno.serve(async (req) => {
         console.error('Error creating user profile:', error);
         return new Response(JSON.stringify({ error: error.message }), {
           status: 400,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          headers: { ...responseHeaders, 'Content-Type': 'application/json' },
         });
       }
 
       return new Response(JSON.stringify(data), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        headers: { ...responseHeaders, 'Content-Type': 'application/json' },
       });
     }
 
@@ -216,7 +227,7 @@ Deno.serve(async (req) => {
       if (authError || !user) {
         return new Response(JSON.stringify({ error: authError ?? 'Unauthorized' }), {
           status: 401,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          headers: { ...responseHeaders, 'Content-Type': 'application/json' },
         });
       }
 
@@ -230,19 +241,19 @@ Deno.serve(async (req) => {
         console.error('Error fetching user:', error);
         return new Response(JSON.stringify({ error: error.message }), {
           status: 400,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          headers: { ...responseHeaders, 'Content-Type': 'application/json' },
         });
       }
 
       if (!data) {
         return new Response(JSON.stringify({ error: 'User profile not found' }), {
           status: 404,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          headers: { ...responseHeaders, 'Content-Type': 'application/json' },
         });
       }
 
       return new Response(JSON.stringify(data), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        headers: { ...responseHeaders, 'Content-Type': 'application/json' },
       });
     }
 
@@ -255,14 +266,14 @@ Deno.serve(async (req) => {
       if (authError || !user) {
         return new Response(JSON.stringify({ error: authError ?? 'Unauthorized' }), {
           status: 401,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          headers: { ...responseHeaders, 'Content-Type': 'application/json' },
         });
       }
 
       if (user.id !== userId) {
         return new Response(JSON.stringify({ error: 'Cannot update another user\'s profile' }), {
           status: 403,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          headers: { ...responseHeaders, 'Content-Type': 'application/json' },
         });
       }
 
@@ -285,7 +296,7 @@ Deno.serve(async (req) => {
       if (Object.keys(updateData).length === 0) {
         return new Response(JSON.stringify({ error: 'No fields provided for update' }), {
           status: 400,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          headers: { ...responseHeaders, 'Content-Type': 'application/json' },
         });
       }
 
@@ -303,12 +314,12 @@ Deno.serve(async (req) => {
         console.error('Error updating user profile:', error);
         return new Response(JSON.stringify({ error: error.message }), {
           status: 400,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          headers: { ...responseHeaders, 'Content-Type': 'application/json' },
         });
       }
 
       return new Response(JSON.stringify(data), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        headers: { ...responseHeaders, 'Content-Type': 'application/json' },
       });
     }
 
@@ -320,7 +331,7 @@ Deno.serve(async (req) => {
       if (authError || !user) {
         return new Response(JSON.stringify({ error: authError ?? 'Unauthorized' }), {
           status: 401,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          headers: { ...responseHeaders, 'Content-Type': 'application/json' },
         });
       }
 
@@ -341,12 +352,12 @@ Deno.serve(async (req) => {
         console.error('Error searching users:', error);
         return new Response(JSON.stringify({ error: error.message }), {
           status: 400,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          headers: { ...responseHeaders, 'Content-Type': 'application/json' },
         });
       }
 
       return new Response(JSON.stringify(data), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        headers: { ...responseHeaders, 'Content-Type': 'application/json' },
       });
     }
 
@@ -360,7 +371,7 @@ Deno.serve(async (req) => {
       if (authError || !user) {
         return new Response(JSON.stringify({ error: authError ?? 'Unauthorized' }), {
           status: 401,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          headers: { ...responseHeaders, 'Content-Type': 'application/json' },
         });
       }
 
@@ -373,12 +384,12 @@ Deno.serve(async (req) => {
         console.error('Error fetching user organizations:', error);
         return new Response(JSON.stringify({ error: error.message }), {
           status: 400,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          headers: { ...responseHeaders, 'Content-Type': 'application/json' },
         });
       }
 
       return new Response(JSON.stringify(data), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        headers: { ...responseHeaders, 'Content-Type': 'application/json' },
       });
     }
 
@@ -392,7 +403,7 @@ Deno.serve(async (req) => {
       if (authError || !user) {
         return new Response(JSON.stringify({ error: authError ?? 'Unauthorized' }), {
           status: 401,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          headers: { ...responseHeaders, 'Content-Type': 'application/json' },
         });
       }
 
@@ -406,12 +417,12 @@ Deno.serve(async (req) => {
         console.error('Error fetching organizations:', orgError);
         return new Response(JSON.stringify({ error: orgError.message }), {
           status: 400,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          headers: { ...responseHeaders, 'Content-Type': 'application/json' },
         });
       }
 
       return new Response(JSON.stringify(organizations || []), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        headers: { ...responseHeaders, 'Content-Type': 'application/json' },
       });
     }
 
@@ -423,7 +434,7 @@ Deno.serve(async (req) => {
       if (authError || !user) {
         return new Response(JSON.stringify({ error: authError ?? 'Unauthorized' }), {
           status: 401,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          headers: { ...responseHeaders, 'Content-Type': 'application/json' },
         });
       }
 
@@ -441,7 +452,7 @@ Deno.serve(async (req) => {
         console.error('Error creating organization:', orgError);
         return new Response(JSON.stringify({ error: orgError.message }), {
           status: 400,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          headers: { ...responseHeaders, 'Content-Type': 'application/json' },
         });
       }
 
@@ -461,13 +472,13 @@ Deno.serve(async (req) => {
           await supabaseAdmin.from('organizations').delete().eq('id', org.id);
           return new Response(JSON.stringify({ error: memberError.message }), {
             status: 400,
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            headers: { ...responseHeaders, 'Content-Type': 'application/json' },
           });
         }
       }
 
       return new Response(JSON.stringify(org), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        headers: { ...responseHeaders, 'Content-Type': 'application/json' },
       });
     }
 
@@ -481,7 +492,7 @@ Deno.serve(async (req) => {
       if (authError || !user) {
         return new Response(JSON.stringify({ error: authError ?? 'Unauthorized' }), {
           status: 401,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          headers: { ...responseHeaders, 'Content-Type': 'application/json' },
         });
       }
 
@@ -495,7 +506,7 @@ Deno.serve(async (req) => {
       if (orgError || !org) {
         return new Response(JSON.stringify({ error: 'Organization not found' }), {
           status: 404,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          headers: { ...responseHeaders, 'Content-Type': 'application/json' },
         });
       }
 
@@ -520,14 +531,14 @@ Deno.serve(async (req) => {
       if (updateData.name !== undefined && !updateData.name) {
         return new Response(JSON.stringify({ error: 'Name is required' }), {
           status: 400,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          headers: { ...responseHeaders, 'Content-Type': 'application/json' },
         });
       }
       
       if (updateData.type !== undefined && !updateData.type) {
         return new Response(JSON.stringify({ error: 'Type is required' }), {
           status: 400,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          headers: { ...responseHeaders, 'Content-Type': 'application/json' },
         });
       }
 
@@ -535,7 +546,7 @@ Deno.serve(async (req) => {
       if (Object.keys(updateData).length === 0) {
         return new Response(JSON.stringify({ error: 'No fields provided for update' }), {
           status: 400,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          headers: { ...responseHeaders, 'Content-Type': 'application/json' },
         });
       }
 
@@ -554,12 +565,12 @@ Deno.serve(async (req) => {
         console.error('Error updating organization:', updateError);
         return new Response(JSON.stringify({ error: updateError.message }), {
           status: 400,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          headers: { ...responseHeaders, 'Content-Type': 'application/json' },
         });
       }
 
       return new Response(JSON.stringify(updatedOrg), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        headers: { ...responseHeaders, 'Content-Type': 'application/json' },
       });
     }
 
@@ -572,7 +583,7 @@ Deno.serve(async (req) => {
       if (authError || !user) {
         return new Response(JSON.stringify({ error: authError ?? 'Unauthorized' }), {
           status: 401,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          headers: { ...responseHeaders, 'Content-Type': 'application/json' },
         });
       }
 
@@ -586,7 +597,7 @@ Deno.serve(async (req) => {
       if (orgError || !org) {
         return new Response(JSON.stringify({ error: 'Organization not found' }), {
           status: 404,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          headers: { ...responseHeaders, 'Content-Type': 'application/json' },
         });
       }
 
@@ -600,12 +611,12 @@ Deno.serve(async (req) => {
         console.error('Error deleting organization:', deleteError);
         return new Response(JSON.stringify({ error: deleteError.message }), {
           status: 400,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          headers: { ...responseHeaders, 'Content-Type': 'application/json' },
         });
       }
 
       return new Response(JSON.stringify({ success: true }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        headers: { ...responseHeaders, 'Content-Type': 'application/json' },
       });
     }
 
@@ -619,7 +630,7 @@ Deno.serve(async (req) => {
       if (authError || !user) {
         return new Response(JSON.stringify({ error: authError ?? 'Unauthorized' }), {
           status: 401,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          headers: { ...responseHeaders, 'Content-Type': 'application/json' },
         });
       }
 
@@ -633,7 +644,7 @@ Deno.serve(async (req) => {
       if (orgError || !org) {
         return new Response(JSON.stringify({ error: 'Organization not found' }), {
           status: 404,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          headers: { ...responseHeaders, 'Content-Type': 'application/json' },
         });
       }
 
@@ -648,7 +659,7 @@ Deno.serve(async (req) => {
       if (existingMember) {
         return new Response(JSON.stringify({ error: 'Already a member of this organization' }), {
           status: 400,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          headers: { ...responseHeaders, 'Content-Type': 'application/json' },
         });
       }
 
@@ -667,12 +678,12 @@ Deno.serve(async (req) => {
         console.error('Error joining organization:', memberError);
         return new Response(JSON.stringify({ error: memberError.message }), {
           status: 400,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          headers: { ...responseHeaders, 'Content-Type': 'application/json' },
         });
       }
 
       return new Response(JSON.stringify({ organization: org, role: membership.role }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        headers: { ...responseHeaders, 'Content-Type': 'application/json' },
       });
     }
 
@@ -685,7 +696,7 @@ Deno.serve(async (req) => {
       if (authError || !user) {
         return new Response(JSON.stringify({ error: authError ?? 'Unauthorized' }), {
           status: 401,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          headers: { ...responseHeaders, 'Content-Type': 'application/json' },
         });
       }
 
@@ -699,12 +710,12 @@ Deno.serve(async (req) => {
         console.error('Error fetching organization members:', membersError);
         return new Response(JSON.stringify({ error: membersError.message }), {
           status: 400,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          headers: { ...responseHeaders, 'Content-Type': 'application/json' },
         });
       }
 
       return new Response(JSON.stringify(members || []), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        headers: { ...responseHeaders, 'Content-Type': 'application/json' },
       });
     }
 
@@ -718,7 +729,7 @@ Deno.serve(async (req) => {
       if (!orgId) {
         return new Response(JSON.stringify({ error: 'Organization ID required' }), {
           status: 400,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          headers: { ...responseHeaders, 'Content-Type': 'application/json' },
         });
       }
 
@@ -728,7 +739,7 @@ Deno.serve(async (req) => {
       if (authError || !user) {
         return new Response(JSON.stringify({ error: authError ?? 'Unauthorized' }), {
           status: 401,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          headers: { ...responseHeaders, 'Content-Type': 'application/json' },
         });
       }
 
@@ -737,7 +748,7 @@ Deno.serve(async (req) => {
       if (memberError) {
         return new Response(JSON.stringify({ error: memberError }), {
           status: 403,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          headers: { ...responseHeaders, 'Content-Type': 'application/json' },
         });
       }
 
@@ -769,7 +780,7 @@ Deno.serve(async (req) => {
         console.error('Error fetching organization members:', error);
         return new Response(JSON.stringify({ error: error.message }), {
           status: 400,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          headers: { ...responseHeaders, 'Content-Type': 'application/json' },
         });
       }
 
@@ -790,7 +801,7 @@ Deno.serve(async (req) => {
       );
 
       return new Response(JSON.stringify(enrichedMembers), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        headers: { ...responseHeaders, 'Content-Type': 'application/json' },
       });
     }
 
@@ -802,7 +813,7 @@ Deno.serve(async (req) => {
       if (!orgId) {
         return new Response(JSON.stringify({ error: 'Organization ID required' }), {
           status: 400,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          headers: { ...responseHeaders, 'Content-Type': 'application/json' },
         });
       }
 
@@ -812,7 +823,7 @@ Deno.serve(async (req) => {
       if (authError || !user) {
         return new Response(JSON.stringify({ error: authError ?? 'Unauthorized' }), {
           status: 401,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          headers: { ...responseHeaders, 'Content-Type': 'application/json' },
         });
       }
 
@@ -821,7 +832,7 @@ Deno.serve(async (req) => {
       if (memberError) {
         return new Response(JSON.stringify({ error: memberError }), {
           status: 403,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          headers: { ...responseHeaders, 'Content-Type': 'application/json' },
         });
       }
 
@@ -831,7 +842,7 @@ Deno.serve(async (req) => {
       if (!email || !role) {
         return new Response(JSON.stringify({ error: 'Email and role are required' }), {
           status: 400,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          headers: { ...responseHeaders, 'Content-Type': 'application/json' },
         });
       }
 
@@ -848,7 +859,7 @@ Deno.serve(async (req) => {
         console.error('Error calling invite_user_to_organization RPC:', rpcError);
         return new Response(JSON.stringify({ error: rpcError.message }), {
           status: 400,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          headers: { ...responseHeaders, 'Content-Type': 'application/json' },
         });
       }
 
@@ -874,12 +885,12 @@ Deno.serve(async (req) => {
           email_sent: false, 
           email_error: inviteError.message 
         }), {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          headers: { ...responseHeaders, 'Content-Type': 'application/json' },
         });
       }
 
       return new Response(JSON.stringify({ ...data, email_sent: true }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        headers: { ...responseHeaders, 'Content-Type': 'application/json' },
       });
     }
 
@@ -891,7 +902,7 @@ Deno.serve(async (req) => {
       if (!orgId) {
         return new Response(JSON.stringify({ error: 'Organization ID required' }), {
           status: 400,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          headers: { ...responseHeaders, 'Content-Type': 'application/json' },
         });
       }
 
@@ -901,7 +912,7 @@ Deno.serve(async (req) => {
       if (authError || !user) {
         return new Response(JSON.stringify({ error: authError ?? 'Unauthorized' }), {
           status: 401,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          headers: { ...responseHeaders, 'Content-Type': 'application/json' },
         });
       }
 
@@ -910,7 +921,7 @@ Deno.serve(async (req) => {
       if (memberError) {
         return new Response(JSON.stringify({ error: memberError }), {
           status: 403,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          headers: { ...responseHeaders, 'Content-Type': 'application/json' },
         });
       }
 
@@ -920,7 +931,7 @@ Deno.serve(async (req) => {
       if (!email || !first_name || !last_name || !password || !role) {
         return new Response(JSON.stringify({ error: 'Missing required fields' }), {
           status: 400,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          headers: { ...responseHeaders, 'Content-Type': 'application/json' },
         });
       }
 
@@ -939,7 +950,7 @@ Deno.serve(async (req) => {
         console.error('Error creating auth user:', createAuthError);
         return new Response(JSON.stringify({ error: createAuthError?.message || 'Failed to create user' }), {
           status: 400,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          headers: { ...responseHeaders, 'Content-Type': 'application/json' },
         });
       }
 
@@ -961,7 +972,7 @@ Deno.serve(async (req) => {
         await supabaseAdmin.auth.admin.deleteUser(authData.user.id);
         return new Response(JSON.stringify({ error: profileError.message }), {
           status: 400,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          headers: { ...responseHeaders, 'Content-Type': 'application/json' },
         });
       }
 
@@ -991,12 +1002,12 @@ Deno.serve(async (req) => {
         await supabaseAdmin.auth.admin.deleteUser(authData.user.id);
         return new Response(JSON.stringify({ error: memberInsertError.message }), {
           status: 400,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          headers: { ...responseHeaders, 'Content-Type': 'application/json' },
         });
       }
 
       return new Response(JSON.stringify(memberData), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        headers: { ...responseHeaders, 'Content-Type': 'application/json' },
       });
     }
 
@@ -1010,7 +1021,7 @@ Deno.serve(async (req) => {
       if (authError || !user) {
         return new Response(JSON.stringify({ error: authError ?? 'Unauthorized' }), {
           status: 401,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          headers: { ...responseHeaders, 'Content-Type': 'application/json' },
         });
       }
 
@@ -1019,7 +1030,7 @@ Deno.serve(async (req) => {
       if (!organizationId) {
         return new Response(JSON.stringify({ error: 'organization_id is required' }), {
           status: 400,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          headers: { ...responseHeaders, 'Content-Type': 'application/json' },
         });
       }
 
@@ -1028,7 +1039,7 @@ Deno.serve(async (req) => {
       if (membershipError) {
         return new Response(JSON.stringify({ error: membershipError }), {
           status: 403,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          headers: { ...responseHeaders, 'Content-Type': 'application/json' },
         });
       }
 
@@ -1042,7 +1053,7 @@ Deno.serve(async (req) => {
         console.error('Error fetching gigs:', error);
         return new Response(JSON.stringify({ error: error.message }), {
           status: 400,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          headers: { ...responseHeaders, 'Content-Type': 'application/json' },
         });
       }
 
@@ -1082,7 +1093,7 @@ Deno.serve(async (req) => {
       );
 
       return new Response(JSON.stringify(gigsWithParticipants), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        headers: { ...responseHeaders, 'Content-Type': 'application/json' },
       });
     }
 
@@ -1096,7 +1107,7 @@ Deno.serve(async (req) => {
       if (authError || !user) {
         return new Response(JSON.stringify({ error: authError ?? 'Unauthorized' }), {
           status: 401,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          headers: { ...responseHeaders, 'Content-Type': 'application/json' },
         });
       }
 
@@ -1110,7 +1121,7 @@ Deno.serve(async (req) => {
         console.error('Error fetching gig:', error);
         return new Response(JSON.stringify({ error: error.message }), {
           status: 400,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          headers: { ...responseHeaders, 'Content-Type': 'application/json' },
         });
       }
 
@@ -1123,7 +1134,7 @@ Deno.serve(async (req) => {
       if (!gigParticipants || gigParticipants.length === 0) {
         return new Response(JSON.stringify({ error: 'Access denied' }), {
           status: 403,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          headers: { ...responseHeaders, 'Content-Type': 'application/json' },
         });
       }
 
@@ -1132,7 +1143,7 @@ Deno.serve(async (req) => {
       if (membershipError) {
         return new Response(JSON.stringify({ error: membershipError }), {
           status: 403,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          headers: { ...responseHeaders, 'Content-Type': 'application/json' },
         });
       }
 
@@ -1146,7 +1157,7 @@ Deno.serve(async (req) => {
         ...gig,
         participants: participants || [],
       }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        headers: { ...responseHeaders, 'Content-Type': 'application/json' },
       });
     }
 
@@ -1158,7 +1169,7 @@ Deno.serve(async (req) => {
       if (authError || !user) {
         return new Response(JSON.stringify({ error: authError ?? 'Unauthorized' }), {
           status: 401,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          headers: { ...responseHeaders, 'Content-Type': 'application/json' },
         });
       }
 
@@ -1184,7 +1195,7 @@ Deno.serve(async (req) => {
         if (membershipError || !membership) {
           return new Response(JSON.stringify({ error: 'Insufficient permissions. Only Admins and Managers can create gigs.' }), {
             status: 403,
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            headers: { ...responseHeaders, 'Content-Type': 'application/json' },
           });
         }
 
@@ -1211,7 +1222,7 @@ Deno.serve(async (req) => {
         console.error('Error creating gig:', error);
         return new Response(JSON.stringify({ error: error.message }), {
           status: 400,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          headers: { ...responseHeaders, 'Content-Type': 'application/json' },
         });
       }
 
@@ -1317,7 +1328,7 @@ Deno.serve(async (req) => {
         act,
         participants: participantsData || [],
       }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        headers: { ...responseHeaders, 'Content-Type': 'application/json' },
       });
     }
 
@@ -1330,7 +1341,7 @@ Deno.serve(async (req) => {
       if (authError || !user) {
         return new Response(JSON.stringify({ error: authError ?? 'Unauthorized' }), {
           status: 401,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          headers: { ...responseHeaders, 'Content-Type': 'application/json' },
         });
       }
 
@@ -1347,7 +1358,7 @@ Deno.serve(async (req) => {
       if (!gig) {
         return new Response(JSON.stringify({ error: 'Gig not found' }), {
           status: 404,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          headers: { ...responseHeaders, 'Content-Type': 'application/json' },
         });
       }
 
@@ -1360,7 +1371,7 @@ Deno.serve(async (req) => {
       if (!gigParticipants || gigParticipants.length === 0) {
         return new Response(JSON.stringify({ error: 'Access denied' }), {
           status: 403,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          headers: { ...responseHeaders, 'Content-Type': 'application/json' },
         });
       }
 
@@ -1375,7 +1386,7 @@ Deno.serve(async (req) => {
       if (!memberships || memberships.length === 0) {
         return new Response(JSON.stringify({ error: 'Insufficient permissions' }), {
           status: 403,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          headers: { ...responseHeaders, 'Content-Type': 'application/json' },
         });
       }
 
@@ -1391,7 +1402,7 @@ Deno.serve(async (req) => {
         console.error('Error updating gig:', error);
         return new Response(JSON.stringify({ error: error.message }), {
           status: 400,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          headers: { ...responseHeaders, 'Content-Type': 'application/json' },
         });
       }
 
@@ -1582,7 +1593,7 @@ Deno.serve(async (req) => {
         venue,
         act,
       }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        headers: { ...responseHeaders, 'Content-Type': 'application/json' },
       });
     }
 
@@ -1595,7 +1606,7 @@ Deno.serve(async (req) => {
       if (authError || !user) {
         return new Response(JSON.stringify({ error: authError ?? 'Unauthorized' }), {
           status: 401,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          headers: { ...responseHeaders, 'Content-Type': 'application/json' },
         });
       }
 
@@ -1608,7 +1619,7 @@ Deno.serve(async (req) => {
       if (!gigParticipants || gigParticipants.length === 0) {
         return new Response(JSON.stringify({ error: 'Gig not found or access denied' }), {
           status: 403,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          headers: { ...responseHeaders, 'Content-Type': 'application/json' },
         });
       }
 
@@ -1623,7 +1634,7 @@ Deno.serve(async (req) => {
       if (!adminMemberships || adminMemberships.length === 0) {
         return new Response(JSON.stringify({ error: 'Insufficient permissions. Only Admins can delete gigs.' }), {
           status: 403,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          headers: { ...responseHeaders, 'Content-Type': 'application/json' },
         });
       }
 
@@ -1636,12 +1647,12 @@ Deno.serve(async (req) => {
         console.error('Error deleting gig:', error);
         return new Response(JSON.stringify({ error: error.message }), {
           status: 400,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          headers: { ...responseHeaders, 'Content-Type': 'application/json' },
         });
       }
 
       return new Response(JSON.stringify({ success: true }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        headers: { ...responseHeaders, 'Content-Type': 'application/json' },
       });
     }
 
@@ -1655,7 +1666,7 @@ Deno.serve(async (req) => {
       if (authError || !user) {
         return new Response(JSON.stringify({ error: authError ?? 'Unauthorized' }), {
           status: 401,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          headers: { ...responseHeaders, 'Content-Type': 'application/json' },
         });
       }
 
@@ -1666,7 +1677,7 @@ Deno.serve(async (req) => {
       if (!query) {
         return new Response(JSON.stringify({ error: 'Query parameter is required' }), {
           status: 400,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          headers: { ...responseHeaders, 'Content-Type': 'application/json' },
         });
       }
 
@@ -1676,7 +1687,7 @@ Deno.serve(async (req) => {
         console.error('Google Maps API key not configured');
         return new Response(JSON.stringify({ error: 'Google Maps API key not configured' }), {
           status: 500,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          headers: { ...responseHeaders, 'Content-Type': 'application/json' },
         });
       }
 
@@ -1699,7 +1710,7 @@ Deno.serve(async (req) => {
           details: data.error_message 
         }), {
           status: 500,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          headers: { ...responseHeaders, 'Content-Type': 'application/json' },
         });
       }
 
@@ -1740,7 +1751,7 @@ Deno.serve(async (req) => {
       }));
 
       return new Response(JSON.stringify({ results }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        headers: { ...responseHeaders, 'Content-Type': 'application/json' },
       });
     }
 
@@ -1754,7 +1765,7 @@ Deno.serve(async (req) => {
       if (authError || !user) {
         return new Response(JSON.stringify({ error: authError ?? 'Unauthorized' }), {
           status: 401,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          headers: { ...responseHeaders, 'Content-Type': 'application/json' },
         });
       }
 
@@ -1764,7 +1775,7 @@ Deno.serve(async (req) => {
         console.error('Google Maps API key not configured');
         return new Response(JSON.stringify({ error: 'Google Maps API key not configured' }), {
           status: 500,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          headers: { ...responseHeaders, 'Content-Type': 'application/json' },
         });
       }
 
@@ -1783,7 +1794,7 @@ Deno.serve(async (req) => {
           details: data.error_message 
         }), {
           status: 500,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          headers: { ...responseHeaders, 'Content-Type': 'application/json' },
         });
       }
 
@@ -1798,7 +1809,7 @@ Deno.serve(async (req) => {
         editorial_summary: place.editorial_summary?.overview,
         address_components: place.address_components || [],
       }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        headers: { ...responseHeaders, 'Content-Type': 'application/json' },
       });
     }
 
@@ -1814,7 +1825,7 @@ Deno.serve(async (req) => {
       if (authError || !user) {
         return new Response(JSON.stringify({ error: authError ?? 'Unauthorized' }), {
           status: 401,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          headers: { ...responseHeaders, 'Content-Type': 'application/json' },
         });
       }
 
@@ -1823,7 +1834,7 @@ Deno.serve(async (req) => {
       if (memberError) {
         return new Response(JSON.stringify({ error: 'Dashboard access is restricted to administrators and managers only.' }), {
           status: 403,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          headers: { ...responseHeaders, 'Content-Type': 'application/json' },
         });
       }
 
@@ -2037,21 +2048,21 @@ Deno.serve(async (req) => {
         },
         upcomingGigs,
       }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        headers: { ...responseHeaders, 'Content-Type': 'application/json' },
       });
     }
 
     // 404 - Route not found
     return new Response(JSON.stringify({ error: 'Not found' }), {
       status: 404,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      headers: { ...responseHeaders, 'Content-Type': 'application/json' },
     });
 
   } catch (error) {
     console.error('Server error:', error);
     return new Response(JSON.stringify({ error: 'Internal server error', details: error.message }), {
       status: 500,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      headers: { ...responseHeaders, 'Content-Type': 'application/json' },
     });
   }
 });
