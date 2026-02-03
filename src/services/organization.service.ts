@@ -270,7 +270,7 @@ export async function getOrganizationInvitations(organizationId: string) {
       .order('created_at', { ascending: false });
 
     if (error) {
-      if (error.code === 'PGRST205' || error.message.includes('Could not find')) return [];
+      if (error.code === 'PGRST205' || error.message.includes('Could not find')) return null;
       throw error;
     }
     return data || [];

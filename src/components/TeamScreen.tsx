@@ -148,54 +148,15 @@ export default function TeamScreen({
     };
   }, [organization.id]);
 
+  // Staff roles
+  const [staffRoles, setStaffRoles] = useState<Array<{ id: string; name: string }>>([]);
+
   // Create a map of staff roles for easy lookup
   const staffRoleMap = useMemo(() => {
     const map = new Map<string, string>();
     staffRoles.forEach(role => map.set(role.id, role.name));
     return map;
   }, [staffRoles]);
-
-  const [invitations, setInvitations] = useState<Invitation[]>([]);
-  const [invitationsTableExists, setInvitationsTableExists] = useState(true);
-  const [isLoading, setIsLoading] = useState(true);
-  const [showAddDialog, setShowAddDialog] = useState(false);
-  const [showEditDialog, setShowEditDialog] = useState(false);
-  const [memberToEdit, setMemberToEdit] = useState<OrganizationMember | null>(null);
-  const [memberToRemove, setMemberToRemove] = useState<OrganizationMember | null>(null);
-  const [invitationToCancel, setInvitationToCancel] = useState<Invitation | null>(null);
-  
-  // Add member - existing user
-  const [userSearchQuery, setUserSearchQuery] = useState('');
-  const [searchResults, setSearchResults] = useState<User[]>([]);
-  const [isSearching, setIsSearching] = useState(false);
-  const [selectedUser, setSelectedUser] = useState<User | null>(null);
-  const [selectedUserRole, setSelectedUserRole] = useState<UserRole>('Staff');
-  
-  // Add member - invite new
-  const [inviteFirstName, setInviteFirstName] = useState('');
-  const [inviteLastName, setInviteLastName] = useState('');
-  const [inviteEmail, setInviteEmail] = useState('');
-  const [inviteRole, setInviteRole] = useState<UserRole>('Staff');
-  
-  // Edit member form
-  const [editForm, setEditForm] = useState<UserProfileFormData>({
-    first_name: '',
-    last_name: '',
-    email: '',
-    phone: '',
-    avatar_url: '',
-    address_line1: '',
-    address_line2: '',
-    city: '',
-    state: '',
-    postal_code: '',
-    country: '',
-    role: 'Staff' as UserRole,
-    default_staff_role_id: '',
-  });
-
-  // Staff roles
-  const [staffRoles, setStaffRoles] = useState<Array<{ id: string; name: string }>>([]);
   
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isRemoving, setIsRemoving] = useState(false);
