@@ -184,12 +184,7 @@ export async function searchAllUsers(search: string): Promise<User[]> {
     if (!search || search.length < 2) return [];
 
     const { data, error } = await supabase
-      .from('users')
-      .select('*')
-      .or(`first_name.ilike.%${search}%,last_name.ilike.%${search}%,email.ilike.%${search}%`)
-      .neq('user_status', 'inactive')
-      .order('first_name')
-      .limit(20);
+      .rpc('search_users_secure', { search_text: search });
 
     if (error) throw error;
     return data || [];

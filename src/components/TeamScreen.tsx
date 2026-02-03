@@ -11,6 +11,7 @@ import {
   getStaffRoles
 } from '../services/organization.service';
 import { searchAllUsers } from '../services/user.service';
+import { createClient } from '../utils/supabase/client';
 import { 
   Users, 
   Plus, 
@@ -122,6 +123,29 @@ export default function TeamScreen({
 
   useEffect(() => {
     refreshMembers();
+
+    // Set up real-time subscription
+    const supabase = createClient();
+    
+    const channel = supabase
+      .channel(`org_members_${organization.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'organization_members',
+          filter: `organization_id=eq.${organization.id}`,
+        },
+        () => {
+          refreshMembers();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [organization.id]);
 
   const [invitations, setInvitations] = useState<Invitation[]>([]);
@@ -236,7 +260,9 @@ export default function TeamScreen({
     setIsSubmitting(true);
     try {
       await addExistingUserToOrganization(organization.id, selectedUser.id, selectedUserRole);
-      // Real-time list will automatically update
+      // Reload members list
+      await refreshMembers();
+      
       setShowAddDialog(false);
       setSelectedUser(null);
       setUserSearchQuery('');
@@ -314,7 +340,9 @@ export default function TeamScreen({
         : editForm;
 
       await updateMemberDetails(organization.id, memberToEdit.id, updateData);
-      // Real-time list will automatically update
+      // Reload members list
+      await refreshMembers();
+      
       setShowEditDialog(false);
       setMemberToEdit(null);
       toast.success('Member updated successfully');
@@ -332,7 +360,9 @@ export default function TeamScreen({
     setIsRemoving(true);
     try {
       await removeMember(organization.id, memberToRemove.id);
-      // Real-time list will automatically update
+      // Reload members list
+      await refreshMembers();
+      
       setMemberToRemove(null);
       toast.success('Member removed');
     } catch (error: any) {

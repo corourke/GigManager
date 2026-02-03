@@ -14,7 +14,6 @@ import { User as UserType } from '../utils/supabase/types';
 interface UserProfileCompletionScreenProps {
   user: UserType;
   onProfileCompleted: (updatedUser: UserType) => void;
-  onSkip: () => void;
   useMockData?: boolean;
 }
 
@@ -41,7 +40,6 @@ interface FormErrors {
 export default function UserProfileCompletionScreen({
   user,
   onProfileCompleted,
-  onSkip,
   useMockData = false,
 }: UserProfileCompletionScreenProps) {
   const [formData, setFormData] = useState<FormData>({
@@ -185,12 +183,6 @@ export default function UserProfileCompletionScreen({
       console.error('Error updating profile:', err);
       setErrors({ general: err.message || 'Failed to update profile. Please try again.' });
       setIsSubmitting(false);
-    }
-  };
-
-  const handleSkipClick = () => {
-    if (window.confirm('Are you sure you want to skip profile completion? You can always update your profile later.')) {
-      onSkip();
     }
   };
 
@@ -399,18 +391,9 @@ export default function UserProfileCompletionScreen({
             {/* Form Actions */}
             <div className="flex flex-col-reverse sm:flex-row gap-3 pt-6 border-t border-gray-200">
               <Button
-                type="button"
-                variant="ghost"
-                onClick={handleSkipClick}
-                disabled={isSubmitting}
-                className="sm:w-auto"
-              >
-                Skip for now
-              </Button>
-              <Button
                 type="submit"
-                disabled={isSubmitting || !changeDetection.hasChanges}
-                className="bg-sky-500 hover:bg-sky-600 text-white sm:ml-auto"
+                disabled={isSubmitting}
+                className="bg-sky-500 hover:bg-sky-600 text-white w-full sm:w-auto sm:ml-auto"
               >
                 {isSubmitting ? (
                   <>

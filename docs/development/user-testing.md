@@ -2,24 +2,38 @@
 
 ### At the Gig List Screen
 - [x] There is no way to navigate to the Gig Edit Screen because when clicking the Edit row menu choice, the Time and Date dialog appears instead. The Edit choice should take the user to the Gig Edit screen. 
+
 - [x] The Gig List table is different from all other tables in that it has a row menu (the three dots at the beginning of each row) instead of the Edit, View, Duplicate and Trash Actions that are seen at the end of each row on the Team, Assets and Kits lists. Make all Lists work the same
     - [x] Gigs List rows should have View, Edit, Duplicate and Trash
     - [x] Teams List rows should have View and Edit
     - [x] Assets List rows should have View, Edit, Duplicate and Trash
     - [x] Kit List rows already have View, Edit, Duplicate and Trash
+    
 - [x] The View Gig screen should have the Edit, Duplicate and Trash buttons in the upper right, as has been implemented with the KitDetailScreen.tsx.
+
 - [x] The 'Edit Profile' menu item under the user avatar menu should always be present. In other works, the user avatar menu should be the same everywhere. 
-- [ ] In the Team screen, when attempting to add a new team member, when I fill out the user form and click 'Send Invitation' I get this error: `TeamScreen.tsx:295 Error inviting user: {code: 'PGRST202', details: 'Searched for the function public.invite_user_to_or…r, but no matches were found in the schema cache.', hint: 'Perhaps you meant to call the function public.user_organization_ids', message: 'Could not find the function public.invite_user_to_…e, p_organization_id, p_role) in the schema cache'}`
+
+- [x] In the Team screen, when attempting to add a new team member, when I fill out the user form and click 'Send Invitation' I get this error: `TeamScreen.tsx:295 Error inviting user: {code: 'PGRST202', details: 'Searched for the function public.invite_user_to_or…r, but no matches were found in the schema cache.', hint: 'Perhaps you meant to call the function public.user_organization_ids', message: 'Could not find the function public.invite_user_to_…e, p_organization_id, p_role) in the schema cache'}`
+
 - [x] If I navigate to another browser tab and come back, the browser is refreshed
+
 - [x] In the GIg List, the Start and End dates are not populating correctly, it also appears that time zone conversion isn't working properly. Simply follow what is done in src/components/gig/GigBasicInfoSection.tsx
+
 - [x] I'm unable to get to the Edit Gig screen via the edit icon in the Gig List. 
+
 - [x] Gig detail view should not show financials -- replace with a condensed list of the participants. 
+
 - [x] Note that if the End date/time goes into another day, we should only show the starting date and end time, unless the gig is more than 24 hours long
 
-## Smoke Tests to Perform
-After applying migrations and before proceeding to the next issue, perform these manual smoke tests to ensure the changes work as intended:
+### User Invitation Flow
+
+- [ ] The profile completion screen should not allow the user to skip inputting their name and password at a minimum
+- [ ] If the invitation link is navigated to after the invitation has been accepted, it should give some kind of message, not just a blank page. 
+- [ ] When a member is removed from the Team screen, we need to redraw the table so that it displays the current state
+- [ ] In Add Team Member, Add Existing User when searching for existing users, no users are shown. We should show existing users that are not already members of the current organization. 
+
+**Tests**
 
 - [ ] Invitation Flow: As an Admin or Manager, attempt to invite a new user to an organization. Verify that the invitation is created without RLS errors, and that the pending user record is properly linked.
 - [ ] User Activation: Have a test user accept an invitation and sign up. Confirm that the pending user is converted to active status and that all organization memberships and invitations are updated correctly.
-- [ ] Global Navigation: Navigate through all authenticated routes (e.g., organization selection, admin screens, gig lists). Ensure the "Edit Profile" menu item is consistently visible and functional in the header.
 - [ ] Role Permissions: Verify that only Admins/Managers can perform invitations, and that other roles are blocked appropriately.

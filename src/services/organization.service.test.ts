@@ -14,23 +14,18 @@ describe('organization.service', () => {
     vi.clearAllMocks();
     
     mockSupabase = {
-      rpc: vi.fn(),
+      functions: {
+        invoke: vi.fn(),
+      },
     };
 
     (createClient as any).mockReturnValue(mockSupabase);
   });
 
   describe('inviteUserToOrganization', () => {
-    it('should throw an error when the RPC function is missing (PGRST202)', async () => {
-      // Simulate the error reported by the user
-      const mockError = {
-        code: 'PGRST202',
-        message: 'Could not find the function public.invite_user_to_organization in the schema cache',
-        details: 'Searched for the function public.invite_user_to_organization...',
-        hint: 'Perhaps you meant to call the function public.user_organization_ids'
-      };
-
-      mockSupabase.rpc.mockResolvedValue({ data: null, error: mockError });
+    it('should throw an error when the invitation fails', async () => {
+      const mockError = new Error('Failed to invite user');
+      mockSupabase.functions.invoke.mockResolvedValue({ data: null, error: mockError });
 
       try {
         await inviteUserToOrganization('org-1', 'test@example.com', 'Staff');
@@ -38,18 +33,18 @@ describe('organization.service', () => {
         expect(true).toBe(false);
       } catch (error: any) {
         expect(error).toBeDefined();
-        expect(error.code).toBe('PGRST202');
-        expect(error.message).toContain('Could not find the function');
+        expect(error.message).toContain('Failed to invite user');
       }
     });
 
-    it('should successfully invite a user when the RPC function exists', async () => {
+    it('should successfully invite a user when the edge function succeeds', async () => {
       const mockResult = {
         user: { id: 'new-user-id', email: 'test@example.com' },
-        invitation: { id: 'invitation-id', status: 'pending' }
+        invitation: { id: 'invitation-id', status: 'pending' },
+        email_sent: true
       };
 
-      mockSupabase.rpc.mockResolvedValue({ data: mockResult, error: null });
+      mockSupabase.functions.invoke.mockResolvedValue({ data: mockResult, error: null });
 
       const result = await inviteUserToOrganization(
         'org-1',
@@ -59,12 +54,14 @@ describe('organization.service', () => {
         'Doe'
       );
 
-      expect(mockSupabase.rpc).toHaveBeenCalledWith('invite_user_to_organization', {
-        p_organization_id: 'org-1',
-        p_email: 'test@example.com',
-        p_role: 'Staff',
-        p_first_name: 'John',
-        p_last_name: 'Doe'
+      expect(mockSupabase.functions.invoke).toHaveBeenCalledWith('server/organizations/org-1/invitations', {
+        method: 'POST',
+        body: {
+          email: 'test@example.com',
+          role: 'Staff',
+          first_name: 'John',
+          last_name: 'Doe'
+        }
       });
       expect(result).toEqual(mockResult);
     });
