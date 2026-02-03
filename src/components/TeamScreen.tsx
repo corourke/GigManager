@@ -160,6 +160,48 @@ export default function TeamScreen({
   
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isRemoving, setIsRemoving] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [invitations, setInvitations] = useState<Invitation[]>([]);
+  const [invitationsTableExists, setInvitationsTableExists] = useState(true);
+
+  // User search and selection
+  const [userSearchQuery, setUserSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<User[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const [selectedUser, setSelectedUser] = useState<User | null>(null);
+  const [selectedUserRole, setSelectedUserRole] = useState<UserRole>('Staff');
+
+  // New user invitation
+  const [showAddDialog, setShowAddDialog] = useState(false);
+  const [inviteFirstName, setInviteFirstName] = useState('');
+  const [inviteLastName, setInviteLastName] = useState('');
+  const [inviteEmail, setInviteEmail] = useState('');
+  const [inviteRole, setInviteRole] = useState<UserRole>('Staff');
+
+  // Member editing
+  const [showEditDialog, setShowEditDialog] = useState(false);
+  const [memberToEdit, setMemberToEdit] = useState<OrganizationMember | null>(null);
+  const [editForm, setEditForm] = useState<UserProfileFormData>({
+    first_name: '',
+    last_name: '',
+    email: '',
+    phone: '',
+    avatar_url: '',
+    address_line1: '',
+    address_line2: '',
+    city: '',
+    state: '',
+    postal_code: '',
+    country: '',
+    role: 'Staff',
+    default_staff_role_id: '',
+  });
+
+  // Member removal
+  const [memberToRemove, setMemberToRemove] = useState<OrganizationMember | null>(null);
+
+  // Invitation cancellation
+  const [invitationToCancel, setInvitationToCancel] = useState<Invitation | null>(null);
 
   const canManageTeam = userRole === 'Admin' || userRole === 'Manager';
 
