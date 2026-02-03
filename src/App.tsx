@@ -126,13 +126,13 @@ function App() {
         return;
       }
       setCurrentRoute('login');
-    } else if (window.location.pathname === '/accept-invitation' && currentRoute === 'accept-invitation') {
-      // If we just landed on the accept-invitation route, force profile completion 
-      // so the user can set their password and name.
+    } else if (window.location.pathname === '/accept-invitation' && currentRoute === 'accept-invitation' && user) {
+      // If we just landed on the accept-invitation route and have a user, 
+      // force profile completion so they can set their password and name.
       setCurrentRoute('profile-completion');
-    } else if (!user.first_name?.trim() || !user.last_name?.trim()) {
+    } else if (currentRoute !== 'accept-invitation' && (!user?.first_name?.trim() || !user?.last_name?.trim()) && user) {
       setCurrentRoute('profile-completion'); // Fill out profile if incomplete
-    } else if (!selectedOrganization) {
+    } else if (!selectedOrganization && user) {
       if (organizations.length === 0) {
         setCurrentRoute('org-selection'); // Choose an org if user belongs to none
       } else if (organizations.length === 1) {
@@ -147,6 +147,9 @@ function App() {
   // Set landing route based on role after an organization is selected
   useEffect(() => {
     if (isLoading || !user || !selectedOrganization || userRole === undefined) return;
+
+    // Don't auto-navigate if we are in an invitation flow
+    if (window.location.pathname === '/accept-invitation') return;
 
     // Only auto-navigate to landing page if we are on a transitional route
     // This prevents kicking the user back to dashboard on every background profile refresh
