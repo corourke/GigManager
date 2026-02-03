@@ -103,6 +103,7 @@ const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-auth, x-supabase-client-version',
   'Access-Control-Allow-Methods': 'POST, GET, PUT, DELETE, OPTIONS',
+  'Access-Control-Max-Age': '86400',
 };
 
 // ===== Main Handler =====
@@ -110,6 +111,17 @@ Deno.serve(async (req) => {
   const url = new URL(req.url);
   let path = url.pathname;
   const method = req.method;
+
+  // Log headers for debugging CORS issues
+  console.log(`${method} ${path} - Headers:`, JSON.stringify(Object.fromEntries(req.headers.entries())));
+
+  // Handle CORS preflight as early as possible
+  if (method === 'OPTIONS') {
+    return new Response('ok', { 
+      status: 200, 
+      headers: corsHeaders 
+    });
+  }
 
   console.log(`${method} ${path}`);
 
@@ -129,14 +141,6 @@ Deno.serve(async (req) => {
   }
 
   console.log(`Routed path: ${path}`);
-
-  // Handle CORS preflight
-  if (method === 'OPTIONS') {
-    return new Response(null, { 
-      status: 204, 
-      headers: corsHeaders 
-    });
-  }
 
   try {
     // Health check
