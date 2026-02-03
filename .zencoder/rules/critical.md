@@ -8,3 +8,4 @@ There are user instructions to all AI Agents that are of highest priority.
 6. STAY FOCUSED: If you discover potential performance issues or unrelated bugs during investigation, document them as "Future Considerations" rather than pursuing them immediately.
 7. After implementing changes, proposed appropriate manual verfication steps, and allow the user to complete these before moving on.
 8. Keep project documents updated. Mark tasks done as they are completed. This includes both high-level plans (i.e. @plan.md) as well as detailed implementation plans (i.e. implementation-plan.md).
+9. If you are confused by something, ASK!
