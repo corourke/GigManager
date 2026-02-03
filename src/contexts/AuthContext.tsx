@@ -6,7 +6,7 @@ import {
   OrganizationMembership, 
   UserRole 
 } from '../utils/supabase/types';
-import { getCompleteUserData } from '../services/user.service';
+import { getCompleteUserData, createUserProfile } from '../services/user.service';
 import { convertPendingToActive } from '../services/organization.service';
 
 interface AuthContextType {
@@ -90,7 +90,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             }
           }
         } else {
-          console.warn('[TRACE] AuthContext: No profile found for authenticated user');
+          console.warn('[TRACE] AuthContext: No profile found for authenticated user, creating one...');
+          // Create a new profile using Auth data if possible
+          const newProfile = await createUserProfile({
+            id: session.user.id,
+            email: session.user.email || '',
+            first_name: session.user.user_metadata?.first_name || '',
+            last_name: session.user.user_metadata?.last_name || '',
+          });
+          setUser(newProfile);
+          setOrganizations([]);
         }
       } else {
         console.log('[TRACE] AuthContext: No session found in refreshProfile');

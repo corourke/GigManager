@@ -121,7 +121,15 @@ function App() {
     if (isLoading) return;
 
     if (!user) {
+      // Don't redirect to login if we're clearly in an invitation flow and waiting for the session
+      if (window.location.pathname === '/accept-invitation' || window.location.hash.includes('type=invite')) {
+        return;
+      }
       setCurrentRoute('login');
+    } else if (window.location.pathname === '/accept-invitation' && currentRoute === 'accept-invitation') {
+      // If we just landed on the accept-invitation route, force profile completion 
+      // so the user can set their password and name.
+      setCurrentRoute('profile-completion');
     } else if (!user.first_name?.trim() || !user.last_name?.trim()) {
       setCurrentRoute('profile-completion'); // Fill out profile if incomplete
     } else if (!selectedOrganization) {
@@ -159,6 +167,13 @@ function App() {
 
   const handleProfileCompleted = (updatedUser: User) => {
     setUser(updatedUser);
+    
+    // If we were in an invitation flow, go back to the acceptance screen
+    if (window.location.pathname === '/accept-invitation') {
+      setCurrentRoute('accept-invitation');
+      return;
+    }
+
     if (organizations.length === 1) {
       const membership = organizations[0];
       selectOrganization(membership.organization);
@@ -168,6 +183,11 @@ function App() {
   };
 
   const handleSkipProfile = () => {
+    // If we were in an invitation flow, go back to the acceptance screen
+    if (window.location.pathname === '/accept-invitation') {
+      setCurrentRoute('accept-invitation');
+      return;
+    }
     setCurrentRoute('org-selection');
   };
 
