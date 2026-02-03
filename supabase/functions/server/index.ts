@@ -527,6 +527,15 @@ Deno.serve(async (req) => {
         });
       }
 
+      // Verify user is an Admin of the organization
+      const { error: memberError } = await verifyOrgMembership(user.id, orgId, ['Admin']);
+      if (memberError) {
+        return new Response(JSON.stringify({ error: memberError }), {
+          status: 403,
+          headers: { ...responseHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
       // Parse request body
       const body = await req.json();
       
@@ -618,6 +627,15 @@ Deno.serve(async (req) => {
         });
       }
 
+      // Verify user is an Admin of the organization
+      const { error: memberError } = await verifyOrgMembership(user.id, orgId, ['Admin']);
+      if (memberError) {
+        return new Response(JSON.stringify({ error: memberError }), {
+          status: 403,
+          headers: { ...responseHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
       // Delete the organization (cascade will handle members, gigs, etc.)
       const { error: deleteError } = await supabaseAdmin
         .from('organizations')
@@ -637,7 +655,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Join organization
+    // Join or add member to organization
     const orgMembersMatch = path.match(/^\/organizations\/([^\/]+)\/members$/);
     if (orgMembersMatch && method === 'POST') {
       const orgId = orgMembersMatch[1];
@@ -665,30 +683,84 @@ Deno.serve(async (req) => {
         });
       }
 
-      // Check if user is already a member
+      let body;
+      try {
+        body = await req.json();
+      } catch (e) {
+        body = {};
+      }
+
+      const targetUserId = body.user_id || user.id;
+      const targetRole = body.role || 'Viewer';
+
+      // If adding someone else, must be Admin or Manager
+      if (targetUserId !== user.id) {
+        const { membership: currentUserMembership, error: permError } = await verifyOrgMembership(user.id, orgId, ['Admin', 'Manager']);
+        if (permError) {
+          return new Response(JSON.stringify({ error: permError }), {
+            status: 403,
+            headers: { ...responseHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+
+        // Only Admins can add other Admins
+        if (targetRole === 'Admin' && currentUserMembership.role !== 'Admin') {
+          return new Response(JSON.stringify({ error: 'Only Admins can add other Admins' }), {
+            status: 403,
+            headers: { ...responseHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+      } else {
+        // Self-joining is always Viewer for now
+        if (targetRole !== 'Viewer') {
+          return new Response(JSON.stringify({ error: 'Self-joining can only be as Viewer' }), {
+            status: 400,
+            headers: { ...responseHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+      }
+
+      // Check if target user is already a member
       const { data: existingMember } = await supabaseAdmin
         .from('organization_members')
         .select('*')
         .eq('organization_id', orgId)
-        .eq('user_id', user.id)
-        .single();
+        .eq('user_id', targetUserId)
+        .maybeSingle();
 
       if (existingMember) {
-        return new Response(JSON.stringify({ error: 'Already a member of this organization' }), {
+        return new Response(JSON.stringify({ error: 'User is already a member of this organization' }), {
           status: 400,
           headers: { ...responseHeaders, 'Content-Type': 'application/json' },
         });
       }
 
-      // Add user as a Viewer by default
+      // Add user to organization
       const { data: membership, error: memberError } = await supabaseAdmin
         .from('organization_members')
         .insert({
           organization_id: orgId,
-          user_id: user.id,
-          role: 'Viewer',
+          user_id: targetUserId,
+          role: targetRole,
         })
-        .select()
+        .select(`
+          *,
+          user:users(
+            id,
+            first_name,
+            last_name,
+            email,
+            phone,
+            avatar_url,
+            address_line1,
+            address_line2,
+            city,
+            state,
+            postal_code,
+            country,
+            user_status
+          )
+        `)
         .single();
 
       if (memberError) {
@@ -699,39 +771,7 @@ Deno.serve(async (req) => {
         });
       }
 
-      return new Response(JSON.stringify({ organization: org, role: membership.role }), {
-        headers: { ...responseHeaders, 'Content-Type': 'application/json' },
-      });
-    }
-
-    // Get organization members
-    if (orgMembersMatch && method === 'GET') {
-      const orgId = orgMembersMatch[1];
-      const authHeader = req.headers.get('Authorization');
-      const { user, error: authError } = await getAuthenticatedUser(authHeader);
-      
-      if (authError || !user) {
-        return new Response(JSON.stringify({ error: authError ?? 'Unauthorized' }), {
-          status: 401,
-          headers: { ...responseHeaders, 'Content-Type': 'application/json' },
-        });
-      }
-
-      // Fetch organization members
-      const { data: members, error: membersError } = await supabaseAdmin
-        .from('organization_members')
-        .select('*, user:users(*)')
-        .eq('organization_id', orgId);
-
-      if (membersError) {
-        console.error('Error fetching organization members:', membersError);
-        return new Response(JSON.stringify({ error: membersError.message }), {
-          status: 400,
-          headers: { ...responseHeaders, 'Content-Type': 'application/json' },
-        });
-      }
-
-      return new Response(JSON.stringify(members || []), {
+      return new Response(JSON.stringify({ organization: org, role: membership.role, member: membership }), {
         headers: { ...responseHeaders, 'Content-Type': 'application/json' },
       });
     }
@@ -739,17 +779,9 @@ Deno.serve(async (req) => {
     // ===== Team Management =====
     
     // Get organization members with auth data
-    if (path.match(/^\/organizations\/([^\/]+)\/members$/) && method === 'GET') {
-      const orgIdMatch = path.match(/^\/organizations\/([^\/]+)\/members$/);
-      const orgId = orgIdMatch ? orgIdMatch[1] : null;
+    if (orgMembersMatch && method === 'GET') {
+      const orgId = orgMembersMatch[1];
       
-      if (!orgId) {
-        return new Response(JSON.stringify({ error: 'Organization ID required' }), {
-          status: 400,
-          headers: { ...responseHeaders, 'Content-Type': 'application/json' },
-        });
-      }
-
       const authHeader = req.headers.get('Authorization');
       const { user, error: authError } = await getAuthenticatedUser(authHeader);
       
@@ -822,18 +854,321 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Invite user to organization
-    if (path.match(/^\/organizations\/([^\/]+)\/invitations$/) && method === 'POST') {
-      const orgIdMatch = path.match(/^\/organizations\/([^\/]+)\/invitations$/);
-      const orgId = orgIdMatch ? orgIdMatch[1] : null;
+    // Update organization member
+    const orgMemberMatch = path.match(/^\/organizations\/([^\/]+)\/members\/([^\/]+)$/);
+    if (orgMemberMatch && method === 'GET') {
+      const orgId = orgMemberMatch[1];
+      const memberId = orgMemberMatch[2];
       
-      if (!orgId) {
-        return new Response(JSON.stringify({ error: 'Organization ID required' }), {
+      const authHeader = req.headers.get('Authorization');
+      const { user, error: authError } = await getAuthenticatedUser(authHeader);
+      
+      if (authError || !user) {
+        return new Response(JSON.stringify({ error: authError ?? 'Unauthorized' }), {
+          status: 401,
+          headers: { ...responseHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      // Verify user is a member of the organization
+      const { error: memberError } = await verifyOrgMembership(user.id, orgId);
+      if (memberError) {
+        return new Response(JSON.stringify({ error: memberError }), {
+          status: 403,
+          headers: { ...responseHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      // Get organization member with public user data
+      const { data: member, error } = await supabaseAdmin
+        .from('organization_members')
+        .select(`
+          *,
+          user:users(*)
+        `)
+        .eq('id', memberId)
+        .eq('organization_id', orgId)
+        .single();
+
+      if (error || !member) {
+        return new Response(JSON.stringify({ error: 'Member not found' }), {
+          status: 404,
+          headers: { ...responseHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      // Enrich with auth.users data (last_sign_in_at)
+      const { data: authUser } = await supabaseAdmin.auth.admin.getUserById(member.user_id);
+      
+      const enrichedMember = {
+        ...member,
+        user: {
+          ...member.user,
+          last_sign_in_at: authUser?.user?.last_sign_in_at || null,
+        }
+      };
+
+      return new Response(JSON.stringify(enrichedMember), {
+        headers: { ...responseHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    if (orgMemberMatch && method === 'PUT') {
+      const orgId = orgMemberMatch[1];
+      const memberId = orgMemberMatch[2];
+      
+      const authHeader = req.headers.get('Authorization');
+      const { user, error: authError } = await getAuthenticatedUser(authHeader);
+      
+      if (authError || !user) {
+        return new Response(JSON.stringify({ error: authError ?? 'Unauthorized' }), {
+          status: 401,
+          headers: { ...responseHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      // Verify user is Admin or Manager of the organization
+      const { membership: currentUserMembership, error: memberError } = await verifyOrgMembership(user.id, orgId, ['Admin', 'Manager']);
+      if (memberError) {
+        return new Response(JSON.stringify({ error: memberError }), {
+          status: 403,
+          headers: { ...responseHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      const body = await req.json();
+      
+      // Get target member to check if they exist and what their user_id is
+      const { data: targetMember, error: targetError } = await supabaseAdmin
+        .from('organization_members')
+        .select('*')
+        .eq('id', memberId)
+        .eq('organization_id', orgId)
+        .single();
+
+      if (targetError || !targetMember) {
+        return new Response(JSON.stringify({ error: 'Member not found in this organization' }), {
+          status: 404,
+          headers: { ...responseHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      // 1. Update user profile data if provided
+      const userFields = ['first_name', 'last_name', 'phone', 'avatar_url', 'address_line1', 'address_line2', 'city', 'state', 'postal_code', 'country'];
+      const userUpdates: any = {};
+      let hasUserUpdates = false;
+
+      for (const field of userFields) {
+        if (body[field] !== undefined) {
+          userUpdates[field] = body[field];
+          hasUserUpdates = true;
+        }
+      }
+
+      if (hasUserUpdates) {
+        const { error: userUpdateError } = await supabaseAdmin
+          .from('users')
+          .update(userUpdates)
+          .eq('id', targetMember.user_id);
+
+        if (userUpdateError) {
+          console.error('Error updating user profile:', userUpdateError);
+          return new Response(JSON.stringify({ error: userUpdateError.message }), {
+            status: 400,
+            headers: { ...responseHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+      }
+
+      // 2. Update member organization-specific data (role, default_staff_role_id)
+      const memberUpdates: any = {};
+      let hasMemberUpdates = false;
+
+      if (body.role !== undefined) {
+        // Only Admins can change roles to/from Admin
+        if ((body.role === 'Admin' || targetMember.role === 'Admin') && currentUserMembership.role !== 'Admin') {
+          return new Response(JSON.stringify({ error: 'Only Admins can change Admin roles' }), {
+            status: 403,
+            headers: { ...responseHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+        memberUpdates.role = body.role;
+        hasMemberUpdates = true;
+      }
+
+      if (body.default_staff_role_id !== undefined) {
+        memberUpdates.default_staff_role_id = body.default_staff_role_id || null;
+        hasMemberUpdates = true;
+      }
+
+      if (hasMemberUpdates) {
+        const { error: memberUpdateError } = await supabaseAdmin
+          .from('organization_members')
+          .update(memberUpdates)
+          .eq('id', memberId);
+
+        if (memberUpdateError) {
+          console.error('Error updating organization member:', memberUpdateError);
+          return new Response(JSON.stringify({ error: memberUpdateError.message }), {
+            status: 400,
+            headers: { ...responseHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+      }
+
+      // Return the updated member with user data
+      const { data: updatedMember, error: fetchError } = await supabaseAdmin
+        .from('organization_members')
+        .select(`
+          *,
+          user:users(*)
+        `)
+        .eq('id', memberId)
+        .single();
+
+      if (fetchError) {
+        console.error('Error fetching updated member:', fetchError);
+      }
+
+      return new Response(JSON.stringify(updatedMember || { success: true }), {
+        headers: { ...responseHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    // Remove organization member
+    if (orgMemberMatch && method === 'DELETE') {
+      const orgId = orgMemberMatch[1];
+      const memberId = orgMemberMatch[2];
+      
+      const authHeader = req.headers.get('Authorization');
+      const { user, error: authError } = await getAuthenticatedUser(authHeader);
+      
+      if (authError || !user) {
+        return new Response(JSON.stringify({ error: authError ?? 'Unauthorized' }), {
+          status: 401,
+          headers: { ...responseHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      // Verify user is Admin or Manager of the organization
+      const { membership: currentUserMembership, error: memberError } = await verifyOrgMembership(user.id, orgId, ['Admin', 'Manager']);
+      if (memberError) {
+        return new Response(JSON.stringify({ error: memberError }), {
+          status: 403,
+          headers: { ...responseHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      // Get target member to check if they exist and what their role is
+      const { data: targetMember, error: targetError } = await supabaseAdmin
+        .from('organization_members')
+        .select('*')
+        .eq('id', memberId)
+        .eq('organization_id', orgId)
+        .single();
+
+      if (targetError || !targetMember) {
+        return new Response(JSON.stringify({ error: 'Member not found in this organization' }), {
+          status: 404,
+          headers: { ...responseHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      // Prevention: cannot remove yourself (use leave organization instead, if we implement it)
+      if (targetMember.user_id === user.id) {
+        return new Response(JSON.stringify({ error: 'Cannot remove yourself from the organization' }), {
           status: 400,
           headers: { ...responseHeaders, 'Content-Type': 'application/json' },
         });
       }
 
+      // Prevention: only Admins can remove other Admins
+      if (targetMember.role === 'Admin' && currentUserMembership.role !== 'Admin') {
+        return new Response(JSON.stringify({ error: 'Only Admins can remove other Admins' }), {
+          status: 403,
+          headers: { ...responseHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      const { error: deleteError } = await supabaseAdmin
+        .from('organization_members')
+        .delete()
+        .eq('id', memberId);
+
+      if (deleteError) {
+        console.error('Error removing organization member:', deleteError);
+        return new Response(JSON.stringify({ error: deleteError.message }), {
+          status: 400,
+          headers: { ...responseHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      return new Response(JSON.stringify({ success: true }), {
+        headers: { ...responseHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    // Cancel invitation
+    const invitationMatch = path.match(/^\/invitations\/([^\/]+)$/);
+    if (invitationMatch && method === 'DELETE') {
+      const invitationId = invitationMatch[1];
+      
+      const authHeader = req.headers.get('Authorization');
+      const { user, error: authError } = await getAuthenticatedUser(authHeader);
+      
+      if (authError || !user) {
+        return new Response(JSON.stringify({ error: authError ?? 'Unauthorized' }), {
+          status: 401,
+          headers: { ...responseHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      // Get invitation to find organization_id
+      const { data: invitation, error: inviteError } = await supabaseAdmin
+        .from('invitations')
+        .select('*')
+        .eq('id', invitationId)
+        .single();
+
+      if (inviteError || !invitation) {
+        return new Response(JSON.stringify({ error: 'Invitation not found' }), {
+          status: 404,
+          headers: { ...responseHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      // Verify user is Admin or Manager of the organization
+      const { error: memberError } = await verifyOrgMembership(user.id, invitation.organization_id, ['Admin', 'Manager']);
+      if (memberError) {
+        return new Response(JSON.stringify({ error: memberError }), {
+          status: 403,
+          headers: { ...responseHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      const { error: deleteError } = await supabaseAdmin
+        .from('invitations')
+        .delete()
+        .eq('id', invitationId);
+
+      if (deleteError) {
+        console.error('Error cancelling invitation:', deleteError);
+        return new Response(JSON.stringify({ error: deleteError.message }), {
+          status: 400,
+          headers: { ...responseHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      return new Response(JSON.stringify({ success: true }), {
+        headers: { ...responseHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    // Invite user to organization
+    const invitationsMatch = path.match(/^\/organizations\/([^\/]+)\/invitations$/);
+    if (invitationsMatch && method === 'POST') {
+      const orgId = invitationsMatch[1];
+      
       const authHeader = req.headers.get('Authorization');
       const { user, error: authError } = await getAuthenticatedUser(authHeader);
       
@@ -921,17 +1256,10 @@ Deno.serve(async (req) => {
     }
 
     // Create user and add to organization
-    if (path.match(/^\/organizations\/([^\/]+)\/members\/create$/) && method === 'POST') {
-      const orgIdMatch = path.match(/^\/organizations\/([^\/]+)\/members\/create$/);
-      const orgId = orgIdMatch ? orgIdMatch[1] : null;
+    const membersCreateMatch = path.match(/^\/organizations\/([^\/]+)\/members\/create$/);
+    if (membersCreateMatch && method === 'POST') {
+      const orgId = membersCreateMatch[1];
       
-      if (!orgId) {
-        return new Response(JSON.stringify({ error: 'Organization ID required' }), {
-          status: 400,
-          headers: { ...responseHeaders, 'Content-Type': 'application/json' },
-        });
-      }
-
       const authHeader = req.headers.get('Authorization');
       const { user, error: authError } = await getAuthenticatedUser(authHeader);
       

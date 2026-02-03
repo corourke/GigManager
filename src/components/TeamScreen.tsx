@@ -1,7 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { toast } from 'sonner';
 import { 
-  getOrganizationMembers,
   getOrganizationMembersWithAuth, 
   updateMemberDetails, 
   removeMember,
@@ -112,7 +111,7 @@ export default function TeamScreen({
     try {
       setMembersLoading(true);
       setMembersError(null);
-      const memberData = await getOrganizationMembers(organization.id);
+      const memberData = await getOrganizationMembersWithAuth(organization.id);
       setMembers(memberData);
     } catch (err: any) {
       setMembersError(err.message || 'Failed to load members');
@@ -314,7 +313,7 @@ export default function TeamScreen({
         ? { ...editForm, role: undefined, default_staff_role_id: undefined }
         : editForm;
 
-      await updateMemberDetails(memberToEdit.id, updateData);
+      await updateMemberDetails(organization.id, memberToEdit.id, updateData);
       // Real-time list will automatically update
       setShowEditDialog(false);
       setMemberToEdit(null);
@@ -332,7 +331,7 @@ export default function TeamScreen({
 
     setIsRemoving(true);
     try {
-      await removeMember(memberToRemove.id);
+      await removeMember(organization.id, memberToRemove.id);
       // Real-time list will automatically update
       setMemberToRemove(null);
       toast.success('Member removed');
@@ -530,7 +529,9 @@ export default function TeamScreen({
                             </Badge>
                           ) : (
                             <div className="text-sm text-gray-600">
-                              Never
+                              {member.user.last_sign_in_at 
+                                ? format(new Date(member.user.last_sign_in_at), 'MMM d, h:mm a')
+                                : 'Never'}
                             </div>
                           )}
                         </TableCell>

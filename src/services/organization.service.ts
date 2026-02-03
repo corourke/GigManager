@@ -62,34 +62,15 @@ export async function createOrganization(orgData: {
   country?: string;
   place_id?: string;
 }): Promise<Organization> {
-  const supabase = getSupabase();
   try {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session?.user) throw new Error('Not authenticated');
-    const user = session.user;
+    const supabase = getSupabase();
+    const { data, error } = await supabase.functions.invoke('server/organizations', {
+      method: 'POST',
+      body: orgData
+    });
 
-    const { data: org, error: orgError } = await supabase
-      .from('organizations')
-      .insert(orgData)
-      .select()
-      .single();
-
-    if (orgError) throw orgError;
-
-    const { error: memberError } = await supabase
-      .from('organization_members')
-      .insert({
-        organization_id: org.id,
-        user_id: user.id,
-        role: 'Admin',
-      });
-
-    if (memberError) {
-      await supabase.from('organizations').delete().eq('id', org.id);
-      throw memberError;
-    }
-
-    return org;
+    if (error) throw error;
+    return data;
   } catch (err) {
     return handleApiError(err, 'create organization');
   }
@@ -112,17 +93,12 @@ export async function updateOrganization(organizationId: string, orgData: {
   country?: string;
   allowed_domains?: string;
 }): Promise<Organization> {
-  const supabase = getSupabase();
   try {
-    const { data, error } = await supabase
-      .from('organizations')
-      .update({
-        ...orgData,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', organizationId)
-      .select()
-      .single();
+    const supabase = getSupabase();
+    const { data, error } = await supabase.functions.invoke(`server/organizations/${organizationId}`, {
+      method: 'PUT',
+      body: orgData
+    });
 
     if (error) throw error;
     return data;
@@ -135,61 +111,29 @@ export async function updateOrganization(organizationId: string, orgData: {
  * Join an organization as a Viewer
  */
 export async function joinOrganization(orgId: string): Promise<{ organization: Organization; role: UserRole }> {
-  const supabase = getSupabase();
   try {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session?.user) throw new Error('Not authenticated');
-    const user = session.user;
+    const supabase = getSupabase();
+    const { data, error } = await supabase.functions.invoke(`server/organizations/${orgId}/members`, {
+      method: 'POST',
+      body: {} // No user_id or role means self-join as Viewer
+    });
 
-    const { data: org, error: orgError } = await supabase
-      .from('organizations')
-      .select('*')
-      .eq('id', orgId)
-      .single();
-
-    if (orgError || !org) throw new Error('Organization not found');
-
-    const { data: existingMember } = await supabase
-      .from('organization_members')
-      .select('*')
-      .eq('organization_id', orgId)
-      .eq('user_id', user.id)
-      .single();
-
-    if (existingMember) throw new Error('Already a member of this organization');
-
-    const { data: membership, error: memberError } = await supabase
-      .from('organization_members')
-      .insert({
-        organization_id: orgId,
-        user_id: user.id,
-        role: 'Viewer',
-      })
-      .select()
-      .single();
-
-    if (memberError) throw memberError;
-
-    return { organization: org, role: membership.role };
+    if (error) throw error;
+    return data;
   } catch (err) {
     return handleApiError(err, 'join organization');
   }
 }
 
 /**
- * Fetch a single organization member by ID
+ * Fetch a single organization member by ID using the Edge Function
  */
-export async function getOrganizationMember(memberId: string) {
-  const supabase = getSupabase();
+export async function getOrganizationMember(organizationId: string, memberId: string) {
   try {
-    const { data, error } = await supabase
-      .from('organization_members')
-      .select(`
-        *,
-        user:users(*)
-      `)
-      .eq('id', memberId)
-      .single();
+    const supabase = getSupabase();
+    const { data, error } = await supabase.functions.invoke(`server/organizations/${organizationId}/members/${memberId}`, {
+      method: 'GET'
+    });
 
     if (error) throw error;
     return data;
@@ -257,51 +201,21 @@ export async function getOrganizationMembers(organizationId: string) {
 export async function addExistingUserToOrganization(
   organizationId: string,
   userId: string,
-  role: 'Admin' | 'Manager' | 'Member'
+  role: 'Admin' | 'Manager' | 'Member' | 'Staff' | 'Viewer'
 ) {
-  const supabase = getSupabase();
   try {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session?.user) throw new Error('Not authenticated');
-
-    const { data: existingMember } = await supabase
-      .from('organization_members')
-      .select('id')
-      .eq('organization_id', organizationId)
-      .eq('user_id', userId)
-      .maybeSingle();
-
-    if (existingMember) throw new Error('User is already a member of this organization');
-
-    const { data, error } = await supabase
-      .from('organization_members')
-      .insert({
-        organization_id: organizationId,
+    const supabase = getSupabase();
+    const { data, error } = await supabase.functions.invoke(`server/organizations/${organizationId}/members`, {
+      method: 'POST',
+      body: {
         user_id: userId,
-        role,
-      })
-      .select(`
-        *,
-        user:users(
-          id,
-          first_name,
-          last_name,
-          email,
-          phone,
-          avatar_url,
-          address_line1,
-          address_line2,
-          city,
-          state,
-          postal_code,
-          country,
-          user_status
-        )
-      `)
-      .single();
+        role: role === 'Member' ? 'Staff' : role
+      }
+    });
 
     if (error) throw error;
-    return data;
+    // Return the member data from the response
+    return data.member;
   } catch (err) {
     return handleApiError(err, 'add user to organization');
   }
@@ -369,12 +283,11 @@ export async function getOrganizationInvitations(organizationId: string) {
  * Cancel a pending invitation
  */
 export async function cancelInvitation(invitationId: string) {
-  const supabase = getSupabase();
   try {
-    const { error } = await supabase
-      .from('invitations')
-      .delete()
-      .eq('id', invitationId);
+    const supabase = getSupabase();
+    const { error } = await supabase.functions.invoke(`server/invitations/${invitationId}`, {
+      method: 'DELETE'
+    });
 
     if (error) throw error;
     return { success: true };
@@ -423,6 +336,7 @@ export async function getStaffRoles() {
  * Update member details including user profile info and organization role
  */
 export async function updateMemberDetails(
+  organizationId: string,
   memberId: string,
   memberData: {
     first_name?: string;
@@ -440,83 +354,15 @@ export async function updateMemberDetails(
     default_staff_role_id?: string;
   }
 ) {
-  const supabase = getSupabase();
   try {
-    const { data: member } = await supabase
-      .from('organization_members')
-      .select('user_id, role, default_staff_role_id')
-      .eq('id', memberId)
-      .single();
-
-    if (!member) throw new Error('Member not found');
-
-    const userFields = ['first_name', 'last_name', 'email', 'phone', 'avatar_url', 'address_line1', 'address_line2', 'city', 'state', 'postal_code', 'country'];
-    const userUpdates: any = {};
-    let hasUserUpdates = false;
-
-    for (const field of userFields) {
-      if (memberData[field as keyof typeof memberData] !== undefined) {
-        userUpdates[field] = memberData[field as keyof typeof memberData];
-        hasUserUpdates = true;
-      }
-    }
-
-    if (hasUserUpdates) {
-      const { error: userError } = await supabase
-        .from('users')
-        .update(userUpdates)
-        .eq('id', member.user_id);
-
-      if (userError) throw userError;
-    }
-
-    const memberUpdates: any = {};
-    let hasMemberUpdates = false;
-
-    if (memberData.role !== undefined && memberData.role !== member.role) {
-      memberUpdates.role = memberData.role;
-      hasMemberUpdates = true;
-    }
-
-    if (memberData.default_staff_role_id !== undefined && memberData.default_staff_role_id !== member.default_staff_role_id) {
-      memberUpdates.default_staff_role_id = memberData.default_staff_role_id || null;
-      hasMemberUpdates = true;
-    }
-
-    if (hasMemberUpdates) {
-      const { error: memberError } = await supabase
-        .from('organization_members')
-        .update(memberUpdates)
-        .eq('id', memberId);
-
-      if (memberError) throw memberError;
-    }
-
-    const { data: updatedMember, error } = await supabase
-      .from('organization_members')
-      .select(`
-        *,
-        user:users(
-          id,
-          first_name,
-          last_name,
-          email,
-          phone,
-          avatar_url,
-          address_line1,
-          address_line2,
-          city,
-          state,
-          postal_code,
-          country,
-          user_status
-        )
-      `)
-      .eq('id', memberId)
-      .single();
+    const supabase = getSupabase();
+    const { data, error } = await supabase.functions.invoke(`server/organizations/${organizationId}/members/${memberId}`, {
+      method: 'PUT',
+      body: memberData
+    });
 
     if (error) throw error;
-    return updatedMember;
+    return data;
   } catch (err) {
     return handleApiError(err, 'update member details');
   }
@@ -525,33 +371,19 @@ export async function updateMemberDetails(
 /**
  * Update a member's role in the organization
  */
-export async function updateMemberRole(memberId: string, role: 'Admin' | 'Manager' | 'Member') {
-  const supabase = getSupabase();
-  try {
-    const { data, error } = await supabase
-      .from('organization_members')
-      .update({ role })
-      .eq('id', memberId)
-      .select()
-      .single();
-
-    if (error) throw error;
-    return data;
-  } catch (err) {
-    return handleApiError(err, 'update member role');
-  }
+export async function updateMemberRole(organizationId: string, memberId: string, role: 'Admin' | 'Manager' | 'Member' | 'Staff' | 'Viewer') {
+  return updateMemberDetails(organizationId, memberId, { role: role as any });
 }
 
 /**
  * Remove a member from an organization
  */
-export async function removeMember(memberId: string) {
-  const supabase = getSupabase();
+export async function removeMember(organizationId: string, memberId: string) {
   try {
-    const { error } = await supabase
-      .from('organization_members')
-      .delete()
-      .eq('id', memberId);
+    const supabase = getSupabase();
+    const { error } = await supabase.functions.invoke(`server/organizations/${organizationId}/members/${memberId}`, {
+      method: 'DELETE'
+    });
 
     if (error) throw error;
     return { success: true };
@@ -560,59 +392,3 @@ export async function removeMember(memberId: string) {
   }
 }
 
-/**
- * Invite an existing user to an organization
- */
-export async function inviteMember(organizationId: string, email: string, role: 'Admin' | 'Manager' | 'Member') {
-  const supabase = getSupabase();
-  try {
-    const { data: existingUser } = await supabase
-      .from('users')
-      .select('id')
-      .eq('email', email)
-      .single();
-
-    if (!existingUser) throw new Error('User with this email does not exist. They must sign up first.');
-
-    const { data: existingMember } = await supabase
-      .from('organization_members')
-      .select('id')
-      .eq('organization_id', organizationId)
-      .eq('user_id', existingUser.id)
-      .single();
-
-    if (existingMember) throw new Error('User is already a member of this organization');
-
-    const { data, error } = await supabase
-      .from('organization_members')
-      .insert({
-        organization_id: organizationId,
-        user_id: existingUser.id,
-        role,
-      })
-      .select(`
-        *,
-        user:users(
-          id,
-          first_name,
-          last_name,
-          email,
-          phone,
-          avatar_url,
-          address_line1,
-          address_line2,
-          city,
-          state,
-          postal_code,
-          country,
-          user_status
-        )
-      `)
-      .single();
-
-    if (error) throw error;
-    return data;
-  } catch (err) {
-    return handleApiError(err, 'invite member');
-  }
-}

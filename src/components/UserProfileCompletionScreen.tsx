@@ -21,6 +21,8 @@ interface UserProfileCompletionScreenProps {
 interface FormData {
   first_name: string;
   last_name: string;
+  password?: string;
+  confirm_password?: string;
   phone: string;
   address_line1: string;
   address_line2: string;
@@ -32,6 +34,8 @@ interface FormData {
 
 interface FormErrors {
   general?: string;
+  password?: string;
+  confirm_password?: string;
 }
 
 export default function UserProfileCompletionScreen({
@@ -43,6 +47,8 @@ export default function UserProfileCompletionScreen({
   const [formData, setFormData] = useState<FormData>({
     first_name: user.first_name || '',
     last_name: user.last_name || '',
+    password: '',
+    confirm_password: '',
     phone: '',
     address_line1: '',
     address_line2: '',
@@ -57,6 +63,8 @@ export default function UserProfileCompletionScreen({
     initialData: {
       first_name: user.first_name || '',
       last_name: user.last_name || '',
+      password: '',
+      confirm_password: '',
       phone: '',
       address_line1: '',
       address_line2: '',
@@ -101,19 +109,44 @@ export default function UserProfileCompletionScreen({
     try {
       const { createClient } = await import('../utils/supabase/client');
       const supabase = createClient();
-      
-      // Normalize form data
-      const normalizedData = normalizeFormData(formData);
-      
-      // Get only changed fields
-      const requestBody = createSubmissionPayload(normalizedData, changeDetection.originalData);
 
-      // If no fields changed, don't make the request
-      if (Object.keys(requestBody).length === 0) {
-        toast.info('No changes to save');
+      // 1. Validate required fields
+      const validationErrors: FormErrors = {};
+      if (!formData.first_name?.trim()) validationErrors.general = 'First name is required';
+      if (!formData.last_name?.trim()) validationErrors.general = 'Last name is required';
+      
+      // Password is mandatory for invitation acceptance flow
+      if (!formData.password) {
+        validationErrors.password = 'Password is required';
+      } else if (formData.password.length < 6) {
+        validationErrors.password = 'Password must be at least 6 characters';
+      }
+      
+      if (formData.password !== formData.confirm_password) {
+        validationErrors.confirm_password = 'Passwords do not match';
+      }
+
+      if (Object.keys(validationErrors).length > 0) {
+        setErrors(validationErrors);
         setIsSubmitting(false);
         return;
       }
+
+      // 2. Update password first
+      if (formData.password) {
+        const { error: passwordError } = await supabase.auth.updateUser({
+          password: formData.password
+        });
+        if (passwordError) throw passwordError;
+      }
+      
+      // 3. Normalize form data for profile update (exclude password fields)
+      const { password, confirm_password, ...profileData } = formData;
+      const normalizedData = normalizeFormData(profileData);
+      
+      // Get only changed fields (excluding passwords)
+      const { password: _, confirm_password: __, ...originalProfileData } = changeDetection.originalData;
+      const requestBody = createSubmissionPayload(normalizedData, originalProfileData as any);
 
       // Update user profile via server endpoint
       const { data: userData, error: invokeError } = await supabase.functions.invoke(`server/users/${user.id}`, {
@@ -190,7 +223,7 @@ export default function UserProfileCompletionScreen({
                 <User className="w-5 h-5 text-sky-600 flex-shrink-0 mt-0.5" />
                 <div>
                   <p className="text-sm text-sky-900">
-                    <strong>All fields are optional.</strong> You can fill these out now or update your profile later.
+                    Please provide your name and set a password to complete your account setup.
                   </p>
                 </div>
               </div>
@@ -233,6 +266,36 @@ export default function UserProfileCompletionScreen({
                     onChange={(e) => handleInputChange('last_name', e.target.value)}
                     disabled={isSubmitting}
                   />
+                </div>
+              </div>
+
+              {/* Password Fields */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="password">Set Password</Label>
+                  <Input
+                    id="password"
+                    type="password"
+                    placeholder="••••••••"
+                    value={formData.password}
+                    onChange={(e) => handleInputChange('password', e.target.value)}
+                    disabled={isSubmitting}
+                    className={errors.password ? 'border-red-500' : ''}
+                  />
+                  {errors.password && <p className="text-xs text-red-500">{errors.password}</p>}
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="confirm_password">Confirm Password</Label>
+                  <Input
+                    id="confirm_password"
+                    type="password"
+                    placeholder="••••••••"
+                    value={formData.confirm_password}
+                    onChange={(e) => handleInputChange('confirm_password', e.target.value)}
+                    disabled={isSubmitting}
+                    className={errors.confirm_password ? 'border-red-500' : ''}
+                  />
+                  {errors.confirm_password && <p className="text-xs text-red-500">{errors.confirm_password}</p>}
                 </div>
               </div>
 

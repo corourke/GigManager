@@ -21,6 +21,7 @@ export interface DbUser {
   country?: string;
   role_hint?: string;
   user_status: 'active' | 'inactive' | 'pending';
+  last_sign_in_at?: string;
   created_at: string;
   updated_at: string;
 }

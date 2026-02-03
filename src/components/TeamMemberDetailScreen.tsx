@@ -40,7 +40,7 @@ export default function TeamMemberDetailScreen({
   const loadMember = async () => {
     setIsLoading(true);
     try {
-      const data = await getOrganizationMember(memberId);
+      const data = await getOrganizationMember(organization.id, memberId);
       setMember(data);
     } catch (error: any) {
       console.error('Error loading member:', error);
@@ -60,7 +60,7 @@ export default function TeamMemberDetailScreen({
     if (!confirm(`Are you sure you want to remove ${member.user.first_name} ${member.user.last_name} from ${organization.name}?`)) return;
 
     try {
-      await removeMember(memberId);
+      await removeMember(organization.id, memberId);
       toast.success('Member removed successfully');
       onBack();
     } catch (error: any) {
@@ -226,7 +226,7 @@ export default function TeamMemberDetailScreen({
                 <div>
                   <p className="text-sm font-medium text-gray-500 uppercase tracking-wider">Last Activity</p>
                   <p className="mt-1 text-gray-900">
-                    {member.user.last_login ? format(new Date(member.user.last_login), 'PPP p') : 'Never'}
+                    {member.user.last_sign_in_at ? format(new Date(member.user.last_sign_in_at), 'PPP p') : 'Never'}
                   </p>
                 </div>
               </div>
