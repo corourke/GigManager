@@ -1,10 +1,15 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.8";
 
 // Create Supabase client with service role key
-const supabaseAdmin = createClient(
-  Deno.env.get('SUPABASE_URL') ?? '',
-  Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
-);
+let supabaseAdmin: any;
+try {
+  supabaseAdmin = createClient(
+    Deno.env.get('SUPABASE_URL') ?? '',
+    Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
+  );
+} catch (e) {
+  console.error('Failed to initialize Supabase Admin client:', e);
+}
 
 // ===== Helper Functions =====
 
@@ -124,7 +129,6 @@ Deno.serve(async (req) => {
 
   const url = new URL(req.url);
   let path = url.pathname;
-  const method = req.method;
 
   console.log(`${method} ${path}`);
 
