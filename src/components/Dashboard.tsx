@@ -116,7 +116,7 @@ export default function Dashboard({
       console.log('Dashboard: Making API call for organization:', organization.id, organization.name);
 
       const response = await fetch(
-        `https://${projectId}.supabase.co/functions/v1/make-server-de012ad4/organizations/${organization.id}/dashboard`,
+        `https://${projectId}.supabase.co/functions/v1/server/organizations/${organization.id}/dashboard`,
         {
           method: 'GET',
           headers: {

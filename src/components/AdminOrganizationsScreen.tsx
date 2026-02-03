@@ -82,7 +82,7 @@ export default function AdminOrganizationsScreen({
 
       // Fetch all organizations
       const orgResponse = await fetch(
-        `https://${projectId}.supabase.co/functions/v1/make-server-de012ad4/organizations`,
+        `https://${projectId}.supabase.co/functions/v1/server/organizations`,
         {
           headers: {
             'Authorization': `Bearer ${session.access_token}`,
@@ -102,7 +102,7 @@ export default function AdminOrganizationsScreen({
         orgs.map(async (org: Organization) => {
           try {
             const membersResponse = await fetch(
-              `https://${projectId}.supabase.co/functions/v1/make-server-de012ad4/organizations/${org.id}/members`,
+              `https://${projectId}.supabase.co/functions/v1/server/organizations/${org.id}/members`,
               {
                 headers: {
                   'Authorization': `Bearer ${session.access_token}`,
@@ -147,7 +147,7 @@ export default function AdminOrganizationsScreen({
       }
 
       const response = await fetch(
-        `https://${projectId}.supabase.co/functions/v1/make-server-de012ad4/organizations/${deleteOrgId}`,
+        `https://${projectId}.supabase.co/functions/v1/server/organizations/${deleteOrgId}`,
         {
           method: 'DELETE',
           headers: {

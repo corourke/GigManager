@@ -1,4 +1,5 @@
 import { createClient } from '../utils/supabase/client';
+import { projectId } from '../utils/supabase/info';
 import { 
   Organization, 
   OrganizationType, 
@@ -9,8 +10,7 @@ import {
 import { handleApiError } from '../utils/api-error-utils';
 
 const getSupabase = () => createClient();
-const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
-const API_BASE_URL = `https://${projectId}.supabase.co/functions/v1/make-server-de012ad4`;
+const API_BASE_URL = `https://${projectId}.supabase.co/functions/v1/server`;
 
 /**
  * Search for organizations

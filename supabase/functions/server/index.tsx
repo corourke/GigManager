@@ -101,7 +101,7 @@ async function getOrCreateStaffRole(roleName: string) {
 // ===== CORS Headers =====
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-auth, x-supabase-client-version',
   'Access-Control-Allow-Methods': 'POST, GET, PUT, DELETE, OPTIONS',
 };
 
@@ -111,9 +111,11 @@ Deno.serve(async (req) => {
   let path = url.pathname;
   const method = req.method;
 
-  // Strip the /make-server-de012ad4 prefix if present
-  if (path.startsWith('/make-server-de012ad4')) {
-    path = path.substring('/make-server-de012ad4'.length);
+  console.log(`${method} ${path}`);
+
+  // Strip Supabase prefix if present
+  if (path.startsWith('/functions/v1')) {
+    path = path.substring('/functions/v1'.length);
   }
 
   // Also strip /server prefix if present (common when calling from frontend)
@@ -121,9 +123,19 @@ Deno.serve(async (req) => {
     path = path.substring('/server'.length);
   }
 
+  // Ensure path starts with /
+  if (!path.startsWith('/')) {
+    path = '/' + path;
+  }
+
+  console.log(`Routed path: ${path}`);
+
   // Handle CORS preflight
   if (method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders });
+    return new Response(null, { 
+      status: 204, 
+      headers: corsHeaders 
+    });
   }
 
   try {

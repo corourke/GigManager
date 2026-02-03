@@ -241,7 +241,7 @@ export default function OrganizationScreen({
       }
 
       // Build search URL with optional location parameters
-      let searchUrl = `https://${projectId}.supabase.co/functions/v1/make-server-de012ad4/integrations/google-places/search?query=${encodeURIComponent(searchQuery)}`;
+      let searchUrl = `https://${projectId}.supabase.co/functions/v1/server/integrations/google-places/search?query=${encodeURIComponent(searchQuery)}`;
       if (userLocation) {
         searchUrl += `&latitude=${userLocation.latitude}&longitude=${userLocation.longitude}`;
       }
@@ -275,7 +275,7 @@ export default function OrganizationScreen({
         placeResults.map(async (place: any) => {
           try {
             const detailsResponse = await fetch(
-              `https://${projectId}.supabase.co/functions/v1/make-server-de012ad4/integrations/google-places/${place.place_id}`,
+              `https://${projectId}.supabase.co/functions/v1/server/integrations/google-places/${place.place_id}`,
               {
                 headers: {
                   'Authorization': `Bearer ${session.access_token}`,
@@ -505,7 +505,7 @@ export default function OrganizationScreen({
         ? createSubmissionPayload(normalizedData, changeDetection.originalData)
         : normalizedData;
 
-      let url = `https://${projectId}.supabase.co/functions/v1/make-server-de012ad4/organizations`;
+      let url = `https://${projectId}.supabase.co/functions/v1/server/organizations`;
       let method = 'POST';
       
       if (isEditMode && organization) {
