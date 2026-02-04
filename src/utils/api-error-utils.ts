@@ -36,6 +36,7 @@ export const handleApiError = (err: any, context: string) => {
  */
 export const handleFunctionsError = async (error: any, context: string) => {
   if (error && error.name === 'FunctionsHttpError' && error.context) {
+    let customError: Error | null = null;
     try {
       // In some versions context is the Response, in others it's an object containing it
       const response = error.context instanceof Response ? error.context : (error.context as any).response;
@@ -49,16 +50,19 @@ export const handleFunctionsError = async (error: any, context: string) => {
 
         if (body && (body.error || body.message)) {
           const errorMessage = body.error || body.message;
-          const customError = new Error(errorMessage);
+          customError = new Error(errorMessage);
           (customError as any).status = response.status;
           (customError as any).details = body.details;
           (customError as any).hint = body.hint;
           (customError as any).code = body.code;
-          return handleApiError(customError, context);
         }
       }
     } catch (e) {
       console.error('Error parsing functions error body:', e);
+    }
+
+    if (customError) {
+      return handleApiError(customError, context);
     }
   }
   return handleApiError(error, context);

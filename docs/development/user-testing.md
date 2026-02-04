@@ -30,7 +30,7 @@
 ### User Invitation Flow
 
 - [x] The profile completion screen should not allow the user to skip inputting their name and password at a minimum
-- [ ] If the invitation link is navigated to after the invitation has been accepted, it should give some kind of message, not just a blank page. We are getting this URL: `http://localhost:3000/accept-invitation#error=access_denied&error_code=otp_expired&error_description=Email+link+is+invalid+or+has+expired`
+- [x] If the invitation link is navigated to after the invitation has been accepted, it should give some kind of message, not just a blank page. We are getting this URL: `http://localhost:3000/accept-invitation#error=access_denied&error_code=otp_expired&error_description=Email+link+is+invalid+or+has+expired`
 - [x] When a member is removed from the Team screen, we need to redraw the table so that it displays the current state
 - [x] In Add Team Member, Add Existing User when searching for existing users, no users are shown. We should show existing users that are not already members of the current organization. 
 - [ ] If you Invite a New User for a user that is already in the system and Pending, it will give you a message that an invitation has been sent (which is the correct thing to do) but it appears that no message is being sent out. The purpose is to get the user into the UserProfileCompletionScreen workflow as they never set a password or signed in. 

@@ -10,6 +10,7 @@ import AppHeader from './AppHeader';
 import { Building2, AlertCircle, Loader2, User } from 'lucide-react';
 import { toast } from 'sonner';
 import { User as UserType } from '../utils/supabase/types';
+import { useAuth } from '../contexts/AuthContext';
 
 interface UserProfileCompletionScreenProps {
   user: UserType;
@@ -42,6 +43,7 @@ export default function UserProfileCompletionScreen({
   onProfileCompleted,
   useMockData = false,
 }: UserProfileCompletionScreenProps) {
+  const { refreshProfile } = useAuth();
   const [formData, setFormData] = useState<FormData>({
     first_name: user.first_name || '',
     last_name: user.last_name || '',
@@ -177,6 +179,9 @@ export default function UserProfileCompletionScreen({
         postal_code: '',
         country: '',
       });
+
+      // Refresh global auth state (syncs organizations, active status, etc.)
+      await refreshProfile();
 
       onProfileCompleted(updatedUser);
     } catch (err: any) {
