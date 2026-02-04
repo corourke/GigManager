@@ -34,20 +34,9 @@
 - [x] When a member is removed from the Team screen, we need to redraw the table so that it displays the current state
 - [x] In Add Team Member, Add Existing User when searching for existing users, no users are shown. We should show existing users that are not already members of the current organization. 
 - [ ] If you Invite a New User for a user that is already in the system and Pending, it will give you a message that an invitation has been sent (which is the correct thing to do) but it appears that no message is being sent out. The purpose is to get the user into the UserProfileCompletionScreen workflow as they never set a password or signed in. 
-- [ ] When inviting a new user, if you enter an email address that is already present in the system, you get: "Edge Function returned a non-2xx status code". Instead you should get the other error returned by the API call: "A user with this email already exists and is active. Please use "Add Existing User" instead."
+- [x] When inviting a new user, if you enter an email address that is already present in the system, you get: "Edge Function returned a non-2xx status code". Instead you should get the other error returned by the API call: "A user with this email already exists and is active. Please use "Add Existing User" instead."
 
-```
-api-error-utils.ts:29 Error invite user to organization: Error: A user with this email already exists and is active. Please use "Add Existing User" instead.
-    at handleFunctionsError (api-error-utils.ts:45:31)
-    at async inviteUserToOrganization (organization.service.ts:246:23)
-    at async handleInviteNewUser (TeamScreen.tsx:298:22)
 
-api-error-utils.ts:29 Error invite user to organization: FunctionsHttpError: Edge Function returned a non-2xx status code
-    at FunctionsClient.<anonymous> (@supabase_supabase-j…?v=6c5230be:1334:17)
-    at Generator.next (<anonymous>)
-    at fulfilled (chunk-UACSDUIX.js?v=6c5230be:132:24)
-
-```
 
 - [ ] When opening an invite link that was sent a few hours ago, I'm seeing a blank page, and the URL is: `http://localhost:3000/accept-invitation#error=access_denied&error_code=otp_expired&error_description=Email+link+is+invalid+or+has+expired`
 - [ ] Links should last a few days at least, and should display a message if they have expired, not just a blank page. 
@@ -55,6 +44,6 @@ api-error-utils.ts:29 Error invite user to organization: FunctionsHttpError: Edg
 
 **Tests**
 
-- [ ] Invitation Flow: As an Admin or Manager, attempt to invite a new user to an organization. Verify that the invitation is created without RLS errors, and that the pending user record is properly linked.
-- [ ] User Activation: Have a test user accept an invitation and sign up. Confirm that the pending user is converted to active status and that all organization memberships and invitations are updated correctly.
-- [ ] Role Permissions: Verify that only Admins/Managers can perform invitations, and that other roles are blocked appropriately.
+- [x] Invitation Flow: As an Admin or Manager, attempt to invite a new user to an organization. Verify that the invitation is created without RLS errors, and that the pending user record is properly linked.
+- [x] User Activation: Have a test user accept an invitation and sign up. Confirm that the pending user is converted to active status and that all organization memberships and invitations are updated correctly.
+- [x] Role Permissions: Verify that only Admins/Managers can perform invitations, and that other roles are blocked appropriately.
