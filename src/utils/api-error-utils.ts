@@ -39,16 +39,26 @@ export const handleFunctionsError = async (error: any, context: string) => {
     try {
       // In some versions context is the Response, in others it's an object containing it
       const response = error.context instanceof Response ? error.context : (error.context as any).response;
-      if (response && typeof response.json === 'function') {
-        const body = await response.clone().json();
-        if (body && body.error) {
-          const customError = new Error(body.error);
+      
+      if (response) {
+        let body;
+        if (typeof response.json === 'function') {
+          // Use clone() to avoid draining the stream
+          body = await response.clone().json().catch(() => null);
+        }
+
+        if (body && (body.error || body.message)) {
+          const errorMessage = body.error || body.message;
+          const customError = new Error(errorMessage);
           (customError as any).status = response.status;
+          (customError as any).details = body.details;
+          (customError as any).hint = body.hint;
+          (customError as any).code = body.code;
           return handleApiError(customError, context);
         }
       }
     } catch (e) {
-      // Fall back to standard error handling
+      console.error('Error parsing functions error body:', e);
     }
   }
   return handleApiError(error, context);

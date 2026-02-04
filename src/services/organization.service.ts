@@ -244,7 +244,7 @@ export async function inviteUserToOrganization(
     });
 
     if (error) return await handleFunctionsError(error, 'invite user to organization');
-    return data as { invitation: any; user: any; email_sent: boolean };
+    return data as { invitation: any; user: any; email_sent: boolean; resend?: boolean };
   } catch (err) {
     return await handleFunctionsError(err, 'invite user to organization');
   }

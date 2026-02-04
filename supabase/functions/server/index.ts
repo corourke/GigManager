@@ -1218,7 +1218,12 @@ Deno.serve(async (req) => {
 
       if (rpcError) {
         console.error('Error calling invite_user_to_organization RPC:', rpcError);
-        return new Response(JSON.stringify({ error: rpcError.message }), {
+        return new Response(JSON.stringify({ 
+          error: rpcError.message || 'Failed to process invitation in database',
+          details: rpcError.details,
+          hint: rpcError.hint,
+          code: rpcError.code
+        }), {
           status: 400,
           headers: { ...responseHeaders, 'Content-Type': 'application/json' },
         });

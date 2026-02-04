@@ -65,5 +65,25 @@ describe('organization.service', () => {
       });
       expect(result).toEqual(mockResult);
     });
+
+    it('should handle resending an invitation', async () => {
+      const mockResult = {
+        user: { id: 'existing-user-id', email: 'test@example.com' },
+        invitation: { id: 'invitation-id', status: 'pending' },
+        email_sent: true,
+        resend: true
+      };
+
+      mockSupabase.functions.invoke.mockResolvedValue({ data: mockResult, error: null });
+
+      const result = await inviteUserToOrganization(
+        'org-1',
+        'test@example.com',
+        'Staff'
+      );
+
+      expect(result.resend).toBe(true);
+      expect(result).toEqual(mockResult);
+    });
   });
 });

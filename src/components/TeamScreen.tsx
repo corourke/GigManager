@@ -303,8 +303,14 @@ export default function TeamScreen({
         inviteLastName || undefined
       );
       
-      // Add invitation to list
-      setInvitations([...invitations, result.invitation]);
+      // Add invitation to list if not already there
+      setInvitations(prev => {
+        const exists = prev.some(inv => inv.id === result.invitation.id);
+        if (exists) {
+          return prev.map(inv => inv.id === result.invitation.id ? result.invitation : inv);
+        }
+        return [...prev, result.invitation];
+      });
 
       // Reload members to show the new pending user
       await refreshMembers();
@@ -318,9 +324,11 @@ export default function TeamScreen({
       // Show success message
       toast.success(
         <div className="space-y-2">
-          <p className="font-medium">Invitation sent!</p>
+          <p className="font-medium">{result.resend ? 'Invitation resent!' : 'Invitation sent!'}</p>
           <p className="text-sm text-gray-600">
-            An email has been sent to {inviteEmail} with a link to join the organization.
+            {result.resend 
+              ? `We've sent another invitation email to ${inviteEmail}.`
+              : `An email has been sent to ${inviteEmail} with a link to join the organization.`}
             The user can now be assigned to gigs.
           </p>
         </div>,
