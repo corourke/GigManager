@@ -15,7 +15,7 @@ import GigHeader from './gig/GigHeader';
 import GigBasicInfoSection from './gig/GigBasicInfoSection';
 import GigParticipantsSection from './gig/GigParticipantsSection';
 import GigStaffSlotsSection from './gig/GigStaffSlotsSection';
-import GigBidsSection from './gig/GigBidsSection';
+import GigFinancialsSection from './gig/GigFinancialsSection';
 import GigKitAssignmentsSection from './gig/GigKitAssignmentsSection';
 
 interface GigScreenProps {
@@ -187,9 +187,10 @@ export default function GigScreen({
                 currentOrganizationId={organization.id}
                 participantOrganizationIds={participantOrgIds}
               />
-              <GigBidsSection
+              <GigFinancialsSection
                 gigId={gigId}
                 currentOrganizationId={organization.id}
+                userRole={userRole}
               />
               <GigKitAssignmentsSection
                 gigId={gigId}
