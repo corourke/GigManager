@@ -153,11 +153,11 @@ export default function GigFinancialsSection({
       category: f.category as FinCategory,
       description: f.description || '',
       reference_number: f.reference_number || '',
-      counterparty_id: f.counterparty_id || '',
+      counterparty_id: f.counterparty_id || undefined,
       external_entity_name: f.external_entity_name || '',
       currency: f.currency || 'USD',
-      due_date: f.due_date || '',
-      paid_at: f.paid_at || '',
+      due_date: f.due_date || undefined,
+      paid_at: f.paid_at || undefined,
       notes: f.notes || '',
     })));
   }, [gigId, currentOrganizationId]);
@@ -379,58 +379,67 @@ export default function GigFinancialsSection({
         <CardContent>
           <div className="space-y-4">
             {fields.length > 0 ? (
-              <div className="overflow-x-auto">
-                <table className="w-full border-collapse border border-gray-200">
-                  <thead>
-                    <tr className="bg-gray-100">
-                      <th className="border border-gray-200 px-3 py-2 text-left text-sm font-medium">Date</th>
-                      <th className="border border-gray-200 px-3 py-2 text-left text-sm font-medium">Type</th>
-                      <th className="border border-gray-200 px-3 py-2 text-right text-sm font-medium">Amount</th>
-                      <th className="border border-gray-200 px-3 py-2 text-left text-sm font-medium">Description</th>
-                      <th className="border border-gray-200 px-3 py-2 text-center text-sm font-medium">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
+              <div className="border rounded-lg overflow-hidden">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Date</TableHead>
+                      <TableHead>Type</TableHead>
+                      <TableHead className="text-right">Amount</TableHead>
+                      <TableHead>Description</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
                     {fields.map((field, index) => (
-                      <tr key={field.id} className="hover:bg-gray-50">
-                        <td className="border border-gray-200 px-3 py-2 text-sm">
+                      <TableRow key={field.id}>
+                        <TableCell>
                           {formatDate(field.date)}
-                        </td>
-                        <td className="border border-gray-200 px-3 py-2 text-sm">
+                        </TableCell>
+                        <TableCell>
                           {FIN_TYPE_CONFIG[field.type as FinType]?.label || field.type}
-                        </td>
-                        <td className="border border-gray-200 px-3 py-2 text-sm text-right font-mono">
+                        </TableCell>
+                        <TableCell className="text-right font-mono">
                           {formatCurrency(field.amount, field.currency)}
-                        </td>
-                        <td className="border border-gray-200 px-3 py-2 text-sm">
+                        </TableCell>
+                        <TableCell>
                           {field.description || '-'}
-                        </td>
-                        <td className="border border-gray-200 px-3 py-2 text-center">
-                          <div className="flex justify-center gap-1">
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex items-center justify-end gap-1">
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleOpenNotes(index)}
+                              className="h-8 w-8 p-0"
+                            >
+                              <FileText className="w-4 h-4" />
+                            </Button>
                             <Button
                               type="button"
                               variant="ghost"
                               size="sm"
                               onClick={() => handleEditFinancial(index)}
-                              className="h-7 w-7 p-0"
+                              className="h-8 w-8 p-0"
                             >
-                              <Edit className="w-3 h-3" />
+                              <Edit className="w-4 h-4" />
                             </Button>
                             <Button
                               type="button"
                               variant="ghost"
                               size="sm"
                               onClick={() => handleRemoveFinancial(index)}
-                              className="h-7 w-7 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
+                              className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
                             >
-                              <Trash2 className="w-3 h-3" />
+                              <Trash2 className="w-4 h-4" />
                             </Button>
                           </div>
-                        </td>
-                      </tr>
+                        </TableCell>
+                      </TableRow>
                     ))}
-                  </tbody>
-                </table>
+                  </TableBody>
+                </Table>
               </div>
             ) : (
               <p className="text-sm text-gray-500 text-center py-8">No financial records yet</p>
@@ -468,34 +477,34 @@ export default function GigFinancialsSection({
               </div>
               <div>
                 <Label htmlFor="modal-amount">Amount</Label>
-                <div className="flex gap-2">
-                  <Select 
-                    value={modalData.currency} 
-                    onValueChange={(value) => setModalData({ ...modalData, currency: value })}
-                  >
-                    <SelectTrigger className="w-[80px]">
-                      <SelectValue placeholder="USD" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {CURRENCY_OPTIONS.map((opt) => (
-                        <SelectItem key={opt.code} value={opt.code}>{opt.code}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <div className="relative flex-1">
-                    <span className="absolute left-2 top-1/2 transform -translate-y-1/2 text-sm text-gray-500">
-                      {CURRENCY_OPTIONS.find(c => c.code === modalData.currency)?.symbol || '$'}
-                    </span>
-                    <Input
-                      id="modal-amount"
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      placeholder="0.00"
-                      className="pl-6"
-                      value={modalData.amount}
-                      onChange={(e) => setModalData({ ...modalData, amount: e.target.value })}
-                    />
+                <div className="relative flex items-center">
+                  <span className="absolute left-3 text-sm text-gray-500 font-medium">
+                    {CURRENCY_OPTIONS.find(c => c.code === modalData.currency)?.symbol || '$'}
+                  </span>
+                  <Input
+                    id="modal-amount"
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    placeholder="0.00"
+                    className="pl-8 pr-16"
+                    value={modalData.amount}
+                    onChange={(e) => setModalData({ ...modalData, amount: e.target.value })}
+                  />
+                  <div className="absolute right-2">
+                    <Select 
+                      value={modalData.currency} 
+                      onValueChange={(value) => setModalData({ ...modalData, currency: value })}
+                    >
+                      <SelectTrigger className="h-5 w-auto min-w-[42px] px-1.5 py-0 text-[12px] font-normal uppercase border-none bg-sky-100 text-sky-700 hover:bg-sky-200 transition-colors rounded-full shadow-none focus:ring-0">
+                        <SelectValue placeholder="USD" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {CURRENCY_OPTIONS.map((opt) => (
+                          <SelectItem key={opt.code} value={opt.code} className="text-xs">{opt.code}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
                 </div>
               </div>
@@ -516,7 +525,7 @@ export default function GigFinancialsSection({
                 </Select>
               </div>
               <div>
-                <Label htmlFor="modal-category">Category</Label>
+                <Label htmlFor="modal-category">Expense Category</Label>
                 <Select value={modalData.category} onValueChange={(value: FinCategory) => setModalData({ ...modalData, category: value })}>
                   <SelectTrigger>
                     <SelectValue placeholder="Select category" />
@@ -561,27 +570,26 @@ export default function GigFinancialsSection({
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label>Counterparty (Internal Organization)</Label>
-                <OrganizationSelector
-                  selectedOrganization={selectedCounterparty}
-                  onSelect={(org) => {
-                    setSelectedCounterparty(org);
-                    setModalData({ ...modalData, counterparty_id: org?.id || '' });
-                  }}
-                  placeholder="Search for internal organization..."
-                />
-              </div>
-              <div>
-                <Label htmlFor="modal-external-entity">External Entity (Client/Vendor)</Label>
-                <Input
-                  id="modal-external-entity"
-                  value={modalData.external_entity_name}
-                  onChange={(e) => setModalData({ ...modalData, external_entity_name: e.target.value })}
-                  placeholder="External client or vendor name"
-                />
-              </div>
+            <div>
+              <Label>Counterparty (Internal Organization)</Label>
+              <OrganizationSelector
+                selectedOrganization={selectedCounterparty}
+                onSelect={(org) => {
+                  setSelectedCounterparty(org);
+                  setModalData({ ...modalData, counterparty_id: org?.id || '' });
+                }}
+                placeholder="Search for internal organization..."
+              />
+            </div>
+
+            <div>
+              <Label htmlFor="modal-external-entity">External Entity (Client/Vendor)</Label>
+              <Input
+                id="modal-external-entity"
+                value={modalData.external_entity_name}
+                onChange={(e) => setModalData({ ...modalData, external_entity_name: e.target.value })}
+                placeholder="External client or vendor name"
+              />
             </div>
 
             <div className="grid grid-cols-2 gap-4">
