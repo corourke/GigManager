@@ -37,7 +37,14 @@ const financialSchema = z.object({
   }, 'Amount must be a positive number'),
   type: z.string(),
   category: z.string(),
-  description: z.string().optional(),
+  description: z.string().optional().default(''),
+  reference_number: z.string().optional().default(''),
+  counterparty_id: z.string().optional().default(''),
+  external_entity_name: z.string().optional().default(''),
+  currency: z.string().optional().default('USD'),
+  due_date: z.string().optional().default(''),
+  paid_at: z.string().optional().default(''),
+  notes: z.string().optional().default(''),
 });
 
 const financialsFormSchema = z.object({
@@ -53,12 +60,13 @@ interface FinancialData {
   type: FinType;
   category: FinCategory;
   description: string;
-  reference_number?: string;
-  counterparty_id?: string;
-  external_entity_name?: string;
-  currency?: string;
-  due_date?: string;
-  paid_at?: string;
+  reference_number: string;
+  counterparty_id: string;
+  external_entity_name: string;
+  currency: string;
+  due_date: string;
+  paid_at: string;
+  notes: string;
 }
 
 interface FinancialModalData {
@@ -91,6 +99,7 @@ export default function GigFinancialsSection({
   const [isLoading, setIsLoading] = useState(true);
   const [showFinancialModal, setShowFinancialModal] = useState(false);
   const [currentFinancialIndex, setCurrentFinancialIndex] = useState<number | null>(null);
+  const [selectedCounterparty, setSelectedCounterparty] = useState<any>(null);
   const [showNotesModal, setShowNotesModal] = useState<number | null>(null);
   const [currentNotes, setCurrentNotes] = useState('');
   const [modalData, setModalData] = useState<FinancialModalData>({
@@ -143,6 +152,13 @@ export default function GigFinancialsSection({
       type: f.type as FinType,
       category: f.category as FinCategory,
       description: f.description || '',
+      reference_number: f.reference_number || '',
+      counterparty_id: f.counterparty_id || '',
+      external_entity_name: f.external_entity_name || '',
+      currency: f.currency || 'USD',
+      due_date: f.due_date || '',
+      paid_at: f.paid_at || '',
+      notes: f.notes || '',
     })));
   }, [gigId, currentOrganizationId]);
 
@@ -185,6 +201,7 @@ export default function GigFinancialsSection({
         description: f.description || '',
         reference_number: f.reference_number || '',
         counterparty_id: f.counterparty_id || '',
+        counterparty: f.counterparty || null,
         external_entity_name: f.external_entity_name || '',
         currency: f.currency || 'USD',
         due_date: f.due_date || '',
@@ -216,6 +233,7 @@ export default function GigFinancialsSection({
       paid_at: '',
       notes: '',
     });
+    setSelectedCounterparty(null);
     setCurrentFinancialIndex(null);
     setShowFinancialModal(true);
   };
@@ -237,6 +255,7 @@ export default function GigFinancialsSection({
       paid_at: financial.paid_at || '',
       notes: financial.notes || '',
     });
+    setSelectedCounterparty(financial.counterparty || null);
     setCurrentFinancialIndex(index);
     setShowFinancialModal(true);
   };
@@ -262,6 +281,8 @@ export default function GigFinancialsSection({
       Object.entries(modalData).forEach(([key, value]) => {
         setValue(`financials.${currentFinancialIndex}.${key}` as any, value, { shouldDirty: true });
       });
+      // Save the counterparty object for display in the table/selector next time
+      setValue(`financials.${currentFinancialIndex}.counterparty` as any, selectedCounterparty, { shouldDirty: true });
     } else {
       // Add new
       append({
@@ -271,6 +292,13 @@ export default function GigFinancialsSection({
         type: modalData.type,
         category: modalData.category,
         description: modalData.description,
+        reference_number: modalData.reference_number,
+        counterparty_id: modalData.counterparty_id,
+        counterparty: selectedCounterparty, // Save the counterparty object
+        external_entity_name: modalData.external_entity_name,
+        currency: modalData.currency,
+        due_date: modalData.due_date,
+        paid_at: modalData.paid_at,
         notes: modalData.notes,
       });
     }
@@ -291,9 +319,14 @@ export default function GigFinancialsSection({
     }
   };
 
-  const formatCurrency = (amount: string) => {
+  const formatCurrency = (amount: string, currency: string = 'USD') => {
     const num = parseFloat(amount);
-    return isNaN(num) ? '$0.00' : `$${num.toFixed(2)}`;
+    if (isNaN(num)) return '$0.00';
+    
+    const opt = CURRENCY_OPTIONS.find(c => c.code === currency);
+    const symbol = opt?.symbol || '$';
+    
+    return `${symbol}${num.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   };
 
   const formatDate = (dateStr: string) => {
@@ -367,7 +400,7 @@ export default function GigFinancialsSection({
                           {FIN_TYPE_CONFIG[field.type as FinType]?.label || field.type}
                         </td>
                         <td className="border border-gray-200 px-3 py-2 text-sm text-right font-mono">
-                          {formatCurrency(field.amount)}
+                          {formatCurrency(field.amount, field.currency)}
                         </td>
                         <td className="border border-gray-200 px-3 py-2 text-sm">
                           {field.description || '-'}
@@ -435,18 +468,35 @@ export default function GigFinancialsSection({
               </div>
               <div>
                 <Label htmlFor="modal-amount">Amount</Label>
-                <div className="relative">
-                  <span className="absolute left-2 top-1/2 transform -translate-y-1/2 text-sm text-gray-500">$</span>
-                  <Input
-                    id="modal-amount"
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    placeholder="0.00"
-                    className="pl-6"
-                    value={modalData.amount}
-                    onChange={(e) => setModalData({ ...modalData, amount: e.target.value })}
-                  />
+                <div className="flex gap-2">
+                  <Select 
+                    value={modalData.currency} 
+                    onValueChange={(value) => setModalData({ ...modalData, currency: value })}
+                  >
+                    <SelectTrigger className="w-[80px]">
+                      <SelectValue placeholder="USD" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {CURRENCY_OPTIONS.map((opt) => (
+                        <SelectItem key={opt.code} value={opt.code}>{opt.code}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <div className="relative flex-1">
+                    <span className="absolute left-2 top-1/2 transform -translate-y-1/2 text-sm text-gray-500">
+                      {CURRENCY_OPTIONS.find(c => c.code === modalData.currency)?.symbol || '$'}
+                    </span>
+                    <Input
+                      id="modal-amount"
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      placeholder="0.00"
+                      className="pl-6"
+                      value={modalData.amount}
+                      onChange={(e) => setModalData({ ...modalData, amount: e.target.value })}
+                    />
+                  </div>
                 </div>
               </div>
             </div>
@@ -501,28 +551,6 @@ export default function GigFinancialsSection({
                 />
               </div>
               <div>
-                <Label htmlFor="modal-currency">Currency</Label>
-                <Input
-                  id="modal-currency"
-                  value={modalData.currency}
-                  onChange={(e) => setModalData({ ...modalData, currency: e.target.value })}
-                  placeholder="USD"
-                />
-              </div>
-            </div>
-
-            <div>
-              <Label htmlFor="modal-external-entity">External Entity</Label>
-              <Input
-                id="modal-external-entity"
-                value={modalData.external_entity_name}
-                onChange={(e) => setModalData({ ...modalData, external_entity_name: e.target.value })}
-                placeholder="Client name, vendor name, etc."
-              />
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div>
                 <Label htmlFor="modal-due-date">Due Date</Label>
                 <Input
                   id="modal-due-date"
@@ -531,15 +559,52 @@ export default function GigFinancialsSection({
                   onChange={(e) => setModalData({ ...modalData, due_date: e.target.value })}
                 />
               </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label>Counterparty (Internal Organization)</Label>
+                <OrganizationSelector
+                  selectedOrganization={selectedCounterparty}
+                  onSelect={(org) => {
+                    setSelectedCounterparty(org);
+                    setModalData({ ...modalData, counterparty_id: org?.id || '' });
+                  }}
+                  placeholder="Search for internal organization..."
+                />
+              </div>
+              <div>
+                <Label htmlFor="modal-external-entity">External Entity (Client/Vendor)</Label>
+                <Input
+                  id="modal-external-entity"
+                  value={modalData.external_entity_name}
+                  onChange={(e) => setModalData({ ...modalData, external_entity_name: e.target.value })}
+                  placeholder="External client or vendor name"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
               <div>
                 <Label htmlFor="modal-paid-at">Paid Date</Label>
                 <Input
                   id="modal-paid-at"
-                  type="datetime-local"
-                  value={modalData.paid_at}
+                  type="date"
+                  value={modalData.paid_at ? modalData.paid_at.split('T')[0] : ''}
                   onChange={(e) => setModalData({ ...modalData, paid_at: e.target.value })}
                 />
               </div>
+            </div>
+
+            <div>
+              <Label htmlFor="modal-notes">Notes</Label>
+              <Textarea
+                id="modal-notes"
+                value={modalData.notes}
+                onChange={(e) => setModalData({ ...modalData, notes: e.target.value })}
+                placeholder="Internal notes (not shown on invoices)"
+                rows={3}
+              />
             </div>
           </div>
 

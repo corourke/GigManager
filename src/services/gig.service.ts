@@ -757,7 +757,11 @@ export async function checkKitConflicts(kitId: string, gigId: string, startTime:
 export async function getGigFinancials(gigId: string, organizationId?: string) {
   const supabase = getSupabase();
   try {
-    let query = supabase.from('gig_financials').select('*').eq('gig_id', gigId).order('date', { ascending: false });
+    let query = supabase
+      .from('gig_financials')
+      .select('*, counterparty:organizations(*)')
+      .eq('gig_id', gigId)
+      .order('date', { ascending: false });
     if (organizationId) query = query.eq('organization_id', organizationId);
     const { data, error } = await query;
     if (error) throw error;

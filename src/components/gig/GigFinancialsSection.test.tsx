@@ -90,11 +90,11 @@ describe('GigFinancialsSection', () => {
     // Check financial records (dates may vary slightly due to formatting)
     expect(screen.getAllByText(/Jan \d+, 2024/)).toHaveLength(2);
     expect(screen.getByText('Payment Received')).toBeInTheDocument();
-    expect(screen.getByText('$5000.00')).toBeInTheDocument();
+    expect(screen.getByText('$5,000.00')).toBeInTheDocument();
     expect(screen.getByText('Initial payment')).toBeInTheDocument();
     
     expect(screen.getByText('Expense Incurred')).toBeInTheDocument();
-    expect(screen.getByText('$1200.00')).toBeInTheDocument();
+    expect(screen.getByText('$1,200.00')).toBeInTheDocument();
     expect(screen.getByText('Camera rental')).toBeInTheDocument();
   });
 
