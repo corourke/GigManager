@@ -12,11 +12,20 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '../ui/dialog';
 import { Textarea } from '../ui/textarea';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table';
+import OrganizationSelector from '../OrganizationSelector';
 import { getGigFinancials, updateGigFinancials, createGigFinancial, deleteGigFinancial } from '../../services/gig.service';
 import { useAutoSave } from '../../utils/hooks/useAutoSave';
 import SaveStateIndicator from './SaveStateIndicator';
 import { UserRole, FinType, FinCategory } from '../../utils/supabase/types';
 import { FIN_TYPE_CONFIG, FIN_CATEGORY_CONFIG } from '../../utils/supabase/constants';
+
+const CURRENCY_OPTIONS = [
+  { code: 'USD', symbol: '$', name: 'US Dollar' },
+  { code: 'CAD', symbol: 'C$', name: 'Canadian Dollar' },
+  { code: 'EUR', symbol: '€', name: 'Euro' },
+  { code: 'GBP', symbol: '£', name: 'British Pound' },
+];
 
 const financialSchema = z.object({
   id: z.string(),
@@ -65,6 +74,7 @@ interface FinancialModalData {
   currency: string;
   due_date: string;
   paid_at: string;
+  notes: string;
 }
 
 interface GigFinancialsSectionProps {
@@ -81,6 +91,8 @@ export default function GigFinancialsSection({
   const [isLoading, setIsLoading] = useState(true);
   const [showFinancialModal, setShowFinancialModal] = useState(false);
   const [currentFinancialIndex, setCurrentFinancialIndex] = useState<number | null>(null);
+  const [showNotesModal, setShowNotesModal] = useState<number | null>(null);
+  const [currentNotes, setCurrentNotes] = useState('');
   const [modalData, setModalData] = useState<FinancialModalData>({
     date: format(new Date(), 'yyyy-MM-dd'),
     amount: '',
@@ -93,6 +105,7 @@ export default function GigFinancialsSection({
     currency: 'USD',
     due_date: '',
     paid_at: '',
+    notes: '',
   });
 
   // Only show to admins
@@ -176,6 +189,7 @@ export default function GigFinancialsSection({
         currency: f.currency || 'USD',
         due_date: f.due_date || '',
         paid_at: f.paid_at || '',
+        notes: f.notes || '',
       }));
 
       reset({ financials: loadedFinancials });
@@ -200,6 +214,7 @@ export default function GigFinancialsSection({
       currency: 'USD',
       due_date: '',
       paid_at: '',
+      notes: '',
     });
     setCurrentFinancialIndex(null);
     setShowFinancialModal(true);
@@ -220,6 +235,7 @@ export default function GigFinancialsSection({
       currency: financial.currency || 'USD',
       due_date: financial.due_date || '',
       paid_at: financial.paid_at || '',
+      notes: financial.notes || '',
     });
     setCurrentFinancialIndex(index);
     setShowFinancialModal(true);
@@ -255,9 +271,24 @@ export default function GigFinancialsSection({
         type: modalData.type,
         category: modalData.category,
         description: modalData.description,
+        notes: modalData.notes,
       });
     }
     setShowFinancialModal(false);
+  };
+
+  const handleOpenNotes = (index: number) => {
+    const financial = fields[index];
+    setCurrentNotes(financial.notes || '');
+    setShowNotesModal(index);
+  };
+
+  const handleSaveNotes = () => {
+    if (showNotesModal !== null) {
+      setValue(`financials.${showNotesModal}.notes`, currentNotes, { shouldDirty: true });
+      setShowNotesModal(null);
+      setCurrentNotes('');
+    }
   };
 
   const formatCurrency = (amount: string) => {
