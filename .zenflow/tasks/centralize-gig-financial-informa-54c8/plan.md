@@ -1,7 +1,7 @@
 # Spec and build
 
 ## Configuration
-- **Artifacts Path**: {@artifacts_path} → `.zenflow/tasks/{task_id}`
+- **Artifacts Path**: `.zenflow/tasks/centralize-gig-financial-informa-54c8`
 
 ---
 
@@ -18,47 +18,38 @@ Do not make assumptions on important decisions — get clarification first.
 
 ## Workflow Steps
 
-### [ ] Step: Technical Specification
+### [x] Step: Technical Specification
 
-Assess the task's difficulty, as underestimating it leads to poor outcomes.
-- easy: Straightforward implementation, trivial bug fix or feature
-- medium: Moderate complexity, some edge cases or caveats to consider
-- hard: Complex logic, many caveats, architectural considerations, or high-risk changes
-
-Create a technical specification for the task that is appropriate for the complexity level:
-- Review the existing codebase architecture and identify reusable components.
-- Define the implementation approach based on established patterns in the project.
-- Identify all source code files that will be created or modified.
-- Define any necessary data model, API, or interface changes.
-- Describe verification steps using the project's test and lint commands.
-
-Save the output to `{@artifacts_path}/spec.md` with:
-- Technical context (language, dependencies)
-- Implementation approach
-- Source code structure changes
-- Data model / API / interface changes
-- Verification approach
-
-If the task is complex enough, create a detailed implementation plan based on `{@artifacts_path}/spec.md`:
-- Break down the work into concrete tasks (incrementable, testable milestones)
-- Each task should reference relevant contracts and include verification steps
-- Replace the Implementation step below with the planned tasks
-
-Rule of thumb for step size: each step should represent a coherent unit of work (e.g., implement a component, add an API endpoint, write tests for a module). Avoid steps that are too granular (single function).
-
-Save to `{@artifacts_path}/plan.md`. If the feature is trivial and doesn't warrant this breakdown, keep the Implementation step below as is.
+Technical specification has been created in `spec.md`.
 
 ---
 
 ### [ ] Step: Implementation
 
-Implement the task according to the technical specification and general engineering best practices.
+#### [ ] Database Migration
+- Create `financial_type`, `financial_category`, `financial_status` enums.
+- Rename `gig_bids` to `gig_financials`.
+- Add new columns to `gig_financials`.
+- Migrate existing `gig_bids` data.
+- Migrate `gigs.amount_paid` to `gig_financials` as `Revenue` records.
+- Drop `gigs.amount_paid` column.
+- Update `create_gig_complex` RPC function.
+- Implement strict RLS policies for `gig_financials`.
 
-1. Break the task into steps where possible.
-2. Implement the required changes in the codebase.
-3. Add and run relevant tests and linters.
-4. Perform basic manual verification if applicable.
-5. After completion, write a report to `{@artifacts_path}/report.md` describing:
-   - What was implemented
-   - How the solution was tested
-   - The biggest issues or challenges encountered
+#### [ ] TypeScript Types and Constants
+- Update `src/utils/supabase/constants.ts` with new enums.
+- Update `src/utils/supabase/types.tsx` with `DbGigFinancial` interface and update `DbGig`.
+
+#### [ ] Gig Service Update
+- Update `src/services/gig.service.ts` to use `gig_financials` instead of `gig_bids`.
+- Handle `amount_paid` by querying/inserting into `gig_financials`.
+
+#### [ ] Edge Functions Update
+- Update `supabase/functions/server/index.ts` to use `gig_financials` where `amount_paid` was previously used.
+
+#### [ ] Frontend UI Update
+- Update UI components (e.g., `GigDetailScreen`, `GigBasicInfoSection`) to handle the new financial data structure.
+
+#### [ ] Verification
+- Run tests and linting.
+- Manual verification of financial workflows.
