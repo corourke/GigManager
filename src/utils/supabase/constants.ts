@@ -44,6 +44,48 @@ export const GIG_STATUS_CONFIG = {
 
 export type GigStatus = keyof typeof GIG_STATUS_CONFIG;
 
+export const FIN_TYPE_CONFIG = {
+  'Bid Submitted': { label: 'Bid Submitted' },
+  'Bid Accepted': { label: 'Bid Accepted' },
+  'Bid Rejected': { label: 'Bid Rejected' },
+  'Contract Submitted': { label: 'Contract Submitted' },
+  'Contract Revised': { label: 'Contract Revised' },
+  'Contract Signed': { label: 'Contract Signed' },
+  'Contract Rejected': { label: 'Contract Rejected' },
+  'Contract Cancelled': { label: 'Contract Cancelled' },
+  'Contract Settled': { label: 'Contract Settled' },
+  'Sub-Contract Submitted': { label: 'Sub-Contract Submitted' },
+  'Sub-Contract Revised': { label: 'Sub-Contract Revised' },
+  'Sub-Contract Signed': { label: 'Sub-Contract Signed' },
+  'Sub-Contract Rejected': { label: 'Sub-Contract Rejected' },
+  'Sub-Contract Cancelled': { label: 'Sub-Contract Cancelled' },
+  'Sub-Contract Settled': { label: 'Sub-Contract Settled' },
+  'Deposit Received': { label: 'Deposit Received' },
+  'Deposit Sent': { label: 'Deposit Sent' },
+  'Deposit Refunded': { label: 'Deposit Refunded' },
+  'Payment Sent': { label: 'Payment Sent' },
+  'Payment Recieved': { label: 'Payment Received' },
+  'Expense Incurred': { label: 'Expense Incurred' },
+  'Expense Reimbursed': { label: 'Expense Reimbursed' },
+  'Invoice Issued': { label: 'Invoice Issued' },
+  'Invoice Settled': { label: 'Invoice Settled' },
+} as const;
+
+export type FinType = keyof typeof FIN_TYPE_CONFIG;
+
+export const FIN_CATEGORY_CONFIG = {
+  'Labor': { label: 'Labor' },
+  'Equipment': { label: 'Equipment' },
+  'Transportation': { label: 'Transportation' },
+  'Venue': { label: 'Venue' },
+  'Production': { label: 'Production' },
+  'Insurance': { label: 'Insurance' },
+  'Rebillable': { label: 'Rebillable' },
+  'Other': { label: 'Other' },
+} as const;
+
+export type FinCategory = keyof typeof FIN_CATEGORY_CONFIG;
+
 export function getOrgTypeIcon(type: OrganizationType) {
   return ORG_TYPE_CONFIG[type].icon;
 }

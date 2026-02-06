@@ -2263,53 +2263,42 @@ Deno.serve(async (req) => {
       const endOfLastMonth = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59);
       const startOfYear = new Date(now.getFullYear(), 0, 1);
 
-      // Revenue this month
-      const { data: thisMonthGigs } = await supabaseAdmin
-        .from('gig_participants')
-        .select('gig_id, gigs!inner(amount_paid, start)')
-        .eq('organization_id', orgId)
-        .gte('gigs.start', startOfMonth.toISOString());
-
+      // Revenue calculations using gig_financials
       let revenueThisMonth = 0;
-      if (isAdminOrManager) {
-        (thisMonthGigs || []).forEach((gp: any) => {
-          if (gp.gigs?.amount_paid) {
-            revenueThisMonth += parseFloat(gp.gigs.amount_paid);
-          }
-        });
-      }
-
-      // Revenue last month
-      const { data: lastMonthGigs } = await supabaseAdmin
-        .from('gig_participants')
-        .select('gig_id, gigs!inner(amount_paid, start)')
-        .eq('organization_id', orgId)
-        .gte('gigs.start', startOfLastMonth.toISOString())
-        .lte('gigs.start', endOfLastMonth.toISOString());
-
       let revenueLastMonth = 0;
-      if (isAdminOrManager) {
-        (lastMonthGigs || []).forEach((gp: any) => {
-          if (gp.gigs?.amount_paid) {
-            revenueLastMonth += parseFloat(gp.gigs.amount_paid);
-          }
-        });
-      }
-
-      // Revenue this year
-      const { data: thisYearGigs } = await supabaseAdmin
-        .from('gig_participants')
-        .select('gig_id, gigs!inner(amount_paid, start)')
-        .eq('organization_id', orgId)
-        .gte('gigs.start', startOfYear.toISOString());
-
       let revenueThisYear = 0;
+
       if (isAdminOrManager) {
-        (thisYearGigs || []).forEach((gp: any) => {
-          if (gp.gigs?.amount_paid) {
-            revenueThisYear += parseFloat(gp.gigs.amount_paid);
-          }
-        });
+        // Revenue this month
+        const { data: thisMonthFin } = await supabaseAdmin
+          .from('gig_financials')
+          .select('amount')
+          .eq('organization_id', orgId)
+          .eq('type', 'Payment Recieved')
+          .gte('date', startOfMonth.toISOString().split('T')[0]);
+        
+        revenueThisMonth = (thisMonthFin || []).reduce((sum: number, f: any) => sum + parseFloat(f.amount), 0);
+
+        // Revenue last month
+        const { data: lastMonthFin } = await supabaseAdmin
+          .from('gig_financials')
+          .select('amount')
+          .eq('organization_id', orgId)
+          .eq('type', 'Payment Recieved')
+          .gte('date', startOfLastMonth.toISOString().split('T')[0])
+          .lte('date', endOfLastMonth.toISOString().split('T')[0]);
+        
+        revenueLastMonth = (lastMonthFin || []).reduce((sum: number, f: any) => sum + parseFloat(f.amount), 0);
+
+        // Revenue this year
+        const { data: thisYearFin } = await supabaseAdmin
+          .from('gig_financials')
+          .select('amount')
+          .eq('organization_id', orgId)
+          .eq('type', 'Payment Recieved')
+          .gte('date', startOfYear.toISOString().split('T')[0]);
+        
+        revenueThisYear = (thisYearFin || []).reduce((sum: number, f: any) => sum + parseFloat(f.amount), 0);
       }
 
       // Get upcoming gigs (next 30 days)

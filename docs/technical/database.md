@@ -2,7 +2,7 @@
 
 **Purpose**: This document provides the complete database schema, Supabase integration details, and data access patterns for the GigManager application.
 
-**Last Updated**: 2026-01-28
+**Last Updated**: 2026-02-05
 
 ---
 
@@ -14,7 +14,7 @@
 4. [Enum Types](#enum-types)
 5. [Core Tables](#core-tables)
 6. [Gig Management Tables](#gig-management-tables)
-7. [Bid Management](#bid-management)
+7. [Financial Management](#financial-management)
 8. [Staff Management Tables](#staff-management-tables)
 9. [Equipment Tables](#equipment-tables)
 10. [Row-Level Security (RLS)](#row-level-security-rls)
@@ -104,9 +104,10 @@ erDiagram
   GIGS ||--o{ GIG_PARTICIPANTS : links
   ORGANIZATIONS ||--o{ GIG_PARTICIPANTS : participates
 
-  %% Bid management
-  GIGS ||--o{ GIG_BIDS : has
-  ORGANIZATIONS ||--o{ GIG_BIDS : owns
+  %% Financial management
+  GIGS ||--o{ GIG_FINANCIALS : has
+  ORGANIZATIONS ||--o{ GIG_FINANCIALS : counterparty
+  ORGANIZATIONS ||--o{ GIG_FINANCIALS : owns
 
   %% Staff management
   USERS ||--o{ GIG_STAFF_ASSIGNMENTS : assigned_to
@@ -157,6 +158,44 @@ Tracks the lifecycle of a gig.
 - `Completed`
 - `Cancelled`
 - `Settled`
+
+### fin_type
+Tracks the type of financial record/transaction.
+- `Bid Submitted`
+- `Bid Accepted`
+- `Bid Rejected`
+- `Contract Submitted`
+- `Contract Revised`
+- `Contract Signed`
+- `Contract Rejected`
+- `Contract Cancelled`
+- `Contract Settled`
+- `Sub-Contract Submitted`
+- `Sub-Contract Revised`
+- `Sub-Contract Signed`
+- `Sub-Contract Rejected`
+- `Sub-Contract Cancelled`
+- `Sub-Contract Settled`
+- `Deposit Received`
+- `Deposit Sent`
+- `Deposit Refunded`
+- `Payment Sent`
+- `Payment Recieved`
+- `Expense Incurred`
+- `Expense Reimbursed`
+- `Invoice Issued`
+- `Invoice Settled`
+
+### fin_category
+Categorizes financial records for reporting.
+- `Labor`
+- `Equipment`
+- `Transportation`
+- `Venue`
+- `Production`
+- `Insurance`
+- `Rebillable`
+- `Other`
 
 ---
 
@@ -261,7 +300,9 @@ Main gig records with status, dates, and details
 | status | GigStatus | Gig status enum: DateHold, Proposed, Booked, Completed, Cancelled, Settled (NOT NULL) |
 | tags | TEXT[] | Array of tags for categorization (default '{}') |
 | notes | TEXT | Long text field for freeform notes (Markdown-formatted, nullable) |
-| amount_paid | DECIMAL(10,2) | Total revenue collected for this gig (nullable) |
+| venue_address | TEXT | Specific address for the gig (nullable) |
+| settlement_type | settlement_type | Type of settlement (nullable) |
+| settlement_amount | DECIMAL(10,2) | Amount for settlement (nullable) |
 | created_by | UUID | Reference to users.id (informational, NOT NULL) |
 | updated_by | UUID | Reference to users.id (informational, NOT NULL) |
 | created_at | TIMESTAMPTZ | Record creation timestamp (NOT NULL) |
@@ -321,27 +362,39 @@ Organizations participating in a gig (venue, act, production, etc.) Note that th
 
 ---
 
-## Bid Management
+## Financial Management
 
-### gig_bids
+### gig_financials
 
-Bid tracking for gigs
+Centralized tracking for bids, payments, expenses, and invoices.
 
 | Field | Type | Description |
 |-------|------|-------------|
 | id | UUID | Primary key |
-| organization_id | UUID | Reference to organizations.id (the owning organization) (nullable) |
 | gig_id | UUID | Reference to gigs.id (NOT NULL) |
-| amount | DECIMAL(10,2) | Bid/proposal amount (NOT NULL) |
-| date_given | DATE | Date the bid was given (NOT NULL) |
-| result | TEXT | Bid result: Pending, Accepted, Rejected, Withdrawn (nullable) |
-| notes | TEXT | Notes about the bid (nullable, Markdown-formatted) |
+| organization_id | UUID | Reference to organizations.id (the owning organization) (NOT NULL) |
+| type | fin_type | Type of financial record (e.g., 'Bid Submitted', 'Payment Recieved', 'Expense Incurred') (NOT NULL) |
+| category | fin_category | Category for reporting (e.g., 'Labor', 'Equipment') (NOT NULL) |
+| amount | DECIMAL(10,2) | Monetary amount (NOT NULL) |
+| currency | TEXT | Currency code (default 'USD') (NOT NULL) |
+| date | DATE | Transaction or record date (NOT NULL) |
+| due_date | DATE | Payment due date (nullable) |
+| paid_at | TIMESTAMPTZ | When payment was actually completed (nullable) |
+| reference_number| TEXT | Invoice, PO, or check number (nullable) |
+| counterparty_id | UUID | Reference to organizations.id for the other party in transaction (nullable) |
+| external_entity_name | TEXT | Name of counterparty if not in organizations table (nullable) |
+| description | TEXT | Detailed description or notes (nullable, Markdown-formatted) |
 | created_by | UUID | Reference to users.id (informational, NOT NULL) |
+| updated_by | UUID | Reference to users.id (informational, nullable) |
 | created_at | TIMESTAMPTZ | Record creation timestamp (NOT NULL) |
+| updated_at | TIMESTAMPTZ | Record last update timestamp (NOT NULL) |
 
 **Notes:**
-- `created_by` is stored as User.id but doesn't maintain a reverse relation
-- RLS is **DISABLED** on this table; access is controlled at the application layer.
+- `gig_financials` replaces the legacy `gig_bids` table and `gigs.amount_paid` column.
+- `Payment Recieved` is spelled with 'ie' to match database enum definition.
+- RLS is **ENABLED** on this table. Access is restricted to Admins of the owning organization.
+- `organization_id` represents the tenant who "owns" or is responsible for this financial record.
+- `counterparty_id` or `external_entity_name` tracks who the money is coming from or going to.
 
 ---
 
@@ -606,9 +659,9 @@ To optimize performance, the following indexes are implemented:
 - `idx_gig_staff_assignments_user_id`: On `gig_staff_assignments(user_id)`
 - `idx_staff_roles_name`: On `staff_roles(name)`
 
-### Bids, Invitations & Equipment
-- `idx_gig_bids_gig_id`: On `gig_bids(gig_id)`
-- `idx_gig_bids_org_id`: On `gig_bids(organization_id)`
+### Financials, Invitations & Equipment
+- `idx_gig_financials_gig_id`: On `gig_financials(gig_id)`
+- `idx_gig_financials_org_id`: On `gig_financials(organization_id)`
 - `idx_invitations_organization`: On `invitations(organization_id)`
 - `idx_invitations_email`: On `invitations(email)`
 - `idx_invitations_token`: On `invitations(token)`
@@ -645,6 +698,7 @@ To optimize performance, the following indexes are implemented:
 - `assets`
 - `kits`
 - `kit_assets`
+- `gig_financials`
 - `kv_store_de012ad4`
 
 **Tables with RLS DISABLED (Access control handled at application layer):**
@@ -653,7 +707,6 @@ To optimize performance, the following indexes are implemented:
 - `gig_participants`
 - `gig_staff_slots`
 - `gig_staff_assignments`
-- `gig_bids`
 - `gig_kit_assignments`
 
 **SELECT:**
@@ -680,8 +733,8 @@ To optimize performance, the following indexes are implemented:
 ### Role Hierarchy
 
 1. Admins have full control over the tenancy including user management, account settings, and so forth. They of course can manage all data. 
-2. Managers are intended to be able to manage (CRUD) all of the application data like Gigs, Assets, staffing, etc. We just wouldn't allow them to manage organization members or user roles. However they should be allowed to view and edit team member profiles. Bids (and all the nested tables), Assets, Kits, etc. are all avaiable to a Manager.
-3. Staff would be able to edit their own profile, View all gigs for their organization (excepting the Bids section), Accept/Decline staff assignments directed at them, View equipment including assets and kits, and view the team for their organization. 
+2. Managers are intended to be able to manage (CRUD) all of the application data like Gigs, Assets, staffing, etc. We just wouldn't allow them to manage organization members or user roles. However they should be allowed to view and edit team member profiles. Financials (and all the nested tables), Assets, Kits, etc. are all avaiable to a Manager.
+3. Staff would be able to edit their own profile, View all gigs for their organization (excepting the Financials section), Accept/Decline staff assignments directed at them, View equipment including assets and kits, and view the team for their organization. 
 4. Viewers can only edit their own profile, View basic gig information for gigs that their organization is a participant of. 
 
 ### Data Isolation

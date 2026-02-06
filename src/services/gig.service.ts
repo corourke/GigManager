@@ -2,6 +2,8 @@ import { createClient } from '../utils/supabase/client';
 import { 
   Gig, 
   GigStatus,
+  FinType,
+  FinCategory,
 } from '../utils/supabase/types';
 import { handleApiError } from '../utils/api-error-utils';
 import { getKit } from './kit.service';
@@ -81,7 +83,7 @@ export async function getGig(gigId: string) {
           )
         ),
         kit_assignments:gig_kit_assignments(*),
-        bids:gig_bids(*)
+        financials:gig_financials(*)
       `)
       .eq('id', gigId)
       .single();
@@ -121,6 +123,7 @@ export async function createGig(gigData: any) {
       hierarchy_depth = 0,
       participants = [],
       staff_slots = [],
+      amount_paid,
       ...restGigData
     } = gigData;
 
@@ -138,6 +141,19 @@ export async function createGig(gigData: any) {
 
     if (error) throw error;
     if (!data?.id) throw new Error('Gig creation failed to return an ID');
+
+    // If amount_paid is provided, create a financial record
+    if (amount_paid !== undefined && amount_paid !== null && parseFloat(amount_paid) > 0) {
+      await createGigFinancial({
+        gig_id: data.id,
+        organization_id: primary_organization_id,
+        amount: parseFloat(amount_paid),
+        date: new Date().toISOString().split('T')[0],
+        type: 'Payment Recieved',
+        category: 'Production',
+        description: 'Initial payment from import'
+      });
+    }
 
     // Fetch the full gig details for the response
     return await getGig(data.id);
@@ -210,7 +226,6 @@ export async function updateGig(gigId: string, gigData: {
   status?: GigStatus;
   tags?: string[];
   notes?: string;
-  amount_paid?: number | null;
   participants?: Array<{ 
     id?: string;
     organization_id: string; 
@@ -447,7 +462,6 @@ export async function duplicateGig(gigId: string, newTitle?: string) {
         status: 'Proposed',
         tags: originalGig.tags || [],
         notes: originalGig.notes,
-        amount_paid: originalGig.amount_paid,
         created_by: user.id,
         updated_by: user.id,
       })
@@ -496,17 +510,23 @@ export async function duplicateGig(gigId: string, newTitle?: string) {
       }
     }
 
-    if (originalGig.bids && originalGig.bids.length > 0) {
-      const bids = originalGig.bids.map((bid: any) => ({
+    if (originalGig.financials && originalGig.financials.length > 0) {
+      const financials = originalGig.financials.map((fin: any) => ({
         gig_id: newGig.id,
-        organization_id: bid.organization_id,
-        amount: bid.amount,
-        date_given: bid.date_given,
-        result: bid.result,
-        notes: bid.notes,
+        organization_id: fin.organization_id,
+        amount: fin.amount,
+        date: fin.date,
+        type: fin.type,
+        category: fin.category,
+        reference_number: fin.reference_number,
+        counterparty_id: fin.counterparty_id,
+        external_entity_name: fin.external_entity_name,
+        currency: fin.currency,
+        description: fin.description,
+        notes: fin.notes,
         created_by: user.id,
       }));
-      await supabase.from('gig_bids').insert(bids);
+      await supabase.from('gig_financials').insert(financials);
     }
 
     if (originalGig.kit_assignments && originalGig.kit_assignments.length > 0) {
@@ -732,31 +752,44 @@ export async function checkKitConflicts(kitId: string, gigId: string, startTime:
 }
 
 /**
- * Fetch bids for a gig
+ * Fetch financials for a gig
  */
-export async function getGigBids(gigId: string, organizationId?: string) {
+export async function getGigFinancials(gigId: string, organizationId?: string) {
   const supabase = getSupabase();
   try {
-    let query = supabase.from('gig_bids').select('*').eq('gig_id', gigId).order('date_given', { ascending: false });
+    let query = supabase.from('gig_financials').select('*').eq('gig_id', gigId).order('date', { ascending: false });
     if (organizationId) query = query.eq('organization_id', organizationId);
     const { data, error } = await query;
     if (error) throw error;
     return data || [];
   } catch (err) {
-    return handleApiError(err, 'fetch gig bids');
+    return handleApiError(err, 'fetch gig financials');
   }
 }
 
 /**
- * Create a new bid for a gig
+ * Legacy alias for getGigFinancials
  */
-export async function createGigBid(bidData: {
+export const getGigBids = getGigFinancials;
+
+/**
+ * Create a new financial record for a gig
+ */
+export async function createGigFinancial(finData: {
   gig_id: string;
   organization_id: string;
   amount: number;
-  date_given: string;
-  result?: string;
+  date: string;
+  type: FinType;
+  category: FinCategory;
+  reference_number?: string;
+  counterparty_id?: string;
+  external_entity_name?: string;
+  currency?: string;
+  description?: string;
   notes?: string;
+  due_date?: string;
+  paid_at?: string;
 }) {
   const supabase = getSupabase();
   try {
@@ -764,56 +797,100 @@ export async function createGigBid(bidData: {
     if (!session?.user) throw new Error('Not authenticated');
     const user = session.user;
 
-    const { data, error } = await supabase.from('gig_bids').insert({ ...bidData, created_by: user.id }).select().single();
+    const { data, error } = await supabase.from('gig_financials').insert({ ...finData, created_by: user.id }).select().single();
     if (error) throw error;
     return data;
   } catch (err) {
-    return handleApiError(err, 'create gig bid');
+    return handleApiError(err, 'create gig financial');
   }
 }
 
 /**
- * Update an existing bid
+ * Legacy alias for createGigFinancial
  */
-export async function updateGigBid(bidId: string, bidData: {
+export async function createGigBid(bidData: any) {
+  return createGigFinancial({
+    ...bidData,
+    date: bidData.date_given,
+    type: 'Bid Submitted',
+    category: 'Other'
+  });
+}
+
+/**
+ * Update an existing financial record
+ */
+export async function updateGigFinancial(finId: string, finData: {
   amount?: number;
-  date_given?: string;
-  result?: string;
+  date?: string;
+  type?: FinType;
+  category?: FinCategory;
+  reference_number?: string;
+  counterparty_id?: string;
+  external_entity_name?: string;
+  currency?: string;
+  description?: string;
   notes?: string;
+  due_date?: string;
+  paid_at?: string;
 }) {
   const supabase = getSupabase();
   try {
-    const { data, error } = await supabase.from('gig_bids').update(bidData).eq('id', bidId).select().single();
+    const { data, error } = await supabase.from('gig_financials').update(finData).eq('id', finId).select().single();
     if (error) throw error;
     return data;
   } catch (err) {
-    return handleApiError(err, 'update gig bid');
+    return handleApiError(err, 'update gig financial');
   }
 }
 
 /**
- * Delete a bid
+ * Legacy alias for updateGigFinancial
  */
-export async function deleteGigBid(bidId: string) {
+export async function updateGigBid(bidId: string, bidData: any) {
+  const mappedData: any = { ...bidData };
+  if (bidData.date_given) mappedData.date = bidData.date_given;
+  delete mappedData.date_given;
+  delete mappedData.result; // Dropped column
+  return updateGigFinancial(bidId, mappedData);
+}
+
+/**
+ * Delete a financial record
+ */
+export async function deleteGigFinancial(finId: string) {
   const supabase = getSupabase();
   try {
-    const { error } = await supabase.from('gig_bids').delete().eq('id', bidId);
+    const { error } = await supabase.from('gig_financials').delete().eq('id', finId);
     if (error) throw error;
     return { success: true };
   } catch (err) {
-    return handleApiError(err, 'delete gig bid');
+    return handleApiError(err, 'delete gig financial');
   }
 }
 
 /**
- * Update all bids for a gig
+ * Legacy alias for deleteGigFinancial
  */
-export async function updateGigBids(gigId: string, organizationId: string, bids: Array<{
+export const deleteGigBid = deleteGigFinancial;
+
+/**
+ * Update all financials for a gig
+ */
+export async function updateGigFinancials(gigId: string, organizationId: string, financials: Array<{
   id?: string;
   amount: number;
-  date_given: string;
-  result?: string | null;
-  notes?: string | null;
+  date: string;
+  type: FinType;
+  category: FinCategory;
+  reference_number?: string;
+  counterparty_id?: string;
+  external_entity_name?: string;
+  currency?: string;
+  description?: string;
+  notes?: string;
+  due_date?: string;
+  paid_at?: string;
 }>) {
   const supabase = getSupabase();
   try {
@@ -821,37 +898,46 @@ export async function updateGigBids(gigId: string, organizationId: string, bids:
     if (!session?.user) throw new Error('Not authenticated');
     const user = session.user;
 
-    const { data: existingBids, error: fetchError } = await supabase.from('gig_bids').select('id').eq('gig_id', gigId).eq('organization_id', organizationId);
+    const { data: existingFins, error: fetchError } = await supabase.from('gig_financials').select('id').eq('gig_id', gigId).eq('organization_id', organizationId);
     if (fetchError) throw fetchError;
 
-    const existingBidIds = existingBids?.map(b => b.id) || [];
-    const incomingBidIds = bids.filter(b => b.id && b.id.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i)).map(b => b.id!);
+    const existingIds = existingFins?.map(f => f.id) || [];
+    const incomingIds = financials.filter(f => f.id && f.id.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i)).map(f => f.id!);
 
-    const bidIdsToDelete = existingBidIds.filter(id => !incomingBidIds.includes(id));
-    if (bidIdsToDelete.length > 0) {
-      await supabase.from('gig_bids').delete().in('id', bidIdsToDelete);
+    const idsToDelete = existingIds.filter(id => !incomingIds.includes(id));
+    if (idsToDelete.length > 0) {
+      await supabase.from('gig_financials').delete().in('id', idsToDelete);
     }
 
-    for (const bid of bids) {
-      const bidData = {
+    for (const fin of financials) {
+      const finData = {
+        ...fin,
         gig_id: gigId,
         organization_id: organizationId,
-        amount: bid.amount,
-        date_given: bid.date_given,
-        result: bid.result || null,
-        notes: bid.notes || null,
       };
 
-      if (bid.id && existingBidIds.includes(bid.id)) {
-        await supabase.from('gig_bids').update(bidData).eq('id', bid.id);
+      if (fin.id && existingIds.includes(fin.id)) {
+        await supabase.from('gig_financials').update(finData).eq('id', fin.id);
       } else {
-        await supabase.from('gig_bids').insert({ ...bidData, created_by: user.id });
+        await supabase.from('gig_financials').insert({ ...finData, created_by: user.id });
       }
     }
     return { success: true };
   } catch (err) {
-    return handleApiError(err, 'update gig bids');
+    return handleApiError(err, 'update gig financials');
   }
+}
+
+/**
+ * Legacy alias for updateGigFinancials
+ */
+export async function updateGigBids(gigId: string, organizationId: string, bids: any[]) {
+  return updateGigFinancials(gigId, organizationId, bids.map(bid => ({
+    ...bid,
+    date: bid.date_given,
+    type: 'Bid Submitted',
+    category: 'Other'
+  })));
 }
 
 /**
