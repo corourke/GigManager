@@ -216,40 +216,40 @@ $$;
 -- 7. RLS Policies for gig_financials
 ALTER TABLE gig_financials ENABLE ROW LEVEL SECURITY;
 
--- Admins and Managers can see all financials for their organization
-CREATE POLICY "Admins and Managers can view their organization's financials"
+-- Only Admins can see all financials for their organization
+CREATE POLICY "Admins can view their organization's financials"
   ON gig_financials
   FOR SELECT
   TO authenticated
   USING (
-    user_is_admin_or_manager_of_org(organization_id, auth.uid())
+    user_is_admin_of_org(organization_id, auth.uid())
   );
 
-CREATE POLICY "Admins and Managers can insert their organization's financials"
+CREATE POLICY "Admins can insert their organization's financials"
   ON gig_financials
   FOR INSERT
   TO authenticated
   WITH CHECK (
-    user_is_admin_or_manager_of_org(organization_id, auth.uid())
+    user_is_admin_of_org(organization_id, auth.uid())
   );
 
-CREATE POLICY "Admins and Managers can update their organization's financials"
+CREATE POLICY "Admins can update their organization's financials"
   ON gig_financials
   FOR UPDATE
   TO authenticated
   USING (
-    user_is_admin_or_manager_of_org(organization_id, auth.uid())
+    user_is_admin_of_org(organization_id, auth.uid())
   )
   WITH CHECK (
-    user_is_admin_or_manager_of_org(organization_id, auth.uid())
+    user_is_admin_of_org(organization_id, auth.uid())
   );
 
-CREATE POLICY "Admins and Managers can delete their organization's financials"
+CREATE POLICY "Admins can delete their organization's financials"
   ON gig_financials
   FOR DELETE
   TO authenticated
   USING (
-    user_is_admin_or_manager_of_org(organization_id, auth.uid())
+    user_is_admin_of_org(organization_id, auth.uid())
   );
 
 -- Triggers for updated_at
