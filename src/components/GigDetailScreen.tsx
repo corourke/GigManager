@@ -17,6 +17,7 @@ import { Button } from './ui/button';
 import { Card } from './ui/card';
 import { Badge } from './ui/badge';
 import AppHeader from './AppHeader';
+import GigFinancialsSection from './gig/GigFinancialsSection';
 import { Organization, User, UserRole, Gig } from '../utils/supabase/types';
 import { GIG_STATUS_CONFIG, ORG_TYPE_CONFIG } from '../utils/supabase/constants';
 import { getGig, deleteGig, duplicateGig } from '../services/gig.service';
@@ -250,6 +251,15 @@ export default function GigDetailScreen({
                   <div className="whitespace-pre-wrap">{gig.notes}</div>
                 </div>
               </Card>
+            )}
+
+            {/* Financials Section */}
+            {canViewFinancials && (
+              <GigFinancialsSection 
+                gigId={gigId}
+                currentOrganizationId={organization.id}
+                userRole={userRole}
+              />
             )}
           </div>
 
