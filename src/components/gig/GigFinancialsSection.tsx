@@ -496,7 +496,7 @@ export default function GigFinancialsSection({
                       value={modalData.currency} 
                       onValueChange={(value) => setModalData({ ...modalData, currency: value })}
                     >
-                      <SelectTrigger className="h-5 w-auto min-w-[42px] px-1.5 py-0 text-[12px] font-normal uppercase border-none bg-sky-100 text-sky-700 hover:bg-sky-200 transition-colors rounded-full shadow-none focus:ring-0">
+                      <SelectTrigger className="h-4 w-auto min-w-[42px] px-1.5 py-0 text-[12px] font-normal uppercase border-none bg-sky-100 text-sky-700 hover:bg-sky-200 transition-colors rounded-full shadow-none focus:ring-0">
                         <SelectValue placeholder="USD" />
                       </SelectTrigger>
                       <SelectContent>
@@ -625,6 +625,43 @@ export default function GigFinancialsSection({
               disabled={!modalData.date || !modalData.amount || parseFloat(modalData.amount) <= 0}
             >
               {currentFinancialIndex !== null ? 'Update' : 'Add'} Financial Record
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showNotesModal !== null} onOpenChange={(open) => {
+        if (!open) {
+          setShowNotesModal(null);
+          setCurrentNotes('');
+        }
+      }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Financial Record Notes</DialogTitle>
+            <DialogDescription>
+              Internal notes for this financial record. These are not shown on public documents.
+            </DialogDescription>
+          </DialogHeader>
+          <Textarea
+            value={currentNotes}
+            onChange={(e) => setCurrentNotes(e.target.value)}
+            placeholder="Enter notes..."
+            rows={10}
+            onFocus={(e) => {
+              const len = e.target.value.length;
+              e.target.setSelectionRange(len, len);
+            }}
+          />
+          <DialogFooter>
+            <Button variant="outline" onClick={() => {
+              setShowNotesModal(null);
+              setCurrentNotes('');
+            }}>
+              Cancel
+            </Button>
+            <Button onClick={handleSaveNotes}>
+              Save Notes
             </Button>
           </DialogFooter>
         </DialogContent>
