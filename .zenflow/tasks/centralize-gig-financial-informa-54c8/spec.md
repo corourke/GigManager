@@ -14,15 +14,34 @@ Currently, gig financial information is split between the `gig_bids` table and t
 
 ### 3.1. New Enums
 ```sql
-CREATE TYPE financial_type AS ENUM (
-  'Bid',
-  'Contract',
-  'Expense',
-  'Invoice',
-  'Revenue'
+CREATE TYPE fin_type AS ENUM (
+'Bid Submitted',
+'Bid Accepted',
+'Bid Rejected',
+'Contract Submitted',
+'Contract Revised',
+'Contract Signed',
+'Contract Rejected',
+'Contract Cancelled',
+'Contract Settled',
+'Sub-Contract Submitted',
+'Sub-Contract Revised',
+'Sub-Contract Signed',
+'Sub-Contract Rejected',
+'Sub-Contract Cancelled',
+'Sub-Contract Settled',
+'Deposit Received',
+'Deposit Sent',
+'Deposit Refunded',
+'Payment Sent',
+'Payment Recieved',
+'Expense Incurred',
+'Expense Reimbursed',
+'Invoice Issued',
+'Invoice Settled'
 );
 
-CREATE TYPE financial_category AS ENUM (
+CREATE TYPE fin_category AS ENUM (
   'Labor',
   'Equipment',
   'Transportation',
@@ -33,16 +52,6 @@ CREATE TYPE financial_category AS ENUM (
   'Other'
 );
 
-CREATE TYPE financial_status AS ENUM (
-  'Draft',
-  'Pending',
-  'Approved',
-  'Rejected',
-  'Active',
-  'Paid',
-  'Cancelled',
-  'Settled'
-);
 ```
 
 ### 3.2. Table `gig_financials` (renamed from `gig_bids`)
@@ -51,17 +60,15 @@ CREATE TYPE financial_status AS ENUM (
 | `id` | UUID | Primary Key |
 | `gig_id` | UUID | FK to `gigs.id` (NOT NULL) |
 | `organization_id` | UUID | The organization that owns the record (FK to `organizations`, NOT NULL) |
+| `date` | DATE | Record date |
+| `type` | `fin_type` | Type of record (NOT NULL) |
+| `category` | `fin_category` | Category (NOT NULL) |
 | `counterparty_id` | UUID | The target organization (FK to `organizations`, NULLable) |
 | `external_entity_name` | TEXT | For external parties (when counterparty_id is null) |
-| `type` | `financial_type` | Type of record (NOT NULL) |
-| `category` | `financial_category` | Category (NOT NULL) |
-| `status` | `financial_status` | Status (NOT NULL) |
-| `reference_number` | TEXT | Invoice #, contract #, bid #, etc. |
-| `description` | TEXT | Item description |
 | `amount` | DECIMAL(12, 2) | Amount (NOT NULL) |
 | `currency` | TEXT | Default 'USD' |
-| `payment_method` | TEXT | e.g., 'Credit Card', 'Wire', 'Check' |
-| `date` | DATE | Record date |
+| `reference_number` | TEXT | Invoice #, contract #, bid #, etc. |
+| `description` | TEXT | Item description, method |
 | `due_date` | DATE | Payment due date |
 | `paid_at` | TIMESTAMPTZ | Payment timestamp |
 | `notes` | TEXT | Internal notes |
