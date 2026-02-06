@@ -47,3 +47,8 @@
 - [x] Invitation Flow: As an Admin or Manager, attempt to invite a new user to an organization. Verify that the invitation is created without RLS errors, and that the pending user record is properly linked.
 - [x] User Activation: Have a test user accept an invitation and sign up. Confirm that the pending user is converted to active status and that all organization memberships and invitations are updated correctly.
 - [x] Role Permissions: Verify that only Admins/Managers can perform invitations, and that other roles are blocked appropriately.
+
+### Gig Financials
+
+I want to change the data schema to centralize all financial information around gigs into one table (currently call gig_bids, but that could be renamed to something more appropriate.) Currently Bids are held in the gig_bids table and the amount paid for the gig is in a gigs.amount_paid. This is both too simplistic and makes enforcing security more complicated. Let's remove gigs.amount paid from the gigs table, and enhance the gig_bids table to handle any kind of financial matter around gigs -- so we bid on a gig, that bid gets accepted and then we have a contract. We may also have contracts or agreements with subcontrators, transportation, venues or rental houses. We may incur rebillable expenses. We may issue an invoice to one or more entities, and we may collect revenue from one or more entities. 
+I would like to start with a specification for the enhanced table and capability including fields, enumerations, and workflow rules. I want us to agree on the functionality and specifications, and then agree to a coding plan. Then implementation, automated testing and manual testing. 

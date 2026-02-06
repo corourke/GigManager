@@ -62,6 +62,105 @@ CREATE TYPE "public"."user_role" AS ENUM (
 ALTER TYPE "public"."user_role" OWNER TO "postgres";
 
 
+CREATE OR REPLACE FUNCTION "public"."convert_pending_user_to_active"("p_email" "text", "p_auth_user_id" "uuid") RETURNS "jsonb"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO 'public'
+    AS $$
+DECLARE
+  v_pending_user_id UUID;
+  v_existing_active_id UUID;
+  v_updated_user JSONB;
+BEGIN
+  -- 1. Check if the user already exists as active with the correct ID
+  SELECT id INTO v_existing_active_id
+  FROM public.users
+  WHERE id = p_auth_user_id
+  AND user_status = 'active';
+
+  IF v_existing_active_id IS NOT NULL THEN
+    -- Already active, just return the user data
+    SELECT jsonb_build_object(
+      'id', id,
+      'email', email,
+      'first_name', first_name,
+      'last_name', last_name,
+      'user_status', user_status
+    ) INTO v_updated_user
+    FROM public.users
+    WHERE id = v_existing_active_id;
+    
+    RETURN v_updated_user;
+  END IF;
+
+  -- 2. Find the pending user (case-insensitive email match)
+  SELECT id INTO v_pending_user_id 
+  FROM public.users 
+  WHERE LOWER(email) = LOWER(p_email) 
+  AND user_status = 'pending'
+  ORDER BY created_at DESC -- In case of multiple (shouldn't happen with unique constraint but just in case)
+  LIMIT 1;
+
+  IF v_pending_user_id IS NULL THEN
+    -- No pending user found. Check if there is an active user with this email but different ID
+    SELECT id INTO v_existing_active_id
+    FROM public.users
+    WHERE LOWER(email) = LOWER(p_email)
+    AND user_status = 'active'
+    LIMIT 1;
+
+    IF v_existing_active_id IS NOT NULL THEN
+      -- If we found an active user with a different ID, update their ID to match Auth
+      -- This handles cases where a user might have been created via a different path
+      UPDATE public.users
+      SET id = p_auth_user_id,
+          updated_at = now()
+      WHERE id = v_existing_active_id
+      RETURNING jsonb_build_object(
+        'id', id,
+        'email', email,
+        'first_name', first_name,
+        'last_name', last_name,
+        'user_status', user_status
+      ) INTO v_updated_user;
+      
+      RETURN v_updated_user;
+    END IF;
+
+    -- Truly no user found, return NULL so caller can handle creation if needed
+    RETURN NULL;
+  END IF;
+
+  -- 3. Update the pending user record to match Auth ID and set status to active
+  -- PK update will propagate via ON UPDATE CASCADE to other tables
+  UPDATE public.users
+  SET id = p_auth_user_id,
+      user_status = 'active',
+      updated_at = now()
+  WHERE id = v_pending_user_id
+  RETURNING jsonb_build_object(
+    'id', id,
+    'email', email,
+    'first_name', first_name,
+    'last_name', last_name,
+    'user_status', user_status
+  ) INTO v_updated_user;
+
+  -- 4. Update invitations to mark them as accepted
+  UPDATE public.invitations
+  SET status = 'accepted',
+      accepted_at = now(),
+      accepted_by = p_auth_user_id
+  WHERE LOWER(email) = LOWER(p_email)
+  AND status = 'pending';
+
+  RETURN v_updated_user;
+END;
+$$;
+
+
+ALTER FUNCTION "public"."convert_pending_user_to_active"("p_email" "text", "p_auth_user_id" "uuid") OWNER TO "postgres";
+
+
 CREATE OR REPLACE FUNCTION "public"."create_gig_complex"("p_gig_data" "jsonb", "p_participants" "jsonb" DEFAULT '[]'::"jsonb", "p_staff_slots" "jsonb" DEFAULT '[]'::"jsonb") RETURNS "jsonb"
     LANGUAGE "plpgsql" SECURITY DEFINER
     SET "search_path" TO 'public'
@@ -351,6 +450,319 @@ $$;
 ALTER FUNCTION "public"."get_user_role_in_org"("org_id" "uuid", "user_uuid" "uuid") OWNER TO "postgres";
 
 
+CREATE OR REPLACE FUNCTION "public"."invite_user_to_organization"("p_organization_id" "uuid", "p_email" "text", "p_role" "text", "p_first_name" "text" DEFAULT NULL::"text", "p_last_name" "text" DEFAULT NULL::"text") RETURNS "jsonb"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO 'public'
+    AS $$
+DECLARE
+  v_inviter_id UUID;
+  v_user_id UUID;
+  v_invitation_id UUID;
+  v_new_user JSONB;
+  v_invitation JSONB;
+BEGIN
+  -- 1. Check if caller is authenticated
+  v_inviter_id := auth.uid();
+  IF v_inviter_id IS NULL THEN
+    RAISE EXCEPTION 'Not authenticated';
+  END IF;
+
+  -- 2. Check if caller has permission (Admin or Manager of the organization)
+  IF NOT EXISTS (
+    SELECT 1 FROM public.organization_members
+    WHERE organization_id = p_organization_id
+    AND user_id = v_inviter_id
+    AND role IN ('Admin', 'Manager')
+  ) THEN
+    RAISE EXCEPTION 'Permission denied: Only Admins and Managers can invite users';
+  END IF;
+
+  -- 3. Check for existing active user
+  SELECT id INTO v_user_id FROM public.users WHERE email = p_email AND user_status = 'active';
+  IF v_user_id IS NOT NULL THEN
+    RAISE EXCEPTION 'A user with this email already exists and is active. Please use "Add Existing User" instead.';
+  END IF;
+
+  -- 4. Check for existing pending invitation
+  IF EXISTS (
+    SELECT 1 FROM public.invitations
+    WHERE organization_id = p_organization_id
+    AND email = p_email
+    AND status = 'pending'
+  ) THEN
+    RAISE EXCEPTION 'An invitation has already been sent to this email address';
+  END IF;
+
+  -- 5. Create or get pending user
+  SELECT id INTO v_user_id FROM public.users WHERE email = p_email AND user_status = 'pending';
+  
+  IF v_user_id IS NULL THEN
+    v_user_id := gen_random_uuid();
+    INSERT INTO public.users (
+      id, 
+      email, 
+      first_name, 
+      last_name, 
+      user_status
+    ) VALUES (
+      v_user_id,
+      p_email,
+      COALESCE(p_first_name, ''),
+      COALESCE(p_last_name, ''),
+      'pending'
+    )
+    RETURNING jsonb_build_object(
+      'id', id,
+      'email', email,
+      'first_name', first_name,
+      'last_name', last_name,
+      'user_status', user_status
+    ) INTO v_new_user;
+  ELSE
+    SELECT jsonb_build_object(
+      'id', id,
+      'email', email,
+      'first_name', first_name,
+      'last_name', last_name,
+      'user_status', user_status
+    ) INTO v_new_user FROM public.users WHERE id = v_user_id;
+  END IF;
+
+  -- 6. Add to organization_members if not already a member
+  IF NOT EXISTS (
+    SELECT 1 FROM public.organization_members
+    WHERE organization_id = p_organization_id
+    AND user_id = v_user_id
+  ) THEN
+    INSERT INTO public.organization_members (
+      organization_id,
+      user_id,
+      role
+    ) VALUES (
+      p_organization_id,
+      v_user_id,
+      p_role::public.user_role
+    );
+  END IF;
+
+  -- 7. Create invitation
+  INSERT INTO public.invitations (
+    organization_id,
+    email,
+    role,
+    invited_by,
+    token,
+    expires_at,
+    status
+  ) VALUES (
+    p_organization_id,
+    p_email,
+    p_role,
+    v_inviter_id,
+    gen_random_uuid()::text,
+    now() + interval '7 days',
+    'pending'
+  )
+  RETURNING jsonb_build_object(
+    'id', id,
+    'organization_id', organization_id,
+    'email', email,
+    'role', role,
+    'invited_by', invited_by,
+    'status', status,
+    'expires_at', expires_at
+  ) INTO v_invitation;
+
+  -- 8. Return combined result
+  RETURN jsonb_build_object(
+    'user', v_new_user,
+    'invitation', v_invitation
+  );
+END;
+$$;
+
+
+ALTER FUNCTION "public"."invite_user_to_organization"("p_organization_id" "uuid", "p_email" "text", "p_role" "text", "p_first_name" "text", "p_last_name" "text") OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."invite_user_to_organization"("p_organization_id" "uuid", "p_email" "text", "p_role" "text", "p_first_name" "text" DEFAULT NULL::"text", "p_last_name" "text" DEFAULT NULL::"text", "p_inviter_id" "uuid" DEFAULT NULL::"uuid") RETURNS "jsonb"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO 'public'
+    AS $$
+DECLARE
+  v_inviter_id UUID;
+  v_user_id UUID;
+  v_invitation_id UUID;
+  v_new_user JSONB;
+  v_invitation JSONB;
+  v_is_resend BOOLEAN := FALSE;
+BEGIN
+  -- 1. Determine inviter ID (passed explicitly from Edge Function or from auth.uid())
+  v_inviter_id := COALESCE(p_inviter_id, auth.uid());
+  
+  IF v_inviter_id IS NULL THEN
+    RAISE EXCEPTION 'Not authenticated: No inviter ID found';
+  END IF;
+
+  -- 2. Check if inviter has permission (Admin or Manager of the organization)
+  IF NOT EXISTS (
+    SELECT 1 FROM public.organization_members
+    WHERE organization_id = p_organization_id
+    AND user_id = v_inviter_id
+    AND role IN ('Admin', 'Manager')
+  ) THEN
+    RAISE EXCEPTION 'Permission denied: Only Admins and Managers can invite users';
+  END IF;
+
+  -- 3. Check for existing active user
+  SELECT id INTO v_user_id FROM public.users WHERE email = p_email AND user_status = 'active';
+  IF v_user_id IS NOT NULL THEN
+    -- Check if they are already a member of this organization
+    IF EXISTS (
+      SELECT 1 FROM public.organization_members
+      WHERE organization_id = p_organization_id
+      AND user_id = v_user_id
+    ) THEN
+      RAISE EXCEPTION 'This user is already an active member of this organization.';
+    END IF;
+    
+    RAISE EXCEPTION 'A user with this email already exists and is active in the system. Please use "Add Existing User" instead.';
+  END IF;
+
+  -- 4. Check for existing pending invitation
+  SELECT id INTO v_invitation_id FROM public.invitations
+    WHERE organization_id = p_organization_id
+    AND email = p_email
+    AND status = 'pending';
+  
+  IF v_invitation_id IS NOT NULL THEN
+    -- Update existing invitation to refresh token and expiry
+    UPDATE public.invitations
+    SET token = gen_random_uuid()::text,
+        expires_at = now() + interval '7 days',
+        invited_by = v_inviter_id,
+        role = p_role,
+        updated_at = now()
+    WHERE id = v_invitation_id
+    RETURNING jsonb_build_object(
+      'id', id,
+      'organization_id', organization_id,
+      'email', email,
+      'role', role,
+      'invited_by', invited_by,
+      'status', status,
+      'expires_at', expires_at
+    ) INTO v_invitation;
+
+    -- Get user data (they must exist if they have an invitation)
+    SELECT jsonb_build_object(
+      'id', id,
+      'email', email,
+      'first_name', first_name,
+      'last_name', last_name,
+      'user_status', user_status
+    ) INTO v_new_user FROM public.users WHERE email = p_email;
+
+    RETURN jsonb_build_object(
+      'user', v_new_user,
+      'invitation', v_invitation,
+      'resend', true
+    );
+  END IF;
+
+  -- 5. Create or get pending user (if no active user found in Step 3 and no pending invitation in Step 4)
+  SELECT id INTO v_user_id FROM public.users WHERE email = p_email AND user_status = 'pending';
+  
+  IF v_user_id IS NULL THEN
+    v_user_id := gen_random_uuid();
+    INSERT INTO public.users (
+      id, 
+      email, 
+      first_name, 
+      last_name, 
+      user_status
+    ) VALUES (
+      v_user_id,
+      p_email,
+      COALESCE(p_first_name, ''),
+      COALESCE(p_last_name, ''),
+      'pending'
+    )
+    RETURNING jsonb_build_object(
+      'id', id,
+      'email', email,
+      'first_name', first_name,
+      'last_name', last_name,
+      'user_status', user_status
+    ) INTO v_new_user;
+  ELSE
+    SELECT jsonb_build_object(
+      'id', id,
+      'email', email,
+      'first_name', first_name,
+      'last_name', last_name,
+      'user_status', user_status
+    ) INTO v_new_user FROM public.users WHERE id = v_user_id;
+  END IF;
+
+  -- 6. Add to organization_members if not already a member
+  IF NOT EXISTS (
+    SELECT 1 FROM public.organization_members
+    WHERE organization_id = p_organization_id
+    AND user_id = v_user_id
+  ) THEN
+    INSERT INTO public.organization_members (
+      organization_id,
+      user_id,
+      role
+    ) VALUES (
+      p_organization_id,
+      v_user_id,
+      p_role::public.user_role
+    );
+  END IF;
+
+  -- 7. Create invitation
+  INSERT INTO public.invitations (
+    organization_id,
+    email,
+    role,
+    invited_by,
+    token,
+    expires_at,
+    status
+  ) VALUES (
+    p_organization_id,
+    p_email,
+    p_role,
+    v_inviter_id,
+    gen_random_uuid()::text,
+    now() + interval '7 days',
+    'pending'
+  )
+  RETURNING jsonb_build_object(
+    'id', id,
+    'organization_id', organization_id,
+    'email', email,
+    'role', role,
+    'invited_by', invited_by,
+    'status', status,
+    'expires_at', expires_at
+  ) INTO v_invitation;
+
+  -- 8. Return combined result
+  RETURN jsonb_build_object(
+    'user', v_new_user,
+    'invitation', v_invitation,
+    'resend', false
+  );
+END;
+$$;
+
+
+ALTER FUNCTION "public"."invite_user_to_organization"("p_organization_id" "uuid", "p_email" "text", "p_role" "text", "p_first_name" "text", "p_last_name" "text", "p_inviter_id" "uuid") OWNER TO "postgres";
+
+
 CREATE OR REPLACE FUNCTION "public"."log_gig_status_change"() RETURNS "trigger"
     LANGUAGE "plpgsql"
     AS $$
@@ -365,6 +777,28 @@ $$;
 
 
 ALTER FUNCTION "public"."log_gig_status_change"() OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."search_users_secure"("search_text" "text") RETURNS SETOF "public"."users"
+    LANGUAGE "sql" STABLE SECURITY DEFINER
+    SET "search_path" TO 'public'
+    AS $$
+  -- Only allow authenticated users to perform searches
+  -- (Though SECURITY DEFINER functions are usually restricted by their own logic
+  -- or by REVOKE/GRANT, but for now we rely on the client calling it after auth)
+  SELECT * FROM users
+  WHERE (
+    first_name ILIKE '%' || search_text || '%' OR
+    last_name ILIKE '%' || search_text || '%' OR
+    email ILIKE '%' || search_text || '%'
+  )
+  AND user_status != 'inactive'
+  ORDER BY first_name ASC
+  LIMIT 20;
+$$;
+
+
+ALTER FUNCTION "public"."search_users_secure"("search_text" "text") OWNER TO "postgres";
 
 
 CREATE OR REPLACE FUNCTION "public"."update_updated_at_column"() RETURNS "trigger"
@@ -1390,6 +1824,12 @@ GRANT USAGE ON SCHEMA "public" TO "service_role";
 
 
 
+GRANT ALL ON FUNCTION "public"."convert_pending_user_to_active"("p_email" "text", "p_auth_user_id" "uuid") TO "anon";
+GRANT ALL ON FUNCTION "public"."convert_pending_user_to_active"("p_email" "text", "p_auth_user_id" "uuid") TO "authenticated";
+GRANT ALL ON FUNCTION "public"."convert_pending_user_to_active"("p_email" "text", "p_auth_user_id" "uuid") TO "service_role";
+
+
+
 GRANT ALL ON FUNCTION "public"."create_gig_complex"("p_gig_data" "jsonb", "p_participants" "jsonb", "p_staff_slots" "jsonb") TO "anon";
 GRANT ALL ON FUNCTION "public"."create_gig_complex"("p_gig_data" "jsonb", "p_participants" "jsonb", "p_staff_slots" "jsonb") TO "authenticated";
 GRANT ALL ON FUNCTION "public"."create_gig_complex"("p_gig_data" "jsonb", "p_participants" "jsonb", "p_staff_slots" "jsonb") TO "service_role";
@@ -1438,9 +1878,28 @@ GRANT ALL ON FUNCTION "public"."get_user_role_in_org"("org_id" "uuid", "user_uui
 
 
 
+GRANT ALL ON FUNCTION "public"."invite_user_to_organization"("p_organization_id" "uuid", "p_email" "text", "p_role" "text", "p_first_name" "text", "p_last_name" "text") TO "anon";
+GRANT ALL ON FUNCTION "public"."invite_user_to_organization"("p_organization_id" "uuid", "p_email" "text", "p_role" "text", "p_first_name" "text", "p_last_name" "text") TO "authenticated";
+GRANT ALL ON FUNCTION "public"."invite_user_to_organization"("p_organization_id" "uuid", "p_email" "text", "p_role" "text", "p_first_name" "text", "p_last_name" "text") TO "service_role";
+
+
+
+GRANT ALL ON FUNCTION "public"."invite_user_to_organization"("p_organization_id" "uuid", "p_email" "text", "p_role" "text", "p_first_name" "text", "p_last_name" "text", "p_inviter_id" "uuid") TO "anon";
+GRANT ALL ON FUNCTION "public"."invite_user_to_organization"("p_organization_id" "uuid", "p_email" "text", "p_role" "text", "p_first_name" "text", "p_last_name" "text", "p_inviter_id" "uuid") TO "authenticated";
+GRANT ALL ON FUNCTION "public"."invite_user_to_organization"("p_organization_id" "uuid", "p_email" "text", "p_role" "text", "p_first_name" "text", "p_last_name" "text", "p_inviter_id" "uuid") TO "service_role";
+
+
+
 GRANT ALL ON FUNCTION "public"."log_gig_status_change"() TO "anon";
 GRANT ALL ON FUNCTION "public"."log_gig_status_change"() TO "authenticated";
 GRANT ALL ON FUNCTION "public"."log_gig_status_change"() TO "service_role";
+
+
+
+REVOKE ALL ON FUNCTION "public"."search_users_secure"("search_text" "text") FROM PUBLIC;
+GRANT ALL ON FUNCTION "public"."search_users_secure"("search_text" "text") TO "anon";
+GRANT ALL ON FUNCTION "public"."search_users_secure"("search_text" "text") TO "authenticated";
+GRANT ALL ON FUNCTION "public"."search_users_secure"("search_text" "text") TO "service_role";
 
 
 

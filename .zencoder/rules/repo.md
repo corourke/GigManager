@@ -14,9 +14,12 @@ alwaysApply: true
     - [./src/contexts/](./src/contexts/): Global state management (Auth, Navigation).
     - [./src/services/](./src/services/): API communication and business logic.
     - [./src/styles/](./src/styles/): Global CSS and Tailwind design tokens.
+    - [./src/utils/](./src/utils/): Utility functions, API clients, and Supabase hooks.
+    - [./src/config/](./src/config/): Configuration files and seed data.
 - [./supabase/](./supabase/): Backend configuration and database assets.
     - [./supabase/functions/](./supabase/functions/): Deno-based Edge Functions for custom backend logic.
     - [./supabase/migrations/](./supabase/migrations/): SQL migration files for database schema evolution.
+    - [./supabase/dump/](./supabase/dump/): Database schema and data dumps.
     - [./supabase/seed.sql](./supabase/seed.sql): Database seeding scripts for development.
 - [./docs/](./docs/): Extensive project documentation covering technical, product, and development aspects.
 
@@ -32,16 +35,18 @@ alwaysApply: true
 - **@supabase/supabase-js**: Client library for backend interaction.
 - **Radix UI**: Accessible UI primitives (Accordion, Dialog, Tabs, etc.).
 - **Tailwind CSS 4.0**: Utility-first styling.
-- **Lucide React**: Icon set.
+- **Lucide React 0.487.0**: Icon set.
 - **Zod**: Schema validation.
-- **React Hook Form**: Form state management.
-- **Recharts**: Data visualization.
-- **Sonner**: Toast notifications.
+- **React Hook Form 7.55.0**: Form state management.
+- **Recharts 2.15.2**: Data visualization.
+- **Sonner 2.0.3**: Toast notifications.
+- **Date-fns**: Date manipulation.
+- **PapaParse 5.5.3**: CSV parsing.
 
 **Development Dependencies**:
-- **Vitest**: Testing framework.
-- **@testing-library/react**: React component testing.
-- **jsdom**: Browser environment simulation for tests.
+- **Vitest 4.0.10**: Testing framework.
+- **@testing-library/react 14.1.2**: React component testing.
+- **jsdom 23.0.1**: Browser environment simulation for tests.
 
 ## Build & Installation
 ```bash
@@ -56,8 +61,8 @@ npm run build
 ```
 
 ## Backend (Supabase)
-**Database**: PostgreSQL 17  
-**Auth**: Integrated Supabase Auth (Email, OAuth)  
+**Database**: PostgreSQL 17.6.1.037 (Managed via migrations)  
+**Auth**: Integrated Supabase Auth (Email, Google OAuth)  
 **Edge Functions**: Located in [./supabase/functions/](./supabase/functions/), running on Deno.  
 
 ## Testing
@@ -68,8 +73,11 @@ npm run build
 
 **Run Command**:
 ```bash
-# Run all tests
+# Run all tests (watch mode)
 npm test
+
+# Run tests once
+npm run test:run
 
 # Run tests with UI
 npm run test:ui
