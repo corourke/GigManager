@@ -759,7 +759,7 @@ export async function getGigFinancials(gigId: string, organizationId?: string) {
   try {
     let query = supabase
       .from('gig_financials')
-      .select('*, counterparty:organizations(*)')
+      .select('*, counterparty:organizations!counterparty_id(*)')
       .eq('gig_id', gigId)
       .order('date', { ascending: false });
     if (organizationId) query = query.eq('organization_id', organizationId);
