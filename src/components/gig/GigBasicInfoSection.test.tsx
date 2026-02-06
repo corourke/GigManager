@@ -17,7 +17,6 @@ describe('GigBasicInfoSection', () => {
     status: 'Booked',
     tags: ['Concert', 'Live Music'],
     notes: 'Test notes',
-    amount_paid: 1500,
   };
 
   beforeEach(() => {
@@ -52,7 +51,6 @@ describe('GigBasicInfoSection', () => {
 
     expect(screen.getByPlaceholderText('Enter gig title')).toBeInTheDocument();
     expect(screen.getByPlaceholderText(/Add notes about this gig/i)).toBeInTheDocument();
-    expect(screen.getByPlaceholderText('0.00')).toBeInTheDocument();
   });
 
   it('shows validation error for empty title', async () => {

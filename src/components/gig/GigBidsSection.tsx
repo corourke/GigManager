@@ -18,13 +18,14 @@ import SaveStateIndicator from './SaveStateIndicator';
 
 const bidSchema = z.object({
   id: z.string(),
-  date_given: z.string().min(1, 'Date is required'),
+  date: z.string().min(1, 'Date is required'),
   amount: z.string().refine((val) => {
     if (!val.trim()) return false;
     const num = parseFloat(val);
     return !isNaN(num) && num >= 0;
   }, 'Amount must be a positive number'),
-  result: z.string().optional(),
+  type: z.string(),
+  category: z.string(),
   notes: z.string().optional(),
 });
 
@@ -36,9 +37,10 @@ type BidsFormData = z.infer<typeof bidsFormSchema>;
 
 interface BidData {
   id: string;
-  date_given: string;
+  date: string;
   amount: string;
-  result: string;
+  type: string;
+  category: string;
   notes: string;
 }
 
@@ -72,7 +74,7 @@ export default function GigBidsSection({
     // Only save bids that have a valid amount
     const validBids = data.bids.filter(b => {
       const amount = parseFloat(b.amount);
-      return !isNaN(amount) && b.date_given;
+      return !isNaN(amount) && b.date;
     });
 
     if (validBids.length === 0 && data.bids.length > 0) {
@@ -83,8 +85,9 @@ export default function GigBidsSection({
     await updateGigBids(gigId, currentOrganizationId, validBids.map(b => ({
       id: b.id.startsWith('temp-') ? undefined : b.id,
       amount: parseFloat(b.amount),
-      date_given: b.date_given,
-      result: b.result || null,
+      date: b.date,
+      type: b.type as any,
+      category: b.category as any,
       notes: b.notes || null,
     })));
   }, [gigId, currentOrganizationId]);
@@ -126,13 +129,17 @@ export default function GigBidsSection({
     try {
       const data = await getGigBids(gigId, currentOrganizationId);
 
-      const loadedBids = data.map((b: any) => ({
-        id: b.id,
-        date_given: b.date_given || format(new Date(), 'yyyy-MM-dd'),
-        amount: (b.amount !== null && b.amount !== undefined) ? b.amount.toString() : '',
-        result: b.result || '',
-        notes: b.notes || '',
-      }));
+      // Filter for bid-related records
+      const loadedBids = data
+        .filter((f: any) => f.type.startsWith('Bid'))
+        .map((b: any) => ({
+          id: b.id,
+          date: b.date || format(new Date(), 'yyyy-MM-dd'),
+          amount: (b.amount !== null && b.amount !== undefined) ? b.amount.toString() : '',
+          type: b.type,
+          category: b.category,
+          notes: b.notes || '',
+        }));
 
       reset({ bids: loadedBids });
     } catch (error: any) {
@@ -146,9 +153,10 @@ export default function GigBidsSection({
   const handleAddBid = () => {
     append({
       id: `temp-${Math.random().toString(36).substr(2, 9)}`,
-      date_given: format(new Date(), 'yyyy-MM-dd'),
+      date: format(new Date(), 'yyyy-MM-dd'),
       amount: '',
-      result: 'Pending',
+      type: 'Bid Submitted',
+      category: 'Other',
       notes: '',
     });
   };
@@ -211,24 +219,24 @@ export default function GigBidsSection({
             <div key={field.id} className="border border-gray-200 rounded-lg overflow-hidden">
               <div className="bg-gray-100 px-4 py-3 flex items-center justify-between">
                 <div className="flex items-center gap-4 flex-1">
-                  <Label className="text-xs text-gray-600">Date Given:</Label>
+                  <Label className="text-xs text-gray-600">Date:</Label>
                   <div className="flex flex-col gap-1">
                     <Controller
-                      name={`bids.${index}.date_given`}
+                      name={`bids.${index}.date`}
                       control={control}
                       render={({ field: dateField }) => (
                         <Input
                           type="date"
                           value={dateField.value}
                           onChange={dateField.onChange}
-                          className={`w-40 bg-white ${errors.bids?.[index]?.date_given ? 'border-red-500' : ''}`}
+                          className={`w-40 bg-white ${errors.bids?.[index]?.date ? 'border-red-500' : ''}`}
                         />
                       )}
                     />
-                    {errors.bids?.[index]?.date_given && (
+                    {errors.bids?.[index]?.date && (
                       <p className="text-[10px] text-red-600 flex items-center gap-1">
                         <AlertCircle className="w-3 h-3" />
-                        {errors.bids[index]?.date_given?.message}
+                        {errors.bids[index]?.date?.message}
                       </p>
                     )}
                   </div>
@@ -261,22 +269,22 @@ export default function GigBidsSection({
                       </p>
                     )}
                   </div>
-                  <Label className="text-xs text-gray-600">Result:</Label>
+                  <Label className="text-xs text-gray-600">Status:</Label>
                   <Controller
-                    name={`bids.${index}.result`}
+                    name={`bids.${index}.type`}
                     control={control}
-                    render={({ field: resultField }) => (
+                    render={({ field: typeField }) => (
                       <Select
-                        value={resultField.value}
-                        onValueChange={resultField.onChange}
+                        value={typeField.value}
+                        onValueChange={typeField.onChange}
                       >
-                        <SelectTrigger className="w-32 bg-white">
-                          <SelectValue placeholder="Select result" />
+                        <SelectTrigger className="w-40 bg-white">
+                          <SelectValue placeholder="Select status" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="Accepted">Accepted</SelectItem>
-                          <SelectItem value="Rejected">Rejected</SelectItem>
-                          <SelectItem value="Pending">Pending</SelectItem>
+                          <SelectItem value="Bid Submitted">Submitted</SelectItem>
+                          <SelectItem value="Bid Accepted">Accepted</SelectItem>
+                          <SelectItem value="Bid Rejected">Rejected</SelectItem>
                         </SelectContent>
                       </Select>
                     )}

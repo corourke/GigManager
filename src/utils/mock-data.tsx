@@ -2,11 +2,9 @@ import type {
   User,
   OrganizationMembership,
   Organization,
-} from "./supabase/types";
-import type {
   Gig,
   GigStatus,
-} from "./components/GigListScreen";
+} from "./supabase/types";
 
 // Mock user data for demo/testing
 export const MOCK_USER: User = {
@@ -272,7 +270,7 @@ export const MOCK_ORGANIZATIONS: OrganizationMembership[] = [
 ];
 
 // Mock gigs data - updated to match new schema with start/end DateTime
-export const MOCK_GIGS_DATA: any[] = [
+export const MOCK_GIGS_DATA: Gig[] = [
   {
     id: "1",
     title: "Summer Music Festival 2025",
@@ -281,11 +279,27 @@ export const MOCK_GIGS_DATA: any[] = [
     timezone: "America/Los_Angeles",
     status: "Booked",
     tags: ["Festival", "Outdoor", "Multi-Day"],
-    amount_paid: 25000,
+    financials: [
+      {
+        id: "f1",
+        gig_id: "1",
+        organization_id: "1",
+        amount: 25000,
+        type: "Payment Recieved",
+        category: "Production",
+        date: "2025-01-15",
+        currency: "USD",
+        created_by: "1",
+        created_at: "2025-01-15T10:00:00Z"
+      }
+    ],
     venue: MOCK_VENUES[0],
     act: MOCK_ACTS[0],
     created_at: "2025-01-15T10:00:00Z",
     updated_at: "2025-01-15T10:00:00Z",
+    created_by: "1",
+    updated_by: "1",
+    hierarchy_depth: 0
   },
   {
     id: "2",
@@ -298,6 +312,9 @@ export const MOCK_GIGS_DATA: any[] = [
     venue: MOCK_VENUES[1],
     created_at: "2025-01-20T14:30:00Z",
     updated_at: "2025-01-20T14:30:00Z",
+    created_by: "1",
+    updated_by: "1",
+    hierarchy_depth: 0
   },
   {
     id: "3",
@@ -307,10 +324,26 @@ export const MOCK_GIGS_DATA: any[] = [
     timezone: "America/Chicago",
     status: "Booked",
     tags: ["Wedding", "Private Event"],
-    amount_paid: 8500,
+    financials: [
+      {
+        id: "f3",
+        gig_id: "3",
+        organization_id: "1",
+        amount: 8500,
+        type: "Payment Recieved",
+        category: "Production",
+        date: "2025-02-01",
+        currency: "USD",
+        created_by: "1",
+        created_at: "2025-02-01T09:15:00Z"
+      }
+    ],
     venue: MOCK_VENUES[2],
     created_at: "2025-02-01T09:15:00Z",
     updated_at: "2025-02-01T09:15:00Z",
+    created_by: "1",
+    updated_by: "1",
+    hierarchy_depth: 0
   },
   {
     id: "4",
@@ -322,6 +355,9 @@ export const MOCK_GIGS_DATA: any[] = [
     tags: ["Conference", "Corporate Event"],
     created_at: "2025-01-25T16:00:00Z",
     updated_at: "2025-01-25T16:00:00Z",
+    created_by: "1",
+    updated_by: "1",
+    hierarchy_depth: 0
   },
   {
     id: "5",
@@ -331,11 +367,27 @@ export const MOCK_GIGS_DATA: any[] = [
     timezone: "America/New_York",
     status: "Completed",
     tags: ["Concert", "Jazz"],
-    amount_paid: 3500,
+    financials: [
+      {
+        id: "f5",
+        gig_id: "5",
+        organization_id: "1",
+        amount: 3500,
+        type: "Payment Recieved",
+        category: "Production",
+        date: "2025-01-10",
+        currency: "USD",
+        created_by: "1",
+        created_at: "2025-01-10T11:00:00Z"
+      }
+    ],
     venue: MOCK_VENUES[3],
     act: MOCK_ACTS[1],
     created_at: "2025-01-10T11:00:00Z",
     updated_at: "2025-03-23T10:00:00Z",
+    created_by: "1",
+    updated_by: "1",
+    hierarchy_depth: 0
   },
   {
     id: "6",
@@ -345,10 +397,26 @@ export const MOCK_GIGS_DATA: any[] = [
     timezone: "America/Chicago",
     status: "Settled",
     tags: ["Charity", "Gala", "Formal"],
-    amount_paid: 15000,
+    financials: [
+      {
+        id: "f6",
+        gig_id: "6",
+        organization_id: "1",
+        amount: 15000,
+        type: "Payment Recieved",
+        category: "Production",
+        date: "2025-08-01",
+        currency: "USD",
+        created_by: "1",
+        created_at: "2025-08-01T13:00:00Z"
+      }
+    ],
     venue: MOCK_VENUES[4],
     created_at: "2025-08-01T13:00:00Z",
     updated_at: "2025-10-16T09:00:00Z",
+    created_by: "1",
+    updated_by: "1",
+    hierarchy_depth: 0
   },
   {
     id: "7",
@@ -362,6 +430,9 @@ export const MOCK_GIGS_DATA: any[] = [
     act: MOCK_ACTS[6],
     created_at: "2025-01-30T10:00:00Z",
     updated_at: "2025-01-30T10:00:00Z",
+    created_by: "1",
+    updated_by: "1",
+    hierarchy_depth: 0
   },
   {
     id: "8",
@@ -375,6 +446,9 @@ export const MOCK_GIGS_DATA: any[] = [
     act: MOCK_ACTS[5],
     created_at: "2025-02-15T09:00:00Z",
     updated_at: "2025-02-15T09:00:00Z",
+    created_by: "1",
+    updated_by: "1",
+    hierarchy_depth: 0
   },
 ];
 

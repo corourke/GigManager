@@ -63,7 +63,7 @@ VALUES
 -- Example Gig Creation (replace UUIDs with actual IDs)
 
 -- First, create a gig
-INSERT INTO gigs (title, start, "end", timezone, status, tags, amount_paid, created_by, updated_by)
+INSERT INTO gigs (title, start, "end", timezone, status, tags, created_by, updated_by)
 VALUES (
   'Summer Music Festival 2025',
   '2025-07-15 14:00:00',
@@ -71,11 +71,15 @@ VALUES (
   'America/Los_Angeles',
   'Booked',
   ARRAY['Festival', 'Outdoor', 'Multi-Day'],
-  25000.00,
   '<your-user-id>',  -- Replace with actual user ID
   '<your-user-id>'   -- Replace with actual user ID
 )
 RETURNING id;  -- Note this gig ID for the next steps
+
+-- Add financial records (replace <gig-id>, <org-id>, <your-user-id>)
+INSERT INTO gig_financials (gig_id, organization_id, amount, date, type, category, created_by)
+VALUES 
+  ('<gig-id>', '<org-id>', 25000.00, '2025-07-15', 'Payment Recieved', 'Production', '<your-user-id>');
 
 -- Add participants to the gig (replace <gig-id>, <production-org-id>, <venue-org-id>, <act-org-id>)
 INSERT INTO gig_participants (gig_id, organization_id, role, notes)
@@ -93,7 +97,7 @@ VALUES
 RETURNING id;  -- Note these slot IDs for assignments
 
 -- Add staff assignments (replace <slot-id>, <user-id>)
-INSERT INTO gig_staff_assignments (gig_staff_slot_id, user_id, status, rate, fee, notes)
+INSERT INTO gig_staff_assignments (slot_id, user_id, status, rate, fee, notes)
 VALUES 
   ('<slot-id>', '<user-id>', 'Confirmed', 75.00, NULL, NULL);
 */

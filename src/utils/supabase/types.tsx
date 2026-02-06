@@ -1,7 +1,7 @@
-import { OrganizationType, UserRole, GigStatus } from './constants';
+import { OrganizationType, UserRole, GigStatus, FinType, FinCategory } from './constants';
 
 // Re-export constants types for convenience
-export type { OrganizationType, UserRole, GigStatus };
+export type { OrganizationType, UserRole, GigStatus, FinType, FinCategory };
 
 // Database types for Supabase tables
 
@@ -68,7 +68,6 @@ export interface DbGig {
   start: string; // ISO DateTime
   end: string; // ISO DateTime
   timezone: string;
-  amount_paid?: number;
   notes?: string;
   created_by: string;
   updated_by: string;
@@ -124,17 +123,29 @@ export interface DbGigStaffAssignment {
   confirmed_at?: string;
 }
 
-export interface DbGigBid {
+export interface DbGigFinancial {
   id: string;
-  organization_id: string;
   gig_id: string;
+  organization_id: string;
+  date: string; // Date
+  type: FinType;
+  category: FinCategory;
+  reference_number?: string;
+  counterparty_id?: string;
+  external_entity_name?: string;
   amount: number;
-  date_given: string; // Date
-  result?: string;
+  currency: string;
+  description?: string;
   notes?: string;
+  due_date?: string;
+  paid_at?: string;
   created_by: string;
+  updated_by?: string;
   created_at: string;
+  updated_at?: string;
 }
+
+export type DbGigBid = DbGigFinancial; // For backward compatibility if needed, though we should update callers
 
 export interface DbInvitation {
   id: string;
@@ -226,6 +237,7 @@ export interface Gig extends Partial<DbGig> {
   venue?: Partial<Organization>;
   act?: Partial<Organization>;
   participants?: (DbGigParticipant & { organization?: Partial<Organization> })[];
+  financials?: DbGigFinancial[];
 }
 
 export interface GigWithParticipants extends DbGig {

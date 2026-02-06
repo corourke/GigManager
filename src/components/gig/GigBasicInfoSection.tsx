@@ -26,11 +26,6 @@ const basicInfoSchema = z.object({
   status: z.enum(Object.keys(GIG_STATUS_CONFIG) as [string, ...string[]]),
   tags: z.array(z.string()).optional(),
   notes: z.string().optional(),
-  amount_paid: z.string().refine((val) => {
-    if (!val.trim()) return true;
-    const num = parseFloat(val);
-    return !isNaN(num) && num >= 0;
-  }, 'Amount must be a positive number'),
 }).refine((data) => {
   if (data.start_time && data.end_time) {
     return data.end_time > data.start_time;
@@ -49,7 +44,6 @@ interface BasicInfoFormData {
   status: GigStatus;
   tags: string[];
   notes: string;
-  amount_paid: string;
 }
 
 const TIMEZONES = [
@@ -103,7 +97,6 @@ export default function GigBasicInfoSection({ gigId, onCreate, isSubmitting: ext
       status: 'DateHold',
       tags: [],
       notes: '',
-      amount_paid: '',
     },
   });
 
@@ -119,7 +112,6 @@ export default function GigBasicInfoSection({ gigId, onCreate, isSubmitting: ext
       status: data.status,
       tags: data.tags,
       notes: data.notes,
-      amount_paid: data.amount_paid ? parseFloat(data.amount_paid) : null,
     });
   }, [gigId]);
 
@@ -166,7 +158,6 @@ export default function GigBasicInfoSection({ gigId, onCreate, isSubmitting: ext
         status: gig.status || 'DateHold',
         tags: gig.tags || [],
         notes: gig.notes || '',
-        amount_paid: (gig.amount_paid !== null && gig.amount_paid !== undefined) ? gig.amount_paid.toString() : '',
       };
       reset(data);
     } catch (error: any) {
@@ -378,41 +369,6 @@ export default function GigBasicInfoSection({ gigId, onCreate, isSubmitting: ext
                   />
                 )}
               />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="amount_paid">
-                <DollarSign className="inline w-4 h-4 mr-1" />
-                Amount Paid
-              </Label>
-              <div className="relative">
-                <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500">
-                  $
-                </span>
-                <Controller
-                  name="amount_paid"
-                  control={control}
-                  render={({ field }) => (
-                    <Input
-                      {...field}
-                      id="amount_paid"
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      placeholder="0.00"
-                      className={`pl-7 ${errors.amount_paid ? 'border-red-500' : ''}`}
-                      disabled={isSubmitting}
-                      onFocus={(e) => e.target.select()}
-                    />
-                  )}
-                />
-              </div>
-              {errors.amount_paid && (
-                <p className="text-sm text-red-600 flex items-center gap-1">
-                  <AlertCircle className="w-4 h-4" />
-                  {errors.amount_paid.message}
-                </p>
-              )}
             </div>
           </div>
         </form>

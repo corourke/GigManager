@@ -88,7 +88,6 @@ export default function GigScreen({
         status: data.status,
         tags: data.tags,
         notes: data.notes,
-        amount_paid: data.amount_paid ? parseFloat(data.amount_paid) : null,
         primary_organization_id: organization.id,
         participants: [
           {

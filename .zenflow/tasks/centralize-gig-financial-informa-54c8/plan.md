@@ -14,6 +14,8 @@ Ask the user questions when anything is unclear or needs their input. This inclu
 
 Do not make assumptions on important decisions — get clarification first.
 
+Review .zencoder/rules/critical.md
+
 ---
 
 ## Workflow Steps
@@ -25,6 +27,7 @@ Technical specification has been created in `spec.md`.
 ---
 
 ### [ ] Step: Implementation
+<!-- chat-id: 13e5c9e7-53c4-4f26-a7a0-fec87a59c821 -->
 
 #### [ ] Database Migration
 - Create `financial_type`, `financial_category`, `financial_status` enums.

@@ -63,15 +63,15 @@ CREATE TYPE fin_category AS ENUM (
 | `date` | DATE | Record date |
 | `type` | `fin_type` | Type of record (NOT NULL) |
 | `category` | `fin_category` | Category (NOT NULL) |
+| `reference_number` | TEXT | Invoice #, contract #, bid #, etc. |
 | `counterparty_id` | UUID | The target organization (FK to `organizations`, NULLable) |
 | `external_entity_name` | TEXT | For external parties (when counterparty_id is null) |
 | `amount` | DECIMAL(12, 2) | Amount (NOT NULL) |
 | `currency` | TEXT | Default 'USD' |
-| `reference_number` | TEXT | Invoice #, contract #, bid #, etc. |
 | `description` | TEXT | Item description, method |
+| `notes` | TEXT | Internal notes |
 | `due_date` | DATE | Payment due date |
 | `paid_at` | TIMESTAMPTZ | Payment timestamp |
-| `notes` | TEXT | Internal notes |
 | `created_by` | UUID | FK to `users` |
 | `updated_by` | UUID | FK to `users` |
 | `created_at` | TIMESTAMPTZ | |
@@ -86,8 +86,7 @@ File attachments should be implemented as a uniform, system-wide capability rath
 
 ## 5. Security (RLS)
 The new RLS policies for `gig_financials` will ensure:
-- Users can only see records where their organization is the `organization_id` or `counterparty_id`.
-- Project owners (Admins/Managers of participating orgs) might need broader access, but for Phase 1 we will stick to explicit matching to prevent vendors from seeing each other's bids.
+- Only Admin users can see `gig_financials` records for the current `organization_id`. Both guard against database reads and hide the 'Financials' section on the Gig screens.
 
 ## 6. Verification Plan
 - **Database**: Run migration and verify table structure and RLS.
