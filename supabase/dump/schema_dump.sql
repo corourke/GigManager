@@ -97,22 +97,6 @@ CREATE TYPE "public"."organization_type" AS ENUM (
 ALTER TYPE "public"."organization_type" OWNER TO "postgres";
 
 
-CREATE TYPE "public"."settlement_type" AS ENUM (
-    'Cash',
-    'Check',
-    'Wire Transfer',
-    'Credit Card',
-    'ACH',
-    'Cryptocurrency',
-    'Barter',
-    'Trade',
-    'Other'
-);
-
-
-ALTER TYPE "public"."settlement_type" OWNER TO "postgres";
-
-
 CREATE TYPE "public"."user_role" AS ENUM (
     'Admin',
     'Manager',
@@ -239,19 +223,15 @@ BEGIN
     RAISE EXCEPTION 'User not authenticated';
   END IF;
 
-  -- Insert Gig
+  -- Insert Gig with only authorized columns
   INSERT INTO gigs (
     title, 
     start, 
     "end", 
     timezone, 
     status, 
-    venue_address,
     notes,
-    settlement_type,
-    settlement_amount,
     tags, 
-    amount_paid, 
     parent_gig_id, 
     hierarchy_depth, 
     created_by, 
@@ -262,12 +242,8 @@ BEGIN
     (p_gig_data->>'end')::TIMESTAMPTZ,
     COALESCE(p_gig_data->>'timezone', 'UTC'),
     COALESCE(p_gig_data->>'status', 'DateHold')::gig_status,
-    p_gig_data->>'venue_address',
     p_gig_data->>'notes',
-    (p_gig_data->>'settlement_type')::settlement_type,
-    (p_gig_data->>'settlement_amount')::DECIMAL,
     COALESCE((SELECT array_agg(x) FROM jsonb_array_elements_text(p_gig_data->'tags') x), ARRAY[]::TEXT[]),
-    (p_gig_data->>'amount_paid')::DECIMAL,
     (p_gig_data->>'parent_gig_id')::UUID,
     COALESCE((p_gig_data->>'hierarchy_depth')::INTEGER, 0),
     v_user_id,
@@ -280,7 +256,7 @@ BEGIN
     VALUES (
       v_gig_id, 
       (v_participant->>'organization_id')::UUID, 
-      (v_participant->>'role')::organization_type,  -- Fixed: Cast to organization_type
+      (v_participant->>'role')::organization_type,
       v_participant->>'notes'
     );
   END LOOP;
@@ -1125,26 +1101,11 @@ CREATE TABLE IF NOT EXISTS "public"."gigs" (
     "created_by" "uuid" NOT NULL,
     "updated_by" "uuid" NOT NULL,
     "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
-    "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL,
-    "venue_address" "text",
-    "settlement_type" "public"."settlement_type",
-    "settlement_amount" numeric(10,2)
+    "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL
 );
 
 
 ALTER TABLE "public"."gigs" OWNER TO "postgres";
-
-
-COMMENT ON COLUMN "public"."gigs"."venue_address" IS 'Specific address for the gig venue (nullable)';
-
-
-
-COMMENT ON COLUMN "public"."gigs"."settlement_type" IS 'Type of settlement payment method (nullable)';
-
-
-
-COMMENT ON COLUMN "public"."gigs"."settlement_amount" IS 'Amount for settlement payment (nullable)';
-
 
 
 CREATE TABLE IF NOT EXISTS "public"."invitations" (

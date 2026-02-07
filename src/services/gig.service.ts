@@ -140,12 +140,12 @@ export async function createGig(gigData: any) {
     });
 
     if (error) throw error;
-    if (!data?.id) throw new Error('Gig creation failed to return an ID');
+    if (!data?.[0]?.id) throw new Error('Gig creation failed to return an ID');
 
     // If amount is provided, create a financial record
     if (amount !== undefined && amount !== null && parseFloat(amount) > 0) {
       await createGigFinancial({
-        gig_id: data.id,
+        gig_id: data[0].id,
         organization_id: primary_organization_id,
         amount: parseFloat(amount),
         date: new Date().toISOString().split('T')[0],
@@ -156,7 +156,7 @@ export async function createGig(gigData: any) {
     }
 
     // Fetch the full gig details for the response
-    return await getGig(data.id);
+    return await getGig(data[0].id);
   } catch (err) {
     return handleApiError(err, 'create gig');
   }
