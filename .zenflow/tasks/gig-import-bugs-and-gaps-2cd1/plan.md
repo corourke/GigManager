@@ -121,7 +121,7 @@ The work has been broken down into 18 concrete tasks organized in 3 phases:
 **File**: `src/utils/csvImport.ts:100-121` 
 **Task**:
 - Add `applyGigRowDefaults()` function for time/end date defaults
-- Support both YYYY-MM-DD and MM-DD-YYYY date formats
+- Support various date formats such as YYYY-MM-DD, MM-DD-YYYY, MM/DD/YYYY
 - Apply timezone defaults from user context
 **Verification**: Unit tests for date parsing and defaults
 
