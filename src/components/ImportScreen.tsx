@@ -451,7 +451,25 @@ export default function ImportScreen({
         {/* File Upload */}
         <Card className="p-6 mb-6">
           <div className="space-y-4">
-            <Label>Upload CSV File</Label>
+            <div className="flex items-center justify-between">
+              <Label>Upload CSV File</Label>
+              {(validRows.length > 0 || invalidRows.length > 0) && (
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setFile(null);
+                    setValidRows([]);
+                    setInvalidRows([]);
+                    setImportResults(null);
+                    if (fileInputRef.current) {
+                      fileInputRef.current.value = '';
+                    }
+                  }}
+                >
+                  Start New Import
+                </Button>
+              )}
+            </div>
             <div
               onDrop={handleFileDrop}
               onDragOver={(e) => e.preventDefault()}
@@ -537,7 +555,7 @@ export default function ImportScreen({
         {/* Import Results */}
         {importResults && (
           <Card className="p-6 mb-6">
-            <div className="flex items-center justify-between mb-4">
+            <div className="mb-4">
               <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
                 {importResults.errors.length > 0 ? (
                   <AlertCircle className="w-5 h-5 text-yellow-600" />
@@ -546,20 +564,6 @@ export default function ImportScreen({
                 )}
                 Import Results
               </h2>
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setFile(null);
-                  setValidRows([]);
-                  setInvalidRows([]);
-                  setImportResults(null);
-                  if (fileInputRef.current) {
-                    fileInputRef.current.value = '';
-                  }
-                }}
-              >
-                Start New Import
-              </Button>
             </div>
             <div className="space-y-3">
               <div className="grid grid-cols-2 gap-4">
