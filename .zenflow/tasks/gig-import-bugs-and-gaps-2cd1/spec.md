@@ -79,7 +79,7 @@
 - Extend `ParsedRow` interface to include import status (`pending | importing | success | error`)
 - Add `importError` field to track specific import errors
 - Modify import loop to update row status in real-time
-- Ensure atomicity for imported rows, either the Gig row and any nested rows (Venue, Act) are successful, or  rollback.
+- Ensure atomicity for imported rows. Imports should be atomic per input row but preserve successful rows from the batch. Nested entities (Venue, Act) should be atomic with the Gig.
 
 #### 4.2 Improved Error Messages
 **Enhancement Areas**:
@@ -112,21 +112,21 @@ interface TimezoneOption {
    - Expand `TIMEZONES` to comprehensive list
    - Modify `validateGigRow()` for default value application
    - Add timezone grouping utilities
-
 2. **`src/components/ImportScreen.tsx`**
    - Replace text inputs with Select components for status/timezone
    - Enhance state management for per-row tracking
    - Improve re-validation button logic
    - Add detailed import progress display
-
 3. **`src/services/gig.service.ts`**
    - Fix typo on line 152
-
 4. **`src/components/gig/GigBasicInfoSection.tsx`** 
    - Remove temporary timezone list
-   
 5. **`src/utils/supabase/constants.ts`** 
    - Add comprehensive timezone list
+
+### New Files
+1. **`src/utils/timezones.ts`**
+   - New timezone utility functions
 
 ### New Utility Functions
 ```typescript
@@ -142,7 +142,8 @@ export function parseTimeComponent(dateStr: string): string
 
 ## Data Model/API Changes
 
-- Add `timezone` column to `users` table.
+- Add `timezone` column to `users` table. A new migration will be necessary.
+- Note that the user must apply the migration to the remote database before testing and deployment.
 
 ## Delivery Phases
 

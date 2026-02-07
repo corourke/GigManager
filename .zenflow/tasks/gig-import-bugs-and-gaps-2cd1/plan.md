@@ -36,22 +36,154 @@ Save to `{@artifacts_path}/spec.md` with:
 - Delivery phases (incremental, testable milestones)
 - Verification approach using project lint/test commands
 
-### [ ] Step: Planning
+### [x] Step: Planning
+<!-- chat-id: 4532e558-0c42-4992-91db-f07f2bdb980e -->
 
-Create a detailed implementation plan based on `{@artifacts_path}/spec.md`.
+Created detailed implementation plan based on `{@artifacts_path}/spec.md`.
 
-1. Break down the work into concrete tasks
-2. Each task should reference relevant contracts and include verification steps
-3. Replace the Implementation step below with the planned tasks
+The work has been broken down into 18 concrete tasks organized in 3 phases:
 
-Rule of thumb for step size: each step should represent a coherent unit of work (e.g., implement a component, add an API endpoint, write tests for a module). Avoid steps that are too granular (single function) or too broad (entire feature).
+**Phase 1: Critical Bug Fixes (5 tasks)**
+- Fix typo in financial record creation  
+- Implement individual row import tracking
+- Modify import loop for per-row atomicity
+- Fix re-validation button logic
+- Improve UI layout (Invalid Rows card visibility)
 
-If the feature is trivial and doesn't warrant full specification, update this workflow to remove unnecessary steps and explain the reasoning to the user.
+**Phase 2: Validation Enhancements (7 tasks)** 
+- Create comprehensive timezone enumeration
+- Build timezone utility functions
+- Add date/time defaults and multiple formats support
+- Create user timezone database migration  
+- Replace text inputs with Select dropdowns
+- Clean up temporary timezone lists
 
-Save to `{@artifacts_path}/plan.md`.
+**Phase 3: UX Improvements (3 tasks)**
+- Enhanced import progress display
+- Improved error messages
+- Real-time validation feedback
 
-### [ ] Step: Implementation
+**Testing & Verification (3 tasks)**
+- Unit tests for new validation logic
+- Integration tests for import scenarios  
+- Code quality verification (lint/typecheck/build)
 
-This step should be replaced with detailed implementation tasks from the Planning step.
+### [ ] Step: Phase 1 - Critical Bug Fixes
 
-If Planning didn't replace this step, execute the tasks in `{@artifacts_path}/plan.md`, updating checkboxes as you go. Run planned tests/lint and record results in plan.md.
+#### [ ] Fix Financial Record Typo
+**File**: `src/services/gig.service.ts:152`
+**Task**: Replace `"Payment Recieved"` with `"Payment Received"`
+**Verification**: Search codebase for remaining typos
+
+#### [ ] Implement Individual Row Import Tracking  
+**Files**: `src/utils/csvImport.ts`, `src/components/ImportScreen.tsx`
+**Task**: 
+- Extend `ParsedRow` interface with `importStatus` and `importError` fields
+- Add types for import status tracking
+**Verification**: TypeScript compilation passes
+
+#### [ ] Modify Import Loop for Per-Row Atomicity
+**File**: `src/components/ImportScreen.tsx:133-288`
+**Task**:
+- Update import state management to track per-row status
+- Modify import loop to update row status in real-time  
+- Ensure individual row failures don't affect other rows
+- Preserve successful imports when retrying failed rows
+**Verification**: Manual testing with mixed valid/invalid CSV data
+
+#### [ ] Fix Re-validation Button Logic
+**File**: `src/components/ImportScreen.tsx:554-560`  
+**Task**: Change button condition to enable when any invalid rows exist
+**Verification**: Button enables correctly during validation workflow
+
+#### [ ] Move Invalid Rows Card Above Valid Rows
+**File**: `src/components/ImportScreen.tsx`
+**Task**: Reorder card display for better user visibility
+**Verification**: Visual inspection of UI layout
+
+### [ ] Step: Phase 2 - Validation Enhancements
+
+#### [ ] Create Comprehensive Timezone List
+**File**: `src/utils/supabase/constants.ts`
+**Task**: Add complete timezone enumeration using `Intl.supportedValuesOf('timeZone')`
+**Verification**: Timezone list includes all standard IANA identifiers
+
+#### [ ] Build Timezone Utility Functions
+**File**: `src/utils/timezones.ts` (new)
+**Task**: 
+- Create `getAllTimezones()` function
+- Create `getTimezonesByRegion()` for grouped display
+- Create `getDefaultTimezone()` with user fallback logic
+**Verification**: Unit tests for timezone utilities
+
+#### [ ] Add Date/Time Defaults and Multiple Formats
+**File**: `src/utils/csvImport.ts:100-121` 
+**Task**:
+- Add `applyGigRowDefaults()` function for time/end date defaults
+- Support both YYYY-MM-DD and MM-DD-YYYY date formats
+- Apply timezone defaults from user context
+**Verification**: Unit tests for date parsing and defaults
+
+#### [ ] Create User Timezone Migration
+**File**: `supabase/migrations/` (new migration)
+**Task**: Add `timezone` column to `users` table
+**Verification**: Migration applies successfully to database
+
+#### [ ] Replace Text Inputs with Select Dropdowns
+**File**: `src/components/ImportScreen.tsx:546-678`
+**Task**:
+- Replace timezone Input with Select + timezone options
+- Replace status Input with Select + GIG_STATUSES options
+- Maintain existing functionality for other fields
+**Verification**: Dropdowns populated correctly, validation works
+
+#### [ ] Clean Up Temporary Timezone Lists  
+**File**: `src/components/gig/GigBasicInfoSection.tsx:49-57`
+**Task**: Remove hardcoded timezone list, use constants instead
+**Verification**: Component uses centralized timezone data
+
+### [ ] Step: Phase 3 - UX Improvements
+
+#### [ ] Enhanced Import Progress Display
+**File**: `src/components/ImportScreen.tsx`
+**Task**:
+- Show per-row import status during import process
+- Add detailed progress tracking in UI
+- Update ImportResults component for better feedback
+**Verification**: Progress accurately reflects import state
+
+#### [ ] Improved Error Messages
+**Files**: `src/utils/csvImport.ts`, `src/components/ImportScreen.tsx`
+**Task**: 
+- Better date parsing error messages with format examples
+- Clear timezone validation feedback  
+- User-friendly database constraint error handling
+**Verification**: Error messages provide actionable guidance
+
+#### [ ] Real-time Validation Feedback
+**File**: `src/components/ImportScreen.tsx`
+**Task**: Add immediate validation feedback in row editor
+**Verification**: Validation updates as user types/selects
+
+### [ ] Step: Testing & Verification
+
+#### [ ] Unit Tests for Validation Logic
+**Files**: New test files for validation functions
+**Task**: Test date parsing, timezone defaults, validation rules
+**Verification**: `npm test` passes with good coverage
+
+#### [ ] Integration Tests for Import Flow  
+**Files**: Import flow integration tests
+**Task**: Test complete import scenarios with various CSV data
+**Verification**: End-to-end import workflows work correctly
+
+#### [ ] Code Quality Verification
+**Task**: Run all verification commands
+**Commands**:
+```bash
+npm run lint      # ESLint validation
+npm run typecheck # TypeScript checking  
+npm test          # Run test suite
+npm run build     # Production build
+```
+**Verification**: All commands pass without errors

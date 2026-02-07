@@ -1,4 +1,4 @@
-# Gig Import Bugs and Gaps - Requirements Document
+# Gig Import Bugs and Gaps - Requirements
 
 ## Overview
 This document outlines requirements to fix critical bugs and improve functionality in the CSV Gig Import feature, focusing exclusively on gig imports (not assets).
