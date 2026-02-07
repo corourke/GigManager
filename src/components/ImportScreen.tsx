@@ -130,9 +130,15 @@ export default function ImportScreen({
     }));
   };
 
+  // Helper function to get rows ready for import
+  const getReadyToImportRows = () => {
+    return validRows.filter(row => !row.importStatus || row.importStatus === 'pending');
+  };
+
   const handleImportValidRows = async () => {
-    if (validRows.length === 0) {
-      toast.error('No valid rows to import');
+    const readyRows = getReadyToImportRows();
+    if (readyRows.length === 0) {
+      toast.error('No rows ready to import');
       return;
     }
 
@@ -141,11 +147,14 @@ export default function ImportScreen({
     const errors: string[] = [];
     let successCount = 0;
 
-    // Initialize all rows as pending
+    // Only process rows that are ready for import
     const updatedValidRows = [...validRows];
-    updatedValidRows.forEach(row => {
-      row.importStatus = 'pending';
-      row.importError = undefined;
+    readyRows.forEach(row => {
+      const rowInList = updatedValidRows.find(r => r.rowIndex === row.rowIndex);
+      if (rowInList) {
+        rowInList.importStatus = 'pending';
+        rowInList.importError = undefined;
+      }
     });
     setValidRows([...updatedValidRows]);
 
@@ -157,9 +166,9 @@ export default function ImportScreen({
       }
 
       if (importType === 'gigs') {
-        // Import gigs
-        for (let i = 0; i < updatedValidRows.length; i++) {
-          const row = updatedValidRows[i];
+        // Import gigs - only process ready rows
+        for (let i = 0; i < readyRows.length; i++) {
+          const row = readyRows[i];
           try {
             // Update status to importing
             row.importStatus = 'importing';
@@ -275,9 +284,9 @@ export default function ImportScreen({
           }
         }
       } else {
-        // Import assets
-        for (let i = 0; i < updatedValidRows.length; i++) {
-          const row = updatedValidRows[i];
+        // Import assets - only process ready rows
+        for (let i = 0; i < readyRows.length; i++) {
+          const row = readyRows[i];
           try {
             // Update status to importing
             row.importStatus = 'importing';
@@ -483,25 +492,28 @@ export default function ImportScreen({
           <Card className="p-6 mb-6">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-semibold text-gray-900">Import Summary</h2>
-              {validRows.length > 0 && (
-                <Button
-                  onClick={handleImportValidRows}
-                  disabled={isImporting}
-                  className="bg-sky-500 hover:bg-sky-600 text-white"
-                >
-                  {isImporting ? (
-                    <>
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      Importing...
-                    </>
-                  ) : (
-                    <>
-                      <Save className="w-4 h-4 mr-2" />
-                      Import {validRows.length} Valid Row(s)
-                    </>
-                  )}
-                </Button>
-              )}
+              {(() => {
+                const readyCount = getReadyToImportRows().length;
+                return readyCount > 0 && (
+                  <Button
+                    onClick={handleImportValidRows}
+                    disabled={isImporting}
+                    className="bg-sky-500 hover:bg-sky-600 text-white"
+                  >
+                    {isImporting ? (
+                      <>
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        Importing...
+                      </>
+                    ) : (
+                      <>
+                        <Save className="w-4 h-4 mr-2" />
+                        Import {readyCount} Ready Row(s)
+                      </>
+                    )}
+                  </Button>
+                );
+              })()}
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="flex items-center gap-2 p-3 bg-green-50 rounded-lg">
