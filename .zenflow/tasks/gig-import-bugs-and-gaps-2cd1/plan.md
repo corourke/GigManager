@@ -124,10 +124,20 @@ The work has been broken down into 18 concrete tasks organized in 3 phases:
 - Apply timezone defaults from user context
 **Verification**: Unit tests for date parsing and defaults
 
-#### [ ] Create User Timezone Migration
-**File**: `supabase/migrations/` (new migration)
-**Task**: Add `timezone` column to `users` table
-**Verification**: Migration applies successfully to database
+#### [ ] Create User Timezone Migration and API Updates
+**Files**: 
+- `supabase/migrations/{timestamp}_add_user_timezone.sql` (new migration)
+- `src/services/user.service.ts` (update updateUserProfile function)  
+- `src/utils/supabase/types.tsx` (update User interface)
+**Task**: 
+- Create migration to add `timezone` column (VARCHAR, nullable, default NULL) to `users` table
+- Update `updateUserProfile()` function to include timezone in updates parameter 
+- Add `timezone?: string` to User interface type definition
+- Update any RPC functions that return user data to include timezone field
+**Verification**: 
+- Migration applies successfully to database
+- TypeScript compilation passes 
+- User profile updates include timezone field
 
 #### [ ] Replace Text Inputs with Select Dropdowns
 **File**: `src/components/ImportScreen.tsx:546-678`
@@ -138,9 +148,18 @@ The work has been broken down into 18 concrete tasks organized in 3 phases:
 **Verification**: Dropdowns populated correctly, validation works
 
 #### [ ] Clean Up Temporary Timezone Lists  
-**File**: `src/components/gig/GigBasicInfoSection.tsx:49-57`
-**Task**: Remove hardcoded timezone list, use constants instead
-**Verification**: Component uses centralized timezone data
+**Files**: 
+- `src/components/gig/GigBasicInfoSection.tsx:49-57` (remove TIMEZONES constant)
+- `src/utils/csvImport.ts:48-51` (remove TIMEZONES array)
+**Task**: 
+- Remove hardcoded `TIMEZONES` constant from GigBasicInfoSection.tsx
+- Remove hardcoded `TIMEZONES` array from csvImport.ts
+- Update components to import timezone data from constants/utilities
+- Update all references to use centralized timezone functions
+**Verification**: 
+- No duplicate timezone definitions in codebase
+- All components use centralized timezone data
+- TypeScript compilation passes
 
 ### [ ] Step: Phase 3 - UX Improvements
 
@@ -168,14 +187,36 @@ The work has been broken down into 18 concrete tasks organized in 3 phases:
 ### [ ] Step: Testing & Verification
 
 #### [ ] Unit Tests for Validation Logic
-**Files**: New test files for validation functions
-**Task**: Test date parsing, timezone defaults, validation rules
-**Verification**: `npm test` passes with good coverage
+**Files**: 
+- `src/utils/timezones.test.ts` (new - test timezone utilities)
+- `src/utils/csvImport.test.ts` (new/update - test validation with defaults)
+- `src/utils/dateUtils.test.ts` (update - test multiple date formats)
+**Task**: 
+- Test `getAllTimezones()`, `getTimezonesByRegion()`, `getDefaultTimezone()` functions
+- Test `applyGigRowDefaults()` with various input scenarios
+- Test date parsing for both YYYY-MM-DD and MM-DD-YYYY formats
+- Test validation with missing time/timezone/end date scenarios
+- Target >80% code coverage for new/modified utility functions
+**Verification**: 
+- `npm test` passes with no failures
+- Coverage reports show >80% for new validation logic
+- All edge cases covered (missing data, invalid formats, etc.)
 
 #### [ ] Integration Tests for Import Flow  
-**Files**: Import flow integration tests
-**Task**: Test complete import scenarios with various CSV data
-**Verification**: End-to-end import workflows work correctly
+**Files**: 
+- `src/components/ImportScreen.test.tsx` (new/update)
+- `src/test/import-flow.integration.test.ts` (new)
+**Task**: 
+- Test complete CSV import workflow with mixed valid/invalid data
+- Test row editor functionality with timezone/status dropdowns
+- Test re-validation flow and button states
+- Test import progress tracking and per-row status updates
+- Test error handling and recovery workflows
+- Include test CSV files with various edge cases
+**Verification**: 
+- End-to-end import workflows work correctly
+- All user interaction scenarios tested
+- Import atomicity verified (partial failures preserve successful rows)
 
 #### [ ] Code Quality Verification
 **Task**: Run all verification commands
