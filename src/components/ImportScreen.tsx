@@ -163,7 +163,7 @@ export default function ImportScreen({
           try {
             // Update status to importing
             row.importStatus = 'importing';
-            setValidRows([...updatedValidRows]);
+            setValidRows(prev => prev.map(r => r.rowIndex === row.rowIndex ? row : r));
 
             const gigData = row.data as GigRow;
             
@@ -244,13 +244,33 @@ export default function ImportScreen({
             // Mark as success
             row.importStatus = 'success';
             row.importError = undefined;
-            setValidRows([...updatedValidRows]);
+            setValidRows(prev => prev.map(r => r.rowIndex === row.rowIndex ? row : r));
             successCount++;
           } catch (error: any) {
-            const errorMessage = error.message || 'Failed to import gig';
+            let errorMessage = 'Failed to import gig';
+            
+            // Provide user-friendly error messages
+            if (error.message) {
+              if (error.message.includes('duplicate key value')) {
+                errorMessage = 'A gig with similar data already exists';
+              } else if (error.message.includes('invalid input syntax')) {
+                errorMessage = 'Invalid date or time format';
+              } else if (error.message.includes('foreign key constraint')) {
+                errorMessage = 'Related organization not found';
+              } else if (error.message.includes('not null constraint')) {
+                errorMessage = 'Missing required field';
+              } else if (error.message.includes('check constraint')) {
+                errorMessage = 'Invalid data format or value';
+              } else {
+                errorMessage = error.message.length > 100 ? 
+                  error.message.substring(0, 100) + '...' : 
+                  error.message;
+              }
+            }
+            
             row.importStatus = 'failed';
             row.importError = errorMessage;
-            setValidRows([...updatedValidRows]);
+            setValidRows(prev => prev.map(r => r.rowIndex === row.rowIndex ? row : r));
             errors.push(`Row ${row.rowIndex}: ${errorMessage}`);
           }
         }
@@ -261,7 +281,7 @@ export default function ImportScreen({
           try {
             // Update status to importing
             row.importStatus = 'importing';
-            setValidRows([...updatedValidRows]);
+            setValidRows(prev => prev.map(r => r.rowIndex === row.rowIndex ? row : r));
 
             const assetData = row.data as AssetRow;
             
@@ -285,13 +305,33 @@ export default function ImportScreen({
             // Mark as success
             row.importStatus = 'success';
             row.importError = undefined;
-            setValidRows([...updatedValidRows]);
+            setValidRows(prev => prev.map(r => r.rowIndex === row.rowIndex ? row : r));
             successCount++;
           } catch (error: any) {
-            const errorMessage = error.message || 'Failed to import asset';
+            let errorMessage = 'Failed to import asset';
+            
+            // Provide user-friendly error messages
+            if (error.message) {
+              if (error.message.includes('duplicate key value')) {
+                errorMessage = 'An asset with similar data already exists';
+              } else if (error.message.includes('invalid input syntax')) {
+                errorMessage = 'Invalid date or number format';
+              } else if (error.message.includes('foreign key constraint')) {
+                errorMessage = 'Related organization not found';
+              } else if (error.message.includes('not null constraint')) {
+                errorMessage = 'Missing required field';
+              } else if (error.message.includes('check constraint')) {
+                errorMessage = 'Invalid data format or value';
+              } else {
+                errorMessage = error.message.length > 100 ? 
+                  error.message.substring(0, 100) + '...' : 
+                  error.message;
+              }
+            }
+            
             row.importStatus = 'failed';
             row.importError = errorMessage;
-            setValidRows([...updatedValidRows]);
+            setValidRows(prev => prev.map(r => r.rowIndex === row.rowIndex ? row : r));
             errors.push(`Row ${row.rowIndex}: ${errorMessage}`);
           }
         }
@@ -679,6 +719,7 @@ export default function ImportScreen({
                         <TableHead>Cost</TableHead>
                       </>
                     )}
+                    <TableHead>Import Status</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -705,6 +746,45 @@ export default function ImportScreen({
                           <TableCell>{(row.data as AssetRow).cost_per_item || '-'}</TableCell>
                         </>
                       )}
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          {row.importStatus === 'pending' && (
+                            <div className="flex items-center gap-1">
+                              <AlertCircle className="w-4 h-4 text-yellow-600" />
+                              <span className="text-sm text-yellow-700">Ready</span>
+                            </div>
+                          )}
+                          {row.importStatus === 'importing' && (
+                            <div className="flex items-center gap-1">
+                              <Loader2 className="w-4 h-4 text-blue-600 animate-spin" />
+                              <span className="text-sm text-blue-700">Importing...</span>
+                            </div>
+                          )}
+                          {row.importStatus === 'success' && (
+                            <div className="flex items-center gap-1">
+                              <CheckCircle className="w-4 h-4 text-green-600" />
+                              <span className="text-sm text-green-700">Success</span>
+                            </div>
+                          )}
+                          {row.importStatus === 'failed' && (
+                            <div className="flex items-center gap-1">
+                              <XCircle className="w-4 h-4 text-red-600" />
+                              <span className="text-sm text-red-700">Failed</span>
+                              {row.importError && (
+                                <span className="text-xs text-red-600 ml-1" title={row.importError}>
+                                  ({row.importError.substring(0, 30)}{row.importError.length > 30 ? '...' : ''})
+                                </span>
+                              )}
+                            </div>
+                          )}
+                          {!row.importStatus && (
+                            <div className="flex items-center gap-1">
+                              <AlertCircle className="w-4 h-4 text-gray-400" />
+                              <span className="text-sm text-gray-500">Ready</span>
+                            </div>
+                          )}
+                        </div>
+                      </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
