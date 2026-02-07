@@ -71,19 +71,19 @@ The work has been broken down into 18 concrete tasks organized in 3 phases:
 ### [x] Step: Phase 1 - Critical Bug Fixes
 <!-- chat-id: 05c4bdf9-d6d5-45c2-9964-23be987cbbe1 -->
 
-#### [ ] Fix Financial Record Typo
+#### [x] Fix Financial Record Typo
 **File**: `src/services/gig.service.ts:152`
 **Task**: Replace `"Payment Recieved"` with `"Payment Received"`
 **Verification**: Search codebase for remaining typos
 
-#### [ ] Implement Individual Row Import Tracking  
+#### [x] Implement Individual Row Import Tracking  
 **Files**: `src/utils/csvImport.ts`, `src/components/ImportScreen.tsx`
 **Task**: 
 - Extend `ParsedRow` interface with `importStatus` and `importError` fields
 - Add types for import status tracking
 **Verification**: TypeScript compilation passes
 
-#### [ ] Modify Import Loop for Per-Row Atomicity
+#### [x] Modify Import Loop for Per-Row Atomicity
 **File**: `src/components/ImportScreen.tsx:133-288`
 **Task**:
 - Update import state management to track per-row status
@@ -92,12 +92,12 @@ The work has been broken down into 18 concrete tasks organized in 3 phases:
 - Preserve successful imports when retrying failed rows
 **Verification**: Manual testing with mixed valid/invalid CSV data
 
-#### [ ] Fix Re-validation Button Logic
+#### [x] Fix Re-validation Button Logic
 **File**: `src/components/ImportScreen.tsx:554-560`  
 **Task**: Change button condition to enable when any invalid rows exist
 **Verification**: Button enables correctly during validation workflow
 
-#### [ ] Move Invalid Rows Card Above Valid Rows
+#### [x] Move Invalid Rows Card Above Valid Rows
 **File**: `src/components/ImportScreen.tsx`
 **Task**: Reorder card display for better user visibility
 **Verification**: Visual inspection of UI layout
