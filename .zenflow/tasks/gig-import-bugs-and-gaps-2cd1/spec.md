@@ -34,14 +34,15 @@
 **Current**: `src/utils/csvImport.ts:100-121` validates dates but doesn't apply defaults
 **Changes**:
 - Modify `validateGigRow()` to apply time defaults (`00:00:00`) when time is missing
-- Apply end date defaults when missing (same as start)
+- Allow dates in both YYYY-MM-DD and MM-DD-YYYY formats in the CSV file
+- Apply end date defaults when missing (default to same as start)
 - Apply timezone defaults from user context or fallback
 
 #### 2.2 Timezone Management
 **Current**: Limited timezone list in `src/utils/csvImport.ts:48-51`
 **Changes**:
 - Create comprehensive timezone enumeration using `Intl.supportedValuesOf('timeZone')`
-- Extend existing timezone list in `src/components/gig/GigBasicInfoSection.tsx:49-57`
+- Replace existing timezone list in `src/components/gig/GigBasicInfoSection.tsx:49-57` with full timezone list in src/utils/supabase/constants.ts. (All enumerations should be in this file.)
 - Group timezones by region for better UX
 - Add timezone fallback logic for user profile (not currently stored in User type)
 
@@ -58,9 +59,10 @@
 - Replace status Input with Select component + status options  
 - Maintain existing text inputs for other fields
 - Add real-time validation feedback
+- Put Invalid Rows card above Valid Rows card to ensure visibility. 
 
 #### 3.2 Re-validation Button Fix
-**Current**: `src/components/ImportScreen.tsx:554-560` - disabled when all invalid
+**Current**: `src/components/ImportScreen.tsx:554-560` - disabled when any invalid
 **Fix**: Change condition to always enable when there are any invalid rows, regardless of their fixed status
 
 #### 3.3 Import Progress Enhancement
@@ -77,6 +79,7 @@
 - Extend `ParsedRow` interface to include import status (`pending | importing | success | error`)
 - Add `importError` field to track specific import errors
 - Modify import loop to update row status in real-time
+- Ensure atomicity for imported rows, either the Gig row and any nested rows (Venue, Act) are successful, or  rollback.
 
 #### 4.2 Improved Error Messages
 **Enhancement Areas**:
@@ -120,7 +123,10 @@ interface TimezoneOption {
    - Fix typo on line 152
 
 4. **`src/components/gig/GigBasicInfoSection.tsx`** 
-   - Extend timezone list for consistency
+   - Remove temporary timezone list
+   
+5. **`src/utils/supabase/constants.ts`** 
+   - Add comprehensive timezone list
 
 ### New Utility Functions
 ```typescript
@@ -136,7 +142,7 @@ export function parseTimeComponent(dateStr: string): string
 
 ## Data Model/API Changes
 
-No database schema changes required. All changes are frontend validation and processing improvements.
+- Add `timezone` column to `users` table.
 
 ## Delivery Phases
 

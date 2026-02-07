@@ -38,6 +38,10 @@ This document outlines requirements to fix critical bugs and improve functionali
 - **Requirement**: Make status field a select dropdown in row editor instead of text input
 - **Options**: `['DateHold', 'Proposed', 'Booked', 'Completed', 'Cancelled', 'Settled']`
 
+#### 2.5 Allow Multiple Date Formats
+
+* **Requirement**: Allow dates in both YYYY-MM-DD and MM-DD-YYYY formats in the CSV file
+
 ### 3. User Experience Improvements
 
 #### 3.1 Enhanced Row Editor
@@ -91,6 +95,7 @@ This document outlines requirements to fix critical bugs and improve functionali
    - Maintain state of previously successful imports
 
 ### User Profile Integration
+- Need to add timezone field to User profile (requires updates to database, APIs and UI)
 - Need to access user profile timezone from authentication context
 - Default timezone fallback if user profile timezone not available
 - Use standard IANA timezone identifiers
@@ -100,6 +105,7 @@ Create comprehensive list of valid timezones for dropdown:
 - All standard IANA timezone identifiers
 - Group by region for better UX (Americas, Europe, Asia, etc.)
 - Include common aliases/descriptions
+- These should be implemented in src/utils/supabase/constants.ts with other enumerations.
 
 ## Success Criteria
 1. ✅ All gig imports are atomic at the individual row level
