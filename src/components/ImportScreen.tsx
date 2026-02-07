@@ -341,15 +341,7 @@ export default function ImportScreen({
       
       if (successCount > 0) {
         toast.success(`Successfully imported ${successCount} ${importType === 'gigs' ? 'gig(s)' : 'asset(s)'}`);
-        // Remove successfully imported rows from valid list
-        const remainingRows = updatedValidRows.filter(row => row.importStatus !== 'success');
-        setValidRows(remainingRows);
-        // If importing gigs, navigate to gig list
-        if (importType === 'gigs' && successCount > 0) {
-          setTimeout(() => {
-            onNavigateToGigs();
-          }, 1500);
-        }
+        // Keep all rows visible to show import status - don't remove or navigate
       }
       
       if (errors.length > 0) {
@@ -532,26 +524,69 @@ export default function ImportScreen({
 
         {/* Import Results */}
         {importResults && (
-          <Alert className={`mb-6 ${importResults.errors.length > 0 ? 'border-yellow-200 bg-yellow-50' : 'border-green-200 bg-green-50'}`}>
-            <AlertCircle className={`h-4 w-4 ${importResults.errors.length > 0 ? 'text-yellow-600' : 'text-green-600'}`} />
-            <AlertDescription>
-              <div className="space-y-2">
-                <p className="font-medium">
-                  Imported {importResults.success} {importType === 'gigs' ? 'gig(s)' : 'asset(s)'} successfully
-                </p>
+          <Card className="p-6 mb-6">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                {importResults.errors.length > 0 ? (
+                  <AlertCircle className="w-5 h-5 text-yellow-600" />
+                ) : (
+                  <CheckCircle className="w-5 h-5 text-green-600" />
+                )}
+                Import Results
+              </h2>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setFile(null);
+                  setValidRows([]);
+                  setInvalidRows([]);
+                  setImportResults(null);
+                  if (fileInputRef.current) {
+                    fileInputRef.current.value = '';
+                  }
+                }}
+              >
+                Start New Import
+              </Button>
+            </div>
+            <div className="space-y-3">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="flex items-center gap-2">
+                  <CheckCircle className="w-4 h-4 text-green-600" />
+                  <span className="font-medium text-green-700">
+                    {importResults.success} successfully imported
+                  </span>
+                </div>
                 {importResults.errors.length > 0 && (
-                  <div>
-                    <p className="font-medium mb-1">Errors:</p>
-                    <ul className="list-disc list-inside space-y-1 text-sm">
-                      {importResults.errors.map((error, idx) => (
-                        <li key={idx}>{error}</li>
-                      ))}
-                    </ul>
+                  <div className="flex items-center gap-2">
+                    <XCircle className="w-4 h-4 text-red-600" />
+                    <span className="font-medium text-red-700">
+                      {importResults.errors.length} failed
+                    </span>
                   </div>
                 )}
               </div>
-            </AlertDescription>
-          </Alert>
+              {invalidRows.length > 0 && (
+                <div className="bg-yellow-50 border border-yellow-200 rounded-md p-3">
+                  <p className="text-sm text-yellow-800">
+                    <strong>Next steps:</strong> Fix the invalid rows below and use "Re-validate & Import Fixed Rows" to continue.
+                  </p>
+                </div>
+              )}
+              {importResults.errors.length > 0 && (
+                <details className="mt-3">
+                  <summary className="cursor-pointer font-medium text-gray-700 hover:text-gray-900">
+                    View detailed error messages
+                  </summary>
+                  <ul className="list-disc list-inside space-y-1 text-sm mt-2 ml-4 text-gray-600">
+                    {importResults.errors.map((error, idx) => (
+                      <li key={idx}>{error}</li>
+                    ))}
+                  </ul>
+                </details>
+              )}
+            </div>
+          </Card>
         )}
 
         {/* Invalid Rows Table with Editing */}
