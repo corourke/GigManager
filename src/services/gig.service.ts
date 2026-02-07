@@ -123,7 +123,7 @@ export async function createGig(gigData: any) {
       hierarchy_depth = 0,
       participants = [],
       staff_slots = [],
-      amount_paid,
+      amount,
       ...restGigData
     } = gigData;
 
@@ -142,12 +142,12 @@ export async function createGig(gigData: any) {
     if (error) throw error;
     if (!data?.id) throw new Error('Gig creation failed to return an ID');
 
-    // If amount_paid is provided, create a financial record
-    if (amount_paid !== undefined && amount_paid !== null && parseFloat(amount_paid) > 0) {
+    // If amount is provided, create a financial record
+    if (amount !== undefined && amount !== null && parseFloat(amount) > 0) {
       await createGigFinancial({
         gig_id: data.id,
         organization_id: primary_organization_id,
-        amount: parseFloat(amount_paid),
+        amount: parseFloat(amount),
         date: new Date().toISOString().split('T')[0],
         type: 'Payment Received',
         category: 'Production',

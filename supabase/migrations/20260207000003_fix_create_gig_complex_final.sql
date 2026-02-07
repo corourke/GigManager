@@ -1,8 +1,8 @@
--- Migration: Fix role casting in create_gig_complex function
+-- Migration: Update create_gig_complex function to remove unauthorized column references
 -- Date: 2026-02-07
--- Description: Fixes the type casting issue where role needs to be cast to organization_type enum
+-- Description: Updates the create_gig_complex function to only use authorized gigs table columns
 
--- Drop and recreate the create_gig_complex function with proper type casting
+-- Drop and recreate the create_gig_complex function with correct columns
 DROP FUNCTION IF EXISTS create_gig_complex(jsonb, jsonb, jsonb);
 
 CREATE OR REPLACE FUNCTION create_gig_complex(
@@ -26,19 +26,15 @@ BEGIN
     RAISE EXCEPTION 'User not authenticated';
   END IF;
 
-  -- Insert Gig
+  -- Insert Gig with only authorized columns
   INSERT INTO gigs (
     title, 
     start, 
     "end", 
     timezone, 
     status, 
-    venue_address,
     notes,
-    settlement_type,
-    settlement_amount,
     tags, 
-    amount_paid, 
     parent_gig_id, 
     hierarchy_depth, 
     created_by, 
@@ -49,12 +45,8 @@ BEGIN
     (p_gig_data->>'end')::TIMESTAMPTZ,
     COALESCE(p_gig_data->>'timezone', 'UTC'),
     COALESCE(p_gig_data->>'status', 'DateHold')::gig_status,
-    p_gig_data->>'venue_address',
     p_gig_data->>'notes',
-    (p_gig_data->>'settlement_type')::settlement_type,
-    (p_gig_data->>'settlement_amount')::DECIMAL,
     COALESCE((SELECT array_agg(x) FROM jsonb_array_elements_text(p_gig_data->'tags') x), ARRAY[]::TEXT[]),
-    (p_gig_data->>'amount_paid')::DECIMAL,
     (p_gig_data->>'parent_gig_id')::UUID,
     COALESCE((p_gig_data->>'hierarchy_depth')::INTEGER, 0),
     v_user_id,
@@ -67,7 +59,7 @@ BEGIN
     VALUES (
       v_gig_id, 
       (v_participant->>'organization_id')::UUID, 
-      (v_participant->>'role')::organization_type,  -- Fixed: Cast to organization_type
+      (v_participant->>'role')::organization_type,
       v_participant->>'notes'
     );
   END LOOP;

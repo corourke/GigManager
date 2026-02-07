@@ -23,6 +23,52 @@ COMMENT ON SCHEMA "public" IS 'standard public schema';
 
 
 
+CREATE TYPE "public"."fin_category" AS ENUM (
+    'Labor',
+    'Equipment',
+    'Transportation',
+    'Venue',
+    'Production',
+    'Insurance',
+    'Rebillable',
+    'Other'
+);
+
+
+ALTER TYPE "public"."fin_category" OWNER TO "postgres";
+
+
+CREATE TYPE "public"."fin_type" AS ENUM (
+    'Bid Submitted',
+    'Bid Accepted',
+    'Bid Rejected',
+    'Contract Submitted',
+    'Contract Revised',
+    'Contract Signed',
+    'Contract Rejected',
+    'Contract Cancelled',
+    'Contract Settled',
+    'Sub-Contract Submitted',
+    'Sub-Contract Revised',
+    'Sub-Contract Signed',
+    'Sub-Contract Rejected',
+    'Sub-Contract Cancelled',
+    'Sub-Contract Settled',
+    'Deposit Received',
+    'Deposit Sent',
+    'Deposit Refunded',
+    'Payment Sent',
+    'Payment Recieved',
+    'Expense Incurred',
+    'Expense Reimbursed',
+    'Invoice Issued',
+    'Invoice Settled'
+);
+
+
+ALTER TYPE "public"."fin_type" OWNER TO "postgres";
+
+
 CREATE TYPE "public"."gig_status" AS ENUM (
     'DateHold',
     'Proposed',
@@ -49,6 +95,22 @@ CREATE TYPE "public"."organization_type" AS ENUM (
 
 
 ALTER TYPE "public"."organization_type" OWNER TO "postgres";
+
+
+CREATE TYPE "public"."settlement_type" AS ENUM (
+    'Cash',
+    'Check',
+    'Wire Transfer',
+    'Credit Card',
+    'ACH',
+    'Cryptocurrency',
+    'Barter',
+    'Trade',
+    'Other'
+);
+
+
+ALTER TYPE "public"."settlement_type" OWNER TO "postgres";
 
 
 CREATE TYPE "public"."user_role" AS ENUM (
@@ -161,23 +223,20 @@ $$;
 ALTER FUNCTION "public"."convert_pending_user_to_active"("p_email" "text", "p_auth_user_id" "uuid") OWNER TO "postgres";
 
 
-CREATE OR REPLACE FUNCTION "public"."create_gig_complex"("p_gig_data" "jsonb", "p_participants" "jsonb" DEFAULT '[]'::"jsonb", "p_staff_slots" "jsonb" DEFAULT '[]'::"jsonb") RETURNS "jsonb"
+CREATE OR REPLACE FUNCTION "public"."create_gig_complex"("p_gig_data" "jsonb", "p_participants" "jsonb" DEFAULT '[]'::"jsonb", "p_staff_slots" "jsonb" DEFAULT '[]'::"jsonb") RETURNS TABLE("id" "uuid")
     LANGUAGE "plpgsql" SECURITY DEFINER
-    SET "search_path" TO 'public'
     AS $$
 DECLARE
   v_gig_id UUID;
   v_user_id UUID;
-  v_gig_record JSONB;
   v_participant JSONB;
   v_slot JSONB;
-  v_assignment JSONB;
   v_role_id UUID;
-  v_slot_id UUID;
 BEGIN
-  v_user_id := auth.uid();
+  -- Get current user ID
+  SELECT auth.uid() INTO v_user_id;
   IF v_user_id IS NULL THEN
-    RAISE EXCEPTION 'Not authenticated';
+    RAISE EXCEPTION 'User not authenticated';
   END IF;
 
   -- Insert Gig
@@ -213,15 +272,15 @@ BEGIN
     COALESCE((p_gig_data->>'hierarchy_depth')::INTEGER, 0),
     v_user_id,
     v_user_id
-  ) RETURNING id INTO v_gig_id;
+  ) RETURNING gigs.id INTO v_gig_id;
 
-  -- Insert Participants
+  -- Insert Participants with proper role casting
   FOR v_participant IN SELECT * FROM jsonb_array_elements(p_participants) LOOP
     INSERT INTO gig_participants (gig_id, organization_id, role, notes)
     VALUES (
       v_gig_id, 
       (v_participant->>'organization_id')::UUID, 
-      v_participant->>'role', 
+      (v_participant->>'role')::organization_type,  -- Fixed: Cast to organization_type
       v_participant->>'notes'
     );
   END LOOP;
@@ -232,37 +291,19 @@ BEGIN
     INSERT INTO staff_roles (name)
     VALUES (v_slot->>'role')
     ON CONFLICT (name) DO UPDATE SET name = EXCLUDED.name
-    RETURNING id INTO v_role_id;
+    RETURNING staff_roles.id INTO v_role_id;
 
     INSERT INTO gig_staff_slots (gig_id, organization_id, staff_role_id, required_count, notes)
     VALUES (
-      v_gig_id, 
-      COALESCE((v_slot->>'organization_id')::UUID, (p_gig_data->>'primary_organization_id')::UUID),
+      v_gig_id,
+      (v_slot->>'organization_id')::UUID,
       v_role_id,
-      COALESCE((v_slot->>'count')::INTEGER, (v_slot->>'required_count')::INTEGER, 1),
+      COALESCE((v_slot->>'required_count')::INTEGER, 1),
       v_slot->>'notes'
-    ) RETURNING id INTO v_slot_id;
-
-    -- Insert Assignments for this slot
-    IF v_slot ? 'assignments' THEN
-      FOR v_assignment IN SELECT * FROM jsonb_array_elements(v_slot->'assignments') LOOP
-        IF v_assignment->>'user_id' IS NOT NULL THEN
-          INSERT INTO gig_staff_assignments (slot_id, user_id, status, rate, fee, notes)
-          VALUES (
-            v_slot_id,
-            (v_assignment->>'user_id')::UUID,
-            COALESCE(v_assignment->>'status', 'Requested'),
-            (v_assignment->>'rate')::DECIMAL,
-            (v_assignment->>'fee')::DECIMAL,
-            v_assignment->>'notes'
-          );
-        END IF;
-      END LOOP;
-    END IF;
+    );
   END LOOP;
 
-  -- Return the created gig ID
-  RETURN jsonb_build_object('id', v_gig_id);
+  RETURN QUERY SELECT v_gig_id;
 END;
 $$;
 
@@ -974,20 +1015,30 @@ CREATE TABLE IF NOT EXISTS "public"."assets" (
 ALTER TABLE "public"."assets" OWNER TO "postgres";
 
 
-CREATE TABLE IF NOT EXISTS "public"."gig_bids" (
+CREATE TABLE IF NOT EXISTS "public"."gig_financials" (
     "id" "uuid" DEFAULT "extensions"."uuid_generate_v4"() NOT NULL,
     "gig_id" "uuid" NOT NULL,
     "organization_id" "uuid",
     "amount" numeric(10,2) NOT NULL,
-    "date_given" "date" NOT NULL,
-    "result" "text",
+    "date" "date" NOT NULL,
     "notes" "text",
     "created_by" "uuid" NOT NULL,
-    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL
+    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    "type" "public"."fin_type" DEFAULT 'Bid Submitted'::"public"."fin_type" NOT NULL,
+    "category" "public"."fin_category" DEFAULT 'Other'::"public"."fin_category" NOT NULL,
+    "reference_number" "text",
+    "counterparty_id" "uuid",
+    "external_entity_name" "text",
+    "currency" "text" DEFAULT 'USD'::"text" NOT NULL,
+    "description" "text",
+    "due_date" "date",
+    "paid_at" timestamp with time zone,
+    "updated_by" "uuid",
+    "updated_at" timestamp with time zone DEFAULT "now"()
 );
 
 
-ALTER TABLE "public"."gig_bids" OWNER TO "postgres";
+ALTER TABLE "public"."gig_financials" OWNER TO "postgres";
 
 
 CREATE TABLE IF NOT EXISTS "public"."gig_kit_assignments" (
@@ -1068,18 +1119,32 @@ CREATE TABLE IF NOT EXISTS "public"."gigs" (
     "start" timestamp with time zone NOT NULL,
     "end" timestamp with time zone NOT NULL,
     "timezone" "text" NOT NULL,
-    "amount_paid" numeric(10,2),
     "notes" "text",
     "parent_gig_id" "uuid",
     "hierarchy_depth" integer DEFAULT 0 NOT NULL,
     "created_by" "uuid" NOT NULL,
     "updated_by" "uuid" NOT NULL,
     "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
-    "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL
+    "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    "venue_address" "text",
+    "settlement_type" "public"."settlement_type",
+    "settlement_amount" numeric(10,2)
 );
 
 
 ALTER TABLE "public"."gigs" OWNER TO "postgres";
+
+
+COMMENT ON COLUMN "public"."gigs"."venue_address" IS 'Specific address for the gig venue (nullable)';
+
+
+
+COMMENT ON COLUMN "public"."gigs"."settlement_type" IS 'Type of settlement payment method (nullable)';
+
+
+
+COMMENT ON COLUMN "public"."gigs"."settlement_amount" IS 'Amount for settlement payment (nullable)';
+
 
 
 CREATE TABLE IF NOT EXISTS "public"."invitations" (
@@ -1204,7 +1269,7 @@ ALTER TABLE ONLY "public"."assets"
 
 
 
-ALTER TABLE ONLY "public"."gig_bids"
+ALTER TABLE ONLY "public"."gig_financials"
     ADD CONSTRAINT "gig_bids_pkey" PRIMARY KEY ("id");
 
 
@@ -1327,11 +1392,11 @@ CREATE INDEX "idx_assets_org_id" ON "public"."assets" USING "btree" ("organizati
 
 
 
-CREATE INDEX "idx_gig_bids_gig_id" ON "public"."gig_bids" USING "btree" ("gig_id");
+CREATE INDEX "idx_gig_financials_gig_id" ON "public"."gig_financials" USING "btree" ("gig_id");
 
 
 
-CREATE INDEX "idx_gig_bids_org_id" ON "public"."gig_bids" USING "btree" ("organization_id");
+CREATE INDEX "idx_gig_financials_org_id" ON "public"."gig_financials" USING "btree" ("organization_id");
 
 
 
@@ -1459,6 +1524,10 @@ CREATE OR REPLACE TRIGGER "update_assets_updated_at" BEFORE UPDATE ON "public"."
 
 
 
+CREATE OR REPLACE TRIGGER "update_gig_financials_updated_at" BEFORE UPDATE ON "public"."gig_financials" FOR EACH ROW EXECUTE FUNCTION "public"."update_updated_at_column"();
+
+
+
 CREATE OR REPLACE TRIGGER "update_gig_staff_slots_updated_at" BEFORE UPDATE ON "public"."gig_staff_slots" FOR EACH ROW EXECUTE FUNCTION "public"."update_updated_at_column"();
 
 
@@ -1488,13 +1557,23 @@ ALTER TABLE ONLY "public"."assets"
 
 
 
-ALTER TABLE ONLY "public"."gig_bids"
+ALTER TABLE ONLY "public"."gig_financials"
     ADD CONSTRAINT "gig_bids_gig_id_fkey" FOREIGN KEY ("gig_id") REFERENCES "public"."gigs"("id") ON DELETE CASCADE;
 
 
 
-ALTER TABLE ONLY "public"."gig_bids"
+ALTER TABLE ONLY "public"."gig_financials"
     ADD CONSTRAINT "gig_bids_organization_id_fkey" FOREIGN KEY ("organization_id") REFERENCES "public"."organizations"("id") ON DELETE CASCADE;
+
+
+
+ALTER TABLE ONLY "public"."gig_financials"
+    ADD CONSTRAINT "gig_financials_counterparty_id_fkey" FOREIGN KEY ("counterparty_id") REFERENCES "public"."organizations"("id") ON DELETE SET NULL;
+
+
+
+ALTER TABLE ONLY "public"."gig_financials"
+    ADD CONSTRAINT "gig_financials_updated_by_fkey" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id");
 
 
 
@@ -1623,7 +1702,7 @@ CREATE POLICY "Admins and Managers can manage assets" ON "public"."assets" USING
 
 
 
-CREATE POLICY "Admins and Managers can manage gig bids" ON "public"."gig_bids" USING ("public"."user_can_manage_gig"("gig_id", "auth"."uid"()));
+CREATE POLICY "Admins and Managers can manage gig bids" ON "public"."gig_financials" USING ("public"."user_can_manage_gig"("gig_id", "auth"."uid"()));
 
 
 
@@ -1653,7 +1732,7 @@ CREATE POLICY "Admins and Managers can update invitations, users can accept th" 
 
 
 
-CREATE POLICY "Admins and Managers can view bids for accessible gigs" ON "public"."gig_bids" FOR SELECT USING ("public"."user_can_manage_gig"("gig_id", "auth"."uid"()));
+CREATE POLICY "Admins and Managers can view bids for accessible gigs" ON "public"."gig_financials" FOR SELECT USING ("public"."user_can_manage_gig"("gig_id", "auth"."uid"()));
 
 
 
@@ -1661,11 +1740,27 @@ CREATE POLICY "Admins and Managers of participating orgs can update gigs" ON "pu
 
 
 
+CREATE POLICY "Admins can delete their organization's financials" ON "public"."gig_financials" FOR DELETE TO "authenticated" USING ("public"."user_is_admin_of_org"("organization_id", "auth"."uid"()));
+
+
+
+CREATE POLICY "Admins can insert their organization's financials" ON "public"."gig_financials" FOR INSERT TO "authenticated" WITH CHECK ("public"."user_is_admin_of_org"("organization_id", "auth"."uid"()));
+
+
+
 CREATE POLICY "Admins can manage organization members" ON "public"."organization_members" USING ("public"."user_is_admin_of_org"("organization_id", "auth"."uid"()));
 
 
 
+CREATE POLICY "Admins can update their organization's financials" ON "public"."gig_financials" FOR UPDATE TO "authenticated" USING ("public"."user_is_admin_of_org"("organization_id", "auth"."uid"())) WITH CHECK ("public"."user_is_admin_of_org"("organization_id", "auth"."uid"()));
+
+
+
 CREATE POLICY "Admins can update their organizations" ON "public"."organizations" FOR UPDATE USING ("public"."user_is_admin_of_org"("id", "auth"."uid"()));
+
+
+
+CREATE POLICY "Admins can view their organization's financials" ON "public"."gig_financials" FOR SELECT TO "authenticated" USING ("public"."user_is_admin_of_org"("organization_id", "auth"."uid"()));
 
 
 
@@ -1755,7 +1850,7 @@ CREATE POLICY "Users can view their organization's kits" ON "public"."kits" FOR 
 ALTER TABLE "public"."assets" ENABLE ROW LEVEL SECURITY;
 
 
-ALTER TABLE "public"."gig_bids" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "public"."gig_financials" ENABLE ROW LEVEL SECURITY;
 
 
 ALTER TABLE "public"."gig_kit_assignments" ENABLE ROW LEVEL SECURITY;
@@ -1957,9 +2052,9 @@ GRANT ALL ON TABLE "public"."assets" TO "service_role";
 
 
 
-GRANT ALL ON TABLE "public"."gig_bids" TO "anon";
-GRANT ALL ON TABLE "public"."gig_bids" TO "authenticated";
-GRANT ALL ON TABLE "public"."gig_bids" TO "service_role";
+GRANT ALL ON TABLE "public"."gig_financials" TO "anon";
+GRANT ALL ON TABLE "public"."gig_financials" TO "authenticated";
+GRANT ALL ON TABLE "public"."gig_financials" TO "service_role";
 
 
 

@@ -29,7 +29,7 @@ export interface GigRow {
   venue?: string;
   tags?: string;
   notes?: string;
-  amount_paid?: string;
+  amount?: string;
 }
 
 export interface AssetRow {
@@ -93,7 +93,7 @@ export function validateGigRow(row: any, rowIndex: number): ParsedRow<GigRow> {
     venue: row.venue || '',
     tags: row.tags || '',
     notes: row.notes || '',
-    amount_paid: row.amount_paid || '',
+    amount: row.amount || '',
   };
 
   // Required fields
@@ -137,10 +137,10 @@ export function validateGigRow(row: any, rowIndex: number): ParsedRow<GigRow> {
   }
 
   // Optional numeric validation
-  if (data.amount_paid && data.amount_paid.trim()) {
-    const amount = parseFloat(data.amount_paid);
+  if (data.amount && data.amount.trim()) {
+    const amount = parseFloat(data.amount);
     if (isNaN(amount) || amount < 0) {
-      errors.push({ field: 'amount_paid', message: 'Amount paid must be a positive number' });
+      errors.push({ field: 'amount', message: 'Amount must be a positive number' });
     }
   }
 

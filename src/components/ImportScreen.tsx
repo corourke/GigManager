@@ -236,7 +236,7 @@ export default function ImportScreen({
               status: gigData.status as any,
               tags: parseTags(gigData.tags),
               notes: gigData.notes || undefined,
-              amount_paid: gigData.amount_paid ? parseFloat(gigData.amount_paid) : undefined,
+              amount: gigData.amount ? parseFloat(gigData.amount) : undefined,
               primary_organization_id: organization.id,
               participants: participants,
             });
