@@ -36,7 +36,7 @@ describe('GigFinancialsSection', () => {
       id: 'fin-1',
       date: '2024-01-15',
       amount: 5000,
-      type: 'Payment Recieved',
+      type: 'Payment Received',
       category: 'Production',
       description: 'Initial payment',
       reference_number: 'INV-001',

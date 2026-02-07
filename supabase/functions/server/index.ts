@@ -2274,7 +2274,7 @@ Deno.serve(async (req) => {
           .from('gig_financials')
           .select('amount')
           .eq('organization_id', orgId)
-          .eq('type', 'Payment Recieved')
+          .eq('type', 'Payment Received')
           .gte('date', startOfMonth.toISOString().split('T')[0]);
         
         revenueThisMonth = (thisMonthFin || []).reduce((sum: number, f: any) => sum + parseFloat(f.amount), 0);
@@ -2284,7 +2284,7 @@ Deno.serve(async (req) => {
           .from('gig_financials')
           .select('amount')
           .eq('organization_id', orgId)
-          .eq('type', 'Payment Recieved')
+          .eq('type', 'Payment Received')
           .gte('date', startOfLastMonth.toISOString().split('T')[0])
           .lte('date', endOfLastMonth.toISOString().split('T')[0]);
         
@@ -2295,7 +2295,7 @@ Deno.serve(async (req) => {
           .from('gig_financials')
           .select('amount')
           .eq('organization_id', orgId)
-          .eq('type', 'Payment Recieved')
+          .eq('type', 'Payment Received')
           .gte('date', startOfYear.toISOString().split('T')[0]);
         
         revenueThisYear = (thisYearFin || []).reduce((sum: number, f: any) => sum + parseFloat(f.amount), 0);

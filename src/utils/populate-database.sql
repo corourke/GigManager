@@ -79,7 +79,7 @@ RETURNING id;  -- Note this gig ID for the next steps
 -- Add financial records (replace <gig-id>, <org-id>, <your-user-id>)
 INSERT INTO gig_financials (gig_id, organization_id, amount, date, type, category, created_by)
 VALUES 
-  ('<gig-id>', '<org-id>', 25000.00, '2025-07-15', 'Payment Recieved', 'Production', '<your-user-id>');
+  ('<gig-id>', '<org-id>', 25000.00, '2025-07-15', 'Payment Received', 'Production', '<your-user-id>');
 
 -- Add participants to the gig (replace <gig-id>, <production-org-id>, <venue-org-id>, <act-org-id>)
 INSERT INTO gig_participants (gig_id, organization_id, role, notes)

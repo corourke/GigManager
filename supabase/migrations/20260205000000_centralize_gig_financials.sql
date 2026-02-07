@@ -22,7 +22,7 @@ CREATE TYPE fin_type AS ENUM (
   'Deposit Sent',
   'Deposit Refunded',
   'Payment Sent',
-  'Payment Recieved',
+  'Payment Received',
   'Expense Incurred',
   'Expense Reimbursed',
   'Invoice Issued',
@@ -64,7 +64,7 @@ ALTER TABLE gig_financials
   ADD COLUMN updated_at TIMESTAMPTZ DEFAULT NOW();
 
 -- 4. Migrate existing gigs.amount_paid to gig_financials
--- We'll assume the amount_paid in gigs represents a 'Payment Recieved' for 'Production'
+-- We'll assume the amount_paid in gigs represents a 'Payment Received' for 'Production'
 INSERT INTO gig_financials (
   gig_id,
   organization_id,
@@ -83,7 +83,7 @@ SELECT
               -- But for simplicity in migration, we can try to find one participant
   amount_paid,
   created_at::DATE,
-  'Payment Recieved',
+  'Payment Received',
   'Production',
   'Legacy amount_paid from gigs table',
   created_by,

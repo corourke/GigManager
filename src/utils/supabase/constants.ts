@@ -64,7 +64,7 @@ export const FIN_TYPE_CONFIG = {
   'Deposit Sent': { label: 'Deposit Sent' },
   'Deposit Refunded': { label: 'Deposit Refunded' },
   'Payment Sent': { label: 'Payment Sent' },
-  'Payment Recieved': { label: 'Payment Received' },
+  'Payment Received': { label: 'Payment Received' },
   'Expense Incurred': { label: 'Expense Incurred' },
   'Expense Reimbursed': { label: 'Expense Reimbursed' },
   'Invoice Issued': { label: 'Invoice Issued' },

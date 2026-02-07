@@ -149,7 +149,7 @@ export async function createGig(gigData: any) {
         organization_id: primary_organization_id,
         amount: parseFloat(amount_paid),
         date: new Date().toISOString().split('T')[0],
-        type: 'Payment Recieved',
+        type: 'Payment Received',
         category: 'Production',
         description: 'Initial payment from import'
       });

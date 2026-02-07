@@ -141,6 +141,14 @@ export default function ImportScreen({
     const errors: string[] = [];
     let successCount = 0;
 
+    // Initialize all rows as pending
+    const updatedValidRows = [...validRows];
+    updatedValidRows.forEach(row => {
+      row.importStatus = 'pending';
+      row.importError = undefined;
+    });
+    setValidRows([...updatedValidRows]);
+
     try {
       const supabase = createClient();
       const { data: { session } } = await supabase.auth.getSession();
@@ -150,8 +158,13 @@ export default function ImportScreen({
 
       if (importType === 'gigs') {
         // Import gigs
-        for (const row of validRows) {
+        for (let i = 0; i < updatedValidRows.length; i++) {
+          const row = updatedValidRows[i];
           try {
+            // Update status to importing
+            row.importStatus = 'importing';
+            setValidRows([...updatedValidRows]);
+
             const gigData = row.data as GigRow;
             
             // Find or create act/venue organizations
@@ -228,15 +241,28 @@ export default function ImportScreen({
               participants: participants,
             });
 
+            // Mark as success
+            row.importStatus = 'success';
+            row.importError = undefined;
+            setValidRows([...updatedValidRows]);
             successCount++;
           } catch (error: any) {
-            errors.push(`Row ${row.rowIndex}: ${error.message || 'Failed to import gig'}`);
+            const errorMessage = error.message || 'Failed to import gig';
+            row.importStatus = 'failed';
+            row.importError = errorMessage;
+            setValidRows([...updatedValidRows]);
+            errors.push(`Row ${row.rowIndex}: ${errorMessage}`);
           }
         }
       } else {
         // Import assets
-        for (const row of validRows) {
+        for (let i = 0; i < updatedValidRows.length; i++) {
+          const row = updatedValidRows[i];
           try {
+            // Update status to importing
+            row.importStatus = 'importing';
+            setValidRows([...updatedValidRows]);
+
             const assetData = row.data as AssetRow;
             
             await createAsset({
@@ -256,9 +282,17 @@ export default function ImportScreen({
               quantity: assetData.quantity ? parseInt(assetData.quantity) : undefined,
             });
 
+            // Mark as success
+            row.importStatus = 'success';
+            row.importError = undefined;
+            setValidRows([...updatedValidRows]);
             successCount++;
           } catch (error: any) {
-            errors.push(`Row ${row.rowIndex}: ${error.message || 'Failed to import asset'}`);
+            const errorMessage = error.message || 'Failed to import asset';
+            row.importStatus = 'failed';
+            row.importError = errorMessage;
+            setValidRows([...updatedValidRows]);
+            errors.push(`Row ${row.rowIndex}: ${errorMessage}`);
           }
         }
       }
@@ -267,8 +301,9 @@ export default function ImportScreen({
       
       if (successCount > 0) {
         toast.success(`Successfully imported ${successCount} ${importType === 'gigs' ? 'gig(s)' : 'asset(s)'}`);
-        // Move successfully imported rows from valid to empty
-        setValidRows([]);
+        // Remove successfully imported rows from valid list
+        const remainingRows = updatedValidRows.filter(row => row.importStatus !== 'success');
+        setValidRows(remainingRows);
         // If importing gigs, navigate to gig list
         if (importType === 'gigs' && successCount > 0) {
           setTimeout(() => {
@@ -479,70 +514,6 @@ export default function ImportScreen({
           </Alert>
         )}
 
-        {/* Valid Rows Table */}
-        {validRows.length > 0 && (
-          <Card className="p-6 mb-6">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-              <CheckCircle className="w-5 h-5 text-green-600" />
-              Valid Rows ({validRows.length})
-            </h2>
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Row</TableHead>
-                    {importType === 'gigs' ? (
-                      <>
-                        <TableHead>Title</TableHead>
-                        <TableHead>Start</TableHead>
-                        <TableHead>End</TableHead>
-                        <TableHead>Status</TableHead>
-                        <TableHead>Act</TableHead>
-                        <TableHead>Venue</TableHead>
-                      </>
-                    ) : (
-                      <>
-                        <TableHead>Category</TableHead>
-                        <TableHead>Manufacturer/Model</TableHead>
-                        <TableHead>Serial Number</TableHead>
-                        <TableHead>Acquisition Date</TableHead>
-                        <TableHead>Cost</TableHead>
-                      </>
-                    )}
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {validRows.map((row) => (
-                    <TableRow key={row.rowIndex}>
-                      <TableCell>{row.rowIndex}</TableCell>
-                      {importType === 'gigs' ? (
-                        <>
-                          <TableCell>{(row.data as GigRow).title}</TableCell>
-                          <TableCell>{(row.data as GigRow).start}</TableCell>
-                          <TableCell>{(row.data as GigRow).end}</TableCell>
-                          <TableCell>
-                            <Badge variant="outline">{(row.data as GigRow).status}</Badge>
-                          </TableCell>
-                          <TableCell>{(row.data as GigRow).act || '-'}</TableCell>
-                          <TableCell>{(row.data as GigRow).venue || '-'}</TableCell>
-                        </>
-                      ) : (
-                        <>
-                          <TableCell>{(row.data as AssetRow).category}</TableCell>
-                          <TableCell>{(row.data as AssetRow).manufacturer_model}</TableCell>
-                          <TableCell>{(row.data as AssetRow).serial_number || '-'}</TableCell>
-                          <TableCell>{(row.data as AssetRow).acquisition_date}</TableCell>
-                          <TableCell>{(row.data as AssetRow).cost_per_item || '-'}</TableCell>
-                        </>
-                      )}
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          </Card>
-        )}
-
         {/* Invalid Rows Table with Editing */}
         {invalidRows.length > 0 && (
           <Card className="p-6 mb-6">
@@ -554,7 +525,7 @@ export default function ImportScreen({
               <Button
                 variant="outline"
                 onClick={handleRevalidateInvalidRows}
-                disabled={invalidRows.every(r => !r.isValid)}
+                disabled={invalidRows.length === 0}
               >
                 Re-validate Fixed Rows
               </Button>
@@ -674,6 +645,70 @@ export default function ImportScreen({
                   </div>
                 </div>
               ))}
+            </div>
+          </Card>
+        )}
+
+        {/* Valid Rows Table */}
+        {validRows.length > 0 && (
+          <Card className="p-6 mb-6">
+            <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+              <CheckCircle className="w-5 h-5 text-green-600" />
+              Valid Rows ({validRows.length})
+            </h2>
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Row</TableHead>
+                    {importType === 'gigs' ? (
+                      <>
+                        <TableHead>Title</TableHead>
+                        <TableHead>Start</TableHead>
+                        <TableHead>End</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead>Act</TableHead>
+                        <TableHead>Venue</TableHead>
+                      </>
+                    ) : (
+                      <>
+                        <TableHead>Category</TableHead>
+                        <TableHead>Manufacturer/Model</TableHead>
+                        <TableHead>Serial Number</TableHead>
+                        <TableHead>Acquisition Date</TableHead>
+                        <TableHead>Cost</TableHead>
+                      </>
+                    )}
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {validRows.map((row) => (
+                    <TableRow key={row.rowIndex}>
+                      <TableCell>{row.rowIndex}</TableCell>
+                      {importType === 'gigs' ? (
+                        <>
+                          <TableCell>{(row.data as GigRow).title}</TableCell>
+                          <TableCell>{(row.data as GigRow).start}</TableCell>
+                          <TableCell>{(row.data as GigRow).end}</TableCell>
+                          <TableCell>
+                            <Badge variant="outline">{(row.data as GigRow).status}</Badge>
+                          </TableCell>
+                          <TableCell>{(row.data as GigRow).act || '-'}</TableCell>
+                          <TableCell>{(row.data as GigRow).venue || '-'}</TableCell>
+                        </>
+                      ) : (
+                        <>
+                          <TableCell>{(row.data as AssetRow).category}</TableCell>
+                          <TableCell>{(row.data as AssetRow).manufacturer_model}</TableCell>
+                          <TableCell>{(row.data as AssetRow).serial_number || '-'}</TableCell>
+                          <TableCell>{(row.data as AssetRow).acquisition_date}</TableCell>
+                          <TableCell>{(row.data as AssetRow).cost_per_item || '-'}</TableCell>
+                        </>
+                      )}
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
             </div>
           </Card>
         )}

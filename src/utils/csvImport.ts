@@ -3,6 +3,8 @@ import { Organization } from './supabase/types';
 
 export type ImportType = 'gigs' | 'assets';
 
+export type ImportStatus = 'pending' | 'importing' | 'success' | 'failed';
+
 export interface ValidationError {
   field: string;
   message: string;
@@ -13,6 +15,8 @@ export interface ParsedRow<T> {
   data: T;
   errors: ValidationError[];
   isValid: boolean;
+  importStatus?: ImportStatus;
+  importError?: string;
 }
 
 export interface GigRow {
