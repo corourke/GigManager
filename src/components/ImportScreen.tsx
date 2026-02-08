@@ -18,6 +18,8 @@ import {
 import { Badge } from './ui/badge';
 import AppHeader from './AppHeader';
 import { Organization, User, UserRole } from '../utils/supabase/types';
+import { GIG_STATUS_CONFIG } from '../utils/supabase/constants';
+import { getTimezoneOptions } from '../utils/timezones';
 import {
   parseAndValidateCSV,
   downloadTemplate,
@@ -76,7 +78,7 @@ export default function ImportScreen({
     setImportResults(null);
 
     try {
-      const result = await parseAndValidateCSV(selectedFile, importType);
+      const result = await parseAndValidateCSV(selectedFile, importType, user?.timezone);
       setValidRows(result.validRows);
       setInvalidRows(result.invalidRows);
       
@@ -119,7 +121,7 @@ export default function ImportScreen({
         const updatedData = { ...row.data, [field]: value };
         // Re-validate the row
         if (importType === 'gigs') {
-          const validated = validateGigRow(updatedData, rowIndex);
+          const validated = validateGigRow(updatedData, rowIndex, user?.timezone);
           return validated as ParsedRow<GigRow | AssetRow>;
         } else {
           const validated = validateAssetRow(updatedData, rowIndex);
@@ -661,21 +663,39 @@ export default function ImportScreen({
                         </div>
                         <div>
                           <Label className="text-xs">Timezone</Label>
-                          <Input
+                          <Select
                             value={(row.data as GigRow).timezone}
-                            onChange={(e) => handleEditInvalidRow(row.rowIndex, 'timezone', e.target.value)}
-                            className="h-8 text-sm"
-                            placeholder="America/Los_Angeles"
-                          />
+                            onValueChange={(value) => handleEditInvalidRow(row.rowIndex, 'timezone', value)}
+                          >
+                            <SelectTrigger className="h-8 text-sm">
+                              <SelectValue placeholder="Select timezone" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {getTimezoneOptions().map(tz => (
+                                <SelectItem key={tz.value} value={tz.value}>
+                                  {tz.label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
                         </div>
                         <div>
                           <Label className="text-xs">Status</Label>
-                          <Input
+                          <Select
                             value={(row.data as GigRow).status}
-                            onChange={(e) => handleEditInvalidRow(row.rowIndex, 'status', e.target.value)}
-                            className="h-8 text-sm"
-                            placeholder="Booked"
-                          />
+                            onValueChange={(value) => handleEditInvalidRow(row.rowIndex, 'status', value)}
+                          >
+                            <SelectTrigger className="h-8 text-sm">
+                              <SelectValue placeholder="Select status" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {Object.entries(GIG_STATUS_CONFIG).map(([value, config]) => (
+                                <SelectItem key={value} value={value}>
+                                  {config.label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
                         </div>
                         <div>
                           <Label className="text-xs">Act</Label>

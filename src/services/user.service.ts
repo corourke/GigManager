@@ -98,6 +98,7 @@ export async function updateUserProfile(userId: string, updates: {
   state?: string;
   postal_code?: string;
   country?: string;
+  timezone?: string;
 }): Promise<User> {
   const supabase = getSupabase();
   try {

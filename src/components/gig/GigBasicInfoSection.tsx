@@ -17,6 +17,7 @@ import { toast } from 'sonner';
 import { GigStatus } from '../../utils/supabase/types';
 import { GIG_STATUS_CONFIG } from '../../utils/supabase/constants';
 import { formatForDateTimeInput, parseLocalToUTC } from '../../utils/dateUtils';
+import { getCommonUSTimezones } from '../../utils/timezones';
 
 const basicInfoSchema = z.object({
   title: z.string().min(1, 'Title is required').max(200, 'Title must be less than 200 characters'),
@@ -45,16 +46,6 @@ interface BasicInfoFormData {
   tags: string[];
   notes: string;
 }
-
-const TIMEZONES = [
-  { value: 'America/New_York', label: 'Eastern Time (ET)' },
-  { value: 'America/Chicago', label: 'Central Time (CT)' },
-  { value: 'America/Denver', label: 'Mountain Time (MT)' },
-  { value: 'America/Los_Angeles', label: 'Pacific Time (PT)' },
-  { value: 'America/Phoenix', label: 'Arizona (MST)' },
-  { value: 'America/Anchorage', label: 'Alaska (AKT)' },
-  { value: 'Pacific/Honolulu', label: 'Hawaii (HST)' },
-];
 
 const STATUS_OPTIONS: { value: GigStatus; label: string }[] = Object.entries(GIG_STATUS_CONFIG).map(([value, config]) => ({
   value: value as GigStatus,
@@ -303,7 +294,7 @@ export default function GigBasicInfoSection({ gigId, onCreate, isSubmitting: ext
                       <SelectValue placeholder="Select timezone" />
                     </SelectTrigger>
                     <SelectContent>
-                      {TIMEZONES.map((tz) => (
+                      {getCommonUSTimezones().map((tz) => (
                         <SelectItem key={tz.value} value={tz.value}>
                           {tz.label}
                         </SelectItem>

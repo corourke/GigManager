@@ -20,6 +20,7 @@ export interface DbUser {
   postal_code?: string;
   country?: string;
   role_hint?: string;
+  timezone?: string;
   user_status: 'active' | 'inactive' | 'pending';
   last_sign_in_at?: string;
   created_at: string;

@@ -1,5 +1,7 @@
 import Papa from 'papaparse';
 import { Organization } from './supabase/types';
+import { isValidTimezone, getDefaultTimezone } from './timezones';
+import { GIG_STATUS_CONFIG } from './supabase/constants';
 
 export type ImportType = 'gigs' | 'assets';
 
@@ -48,21 +50,115 @@ export interface AssetRow {
   notes?: string;
 }
 
-const GIG_STATUSES = ['DateHold', 'Proposed', 'Booked', 'Completed', 'Cancelled', 'Settled'];
-const TIMEZONES = [
-  'America/New_York', 'America/Chicago', 'America/Denver', 'America/Los_Angeles',
-  'America/Phoenix', 'America/Anchorage', 'Pacific/Honolulu'
-];
+const GIG_STATUSES = Object.keys(GIG_STATUS_CONFIG);
 
-// Common IANA timezones - basic validation
-const isValidTimezone = (tz: string): boolean => {
-  try {
-    Intl.DateTimeFormat(undefined, { timeZone: tz });
-    return true;
-  } catch {
-    return false;
+/**
+ * Parse various date formats and return ISO string
+ */
+function parseDate(dateStr: string): string | null {
+  if (!dateStr || !dateStr.trim()) return null;
+  
+  const trimmed = dateStr.trim();
+  
+  // Try various date formats
+  const formats = [
+    // ISO format (preferred)
+    /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/,
+    // YYYY-MM-DD HH:MM:SS
+    /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/,
+    // YYYY-MM-DD HH:MM
+    /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/,
+    // YYYY-MM-DD
+    /^\d{4}-\d{2}-\d{2}$/,
+    // MM/DD/YYYY HH:MM:SS
+    /^\d{1,2}\/\d{1,2}\/\d{4} \d{2}:\d{2}:\d{2}$/,
+    // MM/DD/YYYY HH:MM
+    /^\d{1,2}\/\d{1,2}\/\d{4} \d{2}:\d{2}$/,
+    // MM/DD/YYYY
+    /^\d{1,2}\/\d{1,2}\/\d{4}$/,
+    // MM-DD-YYYY HH:MM:SS
+    /^\d{1,2}-\d{1,2}-\d{4} \d{2}:\d{2}:\d{2}$/,
+    // MM-DD-YYYY HH:MM
+    /^\d{1,2}-\d{1,2}-\d{4} \d{2}:\d{2}$/,
+    // MM-DD-YYYY
+    /^\d{1,2}-\d{1,2}-\d{4}$/,
+  ];
+
+  // Try to parse as-is first (handles ISO and many other formats)
+  let date = new Date(trimmed);
+  if (!isNaN(date.getTime())) {
+    return date.toISOString();
   }
-};
+
+  // Handle MM/DD/YYYY and MM-DD-YYYY formats specifically
+  const mdySlashMatch = trimmed.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})(.*)$/);
+  const mdyDashMatch = trimmed.match(/^(\d{1,2})-(\d{1,2})-(\d{4})(.*)$/);
+  
+  if (mdySlashMatch || mdyDashMatch) {
+    const match = mdySlashMatch || mdyDashMatch;
+    const [, month, day, year, timePart = ''] = match;
+    
+    // Convert to YYYY-MM-DD format
+    const isoDateStr = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}${timePart}`;
+    date = new Date(isoDateStr);
+    
+    if (!isNaN(date.getTime())) {
+      return date.toISOString();
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Apply defaults to gig row data
+ */
+function applyGigRowDefaults(row: any, userTimezone?: string | null): GigRow {
+  const data: GigRow = {
+    title: row.title || '',
+    start: row.start || '',
+    end: row.end || '',
+    timezone: row.timezone || '',
+    status: row.status || '',
+    act: row.act || '',
+    venue: row.venue || '',
+    tags: row.tags || '',
+    notes: row.notes || '',
+    amount: row.amount || '',
+  };
+
+  // Apply timezone default if not provided
+  if (!data.timezone.trim()) {
+    data.timezone = getDefaultTimezone(userTimezone);
+  }
+
+  // Parse and normalize date formats
+  if (data.start) {
+    const parsedStart = parseDate(data.start);
+    if (parsedStart) {
+      data.start = parsedStart;
+    }
+  }
+
+  if (data.end) {
+    const parsedEnd = parseDate(data.end);
+    if (parsedEnd) {
+      data.end = parsedEnd;
+    }
+  }
+
+  // If we have a start time but no end time, default end to 2 hours after start
+  if (data.start && !data.end.trim()) {
+    const parsedStart = parseDate(data.start);
+    if (parsedStart) {
+      const startDate = new Date(parsedStart);
+      const endDate = new Date(startDate.getTime() + 2 * 60 * 60 * 1000); // Add 2 hours
+      data.end = endDate.toISOString();
+    }
+  }
+
+  return data;
+}
 
 export function parseCSV<T>(file: File): Promise<Papa.ParseResult<T>> {
   return new Promise((resolve, reject) => {
@@ -81,20 +177,11 @@ export function parseCSV<T>(file: File): Promise<Papa.ParseResult<T>> {
   });
 }
 
-export function validateGigRow(row: any, rowIndex: number): ParsedRow<GigRow> {
+export function validateGigRow(row: any, rowIndex: number, userTimezone?: string | null): ParsedRow<GigRow> {
   const errors: ValidationError[] = [];
-  const data: GigRow = {
-    title: row.title || '',
-    start: row.start || '',
-    end: row.end || '',
-    timezone: row.timezone || '',
-    status: row.status || '',
-    act: row.act || '',
-    venue: row.venue || '',
-    tags: row.tags || '',
-    notes: row.notes || '',
-    amount: row.amount || '',
-  };
+  
+  // Apply defaults and normalize data
+  const data = applyGigRowDefaults(row, userTimezone);
 
   // Required fields
   if (!data.title.trim()) {
@@ -106,7 +193,7 @@ export function validateGigRow(row: any, rowIndex: number): ParsedRow<GigRow> {
   } else {
     const startDate = new Date(data.start);
     if (isNaN(startDate.getTime())) {
-      errors.push({ field: 'start', message: 'Start date/time must be a valid ISO datetime string' });
+      errors.push({ field: 'start', message: 'Start date/time must be in a valid date format (YYYY-MM-DD, MM/DD/YYYY, MM-DD-YYYY, with optional time)' });
     }
   }
 
@@ -115,7 +202,7 @@ export function validateGigRow(row: any, rowIndex: number): ParsedRow<GigRow> {
   } else {
     const endDate = new Date(data.end);
     if (isNaN(endDate.getTime())) {
-      errors.push({ field: 'end', message: 'End date/time must be a valid ISO datetime string' });
+      errors.push({ field: 'end', message: 'End date/time must be in a valid date format (YYYY-MM-DD, MM/DD/YYYY, MM-DD-YYYY, with optional time)' });
     } else if (data.start) {
       const startDate = new Date(data.start);
       if (!isNaN(startDate.getTime()) && endDate <= startDate) {
@@ -225,7 +312,8 @@ export function validateAssetRow(row: any, rowIndex: number): ParsedRow<AssetRow
 
 export function parseAndValidateCSV<T extends GigRow | AssetRow>(
   file: File,
-  importType: ImportType
+  importType: ImportType,
+  userTimezone?: string | null
 ): Promise<{ validRows: ParsedRow<T>[]; invalidRows: ParsedRow<T>[] }> {
   return new Promise(async (resolve, reject) => {
     try {
@@ -235,7 +323,7 @@ export function parseAndValidateCSV<T extends GigRow | AssetRow>(
       result.data.forEach((row, index) => {
         let parsedRow: ParsedRow<T>;
         if (importType === 'gigs') {
-          parsedRow = validateGigRow(row, index + 2) as ParsedRow<T>; // +2 because header is row 1, and we're 0-indexed
+          parsedRow = validateGigRow(row, index + 2, userTimezone) as ParsedRow<T>; // +2 because header is row 1, and we're 0-indexed
         } else {
           parsedRow = validateAssetRow(row, index + 2) as ParsedRow<T>;
         }
