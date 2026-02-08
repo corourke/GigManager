@@ -40,6 +40,7 @@ export default function EditUserProfileDialog({
     state: '',
     postal_code: '',
     country: '',
+    timezone: '',
   });
 
   // Change detection for efficient updates
@@ -56,6 +57,7 @@ export default function EditUserProfileDialog({
       state: '',
       postal_code: '',
       country: '',
+      timezone: '',
     },
     currentData: formData,
   });
@@ -77,6 +79,7 @@ export default function EditUserProfileDialog({
         state: user.state || '',
         postal_code: user.postal_code || '',
         country: user.country || '',
+        timezone: user.timezone || '',
       };
 
       setFormData(loadedData);

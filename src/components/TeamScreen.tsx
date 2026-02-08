@@ -193,6 +193,7 @@ export default function TeamScreen({
     state: '',
     postal_code: '',
     country: '',
+    timezone: '',
     role: 'Staff',
     default_staff_role_id: '',
   });
@@ -422,6 +423,7 @@ export default function TeamScreen({
       state: member.user.state || '',
       postal_code: member.user.postal_code || '',
       country: member.user.country || '',
+      timezone: member.user.timezone || '',
       role: member.role as UserRole,
       default_staff_role_id: member.default_staff_role_id || '',
     });

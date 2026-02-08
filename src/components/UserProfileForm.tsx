@@ -1,8 +1,9 @@
 import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
-import { Mail } from 'lucide-react';
+import { Mail, Globe } from 'lucide-react';
 import { UserRole } from '../utils/supabase/types';
+import { getTimezoneOptions } from '../utils/timezones';
 
 export interface UserProfileFormData {
   first_name: string;
@@ -16,6 +17,7 @@ export interface UserProfileFormData {
   state: string;
   postal_code: string;
   country: string;
+  timezone?: string;
   role?: UserRole;
   default_staff_role_id?: string;
 }
@@ -138,6 +140,35 @@ export default function UserProfileForm({
           onChange={(e) => onChange('phone', e.target.value)}
           disabled={disabled}
         />
+      </div>
+
+      {/* Timezone */}
+      <div className="space-y-2">
+        <Label htmlFor="timezone">
+          Timezone {isRequired('timezone') && '*'}
+        </Label>
+        <div className="relative">
+          <Globe className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+          <Select 
+            value={formData.timezone || ''} 
+            onValueChange={(value) => onChange('timezone', value)}
+            disabled={disabled}
+          >
+            <SelectTrigger id="timezone" className="pl-10">
+              <SelectValue placeholder="Select your timezone..." />
+            </SelectTrigger>
+            <SelectContent>
+              {getTimezoneOptions().map(tz => (
+                <SelectItem key={tz.value} value={tz.value}>
+                  {tz.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <p className="text-xs text-gray-500">
+          Used as default for CSV imports and scheduling
+        </p>
       </div>
 
       {/* Avatar URL */}
