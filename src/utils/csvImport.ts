@@ -172,13 +172,20 @@ function applyGigRowDefaults(row: any, userTimezone?: string | null): GigRow {
     }
   }
 
-  // If we have a start time but no end time, default end to 2 hours after start
+  // If we have a start time but no end time, default end appropriately
   if (data.start && !data.end.trim()) {
     const parsedStart = parseDate(data.start);
     if (parsedStart) {
-      const startDate = new Date(parsedStart);
-      const endDate = new Date(startDate.getTime() + 2 * 60 * 60 * 1000); // Add 2 hours
-      data.end = endDate.toISOString();
+      // Check if start is a date-only entry (midnight UTC)
+      if (parsedStart.endsWith('T00:00:00.000Z')) {
+        // For date-only entries, set end time to same midnight UTC for special UI handling
+        data.end = parsedStart;
+      } else {
+        // For entries with time, default end to 2 hours after start
+        const startDate = new Date(parsedStart);
+        const endDate = new Date(startDate.getTime() + 2 * 60 * 60 * 1000); // Add 2 hours
+        data.end = endDate.toISOString();
+      }
     }
   }
 
@@ -230,8 +237,13 @@ export function validateGigRow(row: any, rowIndex: number, userTimezone?: string
       errors.push({ field: 'end', message: 'End date/time must be in a valid date format (YYYY-MM-DD, MM/DD/YYYY, MM-DD-YYYY, with optional time)' });
     } else if (data.start) {
       const startDate = new Date(data.start);
-      if (!isNaN(startDate.getTime()) && endDate <= startDate) {
+      if (!isNaN(startDate.getTime()) && endDate < startDate) {
         errors.push({ field: 'end', message: 'End time must be after start time' });
+      } else if (!isNaN(startDate.getTime()) && endDate.getTime() === startDate.getTime()) {
+        // Equal times are only allowed for date-only entries (both at midnight UTC)
+        if (!(data.start.endsWith('T00:00:00.000Z') && data.end.endsWith('T00:00:00.000Z'))) {
+          errors.push({ field: 'end', message: 'End time must be after start time' });
+        }
       }
     }
   }

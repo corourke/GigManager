@@ -355,5 +355,40 @@ describe('CSV Import Timezone Handling', () => {
       expect(result.data.end).toBe('2026-06-16T00:00:00.000Z');
       expect(result.data.timezone).toBe('America/New_York');
     });
+
+    it('should set end time to same midnight UTC when start is date-only and end is empty', () => {
+      const csvRow = {
+        title: 'Date Only with Empty End',
+        start: '2026-06-15', // Date only
+        end: '', // Empty end time
+        timezone: 'America/New_York',
+        status: 'Booked'
+      };
+
+      const result = validateGigRow(csvRow, 0);
+      
+      expect(result.isValid).toBe(true);
+      // Both start and end should be midnight UTC for date-only entries
+      expect(result.data.start).toBe('2026-06-15T00:00:00.000Z');
+      expect(result.data.end).toBe('2026-06-15T00:00:00.000Z'); // Same as start for date-only
+      expect(result.data.timezone).toBe('America/New_York');
+    });
+
+    it('should still add 2 hours for time-based entries when end is empty', () => {
+      const csvRow = {
+        title: 'Time Entry with Empty End',
+        start: '2026-06-15T20:00:00Z', // UTC with time
+        end: '', // Empty end time
+        timezone: 'America/New_York',
+        status: 'Booked'
+      };
+
+      const result = validateGigRow(csvRow, 0);
+      
+      expect(result.isValid).toBe(true);
+      expect(result.data.start).toBe('2026-06-15T20:00:00.000Z');
+      expect(result.data.end).toBe('2026-06-15T22:00:00.000Z'); // 2 hours later
+      expect(result.data.timezone).toBe('America/New_York');
+    });
   });
 });
