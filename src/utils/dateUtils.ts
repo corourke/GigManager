@@ -190,3 +190,92 @@ export const formatForDateTimeInput = (
     return '';
   }
 };
+
+/**
+ * Formats a gig date/time for display in previews and tables.
+ * Handles date-only entries (midnight UTC) specially by omitting time.
+ */
+export const formatGigDateTimeForDisplay = (dateStr: string, timeZone?: string): string => {
+  if (!dateStr) return '';
+  
+  try {
+    const date = new Date(dateStr);
+    
+    // Check if this is a date-only entry (midnight UTC)
+    if (dateStr.endsWith('T00:00:00.000Z')) {
+      // For date-only entries, just show the date
+      return formatInTimeZone(date, timeZone, {
+        month: '2-digit',
+        day: '2-digit', 
+        year: 'numeric',
+      });
+    } else {
+      // For entries with time, show date and time in gig timezone
+      return formatInTimeZone(date, timeZone, {
+        month: '2-digit',
+        day: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: true,
+      });
+    }
+  } catch (error) {
+    console.error('Error formatting gig date for display:', error);
+    return dateStr;
+  }
+};
+
+/**
+ * Formats a gig date/time for editing in timezone-aware inputs.
+ * Handles date-only entries by returning date-only format (YYYY-MM-DD).
+ */
+export const formatGigDateTimeForInput = (dateStr: string, timeZone?: string): string => {
+  if (!dateStr) return '';
+  
+  try {
+    const date = new Date(dateStr);
+    
+    // Check if this is a date-only entry (midnight UTC)
+    if (dateStr.endsWith('T00:00:00.000Z')) {
+      // For date-only entries, return just the date part for date input
+      return formatInTimeZone(date, timeZone, {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+      }).split('/').reverse().join('-'); // Convert MM/DD/YYYY to YYYY-MM-DD
+    } else {
+      // For entries with time, use datetime-local format
+      return formatForDateTimeInput(dateStr, timeZone);
+    }
+  } catch (error) {
+    console.error('Error formatting gig date for input:', error);
+    return '';
+  }
+};
+
+/**
+ * Parses user input from timezone-aware date/datetime inputs back to UTC ISO string.
+ * Handles both date-only (YYYY-MM-DD) and datetime-local (YYYY-MM-DDTHH:mm) inputs.
+ */
+export const parseGigDateTimeFromInput = (
+  inputValue: string,
+  timeZone?: string,
+  isDateOnly = false
+): string => {
+  if (!inputValue) return '';
+  
+  try {
+    if (isDateOnly || !inputValue.includes('T')) {
+      // Handle date-only input (YYYY-MM-DD)
+      // Convert to midnight UTC for consistent date-only handling
+      return new Date(`${inputValue}T00:00:00Z`).toISOString();
+    } else {
+      // Handle datetime input - convert from timezone to UTC
+      return parseLocalToUTC(inputValue, timeZone);
+    }
+  } catch (error) {
+    console.error('Error parsing gig date from input:', error);
+    return '';
+  }
+};

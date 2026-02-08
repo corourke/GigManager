@@ -37,7 +37,13 @@ import { createGig } from '../services/gig.service';
 import { createAsset } from '../services/asset.service';
 import { searchOrganizations, createOrganization } from '../services/organization.service';
 import { createClient } from '../utils/supabase/client';
-import { parseLocalToUTC, formatInTimeZone } from '../utils/dateUtils';
+import { 
+  parseLocalToUTC, 
+  formatInTimeZone, 
+  formatGigDateTimeForDisplay, 
+  formatGigDateTimeForInput, 
+  parseGigDateTimeFromInput 
+} from '../utils/dateUtils';
 
 interface ImportScreenProps {
   organization: Organization;
@@ -61,36 +67,7 @@ export default function ImportScreen({
   const [importType, setImportType] = useState<ImportType>('gigs');
 
   // Helper function to format datetime for display in import preview
-  const formatDateTimeForPreview = (dateStr: string, timezone?: string): string => {
-    if (!dateStr) return '';
-    
-    try {
-      const date = new Date(dateStr);
-      
-      // Check if this is a date-only entry (midnight UTC)
-      if (dateStr.endsWith('T00:00:00.000Z')) {
-        // For date-only entries, just show the date
-        return formatInTimeZone(date, timezone, {
-          month: '2-digit',
-          day: '2-digit', 
-          year: 'numeric',
-        });
-      } else {
-        // For entries with time, show date and time in gig timezone
-        return formatInTimeZone(date, timezone, {
-          month: '2-digit',
-          day: '2-digit',
-          year: 'numeric',
-          hour: '2-digit',
-          minute: '2-digit',
-          hour12: true,
-        });
-      }
-    } catch (error) {
-      console.error('Error formatting date for preview:', error);
-      return dateStr;
-    }
-  };
+
   const [file, setFile] = useState<File | null>(null);
   const [validRows, setValidRows] = useState<ParsedRow<GigRow | AssetRow>[]>([]);
   const [invalidRows, setInvalidRows] = useState<ParsedRow<GigRow | AssetRow>[]>([]);
@@ -677,35 +654,29 @@ export default function ImportScreen({
                         </div>
                         <div>
                           <Label className="text-xs">Start</Label>
-                          <div className="space-y-1">
-                            <Input
-                              value={(row.data as GigRow).start}
-                              onChange={(e) => handleEditInvalidRow(row.rowIndex, 'start', e.target.value)}
-                              className="h-8 text-sm"
-                              placeholder="2024-07-15T18:00:00"
-                            />
-                            {(row.data as GigRow).start && (
-                              <div className="text-xs text-gray-600">
-                                {formatDateTimeForPreview((row.data as GigRow).start, (row.data as GigRow).timezone)}
-                              </div>
-                            )}
-                          </div>
+                          <Input
+                            type={(row.data as GigRow).start?.endsWith('T00:00:00.000Z') ? 'date' : 'datetime-local'}
+                            value={formatGigDateTimeForInput((row.data as GigRow).start, (row.data as GigRow).timezone)}
+                            onChange={(e) => {
+                              const isDateOnly = e.target.type === 'date';
+                              const utcValue = parseGigDateTimeFromInput(e.target.value, (row.data as GigRow).timezone, isDateOnly);
+                              handleEditInvalidRow(row.rowIndex, 'start', utcValue);
+                            }}
+                            className="h-8 text-sm"
+                          />
                         </div>
                         <div>
                           <Label className="text-xs">End</Label>
-                          <div className="space-y-1">
-                            <Input
-                              value={(row.data as GigRow).end}
-                              onChange={(e) => handleEditInvalidRow(row.rowIndex, 'end', e.target.value)}
-                              className="h-8 text-sm"
-                              placeholder="2024-07-15T22:00:00"
-                            />
-                            {(row.data as GigRow).end && (
-                              <div className="text-xs text-gray-600">
-                                {formatDateTimeForPreview((row.data as GigRow).end, (row.data as GigRow).timezone)}
-                              </div>
-                            )}
-                          </div>
+                          <Input
+                            type={(row.data as GigRow).end?.endsWith('T00:00:00.000Z') ? 'date' : 'datetime-local'}
+                            value={formatGigDateTimeForInput((row.data as GigRow).end, (row.data as GigRow).timezone)}
+                            onChange={(e) => {
+                              const isDateOnly = e.target.type === 'date';
+                              const utcValue = parseGigDateTimeFromInput(e.target.value, (row.data as GigRow).timezone, isDateOnly);
+                              handleEditInvalidRow(row.rowIndex, 'end', utcValue);
+                            }}
+                            className="h-8 text-sm"
+                          />
                         </div>
                         <div>
                           <Label className="text-xs">Timezone</Label>
@@ -846,8 +817,8 @@ export default function ImportScreen({
                       {importType === 'gigs' ? (
                         <>
                           <TableCell>{(row.data as GigRow).title}</TableCell>
-                          <TableCell>{formatDateTimeForPreview((row.data as GigRow).start, (row.data as GigRow).timezone)}</TableCell>
-                          <TableCell>{formatDateTimeForPreview((row.data as GigRow).end, (row.data as GigRow).timezone)}</TableCell>
+                          <TableCell>{formatGigDateTimeForDisplay((row.data as GigRow).start, (row.data as GigRow).timezone)}</TableCell>
+                          <TableCell>{formatGigDateTimeForDisplay((row.data as GigRow).end, (row.data as GigRow).timezone)}</TableCell>
                           <TableCell>
                             <Badge variant="outline">{(row.data as GigRow).status}</Badge>
                           </TableCell>
