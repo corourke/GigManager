@@ -319,5 +319,41 @@ describe('CSV Import Timezone Handling', () => {
         ])
       );
     });
+
+    it('should handle date-only entries with T00:00:00Z for special UI handling', () => {
+      const csvRow = {
+        title: 'Date Only Gig',
+        start: '2026-06-15', // Date only
+        end: '2026-06-16', // Date only
+        timezone: 'America/New_York',
+        status: 'Booked'
+      };
+
+      const result = validateGigRow(csvRow, 0);
+      
+      expect(result.isValid).toBe(true);
+      // Should set time to midnight UTC for date-only entries
+      expect(result.data.start).toBe('2026-06-15T00:00:00.000Z');
+      expect(result.data.end).toBe('2026-06-16T00:00:00.000Z');
+      expect(result.data.timezone).toBe('America/New_York');
+    });
+
+    it('should handle MM/DD/YYYY date-only format with T00:00:00Z', () => {
+      const csvRow = {
+        title: 'US Date Format Gig',
+        start: '06/15/2026', // MM/DD/YYYY format
+        end: '06/16/2026', 
+        timezone: 'America/New_York',
+        status: 'Booked'
+      };
+
+      const result = validateGigRow(csvRow, 0);
+      
+      expect(result.isValid).toBe(true);
+      // Should set time to midnight UTC for date-only entries
+      expect(result.data.start).toBe('2026-06-15T00:00:00.000Z');
+      expect(result.data.end).toBe('2026-06-16T00:00:00.000Z');
+      expect(result.data.timezone).toBe('America/New_York');
+    });
   });
 });

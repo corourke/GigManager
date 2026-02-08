@@ -136,6 +136,7 @@ export default function EditUserProfileDialog({
         state: userData.state || '',
         postal_code: userData.postal_code || '',
         country: userData.country || '',
+        timezone: userData.timezone || '',
       };
 
       toast.success('Profile updated successfully!');
@@ -153,6 +154,7 @@ export default function EditUserProfileDialog({
         state: updatedUser.state || '',
         postal_code: updatedUser.postal_code || '',
         country: updatedUser.country || '',
+        timezone: updatedUser.timezone || '',
       });
 
       onProfileUpdated(updatedUser);

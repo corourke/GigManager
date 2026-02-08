@@ -37,7 +37,7 @@ import { createGig } from '../services/gig.service';
 import { createAsset } from '../services/asset.service';
 import { searchOrganizations, createOrganization } from '../services/organization.service';
 import { createClient } from '../utils/supabase/client';
-import { parseLocalToUTC } from '../utils/dateUtils';
+import { parseLocalToUTC, formatInTimeZone } from '../utils/dateUtils';
 
 interface ImportScreenProps {
   organization: Organization;
@@ -59,6 +59,38 @@ export default function ImportScreen({
   onLogout,
 }: ImportScreenProps) {
   const [importType, setImportType] = useState<ImportType>('gigs');
+
+  // Helper function to format datetime for display in import preview
+  const formatDateTimeForPreview = (dateStr: string, timezone?: string): string => {
+    if (!dateStr) return '';
+    
+    try {
+      const date = new Date(dateStr);
+      
+      // Check if this is a date-only entry (midnight UTC)
+      if (dateStr.endsWith('T00:00:00.000Z')) {
+        // For date-only entries, just show the date
+        return formatInTimeZone(date, timezone, {
+          month: '2-digit',
+          day: '2-digit', 
+          year: 'numeric',
+        });
+      } else {
+        // For entries with time, show date and time in gig timezone
+        return formatInTimeZone(date, timezone, {
+          month: '2-digit',
+          day: '2-digit',
+          year: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: true,
+        });
+      }
+    } catch (error) {
+      console.error('Error formatting date for preview:', error);
+      return dateStr;
+    }
+  };
   const [file, setFile] = useState<File | null>(null);
   const [validRows, setValidRows] = useState<ParsedRow<GigRow | AssetRow>[]>([]);
   const [invalidRows, setInvalidRows] = useState<ParsedRow<GigRow | AssetRow>[]>([]);
@@ -800,8 +832,8 @@ export default function ImportScreen({
                       {importType === 'gigs' ? (
                         <>
                           <TableCell>{(row.data as GigRow).title}</TableCell>
-                          <TableCell>{(row.data as GigRow).start}</TableCell>
-                          <TableCell>{(row.data as GigRow).end}</TableCell>
+                          <TableCell>{formatDateTimeForPreview((row.data as GigRow).start, (row.data as GigRow).timezone)}</TableCell>
+                          <TableCell>{formatDateTimeForPreview((row.data as GigRow).end, (row.data as GigRow).timezone)}</TableCell>
                           <TableCell>
                             <Badge variant="outline">{(row.data as GigRow).status}</Badge>
                           </TableCell>

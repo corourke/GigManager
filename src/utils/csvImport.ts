@@ -84,13 +84,38 @@ function parseDate(dateStr: string): string | null {
     /^\d{1,2}-\d{1,2}-\d{4}$/,
   ];
 
-  // Try to parse as-is first (handles ISO and many other formats)
+  // Check if this is a date-only format (YYYY-MM-DD, MM/DD/YYYY, MM-DD-YYYY)
+  const isDateOnly = (
+    /^\d{4}-\d{2}-\d{2}$/.test(trimmed) ||
+    /^\d{1,2}\/\d{1,2}\/\d{4}$/.test(trimmed) ||
+    /^\d{1,2}-\d{1,2}-\d{4}$/.test(trimmed)
+  );
+
+  // Handle date-only formats first to ensure they get T00:00:00Z
+  if (isDateOnly) {
+    // Handle MM/DD/YYYY and MM-DD-YYYY date-only formats
+    const mdySlashMatch = trimmed.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+    const mdyDashMatch = trimmed.match(/^(\d{1,2})-(\d{1,2})-(\d{4})$/);
+    
+    if (mdySlashMatch || mdyDashMatch) {
+      const match = mdySlashMatch || mdyDashMatch;
+      const [, month, day, year] = match;
+      return new Date(`${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}T00:00:00Z`).toISOString();
+    }
+    
+    // Handle YYYY-MM-DD date-only format
+    if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+      return new Date(`${trimmed}T00:00:00Z`).toISOString();
+    }
+  }
+
+  // Try to parse as-is first (handles ISO and many other formats with time)
   let date = new Date(trimmed);
   if (!isNaN(date.getTime())) {
     return date.toISOString();
   }
 
-  // Handle MM/DD/YYYY and MM-DD-YYYY formats specifically
+  // Handle MM/DD/YYYY and MM-DD-YYYY formats with time
   const mdySlashMatch = trimmed.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})(.*)$/);
   const mdyDashMatch = trimmed.match(/^(\d{1,2})-(\d{1,2})-(\d{4})(.*)$/);
   
@@ -98,7 +123,7 @@ function parseDate(dateStr: string): string | null {
     const match = mdySlashMatch || mdyDashMatch;
     const [, month, day, year, timePart = ''] = match;
     
-    // Convert to YYYY-MM-DD format
+    // Convert to YYYY-MM-DD format with time
     const isoDateStr = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}${timePart}`;
     date = new Date(isoDateStr);
     
