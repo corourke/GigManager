@@ -677,21 +677,35 @@ export default function ImportScreen({
                         </div>
                         <div>
                           <Label className="text-xs">Start</Label>
-                          <Input
-                            value={(row.data as GigRow).start}
-                            onChange={(e) => handleEditInvalidRow(row.rowIndex, 'start', e.target.value)}
-                            className="h-8 text-sm"
-                            placeholder="2024-07-15T18:00:00"
-                          />
+                          <div className="space-y-1">
+                            <Input
+                              value={(row.data as GigRow).start}
+                              onChange={(e) => handleEditInvalidRow(row.rowIndex, 'start', e.target.value)}
+                              className="h-8 text-sm"
+                              placeholder="2024-07-15T18:00:00"
+                            />
+                            {(row.data as GigRow).start && (
+                              <div className="text-xs text-gray-600">
+                                {formatDateTimeForPreview((row.data as GigRow).start, (row.data as GigRow).timezone)}
+                              </div>
+                            )}
+                          </div>
                         </div>
                         <div>
                           <Label className="text-xs">End</Label>
-                          <Input
-                            value={(row.data as GigRow).end}
-                            onChange={(e) => handleEditInvalidRow(row.rowIndex, 'end', e.target.value)}
-                            className="h-8 text-sm"
-                            placeholder="2024-07-15T22:00:00"
-                          />
+                          <div className="space-y-1">
+                            <Input
+                              value={(row.data as GigRow).end}
+                              onChange={(e) => handleEditInvalidRow(row.rowIndex, 'end', e.target.value)}
+                              className="h-8 text-sm"
+                              placeholder="2024-07-15T22:00:00"
+                            />
+                            {(row.data as GigRow).end && (
+                              <div className="text-xs text-gray-600">
+                                {formatDateTimeForPreview((row.data as GigRow).end, (row.data as GigRow).timezone)}
+                              </div>
+                            )}
+                          </div>
                         </div>
                         <div>
                           <Label className="text-xs">Timezone</Label>
