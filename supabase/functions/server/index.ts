@@ -300,7 +300,7 @@ Deno.serve(async (req) => {
       const updateData: Record<string, any> = {};
       const allowedFields = [
         'first_name', 'last_name', 'phone', 'address_line1', 'address_line2',
-        'city', 'state', 'postal_code', 'country'
+        'city', 'state', 'postal_code', 'country', 'timezone'
       ];
 
       for (const field of allowedFields) {
