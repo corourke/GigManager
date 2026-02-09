@@ -9,7 +9,6 @@ import { ORG_TYPE_CONFIG } from '../utils/supabase/constants';
 import { useSimpleFormChanges } from '../utils/hooks/useSimpleFormChanges';
 import { createSubmissionPayload, normalizeFormData } from '../utils/form-utils';
 import { createClient } from '../utils/supabase/client';
-import { MOCK_PLACES, GooglePlace } from '../utils/mock-data';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
@@ -32,7 +31,6 @@ interface OrganizationScreenProps {
   onOrganizationUpdated?: (org: Organization) => void;
   onCancel: () => void;
   userId?: string;
-  useMockData?: boolean;
 }
 
 interface FormData {
@@ -77,65 +75,12 @@ const ORG_TYPES = Object.entries(ORG_TYPE_CONFIG).map(([value, config]) => ({
   label: config.label,
 }));
 
-// Mock Google Places data
-const MOCK_PLACES: GooglePlace[] = [
-  {
-    place_id: '1',
-    name: 'Soundwave Productions LLC',
-    formatted_address: '1234 Music Ave, Los Angeles, CA 90028, USA',
-    formatted_phone_number: '+1 (323) 555-0123',
-    website: 'https://soundwaveprod.com',
-    editorial_summary: 'Full-service production company specializing in live events, concerts, and corporate productions. Award-winning team with over 20 years of experience.',
-    address_components: [
-      { long_name: '1234', short_name: '1234', types: ['street_number'] },
-      { long_name: 'Music Avenue', short_name: 'Music Ave', types: ['route'] },
-      { long_name: 'Los Angeles', short_name: 'LA', types: ['locality'] },
-      { long_name: 'California', short_name: 'CA', types: ['administrative_area_level_1'] },
-      { long_name: '90028', short_name: '90028', types: ['postal_code'] },
-      { long_name: 'United States', short_name: 'US', types: ['country'] },
-    ]
-  },
-  {
-    place_id: '2',
-    name: 'The Roxy Theatre',
-    formatted_address: '9009 Sunset Blvd, West Hollywood, CA 90069, USA',
-    formatted_phone_number: '+1 (310) 555-0199',
-    website: 'https://theroxy.com',
-    editorial_summary: 'Historic music venue on the Sunset Strip. Intimate 500-capacity room featuring live music and performances since 1973.',
-    address_components: [
-      { long_name: '9009', short_name: '9009', types: ['street_number'] },
-      { long_name: 'Sunset Boulevard', short_name: 'Sunset Blvd', types: ['route'] },
-      { long_name: 'West Hollywood', short_name: 'West Hollywood', types: ['locality'] },
-      { long_name: 'California', short_name: 'CA', types: ['administrative_area_level_1'] },
-      { long_name: '90069', short_name: '90069', types: ['postal_code'] },
-      { long_name: 'United States', short_name: 'US', types: ['country'] },
-    ]
-  },
-  {
-    place_id: '3',
-    name: 'Lumina Lighting Solutions',
-    formatted_address: '567 Broadway, Nashville, TN 37203, USA',
-    formatted_phone_number: '+1 (615) 555-0187',
-    website: 'https://luminalighting.com',
-    editorial_summary: 'Professional lighting and sound equipment rental company. Serving concerts, theaters, and corporate events throughout the Southeast.',
-    address_components: [
-      { long_name: '567', short_name: '567', types: ['street_number'] },
-      { long_name: 'Broadway', short_name: 'Broadway', types: ['route'] },
-      { long_name: 'Nashville', short_name: 'Nashville', types: ['locality'] },
-      { long_name: 'Tennessee', short_name: 'TN', types: ['administrative_area_level_1'] },
-      { long_name: '37203', short_name: '37203', types: ['postal_code'] },
-      { long_name: 'United States', short_name: 'US', types: ['country'] },
-    ]
-  },
-];
-
 export default function OrganizationScreen({
   organization,
   onOrganizationCreated,
   onOrganizationUpdated,
   onCancel,
   userId,
-  useMockData = false,
 }: OrganizationScreenProps) {
   const isEditMode = !!organization;
   
@@ -191,19 +136,6 @@ export default function OrganizationScreen({
     
     setIsSearching(true);
     setShowResults(true);
-
-    // Use mock data if flag is set
-    if (useMockData) {
-      setTimeout(() => {
-        const query = searchQuery.toLowerCase();
-        const results = MOCK_PLACES.filter(place =>
-          place.name.toLowerCase().includes(query)
-        );
-        setSearchResults(results);
-        setIsSearching(false);
-      }, 800);
-      return;
-    }
 
     // Real API call
     try {
@@ -431,38 +363,6 @@ export default function OrganizationScreen({
 
     setIsSubmitting(true);
     setErrors({});
-
-    // Mock data mode
-    if (useMockData) {
-      setTimeout(() => {
-        const newOrganization: Organization = {
-          id: organization?.id || Math.random().toString(36).substr(2, 9),
-          name: formData.name.trim(),
-          type: formData.type as OrganizationType,
-          url: formData.url.trim() || undefined,
-          phone_number: formData.phone_number.trim() || undefined,
-          description: formData.description.trim() || undefined,
-          address_line1: formData.address_line1.trim() || undefined,
-          address_line2: formData.address_line2.trim() || undefined,
-          city: formData.city.trim() || undefined,
-          state: formData.state.trim() || undefined,
-          postal_code: formData.postal_code.trim() || undefined,
-          country: formData.country.trim() || undefined,
-          allowed_domains: formData.allowed_domains.trim() || undefined,
-          created_at: organization?.created_at || new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        };
-
-        if (isEditMode) {
-          toast.success('Organization updated successfully!');
-          onOrganizationUpdated?.(newOrganization);
-        } else {
-          toast.success(autoJoinOrg ? 'Organization created successfully!' : 'Organization created without joining!');
-          onOrganizationCreated(newOrganization);
-        }
-      }, 1500);
-      return;
-    }
 
     // Real API call
     try {
