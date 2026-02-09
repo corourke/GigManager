@@ -15,7 +15,7 @@ import { useAutoSave } from '../../utils/hooks/useAutoSave';
 import SaveStateIndicator from './SaveStateIndicator';
 import { toast } from 'sonner';
 import { GigStatus } from '../../utils/supabase/types';
-import { GIG_STATUS_CONFIG } from '../../utils/supabase/constants';
+import { GIG_STATUS_CONFIG, SUGGESTED_TAGS } from '../../utils/supabase/constants';
 import { formatForDateTimeInput, parseLocalToUTC } from '../../utils/dateUtils';
 import { getCommonUSTimezones } from '../../utils/timezones';
 
@@ -52,20 +52,7 @@ const STATUS_OPTIONS: { value: GigStatus; label: string }[] = Object.entries(GIG
   label: config.label,
 }));
 
-const SUGGESTED_TAGS = [
-  'Concert',
-  'Corporate Event',
-  'Festival',
-  'Theater',
-  'Wedding',
-  'Live Music',
-  'Conference',
-  'Private Event',
-  'Outdoor',
-  'Multi-Day',
-  'Charity',
-  'Gala',
-];
+
 
 interface GigBasicInfoSectionProps {
   gigId?: string;

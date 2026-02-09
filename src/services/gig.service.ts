@@ -144,14 +144,19 @@ export async function createGig(gigData: any) {
 
     // If amount is provided, create a financial record
     if (amount !== undefined && amount !== null && parseFloat(amount) > 0) {
+      // Use gig start date for the financial record, or current date if no start date
+      const finDate = restGigData.start 
+        ? new Date(restGigData.start).toISOString().split('T')[0]
+        : new Date().toISOString().split('T')[0];
+        
       await createGigFinancial({
         gig_id: data[0].id,
         organization_id: primary_organization_id,
         amount: parseFloat(amount),
-        date: new Date().toISOString().split('T')[0],
+        date: finDate,
         type: 'Payment Received',
         category: 'Production',
-        description: 'Initial payment from import'
+        description: 'Payment from import'
       });
     }
 

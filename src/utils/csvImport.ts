@@ -160,7 +160,7 @@ function applyGigRowDefaults(row: any, userTimezone?: string | null): GigRow {
     venue: row.venue || '',
     tags: row.tags || '',
     notes: row.notes || '',
-    amount: row.amount || '',
+    amount: row.amount || row.amount_paid || '',
   };
 
   // Apply timezone default if not provided

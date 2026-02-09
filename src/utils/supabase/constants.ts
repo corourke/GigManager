@@ -86,6 +86,36 @@ export const FIN_CATEGORY_CONFIG = {
 
 export type FinCategory = keyof typeof FIN_CATEGORY_CONFIG;
 
+export const TAG_CONFIG = {
+  'Concert': { color: 'bg-blue-100 text-blue-800 border-blue-300' },
+  'Corporate Event': { color: 'bg-gray-100 text-gray-800 border-gray-300' },
+  'Festival': { color: 'bg-yellow-100 text-yellow-800 border-yellow-300' },
+  'Theater': { color: 'bg-purple-100 text-purple-800 border-purple-300' },
+  'Wedding': { color: 'bg-pink-100 text-pink-800 border-pink-300' },
+  'Live Music': { color: 'bg-green-100 text-green-800 border-green-300' },
+  'Conference': { color: 'bg-indigo-100 text-indigo-800 border-indigo-300' },
+  'Private Event': { color: 'bg-orange-100 text-orange-800 border-orange-300' },
+  'Outdoor': { color: 'bg-emerald-100 text-emerald-800 border-emerald-300' },
+  'Multi-Day': { color: 'bg-teal-100 text-teal-800 border-teal-300' },
+  'Charity': { color: 'bg-rose-100 text-rose-800 border-rose-300' },
+  'Gala': { color: 'bg-violet-100 text-violet-800 border-violet-300' },
+  'Jazz': { color: 'bg-amber-100 text-amber-800 border-amber-300' },
+  'Rock': { color: 'bg-red-100 text-red-800 border-red-300' },
+  'Classical': { color: 'bg-slate-100 text-slate-800 border-slate-300' },
+  'Pop': { color: 'bg-cyan-100 text-cyan-800 border-cyan-300' },
+  'Electronic': { color: 'bg-lime-100 text-lime-800 border-lime-300' },
+  'Folk': { color: 'bg-stone-100 text-stone-800 border-stone-300' },
+  'Blues': { color: 'bg-sky-100 text-sky-800 border-sky-300' },
+} as const;
+
+export type TagType = keyof typeof TAG_CONFIG;
+
+export const SUGGESTED_TAGS = Object.keys(TAG_CONFIG) as TagType[];
+
+export function getTagColor(tag: string): string {
+  return TAG_CONFIG[tag as TagType]?.color || 'bg-gray-100 text-gray-800 border-gray-300';
+}
+
 export function getOrgTypeIcon(type: OrganizationType) {
   return ORG_TYPE_CONFIG[type].icon;
 }

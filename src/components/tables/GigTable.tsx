@@ -20,7 +20,7 @@ import {
 import { Skeleton } from '../ui/skeleton';
 import { cn } from '../ui/utils';
 import { GigStatus, Gig } from '../../utils/supabase/types';
-import { GIG_STATUS_CONFIG } from '../../utils/supabase/constants';
+import { GIG_STATUS_CONFIG, getTagColor } from '../../utils/supabase/constants';
 import { formatDateTimeDisplay } from '../../utils/dateUtils';
 
 interface GigTableProps {
@@ -36,27 +36,7 @@ interface GigTableProps {
   onCreateGig?: () => void;
 }
 
-const SUGGESTED_TAGS = [
-  'Concert',
-  'Corporate Event',
-  'Festival',
-  'Theater',
-  'Wedding',
-  'Live Music',
-  'Conference',
-  'Private Event',
-  'Outdoor',
-  'Multi-Day',
-  'Charity',
-  'Gala',
-  'Jazz',
-  'Rock',
-  'Classical',
-  'Pop',
-  'Electronic',
-  'Folk',
-  'Blues'
-];
+
 
 export default function GigTable({
   gigs,
@@ -189,7 +169,7 @@ export default function GigTable({
                   </TableCell>
 
                   <TableCell>
-                    <Badge variant="outline" className="truncate bg-gray-100 text-gray-800 border-gray-200">
+                    <Badge variant="outline" className={`truncate ${GIG_STATUS_CONFIG[gig.status].color}`}>
                       {GIG_STATUS_CONFIG[gig.status].label}
                     </Badge>
                   </TableCell>
@@ -222,7 +202,7 @@ export default function GigTable({
                     <TableCell>
                       <div className="flex flex-wrap gap-1">
                         {gig.tags?.map((tag, index) => (
-                          <Badge key={index} variant="secondary" className="bg-gray-100 text-gray-700 border-gray-200 text-[10px] h-4 py-0">
+                          <Badge key={index} variant="outline" className={`${getTagColor(tag)} text-[10px] h-4 py-0`}>
                             {tag}
                           </Badge>
                         )) || <span className="text-gray-400">-</span>}
