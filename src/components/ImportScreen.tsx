@@ -664,6 +664,11 @@ export default function ImportScreen({
                             }}
                             className="h-8 text-sm"
                           />
+                          {(row.data as GigRow).originalStart && (
+                            <div className="text-xs text-red-600 mt-1">
+                              Original: "{(row.data as GigRow).originalStart}"
+                            </div>
+                          )}
                         </div>
                         <div>
                           <Label className="text-xs">End</Label>
@@ -677,6 +682,11 @@ export default function ImportScreen({
                             }}
                             className="h-8 text-sm"
                           />
+                          {(row.data as GigRow).originalEnd && (
+                            <div className="text-xs text-red-600 mt-1">
+                              Original: "{(row.data as GigRow).originalEnd}"
+                            </div>
+                          )}
                         </div>
                         <div>
                           <Label className="text-xs">Timezone</Label>
@@ -695,6 +705,11 @@ export default function ImportScreen({
                               ))}
                             </SelectContent>
                           </Select>
+                          {(row.data as GigRow).originalTimezone && (
+                            <div className="text-xs text-red-600 mt-1">
+                              Original: "{(row.data as GigRow).originalTimezone}"
+                            </div>
+                          )}
                         </div>
                         <div>
                           <Label className="text-xs">Status</Label>
@@ -713,6 +728,11 @@ export default function ImportScreen({
                               ))}
                             </SelectContent>
                           </Select>
+                          {(row.data as GigRow).originalStatus && (
+                            <div className="text-xs text-red-600 mt-1">
+                              Original: "{(row.data as GigRow).originalStatus}"
+                            </div>
+                          )}
                         </div>
                         <div>
                           <Label className="text-xs">Act</Label>
@@ -761,43 +781,6 @@ export default function ImportScreen({
                       </>
                     )}
                   </div>
-                  {/* Display original invalid values */}
-                  {importType === 'gigs' && (
-                    (row.data as GigRow).originalStart || 
-                    (row.data as GigRow).originalEnd || 
-                    (row.data as GigRow).originalTimezone || 
-                    (row.data as GigRow).originalStatus
-                  ) && (
-                    <div className="mt-2 p-2 bg-red-50 border border-red-200 rounded">
-                      <p className="text-xs font-medium text-red-800 mb-2">Original Invalid Values:</p>
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
-                        {(row.data as GigRow).originalStart && (
-                          <div>
-                            <span className="font-medium text-red-700">Start:</span>
-                            <span className="text-red-600 ml-1">"{(row.data as GigRow).originalStart}"</span>
-                          </div>
-                        )}
-                        {(row.data as GigRow).originalEnd && (
-                          <div>
-                            <span className="font-medium text-red-700">End:</span>
-                            <span className="text-red-600 ml-1">"{(row.data as GigRow).originalEnd}"</span>
-                          </div>
-                        )}
-                        {(row.data as GigRow).originalTimezone && (
-                          <div>
-                            <span className="font-medium text-red-700">Timezone:</span>
-                            <span className="text-red-600 ml-1">"{(row.data as GigRow).originalTimezone}"</span>
-                          </div>
-                        )}
-                        {(row.data as GigRow).originalStatus && (
-                          <div>
-                            <span className="font-medium text-red-700">Status:</span>
-                            <span className="text-red-600 ml-1">"{(row.data as GigRow).originalStatus}"</span>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  )}
                   <div className="mt-2">
                     <p className="text-xs font-medium text-red-800 mb-1">Errors:</p>
                     <ul className="list-disc list-inside text-xs text-red-700 space-y-1">
