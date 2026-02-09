@@ -295,7 +295,7 @@ DECLARE
     profile_data JSONB;
     orgs_data JSONB;
 BEGIN
-    -- 1. Fetch user profile
+    -- 1. Fetch user profile (including timezone)
     SELECT jsonb_build_object(
         'id', u.id,
         'email', u.email,
@@ -309,6 +309,7 @@ BEGIN
         'state', u.state,
         'postal_code', u.postal_code,
         'country', u.country,
+        'timezone', u.timezone,
         'user_status', u.user_status,
         'created_at', u.created_at,
         'updated_at', u.updated_at
@@ -431,6 +432,7 @@ CREATE TABLE IF NOT EXISTS "public"."users" (
     "user_status" "text" DEFAULT 'active'::"text",
     "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
     "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    "timezone" character varying,
     CONSTRAINT "users_user_status_check" CHECK (("user_status" = ANY (ARRAY['active'::"text", 'inactive'::"text", 'pending'::"text"])))
 );
 
@@ -439,6 +441,10 @@ ALTER TABLE "public"."users" OWNER TO "postgres";
 
 
 COMMENT ON COLUMN "public"."users"."user_status" IS 'User account status: active (authenticated), pending (invited but not yet authenticated), inactive (disabled)';
+
+
+
+COMMENT ON COLUMN "public"."users"."timezone" IS 'User preferred timezone in IANA format (e.g., America/New_York). Used as default for CSV imports and other operations.';
 
 
 
@@ -1470,6 +1476,10 @@ CREATE INDEX "idx_users_email" ON "public"."users" USING "btree" ("email") WHERE
 
 
 CREATE INDEX "idx_users_status" ON "public"."users" USING "btree" ("user_status");
+
+
+
+CREATE INDEX "idx_users_timezone" ON "public"."users" USING "btree" ("timezone");
 
 
 

@@ -1,5 +1,13 @@
 # Supabase Procedures and Guide
 
+## Server File
+
+To push server code: 
+
+`supabase functions deploy server --project-ref qcrzwsazasaojqoqxwnr`
+
+## Migrations
+
 ### 1. Applying migrations to the remote database
 
 To apply migrations from your local setup to a remote Supabase database, first ensure your local project is linked to the remote project. This process uses the Supabase CLI and assumes you have migrations in the `supabase/migrations` directory (created via `supabase migration new <name>` or other methods).
@@ -46,7 +54,9 @@ Migration errors can arise from schema drift, permission issues, SQL syntax prob
 
 ### 4. Keeping a `schema.sql` file up to date that can be used to accurately re-create the state of the database (minus data)
 
-Use the Supabase CLI's dump command to export the schema. This captures tables, views, functions, RLS policies, etc., without data.
+We can use a utility script `supabase/dump/dump_schema.sh` to create a new `supabase/dump/schema_dump.sql` that has the current schema from the database.
+
+This script uses the Supabase CLI's dump command to export the schema. This captures tables, views, functions, RLS policies, etc., without data.
 
 - Dump the schema:  
   `supabase db dump -f schema.sql`  
@@ -57,6 +67,8 @@ Use the Supabase CLI's dump command to export the schema. This captures tables, 
 - Best practice: Run this after any schema changes, commit `schema.sql` to version control, and use it to recreate via `psql -d <connection-string> -f schema.sql` on a new DB. Edit the file if needed to remove Supabase-specific owners like `supabase_admin` to avoid permission issues during restore.
 
 ### 5. How to dump all the data in the database, to create a SQL file that I can later run to re-populate a newly created database?
+
+This is wrapped in a script at `supabase/dump/dump_data.sh`.
 
 Export data using the CLI's dump command, which generates INSERT statements or COPY for efficiency.
 

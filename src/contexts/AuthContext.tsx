@@ -162,6 +162,53 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
   }, []); // Remove refreshProfile from dependencies to avoid infinite loop
 
+  // Real-time listener for profile and membership changes
+  useEffect(() => {
+    const userId = user?.id;
+    if (!userId) return;
+
+    const supabase = createClient();
+    
+    console.log(`[TRACE] AuthContext: Setting up real-time subscriptions for user ${userId}`);
+
+    const channel = supabase
+      .channel(`user-updates-${userId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'users',
+          filter: `id=eq.${userId}`,
+        },
+        (payload) => {
+          console.log('[TRACE] AuthContext: Real-time user profile update detected', payload);
+          refreshProfileRef.current();
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'organization_members',
+          filter: `user_id=eq.${userId}`,
+        },
+        (payload) => {
+          console.log('[TRACE] AuthContext: Real-time organization membership update detected', payload);
+          refreshProfileRef.current();
+        }
+      )
+      .subscribe((status) => {
+        console.log(`[TRACE] AuthContext: Real-time subscription status for user ${userId}: ${status}`);
+      });
+
+    return () => {
+      console.log(`[TRACE] AuthContext: Cleaning up real-time subscriptions for user ${userId}`);
+      supabase.removeChannel(channel);
+    };
+  }, [user?.id]);
+
   const login = (userData: User, userOrgs: OrganizationMembership[]) => {
     setUser(userData);
     setOrganizations(userOrgs);

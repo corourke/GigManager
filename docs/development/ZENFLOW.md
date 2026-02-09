@@ -1,5 +1,7 @@
 There are user instructions to all AI Agents that are of highest priority. 
 
+Read, Understand and follow .zencoder/rules/critical.md and repo.md
+
 ### Understanding the Problem 
 
 1. Please read and understand .zencoder/rules/repo.md. If it appears to be out of date, ASK the user if it should be updated with the latest, propose updates, get approval, them make them. 
@@ -14,7 +16,7 @@ There are user instructions to all AI Agents that are of highest priority.
 5. Before applying any fix, show me the test code you have written that currently fails but will pass after your changes.
 
 ### Implementing the Solution
- 
+
 1. Test-Driven Fixes: Always implement a failing test case first. This proves you understand the bug and ensures it doesn't return.
 2. Important: Changes to schema.sql don't do anything! If we want to change the schema, we need to create migrations and apply them to the remote supabase database. 
 3. Clean Code: Avoid committing or proposing code that contains console.log or "hacks" like hardcoded timeouts unless they are the only viable solution (which should be discussed).

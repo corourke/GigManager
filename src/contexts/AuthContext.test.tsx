@@ -29,6 +29,11 @@ describe('AuthContext Hang Reproduction', () => {
         getUser: vi.fn().mockResolvedValue({ data: { user: null }, error: null }),
         onAuthStateChange: vi.fn().mockReturnValue({ data: { subscription: { unsubscribe: vi.fn() } } }),
       },
+      channel: vi.fn().mockReturnValue({
+        on: vi.fn().mockReturnThis(),
+        subscribe: vi.fn().mockReturnThis(),
+      }),
+      removeChannel: vi.fn().mockResolvedValue({}),
     };
 
     (createClient as any).mockReturnValue(mockSupabase);
