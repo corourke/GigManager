@@ -170,8 +170,20 @@ export const formatForDateTimeInput = (
     const d = typeof date === 'string' ? new Date(date) : date;
     if (isNaN(d.getTime())) return '';
 
+    // Validate timezone before using it - use undefined for browser local if invalid
+    let validTimeZone: string | undefined = timeZone;
+    if (timeZone) {
+      try {
+        // Quick test to see if timezone is valid
+        new Intl.DateTimeFormat('en-US', { timeZone }).format(new Date());
+      } catch (tzError) {
+        console.warn(`Invalid timezone "${timeZone}", falling back to browser local time`);
+        validTimeZone = undefined;
+      }
+    }
+
     const formatter = new Intl.DateTimeFormat('en-US', {
-      timeZone: timeZone || undefined,
+      timeZone: validTimeZone,
       year: 'numeric',
       month: '2-digit',
       day: '2-digit',
