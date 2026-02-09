@@ -12,7 +12,7 @@ The goal of this task is to simplify and standardize the database management for
 ## 3. Scope
 
 ### 3.1 Database Consolidation
-- Use the existing `supabase/dump/schema_dump.sql` (or generate a fresh one) to create a new "base" migration.
+- Use the existing `supabase/dump/schema_dump.sql` to create a new "base" migration.
 - Remove old migration files to prevent clutter and confusion.
 - Ensure the consolidated migration includes all necessary extensions, schemas, tables, views, functions, triggers, and RLS policies.
 
@@ -25,7 +25,7 @@ The goal of this task is to simplify and standardize the database management for
   - Switching between local and production environments in the frontend.
 
 ### 3.3 Data Seeding
-- Generate a `seed.sql` file using `supabase/dump/dump_data.sh`.
+- Examine the existing `supabase/dump/seed.sql` file.
 - Iteratively test and fix `seed.sql` to ensure it can be applied to a fresh database without foreign key or constraint violations.
 - Ensure `seed.sql` includes `ON CONFLICT DO NOTHING` or similar logic where appropriate for idempotency.
 

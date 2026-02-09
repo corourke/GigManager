@@ -20,7 +20,6 @@
 10. [Row-Level Security (RLS)](#row-level-security-rls)
 11. [Authentication](#authentication)
 12. [Real-Time Features](#real-time-features)
-13. [Testing & Troubleshooting](#testing--troubleshooting)
 
 ---
 
@@ -813,73 +812,6 @@ supabase
 
 ---
 
-## Testing & Troubleshooting
-
-### Testing Your Setup
-
-**1. Test Authentication:**
-- Sign in with email/password
-- Verify user profile created
-- Check organization membership
-
-**2. Test Organization Creation:**
-- Create new organization
-- Verify added as Admin
-- Check organization appears in selection
-
-**3. Test Gig Management:**
-- Create new gig
-- Edit inline in list view
-- Verify changes save
-
-**4. Test Real-Time:**
-- Open app in two browser windows
-- Create/edit gig in one window
-- Watch update in other window (no refresh)
-
-**5. Test Permissions:**
-- Invite user with Staff role
-- Verify read-only access
-- Test Manager permissions
-- Confirm Admin full access
-
-### Common Issues
-
-**"Authentication failed":**
-- Verify OAuth configured in Supabase
-- Check redirect URIs match exactly
-- Ensure OAuth consent screen set up
-
-**"Access denied to this organization":**
-- User needs entry in `organization_members`
-- Check role set correctly
-- Verify `organization_id` matches
-
-**Tables not created:**
-- Run migration SQL in Supabase SQL Editor
-- Check for error messages in logs
-- Verify UUID extension enabled
-
-**Real-time not working:**
-- Check Realtime enabled (Project Settings > API)
-- Verify table has RLS policies
-- Check browser console for subscription errors
-
-### Debugging Tools
-
-**Supabase Dashboard:**
-- Table Editor: Inspect data directly
-- SQL Editor: Run ad-hoc queries
-- Logs: View API errors and performance
-- Auth: Manage users and sessions
-
-**Browser DevTools:**
-- Network tab: Check API requests
-- Console: View subscription events
-- Application tab: Inspect session storage
-
----
-
 ## Related Documentation
 
 - **Requirements**: See [../product/requirements.md](../product/requirements.md) for feature requirements
@@ -892,5 +824,6 @@ supabase
 
 ## Document History
 
+**2026-02-09**: Consolidated migrations into a single initialization file, improved local development workflow, and moved troubleshooting content to `setup-guide.md`.
 **2026-01-28**: Updated schema details to match `supabase/schema.sql`, added missing tables (`invitations`, `kv_store`), documented helper functions, triggers, and indexes, and corrected RLS status for all tables.
 **2026-01-18**: Consolidated DATABASE.md and setup/supabase-integration.md into comprehensive database specification with schema details, Supabase integration guidance, and troubleshooting information.

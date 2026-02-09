@@ -23,14 +23,11 @@
    - Check for any SQL errors during application.
 
 ### 2.2 Seed Data Optimization
-1. **Generation**:
-   - Run `supabase/dump/dump_data.sh` to generate a raw data dump.
-2. **Refinement**:
-   - Process the raw dump through `convert_seed.py` to create `supabase/seed.sql`.
-   - Manually inspect and correct `seed.sql`:
+1. **Refinement**:
+   - Inspect and correct `seed.sql`:
      - Wrap in `BEGIN; ... COMMIT;` with `SET session_replication_role = replica;` to bypass FK checks during seeding.
      - Ensure tables are seeded in the correct order or FKs are disabled.
-3. **Verification**:
+2. **Verification**:
    - Run `supabase db reset` locally and verify that data is correctly populated.
 
 ### 2.3 Documentation Consolidation
