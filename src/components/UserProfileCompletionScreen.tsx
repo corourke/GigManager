@@ -15,7 +15,6 @@ import { useAuth } from '../contexts/AuthContext';
 interface UserProfileCompletionScreenProps {
   user: UserType;
   onProfileCompleted: (updatedUser: UserType) => void;
-  useMockData?: boolean;
 }
 
 interface FormData {
@@ -41,7 +40,6 @@ interface FormErrors {
 export default function UserProfileCompletionScreen({
   user,
   onProfileCompleted,
-  useMockData = false,
 }: UserProfileCompletionScreenProps) {
   const { refreshProfile } = useAuth();
   const [formData, setFormData] = useState<FormData>({
@@ -91,20 +89,6 @@ export default function UserProfileCompletionScreen({
     e.preventDefault();
     setIsSubmitting(true);
     setErrors({});
-
-    if (useMockData) {
-      // Mock mode - just update and continue
-      setTimeout(() => {
-        const updatedUser: UserType = {
-          ...user,
-          first_name: formData.first_name || user.first_name,
-          last_name: formData.last_name || user.last_name,
-        };
-        toast.success('Profile updated!');
-        onProfileCompleted(updatedUser);
-      }, 1000);
-      return;
-    }
 
     try {
       const { createClient } = await import('../utils/supabase/client');

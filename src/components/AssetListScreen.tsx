@@ -35,7 +35,6 @@ interface AssetListScreenProps {
   onSwitchOrganization: () => void;
   onLogout: () => void;
   onEditProfile?: () => void;
-  useMockData?: boolean;
 }
 
 export default function AssetListScreen({
@@ -53,7 +52,6 @@ export default function AssetListScreen({
   onSwitchOrganization,
   onLogout,
   onEditProfile,
-  useMockData = false,
 }: AssetListScreenProps) {
   // Memoize filters to prevent infinite re-renders
   const assetFilters = useMemo(() => ({ organization_id: organization.id }), [organization.id]);

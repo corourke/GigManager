@@ -39,22 +39,22 @@ Save to `{@artifacts_path}/spec.md` with:
 
 Create a detailed implementation plan based on `{@artifacts_path}/spec.md`.
 
-### [ ] Step: Clean up App.tsx
+### [x] Step: Clean up App.tsx
 Remove `USE_MOCK_DATA` flag and props passed to components.
 
-### [ ] Step: Clean up LoginScreen.tsx
+### [x] Step: Clean up LoginScreen.tsx
 Remove `useMockData` prop and mock login logic.
 
-### [ ] Step: Clean up UserProfileCompletionScreen.tsx
+### [x] Step: Clean up UserProfileCompletionScreen.tsx
 Remove `useMockData` prop and mock logic.
 
-### [ ] Step: Clean up OrganizationScreen.tsx
+### [x] Step: Clean up OrganizationScreen.tsx
 Remove `useMockData` prop and mock search logic.
 
-### [ ] Step: Clean up GigListScreen.tsx and AssetListScreen.tsx
+### [x] Step: Clean up GigListScreen.tsx and AssetListScreen.tsx
 Remove `useMockData` prop.
 
-### [ ] Step: Clean up documentation
+### [-] Step: Clean up documentation
 Update `setup-guide.md`.
 
 ### [ ] Step: Final verification

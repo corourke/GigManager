@@ -1,74 +1,37 @@
 # Setup Guide
 
-**Purpose**: This document provides step-by-step instructions for setting up the GigManager application, from local development with mock data to full production deployment with Supabase.
+**Purpose**: This document provides step-by-step instructions for setting up the GigManager application with Supabase.
 
-**Last Updated**: 2026-01-18
+**Last Updated**: 2026-02-09
 
 ---
 
 ## Table of Contents
 
 1. [Prerequisites](#prerequisites)
-2. [Option 1: Quick Start with Mock Data](#option-1-quick-start-with-mock-data-no-setup)
-3. [Option 2: Email Authentication Setup](#option-2-email-authentication-setup-5-minutes)
-4. [Option 3: Google OAuth Setup](#option-3-google-oauth-setup-15-minutes)
-5. [Database Migration](#database-migration)
-6. [Testing Your Setup](#testing-your-setup)
-7. [Troubleshooting](#troubleshooting)
-8. [Production Checklist](#production-checklist)
+2. [Option 1: Email Authentication Setup](#option-1-email-authentication-setup-5-minutes)
+3. [Option 2: Google OAuth Setup](#option-2-google-oauth-setup-15-minutes)
+4. [Database Migration](#database-migration)
+5. [Testing Your Setup](#testing-your-setup)
+6. [Troubleshooting](#troubleshooting)
+7. [Production Checklist](#production-checklist)
 
 ---
 
 ## Prerequisites
 
-**For Mock Data Mode (Option 1):**
+- Supabase account (sign up at https://supabase.com)
+- Supabase project created
 - Node.js 18+ installed
 - Project dependencies installed (`npm install`)
 
-**For Full Setup (Options 2-3):**
-- Supabase account (sign up at https://supabase.com)
-- Supabase project created
-- Project dependencies installed
-
-**For Google OAuth (Option 3):**
+**For Google OAuth (Option 2):**
 - Google account
 - Access to Google Cloud Console
 
 ---
 
-## Option 1: Quick Start with Mock Data (No Setup)
-
-Perfect for testing the UI and features without any configuration.
-
-### Steps
-
-1. **Open `/App.tsx`**
-2. **Set the mock data flag:**
-   ```typescript
-   const USE_MOCK_DATA = true;
-   ```
-3. **Start the app:**
-   ```bash
-   npm run dev
-   ```
-4. **Click any sign-in button** - You'll be logged in with demo data
-5. **Explore the features:**
-   - View sample gigs
-   - Create new gigs
-   - Edit gig details inline
-   - View dashboard with statistics
-
-✅ **No Supabase setup required!**
-
-**Notes:**
-- Data will not persist between sessions
-- Authentication is bypassed
-- Real-time features won't work
-- Perfect for UI development and testing
-
----
-
-## Option 2: Email Authentication Setup (5 minutes)
+## Option 1: Email Authentication Setup (5 minutes)
 
 Get real authentication and database with minimal setup.
 
@@ -103,19 +66,14 @@ Get real authentication and database with minimal setup.
 
 ### Step 3: Configure Your App
 
-1. **Open `/App.tsx`**
-2. **Set the mock data flag:**
-   ```typescript
-   const USE_MOCK_DATA = false;
-   ```
-3. **Verify Supabase credentials** in `/src/utils/supabase/info.tsx`:
+1. **Verify Supabase credentials** in `/src/utils/supabase/info.tsx`:
    ```typescript
    export const SUPABASE_URL = 'https://YOUR-PROJECT-ID.supabase.co'
    export const SUPABASE_ANON_KEY = 'your-anon-key'
    ```
-4. **Save the file**
+2. **Save the file**
 
-✅ **App configured to use real Supabase!**
+✅ **App configured to use Supabase!**
 
 ### Step 4: Test It Out
 
@@ -164,13 +122,13 @@ Get real authentication and database with minimal setup.
 
 ---
 
-## Option 3: Google OAuth Setup (15 minutes)
+## Option 2: Google OAuth Setup (15 minutes)
 
 Enable users to sign in with their Google accounts.
 
 ### Prerequisites
 
-- Completed Option 2 (database migration and email auth)
+- Completed Option 1 (database migration and email auth)
 - Google account
 - Access to Google Cloud Console
 
@@ -340,10 +298,9 @@ This is powered by Supabase Realtime (PostgreSQL CDC).
 ### Common Issues
 
 #### "Cannot read properties of undefined"
-**Cause:** Database migration not run or app still in mock mode  
+**Cause:** Database migration not run or Supabase connection issue  
 **Solution:**
 - Make sure you ran the database migration
-- Check that `USE_MOCK_DATA` is set to `false`
 - Verify Supabase credentials are correct
 
 #### "Email not confirmed" error
@@ -493,7 +450,6 @@ SELECT * FROM users WHERE email = 'your.email@example.com';
 
 - [ ] Database migration completed successfully
 - [ ] Email authentication enabled and tested
-- [ ] App configured to use real data (`USE_MOCK_DATA = false`)
 - [ ] Created test account successfully
 - [ ] Created first organization
 - [ ] Created first gig

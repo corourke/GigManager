@@ -32,7 +32,6 @@ interface GigListScreenProps {
   onSwitchOrganization: () => void;
   onLogout: () => void;
   onEditProfile?: () => void;
-  useMockData?: boolean;
 }
 
 export default function GigListScreen({
@@ -50,7 +49,6 @@ export default function GigListScreen({
   onSwitchOrganization,
   onLogout,
   onEditProfile,
-  useMockData = false,
 }: GigListScreenProps) {
   const [gigs, setGigs] = useState<Gig[]>([]);
   const [isLoading, setIsLoading] = useState(true);

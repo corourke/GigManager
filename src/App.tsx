@@ -30,9 +30,6 @@ import {
   OrganizationMembership, 
 } from './utils/supabase/types';
 
-// Set to true to use mock data instead of real Supabase
-const USE_MOCK_DATA = false;
-
 type Route = 
   | 'login' 
   | 'profile-completion'
@@ -436,7 +433,7 @@ function App() {
       onEditProfile={handleEditProfile}
     >
       {currentRoute === 'login' && (
-        <LoginScreen onLogin={handleLogin} useMockData={USE_MOCK_DATA} />
+        <LoginScreen onLogin={handleLogin} />
       )}
       
       {currentRoute === 'profile-completion' && user && (
@@ -444,7 +441,7 @@ function App() {
           user={user}
           onProfileCompleted={handleProfileCompleted}
           onSkip={handleSkipProfile}
-          useMockData={USE_MOCK_DATA}
+         
         />
       )}
       
@@ -473,7 +470,7 @@ function App() {
           onOrganizationCreated={handleOrganizationCreated}
           onCancel={handleBackToSelection}
           userId={user.id}
-          useMockData={USE_MOCK_DATA}
+         
         />
       )}
       
@@ -522,7 +519,7 @@ function App() {
               onSwitchOrganization={handleBackToSelection}
               onEditProfile={handleEditProfile}
               onLogout={handleLogout}
-              useMockData={USE_MOCK_DATA}
+             
             />
           )}
 
@@ -603,7 +600,7 @@ function App() {
               onSwitchOrganization={handleBackToSelection}
               onEditProfile={handleEditProfile}
               onLogout={handleLogout}
-              useMockData={USE_MOCK_DATA}
+             
             />
           )}
 

@@ -3,7 +3,6 @@ import { Building2, Mail, Lock, Loader2, AlertCircle } from 'lucide-react';
 import { createClient } from '../utils/supabase/client';
 import { convertPendingToActive } from '../services/organization.service';
 import { User, OrganizationMembership } from '../utils/supabase/types';
-import { MOCK_USER, MOCK_ORGANIZATIONS } from '../utils/mock-data';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
@@ -13,10 +12,9 @@ import { Separator } from './ui/separator';
 
 interface LoginScreenProps {
   onLogin: (user: User, organizations: OrganizationMembership[]) => void;
-  useMockData?: boolean;
 }
 
-export default function LoginScreen({ onLogin, useMockData = false }: LoginScreenProps) {
+export default function LoginScreen({ onLogin }: LoginScreenProps) {
   const [isSignUp, setIsSignUp] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -69,15 +67,6 @@ export default function LoginScreen({ onLogin, useMockData = false }: LoginScree
     e.preventDefault();
     setIsLoading(true);
     setError(null);
-
-    // Use mock data if requested
-    if (useMockData) {
-      setTimeout(() => {
-        onLogin(MOCK_USER, MOCK_ORGANIZATIONS);
-        setIsLoading(false);
-      }, 1500);
-      return;
-    }
 
     try {
       const supabase = createClient();
@@ -159,15 +148,6 @@ export default function LoginScreen({ onLogin, useMockData = false }: LoginScree
   const handleGoogleLogin = async () => {
     setIsLoading(true);
     setError(null);
-
-    // Use mock data if requested
-    if (useMockData) {
-      setTimeout(() => {
-        onLogin(MOCK_USER, MOCK_ORGANIZATIONS);
-        setIsLoading(false);
-      }, 1500);
-      return;
-    }
 
     try {
       const supabase = createClient();
@@ -407,7 +387,7 @@ export default function LoginScreen({ onLogin, useMockData = false }: LoginScree
           {/* Additional Info */}
           <div className="mt-6 text-center">
             <p className="text-sm text-gray-500">
-              {useMockData ? 'Using mock data for demonstration' : 'Secure authentication powered by Supabase'}
+              Secure authentication powered by Supabase
             </p>
           </div>
         </div>
