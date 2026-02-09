@@ -7,7 +7,8 @@
 
 ## Workflow Steps
 
-### [ ] Step: Requirements
+### [x] Step: Requirements
+<!-- chat-id: ed117b72-f864-4008-b5e9-31c8c032e3fb -->
 
 Create a Product Requirements Document (PRD) based on the feature description.
 
@@ -19,7 +20,7 @@ Create a Product Requirements Document (PRD) based on the feature description.
 
 Save the PRD to `{@artifacts_path}/requirements.md`.
 
-### [ ] Step: Technical Specification
+### [x] Step: Technical Specification
 
 Create a technical specification based on the PRD in `{@artifacts_path}/requirements.md`.
 
@@ -34,22 +35,27 @@ Save to `{@artifacts_path}/spec.md` with:
 - Delivery phases (incremental, testable milestones)
 - Verification approach using project lint/test commands
 
-### [ ] Step: Planning
+### [x] Step: Planning
 
 Create a detailed implementation plan based on `{@artifacts_path}/spec.md`.
 
-1. Break down the work into concrete tasks
-2. Each task should reference relevant contracts and include verification steps
-3. Replace the Implementation step below with the planned tasks
+### [ ] Step: Clean up App.tsx
+Remove `USE_MOCK_DATA` flag and props passed to components.
 
-Rule of thumb for step size: each step should represent a coherent unit of work (e.g., implement a component, add an API endpoint, write tests for a module). Avoid steps that are too granular (single function) or too broad (entire feature).
+### [ ] Step: Clean up LoginScreen.tsx
+Remove `useMockData` prop and mock login logic.
 
-If the feature is trivial and doesn't warrant full specification, update this workflow to remove unnecessary steps and explain the reasoning to the user.
+### [ ] Step: Clean up UserProfileCompletionScreen.tsx
+Remove `useMockData` prop and mock logic.
 
-Save to `{@artifacts_path}/plan.md`.
+### [ ] Step: Clean up OrganizationScreen.tsx
+Remove `useMockData` prop and mock search logic.
 
-### [ ] Step: Implementation
+### [ ] Step: Clean up GigListScreen.tsx and AssetListScreen.tsx
+Remove `useMockData` prop.
 
-This step should be replaced with detailed implementation tasks from the Planning step.
+### [ ] Step: Clean up documentation
+Update `setup-guide.md`.
 
-If Planning didn't replace this step, execute the tasks in `{@artifacts_path}/plan.md`, updating checkboxes as you go. Run planned tests/lint and record results in plan.md.
+### [ ] Step: Final verification
+Run tests and audit remaining mock data usage.
