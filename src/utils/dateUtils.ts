@@ -203,12 +203,11 @@ export const formatGigDateTimeForDisplay = (dateStr: string, timeZone?: string):
     
     // Check if this is a date-only entry (midnight UTC)
     if (dateStr.endsWith('T00:00:00.000Z')) {
-      // For date-only entries, just show the date
-      return formatInTimeZone(date, timeZone, {
-        month: '2-digit',
-        day: '2-digit', 
-        year: 'numeric',
-      });
+      // For date-only entries, just show the date without timezone conversion
+      // since midnight UTC represents a calendar date, not a specific time
+      const datePart = dateStr.substring(0, 10); // YYYY-MM-DD
+      const [year, month, day] = datePart.split('-');
+      return `${month}/${day}/${year}`;  // Format as MM/DD/YYYY for display
     } else {
       // For entries with time, show date and time in gig timezone
       return formatInTimeZone(date, timeZone, {
@@ -235,15 +234,13 @@ export const formatGigDateTimeForInput = (dateStr: string, timeZone?: string): s
   
   try {
     const date = new Date(dateStr);
+    if (isNaN(date.getTime())) return '';
     
     // Check if this is a date-only entry (midnight UTC)
     if (dateStr.endsWith('T00:00:00.000Z')) {
-      // For date-only entries, return just the date part for date input
-      return formatInTimeZone(date, timeZone, {
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit',
-      }).split('/').reverse().join('-'); // Convert MM/DD/YYYY to YYYY-MM-DD
+      // For date-only entries, extract the date part without timezone conversion
+      // since midnight UTC represents a calendar date, not a specific time
+      return dateStr.substring(0, 10); // Extract YYYY-MM-DD from YYYY-MM-DDTHH:mm:ss.sssZ
     } else {
       // For entries with time, use datetime-local format
       return formatForDateTimeInput(dateStr, timeZone);
