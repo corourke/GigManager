@@ -65,7 +65,8 @@ export const formatTimeDisplay = (date: string | Date, timeZone?: string): strin
 
 /**
  * Formats a date and time range for display according to business rules:
- * - Always show start date.
+ * - Special case: If both start and end are 00:00:00Z, treat as date-only and show just dates
+ * - Always show start date for time-based entries.
  * - If gig is < 24h and ends on a different day: Show "Start Date, Start Time - End Time"
  * - If gig is >= 24h: Show "Start Date, Start Time - End Date, End Time"
  */
@@ -75,9 +76,25 @@ export const formatDateTimeDisplay = (
   timeZone?: string
 ): string => {
   if (!start) return '';
+  
+  const startStr = typeof start === 'string' ? start : start.toISOString();
+  const endStr = typeof end === 'string' ? end : end.toISOString();
   const startDate = typeof start === 'string' ? new Date(start) : start;
   const endDate = typeof end === 'string' ? new Date(end) : end;
   
+  // Special case: Both start and end are midnight UTC (date-only entries)
+  if (startStr.endsWith('T00:00:00.000Z') && endStr.endsWith('T00:00:00.000Z')) {
+    const startDateOnly = formatDateDisplay(start, undefined); // Use no timezone for date-only
+    const endDateOnly = formatDateDisplay(end, undefined);
+    
+    if (startDateOnly === endDateOnly) {
+      return startDateOnly; // Single date
+    } else {
+      return `${startDateOnly} - ${endDateOnly}`; // Date range
+    }
+  }
+  
+  // Regular time-based entries - use timezone
   const dateStr = formatDateDisplay(start, timeZone);
   const timeOptions: Intl.DateTimeFormatOptions = {
     hour: 'numeric',
@@ -95,11 +112,6 @@ export const formatDateTimeDisplay = (
 
   // Calculate duration in hours
   const durationHours = (endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60);
-
-  // Check if they are on the same calendar day in the target timezone
-  const startDayStr = formatDateDisplay(start, timeZone);
-  const endDayStr = formatDateDisplay(end, timeZone);
-  const sameDay = startDayStr === endDayStr;
 
   if (durationHours < 24) {
     // Less than 24 hours: "Date StartTime - EndTime" (even if it crosses midnight)
@@ -241,10 +253,12 @@ export const formatGigDateTimeForDisplay = (dateStr: string, timeZone?: string):
  * Formats a gig date/time for editing in timezone-aware inputs.
  * Handles date-only entries by returning date-only format (YYYY-MM-DD).
  */
-export const formatGigDateTimeForInput = (dateStr: string, timeZone?: string): string => {
-  if (!dateStr) return '';
+export const formatGigDateTimeForInput = (dateInput: string | Date, timeZone?: string): string => {
+  if (!dateInput) return '';
   
   try {
+    // Convert to string if it's a Date object
+    const dateStr = typeof dateInput === 'string' ? dateInput : dateInput.toISOString();
     const date = new Date(dateStr);
     if (isNaN(date.getTime())) return '';
     
