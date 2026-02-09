@@ -163,9 +163,10 @@ The work has been broken down into 18 concrete tasks organized in 3 phases:
 - All components use centralized timezone data
 - TypeScript compilation passes
 
-### [ ] Step: Phase 3 - UX Improvements
+### [x] Step: Phase 3 - UX Improvements
+<!-- chat-id: d7366771-7bf4-4902-a05e-c76eb65971b9 -->
 
-#### [ ] Enhanced Import Progress Display
+#### [x] Enhanced Import Progress Display
 **File**: `src/components/ImportScreen.tsx`
 **Task**:
 - Show per-row import status during import process
@@ -173,7 +174,7 @@ The work has been broken down into 18 concrete tasks organized in 3 phases:
 - Update ImportResults component for better feedback
 **Verification**: Progress accurately reflects import state
 
-#### [ ] Improved Error Messages
+#### [x] Improved Error Messages
 **Files**: `src/utils/csvImport.ts`, `src/components/ImportScreen.tsx`
 **Task**: 
 - Better date parsing error messages with format examples
@@ -181,7 +182,7 @@ The work has been broken down into 18 concrete tasks organized in 3 phases:
 - User-friendly database constraint error handling
 **Verification**: Error messages provide actionable guidance
 
-#### [ ] Real-time Validation Feedback
+#### [x] Real-time Validation Feedback
 **File**: `src/components/ImportScreen.tsx`
 **Task**: Add immediate validation feedback in row editor
 **Verification**: Validation updates as user types/selects

@@ -243,7 +243,11 @@ export function validateGigRow(row: any, rowIndex: number, userTimezone?: string
   } else {
     const startDate = new Date(data.start);
     if (isNaN(startDate.getTime())) {
-      errors.push({ field: 'start', message: 'Start date/time must be in a valid date format (YYYY-MM-DD, MM/DD/YYYY, MM-DD-YYYY, with optional time)' });
+      const exampleFormats = ['YYYY-MM-DD', 'MM/DD/YYYY', 'MM-DD-YYYY', 'YYYY-MM-DD HH:mm', 'MM/DD/YYYY HH:mm'];
+      errors.push({ 
+        field: 'start', 
+        message: `Invalid start date "${originalStart}". Use formats like: ${exampleFormats.join(', ')}. Examples: "2024-07-15", "07/15/2024", "2024-07-15 18:00"` 
+      });
       // Store original value for display when invalid
       originalValues.start = originalStart;
       data.originalStart = originalStart;
@@ -255,7 +259,11 @@ export function validateGigRow(row: any, rowIndex: number, userTimezone?: string
   } else {
     const endDate = new Date(data.end);
     if (isNaN(endDate.getTime())) {
-      errors.push({ field: 'end', message: 'End date/time must be in a valid date format (YYYY-MM-DD, MM/DD/YYYY, MM-DD-YYYY, with optional time)' });
+      const exampleFormats = ['YYYY-MM-DD', 'MM/DD/YYYY', 'MM-DD-YYYY', 'YYYY-MM-DD HH:mm', 'MM/DD/YYYY HH:mm'];
+      errors.push({ 
+        field: 'end', 
+        message: `Invalid end date "${originalEnd}". Use formats like: ${exampleFormats.join(', ')}. Examples: "2024-07-15", "07/15/2024", "2024-07-15 22:00"` 
+      });
       // Store original value for display when invalid
       originalValues.end = originalEnd;
       data.originalEnd = originalEnd;
@@ -275,7 +283,10 @@ export function validateGigRow(row: any, rowIndex: number, userTimezone?: string
   if (!data.timezone.trim()) {
     errors.push({ field: 'timezone', message: 'Timezone is required' });
   } else if (!isValidTimezone(data.timezone)) {
-    errors.push({ field: 'timezone', message: 'Timezone must be a valid IANA timezone' });
+    errors.push({ 
+      field: 'timezone', 
+      message: `Invalid timezone "${originalTimezone}". Use IANA timezone names like: America/New_York, America/Los_Angeles, Europe/London, or UTC. See dropdown for full list.` 
+    });
     // Store original value for display when invalid
     originalValues.timezone = originalTimezone;
     data.originalTimezone = originalTimezone;
@@ -284,7 +295,10 @@ export function validateGigRow(row: any, rowIndex: number, userTimezone?: string
   if (!data.status.trim()) {
     errors.push({ field: 'status', message: 'Status is required' });
   } else if (!GIG_STATUSES.includes(data.status)) {
-    errors.push({ field: 'status', message: `Status must be one of: ${GIG_STATUSES.join(', ')}` });
+    errors.push({ 
+      field: 'status', 
+      message: `Invalid status "${originalStatus}". Valid options: ${GIG_STATUSES.join(', ')}. Use the dropdown to select a valid status.` 
+    });
     // Store original value for display when invalid
     originalValues.status = originalStatus;
     data.originalStatus = originalStatus;
@@ -293,8 +307,10 @@ export function validateGigRow(row: any, rowIndex: number, userTimezone?: string
   // Optional numeric validation
   if (data.amount && data.amount.trim()) {
     const amount = parseFloat(data.amount);
-    if (isNaN(amount) || amount < 0) {
-      errors.push({ field: 'amount', message: 'Amount must be a positive number' });
+    if (isNaN(amount)) {
+      errors.push({ field: 'amount', message: `Invalid amount "${data.amount}". Must be a number (e.g., 1000, 1000.50, 0)` });
+    } else if (amount < 0) {
+      errors.push({ field: 'amount', message: 'Amount cannot be negative. Use 0 for free gigs or positive numbers for paid gigs.' });
     }
   }
 
@@ -339,11 +355,11 @@ export function validateAssetRow(row: any, rowIndex: number): ParsedRow<AssetRow
   } else {
     const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
     if (!dateRegex.test(data.acquisition_date)) {
-      errors.push({ field: 'acquisition_date', message: 'Acquisition date must be in YYYY-MM-DD format' });
+      errors.push({ field: 'acquisition_date', message: `Invalid acquisition date "${data.acquisition_date}". Use YYYY-MM-DD format (e.g., 2024-01-15)` });
     } else {
       const date = new Date(data.acquisition_date);
       if (isNaN(date.getTime())) {
-        errors.push({ field: 'acquisition_date', message: 'Acquisition date must be a valid date' });
+        errors.push({ field: 'acquisition_date', message: `Invalid acquisition date "${data.acquisition_date}". Must be a valid date in YYYY-MM-DD format` });
       }
     }
   }
@@ -351,22 +367,28 @@ export function validateAssetRow(row: any, rowIndex: number): ParsedRow<AssetRow
   // Optional numeric validation
   if (data.cost_per_item && data.cost_per_item.trim()) {
     const cost = parseFloat(data.cost_per_item);
-    if (isNaN(cost) || cost < 0) {
-      errors.push({ field: 'cost_per_item', message: 'Cost per item must be a positive number' });
+    if (isNaN(cost)) {
+      errors.push({ field: 'cost_per_item', message: `Invalid cost "${data.cost_per_item}". Must be a number (e.g., 99.99, 0)` });
+    } else if (cost < 0) {
+      errors.push({ field: 'cost_per_item', message: 'Cost per item cannot be negative. Use 0 for free items.' });
     }
   }
 
   if (data.replacement_value_per_item && data.replacement_value_per_item.trim()) {
     const value = parseFloat(data.replacement_value_per_item);
-    if (isNaN(value) || value < 0) {
-      errors.push({ field: 'replacement_value_per_item', message: 'Replacement value per item must be a positive number' });
+    if (isNaN(value)) {
+      errors.push({ field: 'replacement_value_per_item', message: `Invalid replacement value "${data.replacement_value_per_item}". Must be a number (e.g., 150.00, 0)` });
+    } else if (value < 0) {
+      errors.push({ field: 'replacement_value_per_item', message: 'Replacement value cannot be negative. Use 0 if unknown.' });
     }
   }
 
   if (data.quantity && data.quantity.trim()) {
     const qty = parseInt(data.quantity);
-    if (isNaN(qty) || qty < 1) {
-      errors.push({ field: 'quantity', message: 'Quantity must be a positive integer' });
+    if (isNaN(qty)) {
+      errors.push({ field: 'quantity', message: `Invalid quantity "${data.quantity}". Must be a whole number (e.g., 1, 5, 10)` });
+    } else if (qty < 1) {
+      errors.push({ field: 'quantity', message: 'Quantity must be at least 1' });
     }
   }
 
