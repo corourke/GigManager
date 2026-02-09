@@ -2,6 +2,7 @@ import Papa from 'papaparse';
 import { Organization } from './supabase/types';
 import { isValidTimezone, getDefaultTimezone } from './timezones';
 import { GIG_STATUS_CONFIG } from './supabase/constants';
+import { isNoonUTC } from './dateUtils';
 
 export type ImportType = 'gigs' | 'assets';
 
@@ -188,7 +189,7 @@ function applyGigRowDefaults(row: any, userTimezone?: string | null): GigRow {
     const parsedStart = parseDate(data.start);
     if (parsedStart) {
       // Check if start is a date-only entry (noon UTC)
-      if (parsedStart.endsWith('T12:00:00.000Z')) {
+      if (isNoonUTC(parsedStart)) {
         // For date-only entries, set end time to same noon UTC for special UI handling
         data.end = parsedStart;
       } else {
@@ -273,7 +274,7 @@ export function validateGigRow(row: any, rowIndex: number, userTimezone?: string
         errors.push({ field: 'end', message: 'End time must be after start time' });
       } else if (!isNaN(startDate.getTime()) && endDate.getTime() === startDate.getTime()) {
         // Equal times are only allowed for date-only entries (both at noon UTC)
-        if (!(data.start.endsWith('T12:00:00.000Z') && data.end.endsWith('T12:00:00.000Z'))) {
+        if (!(isNoonUTC(data.start) && isNoonUTC(data.end))) {
           errors.push({ field: 'end', message: 'End time must be after start time' });
         }
       }

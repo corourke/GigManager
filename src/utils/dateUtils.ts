@@ -4,6 +4,26 @@
  */
 
 /**
+ * Helper function to check if a datetime string represents noon UTC (date-only marker)
+ * Handles multiple formats:
+ * - ISO format: "2026-02-27T12:00:00.000Z"
+ * - Database format: "2026-02-27 12:00:00+00"
+ * - Any other format that converts to noon UTC when parsed
+ */
+export const isNoonUTC = (dateStr: string): boolean => {
+  // Handle ISO format: ends with T12:00:00.000Z
+  if (dateStr.endsWith('T12:00:00.000Z')) return true;
+  
+  // Handle database format: ends with 12:00:00+00 (PostgreSQL format)
+  if (dateStr.endsWith(' 12:00:00+00')) return true;
+  
+  // Convert to Date and check if it's noon UTC
+  const date = new Date(dateStr);
+  const isoString = date.toISOString();
+  return isoString.endsWith('T12:00:00.000Z');
+};
+
+/**
  * Formats an ISO date string into a display string in a specific timezone
  */
 export const formatInTimeZone = (
@@ -82,18 +102,8 @@ export const formatDateTimeDisplay = (
   const startDate = typeof start === 'string' ? new Date(start) : start;
   const endDate = typeof end === 'string' ? new Date(end) : end;
   
-  // DEBUG: Log the actual values to understand what we're getting
-  console.log('formatDateTimeDisplay debug:', {
-    startStr,
-    endStr,
-    isStartNoonUTC: startStr.endsWith('T12:00:00.000Z'),
-    isEndNoonUTC: endStr.endsWith('T12:00:00.000Z'),
-    timeZone
-  });
-  
   // Special case: Both start and end are noon UTC (date-only entries)
-  if (startStr.endsWith('T12:00:00.000Z') && endStr.endsWith('T12:00:00.000Z')) {
-    console.log('Detected date-only entry, returning date without time');
+  if (isNoonUTC(startStr) && isNoonUTC(endStr)) {
     const startDateOnly = formatDateDisplay(start, undefined); // Use no timezone for date-only
     const endDateOnly = formatDateDisplay(end, undefined);
     
@@ -236,7 +246,7 @@ export const formatGigDateTimeForDisplay = (dateStr: string, timeZone?: string):
     const date = new Date(dateStr);
     
     // Check if this is a date-only entry (noon UTC)
-    if (dateStr.endsWith('T12:00:00.000Z')) {
+    if (isNoonUTC(dateStr)) {
       // For date-only entries, just show the date without timezone conversion
       // since noon UTC represents a calendar date, not a specific time
       const datePart = dateStr.substring(0, 10); // YYYY-MM-DD
@@ -273,7 +283,7 @@ export const formatGigDateTimeForInput = (dateInput: string | Date, timeZone?: s
     if (isNaN(date.getTime())) return '';
     
     // Check if this is a date-only entry (noon UTC)
-    if (dateStr.endsWith('T12:00:00.000Z')) {
+    if (isNoonUTC(dateStr)) {
       // For date-only entries, extract the date part without timezone conversion
       // since noon UTC represents a calendar date, not a specific time
       return dateStr.substring(0, 10); // Extract YYYY-MM-DD from YYYY-MM-DDTHH:mm:ss.sssZ
