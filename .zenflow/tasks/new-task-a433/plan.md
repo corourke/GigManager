@@ -58,4 +58,5 @@ Remove `useMockData` prop.
 Update `setup-guide.md`.
 
 ### [ ] Step: Final verification
+<!-- chat-id: abaaa222-3e63-4cbe-9ebe-d2f8577dadbd -->
 Run tests, check for linting errors, and audit remaining mock data usage.
