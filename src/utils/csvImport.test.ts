@@ -114,7 +114,7 @@ describe('CSV Import Timezone Handling', () => {
         expect.arrayContaining([
           expect.objectContaining({
             field: 'timezone',
-            message: 'Timezone must be a valid IANA timezone'
+            message: expect.stringContaining('Invalid timezone "Invalid/Timezone". Use IANA timezone names like')
           })
         ])
       );
@@ -270,7 +270,7 @@ describe('CSV Import Timezone Handling', () => {
         expect.arrayContaining([
           expect.objectContaining({
             field: 'start',
-            message: expect.stringContaining('Start date/time must be in a valid date format')
+            message: expect.stringContaining('Invalid start date "not-a-date". Use formats like')
           })
         ])
       );
@@ -424,9 +424,9 @@ describe('CSV Import Timezone Handling', () => {
       expect(result.isValid).toBe(false);
       expect(result.errors).toHaveLength(2);
       expect(result.errors[0].field).toBe('start');
-      expect(result.errors[0].message).toContain('Start date/time must be in a valid date format');
+      expect(result.errors[0].message).toContain('Invalid start date "33/22/1092". Use formats like');
       expect(result.errors[1].field).toBe('end');
-      expect(result.errors[1].message).toContain('End date/time must be in a valid date format');
+      expect(result.errors[1].message).toContain('Invalid end date "45/67/8901". Use formats like');
       
       // Check that original values are preserved
       expect(result.data.originalStart).toBe('33/22/1092');
