@@ -212,6 +212,10 @@ export function parseCSV<T>(file: File): Promise<Papa.ParseResult<T>> {
 export function validateGigRow(row: any, rowIndex: number, userTimezone?: string | null): ParsedRow<GigRow> {
   const errors: ValidationError[] = [];
   
+  // Store original values before processing for error display
+  const originalStart = row.start?.trim() || '';
+  const originalEnd = row.end?.trim() || '';
+  
   // Apply defaults and normalize data
   const data = applyGigRowDefaults(row, userTimezone);
 
