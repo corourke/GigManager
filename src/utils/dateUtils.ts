@@ -82,8 +82,8 @@ export const formatDateTimeDisplay = (
   const startDate = typeof start === 'string' ? new Date(start) : start;
   const endDate = typeof end === 'string' ? new Date(end) : end;
   
-  // Special case: Both start and end are midnight UTC (date-only entries)
-  if (startStr.endsWith('T00:00:00.000Z') && endStr.endsWith('T00:00:00.000Z')) {
+  // Special case: Both start and end are noon UTC (date-only entries)
+  if (startStr.endsWith('T12:00:00.000Z') && endStr.endsWith('T12:00:00.000Z')) {
     const startDateOnly = formatDateDisplay(start, undefined); // Use no timezone for date-only
     const endDateOnly = formatDateDisplay(end, undefined);
     
@@ -225,10 +225,10 @@ export const formatGigDateTimeForDisplay = (dateStr: string, timeZone?: string):
   try {
     const date = new Date(dateStr);
     
-    // Check if this is a date-only entry (midnight UTC)
-    if (dateStr.endsWith('T00:00:00.000Z')) {
+    // Check if this is a date-only entry (noon UTC)
+    if (dateStr.endsWith('T12:00:00.000Z')) {
       // For date-only entries, just show the date without timezone conversion
-      // since midnight UTC represents a calendar date, not a specific time
+      // since noon UTC represents a calendar date, not a specific time
       const datePart = dateStr.substring(0, 10); // YYYY-MM-DD
       const [year, month, day] = datePart.split('-');
       return `${month}/${day}/${year}`;  // Format as MM/DD/YYYY for display
@@ -262,10 +262,10 @@ export const formatGigDateTimeForInput = (dateInput: string | Date, timeZone?: s
     const date = new Date(dateStr);
     if (isNaN(date.getTime())) return '';
     
-    // Check if this is a date-only entry (midnight UTC)
-    if (dateStr.endsWith('T00:00:00.000Z')) {
+    // Check if this is a date-only entry (noon UTC)
+    if (dateStr.endsWith('T12:00:00.000Z')) {
       // For date-only entries, extract the date part without timezone conversion
-      // since midnight UTC represents a calendar date, not a specific time
+      // since noon UTC represents a calendar date, not a specific time
       return dateStr.substring(0, 10); // Extract YYYY-MM-DD from YYYY-MM-DDTHH:mm:ss.sssZ
     } else {
       // For entries with time, use datetime-local format
@@ -291,8 +291,8 @@ export const parseGigDateTimeFromInput = (
   try {
     if (isDateOnly || !inputValue.includes('T')) {
       // Handle date-only input (YYYY-MM-DD)
-      // Convert to midnight UTC for consistent date-only handling
-      return new Date(`${inputValue}T00:00:00Z`).toISOString();
+      // Convert to noon UTC for consistent date-only handling
+      return new Date(`${inputValue}T12:00:00Z`).toISOString();
     } else {
       // Handle datetime input - convert from timezone to UTC
       return parseLocalToUTC(inputValue, timeZone);

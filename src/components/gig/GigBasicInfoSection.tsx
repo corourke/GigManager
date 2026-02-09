@@ -215,10 +215,11 @@ export default function GigBasicInfoSection({ gigId, onCreate, isSubmitting: ext
                     render={({ field }) => (
                       <Input
                         id="start_time"
-                        type="datetime-local"
+                        type={field.value?.toISOString().endsWith('T12:00:00.000Z') ? 'date' : 'datetime-local'}
                         value={formatGigDateTimeForInput(field.value || '', watch('timezone'))}
                         onChange={(e) => {
-                          const utcIso = parseGigDateTimeFromInput(e.target.value, watch('timezone'));
+                          const isDateOnly = e.target.type === 'date';
+                          const utcIso = parseGigDateTimeFromInput(e.target.value, watch('timezone'), isDateOnly);
                           field.onChange(utcIso ? new Date(utcIso) : undefined);
                         }}
                         className={`pl-9 ${errors.start_time ? 'border-red-500' : ''}`}
@@ -247,10 +248,11 @@ export default function GigBasicInfoSection({ gigId, onCreate, isSubmitting: ext
                     render={({ field }) => (
                       <Input
                         id="end_time"
-                        type="datetime-local"
+                        type={field.value?.toISOString().endsWith('T12:00:00.000Z') ? 'date' : 'datetime-local'}
                         value={formatGigDateTimeForInput(field.value || '', watch('timezone'))}
                         onChange={(e) => {
-                          const utcIso = parseGigDateTimeFromInput(e.target.value, watch('timezone'));
+                          const isDateOnly = e.target.type === 'date';
+                          const utcIso = parseGigDateTimeFromInput(e.target.value, watch('timezone'), isDateOnly);
                           field.onChange(utcIso ? new Date(utcIso) : undefined);
                         }}
                         className={`pl-9 ${errors.end_time ? 'border-red-500' : ''}`}

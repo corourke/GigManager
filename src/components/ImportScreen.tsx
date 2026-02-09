@@ -768,7 +768,7 @@ export default function ImportScreen({
                             return (
                               <>
                                 <Input
-                                  type={(row.data as GigRow).start?.endsWith('T00:00:00.000Z') ? 'date' : 'datetime-local'}
+                                  type={(row.data as GigRow).start?.endsWith('T12:00:00.000Z') ? 'date' : 'datetime-local'}
                                   value={formatGigDateTimeForInput((row.data as GigRow).start, (row.data as GigRow).timezone)}
                                   onChange={(e) => {
                                     const isDateOnly = e.target.type === 'date';
@@ -798,7 +798,7 @@ export default function ImportScreen({
                             return (
                               <>
                                 <Input
-                                  type={(row.data as GigRow).end?.endsWith('T00:00:00.000Z') ? 'date' : 'datetime-local'}
+                                  type={(row.data as GigRow).end?.endsWith('T12:00:00.000Z') ? 'date' : 'datetime-local'}
                                   value={formatGigDateTimeForInput((row.data as GigRow).end, (row.data as GigRow).timezone)}
                                   onChange={(e) => {
                                     const isDateOnly = e.target.type === 'date';

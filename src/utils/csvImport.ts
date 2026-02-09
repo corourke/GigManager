@@ -96,7 +96,7 @@ function parseDate(dateStr: string): string | null {
     /^\d{1,2}-\d{1,2}-\d{4}$/.test(trimmed)
   );
 
-  // Handle date-only formats first to ensure they get T00:00:00Z
+  // Handle date-only formats first to ensure they get T12:00:00Z (noon UTC)
   if (isDateOnly) {
     // Handle MM/DD/YYYY and MM-DD-YYYY date-only formats
     const mdySlashMatch = trimmed.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
@@ -105,7 +105,7 @@ function parseDate(dateStr: string): string | null {
     if (mdySlashMatch || mdyDashMatch) {
       const match = mdySlashMatch || mdyDashMatch;
       const [, month, day, year] = match;
-      const date = new Date(`${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}T00:00:00Z`);
+      const date = new Date(`${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}T12:00:00Z`);
       if (!isNaN(date.getTime())) {
         return date.toISOString();
       }
@@ -113,7 +113,7 @@ function parseDate(dateStr: string): string | null {
     
     // Handle YYYY-MM-DD date-only format
     if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
-      const date = new Date(`${trimmed}T00:00:00Z`);
+      const date = new Date(`${trimmed}T12:00:00Z`);
       if (!isNaN(date.getTime())) {
         return date.toISOString();
       }
@@ -187,9 +187,9 @@ function applyGigRowDefaults(row: any, userTimezone?: string | null): GigRow {
   if (data.start && !data.end.trim()) {
     const parsedStart = parseDate(data.start);
     if (parsedStart) {
-      // Check if start is a date-only entry (midnight UTC)
-      if (parsedStart.endsWith('T00:00:00.000Z')) {
-        // For date-only entries, set end time to same midnight UTC for special UI handling
+      // Check if start is a date-only entry (noon UTC)
+      if (parsedStart.endsWith('T12:00:00.000Z')) {
+        // For date-only entries, set end time to same noon UTC for special UI handling
         data.end = parsedStart;
       } else {
         // For entries with time, default end to 2 hours after start
@@ -272,8 +272,8 @@ export function validateGigRow(row: any, rowIndex: number, userTimezone?: string
       if (!isNaN(startDate.getTime()) && endDate < startDate) {
         errors.push({ field: 'end', message: 'End time must be after start time' });
       } else if (!isNaN(startDate.getTime()) && endDate.getTime() === startDate.getTime()) {
-        // Equal times are only allowed for date-only entries (both at midnight UTC)
-        if (!(data.start.endsWith('T00:00:00.000Z') && data.end.endsWith('T00:00:00.000Z'))) {
+        // Equal times are only allowed for date-only entries (both at noon UTC)
+        if (!(data.start.endsWith('T12:00:00.000Z') && data.end.endsWith('T12:00:00.000Z'))) {
           errors.push({ field: 'end', message: 'End time must be after start time' });
         }
       }

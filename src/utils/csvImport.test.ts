@@ -320,7 +320,7 @@ describe('CSV Import Timezone Handling', () => {
       );
     });
 
-    it('should handle date-only entries with T00:00:00Z for special UI handling', () => {
+    it('should handle date-only entries with T12:00:00Z for special UI handling', () => {
       const csvRow = {
         title: 'Date Only Gig',
         start: '2026-06-15', // Date only
@@ -332,13 +332,13 @@ describe('CSV Import Timezone Handling', () => {
       const result = validateGigRow(csvRow, 0);
       
       expect(result.isValid).toBe(true);
-      // Should set time to midnight UTC for date-only entries
-      expect(result.data.start).toBe('2026-06-15T00:00:00.000Z');
-      expect(result.data.end).toBe('2026-06-16T00:00:00.000Z');
+      // Should set time to noon UTC for date-only entries
+      expect(result.data.start).toBe('2026-06-15T12:00:00.000Z');
+      expect(result.data.end).toBe('2026-06-16T12:00:00.000Z');
       expect(result.data.timezone).toBe('America/New_York');
     });
 
-    it('should handle MM/DD/YYYY date-only format with T00:00:00Z', () => {
+    it('should handle MM/DD/YYYY date-only format with T12:00:00Z', () => {
       const csvRow = {
         title: 'US Date Format Gig',
         start: '06/15/2026', // MM/DD/YYYY format
@@ -350,13 +350,13 @@ describe('CSV Import Timezone Handling', () => {
       const result = validateGigRow(csvRow, 0);
       
       expect(result.isValid).toBe(true);
-      // Should set time to midnight UTC for date-only entries
-      expect(result.data.start).toBe('2026-06-15T00:00:00.000Z');
-      expect(result.data.end).toBe('2026-06-16T00:00:00.000Z');
+      // Should set time to noon UTC for date-only entries
+      expect(result.data.start).toBe('2026-06-15T12:00:00.000Z');
+      expect(result.data.end).toBe('2026-06-16T12:00:00.000Z');
       expect(result.data.timezone).toBe('America/New_York');
     });
 
-    it('should set end time to same midnight UTC when start is date-only and end is empty', () => {
+    it('should set end time to same noon UTC when start is date-only and end is empty', () => {
       const csvRow = {
         title: 'Date Only with Empty End',
         start: '2026-06-15', // Date only
@@ -368,9 +368,9 @@ describe('CSV Import Timezone Handling', () => {
       const result = validateGigRow(csvRow, 0);
       
       expect(result.isValid).toBe(true);
-      // Both start and end should be midnight UTC for date-only entries
-      expect(result.data.start).toBe('2026-06-15T00:00:00.000Z');
-      expect(result.data.end).toBe('2026-06-15T00:00:00.000Z'); // Same as start for date-only
+      // Both start and end should be noon UTC for date-only entries
+      expect(result.data.start).toBe('2026-06-15T12:00:00.000Z');
+      expect(result.data.end).toBe('2026-06-15T12:00:00.000Z'); // Same as start for date-only
       expect(result.data.timezone).toBe('America/New_York');
     });
 
