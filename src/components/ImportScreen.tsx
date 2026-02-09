@@ -680,6 +680,11 @@ export default function ImportScreen({
                         </div>
                         <div>
                           <Label className="text-xs">Timezone</Label>
+                          {(row.data as GigRow).originalTimezone && (
+                            <div className="text-xs text-red-600 mb-1">
+                              Original: "{(row.data as GigRow).originalTimezone}"
+                            </div>
+                          )}
                           <Select
                             value={(row.data as GigRow).timezone}
                             onValueChange={(value) => handleEditInvalidRow(row.rowIndex, 'timezone', value)}
@@ -698,6 +703,11 @@ export default function ImportScreen({
                         </div>
                         <div>
                           <Label className="text-xs">Status</Label>
+                          {(row.data as GigRow).originalStatus && (
+                            <div className="text-xs text-red-600 mb-1">
+                              Original: "{(row.data as GigRow).originalStatus}"
+                            </div>
+                          )}
                           <Select
                             value={(row.data as GigRow).status}
                             onValueChange={(value) => handleEditInvalidRow(row.rowIndex, 'status', value)}

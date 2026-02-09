@@ -19,6 +19,7 @@ export interface ParsedRow<T> {
   isValid: boolean;
   importStatus?: ImportStatus;
   importError?: string;
+  originalValues?: Record<string, string>;
 }
 
 export interface GigRow {
@@ -32,6 +33,8 @@ export interface GigRow {
   tags?: string;
   notes?: string;
   amount?: string;
+  originalTimezone?: string;
+  originalStatus?: string;
 }
 
 export interface AssetRow {
@@ -211,10 +214,11 @@ export function parseCSV<T>(file: File): Promise<Papa.ParseResult<T>> {
 
 export function validateGigRow(row: any, rowIndex: number, userTimezone?: string | null): ParsedRow<GigRow> {
   const errors: ValidationError[] = [];
+  const originalValues: Record<string, string> = {};
   
   // Store original values before processing for error display
-  const originalStart = row.start?.trim() || '';
-  const originalEnd = row.end?.trim() || '';
+  const originalTimezone = row.timezone?.trim() || '';
+  const originalStatus = row.status?.trim() || '';
   
   // Apply defaults and normalize data
   const data = applyGigRowDefaults(row, userTimezone);
@@ -256,12 +260,18 @@ export function validateGigRow(row: any, rowIndex: number, userTimezone?: string
     errors.push({ field: 'timezone', message: 'Timezone is required' });
   } else if (!isValidTimezone(data.timezone)) {
     errors.push({ field: 'timezone', message: 'Timezone must be a valid IANA timezone' });
+    // Store original value for display when invalid
+    originalValues.timezone = originalTimezone;
+    data.originalTimezone = originalTimezone;
   }
 
   if (!data.status.trim()) {
     errors.push({ field: 'status', message: 'Status is required' });
   } else if (!GIG_STATUSES.includes(data.status)) {
     errors.push({ field: 'status', message: `Status must be one of: ${GIG_STATUSES.join(', ')}` });
+    // Store original value for display when invalid
+    originalValues.status = originalStatus;
+    data.originalStatus = originalStatus;
   }
 
   // Optional numeric validation
@@ -277,6 +287,7 @@ export function validateGigRow(row: any, rowIndex: number, userTimezone?: string
     data,
     errors,
     isValid: errors.length === 0,
+    originalValues: Object.keys(originalValues).length > 0 ? originalValues : undefined,
   };
 }
 
