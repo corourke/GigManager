@@ -7,7 +7,8 @@
 
 ## Workflow Steps
 
-### [ ] Step: Requirements
+### [x] Step: Requirements
+<!-- chat-id: b4a3cc53-4732-42cd-9a39-7c2fef545ce2 -->
 
 Create a Product Requirements Document (PRD) based on the feature description.
 
@@ -19,7 +20,7 @@ Create a Product Requirements Document (PRD) based on the feature description.
 
 Save the PRD to `{@artifacts_path}/requirements.md`.
 
-### [ ] Step: Technical Specification
+### [x] Step: Technical Specification
 
 Create a technical specification based on the PRD in `{@artifacts_path}/requirements.md`.
 
@@ -34,7 +35,7 @@ Save to `{@artifacts_path}/spec.md` with:
 - Delivery phases (incremental, testable milestones)
 - Verification approach using project lint/test commands
 
-### [ ] Step: Planning
+### [x] Step: Planning
 
 Create a detailed implementation plan based on `{@artifacts_path}/spec.md`.
 
@@ -48,8 +49,24 @@ If the feature is trivial and doesn't warrant full specification, update this wo
 
 Save to `{@artifacts_path}/plan.md`.
 
-### [ ] Step: Implementation
+### [ ] Step: Consolidate Database Migrations
+1. Archive current migrations in `supabase/migrations_archive`.
+2. Create `supabase/migrations/20260209000000_initial_schema.sql` from `supabase/dump/schema_dump.sql`.
+3. Clean the new migration file (owners, extensions, etc.).
+4. Run `supabase init` to create `config.toml` if missing.
 
-This step should be replaced with detailed implementation tasks from the Planning step.
+### [ ] Step: Create and Test Seed Data
+1. Run `supabase/dump/dump_data.sh`.
+2. Verify/Correct `supabase/seed.sql` with replication-role block.
+3. Test seeding with `supabase db reset`.
 
-If Planning didn't replace this step, execute the tasks in `{@artifacts_path}/plan.md`, updating checkboxes as you go. Run planned tests/lint and record results in plan.md.
+### [ ] Step: Document Restructuring
+1. Move 'Testing & Troubleshooting' from `database.md` to `setup-guide.md`.
+2. Merge `supabase-guide.md` into `setup-guide.md`.
+3. Reorganize `setup-guide.md` and remove redundancy.
+4. Update references to database setup in other docs.
+
+### [ ] Step: Verification and Cleanup
+1. Run lint and typecheck.
+2. Delete `supabase-guide.md` and `migrations_archive`.
+3. Final review of documentation and scripts.
