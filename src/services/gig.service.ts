@@ -144,20 +144,32 @@ export async function createGig(gigData: any) {
 
     // If amount is provided, create a financial record
     if (amount !== undefined && amount !== null && parseFloat(amount) > 0) {
-      // Use gig start date for the financial record, or current date if no start date
-      const finDate = restGigData.start 
-        ? new Date(restGigData.start).toISOString().split('T')[0]
-        : new Date().toISOString().split('T')[0];
-        
-      await createGigFinancial({
-        gig_id: data[0].id,
-        organization_id: primary_organization_id,
-        amount: parseFloat(amount),
-        date: finDate,
-        type: 'Payment Received',
-        category: 'Production',
-        description: 'Payment from import'
-      });
+      try {
+        // Use gig start date for the financial record, or current date if no start date
+        const finDate = restGigData.start 
+          ? new Date(restGigData.start).toISOString().split('T')[0]
+          : new Date().toISOString().split('T')[0];
+          
+        await createGigFinancial({
+          gig_id: data[0].id,
+          organization_id: primary_organization_id,
+          amount: parseFloat(amount),
+          date: finDate,
+          type: 'Payment Recieved',
+          category: 'Production',
+          description: 'Payment from import'
+        });
+      } catch (finError) {
+        // If financial creation fails, delete the gig to maintain consistency
+        console.error('Financial creation failed, rolling back gig creation:', finError);
+        try {
+          await deleteGig(data[0].id);
+        } catch (deleteError) {
+          console.error('Failed to rollback gig creation:', deleteError);
+        }
+        // Re-throw the original financial error
+        throw finError;
+      }
     }
 
     // Fetch the full gig details for the response
