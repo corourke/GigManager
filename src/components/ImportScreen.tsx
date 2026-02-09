@@ -654,6 +654,11 @@ export default function ImportScreen({
                         </div>
                         <div>
                           <Label className="text-xs">Start</Label>
+                          {(row.data as GigRow).originalStart && (
+                            <div className="text-xs text-red-600 mb-1">
+                              Original: "{(row.data as GigRow).originalStart}"
+                            </div>
+                          )}
                           <Input
                             type={(row.data as GigRow).start?.endsWith('T00:00:00.000Z') ? 'date' : 'datetime-local'}
                             value={formatGigDateTimeForInput((row.data as GigRow).start, (row.data as GigRow).timezone)}
@@ -667,6 +672,11 @@ export default function ImportScreen({
                         </div>
                         <div>
                           <Label className="text-xs">End</Label>
+                          {(row.data as GigRow).originalEnd && (
+                            <div className="text-xs text-red-600 mb-1">
+                              Original: "{(row.data as GigRow).originalEnd}"
+                            </div>
+                          )}
                           <Input
                             type={(row.data as GigRow).end?.endsWith('T00:00:00.000Z') ? 'date' : 'datetime-local'}
                             value={formatGigDateTimeForInput((row.data as GigRow).end, (row.data as GigRow).timezone)}

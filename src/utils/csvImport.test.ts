@@ -409,5 +409,30 @@ describe('CSV Import Timezone Handling', () => {
       expect(result.data.end).toMatch(/^2026-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/);
       expect(result.data.timezone).toBe('America/New_York');
     });
+
+    it('should handle completely invalid date formats gracefully', () => {
+      const csvRow = {
+        title: 'Invalid Date Gig',
+        start: '33/22/1092', // Completely invalid date
+        end: '45/67/8901', // Another invalid date
+        timezone: 'America/New_York',
+        status: 'Booked'
+      };
+
+      const result = validateGigRow(csvRow, 0);
+      
+      expect(result.isValid).toBe(false);
+      expect(result.errors).toHaveLength(2);
+      expect(result.errors[0].field).toBe('start');
+      expect(result.errors[0].message).toContain('Start date/time must be in a valid date format');
+      expect(result.errors[1].field).toBe('end');
+      expect(result.errors[1].message).toContain('End date/time must be in a valid date format');
+      
+      // Check that original values are preserved
+      expect(result.data.originalStart).toBe('33/22/1092');
+      expect(result.data.originalEnd).toBe('45/67/8901');
+      expect(result.originalValues?.start).toBe('33/22/1092');
+      expect(result.originalValues?.end).toBe('45/67/8901');
+    });
   });
 });

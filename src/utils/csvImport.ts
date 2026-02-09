@@ -35,6 +35,8 @@ export interface GigRow {
   amount?: string;
   originalTimezone?: string;
   originalStatus?: string;
+  originalStart?: string;
+  originalEnd?: string;
 }
 
 export interface AssetRow {
@@ -103,12 +105,18 @@ function parseDate(dateStr: string): string | null {
     if (mdySlashMatch || mdyDashMatch) {
       const match = mdySlashMatch || mdyDashMatch;
       const [, month, day, year] = match;
-      return new Date(`${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}T00:00:00Z`).toISOString();
+      const date = new Date(`${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}T00:00:00Z`);
+      if (!isNaN(date.getTime())) {
+        return date.toISOString();
+      }
     }
     
     // Handle YYYY-MM-DD date-only format
     if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
-      return new Date(`${trimmed}T00:00:00Z`).toISOString();
+      const date = new Date(`${trimmed}T00:00:00Z`);
+      if (!isNaN(date.getTime())) {
+        return date.toISOString();
+      }
     }
   }
 
@@ -219,6 +227,8 @@ export function validateGigRow(row: any, rowIndex: number, userTimezone?: string
   // Store original values before processing for error display
   const originalTimezone = row.timezone?.trim() || '';
   const originalStatus = row.status?.trim() || '';
+  const originalStart = row.start?.trim() || '';
+  const originalEnd = row.end?.trim() || '';
   
   // Apply defaults and normalize data
   const data = applyGigRowDefaults(row, userTimezone);
@@ -234,6 +244,9 @@ export function validateGigRow(row: any, rowIndex: number, userTimezone?: string
     const startDate = new Date(data.start);
     if (isNaN(startDate.getTime())) {
       errors.push({ field: 'start', message: 'Start date/time must be in a valid date format (YYYY-MM-DD, MM/DD/YYYY, MM-DD-YYYY, with optional time)' });
+      // Store original value for display when invalid
+      originalValues.start = originalStart;
+      data.originalStart = originalStart;
     }
   }
 
@@ -243,6 +256,9 @@ export function validateGigRow(row: any, rowIndex: number, userTimezone?: string
     const endDate = new Date(data.end);
     if (isNaN(endDate.getTime())) {
       errors.push({ field: 'end', message: 'End date/time must be in a valid date format (YYYY-MM-DD, MM/DD/YYYY, MM-DD-YYYY, with optional time)' });
+      // Store original value for display when invalid
+      originalValues.end = originalEnd;
+      data.originalEnd = originalEnd;
     } else if (data.start) {
       const startDate = new Date(data.start);
       if (!isNaN(startDate.getTime()) && endDate < startDate) {
