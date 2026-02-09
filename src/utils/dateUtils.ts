@@ -82,8 +82,18 @@ export const formatDateTimeDisplay = (
   const startDate = typeof start === 'string' ? new Date(start) : start;
   const endDate = typeof end === 'string' ? new Date(end) : end;
   
+  // DEBUG: Log the actual values to understand what we're getting
+  console.log('formatDateTimeDisplay debug:', {
+    startStr,
+    endStr,
+    isStartNoonUTC: startStr.endsWith('T12:00:00.000Z'),
+    isEndNoonUTC: endStr.endsWith('T12:00:00.000Z'),
+    timeZone
+  });
+  
   // Special case: Both start and end are noon UTC (date-only entries)
   if (startStr.endsWith('T12:00:00.000Z') && endStr.endsWith('T12:00:00.000Z')) {
+    console.log('Detected date-only entry, returning date without time');
     const startDateOnly = formatDateDisplay(start, undefined); // Use no timezone for date-only
     const endDateOnly = formatDateDisplay(end, undefined);
     
