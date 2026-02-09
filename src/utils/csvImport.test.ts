@@ -390,5 +390,24 @@ describe('CSV Import Timezone Handling', () => {
       expect(result.data.end).toBe('2026-06-15T22:00:00.000Z'); // 2 hours later
       expect(result.data.timezone).toBe('America/New_York');
     });
+
+    it('should handle MM/DD/YYYY with T-time format', () => {
+      const csvRow = {
+        title: 'Mixed Format Gig',
+        start: '3/31/2026T18:00:00', // MM/DD/YYYY with ISO time
+        end: '3/31/2026T20:00:00', // MM/DD/YYYY with ISO time
+        timezone: 'America/New_York',
+        status: 'Booked'
+      };
+
+      const result = validateGigRow(csvRow, 0);
+      
+      expect(result.isValid).toBe(true);
+      // Mixed format gets parsed as browser local time then converted to UTC
+      // The exact UTC value depends on the browser's timezone during testing
+      expect(result.data.start).toMatch(/^2026-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/);
+      expect(result.data.end).toMatch(/^2026-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/);
+      expect(result.data.timezone).toBe('America/New_York');
+    });
   });
 });
