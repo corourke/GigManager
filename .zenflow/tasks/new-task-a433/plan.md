@@ -54,9 +54,9 @@ Remove `useMockData` prop and mock search logic.
 ### [x] Step: Clean up GigListScreen.tsx and AssetListScreen.tsx
 Remove `useMockData` prop.
 
-### [-] Step: Clean up documentation
+### [x] Step: Clean up documentation
 Update `setup-guide.md`.
 
-### [ ] Step: Final verification
+### [x] Step: Final verification
 <!-- chat-id: abaaa222-3e63-4cbe-9ebe-d2f8577dadbd -->
 Run tests, check for linting errors, and audit remaining mock data usage.
