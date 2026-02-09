@@ -26,10 +26,10 @@ For each of the following components, remove the `useMockData` prop from the int
     - Remove mock logic in `handleCompleteProfile`.
 
 - **OrganizationScreen.tsx**:
-    - Remove `MOCK_PLACES`, `GooglePlace` imports from `../utils/mock-data`.
+    - Remove unused `MOCK_PLACES` import from `../utils/mock-data`.
+    - Remove local `MOCK_PLACES` constant and `GooglePlace` interface if no longer used by production code.
     - Remove `useMockData` from props.
     - Remove mock logic in `handleSearchPlaces`.
-    - Note: `MOCK_PLACES` is also defined locally in this file. I should check if it's still needed for anything else. If it was only for `useMockData` branch, I'll remove the local definition too.
 
 - **GigListScreen.tsx**:
     - Remove `useMockData` from props.
@@ -54,6 +54,6 @@ For each of the following components, remove the `useMockData` prop from the int
 3. **Verification**: Audit and test run.
 
 ## Verification Approach
-- **Lint**: Run `npm run lint` (if available) to ensure no unused imports or broken types.
+- **Lint**: Run `npm run lint` (or equivalent) to ensure no unused imports or variables remain after cleanup.
 - **Test**: Run `npm run test:run` to ensure existing tests pass.
-- **Manual**: Verify login still works with real Supabase (requires local env setup which I might not have, so I'll rely on static analysis and existing tests).
+- **Manual**: Verify login still works with real Supabase.

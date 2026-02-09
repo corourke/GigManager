@@ -58,4 +58,4 @@ Remove `useMockData` prop.
 Update `setup-guide.md`.
 
 ### [ ] Step: Final verification
-Run tests and audit remaining mock data usage.
+Run tests, check for linting errors, and audit remaining mock data usage.
