@@ -61,7 +61,7 @@ Default local settings:
 
 #### 5. Access the Dashboard
 
-The local Supabase Dashboard (Supabase Studio) is available at **http://127.0.0.1:54323**.  *Note: This matches the `[studio]` port in `supabase/config.toml:85`.*
+The local Supabase Dashboard (Supabase Studio) is available at **http://127.0.0.1:54323**.  *Note: This matches the `[studio]` port in `supabase/config.toml`.*
 
 #### 6. Reset Local Database
 
