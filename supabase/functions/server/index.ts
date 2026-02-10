@@ -2177,6 +2177,13 @@ Deno.serve(async (req) => {
 
       const place = data;
       
+      // Map v1 addressComponents to legacy snake_case format for frontend compatibility
+      const address_components = (place.addressComponents || []).map((c: any) => ({
+        long_name: c.longText,
+        short_name: c.shortText,
+        types: c.types,
+      }));
+      
       return new Response(JSON.stringify({
         place_id: place.id || placeId,
         name: place.displayName?.text,
@@ -2184,7 +2191,7 @@ Deno.serve(async (req) => {
         formatted_phone_number: place.nationalPhoneNumber,
         website: place.websiteUri,
         editorial_summary: place.editorialSummary?.text,
-        address_components: place.addressComponents || [],
+        address_components,
       }), {
         headers: { ...responseHeaders, 'Content-Type': 'application/json' },
       });

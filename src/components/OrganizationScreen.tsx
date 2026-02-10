@@ -242,6 +242,9 @@ export default function OrganizationScreen({
         address.route = component.long_name;
       } else if (component.types.includes('locality')) {
         address.locality = component.long_name;
+      } else if (component.types.includes('sublocality_level_1')) {
+        // Fallback for cities like NYC
+        if (!address.locality) address.locality = component.long_name;
       } else if (component.types.includes('administrative_area_level_1')) {
         address.administrative_area_level_1 = component.short_name;
       } else if (component.types.includes('postal_code')) {
@@ -267,15 +270,15 @@ export default function OrganizationScreen({
     // Auto-fill form with place data
     setFormData({
       ...formData,
-      name: place.name,
-      url: place.website || '',
-      phone_number: place.formatted_phone_number || '',
-      description: place.editorial_summary || '',
-      address_line1: streetAddress,
-      city: addressParts.locality || '',
-      state: addressParts.administrative_area_level_1 || '',
-      postal_code: addressParts.postal_code || '',
-      country: addressParts.country || '',
+      name: place.name || formData.name,
+      url: place.website || formData.url,
+      phone_number: place.formatted_phone_number || formData.phone_number,
+      description: place.editorial_summary || formData.description,
+      address_line1: streetAddress || formData.address_line1,
+      city: addressParts.locality || formData.city,
+      state: addressParts.administrative_area_level_1 || formData.state,
+      postal_code: addressParts.postal_code || formData.postal_code,
+      country: addressParts.country || formData.country,
     });
 
     toast.success('Business information loaded from Google Places');

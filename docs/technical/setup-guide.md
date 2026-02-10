@@ -155,6 +155,8 @@ GigManager uses Supabase Edge Functions for complex server-side logic and extern
 ### 1. Google Places API Configuration
 The `server` edge function requires a `GOOGLE_PLACES_API_KEY` to perform place searches. This should be a Google Cloud API key with the "Places API (New)" enabled.
 
+Set up the Google Cloud API key here: `https://console.cloud.google.com/`
+
 #### Local Development
 Edge Functions do not automatically read from your root `.env.local`. You must provide the key specifically to the functions runtime:
 
