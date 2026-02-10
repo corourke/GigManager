@@ -122,16 +122,15 @@ This app streamlines the management of gigs (where an act performs at a venue) f
 
 | Feature | Admin | Manager | Staff | Viewer |
 |---------|-------|---------|-------|--------|
-| Accept / Reject assignments | ✅ | ✅ | ✅ | ✅ |
-| Receive Notifications | ✅ | ✅ | ✅ | ✅ |
-| View organization's gig details | ✅ | ✅ | Own gigs only | ❌ |
+| View all gigs | ✅ | ✅ | Own gigs only | ✅ |
 | Create/edit gigs | ✅ | ✅ | ❌ | ❌ |
 | Assign staff | ✅ | ✅ | ❌ | ❌ |
 | Manage assets | ✅ | ✅ | ❌ | ❌ |
 | View and edit gig financials | ✅ | ❌ | ❌ | ❌ |
 | Invite users | ✅ | ❌ | ❌ | ❌ |
-| Change roles | ✅ | ❌ | ❌ | ❌ |
+| Change user roles | ✅ | ❌ | ❌ | ❌ |
 | Delete data | ✅ | ❌ | ❌ | ❌ |
+| See and change financial information | ✅ | ❌ | ❌ | ❌ |
 
 #### User Profile
 
