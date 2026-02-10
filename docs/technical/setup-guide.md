@@ -152,8 +152,8 @@ supabase functions deploy server --project-ref <your-project-id>
 
 GigManager uses Supabase Edge Functions for complex server-side logic and external integrations, such as Google Places.
 
-### 1. Google Maps API Configuration
-The `server` edge function requires a `GOOGLE_MAPS_API_KEY` to perform place searches.
+### 1. Google Places API Configuration
+The `server` edge function requires a `GOOGLE_PLACES_API_KEY` to perform place searches. This should be a Google Cloud API key with the "Places API (New)" enabled.
 
 #### Local Development
 Edge Functions do not automatically read from your root `.env.local`. You must provide the key specifically to the functions runtime:
@@ -161,7 +161,7 @@ Edge Functions do not automatically read from your root `.env.local`. You must p
 1. Create a file at `supabase/functions/server/.env` (or use the root `.env.local`).
 2. Add your key:
    ```env
-   GOOGLE_MAPS_API_KEY=your_actual_google_maps_key
+   GOOGLE_PLACES_API_KEY=your_actual_google_places_key
    ```
 3. When running functions locally, use the `--env-file` flag:
    ```bash
@@ -171,7 +171,7 @@ Edge Functions do not automatically read from your root `.env.local`. You must p
 #### Production
 You must set the secret in your remote Supabase project:
 ```bash
-supabase secrets set GOOGLE_MAPS_API_KEY=your_actual_google_maps_key
+supabase secrets set GOOGLE_PLACES_API_KEY=your_actual_google_places_key
 ```
 
 ### 2. Secrets Management
@@ -223,7 +223,7 @@ supabase db reset --linked
 - **Port conflicts**: If port 54321 or 54322 is taken, modify `supabase/config.toml`.
 
 ### Common Edge Function Issues
-- **500 (Internal Server Error)**: Often caused by missing environment variables. Check the logs (`supabase functions serve` output locally) to see if a specific key like `GOOGLE_MAPS_API_KEY` is missing.
+- **500 (Internal Server Error)**: Often caused by missing environment variables. Check the logs (`supabase functions serve` output locally) to see if a specific key like `GOOGLE_PLACES_API_KEY` is missing.
 - **CORS Errors**: Ensure the function returns the correct `Access-Control-Allow-Origin` headers. The `server` function includes a helper for this.
 
 ---

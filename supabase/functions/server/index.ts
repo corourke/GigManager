@@ -2040,33 +2040,49 @@ Deno.serve(async (req) => {
         });
       }
 
-      const apiKey = Deno.env.get('GOOGLE_MAPS_API_KEY');
+      const apiKey = Deno.env.get('GOOGLE_PLACES_API_KEY');
       
       if (!apiKey) {
-        console.error('Google Maps API key not configured');
-        return new Response(JSON.stringify({ error: 'Google Maps API key not configured' }), {
+        console.error('Google Places API key not configured');
+        return new Response(JSON.stringify({ error: 'Google Places API key not configured' }), {
           status: 500,
           headers: { ...responseHeaders, 'Content-Type': 'application/json' },
         });
       }
 
-      const apiUrl = new URL('https://maps.googleapis.com/maps/api/place/textsearch/json');
-      apiUrl.searchParams.append('query', query);
-      apiUrl.searchParams.append('key', apiKey);
-      
+      const body: any = {
+        textQuery: query,
+      };
+
       if (latitude && longitude) {
-        apiUrl.searchParams.append('location', `${latitude},${longitude}`);
-        apiUrl.searchParams.append('radius', '50000');
+        body.locationBias = {
+          circle: {
+            center: {
+              latitude: parseFloat(latitude),
+              longitude: parseFloat(longitude),
+            },
+            radius: 50000.0,
+          },
+        };
       }
 
-      const response = await fetch(apiUrl.toString());
+      const response = await fetch('https://places.googleapis.com/v1/places:searchText', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Goog-Api-Key': apiKey,
+          'X-Goog-FieldMask': 'places.id,places.displayName,places.formattedAddress,places.types',
+        },
+        body: JSON.stringify(body),
+      });
+
       const data = await response.json();
 
-      if (data.status !== 'OK' && data.status !== 'ZERO_RESULTS') {
+      if (!response.ok) {
         console.error('Google Places API error:', data);
         return new Response(JSON.stringify({ 
-          error: `Google Places API error: ${data.status}`,
-          details: data.error_message 
+          error: `Google Places API error: ${response.status}`,
+          details: data.error?.message || 'Unknown error'
         }), {
           status: 500,
           headers: { ...responseHeaders, 'Content-Type': 'application/json' },
@@ -2080,8 +2096,8 @@ Deno.serve(async (req) => {
         'theatre', 'show', 'performance', 'rental', 'av', 'pro audio'
       ];
 
-      const scoredResults = (data.results || []).map((place: any) => {
-        const name = (place.name || '').toLowerCase();
+      const scoredResults = (data.places || []).map((place: any) => {
+        const name = (place.displayName?.text || '').toLowerCase();
         let score = 0;
         
         if (name.startsWith(query.toLowerCase())) score += 50;
@@ -2092,9 +2108,9 @@ Deno.serve(async (req) => {
         }
         
         return {
-          place_id: place.place_id,
-          name: place.name,
-          formatted_address: place.formatted_address,
+          place_id: place.id,
+          name: place.displayName?.text,
+          formatted_address: place.formattedAddress,
           types: place.types,
           score,
         };
@@ -2128,45 +2144,47 @@ Deno.serve(async (req) => {
         });
       }
 
-      const apiKey = Deno.env.get('GOOGLE_MAPS_API_KEY');
+      const apiKey = Deno.env.get('GOOGLE_PLACES_API_KEY');
       
       if (!apiKey) {
-        console.error('Google Maps API key not configured');
-        return new Response(JSON.stringify({ error: 'Google Maps API key not configured' }), {
+        console.error('Google Places API key not configured');
+        return new Response(JSON.stringify({ error: 'Google Places API key not configured' }), {
           status: 500,
           headers: { ...responseHeaders, 'Content-Type': 'application/json' },
         });
       }
 
-      const apiUrl = new URL('https://maps.googleapis.com/maps/api/place/details/json');
-      apiUrl.searchParams.append('place_id', placeId);
-      apiUrl.searchParams.append('fields', 'name,formatted_address,formatted_phone_number,website,address_components,editorial_summary');
-      apiUrl.searchParams.append('key', apiKey);
+      const response = await fetch(`https://places.googleapis.com/v1/places/${placeId}`, {
+        method: 'GET',
+        headers: {
+          'X-Goog-Api-Key': apiKey,
+          'X-Goog-FieldMask': 'id,displayName,formattedAddress,nationalPhoneNumber,websiteUri,editorialSummary,addressComponents',
+        },
+      });
 
-      const response = await fetch(apiUrl.toString());
       const data = await response.json();
 
-      if (data.status !== 'OK') {
+      if (!response.ok) {
         console.error('Google Places API error:', data);
         return new Response(JSON.stringify({ 
-          error: `Google Places API error: ${data.status}`,
-          details: data.error_message 
+          error: `Google Places API error: ${response.status}`,
+          details: data.error?.message || 'Unknown error'
         }), {
           status: 500,
           headers: { ...responseHeaders, 'Content-Type': 'application/json' },
         });
       }
 
-      const place = data.result;
+      const place = data;
       
       return new Response(JSON.stringify({
-        place_id: place.place_id || placeId,
-        name: place.name,
-        formatted_address: place.formatted_address,
-        formatted_phone_number: place.formatted_phone_number,
-        website: place.website,
-        editorial_summary: place.editorial_summary?.overview,
-        address_components: place.address_components || [],
+        place_id: place.id || placeId,
+        name: place.displayName?.text,
+        formatted_address: place.formattedAddress,
+        formatted_phone_number: place.nationalPhoneNumber,
+        website: place.websiteUri,
+        editorial_summary: place.editorialSummary?.text,
+        address_components: place.addressComponents || [],
       }), {
         headers: { ...responseHeaders, 'Content-Type': 'application/json' },
       });
