@@ -135,7 +135,9 @@ export async function getOrganizationMember(organizationId: string, memberId: st
       method: 'GET'
     });
 
-    if (error) throw error;
+    if (error) {
+      await handleFunctionsError(error, 'fetch organization member');
+    }
     return data;
   } catch (err) {
     return handleApiError(err, 'fetch organization member');
@@ -152,7 +154,9 @@ export async function getOrganizationMembersWithAuth(organizationId: string) {
       method: 'GET'
     });
 
-    if (error) throw error;
+    if (error) {
+      await handleFunctionsError(error, 'fetch organization members with auth');
+    }
     return data;
   } catch (err) {
     return handleApiError(err, 'fetch organization members with auth');
@@ -289,7 +293,9 @@ export async function cancelInvitation(invitationId: string) {
       method: 'DELETE'
     });
 
-    if (error) throw error;
+    if (error) {
+      await handleFunctionsError(error, 'cancel invitation');
+    }
     return { success: true };
   } catch (err) {
     return handleApiError(err, 'cancel invitation');
@@ -361,7 +367,9 @@ export async function updateMemberDetails(
       body: memberData
     });
 
-    if (error) throw error;
+    if (error) {
+      await handleFunctionsError(error, 'update member details');
+    }
     return data;
   } catch (err) {
     return handleApiError(err, 'update member details');
@@ -385,7 +393,9 @@ export async function removeMember(organizationId: string, memberId: string) {
       method: 'DELETE'
     });
 
-    if (error) throw error;
+    if (error) {
+      await handleFunctionsError(error, 'remove member');
+    }
     return { success: true };
   } catch (err) {
     return handleApiError(err, 'remove member');

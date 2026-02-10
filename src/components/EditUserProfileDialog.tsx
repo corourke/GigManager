@@ -3,6 +3,7 @@ import { Button } from './ui/button';
 import { Loader2, User as UserIcon } from 'lucide-react';
 import { useSimpleFormChanges } from '../utils/hooks/useSimpleFormChanges';
 import { createSubmissionPayload, normalizeFormData } from '../utils/form-utils';
+import { handleFunctionsError } from '../utils/api-error-utils';
 import {
   Dialog,
   DialogContent,
@@ -120,7 +121,7 @@ export default function EditUserProfileDialog({
       });
 
       if (invokeError) {
-        throw new Error(invokeError.message || 'Failed to update profile');
+        await handleFunctionsError(invokeError, 'update profile');
       }
 
       // Update user object

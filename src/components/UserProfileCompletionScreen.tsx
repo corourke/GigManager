@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Button } from './ui/button';
 import { useSimpleFormChanges } from '../utils/hooks/useSimpleFormChanges';
 import { createSubmissionPayload, normalizeFormData } from '../utils/form-utils';
+import { handleFunctionsError } from '../utils/api-error-utils';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Card } from './ui/card';
@@ -139,7 +140,7 @@ export default function UserProfileCompletionScreen({
       });
 
       if (invokeError) {
-        throw new Error(invokeError.message || 'Failed to update profile');
+        await handleFunctionsError(invokeError, 'update profile');
       }
 
       // Update user object

@@ -9,6 +9,7 @@ import {
   ORG_TYPE_CONFIG, 
   getOrgTypeColor 
 } from '../utils/supabase/constants';
+import { handleFunctionsError } from '../utils/api-error-utils';
 import { createClient } from '../utils/supabase/client';
 import { Button } from './ui/button';
 import AppHeader from './AppHeader';
@@ -77,7 +78,9 @@ export default function AdminOrganizationsScreen({
         method: 'GET'
       });
 
-      if (orgError) throw orgError;
+      if (orgError) {
+        await handleFunctionsError(orgError, 'load organizations');
+      }
 
       // Fetch member counts for each organization
       const orgsWithCounts = await Promise.all(
@@ -119,7 +122,9 @@ export default function AdminOrganizationsScreen({
         method: 'DELETE'
       });
 
-      if (error) throw error;
+      if (error) {
+        await handleFunctionsError(error, 'delete organization');
+      }
 
       toast.success('Organization deleted successfully');
       setOrganizations(prev => prev.filter(org => org.id !== deleteOrgId));

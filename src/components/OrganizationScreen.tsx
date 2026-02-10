@@ -9,6 +9,7 @@ import { ORG_TYPE_CONFIG } from '../utils/supabase/constants';
 import { useSimpleFormChanges } from '../utils/hooks/useSimpleFormChanges';
 import { createSubmissionPayload, normalizeFormData } from '../utils/form-utils';
 import { createClient } from '../utils/supabase/client';
+import { handleFunctionsError } from '../utils/api-error-utils';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
@@ -184,11 +185,7 @@ export default function OrganizationScreen({
       });
 
       if (invokeError) {
-        console.error('Places search error:', invokeError);
-        toast.error(invokeError.message || 'Failed to search places');
-        setSearchResults([]);
-        setIsSearching(false);
-        return;
+        await handleFunctionsError(invokeError, 'search places');
       }
 
       const placeResults = searchResult?.results;
@@ -220,9 +217,9 @@ export default function OrganizationScreen({
 
       setSearchResults(detailedResults);
       setIsSearching(false);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error searching places:', error);
-      toast.error('Failed to search places. Please try again.');
+      toast.error(error.message || 'Failed to search places. Please try again.');
       setSearchResults([]);
       setIsSearching(false);
     }
@@ -414,7 +411,7 @@ export default function OrganizationScreen({
       });
 
       if (invokeError) {
-        throw invokeError;
+        await handleFunctionsError(invokeError, isEditMode ? 'update organization' : 'create organization');
       }
 
       if (isEditMode) {

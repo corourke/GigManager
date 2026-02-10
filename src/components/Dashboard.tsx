@@ -13,6 +13,7 @@ import {
 import { Organization, User, UserRole } from '../utils/supabase/types';
 import { USER_ROLE_CONFIG, GIG_STATUS_CONFIG } from '../utils/supabase/constants';
 import { createClient } from '../utils/supabase/client';
+import { handleFunctionsError } from '../utils/api-error-utils';
 import GigTable, { type Gig } from './tables/GigTable';
 
 interface DashboardProps {
@@ -119,17 +120,7 @@ export default function Dashboard({
       });
 
       if (invokeError) {
-        console.error('Dashboard API error:', invokeError);
-        
-        if (invokeError.status === 401) {
-          setError('Session expired. Please sign in again.');
-        } else if (invokeError.status === 403) {
-          setError('You do not have permission to view this organization\'s dashboard.');
-        } else {
-          setError(invokeError.message || 'Failed to fetch dashboard stats');
-        }
-        setLoading(false);
-        return;
+        await handleFunctionsError(invokeError, 'fetch dashboard stats');
       }
 
       console.log('Dashboard: API response data:', data);
