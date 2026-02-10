@@ -10,10 +10,11 @@
 
 1. [Prerequisites](#prerequisites)
 2. [Local Development Setup](#local-development-setup)
-3. [Production Setup](#production-setup)
-4. [Supabase CLI Procedures](#supabase-cli-procedures)
-5. [Troubleshooting](#troubleshooting)
-6. [Checklists](#checklists)
+3. [Environment Switching](#environment-switching)
+4. [Production Setup](#production-setup)
+5. [Supabase CLI Procedures](#supabase-cli-procedures)
+6. [Troubleshooting](#troubleshooting)
+7. [Checklists](#checklists)
 
 ---
 
@@ -60,21 +61,71 @@ Default local settings:
 
 ---
 
+## Environment Switching
+
+The frontend application uses environment variables to connect to the correct Supabase instance. You can switch between local and production by updating your `.env.local` file.
+
+### 1. Local Development
+To connect to your local Docker-based Supabase instance:
+```env
+# .env.local
+VITE_SUPABASE_URL=http://127.0.0.1:54321
+VITE_SUPABASE_ANON_KEY=your-local-anon-key-from-supabase-status
+```
+
+### 2. Production
+To connect to your hosted Supabase project:
+```env
+# .env.local
+VITE_SUPABASE_URL=https://your-project-ref.supabase.co
+VITE_SUPABASE_ANON_KEY=your-production-anon-key
+```
+
+### 3. Verification
+The application exports these values in `src/utils/supabase/info.tsx`. If these variables are missing, the app will throw an error on startup to prevent accidental connections to the wrong database.
+
+---
+
 ## Production Setup
 
-### Option 1: Quick Setup (Email Auth)
+### 1. Project Creation
+- Create a new project in the [Supabase Dashboard](https://supabase.com).
+- Note your **Project Reference ID** (found in project settings).
 
-1. **Create Supabase Project**: Go to [Supabase Dashboard](https://supabase.com) and create a new project.
-2. **Apply Schema**:
-   - Navigate to **SQL Editor** in your Supabase project.
-   - Copy the contents of `supabase/migrations/20260209000000_initial_schema.sql`.
-   - Paste and **Run**.
-3. **Configure Auth**:
-   - Go to **Authentication -> Providers** and ensure **Email** is enabled.
-   - For testing, you may disable "Confirm email" in Auth Settings.
-4. **Update App Credentials**: Update `src/utils/supabase/info.tsx` with your production URL and Anon Key.
+### 2. Apply Consolidated Schema
+You must apply the consolidated schema to your remote database. There are two ways to do this:
 
-### Option 2: Google OAuth Setup
+#### Method A: Supabase Dashboard (Recommended for initial setup)
+1. Open the **SQL Editor** in your Supabase project.
+2. Click **New Query**.
+3. Copy the entire contents of `supabase/migrations/20260209000000_initial_schema.sql`.
+4. Paste the SQL into the editor and click **Run**.
+5. Verify that all tables, functions, and RLS policies were created successfully.
+
+#### Method B: Supabase CLI
+1. Link your local project to the remote one:
+   ```bash
+   supabase link --project-ref <your-project-id>
+   ```
+2. Push the migrations:
+   ```bash
+   supabase db push
+   ```
+
+### 3. Configure Authentication
+- Go to **Authentication -> Providers** and ensure **Email** is enabled.
+- (Optional) Configure **Google OAuth** as described in the next section.
+- For development/testing, you may want to disable "Confirm email" in **Auth Settings** to allow immediate signups.
+
+### 4. Deploy Edge Functions
+If your project uses Edge Functions, deploy them using the CLI:
+```bash
+supabase functions deploy server --project-ref <your-project-id>
+```
+
+---
+
+## Google OAuth Setup (Optional)
 
 1. **Google Cloud Console**:
    - Create a project and configure the OAuth consent screen (External).
