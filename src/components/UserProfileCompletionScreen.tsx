@@ -30,6 +30,7 @@ interface FormData {
   state: string;
   postal_code: string;
   country: string;
+  timezone: string;
 }
 
 interface FormErrors {
@@ -55,6 +56,7 @@ export default function UserProfileCompletionScreen({
     state: '',
     postal_code: '',
     country: '',
+    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
   });
 
   // Change detection for efficient updates
@@ -71,6 +73,7 @@ export default function UserProfileCompletionScreen({
       state: '',
       postal_code: '',
       country: '',
+      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
     },
     currentData: formData,
   });
@@ -163,6 +166,7 @@ export default function UserProfileCompletionScreen({
         state: '',
         postal_code: '',
         country: '',
+        timezone: updatedUser.timezone || formData.timezone,
       });
 
       // Refresh global auth state (syncs organizations, active status, etc.)
@@ -292,6 +296,20 @@ export default function UserProfileCompletionScreen({
                   onChange={(e) => handleInputChange('phone', e.target.value)}
                   disabled={isSubmitting}
                 />
+              </div>
+
+              {/* Timezone */}
+              <div className="space-y-2">
+                <Label htmlFor="timezone">Timezone</Label>
+                <Input
+                  id="timezone"
+                  type="text"
+                  placeholder="UTC"
+                  value={formData.timezone}
+                  onChange={(e) => handleInputChange('timezone', e.target.value)}
+                  disabled={isSubmitting}
+                />
+                <p className="text-xs text-gray-500">Auto-detected from your browser</p>
               </div>
             </div>
 
