@@ -53,7 +53,7 @@ PGPASSWORD=postgres psql -h 127.0.0.1 -p 54322 -U postgres -d postgres -c "SELEC
 ```
 
 ### 4. Configure Frontend
-The app automatically detects the environment. Ensure your `.env.local` (not committed) or `src/utils/supabase/info.tsx` matches the local settings provided by `supabase status`.
+The app automatically detects the environment. Ensure your `.env.local` (not committed)  matches the local settings provided by `supabase status`.
 
 Default local settings:
 - **API URL**: `http://127.0.0.1:54321`
