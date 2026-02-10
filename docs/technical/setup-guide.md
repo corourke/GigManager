@@ -12,9 +12,10 @@
 2. [Local Development Setup](#local-development-setup)
 3. [Environment Switching](#environment-switching)
 4. [Production Setup](#production-setup)
-5. [Supabase CLI Procedures](#supabase-cli-procedures)
-6. [Troubleshooting](#troubleshooting)
-7. [Checklists](#checklists)
+5. [Edge Functions & External Integrations](#edge-functions--external-integrations)
+6. [Supabase CLI Procedures](#supabase-cli-procedures)
+7. [Troubleshooting](#troubleshooting)
+8. [Checklists](#checklists)
 
 ---
 
@@ -147,6 +148,37 @@ supabase functions deploy server --project-ref <your-project-id>
    - In Supabase Dashboard, go to **Authentication -> Providers -> Google**.
    - Enable it and paste your Client ID and Client Secret.
 
+## Edge Functions & External Integrations
+
+GigManager uses Supabase Edge Functions for complex server-side logic and external integrations, such as Google Places.
+
+### 1. Google Maps API Configuration
+The `server` edge function requires a `GOOGLE_MAPS_API_KEY` to perform place searches.
+
+#### Local Development
+Edge Functions do not automatically read from your root `.env.local`. You must provide the key specifically to the functions runtime:
+
+1. Create a file at `supabase/functions/server/.env` (or use the root `.env.local`).
+2. Add your key:
+   ```env
+   GOOGLE_MAPS_API_KEY=your_actual_google_maps_key
+   ```
+3. When running functions locally, use the `--env-file` flag:
+   ```bash
+   supabase functions serve server --env-file .env.local
+   ```
+
+#### Production
+You must set the secret in your remote Supabase project:
+```bash
+supabase secrets set GOOGLE_MAPS_API_KEY=your_actual_google_maps_key
+```
+
+### 2. Secrets Management
+- **List Secrets**: `supabase secrets list`
+- **Set Secret**: `supabase secrets set NAME=VALUE`
+- **Unset Secret**: `supabase secrets unset NAME`
+
 ---
 
 ## Supabase CLI Procedures
@@ -189,6 +221,10 @@ supabase db reset --linked
 ### Local Development Issues
 - **Docker not running**: Ensure Docker Desktop or Colima is active before running `supabase start`.
 - **Port conflicts**: If port 54321 or 54322 is taken, modify `supabase/config.toml`.
+
+### Common Edge Function Issues
+- **500 (Internal Server Error)**: Often caused by missing environment variables. Check the logs (`supabase functions serve` output locally) to see if a specific key like `GOOGLE_MAPS_API_KEY` is missing.
+- **CORS Errors**: Ensure the function returns the correct `Access-Control-Allow-Origin` headers. The `server` function includes a helper for this.
 
 ---
 
