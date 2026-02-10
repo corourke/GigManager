@@ -223,6 +223,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setUser(null);
     setOrganizations([]);
     selectOrganization(null);
+    // Clear persisted navigation state
+    localStorage.removeItem('currentRoute');
+    localStorage.removeItem('selectedGigId');
+    localStorage.removeItem('selectedAssetId');
+    localStorage.removeItem('selectedKitId');
+    localStorage.removeItem('selectedMemberId');
   };
 
   const value = {

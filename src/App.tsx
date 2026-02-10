@@ -145,17 +145,17 @@ function App() {
       setCurrentRoute('profile-completion');
     } else if (currentRoute !== 'accept-invitation' && (!user?.first_name?.trim() || !user?.last_name?.trim()) && user) {
       setCurrentRoute('profile-completion'); // Fill out profile if incomplete
-    } else if (!selectedOrganization && user) {
+    } else if (user && (organizations.length === 0 || !selectedOrganization)) {
       if (organizations.length === 0) {
         setCurrentRoute('org-selection'); // Choose an org if user belongs to none
-      } else if (organizations.length === 1) {
+      } else if (organizations.length === 1 && !selectedOrganization) {
         const membership = organizations[0];
         selectOrganization(membership.organization);  // Auto-select if only one org
-      } else {
+      } else if (!selectedOrganization) {
         setCurrentRoute('org-selection'); // Otherwise user has to select which org to use
       }
     }
-  }, [user, selectedOrganization, organizations, isLoading, selectOrganization]);
+  }, [user, selectedOrganization, organizations, isLoading, selectOrganization, currentRoute]);
 
   // Set landing route based on role after an organization is selected
   useEffect(() => {
@@ -242,11 +242,6 @@ function App() {
     setSelectedKitId(null);
     setSelectedMemberId(null);
     setCurrentRoute('login');
-    localStorage.removeItem('currentRoute');
-    localStorage.removeItem('selectedGigId');
-    localStorage.removeItem('selectedAssetId');
-    localStorage.removeItem('selectedKitId');
-    localStorage.removeItem('selectedMemberId');
   };
 
   const handleNavigateToGigs = () => {
