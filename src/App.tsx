@@ -139,8 +139,8 @@ function App() {
         return;
       }
       setCurrentRoute('login');
-    } else if (window.location.pathname === '/accept-invitation' && currentRoute === 'accept-invitation' && user) {
-      // If we just landed on the accept-invitation route and have a user, 
+    } else if (window.location.pathname === '/accept-invitation' && currentRoute === 'accept-invitation' && user && (!user?.first_name?.trim() || !user?.last_name?.trim())) {
+      // If we just landed on the accept-invitation route and have a user with an incomplete profile, 
       // force profile completion so they can set their password and name.
       setCurrentRoute('profile-completion');
     } else if (currentRoute !== 'accept-invitation' && (!user?.first_name?.trim() || !user?.last_name?.trim()) && user) {
