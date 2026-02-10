@@ -228,6 +228,10 @@ If the CLI reset fails or you want a fresh start without local migrations:
    GRANT ALL ON SCHEMA public TO service_role;
    ```
 3. Re-apply the consolidated schema by following [Apply Consolidated Schema](#2-apply-consolidated-schema).
+4. **Redeploy Edge Functions**: If you have modified any Edge Functions, remember to redeploy them:
+   ```bash
+   supabase functions deploy server --project-ref <your-project-id>
+   ```
 
 ---
 

@@ -107,7 +107,7 @@ This app streamlines the management of gigs (where an act performs at a venue) f
   1. **Authenticated Users**: Full Supabase auth.users accounts with complete profiles
   2. **Placeholder Users**: User records without auth.users entries for planning (data-only, no system access)
 - **Users Table Linking**: Link users table to supabase auth.users via email column
-- **Invitation System**: Use separate `invitations` table to track invited placeholder users
+- **Invitation System**: Uses separate `invitations` table to track invited placeholder users
   - **Secure Token Purpose**: Creates secure, one-time-use URLs for invitation acceptance
   - **Token Security**: Prevents unauthorized access to invitation acceptance
 
@@ -122,10 +122,13 @@ This app streamlines the management of gigs (where an act performs at a venue) f
 
 | Feature | Admin | Manager | Staff | Viewer |
 |---------|-------|---------|-------|--------|
-| View all gigs | ✅ | ✅ | Own gigs only | ✅ |
+| Accept / Reject assignments | ✅ | ✅ | ✅ | ✅ |
+| Receive Notifications | ✅ | ✅ | ✅ | ✅ |
+| View organization's gig details | ✅ | ✅ | Own gigs only | ❌ |
 | Create/edit gigs | ✅ | ✅ | ❌ | ❌ |
 | Assign staff | ✅ | ✅ | ❌ | ❌ |
 | Manage assets | ✅ | ✅ | ❌ | ❌ |
+| View and edit gig financials | ✅ | ❌ | ❌ | ❌ |
 | Invite users | ✅ | ❌ | ❌ | ❌ |
 | Change roles | ✅ | ❌ | ❌ | ❌ |
 | Delete data | ✅ | ❌ | ❌ | ❌ |

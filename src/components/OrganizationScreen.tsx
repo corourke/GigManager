@@ -1,3 +1,12 @@
+/**
+ * OrganizationScreen Component
+ * 
+ * This component provides a form for creating a new organization or editing an existing one.
+ * It features a Google Places integration to auto-fill business details (name, address, website, etc.).
+ * 
+ * Used in:
+ * - App.tsx (routes: 'create-org', 'edit-org')
+ */
 import { useState, useRef, useEffect } from 'react';
 import { Building2, Search, Loader2, MapPin, Phone, Globe, Check, AlertCircle, X, ChevronLeft } from 'lucide-react';
 import { toast } from 'sonner';

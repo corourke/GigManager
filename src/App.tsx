@@ -146,6 +146,12 @@ function App() {
     } else if (currentRoute !== 'accept-invitation' && (!user?.first_name?.trim() || !user?.last_name?.trim()) && user) {
       setCurrentRoute('profile-completion'); // Fill out profile if incomplete
     } else if (user && (organizations.length === 0 || !selectedOrganization)) {
+      // Don't redirect if we're already on an organization management route
+      const orgManagementRoutes: Route[] = ['org-selection', 'create-org', 'accept-invitation'];
+      if (orgManagementRoutes.includes(currentRoute)) {
+        return;
+      }
+
       if (organizations.length === 0) {
         setCurrentRoute('org-selection'); // Choose an org if user belongs to none
       } else if (organizations.length === 1 && !selectedOrganization) {

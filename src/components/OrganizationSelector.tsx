@@ -1,3 +1,15 @@
+/**
+ * OrganizationSelector Component
+ * 
+ * A reusable combobox/autocomplete component used to search for and select an organization.
+ * Unlike the SelectionScreen, this is a form input component used within other screens
+ * where an organization needs to be referenced (e.g., in gig creation or filtering).
+ * 
+ * Features:
+ * - Real-time search of organizations.
+ * - Displays organization name and city.
+ * - Supports filtering by organization type.
+ */
 import { useState, useRef, useEffect } from 'react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';

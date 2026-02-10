@@ -1,3 +1,15 @@
+/**
+ * OrganizationSelectionScreen Component
+ * 
+ * This is the primary landing screen for users after login if they belong to multiple organizations
+ * or haven't selected one yet. It allows users to:
+ * 1. Select from a list of organizations they already belong to.
+ * 2. Search for existing organizations to request to join.
+ * 3. Initiate the creation of a new organization.
+ * 
+ * Used in:
+ * - App.tsx (route: 'org-selection')
+ */
 import { useState, useEffect, useMemo } from 'react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
