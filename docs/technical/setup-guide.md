@@ -59,6 +59,18 @@ Default local settings:
 - **API URL**: `http://127.0.0.1:54321`
 - **Anon Key**: (Get from `supabase status` output)
 
+#### 5. Access the Dashboard
+
+The local Supabase Dashboard (Supabase Studio) is available at **http://127.0.0.1:54323**.  *Note: This matches the `[studio]` port in `supabase/config.toml:85`.*
+
+#### 6. Reset Local Database
+
+To wipe the database, re-run all migrations, and re-populate the seed data, run:
+
+```bash
+supabase db reset
+```
+
 ---
 
 ## Environment Switching
