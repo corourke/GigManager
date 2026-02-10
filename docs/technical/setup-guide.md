@@ -201,11 +201,33 @@ supabase functions deploy server --project-ref <your-project-id>
 - **Convert to Seed**: Use `supabase/dump/convert_seed.py` to convert COPY commands to INSERTs for `seed.sql`.
 
 ### Resetting Remote Database
-**Warning: This is destructive!**
-```bash
-supabase link --project-ref <your-project-id>
-supabase db reset --linked
-```
+
+**Warning: This is destructive!** It will wipe all data and schema in your production database and re-apply migrations.
+
+#### Method A: Supabase CLI (Preferred)
+1. Ensure your project is linked:
+   ```bash
+   supabase link --project-ref <your-project-id>
+   ```
+2. Reset the linked database:
+   ```bash
+   supabase db reset --linked
+   ```
+   *Note: This command will prompt for confirmation. It drops the `public` schema and re-runs all local migrations.*
+
+#### Method B: Supabase Dashboard (Manual)
+If the CLI reset fails or you want a fresh start without local migrations:
+1. Go to **Project Settings -> Database**.
+2. Scroll to the bottom and look for **Reset Database** (if available) or manually drop the public schema in the **SQL Editor**:
+   ```sql
+   DROP SCHEMA public CASCADE;
+   CREATE SCHEMA public;
+   GRANT ALL ON SCHEMA public TO postgres;
+   GRANT ALL ON SCHEMA public TO anon;
+   GRANT ALL ON SCHEMA public TO authenticated;
+   GRANT ALL ON SCHEMA public TO service_role;
+   ```
+3. Re-apply the consolidated schema by following [Apply Consolidated Schema](#2-apply-consolidated-schema).
 
 ---
 
