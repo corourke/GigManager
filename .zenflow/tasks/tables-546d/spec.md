@@ -33,11 +33,12 @@ interface ColumnDef<T> {
   required?: boolean; // Always visible, cannot be removed
   readOnly?: boolean; // Cannot be edited
   optional?: boolean; // Can be hidden by user
-  options?: { label: string; value: any; color?: string }[]; // For select and pills
+  // Options can be a static array or a dynamic list
+  options?: { label: string; value: any; color?: string }[] | (() => { label: string; value: any; color?: string }[]);
   validation?: z.ZodTypeAny;
   className?: string;
   // Multi-criteria filter options
-  filterOptions?: { label: string; value: any }[];
+  filterOptions?: { label: string; value: any }[] | (() => { label: string; value: any }[]);
 }
 ```
 
@@ -81,9 +82,14 @@ interface ColumnDef<T> {
 - Add support for **Pills** with backspace-to-delete and searchable-select-to-add.
 - Implement multi-criteria filtering UI in headers.
 
-### Phase 4: Integration
+### Phase 4: Prototype & Developer Demo
+- Create `src/components/dev/DevTableDemoScreen.tsx`.
+- Implement a table with dummy data covering all types (text, number, checkbox, dynamic pills, selects).
+- Document integration patterns within the demo screen.
+- **Verification**: User testing for performance, UX feel, and "blue outline" interaction.
+
+### Phase 5: Integration
 - Refactor `AssetListScreen` to use `SmartDataTable`.
-- Verify performance and UX.
 - Plan rollout to other screens.
 
 ## 5. Verification Approach

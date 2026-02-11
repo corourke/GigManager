@@ -73,7 +73,13 @@ Save to `{@artifacts_path}/plan.md`.
 - Implement multi-criteria filtering popover in headers.
 - **Verification**: Test searchable dropdown and pill colors from `constants.ts`.
 
-#### [ ] Task 5: AssetListScreen Integration
+#### [ ] Task 5: Prototype & Developer Demo
+- Create `src/components/dev/DevTableDemoScreen.tsx`.
+- Implement a comprehensive demo table with mock data.
+- Add "Developer Documentation" comments within the file.
+- **Verification**: User testing of the demo screen for UX feel.
+
+#### [ ] Task 6: AssetListScreen Integration
 - Refactor `AssetListScreen.tsx` to use `SmartDataTable`.
 - Define column configuration for assets (required, read-only, etc.).
 - Update service calls for saving in-place edits.
