@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Check, Loader2, Search } from 'lucide-react';
 import { Input } from '../ui/input';
 import { Badge } from '../ui/badge';
+import { TableCell } from '../ui/table';
 import { cn } from '../ui/utils';
 import { ColumnDef } from './SmartDataTable';
 import {
