@@ -96,6 +96,7 @@ export default function DevTableDemoScreen() {
       editable: true,
       optional: true,
       type: 'text',
+      className: 'w-[200px]',
     },
   ];
 
@@ -133,10 +134,13 @@ export default function DevTableDemoScreen() {
         <ul className="list-disc pl-5 space-y-2 text-sm text-slate-700">
           <li><strong>Selection:</strong> Click once to select a cell (blue outline).</li>
           <li><strong>Editing:</strong> Double-click a selected cell to enter edit mode. For checkboxes, a single click toggles immediately.</li>
+          <li><strong>Text Shifting:</strong> Entering edit mode should not shift text. The cursor is placed at the end of the text.</li>
+          <li><strong>Read-only:</strong> The <strong>Price</strong> column is read-only.</li>
+          <li><strong>Non-sortable:</strong> <strong>Active</strong> and <strong>Notes</strong> columns are not sortable.</li>
           <li><strong>Persistence:</strong> Sorting, filters, and hidden columns are saved to LocalStorage per <code>tableId</code>.</li>
           <li><strong>Natural Feel:</strong> No layout shifts or flickering when entering edit mode.</li>
           <li><strong>Sorting:</strong> Click headers to sort (Cycle: ASC &rarr; DESC &rarr; None).</li>
-          <li><strong>Filtering:</strong> Use the filter icon in headers to filter by column content.</li>
+          <li><strong>Filtering:</strong> Use the filter icon in headers (visible on hover) to filter by column content.</li>
         </ul>
       </div>
     </div>

@@ -280,8 +280,8 @@ export function SmartDataTable<T extends { id: string }>({
                             variant="ghost" 
                             size="sm" 
                             className={cn(
-                              "h-6 w-6 p-0", 
-                              filters[column.id] ? "text-sky-600" : "text-muted-foreground opacity-0 group-hover:opacity-100"
+                              "h-6 w-6 p-0 transition-opacity", 
+                              filters[column.id] ? "text-sky-600 opacity-100" : "text-muted-foreground opacity-40 group-hover:opacity-100"
                             )}
                           >
                             <Filter className="h-3 w-3" />

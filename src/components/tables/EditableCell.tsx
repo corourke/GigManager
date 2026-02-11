@@ -46,12 +46,13 @@ export function EditableCell<T>({
   useEffect(() => {
     if (isEditing && inputRef.current) {
       inputRef.current.focus();
-      if (column.type !== 'checkbox' && column.type !== 'select' && column.type !== 'pill') {
+      // selectionRange is not supported on type="number"
+      if (column.type !== 'checkbox' && column.type !== 'select' && column.type !== 'pill' && column.type !== 'number') {
         const length = String(editValue || '').length;
         inputRef.current.setSelectionRange(length, length);
       }
     }
-  }, [isEditing, column.type]);
+  }, [isEditing, column.type, editValue]);
 
   const handleDoubleClick = () => {
     if (column.editable && !column.readOnly) {
@@ -210,7 +211,7 @@ export function EditableCell<T>({
         onChange={(e) => setEditValue(column.type === 'number' ? Number(e.target.value) : e.target.value)}
         onBlur={handleBlur}
         onKeyDown={handleKeyDown}
-        className="h-8 py-0 px-2 text-sm border-none shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 bg-transparent"
+        className="h-full w-full py-0 px-4 text-sm border-none shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 bg-transparent absolute inset-0"
         type={column.type === 'number' ? 'number' : 'text'}
       />
     );
@@ -219,9 +220,9 @@ export function EditableCell<T>({
   return (
     <TableCell
       className={cn(
-        "px-4 py-2 border-r last:border-r-0 relative min-w-[120px] h-[40px]",
-        isSelected && "outline outline-2 outline-sky-500 outline-offset-[-2px] z-10 bg-sky-50/50",
-        isEditing && "p-0 bg-white"
+        "px-4 py-2 border-r last:border-r-0 relative min-w-[120px] h-[40px] transition-all",
+        isSelected && "shadow-[inset_0_0_0_2px_#0ea5e9] z-10 bg-sky-50/50",
+        isEditing && "bg-white"
       )}
       onClick={(e) => {
         e.stopPropagation();
@@ -236,12 +237,12 @@ export function EditableCell<T>({
     >
       <div className="flex items-center w-full h-full">
         {isEditing ? renderEditor() : (
-          <div className="text-sm truncate w-full px-0">
+          <div className="text-sm truncate w-full">
             {renderDisplay()}
           </div>
         )}
         {isSaving && (
-          <div className="absolute right-1 top-1/2 -translate-y-1/2">
+          <div className="absolute right-1 top-1/2 -translate-y-1/2 z-20">
             <Loader2 className="h-3 w-3 animate-spin text-sky-500" />
           </div>
         )}
