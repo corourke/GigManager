@@ -87,7 +87,7 @@ Save to `{@artifacts_path}/plan.md`.
 - Update service calls for saving in-place edits.
 - **Verification**: `npm run test src/components/AssetListScreen.test.tsx`
 
-#### [ ] Task 6: App-wide Rollout & Nested Tables
+#### [ ] Task 7: App-wide Rollout & Nested Tables
 - Audit other screens for table replacement.
 - Ensure nested table support (e.g., in `GigEditScreen`).
 - **Verification**: Manual check of nested tables.

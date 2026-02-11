@@ -30,6 +30,8 @@ import {
   OrganizationMembership, 
 } from './utils/supabase/types';
 
+import DevTableDemoScreen from './components/dev/DevTableDemoScreen';
+
 type Route = 
   | 'login' 
   | 'profile-completion'
@@ -50,7 +52,8 @@ type Route =
   | 'kit-list'
   | 'create-kit'
   | 'kit-detail'
-  | 'import';
+  | 'import'
+  | 'dev-demo';
 
 function App() {
   const { 
@@ -433,6 +436,10 @@ function App() {
       onNavigateToAssets={handleNavigateToAssets}
       onEditProfile={handleEditProfile}
     >
+      {currentRoute === 'dev-demo' && (
+        <DevTableDemoScreen />
+      )}
+
       {currentRoute === 'login' && (
         <LoginScreen onLogin={handleLogin} />
       )}
