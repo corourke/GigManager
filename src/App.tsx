@@ -137,6 +137,9 @@ function App() {
     if (isLoading) return;
 
     if (!user) {
+      // Don't redirect if we're on the dev-demo route
+      if (currentRoute === 'dev-demo') return;
+      
       // Don't redirect to login if we're clearly in an invitation flow and waiting for the session
       if (window.location.pathname === '/accept-invitation' || window.location.hash.includes('type=invite')) {
         return;
@@ -170,8 +173,8 @@ function App() {
   useEffect(() => {
     if (isLoading || !user || !selectedOrganization || userRole === undefined) return;
 
-    // Don't auto-navigate if we are in an invitation flow
-    if (window.location.pathname === '/accept-invitation') return;
+    // Don't auto-navigate if we are in an invitation flow or dev-demo
+    if (window.location.pathname === '/accept-invitation' || currentRoute === 'dev-demo') return;
 
     // Only auto-navigate to landing page if we are on a transitional route
     // This prevents kicking the user back to dashboard on every background profile refresh
