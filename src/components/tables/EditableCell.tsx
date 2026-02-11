@@ -76,14 +76,17 @@ export function EditableCell<T>({
   };
 
   const save = async (newValue = editValue) => {
-    if (newValue === value) {
+    // For numbers, convert string to number before saving
+    const finalValue = column.type === 'number' && typeof newValue === 'string' ? (newValue === '' ? 0 : Number(newValue)) : newValue;
+
+    if (finalValue === value) {
       setIsEditing(false);
       return;
     }
 
     setIsSaving(true);
     try {
-      await onSave(newValue);
+      await onSave(finalValue);
       setIsEditing(false);
     } catch (error) {
       console.error('Failed to save cell value', error);
@@ -208,10 +211,10 @@ export function EditableCell<T>({
       <Input
         ref={inputRef}
         value={editValue ?? ''}
-        onChange={(e) => setEditValue(column.type === 'number' ? Number(e.target.value) : e.target.value)}
+        onChange={(e) => setEditValue(e.target.value)}
         onBlur={handleBlur}
         onKeyDown={handleKeyDown}
-        className="h-full w-full py-0 px-4 text-sm border-none shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 bg-transparent absolute inset-0"
+        className="h-[40px] w-full py-0 px-[15px] text-sm border-none shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 bg-transparent absolute inset-0 rounded-none appearance-none"
         type={column.type === 'number' ? 'number' : 'text'}
       />
     );
@@ -220,7 +223,7 @@ export function EditableCell<T>({
   return (
     <TableCell
       className={cn(
-        "px-4 py-2 border-r last:border-r-0 relative min-w-[120px] h-[40px] transition-all",
+        "px-4 py-2 border-r last:border-r-0 relative min-w-[120px] h-[40px] transition-none",
         isSelected && "shadow-[inset_0_0_0_2px_#0ea5e9] z-10 bg-sky-50/50",
         isEditing && "bg-white"
       )}
@@ -237,12 +240,12 @@ export function EditableCell<T>({
     >
       <div className="flex items-center w-full h-full">
         {isEditing ? renderEditor() : (
-          <div className="text-sm truncate w-full">
+          <div className="text-sm truncate w-full pointer-events-none">
             {renderDisplay()}
           </div>
         )}
         {isSaving && (
-          <div className="absolute right-1 top-1/2 -translate-y-1/2 z-20">
+          <div className="absolute right-1 top-1/2 -translate-y-1/2 z-30">
             <Loader2 className="h-3 w-3 animate-spin text-sky-500" />
           </div>
         )}
