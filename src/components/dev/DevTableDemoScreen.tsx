@@ -1,3 +1,6 @@
+// Access by pasting this into your browser console: 
+// localStorage.setItem('currentRoute', 'dev-demo'); location.reload();
+
 import React, { useState } from 'react';
 import { SmartDataTable, ColumnDef } from '../tables/SmartDataTable';
 import { GIG_STATUS_CONFIG } from '../../utils/supabase/constants';

@@ -152,6 +152,9 @@ function App() {
     } else if (currentRoute !== 'accept-invitation' && (!user?.first_name?.trim() || !user?.last_name?.trim()) && user) {
       setCurrentRoute('profile-completion'); // Fill out profile if incomplete
     } else if (user && (organizations.length === 0 || !selectedOrganization)) {
+      // Don't redirect if we're on the dev-demo route
+      if (currentRoute === 'dev-demo') return;
+
       // Don't redirect if we're already on an organization management route
       const orgManagementRoutes: Route[] = ['org-selection', 'create-org', 'accept-invitation'];
       if (orgManagementRoutes.includes(currentRoute)) {
