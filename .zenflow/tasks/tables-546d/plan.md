@@ -7,7 +7,8 @@
 
 ## Workflow Steps
 
-### [ ] Step: Requirements
+### [x] Step: Requirements
+<!-- chat-id: 2d12c6ff-697c-4251-a6c5-03942f808d08 -->
 
 Create a Product Requirements Document (PRD) based on the feature description.
 
@@ -19,7 +20,7 @@ Create a Product Requirements Document (PRD) based on the feature description.
 
 Save the PRD to `{@artifacts_path}/requirements.md`.
 
-### [ ] Step: Technical Specification
+### [x] Step: Technical Specification
 
 Create a technical specification based on the PRD in `{@artifacts_path}/requirements.md`.
 
@@ -34,7 +35,7 @@ Save to `{@artifacts_path}/spec.md` with:
 - Delivery phases (incremental, testable milestones)
 - Verification approach using project lint/test commands
 
-### [ ] Step: Planning
+### [x] Step: Planning
 
 Create a detailed implementation plan based on `{@artifacts_path}/spec.md`.
 
@@ -50,6 +51,35 @@ Save to `{@artifacts_path}/plan.md`.
 
 ### [ ] Step: Implementation
 
-This step should be replaced with detailed implementation tasks from the Planning step.
+#### [ ] Task 1: Hooks & Persistence
+- Create `src/hooks/useTableState.ts` for managing sorting, filters, and visibility.
+- Implement LocalStorage persistence in the hook.
+- **Verification**: Unit tests for the hook state and persistence.
 
-If Planning didn't replace this step, execute the tasks in `{@artifacts_path}/plan.md`, updating checkboxes as you go. Run planned tests/lint and record results in plan.md.
+#### [ ] Task 2: SmartDataTable Core
+- Create `src/components/tables/SmartDataTable.tsx`.
+- Implement basic rendering and `TableHeader` with sorting icons.
+- Implement `ColumnManager` popover for toggling optional columns.
+- **Verification**: Render `SmartDataTable` in a story or temporary test page.
+
+#### [ ] Task 3: In-place Editing Infrastructure
+- Create `src/components/tables/EditableCell.tsx`.
+- Implement cell selection (blue ring) and double-click activation.
+- Implement `text` and `checkbox` editors.
+- **Verification**: Manual testing of selection and editing flow.
+
+#### [ ] Task 4: Advanced Editors & Filtering
+- Implement `pill` (Badge) and `select` (Searchable dropdown) editors.
+- Implement multi-criteria filtering popover in headers.
+- **Verification**: Test searchable dropdown and pill colors from `constants.ts`.
+
+#### [ ] Task 5: AssetListScreen Integration
+- Refactor `AssetListScreen.tsx` to use `SmartDataTable`.
+- Define column configuration for assets (required, read-only, etc.).
+- Update service calls for saving in-place edits.
+- **Verification**: `npm run test src/components/AssetListScreen.test.tsx`
+
+#### [ ] Task 6: App-wide Rollout & Nested Tables
+- Audit other screens for table replacement.
+- Ensure nested table support (e.g., in `GigEditScreen`).
+- **Verification**: Manual check of nested tables.
