@@ -21,7 +21,7 @@
   - `sorting`: `{ columnId: string, direction: 'asc' | 'desc' | null }`
   - `filters`: `Record<string, any>`
   - `visibleColumns`: `string[]`
-- `LocalStorage` will be used to persist these states keyed by a `tableId`.
+- `LocalStorage` will be used to persist these states keyed by a unique `tableId`.
 
 ### 2.3. Column Definition Interface
 ```typescript
@@ -36,11 +36,13 @@ interface ColumnDef<T> {
   options?: { label: string; value: any; color?: string }[]; // For select and pills
   validation?: z.ZodTypeAny;
   className?: string;
+  // Multi-criteria filter options
+  filterOptions?: { label: string; value: any }[];
 }
 ```
 
 ### 2.4. In-place Editing Logic
-- **Selection**: Single click on a cell sets `selectedCell` state `{ rowId, columnId }`. This adds a blue outline (`ring-2 ring-blue-500`).
+- **Selection**: Single click on a cell sets `selectedCell` state `{ rowId, columnId }`. This adds a blue outline (`ring-2 ring-sky-500`).
 - **Activation**: Double click (or Enter when selected) sets `editingCell` state.
 - **Deactivation**: `Esc` to cancel, `Enter` or clicking outside to save.
 - **Flicker-free**: The `EditableCell` will ensure the viewing value and editing input have matching dimensions and padding.
@@ -48,7 +50,12 @@ interface ColumnDef<T> {
 ### 2.5. Field Specifics
 - **Text/Number**: Standard `input` with focus and cursor at the end.
 - **Checkbox**: Radix UI `Checkbox` component.
-- **Pills**: Use `Badge` component. Edit mode will show a searchable select or a tagged input.
+- **Pills (Badges)**: 
+  - **View Mode**: Displays `Badge` components.
+  - **Edit Mode**: 
+    - Focused state allows using **Backspace** to delete the last pill.
+    - Includes a searchable select list (using `Command`) to add new pills.
+    - Colors dynamically derived from `src/utils/supabase/constants.ts`.
 - **Select**: `Command` component from Shadcn for searchable dropdowns.
 
 ## 3. Source Code Structure Changes
@@ -67,15 +74,15 @@ interface ColumnDef<T> {
 - Create basic `SmartDataTable` structure with sorting and column visibility.
 
 ### Phase 2: In-place Editing
-- Implement `EditableCell` with support for Text and Checkbox.
-- Add "Coda/Notion" selection behavior (blue outline).
+- Implement `EditableCell` with support for Text, Checkbox, and the blue selection outline.
+- Implement selection behavior (single click) and activation behavior (double click).
 
-### Phase 3: Advanced Fields
-- Add support for Pills (with colors from `constants.ts`) and Searchable Selects.
-- Implement multi-criteria filtering UI.
+### Phase 3: Advanced Fields & Filtering
+- Add support for **Pills** with backspace-to-delete and searchable-select-to-add.
+- Implement multi-criteria filtering UI in headers.
 
 ### Phase 4: Integration
-- Replace table in `AssetListScreen`.
+- Refactor `AssetListScreen` to use `SmartDataTable`.
 - Verify performance and UX.
 - Plan rollout to other screens.
 
@@ -83,5 +90,5 @@ interface ColumnDef<T> {
 - **Linting**: `npm run lint`
 - **Testing**:
   - Unit tests for `useTableState` (persistence and state transitions).
-  - Component tests for `EditableCell` (edit mode triggers, save/cancel).
+  - Component tests for `EditableCell` (edit mode triggers, pill deletion logic).
   - Integration tests in `AssetListScreen.test.tsx`.
