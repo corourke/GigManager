@@ -50,6 +50,7 @@ If the feature is trivial and doesn't warrant full specification, update this wo
 Save to `{@artifacts_path}/plan.md`.
 
 ### [ ] Step: Implementation
+<!-- chat-id: 9ee5538b-de4f-401b-b1c4-9a24903a867f -->
 
 #### [ ] Task 1: Hooks & Persistence
 - Create `src/hooks/useTableState.ts` for managing sorting, filters, and visibility.
@@ -78,6 +79,7 @@ Save to `{@artifacts_path}/plan.md`.
 - Implement a comprehensive demo table with mock data.
 - Add "Developer Documentation" comments within the file.
 - **Verification**: User testing of the demo screen for UX feel.
+- Do not proceed to next task until approved by user. 
 
 #### [ ] Task 6: AssetListScreen Integration
 - Refactor `AssetListScreen.tsx` to use `SmartDataTable`.
