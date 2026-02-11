@@ -132,7 +132,7 @@ export default function DevTableDemoScreen() {
           <li><strong>Editing:</strong> Double-click a selected cell to enter edit mode. For checkboxes, a single click toggles immediately.</li>
           <li><strong>Persistence:</strong> Sorting, filters, and hidden columns are saved to LocalStorage per <code>tableId</code>.</li>
           <li><strong>Natural Feel:</strong> No layout shifts or flickering when entering edit mode.</li>
-          <li><strong>Sorting:</strong> Click headers to sort (Cycle: ASC -> DESC -> None).</li>
+          <li><strong>Sorting:</strong> Click headers to sort (Cycle: ASC &rarr; DESC &rarr; None).</li>
           <li><strong>Filtering:</strong> Use the filter icon in headers to filter by column content.</li>
         </ul>
       </div>
