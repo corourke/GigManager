@@ -31,7 +31,7 @@ The goal is to implement a robust, highly-functional, and consistent table syste
 - **Field Types**:
   - **Checkboxes**: Direct interaction.
   - **Text Fields**: Cursor placed at the end of text on entry.
-  - **Pills (Badges)**: Maintain formatting; cursor placed at the end to add/edit. Use colors from `src/utils/supabase/constants.ts`.
+  - **Pills (Badges)**: Maintain formatting; cursor placed at the end to add/edit. Backspace to delete pill, select list with search to add a new pill. Use colors from `src/utils/supabase/constants.ts`.
   - **Select Lists**: Dropdown with a search/filter field.
 - **Persistence**: Edits should be saved immediately (auto-save) or via a robust update mechanism.
 
