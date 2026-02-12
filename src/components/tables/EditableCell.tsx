@@ -76,8 +76,8 @@ export function EditableCell<T>({
   };
 
   const save = async (newValue = editValue) => {
-    // For numbers, convert string to number before saving
-    const finalValue = column.type === 'number' && typeof newValue === 'string' ? (newValue === '' ? 0 : Number(newValue)) : newValue;
+    // For numbers, convert string to number before saving, handle empty string
+    const finalValue = column.type === 'number' ? (newValue === '' ? null : Number(newValue)) : newValue;
 
     if (finalValue === value) {
       setIsEditing(false);
@@ -214,7 +214,7 @@ export function EditableCell<T>({
         onChange={(e) => setEditValue(e.target.value)}
         onBlur={handleBlur}
         onKeyDown={handleKeyDown}
-        className="h-[40px] w-full py-0 px-[15px] text-sm border-none shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 bg-transparent absolute inset-0 rounded-none appearance-none"
+        className="h-full w-full px-4 py-2 text-sm border-none shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 bg-white rounded-none appearance-none absolute inset-0 z-20"
         type={column.type === 'number' ? 'number' : 'text'}
       />
     );
@@ -223,29 +223,27 @@ export function EditableCell<T>({
   return (
     <TableCell
       className={cn(
-        "px-4 py-2 border-r last:border-r-0 relative min-w-[120px] h-[40px] transition-none",
-        isSelected && "shadow-[inset_0_0_0_2px_#0ea5e9] z-10 bg-sky-50/50",
-        isEditing && "bg-white"
+        "p-0 border-r last:border-r-0 relative min-w-[120px] h-[40px] align-middle overflow-hidden",
+        isSelected && "shadow-[inset_0_0_0_2px_#0ea5e9] z-10 bg-sky-50/50"
       )}
       onClick={(e) => {
         e.stopPropagation();
         if (!isSelected) {
           onSelect();
         } else if (!isEditing) {
-          // Second click to edit
           handleDoubleClick();
         }
       }}
       onDoubleClick={handleDoubleClick}
     >
-      <div className="flex items-center w-full h-full">
+      <div className="w-full h-full relative">
         {isEditing ? renderEditor() : (
-          <div className="text-sm truncate w-full pointer-events-none">
+          <div className="w-full h-full px-4 py-2 text-sm truncate flex items-center">
             {renderDisplay()}
           </div>
         )}
         {isSaving && (
-          <div className="absolute right-1 top-1/2 -translate-y-1/2 z-30">
+          <div className="absolute right-2 top-1/2 -translate-y-1/2 z-30">
             <Loader2 className="h-3 w-3 animate-spin text-sky-500" />
           </div>
         )}
