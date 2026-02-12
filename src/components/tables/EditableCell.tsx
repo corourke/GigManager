@@ -157,7 +157,7 @@ export function EditableCell<T>({
   const renderEditor = () => {
     if (column.type === 'checkbox') {
       return (
-        <div className="w-full h-full px-4 flex items-center absolute inset-0 z-20 pointer-events-none">
+        <div className="w-full h-full px-4 flex items-center pointer-events-none">
           {renderDisplay()}
         </div>
       );
@@ -169,7 +169,7 @@ export function EditableCell<T>({
       return (
         <Popover open={isEditing} onOpenChange={setIsEditing}>
           <PopoverTrigger asChild>
-            <div className="w-full h-full flex items-center px-4 absolute inset-0 cursor-pointer z-20">
+            <div className="w-full h-full flex items-center px-4 cursor-pointer">
               {renderDisplay()}
             </div>
           </PopoverTrigger>
@@ -212,7 +212,7 @@ export function EditableCell<T>({
     }
 
     return (
-      <div className="w-full h-full px-4 flex items-center absolute inset-0 z-20 bg-white">
+      <div className="w-full h-full px-4 flex items-center bg-white">
         <input
           ref={inputRef}
           value={editValue ?? ''}
@@ -243,11 +243,11 @@ export function EditableCell<T>({
       onDoubleClick={handleDoubleClick}
     >
       {/* Blue selection border - absolute to cover everything including borders */}
-      {isSelected && !isEditing && (
+      {isSelected && (
         <div className="absolute inset-0 border-2 border-sky-500 z-30 pointer-events-none" />
       )}
       
-      <div className="w-full h-full relative">
+      <div className="w-full h-full relative flex items-center">
         {isEditing ? renderEditor() : (
           <div className="w-full h-full px-4 py-2 text-sm truncate flex items-center">
             {renderDisplay()}
