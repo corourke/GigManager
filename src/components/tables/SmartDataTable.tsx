@@ -249,12 +249,6 @@ export function SmartDataTable<T extends { id: string }>({
 
       <div className="rounded-md border bg-white shadow-sm overflow-hidden">
         <Table className="table-fixed w-full border-collapse">
-          <colgroup>
-            {visibleColumns.map((column) => (
-              <col key={column.id} className={column.className} />
-            ))}
-            {actions && <col className="w-[80px]" />}
-          </colgroup>
           <TableHeader>
             <TableRow className="bg-gray-50/50 hover:bg-gray-50/50">
               {visibleColumns.map((column) => (
@@ -273,7 +267,7 @@ export function SmartDataTable<T extends { id: string }>({
                           {sorting?.columnId === column.id ? (
                             sorting.direction === 'asc' ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />
                           ) : (
-                            <ChevronsUpDown className="h-4 w-4 opacity-0 group-hover:opacity-100 transition-opacity" />
+                            <ChevronsUpDown className="h-4 w-4 transition-opacity" />
                           )}
                         </span>
                       )}
@@ -286,8 +280,8 @@ export function SmartDataTable<T extends { id: string }>({
                             variant="ghost" 
                             size="sm" 
                             className={cn(
-                              "h-6 w-6 p-0 opacity-0 group-hover:!opacity-100 transition-opacity", 
-                              filters[column.id] && "text-sky-600 !opacity-100"
+                              "h-6 w-6 p-0 transition-opacity", 
+                              filters[column.id] && "text-sky-600"
                             )}
                           >
                             <Filter className="h-3 w-3" />
