@@ -5,6 +5,7 @@ import { Badge } from '../ui/badge';
 import { TableCell } from '../ui/table';
 import { cn } from '../ui/utils';
 import { ColumnDef } from './SmartDataTable';
+import { formatDateDisplay, formatGigDateTimeForInput, parseGigDateTimeFromInput } from '../../utils/dateUtils';
 import {
   Command,
   CommandEmpty,
@@ -14,6 +15,7 @@ import {
   CommandList,
 } from '../ui/command';
 import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
+import { Checkbox } from '../ui/checkbox';
 
 interface EditableCellProps<T> {
   value: any;
@@ -118,7 +120,12 @@ export function EditableCell<T>({
 
   const save = async (newValue = editValue) => {
     // For numbers and currency, convert string to number before saving, handle empty string
-    const finalValue = (column.type === 'number' || column.type === 'currency') ? (newValue === '' ? null : Number(newValue)) : newValue;
+    let finalValue = (column.type === 'number' || column.type === 'currency') ? (newValue === '' ? null : Number(newValue)) : newValue;
+
+    // Handle date conversion to UTC noon
+    if (column.type === 'date' && newValue) {
+      finalValue = parseGigDateTimeFromInput(newValue, undefined, true);
+    }
 
     if (finalValue === value) {
       setIsEditing(false);
@@ -139,9 +146,8 @@ export function EditableCell<T>({
 
   const handleCheckboxToggle = () => {
     if (!column.editable || column.readOnly || isSaving) return;
-    const newValue = !editValue; // Use editValue which is synced with value but reflects local intent
-    setEditValue(newValue);
-    save(newValue);
+    const newValue = !value; 
+    onSave(newValue);
   };
 
   // Render Display Mode
@@ -165,24 +171,13 @@ export function EditableCell<T>({
 
     if (column.type === 'checkbox') {
       return (
-        <div 
-          className="flex items-center justify-center cursor-pointer" 
-          onClick={(e) => {
-            e.stopPropagation();
-            onSelect();
-            handleCheckboxToggle();
-          }}
-        >
-          <div className={cn(
-            "h-4 w-4 rounded border flex items-center justify-center transition-colors",
-            value ? "bg-sky-500 border-sky-500 text-white" : "border-gray-300 hover:border-sky-400"
-          )}>
-            {value && (
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="h-3 w-3">
-                <polyline points="20 6 9 17 4 12" />
-              </svg>
-            )}
-          </div>
+        <div className="flex items-center justify-center w-full h-full">
+          <Checkbox 
+            checked={!!value} 
+            onCheckedChange={handleCheckboxToggle}
+            disabled={!column.editable || column.readOnly || isSaving}
+            className="transition-colors"
+          />
         </div>
       );
     }
@@ -192,11 +187,7 @@ export function EditableCell<T>({
     }
 
     if (column.type === 'date' && value) {
-      try {
-        return new Date(value).toLocaleDateString();
-      } catch (e) {
-        return String(value);
-      }
+      return formatDateDisplay(value);
     }
 
     return String(value);
@@ -318,7 +309,7 @@ export function EditableCell<T>({
           <div className="absolute inset-0 z-40 bg-white flex items-start">
             <input
               ref={inputRef}
-              value={editValue ?? ''}
+              value={column.type === 'date' ? formatGigDateTimeForInput(editValue) : (editValue ?? '')}
               onChange={(e) => setEditValue(e.target.value)}
               onBlur={handleBlur}
               onKeyDown={handleKeyDown}
