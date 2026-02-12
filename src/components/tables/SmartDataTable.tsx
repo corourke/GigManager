@@ -226,7 +226,12 @@ export function SmartDataTable<T extends { id: string }>({
         colId: visibleColumns[nextColIndex].id
       });
       // Re-focus container to ensure continued navigation
-      setTimeout(() => tableContainerRef.current?.focus(), 0);
+      // Use a slightly longer delay to ensure it happens after any other focus events (like popover close)
+      setTimeout(() => {
+        if (tableContainerRef.current) {
+          tableContainerRef.current.focus();
+        }
+      }, 10);
       return true;
     }
     return false;

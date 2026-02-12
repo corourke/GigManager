@@ -79,8 +79,8 @@ export function EditableCell<T>({
   useEffect(() => {
     if (isEditing && inputRef.current) {
       inputRef.current.focus();
-      // selectionRange is not supported on type="number"
-      if (column.type !== 'checkbox' && column.type !== 'select' && column.type !== 'pill' && column.type !== 'number' && column.type !== 'currency') {
+      // selectionRange is not supported on type="number" or "date"
+      if (column.type !== 'checkbox' && column.type !== 'select' && column.type !== 'pill' && column.type !== 'number' && column.type !== 'currency' && column.type !== 'date') {
         const length = String(editValue || '').length;
         inputRef.current.setSelectionRange(length, length);
       }
@@ -138,8 +138,8 @@ export function EditableCell<T>({
   };
 
   const handleCheckboxToggle = () => {
-    if (!column.editable || column.readOnly) return;
-    const newValue = !value;
+    if (!column.editable || column.readOnly || isSaving) return;
+    const newValue = !editValue; // Use editValue which is synced with value but reflects local intent
     setEditValue(newValue);
     save(newValue);
   };
@@ -218,7 +218,14 @@ export function EditableCell<T>({
               {renderDisplay()}
             </div>
           </PopoverTrigger>
-          <PopoverContent className="w-[200px] p-0" align="start">
+          <PopoverContent 
+            className="w-[200px] p-0" 
+            align="start"
+            onCloseAutoFocus={(e) => {
+              // Prevent popover from stealing focus back to the trigger after we've moved selection
+              e.preventDefault();
+            }}
+          >
             <Command>
               <CommandInput placeholder={`Search ${column.header.toLowerCase()}...`} />
               <CommandList>
