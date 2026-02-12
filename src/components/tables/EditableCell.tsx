@@ -47,7 +47,7 @@ export function EditableCell<T>({
     if (isEditing && inputRef.current) {
       inputRef.current.focus();
       // selectionRange is not supported on type="number"
-      if (column.type !== 'checkbox' && column.type !== 'select' && column.type !== 'pill' && column.type !== 'number') {
+      if (column.type !== 'checkbox' && column.type !== 'select' && column.type !== 'pill' && column.type !== 'number' && column.type !== 'currency') {
         const length = String(editValue || '').length;
         inputRef.current.setSelectionRange(length, length);
       }
@@ -76,8 +76,8 @@ export function EditableCell<T>({
   };
 
   const save = async (newValue = editValue) => {
-    // For numbers, convert string to number before saving, handle empty string
-    const finalValue = column.type === 'number' ? (newValue === '' ? null : Number(newValue)) : newValue;
+    // For numbers and currency, convert string to number before saving, handle empty string
+    const finalValue = (column.type === 'number' || column.type === 'currency') ? (newValue === '' ? null : Number(newValue)) : newValue;
 
     if (finalValue === value) {
       setIsEditing(false);
@@ -252,13 +252,13 @@ export function EditableCell<T>({
         */}
         <div className={cn(
           "w-full h-full px-4 py-2 text-sm break-words min-h-[40px] flex items-start",
-          isEditing && (column.type === 'text' || column.type === 'number') ? "invisible" : "visible"
+          isEditing && (column.type === 'text' || column.type === 'number' || column.type === 'currency') ? "invisible" : "visible"
         )}>
           {renderDisplay()}
         </div>
 
-        {/* Text/Number Editor: Absolute overlay with EXACT same padding */}
-        {isEditing && (column.type === 'text' || column.type === 'number') && (
+        {/* Text/Number/Currency Editor: Absolute overlay with EXACT same padding */}
+        {isEditing && (column.type === 'text' || column.type === 'number' || column.type === 'currency') && (
           <div className="absolute inset-0 z-40 bg-white flex items-start">
             <input
               ref={inputRef}
@@ -267,7 +267,7 @@ export function EditableCell<T>({
               onBlur={handleBlur}
               onKeyDown={handleKeyDown}
               className="h-full w-full px-4 py-2 text-sm border-none outline-none ring-0 bg-transparent min-w-0 text-slate-900"
-              type={column.type === 'number' ? 'number' : 'text'}
+              type={(column.type === 'number' || column.type === 'currency') ? 'number' : 'text'}
             />
           </div>
         )}
