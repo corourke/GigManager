@@ -22,6 +22,7 @@ interface EditableCellProps<T> {
   onSave: (newValue: any) => Promise<void>;
   isSelected: boolean;
   onSelect: () => void;
+  onNavigate?: (direction: 'next' | 'prev' | 'up' | 'down') => void;
 }
 
 export function EditableCell<T>({
@@ -31,6 +32,7 @@ export function EditableCell<T>({
   onSave,
   isSelected,
   onSelect,
+  onNavigate,
 }: EditableCellProps<T>) {
   const [isEditing, setIsEditing] = useState(false);
   const [editValue, setEditValue] = useState(value);
@@ -41,6 +43,24 @@ export function EditableCell<T>({
   useEffect(() => {
     setEditValue(value);
   }, [value]);
+
+  // Handle "Type to Edit"
+  useEffect(() => {
+    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      if (!isSelected || isEditing || e.metaKey || e.ctrlKey || e.altKey) return;
+      
+      // Check if it's a printable character (single char)
+      if (e.key.length === 1 && !['Enter', 'Tab', 'Escape'].includes(e.key)) {
+        if (column.editable && !column.readOnly && (column.type === 'text' || column.type === 'number' || column.type === 'currency')) {
+          setIsEditing(true);
+          setEditValue(e.key);
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleGlobalKeyDown);
+    return () => window.removeEventListener('keydown', handleGlobalKeyDown);
+  }, [isSelected, isEditing, column.editable, column.readOnly, column.type]);
 
   // Focus input and place cursor at end when editing starts
   useEffect(() => {
@@ -68,10 +88,18 @@ export function EditableCell<T>({
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') {
-      save();
+      e.preventDefault();
+      save().then(() => {
+        onNavigate?.(e.shiftKey ? 'up' : 'down');
+      });
     } else if (e.key === 'Escape') {
       setEditValue(value);
       setIsEditing(false);
+    } else if (e.key === 'Tab') {
+      e.preventDefault();
+      save().then(() => {
+        onNavigate?.(e.shiftKey ? 'prev' : 'next');
+      });
     }
   };
 

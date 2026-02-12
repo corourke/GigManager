@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useCallback } from 'react';
+import React, { useMemo, useState, useCallback, useRef } from 'react';
 import {
   ChevronUp,
   ChevronDown,
@@ -183,6 +183,67 @@ export function SmartDataTable<T extends { id: string }>({
     }
   }, [onRowUpdate, columns]);
 
+  const tableContainerRef = useRef<HTMLDivElement>(null);
+
+  const moveSelection = useCallback((direction: 'next' | 'prev' | 'up' | 'down') => {
+    if (!selectedCell) return false;
+
+    const rowIndex = processedData.findIndex(r => r.id === selectedCell.rowId);
+    const colIndex = visibleColumns.findIndex(c => c.id === selectedCell.colId);
+
+    if (rowIndex === -1 || colIndex === -1) return false;
+
+    let nextRowIndex = rowIndex;
+    let nextColIndex = colIndex;
+
+    if (direction === 'next') {
+      if (colIndex < visibleColumns.length - 1) {
+        nextColIndex = colIndex + 1;
+      } else if (rowIndex < processedData.length - 1) {
+        nextRowIndex = rowIndex + 1;
+        nextColIndex = 0;
+      }
+    } else if (direction === 'prev') {
+      if (colIndex > 0) {
+        nextColIndex = colIndex - 1;
+      } else if (rowIndex > 0) {
+        nextRowIndex = rowIndex - 1;
+        nextColIndex = visibleColumns.length - 1;
+      }
+    } else if (direction === 'down') {
+      if (rowIndex < processedData.length - 1) {
+        nextRowIndex = rowIndex + 1;
+      }
+    } else if (direction === 'up') {
+      if (rowIndex > 0) {
+        nextRowIndex = rowIndex - 1;
+      }
+    }
+
+    if (nextRowIndex !== rowIndex || nextColIndex !== colIndex) {
+      setSelectedCell({
+        rowId: processedData[nextRowIndex].id,
+        colId: visibleColumns[nextColIndex].id
+      });
+      return true;
+    }
+    return false;
+  }, [selectedCell, processedData, visibleColumns]);
+
+  const handleTableKeyDown = (e: React.KeyboardEvent) => {
+    if (!selectedCell) return;
+
+    if (e.key === 'Tab') {
+      if (moveSelection(e.shiftKey ? 'prev' : 'next')) {
+        e.preventDefault();
+      }
+    } else if (e.key === 'Enter') {
+      if (moveSelection(e.shiftKey ? 'up' : 'down')) {
+        e.preventDefault();
+      }
+    }
+  };
+
   // Helper to render row actions
   const renderRowActions = (row: T) => {
     if (!rowActions) return null;
@@ -301,7 +362,12 @@ export function SmartDataTable<T extends { id: string }>({
         </DropdownMenu>
       </div>
 
-      <div className="rounded-md border bg-white shadow-sm overflow-hidden">
+      <div 
+        ref={tableContainerRef}
+        className="rounded-md border bg-white shadow-sm overflow-hidden outline-none focus:ring-1 focus:ring-sky-100"
+        tabIndex={0}
+        onKeyDown={handleTableKeyDown}
+      >
         <Table className="table-fixed w-full border-collapse">
           <colgroup>
             {visibleColumns.map((column) => (
@@ -400,7 +466,11 @@ export function SmartDataTable<T extends { id: string }>({
                         row={row}
                         onSave={(newValue) => handleCellSave(row.id, column.id, newValue)}
                         isSelected={isSelected}
-                        onSelect={() => setSelectedCell({ rowId: row.id, colId: column.id })}
+                        onSelect={() => {
+                          setSelectedCell({ rowId: row.id, colId: column.id });
+                          tableContainerRef.current?.focus();
+                        }}
+                        onNavigate={moveSelection}
                       />
                     );
                   })}
