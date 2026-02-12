@@ -225,7 +225,7 @@ export function EditableCell<T>({
   return (
     <TableCell
       className={cn(
-        "p-0 border-r last:border-r-0 relative min-w-[120px] h-[40px] align-middle overflow-visible",
+        "p-0 border-r last:border-r-0 relative min-w-[120px] h-[40px] align-middle overflow-hidden transition-none",
         isSelected && "bg-sky-50/50"
       )}
       onClick={(e) => {
@@ -238,19 +238,50 @@ export function EditableCell<T>({
       }}
       onDoubleClick={handleDoubleClick}
     >
-      {/* Blue selection border - absolute to cover everything including borders */}
+      {/* Blue selection border - outside the content but inside the cell */}
       {isSelected && (
         <div className="absolute inset-0 border-2 border-sky-500 z-50 pointer-events-none" />
       )}
-      
+
+      {/* 
+        Layout Strategy:
+        1. Base div (relative) holds everything.
+        2. Display content (invisible during text edit) maintains natural column width.
+        3. Editor (absolute) overlays precisely without affecting width.
+      */}
       <div className="w-full h-full relative flex items-center">
-        {isEditing ? renderEditor() : (
-          <div className="w-full h-full px-4 py-2 text-sm truncate flex items-center">
-            {renderDisplay()}
+        {/* Always render display content to hold the width, but hide it when editing text/number */}
+        <div className={cn(
+          "w-full h-full px-4 py-2 text-sm truncate flex items-center",
+          isEditing && (column.type === 'text' || column.type === 'number') ? "invisible" : "visible"
+        )}>
+          {renderDisplay()}
+        </div>
+
+        {/* Text/Number Editor Overlay */}
+        {isEditing && (column.type === 'text' || column.type === 'number') && (
+          <div className="absolute inset-[2px] z-40 bg-white flex items-center px-[14px]">
+            <input
+              ref={inputRef}
+              value={editValue ?? ''}
+              onChange={(e) => setEditValue(e.target.value)}
+              onBlur={handleBlur}
+              onKeyDown={handleKeyDown}
+              className="h-full w-full py-0 text-sm border-none outline-none ring-0 bg-transparent p-0 min-w-0 text-slate-900"
+              type={column.type === 'number' ? 'number' : 'text'}
+            />
           </div>
         )}
+
+        {/* Select/Pill Editor Overlay (uses the existing popover trigger logic) */}
+        {isEditing && (column.type === 'select' || column.type === 'pill') && (
+          <div className="absolute inset-0 z-30">
+            {renderEditor()}
+          </div>
+        )}
+
         {isSaving && (
-          <div className="absolute right-2 top-1/2 -translate-y-1/2 z-40">
+          <div className="absolute right-2 top-1/2 -translate-y-1/2 z-[60]">
             <Loader2 className="h-3 w-3 animate-spin text-sky-500" />
           </div>
         )}
