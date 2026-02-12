@@ -156,11 +156,7 @@ export function EditableCell<T>({
   // Render Edit Mode
   const renderEditor = () => {
     if (column.type === 'checkbox') {
-      return (
-        <div className="w-full h-full px-4 flex items-center pointer-events-none">
-          {renderDisplay()}
-        </div>
-      );
+      return renderDisplay();
     }
 
     if (column.type === 'select' || column.type === 'pill') {
@@ -169,7 +165,7 @@ export function EditableCell<T>({
       return (
         <Popover open={isEditing} onOpenChange={setIsEditing}>
           <PopoverTrigger asChild>
-            <div className="w-full h-full flex items-center px-4 cursor-pointer">
+            <div className="w-full h-full flex items-center px-4 cursor-pointer absolute inset-0 z-20">
               {renderDisplay()}
             </div>
           </PopoverTrigger>
@@ -212,14 +208,14 @@ export function EditableCell<T>({
     }
 
     return (
-      <div className="w-full h-full px-4 flex items-center bg-white">
+      <div className="absolute inset-0 z-40 bg-white flex items-center px-4">
         <input
           ref={inputRef}
           value={editValue ?? ''}
           onChange={(e) => setEditValue(e.target.value)}
           onBlur={handleBlur}
           onKeyDown={handleKeyDown}
-          className="h-full w-full py-0 text-sm border-none outline-none ring-0 bg-transparent p-0"
+          className="h-full w-full py-0 text-sm border-none outline-none ring-0 bg-transparent p-0 min-w-0"
           type={column.type === 'number' ? 'number' : 'text'}
         />
       </div>
@@ -244,7 +240,7 @@ export function EditableCell<T>({
     >
       {/* Blue selection border - absolute to cover everything including borders */}
       {isSelected && (
-        <div className="absolute inset-0 border-2 border-sky-500 z-30 pointer-events-none" />
+        <div className="absolute inset-0 border-2 border-sky-500 z-50 pointer-events-none" />
       )}
       
       <div className="w-full h-full relative flex items-center">
