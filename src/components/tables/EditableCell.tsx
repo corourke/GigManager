@@ -165,7 +165,7 @@ export function EditableCell<T>({
       return (
         <Popover open={isEditing} onOpenChange={setIsEditing}>
           <PopoverTrigger asChild>
-            <div className="w-full h-full flex items-center px-1">
+            <div className="w-full h-full flex items-center px-4 absolute inset-0 cursor-pointer z-20">
               {renderDisplay()}
             </div>
           </PopoverTrigger>
@@ -208,15 +208,17 @@ export function EditableCell<T>({
     }
 
     return (
-      <input
-        ref={inputRef}
-        value={editValue ?? ''}
-        onChange={(e) => setEditValue(e.target.value)}
-        onBlur={handleBlur}
-        onKeyDown={handleKeyDown}
-        className="h-full w-full px-4 py-2 text-sm border-none outline-none ring-0 bg-white absolute inset-0 z-20"
-        type={column.type === 'number' ? 'number' : 'text'}
-      />
+      <div className="w-full h-full px-4 flex items-center absolute inset-0 z-20 bg-white">
+        <input
+          ref={inputRef}
+          value={editValue ?? ''}
+          onChange={(e) => setEditValue(e.target.value)}
+          onBlur={handleBlur}
+          onKeyDown={handleKeyDown}
+          className="h-full w-full py-0 text-sm border-none outline-none ring-0 bg-transparent p-0"
+          type={column.type === 'number' ? 'number' : 'text'}
+        />
+      </div>
     );
   };
 

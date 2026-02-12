@@ -252,8 +252,8 @@ export function SmartDataTable<T extends { id: string }>({
           <TableHeader>
             <TableRow className="bg-gray-50/50 hover:bg-gray-50/50">
               {visibleColumns.map((column) => (
-                <TableHead key={column.id} className={cn("px-4 py-3 group", column.className)}>
-                  <div className="flex items-center gap-2">
+                <TableHead key={column.id} className={cn("px-0 py-0 group border-r last:border-r-0", column.className)}>
+                  <div className="flex items-center gap-2 w-full h-full px-4 py-3">
                     <span 
                       className={cn(
                         "font-semibold text-gray-700 whitespace-nowrap",
@@ -280,8 +280,8 @@ export function SmartDataTable<T extends { id: string }>({
                             variant="ghost" 
                             size="sm" 
                             className={cn(
-                              "h-6 w-6 p-0", 
-                              filters[column.id] ? "text-sky-600" : "text-muted-foreground opacity-0 group-hover:opacity-100"
+                              "h-6 w-6 p-0 transition-opacity", 
+                              filters[column.id] ? "text-sky-600 opacity-100" : "text-muted-foreground opacity-0 group-hover:opacity-100"
                             )}
                           >
                             <Filter className="h-3 w-3" />
