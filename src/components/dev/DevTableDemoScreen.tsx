@@ -16,14 +16,15 @@ interface DemoData {
   price: number;
   is_active: boolean;
   notes: string;
+  delivery_date: string;
 }
 
 const MOCK_DATA: DemoData[] = [
-  { id: '1', name: 'MacBook Pro', category: 'Computing', status: 'Booked', quantity: 5, price: 2500, is_active: true, notes: 'New delivery' },
-  { id: '2', name: 'iPhone 15', category: 'Mobile', status: 'Proposed', quantity: 10, price: 999, is_active: true, notes: 'Restock' },
-  { id: '3', name: 'Sony A7IV', category: 'Camera', status: 'Completed', quantity: 2, price: 2499, is_active: false, notes: 'In service' },
-  { id: '4', name: 'Shure SM7B', category: 'Audio', status: 'DateHold', quantity: 8, price: 399, is_active: true, notes: 'Standard mic' },
-  { id: '5', name: 'Dell Monitor', category: 'Computing', status: 'Booked', quantity: 15, price: 450, is_active: true, notes: 'Dual setup' },
+  { id: '1', name: 'MacBook Pro', category: 'Computing', status: 'Booked', quantity: 5, price: 2500, is_active: true, notes: 'New delivery', delivery_date: '2024-02-15' },
+  { id: '2', name: 'iPhone 15', category: 'Mobile', status: 'Proposed', quantity: 10, price: 999, is_active: true, notes: 'Restock', delivery_date: '2024-02-16' },
+  { id: '3', name: 'Sony A7IV', category: 'Camera', status: 'Completed', quantity: 2, price: 2499, is_active: false, notes: 'In service', delivery_date: '2024-02-14' },
+  { id: '4', name: 'Shure SM7B', category: 'Audio', status: 'DateHold', quantity: 8, price: 399, is_active: true, notes: 'Standard mic', delivery_date: '2024-02-17' },
+  { id: '5', name: 'Dell Monitor', category: 'Computing', status: 'Booked', quantity: 15, price: 450, is_active: true, notes: 'Dual setup', delivery_date: '2024-02-18' },
 ];
 
 export default function DevTableDemoScreen() {
@@ -99,6 +100,14 @@ export default function DevTableDemoScreen() {
       type: 'text',
       className: 'w-[200px]',
     },
+    {
+      id: 'delivery_date',
+      header: 'Delivery',
+      accessor: 'delivery_date',
+      editable: true,
+      type: 'date',
+      className: 'w-[150px]',
+    },
   ];
 
   const handleUpdate = async (id: string, updates: Partial<DemoData>) => {
@@ -153,7 +162,8 @@ export default function DevTableDemoScreen() {
         <ul className="list-disc pl-5 space-y-2 text-sm text-slate-700">
           <li><strong>Selection:</strong> Click once to select a cell (blue outline).</li>
           <li><strong>Navigation:</strong> Use <code>TAB</code> (right), <code>Shift+TAB</code> (left), <code>ENTER</code> (down), or <code>Shift+ENTER</code> (up) to move selection.</li>
-          <li><strong>Type to Edit:</strong> Start typing while a cell is selected to immediately enter edit mode.</li>
+          <li><strong>Type to Edit:</strong> Start typing while a cell is selected to immediately enter edit mode. <code>SPACEBAR</code> toggles checkboxes.</li>
+          <li><strong>Dates:</strong> Use the <strong>Delivery</strong> column to test date inputs.</li>
           <li><strong>Editing:</strong> Double-click a selected cell to enter edit mode. For checkboxes, a single click toggles immediately.</li>
           <li><strong>Text Shifting:</strong> Entering edit mode should not shift text. The cursor is placed at the end of the text.</li>
           <li><strong>Numbers & Currency:</strong> Both <strong>Qty</strong> and <strong>Price</strong> columns use numeric inputs for natural editing.</li>

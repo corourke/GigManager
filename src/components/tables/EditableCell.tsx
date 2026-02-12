@@ -49,11 +49,24 @@ export function EditableCell<T>({
     const handleGlobalKeyDown = (e: KeyboardEvent) => {
       if (!isSelected || isEditing || e.metaKey || e.ctrlKey || e.altKey) return;
       
+      // Handle Spacebar for checkbox toggle
+      if (e.key === ' ' && column.type === 'checkbox') {
+        e.preventDefault();
+        handleCheckboxToggle();
+        return;
+      }
+
       // Check if it's a printable character (single char)
       if (e.key.length === 1 && !['Enter', 'Tab', 'Escape'].includes(e.key)) {
-        if (column.editable && !column.readOnly && (column.type === 'text' || column.type === 'number' || column.type === 'currency')) {
+        if (!column.editable || column.readOnly) return;
+
+        if (column.type === 'text' || column.type === 'number' || column.type === 'currency') {
+          e.preventDefault(); // Prevent double character input
           setIsEditing(true);
           setEditValue(e.key);
+        } else if (column.type === 'select' || column.type === 'pill' || column.type === 'date') {
+          e.preventDefault();
+          setIsEditing(true);
         }
       }
     };
@@ -178,6 +191,14 @@ export function EditableCell<T>({
       return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(Number(value) || 0);
     }
 
+    if (column.type === 'date' && value) {
+      try {
+        return new Date(value).toLocaleDateString();
+      } catch (e) {
+        return String(value);
+      }
+    }
+
     return String(value);
   };
 
@@ -244,7 +265,7 @@ export function EditableCell<T>({
           onBlur={handleBlur}
           onKeyDown={handleKeyDown}
           className="h-full w-full py-0 text-sm border-none outline-none ring-0 bg-transparent p-0 min-w-0"
-          type={column.type === 'number' ? 'number' : 'text'}
+          type={column.type === 'number' ? 'number' : column.type === 'date' ? 'date' : 'text'}
         />
       </div>
     );
@@ -280,13 +301,13 @@ export function EditableCell<T>({
         */}
         <div className={cn(
           "w-full h-full px-4 py-2 text-sm break-words min-h-[40px] flex items-start",
-          isEditing && (column.type === 'text' || column.type === 'number' || column.type === 'currency') ? "invisible" : "visible"
+          isEditing && (column.type === 'text' || column.type === 'number' || column.type === 'currency' || column.type === 'date') ? "invisible" : "visible"
         )}>
           {renderDisplay()}
         </div>
 
-        {/* Text/Number/Currency Editor: Absolute overlay with EXACT same padding */}
-        {isEditing && (column.type === 'text' || column.type === 'number' || column.type === 'currency') && (
+        {/* Text/Number/Currency/Date Editor: Absolute overlay with EXACT same padding */}
+        {isEditing && (column.type === 'text' || column.type === 'number' || column.type === 'currency' || column.type === 'date') && (
           <div className="absolute inset-0 z-40 bg-white flex items-start">
             <input
               ref={inputRef}
@@ -295,7 +316,7 @@ export function EditableCell<T>({
               onBlur={handleBlur}
               onKeyDown={handleKeyDown}
               className="h-full w-full px-4 py-2 text-sm border-none outline-none ring-0 bg-transparent min-w-0 text-slate-900"
-              type={(column.type === 'number' || column.type === 'currency') ? 'number' : 'text'}
+              type={column.type === 'number' || column.type === 'currency' ? 'number' : column.type === 'date' ? 'date' : 'text'}
             />
           </div>
         )}

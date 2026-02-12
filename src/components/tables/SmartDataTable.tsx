@@ -225,6 +225,8 @@ export function SmartDataTable<T extends { id: string }>({
         rowId: processedData[nextRowIndex].id,
         colId: visibleColumns[nextColIndex].id
       });
+      // Re-focus container to ensure continued navigation
+      setTimeout(() => tableContainerRef.current?.focus(), 0);
       return true;
     }
     return false;
