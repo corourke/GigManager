@@ -156,7 +156,11 @@ export function EditableCell<T>({
   // Render Edit Mode
   const renderEditor = () => {
     if (column.type === 'checkbox') {
-      return renderDisplay(); // Checkbox toggle handled in display
+      return (
+        <div className="w-full h-full px-4 flex items-center absolute inset-0 z-20 pointer-events-none">
+          {renderDisplay()}
+        </div>
+      );
     }
 
     if (column.type === 'select' || column.type === 'pill') {
