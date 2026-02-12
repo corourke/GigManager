@@ -208,13 +208,13 @@ export function EditableCell<T>({
     }
 
     return (
-      <Input
+      <input
         ref={inputRef}
         value={editValue ?? ''}
         onChange={(e) => setEditValue(e.target.value)}
         onBlur={handleBlur}
         onKeyDown={handleKeyDown}
-        className="h-full w-full px-4 py-2 text-sm border-none shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 bg-white rounded-none appearance-none absolute inset-0 z-20"
+        className="h-full w-full px-4 py-2 text-sm border-none outline-none ring-0 bg-white absolute inset-0 z-20"
         type={column.type === 'number' ? 'number' : 'text'}
       />
     );
@@ -223,8 +223,8 @@ export function EditableCell<T>({
   return (
     <TableCell
       className={cn(
-        "p-0 border-r last:border-r-0 relative min-w-[120px] h-[40px] align-middle overflow-hidden",
-        isSelected && "shadow-[inset_0_0_0_2px_#0ea5e9] z-10 bg-sky-50/50"
+        "p-0 border-r last:border-r-0 relative min-w-[120px] h-[40px] align-middle overflow-visible",
+        isSelected && "bg-sky-50/50"
       )}
       onClick={(e) => {
         e.stopPropagation();
@@ -236,6 +236,11 @@ export function EditableCell<T>({
       }}
       onDoubleClick={handleDoubleClick}
     >
+      {/* Blue selection border - absolute to cover everything including borders */}
+      {isSelected && !isEditing && (
+        <div className="absolute inset-0 border-2 border-sky-500 z-30 pointer-events-none" />
+      )}
+      
       <div className="w-full h-full relative">
         {isEditing ? renderEditor() : (
           <div className="w-full h-full px-4 py-2 text-sm truncate flex items-center">
@@ -243,7 +248,7 @@ export function EditableCell<T>({
           </div>
         )}
         {isSaving && (
-          <div className="absolute right-2 top-1/2 -translate-y-1/2 z-30">
+          <div className="absolute right-2 top-1/2 -translate-y-1/2 z-40">
             <Loader2 className="h-3 w-3 animate-spin text-sky-500" />
           </div>
         )}
