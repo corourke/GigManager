@@ -8,6 +8,10 @@ import {
   Settings2,
   X,
   Search,
+  Eye,
+  Edit,
+  Copy,
+  Trash2,
 } from 'lucide-react';
 import {
   Table,
@@ -37,6 +41,15 @@ import { EditableCell } from './EditableCell';
 
 export type ColumnType = 'text' | 'number' | 'checkbox' | 'pill' | 'select' | 'date' | 'currency';
 
+export interface RowAction<T> {
+  id: 'view' | 'edit' | 'duplicate' | 'delete';
+  label?: string;
+  icon?: React.ReactNode;
+  onClick: (row: T) => void;
+  className?: string;
+  disabled?: (row: T) => boolean;
+}
+
 export interface ColumnDef<T> {
   id: string;
   header: string;
@@ -61,6 +74,7 @@ interface SmartDataTableProps<T extends { id: string }> {
   onRowUpdate?: (id: string, updates: Partial<T>) => Promise<void>;
   onFilteredDataChange?: (data: T[]) => void;
   actions?: (row: T) => React.ReactNode;
+  rowActions?: RowAction<T>[];
   isLoading?: boolean;
   emptyMessage?: string;
   className?: string;
@@ -73,6 +87,7 @@ export function SmartDataTable<T extends { id: string }>({
   onRowUpdate,
   onFilteredDataChange,
   actions,
+  rowActions,
   isLoading = false,
   emptyMessage = 'No data found',
   className,
@@ -168,6 +183,45 @@ export function SmartDataTable<T extends { id: string }>({
     }
   }, [onRowUpdate, columns]);
 
+  // Helper to render row actions
+  const renderRowActions = (row: T) => {
+    if (!rowActions) return null;
+
+    return (
+      <div className="flex justify-end gap-1">
+        {rowActions.map((action) => {
+          const Icon = action.icon || {
+            view: <Eye className="h-4 w-4" />,
+            edit: <Edit className="h-4 w-4" />,
+            duplicate: <Copy className="h-4 w-4" />,
+            delete: <Trash2 className="h-4 w-4" />,
+          }[action.id];
+
+          const baseClass = {
+            view: "text-gray-500 hover:text-sky-600",
+            edit: "text-gray-500 hover:text-sky-600",
+            duplicate: "text-gray-500 hover:text-sky-600",
+            delete: "text-gray-500 hover:text-red-600",
+          }[action.id];
+
+          return (
+            <Button
+              key={action.id}
+              variant="ghost"
+              size="sm"
+              className={cn("h-8 w-8 p-0", baseClass, action.className)}
+              onClick={() => action.onClick(row)}
+              disabled={action.disabled?.(row)}
+              title={action.label || action.id.charAt(0).toUpperCase() + action.id.slice(1)}
+            >
+              {Icon}
+            </Button>
+          );
+        })}
+      </div>
+    );
+  };
+
   if (isLoading) {
     return (
       <div className={cn("space-y-4", className)}>
@@ -249,6 +303,12 @@ export function SmartDataTable<T extends { id: string }>({
 
       <div className="rounded-md border bg-white shadow-sm overflow-hidden">
         <Table className="table-fixed w-full border-collapse">
+          <colgroup>
+            {visibleColumns.map((column) => (
+              <col key={column.id} className={column.className} />
+            ))}
+            {(actions || rowActions) && <col className="w-[120px]" />}
+          </colgroup>
           <TableHeader>
             <TableRow className="bg-gray-50/50 hover:bg-gray-50/50">
               {visibleColumns.map((column) => (
@@ -318,7 +378,7 @@ export function SmartDataTable<T extends { id: string }>({
                   </div>
                 </TableHead>
               ))}
-              {actions && <TableHead className="w-[80px] text-right px-4">Actions</TableHead>}
+              {(actions || rowActions) && <TableHead className="w-[120px] text-right px-4">Actions</TableHead>}
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -344,9 +404,12 @@ export function SmartDataTable<T extends { id: string }>({
                       />
                     );
                   })}
-                  {actions && (
-                    <TableCell className="text-right px-4">
-                      {actions(row)}
+                  {(actions || rowActions) && (
+                    <TableCell className="text-right px-4" onClick={(e) => e.stopPropagation()}>
+                      <div className="flex justify-end gap-1">
+                        {actions && actions(row)}
+                        {renderRowActions(row)}
+                      </div>
                     </TableCell>
                   )}
                 </TableRow>

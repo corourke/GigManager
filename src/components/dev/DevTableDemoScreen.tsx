@@ -2,7 +2,7 @@
 // localStorage.setItem('currentRoute', 'dev-demo'); location.reload();
 
 import React, { useState } from 'react';
-import { SmartDataTable, ColumnDef } from '../tables/SmartDataTable';
+import { SmartDataTable, ColumnDef, RowAction } from '../tables/SmartDataTable';
 import { GIG_STATUS_CONFIG } from '../../utils/supabase/constants';
 import { Button } from '../ui/button';
 import { toast } from 'sonner';
@@ -79,6 +79,7 @@ export default function DevTableDemoScreen() {
       header: 'Price',
       accessor: 'price',
       sortable: true,
+      editable: true,
       type: 'currency',
     },
     {
@@ -108,12 +109,34 @@ export default function DevTableDemoScreen() {
     toast.success(`Updated ${Object.keys(updates).join(', ')}`);
   };
 
+  const rowActions: RowAction<DemoData>[] = [
+    {
+      id: 'view',
+      onClick: (row) => toast.info(`Viewing ${row.name}`),
+    },
+    {
+      id: 'edit',
+      onClick: (row) => toast.info(`Editing ${row.name}`),
+    },
+    {
+      id: 'duplicate',
+      onClick: (row) => toast.info(`Duplicating ${row.name}`),
+    },
+    {
+      id: 'delete',
+      onClick: (row) => {
+        setData(prev => prev.filter(item => item.id !== row.id));
+        toast.error(`Deleted ${row.name}`);
+      },
+    },
+  ];
+
   return (
     <div className="p-8 space-y-8 max-w-7xl mx-auto">
       <div>
         <h1 className="text-3xl font-bold">SmartDataTable Demo</h1>
         <p className="text-muted-foreground mt-2">
-          Testing all table capabilities: Sorting, Filtering, Column Visibility, and In-place Editing.
+          Testing all table capabilities: Sorting, Filtering, Column Visibility, In-place Editing, and Row Actions.
         </p>
       </div>
 
@@ -122,11 +145,7 @@ export default function DevTableDemoScreen() {
         data={data}
         columns={columns}
         onRowUpdate={handleUpdate}
-        actions={(row) => (
-          <Button variant="ghost" size="sm" onClick={() => toast.info(`Action for ${row.name}`)}>
-            Action
-          </Button>
-        )}
+        rowActions={rowActions}
       />
 
       <div className="bg-slate-50 p-6 rounded-lg border">
