@@ -225,7 +225,7 @@ export function EditableCell<T>({
   return (
     <TableCell
       className={cn(
-        "p-0 border-r last:border-r-0 relative min-w-[120px] h-[40px] align-middle overflow-hidden transition-none",
+        "p-0 border-r last:border-r-0 relative h-full align-top overflow-hidden transition-none whitespace-normal",
         isSelected && "bg-sky-50/50"
       )}
       onClick={(e) => {
@@ -238,42 +238,41 @@ export function EditableCell<T>({
       }}
       onDoubleClick={handleDoubleClick}
     >
-      {/* Blue selection border - outside the content but inside the cell */}
+      {/* Blue selection border - absolute inset-0 to cover the whole cell */}
       {isSelected && (
         <div className="absolute inset-0 border-2 border-sky-500 z-50 pointer-events-none" />
       )}
 
-      {/* 
-        Layout Strategy:
-        1. Base div (relative) holds everything.
-        2. Display content (invisible during text edit) maintains natural column width.
-        3. Editor (absolute) overlays precisely without affecting width.
-      */}
-      <div className="w-full h-full relative flex items-center">
-        {/* Always render display content to hold the width, but hide it when editing text/number */}
+      <div className="w-full h-full min-h-[40px] relative flex items-start">
+        {/* 
+          Display Content:
+          - Always present to define the height/width of the cell.
+          - 'break-words' allows wrapping like Notion/Coda.
+          - Padding 'px-4 py-2' is the master padding.
+        */}
         <div className={cn(
-          "w-full h-full px-4 py-2 text-sm truncate flex items-center",
+          "w-full h-full px-4 py-2 text-sm break-words min-h-[40px] flex items-start",
           isEditing && (column.type === 'text' || column.type === 'number') ? "invisible" : "visible"
         )}>
           {renderDisplay()}
         </div>
 
-        {/* Text/Number Editor Overlay */}
+        {/* Text/Number Editor: Absolute overlay with EXACT same padding */}
         {isEditing && (column.type === 'text' || column.type === 'number') && (
-          <div className="absolute inset-[2px] z-40 bg-white flex items-center px-[14px]">
+          <div className="absolute inset-0 z-40 bg-white flex items-start">
             <input
               ref={inputRef}
               value={editValue ?? ''}
               onChange={(e) => setEditValue(e.target.value)}
               onBlur={handleBlur}
               onKeyDown={handleKeyDown}
-              className="h-full w-full py-0 text-sm border-none outline-none ring-0 bg-transparent p-0 min-w-0 text-slate-900"
+              className="h-full w-full px-4 py-2 text-sm border-none outline-none ring-0 bg-transparent min-w-0 text-slate-900"
               type={column.type === 'number' ? 'number' : 'text'}
             />
           </div>
         )}
 
-        {/* Select/Pill Editor Overlay (uses the existing popover trigger logic) */}
+        {/* Select/Pill Editor Overlay */}
         {isEditing && (column.type === 'select' || column.type === 'pill') && (
           <div className="absolute inset-0 z-30">
             {renderEditor()}
@@ -281,7 +280,7 @@ export function EditableCell<T>({
         )}
 
         {isSaving && (
-          <div className="absolute right-2 top-1/2 -translate-y-1/2 z-[60]">
+          <div className="absolute right-2 top-2 z-[60]">
             <Loader2 className="h-3 w-3 animate-spin text-sky-500" />
           </div>
         )}

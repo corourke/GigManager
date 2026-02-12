@@ -248,15 +248,21 @@ export function SmartDataTable<T extends { id: string }>({
       </div>
 
       <div className="rounded-md border bg-white shadow-sm overflow-hidden">
-        <Table>
+        <Table className="table-fixed w-full border-collapse">
+          <colgroup>
+            {visibleColumns.map((column) => (
+              <col key={column.id} className={column.className} />
+            ))}
+            {actions && <col className="w-[80px]" />}
+          </colgroup>
           <TableHeader>
             <TableRow className="bg-gray-50/50 hover:bg-gray-50/50">
               {visibleColumns.map((column) => (
-                <TableHead key={column.id} className={cn("px-0 py-0 group border-r last:border-r-0", column.className)}>
+                <TableHead key={column.id} className={cn("p-0 group border-r last:border-r-0 whitespace-normal", column.className)}>
                   <div className="flex items-center gap-2 w-full h-full px-4 py-3">
                     <span 
                       className={cn(
-                        "font-semibold text-gray-700 whitespace-nowrap",
+                        "font-semibold text-gray-700",
                         column.sortable && "cursor-pointer select-none flex items-center gap-1"
                       )}
                       onClick={() => column.sortable && toggleSorting(column.id)}
