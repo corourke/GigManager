@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { Check, Loader2, Search } from 'lucide-react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { Check, Loader2, Search, X } from 'lucide-react';
 import { Input } from '../ui/input';
 import { Badge } from '../ui/badge';
 import { TableCell } from '../ui/table';
@@ -82,7 +82,7 @@ export function EditableCell<T>({
           e.preventDefault(); // Prevent double character input
           setIsEditing(true);
           setEditValue(e.key);
-        } else if (column.type === 'select' || column.type === 'pill') {
+        } else if (column.type === 'select' || column.type === 'pill' || column.type === 'multi-pill') {
           e.preventDefault();
           setCommandSearch(e.key);
           setIsEditing(true);
@@ -125,7 +125,7 @@ export function EditableCell<T>({
   };
 
   const handleBlur = () => {
-    if (column.type !== 'select' && column.type !== 'pill') {
+    if (column.type !== 'select' && column.type !== 'pill' && column.type !== 'multi-pill') {
       save();
     }
   };
@@ -200,6 +200,25 @@ export function EditableCell<T>({
         <Badge variant="outline" className={cn("font-medium", config.color)}>
           {config.label}
         </Badge>
+      );
+    }
+
+    if (column.type === 'multi-pill') {
+      const items = Array.isArray(value) ? value : [];
+      if (items.length === 0) {
+        return <span className="text-muted-foreground italic">empty</span>;
+      }
+      return (
+        <div className="flex flex-wrap gap-1">
+          {items.map((item: string) => {
+            const config = column.pillConfig?.[item];
+            return (
+              <Badge key={item} variant="outline" className={cn("font-medium text-xs", config?.color || 'bg-gray-100 text-gray-800 border-gray-300')}>
+                {config?.label || item}
+              </Badge>
+            );
+          })}
+        </div>
       );
     }
 
@@ -308,6 +327,114 @@ export function EditableCell<T>({
                       )}
                     </CommandItem>
                   ))}
+                </CommandGroup>
+              </CommandList>
+            </Command>
+            </div>
+          </PopoverContent>
+        </Popover>
+      );
+    }
+
+    if (column.type === 'multi-pill') {
+      const options = column.options || (column.pillConfig ? Object.entries(column.pillConfig).map(([val, config]) => ({ label: config.label, value: val })) : []);
+      const currentItems: string[] = Array.isArray(editValue) ? editValue : [];
+
+      const toggleItem = (itemValue: string) => {
+        const updated = currentItems.includes(itemValue)
+          ? currentItems.filter(v => v !== itemValue)
+          : [...currentItems, itemValue];
+        setEditValue(updated);
+        onSave(updated);
+        setCommandSearch('');
+      };
+
+      const removeLastItem = () => {
+        if (currentItems.length > 0) {
+          const updated = currentItems.slice(0, -1);
+          setEditValue(updated);
+          onSave(updated);
+        }
+      };
+
+      const handleMultiPillKeyDown = (e: React.KeyboardEvent) => {
+        if (e.key === 'Tab') {
+          e.preventDefault();
+          setIsEditing(false);
+          onEditComplete?.();
+          onNavigate?.(e.shiftKey ? 'prev' : 'next');
+        } else if (e.key === 'Enter' && !commandSearch) {
+          e.preventDefault();
+          setIsEditing(false);
+          onEditComplete?.();
+          onNavigate?.('down');
+        } else if (e.key === 'Backspace' && !commandSearch) {
+          e.preventDefault();
+          removeLastItem();
+        } else if (e.key === 'Escape') {
+          setIsEditing(false);
+          onEditComplete?.();
+        }
+      };
+
+      return (
+        <Popover open={isEditing} onOpenChange={(open) => {
+          setIsEditing(open);
+          if (!open) onEditComplete?.();
+        }}>
+          <PopoverTrigger asChild>
+            <div className="w-full h-full flex items-center px-4 cursor-pointer absolute inset-0 z-20">
+              {renderDisplay()}
+            </div>
+          </PopoverTrigger>
+          <PopoverContent
+            className="w-[250px] p-0"
+            align="start"
+            onCloseAutoFocus={(e) => e.preventDefault()}
+          >
+            <div ref={commandRef}>
+            <Command onKeyDown={handleMultiPillKeyDown}>
+              <CommandInput placeholder={`Search ${column.header.toLowerCase()}...`} value={commandSearch} onValueChange={setCommandSearch} />
+              {currentItems.length > 0 && (
+                <div className="flex flex-wrap gap-1 px-2 py-1.5 border-b">
+                  {currentItems.map((item) => {
+                    const config = column.pillConfig?.[item];
+                    return (
+                      <Badge
+                        key={item}
+                        variant="outline"
+                        className={cn("font-medium text-xs cursor-pointer", config?.color || 'bg-gray-100 text-gray-800 border-gray-300')}
+                        onClick={() => toggleItem(item)}
+                      >
+                        {config?.label || item}
+                        <X className="ml-1 h-3 w-3" />
+                      </Badge>
+                    );
+                  })}
+                </div>
+              )}
+              <CommandList>
+                <CommandEmpty>No results found.</CommandEmpty>
+                <CommandGroup>
+                  {options.map((option) => {
+                    const isSelected = currentItems.includes(String(option.value));
+                    return (
+                      <CommandItem
+                        key={String(option.value)}
+                        value={String(option.label)}
+                        onSelect={() => toggleItem(String(option.value))}
+                      >
+                        <Check className={cn("mr-2 h-4 w-4", isSelected ? "opacity-100" : "opacity-0")} />
+                        {column.pillConfig && column.pillConfig[String(option.value)] ? (
+                          <Badge variant="outline" className={cn("font-medium", column.pillConfig[String(option.value)].color)}>
+                            {option.label}
+                          </Badge>
+                        ) : (
+                          option.label
+                        )}
+                      </CommandItem>
+                    );
+                  })}
                 </CommandGroup>
               </CommandList>
             </Command>
@@ -437,8 +564,8 @@ export function EditableCell<T>({
           </div>
         )}
 
-        {/* Select/Pill Editor Overlay */}
-        {isEditing && (column.type === 'select' || column.type === 'pill') && (
+        {/* Select/Pill/Multi-Pill Editor Overlay */}
+        {isEditing && (column.type === 'select' || column.type === 'pill' || column.type === 'multi-pill') && (
           <div className="absolute inset-0 z-30">
             {renderEditor()}
           </div>

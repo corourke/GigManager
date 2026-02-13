@@ -39,7 +39,7 @@ import { cn } from '../ui/utils';
 import { useTableState, SortingState } from '../../utils/hooks/useTableState';
 import { EditableCell } from './EditableCell';
 
-export type ColumnType = 'text' | 'number' | 'checkbox' | 'pill' | 'select' | 'date' | 'datetime' | 'currency';
+export type ColumnType = 'text' | 'number' | 'checkbox' | 'pill' | 'multi-pill' | 'select' | 'date' | 'datetime' | 'currency';
 
 export interface RowAction<T> {
   id: 'view' | 'edit' | 'duplicate' | 'delete';
