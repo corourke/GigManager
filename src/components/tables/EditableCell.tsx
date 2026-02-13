@@ -5,7 +5,17 @@ import { Badge } from '../ui/badge';
 import { TableCell } from '../ui/table';
 import { cn } from '../ui/utils';
 import { ColumnDef } from './SmartDataTable';
-import { formatDateDisplay, formatGigDateTimeForInput, parseGigDateTimeFromInput } from '../../utils/dateUtils';
+import { formatDateDisplay, formatGigDateTimeForDisplay, formatGigDateTimeForInput, parseGigDateTimeFromInput, isNoonUTC } from '../../utils/dateUtils';
+
+const toDateInputValue = (val: any): string => {
+  if (!val) return '';
+  const str = String(val);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(str)) return str;
+  if (str.includes('T') || str.includes(' ')) return str.substring(0, 10);
+  const d = new Date(str);
+  if (isNaN(d.getTime())) return '';
+  return d.toISOString().substring(0, 10);
+};
 import {
   Command,
   CommandEmpty,
@@ -25,6 +35,7 @@ interface EditableCellProps<T> {
   isSelected: boolean;
   onSelect: () => void;
   onNavigate?: (direction: 'next' | 'prev' | 'up' | 'down') => void;
+  onEditComplete?: () => void;
 }
 
 export function EditableCell<T>({
@@ -35,11 +46,16 @@ export function EditableCell<T>({
   isSelected,
   onSelect,
   onNavigate,
+  onEditComplete,
 }: EditableCellProps<T>) {
   const [isEditing, setIsEditing] = useState(false);
   const [editValue, setEditValue] = useState(value);
   const [isSaving, setIsSaving] = useState(false);
+  const [commandSearch, setCommandSearch] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
+  const commandRef = useRef<HTMLDivElement>(null);
+
+  const resolvedTimezone = typeof column.timezone === 'function' ? column.timezone(row) : column.timezone;
 
   // Sync editValue when value changes externally
   useEffect(() => {
@@ -66,7 +82,11 @@ export function EditableCell<T>({
           e.preventDefault(); // Prevent double character input
           setIsEditing(true);
           setEditValue(e.key);
-        } else if (column.type === 'select' || column.type === 'pill' || column.type === 'date') {
+        } else if (column.type === 'select' || column.type === 'pill') {
+          e.preventDefault();
+          setCommandSearch(e.key);
+          setIsEditing(true);
+        } else if (column.type === 'date' || column.type === 'datetime') {
           e.preventDefault();
           setIsEditing(true);
         }
@@ -75,22 +95,31 @@ export function EditableCell<T>({
 
     window.addEventListener('keydown', handleGlobalKeyDown);
     return () => window.removeEventListener('keydown', handleGlobalKeyDown);
-  }, [isSelected, isEditing, column.editable, column.readOnly, column.type]);
+  }, [isSelected, isEditing, column.editable, column.readOnly, column.type, value]);
 
   // Focus input and place cursor at end when editing starts
   useEffect(() => {
     if (isEditing && inputRef.current) {
       inputRef.current.focus();
-      // selectionRange is not supported on type="number" or "date"
-      if (column.type !== 'checkbox' && column.type !== 'select' && column.type !== 'pill' && column.type !== 'number' && column.type !== 'currency' && column.type !== 'date') {
+      if (column.type !== 'checkbox' && column.type !== 'select' && column.type !== 'pill' && column.type !== 'number' && column.type !== 'currency' && column.type !== 'date' && column.type !== 'datetime') {
         const length = String(editValue || '').length;
         inputRef.current.setSelectionRange(length, length);
       }
     }
-  }, [isEditing, column.type, editValue]);
+    if (isEditing && commandSearch && (column.type === 'select' || column.type === 'pill')) {
+      requestAnimationFrame(() => {
+        const input = commandRef.current?.querySelector('input');
+        if (input) {
+          const len = input.value.length;
+          input.setSelectionRange(len, len);
+        }
+      });
+    }
+  }, [isEditing, column.type, editValue, commandSearch]);
 
   const handleDoubleClick = () => {
     if (column.editable && !column.readOnly) {
+      setCommandSearch('');
       setIsEditing(true);
     }
   };
@@ -122,9 +151,14 @@ export function EditableCell<T>({
     // For numbers and currency, convert string to number before saving, handle empty string
     let finalValue = (column.type === 'number' || column.type === 'currency') ? (newValue === '' ? null : Number(newValue)) : newValue;
 
-    // Handle date conversion to UTC noon
     if (column.type === 'date' && newValue) {
-      finalValue = parseGigDateTimeFromInput(newValue, undefined, true);
+      const dateStr = toDateInputValue(newValue);
+      finalValue = dateStr ? parseGigDateTimeFromInput(dateStr, undefined, true) : null;
+    }
+
+    if (column.type === 'datetime' && newValue) {
+      const isDateOnly = !newValue.includes('T');
+      finalValue = parseGigDateTimeFromInput(newValue, resolvedTimezone, isDateOnly);
     }
 
     if (finalValue === value) {
@@ -190,6 +224,10 @@ export function EditableCell<T>({
       return formatDateDisplay(value);
     }
 
+    if (column.type === 'datetime' && value) {
+      return formatGigDateTimeForDisplay(value, resolvedTimezone);
+    }
+
     return String(value);
   };
 
@@ -202,6 +240,28 @@ export function EditableCell<T>({
     if (column.type === 'select' || column.type === 'pill') {
       const options = column.options || (column.pillConfig ? Object.entries(column.pillConfig).map(([val, config]) => ({ label: config.label, value: val })) : []);
       
+      const handleCommandKeyDown = (e: React.KeyboardEvent) => {
+        if (e.key === 'Tab') {
+          e.preventDefault();
+          const highlighted = commandRef.current?.querySelector('[data-selected="true"]');
+          if (highlighted) {
+            const label = highlighted.getAttribute('data-value');
+            const match = options.find(o => String(o.label) === label);
+            if (match) {
+              setEditValue(match.value);
+              save(match.value).then(() => {
+                onEditComplete?.();
+                onNavigate?.(e.shiftKey ? 'prev' : 'next');
+              });
+              return;
+            }
+          }
+          setIsEditing(false);
+          onEditComplete?.();
+          onNavigate?.(e.shiftKey ? 'prev' : 'next');
+        }
+      };
+
       return (
         <Popover open={isEditing} onOpenChange={setIsEditing}>
           <PopoverTrigger asChild>
@@ -213,12 +273,12 @@ export function EditableCell<T>({
             className="w-[200px] p-0" 
             align="start"
             onCloseAutoFocus={(e) => {
-              // Prevent popover from stealing focus back to the trigger after we've moved selection
               e.preventDefault();
             }}
           >
-            <Command>
-              <CommandInput placeholder={`Search ${column.header.toLowerCase()}...`} />
+            <div ref={commandRef}>
+            <Command onKeyDown={handleCommandKeyDown}>
+              <CommandInput placeholder={`Search ${column.header.toLowerCase()}...`} value={commandSearch} onValueChange={setCommandSearch} />
               <CommandList>
                 <CommandEmpty>No results found.</CommandEmpty>
                 <CommandGroup>
@@ -228,7 +288,9 @@ export function EditableCell<T>({
                       value={String(option.label)}
                       onSelect={() => {
                         setEditValue(option.value);
-                        save(option.value);
+                        save(option.value).then(() => {
+                          onEditComplete?.();
+                        });
                       }}
                     >
                       <Check
@@ -249,6 +311,7 @@ export function EditableCell<T>({
                 </CommandGroup>
               </CommandList>
             </Command>
+            </div>
           </PopoverContent>
         </Popover>
       );
@@ -299,22 +362,77 @@ export function EditableCell<T>({
         */}
         <div className={cn(
           "w-full h-full px-4 py-2 text-sm break-words min-h-[40px] flex items-start",
-          isEditing && (column.type === 'text' || column.type === 'number' || column.type === 'currency' || column.type === 'date') ? "invisible" : "visible"
+          isEditing && (column.type === 'text' || column.type === 'number' || column.type === 'currency' || column.type === 'date' || column.type === 'datetime') ? "invisible" : "visible"
         )}>
           {renderDisplay()}
         </div>
 
-        {/* Text/Number/Currency/Date Editor: Absolute overlay with EXACT same padding */}
-        {isEditing && (column.type === 'text' || column.type === 'number' || column.type === 'currency' || column.type === 'date') && (
+        {isEditing && (column.type === 'text' || column.type === 'number' || column.type === 'currency') && (
           <div className="absolute inset-0 z-40 bg-white flex items-start">
             <input
               ref={inputRef}
-              value={column.type === 'date' ? formatGigDateTimeForInput(editValue) : (editValue ?? '')}
+              value={editValue ?? ''}
               onChange={(e) => setEditValue(e.target.value)}
               onBlur={handleBlur}
               onKeyDown={handleKeyDown}
               className="h-full w-full px-4 py-2 text-sm border-none outline-none ring-0 bg-transparent min-w-0 text-slate-900"
-              type={column.type === 'number' || column.type === 'currency' ? 'number' : column.type === 'date' ? 'date' : 'text'}
+              type={column.type === 'number' || column.type === 'currency' ? 'number' : 'text'}
+            />
+          </div>
+        )}
+
+        {isEditing && column.type === 'date' && (
+          <div className="absolute inset-0 z-40 bg-white flex items-start">
+            <input
+              ref={inputRef}
+              defaultValue={toDateInputValue(editValue)}
+              onBlur={() => {
+                const val = inputRef.current?.value;
+                save(val || value);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  save(inputRef.current?.value || value).then(() => onNavigate?.(e.shiftKey ? 'up' : 'down'));
+                } else if (e.key === 'Escape') {
+                  setEditValue(value);
+                  setIsEditing(false);
+                } else if (e.key === 'Tab') {
+                  e.preventDefault();
+                  save(inputRef.current?.value || value).then(() => onNavigate?.(e.shiftKey ? 'prev' : 'next'));
+                }
+              }}
+              className="h-full w-full px-4 py-2 text-sm border-none outline-none ring-0 bg-transparent min-w-0 text-slate-900"
+              type="date"
+              max="9999-12-31"
+            />
+          </div>
+        )}
+
+        {isEditing && column.type === 'datetime' && (
+          <div className="absolute inset-0 z-40 bg-white flex items-start">
+            <input
+              ref={inputRef}
+              defaultValue={formatGigDateTimeForInput(editValue, resolvedTimezone)}
+              onBlur={() => {
+                const val = inputRef.current?.value;
+                save(val || value);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  save(inputRef.current?.value || value).then(() => onNavigate?.(e.shiftKey ? 'up' : 'down'));
+                } else if (e.key === 'Escape') {
+                  setEditValue(value);
+                  setIsEditing(false);
+                } else if (e.key === 'Tab') {
+                  e.preventDefault();
+                  save(inputRef.current?.value || value).then(() => onNavigate?.(e.shiftKey ? 'prev' : 'next'));
+                }
+              }}
+              className="h-full w-full px-4 py-2 text-sm border-none outline-none ring-0 bg-transparent min-w-0 text-slate-900"
+              type={value && !isNoonUTC(String(value)) ? 'datetime-local' : 'date'}
+              max="9999-12-31T23:59"
             />
           </div>
         )}

@@ -17,14 +17,15 @@ interface DemoData {
   is_active: boolean;
   notes: string;
   delivery_date: string;
+  start_time: string;
 }
 
 const MOCK_DATA: DemoData[] = [
-  { id: '1', name: 'MacBook Pro', category: 'Computing', status: 'Booked', quantity: 5, price: 2500, is_active: true, notes: 'New delivery', delivery_date: '2024-02-15' },
-  { id: '2', name: 'iPhone 15', category: 'Mobile', status: 'Proposed', quantity: 10, price: 999, is_active: true, notes: 'Restock', delivery_date: '2024-02-16' },
-  { id: '3', name: 'Sony A7IV', category: 'Camera', status: 'Completed', quantity: 2, price: 2499, is_active: false, notes: 'In service', delivery_date: '2024-02-14' },
-  { id: '4', name: 'Shure SM7B', category: 'Audio', status: 'DateHold', quantity: 8, price: 399, is_active: true, notes: 'Standard mic', delivery_date: '2024-02-17' },
-  { id: '5', name: 'Dell Monitor', category: 'Computing', status: 'Booked', quantity: 15, price: 450, is_active: true, notes: 'Dual setup', delivery_date: '2024-02-18' },
+  { id: '1', name: 'MacBook Pro', category: 'Computing', status: 'Booked', quantity: 5, price: 2500, is_active: true, notes: 'New delivery', delivery_date: '2024-02-15T12:00:00.000Z', start_time: '2024-02-15T20:00:00.000Z' },
+  { id: '2', name: 'iPhone 15', category: 'Mobile', status: 'Proposed', quantity: 10, price: 999, is_active: true, notes: 'Restock', delivery_date: '2024-02-16T12:00:00.000Z', start_time: '2024-02-16T12:00:00.000Z' },
+  { id: '3', name: 'Sony A7IV', category: 'Camera', status: 'Completed', quantity: 2, price: 2499, is_active: false, notes: 'In service', delivery_date: '2024-02-14T12:00:00.000Z', start_time: '2024-03-01T15:30:00.000Z' },
+  { id: '4', name: 'Shure SM7B', category: 'Audio', status: 'DateHold', quantity: 8, price: 399, is_active: true, notes: 'Standard mic', delivery_date: '2024-02-17T12:00:00.000Z', start_time: '2024-02-17T12:00:00.000Z' },
+  { id: '5', name: 'Dell Monitor', category: 'Computing', status: 'Booked', quantity: 15, price: 450, is_active: true, notes: 'Dual setup', delivery_date: '2024-02-18T12:00:00.000Z', start_time: '2024-02-18T23:00:00.000Z' },
 ];
 
 export default function DevTableDemoScreen() {
@@ -107,6 +108,16 @@ export default function DevTableDemoScreen() {
       editable: true,
       type: 'date',
       className: 'w-[150px]',
+    },
+    {
+      id: 'start_time',
+      header: 'Start',
+      accessor: 'start_time',
+      sortable: true,
+      editable: true,
+      type: 'datetime',
+      timezone: 'America/Los_Angeles',
+      className: 'w-[200px]',
     },
   ];
 

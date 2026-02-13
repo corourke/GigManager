@@ -39,7 +39,7 @@ import { cn } from '../ui/utils';
 import { useTableState, SortingState } from '../../utils/hooks/useTableState';
 import { EditableCell } from './EditableCell';
 
-export type ColumnType = 'text' | 'number' | 'checkbox' | 'pill' | 'select' | 'date' | 'currency';
+export type ColumnType = 'text' | 'number' | 'checkbox' | 'pill' | 'select' | 'date' | 'datetime' | 'currency';
 
 export interface RowAction<T> {
   id: 'view' | 'edit' | 'duplicate' | 'delete';
@@ -63,6 +63,7 @@ export interface ColumnDef<T> {
   type?: ColumnType;
   options?: { label: string; value: any }[];
   pillConfig?: Record<string, { label: string; color: string }>;
+  timezone?: string | ((row: T) => string);
   className?: string;
   render?: (value: any, row: T) => React.ReactNode;
 }
@@ -478,6 +479,9 @@ export function SmartDataTable<T extends { id: string }>({
                           tableContainerRef.current?.focus();
                         }}
                         onNavigate={moveSelection}
+                        onEditComplete={() => {
+                          setTimeout(() => tableContainerRef.current?.focus(), 0);
+                        }}
                       />
                     );
                   })}
