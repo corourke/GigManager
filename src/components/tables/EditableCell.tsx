@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Check, Loader2, Search, X } from 'lucide-react';
+import { Check, Loader2, Plus, Search, X } from 'lucide-react';
 import { Input } from '../ui/input';
 import { Badge } from '../ui/badge';
 import { TableCell } from '../ui/table';
@@ -24,7 +24,7 @@ import {
   CommandItem,
   CommandList,
 } from '../ui/command';
-import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
+import { Popover, PopoverAnchor, PopoverContent, PopoverTrigger } from '../ui/popover';
 import { Checkbox } from '../ui/checkbox';
 
 interface EditableCellProps<T> {
@@ -54,6 +54,8 @@ export function EditableCell<T>({
   const [commandSearch, setCommandSearch] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
   const commandRef = useRef<HTMLDivElement>(null);
+  const multiPillInputRef = useRef<HTMLInputElement>(null);
+  const multiPillAnchorRef = useRef<HTMLDivElement>(null);
 
   const resolvedTimezone = typeof column.timezone === 'function' ? column.timezone(row) : column.timezone;
 
@@ -113,6 +115,11 @@ export function EditableCell<T>({
           const len = input.value.length;
           input.setSelectionRange(len, len);
         }
+      });
+    }
+    if (isEditing && column.type === 'multi-pill') {
+      requestAnimationFrame(() => {
+        multiPillInputRef.current?.focus();
       });
     }
   }, [isEditing, column.type, editValue, commandSearch]);
@@ -182,6 +189,171 @@ export function EditableCell<T>({
     if (!column.editable || column.readOnly || isSaving) return;
     const newValue = !value; 
     onSave(newValue);
+  };
+
+  const renderMultiPillEditor = () => {
+    const options = column.options || (column.pillConfig ? Object.entries(column.pillConfig).map(([val, config]) => ({ label: config.label, value: val })) : []);
+    const currentItems: string[] = Array.isArray(editValue) ? editValue : [];
+
+    const toggleItem = (itemValue: string) => {
+      const updated = currentItems.includes(itemValue)
+        ? currentItems.filter(v => v !== itemValue)
+        : [...currentItems, itemValue];
+      setEditValue(updated);
+      onSave(updated);
+      setCommandSearch('');
+      requestAnimationFrame(() => multiPillInputRef.current?.focus());
+    };
+
+    const createItem = (val: string) => {
+      const trimmed = val.trim();
+      if (!trimmed || currentItems.includes(trimmed)) return;
+      const updated = [...currentItems, trimmed];
+      setEditValue(updated);
+      onSave(updated);
+      setCommandSearch('');
+      requestAnimationFrame(() => multiPillInputRef.current?.focus());
+    };
+
+    const removeItem = (itemValue: string) => {
+      const updated = currentItems.filter(v => v !== itemValue);
+      setEditValue(updated);
+      onSave(updated);
+      requestAnimationFrame(() => multiPillInputRef.current?.focus());
+    };
+
+    const closeEditor = () => {
+      setIsEditing(false);
+      setCommandSearch('');
+      onEditComplete?.();
+    };
+
+    const searchMatchesExisting = options.some(o =>
+      String(o.label).toLowerCase() === commandSearch.trim().toLowerCase()
+    );
+    const showCreateOption = commandSearch.trim() && !searchMatchesExisting;
+
+    const filteredOptions = commandSearch
+      ? options.filter(o => String(o.label).toLowerCase().includes(commandSearch.toLowerCase()))
+      : options;
+
+    const defaultHighlight = filteredOptions.length > 0
+      ? String(filteredOptions[0].label)
+      : showCreateOption ? `__create__${commandSearch.trim()}` : '';
+
+    return (
+      <Popover open={isEditing} onOpenChange={(open) => { if (!open) closeEditor(); }}>
+        <PopoverAnchor asChild>
+          <div ref={multiPillAnchorRef} className="w-full bg-white flex flex-wrap items-start gap-1 px-4 py-2 min-h-[40px] z-40 relative">
+            {currentItems.map((item) => {
+              const config = column.pillConfig?.[item];
+              return (
+                <Badge
+                  key={item}
+                  variant="outline"
+                  className={cn("font-medium text-xs shrink-0", config?.color || 'bg-gray-100 text-gray-800 border-gray-300')}
+                >
+                  {config?.label || item}
+                </Badge>
+              );
+            })}
+            <input
+              ref={multiPillInputRef}
+              value={commandSearch}
+              onChange={(e) => setCommandSearch(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Backspace' && !commandSearch && currentItems.length > 0) {
+                  e.preventDefault();
+                  removeItem(currentItems[currentItems.length - 1]);
+                } else if (e.key === 'Escape') {
+                  e.preventDefault();
+                  closeEditor();
+                } else if (e.key === 'Tab') {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  closeEditor();
+                  onNavigate?.(e.shiftKey ? 'prev' : 'next');
+                } else if (e.key === 'Enter') {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  if (!commandSearch) {
+                    closeEditor();
+                    onNavigate?.('down');
+                    return;
+                  }
+                  if (filteredOptions.length > 0) {
+                    toggleItem(String(filteredOptions[0].value));
+                  } else {
+                    createItem(commandSearch.trim());
+                  }
+                }
+              }}
+              placeholder={currentItems.length === 0 ? `Search ${column.header.toLowerCase()}...` : ''}
+              className="border-none outline-none ring-0 bg-transparent p-0 text-sm leading-[22px]"
+              style={{ width: commandSearch ? `${Math.max(1, commandSearch.length + 1)}ch` : currentItems.length === 0 ? '100%' : '1ch' }}
+            />
+          </div>
+        </PopoverAnchor>
+        <PopoverContent
+          className="w-[220px] p-0"
+          align="start"
+          sideOffset={2}
+          onOpenAutoFocus={(e) => e.preventDefault()}
+          onCloseAutoFocus={(e) => e.preventDefault()}
+          onInteractOutside={(e) => {
+            if (multiPillAnchorRef.current?.contains(e.target as Node)) {
+              e.preventDefault();
+            }
+          }}
+          onFocusOutside={(e) => {
+            if (multiPillAnchorRef.current?.contains(e.target as Node)) {
+              e.preventDefault();
+            }
+          }}
+        >
+          <div ref={commandRef}>
+            <Command shouldFilter={false} value={defaultHighlight}>
+              <CommandList>
+                <CommandGroup>
+                  {filteredOptions.map((option) => {
+                    const isItemSelected = currentItems.includes(String(option.value));
+                    return (
+                      <CommandItem
+                        key={String(option.value)}
+                        value={String(option.label)}
+                        onSelect={() => toggleItem(String(option.value))}
+                      >
+                        <Check className={cn("mr-2 h-4 w-4", isItemSelected ? "opacity-100" : "opacity-0")} />
+                        {column.pillConfig && column.pillConfig[String(option.value)] ? (
+                          <Badge variant="outline" className={cn("font-medium", column.pillConfig[String(option.value)].color)}>
+                            {option.label}
+                          </Badge>
+                        ) : (
+                          option.label
+                        )}
+                      </CommandItem>
+                    );
+                  })}
+                  {showCreateOption && (
+                    <CommandItem
+                      value={`__create__${commandSearch.trim()}`}
+                      onSelect={() => createItem(commandSearch.trim())}
+                      className="text-muted-foreground"
+                    >
+                      <Plus className="mr-2 h-4 w-4" />
+                      Create &ldquo;{commandSearch.trim()}&rdquo;
+                    </CommandItem>
+                  )}
+                  {filteredOptions.length === 0 && !showCreateOption && (
+                    <div className="py-6 text-center text-sm text-muted-foreground">No results found.</div>
+                  )}
+                </CommandGroup>
+              </CommandList>
+            </Command>
+          </div>
+        </PopoverContent>
+      </Popover>
+    );
   };
 
   // Render Display Mode
@@ -336,114 +508,6 @@ export function EditableCell<T>({
       );
     }
 
-    if (column.type === 'multi-pill') {
-      const options = column.options || (column.pillConfig ? Object.entries(column.pillConfig).map(([val, config]) => ({ label: config.label, value: val })) : []);
-      const currentItems: string[] = Array.isArray(editValue) ? editValue : [];
-
-      const toggleItem = (itemValue: string) => {
-        const updated = currentItems.includes(itemValue)
-          ? currentItems.filter(v => v !== itemValue)
-          : [...currentItems, itemValue];
-        setEditValue(updated);
-        onSave(updated);
-        setCommandSearch('');
-      };
-
-      const removeLastItem = () => {
-        if (currentItems.length > 0) {
-          const updated = currentItems.slice(0, -1);
-          setEditValue(updated);
-          onSave(updated);
-        }
-      };
-
-      const handleMultiPillKeyDown = (e: React.KeyboardEvent) => {
-        if (e.key === 'Tab') {
-          e.preventDefault();
-          setIsEditing(false);
-          onEditComplete?.();
-          onNavigate?.(e.shiftKey ? 'prev' : 'next');
-        } else if (e.key === 'Enter' && !commandSearch) {
-          e.preventDefault();
-          setIsEditing(false);
-          onEditComplete?.();
-          onNavigate?.('down');
-        } else if (e.key === 'Backspace' && !commandSearch) {
-          e.preventDefault();
-          removeLastItem();
-        } else if (e.key === 'Escape') {
-          setIsEditing(false);
-          onEditComplete?.();
-        }
-      };
-
-      return (
-        <Popover open={isEditing} onOpenChange={(open) => {
-          setIsEditing(open);
-          if (!open) onEditComplete?.();
-        }}>
-          <PopoverTrigger asChild>
-            <div className="w-full h-full flex items-center px-4 cursor-pointer absolute inset-0 z-20">
-              {renderDisplay()}
-            </div>
-          </PopoverTrigger>
-          <PopoverContent
-            className="w-[250px] p-0"
-            align="start"
-            onCloseAutoFocus={(e) => e.preventDefault()}
-          >
-            <div ref={commandRef}>
-            <Command onKeyDown={handleMultiPillKeyDown}>
-              <CommandInput placeholder={`Search ${column.header.toLowerCase()}...`} value={commandSearch} onValueChange={setCommandSearch} />
-              {currentItems.length > 0 && (
-                <div className="flex flex-wrap gap-1 px-2 py-1.5 border-b">
-                  {currentItems.map((item) => {
-                    const config = column.pillConfig?.[item];
-                    return (
-                      <Badge
-                        key={item}
-                        variant="outline"
-                        className={cn("font-medium text-xs cursor-pointer", config?.color || 'bg-gray-100 text-gray-800 border-gray-300')}
-                        onClick={() => toggleItem(item)}
-                      >
-                        {config?.label || item}
-                        <X className="ml-1 h-3 w-3" />
-                      </Badge>
-                    );
-                  })}
-                </div>
-              )}
-              <CommandList>
-                <CommandEmpty>No results found.</CommandEmpty>
-                <CommandGroup>
-                  {options.map((option) => {
-                    const isSelected = currentItems.includes(String(option.value));
-                    return (
-                      <CommandItem
-                        key={String(option.value)}
-                        value={String(option.label)}
-                        onSelect={() => toggleItem(String(option.value))}
-                      >
-                        <Check className={cn("mr-2 h-4 w-4", isSelected ? "opacity-100" : "opacity-0")} />
-                        {column.pillConfig && column.pillConfig[String(option.value)] ? (
-                          <Badge variant="outline" className={cn("font-medium", column.pillConfig[String(option.value)].color)}>
-                            {option.label}
-                          </Badge>
-                        ) : (
-                          option.label
-                        )}
-                      </CommandItem>
-                    );
-                  })}
-                </CommandGroup>
-              </CommandList>
-            </Command>
-            </div>
-          </PopoverContent>
-        </Popover>
-      );
-    }
-
     return (
       <div className="absolute inset-0 z-40 bg-white flex items-center px-4">
         <input
@@ -462,7 +526,8 @@ export function EditableCell<T>({
   return (
     <TableCell
       className={cn(
-        "p-0 border-r last:border-r-0 relative h-full align-top overflow-hidden transition-none whitespace-normal",
+        "p-0 border-r last:border-r-0 relative h-full align-top transition-none whitespace-normal",
+        !(isEditing && column.type === 'multi-pill') && "overflow-hidden",
         isSelected && "bg-sky-50/50"
       )}
       onClick={(e) => {
@@ -481,18 +546,14 @@ export function EditableCell<T>({
       )}
 
       <div className="w-full h-full min-h-[40px] relative flex items-start">
-        {/* 
-          Display Content:
-          - Always present to define the height/width of the cell.
-          - 'break-words' allows wrapping like Notion/Coda.
-          - Padding 'px-4 py-2' is the master padding.
-        */}
-        <div className={cn(
-          "w-full h-full px-4 py-2 text-sm break-words min-h-[40px] flex items-start",
-          isEditing && (column.type === 'text' || column.type === 'number' || column.type === 'currency' || column.type === 'date' || column.type === 'datetime') ? "invisible" : "visible"
-        )}>
-          {renderDisplay()}
-        </div>
+        {!(isEditing && column.type === 'multi-pill') && (
+          <div className={cn(
+            "w-full h-full px-4 py-2 text-sm break-words min-h-[40px] flex items-start",
+            isEditing && (column.type === 'text' || column.type === 'number' || column.type === 'currency' || column.type === 'date' || column.type === 'datetime') ? "invisible" : "visible"
+          )}>
+            {renderDisplay()}
+          </div>
+        )}
 
         {isEditing && (column.type === 'text' || column.type === 'number' || column.type === 'currency') && (
           <div className="absolute inset-0 z-40 bg-white flex items-start">
@@ -564,12 +625,13 @@ export function EditableCell<T>({
           </div>
         )}
 
-        {/* Select/Pill/Multi-Pill Editor Overlay */}
-        {isEditing && (column.type === 'select' || column.type === 'pill' || column.type === 'multi-pill') && (
+        {isEditing && (column.type === 'select' || column.type === 'pill') && (
           <div className="absolute inset-0 z-30">
             {renderEditor()}
           </div>
         )}
+
+        {isEditing && column.type === 'multi-pill' && renderMultiPillEditor()}
 
         {isSaving && (
           <div className="absolute right-2 top-2 z-[60]">
