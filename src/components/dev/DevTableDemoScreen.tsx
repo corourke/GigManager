@@ -6,6 +6,7 @@ import { SmartDataTable, ColumnDef, RowAction } from '../tables/SmartDataTable';
 import { GIG_STATUS_CONFIG, TAG_CONFIG } from '../../utils/supabase/constants';
 import { Button } from '../ui/button';
 import { toast } from 'sonner';
+import { ArrowLeft } from 'lucide-react';
 
 interface DemoData {
   id: string;
@@ -21,6 +22,10 @@ interface DemoData {
   tags: string[];
 }
 
+interface DevTableDemoScreenProps {
+  onBack?: () => void;
+}
+
 const TAG_PILL_CONFIG = Object.fromEntries(
   Object.entries(TAG_CONFIG).map(([key, val]) => [key, { label: key, color: val.color }])
 );
@@ -33,7 +38,7 @@ const MOCK_DATA: DemoData[] = [
   { id: '5', name: 'Dell Monitor', category: 'Computing', status: 'Booked', quantity: 15, price: 450, is_active: true, notes: 'Dual setup', delivery_date: '2024-02-18T12:00:00.000Z', start_time: '2024-02-18T23:00:00.000Z', tags: ['Wedding'] },
 ];
 
-export default function DevTableDemoScreen() {
+export default function DevTableDemoScreen({ onBack }: DevTableDemoScreenProps) {
   const [data, setData] = useState<DemoData[]>(MOCK_DATA);
 
   const columns: ColumnDef<DemoData>[] = [
@@ -167,11 +172,21 @@ export default function DevTableDemoScreen() {
 
   return (
     <div className="p-8 space-y-8 max-w-7xl mx-auto">
-      <div>
-        <h1 className="text-3xl font-bold">SmartDataTable Demo</h1>
-        <p className="text-muted-foreground mt-2">
-          Testing all table capabilities: Sorting, Filtering, Column Visibility, In-place Editing, and Row Actions.
-        </p>
+      <div className="flex items-center justify-between">
+        <div>
+          <div className="flex items-center gap-4 mb-2">
+            {onBack && (
+              <Button variant="ghost" size="sm" onClick={onBack} className="gap-2">
+                <ArrowLeft className="w-4 h-4" />
+                Back
+              </Button>
+            )}
+            <h1 className="text-3xl font-bold">SmartDataTable Demo</h1>
+          </div>
+          <p className="text-muted-foreground">
+            Testing all table capabilities: Sorting, Filtering, Column Visibility, In-place Editing, and Row Actions.
+          </p>
+        </div>
       </div>
 
       <SmartDataTable

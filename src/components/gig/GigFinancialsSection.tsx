@@ -1,10 +1,10 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useForm, useFieldArray, Controller } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
-import { DollarSign, FileText, Loader2, Plus, Trash2, AlertCircle, Edit } from 'lucide-react';
+import { DollarSign, FileText, Loader2, Plus, Trash2, AlertCircle, Edit, Eye } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
@@ -12,13 +12,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '../ui/dialog';
 import { Textarea } from '../ui/textarea';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table';
 import OrganizationSelector from '../OrganizationSelector';
 import { getGigFinancials, updateGigFinancials, createGigFinancial, deleteGigFinancial } from '../../services/gig.service';
 import { useAutoSave } from '../../utils/hooks/useAutoSave';
 import SaveStateIndicator from './SaveStateIndicator';
 import { UserRole, FinType, FinCategory } from '../../utils/supabase/types';
 import { FIN_TYPE_CONFIG, FIN_CATEGORY_CONFIG } from '../../utils/supabase/constants';
+import { SmartDataTable, ColumnDef, RowAction } from '../tables/SmartDataTable';
 
 const CURRENCY_OPTIONS = [
   { code: 'USD', symbol: '$', name: 'US Dollar' },
@@ -338,6 +338,105 @@ export default function GigFinancialsSection({
     }
   };
 
+  const columns = useMemo<ColumnDef<any>[]>(() => [
+    {
+      id: 'date',
+      header: 'Date',
+      accessor: 'date',
+      sortable: true,
+      filterable: true,
+      editable: true,
+      type: 'date',
+    },
+    {
+      id: 'type',
+      header: 'Type',
+      accessor: 'type',
+      sortable: true,
+      filterable: true,
+      editable: true,
+      type: 'pill',
+      pillConfig: FIN_TYPE_CONFIG,
+    },
+    {
+      id: 'category',
+      header: 'Category',
+      accessor: 'category',
+      sortable: true,
+      filterable: true,
+      editable: true,
+      type: 'pill',
+      pillConfig: FIN_CATEGORY_CONFIG,
+    },
+    {
+      id: 'amount',
+      header: 'Amount',
+      accessor: 'amount',
+      sortable: true,
+      editable: true,
+      type: 'currency',
+    },
+    {
+      id: 'description',
+      header: 'Description',
+      accessor: 'description',
+      editable: true,
+      type: 'text',
+    },
+    {
+      id: 'reference_number',
+      header: 'Ref #',
+      accessor: 'reference_number',
+      editable: true,
+      optional: true,
+      type: 'text',
+    },
+    {
+      id: 'notes',
+      header: 'Notes',
+      accessor: 'notes',
+      editable: true,
+      optional: true,
+      type: 'text',
+    }
+  ], []);
+
+  const rowActions = useMemo<RowAction<any>[]>(() => [
+    {
+      id: 'view',
+      label: 'Notes',
+      icon: <FileText className="w-4 h-4" />,
+      onClick: (row) => {
+        const index = fields.findIndex(f => f.id === row.id);
+        if (index !== -1) handleOpenNotes(index);
+      }
+    },
+    {
+      id: 'edit',
+      label: 'Full Edit',
+      onClick: (row) => {
+        const index = fields.findIndex(f => f.id === row.id);
+        if (index !== -1) handleEditFinancial(index);
+      }
+    },
+    {
+      id: 'delete',
+      onClick: (row) => {
+        const index = fields.findIndex(f => f.id === row.id);
+        if (index !== -1) handleRemoveFinancial(index);
+      }
+    }
+  ], [fields]);
+
+  const handleRowUpdate = async (id: string, updates: Partial<any>) => {
+    const index = fields.findIndex(f => f.id === id);
+    if (index !== -1) {
+      Object.entries(updates).forEach(([key, value]) => {
+        setValue(`financials.${index}.${key}` as any, value, { shouldDirty: true });
+      });
+    }
+  };
+
   if (!isAdmin) {
     return null; // Don't show the section at all for non-admins
   }
@@ -379,70 +478,24 @@ export default function GigFinancialsSection({
         <CardContent>
           <div className="space-y-4">
             {fields.length > 0 ? (
-              <div className="border rounded-lg overflow-hidden">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Date</TableHead>
-                      <TableHead>Type</TableHead>
-                      <TableHead className="text-right">Amount</TableHead>
-                      <TableHead>Description</TableHead>
-                      <TableHead className="text-right">Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {fields.map((field, index) => (
-                      <TableRow key={field.id}>
-                        <TableCell>
-                          {formatDate(field.date)}
-                        </TableCell>
-                        <TableCell>
-                          {FIN_TYPE_CONFIG[field.type as FinType]?.label || field.type}
-                        </TableCell>
-                        <TableCell className="text-right font-mono">
-                          {formatCurrency(field.amount, field.currency)}
-                        </TableCell>
-                        <TableCell>
-                          {field.description || '-'}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <div className="flex items-center justify-end gap-1">
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleOpenNotes(index)}
-                              className="h-8 w-8 p-0"
-                            >
-                              <FileText className="w-4 h-4" />
-                            </Button>
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleEditFinancial(index)}
-                              className="h-8 w-8 p-0"
-                            >
-                              <Edit className="w-4 h-4" />
-                            </Button>
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleRemoveFinancial(index)}
-                              className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </Button>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
+              <SmartDataTable
+                tableId={`gig-financials-${gigId}`}
+                data={fields}
+                columns={columns}
+                rowActions={rowActions}
+                onRowUpdate={handleRowUpdate}
+                emptyMessage="No financial records found"
+              />
             ) : (
-              <p className="text-sm text-gray-500 text-center py-8">No financial records yet</p>
+              <div className="text-center py-12 border-2 border-dashed rounded-lg">
+                <DollarSign className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+                <h3 className="text-gray-900 font-medium">No financial records</h3>
+                <p className="text-gray-500 mb-4">Add your first bid, invoice, or expense for this gig</p>
+                <Button type="button" variant="outline" size="sm" onClick={handleAddFinancial}>
+                  <Plus className="w-4 h-4 mr-2" />
+                  Add Financial Record
+                </Button>
+              </div>
             )}
           </div>
         </CardContent>

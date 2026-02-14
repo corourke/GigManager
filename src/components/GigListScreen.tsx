@@ -1,21 +1,26 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
 import { Button } from './ui/button';
 import { Card } from './ui/card';
-import { 
-  getGigsForOrganization, 
-  duplicateGig, 
-  deleteGig 
+import { Badge } from './ui/badge';
+import {
+  getGigsForOrganization,
+  updateGig,
+  duplicateGig,
+  deleteGig,
 } from '../services/gig.service';
 import AppHeader from './AppHeader';
-import GigTable from './tables/GigTable';
-import { GigListFilters } from './gigs/GigListFilters';
+import { SmartDataTable, ColumnDef, RowAction } from './tables/SmartDataTable';
 import { GigListEmptyState } from './gigs/GigListEmptyState';
 import {
   Plus,
   Upload,
+  Calendar,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Organization, User, UserRole, GigStatus, Gig } from '../utils/supabase/types';
+import { GIG_STATUS_CONFIG, TAG_CONFIG, getTagColor } from '../utils/supabase/constants';
+import { formatDateTimeDisplay } from '../utils/dateUtils';
+import { PageHeader } from './ui/PageHeader';
 
 interface GigListScreenProps {
   organization: Organization;
@@ -33,6 +38,14 @@ interface GigListScreenProps {
   onLogout: () => void;
   onEditProfile?: () => void;
 }
+
+const statusPillConfig: Record<string, { label: string; color: string }> = Object.fromEntries(
+  Object.entries(GIG_STATUS_CONFIG).map(([key, cfg]) => [key, { label: cfg.label, color: cfg.color }])
+);
+
+const tagPillConfig: Record<string, { label: string; color: string }> = Object.fromEntries(
+  Object.entries(TAG_CONFIG).map(([key, cfg]) => [key, { label: key, color: cfg.color }])
+);
 
 export default function GigListScreen({
   organization,
@@ -54,15 +67,8 @@ export default function GigListScreen({
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const [searchQuery, setSearchQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState<GigStatus | 'All'>('All');
-  const [dateFrom, setDateFrom] = useState<Date | undefined>(undefined);
-  const [dateTo, setDateTo] = useState<Date | undefined>(undefined);
-  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
-
   const canEdit = userRole === 'Admin' || userRole === 'Manager';
 
-  // Load gigs on mount
   useEffect(() => {
     loadGigs();
   }, [organization.id]);
@@ -81,14 +87,6 @@ export default function GigListScreen({
     }
   };
 
-  const handleGigClick = (gigId: string) => {
-    onViewGig(gigId);
-  };
-
-  const handleGigEdit = (gigId: string) => {
-    onEditGig(gigId);
-  };
-
   const handleGigDuplicate = async (gigId: string) => {
     try {
       await duplicateGig(gigId);
@@ -105,50 +103,165 @@ export default function GigListScreen({
 
     const gigToDelete = gigs.find(g => g.id === gigId);
     if (gigToDelete) {
-      setGigs(prevGigs => prevGigs.filter(g => g.id !== gigId));
+      setGigs(prev => prev.filter(g => g.id !== gigId));
     }
 
     try {
       await deleteGig(gigId);
       toast.success('Gig deleted successfully');
-      loadGigs();
     } catch (err: any) {
       console.error('Error deleting gig:', err);
       toast.error(err.message || 'Failed to delete gig');
       if (gigToDelete) {
-        setGigs(prevGigs => [...prevGigs, gigToDelete].sort((a, b) => {
-          const dateA = new Date(a.start).getTime();
-          const dateB = new Date(b.start).getTime();
-          return sortOrder === 'asc' ? dateA - dateB : dateB - dateA;
-        }));
+        setGigs(prev => [...prev, gigToDelete]);
       }
     }
   };
 
-  const handleClearFilters = () => {
-    setSearchQuery('');
-    setStatusFilter('All');
-    setDateFrom(undefined);
-    setDateTo(undefined);
-  };
+  const handleRowUpdate = useCallback(async (id: string, updates: Partial<Gig>) => {
+    const gig = gigs.find(g => g.id === id);
+    if (!gig) return;
 
-  const hasActiveFilters = searchQuery || statusFilter !== 'All' || dateFrom || dateTo;
+    setGigs(prev => prev.map(g => (g.id === id ? { ...g, ...updates } : g)));
 
-  // Filter and sort gigs
-  const filteredGigs = gigs.filter((gig) => {
-    if (searchQuery && !gig.title?.toLowerCase().includes(searchQuery.toLowerCase())) return false;
-    if (statusFilter !== 'All' && gig.status !== statusFilter) return false;
-    if (dateFrom || dateTo) {
-      const gigDate = new Date(gig.start);
-      if (dateFrom && gigDate < dateFrom) return false;
-      if (dateTo && gigDate > dateTo) return false;
+    try {
+      await updateGig(id, updates);
+    } catch (err: any) {
+      setGigs(prev => prev.map(g => (g.id === id ? gig : g)));
+      console.error('Error updating gig:', err);
+      toast.error(err.message || 'Failed to update gig');
     }
-    return true;
-  }).sort((a, b) => {
-    const dateA = new Date(a.start).getTime();
-    const dateB = new Date(b.start).getTime();
-    return sortOrder === 'asc' ? dateA - dateB : dateB - dateA;
-  });
+  }, [gigs]);
+
+  const gigColumns = useMemo<ColumnDef<Gig>[]>(() => [
+    {
+      id: 'title',
+      header: 'Title',
+      accessor: 'title',
+      sortable: true,
+      filterable: true,
+      required: true,
+      editable: canEdit,
+      type: 'text',
+      className: 'w-[25%]',
+      render: (val) => (
+        <span className="font-medium text-gray-900">
+          {val || <span className="text-gray-400 italic">Untitled Gig</span>}
+        </span>
+      ),
+    },
+    {
+      id: 'start',
+      header: 'Start',
+      accessor: 'start',
+      sortable: true,
+      required: true,
+      editable: canEdit,
+      type: 'datetime',
+      timezone: (row) => row.timezone,
+      className: 'w-[14%]',
+      render: (_, row) => (
+        <span className="text-sm text-gray-700">
+          {formatDateTimeDisplay(row.start, row.end, row.timezone)}
+        </span>
+      ),
+    },
+    {
+      id: 'end',
+      header: 'End',
+      accessor: 'end',
+      sortable: true,
+      optional: true,
+      editable: canEdit,
+      type: 'datetime',
+      timezone: (row) => row.timezone,
+    },
+    {
+      id: 'status',
+      header: 'Status',
+      accessor: 'status',
+      sortable: true,
+      filterable: true,
+      required: true,
+      editable: canEdit,
+      type: 'pill',
+      pillConfig: statusPillConfig,
+      className: 'w-[12%]',
+    },
+    {
+      id: 'venue',
+      header: 'Venue',
+      accessor: (row) => row.venue?.name || '',
+      sortable: true,
+      filterable: true,
+      render: (val) => val ? (
+        <Badge variant="outline" className="truncate bg-gray-100 text-gray-800 border-gray-200">
+          {val}
+        </Badge>
+      ) : (
+        <span className="text-gray-400 italic">—</span>
+      ),
+    },
+    {
+      id: 'act',
+      header: 'Act',
+      accessor: (row) => row.act?.name || '',
+      sortable: true,
+      filterable: true,
+      render: (val) => val ? (
+        <Badge variant="outline" className="truncate bg-gray-100 text-gray-800 border-gray-200">
+          {val}
+        </Badge>
+      ) : (
+        <span className="text-gray-400 italic">—</span>
+      ),
+    },
+    {
+      id: 'tags',
+      header: 'Tags',
+      accessor: 'tags',
+      filterable: true,
+      editable: canEdit,
+      type: 'multi-pill',
+      pillConfig: tagPillConfig,
+      className: 'w-[18%]',
+    },
+    {
+      id: 'notes',
+      header: 'Notes',
+      accessor: 'notes',
+      filterable: true,
+      optional: true,
+      editable: canEdit,
+      type: 'text',
+      render: (val) => (
+        <span className="text-sm text-gray-600 line-clamp-2">{val || '—'}</span>
+      ),
+    },
+  ], [canEdit]);
+
+  const rowActions = useMemo<RowAction<Gig>[]>(() => [
+    {
+      id: 'view',
+      label: 'View',
+      onClick: (row) => onViewGig(row.id),
+    },
+    {
+      id: 'edit',
+      label: 'Edit',
+      onClick: (row) => onEditGig(row.id),
+    },
+    {
+      id: 'duplicate',
+      label: 'Duplicate',
+      onClick: (row) => handleGigDuplicate(row.id),
+    },
+    {
+      id: 'delete',
+      label: 'Delete',
+      onClick: (row) => handleGigDelete(row.id),
+    },
+  ], [onViewGig, onEditGig]);
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -162,13 +275,13 @@ export default function GigListScreen({
         onLogout={onLogout}
       />
 
-      <div className="bg-white border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900">Gigs</h1>
-            </div>
-            <div className="flex gap-2">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <PageHeader
+          icon={Calendar}
+          title="Events"
+          description={`Manage events and gigs for ${organization.name}`}
+          actions={
+            <>
               <Button
                 onClick={onCreateGig}
                 className="bg-sky-500 hover:bg-sky-600 text-white"
@@ -186,65 +299,40 @@ export default function GigListScreen({
                   Import
                 </Button>
               )}
-            </div>
-          </div>
+            </>
+          }
+        />
+
+        <div className="py-6">
+          {error ? (
+            <Card className="p-12 text-center">
+              <div className="text-red-500 mb-4 font-semibold">Error loading gigs</div>
+              <p className="text-gray-600 mb-6">{error}</p>
+              <Button onClick={loadGigs} variant="outline">
+                Try Again
+              </Button>
+            </Card>
+          ) : !isLoading && gigs.length === 0 ? (
+            <GigListEmptyState
+              hasActiveFilters={false}
+              onClearFilters={() => {}}
+              onCreateGig={onCreateGig}
+              onNavigateToImport={onNavigateToImport}
+            />
+          ) : (
+            <SmartDataTable
+              tableId="gig-list"
+              data={gigs}
+              columns={gigColumns}
+              rowActions={rowActions}
+              onRowUpdate={canEdit ? handleRowUpdate : undefined}
+              onAddRowClick={canEdit ? onCreateGig : undefined}
+              isLoading={isLoading}
+              emptyMessage="No gigs found"
+            />
+          )}
         </div>
-      </div>
-
-      <GigListFilters
-        searchQuery={searchQuery}
-        setSearchQuery={setSearchQuery}
-        statusFilter={statusFilter}
-        setStatusFilter={setStatusFilter}
-        dateFrom={dateFrom}
-        setDateFrom={setDateFrom}
-        dateTo={dateTo}
-        setDateTo={setDateTo}
-        sortOrder={sortOrder}
-        setSortOrder={setSortOrder}
-        onClearFilters={handleClearFilters}
-        hasActiveFilters={!!hasActiveFilters}
-      />
-
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        {error ? (
-          <Card className="p-12 text-center">
-            <div className="text-red-500 mb-4 font-semibold">Error loading gigs</div>
-            <p className="text-gray-600 mb-6">{error}</p>
-            <Button onClick={loadGigs} variant="outline">
-              Try Again
-            </Button>
-          </Card>
-        ) : isLoading ? (
-          <GigTable
-            gigs={[]}
-            mode="list"
-            showActions={true}
-            loading={true}
-            emptyMessage="Loading gigs..."
-          />
-        ) : filteredGigs.length === 0 ? (
-          <GigListEmptyState
-            hasActiveFilters={!!hasActiveFilters}
-            onClearFilters={handleClearFilters}
-            onCreateGig={onCreateGig}
-            onNavigateToImport={onNavigateToImport}
-          />
-        ) : (
-          <GigTable
-            gigs={filteredGigs}
-            mode="list"
-            showActions={true}
-            onGigClick={handleGigClick}
-            onGigEdit={handleGigEdit}
-            onGigDuplicate={handleGigDuplicate}
-            onGigDelete={handleGigDelete}
-            loading={false}
-            emptyMessage="No gigs found"
-          />
-        )}
       </div>
     </div>
   );
 }
-

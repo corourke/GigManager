@@ -74,6 +74,10 @@ function App() {
     if (window.location.pathname === '/accept-invitation' || window.location.hash.includes('type=invite')) {
       return 'accept-invitation';
     }
+    // Check for dev-demo in URL
+    if (window.location.pathname === '/dev-demo') {
+      return 'dev-demo';
+    }
     return (localStorage.getItem('currentRoute') as Route) || 'login';
   });
   const [selectedGigId, setSelectedGigId] = useState<string | null>(() => {
@@ -106,9 +110,30 @@ function App() {
     return null;
   });
 
-  // Persist state to localStorage
+  // Persist state to localStorage and update URL
   useEffect(() => {
     localStorage.setItem('currentRoute', currentRoute);
+    
+    // Update URL to match route for certain routes
+    if (currentRoute === 'dev-demo' && window.location.pathname !== '/dev-demo') {
+      window.history.pushState({}, '', '/dev-demo');
+    } else if (currentRoute !== 'dev-demo' && window.location.pathname === '/dev-demo') {
+      window.history.pushState({}, '', '/');
+    }
+  }, [currentRoute]);
+
+  // Handle browser back/forward buttons
+  useEffect(() => {
+    const handlePopState = () => {
+      if (window.location.pathname === '/dev-demo') {
+        setCurrentRoute('dev-demo');
+      } else if (currentRoute === 'dev-demo') {
+        setCurrentRoute('dashboard');
+      }
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
   }, [currentRoute]);
 
   useEffect(() => {
@@ -443,7 +468,7 @@ function App() {
       onEditProfile={handleEditProfile}
     >
       {currentRoute === 'dev-demo' && (
-        <DevTableDemoScreen />
+        <DevTableDemoScreen onBack={() => setCurrentRoute('dashboard')} />
       )}
 
       {currentRoute === 'login' && (

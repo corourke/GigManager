@@ -469,9 +469,31 @@ export async function duplicateGig(gigId: string, newTitle?: string) {
       throw new Error('Original gig missing start or end dates');
     }
 
-    const { data: newGig, error: gigError } = await supabase
-      .from('gigs')
-      .insert({
+    const participants = (originalGig.participants || []).map((gp: any) => ({
+      organization_id: gp.organization_id,
+      role: gp.role,
+      notes: gp.notes,
+    }));
+
+    const staffSlots = (originalGig.staff_slots || []).map((slot: any) => ({
+      staff_role_id: slot.staff_role_id,
+      organization_id: slot.organization_id,
+      required_count: slot.required_count,
+      notes: slot.notes,
+      assignments: (slot.staff_assignments || []).map((sa: any) => ({
+        user_id: sa.user_id,
+        status: sa.status,
+        rate: sa.rate,
+        fee: sa.fee,
+        notes: sa.notes,
+      })),
+    }));
+
+    const primaryOrgId = participants.find((p: any) => p.role === 'Venue')?.organization_id
+      || participants[0]?.organization_id;
+
+    const { data, error } = await supabase.rpc('create_gig_complex', {
+      p_gig_data: {
         title: newTitle || `${originalGig.title} (Copy)`,
         start: originalGig.start,
         end: originalGig.end,
@@ -479,57 +501,20 @@ export async function duplicateGig(gigId: string, newTitle?: string) {
         status: 'Proposed',
         tags: originalGig.tags || [],
         notes: originalGig.notes,
-        created_by: user.id,
-        updated_by: user.id,
-      })
-      .select()
-      .single();
+        primary_organization_id: primaryOrgId,
+      },
+      p_participants: participants,
+      p_staff_slots: staffSlots,
+    });
 
-    if (gigError) throw gigError;
+    if (error) throw error;
+    if (!data?.[0]?.id) throw new Error('Gig duplication failed to return an ID');
 
-    if (originalGig.participants && originalGig.participants.length > 0) {
-      const participants = originalGig.participants.map((gp: any) => ({
-        gig_id: newGig.id,
-        organization_id: gp.organization_id,
-        role: gp.role,
-        notes: gp.notes,
-      }));
-      await supabase.from('gig_participants').insert(participants);
-    }
-
-    if (originalGig.staff_slots && originalGig.staff_slots.length > 0) {
-      for (const slot of originalGig.staff_slots) {
-        const { data: newSlot, error: slotError } = await supabase
-          .from('gig_staff_slots')
-          .insert({
-            gig_id: newGig.id,
-            staff_role_id: slot.staff_role_id,
-            organization_id: slot.organization_id,
-            required_count: slot.required_count,
-            notes: slot.notes,
-          })
-          .select('id')
-          .single();
-
-        if (slotError || !newSlot) continue;
-
-        if (slot.staff_assignments && slot.staff_assignments.length > 0) {
-          const assignments = slot.staff_assignments.map((sa: any) => ({
-            slot_id: newSlot.id,
-            user_id: sa.user_id,
-            status: sa.status,
-            rate: sa.rate,
-            fee: sa.fee,
-            notes: sa.notes,
-          }));
-          await supabase.from('gig_staff_assignments').insert(assignments);
-        }
-      }
-    }
+    const newGigId = data[0].id;
 
     if (originalGig.financials && originalGig.financials.length > 0) {
       const financials = originalGig.financials.map((fin: any) => ({
-        gig_id: newGig.id,
+        gig_id: newGigId,
         organization_id: fin.organization_id,
         amount: fin.amount,
         date: fin.date,
@@ -548,7 +533,7 @@ export async function duplicateGig(gigId: string, newTitle?: string) {
 
     if (originalGig.kit_assignments && originalGig.kit_assignments.length > 0) {
       const kitAssignments = originalGig.kit_assignments.map((gka: any) => ({
-        gig_id: newGig.id,
+        gig_id: newGigId,
         kit_id: gka.kit_id,
         organization_id: gka.organization_id,
         notes: gka.notes,
@@ -557,7 +542,7 @@ export async function duplicateGig(gigId: string, newTitle?: string) {
       await supabase.from('gig_kit_assignments').insert(kitAssignments);
     }
 
-    return newGig;
+    return await getGig(newGigId);
   } catch (err) {
     return handleApiError(err, 'duplicate gig');
   }

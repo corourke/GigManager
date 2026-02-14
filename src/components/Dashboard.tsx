@@ -15,6 +15,7 @@ import { USER_ROLE_CONFIG, GIG_STATUS_CONFIG } from '../utils/supabase/constants
 import { createClient } from '../utils/supabase/client';
 import { handleFunctionsError } from '../utils/api-error-utils';
 import GigTable, { type Gig } from './tables/GigTable';
+import { PageHeader } from './ui/PageHeader';
 
 interface DashboardProps {
   organization: Organization;
@@ -149,10 +150,6 @@ export default function Dashboard({
         user={user}
         userRole={userRole}
         currentRoute="dashboard"
-        onNavigateToDashboard={onNavigateToDashboard}
-        onNavigateToGigs={onNavigateToGigs}
-        onNavigateToTeam={onNavigateToTeam}
-        onNavigateToAssets={onNavigateToAssets}
         onSwitchOrganization={onBackToSelection}
         onEditProfile={onEditProfile}
         onLogout={onLogout}
@@ -160,11 +157,11 @@ export default function Dashboard({
 
       {/* Main Content */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Welcome Section */}
-        <div className="mb-8">
-          <h1 className="text-gray-900 mb-2">Welcome back, {user.first_name}!</h1>
-          <p className="text-gray-600">Here's what's happening with {organization.name}</p>
-        </div>
+        <PageHeader 
+          icon={LayoutDashboard}
+          title={`Welcome back, ${user.first_name}!`}
+          description={`Here's what's happening with ${organization.name}`}
+        />
 
         {loading ? (
           <div className="flex items-center justify-center py-12">

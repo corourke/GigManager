@@ -3,6 +3,29 @@ import { vi, describe, it, expect, beforeEach } from 'vitest';
 import GigFinancialsSection from './GigFinancialsSection';
 import * as gigService from '../../services/gig.service';
 
+// Mock localStorage
+const localStorageMock = (() => {
+  let store: Record<string, string> = {};
+  return {
+    getItem: vi.fn((key: string) => store[key] || null),
+    setItem: vi.fn((key: string, value: string) => {
+      store[key] = value.toString();
+    }),
+    clear: vi.fn(() => {
+      store = {};
+    }),
+    removeItem: vi.fn((key: string) => {
+      delete store[key];
+    }),
+    length: 0,
+    key: vi.fn((index: number) => null),
+  };
+})();
+
+Object.defineProperty(window, 'localStorage', {
+  value: localStorageMock,
+});
+
 // Mock the gig service
 vi.mock('../../services/gig.service', () => ({
   getGigFinancials: vi.fn(),
@@ -104,7 +127,7 @@ describe('GigFinancialsSection', () => {
     render(<GigFinancialsSection {...defaultProps} />);
     
     await waitFor(() => {
-      expect(screen.getByText('No financial records yet')).toBeInTheDocument();
+      expect(screen.getByText('No financial records')).toBeInTheDocument();
     });
   });
 

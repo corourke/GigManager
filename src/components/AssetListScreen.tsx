@@ -1,24 +1,15 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { Package, Plus, Search, Filter, Loader2, Edit, Trash2, AlertCircle, Shield, Upload, Eye, Copy } from 'lucide-react';
 import { toast } from 'sonner';
-import { getAssets, deleteAsset, duplicateAsset } from '../services/asset.service';
+import { getAssets, deleteAsset, duplicateAsset, updateAsset } from '../services/asset.service';
 import { Button } from './ui/button';
-import { Input } from './ui/input';
 import { Card } from './ui/card';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from './ui/table';
-import { Badge } from './ui/badge';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import AppHeader from './AppHeader';
 import EquipmentTabs from './EquipmentTabs';
 import { Organization, User, UserRole } from '../utils/supabase/types';
 import type { DbAsset } from '../utils/supabase/types';
+import { SmartDataTable, ColumnDef, RowAction } from './tables/SmartDataTable';
+import { PageHeader } from './ui/PageHeader';
 
 interface AssetListScreenProps {
   organization: Organization;
@@ -58,8 +49,10 @@ export default function AssetListScreen({
 
   // Asset list data
   const [allAssets, setAllAssets] = useState<DbAsset[]>([]);
+  const [filteredAssets, setFilteredAssets] = useState<DbAsset[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [deletedAssetIds, setDeletedAssetIds] = useState<Set<string>>(new Set());
 
   const refresh = async () => {
     try {
@@ -78,44 +71,16 @@ export default function AssetListScreen({
     refresh();
   }, [organization.id]);
 
-  const [searchQuery, setSearchQuery] = useState('');
-  const [categoryFilter, setCategoryFilter] = useState<string>('all');
-  const [insuranceFilter, setInsuranceFilter] = useState<string>('all');
-  const [deletedAssetIds, setDeletedAssetIds] = useState<Set<string>>(new Set());
-
-  // Filter assets based on current filters
-  const assets = allAssets.filter((asset) => {
-    // Exclude deleted assets
-    if (deletedAssetIds.has(asset.id)) {
-      return false;
+  const handleUpdateAsset = async (id: string, updates: Partial<DbAsset>) => {
+    try {
+      await updateAsset(id, updates);
+      setAllAssets(prev => prev.map(a => a.id === id ? { ...a, ...updates } : a));
+      toast.success('Asset updated');
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to update asset');
+      refresh();
     }
-
-    // Category filter
-    if (categoryFilter !== 'all' && asset.category !== categoryFilter) {
-      return false;
-    }
-
-    // Insurance filter
-    if (insuranceFilter === 'yes' && !asset.insurance_added) {
-      return false;
-    }
-    if (insuranceFilter === 'no' && asset.insurance_added) {
-      return false;
-    }
-
-    // Search filter
-    if (searchQuery) {
-      const query = searchQuery.toLowerCase();
-      return (
-        asset.name?.toLowerCase().includes(query) ||
-        asset.category?.toLowerCase().includes(query) ||
-        asset.tag_number?.toLowerCase().includes(query) ||
-        asset.description?.toLowerCase().includes(query)
-      );
-    }
-
-    return true;
-  });
+  };
 
   const handleDeleteAsset = async (assetId: string) => {
     if (!confirm('Are you sure you want to delete this asset?')) return;
@@ -147,6 +112,139 @@ export default function AssetListScreen({
     }
   };
 
+  const handleDuplicateAsset = async (assetId: string) => {
+    try {
+      await duplicateAsset(assetId);
+      toast.success('Asset duplicated successfully');
+      refresh();
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to duplicate asset');
+    }
+  };
+
+  const activeAssets = useMemo(() => 
+    allAssets.filter(asset => !deletedAssetIds.has(asset.id)),
+    [allAssets, deletedAssetIds]
+  );
+
+  const categories = useMemo(() => 
+    Array.from(new Set(allAssets.map(a => a.category).filter(Boolean))),
+    [allAssets]
+  );
+
+  const columns = useMemo<ColumnDef<DbAsset>[]>(() => [
+    {
+      id: 'category',
+      header: 'Category',
+      accessor: 'category',
+      sortable: true,
+      filterable: true,
+      editable: true,
+      type: 'select',
+      options: categories.map(cat => ({ label: cat, value: cat })),
+    },
+    {
+      id: 'sub_category',
+      header: 'Sub Category',
+      accessor: 'sub_category',
+      sortable: true,
+      filterable: true,
+      editable: true,
+      optional: true,
+      type: 'text',
+    },
+    {
+      id: 'manufacturer_model',
+      header: 'Manufacturer/Model',
+      accessor: 'manufacturer_model',
+      sortable: true,
+      filterable: true,
+      editable: true,
+      required: true,
+      type: 'text',
+    },
+    {
+      id: 'type',
+      header: 'Type',
+      accessor: 'type',
+      sortable: true,
+      filterable: true,
+      editable: true,
+      optional: true,
+      type: 'text',
+    },
+    {
+      id: 'serial_number',
+      header: 'Serial Number',
+      accessor: 'serial_number',
+      sortable: true,
+      filterable: true,
+      editable: true,
+      type: 'text',
+    },
+    {
+      id: 'quantity',
+      header: 'Qty',
+      accessor: 'quantity',
+      sortable: true,
+      editable: true,
+      type: 'number',
+      className: 'w-[80px]',
+    },
+    {
+      id: 'replacement_value',
+      header: 'Value (Each)',
+      accessor: 'replacement_value',
+      sortable: true,
+      editable: true,
+      type: 'currency',
+    },
+    {
+      id: 'total_value',
+      header: 'Total Value',
+      accessor: (row) => (row.replacement_value || 0) * (row.quantity || 1),
+      sortable: true,
+      type: 'currency',
+      readOnly: true,
+    },
+    {
+      id: 'insurance_policy_added',
+      header: 'Insurance',
+      accessor: 'insurance_policy_added',
+      sortable: true,
+      filterable: true,
+      editable: true,
+      type: 'checkbox',
+      className: 'w-[100px] text-center',
+    },
+    {
+      id: 'insurance_class',
+      header: 'Ins. Class',
+      accessor: 'insurance_class',
+      sortable: true,
+      filterable: true,
+      editable: true,
+      optional: true,
+      type: 'text',
+    }
+  ], [categories]);
+
+  const rowActions = useMemo<RowAction<DbAsset>[]>(() => [
+    {
+      id: 'view',
+      onClick: (row) => onViewAsset(row.id),
+    },
+    {
+      id: 'duplicate',
+      onClick: (row) => handleDuplicateAsset(row.id),
+    },
+    {
+      id: 'delete',
+      disabled: () => userRole !== 'Admin',
+      onClick: (row) => handleDeleteAsset(row.id),
+    }
+  ], [onViewAsset, userRole]);
+
   const formatCurrency = (amount?: number) => {
     if (!amount) return '$0';
     return new Intl.NumberFormat('en-US', {
@@ -154,9 +252,6 @@ export default function AssetListScreen({
       currency: 'USD',
     }).format(amount);
   };
-
-  // Get unique categories for filter
-  const categories = Array.from(new Set(assets.map(a => a.category).filter(Boolean)));
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -179,74 +274,29 @@ export default function AssetListScreen({
         />
 
         {/* Header */}
-        <div className="flex items-center justify-between mb-8">
-          <div>
-            <h1 className="text-gray-900 flex items-center gap-2">
-              <Package className="w-8 h-8 text-sky-500" />
-              Assets
-            </h1>
-            <p className="text-sm text-gray-600 mt-1">
-              Manage your equipment inventory
-            </p>
-          </div>
-          <div className="flex gap-2">
-            <Button onClick={onCreateAsset} className="bg-sky-500 hover:bg-sky-600 text-white">
-              <Plus className="w-4 h-4 mr-2" />
-              Add Asset
-            </Button>
-            {onNavigateToImport && (
-              <Button
-                onClick={onNavigateToImport}
-                variant="outline"
-                className="border-sky-500 text-sky-600 hover:bg-sky-50"
-              >
-                <Upload className="w-4 h-4 mr-2" />
-                Import
+        <PageHeader 
+          icon={Package}
+          title="Assets"
+          description="Manage your equipment inventory"
+          actions={
+            <>
+              <Button onClick={onCreateAsset} className="bg-sky-500 hover:bg-sky-600 text-white">
+                <Plus className="w-4 h-4 mr-2" />
+                Add Asset
               </Button>
-            )}
-          </div>
-        </div>
-
-        {/* Filters */}
-        <Card className="p-4 mb-6">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div className="md:col-span-2">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-                <Input
-                  type="text"
-                  placeholder="Search by manufacturer, model, or serial number..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-10"
-                />
-              </div>
-            </div>
-            <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-              <SelectTrigger>
-                <SelectValue placeholder="All Categories" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Categories</SelectItem>
-                {categories.map((cat) => (
-                  <SelectItem key={cat} value={cat}>
-                    {cat}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Select value={insuranceFilter} onValueChange={setInsuranceFilter}>
-              <SelectTrigger>
-                <SelectValue placeholder="Insurance Status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Assets</SelectItem>
-                <SelectItem value="yes">Insured</SelectItem>
-                <SelectItem value="no">Not Insured</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        </Card>
+              {onNavigateToImport && (
+                <Button
+                  onClick={onNavigateToImport}
+                  variant="outline"
+                  className="border-sky-500 text-sky-600 hover:bg-sky-50"
+                >
+                  <Upload className="w-4 h-4 mr-2" />
+                  Import
+                </Button>
+              )}
+            </>
+          }
+        />
 
         {/* Assets Table */}
         <Card className="p-6">
@@ -259,145 +309,57 @@ export default function AssetListScreen({
                 Try Again
               </Button>
             </div>
-          ) : isLoading ? (
-            <div className="flex items-center justify-center py-12">
-              <Loader2 className="w-8 h-8 animate-spin text-sky-500" />
-            </div>
-          ) : assets.length === 0 ? (
+          ) : activeAssets.length === 0 && !isLoading ? (
             <div className="text-center py-12">
               <Package className="w-16 h-16 text-gray-300 mx-auto mb-4" />
               <h3 className="text-gray-900 mb-2">No assets found</h3>
               <p className="text-gray-600 mb-6">
-                {searchQuery || categoryFilter !== 'all' || insuranceFilter !== 'all'
-                  ? 'Try adjusting your filters'
-                  : 'Get started by adding your first asset'}
+                Get started by adding your first asset
               </p>
-              {!searchQuery && categoryFilter === 'all' && insuranceFilter === 'all' && (
-                <Button onClick={onCreateAsset} className="bg-sky-500 hover:bg-sky-600 text-white">
-                  <Plus className="w-4 h-4 mr-2" />
-                  Add Your First Asset
-                </Button>
-              )}
+              <Button onClick={onCreateAsset} className="bg-sky-500 hover:bg-sky-600 text-white">
+                <Plus className="w-4 h-4 mr-2" />
+                Add Your First Asset
+              </Button>
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Category</TableHead>
-                    <TableHead>Manufacturer/Model</TableHead>
-                    <TableHead>Serial Number</TableHead>
-                    <TableHead>Quantity</TableHead>
-                    <TableHead>Replacement Value</TableHead>
-                    <TableHead>Insurance</TableHead>
-                    <TableHead>Insurance Class</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {assets.map((asset) => (
-                    <TableRow key={asset.id}>
-                      <TableCell>
-                        <div>
-                          <div className="text-sm text-gray-900">{asset.category}</div>
-                          {asset.sub_category && (
-                            <div className="text-xs text-gray-500">{asset.sub_category}</div>
-                          )}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="text-sm text-gray-900">{asset.manufacturer_model}</div>
-                        {asset.type && (
-                          <div className="text-xs text-gray-500">{asset.type}</div>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        <div className="text-sm text-gray-700 font-mono">
-                          {asset.serial_number || '—'}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="text-sm text-gray-900">
-                          {asset.quantity || '1'}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="text-sm text-gray-900">
-                          {formatCurrency((asset.replacement_value || 0) * (asset.quantity || 1))}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        {asset.insurance_policy_added ? (
-                          <Badge className="bg-green-100 text-green-700 border-green-200">
-                            <Shield className="w-3 h-3 mr-1" />
-                            Insured
-                          </Badge>
-                        ) : (
-                          <Badge className="bg-gray-100 text-gray-600 border-gray-200">
-                            Not Insured
-                          </Badge>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        <div className="text-sm text-gray-900">
-                          {asset.insurance_class || '—'}
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex items-center justify-end gap-1">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-8 w-8 p-0 text-gray-500 hover:text-sky-600"
-                            onClick={() => onViewAsset(asset.id)}
-                            title="Edit"
-                          >
-                            <Edit className="h-4 w-4" />
-                          </Button>
-                          {userRole === 'Admin' && (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-8 w-8 p-0 text-gray-500 hover:text-red-600"
-                              onClick={() => handleDeleteAsset(asset.id)}
-                              title="Delete"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          )}
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+            <SmartDataTable
+              tableId="assets-table"
+              data={activeAssets}
+              columns={columns}
+              isLoading={isLoading}
+              onRowUpdate={handleUpdateAsset}
+              rowActions={rowActions}
+              onFilteredDataChange={setFilteredAssets}
+              emptyMessage="No assets match your filters"
+            />
+          )}
 
-              {/* Summary */}
-              <div className="mt-6 pt-6 border-t border-gray-200">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div>
-                    <p className="text-sm text-gray-600">Total Items</p>
-                    <p className="text-2xl text-gray-900">
-                      {assets.reduce((sum, a) => sum + (a.quantity || 1), 0)}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-gray-600">Total Replacement Value</p>
-                    <p className="text-2xl text-gray-900">
-                      {formatCurrency(
-                        assets.reduce((sum, a) => sum + (a.replacement_value || 0) * (a.quantity || 1), 0)
-                      )}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-gray-600">Insured Items</p>
-                    <p className="text-2xl text-gray-900">
-                      {assets
-                        .filter((a) => a.insurance_policy_added)
-                        .reduce((sum, a) => sum + (a.quantity || 1), 0)} /{' '}
-                      {assets.reduce((sum, a) => sum + (a.quantity || 1), 0)}
-                    </p>
-                  </div>
+          {/* Summary */}
+          {!isLoading && !error && activeAssets.length > 0 && (
+            <div className="mt-6 pt-6 border-t border-gray-200">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                  <p className="text-sm text-gray-600">Total Items</p>
+                  <p className="text-2xl text-gray-900">
+                    {filteredAssets.reduce((sum, a) => sum + (a.quantity || 1), 0)}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-600">Total Replacement Value</p>
+                  <p className="text-2xl text-gray-900">
+                    {formatCurrency(
+                      filteredAssets.reduce((sum, a) => sum + (a.replacement_value || 0) * (a.quantity || 1), 0)
+                    )}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-600">Insured Items</p>
+                  <p className="text-2xl text-gray-900">
+                    {filteredAssets
+                      .filter((a) => a.insurance_policy_added)
+                      .reduce((sum, a) => sum + (a.quantity || 1), 0)} /{' '}
+                    {filteredAssets.reduce((sum, a) => sum + (a.quantity || 1), 0)}
+                  </p>
                 </div>
               </div>
             </div>

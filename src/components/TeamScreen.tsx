@@ -62,7 +62,9 @@ import {
   TableHeader,
   TableRow,
 } from './ui/table';
+import { SmartDataTable, ColumnDef, RowAction } from './tables/SmartDataTable';
 import AppHeader from './AppHeader';
+import { PageHeader } from './ui/PageHeader';
 import { 
   User, 
   Organization, 
@@ -72,6 +74,7 @@ import {
 } from '../utils/supabase/types';
 import { format } from 'date-fns';
 import UserProfileForm, { UserProfileFormData } from './UserProfileForm';
+import { getTimezoneOptions } from '../utils/timezones';
 
 interface TeamScreenProps {
   organization: Organization;
@@ -452,6 +455,251 @@ export default function TeamScreen({
     }
   };
 
+  const staffRoleOptions = useMemo(() => 
+    staffRoles.map(role => ({ label: role.name, value: role.id })), 
+    [staffRoles]
+  );
+
+  const timezoneOptions = useMemo(() => getTimezoneOptions(), []);
+
+  const memberColumns = useMemo<ColumnDef<OrganizationMember>[]>(() => [
+    {
+      id: 'name',
+      header: 'Name',
+      accessor: (row) => `${row.user.first_name} ${row.user.last_name}`,
+      sortable: true,
+      filterable: true,
+      editable: canManageTeam,
+      type: 'text',
+      render: (val, row) => {
+        const isCurrentUser = row.user?.id === user.id;
+        return (
+          <div className="flex items-center gap-3">
+            {row.user.avatar_url ? (
+              <img src={row.user.avatar_url} alt="" className="w-8 h-8 rounded-full border" />
+            ) : (
+              <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-gray-500 border">
+                <UserIcon className="w-4 h-4" />
+              </div>
+            )}
+            <div className="flex items-center gap-2">
+              <span className="font-medium text-gray-900">{val || 'Unknown'}</span>
+              {isCurrentUser && (
+                <Badge variant="outline" className="text-xs">You</Badge>
+              )}
+            </div>
+          </div>
+        );
+      }
+    },
+    {
+      id: 'email',
+      header: 'Email',
+      accessor: (row) => row.user.email,
+      sortable: true,
+      filterable: true,
+    },
+    {
+      id: 'staff_role',
+      header: 'Position',
+      accessor: 'default_staff_role_id',
+      sortable: true,
+      filterable: true,
+      editable: canManageTeam,
+      type: 'select',
+      options: staffRoleOptions,
+      render: (val) => (
+        <span className="text-sm text-gray-600">
+          {val ? staffRoleMap.get(val) || 'None' : 'None'}
+        </span>
+      )
+    },
+    {
+      id: 'role',
+      header: 'System Role',
+      accessor: 'role',
+      sortable: true,
+      filterable: true,
+      editable: canManageTeam,
+      type: 'select',
+      options: [
+        { label: 'Admin', value: 'Admin' },
+        { label: 'Manager', value: 'Manager' },
+        { label: 'Staff', value: 'Staff' },
+        { label: 'Viewer', value: 'Viewer' },
+      ],
+      render: (val) => (
+        <Badge className={getRoleBadgeColor(val as UserRole)}>
+          <div className="flex items-center gap-1">
+            {getRoleIcon(val as UserRole)}
+            {val}
+          </div>
+        </Badge>
+      )
+    },
+    {
+      id: 'timezone',
+      header: 'Timezone',
+      accessor: (row) => row.user.timezone,
+      sortable: true,
+      filterable: true,
+      optional: true,
+      editable: canManageTeam,
+      type: 'select',
+      options: timezoneOptions,
+      render: (val) => {
+        const tz = timezoneOptions.find(o => o.value === val);
+        return <span className="text-sm text-gray-600">{tz?.label || val || '—'}</span>;
+      }
+    },
+    {
+      id: 'last_login',
+      header: 'Last Login',
+      accessor: (row) => row.user.last_sign_in_at,
+      sortable: true,
+      render: (_, row) => {
+        if (row.user.user_status === 'pending') {
+          return (
+            <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-300">
+              <Clock className="w-3 h-3 mr-1" />
+              Pending
+            </Badge>
+          );
+        }
+        return (
+          <div className="text-sm text-gray-600">
+            {row.user.last_sign_in_at 
+              ? format(new Date(row.user.last_sign_in_at), 'MMM d, h:mm a')
+              : 'Never'}
+          </div>
+        );
+      }
+    }
+  ], [staffRoleMap, staffRoleOptions, timezoneOptions, user.id, canManageTeam]);
+
+  const invitationColumns = useMemo<ColumnDef<Invitation>[]>(() => [
+    {
+      id: 'email',
+      header: 'Email',
+      accessor: 'email',
+      sortable: true,
+      filterable: true,
+      render: (val) => (
+        <div className="flex items-center gap-2">
+          <Mail className="w-4 h-4 text-gray-400" />
+          {val}
+        </div>
+      )
+    },
+    {
+      id: 'role',
+      header: 'Role',
+      accessor: 'role',
+      sortable: true,
+      filterable: true,
+      render: (val) => (
+        <Badge className={getRoleBadgeColor(val as UserRole)}>
+          {val}
+        </Badge>
+      )
+    },
+    {
+      id: 'invited_by',
+      header: 'Invited By',
+      accessor: (row) => row.invited_by_user ? `${row.invited_by_user.first_name} ${row.invited_by_user.last_name}` : '-',
+      sortable: true,
+    },
+    {
+      id: 'expires_at',
+      header: 'Expires',
+      accessor: 'expires_at',
+      sortable: true,
+      render: (val) => (
+        <div className="flex items-center gap-2 text-sm text-gray-600">
+          <Clock className="w-4 h-4" />
+          {format(new Date(val), 'MMM d, yyyy')}
+        </div>
+      )
+    }
+  ], []);
+
+  const handleMemberUpdate = async (id: string, updates: Partial<OrganizationMember>) => {
+    const member = members.find(m => m.id === id);
+    if (!member) return;
+
+    const serviceData: Record<string, any> = {};
+    const localUserUpdates: Record<string, any> = {};
+    const localMemberUpdates: Record<string, any> = {};
+
+    if ('name' in updates) {
+      const fullName = String((updates as any).name || '').trim();
+      const spaceIdx = fullName.indexOf(' ');
+      const first = spaceIdx > 0 ? fullName.slice(0, spaceIdx) : fullName;
+      const last = spaceIdx > 0 ? fullName.slice(spaceIdx + 1) : '';
+      serviceData.first_name = first;
+      serviceData.last_name = last;
+      localUserUpdates.first_name = first;
+      localUserUpdates.last_name = last;
+    }
+    if ('role' in updates) {
+      serviceData.role = updates.role;
+      localMemberUpdates.role = updates.role;
+    }
+    if ('default_staff_role_id' in updates) {
+      serviceData.default_staff_role_id = updates.default_staff_role_id;
+      localMemberUpdates.default_staff_role_id = updates.default_staff_role_id;
+    }
+    if ('timezone' in updates) {
+      serviceData.timezone = (updates as any).timezone;
+      localUserUpdates.timezone = (updates as any).timezone;
+    }
+
+    setMembers(prev => prev.map(m => {
+      if (m.id !== id) return m;
+      return {
+        ...m,
+        ...localMemberUpdates,
+        user: { ...m.user, ...localUserUpdates },
+      };
+    }));
+
+    try {
+      await updateMemberDetails(organization.id, id, serviceData);
+    } catch (error: any) {
+      setMembers(prev => prev.map(m => (m.id === id ? member : m)));
+      console.error('Error updating member:', error);
+      toast.error(error.message || 'Failed to update member');
+    }
+  };
+
+  const memberRowActions = useMemo<RowAction<OrganizationMember>[]>(() => [
+    {
+      id: 'view',
+      label: 'View Details',
+      onClick: (row) => onViewMember?.(row.id),
+    },
+    {
+      id: 'edit',
+      label: 'Edit Permissions',
+      disabled: () => !canManageTeam,
+      onClick: (row) => openEditDialog(row),
+    },
+    {
+      id: 'delete',
+      label: 'Remove from Team',
+      disabled: (row) => !canManageTeam || row.user.id === user.id,
+      onClick: (row) => setMemberToRemove(row),
+    }
+  ], [canManageTeam, user.id, onViewMember]);
+
+  const invitationRowActions = useMemo<RowAction<Invitation>[]>(() => [
+    {
+      id: 'delete',
+      label: 'Cancel Invitation',
+      onClick: (row) => setInvitationToCancel(row),
+    }
+  ], []);
+
   return (
     <div className="min-h-screen bg-gray-50">
       <AppHeader
@@ -459,38 +707,28 @@ export default function TeamScreen({
         organization={organization}
         userRole={userRole}
         currentRoute="team"
-        onNavigateToDashboard={onNavigateToDashboard}
-        onNavigateToGigs={onNavigateToGigs}
-        onNavigateToTeam={onNavigateToTeam}
-        onNavigateToAssets={onNavigateToAssets}
         onSwitchOrganization={onSwitchOrganization}
         onEditProfile={onEditProfile}
         onLogout={onLogout}
       />
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-3">
-            <Users className="w-8 h-8 text-gray-700" />
-            <div>
-              <h1 className="text-gray-900">Team</h1>
-              <p className="text-sm text-gray-600">
-                Manage members of {organization.name}
-              </p>
-            </div>
-          </div>
-          
-          {canManageTeam && (
-            <Button
-              onClick={() => setShowAddDialog(true)}
-              className="bg-sky-500 hover:bg-sky-600 text-white"
-            >
-              <Plus className="mr-2 h-4 w-4" />
-              Add Team Member
-            </Button>
-          )}
-        </div>
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <PageHeader 
+          icon={Users}
+          title="Team"
+          description={`Manage members of ${organization.name}`}
+          actions={
+            canManageTeam && (
+              <Button
+                onClick={() => setShowAddDialog(true)}
+                className="bg-sky-500 hover:bg-sky-600 text-white"
+              >
+                <Plus className="mr-2 h-4 w-4" />
+                Add Team Member
+              </Button>
+            )
+          }
+        />
 
         {/* Migration Notice Banner */}
         {canManageTeam && !invitationsTableExists && (
@@ -536,104 +774,14 @@ export default function TeamScreen({
               <p className="text-gray-600">No team members yet</p>
             </div>
           ) : (
-            <div className="border rounded-lg overflow-hidden p-6">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Name</TableHead>
-                    <TableHead>Email</TableHead>
-                    <TableHead>Position</TableHead>
-                    <TableHead>Role</TableHead>
-                    <TableHead>Last Login</TableHead>
-                    {canManageTeam && <TableHead className="text-right">Actions</TableHead>}
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {members.map((member) => {
-                    const isCurrentUser = member.user?.id === user.id;
-                    const memberName = `${member.user.first_name} ${member.user.last_name}`.trim();
-                    
-                    return (
-                      <TableRow key={member.id}>
-                        <TableCell>
-                          <div className="flex items-center gap-2">
-                            {memberName || 'Unknown'}
-                            {isCurrentUser && (
-                              <Badge variant="outline" className="text-xs">You</Badge>
-                            )}
-                          </div>
-                        </TableCell>
-                        <TableCell>{member.user.email}</TableCell>
-                        <TableCell>
-                          <span className="text-sm text-gray-600">
-                            {member.default_staff_role_id 
-                              ? staffRoleMap.get(member.default_staff_role_id) || 'None'
-                              : 'None'}
-                          </span>
-                        </TableCell>
-                        <TableCell>
-                          <Badge className={getRoleBadgeColor(member.role as UserRole)}>
-                            <div className="flex items-center gap-1">
-                              {getRoleIcon(member.role as UserRole)}
-                              {member.role}
-                            </div>
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          {member.user.user_status === 'pending' ? (
-                            <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-300">
-                              <Clock className="w-3 h-3 mr-1" />
-                              Pending
-                            </Badge>
-                          ) : (
-                            <div className="text-sm text-gray-600">
-                              {member.user.last_sign_in_at 
-                                ? format(new Date(member.user.last_sign_in_at), 'MMM d, h:mm a')
-                                : 'Never'}
-                            </div>
-                          )}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <div className="flex items-center justify-end gap-1">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-8 w-8 p-0 text-gray-500 hover:text-sky-600"
-                              onClick={() => onViewMember?.(member.id)}
-                              title="View"
-                            >
-                              <Eye className="w-4 h-4" />
-                            </Button>
-                            {canManageTeam && (
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="h-8 w-8 p-0 text-gray-500 hover:text-sky-600"
-                                onClick={() => openEditDialog(member)}
-                                title="Edit"
-                              >
-                                <Edit className="w-4 h-4" />
-                              </Button>
-                            )}
-                            {canManageTeam && !isCurrentUser && (
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="h-8 w-8 p-0 text-gray-500 hover:text-red-600"
-                                onClick={() => setMemberToRemove(member)}
-                                title="Remove"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </Button>
-                            )}
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
-            </div>
+            <SmartDataTable
+              tableId="team-members"
+              data={members}
+              columns={memberColumns}
+              rowActions={memberRowActions}
+              onRowUpdate={handleMemberUpdate}
+              onAddRowClick={canManageTeam ? () => setShowAddDialog(true) : undefined}
+            />
           )}
         </Card>
 
@@ -641,59 +789,12 @@ export default function TeamScreen({
         {canManageTeam && invitations.length > 0 && (
           <Card className="p-6">
             <h2 className="mb-4 text-gray-900">Pending Invitations</h2>
-            <div className="border rounded-lg overflow-hidden">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Email</TableHead>
-                    <TableHead>Role</TableHead>
-                    <TableHead>Invited By</TableHead>
-                    <TableHead>Expires</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {invitations.map((invitation) => (
-                    <TableRow key={invitation.id}>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          <Mail className="w-4 h-4 text-gray-400" />
-                          {invitation.email}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <Badge className={getRoleBadgeColor(invitation.role as UserRole)}>
-                          {invitation.role}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        {invitation.invited_by_user ? (
-                          `${invitation.invited_by_user.first_name} ${invitation.invited_by_user.last_name}`
-                        ) : (
-                          <span className="text-gray-400">-</span>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-2 text-sm text-gray-600">
-                          <Clock className="w-4 h-4" />
-                          {format(new Date(invitation.expires_at), 'MMM d, yyyy')}
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => setInvitationToCancel(invitation)}
-                          className="text-red-600"
-                        >
-                          <X className="w-4 h-4" />
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
+            <SmartDataTable
+              tableId="team-invitations"
+              data={invitations}
+              columns={invitationColumns}
+              rowActions={invitationRowActions}
+            />
           </Card>
         )}
       </div>

@@ -5,6 +5,7 @@ import {
   ChevronsUpDown,
   Filter,
   MoreHorizontal,
+  Plus,
   Settings2,
   X,
   Search,
@@ -73,6 +74,8 @@ interface SmartDataTableProps<T extends { id: string }> {
   data: T[];
   columns: ColumnDef<T>[];
   onRowUpdate?: (id: string, updates: Partial<T>) => Promise<void>;
+  onAddRow?: () => Promise<T>;
+  onAddRowClick?: () => void;
   onFilteredDataChange?: (data: T[]) => void;
   actions?: (row: T) => React.ReactNode;
   rowActions?: RowAction<T>[];
@@ -86,6 +89,8 @@ export function SmartDataTable<T extends { id: string }>({
   data,
   columns,
   onRowUpdate,
+  onAddRow,
+  onAddRowClick,
   onFilteredDataChange,
   actions,
   rowActions,
@@ -103,11 +108,12 @@ export function SmartDataTable<T extends { id: string }>({
     toggleColumnVisibility,
   } = useTableState(tableId);
 
-  // Filter and sort data
+  const [newRowIds, setNewRowIds] = useState<Set<string>>(new Set());
+  const [isAddingRow, setIsAddingRow] = useState(false);
+
   const processedData = useMemo(() => {
     let result = [...data];
 
-    // Apply filters
     Object.entries(filters).forEach(([columnId, filterValue]) => {
       if (!filterValue) return;
 
@@ -115,6 +121,8 @@ export function SmartDataTable<T extends { id: string }>({
       if (!column) return;
 
       result = result.filter((row) => {
+        if (newRowIds.has(row.id)) return true;
+
         const val = typeof column.accessor === 'function' 
           ? column.accessor(row) 
           : row[column.accessor];
@@ -154,7 +162,7 @@ export function SmartDataTable<T extends { id: string }>({
     }
 
     return result;
-  }, [data, columns, sorting, filters]);
+  }, [data, columns, sorting, filters, newRowIds]);
 
   // Notify parent of filtered data changes
   React.useEffect(() => {
@@ -183,6 +191,35 @@ export function SmartDataTable<T extends { id: string }>({
       }
     }
   }, [onRowUpdate, columns]);
+
+  const handleCellSaveForNewRow = useCallback(async (rowId: string, columnId: string, newValue: any) => {
+    await handleCellSave(rowId, columnId, newValue);
+    setNewRowIds(prev => {
+      if (!prev.has(rowId)) return prev;
+      const next = new Set(prev);
+      next.delete(rowId);
+      return next;
+    });
+  }, [handleCellSave]);
+
+  const handleAddRow = useCallback(async () => {
+    if (!onAddRow || isAddingRow) return;
+    setIsAddingRow(true);
+    try {
+      const newRow = await onAddRow();
+      setNewRowIds(prev => new Set(prev).add(newRow.id));
+      setTimeout(() => {
+        const firstEditable = visibleColumns.find(c => c.editable && !c.readOnly);
+        if (firstEditable) {
+          setSelectedCell({ rowId: newRow.id, colId: firstEditable.id });
+        }
+      }, 50);
+    } catch (error) {
+      console.error('Failed to add row', error);
+    } finally {
+      setIsAddingRow(false);
+    }
+  }, [onAddRow, isAddingRow, visibleColumns]);
 
   const tableContainerRef = useRef<HTMLDivElement>(null);
 
@@ -413,6 +450,7 @@ export function SmartDataTable<T extends { id: string }>({
                           <Button 
                             variant="ghost" 
                             size="sm" 
+                            aria-label={`Filter ${column.header}`}
                             className={cn(
                               "h-6 w-6 p-0 transition-opacity", 
                               filters[column.id] && "text-sky-600"
@@ -472,7 +510,7 @@ export function SmartDataTable<T extends { id: string }>({
                         value={value}
                         column={column}
                         row={row}
-                        onSave={(newValue) => handleCellSave(row.id, column.id, newValue)}
+                        onSave={(newValue) => (newRowIds.has(row.id) ? handleCellSaveForNewRow : handleCellSave)(row.id, column.id, newValue)}
                         isSelected={isSelected}
                         onSelect={() => {
                           setSelectedCell({ rowId: row.id, colId: column.id });
@@ -504,6 +542,19 @@ export function SmartDataTable<T extends { id: string }>({
             )}
           </TableBody>
         </Table>
+        {(onAddRow || onAddRowClick) && (
+          <div className="border-t">
+            <button
+              type="button"
+              onClick={onAddRowClick || handleAddRow}
+              disabled={isAddingRow}
+              className="flex items-center gap-1.5 w-full px-4 py-2 text-sm text-muted-foreground hover:text-foreground hover:bg-gray-50 transition-colors disabled:opacity-50"
+            >
+              <Plus className="h-4 w-4" />
+              {isAddingRow ? 'Adding...' : 'Add Row'}
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );
