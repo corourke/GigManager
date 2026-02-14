@@ -122,15 +122,16 @@ This app streamlines the management of gigs (where an act performs at a venue) f
 
 | Feature | Admin | Manager | Staff | Viewer |
 |---------|-------|---------|-------|--------|
-| View all gigs | ✅ | ✅ | Own gigs only | ✅ |
+| Accept / Reject assignments | ✅ | ✅ | ✅ | ✅ |
+| Receive Notifications | ✅ | ✅ | ✅ | ✅ |
+| View organization's gig details | ✅ | ✅ | Own gigs only | ❌ |
 | Create/edit gigs | ✅ | ✅ | ❌ | ❌ |
 | Assign staff | ✅ | ✅ | ❌ | ❌ |
 | Manage assets | ✅ | ✅ | ❌ | ❌ |
 | View and edit gig financials | ✅ | ❌ | ❌ | ❌ |
 | Invite users | ✅ | ❌ | ❌ | ❌ |
-| Change user roles | ✅ | ❌ | ❌ | ❌ |
+| Change roles | ✅ | ❌ | ❌ | ❌ |
 | Delete data | ✅ | ❌ | ❌ | ❌ |
-| See and change financial information | ✅ | ❌ | ❌ | ❌ |
 
 #### User Profile
 
@@ -183,12 +184,12 @@ This app streamlines the management of gigs (where an act performs at a venue) f
 
 **Basic Fields**:
 - **Required**: title, start (datetime), end (datetime), timezone, status
-- **Optional**: notes, amount_paid, tags (array)
+- **Optional**: notes, tags (array)
 
 **Related Entities**:
 - **Participants**: Organizations involved (act, venue, clients, production companies, sound/lighting companies)
-- **Staff Slots**: Defined roles with optional staff assignments
-- **Bids**: Financial proposals to other organizations
+- **Staff Slots**: Defined gig roles with optional staff assignments
+- **Financials**: Financial transactions related to the gig and possibly to other organizations
 - **Kit Assignments**: Equipment packages assigned to gig
 
 #### Gig Participants
@@ -202,20 +203,19 @@ This app streamlines the management of gigs (where an act performs at a venue) f
 - **Staff Slot**: Defined role needed for gig (e.g., "Sound Engineer", "Lighting Tech")
   - Attributes: title, count (how many needed), notes
 - **Staff Assignment**: Assignment of specific user to a slot
-  - Attributes: user_id, slot_id, status (Invited, Confirmed, Declined, Completed)
+  - Attributes: user_id, slot_id, status (Invited, Confirmed, Declined)
 - **Unassigned Slots**: Slots can exist without assignments (TBD staffing)
 - **Conflict Detection**: Warn when assigning staff to overlapping gigs
 
-#### Bids
+#### Financials
 
-- **Purpose**: Track financial proposals for gigs
+- **Purpose**: Track financial transactions (Bids, Contracts, Expenses, Payments) for gigs
 - **Bid Fields**: organization_id, amount, currency, status (Draft, Sent, Accepted, Rejected), notes
-- **Multiple Bids**: Gig can have multiple bids from different organizations
 
 #### Gig CRUD Operations
 
 - **Create**: Manager+ can create gigs
-- **Read**: All roles can view gigs (staff see only assigned gigs)
+- **Read**: Staff+ can view gigs (staff see only assigned gigs)
 - **Update**: Manager+ can edit gigs
 - **Delete**: Admin can delete gigs
 - **Duplicate**: Copy gig with all related data (participants, slots, kit assignments)
@@ -226,7 +226,10 @@ This app streamlines the management of gigs (where an act performs at a venue) f
 
 #### Assets
 
+Tracking all assets owned, for the purposes of assigning equipment to gigs, tracking insurance values, and general inventory.
+
 **Asset Data**:
+
 - **Required**: category, manufacturer_model, acquisition_date
 - **Optional**: sub_category, type, serial_number, vendor, cost, quantity, replacement_value, insurance_policy_added, insurance_class, notes
 
@@ -238,6 +241,8 @@ This app streamlines the management of gigs (where an act performs at a venue) f
 - Filter by insurance status
 
 #### Kits (Equipment Packages)
+
+Groupings of assets that can be deployed on gigs. Simplifies building packages, and groups items that go together (like the individual items in a rack) into one unit. Assets can belong to multiple kits, but we want to detect when the same asset has been assigned on overlapping dates. 
 
 **Kit Data**:
 - **Required**: name
@@ -256,6 +261,7 @@ This app streamlines the management of gigs (where an act performs at a venue) f
 #### Kit Assignments
 
 - **Purpose**: Assign equipment packages to gigs
+- **Conflict Detection**: Warn when assigning assets to overlapping gigs
 - **Data**: kit_id, gig_id, notes
 - **Multiple Assignments**: Gig can have multiple kits assigned
 
@@ -276,6 +282,7 @@ This app streamlines the management of gigs (where an act performs at a venue) f
 - **Insurance Report**: Assets with insurance details
 - **Asset Utilization**: Which assets are used most often
 - **Depreciation**: Track asset values over time
+- **Retirement:** Track when assets should be retired and disposition
 
 #### Financial Reports
 
@@ -297,7 +304,7 @@ This app streamlines the management of gigs (where an act performs at a venue) f
 
 #### CSV Export
 
-- **Export Types**: Gigs, Assets & Kits
+- **Export Types**: Gigs, Insurance Asset List
 - **Filters**: Export filtered/searched data
 
 ---
@@ -331,12 +338,11 @@ This app streamlines the management of gigs (where an act performs at a venue) f
 
 - **Month View**: Display gigs in calendar format
 - **Week View**: Detailed weekly schedule
-- **Day View**: Hour-by-hour breakdown
 - **Filters**: Filter by status, staff, venue, act
 
 #### Calendar Integration
 
-- **Google Calendar Integration**: Direct integration with Google Calendar API
+- **Google Calendar Integration**: Direct integration with Google Calendar API. User specifies a specific calendar to sync to. Gig adds, deletes and updates are reflected in the Google Calendar. There is a link in the calendar entry to go to the Gig record in the App.
 
 #### Conflict Detection
 
@@ -349,6 +355,8 @@ This app streamlines the management of gigs (where an act performs at a venue) f
 ### 9. Technical Documentation
 
 #### Attachments & File Management
+
+There is a uniform file attachment facility that is used in multiple places. 
 
 - **Organization Attachments**: Upload contracts, insurance certificates, W-9s, vendor agreements
 - **Gig Attachments**: Upload stage plots, input lists, contracts, riders, production schedules
@@ -442,15 +450,15 @@ CSV import functionality for gigs and assets with client-side validation, immedi
 | venue | No | string | "Madison Square Garden" | Organization name (type: Venue) |
 | tags | No | comma-separated | "festival,outdoor,summer" | Converted to array |
 | notes | No | string | "Load-in at 2pm" | Free-form text |
-| amount_paid | No | number | "5000.00" | Numeric or empty |
+| amount | No | number | "5000.00" | Numeric or empty |
 
 #### Asset Template Columns
 
 | Column | Required | Type | Example | Notes |
 |--------|----------|------|---------|-------|
-| category | Yes | string | "Sound" | Asset category |
 | manufacturer_model | Yes | string | "Shure SM58" | Model identifier |
 | acquisition_date | Yes | YYYY-MM-DD | "2023-01-15" | Date format |
+| category | Yes | string | "Sound" | Asset category |
 | sub_category | No | string | "Microphones" | Sub-classification |
 | equipment_type | No | string | "Dynamic Microphone" | Maps to 'type' field |
 | serial_number | No | string | "SN12345" | Unique identifier |
@@ -458,8 +466,8 @@ CSV import functionality for gigs and assets with client-side validation, immedi
 | cost_per_item | No | number | "99.99" | Maps to 'cost' field |
 | quantity | No | integer | "4" | Defaults to 1 |
 | replacement_value_per_item | No | number | "120.00" | Maps to 'replacement_value' |
-| insured | No | boolean | "yes" | Maps to 'insurance_policy_added' |
-| insurance_category | No | string | "Microphones" | Maps to 'insurance_class' |
+| insured | No | boolean | "True" | Maps to 'insurance_policy_added' |
+| insurance_category | No | string | "E" | Maps to 'insurance_class' |
 | notes | No | string | "Purchased in bulk" | Free-form text |
 
 ### Validation Rules
@@ -504,6 +512,7 @@ CSV import functionality for gigs and assets with client-side validation, immedi
    - Create gig_participants for act if provided
    - Create gig_participants for venue if provided
    - Always include current organization as a participant
+   - Create a 'Payment Recieved' financial transaction if amount is present.
 4. Show success count and any errors
 
 #### Asset Import Process
@@ -857,17 +866,69 @@ Sarah & John Wedding (parent_gig_id = null)
 
 ---
 
+## Robust Tables Feature
+
+### 1. Overview
+The goal is to implement a robust, highly-functional, and consistent table system across the GigManager application. The new system will provide advanced sorting, filtering, and column management, along with a seamless in-place editing experience inspired by tools like Coda and Notion.
+
+### 2. Goals
+- Provide a unified table component that can be used throughout the application.
+- Enhance data discoverability through persistent sorting and multi-criteria filtering.
+- Allow users to customize their view by adding or removing columns.
+- Implement a "natural" in-place editing experience that minimizes UI disruption.
+- Ensure state persistence (filters, sorting, column layout) across page reloads.
+
+### 3. Features
+
+#### 3.1. Robust Table Capabilities
+- **Sorting**:
+  - Click on column headers to cycle through Ascending, Descending, and No Sort.
+  - Sorting state must persist across sessions/page invocations.
+- **Filtering**:
+  - Support for multiple filtering criteria simultaneously.
+  - Filtering state must persist across sessions/page invocations.
+- **Column Management**:
+  - Ability to toggle visibility of optional columns.
+  - Column layout (which columns are visible) must persist across sessions/page invocations.
+
+#### 3.2. In-place Editing ("Natural Feel")
+- **UX Patterns**:
+  - Single click to select a cell (shows a blue outline).
+  - Double click to enter edit mode.
+  - No flickering or formatting changes when switching to edit mode.
+- **Field Types**:
+  - **Checkboxes**: Direct interaction.
+  - **Text Fields**: Cursor placed at the end of text on entry.
+  - **Pills (Badges)**: Maintain formatting; cursor placed at the end to add/edit. Backspace to delete pill, select list with search to add a new pill. Use colors from `src/utils/supabase/constants.ts`.
+  - **Select Lists**: Dropdown with a search/filter field.
+- **Persistence**: Edits should be saved immediately (auto-save) or via a robust update mechanism.
+
+#### 3.3. Configuration & Consistency
+- **Schema-driven Configuration**:
+  - Define fields that are **Required** (must be in table).
+  - Define fields that are **Read-only**.
+  - Define fields that are **Optional** (can be toggled by user).
+- **Action Column**:
+  - Configurable actions (Edit, Delete, Duplicate, etc.) per table instance.
+- **Uniformity**: Consistent styling and behavior for all tables (main screens and nested tables in Edit screens).
+
+### 4. User Experience (UX)
+- Blue outline for selected cells.
+- Smooth transitions between viewing and editing states.
+- Intuitive sorting and filtering UI (e.g., icons in headers).
+- Persistent state should feel seamless to the user.
+
+### 5. Technical Constraints
+- Must integrate with existing **Shadcn/ui** and **Tailwind CSS**.
+- State persistence using **LocalStorage**.
+- Must handle both top-level list screens and nested tables (e.g., inside Gig or Kit edit forms).
+- Use **Zod** for any necessary validation during editing.
+
 ## Related Documentation
 
 - [Feature Catalog](./feature-catalog.md) - Implementation status of all features
-- [Development Plan](../development/development-plan.md) - Refactoring roadmap
-- [AI Coding Guide](../development/ai-agents/coding-guide.md) - Implementation patterns
+- [AI Coding Guide](../development/coding-guide.md) - Implementation patterns
 - [Database Documentation](../technical/database.md) - Schema and RLS policies
 - [Tech Stack](../technical/tech-stack.md) - Technology overview
 - [UI Workflows](./workflows/) - User interface specifications
 
----
-
-**Last Updated**: 2026-01-18  
-**Maintained By**: Product Team  
-**Review Frequency**: Update when requirements change or new features are added
