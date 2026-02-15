@@ -1101,6 +1101,16 @@ export async function updateGigAct(gigId: string, organizationId: string | null)
   }
 }
 
+// Re-export conflict detection functions for convenience
+export {
+  checkStaffConflicts,
+  checkVenueConflicts,
+  checkEquipmentConflicts,
+  checkAllConflicts,
+  type Conflict,
+  type ConflictResult
+} from './conflictDetection.service';
+
 /**
  * Legacy alias for getGigsForOrganization
  */

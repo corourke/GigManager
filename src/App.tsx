@@ -22,6 +22,7 @@ import EditUserProfileDialog from './components/EditUserProfileDialog';
 import InvitationErrorScreen from './components/InvitationErrorScreen';
 import CalendarScreen from './components/CalendarScreen';
 import CalendarAuthCallback from './components/CalendarAuthCallback';
+import SettingsScreen from './components/SettingsScreen';
 import { Toaster } from './components/ui/sonner';
 import { toast } from 'sonner';
 import { NavigationProvider } from './contexts/NavigationContext';
@@ -56,6 +57,7 @@ type Route =
   | 'kit-detail'
   | 'calendar'
   | 'calendar-auth-callback'
+  | 'settings'
   | 'import'
   | 'dev-demo';
 
@@ -439,6 +441,10 @@ function App() {
     setCurrentRoute('calendar');
   };
 
+  const handleNavigateToSettings = () => {
+    setCurrentRoute('settings');
+  };
+
   const handleEditProfile = () => {
     setShowEditProfileDialog(true);
   };
@@ -477,7 +483,9 @@ function App() {
       onNavigateToGigs={handleNavigateToGigs}
       onNavigateToTeam={handleNavigateToTeam}
       onNavigateToAssets={handleNavigateToAssets}
+      onNavigateToCalendar={handleNavigateToCalendar}
       onEditProfile={handleEditProfile}
+      onNavigateToSettings={handleNavigateToSettings}
     >
       {currentRoute === 'dev-demo' && (
         <DevTableDemoScreen onBack={() => setCurrentRoute('dashboard')} />
@@ -566,6 +574,7 @@ function App() {
               onNavigateToDashboard={handleBackToDashboard}
               onNavigateToGigs={handleBackToGigList}
               onNavigateToAssets={handleNavigateToAssets}
+              onNavigateToCalendar={handleNavigateToCalendar}
               onNavigateToImport={handleNavigateToImport}
               onSwitchOrganization={handleBackToSelection}
               onEditProfile={handleEditProfile}
@@ -598,6 +607,7 @@ function App() {
               userRole={userRole}
               onBack={handleBackToGigList}
               onEdit={handleEditGig}
+              onNavigateToCalendar={handleNavigateToCalendar}
               onSwitchOrganization={handleBackToSelection}
               onLogout={handleLogout}
             />
@@ -751,8 +761,23 @@ function App() {
           {currentRoute === 'calendar-auth-callback' && user && (
             <CalendarAuthCallback
               userId={user.id}
-              onAuthComplete={() => setCurrentRoute('calendar')}
-              onBack={() => setCurrentRoute('calendar')}
+              onAuthComplete={() => setCurrentRoute('settings')}
+              onBack={() => setCurrentRoute('settings')}
+            />
+          )}
+
+          {currentRoute === 'settings' && (
+            <SettingsScreen
+              organization={selectedOrganization}
+              user={user}
+              userRole={userRole}
+              onBack={handleBackToDashboard}
+              onNavigateToDashboard={handleBackToDashboard}
+              onNavigateToGigs={handleNavigateToGigs}
+              onNavigateToAssets={handleNavigateToAssets}
+              onSwitchOrganization={handleBackToSelection}
+              onLogout={handleLogout}
+              onEditProfile={handleEditProfile}
             />
           )}
 

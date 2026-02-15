@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Calendar, dateFnsLocalizer } from 'react-big-calendar';
 import { format, parse, startOfWeek, getDay, isWithinInterval } from 'date-fns';
 import { enUS } from 'date-fns/locale';
+import { toast } from 'sonner';
 import 'react-big-calendar/lib/css/react-big-calendar.css';
 
 import { Button } from './ui/button';
@@ -14,9 +15,11 @@ import { Calendar as CalendarIcon, ChevronLeft, ChevronRight } from 'lucide-reac
 import AppHeader from './AppHeader';
 import { PageHeader } from './ui/PageHeader';
 import { CalendarFilters } from './CalendarFilters';
+import { ConflictWarning } from './ConflictWarning';
 import {
   getGigsForOrganization,
 } from '../services/gig.service';
+import { checkAllConflicts, Conflict } from '../services/conflictDetection.service';
 import { Organization, User, UserRole, GigStatus, Gig } from '../utils/supabase/types';
 import { GIG_STATUS_CONFIG } from '../utils/supabase/constants';
 import { formatDateTimeDisplay } from '../utils/dateUtils';
@@ -74,6 +77,7 @@ export default function CalendarScreen({
   onEditProfile,
 }: CalendarScreenProps) {
   const [gigs, setGigs] = useState<Gig[]>([]);
+  const [conflicts, setConflicts] = useState<Conflict[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentDate, setCurrentDate] = useState(new Date());
   const [view, setView] = useState<ViewType>('month');
@@ -95,6 +99,14 @@ export default function CalendarScreen({
       setLoading(true);
       const gigsData = await getGigsForOrganization(organization.id);
       setGigs(gigsData);
+
+      // Load conflicts for all gigs
+      const allConflicts: Conflict[] = [];
+      for (const gig of gigsData) {
+        const gigConflicts = await checkAllConflicts(gig.id, gig.start, gig.end);
+        allConflicts.push(...gigConflicts.conflicts);
+      }
+      setConflicts(allConflicts);
     } catch (error) {
       console.error('Error loading gigs:', error);
     } finally {
@@ -163,6 +175,12 @@ export default function CalendarScreen({
     setDateTo(undefined);
   };
 
+  const handleOverrideConflict = (conflictId: string) => {
+    // TODO: Implement actual conflict override logic
+    // For now, just show a toast message
+    toast.success('Conflict override noted. This feature will be implemented in a future update.');
+  };
+
   const calendarEvents: CalendarEvent[] = useMemo(() => {
     return filteredGigs.map(gig => ({
       id: gig.id,
@@ -175,13 +193,15 @@ export default function CalendarScreen({
 
   const eventStyleGetter = (event: CalendarEvent) => {
     const statusConfig = GIG_STATUS_CONFIG[event.resource.status];
+    const hasConflicts = conflicts.some(conflict => conflict.gig_id === event.resource.id);
+
     return {
       style: {
-        backgroundColor: statusConfig?.color || '#6b7280',
+        backgroundColor: hasConflicts ? '#dc2626' : (statusConfig?.color || '#6b7280'), // Red for conflicts
         borderRadius: '4px',
         opacity: 0.8,
         color: 'white',
-        border: '0px',
+        border: hasConflicts ? '2px solid #991b1b' : '0px', // Darker red border for conflicts
         display: 'block',
       },
     };
@@ -274,6 +294,7 @@ export default function CalendarScreen({
           organization={organization}
           user={user}
           userRole={userRole}
+          currentRoute="calendar"
           onNavigateToDashboard={onNavigateToDashboard}
           onNavigateToGigs={onNavigateToGigs}
           onNavigateToAssets={onNavigateToAssets}
@@ -294,6 +315,7 @@ export default function CalendarScreen({
         organization={organization}
         user={user}
         userRole={userRole}
+        currentRoute="calendar"
         onNavigateToDashboard={onNavigateToDashboard}
         onNavigateToGigs={onNavigateToGigs}
         onNavigateToAssets={onNavigateToAssets}
@@ -341,6 +363,16 @@ export default function CalendarScreen({
             }}
           />
         </div>
+
+        {conflicts.length > 0 && (
+          <div className="mt-6">
+            <ConflictWarning
+              conflicts={conflicts}
+              onViewGig={onViewGig}
+              onOverride={handleOverrideConflict}
+            />
+          </div>
+        )}
 
         <Card className="mt-6">
           <CustomToolbar />

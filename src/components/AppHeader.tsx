@@ -43,6 +43,7 @@ const AppHeader = React.memo(function AppHeader({
 }: AppHeaderProps) {
   const navigation = useNavigation();
   const effectiveEditProfile = onEditProfile || navigation?.onEditProfile;
+  const effectiveNavigateToSettings = navigation?.onNavigateToSettings;
 
   const getInitials = (firstName: string = '', lastName: string = '') => {
     const f = firstName?.[0] || '';
@@ -100,7 +101,7 @@ const AppHeader = React.memo(function AppHeader({
                     <DropdownMenuSeparator />
                   </>
                 )}
-                <DropdownMenuItem>
+                <DropdownMenuItem onClick={effectiveNavigateToSettings} disabled={!effectiveNavigateToSettings}>
                   <Settings className="w-4 h-4 mr-2" />
                   Settings
                 </DropdownMenuItem>
@@ -137,6 +138,7 @@ const AppHeader = React.memo(function AppHeader({
             onNavigateToGigs={navigation.onNavigateToGigs}
             onNavigateToTeam={navigation.onNavigateToTeam}
             onNavigateToAssets={navigation.onNavigateToAssets}
+            onNavigateToCalendar={navigation.onNavigateToCalendar}
           />
         )}
       </div>

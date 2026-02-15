@@ -18,6 +18,8 @@ describe('googleCalendar.service', () => {
     expect(typeof service.getUserCalendars).toBe('function');
     expect(typeof service.exchangeCodeForTokens).toBe('function');
     expect(typeof service.refreshAccessToken).toBe('function');
+    expect(typeof service.getSyncLogs).toBe('function');
+    expect(typeof service.getSyncStatusSummary).toBe('function');
   });
 
   it('should generate OAuth URL without throwing', async () => {

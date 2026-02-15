@@ -5,7 +5,9 @@ interface NavigationContextValue {
   onNavigateToGigs: () => void;
   onNavigateToTeam: () => void;
   onNavigateToAssets: () => void;
+  onNavigateToCalendar?: () => void;
   onEditProfile?: () => void;
+  onNavigateToSettings?: () => void;
 }
 
 const NavigationContext = createContext<NavigationContextValue | null>(null);
@@ -22,7 +24,9 @@ interface NavigationProviderProps {
   onNavigateToGigs: () => void;
   onNavigateToTeam: () => void;
   onNavigateToAssets: () => void;
+  onNavigateToCalendar?: () => void;
   onEditProfile?: () => void;
+  onNavigateToSettings?: () => void;
 }
 
 export function NavigationProvider({
@@ -31,7 +35,9 @@ export function NavigationProvider({
   onNavigateToGigs,
   onNavigateToTeam,
   onNavigateToAssets,
+  onNavigateToCalendar,
   onEditProfile,
+  onNavigateToSettings,
 }: NavigationProviderProps) {
   return (
     <NavigationContext.Provider
@@ -40,7 +46,9 @@ export function NavigationProvider({
         onNavigateToGigs,
         onNavigateToTeam,
         onNavigateToAssets,
+        onNavigateToCalendar,
         onEditProfile,
+        onNavigateToSettings,
       }}
     >
       {children}

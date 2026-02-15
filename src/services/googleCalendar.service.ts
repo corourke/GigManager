@@ -448,6 +448,71 @@ export async function getGigSyncStatus(gigId: string, userId: string): Promise<G
 }
 
 /**
+ * Get recent sync logs for a user
+ */
+export async function getSyncLogs(
+  userId: string,
+  limit: number = 20
+): Promise<GigSyncStatus[]> {
+  const supabase = getSupabase();
+
+  try {
+    const { data, error } = await supabase
+      .from('gig_sync_status')
+      .select('*')
+      .eq('user_id', userId)
+      .order('updated_at', { ascending: false })
+      .limit(limit);
+
+    if (error) throw error;
+    return data || [];
+  } catch (error) {
+    return handleApiError(error, 'get sync logs');
+  }
+}
+
+/**
+ * Get sync status summary for a user
+ */
+export async function getSyncStatusSummary(userId: string): Promise<{
+  total: number;
+  synced: number;
+  pending: number;
+  failed: number;
+  lastSyncedAt: string | null;
+}> {
+  const supabase = getSupabase();
+
+  try {
+    const { data, error } = await supabase
+      .from('gig_sync_status')
+      .select('*')
+      .eq('user_id', userId);
+
+    if (error) throw error;
+
+    const logs = data || [];
+    const synced = logs.filter(l => l.sync_status === 'synced').length;
+    const pending = logs.filter(l => l.sync_status === 'pending').length;
+    const failed = logs.filter(l => l.sync_status === 'failed').length;
+
+    const lastSynced = logs
+      .filter(l => l.last_synced_at)
+      .sort((a, b) => new Date(b.last_synced_at!).getTime() - new Date(a.last_synced_at!).getTime())[0];
+
+    return {
+      total: logs.length,
+      synced,
+      pending,
+      failed,
+      lastSyncedAt: lastSynced?.last_synced_at || null,
+    };
+  } catch (error) {
+    return handleApiError(error, 'get sync status summary');
+  }
+}
+
+/**
  * Update gig sync status
  */
 export async function updateGigSyncStatus(

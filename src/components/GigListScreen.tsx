@@ -33,6 +33,7 @@ interface GigListScreenProps {
   onNavigateToDashboard: () => void;
   onNavigateToGigs: () => void;
   onNavigateToAssets: () => void;
+  onNavigateToCalendar?: () => void;
   onNavigateToImport?: () => void;
   onSwitchOrganization: () => void;
   onLogout: () => void;
@@ -58,6 +59,7 @@ export default function GigListScreen({
   onNavigateToDashboard,
   onNavigateToGigs,
   onNavigateToAssets,
+  onNavigateToCalendar,
   onNavigateToImport,
   onSwitchOrganization,
   onLogout,
@@ -282,6 +284,16 @@ export default function GigListScreen({
           description={`Manage events and gigs for ${organization.name}`}
           actions={
             <>
+              {onNavigateToCalendar && (
+                <Button
+                  onClick={onNavigateToCalendar}
+                  variant="outline"
+                  className="border-sky-500 text-sky-600 hover:bg-sky-50"
+                >
+                  <Calendar className="w-4 h-4 mr-2" />
+                  Calendar View
+                </Button>
+              )}
               <Button
                 onClick={onCreateGig}
                 className="bg-sky-500 hover:bg-sky-600 text-white"

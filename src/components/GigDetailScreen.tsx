@@ -1,13 +1,13 @@
 import { useState, useEffect } from 'react';
-import { 
-  ArrowLeft, 
-  Calendar, 
-  MapPin, 
-  User as UserIcon, 
-  Tag, 
-  Edit2, 
-  Trash2, 
-  Copy, 
+import {
+  ArrowLeft,
+  Calendar,
+  MapPin,
+  User as UserIcon,
+  Tag,
+  Edit2,
+  Trash2,
+  Copy,
   Loader2,
   FileText,
   Music
@@ -21,6 +21,8 @@ import GigFinancialsSection from './gig/GigFinancialsSection';
 import { Organization, User, UserRole, Gig } from '../utils/supabase/types';
 import { GIG_STATUS_CONFIG, ORG_TYPE_CONFIG } from '../utils/supabase/constants';
 import { getGig, deleteGig, duplicateGig } from '../services/gig.service';
+import { checkAllConflicts, Conflict } from '../services/conflictDetection.service';
+import { ConflictWarning } from './ConflictWarning';
 import { cn } from './ui/utils';
 import { formatTimeDisplay, formatInTimeZone, formatDateTimeDisplay } from '../utils/dateUtils';
 
@@ -31,6 +33,7 @@ interface GigDetailScreenProps {
   userRole?: UserRole;
   onBack: () => void;
   onEdit: (gigId: string) => void;
+  onNavigateToCalendar?: () => void;
   onSwitchOrganization: () => void;
   onLogout: () => void;
 }
@@ -42,10 +45,12 @@ export default function GigDetailScreen({
   userRole,
   onBack,
   onEdit,
+  onNavigateToCalendar,
   onSwitchOrganization,
   onLogout,
 }: GigDetailScreenProps) {
   const [gig, setGig] = useState<Gig | null>(null);
+  const [conflicts, setConflicts] = useState<Conflict[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -59,12 +64,18 @@ export default function GigDetailScreen({
       // Process venue and act from participants
       const venue = data.participants?.find((p: any) => p.role === 'Venue')?.organization;
       const act = data.participants?.find((p: any) => p.role === 'Act')?.organization;
-      
-      setGig({
+
+      const processedGig = {
         ...data,
         venue,
         act
-      });
+      };
+
+      setGig(processedGig);
+
+      // Check for conflicts
+      const conflictResult = await checkAllConflicts(gigId, data.start, data.end);
+      setConflicts(conflictResult.conflicts);
     } catch (error: any) {
       console.error('Error loading gig:', error);
       toast.error(error.message || 'Failed to load gig');
@@ -96,6 +107,12 @@ export default function GigDetailScreen({
       console.error('Error deleting gig:', error);
       toast.error(error.message || 'Failed to delete gig');
     }
+  };
+
+  const handleOverrideConflict = (conflictId: string) => {
+    // TODO: Implement actual conflict override logic
+    // For now, just show a toast message
+    toast.success('Conflict override noted. This feature will be implemented in a future update.');
   };
 
   if (isLoading) {
@@ -146,6 +163,15 @@ export default function GigDetailScreen({
             </div>
 
             <div className="flex items-center gap-2">
+              {onNavigateToCalendar && (
+                <Button
+                  variant="outline"
+                  onClick={onNavigateToCalendar}
+                >
+                  <Calendar className="w-4 h-4 mr-2" />
+                  View in Calendar
+                </Button>
+              )}
               <Button
                 variant="outline"
                 onClick={() => onEdit(gigId)}
@@ -173,6 +199,16 @@ export default function GigDetailScreen({
             </div>
           </div>
         </div>
+
+        {conflicts.length > 0 && (
+          <div className="mb-6">
+            <ConflictWarning
+              conflicts={conflicts}
+              showAsCard={true}
+              onOverride={handleOverrideConflict}
+            />
+          </div>
+        )}
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
           {/* Main Info Columns */}

@@ -346,9 +346,15 @@ Groupings of assets that can be deployed on gigs. Simplifies building packages, 
 
 #### Conflict Detection
 
-- **Staff Conflicts**: Warn when staff assigned to overlapping gigs
-- **Equipment Conflicts**: Warn when equipment assigned to overlapping gigs
-- **Venue Conflicts**: Warn when scheduling multiple gigs at same venue/time
+Two levels of conflict detection are implemented:
+
+**CONFLICT**: A resource is committed to two or more gigs where there is complete, partial, or edge overlap.
+
+**WARNING**: A resource is committed to two or more gigs where the end of one gig is within four hours of the start of another gig.
+
+- **Staff Conflicts**: Detect when staff members are assigned to overlapping gigs (CONFLICT) or gigs within 4 hours (WARNING)
+- **Equipment Conflicts**: Detect when equipment/kits are assigned to overlapping gigs (CONFLICT) or gigs within 4 hours (WARNING)
+- **Venue Conflicts**: Detect when multiple gigs are scheduled at the same venue with overlapping times (CONFLICT) or within 4 hours (WARNING)
 
 ---
 
