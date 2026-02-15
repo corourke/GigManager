@@ -7,9 +7,8 @@ import 'react-big-calendar/lib/css/react-big-calendar.css';
 
 import { Button } from './ui/button';
 import { Card } from './ui/card';
-import { Badge } from './ui/badge';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
+import { Calendar as DatePicker } from './ui/calendar';
+import { Tabs, TabsList, TabsTrigger } from './ui/tabs';
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
 import { Calendar as CalendarIcon, ChevronLeft, ChevronRight } from 'lucide-react';
 import AppHeader from './AppHeader';
@@ -265,7 +264,7 @@ export default function CalendarScreen({
             </Button>
           </PopoverTrigger>
           <PopoverContent className="w-auto p-0" align="start">
-            <Calendar
+            <DatePicker
               mode="single"
               selected={currentDate}
               onSelect={(date) => date && setCurrentDate(date)}
@@ -387,7 +386,9 @@ export default function CalendarScreen({
               onView={setView}
               date={currentDate}
               onNavigate={setCurrentDate}
+              onSelectEvent={(event) => onViewGig(event.id)}
               eventPropGetter={eventStyleGetter}
+              toolbar={false}
               components={{
                 event: EventComponent,
               }}
