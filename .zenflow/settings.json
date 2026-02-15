@@ -1,0 +1,6 @@
+{
+  "setup_script": "npm install",
+  "dev_script": "npm run dev",
+  "verification_script": "npm run build && npm run test:run",
+  "copy_files": [".env.local"]
+}
