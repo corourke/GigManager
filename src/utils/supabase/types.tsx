@@ -264,3 +264,33 @@ export interface InvitationWithInviter extends Invitation {
     last_name: string;
   };
 }
+
+// Google Calendar Integration Types
+export interface DbUserGoogleCalendarSettings {
+  id: string;
+  user_id: string;
+  calendar_id: string;
+  calendar_name?: string;
+  access_token: string; // Encrypted
+  refresh_token: string; // Encrypted
+  token_expires_at: string;
+  is_enabled: boolean;
+  sync_filters: Record<string, any>;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface DbGigSyncStatus {
+  id: string;
+  gig_id: string;
+  user_id: string;
+  google_event_id?: string;
+  last_synced_at?: string;
+  sync_status: 'pending' | 'synced' | 'failed';
+  sync_error?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export type UserGoogleCalendarSettings = DbUserGoogleCalendarSettings;
+export type GigSyncStatus = DbGigSyncStatus;

@@ -20,6 +20,8 @@ import TeamMemberDetailScreen from './components/TeamMemberDetailScreen';
 import ImportScreen from './components/ImportScreen';
 import EditUserProfileDialog from './components/EditUserProfileDialog';
 import InvitationErrorScreen from './components/InvitationErrorScreen';
+import CalendarScreen from './components/CalendarScreen';
+import CalendarAuthCallback from './components/CalendarAuthCallback';
 import { Toaster } from './components/ui/sonner';
 import { toast } from 'sonner';
 import { NavigationProvider } from './contexts/NavigationContext';
@@ -32,15 +34,15 @@ import {
 
 import DevTableDemoScreen from './components/dev/DevTableDemoScreen';
 
-type Route = 
-  | 'login' 
+type Route =
+  | 'login'
   | 'profile-completion'
   | 'accept-invitation'
-  | 'org-selection' 
+  | 'org-selection'
   | 'create-org'
   | 'edit-org'
   | 'admin-orgs'
-  | 'dashboard' 
+  | 'dashboard'
   | 'gig-list'
   | 'create-gig'
   | 'gig-detail'
@@ -52,6 +54,8 @@ type Route =
   | 'kit-list'
   | 'create-kit'
   | 'kit-detail'
+  | 'calendar'
+  | 'calendar-auth-callback'
   | 'import'
   | 'dev-demo';
 
@@ -73,6 +77,10 @@ function App() {
     // Check for invitation in URL
     if (window.location.pathname === '/accept-invitation' || window.location.hash.includes('type=invite')) {
       return 'accept-invitation';
+    }
+    // Check for Google Calendar auth callback
+    if (window.location.pathname === '/auth/google-calendar/callback' || window.location.search.includes('code=')) {
+      return 'calendar-auth-callback';
     }
     // Check for dev-demo in URL
     if (window.location.pathname === '/dev-demo') {
@@ -427,6 +435,10 @@ function App() {
     setCurrentRoute('import');
   };
 
+  const handleNavigateToCalendar = () => {
+    setCurrentRoute('calendar');
+  };
+
   const handleEditProfile = () => {
     setShowEditProfileDialog(true);
   };
@@ -716,6 +728,31 @@ function App() {
               onEdit={handleEditKit}
               onSwitchOrganization={handleBackToSelection}
               onLogout={handleLogout}
+            />
+          )}
+
+          {currentRoute === 'calendar' && (
+            <CalendarScreen
+              organization={selectedOrganization}
+              user={user}
+              userRole={userRole}
+              onBack={handleBackToDashboard}
+              onViewGig={handleViewGig}
+              onCreateGig={handleCreateGig}
+              onNavigateToDashboard={handleBackToDashboard}
+              onNavigateToGigs={handleBackToGigList}
+              onNavigateToAssets={handleNavigateToAssets}
+              onSwitchOrganization={handleBackToSelection}
+              onLogout={handleLogout}
+              onEditProfile={handleEditProfile}
+            />
+          )}
+
+          {currentRoute === 'calendar-auth-callback' && user && (
+            <CalendarAuthCallback
+              userId={user.id}
+              onAuthComplete={() => setCurrentRoute('calendar')}
+              onBack={() => setCurrentRoute('calendar')}
             />
           )}
 

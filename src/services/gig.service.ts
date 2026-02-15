@@ -1,14 +1,110 @@
 import { createClient } from '../utils/supabase/client';
-import { 
-  Gig, 
+import {
+  Gig,
   GigStatus,
   FinType,
   FinCategory,
 } from '../utils/supabase/types';
 import { handleApiError } from '../utils/api-error-utils';
 import { getKit } from './kit.service';
+import { syncGigToCalendar, deleteGigFromCalendar } from './googleCalendar.service';
 
 const getSupabase = () => createClient();
+
+/**
+ * Sync gig to Google Calendar for all users with integration enabled
+ * This is called after gig create/update operations
+ */
+async function syncGigToAllCalendars(gigId: string): Promise<void> {
+  try {
+    const supabase = getSupabase();
+    const gig = await getGig(gigId);
+
+    if (!gig) return;
+
+    // Get all users who have Google Calendar integration enabled
+    const { data: usersWithCalendar, error } = await supabase
+      .from('user_google_calendar_settings')
+      .select('user_id')
+      .eq('is_enabled', true);
+
+    if (error) {
+      console.error('Error fetching users with calendar integration:', error);
+      return;
+    }
+
+    if (!usersWithCalendar || usersWithCalendar.length === 0) {
+      return; // No users have calendar integration enabled
+    }
+
+    // Get venue information for location
+    const venue = gig.participants?.find((p: any) => p.role === 'Venue')?.organization;
+    const location = venue ? `${venue.name}${venue.address_line1 ? `, ${venue.address_line1}` : ''}${venue.city ? `, ${venue.city}` : ''}` : undefined;
+
+    // Sync to each user's calendar
+    const syncPromises = usersWithCalendar.map(async (userSetting) => {
+      try {
+        await syncGigToCalendar(userSetting.user_id, gigId, {
+          title: gig.title,
+          start: gig.start,
+          end: gig.end,
+          timezone: gig.timezone,
+          description: gig.notes,
+          location,
+        });
+      } catch (syncError) {
+        console.error(`Failed to sync gig ${gigId} to user ${userSetting.user_id}'s calendar:`, syncError);
+        // Continue with other users even if one fails
+      }
+    });
+
+    await Promise.allSettled(syncPromises);
+  } catch (error) {
+    console.error('Error in syncGigToAllCalendars:', error);
+    // Don't throw - sync failures shouldn't break gig operations
+  }
+}
+
+/**
+ * Delete gig from all Google Calendars
+ * This is called after gig delete operations
+ */
+async function deleteGigFromAllCalendars(gigId: string): Promise<void> {
+  try {
+    const supabase = getSupabase();
+
+    // Get all users who have this gig synced
+    const { data: syncStatuses, error } = await supabase
+      .from('gig_sync_status')
+      .select('user_id')
+      .eq('gig_id', gigId)
+      .not('google_event_id', 'is', null);
+
+    if (error) {
+      console.error('Error fetching sync statuses for deletion:', error);
+      return;
+    }
+
+    if (!syncStatuses || syncStatuses.length === 0) {
+      return; // No synced events to delete
+    }
+
+    // Delete from each user's calendar
+    const deletePromises = syncStatuses.map(async (syncStatus) => {
+      try {
+        await deleteGigFromCalendar(syncStatus.user_id, gigId);
+      } catch (deleteError) {
+        console.error(`Failed to delete gig ${gigId} from user ${syncStatus.user_id}'s calendar:`, deleteError);
+        // Continue with other users even if one fails
+      }
+    });
+
+    await Promise.allSettled(deletePromises);
+  } catch (error) {
+    console.error('Error in deleteGigFromAllCalendars:', error);
+    // Don't throw - sync failures shouldn't break gig operations
+  }
+}
 
 /**
  * Fetch gigs for a specific organization
@@ -173,7 +269,14 @@ export async function createGig(gigData: any) {
     }
 
     // Fetch the full gig details for the response
-    return await getGig(data[0].id);
+    const createdGig = await getGig(data[0].id);
+
+    // Sync to Google Calendar (fire and forget - don't block on sync failures)
+    syncGigToAllCalendars(data[0].id).catch(syncError =>
+      console.error('Background sync failed for created gig:', syncError)
+    );
+
+    return createdGig;
   } catch (err) {
     return handleApiError(err, 'create gig');
   }
@@ -312,7 +415,14 @@ export async function updateGig(gigId: string, gigData: {
       await updateGigStaffSlots(gigId, staff_slots.map(s => ({...s, organization_id: primary_organization_id})));
     }
 
-    return await getGig(gigId);
+    const updatedGig = await getGig(gigId);
+
+    // Sync to Google Calendar (fire and forget - don't block on sync failures)
+    syncGigToAllCalendars(gigId).catch(syncError =>
+      console.error('Background sync failed for updated gig:', syncError)
+    );
+
+    return updatedGig;
   } catch (err) {
     return handleApiError(err, 'update gig');
   }
@@ -324,6 +434,9 @@ export async function updateGig(gigId: string, gigData: {
 export async function deleteGig(gigId: string) {
   const supabase = getSupabase();
   try {
+    // Delete from Google Calendar first (before deleting the gig)
+    await deleteGigFromAllCalendars(gigId);
+
     const { error } = await supabase.from('gigs').delete().eq('id', gigId);
     if (error) throw error;
     return { success: true };
