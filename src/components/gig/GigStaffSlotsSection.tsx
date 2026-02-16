@@ -1,10 +1,10 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useForm, useFieldArray, Controller } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { toast } from 'sonner';
 import { createClient } from '../../utils/supabase/client';
-import { FileText, Loader2, Plus, Trash2, Users, AlertCircle, Eye } from 'lucide-react';
+import { FileText, Loader2, Plus, Trash2, Users, AlertCircle } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
@@ -16,7 +16,6 @@ import UserSelector from '../UserSelector';
 import { getGig, updateGigStaffSlots } from '../../services/gig.service';
 import { useAutoSave } from '../../utils/hooks/useAutoSave';
 import SaveStateIndicator from './SaveStateIndicator';
-import { SmartDataTable, ColumnDef, RowAction } from '../tables/SmartDataTable';
 
 const staffAssignmentSchema = z.object({
   id: z.string(),
@@ -322,101 +321,6 @@ export default function GigStaffSlotsSection({
     }
   };
 
-  const assignmentColumns = useMemo<ColumnDef<any>[]>(() => [
-    {
-      id: 'user_name',
-      header: 'Staff Member',
-      accessor: 'user_name',
-      sortable: true,
-      filterable: true,
-      readOnly: true, // Editing user is handled via row action or full edit
-      type: 'text',
-      render: (val, row) => (
-        <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center text-gray-500">
-            <Users className="w-4 h-4" />
-          </div>
-          <span className={!val ? 'text-gray-400 italic' : ''}>{val || 'Open Slot'}</span>
-        </div>
-      )
-    },
-    {
-      id: 'status',
-      header: 'Status',
-      accessor: 'status',
-      sortable: true,
-      filterable: true,
-      editable: true,
-      type: 'pill',
-      pillConfig: {
-        'Open': { label: 'Open', color: 'gray' },
-        'Requested': { label: 'Requested', color: 'blue' },
-        'Confirmed': { label: 'Confirmed', color: 'green' },
-        'Declined': { label: 'Declined', color: 'red' },
-      }
-    },
-    {
-      id: 'compensation_type',
-      header: 'Type',
-      accessor: 'compensation_type',
-      editable: true,
-      type: 'select',
-      options: [
-        { label: 'Rate', value: 'rate' },
-        { label: 'Fee', value: 'fee' },
-      ]
-    },
-    {
-      id: 'amount',
-      header: 'Amount',
-      accessor: 'amount',
-      editable: true,
-      type: 'number',
-    },
-    {
-      id: 'notes',
-      header: 'Notes',
-      accessor: 'notes',
-      editable: true,
-      optional: true,
-      type: 'text',
-    }
-  ], []);
-
-  const getAssignmentRowActions = (slotIndex: number): RowAction<any>[] => [
-    {
-      id: 'view',
-      label: 'Notes',
-      icon: <FileText className="w-4 h-4" />,
-      onClick: (row) => {
-        const assignments = getValues(`slots.${slotIndex}.assignments`);
-        const assignmentIndex = assignments.findIndex(a => a.id === row.id);
-        if (assignmentIndex !== -1) handleOpenAssignmentNotes(slotIndex, assignmentIndex);
-      }
-    },
-    {
-      id: 'delete',
-      label: 'Decline',
-      onClick: (row) => {
-        const assignments = getValues(`slots.${slotIndex}.assignments`);
-        const assignmentIndex = assignments.findIndex(a => a.id === row.id);
-        if (assignmentIndex !== -1) {
-          setValue(`slots.${slotIndex}.assignments.${assignmentIndex}.status`, 'Declined', { shouldDirty: true });
-        }
-      }
-    }
-  ];
-
-  const handleAssignmentUpdate = (slotIndex: number, id: string, updates: Partial<any>) => {
-    const assignments = getValues(`slots.${slotIndex}.assignments`);
-    const assignmentIndex = assignments.findIndex(a => a.id === id);
-    if (assignmentIndex !== -1) {
-      Object.entries(updates).forEach(([key, value]) => {
-        setValue(`slots.${slotIndex}.assignments.${assignmentIndex}.${key}` as any, value, { shouldDirty: true });
-      });
-    }
-  };
-
   if (isLoading) {
     return (
       <Card className="mb-6">
@@ -524,14 +428,99 @@ export default function GigStaffSlotsSection({
                 </div>
 
                 <div className="p-4">
-                  <SmartDataTable
-                    tableId={`gig-staff-assignments-${slot.id}`}
-                    data={slot.assignments}
-                    columns={assignmentColumns}
-                    rowActions={getAssignmentRowActions(slotIndex)}
-                    onRowUpdate={(id, updates) => handleAssignmentUpdate(slotIndex, id, updates)}
-                    emptyMessage="No assignments for this slot"
-                  />
+                  <div className="space-y-2">
+                    {watch(`slots.${slotIndex}.assignments`)?.map((assignment: any, assignmentIndex: number) => (
+                      <div
+                        key={assignment.id}
+                        className="flex items-center gap-2 p-2 bg-gray-50 rounded border border-gray-200"
+                      >
+                        <div className="flex-1">
+                          <Controller
+                            name={`slots.${slotIndex}.assignments.${assignmentIndex}.user_name`}
+                            control={control}
+                            render={({ field: nameField }) => (
+                              <UserSelector
+                                onSelect={(selectedUser) => {
+                                  const fullName = `${selectedUser.first_name} ${selectedUser.last_name}`.trim();
+                                  setValue(`slots.${slotIndex}.assignments.${assignmentIndex}.user_id`, selectedUser.id, { shouldDirty: true });
+                                  nameField.onChange(fullName);
+                                }}
+                                placeholder="Search for user..."
+                                value={nameField.value}
+                                organizationIds={participantOrganizationIds}
+                              />
+                            )}
+                          />
+                        </div>
+                        <Controller
+                          name={`slots.${slotIndex}.assignments.${assignmentIndex}.status`}
+                          control={control}
+                          render={({ field: statusField }) => (
+                            <Select
+                              value={statusField.value}
+                              onValueChange={statusField.onChange}
+                            >
+                              <SelectTrigger className="w-32 bg-white">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="Open">Open</SelectItem>
+                                <SelectItem value="Requested">Requested</SelectItem>
+                                <SelectItem value="Confirmed">Confirmed</SelectItem>
+                                <SelectItem value="Declined">Declined</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          )}
+                        />
+                        <Controller
+                          name={`slots.${slotIndex}.assignments.${assignmentIndex}.compensation_type`}
+                          control={control}
+                          render={({ field: compField }) => (
+                            <Select
+                              value={compField.value}
+                              onValueChange={compField.onChange}
+                            >
+                              <SelectTrigger className="w-24 bg-white">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="rate">Rate</SelectItem>
+                                <SelectItem value="fee">Fee</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          )}
+                        />
+                        <div className="relative w-24">
+                          <span className="absolute left-2 top-1/2 transform -translate-y-1/2 text-xs text-gray-500">
+                            $
+                          </span>
+                          <Controller
+                            name={`slots.${slotIndex}.assignments.${assignmentIndex}.amount`}
+                            control={control}
+                            render={({ field: amountField }) => (
+                              <Input
+                                {...amountField}
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                placeholder="0.00"
+                                className={`pl-5 bg-white ${errors.slots?.[slotIndex]?.assignments?.[assignmentIndex]?.amount ? 'border-red-500' : ''}`}
+                                onFocus={(e) => e.target.select()}
+                              />
+                            )}
+                          />
+                        </div>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleOpenAssignmentNotes(slotIndex, assignmentIndex)}
+                        >
+                          <FileText className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </div>
             ))}

@@ -49,9 +49,11 @@ export async function checkStaffConflicts(gigId: string, startTime: string, endT
         title,
         start,
         end,
-        staff_assignments:gig_staff_assignments(
-          user_id,
-          user:user_id(id, first_name, last_name)
+        staff_slots:gig_staff_slots(
+          assignments:gig_staff_assignments(
+            user_id,
+            user:user_id(id, first_name, last_name)
+          )
         )
       `)
       .neq('id', gigId)
@@ -59,6 +61,9 @@ export async function checkStaffConflicts(gigId: string, startTime: string, endT
       .gte('end', startTime);
 
     if (overlapError) throw overlapError;
+
+    const flattenAssignments = (gig: any) =>
+      (gig.staff_slots || []).flatMap((slot: any) => slot.assignments || []);
 
     // Find gigs within 4 hours before or after (WARNINGS)
     const warningStart = new Date(currentStart.getTime() - 4 * 60 * 60 * 1000).toISOString();
@@ -71,9 +76,11 @@ export async function checkStaffConflicts(gigId: string, startTime: string, endT
         title,
         start,
         end,
-        staff_assignments:gig_staff_assignments(
-          user_id,
-          user:user_id(id, first_name, last_name)
+        staff_slots:gig_staff_slots(
+          assignments:gig_staff_assignments(
+            user_id,
+            user:user_id(id, first_name, last_name)
+          )
         )
       `)
       .neq('id', gigId)
@@ -86,9 +93,10 @@ export async function checkStaffConflicts(gigId: string, startTime: string, endT
 
     // Process overlapping gigs (CONFLICTS)
     for (const gig of overlappingGigs || []) {
-      const overlappingStaff = gig.staff_assignments?.filter((assignment: any) =>
+      const allAssignments = flattenAssignments(gig);
+      const overlappingStaff = allAssignments.filter((assignment: any) =>
         staffUserIds.includes(assignment.user_id)
-      ) || [];
+      );
 
       if (overlappingStaff.length > 0) {
         conflicts.push({
@@ -113,9 +121,10 @@ export async function checkStaffConflicts(gigId: string, startTime: string, endT
     for (const gig of nearbyGigs || []) {
       if (conflictGigIds.has(gig.id)) continue;
 
-      const nearbyStaff = gig.staff_assignments?.filter((assignment: any) =>
+      const allAssignments = flattenAssignments(gig);
+      const nearbyStaff = allAssignments.filter((assignment: any) =>
         staffUserIds.includes(assignment.user_id)
-      ) || [];
+      );
 
       if (nearbyStaff.length > 0) {
         warnings.push({

@@ -20,7 +20,6 @@ import TeamMemberDetailScreen from './components/TeamMemberDetailScreen';
 import ImportScreen from './components/ImportScreen';
 import EditUserProfileDialog from './components/EditUserProfileDialog';
 import InvitationErrorScreen from './components/InvitationErrorScreen';
-import CalendarScreen from './components/CalendarScreen';
 import CalendarAuthCallback from './components/CalendarAuthCallback';
 import SettingsScreen from './components/SettingsScreen';
 import { Toaster } from './components/ui/sonner';
@@ -104,6 +103,7 @@ function App() {
   });
   const [editingOrganization, setEditingOrganization] = useState<Organization | null>(null);
   const [showEditProfileDialog, setShowEditProfileDialog] = useState(false);
+  const [viewedFromCalendar, setViewedFromCalendar] = useState(false);
 
   const [invitationError, setInvitationError] = useState<{ error: string, description?: string } | null>(() => {
     const hash = window.location.hash;
@@ -307,8 +307,9 @@ function App() {
     setCurrentRoute('create-gig');
   };
 
-  const handleViewGig = (gigId: string) => {
+  const handleViewGig = (gigId: string, fromCalendar?: boolean) => {
     setSelectedGigId(gigId);
+    setViewedFromCalendar(!!fromCalendar);
     setCurrentRoute('gig-detail');
   };
 
@@ -328,6 +329,11 @@ function App() {
   };
 
   const handleBackToGigList = () => {
+    setViewedFromCalendar(false);
+    setCurrentRoute('gig-list');
+  };
+
+  const handleBackToCalendar = () => {
     setCurrentRoute('gig-list');
   };
 
@@ -437,10 +443,6 @@ function App() {
     setCurrentRoute('import');
   };
 
-  const handleNavigateToCalendar = () => {
-    setCurrentRoute('calendar');
-  };
-
   const handleNavigateToSettings = () => {
     setCurrentRoute('settings');
   };
@@ -483,7 +485,6 @@ function App() {
       onNavigateToGigs={handleNavigateToGigs}
       onNavigateToTeam={handleNavigateToTeam}
       onNavigateToAssets={handleNavigateToAssets}
-      onNavigateToCalendar={handleNavigateToCalendar}
       onEditProfile={handleEditProfile}
       onNavigateToSettings={handleNavigateToSettings}
     >
@@ -567,6 +568,7 @@ function App() {
               organization={selectedOrganization}
               user={user}
               userRole={userRole}
+              initialViewMode={viewedFromCalendar ? 'calendar' : 'list'}
               onBack={handleBackToDashboard}
               onCreateGig={handleCreateGig}
               onViewGig={handleViewGig}
@@ -574,12 +576,10 @@ function App() {
               onNavigateToDashboard={handleBackToDashboard}
               onNavigateToGigs={handleBackToGigList}
               onNavigateToAssets={handleNavigateToAssets}
-              onNavigateToCalendar={handleNavigateToCalendar}
               onNavigateToImport={handleNavigateToImport}
               onSwitchOrganization={handleBackToSelection}
               onEditProfile={handleEditProfile}
               onLogout={handleLogout}
-             
             />
           )}
 
@@ -605,9 +605,9 @@ function App() {
               organization={selectedOrganization}
               user={user}
               userRole={userRole}
-              onBack={handleBackToGigList}
+              onBack={viewedFromCalendar ? handleBackToCalendar : handleBackToGigList}
+              backLabel={viewedFromCalendar ? 'Back to Calendar' : 'Back to Gigs'}
               onEdit={handleEditGig}
-              onNavigateToCalendar={handleNavigateToCalendar}
               onSwitchOrganization={handleBackToSelection}
               onLogout={handleLogout}
             />
@@ -741,22 +741,7 @@ function App() {
             />
           )}
 
-          {currentRoute === 'calendar' && (
-            <CalendarScreen
-              organization={selectedOrganization}
-              user={user}
-              userRole={userRole}
-              onBack={handleBackToDashboard}
-              onViewGig={handleViewGig}
-              onCreateGig={handleCreateGig}
-              onNavigateToDashboard={handleBackToDashboard}
-              onNavigateToGigs={handleBackToGigList}
-              onNavigateToAssets={handleNavigateToAssets}
-              onSwitchOrganization={handleBackToSelection}
-              onLogout={handleLogout}
-              onEditProfile={handleEditProfile}
-            />
-          )}
+
 
           {currentRoute === 'calendar-auth-callback' && user && (
             <CalendarAuthCallback

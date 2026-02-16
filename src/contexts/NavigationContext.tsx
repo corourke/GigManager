@@ -5,7 +5,6 @@ interface NavigationContextValue {
   onNavigateToGigs: () => void;
   onNavigateToTeam: () => void;
   onNavigateToAssets: () => void;
-  onNavigateToCalendar?: () => void;
   onEditProfile?: () => void;
   onNavigateToSettings?: () => void;
 }
@@ -24,7 +23,6 @@ interface NavigationProviderProps {
   onNavigateToGigs: () => void;
   onNavigateToTeam: () => void;
   onNavigateToAssets: () => void;
-  onNavigateToCalendar?: () => void;
   onEditProfile?: () => void;
   onNavigateToSettings?: () => void;
 }
@@ -35,7 +33,6 @@ export function NavigationProvider({
   onNavigateToGigs,
   onNavigateToTeam,
   onNavigateToAssets,
-  onNavigateToCalendar,
   onEditProfile,
   onNavigateToSettings,
 }: NavigationProviderProps) {
@@ -46,7 +43,6 @@ export function NavigationProvider({
         onNavigateToGigs,
         onNavigateToTeam,
         onNavigateToAssets,
-        onNavigateToCalendar,
         onEditProfile,
         onNavigateToSettings,
       }}

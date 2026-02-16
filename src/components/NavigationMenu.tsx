@@ -32,7 +32,6 @@ interface NavigationMenuProps {
   onNavigateToGigs?: () => void;
   onNavigateToTeam?: () => void;
   onNavigateToAssets?: () => void;
-  onNavigateToCalendar?: () => void;
 }
 
 const NavigationMenu = React.memo(function NavigationMenu({
@@ -41,7 +40,6 @@ const NavigationMenu = React.memo(function NavigationMenu({
   onNavigateToGigs,
   onNavigateToTeam,
   onNavigateToAssets,
-  onNavigateToCalendar,
 }: NavigationMenuProps) {
   const menuItems: NavigationMenuItem[] = [
     {
@@ -52,18 +50,11 @@ const NavigationMenu = React.memo(function NavigationMenu({
       isActive: (route) => route === 'dashboard',
     },
     {
-      id: 'events',
-      label: 'Events',
+      id: 'gigs',
+      label: 'Gigs',
       icon: Calendar,
       onClick: onNavigateToGigs,
-      isActive: (route) => ['gig-list', 'create-gig', 'edit-gig', 'gig-detail'].includes(route),
-    },
-    {
-      id: 'calendar',
-      label: 'Calendar',
-      icon: Calendar,
-      onClick: onNavigateToCalendar,
-      isActive: (route) => route === 'calendar',
+      isActive: (route) => ['gig-list', 'create-gig', 'edit-gig', 'gig-detail', 'calendar'].includes(route),
     },
     {
       id: 'team',

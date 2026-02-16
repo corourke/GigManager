@@ -33,7 +33,7 @@ interface GigDetailScreenProps {
   userRole?: UserRole;
   onBack: () => void;
   onEdit: (gigId: string) => void;
-  onNavigateToCalendar?: () => void;
+  backLabel?: string;
   onSwitchOrganization: () => void;
   onLogout: () => void;
 }
@@ -45,7 +45,7 @@ export default function GigDetailScreen({
   userRole,
   onBack,
   onEdit,
-  onNavigateToCalendar,
+  backLabel = 'Back to Gigs',
   onSwitchOrganization,
   onLogout,
 }: GigDetailScreenProps) {
@@ -145,7 +145,7 @@ export default function GigDetailScreen({
         <div className="mb-4">
           <Button variant="ghost" onClick={onBack} className="mb-2 -ml-2">
             <ArrowLeft className="w-4 h-4 mr-2" />
-            Back to Gigs
+            {backLabel}
           </Button>
 
           <div className="flex items-start justify-between">
@@ -163,15 +163,6 @@ export default function GigDetailScreen({
             </div>
 
             <div className="flex items-center gap-2">
-              {onNavigateToCalendar && (
-                <Button
-                  variant="outline"
-                  onClick={onNavigateToCalendar}
-                >
-                  <Calendar className="w-4 h-4 mr-2" />
-                  View in Calendar
-                </Button>
-              )}
               <Button
                 variant="outline"
                 onClick={() => onEdit(gigId)}
