@@ -2437,6 +2437,258 @@ Deno.serve(async (req) => {
       });
     }
 
+    // ===== Google Calendar Integration =====
+
+    if (path === '/integrations/google-calendar/exchange-token' && method === 'POST') {
+      const authHeader = req.headers.get('Authorization');
+      const { user, error: authError } = await getAuthenticatedUser(authHeader);
+
+      if (authError || !user) {
+        return new Response(JSON.stringify({ error: authError ?? 'Unauthorized' }), {
+          status: 401,
+          headers: { ...responseHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      const { code, redirect_uri } = await req.json();
+      if (!code || !redirect_uri) {
+        return new Response(JSON.stringify({ error: 'code and redirect_uri are required' }), {
+          status: 400,
+          headers: { ...responseHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      const clientId = Deno.env.get('GOOGLE_CLIENT_ID');
+      const clientSecret = Deno.env.get('GOOGLE_CLIENT_SECRET');
+      if (!clientId || !clientSecret) {
+        return new Response(JSON.stringify({ error: 'Google Calendar credentials not configured on server' }), {
+          status: 500,
+          headers: { ...responseHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
+          code,
+          client_id: clientId,
+          client_secret: clientSecret,
+          redirect_uri,
+          grant_type: 'authorization_code',
+        }),
+      });
+
+      const tokenData = await tokenResponse.json();
+      if (!tokenResponse.ok) {
+        console.error('Google token exchange error:', tokenData);
+        return new Response(JSON.stringify({ error: 'Token exchange failed', details: tokenData.error_description || tokenData.error }), {
+          status: 400,
+          headers: { ...responseHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      return new Response(JSON.stringify({
+        access_token: tokenData.access_token,
+        refresh_token: tokenData.refresh_token,
+        expires_in: tokenData.expires_in,
+      }), {
+        headers: { ...responseHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    if (path === '/integrations/google-calendar/refresh-token' && method === 'POST') {
+      const authHeader = req.headers.get('Authorization');
+      const { user, error: authError } = await getAuthenticatedUser(authHeader);
+
+      if (authError || !user) {
+        return new Response(JSON.stringify({ error: authError ?? 'Unauthorized' }), {
+          status: 401,
+          headers: { ...responseHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      const { refresh_token } = await req.json();
+      if (!refresh_token) {
+        return new Response(JSON.stringify({ error: 'refresh_token is required' }), {
+          status: 400,
+          headers: { ...responseHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      const clientId = Deno.env.get('GOOGLE_CLIENT_ID');
+      const clientSecret = Deno.env.get('GOOGLE_CLIENT_SECRET');
+      if (!clientId || !clientSecret) {
+        return new Response(JSON.stringify({ error: 'Google Calendar credentials not configured on server' }), {
+          status: 500,
+          headers: { ...responseHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
+          refresh_token,
+          client_id: clientId,
+          client_secret: clientSecret,
+          grant_type: 'refresh_token',
+        }),
+      });
+
+      const tokenData = await tokenResponse.json();
+      if (!tokenResponse.ok) {
+        console.error('Google token refresh error:', tokenData);
+        return new Response(JSON.stringify({ error: 'Token refresh failed', details: tokenData.error_description || tokenData.error }), {
+          status: 400,
+          headers: { ...responseHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      return new Response(JSON.stringify({
+        access_token: tokenData.access_token,
+        expires_in: tokenData.expires_in,
+      }), {
+        headers: { ...responseHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    if (path === '/integrations/google-calendar/calendars' && method === 'GET') {
+      const authHeader = req.headers.get('Authorization');
+      const { user, error: authError } = await getAuthenticatedUser(authHeader);
+
+      if (authError || !user) {
+        return new Response(JSON.stringify({ error: authError ?? 'Unauthorized' }), {
+          status: 401,
+          headers: { ...responseHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      const accessToken = url.searchParams.get('access_token');
+      if (!accessToken) {
+        return new Response(JSON.stringify({ error: 'access_token query param is required' }), {
+          status: 400,
+          headers: { ...responseHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      const calResponse = await fetch('https://www.googleapis.com/calendar/v3/users/me/calendarList?minAccessRole=writer', {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+
+      const calData = await calResponse.json();
+      if (!calResponse.ok) {
+        console.error('Google Calendar list error:', calData);
+        return new Response(JSON.stringify({ error: 'Failed to list calendars', details: calData.error?.message }), {
+          status: calResponse.status,
+          headers: { ...responseHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      const calendars = (calData.items || []).map((cal: any) => ({
+        id: cal.id,
+        name: cal.summary || 'Unnamed Calendar',
+        primary: cal.primary || false,
+        accessRole: cal.accessRole || 'reader',
+      }));
+
+      return new Response(JSON.stringify({ calendars }), {
+        headers: { ...responseHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    if (path === '/integrations/google-calendar/events' && method === 'POST') {
+      const authHeader = req.headers.get('Authorization');
+      const { user, error: authError } = await getAuthenticatedUser(authHeader);
+
+      if (authError || !user) {
+        return new Response(JSON.stringify({ error: authError ?? 'Unauthorized' }), {
+          status: 401,
+          headers: { ...responseHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      const { access_token, calendar_id, event_data, event_id } = await req.json();
+      if (!access_token || !calendar_id || !event_data) {
+        return new Response(JSON.stringify({ error: 'access_token, calendar_id, and event_data are required' }), {
+          status: 400,
+          headers: { ...responseHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      let apiUrl: string;
+      let method_: string;
+
+      if (event_id) {
+        apiUrl = `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendar_id)}/events/${encodeURIComponent(event_id)}`;
+        method_ = 'PUT';
+      } else {
+        apiUrl = `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendar_id)}/events`;
+        method_ = 'POST';
+      }
+
+      const eventResponse = await fetch(apiUrl, {
+        method: method_,
+        headers: {
+          Authorization: `Bearer ${access_token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(event_data),
+      });
+
+      const eventResult = await eventResponse.json();
+      if (!eventResponse.ok) {
+        console.error('Google Calendar event error:', eventResult);
+        return new Response(JSON.stringify({ error: 'Failed to create/update event', details: eventResult.error?.message }), {
+          status: eventResponse.status,
+          headers: { ...responseHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      return new Response(JSON.stringify({ event_id: eventResult.id }), {
+        headers: { ...responseHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    if (path === '/integrations/google-calendar/events' && method === 'DELETE') {
+      const authHeader = req.headers.get('Authorization');
+      const { user, error: authError } = await getAuthenticatedUser(authHeader);
+
+      if (authError || !user) {
+        return new Response(JSON.stringify({ error: authError ?? 'Unauthorized' }), {
+          status: 401,
+          headers: { ...responseHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      const { access_token, calendar_id, event_id } = await req.json();
+      if (!access_token || !calendar_id || !event_id) {
+        return new Response(JSON.stringify({ error: 'access_token, calendar_id, and event_id are required' }), {
+          status: 400,
+          headers: { ...responseHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      const deleteUrl = `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendar_id)}/events/${encodeURIComponent(event_id)}`;
+      const deleteResponse = await fetch(deleteUrl, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${access_token}` },
+      });
+
+      if (!deleteResponse.ok && deleteResponse.status !== 410) {
+        const errorData = await deleteResponse.json().catch(() => ({}));
+        console.error('Google Calendar delete error:', errorData);
+        return new Response(JSON.stringify({ error: 'Failed to delete event', details: (errorData as any).error?.message }), {
+          status: deleteResponse.status,
+          headers: { ...responseHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      return new Response(JSON.stringify({ success: true }), {
+        headers: { ...responseHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
     // 404 - Route not found
     return new Response(JSON.stringify({ error: 'Not found' }), {
       status: 404,

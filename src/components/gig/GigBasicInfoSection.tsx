@@ -7,6 +7,7 @@ import { Clock, DollarSign, AlertCircle } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
+import { Checkbox } from '../ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import TagsInput from '../TagsInput';
 import MarkdownEditor from '../MarkdownEditor';
@@ -16,13 +17,14 @@ import SaveStateIndicator from './SaveStateIndicator';
 import { toast } from 'sonner';
 import { GigStatus } from '../../utils/supabase/types';
 import { GIG_STATUS_CONFIG, SUGGESTED_TAGS } from '../../utils/supabase/constants';
-import { formatGigDateTimeForInput, parseGigDateTimeFromInput } from '../../utils/dateUtils';
+import { formatGigDateTimeForInput, parseGigDateTimeFromInput, isNoonUTC } from '../../utils/dateUtils';
 import { getCommonUSTimezones } from '../../utils/timezones';
 
 const basicInfoSchema = z.object({
   title: z.string().min(1, 'Title is required').max(200, 'Title must be less than 200 characters'),
-  start_time: z.date({ required_error: 'Start date/time is required' }),
-  end_time: z.date({ required_error: 'End date/time is required' }),
+  start_time: z.date({ required_error: 'Start date is required' }),
+  end_time: z.date().optional().nullable(),
+  all_day: z.boolean(),
   timezone: z.string().min(1, 'Timezone is required'),
   status: z.enum(Object.keys(GIG_STATUS_CONFIG) as [string, ...string[]]),
   tags: z.array(z.string()).optional(),
@@ -33,14 +35,15 @@ const basicInfoSchema = z.object({
   }
   return true;
 }, {
-  message: 'End time must be after start time',
+  message: 'End must be after start',
   path: ['end_time'],
 });
 
 interface BasicInfoFormData {
   title: string;
   start_time: Date | undefined;
-  end_time: Date | undefined;
+  end_time: Date | undefined | null;
+  all_day: boolean;
   timezone: string;
   status: GigStatus;
   tags: string[];
@@ -71,6 +74,7 @@ export default function GigBasicInfoSection({ gigId, onCreate, isSubmitting: ext
       title: '',
       start_time: undefined,
       end_time: undefined,
+      all_day: false,
       timezone: 'America/Los_Angeles',
       status: 'DateHold',
       tags: [],
@@ -80,18 +84,30 @@ export default function GigBasicInfoSection({ gigId, onCreate, isSubmitting: ext
 
   const isSubmitting = externalIsSubmitting || internalIsSubmitting;
 
+  const computeEffectiveEnd = useCallback((data: BasicInfoFormData): string | undefined => {
+    if (!data.start_time) return undefined;
+    if (data.end_time) return data.end_time.toISOString();
+    if (data.all_day) {
+      return data.start_time.toISOString();
+    }
+    return new Date(data.start_time.getTime() + 4 * 60 * 60 * 1000).toISOString();
+  }, []);
+
   const handleSave = useCallback(async (data: BasicInfoFormData) => {
     if (!gigId) return;
+    if (!data.start_time) return;
+    const effectiveEnd = computeEffectiveEnd(data);
+    if (effectiveEnd && new Date(effectiveEnd) <= data.start_time) return;
     await updateGig(gigId, {
       title: data.title,
-      start: data.start_time?.toISOString(),
-      end: data.end_time?.toISOString(),
+      start: data.start_time.toISOString(),
+      end: effectiveEnd,
       timezone: data.timezone,
       status: data.status,
       tags: data.tags,
       notes: data.notes,
     });
-  }, [gigId]);
+  }, [gigId, computeEffectiveEnd]);
 
   const handleSaveSuccess = useCallback((data: BasicInfoFormData) => {
     reset(data, { keepDirty: false, keepValues: true });
@@ -101,7 +117,7 @@ export default function GigBasicInfoSection({ gigId, onCreate, isSubmitting: ext
     gigId: gigId || '',
     onSave: handleSave,
     onSuccess: handleSaveSuccess,
-    debounceMs: 2000
+    debounceMs: 3000
   });
 
   const formValues = watch();
@@ -128,10 +144,12 @@ export default function GigBasicInfoSection({ gigId, onCreate, isSubmitting: ext
     try {
       const gig = await getGig(gigId);
 
+      const startIsAllDay = gig.start ? isNoonUTC(gig.start) : false;
       const data = {
         title: gig.title || '',
         start_time: gig.start ? new Date(gig.start) : undefined,
         end_time: gig.end ? new Date(gig.end) : undefined,
+        all_day: startIsAllDay,
         timezone: gig.timezone || 'America/Los_Angeles',
         status: gig.status || 'DateHold',
         tags: gig.tags || [],
@@ -202,32 +220,119 @@ export default function GigBasicInfoSection({ gigId, onCreate, isSubmitting: ext
               )}
             </div>
 
+            <div className="flex items-center gap-2 mb-1">
+              <Controller
+                name="all_day"
+                control={control}
+                render={({ field }) => (
+                  <Checkbox
+                    id="all_day"
+                    checked={field.value}
+                    className="border-gray-400 data-[state=checked]:border-primary"
+                    onCheckedChange={(checked) => {
+                      const isAllDay = !!checked;
+                      field.onChange(isAllDay);
+                      const startVal = watch('start_time');
+                      if (isAllDay && startVal) {
+                        const dateStr = startVal.toISOString().substring(0, 10);
+                        const noonUtc = new Date(`${dateStr}T12:00:00Z`);
+                        setValue('start_time', noonUtc, { shouldDirty: true });
+                        const endVal = watch('end_time');
+                        if (endVal) {
+                          const endDateStr = endVal.toISOString().substring(0, 10);
+                          setValue('end_time', new Date(`${endDateStr}T12:00:00Z`), { shouldDirty: true });
+                        }
+                      } else if (!isAllDay && startVal && isNoonUTC(startVal.toISOString())) {
+                        const dateStr = startVal.toISOString().substring(0, 10);
+                        const utcIso = parseGigDateTimeFromInput(`${dateStr}T19:00`, watch('timezone'), false);
+                        setValue('start_time', new Date(utcIso), { shouldDirty: true });
+                        setValue('end_time', new Date(new Date(utcIso).getTime() + 4 * 60 * 60 * 1000), { shouldDirty: true });
+                      }
+                    }}
+                    disabled={isSubmitting}
+                  />
+                )}
+              />
+              <Label htmlFor="all_day" className="text-sm font-normal cursor-pointer">All day</Label>
+            </div>
+
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="start_time">
-                  Start Date/Time <span className="text-red-500">*</span>
+                  {watch('all_day') ? 'Start Date' : 'Start Date/Time'} <span className="text-red-500">*</span>
                 </Label>
-                <div className="relative">
-                  <Clock className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                  <Controller
-                    name="start_time"
-                    control={control}
-                    render={({ field }) => (
-                      <Input
-                        id="start_time"
-                        type={field.value?.toISOString().endsWith('T12:00:00.000Z') ? 'date' : 'datetime-local'}
-                        value={formatGigDateTimeForInput(field.value || '', watch('timezone'))}
-                        onChange={(e) => {
-                          const isDateOnly = e.target.type === 'date';
-                          const utcIso = parseGigDateTimeFromInput(e.target.value, watch('timezone'), isDateOnly);
-                          field.onChange(utcIso ? new Date(utcIso) : undefined);
-                        }}
-                        className={`pl-9 ${errors.start_time ? 'border-red-500' : ''}`}
-                        disabled={isSubmitting}
-                      />
-                    )}
-                  />
-                </div>
+                <Controller
+                  name="start_time"
+                  control={control}
+                  render={({ field }) => {
+                    const formatted = formatGigDateTimeForInput(field.value || '', watch('timezone'));
+                    const datePart = formatted.substring(0, 10);
+                    const timePart = formatted.substring(11, 16);
+                    const hour = timePart ? timePart.substring(0, 2) : '';
+                    const minute = timePart ? timePart.substring(3, 5) : '';
+
+                    const handleDateTimeChange = (newDate: string, newHour: string, newMinute: string) => {
+                      if (!newDate) { field.onChange(undefined); return; }
+                      const allDay = watch('all_day');
+                      const inputVal = allDay ? newDate : `${newDate}T${newHour || '12'}:${newMinute || '00'}`;
+                      const utcIso = parseGigDateTimeFromInput(inputVal, watch('timezone'), allDay);
+                      if (utcIso) {
+                        const newStart = new Date(utcIso);
+                        const oldStart = field.value;
+                        const currentEnd = watch('end_time');
+                        field.onChange(newStart);
+                        if (oldStart && currentEnd) {
+                          if (allDay) {
+                            const dayDiff = Math.round((currentEnd.getTime() - oldStart.getTime()) / 86400000);
+                            setValue('end_time', new Date(newStart.getTime() + dayDiff * 86400000), { shouldDirty: true });
+                          } else {
+                            const durationMs = currentEnd.getTime() - oldStart.getTime();
+                            setValue('end_time', new Date(newStart.getTime() + durationMs), { shouldDirty: true });
+                          }
+                        } else if (!currentEnd) {
+                          if (allDay) {
+                            setValue('end_time', new Date(utcIso), { shouldDirty: true });
+                          } else {
+                            setValue('end_time', new Date(newStart.getTime() + 4 * 60 * 60 * 1000), { shouldDirty: true });
+                          }
+                        }
+                      }
+                    };
+
+                    return (
+                      <div className="flex gap-2 items-center">
+                        <div className="relative flex-1">
+                          <Clock className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                          <Input
+                            id="start_time"
+                            type="date"
+                            value={datePart}
+                            onChange={(e) => handleDateTimeChange(e.target.value, hour, minute)}
+                            className={`pl-9 ${errors.start_time ? 'border-red-500' : ''}`}
+                            disabled={isSubmitting}
+                          />
+                        </div>
+                        {!watch('all_day') && (
+                          <>
+                            <Select value={hour} onValueChange={(h) => handleDateTimeChange(datePart, h, minute)} disabled={isSubmitting}>
+                              <SelectTrigger className="w-[70px]"><SelectValue placeholder="HH" /></SelectTrigger>
+                              <SelectContent>{Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0')).map(h => (
+                                <SelectItem key={h} value={h}>{h}</SelectItem>
+                              ))}</SelectContent>
+                            </Select>
+                            <span className="text-muted-foreground font-medium">:</span>
+                            <Select value={minute} onValueChange={(m) => handleDateTimeChange(datePart, hour, m)} disabled={isSubmitting}>
+                              <SelectTrigger className="w-[70px]"><SelectValue placeholder="MM" /></SelectTrigger>
+                              <SelectContent>{['00', '05', '10', '15', '20', '25', '30', '35', '40', '45', '50', '55'].map(m => (
+                                <SelectItem key={m} value={m}>{m}</SelectItem>
+                              ))}</SelectContent>
+                            </Select>
+                          </>
+                        )}
+                      </div>
+                    );
+                  }}
+                />
                 {errors.start_time && (
                   <p className="text-sm text-red-600 flex items-center gap-1">
                     <AlertCircle className="w-4 h-4" />
@@ -238,29 +343,66 @@ export default function GigBasicInfoSection({ gigId, onCreate, isSubmitting: ext
 
               <div className="space-y-2">
                 <Label htmlFor="end_time">
-                  End Date/Time <span className="text-red-500">*</span>
+                  {watch('all_day') ? 'End Date' : 'End Date/Time'}
                 </Label>
-                <div className="relative">
-                  <Clock className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                  <Controller
-                    name="end_time"
-                    control={control}
-                    render={({ field }) => (
-                      <Input
-                        id="end_time"
-                        type={field.value?.toISOString().endsWith('T12:00:00.000Z') ? 'date' : 'datetime-local'}
-                        value={formatGigDateTimeForInput(field.value || '', watch('timezone'))}
-                        onChange={(e) => {
-                          const isDateOnly = e.target.type === 'date';
-                          const utcIso = parseGigDateTimeFromInput(e.target.value, watch('timezone'), isDateOnly);
-                          field.onChange(utcIso ? new Date(utcIso) : undefined);
-                        }}
-                        className={`pl-9 ${errors.end_time ? 'border-red-500' : ''}`}
-                        disabled={isSubmitting}
-                      />
-                    )}
-                  />
-                </div>
+                <Controller
+                  name="end_time"
+                  control={control}
+                  render={({ field }) => {
+                    const formatted = field.value ? formatGigDateTimeForInput(field.value, watch('timezone')) : '';
+                    const datePart = formatted.substring(0, 10);
+                    const timePart = formatted.substring(11, 16);
+                    const hour = timePart ? timePart.substring(0, 2) : '';
+                    const minute = timePart ? timePart.substring(3, 5) : '';
+
+                    const handleDateTimeChange = (newDate: string, newHour: string, newMinute: string) => {
+                      if (!newDate) { field.onChange(null); return; }
+                      const allDay = watch('all_day');
+                      const inputVal = allDay ? newDate : `${newDate}T${newHour || '12'}:${newMinute || '00'}`;
+                      const utcIso = parseGigDateTimeFromInput(inputVal, watch('timezone'), allDay);
+                      field.onChange(utcIso ? new Date(utcIso) : null);
+                    };
+
+                    return (
+                      <div className="flex gap-2 items-center">
+                        <div className="relative flex-1">
+                          <Clock className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                          <Input
+                            id="end_time"
+                            type="date"
+                            value={datePart}
+                            onChange={(e) => handleDateTimeChange(e.target.value, hour, minute)}
+                            className={`pl-9 ${errors.end_time ? 'border-red-500' : ''}`}
+                            disabled={isSubmitting}
+                          />
+                        </div>
+                        {!watch('all_day') && (
+                          <>
+                            <Select value={hour} onValueChange={(h) => handleDateTimeChange(datePart, h, minute)} disabled={isSubmitting}>
+                              <SelectTrigger className="w-[70px]"><SelectValue placeholder="HH" /></SelectTrigger>
+                              <SelectContent>{Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0')).map(h => (
+                                <SelectItem key={h} value={h}>{h}</SelectItem>
+                              ))}</SelectContent>
+                            </Select>
+                            <span className="text-muted-foreground font-medium">:</span>
+                            <Select value={minute} onValueChange={(m) => handleDateTimeChange(datePart, hour, m)} disabled={isSubmitting}>
+                              <SelectTrigger className="w-[70px]"><SelectValue placeholder="MM" /></SelectTrigger>
+                              <SelectContent>{['00', '05', '10', '15', '20', '25', '30', '35', '40', '45', '50', '55'].map(m => (
+                                <SelectItem key={m} value={m}>{m}</SelectItem>
+                              ))}</SelectContent>
+                            </Select>
+                          </>
+                        )}
+                      </div>
+                    );
+                  }}
+                />
+                {!watch('all_day') && !watch('end_time') && watch('start_time') && (
+                  <p className="text-xs text-muted-foreground">Defaults to start + 4 hours</p>
+                )}
+                {watch('all_day') && !watch('end_time') && watch('start_time') && (
+                  <p className="text-xs text-muted-foreground">Defaults to start date</p>
+                )}
                 {errors.end_time && (
                   <p className="text-sm text-red-600 flex items-center gap-1">
                     <AlertCircle className="w-4 h-4" />

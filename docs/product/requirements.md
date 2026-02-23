@@ -205,7 +205,7 @@ This app streamlines the management of gigs (where an act performs at a venue) f
 - **Staff Assignment**: Assignment of specific user to a slot
   - Attributes: user_id, slot_id, status (Invited, Confirmed, Declined)
 - **Unassigned Slots**: Slots can exist without assignments (TBD staffing)
-- **Conflict Detection**: Warn when assigning staff to overlapping gigs
+- **Conflict Detection**: Warn when assigning acts, venues, staff or equipment to overlapping gigs
 
 #### Financials
 
@@ -354,9 +354,15 @@ Two additional Gig views:
 
 These warnings are displayed both in a box above the calendar display, and in the calendar itself with a distinctive color. When detected, they can also be added to the corresponding gig detail and entry screens. 
 
-- **Staff Conflicts**: Warn when staff assigned to overlapping gigs
-- **Equipment Conflicts**: Warn when equipment assigned to overlapping gigs
-- **Venue Conflicts**: Warn when scheduling multiple gigs at same venue/time
+Two levels of conflict detection are implemented:
+
+**CONFLICT**: A resource is committed to two or more gigs where there is complete, partial, or edge overlap.
+
+**WARNING**: A resource is committed to two or more gigs where the end of one gig is within four hours of the start of another gig.
+
+- **Staff Conflicts**: Detect when staff members are assigned to overlapping gigs (CONFLICT) or gigs within 4 hours (WARNING)
+- **Equipment Conflicts**: Detect when equipment/kits are assigned to overlapping gigs (CONFLICT) or gigs within 4 hours (WARNING)
+- **Venue Conflicts**: Detect when multiple gigs are scheduled at the same venue with overlapping times (CONFLICT) or within 4 hours (WARNING)
 
 ---
 

@@ -1,5 +1,13 @@
 import '@testing-library/jest-dom/vitest'
 
+if (typeof globalThis.ResizeObserver === 'undefined') {
+  globalThis.ResizeObserver = class ResizeObserver {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  } as any;
+}
+
 // Mock Supabase client
 import { vi } from 'vitest'
 import { createClient } from '../utils/supabase/client'

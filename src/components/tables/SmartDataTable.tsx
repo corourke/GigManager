@@ -82,6 +82,8 @@ interface SmartDataTableProps<T extends { id: string }> {
   isLoading?: boolean;
   emptyMessage?: string;
   className?: string;
+  toolbarLeft?: React.ReactNode;
+  toolbarRight?: React.ReactNode;
 }
 
 export function SmartDataTable<T extends { id: string }>({
@@ -97,6 +99,8 @@ export function SmartDataTable<T extends { id: string }>({
   isLoading = false,
   emptyMessage = 'No data found',
   className,
+  toolbarLeft,
+  toolbarRight,
 }: SmartDataTableProps<T>) {
   const {
     sorting,
@@ -363,6 +367,7 @@ export function SmartDataTable<T extends { id: string }>({
     <div className={cn("space-y-4", className)}>
       <div className="flex justify-between items-center px-1">
         <div className="flex items-center gap-2">
+          {toolbarLeft}
           <p className="text-sm text-muted-foreground">
             {processedData.length} {processedData.length === 1 ? 'row' : 'rows'}
           </p>
@@ -379,6 +384,8 @@ export function SmartDataTable<T extends { id: string }>({
           )}
         </div>
         
+        <div className="flex items-center gap-2">
+        {toolbarRight}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="outline" size="sm" className="ml-auto flex h-8 gap-2">
@@ -405,6 +412,7 @@ export function SmartDataTable<T extends { id: string }>({
               })}
           </DropdownMenuContent>
         </DropdownMenu>
+        </div>
       </div>
 
       <div 

@@ -20,6 +20,8 @@ import TeamMemberDetailScreen from './components/TeamMemberDetailScreen';
 import ImportScreen from './components/ImportScreen';
 import EditUserProfileDialog from './components/EditUserProfileDialog';
 import InvitationErrorScreen from './components/InvitationErrorScreen';
+import CalendarAuthCallback from './components/CalendarAuthCallback';
+import SettingsScreen from './components/SettingsScreen';
 import { Toaster } from './components/ui/sonner';
 import { toast } from 'sonner';
 import { NavigationProvider } from './contexts/NavigationContext';
@@ -32,15 +34,15 @@ import {
 
 import DevTableDemoScreen from './components/dev/DevTableDemoScreen';
 
-type Route = 
-  | 'login' 
+type Route =
+  | 'login'
   | 'profile-completion'
   | 'accept-invitation'
-  | 'org-selection' 
+  | 'org-selection'
   | 'create-org'
   | 'edit-org'
   | 'admin-orgs'
-  | 'dashboard' 
+  | 'dashboard'
   | 'gig-list'
   | 'create-gig'
   | 'gig-detail'
@@ -52,6 +54,9 @@ type Route =
   | 'kit-list'
   | 'create-kit'
   | 'kit-detail'
+  | 'calendar'
+  | 'calendar-auth-callback'
+  | 'settings'
   | 'import'
   | 'dev-demo';
 
@@ -74,6 +79,10 @@ function App() {
     if (window.location.pathname === '/accept-invitation' || window.location.hash.includes('type=invite')) {
       return 'accept-invitation';
     }
+    // Check for Google Calendar auth callback
+    if (window.location.pathname === '/auth/google-calendar/callback' || window.location.search.includes('code=')) {
+      return 'calendar-auth-callback';
+    }
     // Check for dev-demo in URL
     if (window.location.pathname === '/dev-demo') {
       return 'dev-demo';
@@ -94,6 +103,8 @@ function App() {
   });
   const [editingOrganization, setEditingOrganization] = useState<Organization | null>(null);
   const [showEditProfileDialog, setShowEditProfileDialog] = useState(false);
+  const [viewedFromCalendar, setViewedFromCalendar] = useState(false);
+  const [gigListKey, setGigListKey] = useState(0);
 
   const [invitationError, setInvitationError] = useState<{ error: string, description?: string } | null>(() => {
     const hash = window.location.hash;
@@ -181,18 +192,20 @@ function App() {
       if (currentRoute === 'dev-demo') return;
 
       // Don't redirect if we're already on an organization management route
-      const orgManagementRoutes: Route[] = ['org-selection', 'create-org', 'accept-invitation'];
+      const orgManagementRoutes: Route[] = ['org-selection', 'create-org', 'accept-invitation', 'calendar-auth-callback'];
       if (orgManagementRoutes.includes(currentRoute)) {
         return;
       }
 
       if (organizations.length === 0) {
-        setCurrentRoute('org-selection'); // Choose an org if user belongs to none
+        setCurrentRoute('org-selection');
       } else if (organizations.length === 1 && !selectedOrganization) {
         const membership = organizations[0];
-        selectOrganization(membership.organization);  // Auto-select if only one org
+        selectOrganization(membership.organization);
       } else if (!selectedOrganization) {
-        setCurrentRoute('org-selection'); // Otherwise user has to select which org to use
+        // Don't override settings route — it will render once org is selected
+        if (currentRoute === 'settings') return;
+        setCurrentRoute('org-selection');
       }
     }
   }, [user, selectedOrganization, organizations, isLoading, selectOrganization, currentRoute]);
@@ -297,8 +310,9 @@ function App() {
     setCurrentRoute('create-gig');
   };
 
-  const handleViewGig = (gigId: string) => {
+  const handleViewGig = (gigId: string, fromCalendar?: boolean) => {
     setSelectedGigId(gigId);
+    setViewedFromCalendar(!!fromCalendar);
     setCurrentRoute('gig-detail');
   };
 
@@ -318,6 +332,13 @@ function App() {
   };
 
   const handleBackToGigList = () => {
+    setViewedFromCalendar(false);
+    setGigListKey(k => k + 1);
+    setCurrentRoute('gig-list');
+  };
+
+  const handleBackToCalendar = () => {
+    setGigListKey(k => k + 1);
     setCurrentRoute('gig-list');
   };
 
@@ -427,6 +448,10 @@ function App() {
     setCurrentRoute('import');
   };
 
+  const handleNavigateToSettings = () => {
+    setCurrentRoute('settings');
+  };
+
   const handleEditProfile = () => {
     setShowEditProfileDialog(true);
   };
@@ -466,6 +491,7 @@ function App() {
       onNavigateToTeam={handleNavigateToTeam}
       onNavigateToAssets={handleNavigateToAssets}
       onEditProfile={handleEditProfile}
+      onNavigateToSettings={handleNavigateToSettings}
     >
       {currentRoute === 'dev-demo' && (
         <DevTableDemoScreen onBack={() => setCurrentRoute('dashboard')} />
@@ -522,6 +548,14 @@ function App() {
         />
       )}
       
+      {currentRoute === 'calendar-auth-callback' && user && (
+        <CalendarAuthCallback
+          userId={user.id}
+          onAuthComplete={() => setCurrentRoute('settings')}
+          onBack={() => setCurrentRoute('settings')}
+        />
+      )}
+
       {/* Org-specific screens */}
       {selectedOrganization && user && (
         <>
@@ -544,9 +578,11 @@ function App() {
 
           {currentRoute === 'gig-list' && (
             <GigListScreen
+              key={gigListKey}
               organization={selectedOrganization}
               user={user}
               userRole={userRole}
+              initialViewMode={viewedFromCalendar ? 'calendar' : 'list'}
               onBack={handleBackToDashboard}
               onCreateGig={handleCreateGig}
               onViewGig={handleViewGig}
@@ -558,7 +594,6 @@ function App() {
               onSwitchOrganization={handleBackToSelection}
               onEditProfile={handleEditProfile}
               onLogout={handleLogout}
-             
             />
           )}
 
@@ -584,7 +619,8 @@ function App() {
               organization={selectedOrganization}
               user={user}
               userRole={userRole}
-              onBack={handleBackToGigList}
+              onBack={viewedFromCalendar ? handleBackToCalendar : handleBackToGigList}
+              backLabel={viewedFromCalendar ? 'Back to Calendar' : 'Back to Gigs'}
               onEdit={handleEditGig}
               onSwitchOrganization={handleBackToSelection}
               onLogout={handleLogout}
@@ -716,6 +752,25 @@ function App() {
               onEdit={handleEditKit}
               onSwitchOrganization={handleBackToSelection}
               onLogout={handleLogout}
+            />
+          )}
+
+
+
+          {/* calendar-auth-callback moved outside selectedOrganization guard */}
+
+          {currentRoute === 'settings' && (
+            <SettingsScreen
+              organization={selectedOrganization}
+              user={user}
+              userRole={userRole}
+              onBack={handleBackToDashboard}
+              onNavigateToDashboard={handleBackToDashboard}
+              onNavigateToGigs={handleNavigateToGigs}
+              onNavigateToAssets={handleNavigateToAssets}
+              onSwitchOrganization={handleBackToSelection}
+              onLogout={handleLogout}
+              onEditProfile={handleEditProfile}
             />
           )}
 

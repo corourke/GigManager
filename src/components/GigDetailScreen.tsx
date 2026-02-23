@@ -1,13 +1,13 @@
 import { useState, useEffect } from 'react';
-import { 
-  ArrowLeft, 
-  Calendar, 
-  MapPin, 
-  User as UserIcon, 
-  Tag, 
-  Edit2, 
-  Trash2, 
-  Copy, 
+import {
+  ArrowLeft,
+  Calendar,
+  MapPin,
+  User as UserIcon,
+  Tag,
+  Edit2,
+  Trash2,
+  Copy,
   Loader2,
   FileText,
   Music
@@ -21,6 +21,8 @@ import GigFinancialsSection from './gig/GigFinancialsSection';
 import { Organization, User, UserRole, Gig } from '../utils/supabase/types';
 import { GIG_STATUS_CONFIG, ORG_TYPE_CONFIG } from '../utils/supabase/constants';
 import { getGig, deleteGig, duplicateGig } from '../services/gig.service';
+import { checkAllConflicts, Conflict } from '../services/conflictDetection.service';
+import { ConflictWarning } from './ConflictWarning';
 import { cn } from './ui/utils';
 import { formatTimeDisplay, formatInTimeZone, formatDateTimeDisplay } from '../utils/dateUtils';
 
@@ -31,6 +33,7 @@ interface GigDetailScreenProps {
   userRole?: UserRole;
   onBack: () => void;
   onEdit: (gigId: string) => void;
+  backLabel?: string;
   onSwitchOrganization: () => void;
   onLogout: () => void;
 }
@@ -42,10 +45,12 @@ export default function GigDetailScreen({
   userRole,
   onBack,
   onEdit,
+  backLabel = 'Back to Gigs',
   onSwitchOrganization,
   onLogout,
 }: GigDetailScreenProps) {
   const [gig, setGig] = useState<Gig | null>(null);
+  const [conflicts, setConflicts] = useState<Conflict[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -59,12 +64,18 @@ export default function GigDetailScreen({
       // Process venue and act from participants
       const venue = data.participants?.find((p: any) => p.role === 'Venue')?.organization;
       const act = data.participants?.find((p: any) => p.role === 'Act')?.organization;
-      
-      setGig({
+
+      const processedGig = {
         ...data,
         venue,
         act
-      });
+      };
+
+      setGig(processedGig);
+
+      // Check for conflicts
+      const conflictResult = await checkAllConflicts(gigId, data.start, data.end);
+        setConflicts(conflictResult.conflicts);
     } catch (error: any) {
       console.error('Error loading gig:', error);
       toast.error(error.message || 'Failed to load gig');
@@ -98,6 +109,8 @@ export default function GigDetailScreen({
     }
   };
 
+
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -128,7 +141,7 @@ export default function GigDetailScreen({
         <div className="mb-4">
           <Button variant="ghost" onClick={onBack} className="mb-2 -ml-2">
             <ArrowLeft className="w-4 h-4 mr-2" />
-            Back to Gigs
+            {backLabel}
           </Button>
 
           <div className="flex items-start justify-between">
@@ -173,6 +186,15 @@ export default function GigDetailScreen({
             </div>
           </div>
         </div>
+
+        {conflicts.length > 0 && (
+          <div className="mb-6">
+            <ConflictWarning
+              conflicts={conflicts}
+              showAsCard={true}
+            />
+          </div>
+        )}
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
           {/* Main Info Columns */}

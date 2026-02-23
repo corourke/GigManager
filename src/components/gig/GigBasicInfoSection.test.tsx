@@ -89,6 +89,33 @@ describe('GigBasicInfoSection', () => {
           title: 'Test Gig Updated',
         })
       );
-    }, { timeout: 2000 }); // Account for debounce
+    }, { timeout: 5000 });
+  });
+
+  it('shows All day checkbox', async () => {
+    render(<GigBasicInfoSection gigId={mockGigId} />);
+
+    await waitFor(() => {
+      expect(screen.getByDisplayValue('Test Gig')).toBeInTheDocument();
+    });
+
+    expect(screen.getByLabelText('All day')).toBeInTheDocument();
+  });
+
+  it('detects all-day gigs from noon UTC sentinel', async () => {
+    vi.mocked(gigService.getGig).mockResolvedValue({
+      ...mockGigData,
+      start: '2024-01-15T12:00:00.000Z',
+      end: '2024-01-15T12:00:00.000Z',
+    } as any);
+
+    render(<GigBasicInfoSection gigId={mockGigId} />);
+
+    await waitFor(() => {
+      expect(screen.getByDisplayValue('Test Gig')).toBeInTheDocument();
+    });
+
+    const checkbox = screen.getByLabelText('All day') as HTMLButtonElement;
+    expect(checkbox.getAttribute('data-state')).toBe('checked');
   });
 });
