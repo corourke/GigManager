@@ -1,8 +1,8 @@
 import { AlertCircle, CalendarIcon } from 'lucide-react';
 import { Button } from '../ui/button';
-import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 import { Calendar } from '../ui/calendar';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
 import { format } from 'date-fns';
 import {
@@ -13,6 +13,9 @@ import {
   DialogHeader,
   DialogTitle,
 } from '../ui/dialog';
+
+const HOURS = Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0'));
+const MINUTES = ['00', '05', '10', '15', '20', '25', '30', '35', '40', '45', '50', '55'];
 
 interface TimeEditDialogProps {
   open: boolean;
@@ -39,6 +42,11 @@ export function TimeEditDialog({
 }: TimeEditDialogProps) {
   const isInvalid = !date || !startTime || !endTime || (endTime <= startTime);
 
+  const startHour = startTime ? startTime.substring(0, 2) : '';
+  const startMinute = startTime ? startTime.substring(3, 5) : '';
+  const endHour = endTime ? endTime.substring(0, 2) : '';
+  const endMinute = endTime ? endTime.substring(3, 5) : '';
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
@@ -49,7 +57,6 @@ export function TimeEditDialog({
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4 py-4">
-          {/* Date picker */}
           <div className="space-y-2">
             <Label>Date</Label>
             <Popover>
@@ -69,14 +76,42 @@ export function TimeEditDialog({
             </Popover>
           </div>
 
-          {/* Existing time inputs */}
           <div className="space-y-2">
-            <Label htmlFor="start-time">Start Time</Label>
-            <Input id="start-time" type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} />
+            <Label>Start Time</Label>
+            <div className="flex gap-2 items-center">
+              <Select value={startHour} onValueChange={(h) => setStartTime(`${h}:${startMinute || '00'}`)}>
+                <SelectTrigger className="w-[80px]"><SelectValue placeholder="HH" /></SelectTrigger>
+                <SelectContent>{HOURS.map(h => (
+                  <SelectItem key={h} value={h}>{h}</SelectItem>
+                ))}</SelectContent>
+              </Select>
+              <span className="text-muted-foreground font-medium">:</span>
+              <Select value={startMinute} onValueChange={(m) => setStartTime(`${startHour || '12'}:${m}`)}>
+                <SelectTrigger className="w-[80px]"><SelectValue placeholder="MM" /></SelectTrigger>
+                <SelectContent>{MINUTES.map(m => (
+                  <SelectItem key={m} value={m}>{m}</SelectItem>
+                ))}</SelectContent>
+              </Select>
+            </div>
           </div>
+
           <div className="space-y-2">
-            <Label htmlFor="end-time">End Time</Label>
-            <Input id="end-time" type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)} />
+            <Label>End Time</Label>
+            <div className="flex gap-2 items-center">
+              <Select value={endHour} onValueChange={(h) => setEndTime(`${h}:${endMinute || '00'}`)}>
+                <SelectTrigger className="w-[80px]"><SelectValue placeholder="HH" /></SelectTrigger>
+                <SelectContent>{HOURS.map(h => (
+                  <SelectItem key={h} value={h}>{h}</SelectItem>
+                ))}</SelectContent>
+              </Select>
+              <span className="text-muted-foreground font-medium">:</span>
+              <Select value={endMinute} onValueChange={(m) => setEndTime(`${endHour || '12'}:${m}`)}>
+                <SelectTrigger className="w-[80px]"><SelectValue placeholder="MM" /></SelectTrigger>
+                <SelectContent>{MINUTES.map(m => (
+                  <SelectItem key={m} value={m}>{m}</SelectItem>
+                ))}</SelectContent>
+              </Select>
+            </div>
           </div>
 
           {isInvalid && (

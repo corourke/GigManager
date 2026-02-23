@@ -205,7 +205,7 @@ This app streamlines the management of gigs (where an act performs at a venue) f
 - **Staff Assignment**: Assignment of specific user to a slot
   - Attributes: user_id, slot_id, status (Invited, Confirmed, Declined)
 - **Unassigned Slots**: Slots can exist without assignments (TBD staffing)
-- **Conflict Detection**: Warn when assigning staff to overlapping gigs
+- **Conflict Detection**: Warn when assigning acts, venues, staff or equipment to overlapping gigs
 
 #### Financials
 

@@ -76,29 +76,8 @@ describe('ConflictWarning', () => {
     expect(mockOnViewGig).toHaveBeenCalledWith('gig-1');
   });
 
-  it('calls onOverride when Override button is clicked', () => {
-    const mockOnOverride = vi.fn();
-    render(
-      <ConflictWarning
-        conflicts={[mockConflicts[0]]}
-        showAsCard={true}
-        onOverride={mockOnOverride}
-      />
-    );
-
-    const overrideButton = screen.getByText('Override');
-    fireEvent.click(overrideButton);
-
-    expect(mockOnOverride).toHaveBeenCalledWith('staff-gig-1');
-  });
-
   it('does not render View Gig button when onViewGig is not provided', () => {
     render(<ConflictWarning conflicts={[mockConflicts[0]]} showAsCard={true} />);
     expect(screen.queryByText('View Gig')).not.toBeInTheDocument();
-  });
-
-  it('does not render Override button when onOverride is not provided', () => {
-    render(<ConflictWarning conflicts={[mockConflicts[0]]} showAsCard={true} />);
-    expect(screen.queryByText('Override')).not.toBeInTheDocument();
   });
 });

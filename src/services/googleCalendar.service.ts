@@ -4,172 +4,110 @@ import { handleApiError } from '../utils/api-error-utils';
 
 const getSupabase = () => createClient();
 
-// Google OAuth configuration
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
-const GOOGLE_CLIENT_SECRET = import.meta.env.VITE_GOOGLE_CLIENT_SECRET;
 
-// Google Calendar API scopes
 const SCOPES = [
-  'https://www.googleapis.com/auth/calendar',
-  'https://www.googleapis.com/auth/calendar.events'
+  'https://www.googleapis.com/auth/calendar.calendarlist.readonly',
+  'https://www.googleapis.com/auth/calendar.events.owned'
 ];
 
-// For client-side OAuth, we'll use a simpler approach
-// In a production app, this would be handled by a backend service
-const getOAuth2Client = () => {
-  // This is a placeholder - in production, OAuth should be handled server-side
-  // For now, we'll implement a basic flow that can be expanded
-  return {
-    generateAuthUrl: (options: any) => {
-      const params = new URLSearchParams({
-        client_id: GOOGLE_CLIENT_ID,
-        redirect_uri: `${window.location.origin}/auth/google-calendar/callback`,
-        scope: SCOPES.join(' '),
-        response_type: 'code',
-        access_type: 'offline',
-        prompt: 'consent',
-      });
-      return `https://accounts.google.com/oauth/authorize?${params.toString()}`;
-    },
-    getToken: async (code: string) => {
-      // This should be done server-side in production
-      // For now, return a mock response
-      return {
-        tokens: {
-          access_token: 'mock_access_token',
-          refresh_token: 'mock_refresh_token',
-          expiry_date: Date.now() + 3600000,
-        }
-      };
-    },
-    setCredentials: () => {},
-    refreshAccessToken: async () => ({
-      credentials: {
-        access_token: 'refreshed_access_token',
-        expiry_date: Date.now() + 3600000,
-      }
-    }),
-  };
-};
+const REDIRECT_URI = () => `${window.location.origin}/auth/google-calendar/callback`;
 
-/**
- * Generate Google OAuth authorization URL
- */
 export async function getGoogleAuthUrl(): Promise<string> {
-  const oauth2Client = getOAuth2Client();
-
-  const authUrl = oauth2Client.generateAuthUrl({
+  const params = new URLSearchParams({
+    client_id: GOOGLE_CLIENT_ID,
+    redirect_uri: REDIRECT_URI(),
+    scope: SCOPES.join(' '),
+    response_type: 'code',
     access_type: 'offline',
-    scope: SCOPES,
-    prompt: 'consent', // Force refresh token
+    prompt: 'consent',
   });
-
-  return authUrl;
+  return `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
 }
 
-/**
- * Exchange authorization code for tokens
- */
 export async function exchangeCodeForTokens(code: string): Promise<{
   access_token: string;
   refresh_token: string;
   expires_at: Date;
 }> {
-  const oauth2Client = getOAuth2Client();
+  const supabase = getSupabase();
 
   try {
-    const { tokens } = await oauth2Client.getToken(code);
-    await oauth2Client.setCredentials(tokens);
+    const { data, error } = await supabase.functions.invoke(
+      'server/integrations/google-calendar/exchange-token',
+      {
+        method: 'POST',
+        body: { code, redirect_uri: REDIRECT_URI() },
+      }
+    );
 
-    if (!tokens.access_token || !tokens.refresh_token) {
+    if (error) throw error;
+    if (data?.error) throw new Error(data.details || data.error);
+
+    if (!data.access_token || !data.refresh_token) {
       throw new Error('Failed to obtain required tokens');
     }
 
     return {
-      access_token: tokens.access_token,
-      refresh_token: tokens.refresh_token,
-      expires_at: new Date(tokens.expiry_date || Date.now() + 3600000), // Default 1 hour
+      access_token: data.access_token,
+      refresh_token: data.refresh_token,
+      expires_at: new Date(Date.now() + (data.expires_in || 3600) * 1000),
     };
   } catch (error) {
     throw handleApiError(error, 'exchange authorization code for tokens');
   }
 }
 
-/**
- * Refresh access token using refresh token
- */
 export async function refreshAccessToken(refreshToken: string): Promise<{
   access_token: string;
   expires_at: Date;
 }> {
-  const oauth2Client = getOAuth2Client();
+  const supabase = getSupabase();
 
   try {
-    oauth2Client.setCredentials({
-      refresh_token: refreshToken,
-    });
+    const { data, error } = await supabase.functions.invoke(
+      'server/integrations/google-calendar/refresh-token',
+      {
+        method: 'POST',
+        body: { refresh_token: refreshToken },
+      }
+    );
 
-    const { credentials } = await oauth2Client.refreshAccessToken();
-    await oauth2Client.setCredentials(credentials);
+    if (error) throw error;
+    if (data?.error) throw new Error(data.details || data.error);
 
-    if (!credentials.access_token) {
+    if (!data.access_token) {
       throw new Error('Failed to refresh access token');
     }
 
     return {
-      access_token: credentials.access_token,
-      expires_at: new Date(credentials.expiry_date || Date.now() + 3600000),
+      access_token: data.access_token,
+      expires_at: new Date(Date.now() + (data.expires_in || 3600) * 1000),
     };
   } catch (error) {
     throw handleApiError(error, 'refresh access token');
   }
 }
 
-/**
- * Get authenticated Google Calendar API client
- */
-export async function getCalendarClient(userId: string): Promise<any> {
+async function getValidAccessToken(userId: string): Promise<{ accessToken: string; settings: UserGoogleCalendarSettings }> {
   const settings = await getUserGoogleCalendarSettings(userId);
 
-  if (!settings || !settings.is_enabled) {
-    throw new Error('Google Calendar integration not configured or disabled');
+  if (!settings) {
+    throw new Error('Google Calendar integration not configured');
   }
 
-  // Check if token is expired and refresh if needed
   let accessToken = settings.access_token;
   if (new Date(settings.token_expires_at) <= new Date()) {
     const refreshed = await refreshAccessToken(settings.refresh_token);
     accessToken = refreshed.access_token;
 
-    // Update stored token
     await updateUserGoogleCalendarSettings(userId, {
       access_token: refreshed.access_token,
       token_expires_at: refreshed.expires_at.toISOString(),
     });
   }
 
-  // Return a mock client for now - in production, this would use gapi or fetch
-  return {
-    calendarList: {
-      list: async () => ({
-        data: {
-          items: [
-            {
-              id: settings.calendar_id,
-              summary: settings.calendar_name || 'Selected Calendar',
-              primary: false,
-              accessRole: 'owner',
-            }
-          ]
-        }
-      })
-    },
-    events: {
-      insert: async () => ({ data: { id: `event_${Date.now()}` } }),
-      update: async () => ({ data: { id: 'existing_event' } }),
-      delete: async () => ({}),
-    }
-  };
+  return { accessToken, settings };
 }
 
 /**
@@ -181,7 +119,7 @@ export async function getUserGoogleCalendarSettings(userId: string): Promise<Use
   try {
     const { data, error } = await supabase
       .from('user_google_calendar_settings')
-      .select('*')
+      .select('id, user_id, calendar_id, calendar_name, access_token, refresh_token, token_expires_at, is_enabled, sync_filters, created_at, updated_at')
       .eq('user_id', userId)
       .single();
 
@@ -213,18 +151,45 @@ export async function saveUserGoogleCalendarSettings(
   const supabase = getSupabase();
 
   try {
-    const { data, error } = await supabase
+    // Check if user already has settings (app supports only one calendar per user)
+    const { data: existing } = await supabase
       .from('user_google_calendar_settings')
-      .upsert({
-        user_id: userId,
-        ...settings,
-        updated_at: new Date().toISOString(),
-      })
-      .select()
+      .select('id')
+      .eq('user_id', userId)
       .single();
 
-    if (error) throw error;
-    return data;
+    let result;
+    if (existing) {
+      const SETTINGS_COLS = 'id, user_id, calendar_id, calendar_name, access_token, refresh_token, token_expires_at, is_enabled, sync_filters, created_at, updated_at';
+      // Update existing settings
+      const { data, error } = await supabase
+        .from('user_google_calendar_settings')
+        .update({
+          ...settings,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('user_id', userId)
+        .select(SETTINGS_COLS)
+        .single();
+      if (error) throw error;
+      result = data;
+    } else {
+      const SETTINGS_COLS = 'id, user_id, calendar_id, calendar_name, access_token, refresh_token, token_expires_at, is_enabled, sync_filters, created_at, updated_at';
+      // Insert new settings
+      const { data, error } = await supabase
+        .from('user_google_calendar_settings')
+        .insert({
+          user_id: userId,
+          ...settings,
+          updated_at: new Date().toISOString(),
+        })
+        .select(SETTINGS_COLS)
+        .single();
+      if (error) throw error;
+      result = data;
+    }
+
+    return result;
   } catch (error) {
     return handleApiError(error, 'save user Google Calendar settings');
   }
@@ -247,7 +212,7 @@ export async function updateUserGoogleCalendarSettings(
         updated_at: new Date().toISOString(),
       })
       .eq('user_id', userId)
-      .select()
+      .select('id, user_id, calendar_id, calendar_name, access_token, refresh_token, token_expires_at, is_enabled, sync_filters, created_at, updated_at')
       .single();
 
     if (error) throw error;
@@ -275,33 +240,30 @@ export async function deleteUserGoogleCalendarSettings(userId: string): Promise<
   }
 }
 
-/**
- * Get user's available Google Calendars
- */
 export async function getUserCalendars(userId: string): Promise<Array<{
   id: string;
   name: string;
   primary?: boolean;
   accessRole: string;
 }>> {
-  const calendar = await getCalendarClient(userId);
+  const supabase = getSupabase();
+  const { accessToken } = await getValidAccessToken(userId);
 
   try {
-    const response = await calendar.calendarList.list();
-    return (response.data.items || []).map(cal => ({
-      id: cal.id!,
-      name: cal.summary || 'Unnamed Calendar',
-      primary: cal.primary || false,
-      accessRole: cal.accessRole || 'reader',
-    }));
+    const { data, error } = await supabase.functions.invoke(
+      `server/integrations/google-calendar/calendars?access_token=${encodeURIComponent(accessToken)}`,
+      { method: 'GET' }
+    );
+
+    if (error) throw error;
+    if (data?.error) throw new Error(data.details || data.error);
+
+    return data.calendars || [];
   } catch (error) {
     throw handleApiError(error, 'get user calendars');
   }
 }
 
-/**
- * Create or update a Google Calendar event for a gig
- */
 export async function syncGigToCalendar(
   userId: string,
   gigId: string,
@@ -314,61 +276,74 @@ export async function syncGigToCalendar(
     location?: string;
   }
 ): Promise<{ eventId: string; syncedAt: Date }> {
-  const calendar = await getCalendarClient(userId);
-  const settings = await getUserGoogleCalendarSettings(userId);
+  const supabase = getSupabase();
+  const { accessToken, settings } = await getValidAccessToken(userId);
 
-  if (!settings) {
-    throw new Error('Google Calendar settings not found');
+  if (!settings.is_enabled || !settings.calendar_id) {
+    throw new Error('Google Calendar sync not enabled or no calendar selected');
   }
 
   try {
-    // Check if event already exists
     const existingSync = await getGigSyncStatus(gigId, userId);
+
+    const startDate = new Date(gigData.start);
+    const endDate = gigData.end ? new Date(gigData.end) : null;
+    const isAllDay = startDate.getUTCHours() === 12 && startDate.getUTCMinutes() === 0 && (!endDate || (endDate.getUTCHours() === 12 && endDate.getUTCMinutes() === 0));
+
+    let startProp: Record<string, string>;
+    let endProp: Record<string, string>;
+
+    if (isAllDay) {
+      const startStr = startDate.toISOString().split('T')[0];
+      const endStr = endDate
+        ? new Date(endDate.getTime() + 86400000).toISOString().split('T')[0]
+        : new Date(startDate.getTime() + 86400000).toISOString().split('T')[0];
+      startProp = { date: startStr };
+      endProp = { date: endStr };
+    } else {
+      startProp = { dateTime: startDate.toISOString(), timeZone: gigData.timezone };
+      const effectiveEnd = endDate && endDate.getTime() > startDate.getTime()
+        ? endDate
+        : new Date(startDate.getTime() + 3600000);
+      endProp = { dateTime: effectiveEnd.toISOString(), timeZone: gigData.timezone };
+    }
 
     const eventData = {
       summary: gigData.title,
       description: `${gigData.description || ''}\n\n[View in GigManager](${window.location.origin}/gigs/${gigId})`,
-      start: {
-        dateTime: new Date(gigData.start).toISOString(),
-        timeZone: gigData.timezone,
-      },
-      end: {
-        dateTime: new Date(gigData.end).toISOString(),
-        timeZone: gigData.timezone,
-      },
+      start: startProp,
+      end: endProp,
       location: gigData.location,
     };
 
-    let eventId: string;
+    const { data, error } = await supabase.functions.invoke(
+      'server/integrations/google-calendar/events',
+      {
+        method: 'POST',
+        body: {
+          access_token: accessToken,
+          calendar_id: settings.calendar_id,
+          event_data: eventData,
+          event_id: existingSync?.google_event_id || undefined,
+        },
+      }
+    );
 
-    if (existingSync?.google_event_id) {
-      // Update existing event
-      await calendar.events.update({
-        calendarId: settings.calendar_id,
-        eventId: existingSync.google_event_id,
-        requestBody: eventData,
-      });
-      eventId = existingSync.google_event_id;
-    } else {
-      // Create new event
-      const response = await calendar.events.insert({
-        calendarId: settings.calendar_id,
-        requestBody: eventData,
-      });
-      eventId = response.data.id!;
-    }
+    if (error) throw error;
+    if (data?.error) throw new Error(data.details || data.error);
 
-    // Update sync status
+    const eventId = data.event_id;
+
+    const syncStatus = existingSync?.google_event_id ? 'updated' : 'synced';
     await updateGigSyncStatus(gigId, userId, {
       google_event_id: eventId,
-      sync_status: 'synced',
+      sync_status: syncStatus,
       last_synced_at: new Date().toISOString(),
       sync_error: null,
     });
 
     return { eventId, syncedAt: new Date() };
   } catch (error) {
-    // Update sync status with error
     await updateGigSyncStatus(gigId, userId, {
       sync_status: 'failed',
       sync_error: error instanceof Error ? error.message : 'Unknown error',
@@ -378,37 +353,44 @@ export async function syncGigToCalendar(
   }
 }
 
-/**
- * Delete a Google Calendar event for a gig
- */
 export async function deleteGigFromCalendar(userId: string, gigId: string): Promise<void> {
-  const calendar = await getCalendarClient(userId);
-  const settings = await getUserGoogleCalendarSettings(userId);
+  const supabase = getSupabase();
   const syncStatus = await getGigSyncStatus(gigId, userId);
 
-  if (!settings || !syncStatus?.google_event_id) {
-    return; // Nothing to delete
+  if (!syncStatus?.google_event_id) {
+    return;
   }
 
   try {
-    await calendar.events.delete({
-      calendarId: settings.calendar_id,
-      eventId: syncStatus.google_event_id,
-    });
+    const { accessToken, settings } = await getValidAccessToken(userId);
 
-    // Update sync status
+    if (!settings.calendar_id) return;
+
+    const { data, error } = await supabase.functions.invoke(
+      'server/integrations/google-calendar/events',
+      {
+        method: 'DELETE',
+        body: {
+          access_token: accessToken,
+          calendar_id: settings.calendar_id,
+          event_id: syncStatus.google_event_id,
+        },
+      }
+    );
+
+    if (error) throw error;
+
     await updateGigSyncStatus(gigId, userId, {
       google_event_id: null,
-      sync_status: 'synced',
+      sync_status: 'removed',
       last_synced_at: new Date().toISOString(),
       sync_error: null,
     });
   } catch (error) {
-    // If event doesn't exist, just update status
-    if (error instanceof Error && error.message.includes('404')) {
+    if (error instanceof Error && (error.message.includes('404') || error.message.includes('410'))) {
       await updateGigSyncStatus(gigId, userId, {
         google_event_id: null,
-        sync_status: 'synced',
+        sync_status: 'removed',
         last_synced_at: new Date().toISOString(),
         sync_error: null,
       });
@@ -432,7 +414,7 @@ export async function getGigSyncStatus(gigId: string, userId: string): Promise<G
   try {
     const { data, error } = await supabase
       .from('gig_sync_status')
-      .select('*')
+      .select('id, gig_id, user_id, google_event_id, last_synced_at, sync_status, sync_error, created_at, updated_at')
       .eq('gig_id', gigId)
       .eq('user_id', userId)
       .single();
@@ -453,48 +435,61 @@ export async function getGigSyncStatus(gigId: string, userId: string): Promise<G
 export async function getSyncLogs(
   userId: string,
   limit: number = 20
-): Promise<GigSyncStatus[]> {
+): Promise<(GigSyncStatus & { gig_title?: string })[]> {
   const supabase = getSupabase();
 
   try {
     const { data, error } = await supabase
       .from('gig_sync_status')
-      .select('*')
+      .select('id, gig_id, user_id, google_event_id, last_synced_at, sync_status, sync_error, created_at, updated_at, gig:gigs(title, start)')
       .eq('user_id', userId)
       .order('updated_at', { ascending: false })
       .limit(limit);
 
     if (error) throw error;
-    return data || [];
+    return (data || []).map((row: any) => ({
+      ...row,
+      gig_title: row.gig?.title,
+      gig_start: row.gig?.start,
+      gig: undefined,
+    }));
   } catch (error) {
     return handleApiError(error, 'get sync logs');
   }
 }
 
 /**
- * Get sync status summary for a user
+ * Get sync status summary for a user, accounting for sync filters
  */
 export async function getSyncStatusSummary(userId: string): Promise<{
   total: number;
   synced: number;
-  pending: number;
+  notSynced: number;
   failed: number;
+  removed: number;
   lastSyncedAt: string | null;
 }> {
   const supabase = getSupabase();
 
   try {
+    const settings = await getUserGoogleCalendarSettings(userId);
+    const allowedStatuses = getFilteredStatuses(settings?.sync_filters);
+
     const { data, error } = await supabase
       .from('gig_sync_status')
-      .select('*')
+      .select('id, gig_id, user_id, google_event_id, last_synced_at, sync_status, sync_error, created_at, updated_at, gig:gigs(status)')
       .eq('user_id', userId);
 
     if (error) throw error;
 
-    const logs = data || [];
-    const synced = logs.filter(l => l.sync_status === 'synced').length;
-    const pending = logs.filter(l => l.sync_status === 'pending').length;
+    const logs = (data || []) as (typeof data extends (infer T)[] | null ? T : never)[];
+    const synced = logs.filter(l => (l.sync_status === 'synced' || l.sync_status === 'updated') && l.google_event_id).length;
+    const removed = logs.filter(l => l.sync_status === 'removed').length;
     const failed = logs.filter(l => l.sync_status === 'failed').length;
+    const notSynced = logs.filter(l => {
+      const gigStatus = (l as any).gig?.status;
+      return gigStatus && !allowedStatuses.has(gigStatus) && l.sync_status !== 'removed' && l.sync_status !== 'failed';
+    }).length;
 
     const lastSynced = logs
       .filter(l => l.last_synced_at)
@@ -503,8 +498,9 @@ export async function getSyncStatusSummary(userId: string): Promise<{
     return {
       total: logs.length,
       synced,
-      pending,
+      notSynced,
       failed,
+      removed,
       lastSyncedAt: lastSynced?.last_synced_at || null,
     };
   } catch (error) {
@@ -512,9 +508,107 @@ export async function getSyncStatusSummary(userId: string): Promise<{
   }
 }
 
-/**
- * Update gig sync status
- */
+function getFilteredStatuses(syncFilters: Record<string, any> | undefined): Set<string> {
+  const statuses = new Set<string>();
+  const filters = syncFilters || {};
+
+  if (filters.sync_confirmed !== false) {
+    statuses.add('Booked');
+    statuses.add('Completed');
+    statuses.add('Settled');
+  }
+  if (filters.sync_tentative !== false) {
+    statuses.add('DateHold');
+    statuses.add('Proposed');
+  }
+  if (filters.sync_cancelled === true) {
+    statuses.add('Cancelled');
+  }
+  return statuses;
+}
+
+export async function syncAllGigsForUser(
+  userId: string,
+  organizationId: string,
+  onProgress?: (synced: number, total: number) => void
+): Promise<{ synced: number; failed: number; total: number }> {
+  const supabase = getSupabase();
+
+  const settings = await getUserGoogleCalendarSettings(userId);
+  const allowedStatuses = getFilteredStatuses(settings?.sync_filters);
+
+  const { data: participatingGigs, error: partError } = await supabase
+    .from('gig_participants')
+    .select('gig_id')
+    .eq('organization_id', organizationId);
+
+  if (partError) throw handleApiError(partError, 'fetch gigs for sync');
+  if (!participatingGigs || participatingGigs.length === 0) {
+    return { synced: 0, failed: 0, total: 0 };
+  }
+
+  const gigIds = participatingGigs.map(g => g.gig_id);
+
+  const { data: gigs, error: gigsError } = await supabase
+    .from('gigs')
+    .select(`
+      id, title, start, end, timezone, notes, status,
+      participants:gig_participants(
+        role,
+        organization:organizations(name, address_line1, city)
+      )
+    `)
+    .in('id', gigIds);
+
+  if (gigsError) throw handleApiError(gigsError, 'fetch gig details for sync');
+  if (!gigs || gigs.length === 0) {
+    return { synced: 0, failed: 0, total: 0 };
+  }
+
+  const gigsToSync = gigs.filter(g => allowedStatuses.has(g.status));
+  const gigsToRemove = gigs.filter(g => !allowedStatuses.has(g.status));
+
+  const totalOps = gigsToSync.length + gigsToRemove.length;
+  let synced = 0;
+  let failed = 0;
+  let progress = 0;
+
+  for (const gig of gigsToRemove) {
+    try {
+      await deleteGigFromCalendar(userId, gig.id);
+    } catch {
+      // Ignore delete failures for filtered-out gigs
+    }
+    progress++;
+    onProgress?.(progress, totalOps);
+  }
+
+  for (const gig of gigsToSync) {
+    try {
+      const venue = (gig.participants as any[])?.find((p: any) => p.role === 'Venue')?.organization;
+      const location = venue
+        ? `${venue.name}${venue.address_line1 ? `, ${venue.address_line1}` : ''}${venue.city ? `, ${venue.city}` : ''}`
+        : undefined;
+
+      await syncGigToCalendar(userId, gig.id, {
+        title: gig.title,
+        start: gig.start,
+        end: gig.end,
+        timezone: gig.timezone,
+        description: gig.notes,
+        location,
+      });
+      synced++;
+    } catch {
+      failed++;
+    }
+    progress++;
+    onProgress?.(progress, totalOps);
+  }
+
+  return { synced, failed, total: gigsToSync.length };
+}
+
 export async function updateGigSyncStatus(
   gigId: string,
   userId: string,
@@ -525,13 +619,16 @@ export async function updateGigSyncStatus(
   try {
     const { data, error } = await supabase
       .from('gig_sync_status')
-      .upsert({
-        gig_id: gigId,
-        user_id: userId,
-        ...updates,
-        updated_at: new Date().toISOString(),
-      })
-      .select()
+      .upsert(
+        {
+          gig_id: gigId,
+          user_id: userId,
+          ...updates,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: 'gig_id,user_id' }
+      )
+      .select('id, gig_id, user_id, google_event_id, last_synced_at, sync_status, sync_error, created_at, updated_at')
       .single();
 
     if (error) throw error;

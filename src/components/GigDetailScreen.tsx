@@ -75,7 +75,7 @@ export default function GigDetailScreen({
 
       // Check for conflicts
       const conflictResult = await checkAllConflicts(gigId, data.start, data.end);
-      setConflicts(conflictResult.conflicts);
+        setConflicts(conflictResult.conflicts);
     } catch (error: any) {
       console.error('Error loading gig:', error);
       toast.error(error.message || 'Failed to load gig');
@@ -109,11 +109,7 @@ export default function GigDetailScreen({
     }
   };
 
-  const handleOverrideConflict = (conflictId: string) => {
-    // TODO: Implement actual conflict override logic
-    // For now, just show a toast message
-    toast.success('Conflict override noted. This feature will be implemented in a future update.');
-  };
+
 
   if (isLoading) {
     return (
@@ -196,7 +192,6 @@ export default function GigDetailScreen({
             <ConflictWarning
               conflicts={conflicts}
               showAsCard={true}
-              onOverride={handleOverrideConflict}
             />
           </div>
         )}

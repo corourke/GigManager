@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Calendar, dateFnsLocalizer } from 'react-big-calendar';
-import { format, parse, startOfWeek, getDay, isWithinInterval } from 'date-fns';
+import { format, parse, startOfWeek, getDay, isWithinInterval, addDays } from 'date-fns';
 import { enUS } from 'date-fns/locale';
 import { toast } from 'sonner';
 import 'react-big-calendar/lib/css/react-big-calendar.css';
@@ -18,10 +18,10 @@ import { ConflictWarning } from './ConflictWarning';
 import {
   getGigsForOrganization,
 } from '../services/gig.service';
-import { checkAllConflicts, Conflict } from '../services/conflictDetection.service';
+import { checkAllConflictsForGigs, Conflict } from '../services/conflictDetection.service';
 import { Organization, User, UserRole, GigStatus, Gig } from '../utils/supabase/types';
 import { GIG_STATUS_CONFIG } from '../utils/supabase/constants';
-import { formatDateTimeDisplay } from '../utils/dateUtils';
+import { formatDateTimeDisplay, isNoonUTC } from '../utils/dateUtils';
 import CalendarIntegrationSettings from './CalendarIntegrationSettings';
 
 const locales = {
@@ -56,6 +56,7 @@ interface CalendarEvent {
   title: string;
   start: Date;
   end: Date;
+  allDay?: boolean;
   resource: Gig;
 }
 
@@ -99,13 +100,11 @@ export default function CalendarScreen({
       const gigsData = await getGigsForOrganization(organization.id);
       setGigs(gigsData);
 
-      // Load conflicts for all gigs
-      const allConflicts: Conflict[] = [];
-      for (const gig of gigsData) {
-        const gigConflicts = await checkAllConflicts(gig.id, gig.start, gig.end);
-        allConflicts.push(...gigConflicts.conflicts);
+      if (gigsData && gigsData.length > 0) {
+        const detected = await checkAllConflictsForGigs(gigsData);
+        console.log('[CalendarScreen] conflicts detected:', detected.length, detected);
+        setConflicts(detected);
       }
-      setConflicts(allConflicts);
     } catch (error) {
       console.error('Error loading gigs:', error);
     } finally {
@@ -174,34 +173,53 @@ export default function CalendarScreen({
     setDateTo(undefined);
   };
 
-  const handleOverrideConflict = (conflictId: string) => {
-    // TODO: Implement actual conflict override logic
-    // For now, just show a toast message
-    toast.success('Conflict override noted. This feature will be implemented in a future update.');
-  };
-
   const calendarEvents: CalendarEvent[] = useMemo(() => {
-    return filteredGigs.map(gig => ({
-      id: gig.id,
-      title: gig.title,
-      start: new Date(gig.start),
-      end: new Date(gig.end),
-      resource: gig,
-    }));
+    return filteredGigs.map(gig => {
+      const allDay = isNoonUTC(gig.start);
+      if (allDay) {
+        const startDateStr = gig.start.substring(0, 10);
+        const endDateStr = gig.end ? gig.end.substring(0, 10) : startDateStr;
+        const [sy, sm, sd] = startDateStr.split('-').map(Number);
+        const [ey, em, ed] = endDateStr.split('-').map(Number);
+        return {
+          id: gig.id,
+          title: gig.title,
+          start: new Date(sy, sm - 1, sd),
+          end: addDays(new Date(ey, em - 1, ed), 1),
+          allDay: true,
+          resource: gig,
+        };
+      }
+      return {
+        id: gig.id,
+        title: gig.title,
+        start: new Date(gig.start),
+        end: new Date(gig.end),
+        resource: gig,
+      };
+    });
   }, [filteredGigs]);
 
+  const STATUS_HEX_COLORS: Record<string, string> = {
+    DateHold: '#6b7280',
+    Proposed: '#3b82f6',
+    Booked: '#16a34a',
+    Completed: '#9333ea',
+    Cancelled: '#9ca3af',
+    Settled: '#4f46e5',
+  };
+
   const eventStyleGetter = (event: CalendarEvent) => {
-    const statusConfig = GIG_STATUS_CONFIG[event.resource.status];
     const hasConflicts = conflicts.some(conflict => conflict.gig_id === event.resource.id);
+    const bgColor = hasConflicts ? '#dc2626' : (STATUS_HEX_COLORS[event.resource.status] || '#6b7280');
 
     return {
       style: {
-        backgroundColor: hasConflicts ? '#dc2626' : (statusConfig?.color || '#6b7280'), // Red for conflicts
+        backgroundColor: bgColor,
         borderRadius: '4px',
         opacity: 0.8,
         color: 'white',
-        border: hasConflicts ? '2px solid #991b1b' : '0px', // Darker red border for conflicts
-        display: 'block',
+        border: hasConflicts ? '2px solid #991b1b' : '0px',
       },
     };
   };
@@ -368,7 +386,6 @@ export default function CalendarScreen({
             <ConflictWarning
               conflicts={conflicts}
               onViewGig={onViewGig}
-              onOverride={handleOverrideConflict}
             />
           </div>
         )}
@@ -381,6 +398,7 @@ export default function CalendarScreen({
               events={calendarEvents}
               startAccessor="start"
               endAccessor="end"
+              allDayAccessor="allDay"
               style={{ height: 600 }}
               view={view}
               onView={setView}
@@ -388,6 +406,7 @@ export default function CalendarScreen({
               onNavigate={setCurrentDate}
               onSelectEvent={(event) => onViewGig(event.id)}
               eventPropGetter={eventStyleGetter}
+              showMultiDayTimes
               toolbar={false}
               components={{
                 event: EventComponent,

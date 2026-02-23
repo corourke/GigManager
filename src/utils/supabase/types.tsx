@@ -286,7 +286,7 @@ export interface DbGigSyncStatus {
   user_id: string;
   google_event_id?: string;
   last_synced_at?: string;
-  sync_status: 'pending' | 'synced' | 'failed';
+  sync_status: 'pending' | 'synced' | 'updated' | 'removed' | 'failed';
   sync_error?: string;
   created_at: string;
   updated_at: string;

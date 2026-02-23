@@ -52,6 +52,7 @@ export default function SettingsScreen({
 
         <CalendarIntegrationSettings
           userId={user.id}
+          organizationId={organization.id}
           onSettingsChanged={() => {}}
         />
       </div>

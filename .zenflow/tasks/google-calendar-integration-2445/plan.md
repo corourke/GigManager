@@ -156,12 +156,45 @@ Completed: Updated app routing and navigation to include calendar features.
 ### [x] Step: Final Testing and Verification
 <!-- chat-id: b961b857-5916-4643-9329-e987b588986c -->
 
-Completed: All verification checks passed after UI refactor.
+Completed: Comprehensive testing and verification passed. Real Google Calendar API integration implemented.
 
+- Fixed OAuth duplicate key error by updating `saveUserGoogleCalendarSettings` to check for existing records and update instead of upsert
 - Fixed App.tsx syntax error (missing closing `}` on gig-list route block)
 - Fixed `handleBackToCalendar` to navigate to `gig-list` instead of removed `calendar` route
 - Removed duplicate `calendar` route rendering block from App.tsx
-- Run full test suite: **172 tests passed** across 29 test files
-- Production build: **Successful** (3323 modules, no errors)
-- Console warnings from old CalendarScreen resolved (no longer routed)
-- Identified untracked files that need staging and migration that needs applying
+- Fixed staff conflict detection FK path: queries now go through `gig_staff_slots → gig_staff_assignments`
+- Fixed date-only gig overlap: `getEffectiveRange()` expands noon-UTC sentinels to full day
+- Expanded venue conflicts to include Act organizations via `checkParticipantConflicts`
+- Added batch `checkAllConflictsForGigs()` making only 3 Supabase queries for N gigs
+- Updated `gig.service.ts` re-exports with `checkParticipantConflicts` + legacy alias
+- Created `docs/technical/conflict-detection.md` documenting all conflict logic
+- Replaced all mock Google Calendar API implementations with real Supabase Edge Function calls
+- Added 5 Edge Function routes: exchange-token, refresh-token, calendars, events (POST/DELETE)
+- Frontend service now calls Edge Functions for token exchange, token refresh, calendar listing, event create/update/delete
+- Fixed CalendarIntegrationSettings to show calendar picker after OAuth (when tokens exist but is_enabled is false)
+- Fixed `updateGigSyncStatus` upsert 409 conflict by adding `{ onConflict: 'gig_id,user_id' }` option
+- Fixed calendar view color-coding: `GIG_STATUS_CONFIG` colors are CSS classes, not hex — added `STATUS_HEX_COLORS` map for inline styles in both GigListScreen and CalendarScreen
+- Fixed sync log to show gig title + start date instead of gig ID — updated `getSyncLogs` join to include `start` and display in CalendarIntegrationSettings
+- Fixed 406 errors on `gig_sync_status` and `user_google_calendar_settings` — replaced all `select('*')` and `select()` with explicit column lists
+- Fixed sync frequency: `syncGigToAllCalendars` now checks each user's `sync_filters.frequency` and only syncs immediately when set to `realtime`
+- Run full test suite: **174 tests passed** across 29 test files
+- Production build: **Successful** (3285 modules, no errors)
+
+### [x] Step: Fixing bugs, manual testing
+<!-- chat-id: 68b2630d-3eab-43e6-95f1-be81fe9068b0 -->
+<!-- agent: zencoder-opus-4-6-5x -->
+
+Completed: Fixed calendar week view rendering, sync status/log, time picker, and conflict detection.
+
+- Fixed week view rendering bug: removed `display: 'block'` from `eventStyleGetter` in CalendarScreen and GigListScreen
+- Updated sync status: 'updated' for event updates, 'removed' for event deletions, filter-aware summary
+- Created migration for 'updated'/'removed' PostgreSQL enum values
+- Replaced all datetime-local/time inputs with date + hour/minute Select dropdowns (5-minute increments)
+- Fixed conflict detection: batch loading for all view modes, switched to `checkAllConflictsForGigs`
+- Fixed timezone-aware date-only gig conflict detection: replaced ±12hr UTC hack with proper `Intl.DateTimeFormat`-based timezone conversion — date-only gigs now expand to 00:00–23:59:59 in the gig's own timezone before comparison
+- Added `timezone` field to `GigForConflictCheck` interface and all per-gig conflict functions (`checkStaffConflicts`, `checkParticipantConflicts`, `checkEquipmentConflicts`, `checkAllConflicts`)
+- All gig queries in conflict detection now fetch `timezone` column for candidate gigs
+- GigDetailScreen now passes `data.timezone` to `checkAllConflicts`
+- Added 2 new timezone-specific tests: PST date-only vs UTC evening overlap, and different-day non-overlap
+- 21 comprehensive functional tests for conflict detection service (all passing)
+- All 192 tests pass across 29 test files, production build succeeds

@@ -9,14 +9,14 @@ import {
   Clock,
   XCircle,
   Activity,
+  Play,
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { formatDistanceToNow } from 'date-fns';
+import { formatDistanceToNow, format as formatDate } from 'date-fns';
 
 import { Button } from './ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Label } from './ui/label';
-import { Switch } from './ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Alert, AlertDescription } from './ui/alert';
 import { Badge } from './ui/badge';
@@ -31,11 +31,13 @@ import {
   getSyncLogs,
   getSyncStatusSummary,
   updateUserGoogleCalendarSettings,
+  syncAllGigsForUser,
 } from '../services/googleCalendar.service';
 import { UserGoogleCalendarSettings, GigSyncStatus } from '../utils/supabase/types';
 
 interface CalendarIntegrationSettingsProps {
   userId: string;
+  organizationId?: string;
   onSettingsChanged?: () => void;
   onStartAuth?: () => void;
 }
@@ -50,15 +52,17 @@ interface CalendarOption {
 interface SyncSummary {
   total: number;
   synced: number;
-  pending: number;
+  notSynced: number;
   failed: number;
+  removed: number;
   lastSyncedAt: string | null;
 }
 
-type SyncFrequency = 'realtime' | 'hourly' | 'daily';
+type SyncFrequency = 'realtime' | 'manual';
 
 export default function CalendarIntegrationSettings({
   userId,
+  organizationId,
   onSettingsChanged,
   onStartAuth,
 }: CalendarIntegrationSettingsProps) {
@@ -68,10 +72,12 @@ export default function CalendarIntegrationSettings({
   const [connecting, setConnecting] = useState(false);
   const [disconnecting, setDisconnecting] = useState(false);
   const [loadingCalendars, setLoadingCalendars] = useState(false);
-  const [syncLogs, setSyncLogs] = useState<GigSyncStatus[]>([]);
+  const [syncLogs, setSyncLogs] = useState<(GigSyncStatus & { gig_title?: string; gig_start?: string })[]>([]);
   const [syncSummary, setSyncSummary] = useState<SyncSummary | null>(null);
   const [loadingSyncData, setLoadingSyncData] = useState(false);
   const [showAllLogs, setShowAllLogs] = useState(false);
+  const [syncing, setSyncing] = useState(false);
+  const [syncProgress, setSyncProgress] = useState<string | null>(null);
 
   const loadSyncData = useCallback(async () => {
     try {
@@ -99,8 +105,11 @@ export default function CalendarIntegrationSettings({
       const userSettings = await getUserGoogleCalendarSettings(userId);
       setSettings(userSettings);
 
-      if (userSettings?.is_enabled) {
-        await Promise.all([loadCalendars(), loadSyncData()]);
+      if (userSettings?.access_token) {
+        await loadCalendars();
+        if (userSettings.is_enabled) {
+          await loadSyncData();
+        }
       }
     } catch (error) {
       console.error('Error loading calendar settings:', error);
@@ -238,6 +247,36 @@ export default function CalendarIntegrationSettings({
     }
   };
 
+  const handleSyncNow = async () => {
+    if (!organizationId || !settings?.calendar_id) return;
+
+    try {
+      setSyncing(true);
+      setSyncProgress('Starting...');
+
+      const result = await syncAllGigsForUser(
+        userId,
+        organizationId,
+        (done, total) => setSyncProgress(`${done} / ${total}`)
+      );
+
+      setSyncProgress(null);
+      await loadSyncData();
+
+      if (result.failed > 0) {
+        toast.warning(`Synced ${result.synced} gigs, ${result.failed} failed`);
+      } else {
+        toast.success(`Successfully synced ${result.synced} gigs`);
+      }
+    } catch (error) {
+      console.error('Error syncing gigs:', error);
+      toast.error('Failed to sync gigs');
+    } finally {
+      setSyncing(false);
+      setSyncProgress(null);
+    }
+  };
+
   const getSyncFrequency = (): SyncFrequency => {
     return (settings?.sync_filters?.frequency as SyncFrequency) || 'realtime';
   };
@@ -250,8 +289,10 @@ export default function CalendarIntegrationSettings({
     switch (status) {
       case 'synced':
         return <Badge variant="default" className="bg-green-100 text-green-800 text-xs">Synced</Badge>;
-      case 'pending':
-        return <Badge variant="secondary" className="text-xs">Pending</Badge>;
+      case 'updated':
+        return <Badge variant="default" className="bg-blue-100 text-blue-800 text-xs">Updated</Badge>;
+      case 'removed':
+        return <Badge variant="default" className="bg-orange-100 text-orange-800 text-xs">Removed</Badge>;
       case 'failed':
         return <Badge variant="destructive" className="text-xs">Failed</Badge>;
       default:
@@ -270,7 +311,7 @@ export default function CalendarIntegrationSettings({
     );
   }
 
-  const isConnected = settings?.is_enabled;
+  const isConnected = !!(settings?.access_token);
   const displayedLogs = showAllLogs ? syncLogs : syncLogs.slice(0, 5);
 
   return (
@@ -346,16 +387,18 @@ export default function CalendarIntegrationSettings({
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
                   <div className="space-y-0.5">
-                    <Label htmlFor="sync-enabled">Enable Synchronization</Label>
+                    <Label>Enable Synchronization</Label>
                     <p className="text-sm text-muted-foreground">
                       Automatically sync gigs to Google Calendar
                     </p>
                   </div>
-                  <Switch
-                    id="sync-enabled"
-                    checked={settings.is_enabled}
-                    onCheckedChange={handleToggleEnabled}
-                  />
+                  <Button
+                    variant={settings.is_enabled ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => handleToggleEnabled(!settings.is_enabled)}
+                  >
+                    {settings.is_enabled ? 'Enabled' : 'Disabled'}
+                  </Button>
                 </div>
 
                 <div className="space-y-2">
@@ -406,7 +449,7 @@ export default function CalendarIntegrationSettings({
         </CardContent>
       </Card>
 
-      {isConnected && (
+      {isConnected && settings?.is_enabled && (
         <>
           <Card>
             <CardHeader>
@@ -430,8 +473,7 @@ export default function CalendarIntegrationSettings({
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="realtime">Real-time (on every change)</SelectItem>
-                    <SelectItem value="hourly">Hourly</SelectItem>
-                    <SelectItem value="daily">Daily</SelectItem>
+                    <SelectItem value="manual">Manual (use Sync All Gigs)</SelectItem>
                   </SelectContent>
                 </Select>
                 <p className="text-sm text-muted-foreground">
@@ -449,36 +491,82 @@ export default function CalendarIntegrationSettings({
 
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
-                    <Label htmlFor="sync-confirmed" className="text-sm font-normal">
-                      Confirmed gigs
-                    </Label>
-                    <Switch
-                      id="sync-confirmed"
-                      checked={getSyncFilter('sync_confirmed')}
-                      onCheckedChange={(v) => handleSyncFilterToggle('sync_confirmed', v)}
-                    />
+                    <div>
+                      <Label className="text-sm font-normal">Confirmed gigs</Label>
+                      <p className="text-xs text-muted-foreground">Booked, Completed, Settled</p>
+                    </div>
+                    <Button
+                      variant={getSyncFilter('sync_confirmed') ? 'default' : 'outline'}
+                      size="sm"
+                      onClick={() => handleSyncFilterToggle('sync_confirmed', !getSyncFilter('sync_confirmed'))}
+                    >
+                      {getSyncFilter('sync_confirmed') ? 'On' : 'Off'}
+                    </Button>
                   </div>
                   <div className="flex items-center justify-between">
-                    <Label htmlFor="sync-tentative" className="text-sm font-normal">
-                      Tentative gigs
-                    </Label>
-                    <Switch
-                      id="sync-tentative"
-                      checked={getSyncFilter('sync_tentative')}
-                      onCheckedChange={(v) => handleSyncFilterToggle('sync_tentative', v)}
-                    />
+                    <div>
+                      <Label className="text-sm font-normal">Tentative gigs</Label>
+                      <p className="text-xs text-muted-foreground">Date Hold, Proposed</p>
+                    </div>
+                    <Button
+                      variant={getSyncFilter('sync_tentative') ? 'default' : 'outline'}
+                      size="sm"
+                      onClick={() => handleSyncFilterToggle('sync_tentative', !getSyncFilter('sync_tentative'))}
+                    >
+                      {getSyncFilter('sync_tentative') ? 'On' : 'Off'}
+                    </Button>
                   </div>
                   <div className="flex items-center justify-between">
-                    <Label htmlFor="sync-cancelled" className="text-sm font-normal">
-                      Cancelled gigs
-                    </Label>
-                    <Switch
-                      id="sync-cancelled"
-                      checked={getSyncFilter('sync_cancelled', false)}
-                      onCheckedChange={(v) => handleSyncFilterToggle('sync_cancelled', v)}
-                    />
+                    <div>
+                      <Label className="text-sm font-normal">Cancelled gigs</Label>
+                      <p className="text-xs text-muted-foreground">Cancelled</p>
+                    </div>
+                    <Button
+                      variant={getSyncFilter('sync_cancelled', false) ? 'default' : 'outline'}
+                      size="sm"
+                      onClick={() => handleSyncFilterToggle('sync_cancelled', !getSyncFilter('sync_cancelled', false))}
+                    >
+                      {getSyncFilter('sync_cancelled', false) ? 'On' : 'Off'}
+                    </Button>
                   </div>
                 </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-base">
+                <Play className="h-4 w-4" />
+                Sync Now
+              </CardTitle>
+              <CardDescription>
+                Sync all existing gigs to Google Calendar
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-center gap-4">
+                <Button
+                  onClick={handleSyncNow}
+                  disabled={syncing || !settings?.calendar_id || !organizationId}
+                >
+                  {syncing ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                      {syncProgress || 'Syncing...'}
+                    </>
+                  ) : (
+                    <>
+                      <RefreshCw className="h-4 w-4 mr-2" />
+                      Sync All Gigs
+                    </>
+                  )}
+                </Button>
+                {!settings?.calendar_id && (
+                  <p className="text-sm text-muted-foreground">
+                    Select a calendar first
+                  </p>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -512,7 +600,7 @@ export default function CalendarIntegrationSettings({
             <CardContent className="space-y-4">
               {syncSummary ? (
                 <>
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                  <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
                     <div className="text-center p-3 border rounded-lg">
                       <p className="text-2xl font-bold">{syncSummary.total}</p>
                       <p className="text-xs text-muted-foreground">Total Events</p>
@@ -522,8 +610,12 @@ export default function CalendarIntegrationSettings({
                       <p className="text-xs text-muted-foreground">Synced</p>
                     </div>
                     <div className="text-center p-3 border rounded-lg">
-                      <p className="text-2xl font-bold text-yellow-600">{syncSummary.pending}</p>
-                      <p className="text-xs text-muted-foreground">Pending</p>
+                      <p className="text-2xl font-bold text-gray-500">{syncSummary.notSynced}</p>
+                      <p className="text-xs text-muted-foreground">Not Synced</p>
+                    </div>
+                    <div className="text-center p-3 border rounded-lg">
+                      <p className="text-2xl font-bold text-orange-600">{syncSummary.removed}</p>
+                      <p className="text-xs text-muted-foreground">Removed</p>
                     </div>
                     <div className="text-center p-3 border rounded-lg">
                       <p className="text-2xl font-bold text-red-600">{syncSummary.failed}</p>
@@ -578,15 +670,23 @@ export default function CalendarIntegrationSettings({
                         {log.sync_status === 'synced' && (
                           <CheckCircle className="h-4 w-4 text-green-600 flex-shrink-0" />
                         )}
-                        {log.sync_status === 'pending' && (
-                          <Clock className="h-4 w-4 text-yellow-600 flex-shrink-0" />
+                        {log.sync_status === 'updated' && (
+                          <RefreshCw className="h-4 w-4 text-blue-600 flex-shrink-0" />
+                        )}
+                        {log.sync_status === 'removed' && (
+                          <XCircle className="h-4 w-4 text-orange-600 flex-shrink-0" />
                         )}
                         {log.sync_status === 'failed' && (
-                          <XCircle className="h-4 w-4 text-red-600 flex-shrink-0" />
+                          <AlertCircle className="h-4 w-4 text-red-600 flex-shrink-0" />
                         )}
                         <div className="min-w-0">
                           <p className="truncate font-medium">
-                            Gig {log.gig_id.slice(0, 8)}...
+                            {log.gig_title || `Gig ${log.gig_id.slice(0, 8)}...`}
+                            {log.gig_start && (
+                              <span className="text-muted-foreground font-normal ml-2">
+                                {formatDate(new Date(log.gig_start), 'MMM d, yyyy')}
+                              </span>
+                            )}
                           </p>
                           {log.sync_error && (
                             <p className="text-xs text-red-600 truncate">

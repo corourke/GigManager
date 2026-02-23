@@ -58,14 +58,16 @@ export default function CalendarAuthCallback({
       setStatus('success');
 
       // Clean up URL
-      window.history.replaceState({}, document.title, window.location.pathname);
+      window.history.replaceState({}, document.title, '/');
 
       toast.success('Google Calendar connected successfully!');
 
-      // Auto-redirect after a short delay
+      // Persist settings route so it survives org re-selection after page reload
+      localStorage.setItem('currentRoute', 'settings');
+
       setTimeout(() => {
         onAuthComplete();
-      }, 2000);
+      }, 10000);
 
     } catch (err) {
       console.error('Auth callback error:', err);

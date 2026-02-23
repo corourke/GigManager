@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect, useCallback } from 'react';
 import { Calendar as BigCalendar, dateFnsLocalizer } from 'react-big-calendar';
-import { format, parse, startOfWeek, getDay, startOfDay } from 'date-fns';
+import { format, parse, startOfWeek, getDay, startOfDay, addDays } from 'date-fns';
 import { enUS } from 'date-fns/locale';
 import 'react-big-calendar/lib/css/react-big-calendar.css';
 import { Button } from './ui/button';
@@ -33,9 +33,9 @@ import {
 import { toast } from 'sonner';
 import { Organization, User, UserRole, GigStatus, Gig } from '../utils/supabase/types';
 import { GIG_STATUS_CONFIG, TAG_CONFIG } from '../utils/supabase/constants';
-import { formatDateTimeDisplay, formatTimeDisplay } from '../utils/dateUtils';
+import { formatDateTimeDisplay, formatTimeDisplay, isNoonUTC } from '../utils/dateUtils';
 import { PageHeader } from './ui/PageHeader';
-import { checkAllConflicts, Conflict } from '../services/conflictDetection.service';
+import { checkAllConflictsForGigs, Conflict } from '../services/conflictDetection.service';
 
 const locales = { 'en-US': enUS };
 const localizer = dateFnsLocalizer({ format, parse, startOfWeek, getDay, locales });
@@ -66,6 +66,7 @@ interface CalendarEvent {
   title: string;
   start: Date;
   end: Date;
+  allDay?: boolean;
   resource: Gig;
 }
 
@@ -118,13 +119,10 @@ export default function GigListScreen({
       const data = await getGigsForOrganization(organization.id);
       setGigs(data || []);
 
-      if (viewMode === 'calendar') {
-        const allConflicts: Conflict[] = [];
-        for (const gig of (data || [])) {
-          const gigConflicts = await checkAllConflicts(gig.id, gig.start, gig.end);
-          allConflicts.push(...gigConflicts.conflicts);
-        }
-        setConflicts(allConflicts);
+      if (data && data.length > 0) {
+        const detected = await checkAllConflictsForGigs(data);
+        console.log('[GigListScreen] conflicts detected:', detected.length, detected);
+        setConflicts(detected);
       }
     } catch (err: any) {
       console.error('Error loading gigs:', err);
@@ -133,19 +131,6 @@ export default function GigListScreen({
       setIsLoading(false);
     }
   };
-
-  useEffect(() => {
-    if (viewMode === 'calendar' && gigs.length > 0 && conflicts.length === 0) {
-      (async () => {
-        const allConflicts: Conflict[] = [];
-        for (const gig of gigs) {
-          const gigConflicts = await checkAllConflicts(gig.id, gig.start, gig.end);
-          allConflicts.push(...gigConflicts.conflicts);
-        }
-        setConflicts(allConflicts);
-      })();
-    }
-  }, [viewMode]);
 
   const filteredGigs = useMemo(() => {
     if (!futureOnly) return gigs;
@@ -198,10 +183,6 @@ export default function GigListScreen({
       toast.error(err.message || 'Failed to update gig');
     }
   }, [gigs]);
-
-  const handleOverrideConflict = (conflictId: string) => {
-    toast.success('Conflict override noted. This feature will be implemented in a future update.');
-  };
 
   const gigColumns = useMemo<ColumnDef<Gig>[]>(() => [
     {
@@ -334,27 +315,54 @@ export default function GigListScreen({
   ], [onViewGig, onEditGig]);
 
   const calendarEvents: CalendarEvent[] = useMemo(() => {
-    return filteredGigs.map(gig => ({
-      id: gig.id,
-      title: gig.title,
-      start: new Date(gig.start),
-      end: new Date(gig.end),
-      resource: gig,
-    }));
+    return filteredGigs.map(gig => {
+      const isAllDay = isNoonUTC(gig.start);
+      if (isAllDay) {
+        const startDateStr = gig.start.substring(0, 10);
+        const endDateStr = gig.end ? gig.end.substring(0, 10) : startDateStr;
+        const [sy, sm, sd] = startDateStr.split('-').map(Number);
+        const [ey, em, ed] = endDateStr.split('-').map(Number);
+        return {
+          id: gig.id,
+          title: gig.title,
+          start: new Date(sy, sm - 1, sd),
+          end: addDays(new Date(ey, em - 1, ed), 1),
+          allDay: true,
+          resource: gig,
+        };
+      }
+      const startDate = new Date(gig.start);
+      const endDate = gig.end ? new Date(gig.end) : new Date(startDate.getTime() + 3600000);
+      return {
+        id: gig.id,
+        title: gig.title,
+        start: startDate,
+        end: endDate > startDate ? endDate : new Date(startDate.getTime() + 3600000),
+        resource: gig,
+      };
+    });
   }, [filteredGigs]);
 
+  const STATUS_HEX_COLORS: Record<string, string> = {
+    DateHold: '#6b7280',
+    Proposed: '#3b82f6',
+    Booked: '#16a34a',
+    Completed: '#9333ea',
+    Cancelled: '#9ca3af',
+    Settled: '#4f46e5',
+  };
+
   const eventStyleGetter = (event: CalendarEvent) => {
-    const statusConfig = GIG_STATUS_CONFIG[event.resource.status];
     const hasConflicts = conflicts.some(conflict => conflict.gig_id === event.resource.id);
+    const bgColor = hasConflicts ? '#dc2626' : (STATUS_HEX_COLORS[event.resource.status] || '#6b7280');
 
     return {
       style: {
-        backgroundColor: hasConflicts ? '#dc2626' : (statusConfig?.color || '#6b7280'),
+        backgroundColor: bgColor,
         borderRadius: '4px',
         opacity: 0.8,
         color: 'white',
         border: hasConflicts ? '2px solid #991b1b' : '0px',
-        display: 'block',
       },
     };
   };
@@ -363,8 +371,10 @@ export default function GigListScreen({
     const gig = event.resource;
 
     const parts: string[] = [];
-    const timeStr = formatTimeDisplay(gig.start, gig.timezone);
-    if (timeStr) parts.push(timeStr);
+    if (!event.allDay && calendarView === 'month') {
+      const timeStr = formatTimeDisplay(gig.start, gig.timezone);
+      if (timeStr) parts.push(timeStr);
+    }
     if (gig.act?.name) parts.push(gig.act.name);
     if (gig.venue?.name) parts.push(gig.venue.name);
 
@@ -541,17 +551,28 @@ export default function GigListScreen({
                 onNavigateToImport={onNavigateToImport}
               />
             ) : (
-              <SmartDataTable
-                tableId="gig-list"
-                data={filteredGigs}
-                columns={gigColumns}
-                rowActions={rowActions}
-                onRowUpdate={canEdit ? handleRowUpdate : undefined}
-                onAddRowClick={canEdit ? onCreateGig : undefined}
-                isLoading={isLoading}
-                emptyMessage="No gigs found"
-                toolbarLeft={futureGigsToggle}
-              />
+              <>
+                {conflicts.length > 0 && (
+                  <div className="mb-4">
+                    <ConflictWarning
+                      conflicts={conflicts}
+                      onViewGig={(id) => onViewGig(id, true)}
+
+                    />
+                  </div>
+                )}
+                <SmartDataTable
+                  tableId="gig-list"
+                  data={filteredGigs}
+                  columns={gigColumns}
+                  rowActions={rowActions}
+                  onRowUpdate={canEdit ? handleRowUpdate : undefined}
+                  onAddRowClick={canEdit ? onCreateGig : undefined}
+                  isLoading={isLoading}
+                  emptyMessage="No gigs found"
+                  toolbarLeft={futureGigsToggle}
+                />
+              </>
             )
           ) : (
             <>
@@ -560,7 +581,6 @@ export default function GigListScreen({
                   <ConflictWarning
                     conflicts={conflicts}
                     onViewGig={(id) => onViewGig(id, true)}
-                    onOverride={handleOverrideConflict}
                   />
                 </div>
               )}
@@ -578,6 +598,7 @@ export default function GigListScreen({
                       events={calendarEvents}
                       startAccessor="start"
                       endAccessor="end"
+                      allDayAccessor="allDay"
                       style={{ height: 600 }}
                       view={calendarView}
                       onView={(v) => setCalendarView(v as CalendarViewType)}
@@ -586,6 +607,7 @@ export default function GigListScreen({
                       onSelectEvent={(event) => onViewGig(event.id, true)}
                       onDrillDown={handleDrillDown}
                       eventPropGetter={eventStyleGetter}
+                      showMultiDayTimes
                       toolbar={false}
                       components={{
                         event: EventComponent,

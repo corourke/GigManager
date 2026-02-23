@@ -22,10 +22,9 @@ async function syncGigToAllCalendars(gigId: string): Promise<void> {
 
     if (!gig) return;
 
-    // Get all users who have Google Calendar integration enabled
     const { data: usersWithCalendar, error } = await supabase
       .from('user_google_calendar_settings')
-      .select('user_id')
+      .select('user_id, sync_filters')
       .eq('is_enabled', true);
 
     if (error) {
@@ -34,16 +33,19 @@ async function syncGigToAllCalendars(gigId: string): Promise<void> {
     }
 
     if (!usersWithCalendar || usersWithCalendar.length === 0) {
-      return; // No users have calendar integration enabled
+      return;
     }
 
     // Get venue information for location
     const venue = gig.participants?.find((p: any) => p.role === 'Venue')?.organization;
     const location = venue ? `${venue.name}${venue.address_line1 ? `, ${venue.address_line1}` : ''}${venue.city ? `, ${venue.city}` : ''}` : undefined;
 
-    // Sync to each user's calendar
     const syncPromises = usersWithCalendar.map(async (userSetting) => {
       try {
+        const frequency = (userSetting as any).sync_filters?.frequency || 'realtime';
+        if (frequency !== 'realtime') {
+          return;
+        }
         await syncGigToCalendar(userSetting.user_id, gigId, {
           title: gig.title,
           start: gig.start,
@@ -54,7 +56,6 @@ async function syncGigToAllCalendars(gigId: string): Promise<void> {
         });
       } catch (syncError) {
         console.error(`Failed to sync gig ${gigId} to user ${userSetting.user_id}'s calendar:`, syncError);
-        // Continue with other users even if one fails
       }
     });
 
@@ -417,10 +418,11 @@ export async function updateGig(gigId: string, gigData: {
 
     const updatedGig = await getGig(gigId);
 
-    // Sync to Google Calendar (fire and forget - don't block on sync failures)
-    syncGigToAllCalendars(gigId).catch(syncError =>
-      console.error('Background sync failed for updated gig:', syncError)
-    );
+    if (updatedGig.start && updatedGig.end && new Date(updatedGig.end) > new Date(updatedGig.start)) {
+      syncGigToAllCalendars(gigId).catch(syncError =>
+        console.error('Background sync failed for updated gig:', syncError)
+      );
+    }
 
     return updatedGig;
   } catch (err) {
@@ -1104,7 +1106,8 @@ export async function updateGigAct(gigId: string, organizationId: string | null)
 // Re-export conflict detection functions for convenience
 export {
   checkStaffConflicts,
-  checkVenueConflicts,
+  checkParticipantConflicts,
+  checkParticipantConflicts as checkVenueConflicts,
   checkEquipmentConflicts,
   checkAllConflicts,
   type Conflict,

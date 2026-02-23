@@ -10,14 +10,12 @@ interface ConflictWarningProps {
   conflicts: Conflict[];
   showAsCard?: boolean;
   onViewGig?: (gigId: string) => void;
-  onOverride?: (conflictId: string) => void;
 }
 
 export function ConflictWarning({
   conflicts,
   showAsCard = false,
   onViewGig,
-  onOverride
 }: ConflictWarningProps) {
   if (conflicts.length === 0) return null;
 
@@ -89,15 +87,7 @@ export function ConflictWarning({
               View Gig
             </Button>
           )}
-          {onOverride && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => onOverride(`${conflict.type}-${conflict.gig_id}`)}
-            >
-              Override
-            </Button>
-          )}
+
         </div>
       </div>
     </div>

@@ -104,6 +104,7 @@ function App() {
   const [editingOrganization, setEditingOrganization] = useState<Organization | null>(null);
   const [showEditProfileDialog, setShowEditProfileDialog] = useState(false);
   const [viewedFromCalendar, setViewedFromCalendar] = useState(false);
+  const [gigListKey, setGigListKey] = useState(0);
 
   const [invitationError, setInvitationError] = useState<{ error: string, description?: string } | null>(() => {
     const hash = window.location.hash;
@@ -191,18 +192,20 @@ function App() {
       if (currentRoute === 'dev-demo') return;
 
       // Don't redirect if we're already on an organization management route
-      const orgManagementRoutes: Route[] = ['org-selection', 'create-org', 'accept-invitation'];
+      const orgManagementRoutes: Route[] = ['org-selection', 'create-org', 'accept-invitation', 'calendar-auth-callback'];
       if (orgManagementRoutes.includes(currentRoute)) {
         return;
       }
 
       if (organizations.length === 0) {
-        setCurrentRoute('org-selection'); // Choose an org if user belongs to none
+        setCurrentRoute('org-selection');
       } else if (organizations.length === 1 && !selectedOrganization) {
         const membership = organizations[0];
-        selectOrganization(membership.organization);  // Auto-select if only one org
+        selectOrganization(membership.organization);
       } else if (!selectedOrganization) {
-        setCurrentRoute('org-selection'); // Otherwise user has to select which org to use
+        // Don't override settings route — it will render once org is selected
+        if (currentRoute === 'settings') return;
+        setCurrentRoute('org-selection');
       }
     }
   }, [user, selectedOrganization, organizations, isLoading, selectOrganization, currentRoute]);
@@ -330,10 +333,12 @@ function App() {
 
   const handleBackToGigList = () => {
     setViewedFromCalendar(false);
+    setGigListKey(k => k + 1);
     setCurrentRoute('gig-list');
   };
 
   const handleBackToCalendar = () => {
+    setGigListKey(k => k + 1);
     setCurrentRoute('gig-list');
   };
 
@@ -543,6 +548,14 @@ function App() {
         />
       )}
       
+      {currentRoute === 'calendar-auth-callback' && user && (
+        <CalendarAuthCallback
+          userId={user.id}
+          onAuthComplete={() => setCurrentRoute('settings')}
+          onBack={() => setCurrentRoute('settings')}
+        />
+      )}
+
       {/* Org-specific screens */}
       {selectedOrganization && user && (
         <>
@@ -565,6 +578,7 @@ function App() {
 
           {currentRoute === 'gig-list' && (
             <GigListScreen
+              key={gigListKey}
               organization={selectedOrganization}
               user={user}
               userRole={userRole}
@@ -743,13 +757,7 @@ function App() {
 
 
 
-          {currentRoute === 'calendar-auth-callback' && user && (
-            <CalendarAuthCallback
-              userId={user.id}
-              onAuthComplete={() => setCurrentRoute('settings')}
-              onBack={() => setCurrentRoute('settings')}
-            />
-          )}
+          {/* calendar-auth-callback moved outside selectedOrganization guard */}
 
           {currentRoute === 'settings' && (
             <SettingsScreen

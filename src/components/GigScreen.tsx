@@ -80,10 +80,19 @@ export default function GigScreen({
     setIsSubmitting(true);
     setGeneralError('');
     try {
+      let effectiveEnd: string;
+      if (data.end_time) {
+        effectiveEnd = data.end_time.toISOString();
+      } else if (data.all_day) {
+        effectiveEnd = data.start_time.toISOString();
+      } else {
+        effectiveEnd = new Date(data.start_time.getTime() + 4 * 60 * 60 * 1000).toISOString();
+      }
+
       const gigData = {
         title: data.title,
         start: data.start_time.toISOString(),
-        end: data.end_time.toISOString(),
+        end: effectiveEnd,
         timezone: data.timezone,
         status: data.status,
         tags: data.tags,

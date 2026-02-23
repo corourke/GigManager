@@ -14,7 +14,6 @@ describe('googleCalendar.service', () => {
     expect(typeof service.updateGigSyncStatus).toBe('function');
     expect(typeof service.syncGigToCalendar).toBe('function');
     expect(typeof service.deleteGigFromCalendar).toBe('function');
-    expect(typeof service.getCalendarClient).toBe('function');
     expect(typeof service.getUserCalendars).toBe('function');
     expect(typeof service.exchangeCodeForTokens).toBe('function');
     expect(typeof service.refreshAccessToken).toBe('function');
