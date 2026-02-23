@@ -336,15 +336,23 @@ Groupings of assets that can be deployed on gigs. Simplifies building packages, 
 
 #### Calendar View
 
+Two additional Gig views: 
+
 - **Month View**: Display gigs in calendar format
 - **Week View**: Detailed weekly schedule
-- **Filters**: Filter by status, staff, venue, act
+- **Filters**: Both views can filter by status, staff, venue, act
 
 #### Calendar Integration
 
-- **Google Calendar Integration**: Direct integration with Google Calendar API. User specifies a specific calendar to sync to. Gig adds, deletes and updates are reflected in the Google Calendar. There is a link in the calendar entry to go to the Gig record in the App.
+- **Google Calendar Integration**: Direct integration with Google Calendar API. 
+  - User specifies a specific Google calendar to sync to. 
+  - Gig adds, deletes and updates are reflected in the Google Calendar. 
+  - A link is included in the calendar entry to navigate to the corresponding Gig record in the App.
+  - It is a one-way sync. Google calendar deletes and updates are overwritten on the next sync event.  
 
-#### Conflict Detection
+#### Calendar View Conflict Detection
+
+These warnings are displayed both in a box above the calendar display, and in the calendar itself with a distinctive color. When detected, they can also be added to the corresponding gig detail and entry screens. 
 
 - **Staff Conflicts**: Warn when staff assigned to overlapping gigs
 - **Equipment Conflicts**: Warn when equipment assigned to overlapping gigs
