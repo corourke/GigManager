@@ -218,6 +218,7 @@ export default function ImportScreen({
                   const created = await createOrganization({
                     name: orgData.name,
                     type: orgData.type,
+                    autoJoin: false,
                   });
                   // Convert to Organization type
                   return {
@@ -241,6 +242,7 @@ export default function ImportScreen({
                   const created = await createOrganization({
                     name: orgData.name,
                     type: orgData.type,
+                    autoJoin: false,
                   });
                   // Convert to Organization type
                   return {

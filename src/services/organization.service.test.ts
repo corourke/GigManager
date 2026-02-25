@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { inviteUserToOrganization } from './organization.service';
+import { inviteUserToOrganization, createOrganization } from './organization.service';
 import { createClient } from '../utils/supabase/client';
 
 // Mock Supabase client
@@ -84,6 +84,59 @@ describe('organization.service', () => {
 
       expect(result.resend).toBe(true);
       expect(result).toEqual(mockResult);
+    });
+  });
+
+  describe('createOrganization', () => {
+    const orgData = {
+      name: 'Test Org',
+      type: 'Act' as const,
+    };
+
+    it('should call the edge function with default auto_join: true', async () => {
+      const mockOrg = { id: 'org-1', ...orgData };
+      mockSupabase.functions.invoke.mockResolvedValue({ data: mockOrg, error: null });
+
+      const result = await createOrganization(orgData);
+
+      expect(mockSupabase.functions.invoke).toHaveBeenCalledWith('server/organizations', {
+        method: 'POST',
+        body: {
+          name: 'Test Org',
+          type: 'Act',
+          auto_join: true,
+        }
+      });
+      expect(result).toEqual(mockOrg);
+    });
+
+    it('should call the edge function with auto_join: false when specified', async () => {
+      const mockOrg = { id: 'org-1', ...orgData };
+      mockSupabase.functions.invoke.mockResolvedValue({ data: mockOrg, error: null });
+
+      const result = await createOrganization({ ...orgData, autoJoin: false });
+
+      expect(mockSupabase.functions.invoke).toHaveBeenCalledWith('server/organizations', {
+        method: 'POST',
+        body: {
+          name: 'Test Org',
+          type: 'Act',
+          auto_join: false,
+        }
+      });
+      expect(result).toEqual(mockOrg);
+    });
+
+    it('should throw an error when creation fails', async () => {
+      const mockError = { message: 'Failed to create organization', status: 400 };
+      mockSupabase.functions.invoke.mockResolvedValue({ data: null, error: mockError });
+
+      try {
+        await createOrganization(orgData);
+        expect(true).toBe(false); // Should not reach here
+      } catch (error: any) {
+        expect(error).toBeDefined();
+      }
     });
   });
 });

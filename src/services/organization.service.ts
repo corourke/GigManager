@@ -61,12 +61,17 @@ export async function createOrganization(orgData: {
   postal_code?: string;
   country?: string;
   place_id?: string;
+  autoJoin?: boolean;
 }): Promise<Organization> {
   try {
     const supabase = getSupabase();
+    const { autoJoin, ...rest } = orgData;
     const { data, error } = await supabase.functions.invoke('server/organizations', {
       method: 'POST',
-      body: orgData
+      body: {
+        ...rest,
+        auto_join: autoJoin ?? true,
+      }
     });
 
     if (error) return await handleFunctionsError(error, 'create organization');
