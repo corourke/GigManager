@@ -19,24 +19,3 @@ export function createClient() {
 
   return supabaseClient;
 }
-
-// Helper to get current session
-export async function getSession() {
-  const client = createClient();
-  const { data: { session }, error } = await client.auth.getSession();
-  return { session, error };
-}
-
-// Helper to get current user
-export async function getCurrentUser() {
-  const client = createClient();
-  const { data: { user }, error } = await client.auth.getUser();
-  return { user, error };
-}
-
-// Helper to sign out
-export async function signOut() {
-  const client = createClient();
-  const { error } = await client.auth.signOut();
-  return { error };
-}

@@ -59,7 +59,7 @@
 - **Loading States**: Show spinners on buttons and disable interactive elements during async operations.
 
 ### 3. API & Error Handling
-- **Location**: API functions belong in `src/utils/api.tsx`.
+- **Location**: API functions belong in `src/services/*.service.ts`, with shared error handling in `src/utils/api-error-utils.ts`.
 - **Error Pattern**: Catch errors, log to console, and throw user-friendly messages for the UI to display via `toast`.
 - **Timestamps**: Always update `updated_at` on records during updates.
 
@@ -80,5 +80,10 @@
 - [ ] Types are explicitly defined (avoid `any`).
 - [ ] Components are modular and focused.
 
+## Future Refactoring Opportunities
+
+- **`src/App.tsx`** (~816 lines): Contains routing, auth flow, and organization selection logic in a single file. Consider extracting into a router module, auth orchestrator, and layout components.
+- **`src/services/gig.service.ts`** (~1110 lines): Handles all gig CRUD, participants, financials, staff, and kit assignments. Consider splitting into focused modules (e.g., `gigParticipant.service.ts`, `gigFinancial.service.ts`).
+
 ---
-**Last Updated**: 2026-01-26
+**Last Updated**: 2026-02-24

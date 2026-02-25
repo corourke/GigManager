@@ -121,7 +121,6 @@ export default function GigListScreen({
 
       if (data && data.length > 0) {
         const detected = await checkAllConflictsForGigs(data);
-        console.log('[GigListScreen] conflicts detected:', detected.length, detected);
         setConflicts(detected);
       }
     } catch (err: any) {

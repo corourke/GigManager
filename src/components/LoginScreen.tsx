@@ -28,12 +28,12 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
     // We rely on AuthContext to handle the initial session detection
     // through its onAuthStateChange listener. This prevents redundant
     // calls that could cause race conditions or deadlocks.
-    console.log('[TRACE] LoginScreen: Mounted, waiting for AuthContext to detect session');
+    if (import.meta.env.DEV) console.log('[TRACE] LoginScreen: Mounted, waiting for AuthContext to detect session');
   }, []);
 
   const handleAuthenticatedUser = async (accessToken: string, userId: string) => {
     try {
-      console.log('[TRACE] LoginScreen: handleAuthenticatedUser starting for', userId);
+      if (import.meta.env.DEV) console.log('[TRACE] LoginScreen: handleAuthenticatedUser starting for', userId);
       setIsLoading(true);
 
       // Get user metadata from Supabase auth for conversion check
@@ -44,19 +44,19 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
       // Check if there's a pending user with this email and convert to active
       if (userEmail) {
         try {
-          console.log('[TRACE] LoginScreen: Checking for pending user conversion...');
+          if (import.meta.env.DEV) console.log('[TRACE] LoginScreen: Checking for pending user conversion...');
           await convertPendingToActive(userEmail, userId);
         } catch (convertErr) {
-          console.warn('[TRACE] LoginScreen: Error converting pending user:', convertErr);
+          if (import.meta.env.DEV) console.warn('[TRACE] LoginScreen: Error converting pending user:', convertErr);
         }
       }
 
-      console.log('[TRACE] LoginScreen: Authentication handling complete. Relying on AuthContext for data fetching.');
+      if (import.meta.env.DEV) console.log('[TRACE] LoginScreen: Authentication handling complete. Relying on AuthContext for data fetching.');
       // Note: We don't call onLogin here because AuthContext's onAuthStateChange 
       // will detect the session and call refreshProfile automatically.
       
     } catch (err: any) {
-      console.error('[TRACE] LoginScreen: Error handling authenticated user:', err);
+      if (import.meta.env.DEV) console.error('[TRACE] LoginScreen: Error handling authenticated user:', err);
       setError(err?.message || 'Failed to handle authentication');
     } finally {
       setIsLoading(false);

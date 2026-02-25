@@ -13,6 +13,8 @@ const SCOPES = [
 
 const REDIRECT_URI = () => `${window.location.origin}/auth/google-calendar/callback`;
 
+const SETTINGS_COLS = 'id, user_id, calendar_id, calendar_name, access_token, refresh_token, token_expires_at, is_enabled, sync_filters, created_at, updated_at';
+
 export async function getGoogleAuthUrl(): Promise<string> {
   const params = new URLSearchParams({
     client_id: GOOGLE_CLIENT_ID,
@@ -119,7 +121,7 @@ export async function getUserGoogleCalendarSettings(userId: string): Promise<Use
   try {
     const { data, error } = await supabase
       .from('user_google_calendar_settings')
-      .select('id, user_id, calendar_id, calendar_name, access_token, refresh_token, token_expires_at, is_enabled, sync_filters, created_at, updated_at')
+      .select(SETTINGS_COLS)
       .eq('user_id', userId)
       .single();
 
@@ -160,8 +162,6 @@ export async function saveUserGoogleCalendarSettings(
 
     let result;
     if (existing) {
-      const SETTINGS_COLS = 'id, user_id, calendar_id, calendar_name, access_token, refresh_token, token_expires_at, is_enabled, sync_filters, created_at, updated_at';
-      // Update existing settings
       const { data, error } = await supabase
         .from('user_google_calendar_settings')
         .update({
@@ -174,8 +174,6 @@ export async function saveUserGoogleCalendarSettings(
       if (error) throw error;
       result = data;
     } else {
-      const SETTINGS_COLS = 'id, user_id, calendar_id, calendar_name, access_token, refresh_token, token_expires_at, is_enabled, sync_filters, created_at, updated_at';
-      // Insert new settings
       const { data, error } = await supabase
         .from('user_google_calendar_settings')
         .insert({
@@ -212,7 +210,7 @@ export async function updateUserGoogleCalendarSettings(
         updated_at: new Date().toISOString(),
       })
       .eq('user_id', userId)
-      .select('id, user_id, calendar_id, calendar_name, access_token, refresh_token, token_expires_at, is_enabled, sync_filters, created_at, updated_at')
+      .select(SETTINGS_COLS)
       .single();
 
     if (error) throw error;
@@ -251,8 +249,11 @@ export async function getUserCalendars(userId: string): Promise<Array<{
 
   try {
     const { data, error } = await supabase.functions.invoke(
-      `server/integrations/google-calendar/calendars?access_token=${encodeURIComponent(accessToken)}`,
-      { method: 'GET' }
+      'server/integrations/google-calendar/calendars',
+      {
+        method: 'POST',
+        body: { access_token: accessToken },
+      }
     );
 
     if (error) throw error;

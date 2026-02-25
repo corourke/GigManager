@@ -178,7 +178,7 @@ export default function OrganizationScreen({
         }
       } catch (geoError) {
         // Silently fail - search will still work without location
-        console.log('Geolocation not available or denied:', geoError);
+        console.warn('Geolocation not available or denied:', geoError);
       }
 
       // Build search params

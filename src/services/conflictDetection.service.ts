@@ -333,7 +333,6 @@ interface GigForConflictCheck {
 
 export async function checkAllConflictsForGigs(gigs: GigForConflictCheck[]): Promise<Conflict[]> {
   const activeGigs = gigs.filter(g => !g.status || !EXCLUDED_STATUSES.includes(g.status));
-  console.log('[ConflictDetection] checkAllConflictsForGigs called with', gigs.length, 'gigs,', activeGigs.length, 'active');
   if (activeGigs.length === 0) return [];
 
   const supabase = getSupabase();
@@ -359,13 +358,6 @@ export async function checkAllConflictsForGigs(gigs: GigForConflictCheck[]): Pro
     if (staffData.error) throw staffData.error;
     if (participantData.error) throw participantData.error;
     if (kitData.error) throw kitData.error;
-
-    console.log('[ConflictDetection] batch data:', {
-      gigs: activeGigs.length,
-      staffSlots: staffData.data?.length || 0,
-      participants: participantData.data?.length || 0,
-      kitAssignments: kitData.data?.length || 0,
-    });
 
     const staffByGig = new Map<string, { user_id: string; name: string }[]>();
     for (const slot of staffData.data || []) {
@@ -400,24 +392,6 @@ export async function checkAllConflictsForGigs(gigs: GigForConflictCheck[]): Pro
 
     const conflicts: Conflict[] = [];
 
-    if (activeGigs.length > 0) {
-      const sample = activeGigs[0];
-      const sampleRange = getEffectiveRange(sample.start, sample.end, sample.timezone);
-      console.log('[ConflictDetection] sample gig:', {
-        id: sample.id,
-        title: sample.title,
-        rawStart: sample.start,
-        rawEnd: sample.end,
-        effectiveStart: sampleRange.effectiveStart.toISOString(),
-        effectiveEnd: sampleRange.effectiveEnd.toISOString(),
-        startValid: !isNaN(sampleRange.effectiveStart.getTime()),
-        endValid: !isNaN(sampleRange.effectiveEnd.getTime()),
-      });
-    }
-
-    let overlapCount = 0;
-    let resourceMatchNoOverlap = 0;
-
     for (let i = 0; i < activeGigs.length; i++) {
       const gigA = activeGigs[i];
       const { effectiveStart: aStart, effectiveEnd: aEnd } = getEffectiveRange(gigA.start, gigA.end, gigA.timezone);
@@ -426,7 +400,7 @@ export async function checkAllConflictsForGigs(gigs: GigForConflictCheck[]): Pro
         const gigB = activeGigs[j];
         const { effectiveStart: bStart, effectiveEnd: bEnd } = getEffectiveRange(gigB.start, gigB.end, gigB.timezone);
 
-        const overlaps = rangesOverlap(aStart, aEnd, bStart, bEnd);
+        if (!rangesOverlap(aStart, aEnd, bStart, bEnd)) continue;
 
         const staffA = staffByGig.get(gigA.id) || [];
         const staffB_pre = staffByGig.get(gigB.id) || [];
@@ -434,30 +408,6 @@ export async function checkAllConflictsForGigs(gigs: GigForConflictCheck[]): Pro
         const partsB_pre = participantsByGig.get(gigB.id) || [];
         const kitsA_pre = kitsByGig.get(gigA.id) || [];
         const kitsB_pre = kitsByGig.get(gigB.id) || [];
-
-        const hasSharedStaff = staffA.some(s => staffB_pre.some(sb => sb.user_id === s.user_id));
-        const hasSharedOrg = partsA_pre.some(p => partsB_pre.some(pb => pb.org_id === p.org_id));
-        const hasSharedKit = kitsA_pre.some(k => kitsB_pre.includes(k));
-        const hasSharedResource = hasSharedStaff || hasSharedOrg || hasSharedKit;
-
-        if (overlaps) overlapCount++;
-        if (hasSharedResource && !overlaps) {
-          resourceMatchNoOverlap++;
-          console.log('[ConflictDetection] shared resource but NO time overlap:', {
-            gigA: `${gigA.title} (${gigA.start} → ${gigA.end})`,
-            gigB: `${gigB.title} (${gigB.start} → ${gigB.end})`,
-            aRange: `${aStart.toISOString()} → ${aEnd.toISOString()}`,
-            bRange: `${bStart.toISOString()} → ${bEnd.toISOString()}`,
-            sharedStaff: hasSharedStaff, sharedOrg: hasSharedOrg, sharedKit: hasSharedKit,
-          });
-        }
-        if (overlaps && hasSharedResource) {
-          console.log('[ConflictDetection] OVERLAP + shared resource:', {
-            gigA: gigA.title, gigB: gigB.title,
-          });
-        }
-
-        if (!overlaps) continue;
 
         const staffAIds = new Set(staffA.map(s => s.user_id));
         const overlappingStaff = staffB_pre.filter(s => staffAIds.has(s.user_id));
@@ -512,15 +462,6 @@ export async function checkAllConflictsForGigs(gigs: GigForConflictCheck[]): Pro
       }
     }
 
-    console.log('[ConflictDetection] pairs checked:', activeGigs.length * (activeGigs.length - 1) / 2,
-      'timeOverlaps:', overlapCount,
-      'resourceMatchNoOverlap:', resourceMatchNoOverlap,
-      'raw conflicts found:', conflicts.length,
-      'staffMap entries:', staffByGig.size,
-      'participantsMap entries:', participantsByGig.size,
-      'kitsMap entries:', kitsByGig.size
-    );
-
     const seen = new Set<string>();
     const deduped = conflicts.filter(c => {
       const key = `${c.type}:${c.gig_id}:${c.details.other_gig_id || ''}:${c.details.venue_id || ''}`;
@@ -528,9 +469,6 @@ export async function checkAllConflictsForGigs(gigs: GigForConflictCheck[]): Pro
       seen.add(key);
       return true;
     });
-    console.log('[ConflictDetection] returning', deduped.length, 'conflicts after dedup:', deduped.map(c => ({
-      type: c.type, gig: c.gig_title, other: c.details.other_gig_title, venue: c.details.venue_name
-    })));
     return deduped;
   } catch (err: any) {
     console.error('Error in batch conflict detection:', err);

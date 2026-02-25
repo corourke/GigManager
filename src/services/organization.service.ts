@@ -7,6 +7,7 @@ import {
   User
 } from '../utils/supabase/types';
 import { handleApiError, handleFunctionsError } from '../utils/api-error-utils';
+import { sanitizeLikeInput } from '../utils/validation-utils';
 
 const getSupabase = () => createClient();
 
@@ -26,7 +27,7 @@ export async function searchOrganizations(filters?: { type?: OrganizationType; s
     }
 
     if (filters?.search) {
-      query = query.ilike('name', `%${filters.search}%`);
+      query = query.ilike('name', `%${sanitizeLikeInput(filters.search)}%`);
     }
 
     const { data, error } = await query.limit(20);

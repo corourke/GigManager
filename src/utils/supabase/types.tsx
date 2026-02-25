@@ -146,8 +146,6 @@ export interface DbGigFinancial {
   updated_at?: string;
 }
 
-export type DbGigBid = DbGigFinancial; // For backward compatibility if needed, though we should update callers
-
 export interface DbInvitation {
   id: string;
   organization_id: string;
@@ -164,11 +162,6 @@ export interface DbInvitation {
 }
 
 export type Invitation = DbInvitation;
-
-export interface DbKvStore {
-  key: string;
-  value: any;
-}
 
 export interface DbAsset {
   id: string;

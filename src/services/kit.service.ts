@@ -1,5 +1,7 @@
 import { createClient } from '../utils/supabase/client';
 import { handleApiError } from '../utils/api-error-utils';
+import { requireAuth } from '../utils/supabase/auth-utils';
+import { sanitizeLikeInput } from '../utils/validation-utils';
 
 const getSupabase = () => createClient();
 
@@ -29,7 +31,8 @@ export async function getKits(organizationId: string, filters?: {
     }
 
     if (filters?.search) {
-      query = query.or(`name.ilike.%${filters.search}%,description.ilike.%${filters.search}%`);
+      const s = sanitizeLikeInput(filters.search);
+      query = query.or(`name.ilike.%${s}%,description.ilike.%${s}%`);
     }
 
     const { data, error } = await query;
@@ -113,11 +116,8 @@ export async function createKit(kitData: {
     notes?: string;
   }>;
 }) {
-  const supabase = getSupabase();
   try {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session?.user) throw new Error('Not authenticated');
-    const user = session.user;
+    const { supabase, user } = await requireAuth();
 
     const { assets, ...restKitData } = kitData;
 
@@ -169,11 +169,8 @@ export async function updateKit(kitId: string, kitData: {
     notes?: string;
   }>;
 }) {
-  const supabase = getSupabase();
   try {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session?.user) throw new Error('Not authenticated');
-    const user = session.user;
+    const { supabase, user } = await requireAuth();
 
     const { assets, ...restKitData } = kitData;
 
@@ -236,11 +233,8 @@ export async function deleteKit(kitId: string) {
  * Duplicate an existing kit
  */
 export async function duplicateKit(kitId: string, newName?: string) {
-  const supabase = getSupabase();
   try {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session?.user) throw new Error('Not authenticated');
-    const user = session.user;
+    const { supabase, user } = await requireAuth();
 
     const originalKit = await getKit(kitId);
 
