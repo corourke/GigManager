@@ -102,7 +102,6 @@ export default function CalendarScreen({
 
       if (gigsData && gigsData.length > 0) {
         const detected = await checkAllConflictsForGigs(gigsData);
-        console.log('[CalendarScreen] conflicts detected:', detected.length, detected);
         setConflicts(detected);
       }
     } catch (error) {

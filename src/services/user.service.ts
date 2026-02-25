@@ -4,6 +4,8 @@ import {
   OrganizationMembershipWithOrg,
 } from '../utils/supabase/types';
 import { handleApiError } from '../utils/api-error-utils';
+import { requireAuth } from '../utils/supabase/auth-utils';
+import { sanitizeLikeInput } from '../utils/validation-utils';
 
 const getSupabase = () => createClient();
 
@@ -123,12 +125,8 @@ export async function updateUserProfile(userId: string, updates: {
  * Search for users within specific organizations
  */
 export async function searchUsers(search?: string, organizationIds?: string[]): Promise<User[]> {
-  const supabase = getSupabase();
   try {
-    // Get current authenticated user
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session?.user) throw new Error('Not authenticated');
-    const user = session.user;
+    const { supabase, user } = await requireAuth();
 
     let orgIds: string[] = [];
 
@@ -162,7 +160,8 @@ export async function searchUsers(search?: string, organizationIds?: string[]): 
       .order('first_name');
 
     if (search) {
-      query = query.or(`first_name.ilike.%${search}%,last_name.ilike.%${search}%,email.ilike.%${search}%`);
+      const s = sanitizeLikeInput(search);
+      query = query.or(`first_name.ilike.%${s}%,last_name.ilike.%${s}%,email.ilike.%${s}%`);
     }
 
     const { data, error } = await query.limit(20);
@@ -177,10 +176,8 @@ export async function searchUsers(search?: string, organizationIds?: string[]): 
  * Search for all active users in the system
  */
 export async function searchAllUsers(search: string): Promise<User[]> {
-  const supabase = getSupabase();
   try {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session?.user) throw new Error('Not authenticated');
+    const { supabase } = await requireAuth();
 
     if (!search || search.length < 2) return [];
 

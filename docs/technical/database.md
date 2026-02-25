@@ -2,7 +2,7 @@
 
 **Purpose**: This document provides the complete database schema, Supabase integration details, and data access patterns for the GigManager application.
 
-**Last Updated**: 2026-02-05
+**Last Updated**: 2026-02-24
 
 ---
 
@@ -25,10 +25,10 @@
 
 ## Overview
 
-The database uses **PostgreSQL 15+** hosted on **Supabase** with Row-Level Security (RLS) for multi-tenant data isolation. All enum types are defined in the Prisma schema as the single source of truth.
+The database uses **PostgreSQL 17** hosted on **Supabase** with Row-Level Security (RLS) for multi-tenant data isolation. All enum types are defined in the SQL migration (`supabase/migrations/20260209000000_initial_schema.sql`) and mirrored in `src/utils/supabase/constants.ts`.
 
 **Technology Stack:**
-- PostgreSQL 15+ database
+- PostgreSQL 17 database
 - Supabase backend (auth, realtime, storage)
 - Direct Supabase client integration (no Prisma ORM in production)
 - TypeScript types generated from schema
@@ -47,7 +47,7 @@ The database uses **PostgreSQL 15+** hosted on **Supabase** with Row-Level Secur
 ### What's Implemented
 
 **Database:**
-- Complete schema with 16 tables
+- Complete schema with 18 tables
 - Row-Level Security (RLS) policies for data isolation
 - Automatic triggers for timestamp updates and status logging
 - Seed data for common staff roles
@@ -74,15 +74,16 @@ The database uses **PostgreSQL 15+** hosted on **Supabase** with Row-Level Secur
 ```
 /
 ├── src/
+│   ├── services/
+│   │   └── *.service.ts                 # API service functions (gig, asset, kit, etc.)
 │   └── utils/
-│       ├── api.tsx                      # API client functions
+│       ├── api-error-utils.ts           # Shared API error handling
 │       └── supabase/
 │           ├── client.tsx               # Supabase client singleton
 │           └── types.tsx                # TypeScript types matching schema
 └── supabase/
     └── migrations/
-        └── *.sql                        # Database migrations
-    └── schema.sql                       # Current database schema (after migrations)
+        └── *.sql                        # Database migrations (source of truth for schema)
 ```
 
 ---
@@ -179,11 +180,17 @@ Tracks the type of financial record/transaction.
 - `Deposit Sent`
 - `Deposit Refunded`
 - `Payment Sent`
-- `Payment Recieved`
+- `Payment Recieved` *(known typo — matches database enum; do not change without a migration)*
 - `Expense Incurred`
 - `Expense Reimbursed`
 - `Invoice Issued`
 - `Invoice Settled`
+
+### sync_status
+Tracks Google Calendar sync state for gigs.
+- `pending`
+- `synced`
+- `failed`
 
 ### fin_category
 Categorizes financial records for reporting.
@@ -607,6 +614,55 @@ Key-value store for edge functions and application settings
 
 ---
 
+## Google Calendar Integration Tables
+
+### user_google_calendar_settings
+
+Stores user OAuth tokens and calendar preferences for Google Calendar integration.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| id | UUID | Primary key |
+| user_id | UUID | Reference to users.id (NOT NULL, CASCADE delete) |
+| calendar_id | TEXT | Google Calendar ID (NOT NULL) |
+| calendar_name | TEXT | Display name of the calendar (nullable) |
+| access_token | TEXT | Encrypted OAuth access token (NOT NULL) |
+| refresh_token | TEXT | Encrypted OAuth refresh token (NOT NULL) |
+| token_expires_at | TIMESTAMPTZ | Token expiration timestamp (NOT NULL) |
+| is_enabled | BOOLEAN | Whether sync is enabled (default true, NOT NULL) |
+| sync_filters | JSONB | Optional filters for status, organization, etc. (default '{}') |
+| created_at | TIMESTAMPTZ | Record creation timestamp (NOT NULL) |
+| updated_at | TIMESTAMPTZ | Record last update timestamp (NOT NULL) |
+
+**Notes:**
+- Unique constraint on (user_id, calendar_id) — one calendar setting per user per calendar.
+- RLS is **ENABLED**. Users can only access their own calendar settings.
+
+---
+
+### gig_sync_status
+
+Tracks sync status of gigs to Google Calendar per user.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| id | UUID | Primary key |
+| gig_id | UUID | Reference to gigs.id (NOT NULL, CASCADE delete) |
+| user_id | UUID | Reference to users.id (NOT NULL, CASCADE delete) |
+| google_event_id | TEXT | Google Calendar event ID (nullable) |
+| last_synced_at | TIMESTAMPTZ | Last successful sync timestamp (nullable) |
+| sync_status | sync_status | Enum: `pending`, `synced`, `failed` (default 'pending', NOT NULL) |
+| sync_error | TEXT | Error message from last failed sync (nullable) |
+| created_at | TIMESTAMPTZ | Record creation timestamp (NOT NULL) |
+| updated_at | TIMESTAMPTZ | Record last update timestamp (NOT NULL) |
+
+**Notes:**
+- Unique constraint on (gig_id, user_id) — one sync record per gig per user.
+- RLS is **ENABLED**. Users can manage their own sync records; read access extends to gigs the user participates in.
+- Uses the `sync_status` enum type: `pending`, `synced`, `failed`.
+
+---
+
 ## Common Notes
 
 - Each first-class entity owned by the tenant has `organization_id` for RLS and filtering
@@ -675,6 +731,12 @@ To optimize performance, the following indexes are implemented:
 - `idx_gig_kit_assignments_gig_id`: On `gig_kit_assignments(gig_id)`
 - `idx_gig_kit_assignments_kit_id`: On `gig_kit_assignments(kit_id)`
 
+### Google Calendar Integration
+- `idx_user_google_calendar_settings_user_id`: On `user_google_calendar_settings(user_id)`
+- `idx_gig_sync_status_gig_id`: On `gig_sync_status(gig_id)`
+- `idx_gig_sync_status_user_id`: On `gig_sync_status(user_id)`
+- `idx_gig_sync_status_sync_status`: On `gig_sync_status(sync_status)`
+
 ---
 
 ## Row-Level Security (RLS)
@@ -699,6 +761,8 @@ To optimize performance, the following indexes are implemented:
 - `kit_assets`
 - `gig_financials`
 - `kv_store_de012ad4`
+- `user_google_calendar_settings`
+- `gig_sync_status`
 
 **Tables with RLS DISABLED (Access control handled at application layer):**
 - `organization_members`
@@ -818,12 +882,13 @@ supabase
 - **Workflows**: See [../product/workflows/](../product/workflows/) for UI flows
 - **Tech Stack**: See [tech-stack.md](./tech-stack.md) for technology details
 - **Setup Guide**: See [setup-guide.md](./setup-guide.md) for installation instructions
-- **Coding Guide**: See [../development/ai-agents/coding-guide.md](../development/ai-agents/coding-guide.md) for implementation patterns
+- **Coding Guide**: See [../development/coding-guide.md](../development/coding-guide.md) for implementation patterns
 
 ---
 
 ## Document History
 
+**2026-02-24**: Fixed Prisma/schema.sql references, updated PostgreSQL version to 17, added Google Calendar integration tables (`user_google_calendar_settings`, `gig_sync_status`), documented `Payment Recieved` typo as known issue, fixed file structure paths.
 **2026-02-09**: Consolidated migrations into a single initialization file, improved local development workflow, and moved troubleshooting content to `setup-guide.md`.
-**2026-01-28**: Updated schema details to match `supabase/schema.sql`, added missing tables (`invitations`, `kv_store`), documented helper functions, triggers, and indexes, and corrected RLS status for all tables.
+**2026-01-28**: Updated schema details to match `supabase/migrations/`, added missing tables (`invitations`, `kv_store`), documented helper functions, triggers, and indexes, and corrected RLS status for all tables.
 **2026-01-18**: Consolidated DATABASE.md and setup/supabase-integration.md into comprehensive database specification with schema details, Supabase integration guidance, and troubleshooting information.

@@ -91,12 +91,11 @@ Supabase provides data persistence, authentication, and API calls.
 
 ### UI Enhancements
 
-- **react-slick** - Carousel/slider components
-- **react-responsive-masonry** - Masonry grid layouts
-- **react-dnd** - Drag and drop interactions
-- **motion/react** (formerly Framer Motion) - Animation library
-- **popper.js** - Tooltip and popover positioning
 - **sonner** - Toast notifications
+- **cmdk** - Command palette component
+- **embla-carousel-react** - Carousel/slider component
+- **react-big-calendar** - Calendar view component
+- **react-resizable-panels** - Resizable panel layouts
 
 ### Date Handling
 
@@ -105,20 +104,31 @@ Supabase provides data persistence, authentication, and API calls.
 
 ### Rich Text
 
-- **@uiw/react-md-editor** - Markdown editor (as used in MarkdownEditor.tsx)
+- **react-markdown** - Markdown renderer (used in MarkdownEditor.tsx)
+
+## Edge Functions
+
+Located in `supabase/functions/server/`, running on the Deno runtime. A single consolidated function handles all backend API endpoints:
+
+- **User Management**: `/users` — CRUD operations for user profiles
+- **Organizations**: `/organizations` — CRUD, member management, invitations
+- **Gigs**: `/gigs` — CRUD with participant and hierarchy support
+- **Dashboard**: `/organizations/:id/dashboard` — Aggregated analytics data
+- **Google Calendar**: `/integrations/google-calendar/*` — OAuth token exchange, calendar listing, event sync
+- **Google Places**: `/integrations/google-places/*` — Address search and place details
 
 ## File Structure Patterns
 
 ```
-/
-├── App.tsx                         # Main application entry point (REQUIRED)
+src/
+├── App.tsx                         # Main application entry point
 ├── components/                     # Application components
 │   ├── ui/                         # Shadcn/ui components (DO NOT modify structure)
-│   ├── figma/                      # Figma Make system components (PROTECTED)
-│   │   └── ImageWithFallback.tsx   # Image component with fallback
 │   └── [Feature]Screen.tsx         # Feature-specific screens
+├── services/                       # API service functions
+│   └── *.service.ts                # Domain-specific service modules
 ├── styles/
 │   └── globals.css                 # Tailwind v4 config & design tokens
-└── guidelines/                     # Project documentation
+└── utils/                          # Shared utilities and helpers
 ```
 

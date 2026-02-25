@@ -6,6 +6,8 @@ import {
   FinCategory,
 } from '../utils/supabase/types';
 import { handleApiError } from '../utils/api-error-utils';
+import { requireAuth } from '../utils/supabase/auth-utils';
+import { UUID_REGEX } from '../utils/validation-utils';
 import { getKit } from './kit.service';
 import { syncGigToCalendar, deleteGigFromCalendar } from './googleCalendar.service';
 
@@ -292,10 +294,8 @@ export async function updateGigParticipants(gigId: string, participants: Array<{
   role: string;
   notes?: string | null;
 }>) {
-  const supabase = getSupabase();
   try {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session?.user) throw new Error('Not authenticated');
+    const { supabase } = await requireAuth();
 
     const { data: existingParticipants, error: fetchError } = await supabase
       .from('gig_participants')
@@ -305,9 +305,8 @@ export async function updateGigParticipants(gigId: string, participants: Array<{
     if (fetchError) throw fetchError;
 
     const existingIds = existingParticipants?.map(p => p.id) || [];
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
     const incomingIds = participants
-      .filter(p => p.id && uuidRegex.test(p.id))
+      .filter(p => p.id && UUID_REGEX.test(p.id))
       .map(p => p.id!);
 
     const idsToDelete = existingIds.filter(id => !incomingIds.includes(id));
@@ -316,7 +315,7 @@ export async function updateGigParticipants(gigId: string, participants: Array<{
     }
 
     for (const participant of participants) {
-      const isDbId = participant.id && uuidRegex.test(participant.id);
+      const isDbId = participant.id && UUID_REGEX.test(participant.id);
       const participantData = {
         organization_id: participant.organization_id,
         role: participant.role,
@@ -368,11 +367,8 @@ export async function updateGig(gigId: string, gigData: {
     }>;
   }>;
 }) {
-  const supabase = getSupabase();
   try {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session?.user) throw new Error('Not authenticated');
-    const user = session.user;
+    const { supabase, user } = await requireAuth();
 
     const { data: gigParticipants } = await supabase
       .from('gig_participants')
@@ -465,11 +461,8 @@ export async function updateGigStaffSlots(gigId: string, staff_slots: Array<{
     notes?: string | null;
   }>;
 }>) {
-  const supabase = getSupabase();
   try {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session?.user) throw new Error('Not authenticated');
-    const user = session.user;
+    const { supabase, user } = await requireAuth();
 
     const { data: gigParticipants } = await supabase
       .from('gig_participants')
@@ -572,11 +565,8 @@ export async function updateGigStaffSlots(gigId: string, staff_slots: Array<{
  * Duplicate an existing gig
  */
 export async function duplicateGig(gigId: string, newTitle?: string) {
-  const supabase = getSupabase();
   try {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session?.user) throw new Error('Not authenticated');
-    const user = session.user;
+    const { supabase, user } = await requireAuth();
 
     const originalGig = await getGig(gigId);
 
@@ -667,11 +657,8 @@ export async function duplicateGig(gigId: string, newTitle?: string) {
  * Assign a kit to a gig
  */
 export async function assignKitToGig(gigId: string, kitId: string, organizationId: string, notes?: string) {
-  const supabase = getSupabase();
   try {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session?.user) throw new Error('Not authenticated');
-    const user = session.user;
+    const { supabase, user } = await requireAuth();
 
     const { data, error } = await supabase
       .from('gig_kit_assignments')
@@ -728,11 +715,8 @@ export async function updateGigKitAssignments(gigId: string, organizationId: str
   kit_id: string;
   notes?: string | null;
 }>) {
-  const supabase = getSupabase();
   try {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session?.user) throw new Error('Not authenticated');
-    const user = session.user;
+    const { supabase, user } = await requireAuth();
 
     const { data: existingAssignments, error: fetchError } = await supabase
       .from('gig_kit_assignments')
@@ -743,8 +727,7 @@ export async function updateGigKitAssignments(gigId: string, organizationId: str
     if (fetchError) throw fetchError;
 
     const existingIds = existingAssignments?.map(a => a.id) || [];
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-    const incomingIds = assignments.filter(a => a.id && uuidRegex.test(a.id)).map(a => a.id!);
+    const incomingIds = assignments.filter(a => a.id && UUID_REGEX.test(a.id)).map(a => a.id!);
 
     const assignmentIdsToDelete = existingIds.filter(id => !incomingIds.includes(id));
     if (assignmentIdsToDelete.length > 0) {
@@ -752,7 +735,7 @@ export async function updateGigKitAssignments(gigId: string, organizationId: str
     }
 
     for (const assignment of assignments) {
-      const isDbId = assignment.id && uuidRegex.test(assignment.id);
+      const isDbId = assignment.id && UUID_REGEX.test(assignment.id);
       const assignmentData = {
         gig_id: gigId,
         kit_id: assignment.kit_id,
@@ -912,11 +895,8 @@ export async function createGigFinancial(finData: {
   due_date?: string;
   paid_at?: string;
 }) {
-  const supabase = getSupabase();
   try {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session?.user) throw new Error('Not authenticated');
-    const user = session.user;
+    const { supabase, user } = await requireAuth();
 
     const { data, error } = await supabase.from('gig_financials').insert({ ...finData, created_by: user.id }).select().single();
     if (error) throw error;
@@ -1013,17 +993,14 @@ export async function updateGigFinancials(gigId: string, organizationId: string,
   due_date?: string;
   paid_at?: string;
 }>) {
-  const supabase = getSupabase();
   try {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session?.user) throw new Error('Not authenticated');
-    const user = session.user;
+    const { supabase, user } = await requireAuth();
 
     const { data: existingFins, error: fetchError } = await supabase.from('gig_financials').select('id').eq('gig_id', gigId).eq('organization_id', organizationId);
     if (fetchError) throw fetchError;
 
     const existingIds = existingFins?.map(f => f.id) || [];
-    const incomingIds = financials.filter(f => f.id && f.id.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i)).map(f => f.id!);
+    const incomingIds = financials.filter(f => f.id && UUID_REGEX.test(f.id)).map(f => f.id!);
 
     const idsToDelete = existingIds.filter(id => !incomingIds.includes(id));
     if (idsToDelete.length > 0) {

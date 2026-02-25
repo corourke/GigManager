@@ -230,7 +230,6 @@ function App() {
   }, [isLoading, user, selectedOrganization, userRole, currentRoute]);
 
   const handleLogin = (userData: User, userOrgs: OrganizationMembership[]) => {
-    console.log("handleLogin()");
     login(userData, userOrgs);
   };
 
@@ -261,7 +260,6 @@ function App() {
   };
 
   const handleSelectOrganization = (org: Organization) => {
-    console.log("handleSelectOrganization(): " + org.name);
     selectOrganization(org);
     if (userRole === 'Viewer') {
       setCurrentRoute('gig-list');
@@ -467,8 +465,6 @@ function App() {
       </div>
     );
   }
-
-  console.log("currentRoute: " + currentRoute);
 
   if (invitationError) {
     return (

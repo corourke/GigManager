@@ -2553,7 +2553,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    if (path === '/integrations/google-calendar/calendars' && method === 'GET') {
+    if (path === '/integrations/google-calendar/calendars' && method === 'POST') {
       const authHeader = req.headers.get('Authorization');
       const { user, error: authError } = await getAuthenticatedUser(authHeader);
 
@@ -2564,9 +2564,9 @@ Deno.serve(async (req) => {
         });
       }
 
-      const accessToken = url.searchParams.get('access_token');
+      const { access_token: accessToken } = await req.json();
       if (!accessToken) {
-        return new Response(JSON.stringify({ error: 'access_token query param is required' }), {
+        return new Response(JSON.stringify({ error: 'access_token is required' }), {
           status: 400,
           headers: { ...responseHeaders, 'Content-Type': 'application/json' },
         });

@@ -90,12 +90,6 @@ export default function Dashboard({
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    console.log('Dashboard mounted/updated:', {
-      organizationId: organization.id,
-      organizationName: organization.name,
-      userId: user.id,
-      userRole: userRole,
-    });
     fetchDashboardStats();
   }, [organization.id]);
 
@@ -114,8 +108,6 @@ export default function Dashboard({
         return;
       }
 
-      console.log('Dashboard: Making API call for organization:', organization.id, organization.name);
-
       const { data, error: invokeError } = await supabase.functions.invoke(`server/organizations/${organization.id}/dashboard`, {
         method: 'GET'
       });
@@ -124,7 +116,6 @@ export default function Dashboard({
         await handleFunctionsError(invokeError, 'fetch dashboard stats');
       }
 
-      console.log('Dashboard: API response data:', data);
       setStats(data);
     } catch (err: any) {
       console.error('Error fetching dashboard stats:', err);

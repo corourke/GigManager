@@ -1,5 +1,7 @@
 import { createClient } from '../utils/supabase/client';
 import { handleApiError } from '../utils/api-error-utils';
+import { requireAuth } from '../utils/supabase/auth-utils';
+import { sanitizeLikeInput } from '../utils/validation-utils';
 
 const getSupabase = () => createClient();
 
@@ -33,7 +35,8 @@ export async function getAssets(organizationId: string, filters?: {
     }
 
     if (filters?.search) {
-      query = query.or(`manufacturer_model.ilike.%${filters.search}%,serial_number.ilike.%${filters.search}%,description.ilike.%${filters.search}%`);
+      const s = sanitizeLikeInput(filters.search);
+      query = query.or(`manufacturer_model.ilike.%${s}%,serial_number.ilike.%${s}%,description.ilike.%${s}%`);
     }
 
     const { data, error } = await query;
@@ -119,11 +122,8 @@ export async function createAsset(assetData: {
   insurance_class?: string;
   quantity?: number;
 }) {
-  const supabase = getSupabase();
   try {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session?.user) throw new Error('Not authenticated');
-    const user = session.user;
+    const { supabase, user } = await requireAuth();
 
     const { data, error } = await supabase
       .from('assets')
@@ -158,11 +158,8 @@ export async function updateAsset(assetId: string, assetData: {
   description?: string;
   insurance_policy_added?: boolean;
 }) {
-  const supabase = getSupabase();
   try {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session?.user) throw new Error('Not authenticated');
-    const user = session.user;
+    const { supabase, user } = await requireAuth();
 
     const { data, error } = await supabase
       .from('assets')
@@ -200,13 +197,12 @@ export async function deleteAsset(assetId: string) {
  * Duplicate an existing asset
  */
 export async function duplicateAsset(assetId: string) {
-  const supabase = getSupabase();
   try {
-    // 1. Get the original asset
+    const { supabase, user } = await requireAuth();
+
     const original = await getAsset(assetId);
     if (!original) throw new Error('Original asset not found');
 
-    // 2. Prepare new asset data (omit ID and timestamps, prefix name)
     const {
       id,
       created_at,
@@ -216,11 +212,6 @@ export async function duplicateAsset(assetId: string) {
       ...assetData
     } = original;
 
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session?.user) throw new Error('Not authenticated');
-    const user = session.user;
-
-    // 3. Insert as new asset
     const { data, error } = await supabase
       .from('assets')
       .insert({
