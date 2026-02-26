@@ -71,6 +71,8 @@
       "scripts": {
             "dev": "vite",
             "build": "vite build",
+            "lint": "eslint .",
+            "typecheck": "tsc --noEmit",
             "test": "vitest",
             "test:ui": "vitest --ui",
             "test:run": "vitest run",

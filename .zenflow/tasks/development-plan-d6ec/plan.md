@@ -1,4 +1,4 @@
-# Full SDD workflow
+# Full SDD workflow (Development Plan Focus)
 
 ## Configuration
 - **Artifacts Path**: {@artifacts_path} → `.zenflow/tasks/{task_id}`
@@ -7,57 +7,48 @@
 
 ## Agent Instructions
 
+**IMPORTANT**: This task is for creating a **Development Plan** only.
+- **DO NOT** modify application source code (src/).
+- **DO NOT** create database migrations or apply schema changes.
+- **OUTPUT**: All output should be in the form of documentation, specifications, and planning artifacts within the `{@artifacts_path}` directory.
+
 If you are blocked and need user clarification, mark the current step with `[!]` in plan.md before stopping.
 
 ---
 
 ## Workflow Steps
 
-### [ ] Step: Requirements
+### [x] Step: Requirements
+### [x] Step: Competitive Analysis
+### [x] Step: Technical Specification
+### [x] Step: Planning
 
-Create a Product Requirements Document (PRD) based on the feature description.
+### [ ] Step: Plan Phase 1 - Hierarchy Foundations
+- [ ] Detail the SQL recursive CTE structures and schema evolution strategy.
+- [ ] Document the hierarchy-aware fetching patterns for `gig.service.ts`.
+- [ ] Define the flexible CSV mapping architecture for asset imports.
+- [ ] **Verification**: Review documentation for technical accuracy and alignment with GigManager's architecture.
 
-1. Review existing codebase to understand current architecture and patterns
-2. Analyze the feature definition and identify unclear aspects
-3. Ask the user for clarifications on aspects that significantly impact scope or user experience
-4. Make reasonable decisions for minor details based on context and conventions
-5. If user can't clarify, make a decision, state the assumption, and continue
+### [ ] Step: Plan Phase 2 - Hierarchy UI & Mobile Strategy
+- [ ] Design the visual hierarchy navigation and component structure for `GigHierarchyTree`.
+- [ ] Specify the progressive disclosure patterns for parent/child gig forms.
+- [ ] Define the PWA manifest and caching strategies.
+- [ ] **Verification**: Ensure UI designs address both simple and complex organizational needs.
 
-Save the PRD to `{@artifacts_path}/requirements.md`.
+### [ ] Step: Plan Phase 3 - Field Ops & Mobile Experience
+- [ ] Design the mobile-first "Warehouse Mode" and staff dashboard workflows.
+- [ ] Specify barcode scanning integration and hardware compatibility requirements.
+- [ ] Define biometric and location-based auth flows for field staff.
+- [ ] **Verification**: Validate that touch targets and interactions follow mobile best practices.
 
-### [ ] Step: Technical Specification
+### [ ] Step: Plan Phase 4 - Financials & Multi-Tenant Settlement
+- [ ] Define financial rollup algorithms and hierarchical reporting structures.
+- [ ] Design Act-specific and Production-specific settlement views.
+- [ ] Specify the vendor bid management and rollup architecture.
+- [ ] **Verification**: Ensure financial models handle complex parent/child relationships correctly.
 
-Create a technical specification based on the PRD in `{@artifacts_path}/requirements.md`.
-
-1. Review existing codebase architecture and identify reusable components
-2. Define the implementation approach
-
-Save to `{@artifacts_path}/spec.md` with:
-- Technical context (language, dependencies)
-- Implementation approach referencing existing code patterns
-- Source code structure changes
-- Data model / API / interface changes
-- Delivery phases (incremental, testable milestones)
-- Verification approach using project lint/test commands
-
-### [ ] Step: Planning
-
-Create a detailed implementation plan based on `{@artifacts_path}/spec.md`.
-
-1. Break down the work into concrete tasks
-2. Each task should reference relevant contracts and include verification steps
-3. Replace the Implementation step below with the planned tasks
-
-Rule of thumb for step size: each step should represent a coherent unit of work (e.g., implement a component, add an API endpoint). Avoid steps that are too granular (single function) or too broad (entire feature).
-
-Important: unit tests must be part of each implementation task, not separate tasks. Each task should implement the code and its tests together, if relevant.
-
-If the feature is trivial and doesn't warrant full specification, update this workflow to remove unnecessary steps and explain the reasoning to the user.
-
-Save to `{@artifacts_path}/plan.md`.
-
-### [ ] Step: Implementation
-
-This step should be replaced with detailed implementation tasks from the Planning step.
-
-If Planning didn't replace this step, execute the tasks in `{@artifacts_path}/plan.md`, updating checkboxes as you go. Run planned tests/lint and record results in plan.md.
+### [ ] Step: Plan Phase 5 - Scale, Sync & Performance Roadmap
+- [ ] Design the offline sync and conflict resolution strategy using `idb`.
+- [ ] Specify the push notification architecture for real-time hierarchy updates.
+- [ ] Define performance benchmarks and load testing protocols for high-volume data.
+- [ ] **Verification**: Review for technical feasibility and infrastructure requirements at scale.
