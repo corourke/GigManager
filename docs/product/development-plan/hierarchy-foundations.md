@@ -123,7 +123,7 @@ interface ColumnMapping {
     - It iterates through the CSV rows, extracting data using the `csvHeader` keys and assigning them to the `internalField` keys in the normalized object.
 
 ### 3.3 Implementation Priorities
-- **Asset Import**: Prioritize `serial_number` as the uniqueness key to allow for bulk updates (upserts) rather than just inserts.
+- **Asset Import**: Create additional assets fields to accomodate a wider range of asset tracking schemes.
 - **Auto-Kitting**: If an asset row contains a `kit_name`, the importer will automatically group those assets into a new or existing Kit for the organization.
 
 ---

@@ -79,6 +79,7 @@ GigManager will be an offline-first PWA to support staff in the field (venues, w
     - `theme_color`: `#0ea5e9` (Sky-500).
     - `background_color`: `#f8fafc` (Gray-50).
     - `icons`: Comprehensive set (192x192, 512x512, maskable).
+    - `splash_screens`: Custom splash screens for standalone PWA experience.
 
 ### 3.2 Service Worker Strategy (`vite-plugin-pwa`)
 - **Static Assets**: `CacheFirst` for JS, CSS, and Fonts.
