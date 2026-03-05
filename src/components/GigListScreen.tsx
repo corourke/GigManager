@@ -137,7 +137,7 @@ export default function GigListScreen({
     return gigs.filter(gig => new Date(gig.end || gig.start) >= today);
   }, [gigs, futureOnly]);
 
-  const handleGigDuplicate = async (gigId: string) => {
+  const handleGigDuplicate = useCallback(async (gigId: string) => {
     try {
       await duplicateGig(gigId);
       toast.success('Gig duplicated successfully');
@@ -146,14 +146,16 @@ export default function GigListScreen({
       console.error('Error duplicating gig:', err);
       toast.error(err.message || 'Failed to duplicate gig');
     }
-  };
+  }, [loadGigs]);
 
-  const handleGigDelete = async (gigId: string) => {
+  const handleGigDelete = useCallback(async (gigId: string) => {
     if (!confirm('Are you sure you want to delete this gig?')) return;
 
     const gigToDelete = gigs.find(g => g.id === gigId);
     if (gigToDelete) {
       setGigs(prev => prev.filter(g => g.id !== gigId));
+      // Also optimistically remove any conflicts for this gig
+      setConflicts(prev => prev.filter(c => c.gig_id !== gigId));
     }
 
     try {
@@ -164,9 +166,12 @@ export default function GigListScreen({
       toast.error(err.message || 'Failed to delete gig');
       if (gigToDelete) {
         setGigs(prev => [...prev, gigToDelete]);
+        // Note: we don't easily know the old conflicts without another check,
+        // but loadGigs would fix it if needed. For now just reload if it fails.
+        loadGigs();
       }
     }
-  };
+  }, [gigs, loadGigs]);
 
   const handleRowUpdate = useCallback(async (id: string, updates: Partial<Gig>) => {
     const gig = gigs.find(g => g.id === id);
@@ -311,7 +316,7 @@ export default function GigListScreen({
       label: 'Delete',
       onClick: (row) => handleGigDelete(row.id),
     },
-  ], [onViewGig, onEditGig]);
+  ], [onViewGig, onEditGig, handleGigDuplicate, handleGigDelete]);
 
   const calendarEvents: CalendarEvent[] = useMemo(() => {
     return filteredGigs.map(gig => {
