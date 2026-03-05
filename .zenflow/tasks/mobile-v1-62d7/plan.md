@@ -26,7 +26,8 @@ Create a Product Requirements Document (PRD) based on the feature description.
 
 Save the PRD to `{@artifacts_path}/requirements.md`.
 
-### [ ] Step: Technical Specification
+### [x] Step: Technical Specification
+<!-- chat-id: 871a7a58-b17b-46b4-90d3-0556ffbc2005 -->
 
 Create a technical specification based on the PRD in `{@artifacts_path}/requirements.md`.
 
@@ -41,7 +42,8 @@ Save to `{@artifacts_path}/spec.md` with:
 - Delivery phases (incremental, testable milestones)
 - Verification approach using project lint/test commands
 
-### [ ] Step: Planning
+### [x] Step: Planning
+<!-- chat-id: 6eae15d2-5510-4dc2-912c-5266259a1f2e -->
 
 Create a detailed implementation plan based on `{@artifacts_path}/spec.md`.
 
@@ -57,8 +59,70 @@ If the feature is trivial and doesn't warrant full specification, update this wo
 
 Save to `{@artifacts_path}/plan.md`.
 
-### [ ] Step: Implementation
+### [ ] Phase 1: PWA Foundation & Schema
+- [ ] **Step: Database Schema Migration**
+    - Create migration for `assets`, `asset_status_history`, `kits`, `inventory_tracking`, and `user_devices`
+    - Implement `track_asset_status_change` trigger
+    - Setup RLS policies for new tables
+    - *Verification*: `npm run lint`, `npm run typecheck`, and user approval
+- [ ] **Step: PWA Setup & Configuration**
+    - Install `vite-plugin-pwa`
+    - Configure `vite.config.ts` (manifest, icons, service worker)
+    - Add iOS meta tags and splash screens to `index.html`
+    - *Verification*: `npm run build`, check `dist` for manifest/SW
+- [ ] **Step: Mobile Layout & Routing**
+    - Create `src/components/mobile/MobileLayout.tsx` (bottom nav)
+    - Update `src/App.tsx` for mobile detection and routing
+    - *Verification*: `npm test` for layout, manual responsive check
 
-This step should be replaced with detailed implementation tasks from the Planning step.
+### [ ] Phase 2: Mobile Dashboard & Offline Gigs
+- [ ] **Step: IndexedDB Storage Setup**
+    - Install `idb`
+    - Implement `src/utils/idb/store.ts` for gigs, packing lists, and outbox
+    - *Verification*: `npm test` for IDB helpers
+- [ ] **Step: Mobile Dashboard Implementation**
+    - Implement `src/components/mobile/MobileDashboard.tsx`
+    - Card-based next-48h gigs with quick links (maps, call)
+    - *Verification*: `npm test` for Dashboard
+- [ ] **Step: Packing List & Offline Sync Service**
+    - Implement `src/services/mobile/packingList.service.ts` (nested fetch)
+    - Implement `src/services/mobile/offlineSync.service.ts` (caching/outbox)
+    - *Verification*: `npm test` for services
 
-If Planning didn't replace this step, execute the tasks in `{@artifacts_path}/plan.md`, updating checkboxes as you go. Run planned tests/lint and record results in plan.md.
+### [ ] Phase 3: Scanning Modes & Inventory Tracking
+- [ ] **Step: Inventory Mode & Packing List UI**
+    - Implement `src/components/mobile/MobileInventoryMode.tsx`
+    - Add mode selector and packing list with "No Tag" flags
+    - *Verification*: `npm test` for Inventory view
+- [ ] **Step: Barcode Scanner Integration**
+    - Install `react-qr-barcode-scanner`
+    - Implement `src/components/mobile/MobileBarcodeScanner.tsx`
+    - Handle tag matching, haptics, and error alerts
+    - *Verification*: `npm test` for scanner logic
+- [ ] **Step: Inventory Tracking Service**
+    - Implement `src/services/mobile/inventoryTracking.service.ts`
+    - Handle scan submissions and offline outbox queuing
+    - *Verification*: `npm test` for tracking service
+
+### [ ] Phase 4: Biometric Auth & Polish
+- [ ] **Step: WebAuthn Edge Function**
+    - Implement `supabase/functions/server/webauthn` (challenge/verify)
+    - *Verification*: Edge Function tests with mock data
+- [ ] **Step: Biometric Enrollment & Management**
+    - Install `@simplewebauthn/browser`
+    - Add device enrollment to `src/components/mobile/MobileSettings.tsx`
+    - *Verification*: `npm test` for enrollment logic
+- [ ] **Step: Session Unlock & Timeout Logic**
+    - Implement FaceID/TouchID unlock flow with fallback
+    - Implement 1h expiry and 15min background check
+    - *Verification*: `npm test` for session management
+- [ ] **Step: Final Polish & Design Tokens**
+    - Refine UI for high contrast, touch targets, and iOS safe areas
+    - *Verification*: `npm run lint`, `npm run build`
+
+### [ ] Phase 5: Manual Testing & Verification
+- [ ] **Step: Comprehensive Manual Testing**
+    - iOS PWA "Add to Home Screen" verification
+    - Offline scanning and sync verification
+    - Biometric auth and fallback verification
+    - Rapid scanning haptics and audio cues verification
