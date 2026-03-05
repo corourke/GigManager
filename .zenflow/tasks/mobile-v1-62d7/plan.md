@@ -59,23 +59,25 @@ If the feature is trivial and doesn't warrant full specification, update this wo
 
 Save to `{@artifacts_path}/plan.md`.
 
-### [ ] Phase 1: PWA Foundation & Schema
-- [ ] **Step: Database Schema Migration**
+### [x] Phase 1: PWA Foundation & Schema
+<!-- chat-id: 62e6fcc6-65a0-4021-9bfe-6bdee6faf4ae -->
+- [x] **Step: Database Schema Migration**
     - Create migration for `assets`, `asset_status_history`, `kits`, `inventory_tracking`, and `user_devices`
     - Implement `track_asset_status_change` trigger
     - Setup RLS policies for new tables
     - *Verification*: `npm run lint`, `npm run typecheck`, and user approval
-- [ ] **Step: PWA Setup & Configuration**
+- [x] **Step: PWA Setup & Configuration**
     - Install `vite-plugin-pwa`
     - Configure `vite.config.ts` (manifest, icons, service worker)
     - Add iOS meta tags and splash screens to `index.html`
     - *Verification*: `npm run build`, check `dist` for manifest/SW
-- [ ] **Step: Mobile Layout & Routing**
+- [x] **Step: Mobile Layout & Routing**
     - Create `src/components/mobile/MobileLayout.tsx` (bottom nav)
     - Update `src/App.tsx` for mobile detection and routing
     - *Verification*: `npm test` for layout, manual responsive check
 
 ### [ ] Phase 2: Mobile Dashboard & Offline Gigs
+<!-- chat-id: 2887a322-b858-4d35-a44c-f770140821f1 -->
 - [ ] **Step: IndexedDB Storage Setup**
     - Install `idb`
     - Implement `src/utils/idb/store.ts` for gigs, packing lists, and outbox
@@ -122,7 +124,8 @@ Save to `{@artifacts_path}/plan.md`.
 
 ### [ ] Phase 5: Manual Testing & Verification
 - [ ] **Step: Comprehensive Manual Testing**
-    - iOS PWA "Add to Home Screen" verification
-    - Offline scanning and sync verification
+    - [ ] Create and upload PWA icons (192x192, 512x512, apple-touch-icon) to `public/`
+    - [ ] iOS PWA "Add to Home Screen" verification
+    - [ ] Offline scanning and sync verification
     - Biometric auth and fallback verification
     - Rapid scanning haptics and audio cues verification

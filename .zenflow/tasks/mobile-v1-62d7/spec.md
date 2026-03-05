@@ -231,3 +231,16 @@ Distinct step for on-device testing and bug-fixing. Expected to involve iterativ
     - `npm run lint`
     - `npm run typecheck`
     - `npm run test:run`
+
+## Icons
+
+| File Name              | Size     | Purpose                                            |
+| :--------------------- | :------- | :------------------------------------------------- |
+| `favicon.ico`          | 32x32    | Standard browser tab icon                          |
+| `apple-touch-icon.png` | 180x180  | iOS Home Screen icon (no transparency recommended) |
+| `pwa-192x192.png`      | 192x192  | General PWA icon                                   |
+| `pwa-512x512.png`      | 512x512  | High-resolution icon and Splash Screen             |
+| `masked-icon.svg`      | Scalable | Adaptive icon for Android/Desktop (monochrome)     |
+
+Padding: Keep important logo elements within the central safe zone (central 80% of the icon) to prevent clipping when iOS or Android applies masks.
+Background: For apple-touch-icon.png, use a solid background color (e.g., #000000) rather than transparency to match iOS system standards. I have updated the Phase 5 section of ./.zenflow/tasks/mobile-v1-62d7/plan.md to include these requirements.
