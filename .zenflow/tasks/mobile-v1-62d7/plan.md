@@ -76,22 +76,27 @@ Save to `{@artifacts_path}/plan.md`.
     - Update `src/App.tsx` for mobile detection and routing
     - *Verification*: `npm test` for layout, manual responsive check
 
-### [ ] Phase 2: Mobile Dashboard & Offline Gigs
+### [x] Phase 2: Mobile Dashboard & Offline Gigs
 <!-- chat-id: 2887a322-b858-4d35-a44c-f770140821f1 -->
-- [ ] **Step: IndexedDB Storage Setup**
+- [x] **Step: IndexedDB Storage Setup**
     - Install `idb`
     - Implement `src/utils/idb/store.ts` for gigs, packing lists, and outbox
     - *Verification*: `npm test` for IDB helpers
-- [ ] **Step: Mobile Dashboard Implementation**
+- [x] **Step: Mobile Dashboard Implementation**
     - Implement `src/components/mobile/MobileDashboard.tsx`
     - Card-based next-48h gigs with quick links (maps, call)
     - *Verification*: `npm test` for Dashboard
-- [ ] **Step: Packing List & Offline Sync Service**
+- [x] **Step: Packing List & Offline Sync Service**
     - Implement `src/services/mobile/packingList.service.ts` (nested fetch)
     - Implement `src/services/mobile/offlineSync.service.ts` (caching/outbox)
     - *Verification*: `npm test` for services
+- [x] **Step: Fix Mobile Layout & Navigation**
+    - Add safe-area utilities to `index.css`
+    - Update `MobileLayout.tsx` with sticky header and fixed bottom nav
+    - *Verification*: Manual check on iPhone
 
 ### [ ] Phase 3: Scanning Modes & Inventory Tracking
+<!-- chat-id: 6ac95b6b-356a-432a-95d4-97b1365128ac -->
 - [ ] **Step: Inventory Mode & Packing List UI**
     - Implement `src/components/mobile/MobileInventoryMode.tsx`
     - Add mode selector and packing list with "No Tag" flags
