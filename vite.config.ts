@@ -36,8 +36,12 @@
             }
           ]
         },
+        workbox: {
+          skipWaiting: true,
+          clientsClaim: true,
+        },
         devOptions: {
-          enabled: true
+          enabled: false
         }
       })
     ],
@@ -46,6 +50,9 @@
       alias: {
         '@': path.resolve(__dirname, './src'),
       },
+    },
+    define: {
+      __BUILD_TIMESTAMP__: JSON.stringify(new Date().toISOString()),
     },
     build: {
       target: 'esnext',

@@ -30,6 +30,10 @@ export default function MobileSettings({ onLogout }: MobileSettingsProps) {
           Logout
         </Button>
       </Card>
+
+      <p className="text-center text-[10px] text-muted-foreground pt-4">
+        Build: {__BUILD_TIMESTAMP__}
+      </p>
     </div>
   );
 }

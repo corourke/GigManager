@@ -95,18 +95,18 @@ Save to `{@artifacts_path}/plan.md`.
     - Update `MobileLayout.tsx` with sticky header and fixed bottom nav
     - *Verification*: Manual check on iPhone
 
-### [ ] Phase 3: Scanning Modes & Inventory Tracking
+### [x] Phase 3: Scanning Modes & Inventory Tracking
 <!-- chat-id: 6ac95b6b-356a-432a-95d4-97b1365128ac -->
-- [ ] **Step: Inventory Mode & Packing List UI**
+- [x] **Step: Inventory Mode & Packing List UI**
     - Implement `src/components/mobile/MobileInventoryMode.tsx`
     - Add mode selector and packing list with "No Tag" flags
     - *Verification*: `npm test` for Inventory view
-- [ ] **Step: Barcode Scanner Integration**
+- [x] **Step: Barcode Scanner Integration**
     - Install `react-qr-barcode-scanner`
     - Implement `src/components/mobile/MobileBarcodeScanner.tsx`
     - Handle tag matching, haptics, and error alerts
     - *Verification*: `npm test` for scanner logic
-- [ ] **Step: Inventory Tracking Service**
+- [x] **Step: Inventory Tracking Service**
     - Implement `src/services/mobile/inventoryTracking.service.ts`
     - Handle scan submissions and offline outbox queuing
     - *Verification*: `npm test` for tracking service

@@ -2,7 +2,7 @@ import { openDB, DBSchema, IDBPDatabase } from 'idb';
 
 export interface OutboxItem {
   id?: number;
-  type: 'PACK_ASSET' | 'UNPACK_ASSET' | 'CHECK_IN' | 'CHECK_OUT';
+  type: 'INVENTORY_SCAN' | 'BIO_ENROLL'; // Simplified to generic types
   payload: any;
   timestamp: number;
   attempts: number;
@@ -26,27 +26,34 @@ interface GigManagerDB extends DBSchema {
 }
 
 const DB_NAME = 'gig-manager-mobile';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 
 let dbPromise: Promise<IDBPDatabase<GigManagerDB>>;
 
 export const getDB = () => {
   if (!dbPromise) {
     dbPromise = openDB<GigManagerDB>(DB_NAME, DB_VERSION, {
-      upgrade(db) {
-        // Gigs store
-        const gigStore = db.createObjectStore('gigs', { keyPath: 'id' });
-        gigStore.createIndex('by-date', 'start_time');
-
-        // Packing lists store
-        db.createObjectStore('packing_lists', { keyPath: 'gig_id' });
-
-        // Outbox for offline actions
-        const outboxStore = db.createObjectStore('outbox', {
-          keyPath: 'id',
-          autoIncrement: true,
-        });
-        outboxStore.createIndex('by-timestamp', 'timestamp');
+      upgrade(db, oldVersion, _newVersion, transaction) {
+        if (oldVersion < 1) {
+          const gigStore = db.createObjectStore('gigs', { keyPath: 'id' });
+          gigStore.createIndex('by-date', 'start');
+          db.createObjectStore('packing_lists', { keyPath: 'gig_id' });
+          const outboxStore = db.createObjectStore('outbox', {
+            keyPath: 'id',
+            autoIncrement: true,
+          });
+          outboxStore.createIndex('by-timestamp', 'timestamp');
+        }
+        if (oldVersion === 1 && transaction) {
+          const hasGigStore = Array.from(transaction.objectStoreNames).includes('gigs');
+          if (hasGigStore) {
+            const gigStore = transaction.objectStore('gigs');
+            if (gigStore.indexNames.contains('by-date')) {
+              gigStore.deleteIndex('by-date');
+            }
+            gigStore.createIndex('by-date', 'start');
+          }
+        }
       },
     });
   }

@@ -8,13 +8,17 @@ export const packingListService = {
    * Fetch gigs within the next 48 hours for the current user
    */
   async fetchUpcomingGigs() {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) throw new Error('Not authenticated');
+    const lookBack = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    const lookAhead = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
 
-    const now = new Date();
-    const fortyEightHoursLater = new Date(now.getTime() + 48 * 60 * 60 * 1000);
+    if (import.meta.env.DEV) {
+      console.log('[TRACE] packingListService:fetchUpcomingGigs:start', {
+        online: navigator.onLine,
+        lookBack: lookBack.toISOString(),
+        lookAhead: lookAhead.toISOString(),
+      });
+    }
 
-    // Fetch gigs where user's orgs are participating
     const { data: gigs, error } = await supabase
       .from('gigs')
       .select(`
@@ -25,16 +29,39 @@ export const packingListService = {
           organization:organizations(id, name)
         )
       `)
-      .gte('start', now.toISOString())
-      .lte('start', fortyEightHoursLater.toISOString())
+      .gte('start', lookBack.toISOString())
+      .lte('start', lookAhead.toISOString())
       .order('start', { ascending: true });
 
-    if (error) throw error;
+    if (error) {
+      if (import.meta.env.DEV) {
+        console.log('[TRACE] packingListService:fetchUpcomingGigs:error', {
+          name: (error as any)?.name || null,
+          message: (error as any)?.message || String(error),
+          code: (error as any)?.code || null,
+        });
+      }
+      throw error;
+    }
 
-    // Filter gigs where user is part of participating orgs
-    // (In a real app, RLS might already handle this, but let's be explicit if needed)
-    
-    await idbStore.putGigs(gigs || []);
+    if (import.meta.env.DEV) {
+      console.log('[TRACE] packingListService:fetchUpcomingGigs:success', {
+        count: gigs?.length || 0,
+      });
+    }
+
+    try {
+      await idbStore.putGigs(gigs || []);
+    } catch (cacheError: any) {
+      if (import.meta.env.DEV) {
+        console.log('[TRACE] packingListService:fetchUpcomingGigs:cache-write-error', {
+          name: cacheError?.name || null,
+          message: cacheError?.message || String(cacheError),
+          code: cacheError?.code || null,
+        });
+      }
+    }
+
     return gigs;
   },
 
@@ -42,7 +69,6 @@ export const packingListService = {
    * Fetch full packing list for a gig (kits, assets, and tracking status)
    */
   async fetchGigPackingList(gigId: string) {
-    // 1. Fetch Kit Assignments
     const { data: kitAssignments, error: kitError } = await supabase
       .from('gig_kit_assignments')
       .select(`
@@ -55,6 +81,7 @@ export const packingListService = {
           is_container,
           assets:kit_assets(
             id,
+            asset_id,
             quantity,
             asset:assets(*)
           )
@@ -64,7 +91,31 @@ export const packingListService = {
 
     if (kitError) throw kitError;
 
-    // 2. Fetch current tracking status for this gig
+    const missingAssetIds: string[] = [];
+    (kitAssignments || []).forEach((ka: any) => {
+      (ka.kit?.assets || []).forEach((ca: any) => {
+        if (!ca.asset && ca.asset_id) missingAssetIds.push(ca.asset_id);
+      });
+    });
+
+    if (missingAssetIds.length > 0) {
+      const { data: assets } = await supabase
+        .from('assets')
+        .select('id, manufacturer_model, category, description, tag_number, serial_number')
+        .in('id', missingAssetIds);
+
+      if (assets && assets.length > 0) {
+        const assetMap = new Map(assets.map(a => [a.id, a]));
+        (kitAssignments || []).forEach((ka: any) => {
+          (ka.kit?.assets || []).forEach((ca: any) => {
+            if (!ca.asset && ca.asset_id) {
+              ca.asset = assetMap.get(ca.asset_id) || null;
+            }
+          });
+        });
+      }
+    }
+
     const { data: tracking, error: trackingError } = await supabase
       .from('inventory_tracking')
       .select('*')
@@ -72,8 +123,15 @@ export const packingListService = {
 
     if (trackingError) throw trackingError;
 
+    const { data: gigData } = await supabase
+      .from('gigs')
+      .select('title')
+      .eq('id', gigId)
+      .single();
+
     const packingListData = {
       gig_id: gigId,
+      gig_title: gigData?.title || null,
       kits: kitAssignments,
       tracking: tracking || [],
       last_synced: Date.now()

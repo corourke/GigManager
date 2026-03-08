@@ -1,14 +1,56 @@
 import React from 'react';
-import { LayoutDashboard, Barcode, Settings } from 'lucide-react';
-import { cn } from '../ui/utils';
+import { LayoutDashboard, Barcode, Settings, Building2, ChevronDown } from 'lucide-react';
+import { useAuth } from '../../contexts/AuthContext';
+import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '../ui/dropdown-menu';
+import { SwitchCamera } from 'lucide-react';
 
 interface MobileLayoutProps {
   children: React.ReactNode;
   currentRoute: string;
   onNavigate: (route: string) => void;
+  onSwitchOrganization?: () => void;
 }
 
-const MobileLayout: React.FC<MobileLayoutProps> = ({ children, currentRoute, onNavigate }) => {
+const MobileLayout: React.FC<MobileLayoutProps> = ({ children, currentRoute, onNavigate, onSwitchOrganization }) => {
+  const { user, selectedOrganization, organizations } = useAuth();
+
+  const getIsStandaloneMode = () => {
+    if (typeof window === 'undefined') return false;
+    return window.matchMedia?.('(display-mode: standalone)')?.matches || (window.navigator as any).standalone === true;
+  };
+
+  const [isStandaloneMode, setIsStandaloneMode] = React.useState(getIsStandaloneMode);
+
+  React.useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const mediaQuery = window.matchMedia?.('(display-mode: standalone)');
+    const updateMode = () => setIsStandaloneMode(getIsStandaloneMode());
+
+    updateMode();
+    mediaQuery?.addEventListener?.('change', updateMode);
+    window.addEventListener('focus', updateMode);
+
+    return () => {
+      mediaQuery?.removeEventListener?.('change', updateMode);
+      window.removeEventListener('focus', updateMode);
+    };
+  }, []);
+
+  const getInitials = (firstName: string = '', lastName: string = '') => {
+    const f = firstName?.[0] || '';
+    const l = lastName?.[0] || '';
+    return `${f}${l}`.toUpperCase() || '?';
+  };
+
   const navItems = [
     { id: 'mobile-dashboard', label: 'Gigs', icon: LayoutDashboard },
     { id: 'mobile-inventory', label: 'Scanning', icon: Barcode },
@@ -16,44 +58,134 @@ const MobileLayout: React.FC<MobileLayoutProps> = ({ children, currentRoute, onN
   ];
 
   return (
-    <div className="fixed inset-0 grid grid-rows-[auto_1fr_auto] bg-background overflow-hidden">
-      {/* Fixed Top Header */}
-      <header className="bg-background border-b border-border pt-safe z-50">
-        <div className="flex items-center justify-between h-14 px-4">
-          <span className="text-xl font-bold text-sky-600 tracking-tight">GigManager</span>
-          <div className="w-8 h-8 rounded-full bg-muted border border-border" />
+    <div
+      style={{
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        display: 'grid',
+        gridTemplateRows: 'auto minmax(0, 1fr) auto',
+        height: '100dvh',
+        backgroundColor: 'var(--background)',
+        overflow: 'hidden',
+      }}
+    >
+      <header
+        style={{
+          flexShrink: 0,
+          backgroundColor: 'var(--background)',
+          borderBottom: '1px solid var(--border)',
+          paddingTop: 'max(8px, env(safe-area-inset-top))',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: 56, padding: '0 16px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+            <div style={{ width: 32, height: 32, borderRadius: 8, backgroundColor: '#0284c7', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <Building2 style={{ width: 18, height: 18, color: '#ffffff' }} />
+            </div>
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontSize: 15, fontWeight: 700, letterSpacing: '-0.025em', color: 'var(--foreground)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {selectedOrganization?.name || 'GigManager'}
+              </div>
+              {organizations && organizations.length > 1 && onSwitchOrganization && (
+                <button
+                  onClick={onSwitchOrganization}
+                  style={{ display: 'flex', alignItems: 'center', gap: 2, fontSize: 11, color: '#0284c7', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+                >
+                  <SwitchCamera style={{ width: 10, height: 10 }} />
+                  <span>Switch</span>
+                </button>
+              )}
+            </div>
+          </div>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+                <Avatar className="w-8 h-8">
+                  <AvatarImage src={user?.avatar_url} alt={user ? `${user.first_name} ${user.last_name}` : ''} />
+                  <AvatarFallback className="bg-sky-100 text-sky-700 text-xs">
+                    {getInitials(user?.first_name, user?.last_name)}
+                  </AvatarFallback>
+                </Avatar>
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-48">
+              <DropdownMenuLabel>
+                <p className="text-sm">{user?.first_name} {user?.last_name}</p>
+                <p className="text-xs text-muted-foreground">{user?.email}</p>
+              </DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              {onSwitchOrganization && organizations && organizations.length > 1 && (
+                <DropdownMenuItem onClick={onSwitchOrganization}>
+                  <SwitchCamera className="w-4 h-4 mr-2" />
+                  Switch Organization
+                </DropdownMenuItem>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </header>
 
-      {/* Independent Scroll Area */}
-      <main className="overflow-y-auto -webkit-overflow-scrolling-touch h-full">
+      <main
+        data-testid="mobile-main-content"
+        style={{
+          flex: 1,
+          minHeight: 0,
+          overflowY: 'auto',
+          overflowX: 'hidden',
+          WebkitOverflowScrolling: 'touch',
+          overscrollBehavior: 'contain',
+        }}
+      >
         {children}
       </main>
 
-      {/* Fixed Bottom Navigation */}
-      <nav className="bg-background border-t border-border pb-safe z-50">
-        <div className="flex justify-around items-center h-16 max-w-lg mx-auto px-2">
+      <nav
+        data-testid="mobile-bottom-nav"
+        style={{
+          flexShrink: 0,
+          backgroundColor: 'var(--background)',
+          borderTop: '1px solid var(--border)',
+          paddingBottom: isStandaloneMode ? 0 : 'max(4px, env(safe-area-inset-bottom))',
+          WebkitUserSelect: 'none',
+          userSelect: 'none',
+        }}
+      >
+        <div style={{ display: 'flex', justifyContent: 'space-around', alignItems: 'center', height: 56, maxWidth: 480, margin: '0 auto', padding: '0 8px' }}>
           {navItems.map((item) => {
             const Icon = item.icon;
-            const isActive = currentRoute === item.id || 
-                            (item.id === 'mobile-inventory' && (currentRoute === 'mobile-inventory' || currentRoute === 'mobile-scanner'));
-            
+            const isActive = currentRoute === item.id ||
+              (item.id === 'mobile-inventory' && (currentRoute === 'mobile-inventory' || currentRoute === 'mobile-scanner'));
+
             return (
               <button
                 key={item.id}
                 onClick={() => onNavigate(item.id)}
-                className={cn(
-                  "flex flex-col items-center justify-center w-full h-full space-y-1 transition-colors active:bg-muted/50 rounded-lg",
-                  isActive ? "text-primary" : "text-muted-foreground"
-                )}
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  width: '100%',
+                  height: '100%',
+                  gap: 4,
+                  border: 'none',
+                  background: 'none',
+                  cursor: 'pointer',
+                  borderRadius: 8,
+                  color: isActive ? '#0284c7' : 'var(--muted-foreground)',
+                }}
               >
-                <div className={cn(
-                  "p-1 rounded-md transition-colors",
-                  isActive ? "bg-primary/10" : ""
-                )}>
-                  <Icon className={cn("w-6 h-6", isActive && "stroke-[2.5px]")} />
+                <div style={{
+                  padding: 4,
+                  borderRadius: 6,
+                  backgroundColor: isActive ? 'rgba(2,132,199,0.1)' : 'transparent',
+                }}>
+                  <Icon style={{ width: 24, height: 24, strokeWidth: isActive ? 2.5 : 2 }} />
                 </div>
-                <span className="text-[10px] font-bold tracking-wide uppercase">{item.label}</span>
+                <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase' }}>{item.label}</span>
               </button>
             );
           })}

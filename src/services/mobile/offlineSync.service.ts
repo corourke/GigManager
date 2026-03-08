@@ -3,10 +3,22 @@ import { idbStore, OutboxItem } from '../../utils/idb/store';
 
 const supabase = createClient();
 
+type SyncHandler = (payload: any) => Promise<void>;
+
+const syncHandlers: Record<string, SyncHandler> = {};
+
+export function registerSyncHandler(type: string, handler: SyncHandler) {
+  syncHandlers[type] = handler;
+}
+
+registerSyncHandler('INVENTORY_SCAN', async (payload: any) => {
+  const { error } = await supabase
+    .from('inventory_tracking')
+    .upsert(payload, { onConflict: 'gig_id, kit_id, asset_id' });
+  if (error) throw error;
+});
+
 export const offlineSyncService = {
-  /**
-   * Process all pending items in the outbox
-   */
   async processOutbox() {
     const outbox = await idbStore.getOutbox();
     if (outbox.length === 0) return;
@@ -17,44 +29,23 @@ export const offlineSyncService = {
         await idbStore.removeFromOutbox(item.id!);
       } catch (error) {
         console.error('Sync failed for item:', item, error);
-        // Update retry count
         item.attempts = (item.attempts || 0) + 1;
         await idbStore.updateOutboxItem(item);
       }
     }
   },
 
-  /**
-   * Sync a single item to Supabase
-   */
   async syncItem(item: OutboxItem) {
-    switch (item.type) {
-      case 'PACK_ASSET':
-      case 'UNPACK_ASSET':
-      case 'CHECK_IN':
-      case 'CHECK_OUT':
-        // These all map to inventory_tracking insertions/upserts
-        const { error } = await supabase
-          .from('inventory_tracking')
-          .upsert(item.payload, {
-            onConflict: 'gig_id, kit_id, asset_id'
-          });
-        if (error) throw error;
-        break;
-      default:
-        console.warn('Unknown outbox item type:', item.type);
+    const handler = syncHandlers[item.type];
+    if (!handler) {
+      console.warn('Unknown outbox item type:', item.type);
+      return;
     }
+    await handler(item.payload);
   },
 
-  /**
-   * Queue an inventory tracking update for background sync
-   */
   async queueTrackingUpdate(payload: any, type: OutboxItem['type']) {
-    // Optimistically update IDB local state if needed (can be handled in components)
-    return idbStore.addToOutbox({
-      type,
-      payload,
-    });
+    return idbStore.addToOutbox({ type, payload });
   }
 };
 

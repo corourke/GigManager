@@ -123,6 +123,34 @@ function App() {
   const [viewedFromCalendar, setViewedFromCalendar] = useState(false);
   const [gigListKey, setGigListKey] = useState(0);
 
+  // Ensure route is appropriate for device mode
+  useEffect(() => {
+    if (import.meta.env.DEV) {
+      console.log('[TRACE] App: Render state', {
+        isMobile,
+        currentRoute,
+        hasUser: !!user,
+        hasOrg: !!selectedOrganization,
+        innerWidth: window.innerWidth,
+        isLoading
+      });
+    }
+
+    if (isLoading || !user || !selectedOrganization) return;
+
+    if (isMobile) {
+      if (!currentRoute.startsWith('mobile-') && currentRoute !== 'login' && currentRoute !== 'profile-completion' && currentRoute !== 'org-selection') {
+        if (import.meta.env.DEV) console.log('[TRACE] App: Redirecting to mobile-dashboard from', currentRoute);
+        setCurrentRoute('mobile-dashboard');
+      }
+    } else {
+      if (currentRoute.startsWith('mobile-')) {
+        if (import.meta.env.DEV) console.log('[TRACE] App: Redirecting to dashboard from', currentRoute);
+        setCurrentRoute('dashboard');
+      }
+    }
+  }, [isMobile, isLoading, user?.id, selectedOrganization?.id]);
+
   const [invitationError, setInvitationError] = useState<{ error: string, description?: string } | null>(() => {
     const hash = window.location.hash;
     if (hash && hash.startsWith('#')) {
@@ -589,12 +617,19 @@ function App() {
           <MobileLayout 
             currentRoute={currentRoute} 
             onNavigate={(route) => setCurrentRoute(route as Route)}
+            onSwitchOrganization={organizations.length > 1 ? handleBackToSelection : undefined}
           >
             {currentRoute === 'mobile-dashboard' && (
-              <MobileDashboard />
+              <MobileDashboard onViewGig={(gigId) => {
+                setSelectedGigId(gigId);
+                setCurrentRoute('mobile-inventory');
+              }} />
             )}
             {currentRoute === 'mobile-inventory' && (
-              <MobileInventoryMode />
+              <MobileInventoryMode 
+                gigId={selectedGigId} 
+                onSelectGig={(id) => setSelectedGigId(id)} 
+              />
             )}
             {currentRoute === 'mobile-settings' && (
               <MobileSettings onLogout={handleLogout} />
