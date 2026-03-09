@@ -185,7 +185,7 @@ function GigCard({ gig, onViewGig }: { gig: any, onViewGig: (gigId: string) => v
           <Button 
             variant="outline" 
             size="sm" 
-            className="flex-1 gap-2 h-10 text-xs" 
+            className="flex-1 gap-2 h-11 text-xs" 
             onClick={handleDirections}
             disabled={!venue}
           >
@@ -195,7 +195,7 @@ function GigCard({ gig, onViewGig }: { gig: any, onViewGig: (gigId: string) => v
           <Button 
             variant="outline" 
             size="sm" 
-            className="flex-1 gap-2 h-10 text-xs"
+            className="flex-1 gap-2 h-11 text-xs"
             onClick={() => window.open(`tel:${gig.contact_phone || '555-0199'}`)}
           >
             <Phone className="w-4 h-4" />
@@ -205,7 +205,7 @@ function GigCard({ gig, onViewGig }: { gig: any, onViewGig: (gigId: string) => v
 
         <Button 
           variant="secondary" 
-          className="w-full justify-between h-10 text-xs"
+          className="w-full justify-between h-11 text-xs"
           onClick={() => onViewGig(gig.id)}
         >
           <div className="flex items-center gap-2">

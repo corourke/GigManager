@@ -1,4 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.8";
+import * as WebAuthnServer from "https://esm.sh/@simplewebauthn/server@9.0.3";
+import * as kv from "./kv_store.ts";
 
 // Create Supabase client with service role key
 let supabaseAdmin: any;
@@ -11,7 +13,23 @@ try {
   console.error('Failed to initialize Supabase Admin client:', e);
 }
 
+// ===== WebAuthn Config =====
+const RP_NAME = 'Field Ops Mobile';
+const RP_ID = Deno.env.get('RP_ID') || 'localhost'; // Should be the domain
+const ORIGIN = Deno.env.get('ORIGIN') || 'http://localhost:3000'; // Should be the full origin (https://...)
+
 // ===== Helper Functions =====
+
+function base64urlEncode(buf: Uint8Array): string {
+  return btoa(String.fromCharCode(...buf))
+    .replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
+}
+
+function base64urlDecode(str: string): Uint8Array {
+  const b64 = str.replace(/-/g, '+').replace(/_/g, '/');
+  const padded = b64.padEnd(b64.length + (4 - b64.length % 4) % 4, '=');
+  return new Uint8Array(atob(padded).split('').map(c => c.charCodeAt(0)));
+}
 
 /**
  * Extract and verify user from auth header
@@ -2685,6 +2703,297 @@ Deno.serve(async (req) => {
       }
 
       return new Response(JSON.stringify({ success: true }), {
+        headers: { ...responseHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    // ===== WebAuthn Endpoints =====
+
+    if (path === '/webauthn/register/options' && method === 'POST') {
+      const authHeader = req.headers.get('Authorization');
+      const { user, error: authError } = await getAuthenticatedUser(authHeader);
+
+      if (authError || !user) {
+        return new Response(JSON.stringify({ error: authError ?? 'Unauthorized' }), {
+          status: 401,
+          headers: { ...responseHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      // 1. Fetch user devices to exclude existing ones
+      const { data: devices } = await supabaseAdmin
+        .from('user_devices')
+        .select('credential_id')
+        .eq('user_id', user.id);
+
+      const options = await WebAuthnServer.generateRegistrationOptions({
+        rpName: RP_NAME,
+        rpID: RP_ID,
+        userID: user.id,
+        userName: user.email,
+        attestationType: 'none',
+        excludeCredentials: devices?.map(d => ({
+          id: d.credential_id,
+          type: 'public-key',
+        })),
+        authenticatorSelection: {
+          residentKey: 'preferred',
+          userVerification: 'preferred',
+        },
+      });
+
+      // 2. Store challenge in KV store (expires in 5 mins)
+      await kv.set(`webauthn:registration:challenge:${user.id}`, {
+        challenge: options.challenge,
+        timestamp: Date.now()
+      });
+
+      return new Response(JSON.stringify(options), {
+        headers: { ...responseHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    if (path === '/webauthn/register/verify' && method === 'POST') {
+      const authHeader = req.headers.get('Authorization');
+      const { user, error: authError } = await getAuthenticatedUser(authHeader);
+
+      if (authError || !user) {
+        return new Response(JSON.stringify({ error: authError ?? 'Unauthorized' }), {
+          status: 401,
+          headers: { ...responseHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      const body = await req.json();
+      const { registrationResponse, deviceName } = body;
+
+      // 1. Get stored challenge
+      const stored = await kv.get(`webauthn:registration:challenge:${user.id}`);
+      if (!stored || Date.now() - stored.timestamp > 300000) {
+        return new Response(JSON.stringify({ error: 'Challenge expired or not found' }), {
+          status: 400,
+          headers: { ...responseHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      // 2. Verify response
+      let verification;
+      try {
+        verification = await WebAuthnServer.verifyRegistrationResponse({
+          response: registrationResponse,
+          expectedChallenge: stored.challenge,
+          expectedOrigin: ORIGIN,
+          expectedRPID: RP_ID,
+          requireUserVerification: false,
+        });
+      } catch (error) {
+        console.error('Registration verification failed:', error);
+        return new Response(JSON.stringify({ error: 'Verification failed', details: error.message }), {
+          status: 400,
+          headers: { ...responseHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      const { verified, registrationInfo } = verification;
+      if (!verified || !registrationInfo) {
+        return new Response(JSON.stringify({ error: 'Verification failed' }), {
+          status: 400,
+          headers: { ...responseHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      const { credentialID, credentialPublicKey, counter } = registrationInfo;
+
+      // 3. Store in DB using base64url encoding (WebAuthn native format)
+      const publicKeyBase64url = base64urlEncode(new Uint8Array(credentialPublicKey));
+      const credentialIDBase64url = base64urlEncode(new Uint8Array(credentialID));
+
+      const { error: dbError } = await supabaseAdmin
+        .from('user_devices')
+        .insert({
+          user_id: user.id,
+          credential_id: credentialIDBase64url,
+          public_key: publicKeyBase64url,
+          device_name: deviceName || 'Unknown Device',
+        });
+
+      if (dbError) {
+        console.error('DB Error storing device:', dbError);
+        return new Response(JSON.stringify({ error: 'Failed to store device' }), {
+          status: 500,
+          headers: { ...responseHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      // 4. Cleanup challenge
+      await kv.del(`webauthn:registration:challenge:${user.id}`);
+
+      return new Response(JSON.stringify({ success: true }), {
+        headers: { ...responseHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    if (path === '/webauthn/authenticate/options' && method === 'POST') {
+      const body = await req.json();
+      const { email } = body; // We identify the user by email for unlock
+
+      if (!email) {
+        return new Response(JSON.stringify({ error: 'Email is required' }), {
+          status: 400,
+          headers: { ...responseHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      // 1. Fetch user by email (service role can do this)
+      // Since we don't have a direct lookup by email in a custom table, we use auth.users via RPC or direct query if enabled.
+      // Actually, we should probably check user_devices first if we store email there, but we don't.
+      // Let's query auth.users via service role.
+      const { data: userData, error: userError } = await supabaseAdmin.auth.admin.listUsers();
+      const targetUser = userData?.users.find(u => u.email === email);
+
+      if (!targetUser) {
+        return new Response(JSON.stringify({ error: 'User not found' }), {
+          status: 404,
+          headers: { ...responseHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      // 2. Fetch user devices
+      const { data: devices } = await supabaseAdmin
+        .from('user_devices')
+        .select('credential_id')
+        .eq('user_id', targetUser.id);
+
+      if (!devices || devices.length === 0) {
+        return new Response(JSON.stringify({ error: 'No registered devices found' }), {
+          status: 400,
+          headers: { ...responseHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      const options = await WebAuthnServer.generateAuthenticationOptions({
+        rpID: RP_ID,
+        allowCredentials: devices.map(d => ({
+          id: d.credential_id,
+          type: 'public-key',
+        })),
+        userVerification: 'preferred',
+      });
+
+      // 3. Store challenge in KV store
+      await kv.set(`webauthn:authentication:challenge:${targetUser.id}`, {
+        challenge: options.challenge,
+        timestamp: Date.now()
+      });
+
+      return new Response(JSON.stringify(options), {
+        headers: { ...responseHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    if (path === '/webauthn/authenticate/verify' && method === 'POST') {
+      const body = await req.json();
+      const { authenticationResponse, email } = body;
+
+      if (!email || !authenticationResponse) {
+        return new Response(JSON.stringify({ error: 'Email and response are required' }), {
+          status: 400,
+          headers: { ...responseHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      // 1. Fetch user by email
+      const { data: userData } = await supabaseAdmin.auth.admin.listUsers();
+      const targetUser = userData?.users.find(u => u.email === email);
+
+      if (!targetUser) {
+        return new Response(JSON.stringify({ error: 'User not found' }), {
+          status: 404,
+          headers: { ...responseHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      // 2. Get stored challenge
+      const stored = await kv.get(`webauthn:authentication:challenge:${targetUser.id}`);
+      if (!stored || Date.now() - stored.timestamp > 300000) {
+        return new Response(JSON.stringify({ error: 'Challenge expired or not found' }), {
+          status: 400,
+          headers: { ...responseHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      // 3. Get device from DB
+      // SimpleWebAuthn browser client sends base64url encoded ID
+      const { data: device } = await supabaseAdmin
+        .from('user_devices')
+        .select('*')
+        .eq('user_id', targetUser.id)
+        .eq('credential_id', authenticationResponse.id)
+        .single();
+
+      if (!device) {
+        return new Response(JSON.stringify({ error: 'Device not found' }), {
+          status: 400,
+          headers: { ...responseHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      // 4. Verify response
+      let verification;
+      try {
+        // Convert base64url public key back to Uint8Array
+        const publicKeyBuffer = base64urlDecode(device.public_key);
+        const credentialIDBuffer = base64urlDecode(device.credential_id);
+
+        verification = await WebAuthnServer.verifyAuthenticationResponse({
+          response: authenticationResponse,
+          expectedChallenge: stored.challenge,
+          expectedOrigin: ORIGIN,
+          expectedRPID: RP_ID,
+          requireUserVerification: false,
+          authenticator: {
+            credentialID: credentialIDBuffer,
+            credentialPublicKey: publicKeyBuffer,
+            counter: 0,
+          },
+        });
+      } catch (error) {
+        console.error('Authentication verification failed:', error);
+        return new Response(JSON.stringify({ error: 'Verification failed', details: error.message }), {
+          status: 400,
+          headers: { ...responseHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      if (!verification.verified) {
+        return new Response(JSON.stringify({ error: 'Verification failed' }), {
+          status: 400,
+          headers: { ...responseHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      // 5. Success! Create a session token or similar.
+      // Since this is a "convenience unlock", we want to return a fresh session or just a confirmation.
+      // To actually "log in" via Edge function, we might need a custom claim or just use Supabase Auth to create a token.
+      // However, usually we can't easily generate a Supabase session token from an Edge Function without the user's password.
+      // But we CAN use `auth.admin.generateLink` or similar, or just return a success and let the client know it can bypass the password field
+      // for a short duration if it has a valid refresh token.
+      
+      // Better approach for Supabase: Use a custom JWT or a session refresh if possible.
+      // Actually, if they are unlocking, they likely still have a refresh token.
+      
+      // Let's return success and the targetUser.id.
+      // The client will use this to confirm identity.
+
+      // Update last_used_at
+      await supabaseAdmin
+        .from('user_devices')
+        .update({ last_used_at: new Date().toISOString() })
+        .eq('id', device.id);
+
+      await kv.del(`webauthn:authentication:challenge:${targetUser.id}`);
+
+      return new Response(JSON.stringify({ success: true, user_id: targetUser.id }), {
         headers: { ...responseHeaders, 'Content-Type': 'application/json' },
       });
     }

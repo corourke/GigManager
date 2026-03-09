@@ -3856,6 +3856,33 @@ html {
   .mb-safe {
     margin-bottom: env(safe-area-inset-bottom);
   }
+
+  /* High Contrast & Touch Targets */
+  .touch-target {
+    min-width: 44px;
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .high-contrast-text {
+    color: var(--foreground);
+    text-shadow: 0 1px 0 rgba(255, 255, 255, 0.1);
+  }
+
+  .high-contrast-bg {
+    background-color: var(--background);
+    border: 1px solid var(--border);
+  }
+
+  /* Mobile specific refinements */
+  .mobile-card {
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    background-color: var(--card);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+  }
 }
 
 .mobile-layout-root {

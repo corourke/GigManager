@@ -474,7 +474,7 @@ export default function MobileInventoryMode({ gigId }: MobileInventoryModeProps)
               </div>
             </div>
             <button
-              className="flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium shadow-lg active:scale-95 transition-transform"
+              className="flex items-center gap-2 px-4 h-11 rounded-full text-sm font-medium shadow-lg active:scale-95 transition-transform"
               style={{ backgroundColor: '#0284c7', color: '#ffffff' }}
               onClick={() => setIsScannerOpen(true)}
             >
@@ -718,10 +718,10 @@ export default function MobileInventoryMode({ gigId }: MobileInventoryModeProps)
             </div>
           </div>
 
-          <DialogFooter>
-            <Button variant="outline" onClick={closeNoteDialog}>Cancel</Button>
-            <Button variant="outline" onClick={() => setNoteDialog((current) => ({ ...current, note: '' }))}>Clear note</Button>
-            <Button onClick={() => void handleSaveNote()}>Save</Button>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button variant="outline" className="h-11" onClick={closeNoteDialog}>Cancel</Button>
+            <Button variant="outline" className="h-11" onClick={() => setNoteDialog((current) => ({ ...current, note: '' }))}>Clear note</Button>
+            <Button className="h-11" onClick={() => void handleSaveNote()}>Save</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

@@ -68,6 +68,8 @@ import MobileLayout from './components/mobile/MobileLayout';
 import MobileDashboard from './components/mobile/MobileDashboard';
 import MobileInventoryMode from './components/mobile/MobileInventoryMode';
 import MobileSettings from './components/mobile/MobileSettings';
+import MobileLockScreen from './components/mobile/MobileLockScreen';
+import { useMobileLock } from './hooks/useMobileLock';
 
 function App() {
   const [isMobile, setIsMobile] = useState(() => window.innerWidth < 768);
@@ -90,6 +92,8 @@ function App() {
     setOrganizations,
     setUser
   } = useAuth();
+
+  const { isLocked, lock, unlock } = useMobileLock(user?.email, isMobile);
 
   const [currentRoute, setCurrentRoute] = useState<Route>(() => {
     // Check for invitation in URL
@@ -632,7 +636,7 @@ function App() {
               />
             )}
             {currentRoute === 'mobile-settings' && (
-              <MobileSettings onLogout={handleLogout} />
+              <MobileSettings onLogout={handleLogout} onLock={lock} />
             )}
             {/* Fallback to desktop views if needed, but wrapped in mobile layout */}
             {currentRoute === 'dashboard' && (
@@ -892,6 +896,10 @@ function App() {
       )}
       
       <Toaster />
+
+      {isMobile && isLocked && user && selectedOrganization && (
+        <MobileLockScreen onUnlock={unlock} onLogout={handleLogout} />
+      )}
       
       {/* Edit Profile Dialog - Available on all screens */}
       {user && (
