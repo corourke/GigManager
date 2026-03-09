@@ -1,0 +1,192 @@
+import React from 'react';
+import { LayoutDashboard, Barcode, Settings, Building2, ChevronDown } from 'lucide-react';
+import { useAuth } from '../../contexts/AuthContext';
+import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '../ui/dropdown-menu';
+import { SwitchCamera } from 'lucide-react';
+
+interface MobileLayoutProps {
+  children: React.ReactNode;
+  currentRoute: string;
+  onNavigate: (route: string) => void;
+  onSwitchOrganization?: () => void;
+}
+
+const getIsAppleStandalone = () => {
+  if (typeof window === 'undefined') return false;
+  return (window.navigator as any).standalone === true;
+};
+
+const MobileLayout: React.FC<MobileLayoutProps> = ({ children, currentRoute, onNavigate, onSwitchOrganization }) => {
+  const { user, selectedOrganization, organizations } = useAuth();
+
+  const [isApplePWA] = React.useState(getIsAppleStandalone);
+
+  const [vpHeight, setVpHeight] = React.useState<number | null>(null);
+
+  React.useEffect(() => {
+    const update = () => {
+      const h = window.visualViewport?.height ?? window.innerHeight;
+      setVpHeight(h);
+    };
+    update();
+    window.visualViewport?.addEventListener('resize', update);
+    window.addEventListener('resize', update);
+    return () => {
+      window.visualViewport?.removeEventListener('resize', update);
+      window.removeEventListener('resize', update);
+    };
+  }, []);
+
+  const getInitials = (firstName: string = '', lastName: string = '') => {
+    const f = firstName?.[0] || '';
+    const l = lastName?.[0] || '';
+    return `${f}${l}`.toUpperCase() || '?';
+  };
+
+  const navItems = [
+    { id: 'mobile-dashboard', label: 'Gigs', icon: LayoutDashboard },
+    { id: 'mobile-inventory', label: 'Scanning', icon: Barcode },
+    { id: 'mobile-settings', label: 'Settings', icon: Settings },
+  ];
+
+  return (
+    <div
+      className="mobile-layout-root"
+      style={{
+        backgroundColor: 'var(--background)',
+        ...(vpHeight ? { height: `${vpHeight}px` } : {}),
+      }}
+    >
+      <header
+        style={{
+          flexShrink: 0,
+          backgroundColor: 'var(--background)',
+          borderBottom: '1px solid var(--border)',
+          paddingTop: 'max(8px, env(safe-area-inset-top))',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: 56, padding: '0 16px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+            <div style={{ width: 32, height: 32, borderRadius: 8, backgroundColor: '#0284c7', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <Building2 style={{ width: 18, height: 18, color: '#ffffff' }} />
+            </div>
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontSize: 15, fontWeight: 700, letterSpacing: '-0.025em', color: 'var(--foreground)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {selectedOrganization?.name || 'GigManager'}
+              </div>
+              {organizations && organizations.length > 1 && onSwitchOrganization && (
+                <button
+                  onClick={onSwitchOrganization}
+                  style={{ display: 'flex', alignItems: 'center', gap: 2, fontSize: 11, color: '#0284c7', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+                >
+                  <SwitchCamera style={{ width: 10, height: 10 }} />
+                  <span>Switch</span>
+                </button>
+              )}
+            </div>
+          </div>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+                <Avatar className="w-8 h-8">
+                  <AvatarImage src={user?.avatar_url} alt={user ? `${user.first_name} ${user.last_name}` : ''} />
+                  <AvatarFallback className="bg-sky-100 text-sky-700 text-xs">
+                    {getInitials(user?.first_name, user?.last_name)}
+                  </AvatarFallback>
+                </Avatar>
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-48">
+              <DropdownMenuLabel>
+                <p className="text-sm">{user?.first_name} {user?.last_name}</p>
+                <p className="text-xs text-muted-foreground">{user?.email}</p>
+              </DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              {onSwitchOrganization && organizations && organizations.length > 1 && (
+                <DropdownMenuItem onClick={onSwitchOrganization}>
+                  <SwitchCamera className="w-4 h-4 mr-2" />
+                  Switch Organization
+                </DropdownMenuItem>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      </header>
+
+      <main
+        data-testid="mobile-main-content"
+        style={{
+          flex: 1,
+          minHeight: 0,
+          overflowY: 'auto',
+          overflowX: 'hidden',
+          WebkitOverflowScrolling: 'touch',
+          overscrollBehavior: 'contain',
+        }}
+      >
+        {children}
+      </main>
+
+      <nav
+        data-testid="mobile-bottom-nav"
+        className="mobile-bottom-nav"
+        style={{
+          flexShrink: 0,
+          backgroundColor: 'var(--background)',
+          borderTop: '1px solid var(--border)',
+          WebkitUserSelect: 'none',
+          userSelect: 'none',
+          ...(isApplePWA ? { paddingBottom: 0 } : {}),
+        }}
+      >
+        <div style={{ display: 'flex', justifyContent: 'space-around', alignItems: 'center', height: 56, maxWidth: 480, margin: '0 auto', padding: '0 8px' }}>
+          {navItems.map((item) => {
+            const Icon = item.icon;
+            const isActive = currentRoute === item.id ||
+              (item.id === 'mobile-inventory' && (currentRoute === 'mobile-inventory' || currentRoute === 'mobile-scanner'));
+
+            return (
+              <button
+                key={item.id}
+                onClick={() => onNavigate(item.id)}
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  width: '100%',
+                  height: '100%',
+                  gap: 4,
+                  border: 'none',
+                  background: 'none',
+                  cursor: 'pointer',
+                  borderRadius: 8,
+                  color: isActive ? '#0284c7' : 'var(--muted-foreground)',
+                }}
+              >
+                <div style={{
+                  padding: 4,
+                  borderRadius: 6,
+                  backgroundColor: isActive ? 'rgba(2,132,199,0.1)' : 'transparent',
+                }}>
+                  <Icon style={{ width: 24, height: 24, strokeWidth: isActive ? 2.5 : 2 }} />
+                </div>
+                <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase' }}>{item.label}</span>
+              </button>
+            );
+          })}
+        </div>
+      </nav>
+    </div>
+  );
+};
+
+export default MobileLayout;

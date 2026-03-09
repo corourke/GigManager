@@ -87,7 +87,6 @@ dist
 
 # Gatsby files
 .cache/
-public
 
 # Storybook build outputs
 .out
@@ -113,3 +112,4 @@ coverage/
 
 # Misc
 .cache/
+.certs/
