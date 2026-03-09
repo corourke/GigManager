@@ -19,29 +19,29 @@ interface MobileLayoutProps {
   onSwitchOrganization?: () => void;
 }
 
+const getIsAppleStandalone = () => {
+  if (typeof window === 'undefined') return false;
+  return (window.navigator as any).standalone === true;
+};
+
 const MobileLayout: React.FC<MobileLayoutProps> = ({ children, currentRoute, onNavigate, onSwitchOrganization }) => {
   const { user, selectedOrganization, organizations } = useAuth();
 
-  const getIsStandaloneMode = () => {
-    if (typeof window === 'undefined') return false;
-    return window.matchMedia?.('(display-mode: standalone)')?.matches || (window.navigator as any).standalone === true;
-  };
+  const [isApplePWA] = React.useState(getIsAppleStandalone);
 
-  const [isStandaloneMode, setIsStandaloneMode] = React.useState(getIsStandaloneMode);
+  const [vpHeight, setVpHeight] = React.useState<number | null>(null);
 
   React.useEffect(() => {
-    if (typeof window === 'undefined') return;
-
-    const mediaQuery = window.matchMedia?.('(display-mode: standalone)');
-    const updateMode = () => setIsStandaloneMode(getIsStandaloneMode());
-
-    updateMode();
-    mediaQuery?.addEventListener?.('change', updateMode);
-    window.addEventListener('focus', updateMode);
-
+    const update = () => {
+      const h = window.visualViewport?.height ?? window.innerHeight;
+      setVpHeight(h);
+    };
+    update();
+    window.visualViewport?.addEventListener('resize', update);
+    window.addEventListener('resize', update);
     return () => {
-      mediaQuery?.removeEventListener?.('change', updateMode);
-      window.removeEventListener('focus', updateMode);
+      window.visualViewport?.removeEventListener('resize', update);
+      window.removeEventListener('resize', update);
     };
   }, []);
 
@@ -59,17 +59,10 @@ const MobileLayout: React.FC<MobileLayoutProps> = ({ children, currentRoute, onN
 
   return (
     <div
+      className="mobile-layout-root"
       style={{
-        position: 'fixed',
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        display: 'grid',
-        gridTemplateRows: 'auto minmax(0, 1fr) auto',
-        height: '100dvh',
         backgroundColor: 'var(--background)',
-        overflow: 'hidden',
+        ...(vpHeight ? { height: `${vpHeight}px` } : {}),
       }}
     >
       <header
@@ -144,13 +137,14 @@ const MobileLayout: React.FC<MobileLayoutProps> = ({ children, currentRoute, onN
 
       <nav
         data-testid="mobile-bottom-nav"
+        className="mobile-bottom-nav"
         style={{
           flexShrink: 0,
           backgroundColor: 'var(--background)',
           borderTop: '1px solid var(--border)',
-          paddingBottom: isStandaloneMode ? 0 : 'max(4px, env(safe-area-inset-bottom))',
           WebkitUserSelect: 'none',
           userSelect: 'none',
+          ...(isApplePWA ? { paddingBottom: 0 } : {}),
         }}
       >
         <div style={{ display: 'flex', justifyContent: 'space-around', alignItems: 'center', height: 56, maxWidth: 480, margin: '0 auto', padding: '0 8px' }}>

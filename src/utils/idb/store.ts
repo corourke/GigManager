@@ -2,7 +2,7 @@ import { openDB, DBSchema, IDBPDatabase } from 'idb';
 
 export interface OutboxItem {
   id?: number;
-  type: 'INVENTORY_SCAN' | 'BIO_ENROLL'; // Simplified to generic types
+  type: 'INVENTORY_SCAN' | 'INVENTORY_CLEAR' | 'INVENTORY_NOTE_UPDATE' | 'ASSET_STATUS_UPDATE' | 'BIO_ENROLL';
   payload: any;
   timestamp: number;
   attempts: number;
@@ -15,7 +15,7 @@ interface GigManagerDB extends DBSchema {
     indexes: { 'by-date': string };
   };
   packing_lists: {
-    key: string; // gig_id
+    key: string;
     value: any;
   };
   outbox: {
@@ -61,7 +61,6 @@ export const getDB = () => {
 };
 
 export const idbStore = {
-  // Gigs
   async putGig(gig: any) {
     const db = await getDB();
     return db.put('gigs', gig);
@@ -80,7 +79,6 @@ export const idbStore = {
     return db.clear('gigs');
   },
 
-  // Packing Lists
   async putPackingList(gigId: string, data: any) {
     const db = await getDB();
     return db.put('packing_lists', { gig_id: gigId, ...data });
@@ -90,7 +88,6 @@ export const idbStore = {
     return db.get('packing_lists', gigId);
   },
 
-  // Outbox
   async addToOutbox(item: Omit<OutboxItem, 'id' | 'timestamp' | 'attempts'>) {
     const db = await getDB();
     return db.add('outbox', {

@@ -10,6 +10,103 @@ interface MobileBarcodeScannerProps {
   error?: string | null;
 }
 
+const getCameraCapabilityState = () => {
+  if (typeof window === 'undefined' || typeof navigator === 'undefined') {
+    return {
+      available: false,
+      message: 'Camera access is not available in this environment.',
+    };
+  }
+
+  if (!window.isSecureContext) {
+    return {
+      available: false,
+      message: 'Camera access requires HTTPS or localhost in Safari/PWA. Open the app from a secure origin or use manual entry.',
+    };
+  }
+
+  const hasModernCameraApi = Boolean(navigator.mediaDevices?.getUserMedia);
+  const hasLegacyCameraApi = typeof (navigator as any).webkitGetUserMedia === 'function';
+
+  if (!hasModernCameraApi && !hasLegacyCameraApi) {
+    return {
+      available: false,
+      message: 'Camera access is not available on this device/browser. You can still enter tag numbers manually.',
+    };
+  }
+
+  return {
+    available: true,
+    message: null,
+  };
+};
+
+const getCameraErrorMessage = (error: any) => {
+  const errorName = String(error?.name || '').toLowerCase();
+
+  if (errorName === 'notallowederror' || errorName === 'permissiondeniederror') {
+    return 'Camera permission was denied. Enable camera access in Safari settings and reload.';
+  }
+
+  if (errorName === 'notreadableerror') {
+    return 'Camera is in use by another app. Close other camera apps and try again.';
+  }
+
+  if (errorName === 'notfounderror' || errorName === 'overconstrainederror') {
+    return 'No rear camera was found. Switch to manual entry or try a different device.';
+  }
+
+  if (errorName === 'securityerror') {
+    return 'Camera access requires HTTPS or localhost in Safari/PWA. Open the app from a secure origin or use manual entry.';
+  }
+
+  return 'Unable to start camera scanning on this device. You can still enter tag numbers manually.';
+};
+
+let sharedAudioCtx: AudioContext | null = null;
+
+const getAudioContext = () => {
+  if (!sharedAudioCtx || sharedAudioCtx.state === 'closed') {
+    sharedAudioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+  }
+  return sharedAudioCtx;
+};
+
+const warmUpAudio = () => {
+  try {
+    const ctx = getAudioContext();
+    if (ctx.state === 'suspended') {
+      ctx.resume();
+    }
+    const buf = ctx.createBuffer(1, 1, 22050);
+    const src = ctx.createBufferSource();
+    src.buffer = buf;
+    src.connect(ctx.destination);
+    src.start(0);
+  } catch {
+  }
+};
+
+const playScanBeep = () => {
+  try {
+    const ctx = getAudioContext();
+    if (ctx.state === 'suspended') {
+      ctx.resume();
+    }
+    const oscillator = ctx.createOscillator();
+    const gain = ctx.createGain();
+    oscillator.connect(gain);
+    gain.connect(ctx.destination);
+    oscillator.type = 'sine';
+    oscillator.frequency.setValueAtTime(1200, ctx.currentTime);
+    gain.gain.setValueAtTime(0.3, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.15);
+    oscillator.start(ctx.currentTime);
+    oscillator.stop(ctx.currentTime + 0.15);
+  } catch {
+  }
+};
+
 export const MobileBarcodeScanner: React.FC<MobileBarcodeScannerProps> = ({
   onScan,
   onClose,
@@ -24,70 +121,66 @@ export const MobileBarcodeScanner: React.FC<MobileBarcodeScannerProps> = ({
   const [manualEntry, setManualEntry] = useState('');
   const [showManualInput, setShowManualInput] = useState(false);
   const [BarcodeScanner, setBarcodeScanner] = useState<any>(null);
+  const [stopStream, setStopStream] = useState(false);
 
   useEffect(() => {
-    if (!isScanning) return;
+    if (!isScanning) {
+      setStopStream(false);
+      return;
+    }
 
     let cancelled = false;
+    const capability = getCameraCapabilityState();
 
-    const checkCamera = async () => {
+    warmUpAudio();
+    setStopStream(false);
+    setCameraAvailable(capability.available);
+    setCameraErrorMessage(capability.message);
+    setShowManualInput(!capability.available);
+    setBarcodeScanner(null);
+
+    if (!capability.available) {
+      return;
+    }
+
+    const loadScanner = async () => {
       try {
-        setCameraErrorMessage(null);
-        if (!window.isSecureContext) {
-          setCameraAvailable(false);
-          setShowManualInput(true);
-          setCameraErrorMessage('Camera scanning requires a secure connection (HTTPS). Open the app over HTTPS or localhost, then try again.');
-          return;
-        }
-        if (!navigator.mediaDevices?.getUserMedia) {
-          setCameraAvailable(false);
-          setShowManualInput(true);
-          setCameraErrorMessage('Camera access is not available on this device/browser.');
-          return;
-        }
-        const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
-        stream.getTracks().forEach(t => t.stop());
+        const mod = await import('react-qr-barcode-scanner');
         if (!cancelled) {
-          setCameraAvailable(true);
-          const mod = await import('react-qr-barcode-scanner');
-          if (!cancelled) setBarcodeScanner(() => mod.default);
+          setBarcodeScanner(() => mod.default);
         }
-      } catch (error: any) {
+      } catch {
         if (!cancelled) {
           setCameraAvailable(false);
           setShowManualInput(true);
-          const errorName = String(error?.name || '').toLowerCase();
-          if (errorName === 'notallowederror') {
-            setCameraErrorMessage('Camera permission was denied. Enable camera access in Safari settings and reload.');
-          } else if (errorName === 'notreadableerror') {
-            setCameraErrorMessage('Camera is in use by another app. Close other camera apps and try again.');
-          } else {
-            setCameraErrorMessage('Unable to start camera scanning on this device. You can still enter tag numbers manually.');
-          }
+          setCameraErrorMessage('Unable to load the camera scanner. You can still enter tag numbers manually.');
         }
       }
     };
 
-    checkCamera();
-    return () => { cancelled = true; };
+    loadScanner();
+
+    return () => {
+      cancelled = true;
+    };
   }, [isScanning]);
 
   const handleScan = useCallback((err: any, result: any) => {
-    if (result && !scanCooldown) {
-      const scannedText = result.getText();
-      if (scannedText === lastScanned) return;
-
-      setLastScanned(scannedText);
-      setScanCooldown(true);
-      onScan(scannedText);
-
-      if (typeof navigator !== 'undefined' && navigator.vibrate) {
-        navigator.vibrate(50);
-      }
-
-      setTimeout(() => setScanCooldown(false), 2000);
-      setTimeout(() => setLastScanned(null), 5000);
+    if (!result || scanCooldown) {
+      return;
     }
+
+    const scannedText = result.getText();
+    if (scannedText === lastScanned) return;
+
+    setLastScanned(scannedText);
+    setScanCooldown(true);
+    onScan(scannedText);
+
+    playScanBeep();
+
+    setTimeout(() => setScanCooldown(false), 2000);
+    setTimeout(() => setLastScanned(null), 5000);
   }, [lastScanned, onScan, scanCooldown]);
 
   const handleManualSubmit = () => {
@@ -96,6 +189,13 @@ export const MobileBarcodeScanner: React.FC<MobileBarcodeScannerProps> = ({
     onScan(tag);
     setLastScanned(tag);
     setManualEntry('');
+  };
+
+  const handleClose = (event: React.MouseEvent<HTMLButtonElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setStopStream(true);
+    window.setTimeout(() => onClose(), 0);
   };
 
   if (!isScanning) return null;
@@ -132,11 +232,15 @@ export const MobileBarcodeScanner: React.FC<MobileBarcodeScannerProps> = ({
         <div style={{ display: 'flex', gap: 8 }}>
           <button
             style={{
-              width: 44, height: 44,
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              width: 44,
+              height: 44,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
               borderRadius: '50%',
               backgroundColor: showManualInput ? 'rgba(2,132,199,0.6)' : 'rgba(255,255,255,0.2)',
-              border: 'none', cursor: 'pointer',
+              border: 'none',
+              cursor: 'pointer',
             }}
             onClick={() => setShowManualInput(!showManualInput)}
           >
@@ -146,13 +250,17 @@ export const MobileBarcodeScanner: React.FC<MobileBarcodeScannerProps> = ({
           </button>
           <button
             style={{
-              width: 44, height: 44,
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              width: 44,
+              height: 44,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
               borderRadius: '50%',
               backgroundColor: 'rgba(255,255,255,0.2)',
-              border: 'none', cursor: 'pointer',
+              border: 'none',
+              cursor: 'pointer',
             }}
-            onClick={(e) => { e.preventDefault(); e.stopPropagation(); onClose(); }}
+            onClick={handleClose}
           >
             <X style={{ width: 24, height: 24, color: '#ffffff' }} />
           </button>
@@ -174,18 +282,26 @@ export const MobileBarcodeScanner: React.FC<MobileBarcodeScannerProps> = ({
                 placeholder="Tag number..."
                 autoFocus
                 style={{
-                  flex: 1, padding: '12px 16px', fontSize: 16,
-                  borderRadius: 8, border: '1px solid rgba(255,255,255,0.3)',
-                  backgroundColor: 'rgba(255,255,255,0.1)', color: '#ffffff',
+                  flex: 1,
+                  padding: '12px 16px',
+                  fontSize: 16,
+                  borderRadius: 8,
+                  border: '1px solid rgba(255,255,255,0.3)',
+                  backgroundColor: 'rgba(255,255,255,0.1)',
+                  color: '#ffffff',
                   outline: 'none',
                 }}
               />
               <button
                 onClick={handleManualSubmit}
                 style={{
-                  padding: '12px 20px', fontSize: 14, fontWeight: 600,
-                  borderRadius: 8, border: 'none',
-                  backgroundColor: '#0284c7', color: '#ffffff',
+                  padding: '12px 20px',
+                  fontSize: 14,
+                  fontWeight: 600,
+                  borderRadius: 8,
+                  border: 'none',
+                  backgroundColor: '#0284c7',
+                  color: '#ffffff',
                   cursor: 'pointer',
                 }}
               >
@@ -196,7 +312,14 @@ export const MobileBarcodeScanner: React.FC<MobileBarcodeScannerProps> = ({
         ) : cameraAvailable && BarcodeScanner ? (
           <>
             <BarcodeScanner
+              facingMode="environment"
+              onError={(scannerError: any) => {
+                setCameraAvailable(false);
+                setShowManualInput(true);
+                setCameraErrorMessage(getCameraErrorMessage(scannerError));
+              }}
               onUpdate={handleScan}
+              stopStream={stopStream}
               width="100%"
               height="100%"
               style={{ objectFit: 'cover' }}
@@ -208,7 +331,7 @@ export const MobileBarcodeScanner: React.FC<MobileBarcodeScannerProps> = ({
         ) : (
           <div style={{ padding: 24, textAlign: 'center' }}>
             <p style={{ color: '#a1a1aa', fontSize: 14 }}>
-              {cameraAvailable === null ? 'Checking camera access...' : 'Camera not available. Tap the keyboard icon to enter tags manually.'}
+              {cameraAvailable === null ? 'Checking camera access...' : 'Starting camera scanner...'}
             </p>
           </div>
         )}

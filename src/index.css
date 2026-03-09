@@ -3857,3 +3857,31 @@ html {
     margin-bottom: env(safe-area-inset-bottom);
   }
 }
+
+.mobile-layout-root {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  height: 100dvh;
+  height: -webkit-fill-available;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  overflow: hidden;
+}
+
+.mobile-bottom-nav {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+@media all and (display-mode: standalone) {
+  .mobile-layout-root {
+    width: 100vw;
+    height: 100vh;
+    height: -webkit-fill-available;
+  }
+  .mobile-bottom-nav {
+    padding-bottom: 0;
+  }
+}

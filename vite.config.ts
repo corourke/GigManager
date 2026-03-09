@@ -2,7 +2,13 @@
   import { defineConfig } from 'vite';
   import react from '@vitejs/plugin-react-swc';
   import path from 'path';
+  import fs from 'fs';
   import { VitePWA } from 'vite-plugin-pwa';
+
+  const useHttps = process.env.VITE_HTTPS === 'true';
+  const httpsConfig = useHttps && fs.existsSync(path.resolve(__dirname, '.certs/cert.pem'))
+    ? { cert: fs.readFileSync(path.resolve(__dirname, '.certs/cert.pem')), key: fs.readFileSync(path.resolve(__dirname, '.certs/key.pem')) }
+    : undefined;
 
   export default defineConfig({
     plugins: [
@@ -62,5 +68,6 @@
       port: 3000,
       host: '0.0.0.0',
       open: true,
+      ...(httpsConfig ? { https: httpsConfig } : {}),
     },
   });

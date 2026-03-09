@@ -111,6 +111,63 @@ Save to `{@artifacts_path}/plan.md`.
     - Handle scan submissions and offline outbox queuing
     - *Verification*: `npm test` for tracking service
 
+### [x] Phase 6: Scanner Reliability & Tracking Notes
+- [x] **Step: iOS/PWA Scanner Reliability Fix**
+    - Replace brittle camera preflight with scanner-driven error handling and secure-context detection
+    - Add clearer Safari/PWA fallback messaging plus safe stream shutdown on close
+    - *Verification*: `npm run test:run -- src/components/mobile/MobileBarcodeScanner.test.tsx`
+- [x] **Step: Tracking Status Inheritance & Notes**
+    - Propagate kit status updates to nested asset tracking rows and add explicit clear behavior for inherited rows
+    - Show current inventory tracking status badges for kits/assets and inherit kit status + notes in the mobile packing list UI
+    - Add note create/edit/clear flows that persist to `inventory_tracking.notes` and remain visible until cleared
+    - *Verification*: `npm run test:run -- src/services/mobile/inventoryTracking.service.test.ts src/components/mobile/MobileInventoryMode.test.tsx`, `npm run build`
+- [x] **Step: Verification Follow-up**
+    - Focused mobile tests pass: `npm run test:run -- src/components/mobile/MobileBarcodeScanner.test.tsx src/services/mobile/inventoryTracking.service.test.ts src/components/mobile/MobileInventoryMode.test.tsx`
+    - Full test suite passes: `npm run test:run`
+    - `npm run build` passes
+    - `npm run lint` is currently blocked because the repo has no `eslint.config.*` or `.eslintrc*`
+    - `npm run typecheck` is currently blocked because the repo has no `tsconfig.json`
+
+### [x] Phase 7: Tracking & Dev Fixes
+- [x] **Step: Fix Cumulative Tracking Schema**
+    - Created migration `20260309000000_fix_inventory_tracking_cumulative.sql` to DROP the unique index and add a non-unique lookup index
+    - The unique index was preventing multiple tracking records per (gig, kit, asset), breaking cumulative history
+- [x] **Step: Preserve Unsynced Local Tracking on Refresh**
+    - Updated `packingList.service.ts` to merge unsynced local tracking records (those without `id`) with fresh server data instead of overwriting
+- [x] **Step: Fix Kit Row Whitespace**
+    - Removed `pb-2` from expanded assets container in `MobileInventoryMode.tsx`
+- [x] **Step: HTTPS Dev Path**
+    - Wired `@vitejs/plugin-basic-ssl` into `vite.config.ts` (conditional via `VITE_HTTPS=true`)
+    - Added `dev:https` script to `package.json`
+- [x] **Step: Verification**
+    - All 208 tests pass
+    - Build succeeds
+
+### [x] Phase 8: Maintenance, Notes & Scanner Fixes
+- [x] **Step: Fix Maintenance Checkbox Persistence**
+    - Added `update_asset_status` RPC function with `SECURITY DEFINER` to bypass RLS (assets table only allows admin/manager updates)
+    - Updated `ASSET_STATUS_UPDATE` sync handler to use RPC instead of direct table update
+    - Added bidirectional logic: checking sets 'Maintenance', unchecking reverts to 'Active'
+- [x] **Step: Note Carry-Forward on Tracking Records**
+    - `submitScan` now inherits notes from the latest tracking record for each item
+    - Notes persist across status changes until explicitly cleared
+- [x] **Step: UI Label Updates**
+    - Removed "Notes are stored only on this item's latest tracking record" dialog description
+    - Changed label from "Note" to "Notes on item condition"
+    - Updated placeholder text
+- [x] **Step: Fix iOS Safari Camera Scanner**
+    - `handleScan` was treating ZXing decode errors (FormatException, ChecksumException) as fatal camera errors
+    - Now only processes successful scan results; camera-level errors handled separately via `onError`
+- [x] **Step: HTTPS Dev Path (mkcert)**
+    - Switched from `@vitejs/plugin-basic-ssl` (self-signed, rejected by iOS) to mkcert-generated certs
+    - Generated certs in `.certs/` for localhost and local network IPs
+    - Configured Vite `server.https` with cert files when `VITE_HTTPS=true`
+- [x] **Step: Kit Row Whitespace Fix**
+    - Added `[&:last-child]:pb-0` to override CardContent's base `[&:last-child]:pb-6`
+- [x] **Step: Verification**
+    - All 208 tests pass
+    - Build succeeds
+
 ### [ ] Phase 4: Biometric Auth & Polish
 - [ ] **Step: WebAuthn Edge Function**
     - Implement `supabase/functions/server/webauthn` (challenge/verify)

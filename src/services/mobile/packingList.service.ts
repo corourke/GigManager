@@ -4,9 +4,6 @@ import { idbStore } from '../../utils/idb/store';
 const supabase = createClient();
 
 export const packingListService = {
-  /**
-   * Fetch gigs within the next 48 hours for the current user
-   */
   async fetchUpcomingGigs() {
     const lookBack = new Date(Date.now() - 24 * 60 * 60 * 1000);
     const lookAhead = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
@@ -65,9 +62,6 @@ export const packingListService = {
     return gigs;
   },
 
-  /**
-   * Fetch full packing list for a gig (kits, assets, and tracking status)
-   */
   async fetchGigPackingList(gigId: string) {
     const { data: kitAssignments, error: kitError } = await supabase
       .from('gig_kit_assignments')
@@ -92,24 +86,26 @@ export const packingListService = {
     if (kitError) throw kitError;
 
     const missingAssetIds: string[] = [];
-    (kitAssignments || []).forEach((ka: any) => {
-      (ka.kit?.assets || []).forEach((ca: any) => {
-        if (!ca.asset && ca.asset_id) missingAssetIds.push(ca.asset_id);
+    (kitAssignments || []).forEach((assignment: any) => {
+      (assignment.kit?.assets || []).forEach((assetAssignment: any) => {
+        if (!assetAssignment.asset && assetAssignment.asset_id) {
+          missingAssetIds.push(assetAssignment.asset_id);
+        }
       });
     });
 
     if (missingAssetIds.length > 0) {
       const { data: assets } = await supabase
         .from('assets')
-        .select('id, manufacturer_model, category, description, tag_number, serial_number')
+        .select('id, manufacturer_model, category, description, tag_number, serial_number, status')
         .in('id', missingAssetIds);
 
       if (assets && assets.length > 0) {
-        const assetMap = new Map(assets.map(a => [a.id, a]));
-        (kitAssignments || []).forEach((ka: any) => {
-          (ka.kit?.assets || []).forEach((ca: any) => {
-            if (!ca.asset && ca.asset_id) {
-              ca.asset = assetMap.get(ca.asset_id) || null;
+        const assetMap = new Map(assets.map((asset) => [asset.id, asset]));
+        (kitAssignments || []).forEach((assignment: any) => {
+          (assignment.kit?.assets || []).forEach((assetAssignment: any) => {
+            if (!assetAssignment.asset && assetAssignment.asset_id) {
+              assetAssignment.asset = assetMap.get(assetAssignment.asset_id) || null;
             }
           });
         });
@@ -119,9 +115,28 @@ export const packingListService = {
     const { data: tracking, error: trackingError } = await supabase
       .from('inventory_tracking')
       .select('*')
-      .eq('gig_id', gigId);
+      .eq('gig_id', gigId)
+      .order('scanned_at', { ascending: false })
+      .order('created_at', { ascending: false });
 
     if (trackingError) throw trackingError;
+
+    const scannedByIds = Array.from(new Set((tracking || []).map((record: any) => record.scanned_by).filter(Boolean)));
+    let userMap = new Map<string, any>();
+
+    if (scannedByIds.length > 0) {
+      const { data: users } = await supabase
+        .from('users')
+        .select('id, first_name, last_name, email')
+        .in('id', scannedByIds);
+
+      userMap = new Map((users || []).map((user: any) => [user.id, user]));
+    }
+
+    const enrichedTracking = (tracking || []).map((record: any) => ({
+      ...record,
+      scanned_by_user: record.scanned_by ? userMap.get(record.scanned_by) || null : null,
+    }));
 
     const { data: gigData } = await supabase
       .from('gigs')
@@ -129,11 +144,26 @@ export const packingListService = {
       .eq('id', gigId)
       .single();
 
+    const cached = await idbStore.getPackingList(gigId);
+    const localOnlyTracking = (cached?.tracking || []).filter((record: any) => !record.id);
+
+    const serverIds = new Set((enrichedTracking || []).map((record: any) => {
+      return `${record.kit_id}|${record.asset_id ?? ''}|${record.scanned_at}|${record.status}`;
+    }));
+    const unsyncedLocal = localOnlyTracking.filter((record: any) => {
+      const key = `${record.kit_id}|${record.asset_id ?? ''}|${record.scanned_at}|${record.status}`;
+      return !serverIds.has(key);
+    });
+
+    const mergedTracking = [...unsyncedLocal, ...enrichedTracking].sort(
+      (left: any, right: any) => new Date(right.scanned_at).getTime() - new Date(left.scanned_at).getTime()
+    );
+
     const packingListData = {
       gig_id: gigId,
       gig_title: gigData?.title || null,
       kits: kitAssignments,
-      tracking: tracking || [],
+      tracking: mergedTracking,
       last_synced: Date.now()
     };
 
@@ -141,9 +171,6 @@ export const packingListService = {
     return packingListData;
   },
 
-  /**
-   * Sync all data for upcoming gigs
-   */
   async syncAllUpcoming() {
     const gigs = await this.fetchUpcomingGigs();
     if (!gigs) return;

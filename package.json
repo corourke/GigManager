@@ -63,6 +63,7 @@
             "@types/node": "^20.19.35",
             "@types/react": "^18.3.28",
             "@types/react-dom": "^18.3.7",
+            "@vitejs/plugin-basic-ssl": "^2.1.4",
             "@vitejs/plugin-react-swc": "^3.10.2",
             "@vitest/coverage-v8": "^4.0.10",
             "@vitest/ui": "^4.0.10",
@@ -75,6 +76,7 @@
       },
       "scripts": {
             "dev": "vite",
+            "dev:https": "VITE_HTTPS=true vite",
             "build": "vite build",
             "lint": "eslint .",
             "typecheck": "tsc --noEmit",
