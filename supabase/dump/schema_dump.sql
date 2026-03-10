@@ -97,6 +97,18 @@ CREATE TYPE "public"."organization_type" AS ENUM (
 ALTER TYPE "public"."organization_type" OWNER TO "postgres";
 
 
+CREATE TYPE "public"."sync_status" AS ENUM (
+    'pending',
+    'synced',
+    'failed',
+    'updated',
+    'removed'
+);
+
+
+ALTER TYPE "public"."sync_status" OWNER TO "postgres";
+
+
 CREATE TYPE "public"."user_role" AS ENUM (
     'Admin',
     'Manager',
@@ -824,12 +836,48 @@ $$;
 ALTER FUNCTION "public"."search_users_secure"("search_text" "text") OWNER TO "postgres";
 
 
+CREATE OR REPLACE FUNCTION "public"."track_asset_status_change"() RETURNS "trigger"
+    LANGUAGE "plpgsql"
+    AS $$
+BEGIN
+  IF OLD.status IS DISTINCT FROM NEW.status THEN
+    INSERT INTO public.asset_status_history (asset_id, from_status, to_status, changed_by)
+    VALUES (NEW.id, OLD.status, NEW.status, auth.uid());
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+
+ALTER FUNCTION "public"."track_asset_status_change"() OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."update_asset_status"("p_asset_id" "uuid", "p_status" "text") RETURNS "void"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    AS $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM public.assets a
+    WHERE a.id = p_asset_id
+    AND public.user_is_member_of_org(a.organization_id, auth.uid())
+  ) THEN
+    RAISE EXCEPTION 'Access denied';
+  END IF;
+
+  UPDATE public.assets SET status = p_status WHERE id = p_asset_id;
+END;
+$$;
+
+
+ALTER FUNCTION "public"."update_asset_status"("p_asset_id" "uuid", "p_status" "text") OWNER TO "postgres";
+
+
 CREATE OR REPLACE FUNCTION "public"."update_updated_at_column"() RETURNS "trigger"
     LANGUAGE "plpgsql"
     AS $$
 BEGIN
-  NEW.updated_at = NOW();
-  RETURN NEW;
+    NEW.updated_at = now();
+    RETURN NEW;
 END;
 $$;
 
@@ -971,6 +1019,19 @@ $$;
 ALTER FUNCTION "public"."user_organization_ids"("user_uuid" "uuid") OWNER TO "postgres";
 
 
+CREATE TABLE IF NOT EXISTS "public"."asset_status_history" (
+    "id" "uuid" DEFAULT "extensions"."uuid_generate_v4"() NOT NULL,
+    "asset_id" "uuid" NOT NULL,
+    "from_status" "text",
+    "to_status" "text" NOT NULL,
+    "changed_by" "uuid",
+    "changed_at" timestamp with time zone DEFAULT "now"() NOT NULL
+);
+
+
+ALTER TABLE "public"."asset_status_history" OWNER TO "postgres";
+
+
 CREATE TABLE IF NOT EXISTS "public"."assets" (
     "id" "uuid" DEFAULT "extensions"."uuid_generate_v4"() NOT NULL,
     "organization_id" "uuid" NOT NULL,
@@ -990,7 +1051,12 @@ CREATE TABLE IF NOT EXISTS "public"."assets" (
     "created_by" "uuid" NOT NULL,
     "updated_by" "uuid" NOT NULL,
     "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
-    "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL
+    "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    "tag_number" "text",
+    "status" "text" DEFAULT 'Active'::"text" NOT NULL,
+    "service_life" integer,
+    "dep_method" "text",
+    "liquidation_amt" numeric(10,2)
 );
 
 
@@ -1093,6 +1159,22 @@ CREATE TABLE IF NOT EXISTS "public"."gig_status_history" (
 ALTER TABLE "public"."gig_status_history" OWNER TO "postgres";
 
 
+CREATE TABLE IF NOT EXISTS "public"."gig_sync_status" (
+    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
+    "gig_id" "uuid" NOT NULL,
+    "user_id" "uuid" NOT NULL,
+    "google_event_id" "text",
+    "last_synced_at" timestamp with time zone,
+    "sync_status" "public"."sync_status" DEFAULT 'pending'::"public"."sync_status" NOT NULL,
+    "sync_error" "text",
+    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL
+);
+
+
+ALTER TABLE "public"."gig_sync_status" OWNER TO "postgres";
+
+
 CREATE TABLE IF NOT EXISTS "public"."gigs" (
     "id" "uuid" DEFAULT "extensions"."uuid_generate_v4"() NOT NULL,
     "title" "text" NOT NULL,
@@ -1112,6 +1194,23 @@ CREATE TABLE IF NOT EXISTS "public"."gigs" (
 
 
 ALTER TABLE "public"."gigs" OWNER TO "postgres";
+
+
+CREATE TABLE IF NOT EXISTS "public"."inventory_tracking" (
+    "id" "uuid" DEFAULT "extensions"."uuid_generate_v4"() NOT NULL,
+    "organization_id" "uuid" NOT NULL,
+    "gig_id" "uuid" NOT NULL,
+    "kit_id" "uuid",
+    "asset_id" "uuid",
+    "status" "text" NOT NULL,
+    "scanned_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    "scanned_by" "uuid",
+    "notes" "text",
+    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL
+);
+
+
+ALTER TABLE "public"."inventory_tracking" OWNER TO "postgres";
 
 
 CREATE TABLE IF NOT EXISTS "public"."invitations" (
@@ -1164,7 +1263,8 @@ CREATE TABLE IF NOT EXISTS "public"."kits" (
     "created_by" "uuid" NOT NULL,
     "updated_by" "uuid" NOT NULL,
     "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
-    "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL
+    "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    "is_container" boolean DEFAULT false NOT NULL
 );
 
 
@@ -1231,6 +1331,43 @@ CREATE TABLE IF NOT EXISTS "public"."staff_roles" (
 ALTER TABLE "public"."staff_roles" OWNER TO "postgres";
 
 
+CREATE TABLE IF NOT EXISTS "public"."user_devices" (
+    "id" "uuid" DEFAULT "extensions"."uuid_generate_v4"() NOT NULL,
+    "user_id" "uuid" NOT NULL,
+    "credential_id" "text" NOT NULL,
+    "public_key" "text" NOT NULL,
+    "device_name" "text",
+    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    "last_used_at" timestamp with time zone DEFAULT "now"() NOT NULL
+);
+
+
+ALTER TABLE "public"."user_devices" OWNER TO "postgres";
+
+
+CREATE TABLE IF NOT EXISTS "public"."user_google_calendar_settings" (
+    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
+    "user_id" "uuid" NOT NULL,
+    "calendar_id" "text" NOT NULL,
+    "calendar_name" "text",
+    "access_token" "text" NOT NULL,
+    "refresh_token" "text" NOT NULL,
+    "token_expires_at" timestamp with time zone NOT NULL,
+    "is_enabled" boolean DEFAULT true NOT NULL,
+    "sync_filters" "jsonb" DEFAULT '{}'::"jsonb",
+    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL
+);
+
+
+ALTER TABLE "public"."user_google_calendar_settings" OWNER TO "postgres";
+
+
+ALTER TABLE ONLY "public"."asset_status_history"
+    ADD CONSTRAINT "asset_status_history_pkey" PRIMARY KEY ("id");
+
+
+
 ALTER TABLE ONLY "public"."assets"
     ADD CONSTRAINT "assets_pkey" PRIMARY KEY ("id");
 
@@ -1276,8 +1413,23 @@ ALTER TABLE ONLY "public"."gig_status_history"
 
 
 
+ALTER TABLE ONLY "public"."gig_sync_status"
+    ADD CONSTRAINT "gig_sync_status_gig_id_user_id_key" UNIQUE ("gig_id", "user_id");
+
+
+
+ALTER TABLE ONLY "public"."gig_sync_status"
+    ADD CONSTRAINT "gig_sync_status_pkey" PRIMARY KEY ("id");
+
+
+
 ALTER TABLE ONLY "public"."gigs"
     ADD CONSTRAINT "gigs_pkey" PRIMARY KEY ("id");
+
+
+
+ALTER TABLE ONLY "public"."inventory_tracking"
+    ADD CONSTRAINT "inventory_tracking_pkey" PRIMARY KEY ("id");
 
 
 
@@ -1338,6 +1490,26 @@ ALTER TABLE ONLY "public"."staff_roles"
 
 ALTER TABLE ONLY "public"."invitations"
     ADD CONSTRAINT "unique_pending_invitation" UNIQUE ("organization_id", "email", "status");
+
+
+
+ALTER TABLE ONLY "public"."user_devices"
+    ADD CONSTRAINT "user_devices_credential_id_key" UNIQUE ("credential_id");
+
+
+
+ALTER TABLE ONLY "public"."user_devices"
+    ADD CONSTRAINT "user_devices_pkey" PRIMARY KEY ("id");
+
+
+
+ALTER TABLE ONLY "public"."user_google_calendar_settings"
+    ADD CONSTRAINT "user_google_calendar_settings_pkey" PRIMARY KEY ("id");
+
+
+
+ALTER TABLE ONLY "public"."user_google_calendar_settings"
+    ADD CONSTRAINT "user_google_calendar_settings_user_id_calendar_id_key" UNIQUE ("user_id", "calendar_id");
 
 
 
@@ -1415,6 +1587,18 @@ CREATE INDEX "idx_gig_status_history_gig_id" ON "public"."gig_status_history" US
 
 
 
+CREATE INDEX "idx_gig_sync_status_gig_id" ON "public"."gig_sync_status" USING "btree" ("gig_id");
+
+
+
+CREATE INDEX "idx_gig_sync_status_sync_status" ON "public"."gig_sync_status" USING "btree" ("sync_status");
+
+
+
+CREATE INDEX "idx_gig_sync_status_user_id" ON "public"."gig_sync_status" USING "btree" ("user_id");
+
+
+
 CREATE INDEX "idx_gigs_parent_gig_id" ON "public"."gigs" USING "btree" ("parent_gig_id");
 
 
@@ -1471,6 +1655,10 @@ CREATE INDEX "idx_staff_roles_name" ON "public"."staff_roles" USING "btree" ("na
 
 
 
+CREATE INDEX "idx_user_google_calendar_settings_user_id" ON "public"."user_google_calendar_settings" USING "btree" ("user_id");
+
+
+
 CREATE INDEX "idx_users_email" ON "public"."users" USING "btree" ("email") WHERE ("user_status" = 'pending'::"text");
 
 
@@ -1483,11 +1671,19 @@ CREATE INDEX "idx_users_timezone" ON "public"."users" USING "btree" ("timezone")
 
 
 
+CREATE INDEX "inventory_tracking_lookup_idx" ON "public"."inventory_tracking" USING "btree" ("gig_id", "kit_id", COALESCE("asset_id", '00000000-0000-0000-0000-000000000000'::"uuid"), "scanned_at" DESC);
+
+
+
 CREATE INDEX "kv_store_de012ad4_key_idx" ON "public"."kv_store_de012ad4" USING "btree" ("key" "text_pattern_ops");
 
 
 
 CREATE OR REPLACE TRIGGER "log_gig_status_changes" AFTER UPDATE ON "public"."gigs" FOR EACH ROW EXECUTE FUNCTION "public"."log_gig_status_change"();
+
+
+
+CREATE OR REPLACE TRIGGER "on_asset_status_change" AFTER UPDATE ON "public"."assets" FOR EACH ROW EXECUTE FUNCTION "public"."track_asset_status_change"();
 
 
 
@@ -1500,6 +1696,10 @@ CREATE OR REPLACE TRIGGER "update_gig_financials_updated_at" BEFORE UPDATE ON "p
 
 
 CREATE OR REPLACE TRIGGER "update_gig_staff_slots_updated_at" BEFORE UPDATE ON "public"."gig_staff_slots" FOR EACH ROW EXECUTE FUNCTION "public"."update_updated_at_column"();
+
+
+
+CREATE OR REPLACE TRIGGER "update_gig_sync_status_updated_at" BEFORE UPDATE ON "public"."gig_sync_status" FOR EACH ROW EXECUTE FUNCTION "public"."update_updated_at_column"();
 
 
 
@@ -1519,7 +1719,21 @@ CREATE OR REPLACE TRIGGER "update_staff_roles_updated_at" BEFORE UPDATE ON "publ
 
 
 
+CREATE OR REPLACE TRIGGER "update_user_google_calendar_settings_updated_at" BEFORE UPDATE ON "public"."user_google_calendar_settings" FOR EACH ROW EXECUTE FUNCTION "public"."update_updated_at_column"();
+
+
+
 CREATE OR REPLACE TRIGGER "update_users_updated_at" BEFORE UPDATE ON "public"."users" FOR EACH ROW EXECUTE FUNCTION "public"."update_updated_at_column"();
+
+
+
+ALTER TABLE ONLY "public"."asset_status_history"
+    ADD CONSTRAINT "asset_status_history_asset_id_fkey" FOREIGN KEY ("asset_id") REFERENCES "public"."assets"("id") ON DELETE CASCADE;
+
+
+
+ALTER TABLE ONLY "public"."asset_status_history"
+    ADD CONSTRAINT "asset_status_history_changed_by_fkey" FOREIGN KEY ("changed_by") REFERENCES "auth"."users"("id");
 
 
 
@@ -1603,8 +1817,43 @@ ALTER TABLE ONLY "public"."gig_status_history"
 
 
 
+ALTER TABLE ONLY "public"."gig_sync_status"
+    ADD CONSTRAINT "gig_sync_status_gig_id_fkey" FOREIGN KEY ("gig_id") REFERENCES "public"."gigs"("id") ON DELETE CASCADE;
+
+
+
+ALTER TABLE ONLY "public"."gig_sync_status"
+    ADD CONSTRAINT "gig_sync_status_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE CASCADE;
+
+
+
 ALTER TABLE ONLY "public"."gigs"
     ADD CONSTRAINT "gigs_parent_gig_id_fkey" FOREIGN KEY ("parent_gig_id") REFERENCES "public"."gigs"("id") ON DELETE CASCADE;
+
+
+
+ALTER TABLE ONLY "public"."inventory_tracking"
+    ADD CONSTRAINT "inventory_tracking_asset_id_fkey" FOREIGN KEY ("asset_id") REFERENCES "public"."assets"("id") ON DELETE SET NULL;
+
+
+
+ALTER TABLE ONLY "public"."inventory_tracking"
+    ADD CONSTRAINT "inventory_tracking_gig_id_fkey" FOREIGN KEY ("gig_id") REFERENCES "public"."gigs"("id") ON DELETE CASCADE;
+
+
+
+ALTER TABLE ONLY "public"."inventory_tracking"
+    ADD CONSTRAINT "inventory_tracking_kit_id_fkey" FOREIGN KEY ("kit_id") REFERENCES "public"."kits"("id") ON DELETE SET NULL;
+
+
+
+ALTER TABLE ONLY "public"."inventory_tracking"
+    ADD CONSTRAINT "inventory_tracking_organization_id_fkey" FOREIGN KEY ("organization_id") REFERENCES "public"."organizations"("id") ON DELETE CASCADE;
+
+
+
+ALTER TABLE ONLY "public"."inventory_tracking"
+    ADD CONSTRAINT "inventory_tracking_scanned_by_fkey" FOREIGN KEY ("scanned_by") REFERENCES "auth"."users"("id");
 
 
 
@@ -1650,6 +1899,16 @@ ALTER TABLE ONLY "public"."organization_members"
 
 ALTER TABLE ONLY "public"."organization_members"
     ADD CONSTRAINT "organization_members_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON UPDATE CASCADE ON DELETE CASCADE;
+
+
+
+ALTER TABLE ONLY "public"."user_devices"
+    ADD CONSTRAINT "user_devices_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "auth"."users"("id") ON DELETE CASCADE;
+
+
+
+ALTER TABLE ONLY "public"."user_google_calendar_settings"
+    ADD CONSTRAINT "user_google_calendar_settings_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE CASCADE;
 
 
 
@@ -1763,13 +2022,56 @@ CREATE POLICY "Staff can update their own assignments" ON "public"."gig_staff_as
 
 
 
+CREATE POLICY "Users can delete gig sync status" ON "public"."gig_sync_status" FOR DELETE USING (("auth"."uid"() = "user_id"));
+
+
+
+CREATE POLICY "Users can delete own calendar settings" ON "public"."user_google_calendar_settings" FOR DELETE USING (("auth"."uid"() = "user_id"));
+
+
+
+CREATE POLICY "Users can insert gig sync status" ON "public"."gig_sync_status" FOR INSERT WITH CHECK (("auth"."uid"() = "user_id"));
+
+
+
+CREATE POLICY "Users can insert own calendar settings" ON "public"."user_google_calendar_settings" FOR INSERT WITH CHECK (("auth"."uid"() = "user_id"));
+
+
+
 CREATE POLICY "Users can join organizations as viewers" ON "public"."organization_members" FOR INSERT TO "authenticated" WITH CHECK ((("user_id" = "auth"."uid"()) AND ("role" = 'Viewer'::"public"."user_role")));
+
+
+
+CREATE POLICY "Users can manage their own devices" ON "public"."user_devices" USING (("auth"."uid"() = "user_id"));
+
+
+
+CREATE POLICY "Users can update gig sync status" ON "public"."gig_sync_status" FOR UPDATE USING (("auth"."uid"() = "user_id"));
+
+
+
+CREATE POLICY "Users can update own calendar settings" ON "public"."user_google_calendar_settings" FOR UPDATE USING (("auth"."uid"() = "user_id"));
+
+
+
+CREATE POLICY "Users can view asset status history" ON "public"."asset_status_history" FOR SELECT USING ((EXISTS ( SELECT 1
+   FROM "public"."assets" "a"
+  WHERE (("a"."id" = "asset_status_history"."asset_id") AND "public"."user_is_member_of_org"("a"."organization_id", "auth"."uid"())))));
 
 
 
 CREATE POLICY "Users can view assignments for accessible gigs" ON "public"."gig_staff_assignments" FOR SELECT USING ((EXISTS ( SELECT 1
    FROM "public"."gig_staff_slots" "gss"
   WHERE (("gss"."id" = "gig_staff_assignments"."slot_id") AND "public"."user_has_access_to_gig"("gss"."gig_id", "auth"."uid"())))));
+
+
+
+CREATE POLICY "Users can view gig sync status" ON "public"."gig_sync_status" FOR SELECT USING ((("auth"."uid"() = "user_id") OR (EXISTS ( SELECT 1
+   FROM "public"."gigs" "g"
+  WHERE (("g"."id" = "gig_sync_status"."gig_id") AND (("g"."created_by" = "auth"."uid"()) OR (EXISTS ( SELECT 1
+           FROM ("public"."organization_members" "om"
+             JOIN "public"."gig_participants" "gp" ON (("gp"."organization_id" = "om"."organization_id")))
+          WHERE (("gp"."gig_id" = "g"."id") AND ("om"."user_id" = "auth"."uid"()))))))))));
 
 
 
@@ -1798,6 +2100,10 @@ CREATE POLICY "Users can view members of their organizations" ON "public"."organ
 
 
 
+CREATE POLICY "Users can view own calendar settings" ON "public"."user_google_calendar_settings" FOR SELECT USING (("auth"."uid"() = "user_id"));
+
+
+
 CREATE POLICY "Users can view participants for accessible gigs" ON "public"."gig_participants" FOR SELECT USING ("public"."user_has_access_to_gig"("gig_id", "auth"."uid"()));
 
 
@@ -1816,6 +2122,13 @@ CREATE POLICY "Users can view their organization's assets" ON "public"."assets" 
 
 CREATE POLICY "Users can view their organization's kits" ON "public"."kits" FOR SELECT USING ("public"."user_is_member_of_org"("organization_id", "auth"."uid"()));
 
+
+
+CREATE POLICY "Users with gig access can manage inventory tracking" ON "public"."inventory_tracking" USING ("public"."user_has_access_to_gig"("gig_id", "auth"."uid"()));
+
+
+
+ALTER TABLE "public"."asset_status_history" ENABLE ROW LEVEL SECURITY;
 
 
 ALTER TABLE "public"."assets" ENABLE ROW LEVEL SECURITY;
@@ -1839,7 +2152,13 @@ ALTER TABLE "public"."gig_staff_slots" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "public"."gig_status_history" ENABLE ROW LEVEL SECURITY;
 
 
+ALTER TABLE "public"."gig_sync_status" ENABLE ROW LEVEL SECURITY;
+
+
 ALTER TABLE "public"."gigs" ENABLE ROW LEVEL SECURITY;
+
+
+ALTER TABLE "public"."inventory_tracking" ENABLE ROW LEVEL SECURITY;
 
 
 ALTER TABLE "public"."invitations" ENABLE ROW LEVEL SECURITY;
@@ -1878,6 +2197,12 @@ CREATE POLICY "self_view" ON "public"."users" FOR SELECT USING (("auth"."uid"() 
 
 
 ALTER TABLE "public"."staff_roles" ENABLE ROW LEVEL SECURITY;
+
+
+ALTER TABLE "public"."user_devices" ENABLE ROW LEVEL SECURITY;
+
+
+ALTER TABLE "public"."user_google_calendar_settings" ENABLE ROW LEVEL SECURITY;
 
 
 ALTER TABLE "public"."users" ENABLE ROW LEVEL SECURITY;
@@ -1969,6 +2294,18 @@ GRANT ALL ON FUNCTION "public"."search_users_secure"("search_text" "text") TO "s
 
 
 
+GRANT ALL ON FUNCTION "public"."track_asset_status_change"() TO "anon";
+GRANT ALL ON FUNCTION "public"."track_asset_status_change"() TO "authenticated";
+GRANT ALL ON FUNCTION "public"."track_asset_status_change"() TO "service_role";
+
+
+
+GRANT ALL ON FUNCTION "public"."update_asset_status"("p_asset_id" "uuid", "p_status" "text") TO "anon";
+GRANT ALL ON FUNCTION "public"."update_asset_status"("p_asset_id" "uuid", "p_status" "text") TO "authenticated";
+GRANT ALL ON FUNCTION "public"."update_asset_status"("p_asset_id" "uuid", "p_status" "text") TO "service_role";
+
+
+
 GRANT ALL ON FUNCTION "public"."update_updated_at_column"() TO "anon";
 GRANT ALL ON FUNCTION "public"."update_updated_at_column"() TO "authenticated";
 GRANT ALL ON FUNCTION "public"."update_updated_at_column"() TO "service_role";
@@ -2017,6 +2354,12 @@ GRANT ALL ON FUNCTION "public"."user_organization_ids"("user_uuid" "uuid") TO "s
 
 
 
+GRANT ALL ON TABLE "public"."asset_status_history" TO "anon";
+GRANT ALL ON TABLE "public"."asset_status_history" TO "authenticated";
+GRANT ALL ON TABLE "public"."asset_status_history" TO "service_role";
+
+
+
 GRANT ALL ON TABLE "public"."assets" TO "anon";
 GRANT ALL ON TABLE "public"."assets" TO "authenticated";
 GRANT ALL ON TABLE "public"."assets" TO "service_role";
@@ -2059,9 +2402,21 @@ GRANT ALL ON TABLE "public"."gig_status_history" TO "service_role";
 
 
 
+GRANT ALL ON TABLE "public"."gig_sync_status" TO "anon";
+GRANT ALL ON TABLE "public"."gig_sync_status" TO "authenticated";
+GRANT ALL ON TABLE "public"."gig_sync_status" TO "service_role";
+
+
+
 GRANT ALL ON TABLE "public"."gigs" TO "anon";
 GRANT ALL ON TABLE "public"."gigs" TO "authenticated";
 GRANT ALL ON TABLE "public"."gigs" TO "service_role";
+
+
+
+GRANT ALL ON TABLE "public"."inventory_tracking" TO "anon";
+GRANT ALL ON TABLE "public"."inventory_tracking" TO "authenticated";
+GRANT ALL ON TABLE "public"."inventory_tracking" TO "service_role";
 
 
 
@@ -2104,6 +2459,18 @@ GRANT ALL ON TABLE "public"."organizations" TO "service_role";
 GRANT ALL ON TABLE "public"."staff_roles" TO "anon";
 GRANT ALL ON TABLE "public"."staff_roles" TO "authenticated";
 GRANT ALL ON TABLE "public"."staff_roles" TO "service_role";
+
+
+
+GRANT ALL ON TABLE "public"."user_devices" TO "anon";
+GRANT ALL ON TABLE "public"."user_devices" TO "authenticated";
+GRANT ALL ON TABLE "public"."user_devices" TO "service_role";
+
+
+
+GRANT ALL ON TABLE "public"."user_google_calendar_settings" TO "anon";
+GRANT ALL ON TABLE "public"."user_google_calendar_settings" TO "authenticated";
+GRANT ALL ON TABLE "public"."user_google_calendar_settings" TO "service_role";
 
 
 
