@@ -44,6 +44,16 @@ export const GIG_STATUS_CONFIG = {
 
 export type GigStatus = keyof typeof GIG_STATUS_CONFIG;
 
+export const ASSET_STATUS_CONFIG = {
+  Active:      { label: 'Active',      color: 'bg-green-100 text-green-800 border-green-300' },
+  Inactive:    { label: 'Inactive',    color: 'bg-amber-100 text-amber-800 border-amber-300' },
+  Maintenance: { label: 'Maintenance', color:  'bg-red-100 text-red-700 border-red-300' },
+  Disposed:    { label: 'Disposed',    color: 'bg-blue-100 text-blue-800 border-blue-300'},
+  Returned:    { label: 'Returned',    color: 'bg-gray-100 text-gray-700 border-gray-300' },
+} as const;
+
+export type AssetStatus = keyof typeof ASSET_STATUS_CONFIG;
+
 export const FIN_TYPE_CONFIG = {
   'Bid Submitted': { label: 'Bid Submitted' },
   'Bid Accepted': { label: 'Bid Accepted' },

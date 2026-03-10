@@ -1,13 +1,17 @@
 import { useState, useEffect } from 'react';
-import { Box, ArrowLeft, Edit2, Trash2, Copy, Loader2, Tag, Calendar, DollarSign, ShieldCheck } from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
+import { Box, ArrowLeft, Edit2, Trash2, Copy, Loader2, History } from 'lucide-react';
 import { toast } from 'sonner';
+import { format } from 'date-fns';
 import { Button } from './ui/button';
 import { Card } from './ui/card';
 import { Badge } from './ui/badge';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './ui/table';
 import AppHeader from './AppHeader';
 import { Organization, User, UserRole } from '../utils/supabase/types';
-import { getAsset, deleteAsset, duplicateAsset } from '../services/asset.service';
-import { format } from 'date-fns';
+import { getAsset, deleteAsset, duplicateAsset, getAssetStatusHistory, getAssetInventoryTracking } from '../services/asset.service';
+import type { DbAssetStatusHistory, DbInventoryTracking } from '../utils/supabase/types';
+import { ASSET_STATUS_CONFIG } from '../utils/supabase/constants';
 
 interface AssetDetailScreenProps {
   organization: Organization;
@@ -34,6 +38,9 @@ export default function AssetDetailScreen({
 }: AssetDetailScreenProps) {
   const [asset, setAsset] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [statusHistory, setStatusHistory] = useState<DbAssetStatusHistory[]>([]);
+  const [inventoryTracking, setInventoryTracking] = useState<DbInventoryTracking[]>([]);
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
 
   useEffect(() => {
     loadAsset();
@@ -44,6 +51,21 @@ export default function AssetDetailScreen({
     try {
       const data = await getAsset(assetId);
       setAsset(data);
+
+      // Load history tables concurrently
+      setIsLoadingHistory(true);
+      try {
+        const [history, tracking] = await Promise.all([
+          getAssetStatusHistory(assetId),
+          getAssetInventoryTracking(assetId),
+        ]);
+        setStatusHistory(history);
+        setInventoryTracking(tracking);
+      } catch (err) {
+        console.error('Error loading asset history:', err);
+      } finally {
+        setIsLoadingHistory(false);
+      }
     } catch (error: any) {
       console.error('Error loading asset:', error);
       toast.error(error.message || 'Failed to load asset');
@@ -75,13 +97,6 @@ export default function AssetDetailScreen({
       console.error('Error deleting asset:', error);
       toast.error(error.message || 'Failed to delete asset');
     }
-  };
-
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-    }).format(amount);
   };
 
   if (isLoading) {
@@ -138,6 +153,11 @@ export default function AssetDetailScreen({
                     {asset.type}
                   </Badge>
                 )}
+                {asset.status && (
+                  <span className={`inline-flex items-center rounded-md border px-2 py-0.5 text-xs font-medium ${ASSET_STATUS_CONFIG[asset.status as keyof typeof ASSET_STATUS_CONFIG]?.color ?? 'bg-gray-100 text-gray-700 border-gray-300'}`}>
+                    {asset.status}
+                  </span>
+                )}
               </div>
             </div>
 
@@ -184,41 +204,31 @@ export default function AssetDetailScreen({
                   <p className="text-sm font-medium text-gray-500 uppercase tracking-wider">Serial Number</p>
                   <p className="mt-1 font-mono text-gray-900">{asset.serial_number || '—'}</p>
                 </div>
+                
+                  <div>
+                    <p className="text-sm font-medium text-gray-500 uppercase tracking-wider">Inventory Tag ID</p>
+                    <p className="mt-1 font-mono text-gray-900">{asset.tag_number || '-'}</p>
+                  </div>
+               
+                <div>
+                  <p className="text-sm font-medium text-gray-500 uppercase tracking-wider">Status</p>
+                  <div className="mt-1">
+                    <span className={`inline-flex items-center rounded-md border px-2 py-0.5 text-xs font-medium ${ASSET_STATUS_CONFIG[asset.status as keyof typeof ASSET_STATUS_CONFIG]?.color ?? 'bg-gray-100 text-gray-700 border-gray-300'}`}>
+                      {asset.status ?? 'Active'}
+                    </span>
+                  </div>
+                </div>
                 <div className="md:col-span-2">
-                  <p className="text-sm font-medium text-gray-500 uppercase tracking-wider">Description</p>
-                  <p className="mt-1 text-gray-600">{asset.description || 'No description provided.'}</p>
+                  <p className="text-sm font-medium text-gray-500 uppercase tracking-wider">Notes</p>
+                  <div className="mt-1 text-gray-600 prose prose-sm max-w-none">
+                    {asset.description
+                      ? <ReactMarkdown>{asset.description}</ReactMarkdown>
+                      : 'No description provided.'}
+                  </div>
                 </div>
               </div>
             </Card>
 
-            <Card className="p-4">
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">Financial Details</h3>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div>
-                  <div className="flex items-center gap-2 text-gray-500 mb-1">
-                    <DollarSign className="w-4 h-4" />
-                    <span className="text-sm font-medium uppercase tracking-wider">Cost</span>
-                  </div>
-                  <p className="text-xl font-semibold text-gray-900">{formatCurrency(asset.cost || 0)}</p>
-                </div>
-                <div>
-                  <div className="flex items-center gap-2 text-gray-500 mb-1">
-                    <ShieldCheck className="w-4 h-4" />
-                    <span className="text-sm font-medium uppercase tracking-wider">Replacement Value</span>
-                  </div>
-                  <p className="text-xl font-semibold text-sky-600">{formatCurrency(asset.replacement_value || 0)}</p>
-                </div>
-                <div>
-                  <div className="flex items-center gap-2 text-gray-500 mb-1">
-                    <Calendar className="w-4 h-4" />
-                    <span className="text-sm font-medium uppercase tracking-wider">Acquisition Date</span>
-                  </div>
-                  <p className="text-lg text-gray-900">
-                    {asset.acquisition_date ? format(new Date(asset.acquisition_date), 'PPP') : '—'}
-                  </p>
-                </div>
-              </div>
-            </Card>
           </div>
 
           {/* Sidebar Info */}
@@ -226,6 +236,18 @@ export default function AssetDetailScreen({
             <Card className="p-4">
               <h3 className="text-lg font-semibold text-gray-900 mb-2">Inventory Info</h3>
               <div className="space-y-4">
+                {asset.tag_number && (
+                  <div>
+                    <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">Inventory Tag ID</p>
+                    <p className="mt-1 text-gray-900 font-mono font-medium">{asset.tag_number}</p>
+                  </div>
+                )}
+                <div>
+                  <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">Acquisition Date</p>
+                  <p className="mt-1 text-gray-900 font-medium">
+                    {asset.acquisition_date ? format(new Date(asset.acquisition_date), 'PPP') : '—'}
+                  </p>
+                </div>
                 <div>
                   <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">Vendor</p>
                   <p className="mt-1 text-gray-900 font-medium">{asset.vendor || '—'}</p>
@@ -234,31 +256,115 @@ export default function AssetDetailScreen({
                   <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">Quantity</p>
                   <p className="mt-1 text-gray-900 font-medium">{asset.quantity || 1}</p>
                 </div>
-                <div className="pt-4 border-t border-gray-100">
-                  <div className="flex items-center gap-2">
-                    <div className={`w-3 h-3 rounded-full ${asset.insurance_policy_added ? 'bg-green-500' : 'bg-amber-500'}`} />
-                    <p className="text-sm font-medium text-gray-900">
-                      {asset.insurance_policy_added ? 'Insured' : 'Not Insured'}
-                    </p>
-                  </div>
-                  {asset.insurance_class && (
-                    <p className="text-xs text-gray-500 mt-1 ml-5">Class: {asset.insurance_class}</p>
-                  )}
-                </div>
               </div>
-            </Card>
-
-            <Card className="p-4 bg-sky-50 border-sky-100">
-              <h4 className="text-sm font-semibold text-sky-900 mb-2">Asset QR / Tag</h4>
-              <div className="bg-white p-4 rounded-lg border border-sky-200 flex flex-col items-center justify-center aspect-square">
-                <Tag className="w-12 h-12 text-sky-300 mb-2" />
-                <p className="text-xs font-mono text-sky-800">{asset.id.split('-')[0].toUpperCase()}</p>
-              </div>
-              <p className="text-xs text-sky-600 mt-3 text-center">
-                System generated tracking ID for internal inventory management.
-              </p>
             </Card>
           </div>
+        </div>
+
+        {/* History Tables */}
+        <div className="space-y-4 mt-4">
+          {/* Asset Status History */}
+          <Card className="p-4">
+            <div className="flex items-center gap-2 mb-3">
+              <History className="w-5 h-5 text-gray-400" />
+              <h3 className="text-lg font-semibold text-gray-900">Status History</h3>
+            </div>
+            {isLoadingHistory ? (
+              <div className="flex items-center gap-2 text-sm text-gray-500 py-4">
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Loading...
+              </div>
+            ) : statusHistory.length === 0 ? (
+              <p className="text-sm text-gray-400 py-2">No status changes recorded yet.</p>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>From</TableHead>
+                    <TableHead>To</TableHead>
+                    <TableHead>Changed By</TableHead>
+                    <TableHead>Date</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {statusHistory.map((row) => (
+                    <TableRow key={row.id}>
+                      <TableCell className="text-gray-500">{row.from_status ?? '—'}</TableCell>
+                      <TableCell>
+                        <span className={`inline-flex items-center rounded-md border px-2 py-0.5 text-xs font-medium ${ASSET_STATUS_CONFIG[row.to_status as keyof typeof ASSET_STATUS_CONFIG]?.color ?? 'bg-gray-100 text-gray-700 border-gray-300'}`}>
+                          {row.to_status}
+                        </span>
+                      </TableCell>
+                      <TableCell>
+                        {row.changed_by_user
+                          ? `${row.changed_by_user.first_name} ${row.changed_by_user.last_name}`.trim()
+                          : '—'}
+                      </TableCell>
+                      <TableCell className="text-gray-500 text-xs">
+                        {format(new Date(row.changed_at), 'PPp')}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
+          </Card>
+
+          {/* Inventory Tracking */}
+          <Card className="p-4">
+            <div className="flex items-center gap-2 mb-3">
+              <History className="w-5 h-5 text-gray-400" />
+              <h3 className="text-lg font-semibold text-gray-900">Inventory Tracking</h3>
+              {inventoryTracking.length > 10 && (
+                <span className="text-xs text-gray-400 ml-1">(last 10 of {inventoryTracking.length})</span>
+              )}
+            </div>
+            {isLoadingHistory ? (
+              <div className="flex items-center gap-2 text-sm text-gray-500 py-4">
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Loading...
+              </div>
+            ) : inventoryTracking.length === 0 ? (
+              <p className="text-sm text-gray-400 py-2">No inventory scans recorded yet.</p>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Gig</TableHead>
+                    <TableHead>Kit</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Scanned By</TableHead>
+                    <TableHead>Scanned At</TableHead>
+                    <TableHead>Notes</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {inventoryTracking.slice(0, 10).map((row) => (
+                    <TableRow key={row.id}>
+                      <TableCell className="font-medium">{row.gig?.title ?? '—'}</TableCell>
+                      <TableCell>{row.kit?.name ?? '—'}</TableCell>
+                      <TableCell>
+                        <span className="inline-flex items-center rounded-md border px-2 py-0.5 text-xs font-medium bg-sky-100 text-sky-800 border-sky-300">
+                          {row.status}
+                        </span>
+                      </TableCell>
+                      <TableCell>
+                        {row.scanned_by_user
+                          ? `${row.scanned_by_user.first_name} ${row.scanned_by_user.last_name}`.trim()
+                          : '—'}
+                      </TableCell>
+                      <TableCell className="text-gray-500 text-xs">
+                        {format(new Date(row.scanned_at), 'PPp')}
+                      </TableCell>
+                      <TableCell className="text-gray-500 text-xs max-w-[160px] truncate">
+                        {row.notes ?? '—'}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
+          </Card>
         </div>
       </div>
     </div>

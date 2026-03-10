@@ -1,7 +1,7 @@
-import { OrganizationType, UserRole, GigStatus, FinType, FinCategory } from './constants';
+import { OrganizationType, UserRole, GigStatus, FinType, FinCategory, AssetStatus } from './constants';
 
 // Re-export constants types for convenience
-export type { OrganizationType, UserRole, GigStatus, FinType, FinCategory };
+export type { OrganizationType, UserRole, GigStatus, FinType, FinCategory, AssetStatus };
 
 // Database types for Supabase tables
 
@@ -179,10 +179,41 @@ export interface DbAsset {
   description?: string;
   replacement_value?: number;
   quantity?: number;
+  tag_number?: string;
+  status: AssetStatus;
+  service_life?: number;
+  dep_method?: string;
+  liquidation_amt?: number;
   created_by: string;
   updated_by: string;
   created_at: string;
   updated_at: string;
+}
+
+export interface DbAssetStatusHistory {
+  id: string;
+  asset_id: string;
+  from_status?: string;
+  to_status: string;
+  changed_by: string;
+  changed_at: string;
+  changed_by_user?: { first_name: string; last_name: string } | null;
+}
+
+export interface DbInventoryTracking {
+  id: string;
+  organization_id: string;
+  gig_id: string;
+  kit_id?: string | null;
+  asset_id?: string | null;
+  status: string;
+  scanned_at: string;
+  scanned_by: string;
+  notes?: string | null;
+  created_at: string;
+  scanned_by_user?: { first_name: string; last_name: string } | null;
+  gig?: { title: string } | null;
+  kit?: { name: string } | null;
 }
 
 export interface DbKit {

@@ -2,6 +2,7 @@ import { createClient } from '../utils/supabase/client';
 import { handleApiError } from '../utils/api-error-utils';
 import { requireAuth } from '../utils/supabase/auth-utils';
 import { sanitizeLikeInput } from '../utils/validation-utils';
+import type { DbAssetStatusHistory, DbInventoryTracking } from '../utils/supabase/types';
 
 const getSupabase = () => createClient();
 
@@ -16,8 +17,7 @@ export async function getAssets(organizationId: string, filters?: {
 }) {
   const supabase = getSupabase();
   try {
-    let query = supabase
-      .from('assets')
+    let query = (supabase.from('assets') as any)
       .select('*')
       .eq('organization_id', organizationId)
       .order('manufacturer_model');
@@ -57,8 +57,7 @@ export async function getDistinctAssetValues(
 ): Promise<string[]> {
   const supabase = getSupabase();
   try {
-    let query = supabase
-      .from('assets')
+    let query = (supabase.from('assets') as any)
       .select(field)
       .eq('organization_id', organizationId)
       .not(field, 'is', null);
@@ -70,13 +69,13 @@ export async function getDistinctAssetValues(
     const { data, error } = await query;
     if (error) throw error;
 
-    const uniqueValues = Array.from(
+    const uniqueValues: string[] = (Array.from(
       new Set(
         (data || [])
-          .map((item: any) => item[field])
-          .filter((value): value is string => !!value && value.trim() !== '')
+          .map((item: any) => item[field] as string)
+          .filter((value: string) => !!value && value.trim() !== '')
       )
-    ).sort();
+    ) as string[]).sort();
 
     return uniqueValues;
   } catch (err) {
@@ -90,16 +89,81 @@ export async function getDistinctAssetValues(
 export async function getAsset(assetId: string) {
   const supabase = getSupabase();
   try {
-    const { data, error } = await supabase
-      .from('assets')
+    const { data, error } = await (supabase.from('assets') as any)
       .select('*')
       .eq('id', assetId)
       .single();
 
     if (error) throw error;
-    return data;
+    return data as Record<string, any>;
   } catch (err) {
     return handleApiError(err, 'fetch asset');
+  }
+}
+
+/**
+ * Fetch status history for an asset, with changer's name joined
+ */
+export async function getAssetStatusHistory(assetId: string): Promise<DbAssetStatusHistory[]> {
+  const supabase = getSupabase();
+  try {
+    const { data, error } = await (supabase.from('asset_status_history') as any)
+      .select('*')
+      .eq('asset_id', assetId)
+      .order('changed_at', { ascending: false });
+
+    if (error) throw error;
+
+    const rows = data || [];
+    const changerIds = Array.from(new Set(rows.map((r: any) => r.changed_by).filter(Boolean)));
+
+    let userMap = new Map<string, { first_name: string; last_name: string }>();
+    if (changerIds.length > 0) {
+      const { data: users } = await (supabase.from('users') as any)
+        .select('id, first_name, last_name')
+        .in('id', changerIds);
+      userMap = new Map((users || []).map((u: any) => [u.id, u]));
+    }
+
+    return rows.map((r: any) => ({
+      ...r,
+      changed_by_user: r.changed_by ? (userMap.get(r.changed_by) ?? null) : null,
+    })) as DbAssetStatusHistory[];
+  } catch (err) {
+    return handleApiError(err, 'fetch asset status history');
+  }
+}
+
+/**
+ * Fetch inventory tracking records for an asset, with scanner name and gig/kit info joined
+ */
+export async function getAssetInventoryTracking(assetId: string): Promise<DbInventoryTracking[]> {
+  const supabase = getSupabase();
+  try {
+    const { data, error } = await (supabase.from('inventory_tracking') as any)
+      .select('*, gig:gig_id(title), kit:kit_id(name)')
+      .eq('asset_id', assetId)
+      .order('scanned_at', { ascending: false });
+
+    if (error) throw error;
+
+    const rows = data || [];
+    const scannerIds = Array.from(new Set(rows.map((r: any) => r.scanned_by).filter(Boolean)));
+
+    let userMap = new Map<string, { first_name: string; last_name: string }>();
+    if (scannerIds.length > 0) {
+      const { data: users } = await (supabase.from('users') as any)
+        .select('id, first_name, last_name')
+        .in('id', scannerIds);
+      userMap = new Map((users || []).map((u: any) => [u.id, u]));
+    }
+
+    return rows.map((r: any) => ({
+      ...r,
+      scanned_by_user: r.scanned_by ? (userMap.get(r.scanned_by) ?? null) : null,
+    })) as DbInventoryTracking[];
+  } catch (err) {
+    return handleApiError(err, 'fetch asset inventory tracking');
   }
 }
 
@@ -121,12 +185,16 @@ export async function createAsset(assetData: {
   insurance_policy_added?: boolean;
   insurance_class?: string;
   quantity?: number;
+  tag_number?: string;
+  status?: string;
+  service_life?: number;
+  dep_method?: string;
+  liquidation_amt?: number;
 }) {
   try {
     const { supabase, user } = await requireAuth();
 
-    const { data, error } = await supabase
-      .from('assets')
+    const { data, error } = await (supabase.from('assets') as any)
       .insert({
         ...assetData,
         created_by: user.id,
@@ -157,12 +225,18 @@ export async function updateAsset(assetId: string, assetData: {
   type?: string;
   description?: string;
   insurance_policy_added?: boolean;
+  insurance_class?: string;
+  quantity?: number;
+  tag_number?: string;
+  status?: string;
+  service_life?: number;
+  dep_method?: string;
+  liquidation_amt?: number;
 }) {
   try {
     const { supabase, user } = await requireAuth();
 
-    const { data, error } = await supabase
-      .from('assets')
+    const { data, error } = await (supabase.from('assets') as any)
       .update({
         ...assetData,
         updated_by: user.id,
@@ -185,7 +259,7 @@ export async function updateAsset(assetId: string, assetData: {
 export async function deleteAsset(assetId: string) {
   const supabase = getSupabase();
   try {
-    const { error } = await supabase.from('assets').delete().eq('id', assetId);
+    const { error } = await (supabase.from('assets') as any).delete().eq('id', assetId);
     if (error) throw error;
     return { success: true };
   } catch (err) {
@@ -212,8 +286,7 @@ export async function duplicateAsset(assetId: string) {
       ...assetData
     } = original;
 
-    const { data, error } = await supabase
-      .from('assets')
+    const { data, error } = await (supabase.from('assets') as any)
       .insert({
         ...assetData,
         manufacturer_model: `${original.manufacturer_model} (Copy)`,
