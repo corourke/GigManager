@@ -6,7 +6,7 @@ This document serves as the overview and index for the GigManager development pl
 
 For functional requirements and business rules, see [Product Requirements](../requirements.md).
 
-**Last Updated**: 2026-01-18
+**Last Updated**: 2026-03-11
 
 ---
 
@@ -22,16 +22,16 @@ GigManager's multi-tenant architecture must cater to the distinct workflows of d
 ### 1.2 Bands / Acts
 - **Primary Need**: Logistics and financial settlement for individual performances.
 - **Workflow**: Manage tour dates, track venues/riders, track settlement, share stage plots.
-- **Gap**: Financial settlement tools and streamlined rider management.
+- **Gap**: Financial settlement tools, streamlined rider management, and multi-act scheduling for shared bills.
 
 ### 1.3 Production Companies (Event Producers)
-- **Primary Need**: High-level coordination of multiple vendors and complex financials using hierarchical gig structures.
-- **Workflow**: Create master gigs with sub-gigs (e.g., Festival with multiple stages). Manage shared resources across the event hierarchy.
-- **Gap**: Robust hierarchical gig implementation to handle parent/child relationships seamlessly without complicating simple workflows.
+- **Primary Need**: High-level coordination of multiple vendors, multi-act scheduling, and complex financials.
+- **Workflow**: Book events with multiple acts and a schedule of performances, manage shared resources. For large events, create master gigs with sub-gigs (e.g., Festival with multiple stages).
+- **Gap**: Multi-act scheduling within gigs; hierarchical gig structure for complex multi-venue events (advanced).
 
 ### 1.4 Venues
 - **Primary Need**: Calendar management, technical spec sharing, and multi-room event schedules.
-- **Workflow**: Manage incoming booking requests, handle multi-room events using hierarchical gig structures, provide house tech specs.
+- **Workflow**: Manage incoming booking requests, handle multi-room events, provide house tech specs.
 - **Gap**: External booking portal, multi-room calendar visualization.
 
 ### 1.5 Rental Houses
@@ -45,11 +45,13 @@ GigManager's multi-tenant architecture must cater to the distinct workflows of d
 
 Based on the persona analysis and [competitive analysis](02_competitive-analysis.md):
 
-- **GigManager's strongest advantages are architectural**: multi-tenant collaboration and hierarchical events. No competitor has either.
-- **Biggest gap to close**: financial management (quoting, invoicing, settlement). Every serious competitor has this.
+- **Mobile gig browsing is the most urgent gap**: Users need a compact way to view upcoming gigs, confirm bookings, and capture new bookings on the go.
+- **Multi-act scheduling is a practical everyday need**: Most gigs have multiple acts with a schedule. This is more broadly useful than full hierarchical events.
+- **Financial management is the biggest competitive gap**: Quoting, invoicing, and settlement. Every serious competitor has this.
+- **GigManager's strongest architectural advantages**: Multi-tenant collaboration and hierarchical events. No competitor has either.
 - **Underserved personas** (bands, venues) represent a go-to-market opportunity that competitors ignore.
-- **Mobile is table-stakes**, not a differentiator. Rentman has the most mature mobile/offline. Our PWA approach is viable.
-- **No competitor has hierarchical events** — this is a genuinely unique feature that should be prioritized.
+- **Hierarchical events are a genuine differentiator** but serve a smaller subset of users. They should be developed independently, not as a foundation for other features.
+- **Mobile is table-stakes**, not a differentiator. Our PWA approach is viable.
 
 ---
 
@@ -58,61 +60,64 @@ Based on the persona analysis and [competitive analysis](02_competitive-analysis
 | # | Document | Description |
 |---|----------|-------------|
 | 02 | [Competitive Analysis](02_competitive-analysis.md) | Competitor profiles (Rentman, Current RMS, LASSO, BackOpsLive), feature gap matrix, positioning strategy, and differentiation opportunities. |
-| 03 | [Technical Spec](03_technical-spec.md) | Implementation approach overview — tech stack, architecture for hierarchy/CSV/PWA, source code structure, delivery phases, and verification strategy. |
-| 04 | [Hierarchy Foundations](04_hierarchy-foundations.md) | SQL recursive CTEs, schema strategy, inheritance functions, service layer changes, and flexible CSV mapping architecture. |
-| 05 | [Hierarchy UI & Mobile](05_hierarchy-ui-mobile.md) | GigHierarchyTree component design, progressive disclosure patterns, PWA manifest/caching strategy, and simple vs. complex org needs. |
-| 06 | [Field Ops & Mobile](06_field-ops-mobile.md) | Mobile staff workflows, inventory mode (pack-out through return), barcode scanning hardware, WebAuthn, location services, and data model extensions. |
-| 07 | [Financials & Settlement](07_financials-settlement.md) | Financial rollup algorithms, multi-tenant visibility rules, settlement views (production and act), vendor bid management, and hierarchy-aware reporting. |
-| 08 | [Scale & Performance](08_scale-performance-roadmap.md) | Offline sync and conflict resolution, push notification architecture, scale/performance benchmarks, and load testing protocols. |
+| 03 | [Technical Spec](03_technical-spec.md) | Implementation approach overview — tech stack, architecture, source code structure, delivery phases, and verification strategy. |
+| 04 | [Mobile Development](04_mobile-development.md) | Consolidated mobile plan: gig browsing, staff dashboard, inventory/warehouse mode, PWA configuration, offline sync, push notifications, and data model extensions. |
+| 05 | [Hierarchy Foundations](05_hierarchy-foundations.md) | SQL recursive CTEs, schema strategy, inheritance functions, service layer changes, and flexible CSV mapping architecture. |
+| 06 | [Hierarchy UI](06_hierarchy-ui.md) | GigHierarchyTree component design, progressive disclosure patterns, and simple vs. complex org needs. |
+| 07 | [Financials & Settlement](07_financials-settlement.md) | Flat gig financials (baseline), multi-tenant visibility, settlement views, vendor bid management, and hierarchical rollups (extension). |
+| 08 | [Scale & Performance](08_scale-performance-roadmap.md) | Scale/performance benchmarks and load testing protocols. |
 
 ---
 
 ## 4. Development Roadmap
 
-*Risk Note*: Recursive database queries and offline-first state synchronization pose significant technical complexity and require rigorous integration testing.
+### Sprint 1: Mobile Gig Browsing + CSV Import
+*Detail: [Technical Spec §Phase 1](03_technical-spec.md), [Mobile Development](04_mobile-development.md)*
 
-### Sprint 1: Data Foundations & Hierarchy Core
-*Detail: [Technical Spec §Phase 1](03_technical-spec.md), [Hierarchy Foundations](04_hierarchy-foundations.md)*
+- [ ] PWA baseline (manifest, service worker, touch-optimized layout)
+- [ ] Mobile gig list (card-based), simplified gig detail view, quick-create gig form
+- [ ] Enhanced Asset CSV import (flexible mapping, bulk updates)
 
-- [ ] Implement enhanced Asset CSV import (flexible mapping, bulk updates)
+### Sprint 2: Multi-Act Scheduling + Warehouse Mobile
+*Detail: [Technical Spec §Phase 2](03_technical-spec.md), [Mobile Development](04_mobile-development.md)*
+
+- [ ] Implement `gig_schedule_entries` model (act time slots, activity types)
+- [ ] Schedule/timeline UI within gig detail
+- [ ] Mobile barcode scanning for equipment check-in/out
+- [ ] Staff dashboard mobile view
+
+### Sprint 3: Financial Management (Flat Gigs)
+*Detail: [Technical Spec §Phase 3](03_technical-spec.md), [Financials & Settlement](07_financials-settlement.md)*
+
+- [ ] Flat gig financials: settlement views and vendor bid management
+- [ ] Act-specific settlement screen
+- [ ] Push notifications for staff assignments and gig updates
+
+### Sprint 4: Hierarchical Gig Structure
+*Detail: [Technical Spec §Phase 4](03_technical-spec.md), [Hierarchy Foundations](05_hierarchy-foundations.md), [Hierarchy UI](06_hierarchy-ui.md)*
+
 - [ ] Database schema changes for `parent_gig_id` and `hierarchy_depth`
-- [ ] Backend recursive inheritance logic for Participants and Equipment
-
-### Sprint 2: Hierarchy UI & Mobile PWA Baseline
-*Detail: [Technical Spec §Phase 2](03_technical-spec.md), [Hierarchy UI & Mobile](05_hierarchy-ui-mobile.md)*
-
-- [ ] Update Gig List UI to show nested hierarchy and rollup statuses
-- [ ] Implement progressive disclosure forms for parent/child gig creation
-- [ ] Launch Offline-First PWA baseline with manifest, service workers, and touch-optimized layout
-
-### Sprint 3: Warehouse Flow & Conflict Detection
-*Detail: [Technical Spec §Phase 3](03_technical-spec.md), [Field Ops & Mobile](06_field-ops-mobile.md)*
-
-- [ ] Implement Mobile Camera API barcode scanning for equipment check-in/out
-- [ ] Implement hierarchical conflict detection (preventing double-booking across the tree)
-- [ ] Support Biometric Auth and Location Services for venue check-in
-
-### Sprint 4: Financial Rollups & Advanced Notifications
-*Detail: [Technical Spec §Phase 4](03_technical-spec.md), [Financials & Settlement](07_financials-settlement.md)*
-
-- [ ] Implement Push Notifications for staff assignments and hierarchy-aware gig updates
-- [ ] Implement Act-specific Settlement screen and Production Vendor Bid rollups
-- [ ] Performance optimization & real-world volume testing (5k+ assets)
+- [ ] Recursive inheritance logic for participants and equipment
+- [ ] Hierarchy UI (tree view, progressive disclosure forms)
+- [ ] Hierarchical conflict detection
+- [ ] Extend financial rollups to support hierarchy
 
 ### Sprint 5: Scale & Polish
-*Detail: [Scale & Performance](08_scale-performance-roadmap.md)*
+*Detail: [Technical Spec §Phase 5](03_technical-spec.md), [Scale & Performance](08_scale-performance-roadmap.md)*
 
 - [ ] Offline sync finalization and conflict resolution UI
-- [ ] Push notification architecture (database webhooks, Edge Functions)
 - [ ] Load testing (5k+ gigs, 20k+ assets, 500+ concurrent users)
-- [ ] Performance optimization (indexing, virtualized lists, CTE materialization)
+- [ ] Performance optimization (indexing, virtualized lists)
+- [ ] Biometric auth (WebAuthn) and location services
 
 ---
 
 ## 5. Success Criteria
 
-- Queries on complex hierarchies resolve in <200ms
+- Mobile gig browsing functional on iOS/Android within Sprint 1
+- Multi-act scheduling operational for gigs with 2+ acts
+- Flat gig financial management complete before hierarchy work begins
 - Smooth offline sync with 100+ queued changes
 - Barcode scanning operational on physical devices
 - Multi-tenant financial rollups verified with no data leakage
-- 5,000+ asset and 500+ hierarchical gig datasets perform acceptably
+- Queries resolve in <200ms under load (5k+ gigs, 20k+ assets)

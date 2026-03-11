@@ -1,6 +1,6 @@
-# Technical Detail: Hierarchy UI & Mobile Strategy
+# Technical Detail: Hierarchy UI
 
-This document specifies the UI/UX designs for the hierarchical gig structure and the technical strategy for the Mobile PWA in GigManager.
+This document specifies the UI/UX designs for the hierarchical gig structure in GigManager.
 
 ## 1. GigHierarchyTree Design
 
@@ -68,33 +68,7 @@ When a gig has a parent, child sections (`Participants`, `Staff Slots`, `Kits`) 
 
 ---
 
-## 3. Mobile PWA & Caching Strategy
-
-GigManager will be an offline-first PWA to support staff in the field (venues, warehouses).
-
-### 3.1 PWA Manifest & Icons
-- **`manifest.json` Configuration**:
-    - `display`: `standalone` (removes browser chrome).
-    - `orientation`: `any`.
-    - `theme_color`: `#0ea5e9` (Sky-500).
-    - `background_color`: `#f8fafc` (Gray-50).
-    - `icons`: Comprehensive set (192x192, 512x512, maskable).
-    - `splash_screens`: Custom splash screens for standalone PWA experience.
-
-### 3.2 Service Worker Strategy (`vite-plugin-pwa`)
-- **Static Assets**: `CacheFirst` for JS, CSS, and Fonts.
-- **API Responses**: `StaleWhileRevalidate` for gig lists and details.
-- **Background Sync**: Use the Workbox `BackgroundSyncPlugin` to replay failed `POST/PATCH` requests when connectivity returns.
-
-### 3.3 Data Persistence (`idb`)
-While the Service Worker caches network responses, we will use `idb` for explicitly managed offline data:
-- **`GigStore`**: Local copy of frequently accessed gigs.
-- **`OutboxStore`**: Queue of pending local edits (Create/Update/Delete) that need to be synced to Supabase.
-- **Conflict Handling**: If a sync fails due to a newer server-side change, notify the user via a "Sync Conflict" toast with an option to "Keep Mine" or "Discard Mine".
-
----
-
-## 4. Simple vs Complex Organizational Needs
+## 3. Simple vs Complex Organizational Needs
 
 | Feature | Band (Simple) | Production Co (Complex) |
 | :--- | :--- | :--- |

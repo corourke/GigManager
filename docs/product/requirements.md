@@ -15,9 +15,8 @@
 ## Table of Contents
 
 1. [Overview](#overview)
-2. [Major Feature Groups](#major-feature-groups)
-3. [CSV Import Feature Requirements](#csv-import-feature-requirements)
-4. [Complex Events: Hierarchical Gig Structure](#complex-events-hierarchical-gig-structure)
+2. [Core Features](#core-features) (incl. Multi-Act Scheduling)
+3. [Major Functionality Enhancements](#major-functionality-enhancements) (incl. Mobile Version, CSV Import, Hierarchical Gigs, Data Tables)
 
 ---
 
@@ -90,7 +89,7 @@ This app streamlines the management of gigs (where an act performs at a venue) f
 
 ---
 
-## Major Feature Groups
+## Core Features
 
 ### 1. Authentication & User Management
 
@@ -219,6 +218,34 @@ This app streamlines the management of gigs (where an act performs at a venue) f
 - **Update**: Manager+ can edit gigs
 - **Delete**: Admin can delete gigs
 - **Duplicate**: Copy gig with all related data (participants, slots, kit assignments)
+
+#### Multi-Act Scheduling & Event Timeline
+
+Many gigs involve multiple acts performing at scheduled times, plus logistical activities (load-in, soundcheck, rehearsals). This section defines the scheduling model within a single gig.
+
+**Schedule Entries**:
+- A gig can have multiple schedule entries, each with a type, start time, end time, and optional notes.
+- Schedule entries are stored in a separate `gig_schedule_entries` table — participants define who is involved, schedule entries define when things happen.
+- **Activity Types**: Load-In, Soundcheck, Rehearsal, Set (linked to an act participant), Intermission/Break, Load-Out, Other (custom label).
+- Schedule entry times must fall within the gig's start/end window.
+
+**Act Time Slots**:
+- Acts added as gig participants can each have a scheduled performance time via a Set-type schedule entry.
+- Simple single-act gigs do not need to interact with scheduling at all.
+- Multi-act gigs use a schedule builder to assign time slots to each act.
+
+**Staffing Windows**:
+- Staff slots can optionally reference a schedule entry or time range, so staff can be assigned to specific windows within a gig rather than the full gig duration.
+- Example: A sound engineer assigned only to the 7pm-9pm set, not the entire event.
+
+**Conflict Detection**:
+- Detect overlapping act time slots within the same gig.
+- Detect staff assigned to overlapping schedule windows across gigs.
+
+**UI Requirements**:
+- A timeline/schedule view within the gig detail page showing all activities and act slots in chronological order.
+- Simple gigs (single act, no schedule entries) show no scheduling UI — it appears only when schedule entries are added.
+- Schedule entries can be added, edited, reordered, and removed.
 
 ---
 
@@ -388,8 +415,9 @@ Two levels of conflict detection are implemented:
 - **Venue Conflicts**: Detect when multiple gigs are scheduled at the same venue with overlapping times (CONFLICT) or within 4 hours (WARNING)
 
 ---
+## Major Functionality Enhancements
 
-### 9. Technical Documentation
+### Technical Documentation
 
 #### Attachments & File Management
 
@@ -402,24 +430,37 @@ There is a uniform file attachment facility that is used in multiple places.
 - **Supported File Types**: PDFs, images (JPG, PNG), documents (DOC, XLSX), CAD files (DWG, DXF)
 - **File Organization**: Tag and categorize attachments for easy retrieval
 - **Version Control**: Track document versions and revision history
-
-#### Stage Plots & Technical Documentation
-
-- **Stage Plot Editor**: Interactive editor for creating stage layouts
-- **Input Lists**: Track microphone and line assignments
-- **Packout Checklists**: Auto-generated from kit assignments
-- **Technical Riders**: Document technical requirements for acts
-
-#### Notes & Annotations
-
-- **Rich Text Notes**: Markdown support for formatting notes
-- **Private Notes**: Organization-specific notes on shared entities
-- **Tagging System**: Categorize notes for easy filtering
-- **Search**: Full-text search across all notes and attachments
+- **Private Documents**: Organization-specific docs on shared entities
+- **Tagging System**: Categorize docs for easy filtering
+- **Search**: Full-text search across all attachments
 
 ---
 
-### 10. Mobile Features
+### Mobile Version
+
+Mobile features are organized by priority. For full implementation detail, see [Mobile Development Plan](./development-plan/04_mobile-development.md).
+
+#### Priority 1: Gig Browsing & Quick Booking
+
+The most urgent mobile need — a compact interface for managing gigs on the go.
+
+- **Mobile Gig List**: Card-based list of upcoming gigs showing title, date/time, status badge, venue, and act(s). Filterable by date range, status, venue, and act. Searchable by title, venue, and act name.
+- **Simplified Gig Detail**: Read-only view showing only essentials — basic information (title, dates, timezone, status, notes, tags) plus venue and act participants. Excludes staff assignments, financials, and equipment details.
+- **Quick-Create Gig**: Streamlined form for capturing new bookings with just: title, start/end dates, timezone, status (defaults to Date Hold), venue (dropdown), act (dropdown), and notes. Full details can be added later from the desktop app.
+- **Booking Status Confirmation**: Tap to update gig status directly from the gig list or detail view. Quick swipe actions for common status transitions (e.g., Date Hold → Booked).
+
+#### Priority 2: Staff Dashboard
+
+- **Upcoming Gigs**: Card-based list of assigned gigs for the next 48 hours
+- **Quick Links**: Venue map/directions (native maps integration), stage plot viewer, one-tap contact list for gig organizers
+- **Time Tracking**: Location-aware check-in button (active within venue radius)
+
+#### Priority 3: Inventory & Warehouse Workflows
+
+- **Inventory Mode**: Specialized one-handed interface for equipment logistics with barcode scanning
+- **Pack-Out/Load/Unload/Return Flows**: Multi-step asset tracking through the full gig lifecycle
+- **Barcode Scanning**: Camera-based scanning (QR, Data Matrix, Code 128) plus Bluetooth HID scanner support
+- **Packing Lists**: Auto-generated from kit assignments; non-container kits expanded to show individual assets
 
 #### Mobile-Optimized Interface
 
@@ -427,17 +468,19 @@ There is a uniform file attachment facility that is used in multiple places.
 - **Responsive Design**: Adaptive layouts for mobile browsers
 - **Card-based Layouts**: Touch-friendly information consumption
 - **Bottom Navigation**: Easy thumb access to primary actions
+- **High-Contrast**: Readable in bright sunlight (outdoor festivals)
 
 #### Offline Support
 
 - **Offline-First Architecture**: Core functionality works without internet connection
+- **Local Caching**: Cache 7 days of gig data using IndexedDB
 - **Automatic Sync**: Background synchronization when connection restored
 - **Sync Indicators**: Visual feedback for sync status
-- **Conflict Resolution**: Handle concurrent offline edits
+- **Conflict Resolution**: Last-write-wins for simple fields; user-prompted resolution for critical fields (gig status, asset availability)
 
 #### Native Features
 
-- **Biometric Authentication**: Face ID, Touch ID, fingerprint authentication
+- **Biometric Authentication**: Face ID, Touch ID, fingerprint authentication via WebAuthn
 - **Camera Integration**: Scan asset barcodes/QR codes, capture photos
 - **Push Notifications**: Real-time alerts for assignments, reminders, status changes
 - **Location Services**: GPS for venue check-in, travel distance calculations
@@ -445,19 +488,21 @@ There is a uniform file attachment facility that is used in multiple places.
 #### Progressive Web App (PWA)
 
 - **Installable**: Add to home screen functionality
-- **App-like Experience**: Full-screen mode, splash screen
-- **Background Sync**: Queue actions when offline
+- **App-like Experience**: Full-screen standalone mode, splash screen
+- **Background Sync**: Queue actions when offline for automatic replay
 - **Push Notifications**: Web push for real-time updates
 
 ---
 
-## CSV Import Feature Requirements
+### CSV Import Feature
 
-### Overview
+**Status: Implemented**
+
+#### Overview
 
 CSV import functionality for gigs and assets with client-side validation, immediate import of valid rows, and an error correction interface for invalid rows. For gigs, act/venue columns are automatically mapped to gig_participant rows, and organizations are created if they don't exist.
 
-### User Stories
+#### User Stories
 
 **As a production manager**, I want to:
 - Import my existing gig data from a spreadsheet
@@ -472,9 +517,9 @@ CSV import functionality for gigs and assets with client-side validation, immedi
 - See any errors and fix them before importing
 - Track insurance information during import
 
-### CSV Templates
+#### CSV Templates
 
-#### Gig Template Columns
+##### Gig Template Columns
 
 | Column | Required | Type | Example | Notes |
 |--------|----------|------|---------|-------|
@@ -489,7 +534,7 @@ CSV import functionality for gigs and assets with client-side validation, immedi
 | notes | No | string | "Load-in at 2pm" | Free-form text |
 | amount | No | number | "5000.00" | Numeric or empty |
 
-#### Asset Template Columns
+##### Asset Template Columns
 
 | Column | Required | Type | Example | Notes |
 |--------|----------|------|---------|-------|
@@ -507,9 +552,9 @@ CSV import functionality for gigs and assets with client-side validation, immedi
 | insurance_category | No | string | "E" | Maps to 'insurance_class' |
 | notes | No | string | "Purchased in bulk" | Free-form text |
 
-### Validation Rules
+#### Validation Rules
 
-#### Gig Validation
+##### Gig Validation
 
 - **Required Fields**: title, start, end, timezone, status
 - **Date Validation**: 
@@ -524,7 +569,7 @@ CSV import functionality for gigs and assets with client-side validation, immedi
   - If not found, create new organization with appropriate type ('Act' or 'Venue')
   - Map to gig_participants table
 
-#### Asset Validation
+##### Asset Validation
 
 - **Required Fields**: category, manufacturer_model, acquisition_date
 - **Date Validation**: Acquisition_date must be valid date (YYYY-MM-DD format)
@@ -534,9 +579,9 @@ CSV import functionality for gigs and assets with client-side validation, immedi
   - Quantity: positive integer or defaults to 1
 - **Boolean Fields**: Insured: parse from text ('yes', 'true', '1', etc.)
 
-### Import Logic
+#### Import Logic
 
-#### Gig Import Process
+##### Gig Import Process
 
 1. Parse CSV file
 2. Validate all rows
@@ -552,7 +597,7 @@ CSV import functionality for gigs and assets with client-side validation, immedi
    - Create a 'Payment Recieved' financial transaction if amount is present.
 4. Show success count and any errors
 
-#### Asset Import Process
+##### Asset Import Process
 
 1. Parse CSV file
 2. Validate all rows
@@ -566,9 +611,9 @@ CSV import functionality for gigs and assets with client-side validation, immedi
    - Create asset with organization_id from current context
 4. Show success count and any errors
 
-### User Interface Requirements
+#### User Interface Requirements
 
-#### Import Screen Components
+##### Import Screen Components
 
 - **File Upload**: Drag & drop or file picker
 - **Import Type Selector**: Radio buttons for "Gigs" or "Assets"
@@ -581,14 +626,14 @@ CSV import functionality for gigs and assets with client-side validation, immedi
 - **Progress Indicator**: Show progress during import
 - **Results Summary**: Display success count and error count
 
-#### Error Correction UI
+##### Error Correction UI
 
 - **Inline Editing**: Click to edit invalid row fields
 - **Real-time Validation**: Re-validate on change
 - **Organization Autocomplete**: Search existing organizations for act/venue fields
 - **Re-import**: After corrections, re-import specific rows
 
-### User Flow
+#### User Flow
 
 1. User navigates to Gig List or Asset List screen
 2. Clicks "Import" button
@@ -603,7 +648,7 @@ CSV import functionality for gigs and assets with client-side validation, immedi
 11. System shows success/error summary
 12. After successful import, user is redirected to list view
 
-### Technical Implementation Notes
+#### Technical Implementation Notes
 
 - **Parser Library**: Use `papaparse` for CSV parsing
 - **Organization Lookup**: Case-insensitive search on organizations.name
@@ -612,7 +657,7 @@ CSV import functionality for gigs and assets with client-side validation, immedi
 - **UUID Generation**: Auto-generated by database (no duplicate detection)
 - **No Duplicate Detection**: Each import creates new records
 
-### Future Enhancements
+#### Future Enhancements
 
 - **Bulk Edit**: Edit multiple rows at once
 - **CSV Export**: Export existing data to CSV format
@@ -623,20 +668,22 @@ CSV import functionality for gigs and assets with client-side validation, immedi
 
 ---
 
-## Complex Events: Hierarchical Gig Structure
+### Complex Events: Hierarchical Gig Structure
 
-### Overview
+**Prioritization Note**: Hierarchical gigs are an advanced feature for complex multi-venue or multi-stage events. Most gigs operate as flat (non-hierarchical) events with multi-act scheduling (see Gig Management above). All core features — mobile, financials, scheduling, inventory — must work fully for flat gigs first. Hierarchy extends these capabilities but is not a prerequisite for them. For implementation detail, see [Hierarchy Foundations](./development-plan/05_hierarchy-foundations.md) and [Hierarchy UI](./development-plan/06_hierarchy-ui.md).
 
-The hierarchical gig structure enables complex events (festivals, multi-act shows, multi-day events, multi-venue events) where gigs can have parent-child relationships. This allows:
+#### Overview
+
+The hierarchical gig structure enables complex events (festivals, multi-venue events, multi-day events) where gigs can have parent-child relationships. This allows:
 - **Equipment** consistency per stage throughout an event
 - **Staffing** that is persistent (same staff for all days) or variable (different staff on different days)
 - **Acts** that change for each individual performance
 - **Participants** that could be consistent or variable (different companies per stage)
 - **Bids** that encompass the whole event or roll up from components
 
-### Key Principles
+#### Key Principles
 
-#### Core Design Philosophy
+##### Core Design Philosophy
 
 - **Minimal Schema Changes**: Add only essential columns to maintain simplicity
 - **Backward Compatibility**: Existing gigs continue to work without modification
@@ -644,15 +691,15 @@ The hierarchical gig structure enables complex events (festivals, multi-act show
 - **Child Overrides Parent**: Child values always take precedence over parent values
 - **Hierarchical Access**: Users with access to parent gigs automatically access children
 
-#### Inheritance Model
+##### Inheritance Model
 
 - **Simple Precedence**: Child values override parent values at all levels
 - **No Explicit Overrides**: No need for override flags - just define values on child gigs
 - **Optional Hierarchy**: Most gigs remain flat (no parent) for simple use cases
 
-### Schema Design
+#### Schema Design
 
-#### Core Schema Changes
+##### Core Schema Changes
 
 ```sql
 -- Add parent relationship
@@ -662,22 +709,22 @@ ALTER TABLE gigs ADD COLUMN parent_gig_id UUID REFERENCES gigs(id);
 ALTER TABLE gigs ADD COLUMN hierarchy_depth INTEGER DEFAULT 0;
 ```
 
-#### Constraints
+##### Constraints
 
 - **No Cycles**: Prevent A→B→A relationships through database triggers
 - **Date Validation**: Child gig dates must fall within parent date range
 - **Max Depth**: Limit hierarchy depth (recommended: 3 levels)
 
-### Inheritance Behavior
+#### Inheritance Behavior
 
-#### Value Precedence Rules
+##### Value Precedence Rules
 
 - **Participants**: Child participants are added to inherited parent participants
 - **Staff Slots**: Child staff slots override parent slots with same role
 - **Equipment**: Child equipment assignments override parent assignments for same assets
 - **Bids**: All bids from hierarchy are considered (no override logic)
 
-#### Recursive Query Pattern
+##### Recursive Query Pattern
 
 All inherited data is resolved using recursive CTEs that walk up the hierarchy tree:
 
@@ -700,9 +747,9 @@ JOIN gig_hierarchy gh ON rt.gig_id = gh.id
 ORDER BY gh.depth ASC  -- Parent values first
 ```
 
-### Business Rules
+#### Business Rules
 
-#### Status Propagation
+##### Status Propagation
 
 **Default Behavior (Simple)**:
 - Parent and child gigs maintain independent statuses
@@ -714,7 +761,7 @@ ORDER BY gh.depth ASC  -- Parent values first
 - **Completion Rules**: Parent can only complete when all children are completed
 - **Status Constraints**: Children cannot be booked if parent is cancelled
 
-#### Conflict Resolution
+##### Conflict Resolution
 
 **Staff Conflicts**:
 - Prevent double-booking staff across overlapping gigs in same hierarchy
@@ -738,9 +785,9 @@ ORDER BY gh.depth ASC  -- Parent values first
 - Manager role allows creating child gigs
 - Viewer role allows read-only access to hierarchy
 
-### Use Cases
+#### Use Cases
 
-#### Example 1: Multi-Day Music Festival
+##### Example 1: Multi-Day Music Festival
 
 ```
 Summer Music Festival (parent_gig_id = null)
@@ -757,7 +804,7 @@ Summer Music Festival (parent_gig_id = null)
     └── [inherits equipment/staff from festival, overrides with lounge setup]
 ```
 
-#### Example 2: Wedding with Ceremony + Reception
+##### Example 2: Wedding with Ceremony + Reception
 
 ```
 Sarah & John Wedding (parent_gig_id = null)
@@ -771,22 +818,22 @@ Sarah & John Wedding (parent_gig_id = null)
     └── Participants: Hotel (venue), DJ company, sound company, lighting company
 ```
 
-### UI/UX Requirements
+#### UI/UX Requirements
 
-#### Progressive Disclosure
+##### Progressive Disclosure
 
 - **Simple First**: Most users never need hierarchy - keep it hidden until needed
 - **Contextual UI**: Show hierarchy features only when creating/editing hierarchical gigs
 - **Optional Complexity**: Users can opt into complex features without affecting simple workflows
 
-#### Visual Hierarchy Indicators
+##### Visual Hierarchy Indicators
 
 - **Parent-Child Relationships**: Clear visual indicators (nesting, indentation, breadcrumbs)
 - **Inheritance Status**: Show which values are inherited vs. locally defined
 - **Hierarchy Depth**: Visual cues for different levels (colors, icons, indentation)
 - **Status Propagation**: Visual indicators for related gig statuses
 
-#### Gig Creation Workflow
+##### Gig Creation Workflow
 
 **Parent Gig Creation**:
 - Standard gig creation form with optional "Create as Parent" toggle
@@ -799,7 +846,7 @@ Sarah & John Wedding (parent_gig_id = null)
 - Clear indication of what can be overridden
 - Validation against parent constraints
 
-#### Form Design Patterns
+##### Form Design Patterns
 
 **Inherited Value Display**:
 ```
@@ -813,7 +860,7 @@ Sarah & John Wedding (parent_gig_id = null)
 - Sibling navigation: Previous/Next child gigs
 - Parent jump: Quick access to parent gig details
 
-#### List View Enhancements
+##### List View Enhancements
 
 **Gig List with Hierarchy**:
 - Indented rows for child gigs
@@ -826,36 +873,36 @@ Sarah & John Wedding (parent_gig_id = null)
 - Color-coded hierarchy indicators
 - Quick status changes with cascade options
 
-### Implementation Phases
+#### Implementation Phases
 
-#### Phase 1: Core Schema (Database Migration)
+##### Phase 1: Core Schema (Database Migration)
 
 1. Add `parent_gig_id` and `hierarchy_depth` to gigs table
 2. Create database constraints (no cycles via triggers)
 3. Add indexes on `parent_gig_id` for performance
 
-#### Phase 2: Inheritance Logic (Backend)
+##### Phase 2: Inheritance Logic (Backend)
 
 1. Implement recursive query functions for each entity type
 2. Update application data access layer to use effective values
 3. Add hierarchy-aware RLS policies
 4. Create database views for common hierarchy queries
 
-#### Phase 3: Application Updates (Frontend)
+##### Phase 3: Application Updates (Frontend)
 
 1. Update gig creation/edit forms to support parent selection
 2. Modify queries to use inheritance-aware logic
 3. Add validation for hierarchy constraints
 4. Update permission checks for hierarchical access
 
-#### Phase 4: Advanced Features (Future)
+##### Phase 4: Advanced Features (Future)
 
 1. Bulk operations across hierarchies
 2. Status cascade options
 3. Hierarchy templates and presets
 4. Advanced reporting across hierarchies
 
-### Performance Optimization
+#### Performance Optimization
 
 **Query Optimization**:
 - Use recursive CTEs efficiently with proper indexing
@@ -873,7 +920,7 @@ Sarah & John Wedding (parent_gig_id = null)
 - Invalidate cache when hierarchy changes
 - Use Redis/application cache for complex inheritance results
 
-### Testing Requirements
+#### Testing Requirements
 
 **Unit Tests**:
 - Recursive query correctness
@@ -893,7 +940,7 @@ Sarah & John Wedding (parent_gig_id = null)
 - Concurrent modifications
 - Partial hierarchy access
 
-### Benefits
+#### Benefits
 
 - **Backward Compatible**: Existing gigs work unchanged (parent_gig_id is nullable)
 - **Simple to Implement**: Minimal schema changes
@@ -903,21 +950,23 @@ Sarah & John Wedding (parent_gig_id = null)
 
 ---
 
-## Robust Tables Feature
+### Robust Data Tables Feature
 
-### 1. Overview
+**Status: Implemented**
+
+#### 1. Overview
 The goal is to implement a robust, highly-functional, and consistent table system across the GigManager application. The new system will provide advanced sorting, filtering, and column management, along with a seamless in-place editing experience inspired by tools like Coda and Notion.
 
-### 2. Goals
+#### 2. Goals
 - Provide a unified table component that can be used throughout the application.
 - Enhance data discoverability through persistent sorting and multi-criteria filtering.
 - Allow users to customize their view by adding or removing columns.
 - Implement a "natural" in-place editing experience that minimizes UI disruption.
 - Ensure state persistence (filters, sorting, column layout) across page reloads.
 
-### 3. Features
+#### 3. Features
 
-#### 3.1. Robust Table Capabilities
+##### 3.1. Robust Table Capabilities
 - **Sorting**:
   - Click on column headers to cycle through Ascending, Descending, and No Sort.
   - Sorting state must persist across sessions/page invocations.
@@ -928,7 +977,7 @@ The goal is to implement a robust, highly-functional, and consistent table syste
   - Ability to toggle visibility of optional columns.
   - Column layout (which columns are visible) must persist across sessions/page invocations.
 
-#### 3.2. In-place Editing ("Natural Feel")
+##### 3.2. In-place Editing ("Natural Feel")
 - **UX Patterns**:
   - Single click to select a cell (shows a blue outline).
   - Double click to enter edit mode.
@@ -940,7 +989,7 @@ The goal is to implement a robust, highly-functional, and consistent table syste
   - **Select Lists**: Dropdown with a search/filter field.
 - **Persistence**: Edits should be saved immediately (auto-save) or via a robust update mechanism.
 
-#### 3.3. Configuration & Consistency
+##### 3.3. Configuration & Consistency
 - **Schema-driven Configuration**:
   - Define fields that are **Required** (must be in table).
   - Define fields that are **Read-only**.
@@ -949,13 +998,13 @@ The goal is to implement a robust, highly-functional, and consistent table syste
   - Configurable actions (Edit, Delete, Duplicate, etc.) per table instance.
 - **Uniformity**: Consistent styling and behavior for all tables (main screens and nested tables in Edit screens).
 
-### 4. User Experience (UX)
+#### 4. User Experience (UX)
 - Blue outline for selected cells.
 - Smooth transitions between viewing and editing states.
 - Intuitive sorting and filtering UI (e.g., icons in headers).
 - Persistent state should feel seamless to the user.
 
-### 5. Technical Constraints
+#### 5. Technical Constraints
 - Must integrate with existing **Shadcn/ui** and **Tailwind CSS**.
 - State persistence using **LocalStorage**.
 - Must handle both top-level list screens and nested tables (e.g., inside Gig or Kit edit forms).
