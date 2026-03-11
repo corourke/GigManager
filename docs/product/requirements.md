@@ -265,6 +265,29 @@ Groupings of assets that can be deployed on gigs. Simplifies building packages, 
 - **Data**: kit_id, gig_id, notes
 - **Multiple Assignments**: Gig can have multiple kits assigned
 
+#### Kit Containers
+
+- **Container Kits**: A kit can be marked as a container (e.g., a rack or flight case)
+- **Container vs. Logical**: Container kits represent physical enclosures; non-container kits are logical groupings whose individual items must be accounted for separately during inventory operations
+
+#### Asset Status Lifecycle
+
+- **Status Tracking**: Assets have a status reflecting their current state (e.g., Available, Checked Out, In Transit, On Site, In Warehouse, Inspect, Maintain, Retired)
+- **Status History**: Track all status changes over time with timestamps for audit trail
+- **Maintenance Flagging**: Staff can flag assets for inspection or maintenance during return workflows
+
+#### Inventory Workflow (Warehouse & Field Operations)
+
+Equipment moves through a multi-step lifecycle during gig operations. The workflow supports barcode scanning at each step for tracking.
+
+- **Pack-Out**: Select a gig, display packing list, scan items against the list, update status to Checked Out
+- **Load Truck**: Scan items, auto-detect associated gig, update status to In Transit
+- **Load-In** (optional): Update status to On Site
+- **Load-Out** (optional): Update status to In Transit
+- **Unload**: Scan items, update status to In Warehouse, optionally flag for maintenance
+- **Configurable Steps**: Organizations can enable or disable optional workflow steps
+- **Packing Lists**: Auto-generated from kit assignments; non-container kits are expanded to show individual assets
+
 ---
 
 ### 5. Dashboard, Reporting & Analytics
@@ -940,6 +963,7 @@ The goal is to implement a robust, highly-functional, and consistent table syste
 
 ## Related Documentation
 
+- [Development Roadmap](./development-plan/01_roadmap.md) - Strategic context, persona analysis, sprint plan, and index to technical detail documents
 - [Feature Catalog](./feature-catalog.md) - Implementation status of all features
 - [AI Coding Guide](../development/coding-guide.md) - Implementation patterns
 - [Database Documentation](../technical/database.md) - Schema and RLS policies
