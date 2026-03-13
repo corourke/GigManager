@@ -19,6 +19,8 @@ import { Badge } from '../ui/badge';
 
 interface MobileDashboardProps {
   onViewGig: (gigId: string) => void;
+  onViewGigDetail: (gigId: string) => void;
+  onViewAllGigs: () => void;
 }
 
 const isAbortLikeError = (error: any) => {
@@ -28,7 +30,7 @@ const isAbortLikeError = (error: any) => {
   return errorName === 'aborterror' || errorMessage.includes('aborted');
 };
 
-export default function MobileDashboard({ onViewGig }: MobileDashboardProps) {
+export default function MobileDashboard({ onViewGig, onViewGigDetail, onViewAllGigs }: MobileDashboardProps) {
   const { isLoading: authLoading, user, selectedOrganization, organizations } = useAuth();
   const [gigs, setGigs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -137,18 +139,29 @@ export default function MobileDashboard({ onViewGig }: MobileDashboardProps) {
             <p className="text-muted-foreground">No upcoming gigs found.</p>
           </Card>
         ) : (
-          <div className="grid gap-4">
-            {gigs.map((gig) => (
-              <GigCard key={gig.id} gig={gig} onViewGig={onViewGig} />
-            ))}
-          </div>
+          <>
+            <div className="grid gap-4">
+              {gigs.map((gig) => (
+                <GigCard key={gig.id} gig={gig} onViewGig={onViewGig} onViewGigDetail={onViewGigDetail} />
+              ))}
+            </div>
+
+            <Button
+              variant="outline"
+              className="w-full h-11 text-xs"
+              onClick={onViewAllGigs}
+            >
+              View All Gigs
+              <ChevronRight className="w-4 h-4 ml-1" />
+            </Button>
+          </>
         )}
       </div>
     </div>
   );
 }
 
-function GigCard({ gig, onViewGig }: { gig: any, onViewGig: (gigId: string) => void }) {
+function GigCard({ gig, onViewGig, onViewGigDetail }: { gig: any, onViewGig: (gigId: string) => void, onViewGigDetail: (gigId: string) => void }) {
   const startTime = parseISO(gig.start);
   const venue = gig.participants?.find((p: any) => p.role === 'Venue')?.organization;
 
@@ -160,7 +173,7 @@ function GigCard({ gig, onViewGig }: { gig: any, onViewGig: (gigId: string) => v
 
   return (
     <Card className="overflow-hidden border-l-4 border-l-sky-500 active:bg-muted/50 transition-colors shadow-sm">
-      <CardHeader className="p-4 pb-2">
+      <CardHeader className="p-4 pb-2 cursor-pointer" onClick={() => onViewGigDetail(gig.id)}>
         <div className="flex justify-between items-start gap-2">
           <div className="min-w-0">
             <CardTitle className="text-lg leading-tight truncate">{gig.title}</CardTitle>
@@ -168,9 +181,12 @@ function GigCard({ gig, onViewGig }: { gig: any, onViewGig: (gigId: string) => v
               {format(startTime, 'EEE, MMM d • h:mm a')}
             </CardDescription>
           </div>
-          <Badge variant={gig.status === 'Booked' ? 'default' : 'secondary'} className="shrink-0 text-[10px]">
-            {gig.status}
-          </Badge>
+          <div className="flex items-center gap-1.5 shrink-0">
+            <Badge variant={gig.status === 'Booked' ? 'default' : 'secondary'} className="text-[10px]">
+              {gig.status}
+            </Badge>
+            <ChevronRight className="w-4 h-4 text-muted-foreground" />
+          </div>
         </div>
       </CardHeader>
       <CardContent className="p-4 pt-0 space-y-3">

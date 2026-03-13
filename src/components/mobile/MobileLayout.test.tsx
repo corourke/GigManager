@@ -18,7 +18,7 @@ describe('MobileLayout', () => {
   it('keeps bottom nav non-intercepting so main content can own vertical scroll', () => {
     render(
       <AuthProvider>
-        <MobileLayout currentRoute="mobile-dashboard" onNavigate={vi.fn()}>
+        <MobileLayout currentRoute="mobile-gig-list" onNavigate={vi.fn()}>
           <div>Body Content</div>
         </MobileLayout>
       </AuthProvider>

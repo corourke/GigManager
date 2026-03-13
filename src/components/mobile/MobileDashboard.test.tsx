@@ -33,7 +33,7 @@ describe('MobileDashboard', () => {
       new DOMException('The operation was aborted.', 'AbortError')
     )
 
-    render(<MobileDashboard onViewGig={vi.fn()} />)
+    render(<MobileDashboard onViewGig={vi.fn()} onViewGigDetail={vi.fn()} onViewAllGigs={vi.fn()} />)
 
     await waitFor(() => {
       expect(screen.queryByText('Error loading gigs')).not.toBeInTheDocument()

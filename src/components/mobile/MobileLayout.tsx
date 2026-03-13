@@ -1,5 +1,5 @@
 import React from 'react';
-import { LayoutDashboard, Barcode, Settings, Building2, ChevronDown } from 'lucide-react';
+import { Barcode, Settings, Building2, ChevronDown, List } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar';
 import {
@@ -52,7 +52,7 @@ const MobileLayout: React.FC<MobileLayoutProps> = ({ children, currentRoute, onN
   };
 
   const navItems = [
-    { id: 'mobile-dashboard', label: 'Gigs', icon: LayoutDashboard },
+    { id: 'mobile-gig-list', label: 'Gigs', icon: List },
     { id: 'mobile-inventory', label: 'Scanning', icon: Barcode },
     { id: 'mobile-settings', label: 'Settings', icon: Settings },
   ];
@@ -151,7 +151,8 @@ const MobileLayout: React.FC<MobileLayoutProps> = ({ children, currentRoute, onN
           {navItems.map((item) => {
             const Icon = item.icon;
             const isActive = currentRoute === item.id ||
-              (item.id === 'mobile-inventory' && (currentRoute === 'mobile-inventory' || currentRoute === 'mobile-scanner'));
+              (item.id === 'mobile-inventory' && (currentRoute === 'mobile-inventory' || currentRoute === 'mobile-scanner')) ||
+              (item.id === 'mobile-gig-list' && currentRoute === 'mobile-gig-detail');
 
             return (
               <button
