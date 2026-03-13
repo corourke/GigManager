@@ -1010,6 +1010,37 @@ The goal is to implement a robust, highly-functional, and consistent table syste
 - Must handle both top-level list screens and nested tables (e.g., inside Gig or Kit edit forms).
 - Use **Zod** for any necessary validation during editing.
 
+---
+
+### 6. Attachments and File Management
+
+#### Overview
+The application provides a centralized system for managing file attachments (PDFs, images, spreadsheets) associated with various entities like Gigs, Assets, and Expenses.
+
+#### Requirements
+- **Generic Attachment System**: A single file can be linked to multiple entities (polymorphic associations).
+- **Supabase Storage**: Files are stored in an `attachments` bucket, isolated by organization ID.
+- **Security**: Access restricted via RLS to organization members with Manager+ roles.
+- **File Types**: Support for PDF, PNG, JPG, JPEG, and CSV (max 10MB).
+- **Audit Trail**: Link source documents (invoices, receipts) to all assets and expenses they created.
+- **UI Integration**:
+    - Centralized file viewer for documents.
+    - Quick access links on relevant entity detail screens.
+    - Support for mobile camera capture and direct upload.
+
+### 7. Expense Management
+
+#### Overview
+Tracks both general business expenses and gig-specific financial records.
+
+#### Requirements
+- **General Business Expenses**: Capture costs not directly billable to a specific gig (e.g., office supplies, insurance).
+- **Gig Financial Records**: Link expenses directly to a gig to track profitability.
+- **AI-Powered Entry**: Support for extracting expense data from receipts via LLM.
+- **Cost Allocation**: Automatically allocate pro-rata tax and shipping costs across multiple line items (as defined in `scripts/README.md`).
+- **Categorization**: Support for standard accounting categories (Labor, Travel, Materials, etc.).
+- **Reporting**: Dedicated reporting views for business expenses and insurance valuations.
+
 ## Related Documentation
 
 - [Development Roadmap](./development-plan/01_roadmap.md) - Strategic context, persona analysis, sprint plan, and index to technical detail documents

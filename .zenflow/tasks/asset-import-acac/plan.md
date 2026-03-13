@@ -11,7 +11,8 @@
 
 ## Workflow Steps
 
-### [ ] Step: Requirements
+### [x] Step: Requirements
+<!-- chat-id: a5f4d3dc-b8d4-4606-a78c-a1bd2adb52ef -->
 
 Create a Product Requirements Document (PRD) based on the feature description.
 
@@ -23,7 +24,7 @@ Create a Product Requirements Document (PRD) based on the feature description.
 
 Save the PRD to `{@artifacts_path}/requirements.md`.
 
-### [ ] Step: Technical Specification
+### [x] Step: Technical Specification
 
 Create a technical specification based on the PRD in `{@artifacts_path}/requirements.md`.
 
@@ -38,7 +39,7 @@ Save to `{@artifacts_path}/spec.md` with:
 - Delivery phases (incremental, testable milestones)
 - Verification approach using project lint/test commands
 
-### [ ] Step: Planning
+### [x] Step: Planning
 
 Create a detailed implementation plan based on `{@artifacts_path}/spec.md`.
 
@@ -54,8 +55,46 @@ If the feature is trivial and doesn't warrant full specification, update this wo
 
 Save to `{@artifacts_path}/plan.md`.
 
-### [ ] Step: Implementation
+### [ ] Step 1: Database Schema & Storage
+- Create a migration to add columns to `assets` table.
+- Create a migration to make `gig_id` nullable in `gig_financials` and add `payment_method`.
+- Create a migration for the `attachments` table with RLS.
+- Define Storage bucket `attachments` and set up RLS.
 
-This step should be replaced with detailed implementation tasks from the Planning step.
+### [ ] Step 2: Backend Services & Types
+- Update `DbAsset` and `DbGigFinancial` types in `types.ts`.
+- Update `asset.service.ts` to support new fields in `createAsset` and `updateAsset`.
+- Update `financial.service.ts` to support new fields and nullable `gig_id`.
+- Create `attachment.service.ts` for uploading, linking, and fetching files.
 
-If Planning didn't replace this step, execute the tasks in `{@artifacts_path}/plan.md`, updating checkboxes as you go. Run planned tests/lint and record results in plan.md.
+### [ ] Step 3: CSV Import Logic Enhancement
+- Update `AssetRow` and `validateAssetRow` in `csvImport.ts` to support 23 columns.
+- Implement `Source` column handling (Invoice Header, Asset, Expense).
+- Implement pro-rata cost allocation logic in `csvImport.ts`.
+- Add validation for new fields (e.g., numeric checks for `liquidation_amt`).
+
+### [ ] Step 4: AI Import Backend (Supabase Edge Function)
+- Create `supabase/functions/invoice-import/index.ts`.
+- Implement PDF/Image text extraction.
+- Implement LLM prompt and parsing logic.
+- Implement pro-rata allocation on the server side.
+
+### [ ] Step 5: Import Screen UI Improvements
+- Update `ImportScreen.tsx` to handle the expanded CSV format.
+- Add "Import from Invoice" tab with file upload zone.
+- Create `InvoicePreviewTable.tsx` for reviewing and editing AI-extracted items.
+- Implement Gig search/linking for expenses in the preview table.
+
+### [ ] Step 6: Attachment UI Components
+- Create `AttachmentList.tsx` component.
+- Integrate `AttachmentList` into `AssetDetailScreen.tsx`.
+- Integrate `AttachmentList` into `GigFinancialsSection.tsx` (or similar financial view).
+
+### [ ] Step 7: Reporting & Admin UI
+- Create `ReportsScreen.tsx` for organization admins.
+- Implement "Business Expense Report" with filters.
+- Implement "Insurance Report" based on `replacement_value` and `insurance_class`.
+
+### [ ] Step 8: Final Documentation & Cleanup
+- Update `scripts/README.md` with the latest allocation logic and import workflow details.
+- Perform final linting and type checking.
