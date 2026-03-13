@@ -70,14 +70,9 @@ export function useMobileLock(userEmail: string | undefined, isMobile: boolean) 
     }
   }, [userEmail, supabase]);
 
-  // Initial check on load
   useEffect(() => {
     if (!isMobile) return;
-    
-    const wasLocked = localStorage.getItem('mobile_locked') === 'true';
-    if (wasLocked) {
-      setIsLocked(true);
-    }
+    localStorage.removeItem('mobile_locked');
   }, [isMobile]);
 
   // Inactivity tracking

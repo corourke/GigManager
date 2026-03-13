@@ -178,7 +178,7 @@ export async function getGig(gigId: string) {
           role_info:staff_roles(name),
           assignments:gig_staff_assignments(
             *,
-            user:user_id(id, first_name, last_name)
+            user:user_id(id, email, first_name, last_name)
           )
         ),
         kit_assignments:gig_kit_assignments(*),
@@ -1096,4 +1096,25 @@ export {
  */
 export async function getGigs(organizationId: string) {
   return getGigsForOrganization(organizationId);
+}
+
+export async function updateStaffAssignmentStatus(
+  assignmentId: string,
+  status: 'Confirmed' | 'Declined'
+) {
+  const supabase = getSupabase();
+  try {
+    const updateData: Record<string, any> = { status };
+    if (status === 'Confirmed') {
+      updateData.confirmed_at = new Date().toISOString();
+    }
+    const { error } = await supabase
+      .from('gig_staff_assignments')
+      .update(updateData)
+      .eq('id', assignmentId);
+
+    if (error) throw error;
+  } catch (err) {
+    return handleApiError(err, 'update staff assignment status');
+  }
 }

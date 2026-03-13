@@ -59,13 +59,15 @@ type Route =
   | 'settings'
   | 'import'
   | 'dev-demo'
-  | 'mobile-dashboard'
+  | 'mobile-gig-list'
+  | 'mobile-gig-detail'
   | 'mobile-inventory'
   | 'mobile-scanner'
   | 'mobile-settings';
 
 import MobileLayout from './components/mobile/MobileLayout';
-import MobileDashboard from './components/mobile/MobileDashboard';
+import MobileGigList from './components/mobile/MobileGigList';
+import MobileGigDetail from './components/mobile/MobileGigDetail';
 import MobileInventoryMode from './components/mobile/MobileInventoryMode';
 import MobileSettings from './components/mobile/MobileSettings';
 import MobileLockScreen from './components/mobile/MobileLockScreen';
@@ -145,7 +147,7 @@ function App() {
     if (isMobile) {
       if (!currentRoute.startsWith('mobile-') && currentRoute !== 'login' && currentRoute !== 'profile-completion' && currentRoute !== 'org-selection') {
         if (import.meta.env.DEV) console.log('[TRACE] App: Redirecting to mobile-dashboard from', currentRoute);
-        setCurrentRoute('mobile-dashboard');
+        setCurrentRoute('mobile-gig-list');
       }
     } else {
       if (currentRoute.startsWith('mobile-')) {
@@ -271,7 +273,7 @@ function App() {
     const transitionalRoutes: Route[] = ['login', 'profile-completion', 'org-selection', 'create-org'];
     if (transitionalRoutes.includes(currentRoute)) {
       if (isMobile) {
-        setCurrentRoute('mobile-dashboard');
+        setCurrentRoute('mobile-gig-list');
       } else if (userRole === 'Viewer') {
         setCurrentRoute('gig-list');
       } else {
@@ -382,7 +384,7 @@ function App() {
 
   const handleBackToDashboard = () => {
     if (isMobile) {
-      setCurrentRoute('mobile-dashboard');
+      setCurrentRoute('mobile-gig-list');
     } else {
       setCurrentRoute('dashboard');
     }
@@ -623,11 +625,21 @@ function App() {
             onNavigate={(route) => setCurrentRoute(route as Route)}
             onSwitchOrganization={organizations.length > 1 ? handleBackToSelection : undefined}
           >
-            {currentRoute === 'mobile-dashboard' && (
-              <MobileDashboard onViewGig={(gigId) => {
+            {currentRoute === 'mobile-gig-list' && (
+              <MobileGigList onViewGig={(gigId) => {
                 setSelectedGigId(gigId);
-                setCurrentRoute('mobile-inventory');
+                setCurrentRoute('mobile-gig-detail');
               }} />
+            )}
+            {currentRoute === 'mobile-gig-detail' && selectedGigId && (
+              <MobileGigDetail
+                gigId={selectedGigId}
+                onBack={() => setCurrentRoute('mobile-gig-list')}
+                onViewPackingList={(gigId) => {
+                  setSelectedGigId(gigId);
+                  setCurrentRoute('mobile-inventory');
+                }}
+              />
             )}
             {currentRoute === 'mobile-inventory' && (
               <MobileInventoryMode 

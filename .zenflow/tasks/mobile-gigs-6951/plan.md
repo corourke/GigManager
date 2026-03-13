@@ -18,21 +18,35 @@ Do not make assumptions on important decisions — get clarification first.
 
 ## Workflow Steps
 
-### [ ] Step: Implementation
+### [x] Step: Implementation
+<!-- chat-id: 11ce2ddf-efcf-48c3-9e61-dff70e3b6b87 -->
 
-**Debug requests, questions, and investigations:** answer or investigate first. Do not create a plan upfront — the user needs an answer, not a plan. A plan may become relevant later once the investigation reveals what needs to change.
+**Sprint 1: Mobile Gig Browsing & Quick Booking**
 
-**For all other tasks**, before writing any code, assess the scope of the actual change (not the prompt length — a one-sentence prompt can describe a large feature). Scale your approach:
+Existing Sprint 2 inventory/warehouse mobile work is already in place (MobileLayout, MobileDashboard, MobileInventoryMode, MobileBarcodeScanner, MobileSettings, MobileLockScreen). Sprint 1 fills the gig browsing gaps:
 
-- **Trivial** (typo, config tweak, single obvious change): implement directly, no plan needed.
-- **Small** (a few files, clear what to do): write 2–3 sentences in `plan.md` describing what and why, then implement. No substeps.
-- **Medium** (multiple components, design decisions, edge cases): write a plan in `plan.md` with requirements, affected files, key decisions, verification. Break into 3–5 steps.
-- **Large** (new feature, cross-cutting, unclear scope): gather requirements and write a technical spec first (`requirements.md`, `spec.md` in `{@artifacts_path}/`). Then write `plan.md` with concrete steps referencing the spec.
+**Scope:**
+1. **MobileGigDetail** - Mobile-optimized gig detail view (date/time, venue w/ directions, act, participants, staff, notes, tags)
+2. **MobileGigList** - Full gig browsing with search, status filter tabs, beyond the 7-day upcoming view
+3. **Staff Assignment Actions** - Confirm/decline staff assignments from mobile gig detail
+4. **Enhanced MobileDashboard** - Add "View All Gigs" action and link to gig detail (not just packing list)
+5. **Routing** - Add mobile-gig-detail and mobile-gig-list routes in App.tsx, update bottom nav
 
-**Skip planning and implement directly when** the task is trivial, or the user explicitly asks to "just do it" / gives a clear direct instruction.
+**Key files:**
+- `src/components/mobile/MobileGigDetail.tsx` (new)
+- `src/components/mobile/MobileGigList.tsx` (new)
+- `src/components/mobile/MobileDashboard.tsx` (update)
+- `src/components/mobile/MobileLayout.tsx` (update bottom nav)
+- `src/App.tsx` (add routes)
+- `src/services/gig.service.ts` (add updateStaffAssignmentStatus)
+- Tests for new components
 
-To reflect the actual purpose of the first step, you can rename it to something more relevant (e.g., Planning, Investigation). Do NOT remove meta information like comments for any step.
-
-Rule of thumb for step size: each step = a coherent unit of work (component, endpoint, test suite). Not too granular (single function), not too broad (entire feature). Unit tests are part of each step, not separate.
-
-Update `{@artifacts_path}/plan.md`.
+**Refinement rounds (Sessions 3-4):**
+- Badge font sizes tuned to 10px with inline styles (defeats CVA base class specificity)
+- Badge component replaced with plain `<span>` for all status pills
+- Org/Staff tables: plain colored text labels (no Badge), wider first column (w-20)
+- Card whitespace fixed via inline `style={{ gap: 0 }}` on Card, `paddingBottom` on CardContent
+- App Locked bug fixed (removed localStorage restore of lock state on unenrolled devices)
+- Assignment user matching broadened (user.id, user_id, email fallback)
+- Quick-Create Gig modal and Booking Status Confirmation implemented
+- Enhanced debug logging for assignment matching (active in all environments)
