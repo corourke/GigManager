@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Package, ArrowLeft, Save, Loader2, AlertCircle, History } from 'lucide-react';
+import { Package, ArrowLeft, Save, Loader2, AlertCircle, History, CreditCard } from 'lucide-react';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { Button } from './ui/button';
@@ -38,7 +38,8 @@ interface FormData {
   serial_number: string;
   acquisition_date: string;
   vendor: string;
-  cost: string;
+  item_price: string;
+  item_cost: string;
   replacement_value: string;
   sub_category: string;
   type: string;
@@ -48,9 +49,11 @@ interface FormData {
   quantity: string;
   tag_number: string;
   status: string;
+  retired_on: string;
   service_life: string;
   dep_method: string;
   liquidation_amt: string;
+  purchase_id?: string;
 }
 
 
@@ -81,7 +84,8 @@ export default function AssetScreen({
     serial_number: '',
     acquisition_date: '',
     vendor: '',
-    cost: '',
+    item_price: '',
+    item_cost: '',
     replacement_value: '',
     sub_category: '',
     type: '',
@@ -91,6 +95,7 @@ export default function AssetScreen({
     quantity: '',
     tag_number: '',
     status: 'Active',
+    retired_on: '',
     service_life: '',
     dep_method: '',
     liquidation_amt: '',
@@ -146,13 +151,14 @@ export default function AssetScreen({
     setIsLoading(true);
     try {
       const asset = await getAsset(assetId);
-      const loadedData = {
+      const loadedData: FormData = {
         category: asset.category || '',
         manufacturer_model: asset.manufacturer_model || '',
         serial_number: asset.serial_number || '',
         acquisition_date: asset.acquisition_date || '',
         vendor: asset.vendor || '',
-        cost: asset.cost?.toString() || '',
+        item_price: asset.item_price?.toString() || '',
+        item_cost: asset.item_cost?.toString() || '',
         replacement_value: asset.replacement_value?.toString() || '',
         sub_category: asset.sub_category || '',
         type: asset.type || '',
@@ -162,9 +168,11 @@ export default function AssetScreen({
         quantity: asset.quantity?.toString() || '',
         tag_number: asset.tag_number || '',
         status: asset.status || 'Active',
+        retired_on: asset.retired_on || '',
         service_life: asset.service_life?.toString() || '',
         dep_method: asset.dep_method || '',
         liquidation_amt: asset.liquidation_amt?.toString() || '',
+        purchase_id: asset.purchase_id,
       };
       setFormData(loadedData);
       changeDetection.loadInitialData(loadedData);
@@ -226,8 +234,12 @@ export default function AssetScreen({
       newErrors.acquisition_date = 'Acquisition date is required';
     }
 
-    if (formData.cost && isNaN(parseFloat(formData.cost))) {
-      newErrors.cost = 'Cost must be a valid number';
+    if (formData.item_price && isNaN(parseFloat(formData.item_price))) {
+      newErrors.item_price = 'Item price must be a valid number';
+    }
+
+    if (formData.item_cost && isNaN(parseFloat(formData.item_cost))) {
+      newErrors.item_cost = 'Item cost must be a valid number';
     }
 
     if (formData.replacement_value && isNaN(parseFloat(formData.replacement_value))) {
@@ -262,10 +274,16 @@ export default function AssetScreen({
       const normalizedData = normalizeFormData(formData);
 
       // Convert numeric string fields: empty/null -> undefined, non-empty -> parse to number
-      if (normalizedData.cost === null || normalizedData.cost === '') {
-        normalizedData.cost = undefined as any;
-      } else if (typeof normalizedData.cost === 'string' && normalizedData.cost.trim()) {
-        normalizedData.cost = parseFloat(normalizedData.cost) as any;
+      if (normalizedData.item_price === null || normalizedData.item_price === '') {
+        normalizedData.item_price = undefined as any;
+      } else if (typeof normalizedData.item_price === 'string' && normalizedData.item_price.trim()) {
+        normalizedData.item_price = parseFloat(normalizedData.item_price) as any;
+      }
+
+      if (normalizedData.item_cost === null || normalizedData.item_cost === '') {
+        normalizedData.item_cost = undefined as any;
+      } else if (typeof normalizedData.item_cost === 'string' && normalizedData.item_cost.trim()) {
+        normalizedData.item_cost = parseFloat(normalizedData.item_cost) as any;
       }
 
       if (normalizedData.replacement_value === null || normalizedData.replacement_value === '') {
@@ -528,9 +546,9 @@ export default function AssetScreen({
 
                 <div className="space-y-2">
                   <Label htmlFor="total_cost">
-                    Total Cost
+                    Total Invoice Amount
                     <span className="text-xs text-gray-400 font-normal ml-2">
-                      (Cost of all items (not saved))
+                      (Used to calculate Item Cost)
                     </span>
                   </Label>
                   <div className="relative">
@@ -550,7 +568,7 @@ export default function AssetScreen({
                           const qty = parseInt(formData.quantity) || 1;
                           if (!isNaN(total) && qty > 0) {
                             const itemCost = (total / qty).toFixed(2);
-                            handleChange('cost', itemCost);
+                            handleChange('item_cost', itemCost);
                           }
                         }
                       }}
@@ -561,10 +579,10 @@ export default function AssetScreen({
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="cost">
-                    Item Cost
+                  <Label htmlFor="item_price">
+                    Item Price
                     <span className="text-xs text-gray-400 font-normal ml-2">
-                      (Cost per each item)
+                      (Selling price per item)
                     </span>
                   </Label>
                   <div className="relative">
@@ -572,20 +590,50 @@ export default function AssetScreen({
                       $
                     </span>
                     <Input
-                      id="cost"
+                      id="item_price"
                       type="number"
                       step="0.01"
                       min="0"
-                      value={formData.cost}
-                      onChange={(e) => handleChange('cost', e.target.value)}
+                      value={formData.item_price}
+                      onChange={(e) => handleChange('item_price', e.target.value)}
                       placeholder="0.00"
-                      className={`pl-7 ${errors.cost ? 'border-red-500' : ''}`}
+                      className={`pl-7 ${errors.item_price ? 'border-red-500' : ''}`}
                     />
                   </div>
-                  {errors.cost && (
+                  {errors.item_price && (
                     <p className="text-sm text-red-600 flex items-center gap-1">
                       <AlertCircle className="w-4 h-4" />
-                      {errors.cost}
+                      {errors.item_price}
+                    </p>
+                  )}
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="item_cost">
+                    Item Cost
+                    <span className="text-xs text-gray-400 font-normal ml-2">
+                      (Burdened cost per item)
+                    </span>
+                  </Label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500">
+                      $
+                    </span>
+                    <Input
+                      id="item_cost"
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={formData.item_cost}
+                      onChange={(e) => handleChange('item_cost', e.target.value)}
+                      placeholder="0.00"
+                      className={`pl-7 ${errors.item_cost ? 'border-red-500' : ''}`}
+                    />
+                  </div>
+                  {errors.item_cost && (
+                    <p className="text-sm text-red-600 flex items-center gap-1">
+                      <AlertCircle className="w-4 h-4" />
+                      {errors.item_cost}
                     </p>
                   )}
                 </div>
@@ -736,6 +784,16 @@ export default function AssetScreen({
                 </div>
 
                 <div className="space-y-2">
+                  <Label htmlFor="retired_on">Retired On</Label>
+                  <Input
+                    id="retired_on"
+                    type="date"
+                    value={formData.retired_on}
+                    onChange={(e) => handleChange('retired_on', e.target.value)}
+                  />
+                </div>
+
+                <div className="space-y-2">
                   <Label htmlFor="liquidation_amt">
                     Disposal or Salvage Amount
                     <span className="text-xs text-gray-400 font-normal ml-2">
@@ -788,6 +846,25 @@ export default function AssetScreen({
             {/* Read-only History Tables — Edit Mode Only */}
             {isEditMode && (
               <div className="space-y-4 pt-2 border-t border-gray-100">
+                {formData.purchase_id && (
+                  <div>
+                    <div className="flex items-center gap-2 mb-2">
+                      <CreditCard className="w-4 h-4 text-gray-500" />
+                      <h3 className="text-gray-900">Purchase Link</h3>
+                    </div>
+                    <div className="bg-sky-50 border border-sky-100 rounded-md p-3 mb-4">
+                      <p className="text-sm text-sky-800 font-medium">
+                        Linked to Purchase ID:
+                      </p>
+                      <p className="text-xs text-sky-600 font-mono mt-1">
+                        {formData.purchase_id}
+                      </p>
+                      <p className="text-xs text-sky-500 mt-2 italic">
+                        View complete transaction details in Purchase Management.
+                      </p>
+                    </div>
+                  </div>
+                )}
                 {/* Asset Status History */}
                 <div>
                   <div className="flex items-center gap-2 mb-2">

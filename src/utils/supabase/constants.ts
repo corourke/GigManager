@@ -54,6 +54,21 @@ export const ASSET_STATUS_CONFIG = {
 
 export type AssetStatus = keyof typeof ASSET_STATUS_CONFIG;
 
+export const PURCHASE_ROW_TYPE = {
+  header: 'header',
+  item: 'item',
+} as const;
+
+export type PurchaseRowType = keyof typeof PURCHASE_ROW_TYPE;
+
+export const ENTITY_TYPE = {
+  asset: 'asset',
+  gig: 'gig',
+  purchase: 'purchase',
+} as const;
+
+export type EntityType = keyof typeof ENTITY_TYPE;
+
 export const FIN_TYPE_CONFIG = {
   'Bid Submitted': { label: 'Bid Submitted' },
   'Bid Accepted': { label: 'Bid Accepted' },

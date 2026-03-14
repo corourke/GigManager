@@ -1,7 +1,7 @@
-import { OrganizationType, UserRole, GigStatus, FinType, FinCategory, AssetStatus } from './constants';
+import { OrganizationType, UserRole, GigStatus, FinType, FinCategory, AssetStatus, PurchaseRowType, EntityType } from './constants';
 
 // Re-export constants types for convenience
-export type { OrganizationType, UserRole, GigStatus, FinType, FinCategory, AssetStatus };
+export type { OrganizationType, UserRole, GigStatus, FinType, FinCategory, AssetStatus, PurchaseRowType, EntityType };
 
 // Database types for Supabase tables
 
@@ -166,9 +166,11 @@ export type Invitation = DbInvitation;
 export interface DbAsset {
   id: string;
   organization_id: string;
+  purchase_id?: string;
   acquisition_date: string; // Date
   vendor?: string;
-  cost?: number;
+  item_price?: number;
+  item_cost?: number;
   category: string;
   sub_category?: string;
   insurance_policy_added: boolean;
@@ -181,6 +183,7 @@ export interface DbAsset {
   quantity?: number;
   tag_number?: string;
   status: AssetStatus;
+  retired_on?: string; // Date
   service_life?: number;
   dep_method?: string;
   liquidation_amt?: number;
@@ -188,6 +191,44 @@ export interface DbAsset {
   updated_by: string;
   created_at: string;
   updated_at: string;
+}
+
+export interface DbPurchase {
+  id: string;
+  organization_id: string;
+  gig_id?: string;
+  parent_id?: string;
+  row_type: PurchaseRowType;
+  purchase_date: string; // Date
+  vendor?: string;
+  total_inv_amount?: number;
+  payment_method?: string;
+  line_amount?: number;
+  line_cost?: number;
+  quantity?: number;
+  item_price?: number;
+  item_cost?: number;
+  description?: string;
+  category?: string;
+  sub_category?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface DbAttachment {
+  id: string;
+  organization_id: string;
+  file_path: string;
+  file_name: string;
+  created_at: string;
+}
+
+export interface DbEntityAttachment {
+  id: string;
+  attachment_id: string;
+  entity_type: EntityType;
+  entity_id: string;
+  created_at: string;
 }
 
 export interface DbAssetStatusHistory {
@@ -250,7 +291,23 @@ export interface DbGigKitAssignment {
   assigned_at: string;
 }
 
+export type Asset = DbAsset;
+export type Purchase = DbPurchase;
+export type Attachment = DbAttachment;
+export type EntityAttachment = DbEntityAttachment;
+export type Kit = DbKit;
+
 // Joined query types
+export interface PurchaseWithItems extends DbPurchase {
+  items?: DbPurchase[];
+  assets?: DbAsset[];
+  attachments?: (DbAttachment & { entity_attachment_id: string })[];
+}
+
+export interface AssetWithAttachments extends DbAsset {
+  attachments?: (DbAttachment & { entity_attachment_id: string })[];
+}
+
 export interface Gig extends Partial<DbGig> {
   id: string;
   title: string;

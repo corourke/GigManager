@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
-import { Box, ArrowLeft, Edit2, Trash2, Copy, Loader2, History } from 'lucide-react';
+import { Box, ArrowLeft, Edit2, Trash2, Copy, Loader2, History, CreditCard } from 'lucide-react';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { Button } from './ui/button';
@@ -218,6 +218,24 @@ export default function AssetDetailScreen({
                     </span>
                   </div>
                 </div>
+                <div>
+                  <p className="text-sm font-medium text-gray-500 uppercase tracking-wider">Retired On</p>
+                  <p className="mt-1 text-gray-900">
+                    {asset.retired_on ? format(new Date(asset.retired_on), 'PPP') : '—'}
+                  </p>
+                </div>
+                {asset.purchase_id && (
+                  <div className="md:col-span-2">
+                    <p className="text-sm font-medium text-gray-500 uppercase tracking-wider">Purchase Link</p>
+                    <div className="mt-2 bg-sky-50 border border-sky-100 rounded-md p-3 flex items-center gap-3">
+                      <CreditCard className="w-5 h-5 text-sky-500" />
+                      <div>
+                        <p className="text-sm text-sky-800 font-medium">Linked to Purchase Record</p>
+                        <p className="text-xs text-sky-600 font-mono mt-0.5">{asset.purchase_id}</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
                 <div className="md:col-span-2">
                   <p className="text-sm font-medium text-gray-500 uppercase tracking-wider">Notes</p>
                   <div className="mt-1 text-gray-600 prose prose-sm max-w-none">
@@ -255,6 +273,24 @@ export default function AssetDetailScreen({
                 <div>
                   <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">Quantity</p>
                   <p className="mt-1 text-gray-900 font-medium">{asset.quantity || 1}</p>
+                </div>
+                <div>
+                  <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">Item Price</p>
+                  <p className="mt-1 text-gray-900 font-medium">
+                    {asset.item_price ? new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(asset.item_price) : '—'}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">Item Cost</p>
+                  <p className="mt-1 text-gray-900 font-medium">
+                    {asset.item_cost ? new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(asset.item_cost) : '—'}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">Replacement Value</p>
+                  <p className="mt-1 text-gray-900 font-medium">
+                    {asset.replacement_value ? new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(asset.replacement_value) : '—'}
+                  </p>
                 </div>
               </div>
             </Card>

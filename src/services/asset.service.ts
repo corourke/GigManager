@@ -2,7 +2,7 @@ import { createClient } from '../utils/supabase/client';
 import { handleApiError } from '../utils/api-error-utils';
 import { requireAuth } from '../utils/supabase/auth-utils';
 import { sanitizeLikeInput } from '../utils/validation-utils';
-import type { DbAssetStatusHistory, DbInventoryTracking } from '../utils/supabase/types';
+import type { DbAsset, DbAssetStatusHistory, DbInventoryTracking } from '../utils/supabase/types';
 
 const getSupabase = () => createClient();
 
@@ -13,6 +13,7 @@ export async function getAssets(organizationId: string, filters?: {
   category?: string;
   sub_category?: string;
   insurance_added?: boolean;
+  purchase_id?: string;
   search?: string;
 }) {
   const supabase = getSupabase();
@@ -32,6 +33,10 @@ export async function getAssets(organizationId: string, filters?: {
 
     if (filters?.insurance_added !== undefined) {
       query = query.eq('insurance_policy_added', filters.insurance_added);
+    }
+
+    if (filters?.purchase_id) {
+      query = query.eq('purchase_id', filters.purchase_id);
     }
 
     if (filters?.search) {
@@ -170,33 +175,20 @@ export async function getAssetInventoryTracking(assetId: string): Promise<DbInve
 /**
  * Create a new asset
  */
-export async function createAsset(assetData: {
-  organization_id: string;
-  category: string;
-  manufacturer_model: string;
-  serial_number?: string;
-  acquisition_date?: string;
-  vendor?: string;
-  cost?: number;
-  replacement_value?: number;
-  sub_category?: string;
-  type?: string;
-  description?: string;
-  insurance_policy_added?: boolean;
-  insurance_class?: string;
-  quantity?: number;
-  tag_number?: string;
-  status?: string;
-  service_life?: number;
-  dep_method?: string;
-  liquidation_amt?: number;
-}) {
+export async function createAsset(assetData: Partial<DbAsset> & { cost?: number }) {
   try {
     const { supabase, user } = await requireAuth();
 
+    // Handle legacy 'cost' field mapping
+    const finalData = { ...assetData };
+    if (finalData.cost !== undefined && finalData.item_cost === undefined) {
+      finalData.item_cost = finalData.cost;
+      delete finalData.cost;
+    }
+
     const { data, error } = await (supabase.from('assets') as any)
       .insert({
-        ...assetData,
+        ...finalData,
         created_by: user.id,
         updated_by: user.id,
       })
@@ -213,32 +205,20 @@ export async function createAsset(assetData: {
 /**
  * Update an existing asset
  */
-export async function updateAsset(assetId: string, assetData: {
-  category?: string;
-  manufacturer_model?: string;
-  serial_number?: string;
-  acquisition_date?: string;
-  vendor?: string;
-  cost?: number;
-  replacement_value?: number;
-  sub_category?: string;
-  type?: string;
-  description?: string;
-  insurance_policy_added?: boolean;
-  insurance_class?: string;
-  quantity?: number;
-  tag_number?: string;
-  status?: string;
-  service_life?: number;
-  dep_method?: string;
-  liquidation_amt?: number;
-}) {
+export async function updateAsset(assetId: string, assetData: Partial<DbAsset> & { cost?: number }) {
   try {
     const { supabase, user } = await requireAuth();
 
+    // Handle legacy 'cost' field mapping
+    const finalData = { ...assetData };
+    if (finalData.cost !== undefined && finalData.item_cost === undefined) {
+      finalData.item_cost = finalData.cost;
+      delete finalData.cost;
+    }
+
     const { data, error } = await (supabase.from('assets') as any)
       .update({
-        ...assetData,
+        ...finalData,
         updated_by: user.id,
         updated_at: new Date().toISOString(),
       })
