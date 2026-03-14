@@ -1,87 +1,81 @@
-# Product Requirements Document: Asset Import Improvements
+# Product Requirements Document: Asset & Purchase Import
 
 ## 1. Overview
-The goal of this project is to enhance the asset import functionality to support a comprehensive set of asset data, ensure parity with the robust gig import workflow, and introduce AI-powered import capabilities from invoices and receipts.
+The goal of this project is to enhance asset and expense tracking by introducing a dedicated `purchases` table for invoices, receipts, and general/gig-specific expenses, while extending the `assets` table to support detailed acquisition data. This system will support both a comprehensive 26-column spreadsheet (A-Z) and AI-powered scanning of invoices and receipts.
 
 ## 2. Goals
-- **Full Data Support**: Support all 23 columns present in the new asset spreadsheet.
-- **Workflow Parity**: Bring asset import to the same level of robustness and user experience as the gig import.
-- **AI-Powered Import**: Enable users to upload an invoice or receipt and have assets automatically extracted and created.
-- **Audit Trail & Association**: Maintain a link between imported assets/expenses and the original receipt or invoice via a centralized attachment system.
-- **Expense Integration**: Categorize non-asset line items as business expenses, with the option to link them to specific gigs.
+- **Separation of Concerns**: Use `gig_financials` only for financial events (bids, contracts, customer invoices, etc.). Use `purchases` for all acquisitions and expenses.
+- **Full Data Support**: Support the new 26-column (A-Z) asset spreadsheet.
+- **AI-Powered Extraction**: Enable receipt/invoice scanning in both Gig and Asset contexts.
+- **Accurate Costing**: Differentiate between `Price` (selling price on invoice) and `Cost` (burdened cost including tax/shipping).
+- **Audit Trail**: Maintain links between files (attachments), purchase records, and the resulting assets/expenses.
 
 ## 3. Requirements
 
-### 3.1 Extended Spreadsheet Import
-The system must support importing assets and expenses from a CSV with the following columns:
-- **Acquisition Date**: Date of purchase (YYYY-MM-DD).
-- **Source**: Type of row [0-Invoice (Header), 1-Asset, 2-Expense].
-- **Vendor**: Seller of the asset or provider of the service.
-- **Inv Amt**: Total amount of the invoice (for header rows).
-- **Paid Via**: Payment method.
-- **Total Cost**: Total cost including tax/shipping.
-- **Item Cost**: Unit cost of the asset or expense amount.
-- **Replacement Value**: Value for insurance purposes (assets only).
-- **Quantity**: Number of units.
-- **Manufacturer/Model**: Make and model (assets only).
-- **Equipment Type**: Description of the gear or service.
-- **Category**: Primary classification (e.g., Audio, Lighting, Travel, Labor).
-- **Sub-cat**: Secondary classification.
-- **Serial Number**: Unique identifier (assets only).
-- **Kit**: Name of the kit (assets only).
-- **Description / Notes**: Additional details.
-- **Insured**: Boolean flag (assets only).
-- **Ins Class**: Insurance classification (assets only).
-- **Retired On**: Date removed from service (assets only).
-- **Liquidation Amt**: Disposal amount (assets only).
-- **Expected Service Life**: Years of use (assets only).
-- **Depreciation Method**: (assets only).
-- **Status**: Current status (e.g., Active, Retired, Paid, Pending).
+### 3.1 AI Scanning & Workflow
+- **Gig Entry Screen**: Button to "Upload Receipt".
+    - AI scans receipt -> `purchases` (Header), `purchases` (Item/Expense), and/or `assets`.
+    - Review dialog shows extracted lines; user adjusts details and links to Gig.
+- **Asset List Screen**: Button to "Upload Invoice".
+    - AI scans invoice -> same logic as above.
+- **Review Dialog**: 
+    - Display line items with AI-suggested classification (Asset vs Expense).
+    - Allow manual adjustment of categories, quantities, and prices.
+    - Automatic cost allocation (pro-rata shipping/tax).
 
-### 3.2 AI-Powered Invoice & Expense Import
-- **File Upload**: Users can upload PDF or Image (JPG/PNG) files.
-- **LLM Extraction & Classification**:
-    - **Header**: Extract Date, Vendor, Total, Payment Method.
-    - **Classification Rules**:
-        - **Asset**: Items with serial numbers, high-value gear (e.g., >$50), or reusable equipment.
-        - **Expense**: Consumables (tape, batteries), services (labor, shipping), or low-value one-time items.
-- **Cost Allocation (Pro-rata)**: 
-    - `Factor = Invoice Total / Sum(Unit Prices * Quantities)`.
-    - Apply this factor to all line items to include hidden costs like tax and shipping in the final asset/expense cost.
-- **Review Step**: Unified preview table for user verification and editing.
-    - Toggle classification between Asset and Expense.
-    - Link expenses to a specific Gig (searchable by title/date).
-    - Handle duplicate serial numbers with clear visual warnings.
+### 3.2 Spreadsheet Import (Columns A-Z)
+The system must map columns from the legacy Act4Audio format (Source types: `0-Invoice`, `1-Asset`, `2-Expense`):
 
-### 3.3 Error Handling & Fallbacks
-- **Extraction Failure**: If AI fails to parse, provide a manual entry form or spreadsheet-style grid for data entry.
-- **Partial Failure**: Wrap the entire import in a database transaction to prevent partial data corruption.
-- **Validation Feedback**: Provide field-level error messages (e.g., "Invalid Date Format", "Duplicate Serial Number").
-- **Conflict Management**: Alert user if an asset with the same serial number already exists in the system.
+| Col | Field | Target Mapping |
+|---|---|---|
+| A | Acquisition Date | `purchase_date` / `acquisition_date` |
+| B | Source | `row_type` (Header/Item) or Asset |
+| C | Vendor | `vendor` |
+| D | Inv Amount | `total_inv_amount` (Header) |
+| E | Paid Via | `payment_method` (Header) |
+| F | Line Amount | `line_amount` (Purchases Item) |
+| G | Line Cost | `line_cost` (Computed via factor) |
+| H | Quantity | `quantity` |
+| I | Item Price | `item_price` (Line Amount / Qty) |
+| J | Item Cost | `item_cost` (Line Cost / Qty) |
+| K | Manufacturer/Model | `description` (Purchases) / `manufacturer_model` (Assets) |
+| L | Category | `category` |
+| M | Sub-cat | `sub_category` |
+| N | Equipment Type | `type` (Assets) |
+| O | Kit | Add asset to named kit |
+| P | Serial Number | `serial_number` (Assets) |
+| Q | Tag Number | `tag_number` (Assets) |
+| R | Notes | `description` (Assets) |
+| S | Insured | `insurance_policy_added` (Assets) |
+| T | Ins Class | `insurance_class` (Assets) |
+| U | Replacement Value | `replacement_value` (Assets) |
+| V | Retired On | `retired_on` (Assets) |
+| W | Liquidation Amt | `liquidation_amt` (Assets) |
+| X | Expected Service Life | `service_life` (Assets) |
+| Y | Depreciation Method | `dep_method` (Assets) |
+| Z | Status | `status` (Assets) |
 
-### 3.4 File Management & Performance
-- **Limits**: Maximum file size of 10MB per invoice.
-- **Mobile Support**: Optimized upload for mobile cameras (capture and upload flow).
-- **Bulk Processing**: Support sequential processing of multiple invoices with a progress indicator.
-- **Versioning**: If a duplicate invoice is uploaded, allow the user to replace the existing one or create a new version.
+### 3.3 Cost Allocation Logic
+- **Input**: Invoice Total (`Inv Amount`), List of items with `Item Price` and `Quantity`.
+- **Factor**: `Inv Amount / Sum(Item Price * Quantity)`.
+- **Calculations**:
+    - `Line Cost = (Item Price * Quantity) * Factor`
+    - `Item Cost = Line Cost / Quantity`
+- **Reconciliation**: Adjust the final line item's cost to ensure `Sum(Line Cost) == Inv Amount`.
 
-### 3.5 Centralized Storage & Association
-- **Supabase Storage**: Store files in an `attachments` bucket, isolated by organization.
-- **Polymorphic Linking**: Link a single attachment to multiple Assets, Expenses, or Gigs.
-- **UI Integration**: Show "Source Document" links on all related entity screens.
+### 3.4 Data Integrity & Linking
+- **Purchase ID**: Assets and Expense items must link back to their parent Purchase Header record.
+- **Attachments**: Link the original PDF/Image to the Purchase record and all its child items (Assets/Expenses).
+- **Organization Scoping**: All records must belong to an `organization_id`.
 
-### 3.6 Expense Management
-- **General Expenses**: Log expenses not tied to a specific gig.
-- **Gig Integration**: Optionally link expenses to gig financial records.
-- **Admin Reporting**: New reporting dashboard for Business Expenses and Insurance/Asset valuation.
+### 3.5 Unified Views & UI
+- **Purchase Management**: Unified screen to view complete purchase transactions (Header + Items + Assets) grouped by invoice/receipt.
+- **Correction UI**: Ability to inspect and correct existing purchases (headers and items) after import.
+- **Gig Expense Integration**: Gig detail screens must display purchase expenses alongside existing financial events.
+- **Multi-Attachment UI**: Specific components for uploading, viewing, and deleting multiple attachments for assets, purchases, and gigs.
+- **CSV Template**: Update the downloadable asset import template to support all 26 columns (A-Z).
 
-## 4. Technical Considerations
-- **Database Schema**: Update `assets`, update `gig_financials` (nullable `gig_id`), and create `attachments`.
-- **LLM Prompting**: Define strict JSON output rules with classification guidelines.
-- **Performance**: Use efficient joining/indexing for attachment rollups.
-
-## 5. Success Criteria
-- Successful import of the 23-column spreadsheet.
-- High accuracy in AI-driven classification (Asset vs. Expense).
-- All imported items are correctly linked to their source files.
-- Seemless user experience from mobile capture to desktop review.
+## 4. Success Criteria
+- Successful AI extraction and review workflow in both Gig and Asset screens.
+- 100% accurate mapping and calculation of burdened costs from A-Z spreadsheets.
+- Clean separation between purchase-related data and gig financial events.

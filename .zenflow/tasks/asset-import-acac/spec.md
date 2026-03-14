@@ -1,93 +1,180 @@
-# Technical Specification: Asset & Expense Import with Attachments
+# Technical Specification: Asset & Purchase Import
 
 ## 1. Overview
-This specification covers the enhancement of asset import, integration of general business expenses, and a centralized attachment system.
+This specification covers the implementation of the `purchases` table to handle acquisition headers and expense items, extensions to the `assets` table, and a centralized polymorphic attachment system.
 
 ## 2. Technical Context
 - **Frontend**: React (Vite), TypeScript, Tailwind CSS, Shadcn/UI.
 - **Backend**: Supabase (Auth, Postgres, Storage, Edge Functions).
-- **AI**: LLM (Claude-haiku via Ollama/Anthropic) for extraction.
-- **Dependencies**: `pdf-parse` (or equivalent) for text extraction.
+- **AI**: LLM (Claude-haiku) for PDF/Image extraction.
+- **Legacy Mapping**: Map Columns A-Z to relational tables.
 
 ## 3. Data Model Changes
 
-### 3.1 `public.assets` Table Extensions
-Update `assets` to support the new 23-column spreadsheet:
-- `source`: TEXT (e.g., 'Import', 'Invoice')
-- `invoice_amount`: NUMERIC(10,2)
-- `paid_via`: TEXT
-- `total_cost`: NUMERIC(10,2)
-- `retired_on`: DATE
-- `liquidation_amt`: NUMERIC(10,2)
-- `expected_service_life`: INTEGER
-- `depreciation_method`: TEXT
-- `status`: Update to include 'Retired', 'Returned' in allowed values.
+### 3.0 ER Diagram
+```mermaid
+erDiagram
+    ORGANIZATIONS {
+        uuid id PK
+        text name
+    }
+    GIGS {
+        uuid id PK
+        text title
+    }
+    PURCHASES {
+        uuid id PK
+        uuid organization_id FK
+        uuid gig_id FK "NULLABLE (for gig-specific expenses)"
+        uuid parent_id FK "NULLABLE (self-link: item to header)"
+        text row_type "DISCRIMINATOR: 'header', 'item'"
+        date purchase_date
+        text vendor
+        numeric total_inv_amount "For Header"
+        text payment_method "For Header"
+        numeric line_amount "For Item"
+        numeric line_cost "For Item (Burdened)"
+        numeric quantity "For Item"
+        numeric item_price "For Item"
+        numeric item_cost "For Item (Burdened)"
+        text description "For Item"
+        text category "For Item"
+        text sub_category "For Item"
+    }
+    ASSETS {
+        uuid id PK
+        uuid organization_id FK
+        uuid purchase_id FK "NULLABLE (link to acquisition header)"
+        text manufacturer_model
+        numeric item_price
+        numeric item_cost "Burdened"
+        text serial_number
+        text tag_number
+        text description
+        date acquisition_date
+        text vendor
+        numeric quantity
+        text category
+        text sub_category
+        text type
+        boolean insurance_policy_added
+        text insurance_class
+        numeric replacement_value
+        date retired_on
+        numeric liquidation_amt
+        numeric service_life
+        text dep_method
+        text status
+    }
+    ATTACHMENTS {
+        uuid id PK
+        uuid organization_id FK
+        text file_path
+        text file_name
+    }
+    ENTITY_ATTACHMENTS {
+        uuid id PK
+        uuid attachment_id FK
+        text entity_type "DISCRIMINATOR: 'asset', 'gig', 'purchase'"
+        uuid entity_id "FK to Target ID"
+    }
 
-### 3.2 `public.gig_financials` Table Updates
-Modify to support general business expenses:
-- `gig_id`: Change to **NULLABLE** to allow non-gig expenses.
-- `payment_method`: TEXT.
-- `attachment_count`: (Join-based).
+    ORGANIZATIONS ||--o{ ATTACHMENTS : "owns"
+    ORGANIZATIONS ||--o{ ASSETS : "owns"
+    ORGANIZATIONS ||--o{ PURCHASES : "owns"
 
-### 3.3 `public.attachments` Table (New)
+    ATTACHMENTS ||--o{ ENTITY_ATTACHMENTS : "linked to"
+    
+    PURCHASES ||--o{ ASSETS : "parent for acquisition"
+    PURCHASES ||--o{ PURCHASES : "self-link (header to items)"
+    
+    GIGS ||--o{ PURCHASES : "has expenses"
+    
+    ENTITY_ATTACHMENTS }o--|| ASSETS : "polymorphic link"
+    ENTITY_ATTACHMENTS }o--|| PURCHASES : "polymorphic link"
+    ENTITY_ATTACHMENTS }o--|| GIGS : "polymorphic link"
+```
+
+### 3.1 `public.purchases` Table (New)
+Handles all acquisition headers (Source 0) and expense items (Source 2).
 | Column | Type | Notes |
 |---|---|---|
 | `id` | `uuid` | PK |
-| `organization_id` | `uuid` | FK -> organizations (RLS context) |
-| `file_path` | `text` | Path in Supabase Storage bucket |
-| `file_name` | `text` | Original filename |
-| `content_type` | `text` | MIME type |
-| `size_bytes` | `integer` | |
-| `entity_type` | `text` | 'asset', 'gig', 'financial' |
-| `entity_id` | `uuid` | Target record ID |
-| `created_by` | `uuid` | FK -> auth.users |
-| `created_at` | `timestamptz` | |
+| `organization_id` | `uuid` | FK -> organizations |
+| `gig_id` | `uuid` | FK -> gigs (Nullable) |
+| `parent_id` | `uuid` | Self-reference (Item -> Header) |
+| `row_type` | `text` | 'header' or 'item' |
+| `purchase_date` | `date` | (Col A) |
+| `vendor` | `text` | (Col C) |
+| `total_inv_amount` | `numeric` | (Col D) Header Only |
+| `payment_method` | `text` | (Col E) Header Only |
+| `line_amount` | `numeric` | (Col F) Item Only |
+| `line_cost` | `numeric` | (Col G) Item Only (Burdened) |
+| `quantity` | `numeric` | (Col H) Item Only |
+| `item_price` | `numeric` | (Col I) Item Only |
+| `item_cost` | `numeric` | (Col J) Item Only (Burdened) |
+| `description` | `text` | (Col K) Item Only |
+| `category` | `text` | (Col L) Item Only |
+| `sub_category` | `text` | (Col M) Item Only |
+
+### 3.2 `public.assets` Table Updates
+| Column | Type | Notes |
+|---|---|---|
+| `item_price` | `numeric` | (Col I) New |
+| `item_cost` | `numeric` | Rename from `cost` (Col J) |
+| `retired_on` | `date` | (Col V) New |
+| `purchase_id` | `uuid` | FK -> purchases (Header) |
+| `tag_number` | `text` | (Col Q) |
+| `acquisition_date` | `date` | (Col A) |
+| `vendor` | `text` | (Col C) |
+| `quantity` | `numeric` | (Col H) |
+| `manufacturer_model` | `text` | (Col K) |
+| `category` | `text` | (Col L) |
+| `sub_category` | `text` | (Col M) |
+| `type` | `text` | (Col N) |
+| `serial_number` | `text` | (Col P) |
+| `description` | `text` | (Col R) |
+| `insurance_policy_added`| `boolean`| (Col S) |
+| `insurance_class` | `text` | (Col T) |
+| `replacement_value` | `numeric` | (Col U) |
+| `liquidation_amt` | `numeric` | (Col W) |
+| `service_life` | `numeric` | (Col X) |
+| `dep_method` | `text` | (Col Y) |
+| `status` | `text` | (Col Z) |
+
+### 3.3 Centralized Attachments
+- `public.attachments`: Metadata for files in Supabase Storage.
+- `public.entity_attachments`: Polymorphic junction linking `attachment_id` to any `entity_id` with `entity_type` discriminator ('asset', 'purchase', 'gig').
 
 ## 4. Implementation Approach
 
-### 4.1 AI Import Pipeline
-- **Stage 1 (Upload/Extract)**: Client uploads PDF/Image (max 10MB) to temp storage. Edge function extracts text via `pdf-parse`.
-- **Stage 2 (LLM Parsing)**: 
-    - LLM returns structured JSON (header + line items).
-    - **Classification**: LLM uses provided rules (Asset if >$50 or Serialized; else Expense).
-- **Stage 3 (Allocation)**: Calculate `factor = total / sum(subtotals)`. Apply factor to all items.
-- **Stage 4 (Preview UI)**: 
-    - Display in `InvoicePreviewTable.tsx`.
-    - **UI Interactions**: Toggle button for Asset/Expense; Search/Select for Gig linking; Duplicate highlighting.
-- **Stage 5 (Commit)**: 
-    - Wrap in a **Postgres Transaction**.
-    - Insert into `assets` or `gig_financials`.
-    - Create `attachments` records linking the file to all items.
+### 4.1 AI Extraction (Gig & Asset Screens)
+- **Prompt**: Focus on Date, Vendor, Payment, and Line Items.
+- **Classification**: LLM suggests `Asset` vs `Expense` based on legacy rules.
+- **Preview Dialog**: 
+    - Render extracted data in an editable grid.
+    - Implement cost allocation factor logic.
+    - Allow manual linking to Gigs for expenses.
 
-### 4.2 UI/UX Flows
-- **Mobile flow**: Integration with `capacitor-camera` for direct receipt capture and upload.
-- **Error Feedback**: Use a specialized `ImportErrorBoundary` for extraction failures; Provide manual entry grid as fallback.
-- **Duplicate Prevention**: Client-side check for existing serial numbers before commit; UI warning on conflicting rows.
+### 4.2 Spreadsheet Mapping (A-Z)
+- Map `Source 0` -> `purchases` (header).
+- Map `Source 1` -> `assets`.
+- Map `Source 2` -> `purchases` (item).
+- Implement transactional commit for grouped rows.
 
-## 5. Security & Performance
-- **File Security**: RLS policies for `attachments` bucket ensure only organization members with relevant roles (Manager+) can download/view.
-- **Scaling**: 
-    - Use composite indexes on `entity_type` and `entity_id` for fast attachment rollups.
-    - Limit individual invoice parsing to 100 line items to prevent LLM context overflow.
-- **Orphan Cleanup**: Implement a periodic background task to remove attachments in Storage that no longer have a corresponding database record (using `pg_cron`).
+### 4.3 Unified UI Components
+- **`AttachmentManager`**: A reusable component for managing multiple attachments. 
+    - Supports upload, list, preview, and delete.
+    - Uses `ENTITY_ATTACHMENTS` for polymorphic linking.
+- **`PurchaseTransactionView`**: A unified view for complete purchase transactions.
+    - Displays Header metadata (Vendor, Total, Date).
+    - Lists associated `purchases` items (expenses) and `assets` acquired in that transaction.
+    - Integrated edit/correction mode for modifying existing purchase data.
+- **`GigPurchaseExpenses`**: A new section in the Gig detail view.
+    - Queries `purchases` where `gig_id` matches.
+    - Displays alongside existing `gig_financials`.
+- **`CSVTemplateGenerator`**: Update `generateAssetTemplate` logic to output 26 columns (A-Z) in the specified order.
 
-## 6. Source Code Changes
-- **Services**: New `attachment.service.ts`. Updates to `asset.service.ts` and `financial.service.ts`.
-- **Components**: New `AttachmentList.tsx`, `InvoicePreviewTable.tsx`.
-- **Utils**: Update `csvImport.ts` with allocation and classification logic.
-- **Documentation**: Update `scripts/README.md` with explicit cost allocation and pro-rata factor definitions.
-
-## 7. Delivery Phases
-1. **Schema & Storage**: Database migrations and Storage bucket configuration.
-2. **CSV Import Enhancement**: Support for 23 columns and new row types.
-3. **Attachment System**: Core service and UI components for file management.
-4. **AI Import Pipeline**: Edge function development and LLM integration.
-5. **Reporting & Admin**: Dashboard/Admin views for expense and insurance reports.
-
-## 8. Verification Approach
-- **Lint/Typecheck**: `npm run lint`, `npm run typecheck`.
-- **Unit Tests**: `npm run test` for cost allocation math and parser logic.
-- **Manual QA**: 
-    - Verify PDF extraction across various formats.
-    - Test mobile receipt capture flow.
-    - Confirm transaction rollback on partial failure.
+## 5. Verification
+- **Test**: Verify `Item Cost` calculation accurately reflects pro-rata tax/shipping.
+- **Test**: Ensure `ENTITY_ATTACHMENTS` correctly links one file to multiple records.

@@ -174,62 +174,38 @@ For each line item:
   number, assign it; if there are multiple but they don't match the quantity count,
   join them as a comma-separated string in the `serial_number` field.
 
-#### 4b. Cost allocation factor
+#### 4b. Cost allocation factor (Pro-rata)
 
 Invoices from audio/AV vendors (Sweetwater, B&H, etc.) always include tax and often
 shipping. Those charges apply to the purchase as a whole but are not broken out per
 line item — they inflate the invoice total above the sum of the line item prices.
 
 To give each asset an accurate true cost, we compute a single allocation factor and
-apply it to every line item's unit cost:
+apply it to every line item's unit cost. This factor represents the "true dollar cost"
+per "invoice dollar spent."
 
+**Calculation:**
 ```
-factor = invoice_total / sum(unit_cost × quantity for each line item)
-```
-
-Then for each row:
-
-```
-allocated_cost = round(row.cost × factor, 2)   // two decimal places
+Factor = Invoice Total / Sum(Unit Cost × Quantity for every line item)
 ```
 
-**Penny reconciliation:** Due to floating-point rounding across multiple rows, the sum
-of `allocated_cost × quantity` will often differ from `invoice_total` by a cent or two.
-To fix this, process all rows except the last one normally, track the running total, then
-set the last row's cost to:
-
+**Application:**
+For each resulting database row (Asset or Expense):
 ```
-last_cost = round((invoice_total - running_total) / last_row.quantity, 2)
+Allocated Cost = Unit Cost × Factor
 ```
 
-This guarantees `sum(cost × qty)` === `invoice_total` exactly.
+**Penny reconciliation:**
+Due to floating-point rounding across multiple rows, the sum of `Allocated Cost × Quantity` 
+will often differ from `Invoice Total` by a few cents. To ensure accounting parity:
+1. Process all rows except the last one using the factor.
+2. Maintain a `Running Total` of all allocated costs.
+3. For the final row, use: `Final Cost = (Invoice Total - Running Total) / Final Row Quantity`.
 
-**Skip conditions:** If `invoice_total` is null, or if the sum of line item costs is
+This guarantees `Sum(Allocated Cost × Quantity) === Invoice Total` exactly.
+
+**Skip conditions:** If `Invoice Total` is null, or if the sum of line item costs is
 zero, skip allocation entirely and use the raw LLM-extracted unit costs as-is.
-
-**Rows without a cost:** Leave their `cost` field as `null`. Do not include them in the
-factor calculation denominator and do not attempt to allocate to them.
-
-#### Example
-
-Invoice total: $1,105.60
-Line items from LLM:
-
-| Item | Qty | Unit cost | Line total |
-|---|---|---|---|
-| Shure SM58 | 2 | $94.50 | $189.00 |
-| RCF NX 932-A | 1 | $899.00 | $899.00 |
-
-Raw line sum = $1,088.00
-Factor = 1,105.60 / 1,088.00 = **1.016176...**
-
-Allocation (all but last):
-- SM58: $94.50 × 1.016176 = **$96.03** per unit → running total = $192.06
-
-Last row reconciliation:
-- Remaining = 1,105.60 − 192.06 = $913.54 → RCF cost = **$913.54**
-
-Verify: $192.06 + $913.54 = **$1,105.60** ✓
 
 ---
 
