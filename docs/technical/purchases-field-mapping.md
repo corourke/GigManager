@@ -1,0 +1,32 @@
+### Purchases field mapping
+
+| Col  | Input Field           | `purchases` Table, row_type = "header"                       | `purchases` Table, row_type = "item"                         | `assets` Table                          | Notes                    |
+| ---- | --------------------- | ------------------------------------------------------------ | ------------------------------------------------------------ | --------------------------------------- | ------------------------ |
+| A    | Acquisition Date      | `purchase_date`                                              | `purchase_date`                                              | `acquisition_date`                      | Scanned                  |
+| B    | Source                | `row_type`<br />(On spreadsheet import Map: "0-Invoice" -> "header") | `row_type`<br />(On spreadsheet import Map: "2-Expense" -> "item") | (On spreadsheet import, Select: 1-Asset |                          |
+| C    | Vendor                | `vendor`                                                     | `vendor`                                                     | `vendor`                                | Scanned                  |
+| D    | Inv Amount            | `total_inv_amount`                                           |                                                              |                                         | Scanned                  |
+| E    | Paid Via              | `payment_method`                                             |                                                              |                                         | Scanned                  |
+| F    | Line Amount           |                                                              | `line_amount`                                                |                                         | Scanned                  |
+| G    | Line Cost             |                                                              | `line_cost`                                                  |                                         | Computed using factor    |
+| H    | Quantity              |                                                              | `quantity`                                                   | `quantity`                              | Scanned                  |
+| I    | Item Price            |                                                              | `item_price`                                                 | `item_price`                            | `line_amount / quantity` |
+| J    | Item Cost             |                                                              | `item_cost`                                                  | `item_cost`                             | `line_cost / quantity`   |
+| K    | Manufacturer/Model    |                                                              | `description`                                                | `manufacturer_model`                    | Scanned                  |
+| L    | Category              |                                                              | `category`                                                   | `category`                              |                          |
+| M    | Sub-cat               |                                                              | `sub-category`                                               | `sub_category`                          |                          |
+| N    | Equipment Type        |                                                              |                                                              | `type`                                  |                          |
+| O    | Kit                   |                                                              |                                                              |                                         | Add asset to named kit   |
+| P    | Serial Number         |                                                              |                                                              | `serial_number`                         |                          |
+| Q    | Tag Number            |                                                              |                                                              | `tag_number`                            |                          |
+| R    | Notes                 |                                                              |                                                              | `description`                           |                          |
+| S    | Insured               |                                                              |                                                              | `insurance_policy_added`                |                          |
+| T    | Ins Class             |                                                              |                                                              | `insurance_class`                       |                          |
+| U    | Replacement Value     |                                                              |                                                              | `replacement_value`                     |                          |
+| V    | Retired On            |                                                              |                                                              | `retired_on`                            |                          |
+| W    | Liquidation Amt       |                                                              |                                                              | `liquidation_amt`                       |                          |
+| X    | Expected Service Life |                                                              |                                                              | `service_life`                          |                          |
+| Y    | Depreciation Method   |                                                              |                                                              | `dep_method`                            |                          |
+| Z    | Status                |                                                              |                                                              | `status`                                |                          |
+
+## 
