@@ -321,3 +321,18 @@ python3 scripts/invoice_import.py --dir ~/Downloads/Invoices --ollama qwen2.5:7b
 
 The dry-run output shows the allocation factor, the raw line-item sum, and the
 post-allocation sum so you can verify the math before committing anything to the database.
+
+---
+
+## Native Implementation (Edge Function) Setup
+
+The `ai-scan` Edge Function requires an Anthropic API key to process PDFs.
+
+### Configuration
+
+1. **API Key**: Obtain a paid API key from the [Anthropic Console](https://console.anthropic.com/).
+2. **Supabase Secret**: Add the key to your Supabase project:
+   ```bash
+   supabase secrets set ANTHROPIC_API_KEY=your_key_here
+   ```
+   Alternatively, add it via the Supabase Dashboard under **Project Settings -> Edge Functions -> Secrets**.

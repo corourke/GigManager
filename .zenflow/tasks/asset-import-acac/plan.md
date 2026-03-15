@@ -42,10 +42,11 @@ Create a detailed implementation plan for the UI components and template updates
 - [x] Implement `Cost Allocation Factor` utility for pro-rata tax/shipping distribution.
 - [x] Implement transactional commit for bulk imports.
 
-### [ ] Step 4: AI Extraction Pipeline
-- [ ] Create/Update Edge Function for AI scanning.
-- [ ] Refine LLM prompt for detailed extraction (Vendor, Date, Items, Tax/Shipping).
-- [ ] Implement legacy classification logic ($100/$50 rule).
+### [x] Step 4: AI Extraction Pipeline
+<!-- chat-id: b1e166bf-dc0c-464e-9bb7-6a3a53d84f0f -->
+- [x] Create/Update Edge Function for AI scanning.
+- [x] Refine LLM prompt for detailed extraction (Vendor, Date, Items, Tax/Shipping).
+- [x] Implement legacy classification logic ($100/$50 rule).
 
 ### [ ] Step 5: Frontend UI Enhancements
 - [ ] **Gig Screen**: Add "Upload Receipt" button and `GigPurchaseExpenses` section.

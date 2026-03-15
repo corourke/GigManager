@@ -334,3 +334,23 @@ export async function createPurchaseTransaction(
     return handleApiError(err, 'create purchase transaction');
   }
 }
+
+/**
+ * Scan an invoice or receipt PDF using AI
+ */
+export async function scanInvoice(file: File) {
+  const supabase = getSupabase();
+  try {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const { data, error } = await supabase.functions.invoke('ai-scan', {
+      body: formData,
+    });
+
+    if (error) throw error;
+    return data;
+  } catch (err) {
+    return handleApiError(err, 'scan invoice');
+  }
+}
