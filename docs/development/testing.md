@@ -156,6 +156,142 @@ The project aims for good test coverage of:
 - ⚠️ **API functions** - Data fetching and manipulation
 - ⚠️ **Component rendering** - Basic error checking
 
+---
+
+## Coverage Analysis (March 2026)
+
+### Current State
+
+As of this analysis: **37 test files** cover approximately **144 source files** (~25% file coverage). Tests are concentrated in components and the `conflictDetection` service.
+
+**Well-tested today:**
+- Conflict detection (comprehensive, timezone-aware)
+- CSV import (date parsing, timezone handling, validation)
+- Mobile components (barcode scanner, inventory, dashboard)
+- Core gig section components (financials, staff, participants, kits)
+- Security / RLS simulation
+
+### Coverage Gaps by Priority
+
+#### Priority 1 — High Impact, Low Effort
+
+These are pure TypeScript modules with no rendering dependencies. The Supabase mock infrastructure is already in place. Each of these can be added in an afternoon.
+
+| File | Risk | Key Gaps |
+|---|---|---|
+| `src/utils/dateUtils.ts` | **High** — silent wrong output | All 8 exported functions have zero tests; timezone round-trips, date-only noon-UTC edge cases, fallback paths |
+| `src/utils/api-error-utils.ts` | **High** — error paths untested | `isNetworkError` (5 detection conditions), `handleApiError` wrapping, `handleFunctionsError` JSON body parsing |
+| `src/services/gig.service.ts` | **High** — core business logic | `syncGigToAllCalendars` filter skipping, `deleteGigFromAllCalendars`, all CRUD operations |
+| `src/services/asset.service.ts` | **High** — core CRUD | Filter combinations, `sanitizeLikeInput` integration, distinct value queries |
+| `src/services/kit.service.ts` | **High** — core CRUD | Same pattern as asset service |
+| `src/services/mobile/offlineSync.service.ts` | **High** — data loss risk | `INVENTORY_SCAN` insert fields, `INVENTORY_CLEAR` by id vs. bulk, retry behavior |
+
+#### Priority 2 — Medium Impact, Medium Effort
+
+| File | Risk | Key Gaps |
+|---|---|---|
+| `src/contexts/NavigationContext.tsx` | **Medium** — routing bugs | Initial state, state transitions, consumer re-renders |
+| `src/components/LoginScreen.tsx` | **Medium** — auth entry point | Field rendering, error display on failure, redirect on success, loading state |
+| `src/utils/validation-utils.ts` | **Medium** — security-adjacent | `sanitizeLikeInput` metachar stripping, `UUID_REGEX` against injection strings |
+| `src/services/user.service.ts` | **Medium** | Profile fetch/update, org membership queries |
+| `src/services/attachment.service.ts` | **Medium** | Upload, delete, URL generation |
+
+#### Priority 3 — Lower Impact / Higher Effort
+
+| Area | Notes |
+|---|---|
+| Screen-level smoke tests | One "renders without crash" test per screen (`GigListScreen`, `SettingsScreen`, `ImportScreen`, etc.) — low individual value, high collective safety net |
+| `TagsInput`, `MarkdownEditor` | Custom UI logic warrants testing; pure Radix passthrough components do not |
+| `src/services/purchase.service.ts` | Lower complexity, lower risk |
+
+---
+
+## Implementation Plan
+
+Work is broken into four phases. Each phase is independently shippable.
+
+### Phase 1 — Utility & Error Infrastructure (Week 1)
+
+**Goal:** Test the shared utilities that every service depends on.
+
+1. **`src/utils/dateUtils.test.ts`** (new file)
+   - `isNoonUTC` — ISO format, PostgreSQL format, non-noon strings
+   - `formatInTimeZone` — valid timezone, undefined timezone (browser fallback), invalid timezone (error fallback), invalid date string
+   - `formatDateTimeDisplay` — same-moment start/end, sub-24h same day, sub-24h crossing midnight, ≥24h multi-day, date-only (both noon UTC), date-only range
+   - `parseLocalToUTC` — round-trip for `America/New_York`, `Europe/London`, `Asia/Tokyo`; no timezone provided
+   - `parseGigDateTimeFromInput` — date-only input (`YYYY-MM-DD`), datetime input (`YYYY-MM-DDTHH:mm`), empty string
+
+2. **`src/utils/api-error-utils.test.ts`** (new file)
+   - `isNetworkError` — one test per detection branch (5 total) plus a false-positive test
+   - `handleApiError` — network error is wrapped with `NetworkError` name and message; non-network error is rethrown as-is
+   - `handleFunctionsError` — `FunctionsHttpError` with parseable JSON body; with unparseable body; with non-functions error
+
+3. **`src/utils/validation-utils.test.ts`** (extend existing)
+   - `sanitizeLikeInput` — strips `%`, `_`, `\`; handles empty string; handles normal input unchanged
+   - `UUID_REGEX` — valid UUIDs pass; invalid strings and SQL injection strings fail
+
+### Phase 2 — Core Service Layer (Week 2)
+
+**Goal:** Cover the primary data services that back every screen in the app.
+
+4. **`src/services/gig.service.test.ts`** (new file)
+   - Mock Supabase using the existing setup; mock `syncGigToCalendar` / `deleteGigFromCalendar`
+   - `syncGigToAllCalendars` — skips users with non-realtime frequency; does not throw when individual sync fails; calls `syncGigToCalendar` with correct venue location string
+   - `deleteGigFromAllCalendars` — calls delete for each user with a synced entry
+   - `getGig` / `createGig` / `updateGig` / `deleteGig` — verify correct Supabase table and filter args; verify error propagation via `handleApiError`
+
+5. **`src/services/asset.service.test.ts`** (new file)
+   - `getAssets` — no filters; category filter; search filter (verify `sanitizeLikeInput` is applied); combined filters
+   - `getDistinctAssetValues` — valid field, Supabase error propagation
+
+6. **`src/services/kit.service.test.ts`** (new file)
+   - Same pattern as asset: CRUD operations, filter application, error propagation
+
+### Phase 3 — Mobile Offline & Auth (Week 3)
+
+**Goal:** Cover data-loss-risk mobile paths and the auth entry point.
+
+7. **`src/services/mobile/offlineSync.service.test.ts`** (new file)
+   - Mock `idbStore` and Supabase client
+   - `INVENTORY_SCAN` handler — inserts all required fields; sets `asset_id` to `null` when absent; sets `notes` to `null` when absent
+   - `INVENTORY_CLEAR` by `record_id` — targets the correct row
+   - `INVENTORY_CLEAR` bulk — targets by `gig_id + kit_id`
+   - Handler throws when Supabase returns an error
+
+8. **`src/contexts/NavigationContext.test.tsx`** (new file)
+   - Renders children without crashing
+   - Initial navigation state matches expected defaults
+   - State update propagates to consumers
+
+9. **`src/components/LoginScreen.test.tsx`** (new file)
+   - Renders email and password inputs
+   - Submit button is disabled while loading
+   - Error message appears on auth failure
+   - `AuthContext` `signIn` is called with correct credentials
+
+### Phase 4 — Screen Smoke Tests & UI Components (Week 4+)
+
+**Goal:** Broad safety net across all screens; custom UI component logic.
+
+10. **Screen smoke tests** — one `renders without throwing errors` test per untested screen:
+    - `GigListScreen`, `SettingsScreen`, `ImportScreen`, `TeamMemberDetailScreen`
+    - `OrganizationScreen`, `AcceptInvitationScreen`, `UserProfileCompletionScreen`
+
+11. **Custom UI component tests:**
+    - `TagsInput` — add tag on Enter/comma, remove tag on backspace/click, deduplication, max tags limit
+    - `MarkdownEditor` — toolbar bold/italic/link actions modify selection correctly
+
+12. **`src/services/user.service.test.ts`** and **`src/services/attachment.service.test.ts`** using the same service-layer patterns established in Phase 2.
+
+### Success Metrics
+
+| Metric | Current | Target (after Phase 4) |
+|---|---|---|
+| Test files | 37 | ~55 |
+| Source files with tests | ~25% | ~50% |
+| Core service coverage | 1 of 8 services | 7 of 8 services |
+| Utility function coverage | Partial | ~90% of exported functions |
+
 ## Troubleshooting
 
 ### Tests failing due to Supabase mocking
