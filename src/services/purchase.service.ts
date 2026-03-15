@@ -149,6 +149,131 @@ export async function deletePurchase(purchaseId: string) {
 }
 
 /**
+ * Import a list of purchase rows (headers, items, assets)
+ * Groups rows by header and creates transactions
+ */
+export async function importPurchases(
+  organizationId: string,
+  rows: any[] // ParsedRow<AssetRow>[]
+) {
+  const errors: string[] = [];
+  let successCount = 0;
+
+  try {
+    const { user } = await requireAuth();
+
+    // 1. Group rows by header
+    const groups: Array<{
+      header: any;
+      items: any[];
+      assets: any[];
+    }> = [];
+
+    let currentGroup: { header: any; items: any[]; assets: any[] } | null = null;
+
+    rows.forEach((row) => {
+      const data = row.data;
+      if (data.source === '0') {
+        currentGroup = {
+          header: {
+            organization_id: organizationId,
+            purchase_date: data.acquisition_date,
+            vendor: data.vendor,
+            total_inv_amount: data.total_inv_amount ? parseFloat(data.total_inv_amount) : 0,
+            payment_method: data.payment_method,
+            description: data.description,
+          },
+          items: [],
+          assets: [],
+        };
+        groups.push(currentGroup);
+      } else if (data.source === '1') {
+        const assetData = {
+          organization_id: organizationId,
+          category: data.category,
+          sub_category: data['sub-category'] || undefined,
+          manufacturer_model: data.manufacturer_model,
+          type: data.type || undefined,
+          serial_number: data.serial_number || undefined,
+          tag_number: data.tag_number || undefined,
+          acquisition_date: data.acquisition_date || (currentGroup?.header?.purchase_date),
+          vendor: data.vendor || (currentGroup?.header?.vendor),
+          item_price: data.item_price ? parseFloat(data.item_price) : undefined,
+          item_cost: data.item_cost ? parseFloat(data.item_cost) : undefined,
+          quantity: data.quantity ? parseInt(data.quantity) : 1,
+          description: data.description || undefined,
+          insurance_policy_added: data.insured ? (data.insured.toLowerCase() === 'yes' || data.insured === 'true') : false,
+          insurance_class: data.insurance_class || undefined,
+          replacement_value: data.replacement_value ? parseFloat(data.replacement_value) : undefined,
+          retired_on: data.retired_on || undefined,
+          liquidation_amt: data.liquidation_amt ? parseFloat(data.liquidation_amt) : undefined,
+          service_life: data.service_life ? parseFloat(data.service_life) : undefined,
+          dep_method: data.dep_method || undefined,
+          status: data.status || 'Active',
+        };
+        
+        if (currentGroup) {
+          currentGroup.assets.push(assetData);
+        } else {
+          // Standalone asset without header
+          groups.push({
+            header: null,
+            items: [],
+            assets: [assetData],
+          });
+        }
+      } else if (data.source === '2') {
+        const itemData = {
+          organization_id: organizationId,
+          category: data.category,
+          sub_category: data['sub-category'] || undefined,
+          description: data.description || undefined,
+          line_amount: data.line_amount ? parseFloat(data.line_amount) : 0,
+          line_cost: data.line_cost ? parseFloat(data.line_cost) : 0,
+          quantity: data.quantity ? parseInt(data.quantity) : 1,
+          item_price: data.item_price ? parseFloat(data.item_price) : undefined,
+          item_cost: data.item_cost ? parseFloat(data.item_cost) : undefined,
+        };
+
+        if (currentGroup) {
+          currentGroup.items.push(itemData);
+        } else {
+          errors.push(`Row ${row.rowIndex}: Expense item (Source 2) found without a preceding Header (Source 0). Skipping.`);
+        }
+      }
+    });
+
+    // 2. Process groups
+    for (const group of groups) {
+      try {
+        if (group.header) {
+          await createPurchaseTransaction(group.header, group.items, group.assets);
+          successCount += 1 + group.items.length + group.assets.length;
+        } else {
+          // Process standalone assets
+          for (const asset of group.assets) {
+            const { supabase } = await requireAuth();
+            const { error } = await (supabase.from('assets') as any).insert({
+              ...asset,
+              created_by: user.id,
+              updated_by: user.id,
+            });
+            if (error) throw error;
+            successCount++;
+          }
+        }
+      } catch (err: any) {
+        const headerInfo = group.header ? `Purchase from ${group.header.vendor}` : 'Standalone Assets';
+        errors.push(`Failed to import ${headerInfo}: ${err.message}`);
+      }
+    }
+
+    return { successCount, errors };
+  } catch (err) {
+    return handleApiError(err, 'import purchases');
+  }
+}
+/**
  * Create a purchase header with its items and assets
  */
 export async function createPurchaseTransaction(

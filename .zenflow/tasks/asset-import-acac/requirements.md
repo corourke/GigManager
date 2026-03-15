@@ -14,10 +14,10 @@ The goal of this project is to enhance asset and expense tracking by introducing
 
 ### 3.1 AI Scanning & Workflow
 - **Gig Entry Screen**: Button to "Upload Receipt".
-    - AI scans receipt -> `purchases` (Header), `purchases` (Item/Expense), and/or `assets`.
-    - Review dialog shows extracted lines; user adjusts details and links to Gig.
+    - AI scans receipt -> `purchases` (Header), `purchases` (Item/Expense).
+    - Review dialog shows extracted lines; user adjusts details. Expenses are linked to gig.
 - **Asset List Screen**: Button to "Upload Invoice".
-    - AI scans invoice -> same logic as above.
+    - AI scans invoice -> breaks out headers, general (non-gig expenses) and assets.
 - **Review Dialog**: 
     - Display line items with AI-suggested classification (Asset vs Expense).
     - Allow manual adjustment of categories, quantities, and prices.
@@ -26,34 +26,35 @@ The goal of this project is to enhance asset and expense tracking by introducing
 ### 3.2 Spreadsheet Import (Columns A-Z)
 The system must map columns from the legacy Act4Audio format (Source types: `0-Invoice`, `1-Asset`, `2-Expense`):
 
-| Col | Field | Target Mapping |
-|---|---|---|
-| A | Acquisition Date | `purchase_date` / `acquisition_date` |
-| B | Source | `row_type` (Header/Item) or Asset |
-| C | Vendor | `vendor` |
-| D | Inv Amount | `total_inv_amount` (Header) |
-| E | Paid Via | `payment_method` (Header) |
-| F | Line Amount | `line_amount` (Purchases Item) |
-| G | Line Cost | `line_cost` (Computed via factor) |
-| H | Quantity | `quantity` |
-| I | Item Price | `item_price` (Line Amount / Qty) |
-| J | Item Cost | `item_cost` (Line Cost / Qty) |
-| K | Manufacturer/Model | `description` (Purchases) / `manufacturer_model` (Assets) |
-| L | Category | `category` |
-| M | Sub-cat | `sub_category` |
-| N | Equipment Type | `type` (Assets) |
-| O | Kit | Add asset to named kit |
-| P | Serial Number | `serial_number` (Assets) |
-| Q | Tag Number | `tag_number` (Assets) |
-| R | Notes | `description` (Assets) |
-| S | Insured | `insurance_policy_added` (Assets) |
-| T | Ins Class | `insurance_class` (Assets) |
-| U | Replacement Value | `replacement_value` (Assets) |
-| V | Retired On | `retired_on` (Assets) |
-| W | Liquidation Amt | `liquidation_amt` (Assets) |
-| X | Expected Service Life | `service_life` (Assets) |
-| Y | Depreciation Method | `dep_method` (Assets) |
-| Z | Status | `status` (Assets) |
+| Col  | Input Field           | `purchases` Table, row_type = "header"                       | `purchases` Table, row_type = "item"                         | `assets` Table                          | Notes                    |
+| ---- | --------------------- | ------------------------------------------------------------ | ------------------------------------------------------------ | --------------------------------------- | ------------------------ |
+| A    | Acquisition Date      | `purchase_date`                                              | `purchase_date`                                              | `acquisition_date`                      | Scanned                  |
+| B    | Source                | `row_type`<br />(On spreadsheet import Map: "0-Invoice" -> "header") | `row_type`<br />(On spreadsheet import Map: "2-Expense" -> "item") | (On spreadsheet import, Select: 1-Asset |                          |
+| C    | Vendor                | `vendor`                                                     | `vendor`                                                     | `vendor`                                | Scanned                  |
+| D    | Inv Amount            | `total_inv_amount`                                           |                                                              |                                         | Scanned                  |
+| E    | Paid Via              | `payment_method`                                             |                                                              |                                         | Scanned                  |
+| F    | Line Amount           |                                                              | `line_amount`                                                |                                         | Scanned                  |
+| G    | Line Cost             |                                                              | `line_cost`                                                  |                                         | Computed using factor    |
+| H    | Quantity              |                                                              | `quantity`                                                   | `quantity`                              | Scanned                  |
+| I    | Item Price            |                                                              | `item_price`                                                 | `item_price`                            | `line_amount / quantity` |
+| J    | Item Cost             |                                                              | `item_cost`                                                  | `item_cost`                             | `line_cost / quantity`   |
+| K    | Manufacturer/Model    |                                                              | `description`                                                | `manufacturer_model`                    | Scanned                  |
+| L    | Category              |                                                              | `category`                                                   | `category`                              |                          |
+| M    | Sub-cat               |                                                              | `sub-category`                                               | `sub_category`                          |                          |
+| N    | Equipment Type        |                                                              |                                                              | `type`                                  |                          |
+| O    | Kit                   |                                                              |                                                              |                                         | Add asset to named kit   |
+| P    | Serial Number         |                                                              |                                                              | `serial_number`                         |                          |
+| Q    | Tag Number            |                                                              |                                                              | `tag_number`                            |                          |
+| R    | Notes                 |                                                              |                                                              | `description`                           |                          |
+| S    | Insured               |                                                              |                                                              | `insurance_policy_added`                |                          |
+| T    | Ins Class             |                                                              |                                                              | `insurance_class`                       |                          |
+| U    | Replacement Value     |                                                              |                                                              | `replacement_value`                     |                          |
+| V    | Retired On            |                                                              |                                                              | `retired_on`                            |                          |
+| W    | Liquidation Amt       |                                                              |                                                              | `liquidation_amt`                       |                          |
+| X    | Expected Service Life |                                                              |                                                              | `service_life`                          |                          |
+| Y    | Depreciation Method   |                                                              |                                                              | `dep_method`                            |                          |
+| Z    | Status                |                                                              |                                                              | `status`                                |                          |
+
 
 ### 3.3 Cost Allocation Logic
 - **Input**: Invoice Total (`Inv Amount`), List of items with `Item Price` and `Quantity`.

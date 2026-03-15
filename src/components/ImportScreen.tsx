@@ -35,6 +35,7 @@ import {
 } from '../utils/csvImport';
 import { createGig } from '../services/gig.service';
 import { createAsset } from '../services/asset.service';
+import { importPurchases } from '../services/purchase.service';
 import { searchOrganizations, createOrganization } from '../services/organization.service';
 import { createClient } from '../utils/supabase/client';
 import { 
@@ -195,7 +196,7 @@ export default function ImportScreen({
       }
 
       if (importType === 'gigs') {
-        // Import gigs - only process ready rows
+        // ... existing gig import logic
         for (let i = 0; i < readyRows.length; i++) {
           const row = readyRows[i];
           try {
@@ -268,7 +269,7 @@ export default function ImportScreen({
             // Add current organization as participant
             participants.push({ organization_id: organization.id, role: organization.type });
 
-            const createdGig = await createGig({
+            await createGig({
               title: gigData.title,
               start: parseLocalToUTC(gigData.start, gigData.timezone),
               end: parseLocalToUTC(gigData.end, gigData.timezone),
@@ -315,66 +316,32 @@ export default function ImportScreen({
           }
         }
       } else {
-        // Import assets - only process ready rows
-        for (let i = 0; i < readyRows.length; i++) {
-          const row = readyRows[i];
-          try {
-            // Update status to importing
-            row.importStatus = 'importing';
-            setValidRows(prev => prev.map(r => r.rowIndex === row.rowIndex ? row : r));
-
-            const assetData = row.data as AssetRow;
-            
-            await createAsset({
-              organization_id: organization.id,
-              category: assetData.category,
-              sub_category: assetData['sub-category'] || undefined,
-              manufacturer_model: assetData.manufacturer_model,
-              type: assetData.equipment_type || undefined,
-              serial_number: assetData.serial_number || undefined,
-              acquisition_date: assetData.acquisition_date,
-              vendor: assetData.vendor || undefined,
-              cost: assetData.cost_per_item ? parseFloat(assetData.cost_per_item) : undefined,
-              replacement_value: assetData.replacement_value_per_item ? parseFloat(assetData.replacement_value_per_item) : undefined,
-              description: assetData.notes || undefined,
-              insurance_policy_added: parseBoolean(assetData.insured),
-              insurance_class: assetData.insurance_category || undefined,
-              quantity: assetData.quantity ? parseInt(assetData.quantity) : undefined,
-            });
-
-            // Mark as success
-            row.importStatus = 'success';
-            row.importError = undefined;
-            setValidRows(prev => prev.map(r => r.rowIndex === row.rowIndex ? row : r));
-            successCount++;
-          } catch (error: any) {
-            let errorMessage = 'Failed to import asset';
-            
-            // Provide user-friendly error messages
-            if (error.message) {
-              if (error.message.includes('duplicate key value')) {
-                errorMessage = 'An asset with similar data already exists';
-              } else if (error.message.includes('invalid input syntax')) {
-                errorMessage = 'Invalid date or number format';
-              } else if (error.message.includes('foreign key constraint')) {
-                errorMessage = 'Related organization not found';
-              } else if (error.message.includes('not null constraint')) {
-                errorMessage = 'Missing required field';
-              } else if (error.message.includes('check constraint')) {
-                errorMessage = 'Invalid data format or value';
-              } else {
-                errorMessage = error.message.length > 100 ? 
-                  error.message.substring(0, 100) + '...' : 
-                  error.message;
-              }
-            }
-            
-            row.importStatus = 'failed';
-            row.importError = errorMessage;
-            setValidRows(prev => prev.map(r => r.rowIndex === row.rowIndex ? row : r));
-            errors.push(`Row ${row.rowIndex}: ${errorMessage}`);
-          }
+        // Import assets - grouped transactional import
+        // Mark all as importing
+        setValidRows(prev => prev.map(r => readyRows.find(rr => rr.rowIndex === r.rowIndex) ? { ...r, importStatus: 'importing' } : r));
+        
+        const result = await importPurchases(organization.id, readyRows);
+        successCount = result.successCount;
+        
+        if (result.errors.length > 0) {
+          errors.push(...result.errors);
         }
+
+        // Update UI status for all rows
+        setValidRows(prev => prev.map(r => {
+          const isReady = readyRows.find(rr => rr.rowIndex === r.rowIndex);
+          if (isReady) {
+            // For now we mark all as success if there are no errors, 
+            // or failed if there were errors in the transaction.
+            // A more granular status would be better but importPurchases is coarse right now.
+            return {
+              ...r,
+              importStatus: result.errors.length === 0 ? 'success' : 'failed',
+              importError: result.errors.length === 0 ? undefined : 'Part of a failed transaction',
+            };
+          }
+          return r;
+        }));
       }
 
       setImportResults({ success: successCount, errors });

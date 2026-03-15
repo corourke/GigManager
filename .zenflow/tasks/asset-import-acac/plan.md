@@ -35,11 +35,12 @@ Create a detailed implementation plan for the UI components and template updates
 - [x] Create `attachment.service.ts` for file management and polymorphic linking.
 - [x] Update `asset.service.ts` to support acquisition via `purchase_id`.
 
-### [ ] Step 3: Enhanced CSV Parsing (A-Z)
-- [ ] Update CSV parser to handle 26 columns (A-Z).
-- [ ] Implement grouping logic for Source `0` (Header), `1` (Asset), and `2` (Expense/Item).
-- [ ] Implement `Cost Allocation Factor` utility for pro-rata tax/shipping distribution.
-- [ ] Implement transactional commit for bulk imports.
+### [x] Step 3: Enhanced CSV Parsing (A-Z)
+<!-- chat-id: a4f1b3c6-18a7-42a3-a159-74d41e2da93f -->
+- [x] Update CSV parser to handle 26 columns (A-Z).
+- [x] Implement grouping logic for Source `0` (Header), `1` (Asset), and `2` (Expense/Item).
+- [x] Implement `Cost Allocation Factor` utility for pro-rata tax/shipping distribution.
+- [x] Implement transactional commit for bulk imports.
 
 ### [ ] Step 4: AI Extraction Pipeline
 - [ ] Create/Update Edge Function for AI scanning.
