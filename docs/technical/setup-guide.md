@@ -150,7 +150,7 @@ supabase functions deploy server --project-ref <your-project-id>
 
 ## Edge Functions & External Integrations
 
-GigManager uses Supabase Edge Functions for complex server-side logic and external integrations, such as Google Places.
+GigManager uses Supabase Edge Functions for complex server-side logic and external integrations, such as Google Places and AI-powered invoice scanning.
 
 ### 1. Google Places API Configuration
 The `server` edge function requires a `GOOGLE_PLACES_API_KEY` to perform place searches. This should be a Google Cloud API key with the "Places API (New)" enabled.
@@ -176,7 +176,24 @@ You must set the secret in your remote Supabase project:
 supabase secrets set GOOGLE_PLACES_API_KEY=your_actual_google_places_key
 ```
 
-### 2. Secrets Management
+### 2. AI Scanning Configuration (Anthropic)
+The `ai-scan` edge function uses Anthropic's Claude 3.5 Sonnet with PDF support to extract structured data from invoices and receipts.
+
+1. **API Key**: Obtain an API key from the [Anthropic Console](https://console.anthropic.com/).
+2. **Local Development**: Add the key to your `.env.local`:
+   ```env
+   ANTHROPIC_API_KEY=your_anthropic_key
+   ```
+   Run the function locally:
+   ```bash
+   supabase functions serve ai-scan --env-file .env.local
+   ```
+3. **Production**: Set the secret in Supabase:
+   ```bash
+   supabase secrets set ANTHROPIC_API_KEY=your_anthropic_key
+   ```
+
+### 3. Secrets Management
 - **List Secrets**: `supabase secrets list`
 - **Set Secret**: `supabase secrets set NAME=VALUE`
 - **Unset Secret**: `supabase secrets unset NAME`

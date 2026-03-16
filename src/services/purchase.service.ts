@@ -1,5 +1,5 @@
 import { createClient } from '../utils/supabase/client';
-import { handleApiError } from '../utils/api-error-utils';
+import { handleApiError, handleFunctionsError } from '../utils/api-error-utils';
 import { requireAuth } from '../utils/supabase/auth-utils';
 import type { DbPurchase, PurchaseWithItems } from '../utils/supabase/types';
 
@@ -505,6 +505,6 @@ export async function scanInvoice(file: File) {
     if (error) throw error;
     return data;
   } catch (err) {
-    return handleApiError(err, 'scan invoice');
+    return handleFunctionsError(err, 'scan invoice');
   }
 }

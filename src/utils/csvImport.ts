@@ -665,21 +665,22 @@ export function parseAndValidateCSV<T extends GigRow | AssetRow>(
           items: ParsedRow<AssetRow>[];
         }[] = [];
         const latestGroupMap = new Map<string, number>(); // dateKey|vendorKey -> index in allGroups
+        let lastHeaderIdx: number | undefined = undefined;
 
         assetRows.forEach((row) => {
           if (!row.isValid) return;
           
           const data = row.data;
-          const dateKey = data.acquisition_date || 'no-date';
-          const vendorKey = (data.vendor || 'no-vendor').toLowerCase().trim();
-          const lookupKey = `${dateKey}|${vendorKey}`;
+          const dateKey = data.acquisition_date || '';
+          const vendorKey = (data.vendor || '').toLowerCase().trim();
+          const lookupKey = dateKey && vendorKey ? `${dateKey}|${vendorKey}` : null;
           
           const isHeader = data.source === '0';
           const hasTotal = !!(data.total_inv_amount && parseFloat(data.total_inv_amount.toString().replace(/[^0-9.-]/g, '')) > 0);
           const isStandalone = (data.source === '1' || data.source === '2') && hasTotal;
 
           if (isHeader) {
-            const existingIdx = latestGroupMap.get(lookupKey);
+            const existingIdx = lookupKey ? latestGroupMap.get(lookupKey) : undefined;
             const invAmt = hasTotal ? parseFloat(data.total_inv_amount!.toString().replace(/[^0-9.-]/g, '')) : 0;
 
             if (existingIdx !== undefined && allGroups[existingIdx].items.length === 0) {
@@ -691,13 +692,17 @@ export function parseAndValidateCSV<T extends GigRow | AssetRow>(
                   ? `${group.header!.description}; ${data.manufacturer_model || data.description}`
                   : (data.manufacturer_model || data.description);
               }
+              lastHeaderIdx = existingIdx;
             } else {
               const newGroup = {
                 header: data,
                 items: [],
               };
               allGroups.push(newGroup);
-              latestGroupMap.set(lookupKey, allGroups.length - 1);
+              lastHeaderIdx = allGroups.length - 1;
+              if (lookupKey) {
+                latestGroupMap.set(lookupKey, lastHeaderIdx);
+              }
             }
           } else if (isStandalone) {
             const newGroup = {
@@ -705,9 +710,16 @@ export function parseAndValidateCSV<T extends GigRow | AssetRow>(
               items: [row],
             };
             allGroups.push(newGroup);
-            // Don't update latestGroupMap for standalone to avoid merging children into it
+            // Don't update lastHeaderIdx or latestGroupMap for standalone
           } else {
-            let groupIdx = latestGroupMap.get(lookupKey);
+            // It's a child row (Asset or Expense)
+            let groupIdx = lookupKey ? latestGroupMap.get(lookupKey) : undefined;
+            
+            // If no explicit match via lookupKey, try the last seen header
+            if (groupIdx === undefined && lastHeaderIdx !== undefined) {
+              groupIdx = lastHeaderIdx;
+            }
+
             if (groupIdx === undefined) {
               const synthesizedGroup = {
                 header: {
@@ -720,7 +732,9 @@ export function parseAndValidateCSV<T extends GigRow | AssetRow>(
               };
               allGroups.push(synthesizedGroup);
               groupIdx = allGroups.length - 1;
-              latestGroupMap.set(lookupKey, groupIdx);
+              if (lookupKey) {
+                latestGroupMap.set(lookupKey, groupIdx);
+              }
             } else {
               allGroups[groupIdx].items.push(row);
             }

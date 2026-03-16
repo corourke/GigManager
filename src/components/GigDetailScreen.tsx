@@ -17,6 +17,7 @@ import { Button } from './ui/button';
 import { Card } from './ui/card';
 import { Badge } from './ui/badge';
 import AppHeader from './AppHeader';
+import AttachmentManager from './AttachmentManager';
 import GigFinancialsSection from './gig/GigFinancialsSection';
 import { Organization, User, UserRole, Gig } from '../utils/supabase/types';
 import { GIG_STATUS_CONFIG, ORG_TYPE_CONFIG } from '../utils/supabase/constants';
@@ -274,6 +275,16 @@ export default function GigDetailScreen({
                 </div>
               </Card>
             )}
+
+            {/* Attachments Section */}
+            <div className="mt-4">
+              <AttachmentManager
+                organizationId={organization.id}
+                entityType="gig"
+                entityId={gigId}
+                title="Gig Attachments"
+              />
+            </div>
 
             {/* Financials Section */}
             {canViewFinancials && (

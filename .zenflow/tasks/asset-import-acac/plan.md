@@ -63,19 +63,29 @@ Create a detailed implementation plan for the UI components and template updates
 - [x] Implement legacy classification logic ($100/$50 rule).
 
 ### [x] Step 5: Frontend UI Enhancements
-- [ ] **Gig Screen**: Add "Upload Receipt" button and `GigPurchaseExpenses` section.
-- [ ] **Asset Screen**: Add "Upload Invoice" button in List view.
-- [ ] **Review Dialog**: Create a unified review/adjust component for scanned data.
-- [ ] **Attachment Management**: Implement `AttachmentManager` for multi-file support.
+<!-- chat-id: 7d199086-351f-41e3-833a-324f69166fae -->
+- [x] **Gig Screen**: Add "Upload Receipt" button and `GigPurchaseExpenses` section.
+- [x] **Asset Screen**: Add "Upload Invoice" button in List view.
+- [x] **Review Dialog**: Create a unified review/adjust component for scanned data.
+- [x] **Attachment Management**: Implement `AttachmentManager` for multi-file support.
+- [x] **Gig Attachments**: Add `AttachmentManager` to Gig Detail and Gig Edit screens for general document support.
 - [x] **Financials Tab**: New top-level navigation for organization-wide financial management.
 - [x] **Purchase Management UI**: Create `FinancialsScreen` with grouped transactions, filtering, and totals.
 - [x] **CSV Template**: Update `generateAssetTemplate` function to output 26 columns (A-Z).
 
-### [ ] Step 6: Verification & Documentation
-- [ ] Verify cost reconciliation (Sum of Line Costs == Invoice Total).
-- [ ] Run `lint`, `typecheck`, and `test`.
-- [ ] Update `scripts/README.md` with final mapping and logic.
+### [x] Step 6: Verification & Documentation
+<!-- chat-id: 2572f803-699a-4235-a7bd-9cfa4a1483c7 -->
+- [x] Document all steps user needs to take to implement backend AI scanning
+- [x] Verify that cohesive functionality has been built, especially that there is adequate UI to expose all new features
+- [x] Ensure adequate test coverage
+- [x] Verify cost reconciliation (Sum of Line Costs == Invoice Total).
+- [x] Plan a user documentation task with expert prompts for covering all functionality and place it in docs/development for later implementation
+- [x] Ensure that `docs/technical/setup-guide.md` has been updated with all the latest setup steps needed to configure and deploy the application (in a development environment for now)
+- [x] Run `lint`, `typecheck`, and `test`.
+- [x] Update `scripts/README.md` with final mapping and logic.
 
-### [ ] Step: User Testing
+### [x] Step: User Testing
 
-Create a checklist for manual user testing that covers all the areas that have been touched by this task.
+- [x] Create a checklist for manual user testing that covers all the areas that have been touched by this task.
+- [x] Prompt the user for issues to fix until there aren't any more issues reported by the user. 
+

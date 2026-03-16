@@ -808,6 +808,7 @@ function App() {
                 onSwitchOrganization={handleBackToSelection}
                 onEditProfile={handleEditProfile}
                 onLogout={handleLogout}
+                onNavigateToPurchases={() => setCurrentRoute('financials')}
               />
             )}
 
@@ -820,6 +821,7 @@ function App() {
                 onCancel={handleBackToAssetList}
                 onAssetCreated={handleAssetCreated}
                 onAssetUpdated={handleBackToAssetList} // After updating, go back to list
+                onNavigateToPurchases={() => setCurrentRoute('financials')}
                 onAssetDeleted={handleBackToAssetList} // After deleting, go back to list
                 onSwitchOrganization={handleBackToSelection}
                 onEditProfile={handleEditProfile}

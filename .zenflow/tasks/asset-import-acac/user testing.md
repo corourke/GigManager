@@ -1,3 +1,5 @@
+### **CSV Import**
+
 #### **CSV Template & Generation**
 
 - [x]  Download asset import template and verify it contains all 26 columns
@@ -35,5 +37,41 @@
 
 - [x]  Test import with existing asset data (no conflicts)
 - [x]  Verify imported assets appear correctly in asset list
-- [ ]  Test import with large datasets (performance)
+- [x]  Test import with large datasets (performance)
 - [ ]  Verify no data corruption on failed imports
+
+### **User Testing Checklist: Asset & Purchase Import**
+
+#### **1. General Attachment Management**
+- [x] **Upload File**: In any `AttachmentManager` section (Asset or Purchase), upload a PDF or image. Verify the file appears in the list.
+- [x] **View File**: Click the **Eye** icon. Verify the file opens in a new tab (signed URL).
+- [x] **Remove Attachment**: Click the **X** icon and confirm. Verify the attachment is unlinked from the entity.
+
+#### **2. Asset List: Invoice Import**
+- [ ] **Upload Invoice**: Click **Upload Invoice** on the Asset List screen. Select a PDF invoice.
+- [ ] **Extraction Pulse**: Verify the loading/scanning state appears while the AI processes the file.
+- [ ] **Review Dialog**: Verify the `ReviewScannedDataDialog` opens with extracted Vendor, Date, and Total.
+- [ ] **Line Item Verification**: Check that individual line items (Manufacturer/Model, Qty, Price) are correctly extracted.
+- [ ] **Reconciliation Status**: Verify the "Reconciliation Successful" message if line items sum to the total, or a warning if they don't.
+- [ ] **Manual Adjustment**: Edit an extracted price or quantity. Verify the "Total Mismatch" warning updates in real-time.
+- [ ] **Persistence**: Click **Confirm and Save**. Verify the new Assets appear in the list with correct costs.
+- [ ] **Automatic Linking**: Open one of the newly created assets. Click the **Financials** or **Attachments** tab (if applicable) and verify the source invoice is linked.
+
+#### **3. Gig Screen: Receipt Import**
+- [ ] **Section Visibility**: Navigate to a Gig and locate the **Purchase Expenses** section.
+- [ ] **Upload Receipt**: Use the **Upload Receipt** button. Verify it triggers the same AI extraction flow.
+- [ ] **Gig Association**: After saving, verify the Purchase header appears in the Gig's expense list.
+- [ ] **Detail View**: Click the **File** icon on a linked expense. Verify the `AttachmentManager` appears below the table, showing the original receipt.
+- [ ] **Unlink Expense**: Click the **Trash** icon to unlink. Verify the expense disappears from the Gig but remains in the global Financials/Purchases list.
+
+#### **4. Backend Logic & Allocation**
+- [ ] **Cost vs. Price Path**: Test an invoice where some items have a "Price" and others have a "Cost". Verify that `item_cost` is calculated correctly for all items based on the invoice total (including tax/shipping allocation).
+- [ ] **Penny Reconciliation**: Use an invoice total like $100.00 with 3 items at $33.33. Verify the 3rd item is adjusted to $33.34 to ensure the total matches exactly.
+- [ ] **Data Propagation**: Verify that items created via the AI pipeline correctly inherit the `vendor` and `acquisition_date` from the invoice header.
+
+#### **5. CSV Import (Regression Test)**
+- [ ] **A-Z Template**: Generate and download the Asset Template. Verify it contains the new columns (A-Z mapping).
+- [ ] **Grouped Import**: Upload a CSV with a Source 0 (Header) followed by Source 1 (Asset) rows. Verify that the assets are correctly grouped and their costs are burdened by the header's total.
+
+---
+

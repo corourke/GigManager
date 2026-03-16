@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
-import { Box, ArrowLeft, Edit2, Trash2, Copy, Loader2, History, CreditCard } from 'lucide-react';
+import { Box, ArrowLeft, Edit2, Trash2, Copy, Loader2, History, CreditCard, ExternalLink } from 'lucide-react';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { Button } from './ui/button';
@@ -8,6 +8,7 @@ import { Card } from './ui/card';
 import { Badge } from './ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './ui/table';
 import AppHeader from './AppHeader';
+import AttachmentManager from './AttachmentManager';
 import { Organization, User, UserRole } from '../utils/supabase/types';
 import { getAsset, deleteAsset, duplicateAsset, getAssetStatusHistory, getAssetInventoryTracking } from '../services/asset.service';
 import type { DbAssetStatusHistory, DbInventoryTracking } from '../utils/supabase/types';
@@ -23,6 +24,7 @@ interface AssetDetailScreenProps {
   onSwitchOrganization: () => void;
   onEditProfile?: () => void;
   onLogout: () => void;
+  onNavigateToPurchases?: () => void;
 }
 
 export default function AssetDetailScreen({
@@ -35,6 +37,7 @@ export default function AssetDetailScreen({
   onSwitchOrganization,
   onEditProfile,
   onLogout,
+  onNavigateToPurchases,
 }: AssetDetailScreenProps) {
   const [asset, setAsset] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -224,18 +227,6 @@ export default function AssetDetailScreen({
                     {asset.retired_on ? format(new Date(asset.retired_on), 'PPP') : '—'}
                   </p>
                 </div>
-                {asset.purchase_id && (
-                  <div className="md:col-span-2">
-                    <p className="text-sm font-medium text-gray-500 uppercase tracking-wider">Purchase Link</p>
-                    <div className="mt-2 bg-sky-50 border border-sky-100 rounded-md p-3 flex items-center gap-3">
-                      <CreditCard className="w-5 h-5 text-sky-500" />
-                      <div>
-                        <p className="text-sm text-sky-800 font-medium">Linked to Purchase Record</p>
-                        <p className="text-xs text-sky-600 font-mono mt-0.5">{asset.purchase_id}</p>
-                      </div>
-                    </div>
-                  </div>
-                )}
                 <div className="md:col-span-2">
                   <p className="text-sm font-medium text-gray-500 uppercase tracking-wider">Notes</p>
                   <div className="mt-1 text-gray-600 prose prose-sm max-w-none">
@@ -247,13 +238,37 @@ export default function AssetDetailScreen({
               </div>
             </Card>
 
+            {assetId && (
+              <div className="mt-4">
+                <AttachmentManager
+                  organizationId={organization.id}
+                  entityType="asset"
+                  entityId={assetId}
+                  title="Asset Attachments"
+                />
+              </div>
+            )}
           </div>
 
           {/* Sidebar Info */}
           <div className="space-y-4">
             <Card className="p-4">
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">Inventory Info</h3>
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">Financial Information</h3>
               <div className="space-y-4">
+                {asset.purchase_id && onNavigateToPurchases && (
+                  <div className="pb-2 border-b border-gray-100">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={onNavigateToPurchases}
+                      className="w-full text-sky-600 border-sky-200 hover:bg-sky-50"
+                    >
+                      <CreditCard className="w-4 h-4 mr-2" />
+                      View Purchase Record
+                      <ExternalLink className="w-3 h-3 ml-2 opacity-50" />
+                    </Button>
+                  </div>
+                )}
                 {asset.tag_number && (
                   <div>
                     <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">Inventory Tag ID</p>

@@ -1,5 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.8";
 import Anthropic from "https://esm.sh/@anthropic-ai/sdk@0.18.0";
+import { encodeBase64 } from "https://deno.land/std@0.224.0/encoding/base64.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -23,23 +24,24 @@ Misc        → (anything that doesn't fit above)
 
 const EXTRACTION_PROMPT = `
 You are an inventory assistant for a professional audio/video/lighting production company.
-Extract structured data from the invoice or receipt text below and return ONLY a JSON object
+Extract structured data from the invoice or receipt document below and return ONLY a JSON object
 with no explanation, markdown, or code fences.
 
 ${CATEGORY_HINTS}
 
 JSON schema to return:
 {
-  "invoice_date": "YYYY-MM-DD or null",
+  "purchase_date": "YYYY-MM-DD or null",
   "vendor": "Vendor name or null",
-  "invoice_total": <number or null>,
+  "total_inv_amount": <number or null>,
   "payment_method": "Payment method or null",
-  "line_items": [
+  "items": [
     {
       "manufacturer_model": "<Brand + Model string — this is the primary identifier>",
       "description": "<full line description including accessories or bundle notes>",
       "quantity": <integer, default 1>,
       "item_price": <number or null — the unit price as printed on the invoice>,
+      "item_cost": <number or null — set to the unit price if present, or null — the burdened cost per item if you can calculate it based on header fees (tax/shipping)>,
       "line_amount": <number or null — the total amount for this line as printed on the invoice>,
       "serial_numbers": ["SN1", "SN2"],
       "category": "<from category hints above>",
@@ -58,7 +60,7 @@ Rules:
 - If a line shows qty > 1 and lists individual serial numbers, expand into one item per serial number (quantity=1 each) rather than grouping.
 - Dates must be ISO 8601 (YYYY-MM-DD).
 - Costs and prices are numeric only (no currency symbols).
-- invoice_total must be the ABSOLUTE GRAND TOTAL of the invoice (all items + tax + shipping - discounts). This is critical.
+- total_inv_amount must be the ABSOLUTE GRAND TOTAL of the invoice (all items + tax + shipping - discounts). This is critical.
 
 Analyze the document and return the JSON.
 `;
@@ -114,40 +116,66 @@ Deno.serve(async (req) => {
 
     const arrayBuffer = await file.arrayBuffer();
     const uint8Array = new Uint8Array(arrayBuffer);
-    
-    // Convert to base64 for Anthropic API
-    let binary = '';
-    const len = uint8Array.byteLength;
-    for (let i = 0; i < len; i++) {
-        binary += String.fromCharCode(uint8Array[i]);
+    const base64Data = encodeBase64(uint8Array);
+
+    const apiKey = Deno.env.get('ANTHROPIC_API_KEY');
+    if (!apiKey) {
+      throw new Error('ANTHROPIC_API_KEY environment variable is not set');
     }
-    const base64Data = btoa(binary);
 
     const anthropic = new Anthropic({
-      apiKey: Deno.env.get('ANTHROPIC_API_KEY'),
+      apiKey,
+    });
+
+    const fileType = file.type;
+    const isPDF = fileType === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
+    
+    // Determine content for Anthropic message
+    const content: any[] = [];
+    
+    if (isPDF) {
+      content.push({
+        type: "document",
+        source: {
+          type: "base64",
+          media_type: "application/pdf",
+          data: base64Data,
+        },
+      });
+    } else {
+      // Handle images (Anthropic supports image/jpeg, image/png, image/gif, image/webp)
+      let mediaType = fileType;
+      if (!mediaType.startsWith('image/')) {
+        const ext = file.name.split('.').pop()?.toLowerCase();
+        if (ext === 'png') mediaType = 'image/png';
+        else if (ext === 'webp') mediaType = 'image/webp';
+        else if (ext === 'gif') mediaType = 'image/gif';
+        else mediaType = 'image/jpeg'; // default fallback
+      }
+
+      content.push({
+        type: "image",
+        source: {
+          type: "base64",
+          media_type: mediaType as any,
+          data: base64Data,
+        },
+      });
+    }
+
+    content.push({
+      type: "text",
+      text: EXTRACTION_PROMPT,
     });
 
     const response = await anthropic.beta.messages.create({
       model: "claude-3-5-sonnet-20241022",
       max_tokens: 2048,
-      betas: ["pdfs-2024-09-25"],
+      betas: isPDF ? ["pdfs-2024-09-25"] : [],
       messages: [
         {
           role: "user",
-          content: [
-            {
-              type: "document",
-              source: {
-                type: "base64",
-                media_type: "application/pdf",
-                data: base64Data,
-              },
-            },
-            {
-              type: "text",
-              text: EXTRACTION_PROMPT,
-            },
-          ],
+          content: content,
         },
       ],
     });
@@ -163,15 +191,16 @@ Deno.serve(async (req) => {
     const parsed = JSON.parse(jsonMatch[0]);
     
     // Post-process: Apply classification and format for preview
-    const processedItems = (parsed.line_items || []).map((item: any) => ({
+    const processedItems = (parsed.items || []).map((item: any) => ({
       ...item,
       suggested_type: classifyItem(item),
+      item_cost: item.item_cost || item.item_price || 0, // Fallback to item_price for cost if not extracted
     }));
 
     return new Response(
       JSON.stringify({
         ...parsed,
-        line_items: processedItems,
+        items: processedItems,
       }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },

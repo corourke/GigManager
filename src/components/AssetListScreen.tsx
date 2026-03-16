@@ -1,7 +1,8 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { Package, Plus, Search, Filter, Loader2, Edit, Trash2, AlertCircle, Shield, Upload, Eye, Copy } from 'lucide-react';
+import { Package, Plus, Search, Filter, Loader2, Edit, Trash2, AlertCircle, Shield, Upload, Eye, Copy, FileText } from 'lucide-react';
 import { toast } from 'sonner';
 import { getAssets, deleteAsset, duplicateAsset, updateAsset } from '../services/asset.service';
+import { scanInvoice } from '../services/purchase.service';
 import { Button } from './ui/button';
 import { Card } from './ui/card';
 import AppHeader from './AppHeader';
@@ -10,6 +11,7 @@ import { Organization, User, UserRole } from '../utils/supabase/types';
 import type { DbAsset } from '../utils/supabase/types';
 import { SmartDataTable, ColumnDef, RowAction } from './tables/SmartDataTable';
 import { PageHeader } from './ui/PageHeader';
+import ReviewScannedDataDialog from './ReviewScannedDataDialog';
 
 interface AssetListScreenProps {
   organization: Organization;
@@ -53,6 +55,9 @@ export default function AssetListScreen({
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [deletedAssetIds, setDeletedAssetIds] = useState<Set<string>>(new Set());
+  const [isScanning, setIsScanning] = useState(false);
+  const [scannedData, setScannedData] = useState<any>(null);
+  const [showReviewDialog, setShowReviewDialog] = useState(false);
 
   const refresh = async () => {
     try {
@@ -119,6 +124,24 @@ export default function AssetListScreen({
       refresh();
     } catch (err: any) {
       toast.error(err.message || 'Failed to duplicate asset');
+    }
+  };
+
+  const handleUploadInvoice = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    setIsScanning(true);
+    try {
+      const data = await scanInvoice(file);
+      setScannedData(data);
+      setShowReviewDialog(true);
+    } catch (err: any) {
+      console.error('Error scanning invoice:', err);
+      toast.error(err.message || 'Failed to scan invoice');
+    } finally {
+      setIsScanning(false);
+      event.target.value = ''; // Reset input
     }
   };
 
@@ -304,6 +327,23 @@ export default function AssetListScreen({
           description="Manage your equipment inventory"
           actions={
             <>
+              <div className="relative">
+                <input
+                  type="file"
+                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                  onChange={handleUploadInvoice}
+                  disabled={isScanning}
+                  accept=".pdf,image/*"
+                />
+                <Button variant="outline" className="border-sky-500 text-sky-600 hover:bg-sky-50" disabled={isScanning}>
+                  {isScanning ? (
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  ) : (
+                    <FileText className="w-4 h-4 mr-2" />
+                  )}
+                  Upload Invoice
+                </Button>
+              </div>
               <Button onClick={onCreateAsset} className="bg-sky-500 hover:bg-sky-600 text-white">
                 <Plus className="w-4 h-4 mr-2" />
                 Add Asset
@@ -390,6 +430,16 @@ export default function AssetListScreen({
           )}
         </Card>
       </div>
+
+      <ReviewScannedDataDialog
+        open={showReviewDialog}
+        onOpenChange={setShowReviewDialog}
+        organizationId={organization.id}
+        scannedData={scannedData}
+        onSuccess={() => {
+          refresh();
+        }}
+      />
     </div>
   );
 }
