@@ -659,11 +659,12 @@ export function parseAndValidateCSV<T extends GigRow | AssetRow>(
       if (importType === 'assets') {
         const assetRows = rows as ParsedRow<AssetRow>[];
         
-        // Group rows by Date + Vendor
-        const groupsMap = new Map<string, {
+        // Group rows using Transaction Context
+        const allGroups: {
           header: AssetRow | null;
           items: ParsedRow<AssetRow>[];
-        }>();
+        }[] = [];
+        const latestGroupMap = new Map<string, number>(); // dateKey|vendorKey -> index in allGroups
 
         assetRows.forEach((row) => {
           if (!row.isValid) return;
@@ -671,35 +672,58 @@ export function parseAndValidateCSV<T extends GigRow | AssetRow>(
           const data = row.data;
           const dateKey = data.acquisition_date || 'no-date';
           const vendorKey = (data.vendor || 'no-vendor').toLowerCase().trim();
+          const lookupKey = `${dateKey}|${vendorKey}`;
           
-          // Row types 1 and 2 with total_inv_amount should never be grouped together
-          // We make their groupKey unique by adding the rowIndex
-          const isStandalone = (data.source === '1' || data.source === '2') && data.total_inv_amount;
-          const groupKey = isStandalone 
-            ? `${dateKey}|${vendorKey}|standalone-${row.rowIndex}`
-            : `${dateKey}|${vendorKey}`;
+          const isHeader = data.source === '0';
+          const hasTotal = !!(data.total_inv_amount && parseFloat(data.total_inv_amount.toString().replace(/[^0-9.-]/g, '')) > 0);
+          const isStandalone = (data.source === '1' || data.source === '2') && hasTotal;
 
-          if (!groupsMap.has(groupKey)) {
-            groupsMap.set(groupKey, {
-              header: null,
-              items: [],
-            });
-          }
+          if (isHeader) {
+            const existingIdx = latestGroupMap.get(lookupKey);
+            const invAmt = hasTotal ? parseFloat(data.total_inv_amount!.toString().replace(/[^0-9.-]/g, '')) : 0;
 
-          const group = groupsMap.get(groupKey)!;
-
-          if (data.source === '0') {
-            // Use the first Source 0 as the header for this group
-            if (!group.header) {
-              group.header = data;
+            if (existingIdx !== undefined && allGroups[existingIdx].items.length === 0) {
+              const group = allGroups[existingIdx];
+              const currentTotal = parseFloat(group.header!.total_inv_amount?.toString().replace(/[^0-9.-]/g, '') || '0');
+              group.header!.total_inv_amount = (currentTotal + invAmt).toFixed(2);
+              if (data.description || data.manufacturer_model) {
+                group.header!.description = group.header!.description 
+                  ? `${group.header!.description}; ${data.manufacturer_model || data.description}`
+                  : (data.manufacturer_model || data.description);
+              }
+            } else {
+              const newGroup = {
+                header: data,
+                items: [],
+              };
+              allGroups.push(newGroup);
+              latestGroupMap.set(lookupKey, allGroups.length - 1);
             }
+          } else if (isStandalone) {
+            const newGroup = {
+              header: data,
+              items: [row],
+            };
+            allGroups.push(newGroup);
+            // Don't update latestGroupMap for standalone to avoid merging children into it
           } else {
-            // For Source 1 or 2, if it has total_inv_amount and we don't have a header yet,
-            // treat it as the potential header source for standalone/single-line items.
-            if (!group.header && data.total_inv_amount) {
-              group.header = data;
+            let groupIdx = latestGroupMap.get(lookupKey);
+            if (groupIdx === undefined) {
+              const synthesizedGroup = {
+                header: {
+                  ...data,
+                  source: '0',
+                  total_inv_amount: '0',
+                  description: 'Synthesized Purchase Header',
+                },
+                items: [row],
+              };
+              allGroups.push(synthesizedGroup);
+              groupIdx = allGroups.length - 1;
+              latestGroupMap.set(lookupKey, groupIdx);
+            } else {
+              allGroups[groupIdx].items.push(row);
             }
-            group.items.push(row);
           }
         });
 
@@ -707,7 +731,7 @@ export function parseAndValidateCSV<T extends GigRow | AssetRow>(
         let totalImportInvAmount = 0;
         let totalImportLineCost = 0;
 
-        groupsMap.forEach((group) => {
+        allGroups.forEach((group) => {
           if (group.header && group.items.length > 0) {
             // Before allocation, ensure all items in the group have the header's date/vendor
             // if they were missing them

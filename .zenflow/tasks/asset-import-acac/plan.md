@@ -51,6 +51,10 @@ Create a detailed implementation plan for the UI components and template updates
 - [x] Implement find-or-create kit logic for assets with a kit name.
 - [x] Enforce non-negative costs and normalize MM/DD/YYYY date formats.
 - [x] Implement import-wide cost reconciliation check.
+- [x] Fix duplicate kit creation using shared `kitCache`.
+- [x] Fix `line_amount` fallback to `NULL` (undefined) instead of `0.00`.
+- [x] Implement **Financials Tab** with sub-tabs for Purchases, Gig Accounting, and Reporting.
+- [x] Create **Purchase Management UI** with compact grouped layout, filters, and totals.
 
 ### [x] Step 4: AI Extraction Pipeline
 <!-- chat-id: b1e166bf-dc0c-464e-9bb7-6a3a53d84f0f -->
@@ -58,12 +62,13 @@ Create a detailed implementation plan for the UI components and template updates
 - [x] Refine LLM prompt for detailed extraction (Vendor, Date, Items, Tax/Shipping).
 - [x] Implement legacy classification logic ($100/$50 rule).
 
-### [ ] Step 5: Frontend UI Enhancements
+### [x] Step 5: Frontend UI Enhancements
 - [ ] **Gig Screen**: Add "Upload Receipt" button and `GigPurchaseExpenses` section.
 - [ ] **Asset Screen**: Add "Upload Invoice" button in List view.
 - [ ] **Review Dialog**: Create a unified review/adjust component for scanned data.
 - [ ] **Attachment Management**: Implement `AttachmentManager` for multi-file support.
-- [ ] **Purchase Management UI**: Create `PurchaseTransactionView` for viewing and editing complete transactions.
+- [x] **Financials Tab**: New top-level navigation for organization-wide financial management.
+- [x] **Purchase Management UI**: Create `FinancialsScreen` with grouped transactions, filtering, and totals.
 - [x] **CSV Template**: Update `generateAssetTemplate` function to output 26 columns (A-Z).
 
 ### [ ] Step 6: Verification & Documentation

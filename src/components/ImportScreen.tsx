@@ -320,7 +320,15 @@ export default function ImportScreen({
         // Mark all as importing
         setValidRows(prev => prev.map(r => readyRows.find(rr => rr.rowIndex === r.rowIndex) ? { ...r, importStatus: 'importing' } : r));
         
-        const result = await importPurchases(organization.id, readyRows);
+        const result = await importPurchases(
+          organization.id, 
+          readyRows,
+          (count, errCount) => {
+            // Callback to update progress UI
+            successCount = count;
+            setImportResults({ success: count, errors: [] }); // Partial update
+          }
+        );
         successCount = result.successCount;
         
         if (result.errors.length > 0) {

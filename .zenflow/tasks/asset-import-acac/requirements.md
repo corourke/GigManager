@@ -70,11 +70,19 @@ The system must map columns from the legacy Act4Audio format (Source types: `0-I
 - **Organization Scoping**: All records must belong to an `organization_id`.
 
 ### 3.5 Unified Views & UI
-- **Purchase Management**: Unified screen to view complete purchase transactions (Header + Items + Assets) grouped by invoice/receipt.
+- **Financials Tab**: A new top-level "Financials" navigation tab with sub-tabs for:
+    - **Purchases**: A dedicated view to examine all organization purchases.
+    - **Gig Accounting**: A view focused on gig-related financial events and expenses.
+    - **Reporting**: Various financial reporting options (totals by category, vendor, date range, etc.).
+- **Purchase Management**: Unified screen to view complete purchase transactions (Header + Items + Assets) grouped or delineated by Date and Vendor.
+    - **Filtering**: Support filtering by type (Asset vs Expense), date range, and vendor.
+    - **Totals**: Display calculated totals for the current view/filters.
+    - **Layout**: Maintain a compact, data-dense layout.
 - **Correction UI**: Ability to inspect and correct existing purchases (headers and items) after import.
 - **Gig Expense Integration**: Gig detail screens must display purchase expenses alongside existing financial events.
 - **Multi-Attachment UI**: Specific components for uploading, viewing, and deleting multiple attachments for assets, purchases, and gigs.
 - **CSV Template**: Update the downloadable asset import template to support all 26 columns (A-Z).
+- **Document Linking**: When AI scanning is enabled, provide a direct link to the original invoice or receipt document from the purchase and asset views.
 
 ### 3.6 AI Scanning & Receipt Upload
 - **PDF/Image Upload**: Allow users to upload invoices or receipts (PDF/JPG/PNG) directly from the Asset List screen.

@@ -18,6 +18,7 @@ import KitScreen from './components/KitScreen';
 import KitDetailScreen from './components/KitDetailScreen';
 import TeamMemberDetailScreen from './components/TeamMemberDetailScreen';
 import ImportScreen from './components/ImportScreen';
+import FinancialsScreen from './components/FinancialsScreen';
 import EditUserProfileDialog from './components/EditUserProfileDialog';
 import InvitationErrorScreen from './components/InvitationErrorScreen';
 import CalendarAuthCallback from './components/CalendarAuthCallback';
@@ -58,6 +59,7 @@ type Route =
   | 'calendar-auth-callback'
   | 'settings'
   | 'import'
+  | 'financials'
   | 'dev-demo'
   | 'mobile-gig-list'
   | 'mobile-gig-detail'
@@ -515,6 +517,10 @@ function App() {
     setCurrentRoute('import');
   };
 
+  const handleNavigateToFinancials = () => {
+    setCurrentRoute('financials');
+  };
+
   const handleEditProfile = () => {
     setShowEditProfileDialog(true);
   };
@@ -551,6 +557,7 @@ function App() {
       onNavigateToGigs={handleNavigateToGigs}
       onNavigateToTeam={handleNavigateToTeam}
       onNavigateToAssets={handleNavigateToAssets}
+      onNavigateToFinancials={handleNavigateToFinancials}
       onEditProfile={handleEditProfile}
       onNavigateToSettings={handleNavigateToSettings}
     >
@@ -890,6 +897,18 @@ function App() {
                 onNavigateToGigs={handleNavigateToGigs}
                 onSwitchOrganization={handleBackToSelection}
                 onLogout={handleLogout}
+              />
+            )}
+
+            {currentRoute === 'financials' && (
+              <FinancialsScreen
+                organization={selectedOrganization}
+                user={user}
+                userRole={userRole}
+                onSwitchOrganization={handleBackToSelection}
+                onLogout={handleLogout}
+                onNavigateToGigs={handleNavigateToGigs}
+                onNavigateToAssets={handleNavigateToAssets}
               />
             )}
           </>

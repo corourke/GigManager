@@ -154,150 +154,217 @@ export async function deletePurchase(purchaseId: string) {
  */
 export async function importPurchases(
   organizationId: string,
-  rows: any[] // ParsedRow<AssetRow>[]
+  rows: any[], // ParsedRow<AssetRow>[]
+  onProgress?: (successCount: number, errorCount: number) => void
 ) {
   const errors: string[] = [];
   let successCount = 0;
+  let errorCount = 0;
 
   try {
     const { user } = await requireAuth();
 
     // 1. Group rows by Header (Source 0) or Date + Vendor (if no Header)
-    const groupsMap = new Map<string, {
+    interface PurchaseGroup {
       header: any;
       items: any[];
       assets: any[];
-    }>();
+    }
+    const allGroups: PurchaseGroup[] = [];
+    const latestGroupMap = new Map<string, number>(); // dateKey|vendorKey -> index in allGroups
 
-    rows.forEach((row) => {
+    rows.forEach((row, rowIndex) => {
       const data = row.data as AssetRow;
-      // Unique key for grouping: Date + Vendor
       const dateKey = data.acquisition_date || 'no-date';
       const vendorKey = (data.vendor || 'no-vendor').toLowerCase().trim();
-      const groupKey = `${dateKey}|${vendorKey}`;
+      const lookupKey = `${dateKey}|${vendorKey}`;
 
-      if (!groupsMap.has(groupKey)) {
-        groupsMap.set(groupKey, {
-          header: null,
+      const isHeader = data.source === '0';
+      const hasTotal = !!(data.total_inv_amount && parseFloat(data.total_inv_amount.toString().replace(/[^0-9.-]/g, '')) > 0);
+      const isStandalone = (data.source === '1' || data.source === '2') && hasTotal;
+
+      if (isHeader) {
+        // Check if we already have an "open" header group for this key that we can merge into
+        // We only merge if the existing group hasn't received any items/assets yet
+        const existingIdx = latestGroupMap.get(lookupKey);
+        const invAmt = hasTotal ? parseFloat(data.total_inv_amount!.toString().replace(/[^0-9.-]/g, '')) : 0;
+
+        if (existingIdx !== undefined && allGroups[existingIdx].items.length === 0 && allGroups[existingIdx].assets.length === 0) {
+          const group = allGroups[existingIdx];
+          group.header.total_inv_amount += invAmt;
+          if (data.description || data.manufacturer_model) {
+            group.header.description = group.header.description 
+              ? `${group.header.description}; ${data.manufacturer_model || data.description}`
+              : (data.manufacturer_model || data.description);
+          }
+        } else {
+          // Start a NEW group
+          const newGroup: PurchaseGroup = {
+            header: {
+              organization_id: organizationId,
+              purchase_date: data.acquisition_date,
+              vendor: data.vendor,
+              total_inv_amount: invAmt,
+              payment_method: data.payment_method,
+              description: data.manufacturer_model || data.description || '',
+              category: data.category,
+              sub_category: data['sub-category'] || undefined,
+            },
+            items: [],
+            assets: [],
+          };
+          allGroups.push(newGroup);
+          latestGroupMap.set(lookupKey, allGroups.length - 1);
+        }
+      } else if (isStandalone) {
+        // Start a NEW group
+        const invAmt = hasTotal ? parseFloat(data.total_inv_amount!.toString().replace(/[^0-9.-]/g, '')) : 0;
+        const newGroup: PurchaseGroup = {
+          header: {
+            organization_id: organizationId,
+            purchase_date: data.acquisition_date,
+            vendor: data.vendor,
+            total_inv_amount: invAmt,
+            payment_method: data.payment_method,
+            description: data.manufacturer_model || data.description || '',
+            category: data.category,
+            sub_category: data['sub-category'] || undefined,
+          },
           items: [],
           assets: [],
-        });
-      }
+        };
+        allGroups.push(newGroup);
+        // Standalone items NEVER receive further children from the map
+        // so we DON'T update latestGroupMap with the standalone-${rowIndex} key for children lookup,
+        // but wait, we need to distinguish it so it's not merged.
+        // Actually, by NOT using its lookupKey in the map, we ensure it's "Isolated".
 
-      const currentGroup = groupsMap.get(groupKey)!;
-
-      if (data.source === '0') {
-        // Use the first Source 0 header we find for this group
-        if (!currentGroup.header) {
-          currentGroup.header = {
+        // Add the standalone row as its own child
+        const currentGroup = allGroups[allGroups.length - 1];
+        if (data.source === '1') {
+          currentGroup.assets.push({
+            organization_id: organizationId,
+            category: data.category,
+            sub_category: data['sub-category'] || undefined,
+            manufacturer_model: data.manufacturer_model,
+            type: data.type || undefined,
+            serial_number: data.serial_number || undefined,
+            tag_number: data.tag_number || undefined,
+            acquisition_date: data.acquisition_date,
+            vendor: data.vendor,
+            item_price: data.item_price ? parseFloat(data.item_price.toString().replace(/[^0-9.-]/g, '')) : undefined,
+            item_cost: data.item_cost ? parseFloat(data.item_cost.toString().replace(/[^0-9.-]/g, '')) : undefined,
+            quantity: data.quantity ? parseInt(data.quantity.toString().replace(/[^0-9.-]/g, '')) : 1,
+            description: data.manufacturer_model || data.description || undefined,
+            insurance_policy_added: data.insured ? (data.insured.toLowerCase() === 'yes' || data.insured === 'true') : false,
+            insurance_class: data.insurance_class || undefined,
+            replacement_value: data.replacement_value ? parseFloat(data.replacement_value.toString().replace(/[^0-9.-]/g, '')) : undefined,
+            retired_on: data.retired_on || undefined,
+            liquidation_amt: data.liquidation_amt ? parseFloat(data.liquidation_amt.toString().replace(/[^0-9.-]/g, '')) : undefined,
+            service_life: data.service_life ? parseFloat(data.service_life.toString().replace(/[^0-9.-]/g, '')) : undefined,
+            dep_method: data.dep_method || undefined,
+            status: data.status || 'Active',
+            kit: data.kit || undefined,
+          });
+        } else {
+          currentGroup.items.push({
             organization_id: organizationId,
             purchase_date: data.acquisition_date,
             vendor: data.vendor,
-            total_inv_amount: data.total_inv_amount ? parseFloat(data.total_inv_amount.toString().replace(/[^0-9.-]/g, '')) : 0,
-            payment_method: data.payment_method,
-            // Prefer manufacturer_model if present in import, fallback to description
-            description: data.manufacturer_model || data.description || '',
             category: data.category,
             sub_category: data['sub-category'] || undefined,
-          };
+            description: data.manufacturer_model || data.description || undefined,
+            line_amount: data.line_amount ? parseFloat(data.line_amount.toString().replace(/[^0-9.-]/g, '')) : undefined,
+            line_cost: data.line_cost ? parseFloat(data.line_cost.toString().replace(/[^0-9.-]/g, '')) : undefined,
+            quantity: data.quantity ? parseInt(data.quantity.toString().replace(/[^0-9.-]/g, '')) : 1,
+            item_price: data.item_price ? parseFloat(data.item_price.toString().replace(/[^0-9.-]/g, '')) : undefined,
+            item_cost: data.item_cost ? parseFloat(data.item_cost.toString().replace(/[^0-9.-]/g, '')) : undefined,
+          });
         }
-      } else if (data.source === '1') {
-        const assetData = {
-          organization_id: organizationId,
-          category: data.category,
-          sub_category: data['sub-category'] || undefined,
-          manufacturer_model: data.manufacturer_model,
-          type: data.type || undefined,
-          serial_number: data.serial_number || undefined,
-          tag_number: data.tag_number || undefined,
-          acquisition_date: data.acquisition_date,
-          vendor: data.vendor,
-          item_price: data.item_price ? parseFloat(data.item_price.toString().replace(/[^0-9.-]/g, '')) : undefined,
-          item_cost: data.item_cost ? parseFloat(data.item_cost.toString().replace(/[^0-9.-]/g, '')) : undefined,
-          quantity: data.quantity ? parseInt(data.quantity.toString().replace(/[^0-9.-]/g, '')) : 1,
-          // Asset's description: prefer manufacturer_model or its own description
-          description: data.manufacturer_model || data.description || undefined,
-          insurance_policy_added: data.insured ? (data.insured.toLowerCase() === 'yes' || data.insured === 'true') : false,
-          insurance_class: data.insurance_class || undefined,
-          replacement_value: data.replacement_value ? parseFloat(data.replacement_value.toString().replace(/[^0-9.-]/g, '')) : undefined,
-          retired_on: data.retired_on || undefined,
-          liquidation_amt: data.liquidation_amt ? parseFloat(data.liquidation_amt.toString().replace(/[^0-9.-]/g, '')) : undefined,
-          service_life: data.service_life ? parseFloat(data.service_life.toString().replace(/[^0-9.-]/g, '')) : undefined,
-          dep_method: data.dep_method || undefined,
-          status: data.status || 'Active',
-          kit: data.kit || undefined,
-        };
-        currentGroup.assets.push(assetData);
+      } else {
+        // It's an item/asset that belongs to the LATEST matching group
+        let groupIdx = latestGroupMap.get(lookupKey);
         
-        // If no header yet, and this item has total_inv_amount, it's a potential header source
-        if (!currentGroup.header && data.total_inv_amount) {
-          currentGroup.header = {
-            organization_id: organizationId,
-            purchase_date: data.acquisition_date,
-            vendor: data.vendor,
-            total_inv_amount: parseFloat(data.total_inv_amount.toString().replace(/[^0-9.-]/g, '')),
-            payment_method: data.payment_method,
-            description: data.manufacturer_model || data.description || '',
-            category: data.category,
-            sub_category: data['sub-category'] || undefined,
+        if (groupIdx === undefined) {
+          // No header found yet, create synthesized group
+          const synthesizedGroup: PurchaseGroup = {
+            header: {
+              organization_id: organizationId,
+              purchase_date: data.acquisition_date,
+              vendor: data.vendor,
+              total_inv_amount: 0,
+              description: 'Synthesized Purchase Header',
+            },
+            items: [],
+            assets: [],
           };
+          allGroups.push(synthesizedGroup);
+          groupIdx = allGroups.length - 1;
+          latestGroupMap.set(lookupKey, groupIdx);
         }
-      } else if (data.source === '2') {
-        const itemData = {
-          organization_id: organizationId,
-          purchase_date: data.acquisition_date,
-          vendor: data.vendor,
-          category: data.category,
-          sub_category: data['sub-category'] || undefined,
-          // Purchase item's description: prefer manufacturer_model if present
-          description: data.manufacturer_model || data.description || undefined,
-          line_amount: data.line_amount ? parseFloat(data.line_amount.toString().replace(/[^0-9.-]/g, '')) : 0,
-          line_cost: data.line_cost ? parseFloat(data.line_cost.toString().replace(/[^0-9.-]/g, '')) : 0,
-          quantity: data.quantity ? parseInt(data.quantity.toString().replace(/[^0-9.-]/g, '')) : 1,
-          item_price: data.item_price ? parseFloat(data.item_price.toString().replace(/[^0-9.-]/g, '')) : undefined,
-          item_cost: data.item_cost ? parseFloat(data.item_cost.toString().replace(/[^0-9.-]/g, '')) : undefined,
-        };
-        currentGroup.items.push(itemData);
 
-        // If no header yet, and this item has total_inv_amount, it's a potential header source
-        if (!currentGroup.header && data.total_inv_amount) {
-          currentGroup.header = {
+        const currentGroup = allGroups[groupIdx];
+        if (data.source === '1') {
+          currentGroup.assets.push({
+            organization_id: organizationId,
+            category: data.category,
+            sub_category: data['sub-category'] || undefined,
+            manufacturer_model: data.manufacturer_model,
+            type: data.type || undefined,
+            serial_number: data.serial_number || undefined,
+            tag_number: data.tag_number || undefined,
+            acquisition_date: data.acquisition_date,
+            vendor: data.vendor,
+            item_price: data.item_price ? parseFloat(data.item_price.toString().replace(/[^0-9.-]/g, '')) : undefined,
+            item_cost: data.item_cost ? parseFloat(data.item_cost.toString().replace(/[^0-9.-]/g, '')) : undefined,
+            quantity: data.quantity ? parseInt(data.quantity.toString().replace(/[^0-9.-]/g, '')) : 1,
+            description: data.manufacturer_model || data.description || undefined,
+            insurance_policy_added: data.insured ? (data.insured.toLowerCase() === 'yes' || data.insured === 'true') : false,
+            insurance_class: data.insurance_class || undefined,
+            replacement_value: data.replacement_value ? parseFloat(data.replacement_value.toString().replace(/[^0-9.-]/g, '')) : undefined,
+            retired_on: data.retired_on || undefined,
+            liquidation_amt: data.liquidation_amt ? parseFloat(data.liquidation_amt.toString().replace(/[^0-9.-]/g, '')) : undefined,
+            service_life: data.service_life ? parseFloat(data.service_life.toString().replace(/[^0-9.-]/g, '')) : undefined,
+            dep_method: data.dep_method || undefined,
+            status: data.status || 'Active',
+            kit: data.kit || undefined,
+          });
+        } else if (data.source === '2') {
+          currentGroup.items.push({
             organization_id: organizationId,
             purchase_date: data.acquisition_date,
             vendor: data.vendor,
-            total_inv_amount: parseFloat(data.total_inv_amount.toString().replace(/[^0-9.-]/g, '')),
-            payment_method: data.payment_method,
-            description: data.manufacturer_model || data.description || '',
             category: data.category,
             sub_category: data['sub-category'] || undefined,
-          };
+            description: data.manufacturer_model || data.description || undefined,
+            line_amount: data.line_amount ? parseFloat(data.line_amount.toString().replace(/[^0-9.-]/g, '')) : undefined,
+            line_cost: data.line_cost ? parseFloat(data.line_cost.toString().replace(/[^0-9.-]/g, '')) : undefined,
+            quantity: data.quantity ? parseInt(data.quantity.toString().replace(/[^0-9.-]/g, '')) : 1,
+            item_price: data.item_price ? parseFloat(data.item_price.toString().replace(/[^0-9.-]/g, '')) : undefined,
+            item_cost: data.item_cost ? parseFloat(data.item_cost.toString().replace(/[^0-9.-]/g, '')) : undefined,
+          });
         }
       }
     });
 
     // 2. Process groups using RPC for atomicity
-    const groups = Array.from(groupsMap.values());
-    for (const group of groups) {
-      // Fallback: If no header was found or synthesized from total_inv_amount
-      if (!group.header && (group.items.length > 0 || group.assets.length > 0)) {
-        const firstEntry = group.items[0] || group.assets[0];
-        group.header = {
-          organization_id: organizationId,
-          purchase_date: firstEntry.purchase_date || firstEntry.acquisition_date,
-          vendor: firstEntry.vendor,
-          total_inv_amount: 0,
-          description: 'Synthesized Purchase Header',
-        };
-      }
-
+    const kitCache = new Map<string, string>(); // Cache kit IDs by name (lowercase)
+    
+    for (const group of allGroups) {
       if (group.header) {
         try {
           // Use RPC for atomic transaction across multiple tables
-          await createPurchaseTransaction(group.header, group.items, group.assets);
+          await createPurchaseTransaction(group.header, group.items, group.assets, kitCache);
           successCount += 1 + group.items.length + group.assets.length;
         } catch (err: any) {
+          errorCount += 1 + group.items.length + group.assets.length;
           const headerInfo = `Purchase on ${group.header.purchase_date} from ${group.header.vendor}`;
           errors.push(`Failed to import ${headerInfo}: ${err.message}`);
+        }
+        
+        // Notify progress after each group
+        if (onProgress) {
+          onProgress(successCount, errorCount);
         }
       }
     }
@@ -314,33 +381,43 @@ export async function importPurchases(
 export async function createPurchaseTransaction(
   header: Partial<DbPurchase>,
   items: Partial<DbPurchase>[] = [],
-  assets: any[] = []
+  assets: any[] = [],
+  kitCache?: Map<string, string>
 ) {
   try {
     const { supabase, user } = await requireAuth();
 
     // 1. Process Kits if any assets have a kit name
-    // We do this before the RPC to get kit IDs
     const assetsWithKits = assets.filter(a => a.kit && a.kit.trim());
-    const kitIdsByName = new Map<string, string>();
+    const localKitIdsByName = new Map<string, string>();
 
     if (assetsWithKits.length > 0) {
       const uniqueKitNames = Array.from(new Set(assetsWithKits.map(a => a.kit.trim())));
       const orgId = header.organization_id;
 
       for (const kitName of uniqueKitNames) {
-        // Try to find existing kit
+        const cacheKey = kitName.toLowerCase();
+        
+        // 1a. Check provided cache first (for cross-group consistency)
+        if (kitCache?.has(cacheKey)) {
+          localKitIdsByName.set(cacheKey, kitCache.get(cacheKey)!);
+          continue;
+        }
+
+        // 1b. Try to find existing kit in database
         const { data: existingKit } = await supabase
           .from('kits')
           .select('id')
           .eq('organization_id', orgId)
           .ilike('name', kitName)
+          .limit(1)
           .maybeSingle();
 
         if (existingKit) {
-          kitIdsByName.set(kitName.toLowerCase(), existingKit.id);
+          localKitIdsByName.set(cacheKey, existingKit.id);
+          kitCache?.set(cacheKey, existingKit.id);
         } else {
-          // Create new kit
+          // 1c. Create new kit
           const { data: newKit, error: createError } = await supabase
             .from('kits')
             .insert({
@@ -354,7 +431,8 @@ export async function createPurchaseTransaction(
             .single();
 
           if (createError) throw createError;
-          kitIdsByName.set(kitName.toLowerCase(), newKit.id);
+          localKitIdsByName.set(cacheKey, newKit.id);
+          kitCache?.set(cacheKey, newKit.id);
         }
       }
     }
@@ -369,13 +447,10 @@ export async function createPurchaseTransaction(
     if (error) throw error;
     
     // 3. Handle Kit Membership (Post-RPC)
-    // The RPC returns { id: v_header_id }
-    // We need the asset IDs that were created to add them to kits
-    // Since create_purchase_transaction_v1 doesn't return asset IDs, we fetch them
     if (assetsWithKits.length > 0 && data?.id) {
       const { data: createdAssets, error: fetchError } = await supabase
         .from('assets')
-        .select('id, manufacturer_model, serial_number, kit_temp:description') // kit is not in assets table yet, but we had it in the import data
+        .select('id, manufacturer_model, serial_number')
         .eq('purchase_id', data.id);
 
       if (!fetchError && createdAssets) {
@@ -383,7 +458,7 @@ export async function createPurchaseTransaction(
         
         for (const asset of assets) {
           if (asset.kit && asset.kit.trim()) {
-            const kitId = kitIdsByName.get(asset.kit.trim().toLowerCase());
+            const kitId = localKitIdsByName.get(asset.kit.trim().toLowerCase());
             if (kitId) {
               // Match the created asset by model and serial if available
               const createdAsset = createdAssets.find(ca => 
