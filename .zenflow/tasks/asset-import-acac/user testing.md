@@ -58,7 +58,7 @@
 - [ ] **Automatic Linking**: Open one of the newly created assets. Click the **Financials** or **Attachments** tab (if applicable) and verify the source invoice is linked.
 
 #### **3. Gig Screen: Receipt Import**
-- [ ] **Section Visibility**: Navigate to a Gig and locate the **Purchase Expenses** section.
+- [x] **Section Visibility**: Navigate to a Gig and locate the **Purchase Expenses** section.
 - [ ] **Upload Receipt**: Use the **Upload Receipt** button. Verify it triggers the same AI extraction flow.
 - [ ] **Gig Association**: After saving, verify the Purchase header appears in the Gig's expense list.
 - [ ] **Detail View**: Click the **File** icon on a linked expense. Verify the `AttachmentManager` appears below the table, showing the original receipt.
@@ -69,7 +69,13 @@
 - [ ] **Penny Reconciliation**: Use an invoice total like $100.00 with 3 items at $33.33. Verify the 3rd item is adjusted to $33.34 to ensure the total matches exactly.
 - [ ] **Data Propagation**: Verify that items created via the AI pipeline correctly inherit the `vendor` and `acquisition_date` from the invoice header.
 
-#### **5. CSV Import (Regression Test)**
+#### **5. Error Handling & Edge Cases**
+- [ ] **Missing API Key**: Temporarily unset `ANTHROPIC_API_KEY` in Supabase. Attempt to scan and verify a clear "ANTHROPIC_API_KEY environment variable is not set" error is toasted.
+- [ ] **Invalid File Type**: Attempt to upload a non-PDF/image file (e.g., .txt). Verify the frontend restricts this or shows a proper error.
+- [ ] **Network Failure**: Simulate a network disconnection while scanning. Verify the "Network error" message appears.
+- [ ] **API Limits**: If possible, simulate a rate limit or large file error from Anthropic. Verify the error message is correctly parsed and displayed.
+
+#### **6. CSV Import (Regression Test)**
 - [ ] **A-Z Template**: Generate and download the Asset Template. Verify it contains the new columns (A-Z mapping).
 - [ ] **Grouped Import**: Upload a CSV with a Source 0 (Header) followed by Source 1 (Asset) rows. Verify that the assets are correctly grouped and their costs are burdened by the header's total.
 

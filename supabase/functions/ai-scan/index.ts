@@ -1,5 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.8";
-import Anthropic from "https://esm.sh/@anthropic-ai/sdk@0.18.0";
+import Anthropic from "https://esm.sh/@anthropic-ai/sdk@0.32.1";
 import { encodeBase64 } from "https://deno.land/std@0.224.0/encoding/base64.ts";
 
 const corsHeaders = {
@@ -82,6 +82,54 @@ function classifyItem(item: any) {
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
+  }
+
+  // Check for diagnostic request BEFORE auth
+  // This allows verifying the ANTHROPIC_API_KEY without a user session
+  const isDiagnostic = req.headers.get('x-diagnostic') === 'true';
+  if (isDiagnostic) {
+    const apiKey = Deno.env.get('ANTHROPIC_API_KEY');
+    if (!apiKey) {
+      return new Response(JSON.stringify({ 
+        status: 'error', 
+        message: 'ANTHROPIC_API_KEY environment variable is not set' 
+      }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    try {
+      const anthropic = new Anthropic({ apiKey });
+      // Attempt a very simple message to verify connectivity and key validity
+      const testResponse = await anthropic.messages.create({
+        model: "claude-sonnet-4-6",
+        max_tokens: 5,
+        messages: [{ role: "user", content: "hi" }]
+      });
+      
+      return new Response(JSON.stringify({ 
+        status: 'ok', 
+        message: 'Anthropic connectivity successful',
+        apiKeyPrefix: apiKey.substring(0, 7) + '...',
+        modelUsed: testResponse.model,
+        usageRecorded: true
+      }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    } catch (e: any) {
+      return new Response(JSON.stringify({ 
+        status: 'error', 
+        message: 'Anthropic connectivity failed',
+        error: e.message,
+        errorType: e.type,
+        statusCode: e.status,
+        apiKeyPrefix: apiKey.substring(0, 7) + '...',
+      }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
   }
 
   try {
@@ -168,17 +216,38 @@ Deno.serve(async (req) => {
       text: EXTRACTION_PROMPT,
     });
 
-    const response = await anthropic.beta.messages.create({
-      model: "claude-3-5-sonnet-20241022",
-      max_tokens: 2048,
-      betas: isPDF ? ["pdfs-2024-09-25"] : [],
-      messages: [
-        {
-          role: "user",
-          content: content,
-        },
-      ],
-    });
+    let response;
+    try {
+      // Try the latest model (Claude 3.5 Sonnet / 4.6 ID)
+      // PDF support is now stable and does not require beta headers.
+      response = await anthropic.messages.create({
+        model: "claude-sonnet-4-6",
+        max_tokens: 2048,
+        messages: [
+          {
+            role: "user",
+            content: content,
+          },
+        ],
+      });
+    } catch (err: any) {
+      console.error('Anthropic API Error:', err.status, err.message);
+      
+      if (err.status === 404 || err.status === 400) {
+        return new Response(
+          JSON.stringify({ 
+            error: 'SCAN_ACCESS_REQUIRED', 
+            message: `Anthropic model access denied. Status: ${err.status}. Message: ${err.message}` 
+          }),
+          {
+            status: 403,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          }
+        );
+      } else {
+        throw err;
+      }
+    }
 
     const rawOutput = (response.content[0] as any).text;
     

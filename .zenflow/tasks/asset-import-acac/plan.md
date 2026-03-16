@@ -85,7 +85,23 @@ Create a detailed implementation plan for the UI components and template updates
 - [x] Update `scripts/README.md` with final mapping and logic.
 
 ### [x] Step: User Testing
+<!-- chat-id: 10fa25c1-a139-45c2-995a-3b3c6b3806a9 -->
 
 - [x] Create a checklist for manual user testing that covers all the areas that have been touched by this task.
 - [x] Prompt the user for issues to fix until there aren't any more issues reported by the user. 
+- [x] Refine AI scan error handling and status codes.
+- [x] Implement manual entry fallback and automatic receipt attachment upload.
+- [x] Enhanced manual fallback with side-by-side document preview (zoomable).
+- [x] Automated burdened cost calculation and invoice reconciliation.
+- [x] Updated technical documentation regarding Anthropic API Tiers for PDF support.
+- [x] Added `curl` test command to verify Anthropic PDF access level.
+- [x] Link receipts from asset detail screens.
+- [x] Upgrade to **Claude 4.6 Sonnet** (latest stable model).
+- [x] Added `x-diagnostic: true` mode to Edge Function for connectivity troubleshooting.
+- [x] Expand fallback dialog to 98vw/98vh with zoomable document preview.
+- [x] Fix number field clearing behavior.
+- [x] Updated `setup-guide.md` with Supabase connectivity tests and model IDs.
 
+- [x] Implemented Anthropic connectivity test in diagnostic mode.
+- [x] Corrected model IDs to Claude 3.5 Sonnet (4.6 ID) and updated fallback logic.
+- [x] Renamed "Line Total" to "Line Amount" in review UI.

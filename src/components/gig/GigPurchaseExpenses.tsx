@@ -33,6 +33,7 @@ export default function GigPurchaseExpenses({
   const [isLoading, setIsLoading] = useState(true);
   const [isScanning, setIsScanning] = useState(false);
   const [scannedData, setScannedData] = useState<any>(null);
+  const [scannedFile, setScannedFile] = useState<File | null>(null);
   const [showReviewDialog, setShowReviewDialog] = useState(false);
   const [selectedPurchaseId, setSelectedPurchaseId] = useState<string | null>(null);
 
@@ -59,6 +60,7 @@ export default function GigPurchaseExpenses({
     const file = event.target.files?.[0];
     if (!file) return;
 
+    setScannedFile(file);
     setIsScanning(true);
     try {
       const data = await scanInvoice(file);
@@ -66,7 +68,15 @@ export default function GigPurchaseExpenses({
       setShowReviewDialog(true);
     } catch (err: any) {
       console.error('Error scanning receipt:', err);
-      toast.error(err.message || 'Failed to scan receipt');
+      // If it's a known scan error (like Tier 1+ required), we still open the dialog
+      // so the user can enter data manually and the file still gets uploaded.
+      if (err.message?.includes('PDF_SCAN_ACCESS_REQUIRED') || err.message?.includes('access to the Claude 3.5 Sonnet PDF beta')) {
+        toast.error('AI scan unavailable for this file type. Opening manual entry.');
+        setScannedData(null); // Explicitly null to trigger manual mode in dialog
+        setShowReviewDialog(true);
+      } else {
+        toast.error(err.message || 'Failed to scan receipt');
+      }
     } finally {
       setIsScanning(false);
       event.target.value = ''; // Reset input
@@ -204,6 +214,7 @@ export default function GigPurchaseExpenses({
         onOpenChange={setShowReviewDialog}
         organizationId={currentOrganizationId}
         scannedData={scannedData}
+        file={scannedFile}
         gigId={gigId}
         onSuccess={(id) => {
           loadPurchases();

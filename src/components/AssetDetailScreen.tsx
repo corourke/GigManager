@@ -227,6 +227,17 @@ export default function AssetDetailScreen({
                     {asset.retired_on ? format(new Date(asset.retired_on), 'PPP') : '—'}
                   </p>
                 </div>
+                {asset.purchase_id && (
+                  <div className="md:col-span-2">
+                    <AttachmentManager
+                      organizationId={organization.id}
+                      entityType="purchase"
+                      entityId={asset.purchase_id}
+                      title="Purchase Invoice / Receipt"
+                      allowUpload={false}
+                    />
+                  </div>
+                )}
                 <div className="md:col-span-2">
                   <p className="text-sm font-medium text-gray-500 uppercase tracking-wider">Notes</p>
                   <div className="mt-1 text-gray-600 prose prose-sm max-w-none">

@@ -39,7 +39,13 @@ export const handleFunctionsError = async (error: any, context: string) => {
     let customError: Error | null = null;
     try {
       // In some versions context is the Response, in others it's an object containing it
-      const response = error.context instanceof Response ? error.context : (error.context as any).response;
+      // Be resilient: check if context itself looks like a Response
+      let response = null;
+      if (error.context instanceof Response || (error.context && typeof error.context.clone === 'function')) {
+        response = error.context;
+      } else if (error.context?.response) {
+        response = error.context.response;
+      }
       
       if (response) {
         let body;
