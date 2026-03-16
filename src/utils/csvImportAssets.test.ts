@@ -27,6 +27,29 @@ describe('Asset CSV Import: Parsing & Allocation', () => {
       expect(result.data.total_inv_amount).toBe('1,550.00');
     });
 
+    it('should normalize Source "0-Invoice" to "0"', () => {
+      const row = {
+        source: '0-Invoice',
+        acquisition_date: '2024-05-10',
+        vendor: 'B&H Photo Video',
+        total_inv_amount: '1,550.00',
+      };
+      const result = validateAssetRow(row, 1);
+      expect(result.isValid).toBe(true);
+      expect(result.data.source).toBe('0');
+    });
+
+    it('should normalize Source "1-Asset" to "1" and "2-Expense" to "2"', () => {
+      const row1 = { source: '1-Asset', category: 'Cat', manufacturer_model: 'Model' };
+      const row2 = { source: '2-Expense', category: 'Cat', line_amount: '10' };
+      
+      const result1 = validateAssetRow(row1, 1);
+      const result2 = validateAssetRow(row2, 2);
+      
+      expect(result1.data.source).toBe('1');
+      expect(result2.data.source).toBe('2');
+    });
+
     it('should fail Source 0 if missing vendor or total_inv_amount', () => {
       const row = { source: '0', acquisition_date: '2024-05-10' };
       const result = validateAssetRow(row, 1);
@@ -152,6 +175,86 @@ describe('Asset CSV Import: Parsing & Allocation', () => {
       const sum = itemRows.reduce((acc, row) => acc + parseFloat(row.data.item_cost || '0'), 0);
       expect(sum).toBe(100.00);
     });
+
+    it('should handle mixed Path A (Cost) and Path B (Price) rows correctly', () => {
+      const headerRow: AssetRow = {
+        source: '0',
+        acquisition_date: '2024-01-01',
+        vendor: 'Test',
+        total_inv_amount: '150.00',
+        manufacturer_model: '',
+        category: ''
+      };
+
+      const itemRows: ParsedRow<AssetRow>[] = [
+        {
+          rowIndex: 2,
+          isValid: true,
+          errors: [],
+          data: {
+            source: '1',
+            category: 'Audio',
+            manufacturer_model: 'Fixed Cost Item',
+            quantity: '1',
+            line_cost: '50.00',
+            acquisition_date: ''
+          }
+        },
+        {
+          rowIndex: 3,
+          isValid: true,
+          errors: [],
+          data: {
+            source: '1',
+            category: 'Audio',
+            manufacturer_model: 'Price Item',
+            quantity: '2',
+            item_price: '40.00', // line_amount = 80.00
+            acquisition_date: ''
+          }
+        }
+      ];
+
+      // Step 3: Fixed sum = 50. Remaining balance = 150 - 50 = 100.
+      // Step 4: Price sum = 80. Factor = 100 / 80 = 1.25.
+      // Step 5: Price Item final line_cost = 80 * 1.25 = 100.00. item_cost = 100 / 2 = 50.00.
+
+      applyCostAllocation(headerRow, itemRows);
+
+      expect(itemRows[0].data.item_cost).toBe('50.00'); // Fixed path
+      expect(itemRows[1].data.item_cost).toBe('50.00'); // Price path (burdened)
+      
+      const sum = itemRows.reduce((acc, row) => acc + parseFloat(row.data.line_cost || '0'), 0);
+      expect(sum).toBe(150.00);
+    });
+
+    it('should handle Path A (Cost) with missing item_cost', () => {
+      const headerRow: AssetRow = { source: '0', total_inv_amount: '100.00', acquisition_date: '', vendor: '', manufacturer_model: '', category: '' };
+      const itemRows: ParsedRow<AssetRow>[] = [
+        { rowIndex: 2, isValid: true, errors: [], data: { source: '1', quantity: '2', line_cost: '100.00', acquisition_date: '', manufacturer_model: '', category: '' } }
+      ];
+      applyCostAllocation(headerRow, itemRows);
+      expect(itemRows[0].data.item_cost).toBe('50.00');
+    });
+
+    it('should handle Path B (Price) with missing line_amount', () => {
+      const headerRow: AssetRow = { source: '0', total_inv_amount: '110.00', acquisition_date: '', vendor: '', manufacturer_model: '', category: '' };
+      const itemRows: ParsedRow<AssetRow>[] = [
+        { rowIndex: 2, isValid: true, errors: [], data: { source: '1', quantity: '2', item_price: '50.00', acquisition_date: '', manufacturer_model: '', category: '' } }
+      ];
+      applyCostAllocation(headerRow, itemRows);
+      expect(itemRows[0].data.item_cost).toBe('55.00'); // 50 * (110/100) = 55
+    });
+
+    it('should fail rows with no price or cost information (Path C)', () => {
+      const headerRow: AssetRow = { source: '0', total_inv_amount: '100.00', acquisition_date: '', vendor: '', manufacturer_model: '', category: '' };
+      const itemRows: ParsedRow<AssetRow>[] = [
+        { rowIndex: 2, isValid: true, errors: [], data: { source: '1', quantity: '1', acquisition_date: '', manufacturer_model: '', category: '' } }
+      ];
+      applyCostAllocation(headerRow, itemRows);
+      expect(itemRows[0].isValid).toBe(false);
+      expect(itemRows[0].errors.some(e => e.field === 'item_cost')).toBe(true);
+    });
   });
 
   describe('parseAndValidateCSV: Hierarchical Grouping (A-Z Pipeline)', () => {
@@ -171,10 +274,15 @@ describe('Asset CSV Import: Parsing & Allocation', () => {
       expect(result.validRows).toHaveLength(5);
       
       // Vendor A Group: Item A1 gets 100 * (110/100) = 110
-      expect(result.validRows[1].data.vendor).toBe(''); // Source 1 doesn't have its own vendor in CSV
+      expect(result.validRows[1].data.vendor).toBe('Vendor A'); // Propagated from header
+      expect(result.validRows[1].data.acquisition_date).toBe('2024-01-15'); // Propagated from header
       expect(result.validRows[1].data.item_cost).toBe('110.00');
       
       // Vendor B Group: Raw sum = 100 (B1) + 100 (Shipping) = 200. Factor = 200/200 = 1.0
+      expect(result.validRows[3].data.vendor).toBe('Vendor B');
+      expect(result.validRows[4].data.vendor).toBe('Vendor B');
+      expect(result.validRows[3].data.item_cost).toBe('100.00');
+      expect(result.validRows[4].data.line_cost).toBe('100.00');
       expect(result.validRows[3].data.item_cost).toBe('100.00'); // Item B1
       expect(result.validRows[4].data.item_cost).toBe('100.00'); // Shipping item
       expect(result.validRows[4].data.line_cost).toBe('100.00'); // line_cost updated for Source 2

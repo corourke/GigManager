@@ -39,7 +39,7 @@ JSON schema to return:
       "manufacturer_model": "<Brand + Model string — this is the primary identifier>",
       "description": "<full line description including accessories or bundle notes>",
       "quantity": <integer, default 1>,
-      "unit_price": <number or null — the unit price as printed on the invoice>,
+      "item_price": <number or null — the unit price as printed on the invoice>,
       "line_amount": <number or null — the total amount for this line as printed on the invoice>,
       "serial_numbers": ["SN1", "SN2"],
       "category": "<from category hints above>",
@@ -64,7 +64,7 @@ Analyze the document and return the JSON.
 `;
 
 function classifyItem(item: any) {
-  const price = item.unit_price || 0;
+  const price = item.item_price || 0;
   
   // Consumables are always expenses regardless of cost
   if (item.is_consumable) return 'Expense';

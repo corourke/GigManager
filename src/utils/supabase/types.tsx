@@ -198,6 +198,7 @@ export interface DbPurchase {
   organization_id: string;
   gig_id?: string;
   parent_id?: string;
+  asset_id?: string;
   row_type: PurchaseRowType;
   purchase_date: string; // Date
   vendor?: string;

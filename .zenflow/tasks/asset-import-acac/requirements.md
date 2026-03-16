@@ -26,34 +26,34 @@ The goal of this project is to enhance asset and expense tracking by introducing
 ### 3.2 Spreadsheet Import (Columns A-Z)
 The system must map columns from the legacy Act4Audio format (Source types: `0-Invoice`, `1-Asset`, `2-Expense`):
 
-| Col  | Input Field           | `purchases` Table, row_type = "header"                       | `purchases` Table, row_type = "item"                         | `assets` Table                          | Notes                    |
-| ---- | --------------------- | ------------------------------------------------------------ | ------------------------------------------------------------ | --------------------------------------- | ------------------------ |
-| A    | Acquisition Date      | `purchase_date`                                              | `purchase_date`                                              | `acquisition_date`                      | Scanned                  |
-| B    | Source                | `row_type`<br />(On spreadsheet import Map: "0-Invoice" -> "header") | `row_type`<br />(On spreadsheet import Map: "2-Expense" -> "item") | (On spreadsheet import, Select: 1-Asset |                          |
-| C    | Vendor                | `vendor`                                                     | `vendor`                                                     | `vendor`                                | Scanned                  |
-| D    | Inv Amount            | `total_inv_amount`                                           |                                                              |                                         | Scanned                  |
-| E    | Paid Via              | `payment_method`                                             |                                                              |                                         | Scanned                  |
-| F    | Line Amount           |                                                              | `line_amount`                                                |                                         | Scanned                  |
-| G    | Line Cost             |                                                              | `line_cost`                                                  |                                         | Computed using factor    |
-| H    | Quantity              |                                                              | `quantity`                                                   | `quantity`                              | Scanned                  |
-| I    | Item Price            |                                                              | `item_price`                                                 | `item_price`                            | `line_amount / quantity` |
-| J    | Item Cost             |                                                              | `item_cost`                                                  | `item_cost`                             | `line_cost / quantity`   |
-| K    | Manufacturer/Model    |                                                              | `description`                                                | `manufacturer_model`                    | Scanned                  |
-| L    | Category              |                                                              | `category`                                                   | `category`                              |                          |
-| M    | Sub-cat               |                                                              | `sub-category`                                               | `sub_category`                          |                          |
-| N    | Equipment Type        |                                                              |                                                              | `type`                                  |                          |
-| O    | Kit                   |                                                              |                                                              |                                         | Add asset to named kit   |
-| P    | Serial Number         |                                                              |                                                              | `serial_number`                         |                          |
-| Q    | Tag Number            |                                                              |                                                              | `tag_number`                            |                          |
-| R    | Notes                 |                                                              |                                                              | `description`                           |                          |
-| S    | Insured               |                                                              |                                                              | `insurance_policy_added`                |                          |
-| T    | Ins Class             |                                                              |                                                              | `insurance_class`                       |                          |
-| U    | Replacement Value     |                                                              |                                                              | `replacement_value`                     |                          |
-| V    | Retired On            |                                                              |                                                              | `retired_on`                            |                          |
-| W    | Liquidation Amt       |                                                              |                                                              | `liquidation_amt`                       |                          |
-| X    | Expected Service Life |                                                              |                                                              | `service_life`                          |                          |
-| Y    | Depreciation Method   |                                                              |                                                              | `dep_method`                            |                          |
-| Z    | Status                |                                                              |                                                              | `status`                                |                          |
+| Col | CSV Column Name | Req? | Type | Example | `purchases` Table (Header) | `purchases` Table (Item) | `assets` Table | Notes |
+|---|---|---|---|---|---|---|---|---|
+| A | `acquisition_date` | Yes | Date | 2025-10-10 | `purchase_date` | `purchase_date` | `acquisition_date` | YYYY-MM-DD |
+| B | `source` | Yes | Enum | 1-Asset | `row_type` (0 -> header) | `row_type` (2 -> item) | (1-Asset) | 0, 1, or 2 |
+| C | `vendor` | Yes* | String | Amazon | `vendor` | `vendor` | `vendor` | *Req for Header |
+| D | `total_inv_amount` | Yes* | Number | 106.05 | `total_inv_amount` | | | *Req for Header |
+| E | `payment_method` | No | String | Visa | `payment_method` | | | |
+| F | `line_amount` | No* | Number | 87.98 | | `line_amount` | | *Req for Item |
+| G | `line_cost` | No | Number | 95.24 | | `line_cost` | | Computed if empty |
+| H | `quantity` | Yes | Integer | 2 | | `quantity` | `quantity` | Default: 1 |
+| I | `item_price` | No | Number | 43.99 | | `item_price` | `item_price` | |
+| J | `item_cost` | No | Number | 47.62 | | `item_cost` | `item_cost` | |
+| K | `manufacturer_model` | Yes* | String | Shure SM58 | | `description` | `manufacturer_model` | *Req for Asset |
+| L | `category` | Yes* | String | Sound | | `category` | `category` | *Req for Asset/Item |
+| M | `sub_category` | No | String | Microphones | | `sub_category` | `sub_category` | |
+| N | `type` | No | String | Dynamic Mic | | | `type` | |
+| O | `kit` | No | String | Mic Pack A | | | | Add to named kit |
+| P | `serial_number` | No | String | SN12345 | | | `serial_number` | |
+| Q | `tag_number` | No | String | TAG-001 | | | `tag_number` | |
+| R | `description` | No | String | Black finish | | | `description` | |
+| S | `insured` | No | Boolean | TRUE | | | `insurance_policy_added` | |
+| T | `insurance_class` | No | String | Class A | | | `insurance_class` | |
+| U | `replacement_value` | No | Number | 150.00 | | | `replacement_value` | |
+| V | `retired_on` | No | Date | 2029-12-31 | | | `retired_on` | YYYY-MM-DD |
+| W | `liquidation_amt` | No | Number | 20.00 | | | `liquidation_amt` | |
+| X | `service_life` | No | Integer | 5 | | | `service_life` | Years |
+| Y | `dep_method` | No | String | MACRS | | | `dep_method` | |
+| Z | `status` | No | Enum | Active | | | `status` | |
 
 
 ### 3.3 Cost Allocation Logic
@@ -75,6 +75,13 @@ The system must map columns from the legacy Act4Audio format (Source types: `0-I
 - **Gig Expense Integration**: Gig detail screens must display purchase expenses alongside existing financial events.
 - **Multi-Attachment UI**: Specific components for uploading, viewing, and deleting multiple attachments for assets, purchases, and gigs.
 - **CSV Template**: Update the downloadable asset import template to support all 26 columns (A-Z).
+
+### 3.6 AI Scanning & Receipt Upload
+- **PDF/Image Upload**: Allow users to upload invoices or receipts (PDF/JPG/PNG) directly from the Asset List screen.
+- **AI Extraction**: Use an LLM to extract structured header and line item data from the uploaded files.
+- **File Storage**: Store the original invoice/receipt in Supabase Storage and create an `attachments` record.
+- **Asset Association**: Associate the uploaded attachment with all created `assets` and the `purchases` record.
+- **UI Linking**: Provide a clear link back to the original invoice from the Asset Detail and Purchase Detail screens.
 
 ## 4. Success Criteria
 - Successful AI extraction and review workflow in both Gig and Asset screens.

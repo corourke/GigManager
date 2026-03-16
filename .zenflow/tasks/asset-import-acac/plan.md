@@ -38,9 +38,19 @@ Create a detailed implementation plan for the UI components and template updates
 ### [x] Step 3: Enhanced CSV Parsing (A-Z)
 <!-- chat-id: a4f1b3c6-18a7-42a3-a159-74d41e2da93f -->
 - [x] Update CSV parser to handle 26 columns (A-Z).
-- [x] Implement grouping logic for Source `0` (Header), `1` (Asset), and `2` (Expense/Item).
-- [x] Implement `Cost Allocation Factor` utility for pro-rata tax/shipping distribution.
-- [x] Implement transactional commit for bulk imports.
+- [x] Implement grouping logic for Source `0` (Header), `1` (Asset), and `2` (Expense/Item) by Date + Vendor.
+- [x] Implement atomic transaction logic via `create_purchase_transaction_v1` RPC.
+- [x] Implement robust `Cost Allocation Factor` with Price vs Cost path logic and penny reconciliation.
+- [x] Implement transactional commit for bulk imports using grouping.
+- [x] Create purchase audit rows for assets and link via `asset_id`.
+- [x] Propagate `vendor` and `acquisition_date` from headers to child rows.
+- [x] Rename `description` back to `description` in `purchases` table and prefer `manufacturer_model` mapping.
+- [x] Relax validation to allow flexible financial field combinations.
+- [x] Update UI table display for asset imports.
+- [x] Handle standalone assets/expenses with `total_inv_amount` by synthesizing headers.
+- [x] Implement find-or-create kit logic for assets with a kit name.
+- [x] Enforce non-negative costs and normalize MM/DD/YYYY date formats.
+- [x] Implement import-wide cost reconciliation check.
 
 ### [x] Step 4: AI Extraction Pipeline
 <!-- chat-id: b1e166bf-dc0c-464e-9bb7-6a3a53d84f0f -->
@@ -54,7 +64,7 @@ Create a detailed implementation plan for the UI components and template updates
 - [ ] **Review Dialog**: Create a unified review/adjust component for scanned data.
 - [ ] **Attachment Management**: Implement `AttachmentManager` for multi-file support.
 - [ ] **Purchase Management UI**: Create `PurchaseTransactionView` for viewing and editing complete transactions.
-- [ ] **CSV Template**: Update `generateAssetTemplate` function to output 26 columns (A-Z).
+- [x] **CSV Template**: Update `generateAssetTemplate` function to output 26 columns (A-Z).
 
 ### [ ] Step 6: Verification & Documentation
 - [ ] Verify cost reconciliation (Sum of Line Costs == Invoice Total).

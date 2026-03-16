@@ -970,9 +970,9 @@ export default function ImportScreen({
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Row</TableHead>
                     {importType === 'gigs' ? (
                       <>
+                        <TableHead>Row</TableHead>
                         <TableHead>Title</TableHead>
                         <TableHead>Start</TableHead>
                         <TableHead>End</TableHead>
@@ -982,11 +982,16 @@ export default function ImportScreen({
                       </>
                     ) : (
                       <>
-                        <TableHead>Category</TableHead>
-                        <TableHead>Manufacturer/Model</TableHead>
-                        <TableHead>Serial Number</TableHead>
-                        <TableHead>Acquisition Date</TableHead>
-                        <TableHead>Cost</TableHead>
+                        <TableHead className="text-[0.8rem] px-2">Date</TableHead>
+                        <TableHead className="text-[0.8rem] px-2">Source</TableHead>
+                        <TableHead className="text-[0.8rem] px-2">Vendor</TableHead>
+                        <TableHead className="text-[0.8rem] px-2">Model</TableHead>
+                        <TableHead className="text-[0.8rem] px-2">Inv AMT</TableHead>
+                        <TableHead className="text-[0.8rem] px-2">Line AMT</TableHead>
+                        <TableHead className="text-[0.8rem] px-2">Line Cost</TableHead>
+                        <TableHead className="text-[0.8rem] px-2">Qty</TableHead>
+                        <TableHead className="text-[0.8rem] px-2">Price</TableHead>
+                        <TableHead className="text-[0.8rem] px-2">Cost</TableHead>
                       </>
                     )}
                     <TableHead>Import Status</TableHead>
@@ -995,9 +1000,9 @@ export default function ImportScreen({
                 <TableBody>
                   {validRows.map((row) => (
                     <TableRow key={row.rowIndex}>
-                      <TableCell>{row.rowIndex}</TableCell>
                       {importType === 'gigs' ? (
                         <>
+                          <TableCell>{row.rowIndex}</TableCell>
                           <TableCell>{(row.data as GigRow).title}</TableCell>
                           <TableCell>{formatGigDateTimeForDisplay((row.data as GigRow).start, (row.data as GigRow).timezone)}</TableCell>
                           <TableCell>{formatGigDateTimeForDisplay((row.data as GigRow).end, (row.data as GigRow).timezone)}</TableCell>
@@ -1009,11 +1014,20 @@ export default function ImportScreen({
                         </>
                       ) : (
                         <>
-                          <TableCell>{(row.data as AssetRow).category}</TableCell>
-                          <TableCell>{(row.data as AssetRow).manufacturer_model}</TableCell>
-                          <TableCell>{(row.data as AssetRow).serial_number || '-'}</TableCell>
-                          <TableCell>{(row.data as AssetRow).acquisition_date}</TableCell>
-                          <TableCell>{(row.data as AssetRow).cost_per_item || '-'}</TableCell>
+                          <TableCell className="text-[0.8rem] px-2">{(row.data as AssetRow).acquisition_date}</TableCell>
+                          <TableCell className="text-[0.8rem] px-2">{(row.data as AssetRow).source}</TableCell>
+                          <TableCell className="text-[0.8rem] px-2">{(row.data as AssetRow).vendor || '-'}</TableCell>
+                          <TableCell className="text-[0.8rem] px-2" title={(row.data as AssetRow).manufacturer_model}>
+                            {(row.data as AssetRow).manufacturer_model?.length > 20 
+                              ? (row.data as AssetRow).manufacturer_model.substring(0, 17) + '...' 
+                              : (row.data as AssetRow).manufacturer_model}
+                          </TableCell>
+                          <TableCell className="text-[0.8rem] px-2">{(row.data as AssetRow).total_inv_amount || '-'}</TableCell>
+                          <TableCell className="text-[0.8rem] px-2">{(row.data as AssetRow).line_amount || '-'}</TableCell>
+                          <TableCell className="text-[0.8rem] px-2">{(row.data as AssetRow).line_cost || '-'}</TableCell>
+                          <TableCell className="text-[0.8rem] px-2">{(row.data as AssetRow).quantity || '-'}</TableCell>
+                          <TableCell className="text-[0.8rem] px-2">{(row.data as AssetRow).item_price || '-'}</TableCell>
+                          <TableCell className="text-[0.8rem] px-2">{(row.data as AssetRow).item_cost || '-'}</TableCell>
                         </>
                       )}
                       <TableCell>

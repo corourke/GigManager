@@ -162,31 +162,45 @@ export async function importPurchases(
   try {
     const { user } = await requireAuth();
 
-    // 1. Group rows by header
-    const groups: Array<{
+    // 1. Group rows by Header (Source 0) or Date + Vendor (if no Header)
+    const groupsMap = new Map<string, {
       header: any;
       items: any[];
       assets: any[];
-    }> = [];
-
-    let currentGroup: { header: any; items: any[]; assets: any[] } | null = null;
+    }>();
 
     rows.forEach((row) => {
-      const data = row.data;
+      const data = row.data as AssetRow;
+      // Unique key for grouping: Date + Vendor
+      const dateKey = data.acquisition_date || 'no-date';
+      const vendorKey = (data.vendor || 'no-vendor').toLowerCase().trim();
+      const groupKey = `${dateKey}|${vendorKey}`;
+
+      if (!groupsMap.has(groupKey)) {
+        groupsMap.set(groupKey, {
+          header: null,
+          items: [],
+          assets: [],
+        });
+      }
+
+      const currentGroup = groupsMap.get(groupKey)!;
+
       if (data.source === '0') {
-        currentGroup = {
-          header: {
+        // Use the first Source 0 header we find for this group
+        if (!currentGroup.header) {
+          currentGroup.header = {
             organization_id: organizationId,
             purchase_date: data.acquisition_date,
             vendor: data.vendor,
-            total_inv_amount: data.total_inv_amount ? parseFloat(data.total_inv_amount) : 0,
+            total_inv_amount: data.total_inv_amount ? parseFloat(data.total_inv_amount.toString().replace(/[^0-9.-]/g, '')) : 0,
             payment_method: data.payment_method,
-            description: data.description,
-          },
-          items: [],
-          assets: [],
-        };
-        groups.push(currentGroup);
+            // Prefer manufacturer_model if present in import, fallback to description
+            description: data.manufacturer_model || data.description || '',
+            category: data.category,
+            sub_category: data['sub-category'] || undefined,
+          };
+        }
       } else if (data.source === '1') {
         const assetData = {
           organization_id: organizationId,
@@ -196,75 +210,95 @@ export async function importPurchases(
           type: data.type || undefined,
           serial_number: data.serial_number || undefined,
           tag_number: data.tag_number || undefined,
-          acquisition_date: data.acquisition_date || (currentGroup?.header?.purchase_date),
-          vendor: data.vendor || (currentGroup?.header?.vendor),
-          item_price: data.item_price ? parseFloat(data.item_price) : undefined,
-          item_cost: data.item_cost ? parseFloat(data.item_cost) : undefined,
-          quantity: data.quantity ? parseInt(data.quantity) : 1,
-          description: data.description || undefined,
+          acquisition_date: data.acquisition_date,
+          vendor: data.vendor,
+          item_price: data.item_price ? parseFloat(data.item_price.toString().replace(/[^0-9.-]/g, '')) : undefined,
+          item_cost: data.item_cost ? parseFloat(data.item_cost.toString().replace(/[^0-9.-]/g, '')) : undefined,
+          quantity: data.quantity ? parseInt(data.quantity.toString().replace(/[^0-9.-]/g, '')) : 1,
+          // Asset's description: prefer manufacturer_model or its own description
+          description: data.manufacturer_model || data.description || undefined,
           insurance_policy_added: data.insured ? (data.insured.toLowerCase() === 'yes' || data.insured === 'true') : false,
           insurance_class: data.insurance_class || undefined,
-          replacement_value: data.replacement_value ? parseFloat(data.replacement_value) : undefined,
+          replacement_value: data.replacement_value ? parseFloat(data.replacement_value.toString().replace(/[^0-9.-]/g, '')) : undefined,
           retired_on: data.retired_on || undefined,
-          liquidation_amt: data.liquidation_amt ? parseFloat(data.liquidation_amt) : undefined,
-          service_life: data.service_life ? parseFloat(data.service_life) : undefined,
+          liquidation_amt: data.liquidation_amt ? parseFloat(data.liquidation_amt.toString().replace(/[^0-9.-]/g, '')) : undefined,
+          service_life: data.service_life ? parseFloat(data.service_life.toString().replace(/[^0-9.-]/g, '')) : undefined,
           dep_method: data.dep_method || undefined,
           status: data.status || 'Active',
+          kit: data.kit || undefined,
         };
+        currentGroup.assets.push(assetData);
         
-        if (currentGroup) {
-          currentGroup.assets.push(assetData);
-        } else {
-          // Standalone asset without header
-          groups.push({
-            header: null,
-            items: [],
-            assets: [assetData],
-          });
+        // If no header yet, and this item has total_inv_amount, it's a potential header source
+        if (!currentGroup.header && data.total_inv_amount) {
+          currentGroup.header = {
+            organization_id: organizationId,
+            purchase_date: data.acquisition_date,
+            vendor: data.vendor,
+            total_inv_amount: parseFloat(data.total_inv_amount.toString().replace(/[^0-9.-]/g, '')),
+            payment_method: data.payment_method,
+            description: data.manufacturer_model || data.description || '',
+            category: data.category,
+            sub_category: data['sub-category'] || undefined,
+          };
         }
       } else if (data.source === '2') {
         const itemData = {
           organization_id: organizationId,
+          purchase_date: data.acquisition_date,
+          vendor: data.vendor,
           category: data.category,
           sub_category: data['sub-category'] || undefined,
-          description: data.description || undefined,
-          line_amount: data.line_amount ? parseFloat(data.line_amount) : 0,
-          line_cost: data.line_cost ? parseFloat(data.line_cost) : 0,
-          quantity: data.quantity ? parseInt(data.quantity) : 1,
-          item_price: data.item_price ? parseFloat(data.item_price) : undefined,
-          item_cost: data.item_cost ? parseFloat(data.item_cost) : undefined,
+          // Purchase item's description: prefer manufacturer_model if present
+          description: data.manufacturer_model || data.description || undefined,
+          line_amount: data.line_amount ? parseFloat(data.line_amount.toString().replace(/[^0-9.-]/g, '')) : 0,
+          line_cost: data.line_cost ? parseFloat(data.line_cost.toString().replace(/[^0-9.-]/g, '')) : 0,
+          quantity: data.quantity ? parseInt(data.quantity.toString().replace(/[^0-9.-]/g, '')) : 1,
+          item_price: data.item_price ? parseFloat(data.item_price.toString().replace(/[^0-9.-]/g, '')) : undefined,
+          item_cost: data.item_cost ? parseFloat(data.item_cost.toString().replace(/[^0-9.-]/g, '')) : undefined,
         };
+        currentGroup.items.push(itemData);
 
-        if (currentGroup) {
-          currentGroup.items.push(itemData);
-        } else {
-          errors.push(`Row ${row.rowIndex}: Expense item (Source 2) found without a preceding Header (Source 0). Skipping.`);
+        // If no header yet, and this item has total_inv_amount, it's a potential header source
+        if (!currentGroup.header && data.total_inv_amount) {
+          currentGroup.header = {
+            organization_id: organizationId,
+            purchase_date: data.acquisition_date,
+            vendor: data.vendor,
+            total_inv_amount: parseFloat(data.total_inv_amount.toString().replace(/[^0-9.-]/g, '')),
+            payment_method: data.payment_method,
+            description: data.manufacturer_model || data.description || '',
+            category: data.category,
+            sub_category: data['sub-category'] || undefined,
+          };
         }
       }
     });
 
-    // 2. Process groups
+    // 2. Process groups using RPC for atomicity
+    const groups = Array.from(groupsMap.values());
     for (const group of groups) {
-      try {
-        if (group.header) {
+      // Fallback: If no header was found or synthesized from total_inv_amount
+      if (!group.header && (group.items.length > 0 || group.assets.length > 0)) {
+        const firstEntry = group.items[0] || group.assets[0];
+        group.header = {
+          organization_id: organizationId,
+          purchase_date: firstEntry.purchase_date || firstEntry.acquisition_date,
+          vendor: firstEntry.vendor,
+          total_inv_amount: 0,
+          description: 'Synthesized Purchase Header',
+        };
+      }
+
+      if (group.header) {
+        try {
+          // Use RPC for atomic transaction across multiple tables
           await createPurchaseTransaction(group.header, group.items, group.assets);
           successCount += 1 + group.items.length + group.assets.length;
-        } else {
-          // Process standalone assets
-          for (const asset of group.assets) {
-            const { supabase } = await requireAuth();
-            const { error } = await (supabase.from('assets') as any).insert({
-              ...asset,
-              created_by: user.id,
-              updated_by: user.id,
-            });
-            if (error) throw error;
-            successCount++;
-          }
+        } catch (err: any) {
+          const headerInfo = `Purchase on ${group.header.purchase_date} from ${group.header.vendor}`;
+          errors.push(`Failed to import ${headerInfo}: ${err.message}`);
         }
-      } catch (err: any) {
-        const headerInfo = group.header ? `Purchase from ${group.header.vendor}` : 'Standalone Assets';
-        errors.push(`Failed to import ${headerInfo}: ${err.message}`);
       }
     }
 
@@ -274,62 +308,107 @@ export async function importPurchases(
   }
 }
 /**
- * Create a purchase header with its items and assets
+ * Create a purchase header with its items and assets atomically via RPC
+ * Also handles kit creation and membership for assets
  */
 export async function createPurchaseTransaction(
   header: Partial<DbPurchase>,
-  items: Partial<DbPurchase>[],
+  items: Partial<DbPurchase>[] = [],
   assets: any[] = []
 ) {
   try {
     const { supabase, user } = await requireAuth();
 
-    // 1. Insert Header
-    const { data: headerData, error: headerError } = await (supabase.from('purchases') as any)
-      .insert({
-        ...header,
-        row_type: 'header',
-        organization_id: header.organization_id,
-      })
-      .select()
-      .single();
+    // 1. Process Kits if any assets have a kit name
+    // We do this before the RPC to get kit IDs
+    const assetsWithKits = assets.filter(a => a.kit && a.kit.trim());
+    const kitIdsByName = new Map<string, string>();
 
-    if (headerError) throw headerError;
+    if (assetsWithKits.length > 0) {
+      const uniqueKitNames = Array.from(new Set(assetsWithKits.map(a => a.kit.trim())));
+      const orgId = header.organization_id;
 
-    const purchaseId = headerData.id;
+      for (const kitName of uniqueKitNames) {
+        // Try to find existing kit
+        const { data: existingKit } = await supabase
+          .from('kits')
+          .select('id')
+          .eq('organization_id', orgId)
+          .ilike('name', kitName)
+          .maybeSingle();
 
-    // 2. Insert Items
-    if (items.length > 0) {
-      const itemsToInsert = items.map(item => ({
-        ...item,
-        parent_id: purchaseId,
-        row_type: 'item',
-        organization_id: header.organization_id,
-      }));
+        if (existingKit) {
+          kitIdsByName.set(kitName.toLowerCase(), existingKit.id);
+        } else {
+          // Create new kit
+          const { data: newKit, error: createError } = await supabase
+            .from('kits')
+            .insert({
+              organization_id: orgId,
+              name: kitName,
+              category: 'Imported',
+              created_by: user.id,
+              updated_by: user.id,
+            })
+            .select('id')
+            .single();
 
-      const { error: itemsError } = await (supabase.from('purchases') as any)
-        .insert(itemsToInsert);
-
-      if (itemsError) throw itemsError;
+          if (createError) throw createError;
+          kitIdsByName.set(kitName.toLowerCase(), newKit.id);
+        }
+      }
     }
 
-    // 3. Insert Assets
-    if (assets.length > 0) {
-      const assetsToInsert = assets.map(asset => ({
-        ...asset,
-        purchase_id: purchaseId,
-        organization_id: header.organization_id,
-        created_by: user.id,
-        updated_by: user.id,
-      }));
+    // 2. Call the PostgreSQL RPC for atomic execution of purchase + items + assets
+    const { data, error } = await supabase.rpc('create_purchase_transaction_v1', {
+      p_header: header,
+      p_items: items,
+      p_assets: assets
+    });
 
-      const { error: assetsError } = await (supabase.from('assets') as any)
-        .insert(assetsToInsert);
+    if (error) throw error;
+    
+    // 3. Handle Kit Membership (Post-RPC)
+    // The RPC returns { id: v_header_id }
+    // We need the asset IDs that were created to add them to kits
+    // Since create_purchase_transaction_v1 doesn't return asset IDs, we fetch them
+    if (assetsWithKits.length > 0 && data?.id) {
+      const { data: createdAssets, error: fetchError } = await supabase
+        .from('assets')
+        .select('id, manufacturer_model, serial_number, kit_temp:description') // kit is not in assets table yet, but we had it in the import data
+        .eq('purchase_id', data.id);
 
-      if (assetsError) throw assetsError;
+      if (!fetchError && createdAssets) {
+        const kitMemberships = [];
+        
+        for (const asset of assets) {
+          if (asset.kit && asset.kit.trim()) {
+            const kitId = kitIdsByName.get(asset.kit.trim().toLowerCase());
+            if (kitId) {
+              // Match the created asset by model and serial if available
+              const createdAsset = createdAssets.find(ca => 
+                ca.manufacturer_model === asset.manufacturer_model && 
+                (asset.serial_number ? ca.serial_number === asset.serial_number : true)
+              );
+
+              if (createdAsset) {
+                kitMemberships.push({
+                  kit_id: kitId,
+                  asset_id: createdAsset.id,
+                  quantity: asset.quantity || 1,
+                });
+              }
+            }
+          }
+        }
+
+        if (kitMemberships.length > 0) {
+          await supabase.from('kit_assets').insert(kitMemberships);
+        }
+      }
     }
 
-    return headerData;
+    return data;
   } catch (err) {
     return handleApiError(err, 'create purchase transaction');
   }
