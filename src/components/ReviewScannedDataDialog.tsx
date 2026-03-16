@@ -1,21 +1,13 @@
-import { useState, useEffect } from 'react';
-import { 
-  Dialog, 
-  DialogContent, 
-  DialogHeader, 
-  DialogTitle, 
-  DialogFooter,
-  DialogDescription
-} from './ui/dialog';
+import { useState, useEffect, useRef } from 'react';
+import * as DialogPrimitive from '@radix-ui/react-dialog';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './ui/table';
-import { 
-  Loader2, 
-  Plus, 
-  Trash2, 
-  AlertCircle, 
+import {
+  Loader2,
+  Plus,
+  Trash2,
+  AlertCircle,
   FileIcon,
   Search,
   Maximize2,
@@ -25,15 +17,16 @@ import { format } from 'date-fns';
 import { toast } from 'sonner';
 import { createPurchaseTransaction } from '../services/purchase.service';
 import { uploadAttachment, linkAttachmentToEntity } from '../services/attachment.service';
-import { Organization, UserRole } from '../utils/supabase/types';
 
 interface ScannedItem {
   description: string;
   quantity: number;
   item_price: number;
   item_cost: number;
+  is_asset: boolean;
   category?: string;
   sub_category?: string;
+  equipment_type?: string;
 }
 
 interface ScannedData {
@@ -70,104 +63,118 @@ export default function ReviewScannedDataDialog({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [showFullPreview, setShowFullPreview] = useState(false);
-  const [magnifierPos, setMagnifierPos] = useState({ x: 0, y: 0, show: false });
+  const [pdfPageImages, setPdfPageImages] = useState<string[]>([]);
+  const imgRef = useRef<HTMLImageElement | null>(null);
+  const [magnifier, setMagnifier] = useState<{ show: boolean; imgX: number; imgY: number; pageX: number; pageY: number }>({ show: false, imgX: 0, imgY: 0, pageX: 0, pageY: 0 });
 
   useEffect(() => {
     if (file) {
       const url = URL.createObjectURL(file);
       setPreviewUrl(url);
+      if (file.type === 'application/pdf') {
+        renderPdfToImages(file);
+      }
       return () => URL.revokeObjectURL(url);
     }
   }, [file]);
 
+  async function renderPdfToImages(pdfFile: File) {
+    try {
+      const arrayBuffer = await pdfFile.arrayBuffer();
+      const pdfjsLib = await import('pdfjs-dist');
+      pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
+        'pdfjs-dist/build/pdf.worker.min.mjs',
+        import.meta.url
+      ).toString();
+      const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+      const images: string[] = [];
+      for (let i = 1; i <= pdf.numPages; i++) {
+        const page = await pdf.getPage(i);
+        const viewport = page.getViewport({ scale: 2 });
+        const canvas = document.createElement('canvas');
+        canvas.width = viewport.width;
+        canvas.height = viewport.height;
+        const ctx = canvas.getContext('2d')!;
+        await page.render({ canvasContext: ctx, viewport }).promise;
+        images.push(canvas.toDataURL('image/png'));
+      }
+      setPdfPageImages(images);
+    } catch (err) {
+      console.error('PDF render error:', err);
+      setPdfPageImages([]);
+    }
+  }
+
   useEffect(() => {
     if (scannedData) {
-      setFormData({
+      setFormData(recalculateBurdenedCosts({
         ...scannedData,
-        items: scannedData.items || []
-      });
+        items: (scannedData.items || []).map(item => ({
+          ...item,
+          is_asset: item.is_asset ?? true,
+        }))
+      }));
     } else if (open) {
-      // Initialize with empty data for manual entry if scan failed
       setFormData({
         vendor: '',
         purchase_date: format(new Date(), 'yyyy-MM-dd'),
         total_inv_amount: 0,
+        description: '',
         items: []
       });
     }
   }, [scannedData, open]);
 
-  if (!formData && open) return null;
-  if (!open) return null;
+  function recalculateBurdenedCosts(data: ScannedData): ScannedData {
+    const totalLinePrice = data.items.reduce((sum, item) => sum + (item.item_price * item.quantity), 0);
+    if (totalLinePrice <= 0 || data.total_inv_amount <= 0) {
+      return { ...data, items: data.items.map(item => ({ ...item, item_cost: item.item_price })) };
+    }
+    const burdenFactor = data.total_inv_amount / totalLinePrice;
+    return {
+      ...data,
+      items: data.items.map(item => ({
+        ...item,
+        item_cost: Number((item.item_price * burdenFactor).toFixed(4))
+      }))
+    };
+  }
 
-  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
-    const { left, top, width, height } = e.currentTarget.getBoundingClientRect();
-    const x = ((e.pageX - left - window.scrollX) / width) * 100;
-    const y = ((e.pageY - top - window.scrollY) / height) * 100;
-    setMagnifierPos({ x, y, show: true });
+  if (!open || !formData) return null;
+
+  const handleImgMouseMove = (e: React.MouseEvent<HTMLImageElement>) => {
+    const img = e.currentTarget;
+    const rect = img.getBoundingClientRect();
+    const x = ((e.clientX - rect.left) / rect.width) * 100;
+    const y = ((e.clientY - rect.top) / rect.height) * 100;
+    setMagnifier({ show: true, imgX: x, imgY: y, pageX: e.clientX, pageY: e.clientY });
   };
 
   const handleHeaderChange = (field: keyof ScannedData, value: string | number) => {
     setFormData(prev => {
       if (!prev) return null;
       const next = { ...prev, [field]: value };
-      
-      // If total_inv_amount changes, we should recalculate burdened costs
-      if (field === 'total_inv_amount') {
-        return recalculateBurdenedCosts(next);
-      }
-      return next;
+      return field === 'total_inv_amount' ? recalculateBurdenedCosts(next) : next;
     });
   };
 
-  const handleItemChange = (index: number, field: keyof ScannedItem, value: string | number) => {
+  const handleItemChange = (index: number, field: keyof ScannedItem, value: string | number | boolean) => {
     setFormData(prev => {
       if (!prev) return null;
       const newItems = [...prev.items];
       newItems[index] = { ...newItems[index], [field]: value };
-      
       const next = { ...prev, items: newItems };
-      
-      // If quantity or price changes, recalculate burdened costs
-      if (field === 'quantity' || field === 'item_price') {
-        return recalculateBurdenedCosts(next);
-      }
-      return next;
+      return (field === 'quantity' || field === 'item_price') ? recalculateBurdenedCosts(next) : next;
     });
-  };
-
-  const recalculateBurdenedCosts = (data: ScannedData): ScannedData => {
-    const totalLinePrice = data.items.reduce((sum, item) => sum + (item.item_price * item.quantity), 0);
-    
-    // Avoid division by zero
-    if (totalLinePrice <= 0 || data.total_inv_amount <= 0) {
-      const newItems = data.items.map(item => ({
-        ...item,
-        item_cost: item.item_price
-      }));
-      return { ...data, items: newItems };
-    }
-
-    // Burdened factor = Invoice Total / Sum of Item Prices
-    const burdenFactor = data.total_inv_amount / totalLinePrice;
-
-    const newItems = data.items.map(item => ({
-      ...item,
-      item_cost: Number((item.item_price * burdenFactor).toFixed(4))
-    }));
-
-    return { ...data, items: newItems };
   };
 
   const handleAddItem = () => {
     setFormData(prev => {
       if (!prev) return null;
-      const newItem: ScannedItem = { description: '', quantity: 1, item_price: 0, item_cost: 0 };
-      const next = {
+      return recalculateBurdenedCosts({
         ...prev,
-        items: [...prev.items, newItem]
-      };
-      return recalculateBurdenedCosts(next);
+        items: [...prev.items, { description: '', quantity: 1, item_price: 0, item_cost: 0, is_asset: true }]
+      });
     });
   };
 
@@ -176,14 +183,12 @@ export default function ReviewScannedDataDialog({
       if (!prev) return null;
       const newItems = [...prev.items];
       newItems.splice(index, 1);
-      const next = { ...prev, items: newItems };
-      return recalculateBurdenedCosts(next);
+      return recalculateBurdenedCosts({ ...prev, items: newItems });
     });
   };
 
   const handleSubmit = async () => {
     if (!formData) return;
-
     setIsSubmitting(true);
     try {
       const header = {
@@ -198,7 +203,6 @@ export default function ReviewScannedDataDialog({
         gig_id: gigId,
         row_type: 'header' as const,
       };
-
       const items = formData.items.map(item => ({
         organization_id: organizationId,
         purchase_date: formData.purchase_date,
@@ -211,12 +215,9 @@ export default function ReviewScannedDataDialog({
         line_cost: item.item_cost * item.quantity,
         category: item.category || formData.category,
         sub_category: item.sub_category || formData.sub_category,
-        row_type: 'item' as const,
+        row_type: item.is_asset ? 'asset' as const : 'item' as const,
       }));
-
       const result = await createPurchaseTransaction(header, items);
-      
-      // Upload and link file if provided
       if (file) {
         try {
           const attachment = await uploadAttachment(organizationId, file);
@@ -228,7 +229,6 @@ export default function ReviewScannedDataDialog({
           toast.error('Purchase created, but failed to upload receipt attachment');
         }
       }
-
       toast.success('Purchase created successfully');
       onSuccess(result.id);
       onOpenChange(false);
@@ -242,283 +242,322 @@ export default function ReviewScannedDataDialog({
 
   const calculatedTotalCost = formData.items.reduce((sum, item) => sum + (item.item_cost * item.quantity), 0);
   const diff = Math.abs(calculatedTotalCost - formData.total_inv_amount);
-  const hasMismatch = diff > 0.05; // Slightly larger tolerance for rounding
-
+  const hasMismatch = diff > 0.05;
   const isImage = file?.type.startsWith('image/');
   const isPdf = file?.type === 'application/pdf';
 
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="!max-w-[98vw] !w-[1600px] h-[98vh] flex flex-col p-0 overflow-hidden">
-        <div className="p-4 border-b flex-shrink-0">
-          <DialogHeader>
-            <DialogTitle className="text-xl">{scannedData ? 'Review Scanned Purchase' : 'Create Purchase Entry'}</DialogTitle>
-            <DialogDescription>
-              {scannedData 
-                ? 'Verify the extracted data from your invoice/receipt.' 
-                : 'The AI scan was unavailable. Use the document preview to manually enter the details.'}
-            </DialogDescription>
-          </DialogHeader>
-        </div>
+  const renderMagnifiableImage = (src: string, alt: string) => (
+    <img
+      src={src}
+      alt={alt}
+      className="max-w-full block rounded shadow-lg cursor-crosshair"
+      onMouseMove={handleImgMouseMove}
+      onMouseLeave={() => setMagnifier(prev => ({ ...prev, show: false }))}
+    />
+  );
 
-        <div className="flex-1 flex overflow-hidden">
-          {/* Document Preview Panel */}
-          <div className="w-1/2 border-r bg-gray-200 flex flex-col overflow-hidden relative">
-            <div className="absolute top-4 right-4 z-20 flex gap-2">
-               <Button 
-                variant="secondary" 
-                size="icon" 
-                className="bg-white/80 backdrop-blur hover:bg-white shadow-md h-10 w-10"
-                onClick={() => setShowFullPreview(true)}
-              >
-                <Maximize2 className="w-5 h-5" />
-              </Button>
+  return (
+    <DialogPrimitive.Root open={open} onOpenChange={onOpenChange}>
+      <DialogPrimitive.Portal>
+        <DialogPrimitive.Overlay className="fixed inset-0 z-50 bg-black/50" />
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3">
+          <div
+            className="bg-white rounded-lg shadow-2xl overflow-hidden flex flex-col border"
+            style={{ width: '96vw', height: '94vh' }}
+          >
+            {/* Header */}
+            <div className="px-4 py-2 border-b flex items-center justify-between flex-shrink-0">
+              <div>
+                <h2 className="text-base font-semibold">{scannedData ? 'Review Scanned Purchase' : 'Create Purchase Entry'}</h2>
+                <p className="text-xs text-gray-500">
+                  {scannedData ? 'Verify the extracted data below.' : 'Enter details manually using the document preview as reference.'}
+                </p>
+              </div>
+              <DialogPrimitive.Close className="rounded-sm opacity-70 hover:opacity-100 p-1">
+                <CloseIcon className="h-4 w-4" />
+              </DialogPrimitive.Close>
             </div>
 
-            <div className="flex-1 overflow-auto p-4 flex justify-center items-start scrollbar-thin">
-              {previewUrl && isImage && (
-                <div 
-                  className="relative cursor-crosshair shadow-2xl rounded overflow-hidden"
-                  onMouseMove={handleMouseMove}
-                  onMouseLeave={() => setMagnifierPos(prev => ({ ...prev, show: false }))}
+            {/* Body */}
+            <div style={{ display: 'flex', flex: 1, overflow: 'hidden', minHeight: 0 }}>
+              {/* Preview Panel */}
+              <div style={{ width: '45%', display: 'flex', flexDirection: 'column', overflow: 'hidden', background: '#f3f4f6', borderRight: '1px solid #e5e7eb', position: 'relative' }}>
+                <button
+                  onClick={() => setShowFullPreview(true)}
+                  className="absolute top-2 right-2 z-20 bg-white/90 hover:bg-white shadow rounded p-1.5"
                 >
-                  <img src={previewUrl} alt="Document Preview" className="max-w-full block" />
-                  
-                  {magnifierPos.show && (
-                    <div 
-                      className="absolute pointer-events-none border-2 border-white shadow-xl rounded-full w-64 h-64 overflow-hidden z-30 bg-white"
-                      style={{
-                        left: `${magnifierPos.x}%`,
-                        top: `${magnifierPos.y}%`,
-                        transform: 'translate(-50%, -50%)'
-                      }}
-                    >
-                      <div 
-                        className="absolute inset-0 w-[400%] h-[400%]"
-                        style={{
-                          backgroundImage: `url(${previewUrl})`,
-                          backgroundSize: '400% 400%',
-                          backgroundPosition: `${magnifierPos.x}% ${magnifierPos.y}%`,
-                          backgroundRepeat: 'no-repeat'
-                        }}
-                      />
+                  <Maximize2 className="w-4 h-4" />
+                </button>
+
+                <div style={{ flex: 1, overflow: 'auto', padding: 12, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
+                  {previewUrl && isImage && renderMagnifiableImage(previewUrl, 'Document Preview')}
+                  {isPdf && pdfPageImages.length > 0 && pdfPageImages.map((src, i) => (
+                    <div key={i}>{renderMagnifiableImage(src, `Page ${i + 1}`)}</div>
+                  ))}
+                  {isPdf && pdfPageImages.length === 0 && previewUrl && (
+                    <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#9ca3af', fontSize: 14 }}>
+                      <Loader2 className="w-5 h-5 mr-2 animate-spin" /> Rendering PDF...
+                    </div>
+                  )}
+                  {!previewUrl && (
+                    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: '#9ca3af' }}>
+                      <FileIcon className="w-12 h-12 mb-2 opacity-20" />
+                      <p className="text-sm">No preview available</p>
                     </div>
                   )}
                 </div>
-              )}
-              {previewUrl && isPdf && (
-                <iframe 
-                  src={`${previewUrl}#toolbar=1&navpanes=0`} 
-                  className="w-full h-full shadow-2xl rounded bg-white" 
-                  title="PDF Preview"
-                />
-              )}
-              {!previewUrl && (
-                <div className="flex flex-col items-center justify-center h-full text-gray-400">
-                  <FileIcon className="w-16 h-16 mb-4 opacity-20" />
-                  <p>No document preview available</p>
-                </div>
-              )}
-            </div>
-            
-            <div className="p-3 border-t bg-gray-50 flex justify-center gap-6 text-xs text-gray-500 flex-shrink-0">
-              {isImage && (
-                <div className="flex items-center gap-1.5">
-                  <Search className="w-3.5 h-3.5" />
-                  <span className="font-medium">Hover to Magnify</span>
-                </div>
-              )}
-              <div className="flex items-center gap-1.5">
-                <Maximize2 className="w-3.5 h-3.5" />
-                <span>Full Preview Available</span>
-              </div>
-            </div>
-          </div>
 
-          {/* Form Entry Panel */}
-          <div className="w-1/2 flex flex-col overflow-hidden bg-white">
-            <div className="flex-1 overflow-y-auto p-8 space-y-10 scrollbar-thin">
-              {/* Header Info */}
-              <div className="space-y-6">
-                <h4 className="text-sm font-bold uppercase tracking-widest text-gray-400 border-b pb-3">Purchase Summary</h4>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                  <div className="space-y-3 md:col-span-2">
-                    <Label htmlFor="vendor" className="text-xs font-bold uppercase tracking-wider text-gray-500">Vendor Name</Label>
-                    <Input 
-                      id="vendor" 
-                      value={formData.vendor} 
-                      onChange={e => handleHeaderChange('vendor', e.target.value)}
-                      placeholder="e.g. Sweetwater, B&H, Amazon"
-                      className="text-xl font-bold h-12 border-gray-300 focus:border-sky-500 focus:ring-sky-500"
-                    />
-                  </div>
-                  <div className="space-y-3">
-                    <Label htmlFor="purchase_date" className="text-xs font-bold uppercase tracking-wider text-gray-500">Purchase Date</Label>
-                    <Input 
-                      id="purchase_date" 
-                      type="date"
-                      value={formData.purchase_date} 
-                      onChange={e => handleHeaderChange('purchase_date', e.target.value)}
-                      className="h-11 border-gray-300"
-                    />
-                  </div>
-                  <div className="space-y-3">
-                    <Label htmlFor="total_inv_amount" className="text-xs font-bold uppercase tracking-wider text-gray-500">Invoice Total (Grand Total)</Label>
-                    <div className="relative">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 font-bold">$</span>
-                      <Input 
-                        id="total_inv_amount" 
-                        type="text"
-                        value={formData.total_inv_amount || ''} 
-                        onChange={e => {
-                          const val = e.target.value.replace(/[^0-9.]/g, '');
-                          handleHeaderChange('total_inv_amount', val === '' ? 0 : parseFloat(val));
-                        }}
-                        placeholder="0.00"
-                        className="pl-8 text-xl font-black text-sky-700 h-11 border-gray-300 focus:border-sky-500 focus:ring-sky-500"
-                      />
-                    </div>
-                    <p className="text-[10px] text-gray-400 italic">This total will be distributed as burdened cost across items.</p>
-                  </div>
+                <div className="px-3 py-1 border-t bg-gray-50 flex justify-center gap-4 text-[10px] text-gray-400 flex-shrink-0">
+                  <span className="flex items-center gap-1"><Search className="w-3 h-3" /> Hover to magnify</span>
+                  <span className="flex items-center gap-1"><Maximize2 className="w-3 h-3" /> Full preview</span>
                 </div>
               </div>
 
-              {/* Items Table */}
-              <div className="space-y-6">
-                <div className="flex items-center justify-between border-b pb-3">
-                  <h4 className="text-sm font-bold uppercase tracking-widest text-gray-400">Line Items</h4>
-                  <Button variant="outline" size="sm" onClick={handleAddItem} className="h-9 border-sky-300 text-sky-600 hover:bg-sky-50 px-4 font-bold">
-                    <Plus className="w-4 h-4 mr-2" />
-                    Add Item
-                  </Button>
-                </div>
-                
-                <div className="space-y-6">
-                  {formData.items.map((item, index) => (
-                    <div key={index} className="p-6 bg-gray-50 rounded-xl border-2 border-gray-100 relative group/item shadow-sm hover:shadow-md transition-shadow">
-                       <Button 
-                        variant="ghost" 
-                        size="icon" 
-                        className="absolute -top-3 -right-3 h-8 w-8 rounded-full bg-white border shadow-sm text-gray-400 hover:text-red-600 hover:border-red-200"
-                        onClick={() => handleRemoveItem(index)}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-
-                      <div className="grid grid-cols-12 gap-6">
-                        <div className="col-span-12 md:col-span-6 space-y-2">
-                          <Label className="text-[10px] font-bold uppercase tracking-tight text-gray-400">Description / Model</Label>
-                          <Input 
-                            value={item.description} 
-                            onChange={e => handleItemChange(index, 'description', e.target.value)}
-                            placeholder="Full item description"
-                            className="bg-white border-gray-200 focus:border-sky-400 h-10 font-medium"
+              {/* Form Panel */}
+              <div style={{ width: '55%', display: 'flex', flexDirection: 'column', overflow: 'hidden', background: 'white' }}>
+                <div style={{ flex: 1, overflowY: 'auto', padding: 16 }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                    {/* Purchase Summary */}
+                    <div>
+                      <h4 className="text-[10px] font-bold uppercase tracking-widest text-gray-400 border-b pb-1 mb-2">Purchase Summary</h4>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
+                        <div style={{ gridColumn: 'span 2' }}>
+                          <Label className="text-[10px] font-semibold uppercase text-gray-500">Vendor</Label>
+                          <Input
+                            value={formData.vendor}
+                            onChange={e => handleHeaderChange('vendor', e.target.value)}
+                            placeholder="e.g. Sweetwater, B&H, Amazon"
+                            className="h-8 text-sm font-semibold border-gray-300 mt-0.5"
                           />
                         </div>
-                        <div className="col-span-4 md:col-span-2 space-y-2">
-                          <Label className="text-[10px] font-bold uppercase tracking-tight text-gray-400">Qty</Label>
-                          <Input 
-                            type="text"
-                            value={item.quantity || ''} 
-                            onChange={e => {
-                              const val = e.target.value.replace(/[^0-9]/g, '');
-                              handleItemChange(index, 'quantity', val === '' ? 0 : parseInt(val));
-                            }}
-                            className="bg-white border-gray-200 text-center h-10 font-bold"
+                        <div>
+                          <Label className="text-[10px] font-semibold uppercase text-gray-500">Date</Label>
+                          <Input
+                            type="date"
+                            value={formData.purchase_date}
+                            onChange={e => handleHeaderChange('purchase_date', e.target.value)}
+                            className="h-8 text-sm border-gray-300 mt-0.5"
                           />
                         </div>
-                        <div className="col-span-4 md:col-span-2 space-y-2">
-                          <Label className="text-[10px] font-bold uppercase tracking-tight text-gray-400">Price (Each)</Label>
-                          <div className="relative">
-                            <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-xs font-bold">$</span>
-                            <Input 
+                        <div style={{ gridColumn: 'span 3' }}>
+                          <Label className="text-[10px] font-semibold uppercase text-gray-500">Description / Notes</Label>
+                          <Input
+                            value={formData.description || ''}
+                            onChange={e => handleHeaderChange('description', e.target.value)}
+                            placeholder="Purchase description or notes"
+                            className="h-8 text-sm border-gray-300 mt-0.5"
+                          />
+                        </div>
+                        <div>
+                          <Label className="text-[10px] font-semibold uppercase text-gray-500">Invoice Total</Label>
+                          <div className="relative mt-0.5">
+                            <span className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400 text-xs">$</span>
+                            <Input
                               type="text"
-                              value={item.item_price || ''} 
+                              value={formData.total_inv_amount || ''}
                               onChange={e => {
                                 const val = e.target.value.replace(/[^0-9.]/g, '');
-                                handleItemChange(index, 'item_price', val === '' ? 0 : parseFloat(val));
+                                handleHeaderChange('total_inv_amount', val === '' ? 0 : parseFloat(val));
                               }}
-                              className="pl-6 bg-white border-gray-200 h-10 font-bold"
+                              placeholder="0.00"
+                              className="pl-5 h-8 text-sm font-bold text-sky-700 border-gray-300"
                             />
                           </div>
                         </div>
-                        <div className="col-span-4 md:col-span-2 space-y-2">
-                          <Label className="text-[10px] font-bold uppercase tracking-tight text-gray-400">Line Amount</Label>
-                          <div className="h-10 flex items-center justify-end px-3 bg-gray-200/50 rounded-md border-2 border-gray-100 font-bold text-gray-700">
-                            ${(item.item_price * item.quantity).toFixed(2)}
-                          </div>
-                        </div>
-                        
-                        <div className="col-span-12 pt-2 flex items-center justify-end gap-3 text-[11px]">
-                          <span className="text-gray-400 font-medium italic">Computed Burdened Cost (Unit Cost):</span>
-                          <span className="font-black text-sky-700 bg-sky-100/50 px-3 py-1 rounded-full border border-sky-200">
-                            ${item.item_cost.toFixed(2)} / unit
-                          </span>
+                        <div style={{ gridColumn: 'span 2', display: 'flex', alignItems: 'center' }}>
+                          <p style={{ fontSize: 9, color: '#9ca3af', fontStyle: 'italic' }}>Distributed as burdened cost across items.</p>
                         </div>
                       </div>
                     </div>
-                  ))}
 
-                  {formData.items.length === 0 && (
-                    <div className="text-center py-20 bg-gray-50 border-4 border-dashed rounded-2xl">
-                      <Plus className="w-12 h-12 text-gray-200 mx-auto mb-4" />
-                      <p className="text-base font-medium text-gray-400">No items added yet. Click "Add Item" to begin.</p>
+                    {/* Line Items */}
+                    <div>
+                      <div className="flex items-center justify-between border-b pb-1 mb-1.5">
+                        <h4 className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Line Items</h4>
+                        <Button variant="outline" size="sm" onClick={handleAddItem} className="h-6 text-[10px] border-sky-300 text-sky-600 hover:bg-sky-50 px-2">
+                          <Plus className="w-3 h-3 mr-1" /> Add Item
+                        </Button>
+                      </div>
+
+                      {formData.items.length > 0 && (
+                        <div style={{ display: 'grid', gridTemplateColumns: '20px 1fr 75px 45px 70px 70px 20px', gap: '0 4px', padding: '0 2px', marginBottom: 2 }}
+                          className="text-[8px] font-bold uppercase text-gray-400 tracking-wide">
+                          <span />
+                          <span>Description</span>
+                          <span className="text-right">Item Price</span>
+                          <span className="text-center">Qty</span>
+                          <span className="text-right">Line Amt</span>
+                          <span className="text-right">Unit Cost</span>
+                          <span />
+                        </div>
+                      )}
+
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                        {formData.items.map((item, index) => (
+                          <div key={index} className="bg-gray-50 rounded border border-gray-100" style={{ padding: '3px 2px' }}>
+                            {/* Main row */}
+                            <div style={{ display: 'grid', gridTemplateColumns: '20px 1fr 75px 45px 70px 70px 20px', gap: '0 4px', alignItems: 'center' }}>
+                              <label className="flex items-center justify-center cursor-pointer" title={item.is_asset ? 'Asset (durable)' : 'Expense'}>
+                                <input
+                                  type="checkbox"
+                                  checked={item.is_asset}
+                                  onChange={e => handleItemChange(index, 'is_asset', e.target.checked)}
+                                  className="w-3.5 h-3.5 rounded border-gray-300 text-sky-600 focus:ring-sky-500"
+                                />
+                              </label>
+                              <Input
+                                value={item.description}
+                                onChange={e => handleItemChange(index, 'description', e.target.value)}
+                                placeholder="Item description"
+                                className="bg-white border-gray-200 h-7 text-xs"
+                              />
+                              <div className="relative">
+                                <span className="absolute left-1.5 top-1/2 -translate-y-1/2 text-gray-400 text-[10px]">$</span>
+                                <Input
+                                  type="text"
+                                  value={item.item_price || ''}
+                                  onChange={e => {
+                                    const val = e.target.value.replace(/[^0-9.]/g, '');
+                                    handleItemChange(index, 'item_price', val === '' ? 0 : parseFloat(val));
+                                  }}
+                                  className="pl-4 bg-white border-gray-200 h-7 text-xs font-semibold text-right"
+                                />
+                              </div>
+                              <Input
+                                type="text"
+                                value={item.quantity || ''}
+                                onChange={e => {
+                                  const val = e.target.value.replace(/[^0-9]/g, '');
+                                  handleItemChange(index, 'quantity', val === '' ? 0 : parseInt(val));
+                                }}
+                                className="bg-white border-gray-200 text-center h-7 text-xs font-semibold"
+                              />
+                              <div className="h-7 flex items-center justify-end px-1 bg-gray-100 rounded text-[11px] text-gray-600 font-medium">
+                                ${(item.item_price * item.quantity).toFixed(2)}
+                              </div>
+                              <div className="h-7 flex items-center justify-end px-1 bg-sky-50 rounded text-[11px] text-sky-700 font-bold border border-sky-100">
+                                ${item.item_cost.toFixed(2)}
+                              </div>
+                              <button
+                                onClick={() => handleRemoveItem(index)}
+                                className="h-7 w-5 flex items-center justify-center text-gray-300 hover:text-red-500"
+                              >
+                                <Trash2 className="h-3 w-3" />
+                              </button>
+                            </div>
+                            {/* Category row */}
+                            <div style={{ display: 'grid', gridTemplateColumns: '20px 1fr', gap: '0 4px', marginTop: 2 }}>
+                              <span />
+                              <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+                                <span style={{ fontSize: 9, color: '#9ca3af', whiteSpace: 'nowrap' }}>{item.is_asset ? 'Asset' : 'Expense'}</span>
+                                <Input
+                                  value={item.category || ''}
+                                  onChange={e => handleItemChange(index, 'category', e.target.value)}
+                                  placeholder="Category"
+                                  className="bg-white border-gray-200 h-6 text-[11px] flex-1"
+                                />
+                                {item.is_asset && (
+                                  <>
+                                    <Input
+                                      value={item.sub_category || ''}
+                                      onChange={e => handleItemChange(index, 'sub_category', e.target.value)}
+                                      placeholder="Sub-cat"
+                                      className="bg-white border-gray-200 h-6 text-[11px] flex-1"
+                                    />
+                                    <Input
+                                      value={item.equipment_type || ''}
+                                      onChange={e => handleItemChange(index, 'equipment_type', e.target.value)}
+                                      placeholder="Type"
+                                      className="bg-white border-gray-200 h-6 text-[11px] flex-1"
+                                    />
+                                  </>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+
+                      {formData.items.length === 0 && (
+                        <div className="text-center py-6 bg-gray-50 border-2 border-dashed rounded-lg">
+                          <Plus className="w-6 h-6 text-gray-200 mx-auto mb-1" />
+                          <p className="text-xs text-gray-400">No items yet. Click "Add Item" to begin.</p>
+                        </div>
+                      )}
                     </div>
-                  )}
+
+                    {/* Reconciliation */}
+                    <div className={`p-2 rounded flex items-center gap-2 text-xs border ${hasMismatch ? 'bg-amber-50 text-amber-800 border-amber-200' : 'bg-emerald-50 text-emerald-800 border-emerald-200'}`}>
+                      <AlertCircle className={`w-3.5 h-3.5 flex-shrink-0 ${hasMismatch ? 'text-amber-500' : 'text-emerald-500'}`} />
+                      <span>
+                        <strong>{hasMismatch ? 'Mismatch' : 'Reconciled'}:</strong>{' '}
+                        Line costs ${calculatedTotalCost.toFixed(2)} vs Invoice ${formData.total_inv_amount.toFixed(2)}
+                        {hasMismatch && <span className="text-amber-600"> (diff: ${diff.toFixed(2)})</span>}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Footer */}
+                <div className="px-4 py-2 border-t bg-gray-50 flex justify-end gap-3 flex-shrink-0">
+                  <Button variant="outline" onClick={() => onOpenChange(false)} className="h-8 px-6 text-sm">
+                    Cancel
+                  </Button>
+                  <button
+                    onClick={handleSubmit}
+                    disabled={isSubmitting || formData.items.length === 0 || !formData.vendor}
+                    className="h-8 px-6 text-sm font-semibold rounded-md inline-flex items-center justify-center disabled:opacity-50 disabled:pointer-events-none"
+                    style={{ backgroundColor: '#0284c7', color: 'white' }}
+                  >
+                    {isSubmitting && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                    Save Purchase
+                  </button>
                 </div>
               </div>
-
-              {/* Reconciliation Check */}
-              <div className={`p-6 rounded-xl flex items-start gap-4 shadow-sm border-2 ${hasMismatch ? 'bg-amber-50 text-amber-900 border-amber-200' : 'bg-emerald-50 text-emerald-900 border-emerald-200'}`}>
-                <AlertCircle className={`w-6 h-6 mt-0.5 ${hasMismatch ? 'text-amber-600' : 'text-emerald-600'}`} />
-                <div className="flex-1">
-                  <p className="font-black text-sm uppercase tracking-wider">
-                    {hasMismatch ? 'Reconciliation Mismatch' : 'Reconciliation Successful'}
-                  </p>
-                  <p className="text-xs font-medium opacity-80 mt-2 leading-relaxed">
-                    Sum of computed line costs: <span className="font-bold underline decoration-2">${calculatedTotalCost.toFixed(2)}</span>. 
-                    Invoice total: <span className="font-bold underline decoration-2">${formData.total_inv_amount.toFixed(2)}</span>.
-                    {hasMismatch && ` There is a discrepancy of $${diff.toFixed(2)} that may need manual adjustment or item price correction.`}
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            <div className="p-6 border-t bg-gray-50 flex justify-end gap-4 flex-shrink-0">
-              <Button variant="outline" onClick={() => onOpenChange(false)} className="px-10 h-12 font-bold text-gray-600">
-                Cancel
-              </Button>
-              <Button 
-                onClick={handleSubmit} 
-                disabled={isSubmitting || formData.items.length === 0 || !formData.vendor}
-                className="bg-sky-600 hover:bg-sky-700 text-white px-12 h-12 font-black shadow-lg shadow-sky-200 active:scale-95 transition-all"
-              >
-                {isSubmitting && <Loader2 className="w-5 h-5 mr-3 animate-spin" />}
-                Confirm and Save Purchase
-              </Button>
             </div>
           </div>
         </div>
+      </DialogPrimitive.Portal>
 
-        {/* Full Screen Preview Modal */}
-        {showFullPreview && previewUrl && (
-          <div className="fixed inset-0 z-[100] bg-black/95 flex flex-col p-6 backdrop-blur-md">
-            <div className="flex justify-end mb-6">
-              <Button variant="ghost" className="text-white hover:bg-white/20 h-12 px-6 font-bold" onClick={() => setShowFullPreview(false)}>
-                <CloseIcon className="w-8 h-8 mr-3" />
-                Close Preview
-              </Button>
-            </div>
-            <div className="flex-1 overflow-auto flex justify-center items-center">
-              {isImage ? (
-                <img src={previewUrl} alt="Full Preview" className="max-h-full max-w-full object-contain shadow-2xl rounded-lg" />
-              ) : (
-                <iframe src={previewUrl} className="w-full h-full bg-white rounded-lg shadow-2xl" />
-              )}
-            </div>
+      {/* Magnifier - rendered as fixed portal to avoid container clipping */}
+      {magnifier.show && (
+        <div
+          className="fixed pointer-events-none z-[200] border-2 border-white shadow-xl rounded-full overflow-hidden bg-white"
+          style={{
+            width: 180, height: 180,
+            left: magnifier.pageX - 90,
+            top: magnifier.pageY - 90,
+          }}
+        >
+          <div
+            style={{
+              width: '100%',
+              height: '100%',
+              backgroundImage: `url(${isPdf && pdfPageImages.length > 0 ? pdfPageImages[0] : previewUrl})`,
+              backgroundRepeat: 'no-repeat',
+              backgroundSize: `${3 * 100}% ${3 * 100}%`,
+              backgroundPosition: `${magnifier.imgX}% ${magnifier.imgY}%`,
+            }}
+          />
+        </div>
+      )}
+
+      {/* Full Screen Preview */}
+      {showFullPreview && previewUrl && (
+        <div className="fixed inset-0 z-[100] bg-black/95 flex flex-col p-4" onClick={() => setShowFullPreview(false)}>
+          <div className="flex justify-end mb-2">
+            <Button variant="ghost" className="text-white hover:bg-white/20 h-8 px-4 text-sm" onClick={() => setShowFullPreview(false)}>
+              <CloseIcon className="w-5 h-5 mr-2" /> Close
+            </Button>
           </div>
-        )}
-      </DialogContent>
-    </Dialog>
+          <div className="flex-1 overflow-auto flex flex-col items-center gap-4" onClick={e => e.stopPropagation()}>
+            {isImage && <img src={previewUrl} alt="Full Preview" className="max-w-full object-contain rounded" />}
+            {isPdf && pdfPageImages.map((src, i) => (
+              <img key={i} src={src} alt={`Page ${i + 1}`} className="max-w-full object-contain rounded shadow-lg" />
+            ))}
+          </div>
+        </div>
+      )}
+    </DialogPrimitive.Root>
   );
 }

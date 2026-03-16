@@ -337,21 +337,27 @@ export default function AssetListScreen({
           description="Manage your equipment inventory"
           actions={
             <>
-              <div className="relative">
+              <div className="relative overflow-hidden">
                 <input
                   type="file"
-                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                  title=""
+                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
                   onChange={handleUploadInvoice}
                   disabled={isScanning}
                   accept=".pdf,image/*"
                 />
                 <Button variant="outline" className="border-sky-500 text-sky-600 hover:bg-sky-50" disabled={isScanning}>
                   {isScanning ? (
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Scanning...
+                    </>
                   ) : (
-                    <FileText className="w-4 h-4 mr-2" />
+                    <>
+                      <FileText className="w-4 h-4 mr-2" />
+                      Upload Invoice
+                    </>
                   )}
-                  Upload Invoice
                 </Button>
               </div>
               <Button onClick={onCreateAsset} className="bg-sky-500 hover:bg-sky-600 text-white">

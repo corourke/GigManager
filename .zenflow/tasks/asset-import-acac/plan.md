@@ -104,4 +104,6 @@ Create a detailed implementation plan for the UI components and template updates
 
 - [x] Implemented Anthropic connectivity test in diagnostic mode.
 - [x] Corrected model IDs to Claude 3.5 Sonnet (4.6 ID) and updated fallback logic.
+- [x] Fix unit cost computation for initial AI scanned data.
+- [x] Ensure dialog width and vertical scrolling work correctly by forcing flex layout.
 - [x] Renamed "Line Total" to "Line Amount" in review UI.

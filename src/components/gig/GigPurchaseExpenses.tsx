@@ -115,21 +115,27 @@ export default function GigPurchaseExpenses({
               <Receipt className="w-5 h-5 text-gray-600" />
               <CardTitle>Purchase Expenses</CardTitle>
             </div>
-            <div className="relative">
+            <div className="relative overflow-hidden">
               <input
                 type="file"
-                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                title=""
+                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
                 onChange={handleUploadReceipt}
                 disabled={isScanning}
                 accept=".pdf,image/*"
               />
               <Button variant="outline" size="sm" disabled={isScanning}>
                 {isScanning ? (
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Scanning...
+                  </>
                 ) : (
-                  <Plus className="w-4 h-4 mr-1" />
+                  <>
+                    <Plus className="w-4 h-4 mr-1" />
+                    Upload Receipt
+                  </>
                 )}
-                Upload Receipt
               </Button>
             </div>
           </div>
