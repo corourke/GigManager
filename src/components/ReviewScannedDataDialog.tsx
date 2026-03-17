@@ -1,8 +1,7 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import * as DialogPrimitive from '@radix-ui/react-dialog';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
-import { Label } from './ui/label';
 import {
   Loader2,
   Plus,
@@ -18,12 +17,40 @@ import { toast } from 'sonner';
 import { createPurchaseTransaction } from '../services/purchase.service';
 import { uploadAttachment, linkAttachmentToEntity } from '../services/attachment.service';
 
+function NumericInput({ value, onChange, placeholder = '0.00', className = '' }: {
+  value: number;
+  onChange: (v: number) => void;
+  placeholder?: string;
+  className?: string;
+}) {
+  const [raw, setRaw] = useState<string | null>(null);
+  const displayed = raw !== null ? raw : (value ? String(value) : '');
+
+  return (
+    <Input
+      type="text"
+      value={displayed}
+      onChange={e => {
+        const v = e.target.value.replace(/[^0-9.]/g, '');
+        setRaw(v);
+        const num = parseFloat(v);
+        if (!isNaN(num)) onChange(num);
+        else if (v === '' || v === '.') onChange(0);
+      }}
+      onBlur={() => setRaw(null)}
+      placeholder={placeholder}
+      className={className}
+    />
+  );
+}
+
 interface ScannedItem {
   description: string;
   quantity: number;
   item_price: number;
   item_cost: number;
   is_asset: boolean;
+  is_durable?: boolean;
   category?: string;
   sub_category?: string;
   equipment_type?: string;
@@ -64,8 +91,7 @@ export default function ReviewScannedDataDialog({
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [showFullPreview, setShowFullPreview] = useState(false);
   const [pdfPageImages, setPdfPageImages] = useState<string[]>([]);
-  const imgRef = useRef<HTMLImageElement | null>(null);
-  const [magnifier, setMagnifier] = useState<{ show: boolean; imgX: number; imgY: number; pageX: number; pageY: number }>({ show: false, imgX: 0, imgY: 0, pageX: 0, pageY: 0 });
+  const [magnifier, setMagnifier] = useState<{ show: boolean; pageX: number; pageY: number; src: string; bgX: number; bgY: number; bgW: number; bgH: number }>({ show: false, pageX: 0, pageY: 0, src: '', bgX: 0, bgY: 0, bgW: 0, bgH: 0 });
 
   useEffect(() => {
     if (file) {
@@ -111,7 +137,7 @@ export default function ReviewScannedDataDialog({
         ...scannedData,
         items: (scannedData.items || []).map(item => ({
           ...item,
-          is_asset: item.is_asset ?? true,
+          is_asset: item.is_asset ?? item.is_durable ?? false,
         }))
       }));
     } else if (open) {
@@ -142,12 +168,18 @@ export default function ReviewScannedDataDialog({
 
   if (!open || !formData) return null;
 
-  const handleImgMouseMove = (e: React.MouseEvent<HTMLImageElement>) => {
-    const img = e.currentTarget;
-    const rect = img.getBoundingClientRect();
-    const x = ((e.clientX - rect.left) / rect.width) * 100;
-    const y = ((e.clientY - rect.top) / rect.height) * 100;
-    setMagnifier({ show: true, imgX: x, imgY: y, pageX: e.clientX, pageY: e.clientY });
+  const ZOOM = 3;
+  const MAG_R = 90;
+
+  const handleImgMouseMove = (src: string) => (e: React.MouseEvent<HTMLImageElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const relX = e.clientX - rect.left;
+    const relY = e.clientY - rect.top;
+    const bgW = rect.width * ZOOM;
+    const bgH = rect.height * ZOOM;
+    const bgX = MAG_R - relX * ZOOM;
+    const bgY = MAG_R - relY * ZOOM;
+    setMagnifier({ show: true, pageX: e.clientX, pageY: e.clientY, src, bgX, bgY, bgW, bgH });
   };
 
   const handleHeaderChange = (field: keyof ScannedData, value: string | number) => {
@@ -168,12 +200,22 @@ export default function ReviewScannedDataDialog({
     });
   };
 
+  const handleLineAmtChange = (index: number, lineAmt: number) => {
+    setFormData(prev => {
+      if (!prev) return null;
+      const newItems = [...prev.items];
+      const qty = newItems[index].quantity || 1;
+      newItems[index] = { ...newItems[index], item_price: Number((lineAmt / qty).toFixed(4)) };
+      return recalculateBurdenedCosts({ ...prev, items: newItems });
+    });
+  };
+
   const handleAddItem = () => {
     setFormData(prev => {
       if (!prev) return null;
       return recalculateBurdenedCosts({
         ...prev,
-        items: [...prev.items, { description: '', quantity: 1, item_price: 0, item_cost: 0, is_asset: true }]
+        items: [...prev.items, { description: '', quantity: 1, item_price: 0, item_cost: 0, is_asset: false }]
       });
     });
   };
@@ -250,8 +292,8 @@ export default function ReviewScannedDataDialog({
     <img
       src={src}
       alt={alt}
-      className="max-w-full block rounded shadow-lg cursor-crosshair"
-      onMouseMove={handleImgMouseMove}
+      style={{ maxWidth: '100%', display: 'block', borderRadius: 4, cursor: 'crosshair' }}
+      onMouseMove={handleImgMouseMove(src)}
       onMouseLeave={() => setMagnifier(prev => ({ ...prev, show: false }))}
     />
   );
@@ -260,16 +302,15 @@ export default function ReviewScannedDataDialog({
     <DialogPrimitive.Root open={open} onOpenChange={onOpenChange}>
       <DialogPrimitive.Portal>
         <DialogPrimitive.Overlay className="fixed inset-0 z-50 bg-black/50" />
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-3">
+        <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ padding: 12 }}>
           <div
             className="bg-white rounded-lg shadow-2xl overflow-hidden flex flex-col border"
             style={{ width: '96vw', height: '94vh' }}
           >
-            {/* Header */}
-            <div className="px-4 py-2 border-b flex items-center justify-between flex-shrink-0">
+            <div style={{ padding: '6px 16px', borderBottom: '1px solid #e5e7eb', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
               <div>
-                <h2 className="text-base font-semibold">{scannedData ? 'Review Scanned Purchase' : 'Create Purchase Entry'}</h2>
-                <p className="text-xs text-gray-500">
+                <h2 style={{ fontSize: 15, fontWeight: 600 }}>{scannedData ? 'Review Scanned Purchase' : 'Create Purchase Entry'}</h2>
+                <p style={{ fontSize: 11, color: '#6b7280' }}>
                   {scannedData ? 'Verify the extracted data below.' : 'Enter details manually using the document preview as reference.'}
                 </p>
               </div>
@@ -278,13 +319,13 @@ export default function ReviewScannedDataDialog({
               </DialogPrimitive.Close>
             </div>
 
-            {/* Body */}
             <div style={{ display: 'flex', flex: 1, overflow: 'hidden', minHeight: 0 }}>
               {/* Preview Panel */}
               <div style={{ width: '45%', display: 'flex', flexDirection: 'column', overflow: 'hidden', background: '#f3f4f6', borderRight: '1px solid #e5e7eb', position: 'relative' }}>
                 <button
                   onClick={() => setShowFullPreview(true)}
-                  className="absolute top-2 right-2 z-20 bg-white/90 hover:bg-white shadow rounded p-1.5"
+                  style={{ position: 'absolute', top: 8, right: 8, zIndex: 20, background: 'rgba(255,255,255,0.9)', border: 'none', borderRadius: 4, padding: 6, cursor: 'pointer', boxShadow: '0 1px 3px rgba(0,0,0,0.15)' }}
+                  title="Full screen preview"
                 >
                   <Maximize2 className="w-4 h-4" />
                 </button>
@@ -302,159 +343,154 @@ export default function ReviewScannedDataDialog({
                   {!previewUrl && (
                     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: '#9ca3af' }}>
                       <FileIcon className="w-12 h-12 mb-2 opacity-20" />
-                      <p className="text-sm">No preview available</p>
+                      <p style={{ fontSize: 13 }}>No preview available</p>
                     </div>
                   )}
                 </div>
 
-                <div className="px-3 py-1 border-t bg-gray-50 flex justify-center gap-4 text-[10px] text-gray-400 flex-shrink-0">
-                  <span className="flex items-center gap-1"><Search className="w-3 h-3" /> Hover to magnify</span>
-                  <span className="flex items-center gap-1"><Maximize2 className="w-3 h-3" /> Full preview</span>
+                <div style={{ padding: '3px 12px', borderTop: '1px solid #e5e7eb', background: '#f9fafb', display: 'flex', justifyContent: 'center', gap: 16, fontSize: 10, color: '#9ca3af', flexShrink: 0 }}>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><Search className="w-3 h-3" /> Hover to magnify</span>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><Maximize2 className="w-3 h-3" /> Full preview</span>
                 </div>
               </div>
 
               {/* Form Panel */}
               <div style={{ width: '55%', display: 'flex', flexDirection: 'column', overflow: 'hidden', background: 'white' }}>
-                <div style={{ flex: 1, overflowY: 'auto', padding: 16 }}>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                <div style={{ flex: 1, overflowY: 'auto', padding: '12px 16px' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                     {/* Purchase Summary */}
                     <div>
-                      <h4 className="text-[10px] font-bold uppercase tracking-widest text-gray-400 border-b pb-1 mb-2">Purchase Summary</h4>
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
+                      <h4 style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#9ca3af', borderBottom: '1px solid #e5e7eb', paddingBottom: 3, marginBottom: 6 }}>Purchase Summary</h4>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 6 }}>
                         <div style={{ gridColumn: 'span 2' }}>
-                          <Label className="text-[10px] font-semibold uppercase text-gray-500">Vendor</Label>
+                          <span style={{ fontSize: 9, fontWeight: 600, textTransform: 'uppercase', color: '#6b7280' }}>Vendor</span>
                           <Input
                             value={formData.vendor}
                             onChange={e => handleHeaderChange('vendor', e.target.value)}
                             placeholder="e.g. Sweetwater, B&H, Amazon"
-                            className="h-8 text-sm font-semibold border-gray-300 mt-0.5"
+                            className="h-7 text-xs font-semibold border-gray-300 mt-0.5"
                           />
                         </div>
                         <div>
-                          <Label className="text-[10px] font-semibold uppercase text-gray-500">Date</Label>
+                          <span style={{ fontSize: 9, fontWeight: 600, textTransform: 'uppercase', color: '#6b7280' }}>Date</span>
                           <Input
                             type="date"
                             value={formData.purchase_date}
                             onChange={e => handleHeaderChange('purchase_date', e.target.value)}
-                            className="h-8 text-sm border-gray-300 mt-0.5"
-                          />
-                        </div>
-                        <div style={{ gridColumn: 'span 3' }}>
-                          <Label className="text-[10px] font-semibold uppercase text-gray-500">Description / Notes</Label>
-                          <Input
-                            value={formData.description || ''}
-                            onChange={e => handleHeaderChange('description', e.target.value)}
-                            placeholder="Purchase description or notes"
-                            className="h-8 text-sm border-gray-300 mt-0.5"
+                            className="h-7 text-xs border-gray-300 mt-0.5"
                           />
                         </div>
                         <div>
-                          <Label className="text-[10px] font-semibold uppercase text-gray-500">Invoice Total</Label>
-                          <div className="relative mt-0.5">
-                            <span className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400 text-xs">$</span>
-                            <Input
-                              type="text"
-                              value={formData.total_inv_amount || ''}
-                              onChange={e => {
-                                const val = e.target.value.replace(/[^0-9.]/g, '');
-                                handleHeaderChange('total_inv_amount', val === '' ? 0 : parseFloat(val));
-                              }}
-                              placeholder="0.00"
-                              className="pl-5 h-8 text-sm font-bold text-sky-700 border-gray-300"
+                          <span style={{ fontSize: 9, fontWeight: 600, textTransform: 'uppercase', color: '#6b7280' }}>Description / Notes</span>
+                          <Input
+                            value={formData.description || ''}
+                            onChange={e => handleHeaderChange('description', e.target.value)}
+                            placeholder="Purchase notes"
+                            className="h-7 text-xs border-gray-300 mt-0.5"
+                          />
+                        </div>
+                        <div>
+                          <span style={{ fontSize: 9, fontWeight: 600, textTransform: 'uppercase', color: '#6b7280' }}>Invoice Total</span>
+                          <div style={{ position: 'relative', marginTop: 2 }}>
+                            <span style={{ position: 'absolute', left: 6, top: '50%', transform: 'translateY(-50%)', color: '#9ca3af', fontSize: 11 }}>$</span>
+                            <NumericInput
+                              value={formData.total_inv_amount}
+                              onChange={v => handleHeaderChange('total_inv_amount', v)}
+                              className="pl-4 h-7 text-xs font-bold text-sky-700 border-gray-300"
                             />
                           </div>
                         </div>
-                        <div style={{ gridColumn: 'span 2', display: 'flex', alignItems: 'center' }}>
-                          <p style={{ fontSize: 9, color: '#9ca3af', fontStyle: 'italic' }}>Distributed as burdened cost across items.</p>
+                        <div style={{ display: 'flex', alignItems: 'flex-end', paddingBottom: 4 }}>
+                          <p style={{ fontSize: 9, color: '#9ca3af', fontStyle: 'italic', lineHeight: 1.2 }}>Distributed as burdened cost across items.</p>
                         </div>
                       </div>
                     </div>
 
                     {/* Line Items */}
                     <div>
-                      <div className="flex items-center justify-between border-b pb-1 mb-1.5">
-                        <h4 className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Line Items</h4>
-                        <Button variant="outline" size="sm" onClick={handleAddItem} className="h-6 text-[10px] border-sky-300 text-sky-600 hover:bg-sky-50 px-2">
-                          <Plus className="w-3 h-3 mr-1" /> Add Item
-                        </Button>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid #e5e7eb', paddingBottom: 3, marginBottom: 4 }}>
+                        <h4 style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#9ca3af' }}>Line Items</h4>
+                        <button
+                          onClick={handleAddItem}
+                          style={{ height: 22, padding: '0 8px', fontSize: 10, border: '1px solid #7dd3fc', color: '#0284c7', background: 'white', borderRadius: 4, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 3 }}
+                        >
+                          <Plus className="w-3 h-3" /> Add Item
+                        </button>
                       </div>
 
                       {formData.items.length > 0 && (
-                        <div style={{ display: 'grid', gridTemplateColumns: '20px 1fr 75px 45px 70px 70px 20px', gap: '0 4px', padding: '0 2px', marginBottom: 2 }}
-                          className="text-[8px] font-bold uppercase text-gray-400 tracking-wide">
-                          <span />
+                        <div style={{ display: 'grid', gridTemplateColumns: '24px 1fr 72px 40px 72px 68px 18px', gap: '0 3px', padding: '0 2px', marginBottom: 2, fontSize: 9, fontWeight: 700, textTransform: 'uppercase', color: '#9ca3af', letterSpacing: '0.04em' }}>
+                          <span style={{ fontSize: 8, textAlign: 'center' }}>A/E</span>
                           <span>Description</span>
-                          <span className="text-right">Item Price</span>
-                          <span className="text-center">Qty</span>
-                          <span className="text-right">Line Amt</span>
-                          <span className="text-right">Unit Cost</span>
+                          <span style={{ textAlign: 'center' }}>Item Price</span>
+                          <span style={{ textAlign: 'center' }}>Qty</span>
+                          <span style={{ textAlign: 'center' }}>Line Amt</span>
+                          <span style={{ textAlign: 'center' }}>Unit Cost</span>
                           <span />
                         </div>
                       )}
 
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                         {formData.items.map((item, index) => (
-                          <div key={index} className="bg-gray-50 rounded border border-gray-100" style={{ padding: '3px 2px' }}>
-                            {/* Main row */}
-                            <div style={{ display: 'grid', gridTemplateColumns: '20px 1fr 75px 45px 70px 70px 20px', gap: '0 4px', alignItems: 'center' }}>
-                              <label className="flex items-center justify-center cursor-pointer" title={item.is_asset ? 'Asset (durable)' : 'Expense'}>
+                          <div key={index} style={{ background: '#f9fafb', borderRadius: 4, border: '1px solid #f3f4f6', padding: '2px 2px' }}>
+                            <div style={{ display: 'grid', gridTemplateColumns: '24px 1fr 72px 40px 72px 68px 18px', gap: '0 3px', alignItems: 'center' }}>
+                              <label style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', cursor: 'pointer', gap: 0 }} title={item.is_asset ? 'Asset (durable)' : 'Expense'}>
                                 <input
                                   type="checkbox"
                                   checked={item.is_asset}
                                   onChange={e => handleItemChange(index, 'is_asset', e.target.checked)}
-                                  className="w-3.5 h-3.5 rounded border-gray-300 text-sky-600 focus:ring-sky-500"
+                                  style={{ width: 13, height: 13, borderRadius: 2, accentColor: '#0284c7' }}
                                 />
                               </label>
                               <Input
                                 value={item.description}
                                 onChange={e => handleItemChange(index, 'description', e.target.value)}
                                 placeholder="Item description"
-                                className="bg-white border-gray-200 h-7 text-xs"
+                                className="bg-white border-gray-200 h-6 text-[11px]"
                               />
-                              <div className="relative">
-                                <span className="absolute left-1.5 top-1/2 -translate-y-1/2 text-gray-400 text-[10px]">$</span>
-                                <Input
-                                  type="text"
-                                  value={item.item_price || ''}
-                                  onChange={e => {
-                                    const val = e.target.value.replace(/[^0-9.]/g, '');
-                                    handleItemChange(index, 'item_price', val === '' ? 0 : parseFloat(val));
-                                  }}
-                                  className="pl-4 bg-white border-gray-200 h-7 text-xs font-semibold text-right"
+                              <div style={{ position: 'relative' }}>
+                                <span style={{ position: 'absolute', left: 4, top: '50%', transform: 'translateY(-50%)', color: '#9ca3af', fontSize: 10 }}>$</span>
+                                <NumericInput
+                                  value={item.item_price}
+                                  onChange={v => handleItemChange(index, 'item_price', v)}
+                                  className="pl-3.5 bg-white border-gray-200 h-6 text-[11px] font-semibold text-right"
                                 />
                               </div>
-                              <Input
-                                type="text"
-                                value={item.quantity || ''}
-                                onChange={e => {
-                                  const val = e.target.value.replace(/[^0-9]/g, '');
-                                  handleItemChange(index, 'quantity', val === '' ? 0 : parseInt(val));
-                                }}
-                                className="bg-white border-gray-200 text-center h-7 text-xs font-semibold"
+                              <NumericInput
+                                value={item.quantity}
+                                onChange={v => handleItemChange(index, 'quantity', Math.max(1, Math.round(v)))}
+                                placeholder="1"
+                                className="bg-white border-gray-200 text-center h-6 text-[11px] font-semibold"
                               />
-                              <div className="h-7 flex items-center justify-end px-1 bg-gray-100 rounded text-[11px] text-gray-600 font-medium">
-                                ${(item.item_price * item.quantity).toFixed(2)}
+                              <div style={{ position: 'relative' }}>
+                                <span style={{ position: 'absolute', left: 4, top: '50%', transform: 'translateY(-50%)', color: '#9ca3af', fontSize: 10 }}>$</span>
+                                <NumericInput
+                                  value={Number((item.item_price * item.quantity).toFixed(2))}
+                                  onChange={v => handleLineAmtChange(index, v)}
+                                  className="pl-3.5 bg-white border-gray-200 h-6 text-[11px] text-right"
+                                />
                               </div>
-                              <div className="h-7 flex items-center justify-end px-1 bg-sky-50 rounded text-[11px] text-sky-700 font-bold border border-sky-100">
+                              <div style={{ height: 24, display: 'flex', alignItems: 'center', justifyContent: 'flex-end', padding: '0 4px', background: '#f0f9ff', borderRadius: 3, fontSize: 10, color: '#0369a1', fontWeight: 700, border: '1px solid #e0f2fe' }}>
                                 ${item.item_cost.toFixed(2)}
                               </div>
                               <button
                                 onClick={() => handleRemoveItem(index)}
-                                className="h-7 w-5 flex items-center justify-center text-gray-300 hover:text-red-500"
+                                style={{ height: 24, width: 18, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#d1d5db', background: 'none', border: 'none', cursor: 'pointer' }}
+                                onMouseEnter={e => (e.currentTarget.style.color = '#ef4444')}
+                                onMouseLeave={e => (e.currentTarget.style.color = '#d1d5db')}
                               >
-                                <Trash2 className="h-3 w-3" />
+                                <Trash2 style={{ width: 12, height: 12 }} />
                               </button>
                             </div>
-                            {/* Category row */}
-                            <div style={{ display: 'grid', gridTemplateColumns: '20px 1fr', gap: '0 4px', marginTop: 2 }}>
+                            <div style={{ display: 'grid', gridTemplateColumns: '24px 1fr', gap: '0 3px', marginTop: 1 }}>
                               <span />
-                              <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
-                                <span style={{ fontSize: 9, color: '#9ca3af', whiteSpace: 'nowrap' }}>{item.is_asset ? 'Asset' : 'Expense'}</span>
+                              <div style={{ display: 'flex', gap: 3, alignItems: 'center' }}>
+                                <span style={{ fontSize: 8, color: item.is_asset ? '#0284c7' : '#810606', whiteSpace: 'nowrap', fontWeight: 600, width: 40 }}>{item.is_asset ? 'Asset' : 'Expense'}</span>
                                 <Input
                                   value={item.category || ''}
                                   onChange={e => handleItemChange(index, 'category', e.target.value)}
                                   placeholder="Category"
-                                  className="bg-white border-gray-200 h-6 text-[11px] flex-1"
+                                  className="bg-white border-gray-200 h-5 text-[10px] flex-1"
                                 />
                                 {item.is_asset && (
                                   <>
@@ -462,13 +498,13 @@ export default function ReviewScannedDataDialog({
                                       value={item.sub_category || ''}
                                       onChange={e => handleItemChange(index, 'sub_category', e.target.value)}
                                       placeholder="Sub-cat"
-                                      className="bg-white border-gray-200 h-6 text-[11px] flex-1"
+                                      className="bg-white border-gray-200 h-5 text-[10px] flex-1"
                                     />
                                     <Input
                                       value={item.equipment_type || ''}
                                       onChange={e => handleItemChange(index, 'equipment_type', e.target.value)}
                                       placeholder="Type"
-                                      className="bg-white border-gray-200 h-6 text-[11px] flex-1"
+                                      className="bg-white border-gray-200 h-5 text-[10px] flex-1"
                                     />
                                   </>
                                 )}
@@ -479,37 +515,36 @@ export default function ReviewScannedDataDialog({
                       </div>
 
                       {formData.items.length === 0 && (
-                        <div className="text-center py-6 bg-gray-50 border-2 border-dashed rounded-lg">
-                          <Plus className="w-6 h-6 text-gray-200 mx-auto mb-1" />
-                          <p className="text-xs text-gray-400">No items yet. Click "Add Item" to begin.</p>
+                        <div style={{ textAlign: 'center', padding: '20px 0', background: '#f9fafb', border: '2px dashed #e5e7eb', borderRadius: 8 }}>
+                          <Plus style={{ width: 24, height: 24, color: '#e5e7eb', margin: '0 auto 4px' }} />
+                          <p style={{ fontSize: 11, color: '#9ca3af' }}>No items yet. Click "Add Item" to begin.</p>
                         </div>
                       )}
                     </div>
 
                     {/* Reconciliation */}
-                    <div className={`p-2 rounded flex items-center gap-2 text-xs border ${hasMismatch ? 'bg-amber-50 text-amber-800 border-amber-200' : 'bg-emerald-50 text-emerald-800 border-emerald-200'}`}>
-                      <AlertCircle className={`w-3.5 h-3.5 flex-shrink-0 ${hasMismatch ? 'text-amber-500' : 'text-emerald-500'}`} />
+                    <div style={{ padding: 6, borderRadius: 4, display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, border: `1px solid ${hasMismatch ? '#fde68a' : '#a7f3d0'}`, background: hasMismatch ? '#fffbeb' : '#ecfdf5', color: hasMismatch ? '#92400e' : '#065f46' }}>
+                      <AlertCircle style={{ width: 14, height: 14, flexShrink: 0, color: hasMismatch ? '#f59e0b' : '#10b981' }} />
                       <span>
                         <strong>{hasMismatch ? 'Mismatch' : 'Reconciled'}:</strong>{' '}
                         Line costs ${calculatedTotalCost.toFixed(2)} vs Invoice ${formData.total_inv_amount.toFixed(2)}
-                        {hasMismatch && <span className="text-amber-600"> (diff: ${diff.toFixed(2)})</span>}
+                        {hasMismatch && <span style={{ color: '#d97706' }}> (diff: ${diff.toFixed(2)})</span>}
                       </span>
                     </div>
                   </div>
                 </div>
 
                 {/* Footer */}
-                <div className="px-4 py-2 border-t bg-gray-50 flex justify-end gap-3 flex-shrink-0">
-                  <Button variant="outline" onClick={() => onOpenChange(false)} className="h-8 px-6 text-sm">
+                <div style={{ padding: '6px 16px', borderTop: '1px solid #e5e7eb', background: '#f9fafb', display: 'flex', justifyContent: 'flex-end', gap: 12, flexShrink: 0 }}>
+                  <Button variant="outline" onClick={() => onOpenChange(false)} className="h-7 px-5 text-xs">
                     Cancel
                   </Button>
                   <button
                     onClick={handleSubmit}
                     disabled={isSubmitting || formData.items.length === 0 || !formData.vendor}
-                    className="h-8 px-6 text-sm font-semibold rounded-md inline-flex items-center justify-center disabled:opacity-50 disabled:pointer-events-none"
-                    style={{ backgroundColor: '#0284c7', color: 'white' }}
+                    style={{ height: 28, padding: '0 20px', fontSize: 12, fontWeight: 600, borderRadius: 4, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#0284c7', color: 'white', border: 'none', cursor: 'pointer', opacity: (isSubmitting || formData.items.length === 0 || !formData.vendor) ? 0.5 : 1 }}
                   >
-                    {isSubmitting && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                    {isSubmitting && <Loader2 style={{ width: 14, height: 14, marginRight: 6 }} className="animate-spin" />}
                     Save Purchase
                   </button>
                 </div>
@@ -517,47 +552,61 @@ export default function ReviewScannedDataDialog({
             </div>
           </div>
         </div>
-      </DialogPrimitive.Portal>
 
-      {/* Magnifier - rendered as fixed portal to avoid container clipping */}
-      {magnifier.show && (
-        <div
-          className="fixed pointer-events-none z-[200] border-2 border-white shadow-xl rounded-full overflow-hidden bg-white"
-          style={{
-            width: 180, height: 180,
-            left: magnifier.pageX - 90,
-            top: magnifier.pageY - 90,
-          }}
-        >
+        {magnifier.show && magnifier.src && (
           <div
             style={{
-              width: '100%',
-              height: '100%',
-              backgroundImage: `url(${isPdf && pdfPageImages.length > 0 ? pdfPageImages[0] : previewUrl})`,
-              backgroundRepeat: 'no-repeat',
-              backgroundSize: `${3 * 100}% ${3 * 100}%`,
-              backgroundPosition: `${magnifier.imgX}% ${magnifier.imgY}%`,
+              position: 'fixed',
+              pointerEvents: 'none',
+              zIndex: 200,
+              border: '2px solid white',
+              boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
+              borderRadius: '50%',
+              overflow: 'hidden',
+              background: 'white',
+              width: MAG_R * 2,
+              height: MAG_R * 2,
+              left: magnifier.pageX - MAG_R,
+              top: magnifier.pageY - MAG_R,
             }}
-          />
-        </div>
-      )}
+          >
+            <div
+              style={{
+                width: '100%',
+                height: '100%',
+                backgroundImage: `url(${magnifier.src})`,
+                backgroundRepeat: 'no-repeat',
+                backgroundSize: `${magnifier.bgW}px ${magnifier.bgH}px`,
+                backgroundPosition: `${magnifier.bgX}px ${magnifier.bgY}px`,
+              }}
+            />
+          </div>
+        )}
 
-      {/* Full Screen Preview */}
-      {showFullPreview && previewUrl && (
-        <div className="fixed inset-0 z-[100] bg-black/95 flex flex-col p-4" onClick={() => setShowFullPreview(false)}>
-          <div className="flex justify-end mb-2">
-            <Button variant="ghost" className="text-white hover:bg-white/20 h-8 px-4 text-sm" onClick={() => setShowFullPreview(false)}>
-              <CloseIcon className="w-5 h-5 mr-2" /> Close
-            </Button>
+        {showFullPreview && previewUrl && (
+          <div
+            style={{ position: 'fixed', inset: 0, zIndex: 100, background: 'rgba(0,0,0,0.95)', display: 'flex', flexDirection: 'column', padding: 16 }}
+            onClick={() => setShowFullPreview(false)}
+          >
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
+              <button
+                style={{ background: 'none', border: 'none', color: 'white', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, padding: '4px 12px', borderRadius: 4 }}
+                onClick={() => setShowFullPreview(false)}
+                onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.15)')}
+                onMouseLeave={e => (e.currentTarget.style.background = 'none')}
+              >
+                <CloseIcon style={{ width: 18, height: 18 }} /> Close
+              </button>
+            </div>
+            <div style={{ flex: 1, overflow: 'auto', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 }} onClick={e => e.stopPropagation()}>
+              {isImage && <img src={previewUrl} alt="Full Preview" style={{ maxWidth: '100%', objectFit: 'contain', borderRadius: 4 }} />}
+              {isPdf && pdfPageImages.map((src, i) => (
+                <img key={i} src={src} alt={`Page ${i + 1}`} style={{ maxWidth: '100%', objectFit: 'contain', borderRadius: 4, boxShadow: '0 4px 12px rgba(0,0,0,0.3)' }} />
+              ))}
+            </div>
           </div>
-          <div className="flex-1 overflow-auto flex flex-col items-center gap-4" onClick={e => e.stopPropagation()}>
-            {isImage && <img src={previewUrl} alt="Full Preview" className="max-w-full object-contain rounded" />}
-            {isPdf && pdfPageImages.map((src, i) => (
-              <img key={i} src={src} alt={`Page ${i + 1}`} className="max-w-full object-contain rounded shadow-lg" />
-            ))}
-          </div>
-        </div>
-      )}
+        )}
+      </DialogPrimitive.Portal>
     </DialogPrimitive.Root>
   );
 }
