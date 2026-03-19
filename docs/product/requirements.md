@@ -208,15 +208,15 @@ This app streamlines the management of gigs (where an act performs at a venue) f
 
 #### Financials
 
-- **Purpose**: Track financial transactions (Contracts, Deposits, Payments, Expenses) for gigs and calculate gig profitability
-- **Data Sources**: Three sources contribute to gig financial picture:
-  - `gig_financials` — the gig ledger for manual entries (contracts, payments, expenses)
-  - `purchases` — receipt/invoice records linked to gigs via `gig_id` (created by AI scan or CSV import)
-  - `gig_staff_assignments` — staff fees/rates (read into profitability calculation, not duplicated)
-- **Financial Record Fields**: organization_id, amount, currency, type (fin_type enum), category (fin_category enum), description, counterparty_id, external_entity_name, due_date, paid_at, reference_number, notes
-- **Profitability View**: Revenue (contract amount, deposits, payments received) minus Costs (staff fees, manual expenses, purchase expenses) = Profit with margin percentage
+- **Purpose**: Track all financial transactions for a gig and calculate gig profitability
+- **Single-Ledger Model**: `gig_financials` is the single source of truth. Every financial event — revenue, expense, staff labor — is a row in this table. Profitability = querying one table (plus uncompleted staff assignments for projections).
+- **Source Documents Feed the Ledger**:
+  - `purchases` — receipt/invoice archive. When a receipt is a gig expense, a `gig_financials` record is created with `purchase_id` linking back to the receipt. The `gig_id` column does not exist on `purchases`.
+  - `gig_staff_assignments` — staff scheduling with fee/rate. When marked complete, a `gig_financials` record is created with `staff_assignment_id` linking back. Before completion, fees are projected costs only.
+- **Financial Record Fields**: organization_id, amount, currency, type (fin_type enum), category (fin_category enum), description, counterparty_id, external_entity_name, due_date, paid_at, reference_number, notes, purchase_id (nullable FK), staff_assignment_id (nullable FK)
+- **Staff Assignment Completion Fields**: completed_at (timestamp), units_completed (numeric, for rate-based)
+- **Profitability View**: Contract amount minus (actual costs from ledger + projected staff from uncompleted assignments) = Profit with margin percentage
 - **Type Grouping**: The 24-value `fin_type` enum is grouped in the UI into Revenue, Cost, Tracking, and Advanced categories. Common types shown prominently; full list accessible via expand
-- **Staff Assignment Fields**: rate (hourly/daily), fee (flat), compensation_type selector in UI
 
 #### Gig CRUD Operations
 
@@ -1082,33 +1082,39 @@ The application provides a centralized system for managing file attachments (PDF
 ### 7. Expense Management & Gig Profitability
 
 #### Overview
-Tracks gig-specific financial records across three data sources and provides a unified profitability view. Also supports general business expenses not tied to specific gigs.
+`gig_financials` is the single source of truth for all gig financial data. Every financial event — revenue, expense, staff labor cost — is a ledger entry. Source documents (`purchases` for receipts, `gig_staff_assignments` for labor) feed into the ledger but are not queried separately for profitability.
 
-#### Data Boundary: `gig_financials` vs. `purchases`
-- **`gig_financials`**: The gig ledger for manually entered financial events — contracts, deposits, payments, and quick expense entries. Use for any cost that doesn't have a receipt to scan.
-- **`purchases`**: The receipt box for invoices and receipts created via AI scanning or CSV import. When linked to a gig via `gig_id`, purchase totals contribute to the gig's cost calculation.
-- **No duplication**: A cost should exist in one table or the other, never both. The profitability calculation queries both.
-- **Asset exclusion**: Purchases where all line items are `row_type = 'asset'` are capital acquisitions, not gig expenses. They are excluded from gig profitability.
+#### Single-Ledger Architecture
+- **`gig_financials`** is the ledger. Manual expenses, receipt-sourced expenses, and completed staff labor all become rows here. Profitability = Revenue entries minus Cost entries.
+- **`purchases`** is the receipt archive. When a scanned receipt is a gig expense, the system creates BOTH a purchase record (receipt storage) AND a `gig_financials` record (the financial effect) linked via `purchase_id`. The `gig_id` column does not exist on purchases — gig linkage goes through the ledger.
+- **`gig_staff_assignments`** holds projected labor costs. When an assignment is marked complete, a `gig_financials` record is created (type = `Expense Incurred`, category = `Labor`) linked via `staff_assignment_id`. Before completion, fees are projected costs only.
+- **Capital asset purchases** (where items create `assets` records) do NOT create gig_financials entries. They are inventory acquisitions, not gig expenses.
 
-#### Staff Costs
-- Staff labor costs are captured in `gig_staff_assignments` via rate (hourly/daily) or fee (flat amount) fields.
-- These are read into the profitability calculation directly — not duplicated into `gig_financials`.
-- The profitability view distinguishes Confirmed staff costs from Pending (Requested) costs.
+#### Staff Cost Lifecycle
+- **Before gig**: Staff assigned with fee/rate → shows as projected cost in profitability view (from assignments table)
+- **After gig**: Assignment marked complete → `gig_financials` record created → becomes actual cost in ledger
+- **Payment**: `Payment Sent` record added → clear visibility into "expense incurred but not yet paid"
+- **Completion fields**: `completed_at` (timestamp), `units_completed` (numeric, for rate-based: actual hours/days)
+- **Bulk finalization**: "Finalize All" action completes all confirmed fee-based assignments in one click when gig moves to Completed
 
 #### Gig Profitability
-- **Revenue**: Sum of `Contract Signed` records (committed) and `Deposit Received` + `Payment Recieved` (actual cash)
-- **Costs**: Staff fees + manual expenses (`Expense Incurred`, `Payment Sent`) + purchase expenses (linked purchase headers)
-- **Profit**: Revenue minus Total Costs, with margin percentage
+- **Revenue**: Sum of `Contract Signed` records from gig_financials
+- **Received**: Sum of `Deposit Received` + `Payment Recieved` from gig_financials
+- **Actual Costs**: Sum of `Expense Incurred` + `Payment Sent` from gig_financials (includes completed staff, manual expenses, receipt-sourced expenses)
+- **Projected Staff**: Sum of fees from uncompleted assignments (goes to zero as staff are finalized)
+- **Profit**: Revenue minus (Actual Costs + Projected Staff), with margin percentage
 - **Outstanding tracking**: Unpaid revenue (contract minus received) and unpaid costs (expenses with due_date but no paid_at)
 
 #### Requirements
-- **Manual Expense Entry**: Quick entry via Financials section — type, amount, category, description. No receipt needed.
-- **AI-Powered Receipt Entry**: Upload receipt image in Purchase Expenses section; AI extracts vendor, date, items, amounts.
-- **General Business Expenses**: Purchases without a `gig_id` capture costs not tied to a specific gig.
+- **Manual Expense Entry**: Quick entry via Financials section — type, amount, category, description. Creates a `gig_financials` record directly.
+- **AI-Powered Receipt Entry**: Upload receipt image in Purchase Receipts section; AI extracts data; system creates both `purchases` record (archive) and `gig_financials` record (ledger entry) automatically.
+- **General Business Expenses**: Purchases without a linked gig_financials record are general business receipts.
 - **Categorization**: Eight categories: Labor, Equipment, Transportation, Venue, Production, Insurance, Rebillable, Other.
-- **Profitability Summary**: Three-card display at top of Financials section: Contract (with received/outstanding), Total Costs (staff + expenses + purchases), Projected Profit (with margin).
-- **Purchase Item Display**: Purchase Expenses section shows line items nested under headers (not just headers).
-- **Reporting**: Revenue vs. expenses per gig, outstanding payments across gigs, staff utilization costs.
+- **Profitability Summary**: Three-card display: Contract (received/outstanding), Total Costs (actual + projected staff), Profit (with margin).
+- **Source Indicators**: Each expense row shows its source: Manual, Receipt (linked to purchase), Staff (linked to assignment).
+- **Paid/Unpaid Visibility**: All revenue and expense records show payment status.
+- **Purchase Receipts Display**: Shows headers with nested line items, linked to corresponding gig_financials records.
+- **Reporting**: Revenue vs. expenses per gig, outstanding payments across gigs, staff earnings.
 
 ## Related Documentation
 
