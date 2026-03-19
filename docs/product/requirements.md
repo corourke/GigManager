@@ -208,8 +208,15 @@ This app streamlines the management of gigs (where an act performs at a venue) f
 
 #### Financials
 
-- **Purpose**: Track financial transactions (Bids, Contracts, Expenses, Payments) for gigs
-- **Bid Fields**: organization_id, amount, currency, status (Draft, Sent, Accepted, Rejected), notes
+- **Purpose**: Track financial transactions (Contracts, Deposits, Payments, Expenses) for gigs and calculate gig profitability
+- **Data Sources**: Three sources contribute to gig financial picture:
+  - `gig_financials` — the gig ledger for manual entries (contracts, payments, expenses)
+  - `purchases` — receipt/invoice records linked to gigs via `gig_id` (created by AI scan or CSV import)
+  - `gig_staff_assignments` — staff fees/rates (read into profitability calculation, not duplicated)
+- **Financial Record Fields**: organization_id, amount, currency, type (fin_type enum), category (fin_category enum), description, counterparty_id, external_entity_name, due_date, paid_at, reference_number, notes
+- **Profitability View**: Revenue (contract amount, deposits, payments received) minus Costs (staff fees, manual expenses, purchase expenses) = Profit with margin percentage
+- **Type Grouping**: The 24-value `fin_type` enum is grouped in the UI into Revenue, Cost, Tracking, and Advanced categories. Common types shown prominently; full list accessible via expand
+- **Staff Assignment Fields**: rate (hourly/daily), fee (flat), compensation_type selector in UI
 
 #### Gig CRUD Operations
 
@@ -1072,18 +1079,36 @@ The application provides a centralized system for managing file attachments (PDF
     - Quick access links on relevant entity detail screens.
     - Support for mobile camera capture and direct upload.
 
-### 7. Expense Management
+### 7. Expense Management & Gig Profitability
 
 #### Overview
-Tracks both general business expenses and gig-specific financial records.
+Tracks gig-specific financial records across three data sources and provides a unified profitability view. Also supports general business expenses not tied to specific gigs.
+
+#### Data Boundary: `gig_financials` vs. `purchases`
+- **`gig_financials`**: The gig ledger for manually entered financial events — contracts, deposits, payments, and quick expense entries. Use for any cost that doesn't have a receipt to scan.
+- **`purchases`**: The receipt box for invoices and receipts created via AI scanning or CSV import. When linked to a gig via `gig_id`, purchase totals contribute to the gig's cost calculation.
+- **No duplication**: A cost should exist in one table or the other, never both. The profitability calculation queries both.
+- **Asset exclusion**: Purchases where all line items are `row_type = 'asset'` are capital acquisitions, not gig expenses. They are excluded from gig profitability.
+
+#### Staff Costs
+- Staff labor costs are captured in `gig_staff_assignments` via rate (hourly/daily) or fee (flat amount) fields.
+- These are read into the profitability calculation directly — not duplicated into `gig_financials`.
+- The profitability view distinguishes Confirmed staff costs from Pending (Requested) costs.
+
+#### Gig Profitability
+- **Revenue**: Sum of `Contract Signed` records (committed) and `Deposit Received` + `Payment Recieved` (actual cash)
+- **Costs**: Staff fees + manual expenses (`Expense Incurred`, `Payment Sent`) + purchase expenses (linked purchase headers)
+- **Profit**: Revenue minus Total Costs, with margin percentage
+- **Outstanding tracking**: Unpaid revenue (contract minus received) and unpaid costs (expenses with due_date but no paid_at)
 
 #### Requirements
-- **General Business Expenses**: Capture costs not directly billable to a specific gig (e.g., office supplies, insurance).
-- **Gig Financial Records**: Link expenses directly to a gig to track profitability.
-- **AI-Powered Entry**: Support for extracting expense data from receipts via LLM.
-- **Cost Allocation**: Automatically allocate pro-rata tax and shipping costs across multiple line items (as defined in `scripts/README.md`).
-- **Categorization**: Support for standard accounting categories (Labor, Travel, Materials, etc.).
-- **Reporting**: Dedicated reporting views for business expenses and insurance valuations.
+- **Manual Expense Entry**: Quick entry via Financials section — type, amount, category, description. No receipt needed.
+- **AI-Powered Receipt Entry**: Upload receipt image in Purchase Expenses section; AI extracts vendor, date, items, amounts.
+- **General Business Expenses**: Purchases without a `gig_id` capture costs not tied to a specific gig.
+- **Categorization**: Eight categories: Labor, Equipment, Transportation, Venue, Production, Insurance, Rebillable, Other.
+- **Profitability Summary**: Three-card display at top of Financials section: Contract (with received/outstanding), Total Costs (staff + expenses + purchases), Projected Profit (with margin).
+- **Purchase Item Display**: Purchase Expenses section shows line items nested under headers (not just headers).
+- **Reporting**: Revenue vs. expenses per gig, outstanding payments across gigs, staff utilization costs.
 
 ## Related Documentation
 

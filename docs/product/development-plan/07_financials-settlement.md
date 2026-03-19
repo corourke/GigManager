@@ -1,34 +1,179 @@
-# Technical Detail: Financials & Multi-Tenant Settlement
+# Technical Detail: Gig Financial Management & Profitability
 
-This document outlines the strategy for implementing financial management, multi-tenant settlement views, and vendor bid management in GigManager. Financial features work for flat (non-hierarchical) gigs first, with hierarchical rollups as an optional extension.
+This document specifies the gig financial workflow, profitability tracking, and settlement process for GigManager. It focuses on **flat gigs** and the **single-org sound company** use case (the company is the vendor, managing its own books). Multi-tenant bid workflows and hierarchical rollups are noted as future extensions.
 
-## 1. Flat Gig Financials (Baseline)
-
-Financial items in the `gig_financials` table are associated with a specific `gig_id` and owned by an `organization_id`. For a standard gig, all financial queries are scoped to a single gig — no recursive logic is needed.
-
-- **Direct Financials**: Items explicitly logged against a specific gig (bids, contracts, expenses, payments).
-- **Gig-Level Summary**: Budget vs. actuals, margin, and outstanding amounts for a single gig.
-
-### 1.1 Multi-Tenant Visibility Rules
-Since GigManager is multi-tenant, visibility depends on the organization context:
-- **Production Company (Owner/Producer)**: Sees all financial items they created, plus "Accepted Bids" from vendors.
-- **Vendor (Sound/Lighting/etc.)**: Sees only their own financial items (Bids, Expenses, Invoices) related to their participation.
-- **Act (Band)**: Sees their specific contract/bid and any settlement items shared with them by the Producer.
+**Last Updated**: 2026-03-18
 
 ---
 
-## 2. Hierarchical Financial Rollups (Extension)
+## 1. Core Concepts
 
-*This section extends flat gig financials to support hierarchical gigs. It is implemented in Sprint 4 after the hierarchical gig structure lands.*
+### 1.1 Two Data Sources, One Financial Picture
 
-When gigs have parent-child relationships (e.g., a Festival parent with multiple Stage children), financials can roll up the tree to provide a holistic view of the event budget and actuals.
+GigManager has two tables that contribute to gig costs:
 
-### 2.1 Rollup Logic
-- **Direct Financials**: Items explicitly logged against a specific gig.
-- **Inherited Rollup**: The sum of all financial items from all child gigs in the subtree.
-- **Effective Total**: `Direct + Σ(Child Rollups)`.
+| Table | Purpose | Created By | Contains |
+|-------|---------|------------|----------|
+| `gig_financials` | The gig ledger — all financial events | Manual entry via Financials UI | Contracts, deposits, payments, manual expenses |
+| `purchases` | The receipt box — invoices with line items | AI receipt scan or CSV import | Vendor invoices with item-level detail, attachments |
 
-### 2.2 SQL Rollup Function
+**The boundary rule**: Use `gig_financials` for quick manual entries (expenses, payments, contracts). Use `purchases` when you have a receipt or invoice to scan. Both contribute to the gig's profitability calculation, but data is never duplicated between them.
+
+Additionally, **staff costs** are read from `gig_staff_assignments` (which stores rate/fee per person) and surfaced in the profitability view. They are not copied into `gig_financials`.
+
+### 1.2 Financial Type Groupings
+
+The `fin_type` enum has 24 values to support future multi-tenant workflows. For the single-org sound company, the UI groups types into practical categories:
+
+**Revenue** (money coming in):
+- `Contract Signed` — agreed fee for the gig
+- `Deposit Received` — client deposit payment
+- `Payment Recieved` — client payment (note: enum typo is permanent)
+
+**Cost** (money going out):
+- `Expense Incurred` — gig-related spending (rentals, travel, supplies)
+- `Payment Sent` — payment to freelancer or vendor
+
+**Tracking** (informational):
+- `Invoice Issued` — sent invoice to client
+- `Invoice Settled` — invoice was paid
+
+**Advanced** (bid/contract workflow — future use):
+- All `Bid *`, `Contract *`, and `Sub-Contract *` types
+
+The Add Financial Record modal shows "Common" types prominently and the full list via an expandable section.
+
+### 1.3 Profitability Calculation
+
+```
+CONTRACT AMOUNT  = SUM(gig_financials WHERE type IN (Contract Signed))
+RECEIVED         = SUM(gig_financials WHERE type IN (Deposit Received, Payment Recieved))
+OUTSTANDING REV  = CONTRACT AMOUNT - RECEIVED
+
+STAFF COSTS      = SUM(gig_staff_assignments.fee) for Confirmed + Requested assignments
+MANUAL EXPENSES  = SUM(gig_financials WHERE type IN (Expense Incurred, Payment Sent, Deposit Sent))
+PURCHASE EXPENSES= SUM(purchases.total_inv_amount WHERE gig_id matches AND row_type='header'
+                       AND NOT all child items are row_type='asset')
+TOTAL COSTS      = STAFF COSTS + MANUAL EXPENSES + PURCHASE EXPENSES
+
+PROFIT           = CONTRACT AMOUNT - TOTAL COSTS
+MARGIN           = PROFIT / CONTRACT AMOUNT × 100
+```
+
+**Exclusions**: Capital asset purchases (where all line items are `row_type = 'asset'`) are NOT gig expenses. They are inventory acquisitions that happen to be linked to a gig for tracking purposes.
+
+---
+
+## 2. User Workflow
+
+The following workflow describes the sound company's financial lifecycle for a gig, from booking through settlement.
+
+### Step 1: Book the Gig
+Create a gig or change status to Booked. No financial records yet.
+
+### Step 2: Record the Contract
+In the Financials section, add a record: type = `Contract Signed`, amount = the agreed fee, external_entity_name = client name. This establishes the expected revenue.
+
+### Step 3: Record Deposits
+When the client pays a deposit, add a record: type = `Deposit Received`, amount = deposit amount, paid_at = today. The Profitability Summary immediately reflects the received amount.
+
+### Step 4: Assign Staff and Set Fees
+In the Staff Assignments section, add slots and assign people. Set each person's fee (flat) or rate (hourly/daily). These costs automatically appear in the Profitability Summary under "Staff Costs."
+
+### Step 5: Add Expenses
+Two paths:
+- **Quick manual entry**: In the Financials section, add a record: type = `Expense Incurred`, category = Equipment/Transportation/etc., amount, description. Use for simple expenses like "rented a sub for $200."
+- **Receipt scanning**: In the Purchase Expenses section, upload a receipt image. The AI extracts vendor, date, items, and amounts. Review and confirm. The purchase is linked to the gig and counted in profitability.
+
+### Step 6: Monitor Profitability
+The Profitability Summary at the top of the Financials section shows three cards: Contract Amount (with received/outstanding), Total Costs (staff + expenses + purchases), and Projected Profit (with margin percentage). This updates in real-time as records are added.
+
+### Step 7: Receive Final Payment
+After the gig, add a record: type = `Payment Recieved`, amount = remaining balance, paid_at = today. The Outstanding Revenue drops to $0.
+
+### Step 8: Settle the Gig
+Change gig status to `Settled`. This signals that all financial activity is complete. The profitability number is now final.
+
+---
+
+## 3. UI Specifications
+
+### 3.1 Profitability Summary (New Component)
+
+Three cards displayed at the top of the Financials section:
+
+**Contract Card**: Shows Contract Amount, Received, Outstanding. Green when fully paid, amber when partial, gray when nothing received.
+
+**Total Costs Card**: Shows Staff (from assignments), Expenses (from gig_financials), Purchases (from purchases table). Neutral blue/gray.
+
+**Profit Card**: Shows net Profit and margin percentage. Green when positive, red when negative.
+
+### 3.2 Financials Section (Redesigned)
+
+The existing `GigFinancialsSection` component is updated to:
+1. Show the Profitability Summary at top
+2. Group financial records into "Revenue" and "Expenses" sections
+3. Show a read-only "Staff Costs" sub-section sourced from `gig_staff_assignments`
+4. Show a read-only "Linked Purchases" sub-section sourced from `purchases`
+5. Simplify the type picker in the Add/Edit modal (common types first)
+6. Default new record type to `Contract Signed` instead of `Bid Submitted`
+
+Visibility: Admin-only (unchanged).
+
+### 3.3 Purchase Expenses Section (Fixed)
+
+The existing `GigPurchaseExpenses` component is fixed to:
+1. Show purchase headers with their line items nested underneath (not just headers)
+2. Exclude headers where all items are `row_type = 'asset'` (capital purchases)
+3. Show a total at the bottom
+4. Keep the existing "Upload Receipt" functionality unchanged
+
+### 3.4 Staff Assignments Section (Enhanced)
+
+The existing `GigStaffSlotsSection` component is enhanced to:
+1. Show a footer row with total staff cost
+2. Break down total into "Confirmed" and "Pending" amounts
+
+---
+
+## 4. Implementation Plan
+
+### Phase 1: Profitability Summary Card
+- **Service**: New `getGigProfitabilitySummary()` function that queries gig_financials, gig_staff_assignments, and purchases
+- **Component**: New `GigProfitabilitySummary.tsx` — three-card layout
+- **Integration**: Rendered at top of `GigFinancialsSection`
+- **Test**: Gig with no data, gig with only contract, gig with all cost types, negative profit scenario
+
+### Phase 2: Grouped Records & Simplified Type Picker
+- **Constants**: Add `FIN_TYPE_GROUPS` to `constants.ts` — maps types into revenue/cost/tracking/advanced
+- **Component**: Update `GigFinancialsSection` to group records by direction, simplify modal
+- **Test**: Existing records display correctly, new defaults work, all 24 types still accessible
+
+### Phase 3: Staff Costs in Financials + Staff Section Total
+- **Service**: New `getGigStaffCostSummary()` function
+- **Components**: New `GigStaffCostsSummary.tsx` (read-only, in Financials), update `GigStaffSlotsSection` footer
+- **Test**: Staff with fees, staff with rates, no staff, mixed confirmed/requested
+
+### Phase 4: Fix Purchase Expenses Display
+- **Service**: New `getGigPurchaseExpenseDetails()` that fetches headers with nested items
+- **Component**: Update `GigPurchaseExpenses` to render header/item tree, exclude asset-only purchases
+- **Test**: Multi-item purchases, asset-only exclusion, empty state
+
+### Phase 5: Documentation
+- Update this document and `requirements.md`
+
+---
+
+## 5. Future Extensions
+
+### 5.1 Hierarchical Financial Rollups (Sprint 4+)
+
+When parent/child gig relationships are implemented, financials roll up the tree:
+- **Direct Financials**: Items on a specific gig
+- **Inherited Rollup**: Sum of all child gig financials
+- **Effective Total**: Direct + child rollups
+
+SQL rollup function using recursive CTE:
 ```sql
 CREATE OR REPLACE FUNCTION public.get_gig_financial_rollup(p_gig_id UUID, p_org_id UUID)
 RETURNS TABLE (
@@ -60,73 +205,29 @@ END;
 $$;
 ```
 
----
+### 5.2 Multi-Tenant Settlement Views (Sprint 4+)
 
-## 3. Settlement Views
+**Production View**: Total budget vs. actual, vendor rollup, per-stage/day breakdown.
 
-Settlement is the process of reconciling revenues and expenses to determine final payouts. These views work for both flat gigs and hierarchical events.
+**Act View**: Contract details, deductions/additions, net payout, signed documents.
 
-### 3.1 Production-Specific View (The "Master Settlement")
-Designed for Producers/Production Managers to see the "Big Picture".
-- **Top-Level Metrics**: Total Budget vs. Actual, Gross Margin, Total Vendor Spend.
-- **Hierarchical Breakdown** (when applicable): Ability to drill down into specific stages/days to see where costs were incurred.
-- **Vendor Rollup**: List of all vendor bids/contracts and their payment status.
+### 5.3 Vendor Bid Management (Sprint 5+)
 
-### 3.2 Act-Specific View (The "Band Settlement")
-Designed for Bands/Agencies to handle their specific slice of the event.
-- **Contract Details**: Guaranteed fee, percentage splits (if applicable).
-- **Settlement Items**: Deductions (commissions, local tech, catering buy-backs) and additions (merch cuts).
-- **Net Payout**: The final amount owed to the act.
-- **Shared Documents**: Easy access to the signed contract and settlement sheet.
+Formal bid request → submission → review → acceptance workflow. Requires a `gig_requirements` table and updates to `gig_financials` with a `requirement_id` FK.
+
+### 5.4 Hours Tracking
+
+Staff rate × hours for labor costing (currently only flat fees are practical since hours aren't tracked).
 
 ---
 
-## 4. Vendor Bid Management Architecture
+## 6. Verification Checklist
 
-Currently, "bids" are just a status in the `gig_financials` table. We need a more formal workflow. This operates at the individual gig level and does not depend on hierarchy.
-
-### 4.1 Bid Workflow
-1.  **Request**: Producer creates a "Requested" financial item (or a new `bid_requests` table) for a specific `organization_type` (e.g., Sound).
-2.  **Submission**: The Sound Company receives a notification, views the gig technical requirements, and submits a "Bid" (a `gig_financials` record of type `Bid Submitted`).
-3.  **Review**: Producer reviews all submitted bids for that slot.
-4.  **Acceptance**: Producer changes status to `Bid Accepted`. This automatically:
-    - Sets other bids for the same requirement to `Bid Rejected`.
-    - Updates the "Budget" rollup for the gig.
-5.  **Contracting**: The accepted bid is promoted to a `Contract Submitted`.
-
-### 4.2 Data Model Enhancements
-To support this, we need to track "Requirements" that bids fulfill.
-
-**Table: `public.gig_requirements`**
-- `id` (UUID)
-- `gig_id` (UUID)
-- `category` (fin_category)
-- `description` (TEXT)
-- `estimated_budget` (NUMERIC)
-- `assigned_organization_id` (UUID) - Set upon bid acceptance.
-
-**Update `public.gig_financials`**:
-- `requirement_id` (UUID) - Foreign key to `gig_requirements`.
-
----
-
-## 5. Advanced Reporting
-
-### 5.1 Flat Gig Reports
-- **Revenue vs. Expenses**: Per-gig financial summary.
-- **Vendor Statement**: All financial items for a specific vendor on a gig.
-- **Outstanding Payments**: Track unpaid items across gigs.
-
-### 5.2 Hierarchy-Aware Reports (Extension)
-When hierarchical gigs are implemented, reporting extends to support:
-- **Global Event Report**: All stages, all vendors, all staff costs across the hierarchy.
-- **Departmental Report**: Audio costs across the entire festival hierarchy.
-- **Vendor Statement**: All gigs a specific vendor is working on within a parent event, with consolidated billing.
-
----
-
-## 6. Verification & Performance
-- **Flat Gig Testing**: Verify financial summaries, multi-tenant visibility, and bid workflows on standard gigs.
-- **Multi-Tenant Leakage**: Rigorous RLS testing to ensure Org A never sees Org B's internal cost notes or unaccepted bids.
-- **Recursive Load** (Sprint 4+): Test rollups across 5 levels of nesting and 100+ child gigs.
-- **Real-Time Updates**: Ensure that when an expense is added, the gig's "Actuals" dashboard updates immediately via Supabase Realtime.
+- [ ] Profitability summary shows correct numbers for a gig with contract + staff + expenses + purchases
+- [ ] Staff costs from assignments match the summary
+- [ ] Purchase expenses exclude asset-only purchases
+- [ ] No double-counting between manual expenses and purchases
+- [ ] Existing financial records display correctly in grouped view
+- [ ] New record defaults are sensible for sound company workflow
+- [ ] Admin-only visibility preserved
+- [ ] Gig status transitions (Booked → Completed → Settled) work alongside financial tracking
