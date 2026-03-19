@@ -599,7 +599,40 @@ CSV import functionality for gigs and assets with client-side validation, immedi
 
 1. Parse CSV file
 2. Validate all rows
-3. For each valid row:
+3. Rules for computing price and cost: 
+
+   - If quantity is missing on type 1 or 2, assume quantity 1
+   - The goal is to have or compute item_cost. 
+   - If line_cost is present, then item_cost is line_cost / quantity.
+   - If line_cost is not present then line_cost is line_amount * factor.
+   - factor (documented in docs) is tot_inv_amount / sum(line_amount)
+   - line_amount is item_price * quantity
+   - item_price is line_amount / quantity
+   - If item_cost is missing or can not be computed, it is an error
+   - It is OK if either line_amount or item_price are missing
+
+     Step 1:
+
+     1. If quantity is missing, quantity = 1
+
+     Step 2:
+
+     1. If row has either a line_cost or item_cost, if line_cost is missing compute line_cost = item_cost * quantity, otherwise if item_cost is missing compute item_cost = line_cost / quantity -- this will be a "cost" row.
+     2. Otherwise if row has a line_amount or item_price, if item_price is missing then compute item_price = line_amount / quantity, if line_amount is missing calculate line_amount = item_price * quantity -- this will be a "price" row.
+     3. Otherwise ERROR
+
+     Step 3:
+
+     1. For a "price" row, factor is sum(line_amount) / total_inv_amount (from header)
+     2. For a "cost" row, we are done as we already have the item_cost.
+
+     Step 4:
+
+     1. line_cost = line_amount * factor
+     2. Adjust last line_cost in group by .01 until total_inv_amount = sum(line_cost)
+     3. item_cost = line_cost / quantity
+
+4. For each valid row:
    - Map CSV columns to database fields:
      - cost_per_item → cost
      - replacement_value_per_item → replacement_value
@@ -607,7 +640,9 @@ CSV import functionality for gigs and assets with client-side validation, immedi
      - insured → insurance_policy_added
      - insurance_category → insurance_class
    - Create asset with organization_id from current context
-4. Show success count and any errors
+5. Show success count and any errors
+
+   
 
 #### User Interface Requirements
 
