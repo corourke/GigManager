@@ -456,5 +456,5 @@ block-beta
 ## Related Documentation
 
 - [Technical Reference: Gig Financials](../../technical/gig-financials.md) — Architecture, data boundaries, ER diagram, schema DDL
-- [Coding Prompt](./07_financials-coding-prompt.md) — AI coding agent prompt for implementation
+- [Coding Prompt](./financials-coding-prompt.md) — AI coding agent prompt for implementation
 - [Requirements](../requirements.md) — Section 7 (Expense Management & Gig Profitability)

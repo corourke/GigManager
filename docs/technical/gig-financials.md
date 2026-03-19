@@ -1,6 +1,6 @@
 # Gig Financials — Technical Reference
 
-Technical documentation for the gig financial management system. For the design analysis and implementation plan, see [gig-financials-workflow-analysis.md](../product/development-plan/gig-financials-workflow-analysis.md).
+Technical documentation for the gig financial management system. For the design analysis and implementation plan, see [07_gig-financials-workflow.md](../product/development-plan/07_gig-financials-workflow.md).
 
 **Last Updated**: 2026-03-19
 

@@ -10,7 +10,7 @@ Use this prompt with a coding agent to implement the gig financial management sy
 Implement the gig financials workflow as specified in the project documentation. Work through four phases, making sure each phase is working before moving to the next.
 
 Read these documents thoroughly before starting:
-- docs/product/development-plan/gig-financials-workflow-analysis.md — the design analysis with UI mockups, implementation plan, and verification checklist
+- docs/product/development-plan/07_gig-financials-workflow.md — the design analysis with UI mockups, implementation plan, and verification checklist
 - docs/technical/gig-financials.md — technical reference with architecture, data boundaries, ER diagram, schema DDL
 - docs/product/requirements.md — Section 7 (Expense Management & Gig Profitability) and the Financials sub-section under Core Features > Gig Management
 
@@ -105,7 +105,6 @@ Component changes:
 
 ## Important Notes
 
-- The fin_type enum has a typo: "Payment Recieved" (not Received). This is permanent — use the misspelled version in code.
 - "Bid Accepted" is an existing enum value — use it for informal/verbal agreements (alternative to Contract Signed).
 - Existing test data can be wiped — no migration needed for existing records.
 - All financial UI is Admin and manager only (preserve existing access control).

@@ -64,7 +64,7 @@ Based on the persona analysis and [competitive analysis](02_competitive-analysis
 | 04 | [Mobile Development](04_mobile-development.md) | Consolidated mobile plan: gig browsing, staff dashboard, inventory/warehouse mode, PWA configuration, offline sync, push notifications, and data model extensions. |
 | 05 | [Hierarchy Foundations](05_hierarchy-foundations.md) | SQL recursive CTEs, schema strategy, inheritance functions, service layer changes, and flexible CSV mapping architecture. |
 | 06 | [Hierarchy UI](06_hierarchy-ui.md) | GigHierarchyTree component design, progressive disclosure patterns, and simple vs. complex org needs. |
-| 07 | [Financials & Settlement](07_financials-settlement.md) | Flat gig financials (baseline), multi-tenant visibility, settlement views, vendor bid management, and hierarchical rollups (extension). |
+| 07 | [Gig Financials Workflow](07_gig-financials-workflow.md) | Single-ledger gig financials, profitability tracking, staff completion flow, receipt integration, and two-way linking. See also: [Coding Prompt](financials-coding-prompt.md). |
 | 08 | [Scale & Performance](08_scale-performance-roadmap.md) | Scale/performance benchmarks and load testing protocols. |
 
 ---
@@ -87,7 +87,7 @@ Based on the persona analysis and [competitive analysis](02_competitive-analysis
 - [ ] Staff dashboard mobile view
 
 ### Sprint 3: Financial Management (Flat Gigs)
-*Detail: [Technical Spec §Phase 3](03_technical-spec.md), [Financials & Settlement](07_financials-settlement.md)*
+*Detail: [Technical Spec §Phase 3](03_technical-spec.md), [Gig Financials Workflow](07_gig-financials-workflow.md)*
 
 - [ ] Flat gig financials: settlement views and vendor bid management
 - [ ] Act-specific settlement screen
