@@ -28,7 +28,7 @@ interface AssetScreenProps {
   onCancel: () => void;
   onAssetCreated: (assetId: string) => void;
   onAssetUpdated: () => void;
-  onNavigateToPurchases?: () => void;
+  onNavigateToPurchases?: (purchaseId?: string) => void;
   onSwitchOrganization: () => void;
   onEditProfile?: () => void;
   onLogout: () => void;
@@ -646,7 +646,7 @@ export default function AssetScreen({
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={onNavigateToPurchases}
+                      onClick={() => onNavigateToPurchases?.(formData.purchase_id)}
                       className="text-sky-600 border-sky-200 hover:bg-sky-50"
                     >
                       <CreditCard className="w-4 h-4 mr-2" />

@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { 
   Banknote, 
   Receipt, 
@@ -40,6 +40,7 @@ import {
 import AppHeader from './AppHeader';
 import { Organization, User, UserRole, DbPurchase } from '../utils/supabase/types';
 import { getPurchases } from '../services/purchase.service';
+import { getEntityAttachments, getAttachmentUrl } from '../services/attachment.service';
 import { toast } from 'sonner';
 
 interface FinancialsScreenProps {
@@ -50,6 +51,7 @@ interface FinancialsScreenProps {
   onLogout: () => void;
   onNavigateToGigs: () => void;
   onNavigateToAssets: () => void;
+  highlightPurchaseId?: string | null;
 }
 
 type FinancialTab = 'purchases' | 'gig-accounting' | 'reporting';
@@ -61,27 +63,53 @@ export default function FinancialsScreen({
   onSwitchOrganization,
   onLogout,
   onNavigateToGigs,
-  onNavigateToAssets
+  onNavigateToAssets,
+  highlightPurchaseId
 }: FinancialsScreenProps) {
   const [activeTab, setActiveTab] = useState<FinancialTab>('purchases');
   const [purchases, setPurchases] = useState<DbPurchase[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [expandedItemId, setExpandedItemId] = useState<string | null>(null);
   
   // Filters
   const [vendorFilter, setVendorFilter] = useState('');
   const [typeFilter, setTypeFilter] = useState<'all' | 'asset' | 'expense'>('all');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
+
+  const toggleGroup = useCallback((groupId: string) => {
+    setCollapsedGroups(prev => {
+      const next = new Set(prev);
+      if (next.has(groupId)) next.delete(groupId);
+      else next.add(groupId);
+      return next;
+    });
+  }, []);
 
   useEffect(() => {
     loadPurchases();
   }, [organization.id]);
+
+  const [headerAttachments, setHeaderAttachments] = useState<Map<string, { filePath: string; fileName: string }>>(new Map());
 
   async function loadPurchases() {
     setIsLoading(true);
     try {
       const data = await getPurchases(organization.id);
       setPurchases(data);
+
+      const headers = data.filter(p => p.row_type === 'header');
+      const attMap = new Map<string, { filePath: string; fileName: string }>();
+      await Promise.all(headers.map(async (h) => {
+        try {
+          const atts = await getEntityAttachments('purchase', h.id);
+          if (atts && atts.length > 0) {
+            attMap.set(h.id, { filePath: atts[0].file_path, fileName: atts[0].file_name });
+          }
+        } catch (_) { /* ignore */ }
+      }));
+      setHeaderAttachments(attMap);
     } catch (error) {
       console.error('Error loading purchases:', error);
       toast.error('Failed to load purchases');
@@ -89,6 +117,17 @@ export default function FinancialsScreen({
       setIsLoading(false);
     }
   }
+
+  const handleViewDoc = async (headerId: string) => {
+    const att = headerAttachments.get(headerId);
+    if (!att) return;
+    try {
+      const url = await getAttachmentUrl(att.filePath);
+      if (url) window.open(url, '_blank');
+    } catch (err) {
+      toast.error('Failed to get document URL');
+    }
+  };
 
   // Filter and group purchases
   const filteredPurchases = useMemo(() => {
@@ -110,14 +149,14 @@ export default function FinancialsScreen({
   // Also standalone items/assets that might not have a header in this view
   const groupedPurchases = useMemo(() => {
     const headers = filteredPurchases.filter(p => p.row_type === 'header');
-    const items = filteredPurchases.filter(p => p.row_type === 'item');
+    const items = filteredPurchases.filter(p => p.row_type === 'item' || p.row_type === 'asset');
     
     const groups = headers.map(header => {
       const children = items.filter(item => item.parent_id === header.id);
       
       // Check if this group matches the type filter
-      const hasAssets = children.some(c => c.asset_id);
-      const hasExpenses = children.some(c => !c.asset_id);
+      const hasAssets = children.some(c => c.asset_id || c.row_type === 'asset');
+      const hasExpenses = children.some(c => !c.asset_id && c.row_type !== 'asset');
       
       let matchesType = true;
       if (typeFilter === 'asset') matchesType = hasAssets;
@@ -128,8 +167,8 @@ export default function FinancialsScreen({
       return {
         header,
         children: children.filter(c => {
-          if (typeFilter === 'asset') return !!c.asset_id;
-          if (typeFilter === 'expense') return !c.asset_id;
+          if (typeFilter === 'asset') return !!c.asset_id || c.row_type === 'asset';
+          if (typeFilter === 'expense') return !c.asset_id && c.row_type !== 'asset';
           return true;
         })
       };
@@ -138,7 +177,7 @@ export default function FinancialsScreen({
     // Find orphaned items that match filters
     const orphanedItems = items.filter(item => 
       !headers.some(h => h.id === item.parent_id) &&
-      (typeFilter === 'all' || (typeFilter === 'asset' ? !!item.asset_id : !item.asset_id))
+      (typeFilter === 'all' || (typeFilter === 'asset' ? (!!item.asset_id || item.row_type === 'asset') : (!item.asset_id && item.row_type !== 'asset')))
     );
 
     if (orphanedItems.length > 0) {
@@ -177,13 +216,37 @@ export default function FinancialsScreen({
     groupedPurchases.forEach(group => {
       group.children.forEach(child => {
         totalCost += (child.line_cost || 0);
-        if (child.asset_id) assetCount++;
+        if (child.asset_id || child.row_type === 'asset') assetCount++;
         else expenseCount++;
       });
     });
 
     return { totalCost, assetCount, expenseCount };
   }, [groupedPurchases]);
+
+  const highlightedGroupId = useMemo(() => {
+    if (!highlightPurchaseId) return null;
+    const asHeader = groupedPurchases.find(g => g.header.id === highlightPurchaseId);
+    if (asHeader) return asHeader.header.id;
+    const asChild = groupedPurchases.find(g => g.children.some(c => c.id === highlightPurchaseId));
+    if (asChild) return asChild.header.id;
+    return null;
+  }, [highlightPurchaseId, groupedPurchases]);
+
+  const highlightRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (highlightedGroupId) {
+      setCollapsedGroups(prev => {
+        const next = new Set(prev);
+        next.delete(highlightedGroupId);
+        return next;
+      });
+      setTimeout(() => {
+        highlightRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }, 100);
+    }
+  }, [highlightedGroupId]);
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -253,25 +316,23 @@ export default function FinancialsScreen({
                   </Select>
                 </div>
 
-                <div className="flex items-center gap-2">
-                  <div>
-                    <Label className="text-xs">From</Label>
-                    <Input
-                      type="date"
-                      className="h-9 text-sm"
-                      value={startDate}
-                      onChange={(e) => setStartDate(e.target.value)}
-                    />
-                  </div>
-                  <div>
-                    <Label className="text-xs">To</Label>
-                    <Input
-                      type="date"
-                      className="h-9 text-sm"
-                      value={endDate}
-                      onChange={(e) => setEndDate(e.target.value)}
-                    />
-                  </div>
+                <div className="w-36">
+                  <Label className="text-xs">From</Label>
+                  <Input
+                    type="date"
+                    className="h-9 text-sm"
+                    value={startDate}
+                    onChange={(e) => setStartDate(e.target.value)}
+                  />
+                </div>
+                <div className="w-36">
+                  <Label className="text-xs">To</Label>
+                  <Input
+                    type="date"
+                    className="h-9 text-sm"
+                    value={endDate}
+                    onChange={(e) => setEndDate(e.target.value)}
+                  />
                 </div>
 
                 <div className="ml-auto flex gap-4 px-4 py-2 bg-gray-50 rounded-lg border border-gray-100">
@@ -309,7 +370,10 @@ export default function FinancialsScreen({
               ) : (
                 <div className="space-y-4">
                   {groupedPurchases.map((group) => (
-                    <Card key={group.header.id} className="overflow-hidden border-gray-200">
+                    <div key={group.header.id} ref={highlightedGroupId === group.header.id ? highlightRef : undefined}>
+                    <Card
+                      className={`overflow-hidden border-gray-200${highlightedGroupId === group.header.id ? ' ring-2 ring-sky-400 ring-offset-2' : ''}`}
+                    >
                       <div className="bg-gray-50 px-4 py-2 border-b border-gray-200 flex items-center justify-between">
                         <div className="flex items-center gap-4">
                           <div className="flex items-center gap-1.5">
@@ -327,17 +391,30 @@ export default function FinancialsScreen({
                             </>
                           )}
                         </div>
-                        <div className="flex items-center gap-4">
+                        <div className="flex items-center gap-3">
+                          {headerAttachments.has(group.header.id) && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 px-2 text-sky-600 hover:bg-sky-50"
+                              onClick={() => handleViewDoc(group.header.id)}
+                              title={`View ${headerAttachments.get(group.header.id)?.fileName || 'document'}`}
+                            >
+                              <FileText className="w-3.5 h-3.5 mr-1" />
+                              <span className="text-[10px]">View Doc</span>
+                            </Button>
+                          )}
                           <div className="text-right">
                             <span className="text-xs text-gray-500 mr-2">Invoice Total:</span>
                             <span className="text-sm font-bold">${group.header.total_inv_amount?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                           </div>
-                          <Button variant="ghost" size="sm" className="h-7 w-7 p-0">
-                            <ChevronDown className="w-4 h-4" />
+                          <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => toggleGroup(group.header.id)}>
+                            {collapsedGroups.has(group.header.id) ? <ChevronRight className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
                           </Button>
                         </div>
                       </div>
                       
+                      {!collapsedGroups.has(group.header.id) && (
                       <Table>
                         <TableHeader className="bg-white">
                           <TableRow className="h-8 hover:bg-transparent">
@@ -347,18 +424,22 @@ export default function FinancialsScreen({
                             <TableHead className="text-[10px] uppercase font-bold py-1 text-center">Qty</TableHead>
                             <TableHead className="text-[10px] uppercase font-bold py-1 text-right">Price</TableHead>
                             <TableHead className="text-[10px] uppercase font-bold py-1 text-right">Cost</TableHead>
-                            <TableHead className="text-[10px] uppercase font-bold py-1 text-center">Docs</TableHead>
+                            <TableHead className="text-[10px] uppercase font-bold py-1 w-8" />
                           </TableRow>
                         </TableHeader>
                         <TableBody>
                           {group.children.map((item) => (
-                            <TableRow key={item.id} className="h-9 hover:bg-sky-50 transition-colors group">
+                            <React.Fragment key={item.id}>
+                            <TableRow
+                              className="h-9 hover:bg-sky-50 transition-colors cursor-pointer"
+                              onClick={() => setExpandedItemId(expandedItemId === item.id ? null : item.id)}
+                            >
                               <TableCell className="py-1 px-4">
-                                {item.asset_id ? (
+                                {(item.asset_id || item.row_type === 'asset') ? (
                                   <Badge className="bg-blue-100 text-blue-700 hover:bg-blue-100 border-none text-[10px] h-5 px-1.5 uppercase font-bold">Asset</Badge>
                                 ) : (
                                   <Badge className="bg-orange-100 text-orange-700 hover:bg-orange-100 border-none text-[10px] h-5 px-1.5 uppercase font-bold">Expense</Badge>
-                                ) || <span className="text-gray-400">-</span>}
+                                )}
                               </TableCell>
                               <TableCell className="py-1 font-medium text-sm text-gray-800">
                                 {item.description || '-'}
@@ -376,16 +457,33 @@ export default function FinancialsScreen({
                                 {item.line_cost ? `$${item.line_cost.toFixed(2)}` : '-'}
                               </TableCell>
                               <TableCell className="py-1 text-center">
-                                {/* Future AI Link Placeholder */}
-                                <Button variant="ghost" size="sm" className="h-7 w-7 p-0 opacity-0 group-hover:opacity-100 transition-opacity">
-                                  <FileText className="w-3.5 h-3.5 text-gray-400" />
-                                </Button>
+                                {expandedItemId === item.id ? <ChevronDown className="w-3.5 h-3.5 text-gray-400 inline" /> : <ChevronRight className="w-3.5 h-3.5 text-gray-400 inline" />}
                               </TableCell>
                             </TableRow>
+                            {expandedItemId === item.id && (
+                              <TableRow className="bg-gray-50">
+                                <TableCell colSpan={7} className="py-2 px-6">
+                                  <div className="grid grid-cols-2 md:grid-cols-4 gap-x-6 gap-y-1 text-xs">
+                                    <div><span className="text-gray-500 font-medium">Item Price:</span> {item.item_price != null ? `$${item.item_price.toFixed(2)}` : '-'}</div>
+                                    <div><span className="text-gray-500 font-medium">Item Cost:</span> {item.item_cost != null ? `$${item.item_cost.toFixed(2)}` : '-'}</div>
+                                    <div><span className="text-gray-500 font-medium">Line Amt:</span> {item.line_amount != null ? `$${item.line_amount.toFixed(2)}` : '-'}</div>
+                                    <div><span className="text-gray-500 font-medium">Line Cost:</span> {item.line_cost != null ? `$${item.line_cost.toFixed(2)}` : '-'}</div>
+                                    <div><span className="text-gray-500 font-medium">Category:</span> {item.category || '-'}</div>
+                                    <div><span className="text-gray-500 font-medium">Sub-cat:</span> {item.sub_category || '-'}</div>
+                                    <div><span className="text-gray-500 font-medium">Row Type:</span> {item.row_type}</div>
+                                    <div><span className="text-gray-500 font-medium">ID:</span> <span className="font-mono text-[10px]">{item.id}</span></div>
+                                    {item.asset_id && <div className="col-span-2"><span className="text-gray-500 font-medium">Asset ID:</span> <span className="font-mono text-[10px]">{item.asset_id}</span></div>}
+                                  </div>
+                                </TableCell>
+                              </TableRow>
+                            )}
+                            </React.Fragment>
                           ))}
                         </TableBody>
                       </Table>
+                      )}
                     </Card>
+                    </div>
                   ))}
                 </div>
               )}

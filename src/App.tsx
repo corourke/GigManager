@@ -517,7 +517,10 @@ function App() {
     setCurrentRoute('import');
   };
 
+  const [highlightPurchaseId, setHighlightPurchaseId] = useState<string | null>(null);
+
   const handleNavigateToFinancials = () => {
+    setHighlightPurchaseId(null);
     setCurrentRoute('financials');
   };
 
@@ -808,7 +811,10 @@ function App() {
                 onSwitchOrganization={handleBackToSelection}
                 onEditProfile={handleEditProfile}
                 onLogout={handleLogout}
-                onNavigateToPurchases={() => setCurrentRoute('financials')}
+                onNavigateToPurchases={(purchaseId) => {
+                  setHighlightPurchaseId(purchaseId || null);
+                  setCurrentRoute('financials');
+                }}
               />
             )}
 
@@ -821,7 +827,10 @@ function App() {
                 onCancel={handleBackToAssetList}
                 onAssetCreated={handleAssetCreated}
                 onAssetUpdated={handleBackToAssetList} // After updating, go back to list
-                onNavigateToPurchases={() => setCurrentRoute('financials')}
+                onNavigateToPurchases={(purchaseId) => {
+                  setHighlightPurchaseId(purchaseId || null);
+                  setCurrentRoute('financials');
+                }}
                 onAssetDeleted={handleBackToAssetList} // After deleting, go back to list
                 onSwitchOrganization={handleBackToSelection}
                 onEditProfile={handleEditProfile}
@@ -911,6 +920,7 @@ function App() {
                 onLogout={handleLogout}
                 onNavigateToGigs={handleNavigateToGigs}
                 onNavigateToAssets={handleNavigateToAssets}
+                highlightPurchaseId={highlightPurchaseId}
               />
             )}
           </>

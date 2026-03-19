@@ -107,3 +107,7 @@ Create a detailed implementation plan for the UI components and template updates
 - [x] Fix unit cost computation for initial AI scanned data.
 - [x] Ensure dialog width and vertical scrolling work correctly by forcing flex layout.
 - [x] Renamed "Line Total" to "Line Amount" in review UI.
+- [x] Implement asset creation in both tables during form submission.
+- [x] Add disclosure arrow for additional asset-specific fields.
+- [x] Polish layout and tighten UI spacing.
+- [x] Fix decimal point entry in NumericInput.

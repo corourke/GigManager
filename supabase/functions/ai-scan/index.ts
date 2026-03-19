@@ -7,7 +7,8 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-const CATEGORY_HINTS = `
+const ASSET_CATEGORY_HINTS = `
+ASSET categories (for durable equipment):
 Audio       → Microphone, Speaker, Subwoofer, Amplifier, Mixer, Interface,
               Processor, DI Box, In-Ear Monitor, Headphone, Cable, Connector,
               Accessory, Software
@@ -22,12 +23,22 @@ Networking  → Switch, Router, Cable, Wireless, Accessory
 Misc        → (anything that doesn't fit above)
 `;
 
+const EXPENSE_CATEGORY_HINTS = `
+EXPENSE categories (IRS Schedule C Part II — use for non-durable / consumable items):
+Advertising, Car and truck expenses, Commissions and fees, Contract labor,
+Depreciation, Insurance, Legal and professional services, Office expense,
+Rent or lease, Repairs and maintenance, Supplies, Taxes and licenses,
+Travel, Meals, Utilities, Wages, Other expenses
+`;
+
 const EXTRACTION_PROMPT = `
 You are an inventory assistant for a professional audio/video/lighting production company.
 Extract structured data from the invoice or receipt document below and return ONLY a JSON object
 with no explanation, markdown, or code fences.
 
-${CATEGORY_HINTS}
+${ASSET_CATEGORY_HINTS}
+
+${EXPENSE_CATEGORY_HINTS}
 
 JSON schema to return:
 {
@@ -35,6 +46,7 @@ JSON schema to return:
   "vendor": "Vendor name or null",
   "total_inv_amount": <number or null>,
   "payment_method": "Payment method or null",
+  "invoice_number": "<invoice number, receipt number, order number, or PO number if present, else null>",
   "items": [
     {
       "manufacturer_model": "<Brand + Model string — this is the primary identifier>",
@@ -44,8 +56,8 @@ JSON schema to return:
       "item_cost": <number or null — set to the unit price if present, or null — the burdened cost per item if you can calculate it based on header fees (tax/shipping)>,
       "line_amount": <number or null — the total amount for this line as printed on the invoice>,
       "serial_numbers": ["SN1", "SN2"],
-      "category": "<from category hints above>",
-      "sub_category": "<from category hints above>",
+      "category": "<if is_durable: use ASSET category; if is_consumable or not durable: use EXPENSE (IRS Schedule C) category>",
+      "sub_category": "<only for assets: use the sub-category from ASSET category hints; null for expenses>",
       "type": "<short practical label, e.g. 'Powered Speaker', 'Dynamic Microphone'>",
       "is_durable": <boolean, true for durable equipment (e.g. gear, cases, tools)>,
       "is_consumable": <boolean, true for short-lived items (e.g. batteries, tape, cleaning supplies)>
@@ -222,7 +234,7 @@ Deno.serve(async (req) => {
       // PDF support is now stable and does not require beta headers.
       response = await anthropic.messages.create({
         model: "claude-sonnet-4-6",
-        max_tokens: 2048,
+        max_tokens: 16384,
         messages: [
           {
             role: "user",
@@ -249,6 +261,10 @@ Deno.serve(async (req) => {
       }
     }
 
+    if (response.stop_reason === 'max_tokens') {
+      console.warn('AI response was truncated (max_tokens reached)');
+    }
+
     const rawOutput = (response.content[0] as any).text;
     
     // Extract JSON from response
@@ -257,7 +273,42 @@ Deno.serve(async (req) => {
       throw new Error('Failed to extract JSON from AI response');
     }
     
-    const parsed = JSON.parse(jsonMatch[0]);
+    let jsonStr = jsonMatch[0];
+
+    // Attempt repair if truncated: close open arrays/objects
+    let parsed;
+    try {
+      parsed = JSON.parse(jsonStr);
+    } catch (_parseErr) {
+      // Try to repair truncated JSON by closing open brackets
+      let openBraces = 0;
+      let openBrackets = 0;
+      let inString = false;
+      let escape = false;
+      for (const ch of jsonStr) {
+        if (escape) { escape = false; continue; }
+        if (ch === '\\') { escape = true; continue; }
+        if (ch === '"') { inString = !inString; continue; }
+        if (inString) continue;
+        if (ch === '{') openBraces++;
+        else if (ch === '}') openBraces--;
+        else if (ch === '[') openBrackets++;
+        else if (ch === ']') openBrackets--;
+      }
+
+      // Remove trailing comma before closing
+      jsonStr = jsonStr.replace(/,\s*$/, '');
+
+      for (let i = 0; i < openBrackets; i++) jsonStr += ']';
+      for (let i = 0; i < openBraces; i++) jsonStr += '}';
+
+      try {
+        parsed = JSON.parse(jsonStr);
+        console.warn('Repaired truncated JSON successfully');
+      } catch (repairErr: any) {
+        throw new Error(`AI returned malformed JSON that could not be repaired: ${repairErr.message}`);
+      }
+    }
     
     // Post-process: Apply classification and format for preview
     const processedItems = (parsed.items || []).map((item: any) => ({

@@ -24,7 +24,7 @@ interface AssetDetailScreenProps {
   onSwitchOrganization: () => void;
   onEditProfile?: () => void;
   onLogout: () => void;
-  onNavigateToPurchases?: () => void;
+  onNavigateToPurchases?: (purchaseId?: string) => void;
 }
 
 export default function AssetDetailScreen({
@@ -271,7 +271,7 @@ export default function AssetDetailScreen({
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={onNavigateToPurchases}
+                      onClick={() => onNavigateToPurchases(asset.purchase_id)}
                       className="w-full text-sky-600 border-sky-200 hover:bg-sky-50"
                     >
                       <CreditCard className="w-4 h-4 mr-2" />

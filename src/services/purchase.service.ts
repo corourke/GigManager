@@ -239,8 +239,29 @@ export async function importPurchases(
         // but wait, we need to distinguish it so it's not merged.
         // Actually, by NOT using its lookupKey in the map, we ensure it's "Isolated".
 
-        // Add the standalone row as its own child
         const currentGroup = allGroups[allGroups.length - 1];
+        const parsedQty = data.quantity ? parseInt(data.quantity.toString().replace(/[^0-9.-]/g, '')) : 1;
+        const parsedItemPrice = data.item_price ? parseFloat(data.item_price.toString().replace(/[^0-9.-]/g, '')) : undefined;
+        const parsedItemCost = data.item_cost ? parseFloat(data.item_cost.toString().replace(/[^0-9.-]/g, '')) : undefined;
+        const parsedLineAmount = data.line_amount ? parseFloat(data.line_amount.toString().replace(/[^0-9.-]/g, '')) : undefined;
+        const parsedLineCost = data.line_cost ? parseFloat(data.line_cost.toString().replace(/[^0-9.-]/g, '')) : undefined;
+        const desc = data.manufacturer_model || data.description || undefined;
+
+        currentGroup.items.push({
+          organization_id: organizationId,
+          purchase_date: data.acquisition_date,
+          vendor: data.vendor,
+          category: data.category,
+          sub_category: data['sub-category'] || undefined,
+          description: desc,
+          line_amount: parsedLineAmount,
+          line_cost: parsedLineCost,
+          quantity: parsedQty,
+          item_price: parsedItemPrice,
+          item_cost: parsedItemCost,
+          row_type: data.source === '1' ? 'asset' : 'item',
+        });
+
         if (data.source === '1') {
           currentGroup.assets.push({
             organization_id: organizationId,
@@ -252,10 +273,10 @@ export async function importPurchases(
             tag_number: data.tag_number || undefined,
             acquisition_date: data.acquisition_date,
             vendor: data.vendor,
-            item_price: data.item_price ? parseFloat(data.item_price.toString().replace(/[^0-9.-]/g, '')) : undefined,
-            item_cost: data.item_cost ? parseFloat(data.item_cost.toString().replace(/[^0-9.-]/g, '')) : undefined,
-            quantity: data.quantity ? parseInt(data.quantity.toString().replace(/[^0-9.-]/g, '')) : 1,
-            description: data.manufacturer_model || data.description || undefined,
+            item_price: parsedItemPrice,
+            item_cost: parsedItemCost,
+            quantity: parsedQty,
+            description: desc,
             insurance_policy_added: data.insured ? (data.insured.toLowerCase() === 'yes' || data.insured === 'true') : false,
             insurance_class: data.insurance_class || undefined,
             replacement_value: data.replacement_value ? parseFloat(data.replacement_value.toString().replace(/[^0-9.-]/g, '')) : undefined,
@@ -265,20 +286,6 @@ export async function importPurchases(
             dep_method: data.dep_method || undefined,
             status: data.status || 'Active',
             kit: data.kit || undefined,
-          });
-        } else {
-          currentGroup.items.push({
-            organization_id: organizationId,
-            purchase_date: data.acquisition_date,
-            vendor: data.vendor,
-            category: data.category,
-            sub_category: data['sub-category'] || undefined,
-            description: data.manufacturer_model || data.description || undefined,
-            line_amount: data.line_amount ? parseFloat(data.line_amount.toString().replace(/[^0-9.-]/g, '')) : undefined,
-            line_cost: data.line_cost ? parseFloat(data.line_cost.toString().replace(/[^0-9.-]/g, '')) : undefined,
-            quantity: data.quantity ? parseInt(data.quantity.toString().replace(/[^0-9.-]/g, '')) : 1,
-            item_price: data.item_price ? parseFloat(data.item_price.toString().replace(/[^0-9.-]/g, '')) : undefined,
-            item_cost: data.item_cost ? parseFloat(data.item_cost.toString().replace(/[^0-9.-]/g, '')) : undefined,
           });
         }
       } else {
@@ -304,6 +311,30 @@ export async function importPurchases(
         }
 
         const currentGroup = allGroups[groupIdx];
+        const parsedQty2 = data.quantity ? parseInt(data.quantity.toString().replace(/[^0-9.-]/g, '')) : 1;
+        const parsedItemPrice2 = data.item_price ? parseFloat(data.item_price.toString().replace(/[^0-9.-]/g, '')) : undefined;
+        const parsedItemCost2 = data.item_cost ? parseFloat(data.item_cost.toString().replace(/[^0-9.-]/g, '')) : undefined;
+        const parsedLineAmount2 = data.line_amount ? parseFloat(data.line_amount.toString().replace(/[^0-9.-]/g, '')) : undefined;
+        const parsedLineCost2 = data.line_cost ? parseFloat(data.line_cost.toString().replace(/[^0-9.-]/g, '')) : undefined;
+        const desc2 = data.manufacturer_model || data.description || undefined;
+
+        if (data.source === '1' || data.source === '2') {
+          currentGroup.items.push({
+            organization_id: organizationId,
+            purchase_date: data.acquisition_date,
+            vendor: data.vendor,
+            category: data.category,
+            sub_category: data['sub-category'] || undefined,
+            description: desc2,
+            line_amount: parsedLineAmount2,
+            line_cost: parsedLineCost2,
+            quantity: parsedQty2,
+            item_price: parsedItemPrice2,
+            item_cost: parsedItemCost2,
+            row_type: data.source === '1' ? 'asset' : 'item',
+          });
+        }
+
         if (data.source === '1') {
           currentGroup.assets.push({
             organization_id: organizationId,
@@ -315,10 +346,10 @@ export async function importPurchases(
             tag_number: data.tag_number || undefined,
             acquisition_date: data.acquisition_date,
             vendor: data.vendor,
-            item_price: data.item_price ? parseFloat(data.item_price.toString().replace(/[^0-9.-]/g, '')) : undefined,
-            item_cost: data.item_cost ? parseFloat(data.item_cost.toString().replace(/[^0-9.-]/g, '')) : undefined,
-            quantity: data.quantity ? parseInt(data.quantity.toString().replace(/[^0-9.-]/g, '')) : 1,
-            description: data.manufacturer_model || data.description || undefined,
+            item_price: parsedItemPrice2,
+            item_cost: parsedItemCost2,
+            quantity: parsedQty2,
+            description: desc2,
             insurance_policy_added: data.insured ? (data.insured.toLowerCase() === 'yes' || data.insured === 'true') : false,
             insurance_class: data.insurance_class || undefined,
             replacement_value: data.replacement_value ? parseFloat(data.replacement_value.toString().replace(/[^0-9.-]/g, '')) : undefined,
@@ -328,20 +359,6 @@ export async function importPurchases(
             dep_method: data.dep_method || undefined,
             status: data.status || 'Active',
             kit: data.kit || undefined,
-          });
-        } else if (data.source === '2') {
-          currentGroup.items.push({
-            organization_id: organizationId,
-            purchase_date: data.acquisition_date,
-            vendor: data.vendor,
-            category: data.category,
-            sub_category: data['sub-category'] || undefined,
-            description: data.manufacturer_model || data.description || undefined,
-            line_amount: data.line_amount ? parseFloat(data.line_amount.toString().replace(/[^0-9.-]/g, '')) : undefined,
-            line_cost: data.line_cost ? parseFloat(data.line_cost.toString().replace(/[^0-9.-]/g, '')) : undefined,
-            quantity: data.quantity ? parseInt(data.quantity.toString().replace(/[^0-9.-]/g, '')) : 1,
-            item_price: data.item_price ? parseFloat(data.item_price.toString().replace(/[^0-9.-]/g, '')) : undefined,
-            item_cost: data.item_cost ? parseFloat(data.item_cost.toString().replace(/[^0-9.-]/g, '')) : undefined,
           });
         }
       }

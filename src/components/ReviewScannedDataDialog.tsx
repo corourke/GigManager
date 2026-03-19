@@ -10,6 +10,8 @@ import {
   FileIcon,
   Search,
   Maximize2,
+  ChevronDown,
+  ChevronRight,
   X as CloseIcon
 } from 'lucide-react';
 import { format } from 'date-fns';
@@ -24,18 +26,27 @@ function NumericInput({ value, onChange, placeholder = '0.00', className = '' }:
   className?: string;
 }) {
   const [raw, setRaw] = useState<string | null>(null);
-  const displayed = raw !== null ? raw : (value ? String(value) : '');
+  const displayed = raw !== null ? raw : (value === 0 ? '' : String(value));
 
   return (
     <Input
       type="text"
       value={displayed}
       onChange={e => {
-        const v = e.target.value.replace(/[^0-9.]/g, '');
+        let v = e.target.value.replace(/[^0-9.]/g, '');
+        // Allow only one decimal point
+        const dots = v.split('.').length - 1;
+        if (dots > 1) {
+          const parts = v.split('.');
+          v = parts[0] + '.' + parts.slice(1).join('');
+        }
         setRaw(v);
         const num = parseFloat(v);
-        if (!isNaN(num)) onChange(num);
-        else if (v === '' || v === '.') onChange(0);
+        if (!isNaN(num)) {
+          if (num !== value) onChange(num);
+        } else if (v === '') {
+          if (value !== 0) onChange(0);
+        }
       }}
       onBlur={() => setRaw(null)}
       placeholder={placeholder}
@@ -54,6 +65,11 @@ interface ScannedItem {
   category?: string;
   sub_category?: string;
   equipment_type?: string;
+  kit?: string;
+  serial_number?: string;
+  tag_number?: string;
+  replacement_value?: number;
+  show_extra?: boolean;
 }
 
 interface ScannedData {
@@ -91,6 +107,7 @@ export default function ReviewScannedDataDialog({
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [showFullPreview, setShowFullPreview] = useState(false);
   const [pdfPageImages, setPdfPageImages] = useState<string[]>([]);
+  const [magnifierEnabled, setMagnifierEnabled] = useState(false);
   const [magnifier, setMagnifier] = useState<{ show: boolean; pageX: number; pageY: number; src: string; bgX: number; bgY: number; bgW: number; bgH: number }>({ show: false, pageX: 0, pageY: 0, src: '', bgX: 0, bgY: 0, bgW: 0, bgH: 0 });
 
   useEffect(() => {
@@ -133,8 +150,11 @@ export default function ReviewScannedDataDialog({
 
   useEffect(() => {
     if (scannedData) {
+      const description = scannedData.description
+        || (scannedData.invoice_number ? `Invoice #${scannedData.invoice_number}` : '');
       setFormData(recalculateBurdenedCosts({
         ...scannedData,
+        description,
         items: (scannedData.items || []).map(item => ({
           ...item,
           is_asset: item.is_asset ?? item.is_durable ?? false,
@@ -177,6 +197,8 @@ export default function ReviewScannedDataDialog({
     const relY = e.clientY - rect.top;
     const bgW = rect.width * ZOOM;
     const bgH = rect.height * ZOOM;
+    // To show the point (relX, relY) in the center (MAG_R, MAG_R) of the container:
+    // bgX = center_of_container - (relX_on_original * ZOOM)
     const bgX = MAG_R - relX * ZOOM;
     const bgY = MAG_R - relY * ZOOM;
     setMagnifier({ show: true, pageX: e.clientX, pageY: e.clientY, src, bgX, bgY, bgW, bgH });
@@ -259,7 +281,30 @@ export default function ReviewScannedDataDialog({
         sub_category: item.sub_category || formData.sub_category,
         row_type: item.is_asset ? 'asset' as const : 'item' as const,
       }));
-      const result = await createPurchaseTransaction(header, items);
+
+      const assets = formData.items
+        .filter(item => item.is_asset)
+        .map(item => ({
+          organization_id: organizationId,
+          manufacturer_model: item.description,
+          description: item.description,
+          category: item.category || formData.category,
+          sub_category: item.sub_category || formData.sub_category,
+          equipment_type: item.equipment_type,
+          quantity: item.quantity,
+          item_price: item.item_price,
+          item_cost: item.item_cost,
+          acquisition_date: formData.purchase_date,
+          vendor: formData.vendor,
+          serial_number: item.serial_number,
+          tag_number: item.tag_number,
+          replacement_value: item.replacement_value || item.item_price,
+          kit: item.kit,
+          insurance_policy_added: false,
+          status: 'Active',
+        }));
+
+      const result = await createPurchaseTransaction(header, items, assets);
       if (file) {
         try {
           const attachment = await uploadAttachment(organizationId, file);
@@ -282,7 +327,7 @@ export default function ReviewScannedDataDialog({
     }
   };
 
-  const calculatedTotalCost = formData.items.reduce((sum, item) => sum + (item.item_cost * item.quantity), 0);
+  const calculatedTotalCost = formData.items.reduce((sum, item) => sum + ((item.item_cost ?? 0) * item.quantity), 0);
   const diff = Math.abs(calculatedTotalCost - formData.total_inv_amount);
   const hasMismatch = diff > 0.05;
   const isImage = file?.type.startsWith('image/');
@@ -292,9 +337,9 @@ export default function ReviewScannedDataDialog({
     <img
       src={src}
       alt={alt}
-      style={{ maxWidth: '100%', display: 'block', borderRadius: 4, cursor: 'crosshair' }}
-      onMouseMove={handleImgMouseMove(src)}
-      onMouseLeave={() => setMagnifier(prev => ({ ...prev, show: false }))}
+      style={{ maxWidth: '100%', display: 'block', borderRadius: 4, cursor: magnifierEnabled ? 'crosshair' : 'default', pointerEvents: magnifierEnabled ? 'auto' : 'none' }}
+      onMouseMove={magnifierEnabled ? handleImgMouseMove(src) : undefined}
+      onMouseLeave={magnifierEnabled ? () => setMagnifier(prev => ({ ...prev, show: false })) : undefined}
     />
   );
 
@@ -319,9 +364,9 @@ export default function ReviewScannedDataDialog({
               </DialogPrimitive.Close>
             </div>
 
-            <div style={{ display: 'flex', flex: 1, overflow: 'hidden', minHeight: 0 }}>
+            <div style={{ display: 'flex', flex: '1 1 0', overflow: 'hidden', minHeight: 0, height: 0 }}>
               {/* Preview Panel */}
-              <div style={{ width: '45%', display: 'flex', flexDirection: 'column', overflow: 'hidden', background: '#f3f4f6', borderRight: '1px solid #e5e7eb', position: 'relative' }}>
+              <div style={{ width: '45%', height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden', background: '#f3f4f6', borderRight: '1px solid #e5e7eb', position: 'relative' }}>
                 <button
                   onClick={() => setShowFullPreview(true)}
                   style={{ position: 'absolute', top: 8, right: 8, zIndex: 20, background: 'rgba(255,255,255,0.9)', border: 'none', borderRadius: 4, padding: 6, cursor: 'pointer', boxShadow: '0 1px 3px rgba(0,0,0,0.15)' }}
@@ -348,60 +393,74 @@ export default function ReviewScannedDataDialog({
                   )}
                 </div>
 
-                <div style={{ padding: '3px 12px', borderTop: '1px solid #e5e7eb', background: '#f9fafb', display: 'flex', justifyContent: 'center', gap: 16, fontSize: 10, color: '#9ca3af', flexShrink: 0 }}>
-                  <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><Search className="w-3 h-3" /> Hover to magnify</span>
-                  <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><Maximize2 className="w-3 h-3" /> Full preview</span>
+                <div style={{ padding: '3px 12px', borderTop: '1px solid #e5e7eb', background: '#f9fafb', display: 'flex', justifyContent: 'center', gap: 12, fontSize: 10, color: '#9ca3af', flexShrink: 0 }}>
+                  <button
+                    onClick={() => { setMagnifierEnabled(v => !v); setMagnifier(prev => ({ ...prev, show: false })); }}
+                    style={{ display: 'flex', alignItems: 'center', gap: 4, border: 'none', background: magnifierEnabled ? '#dbeafe' : 'transparent', color: magnifierEnabled ? '#2563eb' : '#9ca3af', borderRadius: 3, padding: '2px 8px', cursor: 'pointer', fontSize: 10, fontWeight: magnifierEnabled ? 600 : 400 }}
+                  >
+                    <Search className="w-3 h-3" /> {magnifierEnabled ? 'Magnifier ON' : 'Magnifier'}
+                  </button>
+                  <button
+                    onClick={() => setShowFullPreview(true)}
+                    style={{ display: 'flex', alignItems: 'center', gap: 4, border: 'none', background: 'transparent', color: '#9ca3af', borderRadius: 3, padding: '2px 8px', cursor: 'pointer', fontSize: 10 }}
+                  >
+                    <Maximize2 className="w-3 h-3" /> Full preview
+                  </button>
                 </div>
               </div>
 
               {/* Form Panel */}
-              <div style={{ width: '55%', display: 'flex', flexDirection: 'column', overflow: 'hidden', background: 'white' }}>
-                <div style={{ flex: 1, overflowY: 'auto', padding: '12px 16px' }}>
+              <div style={{ width: '55%', height: '100%', display: 'flex', flexDirection: 'column', background: 'white' }}>
+                <style>{`.review-form-scroll::-webkit-scrollbar{width:8px}.review-form-scroll::-webkit-scrollbar-track{background:#f1f5f9}.review-form-scroll::-webkit-scrollbar-thumb{background:#cbd5e1;border-radius:4px}.review-form-scroll::-webkit-scrollbar-thumb:hover{background:#94a3b8}`}</style>
+                <div style={{ position: 'relative', flex: '1 1 0', minHeight: 0 }}>
+                <div className="review-form-scroll" style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, overflowY: 'scroll', WebkitOverflowScrolling: 'touch', padding: '12px 16px' }}>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                     {/* Purchase Summary */}
                     <div>
                       <h4 style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#9ca3af', borderBottom: '1px solid #e5e7eb', paddingBottom: 3, marginBottom: 6 }}>Purchase Summary</h4>
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 6 }}>
-                        <div style={{ gridColumn: 'span 2' }}>
-                          <span style={{ fontSize: 9, fontWeight: 600, textTransform: 'uppercase', color: '#6b7280' }}>Vendor</span>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                        <div style={{ flex: '2 1 300px' }}>
+                          <span style={{ fontSize: 8, fontWeight: 600, textTransform: 'uppercase', color: '#6b7280', display: 'block', marginBottom: 1 }}>Vendor</span>
                           <Input
                             value={formData.vendor}
                             onChange={e => handleHeaderChange('vendor', e.target.value)}
                             placeholder="e.g. Sweetwater, B&H, Amazon"
-                            className="h-7 text-xs font-semibold border-gray-300 mt-0.5"
+                            className="h-7 text-xs font-semibold border-gray-300"
                           />
                         </div>
-                        <div>
-                          <span style={{ fontSize: 9, fontWeight: 600, textTransform: 'uppercase', color: '#6b7280' }}>Date</span>
+                        <div style={{ flex: '1 1 120px' }}>
+                          <span style={{ fontSize: 8, fontWeight: 600, textTransform: 'uppercase', color: '#6b7280', display: 'block', marginBottom: 1 }}>Date</span>
                           <Input
                             type="date"
                             value={formData.purchase_date}
                             onChange={e => handleHeaderChange('purchase_date', e.target.value)}
-                            className="h-7 text-xs border-gray-300 mt-0.5"
+                            className="h-7 text-xs border-gray-300"
                           />
                         </div>
-                        <div>
-                          <span style={{ fontSize: 9, fontWeight: 600, textTransform: 'uppercase', color: '#6b7280' }}>Description / Notes</span>
-                          <Input
-                            value={formData.description || ''}
-                            onChange={e => handleHeaderChange('description', e.target.value)}
-                            placeholder="Purchase notes"
-                            className="h-7 text-xs border-gray-300 mt-0.5"
-                          />
-                        </div>
-                        <div>
-                          <span style={{ fontSize: 9, fontWeight: 600, textTransform: 'uppercase', color: '#6b7280' }}>Invoice Total</span>
-                          <div style={{ position: 'relative', marginTop: 2 }}>
-                            <span style={{ position: 'absolute', left: 6, top: '50%', transform: 'translateY(-50%)', color: '#9ca3af', fontSize: 11 }}>$</span>
-                            <NumericInput
-                              value={formData.total_inv_amount}
-                              onChange={v => handleHeaderChange('total_inv_amount', v)}
-                              className="pl-4 h-7 text-xs font-bold text-sky-700 border-gray-300"
+                        <div style={{ width: '100%', display: 'flex', gap: 6 }}>
+                          <div style={{ flex: '2 1 0' }}>
+                            <span style={{ fontSize: 8, fontWeight: 600, textTransform: 'uppercase', color: '#6b7280', display: 'block', marginBottom: 1 }}>Description / Notes</span>
+                            <Input
+                              value={formData.description || ''}
+                              onChange={e => handleHeaderChange('description', e.target.value)}
+                              placeholder="Purchase notes"
+                              className="h-7 text-xs border-gray-300"
                             />
                           </div>
-                        </div>
-                        <div style={{ display: 'flex', alignItems: 'flex-end', paddingBottom: 4 }}>
-                          <p style={{ fontSize: 9, color: '#9ca3af', fontStyle: 'italic', lineHeight: 1.2 }}>Distributed as burdened cost across items.</p>
+                          <div style={{ flex: '0 0 100px' }}>
+                            <span style={{ fontSize: 8, fontWeight: 600, textTransform: 'uppercase', color: '#6b7280', display: 'block', marginBottom: 1 }}>Invoice Total</span>
+                            <div style={{ position: 'relative' }}>
+                              <span style={{ position: 'absolute', left: 4, top: '50%', transform: 'translateY(-50%)', color: '#9ca3af', fontSize: 10 }}>$</span>
+                              <NumericInput
+                                value={formData.total_inv_amount}
+                                onChange={v => handleHeaderChange('total_inv_amount', v)}
+                                className="pl-4 h-7 text-xs font-bold text-sky-700 border-gray-300"
+                              />
+                            </div>
+                          </div>
+                          <div style={{ flex: '1 1 0', display: 'flex', alignItems: 'center', paddingTop: 10 }}>
+                            <p style={{ fontSize: 7, color: '#9ca3af', fontStyle: 'italic', lineHeight: 1, margin: 0 }}>Distributed as burdened cost across items.</p>
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -438,7 +497,12 @@ export default function ReviewScannedDataDialog({
                                 <input
                                   type="checkbox"
                                   checked={item.is_asset}
-                                  onChange={e => handleItemChange(index, 'is_asset', e.target.checked)}
+                                  onChange={e => {
+                                    handleItemChange(index, 'is_asset', e.target.checked);
+                                    if (e.target.checked && !item.show_extra) {
+                                      handleItemChange(index, 'show_extra', true);
+                                    }
+                                  }}
                                   style={{ width: 13, height: 13, borderRadius: 2, accentColor: '#0284c7' }}
                                 />
                               </label>
@@ -465,13 +529,13 @@ export default function ReviewScannedDataDialog({
                               <div style={{ position: 'relative' }}>
                                 <span style={{ position: 'absolute', left: 4, top: '50%', transform: 'translateY(-50%)', color: '#9ca3af', fontSize: 10 }}>$</span>
                                 <NumericInput
-                                  value={Number((item.item_price * item.quantity).toFixed(2))}
+                                  value={Number(((item.item_price ?? 0) * item.quantity).toFixed(2))}
                                   onChange={v => handleLineAmtChange(index, v)}
                                   className="pl-3.5 bg-white border-gray-200 h-6 text-[11px] text-right"
                                 />
                               </div>
                               <div style={{ height: 24, display: 'flex', alignItems: 'center', justifyContent: 'flex-end', padding: '0 4px', background: '#f0f9ff', borderRadius: 3, fontSize: 10, color: '#0369a1', fontWeight: 700, border: '1px solid #e0f2fe' }}>
-                                ${item.item_cost.toFixed(2)}
+                                ${(item.item_cost ?? 0).toFixed(2)}
                               </div>
                               <button
                                 onClick={() => handleRemoveItem(index)}
@@ -485,31 +549,75 @@ export default function ReviewScannedDataDialog({
                             <div style={{ display: 'grid', gridTemplateColumns: '24px 1fr', gap: '0 3px', marginTop: 1 }}>
                               <span />
                               <div style={{ display: 'flex', gap: 3, alignItems: 'center' }}>
-                                <span style={{ fontSize: 8, color: item.is_asset ? '#0284c7' : '#810606', whiteSpace: 'nowrap', fontWeight: 600, width: 40 }}>{item.is_asset ? 'Asset' : 'Expense'}</span>
+                                {item.is_asset ? (
+                                  <button
+                                    onClick={() => handleItemChange(index, 'show_extra', !item.show_extra)}
+                                    style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', display: 'flex', alignItems: 'center', color: '#0284c7' }}
+                                  >
+                                    {item.show_extra ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
+                                    <span style={{ fontSize: 8, color: '#0284c7', whiteSpace: 'nowrap', fontWeight: 600, width: 40, textAlign: 'left', marginLeft: 1 }}>Asset</span>
+                                  </button>
+                                ) : (
+                                  <span style={{ fontSize: 8, color: '#810606', whiteSpace: 'nowrap', fontWeight: 600, width: 40 + 12 }}>Expense</span>
+                                )}
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 1, flex: 1 }}>
+                                  <span style={{ fontSize: 7, color: '#9ca3af', fontWeight: 600, flexShrink: 0 }}>C:</span>
+                                  <Input
+                                    value={item.category || ''}
+                                    onChange={e => handleItemChange(index, 'category', e.target.value)}
+                                    placeholder="Category"
+                                    className="bg-white border-gray-200 h-5 text-[10px] flex-1"
+                                  />
+                                </div>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 1, flex: 1 }}>
+                                  <span style={{ fontSize: 7, color: '#9ca3af', fontWeight: 600, flexShrink: 0 }}>SC:</span>
+                                  <Input
+                                    value={item.sub_category || ''}
+                                    onChange={e => handleItemChange(index, 'sub_category', e.target.value)}
+                                    placeholder="Sub-cat"
+                                    className="bg-white border-gray-200 h-5 text-[10px] flex-1"
+                                  />
+                                </div>
                                 <Input
-                                  value={item.category || ''}
-                                  onChange={e => handleItemChange(index, 'category', e.target.value)}
-                                  placeholder="Category"
+                                  value={item.equipment_type || ''}
+                                  onChange={e => handleItemChange(index, 'equipment_type', e.target.value)}
+                                  placeholder="Type"
                                   className="bg-white border-gray-200 h-5 text-[10px] flex-1"
                                 />
-                                {item.is_asset && (
-                                  <>
-                                    <Input
-                                      value={item.sub_category || ''}
-                                      onChange={e => handleItemChange(index, 'sub_category', e.target.value)}
-                                      placeholder="Sub-cat"
-                                      className="bg-white border-gray-200 h-5 text-[10px] flex-1"
-                                    />
-                                    <Input
-                                      value={item.equipment_type || ''}
-                                      onChange={e => handleItemChange(index, 'equipment_type', e.target.value)}
-                                      placeholder="Type"
-                                      className="bg-white border-gray-200 h-5 text-[10px] flex-1"
-                                    />
-                                  </>
-                                )}
                               </div>
                             </div>
+                            {item.is_asset && item.show_extra && (
+                              <div style={{ display: 'grid', gridTemplateColumns: '24px 1fr 1fr 1fr 72px', gap: '0 3px', marginTop: 2, paddingBottom: 2 }}>
+                                <span />
+                                <Input
+                                  value={item.kit || ''}
+                                  onChange={e => handleItemChange(index, 'kit', e.target.value)}
+                                  placeholder="Kit name"
+                                  className="bg-white border-gray-200 h-5 text-[10px]"
+                                />
+                                <Input
+                                  value={item.serial_number || ''}
+                                  onChange={e => handleItemChange(index, 'serial_number', e.target.value)}
+                                  placeholder="Serial #"
+                                  className="bg-white border-gray-200 h-5 text-[10px]"
+                                />
+                                <Input
+                                  value={item.tag_number || ''}
+                                  onChange={e => handleItemChange(index, 'tag_number', e.target.value)}
+                                  placeholder="Tag #"
+                                  className="bg-white border-gray-200 h-5 text-[10px]"
+                                />
+                                <div style={{ position: 'relative' }}>
+                                  <span style={{ position: 'absolute', left: 4, top: '50%', transform: 'translateY(-50%)', color: '#9ca3af', fontSize: 9 }}>$</span>
+                                  <NumericInput
+                                    value={item.replacement_value || 0}
+                                    onChange={v => handleItemChange(index, 'replacement_value', v)}
+                                    placeholder="Replace Value"
+                                    className="pl-3.5 bg-white border-gray-200 h-5 text-[10px] text-right"
+                                  />
+                                </div>
+                              </div>
+                            )}
                           </div>
                         ))}
                       </div>
@@ -532,6 +640,7 @@ export default function ReviewScannedDataDialog({
                       </span>
                     </div>
                   </div>
+                </div>
                 </div>
 
                 {/* Footer */}

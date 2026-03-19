@@ -299,6 +299,165 @@ $$;
 ALTER FUNCTION "public"."create_gig_complex"("p_gig_data" "jsonb", "p_participants" "jsonb", "p_staff_slots" "jsonb") OWNER TO "postgres";
 
 
+CREATE OR REPLACE FUNCTION "public"."create_purchase_transaction_v1"("p_header" "jsonb", "p_items" "jsonb"[], "p_assets" "jsonb"[]) RETURNS "jsonb"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    AS $$
+DECLARE
+  v_header_id uuid;
+  v_item jsonb;
+  v_asset jsonb;
+  v_asset_id uuid;
+  v_purchase_row_id uuid;
+  v_result jsonb;
+  v_asset_purchase_ids uuid[];
+  v_row_type text;
+  v_idx int;
+BEGIN
+  -- 1. Insert Header
+  INSERT INTO public.purchases (
+    organization_id,
+    gig_id,
+    row_type,
+    purchase_date,
+    vendor,
+    total_inv_amount,
+    payment_method,
+    description,
+    category,
+    sub_category,
+    created_by,
+    updated_by
+  ) VALUES (
+    (p_header->>'organization_id')::uuid,
+    (p_header->>'gig_id')::uuid,
+    'header',
+    (p_header->>'purchase_date')::date,
+    p_header->>'vendor',
+    (p_header->>'total_inv_amount')::numeric,
+    p_header->>'payment_method',
+    p_header->>'description',
+    p_header->>'category',
+    p_header->>'sub_category',
+    auth.uid(),
+    auth.uid()
+  ) RETURNING id INTO v_header_id;
+
+  -- 2. Insert ALL items into purchases (both expenses and assets)
+  v_asset_purchase_ids := '{}';
+  FOREACH v_item IN ARRAY p_items LOOP
+    v_row_type := COALESCE(v_item->>'row_type', 'item');
+
+    INSERT INTO public.purchases (
+      organization_id,
+      parent_id,
+      row_type,
+      purchase_date,
+      vendor,
+      line_amount,
+      line_cost,
+      quantity,
+      item_price,
+      item_cost,
+      description,
+      category,
+      sub_category,
+      created_by,
+      updated_by
+    ) VALUES (
+      (v_item->>'organization_id')::uuid,
+      v_header_id,
+      v_row_type,
+      (v_item->>'purchase_date')::date,
+      v_item->>'vendor',
+      (v_item->>'line_amount')::numeric,
+      (v_item->>'line_cost')::numeric,
+      (v_item->>'quantity')::numeric,
+      (v_item->>'item_price')::numeric,
+      (v_item->>'item_cost')::numeric,
+      v_item->>'description',
+      v_item->>'category',
+      v_item->>'sub_category',
+      auth.uid(),
+      auth.uid()
+    ) RETURNING id INTO v_purchase_row_id;
+
+    IF v_row_type = 'asset' THEN
+      v_asset_purchase_ids := v_asset_purchase_ids || v_purchase_row_id;
+    END IF;
+  END LOOP;
+
+  -- 3. Insert assets into assets table and link back to their purchase rows
+  v_idx := 1;
+  FOREACH v_asset IN ARRAY p_assets LOOP
+    INSERT INTO public.assets (
+      organization_id,
+      purchase_id,
+      acquisition_date,
+      vendor,
+      item_price,
+      item_cost,
+      category,
+      sub_category,
+      manufacturer_model,
+      type,
+      serial_number,
+      description,
+      replacement_value,
+      quantity,
+      tag_number,
+      status,
+      retired_on,
+      service_life,
+      dep_method,
+      liquidation_amt,
+      insurance_policy_added,
+      insurance_class,
+      created_by,
+      updated_by
+    ) VALUES (
+      (v_asset->>'organization_id')::uuid,
+      v_header_id,
+      (v_asset->>'acquisition_date')::date,
+      v_asset->>'vendor',
+      (v_asset->>'item_price')::numeric,
+      (v_asset->>'item_cost')::numeric,
+      v_asset->>'category',
+      v_asset->>'sub_category',
+      v_asset->>'manufacturer_model',
+      v_asset->>'type',
+      v_asset->>'serial_number',
+      v_asset->>'description',
+      (v_asset->>'replacement_value')::numeric,
+      (v_asset->>'quantity')::numeric,
+      v_asset->>'tag_number',
+      v_asset->>'status',
+      (v_asset->>'retired_on')::date,
+      (v_asset->>'service_life')::numeric,
+      v_asset->>'dep_method',
+      (v_asset->>'liquidation_amt')::numeric,
+      (v_asset->>'insurance_policy_added')::boolean,
+      v_asset->>'insurance_class',
+      auth.uid(),
+      auth.uid()
+    ) RETURNING id INTO v_asset_id;
+
+    IF v_idx <= array_length(v_asset_purchase_ids, 1) THEN
+      UPDATE public.purchases
+        SET asset_id = v_asset_id
+        WHERE id = v_asset_purchase_ids[v_idx];
+    END IF;
+    v_idx := v_idx + 1;
+  END LOOP;
+
+  SELECT jsonb_build_object('id', v_header_id) INTO v_result;
+  RETURN v_result;
+END;
+$$;
+
+
+ALTER FUNCTION "public"."create_purchase_transaction_v1"("p_header" "jsonb", "p_items" "jsonb"[], "p_assets" "jsonb"[]) OWNER TO "postgres";
+
+
 CREATE OR REPLACE FUNCTION "public"."get_complete_user_data"("user_uuid" "uuid") RETURNS "jsonb"
     LANGUAGE "plpgsql" STABLE SECURITY DEFINER
     SET "search_path" TO 'public'
@@ -1037,7 +1196,7 @@ CREATE TABLE IF NOT EXISTS "public"."assets" (
     "organization_id" "uuid" NOT NULL,
     "acquisition_date" "date" NOT NULL,
     "vendor" "text",
-    "cost" numeric(10,2),
+    "item_cost" numeric(10,2),
     "category" "text" NOT NULL,
     "sub_category" "text",
     "insurance_policy_added" boolean DEFAULT false NOT NULL,
@@ -1047,20 +1206,50 @@ CREATE TABLE IF NOT EXISTS "public"."assets" (
     "description" "text",
     "replacement_value" numeric(10,2),
     "insurance_class" "text",
-    "quantity" integer DEFAULT 1,
+    "quantity" numeric(12,4) DEFAULT 1,
     "created_by" "uuid" NOT NULL,
     "updated_by" "uuid" NOT NULL,
     "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
     "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL,
     "tag_number" "text",
     "status" "text" DEFAULT 'Active'::"text" NOT NULL,
-    "service_life" integer,
+    "service_life" numeric,
     "dep_method" "text",
-    "liquidation_amt" numeric(10,2)
+    "liquidation_amt" numeric(10,2),
+    "item_price" numeric(10,2),
+    "retired_on" "date",
+    "purchase_id" "uuid"
 );
 
 
 ALTER TABLE "public"."assets" OWNER TO "postgres";
+
+
+CREATE TABLE IF NOT EXISTS "public"."attachments" (
+    "id" "uuid" DEFAULT "extensions"."uuid_generate_v4"() NOT NULL,
+    "organization_id" "uuid" NOT NULL,
+    "file_path" "text" NOT NULL,
+    "file_name" "text" NOT NULL,
+    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    "created_by" "uuid" DEFAULT "auth"."uid"()
+);
+
+
+ALTER TABLE "public"."attachments" OWNER TO "postgres";
+
+
+CREATE TABLE IF NOT EXISTS "public"."entity_attachments" (
+    "id" "uuid" DEFAULT "extensions"."uuid_generate_v4"() NOT NULL,
+    "attachment_id" "uuid" NOT NULL,
+    "entity_type" "text" NOT NULL,
+    "entity_id" "uuid" NOT NULL,
+    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    "created_by" "uuid" DEFAULT "auth"."uid"(),
+    CONSTRAINT "entity_attachments_entity_type_check" CHECK (("entity_type" = ANY (ARRAY['asset'::"text", 'gig'::"text", 'purchase'::"text"])))
+);
+
+
+ALTER TABLE "public"."entity_attachments" OWNER TO "postgres";
 
 
 CREATE TABLE IF NOT EXISTS "public"."gig_financials" (
@@ -1319,6 +1508,36 @@ CREATE TABLE IF NOT EXISTS "public"."organizations" (
 ALTER TABLE "public"."organizations" OWNER TO "postgres";
 
 
+CREATE TABLE IF NOT EXISTS "public"."purchases" (
+    "id" "uuid" DEFAULT "extensions"."uuid_generate_v4"() NOT NULL,
+    "organization_id" "uuid" NOT NULL,
+    "gig_id" "uuid",
+    "parent_id" "uuid",
+    "row_type" "text" NOT NULL,
+    "purchase_date" "date",
+    "vendor" "text",
+    "total_inv_amount" numeric(10,2),
+    "payment_method" "text",
+    "line_amount" numeric(10,2),
+    "line_cost" numeric(10,2),
+    "quantity" numeric(12,4),
+    "item_price" numeric(10,2),
+    "item_cost" numeric(10,2),
+    "description" "text",
+    "category" "text",
+    "sub_category" "text",
+    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    "created_by" "uuid" DEFAULT "auth"."uid"(),
+    "updated_by" "uuid" DEFAULT "auth"."uid"(),
+    "asset_id" "uuid",
+    CONSTRAINT "purchases_row_type_check" CHECK (("row_type" = ANY (ARRAY['header'::"text", 'item'::"text", 'asset'::"text"])))
+);
+
+
+ALTER TABLE "public"."purchases" OWNER TO "postgres";
+
+
 CREATE TABLE IF NOT EXISTS "public"."staff_roles" (
     "id" "uuid" DEFAULT "extensions"."uuid_generate_v4"() NOT NULL,
     "name" "text" NOT NULL,
@@ -1370,6 +1589,16 @@ ALTER TABLE ONLY "public"."asset_status_history"
 
 ALTER TABLE ONLY "public"."assets"
     ADD CONSTRAINT "assets_pkey" PRIMARY KEY ("id");
+
+
+
+ALTER TABLE ONLY "public"."attachments"
+    ADD CONSTRAINT "attachments_pkey" PRIMARY KEY ("id");
+
+
+
+ALTER TABLE ONLY "public"."entity_attachments"
+    ADD CONSTRAINT "entity_attachments_pkey" PRIMARY KEY ("id");
 
 
 
@@ -1475,6 +1704,11 @@ ALTER TABLE ONLY "public"."organization_members"
 
 ALTER TABLE ONLY "public"."organizations"
     ADD CONSTRAINT "organizations_pkey" PRIMARY KEY ("id");
+
+
+
+ALTER TABLE ONLY "public"."purchases"
+    ADD CONSTRAINT "purchases_pkey" PRIMARY KEY ("id");
 
 
 
@@ -1715,6 +1949,10 @@ CREATE OR REPLACE TRIGGER "update_organizations_updated_at" BEFORE UPDATE ON "pu
 
 
 
+CREATE OR REPLACE TRIGGER "update_purchases_updated_at" BEFORE UPDATE ON "public"."purchases" FOR EACH ROW EXECUTE FUNCTION "public"."update_updated_at_column"();
+
+
+
 CREATE OR REPLACE TRIGGER "update_staff_roles_updated_at" BEFORE UPDATE ON "public"."staff_roles" FOR EACH ROW EXECUTE FUNCTION "public"."update_updated_at_column"();
 
 
@@ -1739,6 +1977,21 @@ ALTER TABLE ONLY "public"."asset_status_history"
 
 ALTER TABLE ONLY "public"."assets"
     ADD CONSTRAINT "assets_organization_id_fkey" FOREIGN KEY ("organization_id") REFERENCES "public"."organizations"("id") ON DELETE CASCADE;
+
+
+
+ALTER TABLE ONLY "public"."assets"
+    ADD CONSTRAINT "assets_purchase_id_fkey" FOREIGN KEY ("purchase_id") REFERENCES "public"."purchases"("id") ON DELETE SET NULL;
+
+
+
+ALTER TABLE ONLY "public"."attachments"
+    ADD CONSTRAINT "attachments_organization_id_fkey" FOREIGN KEY ("organization_id") REFERENCES "public"."organizations"("id") ON DELETE CASCADE;
+
+
+
+ALTER TABLE ONLY "public"."entity_attachments"
+    ADD CONSTRAINT "entity_attachments_attachment_id_fkey" FOREIGN KEY ("attachment_id") REFERENCES "public"."attachments"("id") ON DELETE CASCADE;
 
 
 
@@ -1902,6 +2155,26 @@ ALTER TABLE ONLY "public"."organization_members"
 
 
 
+ALTER TABLE ONLY "public"."purchases"
+    ADD CONSTRAINT "purchases_asset_id_fkey" FOREIGN KEY ("asset_id") REFERENCES "public"."assets"("id") ON DELETE SET NULL;
+
+
+
+ALTER TABLE ONLY "public"."purchases"
+    ADD CONSTRAINT "purchases_gig_id_fkey" FOREIGN KEY ("gig_id") REFERENCES "public"."gigs"("id") ON DELETE SET NULL;
+
+
+
+ALTER TABLE ONLY "public"."purchases"
+    ADD CONSTRAINT "purchases_organization_id_fkey" FOREIGN KEY ("organization_id") REFERENCES "public"."organizations"("id") ON DELETE CASCADE;
+
+
+
+ALTER TABLE ONLY "public"."purchases"
+    ADD CONSTRAINT "purchases_parent_id_fkey" FOREIGN KEY ("parent_id") REFERENCES "public"."purchases"("id") ON DELETE CASCADE;
+
+
+
 ALTER TABLE ONLY "public"."user_devices"
     ADD CONSTRAINT "user_devices_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "auth"."users"("id") ON DELETE CASCADE;
 
@@ -1932,6 +2205,16 @@ CREATE POLICY "Admins and Managers can manage assets" ON "public"."assets" USING
 
 
 
+CREATE POLICY "Admins and Managers can manage attachments" ON "public"."attachments" USING ("public"."user_is_admin_or_manager_of_org"("organization_id", "auth"."uid"()));
+
+
+
+CREATE POLICY "Admins and Managers can manage entity attachments" ON "public"."entity_attachments" USING ((EXISTS ( SELECT 1
+   FROM "public"."attachments" "a"
+  WHERE (("a"."id" = "entity_attachments"."attachment_id") AND "public"."user_is_admin_or_manager_of_org"("a"."organization_id", "auth"."uid"())))));
+
+
+
 CREATE POLICY "Admins and Managers can manage gig bids" ON "public"."gig_financials" USING ("public"."user_can_manage_gig"("gig_id", "auth"."uid"()));
 
 
@@ -1955,6 +2238,10 @@ CREATE POLICY "Admins and Managers can manage kit assignments" ON "public"."gig_
 
 
 CREATE POLICY "Admins and Managers can manage kits" ON "public"."kits" USING ("public"."user_is_admin_or_manager_of_org"("organization_id", "auth"."uid"()));
+
+
+
+CREATE POLICY "Admins and Managers can manage purchases" ON "public"."purchases" USING ("public"."user_is_admin_or_manager_of_org"("organization_id", "auth"."uid"()));
 
 
 
@@ -2066,6 +2353,12 @@ CREATE POLICY "Users can view assignments for accessible gigs" ON "public"."gig_
 
 
 
+CREATE POLICY "Users can view entity attachments" ON "public"."entity_attachments" FOR SELECT USING ((EXISTS ( SELECT 1
+   FROM "public"."attachments" "a"
+  WHERE (("a"."id" = "entity_attachments"."attachment_id") AND "public"."user_is_member_of_org"("a"."organization_id", "auth"."uid"())))));
+
+
+
 CREATE POLICY "Users can view gig sync status" ON "public"."gig_sync_status" FOR SELECT USING ((("auth"."uid"() = "user_id") OR (EXISTS ( SELECT 1
    FROM "public"."gigs" "g"
   WHERE (("g"."id" = "gig_sync_status"."gig_id") AND (("g"."created_by" = "auth"."uid"()) OR (EXISTS ( SELECT 1
@@ -2120,7 +2413,15 @@ CREATE POLICY "Users can view their organization's assets" ON "public"."assets" 
 
 
 
+CREATE POLICY "Users can view their organization's attachments" ON "public"."attachments" FOR SELECT USING ("public"."user_is_member_of_org"("organization_id", "auth"."uid"()));
+
+
+
 CREATE POLICY "Users can view their organization's kits" ON "public"."kits" FOR SELECT USING ("public"."user_is_member_of_org"("organization_id", "auth"."uid"()));
+
+
+
+CREATE POLICY "Users can view their organization's purchases" ON "public"."purchases" FOR SELECT USING ("public"."user_is_member_of_org"("organization_id", "auth"."uid"()));
 
 
 
@@ -2132,6 +2433,12 @@ ALTER TABLE "public"."asset_status_history" ENABLE ROW LEVEL SECURITY;
 
 
 ALTER TABLE "public"."assets" ENABLE ROW LEVEL SECURITY;
+
+
+ALTER TABLE "public"."attachments" ENABLE ROW LEVEL SECURITY;
+
+
+ALTER TABLE "public"."entity_attachments" ENABLE ROW LEVEL SECURITY;
 
 
 ALTER TABLE "public"."gig_financials" ENABLE ROW LEVEL SECURITY;
@@ -2184,6 +2491,9 @@ ALTER TABLE "public"."organization_members" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "public"."organizations" ENABLE ROW LEVEL SECURITY;
 
 
+ALTER TABLE "public"."purchases" ENABLE ROW LEVEL SECURITY;
+
+
 CREATE POLICY "self_insert" ON "public"."users" FOR INSERT TO "authenticated" WITH CHECK (("auth"."uid"() = "id"));
 
 
@@ -2224,6 +2534,12 @@ GRANT ALL ON FUNCTION "public"."convert_pending_user_to_active"("p_email" "text"
 GRANT ALL ON FUNCTION "public"."create_gig_complex"("p_gig_data" "jsonb", "p_participants" "jsonb", "p_staff_slots" "jsonb") TO "anon";
 GRANT ALL ON FUNCTION "public"."create_gig_complex"("p_gig_data" "jsonb", "p_participants" "jsonb", "p_staff_slots" "jsonb") TO "authenticated";
 GRANT ALL ON FUNCTION "public"."create_gig_complex"("p_gig_data" "jsonb", "p_participants" "jsonb", "p_staff_slots" "jsonb") TO "service_role";
+
+
+
+GRANT ALL ON FUNCTION "public"."create_purchase_transaction_v1"("p_header" "jsonb", "p_items" "jsonb"[], "p_assets" "jsonb"[]) TO "anon";
+GRANT ALL ON FUNCTION "public"."create_purchase_transaction_v1"("p_header" "jsonb", "p_items" "jsonb"[], "p_assets" "jsonb"[]) TO "authenticated";
+GRANT ALL ON FUNCTION "public"."create_purchase_transaction_v1"("p_header" "jsonb", "p_items" "jsonb"[], "p_assets" "jsonb"[]) TO "service_role";
 
 
 
@@ -2366,6 +2682,18 @@ GRANT ALL ON TABLE "public"."assets" TO "service_role";
 
 
 
+GRANT ALL ON TABLE "public"."attachments" TO "anon";
+GRANT ALL ON TABLE "public"."attachments" TO "authenticated";
+GRANT ALL ON TABLE "public"."attachments" TO "service_role";
+
+
+
+GRANT ALL ON TABLE "public"."entity_attachments" TO "anon";
+GRANT ALL ON TABLE "public"."entity_attachments" TO "authenticated";
+GRANT ALL ON TABLE "public"."entity_attachments" TO "service_role";
+
+
+
 GRANT ALL ON TABLE "public"."gig_financials" TO "anon";
 GRANT ALL ON TABLE "public"."gig_financials" TO "authenticated";
 GRANT ALL ON TABLE "public"."gig_financials" TO "service_role";
@@ -2453,6 +2781,12 @@ GRANT ALL ON TABLE "public"."organization_members" TO "service_role";
 GRANT ALL ON TABLE "public"."organizations" TO "anon";
 GRANT ALL ON TABLE "public"."organizations" TO "authenticated";
 GRANT ALL ON TABLE "public"."organizations" TO "service_role";
+
+
+
+GRANT ALL ON TABLE "public"."purchases" TO "anon";
+GRANT ALL ON TABLE "public"."purchases" TO "authenticated";
+GRANT ALL ON TABLE "public"."purchases" TO "service_role";
 
 
 
