@@ -138,6 +138,7 @@ const AppHeader = React.memo(function AppHeader({
             onNavigateToGigs={navigation.onNavigateToGigs}
             onNavigateToTeam={navigation.onNavigateToTeam}
             onNavigateToAssets={navigation.onNavigateToAssets}
+            onNavigateToFinancials={navigation.onNavigateToFinancials}
           />
         )}
       </div>

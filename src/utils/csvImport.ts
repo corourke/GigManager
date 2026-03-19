@@ -41,19 +41,38 @@ export interface GigRow {
 }
 
 export interface AssetRow {
-  category: string;
-  'sub-category'?: string;
-  manufacturer_model: string;
-  equipment_type?: string;
-  serial_number?: string;
   acquisition_date: string;
+  source: string; // "0-Invoice", "1-Asset", "2-Expense"
   vendor?: string;
-  cost_per_item?: string;
+  total_inv_amount?: string;
+  payment_method?: string;
+  line_amount?: string;
+  line_cost?: string;
   quantity?: string;
-  replacement_value_per_item?: string;
+  item_price?: string;
+  item_cost?: string;
+  manufacturer_model: string;
+  category: string;
+  sub_category?: string;
+  type?: string;
+  kit?: string;
+  serial_number?: string;
+  tag_number?: string;
+  description?: string;
   insured?: string;
+  insurance_class?: string;
+  replacement_value?: string;
+  retired_on?: string;
+  liquidation_amt?: string;
+  service_life?: string;
+  dep_method?: string;
+  status?: string;
+  // Legacy aliases for backward compatibility during transition
+  cost_per_item?: string;
+  replacement_value_per_item?: string;
   insurance_category?: string;
   notes?: string;
+  equipment_type?: string;
 }
 
 const GIG_STATUSES = Object.keys(GIG_STATUS_CONFIG);
@@ -324,70 +343,285 @@ export function validateGigRow(row: any, rowIndex: number, userTimezone?: string
   };
 }
 
-export function validateAssetRow(row: any, rowIndex: number): ParsedRow<AssetRow> {
-  const errors: ValidationError[] = [];
-  const data: AssetRow = {
-    category: row.category || '',
-    'sub-category': row['sub-category'] || row['sub_category'] || '',
-    manufacturer_model: row.manufacturer_model || '',
-    equipment_type: row.equipment_type || '',
-    serial_number: row.serial_number || '',
-    acquisition_date: row.acquisition_date || '',
-    vendor: row.vendor || '',
-    cost_per_item: row.cost_per_item || '',
-    quantity: row.quantity || '',
-    replacement_value_per_item: row.replacement_value_per_item || '',
-    insured: row.insured || '',
-    insurance_category: row.insurance_category || '',
-    notes: row.notes || '',
-  };
+/**
+ * Calculate pro-rata cost allocation factor and apply to rows
+ * Factor = Invoice Total / Sum(Unit Price * Quantity)
+ */
+/**
+ * REUSABLE LOGIC FOR CALCULATING ITEM COSTS
+ * This logic tree applies to both CSV imports and AI extraction pipelines.
+ * 
+ * Rules:
+ * 1. Default Quantity = 1 if missing.
+ * 2. Path A ("Cost" Row): If line_cost or item_cost is present, use it directly (burdened).
+ * 3. Path B ("Price" Row): If line_amount or item_price is present, it must be scaled by a factor.
+ * 4. Total Check: sum(line_cost) must equal total_inv_amount.
+ * 5. Penny Reconciliation: Adjust the last item in the group to match the total.
+ */
+export function applyCostAllocation(
+  headerRow: AssetRow,
+  itemRows: ParsedRow<AssetRow>[]
+): void {
+  const invoiceTotalStr = headerRow.total_inv_amount?.replace(/[^0-9.-]/g, '') || '';
+  const invoiceTotal = invoiceTotalStr ? parseFloat(invoiceTotalStr) : 0;
+  
+  // Step 1 & 2: Resolve Quantity and categorize rows
+  let sumLineAmountForPriceRows = 0;
+  
+  itemRows.forEach(row => {
+    const data = row.data;
+    
+    // 1. Resolve Quantity
+    const qtyStr = data.quantity?.toString().replace(/[^0-9.-]/g, '') || '';
+    const q = qtyStr ? Math.max(1, parseFloat(qtyStr)) : 1;
+    data.quantity = q.toString();
 
-  // Required fields
-  if (!data.category.trim()) {
-    errors.push({ field: 'category', message: 'Category is required' });
-  }
+    // 2. Identify Path
+    const lineCostStr = data.line_cost?.toString().replace(/[^0-9.-]/g, '') || '';
+    const itemCostStr = data.item_cost?.toString().replace(/[^0-9.-]/g, '') || '';
+    const lineAmountStr = data.line_amount?.toString().replace(/[^0-9.-]/g, '') || '';
+    const itemPriceStr = data.item_price?.toString().replace(/[^0-9.-]/g, '') || '';
 
-  if (!data.manufacturer_model.trim()) {
-    errors.push({ field: 'manufacturer_model', message: 'Manufacturer/Model is required' });
-  }
+    if (lineCostStr || itemCostStr) {
+      // Path A: "Cost" Row
+      let lc = lineCostStr ? parseFloat(lineCostStr) : 0;
+      let ic = itemCostStr ? parseFloat(itemCostStr) : 0;
 
-  if (!data.acquisition_date.trim()) {
-    errors.push({ field: 'acquisition_date', message: 'Acquisition date is required' });
-  } else {
-    const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
-    if (!dateRegex.test(data.acquisition_date)) {
-      errors.push({ field: 'acquisition_date', message: `Invalid acquisition date "${data.acquisition_date}". Use YYYY-MM-DD format (e.g., 2024-01-15)` });
+      if (!lineCostStr && itemCostStr) {
+        lc = ic * q;
+      } else if (!itemCostStr && lineCostStr) {
+        ic = lc / q;
+      }
+      
+      data.line_cost = (Math.round(lc * 100) / 100).toFixed(2);
+      data.item_cost = (Math.round(ic * 100) / 100).toFixed(2);
+      (row as any)._allocationPath = 'cost';
+    } else if (lineAmountStr || itemPriceStr) {
+      // Path B: "Price" Row
+      let la = lineAmountStr ? parseFloat(lineAmountStr) : 0;
+      let ip = itemPriceStr ? parseFloat(itemPriceStr) : 0;
+
+      if (!lineAmountStr && itemPriceStr) {
+        la = ip * q;
+      } else if (!itemPriceStr && lineAmountStr) {
+        ip = la / q;
+      }
+
+      data.line_amount = (Math.round(la * 100) / 100).toFixed(2);
+      data.item_price = (Math.round(ip * 100) / 100).toFixed(2);
+      sumLineAmountForPriceRows += Math.round(la * 100) / 100;
+      (row as any)._allocationPath = 'price';
     } else {
-      const date = new Date(data.acquisition_date);
-      if (isNaN(date.getTime())) {
-        errors.push({ field: 'acquisition_date', message: `Invalid acquisition date "${data.acquisition_date}". Must be a valid date in YYYY-MM-DD format` });
+      // Path C: Invalid
+      row.isValid = false;
+      row.errors.push({ field: 'item_cost', message: 'Cannot compute cost: No price or cost information provided.' });
+    }
+  });
+
+  // Step 4: Calculate Factor (F)
+  // Only applied to "Price" rows. "Cost" rows remain fixed.
+  let factor = 1.0;
+  if (sumLineAmountForPriceRows > 0 && invoiceTotal > 0) {
+    // We need to know the sum of FIXED costs to find the remaining balance for price rows
+    const sumFixedLineCosts = itemRows.reduce((sum, row) => {
+      if ((row as any)._allocationPath === 'cost') {
+        return sum + (parseFloat(row.data.line_cost || '0') || 0);
+      }
+      return sum;
+    }, 0);
+
+    const remainingBalance = invoiceTotal - sumFixedLineCosts;
+    factor = remainingBalance / sumLineAmountForPriceRows;
+  }
+
+  // Step 5: Final Resolution & Penny Reconciliation
+  itemRows.filter(r => r.isValid).forEach(row => {
+    const data = row.data;
+    const q = parseFloat(data.quantity || '1');
+
+    if ((row as any)._allocationPath === 'price') {
+      const la = parseFloat(data.line_amount || '0');
+      const finalLC = la * factor;
+      data.line_cost = (Math.round(finalLC * 100) / 100).toFixed(2);
+    }
+    // item_cost is always line_cost / quantity
+    const lc = parseFloat(data.line_cost || '0');
+    data.item_cost = (Math.round((lc / q) * 100) / 100).toFixed(2);
+  });
+
+  // Penny Reconciliation - Adjust the LAST row in the group
+  if (invoiceTotal > 0) {
+    const validRows = itemRows.filter(r => r.isValid);
+    if (validRows.length > 0) {
+      const currentSum = validRows.reduce((sum, row) => sum + parseFloat(row.data.line_cost || '0'), 0);
+      const difference = Math.round((invoiceTotal - currentSum) * 100) / 100;
+      
+      if (Math.abs(difference) > 0) {
+        const lastRow = validRows[validRows.length - 1];
+        const newLC = parseFloat(lastRow.data.line_cost || '0') + difference;
+        const q = parseFloat(lastRow.data.quantity || '1');
+        
+        lastRow.data.line_cost = newLC.toFixed(2);
+        lastRow.data.item_cost = (Math.round((newLC / q) * 100) / 100).toFixed(2);
       }
     }
   }
+}
+export function validateAssetRow(row: any, rowIndex: number): ParsedRow<AssetRow> {
+  const errors: ValidationError[] = [];
+  
+  // Basic data extraction with legacy support
+  const data: AssetRow = {
+    acquisition_date: row.acquisition_date || '',
+    source: row.source || '1', // Default to Asset (1) if not specified for legacy compatibility
+    vendor: row.vendor || '',
+    total_inv_amount: row.total_inv_amount || '',
+    payment_method: row.payment_method || '',
+    line_amount: row.line_amount || '',
+    line_cost: row.line_cost || '',
+    quantity: row.quantity || '',
+    item_price: row.item_price || '',
+    item_cost: row.item_cost || row.cost_per_item || '',
+    manufacturer_model: row.manufacturer_model || row.description || row.notes || '',
+    category: row.category || '',
+    'sub-category': row['sub-category'] || row['sub_category'] || '',
+    type: row.type || row.equipment_type || '',
+    kit: row.kit || '',
+    serial_number: row.serial_number || '',
+    tag_number: row.tag_number || '',
+    description: row.description || row.notes || '',
+    insured: row.insured || '',
+    insurance_class: row.insurance_class || row.insurance_category || '',
+    replacement_value: row.replacement_value || row.replacement_value_per_item || '',
+    retired_on: row.retired_on || '',
+    liquidation_amt: row.liquidation_amt || '',
+    service_life: row.service_life || '',
+    dep_method: row.dep_method || '',
+    status: row.status || '',
+    // Legacy aliases
+    cost_per_item: row.cost_per_item || '',
+    replacement_value_per_item: row.replacement_value_per_item || '',
+    insurance_category: row.insurance_category || '',
+    notes: row.notes || '',
+    equipment_type: row.equipment_type || '',
+  };
 
-  // Optional numeric validation
-  if (data.cost_per_item && data.cost_per_item.trim()) {
-    const cost = parseFloat(data.cost_per_item);
-    if (isNaN(cost)) {
-      errors.push({ field: 'cost_per_item', message: `Invalid cost "${data.cost_per_item}". Must be a number (e.g., 99.99, 0)` });
-    } else if (cost < 0) {
-      errors.push({ field: 'cost_per_item', message: 'Cost per item cannot be negative. Use 0 for free items.' });
+  // 1. Source validation
+  let normalizedSource = data.source;
+  if (data.source.startsWith('0')) normalizedSource = '0';
+  else if (data.source.startsWith('1')) normalizedSource = '1';
+  else if (data.source.startsWith('2')) normalizedSource = '2';
+
+  const validSources = ['0-Invoice', '1-Asset', '2-Expense', '0', '1', '2'];
+  if (!validSources.includes(data.source)) {
+    errors.push({ field: 'source', message: `Invalid source "${data.source}". Must be "0-Invoice", "1-Asset", or "2-Expense".` });
+  } else {
+    // Normalize source for easier internal processing
+    data.source = normalizedSource;
+  }
+
+  // 2. Conditional required fields based on Source
+  if (data.source === '0') {
+    // Header Row
+    if (!data.acquisition_date.trim()) {
+      errors.push({ field: 'acquisition_date', message: 'Acquisition date is required for Header rows' });
+    }
+    if (!data.vendor.trim()) {
+      errors.push({ field: 'vendor', message: 'Vendor is required for Header rows' });
+    }
+    if (!data.total_inv_amount.trim()) {
+      errors.push({ field: 'total_inv_amount', message: 'Total Invoice Amount is required for Header rows' });
+    }
+  } else if (data.source === '1') {
+    // Asset Row
+    if (!data.category.trim()) {
+      errors.push({ field: 'category', message: 'Category is required for Asset rows' });
+    }
+    if (!data.manufacturer_model.trim()) {
+      errors.push({ field: 'manufacturer_model', message: 'Manufacturer/Model is required for Asset rows' });
+    }
+    
+    const hasFinancials = data.line_amount.trim() || data.item_price.trim() || data.line_cost.trim() || data.item_cost.trim();
+    if (!hasFinancials) {
+      errors.push({ field: 'item_cost', message: 'Price or Cost information is required for Asset rows' });
+    }
+  } else if (data.source === '2') {
+    // Expense/Item Row
+    if (!data.category.trim()) {
+      errors.push({ field: 'category', message: 'Category is required for Expense items' });
+    }
+    
+    const hasFinancials = data.line_amount.trim() || data.item_price.trim() || data.line_cost.trim() || data.item_cost.trim();
+    if (!hasFinancials) {
+      errors.push({ field: 'item_cost', message: 'Price or Cost information is required for Expense items' });
     }
   }
 
-  if (data.replacement_value_per_item && data.replacement_value_per_item.trim()) {
-    const value = parseFloat(data.replacement_value_per_item);
-    if (isNaN(value)) {
-      errors.push({ field: 'replacement_value_per_item', message: `Invalid replacement value "${data.replacement_value_per_item}". Must be a number (e.g., 150.00, 0)` });
-    } else if (value < 0) {
-      errors.push({ field: 'replacement_value_per_item', message: 'Replacement value cannot be negative. Use 0 if unknown.' });
+  // 3. Common Date validation
+  const validateAndNormalizeDate = (field: keyof AssetRow, label: string) => {
+    const value = data[field]?.toString().trim() || '';
+    if (value) {
+      // YYYY-MM-DD
+      const isoRegex = /^\d{4}-\d{2}-\d{2}$/;
+      // MM/DD/YYYY or M/D/YYYY
+      const slashRegex = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/;
+      // MM-DD-YYYY or M-D-YYYY
+      const dashRegex = /^(\d{1,2})-(\d{1,2})-(\d{4})$/;
+
+      let normalizedDate: string | null = null;
+
+      if (isoRegex.test(value)) {
+        normalizedDate = value;
+      } else if (slashRegex.test(value)) {
+        const [, m, d, y] = value.match(slashRegex)!;
+        normalizedDate = `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
+      } else if (dashRegex.test(value)) {
+        const [, m, d, y] = value.match(dashRegex)!;
+        normalizedDate = `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
+      }
+
+      if (!normalizedDate) {
+        errors.push({ field, message: `Invalid ${label} "${value}". Use YYYY-MM-DD, MM/DD/YYYY, or MM-DD-YYYY format.` });
+      } else {
+        const date = new Date(normalizedDate);
+        if (isNaN(date.getTime())) {
+          errors.push({ field, message: `Invalid ${label} "${value}". Must be a valid date.` });
+        } else {
+          // Store normalized version
+          (data as any)[field] = normalizedDate;
+        }
+      }
     }
-  }
+  };
+
+  validateAndNormalizeDate('acquisition_date', 'acquisition date');
+  validateAndNormalizeDate('retired_on', 'retired date');
+
+  // 4. Numeric validation
+  const validateNumeric = (field: string, value: string, label: string, allowNegative = false) => {
+    if (value.trim()) {
+      const num = parseFloat(value.replace(/[^0-9.-]/g, ''));
+      if (isNaN(num)) {
+        errors.push({ field, message: `Invalid ${label} "${value}". Must be a number.` });
+      } else if (!allowNegative && num < 0) {
+        errors.push({ field, message: `${label} cannot be negative.` });
+      }
+    }
+  };
+
+  validateNumeric('total_inv_amount', data.total_inv_amount, 'total invoice amount');
+  validateNumeric('line_amount', data.line_amount, 'line amount');
+  validateNumeric('item_price', data.item_price, 'item price');
+  validateNumeric('line_cost', data.line_cost, 'line cost');
+  validateNumeric('item_cost', data.item_cost, 'item cost');
+  validateNumeric('replacement_value', data.replacement_value, 'replacement value');
+  validateNumeric('liquidation_amt', data.liquidation_amt, 'liquidation amount');
+  validateNumeric('service_life', data.service_life, 'service life');
 
   if (data.quantity && data.quantity.trim()) {
     const qty = parseInt(data.quantity);
     if (isNaN(qty)) {
-      errors.push({ field: 'quantity', message: `Invalid quantity "${data.quantity}". Must be a whole number (e.g., 1, 5, 10)` });
+      errors.push({ field: 'quantity', message: `Invalid quantity "${data.quantity}". Must be a whole number.` });
     } else if (qty < 1) {
       errors.push({ field: 'quantity', message: 'Quantity must be at least 1' });
     }
@@ -414,12 +648,131 @@ export function parseAndValidateCSV<T extends GigRow | AssetRow>(
       result.data.forEach((row, index) => {
         let parsedRow: ParsedRow<T>;
         if (importType === 'gigs') {
-          parsedRow = validateGigRow(row, index + 2, userTimezone) as ParsedRow<T>; // +2 because header is row 1, and we're 0-indexed
+          parsedRow = validateGigRow(row, index + 2, userTimezone) as ParsedRow<T>;
         } else {
           parsedRow = validateAssetRow(row, index + 2) as ParsedRow<T>;
         }
         rows.push(parsedRow);
       });
+
+      // For assets, handle hierarchical grouping and cost allocation
+      if (importType === 'assets') {
+        const assetRows = rows as ParsedRow<AssetRow>[];
+        
+        // Group rows using Transaction Context
+        const allGroups: {
+          header: AssetRow | null;
+          items: ParsedRow<AssetRow>[];
+        }[] = [];
+        const latestGroupMap = new Map<string, number>(); // dateKey|vendorKey -> index in allGroups
+        let lastHeaderIdx: number | undefined = undefined;
+
+        assetRows.forEach((row) => {
+          if (!row.isValid) return;
+          
+          const data = row.data;
+          const dateKey = data.acquisition_date || '';
+          const vendorKey = (data.vendor || '').toLowerCase().trim();
+          const lookupKey = dateKey && vendorKey ? `${dateKey}|${vendorKey}` : null;
+          
+          const isHeader = data.source === '0';
+          const hasTotal = !!(data.total_inv_amount && parseFloat(data.total_inv_amount.toString().replace(/[^0-9.-]/g, '')) > 0);
+          const isStandalone = (data.source === '1' || data.source === '2') && hasTotal;
+
+          if (isHeader) {
+            const existingIdx = lookupKey ? latestGroupMap.get(lookupKey) : undefined;
+            const invAmt = hasTotal ? parseFloat(data.total_inv_amount!.toString().replace(/[^0-9.-]/g, '')) : 0;
+
+            if (existingIdx !== undefined && allGroups[existingIdx].items.length === 0) {
+              const group = allGroups[existingIdx];
+              const currentTotal = parseFloat(group.header!.total_inv_amount?.toString().replace(/[^0-9.-]/g, '') || '0');
+              group.header!.total_inv_amount = (currentTotal + invAmt).toFixed(2);
+              if (data.description || data.manufacturer_model) {
+                group.header!.description = group.header!.description 
+                  ? `${group.header!.description}; ${data.manufacturer_model || data.description}`
+                  : (data.manufacturer_model || data.description);
+              }
+              lastHeaderIdx = existingIdx;
+            } else {
+              const newGroup = {
+                header: data,
+                items: [],
+              };
+              allGroups.push(newGroup);
+              lastHeaderIdx = allGroups.length - 1;
+              if (lookupKey) {
+                latestGroupMap.set(lookupKey, lastHeaderIdx);
+              }
+            }
+          } else if (isStandalone) {
+            const newGroup = {
+              header: data,
+              items: [row],
+            };
+            allGroups.push(newGroup);
+            // Don't update lastHeaderIdx or latestGroupMap for standalone
+          } else {
+            // It's a child row (Asset or Expense)
+            let groupIdx = lookupKey ? latestGroupMap.get(lookupKey) : undefined;
+            
+            // If no explicit match via lookupKey, try the last seen header
+            if (groupIdx === undefined && lastHeaderIdx !== undefined) {
+              groupIdx = lastHeaderIdx;
+            }
+
+            if (groupIdx === undefined) {
+              const synthesizedGroup = {
+                header: {
+                  ...data,
+                  source: '0',
+                  total_inv_amount: '0',
+                  description: 'Synthesized Purchase Header',
+                },
+                items: [row],
+              };
+              allGroups.push(synthesizedGroup);
+              groupIdx = allGroups.length - 1;
+              if (lookupKey) {
+                latestGroupMap.set(lookupKey, groupIdx);
+              }
+            } else {
+              allGroups[groupIdx].items.push(row);
+            }
+          }
+        });
+
+        // Apply allocation to each group and track overall totals
+        let totalImportInvAmount = 0;
+        let totalImportLineCost = 0;
+
+        allGroups.forEach((group) => {
+          if (group.header && group.items.length > 0) {
+            // Before allocation, ensure all items in the group have the header's date/vendor
+            // if they were missing them
+            group.items.forEach(item => {
+              if (!item.data.vendor && group.header!.vendor) {
+                item.data.vendor = group.header!.vendor;
+              }
+              if (!item.data.acquisition_date && group.header!.acquisition_date) {
+                item.data.acquisition_date = group.header!.acquisition_date;
+              }
+            });
+
+            applyCostAllocation(group.header, group.items);
+            
+            // Add to overall totals for verification
+            totalImportInvAmount += parseFloat(group.header.total_inv_amount?.toString().replace(/[^0-9.-]/g, '') || '0');
+            totalImportLineCost += group.items.reduce((sum, item) => sum + parseFloat(item.data.line_cost || '0'), 0);
+          }
+        });
+
+        // Final verification: total_inv_amount = sum(line_cost) for the whole import
+        // (Rounding to 2 decimal places to handle floating point issues)
+        const diff = Math.abs(Math.round((totalImportInvAmount - totalImportLineCost) * 100) / 100);
+        if (diff > 0.01 && totalImportInvAmount > 0) {
+          console.warn(`Import total mismatch: Total Inv AMT (${totalImportInvAmount.toFixed(2)}) != Total Line Cost (${totalImportLineCost.toFixed(2)}). Diff: ${diff}`);
+        }
+      }
 
       const validRows = rows.filter(r => r.isValid);
       const invalidRows = rows.filter(r => !r.isValid);
@@ -451,37 +804,119 @@ export function generateGigTemplate(): string {
 
 export function generateAssetTemplate(): string {
   const headers = [
-    'category',
-    'sub-category',
-    'manufacturer_model',
-    'equipment_type',
-    'serial_number',
     'acquisition_date',
+    'source',
     'vendor',
-    'cost_per_item',
+    'total_inv_amount',
+    'payment_method',
+    'line_amount',
+    'line_cost',
     'quantity',
-    'replacement_value_per_item',
+    'item_price',
+    'item_cost',
+    'manufacturer_model',
+    'category',
+    'sub_category',
+    'type',
+    'kit',
+    'serial_number',
+    'tag_number',
+    'description',
     'insured',
-    'insurance_category',
-    'notes'
+    'insurance_class',
+    'replacement_value',
+    'retired_on',
+    'liquidation_amt',
+    'service_life',
+    'dep_method',
+    'status'
   ];
-  const example = [
-    'Audio',
-    'Microphones',
-    'Shure SM58',
-    'Dynamic Microphone',
-    'SN123456',
-    '2024-01-15',
-    'Audio Vendor Inc',
-    '99.99',
+  const exampleInvoice = [
+    '2025-10-10',
+    '0-Invoice',
+    'Amazon',
+    '106.05',
+    'Visa',
+    '',
+    '',
+    '',
+    '',
+    '',
+    '',
+    '',
+    '',
+    '',
+    '',
+    '',
+    '',
+    '',
+    '',
+    '',
+    '',
+    '',
+    '',
+    '',
+    '',
+    ''
+  ];
+  const exampleAsset = [
+    '2025-10-10',
+    '1-Asset',
+    'Amazon',
+    '',
+    '',
+    '87.98',
+    '95.24',
+    '2',
+    '43.99',
+    '47.62',
+    'PowerCon Power Cable 1M',
+    'Lighting',
+    'Cables',
+    'PowerCon Cable',
+    'LightBox',
+    '',
+    '',
+    '',
+    'FALSE',
+    '',
+    '50',
+    '',
+    '',
+    '5',
+    'MACRS',
+    'Active'
+  ];
+  const exampleExpense = [
+    '2025-10-10',
+    '2-Expense',
+    'Amazon',
+    '',
+    '',
+    '9.99',
+    '10.81',
     '1',
-    '150.00',
-    'Yes',
-    'Class A',
-    'Notes about the asset'
+    '9.99',
+    '10.81',
+    'Gaffer Power Black Gaffers Tape 2"x30yd',
+    'Supplies',
+    '',
+    '',
+    '',
+    '',
+    '',
+    '',
+    '',
+    '',
+    '',
+    '',
+    '',
+    '',
+    '',
+    ''
   ];
 
-  return Papa.unparse([headers, example], { header: false });
+  return Papa.unparse([headers, exampleInvoice, exampleAsset, exampleExpense], { header: false });
 }
 
 export function downloadTemplate(importType: ImportType): void {

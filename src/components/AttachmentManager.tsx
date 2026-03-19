@@ -1,0 +1,200 @@
+import { useState, useEffect } from 'react';
+import { 
+  File, 
+  Upload, 
+  Trash2, 
+  Link as LinkIcon, 
+  X, 
+  Loader2, 
+  FileText,
+  Download,
+  Eye
+} from 'lucide-react';
+import { toast } from 'sonner';
+import { Button } from './ui/button';
+import { Card } from './ui/card';
+import { 
+  uploadAttachment, 
+  linkAttachmentToEntity, 
+  getEntityAttachments, 
+  deleteAttachment, 
+  unlinkAttachmentFromEntity,
+  getAttachmentUrl
+} from '../services/attachment.service';
+import { EntityType, DbAttachment } from '../utils/supabase/types';
+
+interface AttachmentWithEntityId extends DbAttachment {
+  entity_attachment_id: string;
+}
+
+interface AttachmentManagerProps {
+  organizationId: string;
+  entityType: EntityType;
+  entityId: string;
+  title?: string;
+  allowUpload?: boolean;
+  onAttachmentsChange?: () => void;
+}
+
+export default function AttachmentManager({
+  organizationId,
+  entityType,
+  entityId,
+  title = "Attachments",
+  allowUpload = true,
+  onAttachmentsChange,
+}: AttachmentManagerProps) {
+  const [attachments, setAttachments] = useState<AttachmentWithEntityId[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isUploading, setIsUploading] = useState(false);
+
+  useEffect(() => {
+    loadAttachments();
+  }, [entityType, entityId]);
+
+  const loadAttachments = async () => {
+    setIsLoading(true);
+    try {
+      const data = await getEntityAttachments(entityType, entityId);
+      setAttachments(data);
+    } catch (err: any) {
+      console.error('Error loading attachments:', err);
+      toast.error('Failed to load attachments');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = event.target.files;
+    if (!files || files.length === 0) return;
+
+    setIsUploading(true);
+    try {
+      for (const file of Array.from(files)) {
+        const attachment = await uploadAttachment(organizationId, file);
+        await linkAttachmentToEntity(attachment.id, entityType, entityId);
+      }
+      toast.success('Files uploaded successfully');
+      loadAttachments();
+      onAttachmentsChange?.();
+    } catch (err: any) {
+      console.error('Error uploading files:', err);
+      toast.error(err.message || 'Failed to upload files');
+    } finally {
+      setIsUploading(true);
+      setIsUploading(false);
+      // Reset input
+      event.target.value = '';
+    }
+  };
+
+  const handleRemove = async (attachment: AttachmentWithEntityId) => {
+    if (!confirm('Are you sure you want to remove this attachment?')) return;
+
+    try {
+      // For now, we always unlink. In the future, we might want to delete the file too
+      // if it's not linked anywhere else. For now, let's keep it simple.
+      await unlinkAttachmentFromEntity(attachment.entity_attachment_id);
+      toast.success('Attachment removed');
+      loadAttachments();
+      onAttachmentsChange?.();
+    } catch (err: any) {
+      console.error('Error removing attachment:', err);
+      toast.error('Failed to remove attachment');
+    }
+  };
+
+  const handleDownload = async (attachment: DbAttachment) => {
+    try {
+      const url = await getAttachmentUrl(attachment.file_path);
+      window.open(url, '_blank');
+    } catch (err: any) {
+      console.error('Error getting attachment URL:', err);
+      toast.error('Failed to open attachment');
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center p-8">
+        <Loader2 className="w-6 h-6 animate-spin text-sky-500" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <h3 className="text-sm font-medium text-gray-900">{title}</h3>
+        {allowUpload && (
+          <div className="relative">
+            <input
+              type="file"
+              multiple
+              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+              onChange={handleFileUpload}
+              disabled={isUploading}
+            />
+            <Button variant="outline" size="sm" disabled={isUploading}>
+              {isUploading ? (
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              ) : (
+                <Upload className="w-4 h-4 mr-2" />
+              )}
+              Upload
+            </Button>
+          </div>
+        )}
+      </div>
+
+      {attachments.length === 0 ? (
+        <div className="text-center py-8 border-2 border-dashed border-gray-200 rounded-lg">
+          <FileText className="w-8 h-8 text-gray-300 mx-auto mb-2" />
+          <p className="text-sm text-gray-500">No attachments found</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 gap-2">
+          {attachments.map((attachment) => (
+            <div
+              key={attachment.id}
+              className="flex items-center justify-between p-3 bg-white border border-gray-200 rounded-lg hover:border-sky-300 transition-colors"
+            >
+              <div className="flex items-center min-w-0">
+                <File className="w-4 h-4 text-sky-500 mr-3 flex-shrink-0" />
+                <div className="truncate">
+                  <p className="text-sm font-medium text-gray-900 truncate">
+                    {attachment.file_name}
+                  </p>
+                  <p className="text-xs text-gray-500">
+                    Uploaded on {new Date(attachment.created_at).toLocaleDateString()}
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-1">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 text-gray-400 hover:text-sky-600"
+                  onClick={() => handleDownload(attachment)}
+                  title="Open"
+                >
+                  <Eye className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 text-gray-400 hover:text-red-600"
+                  onClick={() => handleRemove(attachment)}
+                  title="Remove"
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}

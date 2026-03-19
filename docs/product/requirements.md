@@ -492,6 +492,31 @@ The most urgent mobile need — a compact interface for managing gigs on the go.
 
 ---
 
+### Receipt and Invoice Import
+
+**Status: Planned / In Progress**
+
+#### Overview
+In addition to CSV import, the system must support importing assets by uploading PDF or image-based receipts and invoices. This process uses AI (LLM) to extract structured data and automatically creates both `purchases` and `assets` records.
+
+#### Functional Requirements
+1. **File Upload**: Users can upload one or more PDF or image files (JPG, PNG) from the Assets screen.
+2. **AI Extraction**: The system uses an LLM (e.g., Claude) to extract:
+   - Invoice Date
+   - Vendor Name
+   - Grand Total (including tax/shipping)
+   - Line items with Model, Description, Quantity, and Unit Price.
+3. **Storage**: Uploaded files must be stored in the system (Supabase Storage) and associated with the created entities.
+4. **Polymorphic Linking**:
+   - The file (Attachment) must be linked to the `purchases` header record.
+   - All `assets` created from the invoice must be linked to the `purchases` record via `purchase_id`.
+5. **Asset-Invoice Traceability**:
+   - The Asset Detail screen must display a link/preview of the original invoice/receipt.
+   - The Purchase Detail screen must list all associated assets.
+6. **Cost Allocation**: The system must apply a pro-rata cost allocation factor to distribute tax and shipping costs across all line items (Stage 4 of the native implementation spec).
+
+---
+
 ### CSV Import Feature
 
 **Status: Implemented**
@@ -532,23 +557,36 @@ CSV import functionality for gigs and assets with client-side validation, immedi
 | notes | No | string | "Load-in at 2pm" | Free-form text |
 | amount | No | number | "5000.00" | Numeric or empty |
 
-##### Asset Template Columns
+##### Asset Template Columns (A-Z)
 
-| Column | Required | Type | Example | Notes |
-|--------|----------|------|---------|-------|
-| manufacturer_model | Yes | string | "Shure SM58" | Model identifier |
-| acquisition_date | Yes | YYYY-MM-DD | "2023-01-15" | Date format |
-| category | Yes | string | "Sound" | Asset category |
-| sub_category | No | string | "Microphones" | Sub-classification |
-| equipment_type | No | string | "Dynamic Microphone" | Maps to 'type' field |
-| serial_number | No | string | "SN12345" | Unique identifier |
-| vendor | No | string | "B&H Photo" | Purchase source |
-| cost_per_item | No | number | "99.99" | Maps to 'cost' field |
-| quantity | No | integer | "4" | Defaults to 1 |
-| replacement_value_per_item | No | number | "120.00" | Maps to 'replacement_value' |
-| insured | No | boolean | "True" | Maps to 'insurance_policy_added' |
-| insurance_category | No | string | "E" | Maps to 'insurance_class' |
-| notes | No | string | "Purchased in bulk" | Free-form text |
+| Col | CSV Column Name | Required | Type | Example | Notes |
+|---|---|---|---|---|---|
+| A | acquisition_date | Yes | Date | 2025-10-10 | YYYY-MM-DD |
+| B | source | Yes | Enum | 1-Asset | 0 (Invoice), 1 (Asset), 2 (Expense) |
+| C | vendor | Yes* | String | Amazon | *Required for Source 0 |
+| D | total_inv_amount | Yes* | Number | 106.05 | *Required for Source 0 |
+| E | payment_method | No | String | Visa | |
+| F | line_amount | Yes* | Number | 87.98 | *Required for Source 2 |
+| G | line_cost | No | Number | 95.24 | Computed if empty |
+| H | quantity | No | Integer | 2 | Default: 1 |
+| I | item_price | No | Number | 43.99 | |
+| J | item_cost | No | Number | 47.62 | |
+| K | manufacturer_model | Yes* | String | Shure SM58 | *Required for Source 1 |
+| L | category | Yes* | String | Sound | *Required for Source 1 or 2 |
+| M | sub_category | No | String | Microphones | |
+| N | type | No | String | Dynamic Mic | |
+| O | kit | No | String | Mic Pack A | Add to named kit |
+| P | serial_number | No | String | SN12345 | |
+| Q | tag_number | No | String | TAG-001 | |
+| R | description | No | String | Black finish | |
+| S | insured | No | Boolean | TRUE | |
+| T | insurance_class | No | String | Class A | |
+| U | replacement_value | No | Number | 150.00 | |
+| V | retired_on | No | Date | 2029-12-31 | YYYY-MM-DD |
+| W | liquidation_amt | No | Number | 20.00 | |
+| X | service_life | No | Integer | 5 | Years |
+| Y | dep_method | No | String | MACRS | |
+| Z | status | No | Enum | Active | |
 
 #### Validation Rules
 
@@ -569,13 +607,14 @@ CSV import functionality for gigs and assets with client-side validation, immedi
 
 ##### Asset Validation
 
-- **Required Fields**: category, manufacturer_model, acquisition_date
-- **Date Validation**: Acquisition_date must be valid date (YYYY-MM-DD format)
-- **Numeric Fields**: 
-  - Cost_per_item: numeric or empty
-  - Replacement_value_per_item: numeric or empty
-  - Quantity: positive integer or defaults to 1
-- **Boolean Fields**: Insured: parse from text ('yes', 'true', '1', etc.)
+- **Required Fields**: 
+  - All: `acquisition_date`, `source`
+  - Source 0 (Invoice): `vendor`, `total_inv_amount`
+  - Source 1 (Asset): `manufacturer_model`, `category`
+  - Source 2 (Expense): `line_amount`, `category`
+- **Date Validation**: `acquisition_date` and `retired_on` must be valid dates (YYYY-MM-DD).
+- **Numeric Fields**: Must be numeric or empty (defaults handled by logic).
+- **Boolean Fields**: `insured`: parse from text ('yes', 'true', '1', etc.).
 
 #### Import Logic
 
@@ -597,52 +636,24 @@ CSV import functionality for gigs and assets with client-side validation, immedi
 
 ##### Asset Import Process
 
-1. Parse CSV file
-2. Validate all rows
-3. Rules for computing price and cost: 
-
-   - If quantity is missing on type 1 or 2, assume quantity 1
-   - The goal is to have or compute item_cost. 
-   - If line_cost is present, then item_cost is line_cost / quantity.
-   - If line_cost is not present then line_cost is line_amount * factor.
-   - factor (documented in docs) is tot_inv_amount / sum(line_amount)
-   - line_amount is item_price * quantity
-   - item_price is line_amount / quantity
-   - If item_cost is missing or can not be computed, it is an error
-   - It is OK if either line_amount or item_price are missing
-
-     Step 1:
-
-     1. If quantity is missing, quantity = 1
-
-     Step 2:
-
-     1. If row has either a line_cost or item_cost, if line_cost is missing compute line_cost = item_cost * quantity, otherwise if item_cost is missing compute item_cost = line_cost / quantity -- this will be a "cost" row.
-     2. Otherwise if row has a line_amount or item_price, if item_price is missing then compute item_price = line_amount / quantity, if line_amount is missing calculate line_amount = item_price * quantity -- this will be a "price" row.
-     3. Otherwise ERROR
-
-     Step 3:
-
-     1. For a "price" row, factor is sum(line_amount) / total_inv_amount (from header)
-     2. For a "cost" row, we are done as we already have the item_cost.
-
-     Step 4:
-
-     1. line_cost = line_amount * factor
-     2. Adjust last line_cost in group by .01 until total_inv_amount = sum(line_cost)
-     3. item_cost = line_cost / quantity
-
+1. Parse CSV file (A-Z columns).
+2. Validate rows based on Source (0, 1, 2).
+3. Group rows into logical Transactions:
+   - A `Source 0` (Invoice) defines a new Purchase header.
+   - Subsequent `Source 1` (Asset) or `Source 2` (Expense) rows are linked to the most recent `Source 0` via `purchase_id`.
+   - Standalone `Source 1` or `Source 2` rows create an implicit Purchase if needed or remain unlinked.
 4. For each valid row:
-   - Map CSV columns to database fields:
-     - cost_per_item → cost
-     - replacement_value_per_item → replacement_value
-     - equipment_type → type
-     - insured → insurance_policy_added
-     - insurance_category → insurance_class
-   - Create asset with organization_id from current context
-5. Show success count and any errors
-
-   
+   - **Source 0**: Create `purchases` record (type: 'header').
+   - **Source 1**: Create `assets` record AND a `purchases` record (type: 'item') linked to the asset.
+   - **Source 2**: Create `purchases` record (type: 'item').
+5. Map specific fields:
+   - `line_amount` -> `purchases.line_amount`
+   - `line_cost` -> `purchases.line_cost`
+   - `item_price` -> `assets.item_price`, `purchases.item_price`
+   - `item_cost` -> `assets.item_cost`, `purchases.item_cost`
+   - `retired_on` -> `assets.retired_on`
+   - `tag_number` -> `assets.tag_number`
+6. Show success count and errors.
 
 #### User Interface Requirements
 

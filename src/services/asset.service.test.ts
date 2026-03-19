@@ -1,9 +1,14 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { getAssets, getDistinctAssetValues, getAsset } from './asset.service';
+import { getAssets, getDistinctAssetValues, getAsset, createAsset, updateAsset } from './asset.service';
 import { createClient } from '../utils/supabase/client';
+import { requireAuth } from '../utils/supabase/auth-utils';
 
 vi.mock('../utils/supabase/client', () => ({
   createClient: vi.fn(),
+}));
+
+vi.mock('../utils/supabase/auth-utils', () => ({
+  requireAuth: vi.fn(),
 }));
 
 function makeChain(result: { data: any; error: any }) {
@@ -22,14 +27,14 @@ function makeChain(result: { data: any; error: any }) {
 
 describe('asset.service', () => {
   let mockSupabase: any;
+  const mockUser = { id: 'user-1' };
 
   beforeEach(() => {
     vi.clearAllMocks();
     mockSupabase = { from: vi.fn() };
     (createClient as any).mockReturnValue(mockSupabase);
+    (requireAuth as any).mockResolvedValue({ supabase: mockSupabase, user: mockUser });
   });
-
-  // ─── getAssets ────────────────────────────────────────────────────────────
 
   describe('getAssets', () => {
     it('returns assets for an organization with no filters', async () => {
@@ -95,7 +100,6 @@ describe('asset.service', () => {
 
       await getAssets('org-1', { search: 'SM58' });
 
-      // The search calls .or() with a sanitized ilike pattern
       expect(chain.or).toHaveBeenCalledWith(
         expect.stringContaining('SM58')
       );
@@ -107,7 +111,6 @@ describe('asset.service', () => {
 
       await getAssets('org-1', { search: '50%' });
 
-      // % should be escaped to \%
       expect(chain.or).toHaveBeenCalledWith(expect.stringContaining('50\\%'));
     });
 
@@ -119,22 +122,20 @@ describe('asset.service', () => {
     });
   });
 
-  // ─── getDistinctAssetValues ───────────────────────────────────────────────
-
   describe('getDistinctAssetValues', () => {
     it('returns sorted unique category values', async () => {
       const rawData = [
         { category: 'Microphone' },
         { category: 'Amplifier' },
-        { category: 'Microphone' }, // duplicate
-        { category: '' },           // blank — should be filtered out
+        { category: 'Microphone' },
+        { category: '' },
       ];
       const chain = makeChain({ data: rawData, error: null });
       mockSupabase.from.mockReturnValue(chain);
 
       const result = await getDistinctAssetValues('org-1', 'category');
 
-      expect(result).toEqual(['Amplifier', 'Microphone']); // sorted, deduped, blanks removed
+      expect(result).toEqual(['Amplifier', 'Microphone']);
     });
 
     it('filters by category when fetching sub_category values', async () => {
@@ -152,7 +153,6 @@ describe('asset.service', () => {
 
       await getDistinctAssetValues('org-1', 'vendor', 'Microphone');
 
-      // The category filter should NOT be applied for vendor field
       const eqCalls = chain.eq.mock.calls;
       const categoryFilterApplied = eqCalls.some(
         (call: any[]) => call[0] === 'category' && call[1] === 'Microphone'
@@ -176,8 +176,6 @@ describe('asset.service', () => {
     });
   });
 
-  // ─── getAsset ─────────────────────────────────────────────────────────────
-
   describe('getAsset', () => {
     it('returns a single asset by id', async () => {
       const mockAsset = { id: 'asset-1', manufacturer_model: 'Shure SM58' };
@@ -196,6 +194,36 @@ describe('asset.service', () => {
       mockSupabase.from.mockReturnValue(makeChain({ data: null, error: dbError }));
 
       await expect(getAsset('missing-id')).rejects.toMatchObject({ message: 'Row not found' });
+    });
+  });
+
+  describe('createAsset', () => {
+    it('should insert a new asset', async () => {
+      const assetData = { manufacturer_model: 'Model A', organization_id: 'org-1' };
+      const mockResult = { id: 'a1', ...assetData };
+      const chain = makeChain({ data: mockResult, error: null });
+      mockSupabase.from.mockReturnValue(chain);
+
+      const result = await createAsset(assetData);
+
+      expect(chain.insert).toHaveBeenCalledWith(expect.objectContaining(assetData));
+      expect(result).toEqual(mockResult);
+    });
+  });
+
+  describe('updateAsset', () => {
+    it('should update an existing asset', async () => {
+      const updates = { manufacturer_model: 'Model B' };
+      const mockResult = { id: 'a1', ...updates };
+      const chain = makeChain({ data: mockResult, error: null });
+      mockSupabase.from.mockReturnValue(chain);
+
+      const result = await updateAsset('a1', updates);
+
+      expect(mockSupabase.from).toHaveBeenCalledWith('assets');
+      expect(chain.update).toHaveBeenCalledWith(expect.objectContaining(updates));
+      expect(chain.eq).toHaveBeenCalledWith('id', 'a1');
+      expect(result).toEqual(mockResult);
     });
   });
 });

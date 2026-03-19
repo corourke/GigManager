@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Package, ArrowLeft, Save, Loader2, AlertCircle, History, CreditCard } from 'lucide-react';
+import { Package, ArrowLeft, Save, Loader2, AlertCircle, History, CreditCard, ExternalLink } from 'lucide-react';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { Button } from './ui/button';
@@ -18,6 +18,7 @@ import { ASSET_STATUS_CONFIG } from '../utils/supabase/constants';
 import { useSimpleFormChanges } from '../utils/hooks/useSimpleFormChanges';
 import { createSubmissionPayload, normalizeFormData } from '../utils/form-utils';
 import { useAutocompleteSuggestions } from '../utils/hooks/useAutocompleteSuggestions';
+import AttachmentManager from './AttachmentManager';
 
 interface AssetScreenProps {
   organization: Organization;
@@ -27,6 +28,7 @@ interface AssetScreenProps {
   onCancel: () => void;
   onAssetCreated: (assetId: string) => void;
   onAssetUpdated: () => void;
+  onNavigateToPurchases?: (purchaseId?: string) => void;
   onSwitchOrganization: () => void;
   onEditProfile?: () => void;
   onLogout: () => void;
@@ -65,6 +67,7 @@ export default function AssetScreen({
   onCancel,
   onAssetCreated,
   onAssetUpdated,
+  onNavigateToPurchases,
   onSwitchOrganization,
   onEditProfile,
   onLogout,
@@ -638,6 +641,20 @@ export default function AssetScreen({
                   )}
                 </div>
 
+                {formData.purchase_id && onNavigateToPurchases && (
+                  <div className="space-y-2 flex flex-col justify-end">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => onNavigateToPurchases?.(formData.purchase_id)}
+                      className="text-sky-600 border-sky-200 hover:bg-sky-50"
+                    >
+                      <CreditCard className="w-4 h-4 mr-2" />
+                      View in Purchase Management
+                      <ExternalLink className="w-3 h-3 ml-2 opacity-50" />
+                    </Button>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -825,46 +842,40 @@ export default function AssetScreen({
               </div>
             </div>
 
-            {/* Description */}
+            {/* Description and Attachments */}
             <div className="border-t border-gray-100 pt-4">
               <h3 className="text-gray-900 mb-2">Additional Details</h3>
-              <div className="space-y-2">
-                <Label htmlFor="description">Description</Label>
-                <Textarea
-                  id="description"
-                  value={formData.description}
-                  onChange={(e) => handleChange('description', e.target.value)}
-                  placeholder="Additional notes about this asset..."
-                  rows={4}
-                />
-                <p className="text-xs text-gray-500">
-                  Supports Markdown formatting
-                </p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-2">
+                  <Label htmlFor="description">Description</Label>
+                  <Textarea
+                    id="description"
+                    value={formData.description}
+                    onChange={(e) => handleChange('description', e.target.value)}
+                    placeholder="Additional notes about this asset..."
+                    rows={6}
+                  />
+                  <p className="text-xs text-gray-500">
+                    Supports Markdown formatting
+                  </p>
+                </div>
+                
+                {isEditMode && assetId && (
+                  <div className="space-y-2">
+                    <AttachmentManager
+                      organizationId={organization.id}
+                      entityType="asset"
+                      entityId={assetId}
+                      title="Asset Attachments"
+                    />
+                  </div>
+                )}
               </div>
             </div>
 
             {/* Read-only History Tables — Edit Mode Only */}
             {isEditMode && (
               <div className="space-y-4 pt-2 border-t border-gray-100">
-                {formData.purchase_id && (
-                  <div>
-                    <div className="flex items-center gap-2 mb-2">
-                      <CreditCard className="w-4 h-4 text-gray-500" />
-                      <h3 className="text-gray-900">Purchase Link</h3>
-                    </div>
-                    <div className="bg-sky-50 border border-sky-100 rounded-md p-3 mb-4">
-                      <p className="text-sm text-sky-800 font-medium">
-                        Linked to Purchase ID:
-                      </p>
-                      <p className="text-xs text-sky-600 font-mono mt-1">
-                        {formData.purchase_id}
-                      </p>
-                      <p className="text-xs text-sky-500 mt-2 italic">
-                        View complete transaction details in Purchase Management.
-                      </p>
-                    </div>
-                  </div>
-                )}
                 {/* Asset Status History */}
                 <div>
                   <div className="flex items-center gap-2 mb-2">

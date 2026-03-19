@@ -150,7 +150,7 @@ supabase functions deploy server --project-ref <your-project-id>
 
 ## Edge Functions & External Integrations
 
-GigManager uses Supabase Edge Functions for complex server-side logic and external integrations, such as Google Places.
+GigManager uses Supabase Edge Functions for complex server-side logic and external integrations, such as Google Places and AI-powered invoice scanning.
 
 ### 1. Google Places API Configuration
 The `server` edge function requires a `GOOGLE_PLACES_API_KEY` to perform place searches. This should be a Google Cloud API key with the "Places API (New)" enabled.
@@ -176,7 +176,55 @@ You must set the secret in your remote Supabase project:
 supabase secrets set GOOGLE_PLACES_API_KEY=your_actual_google_places_key
 ```
 
-### 2. Secrets Management
+### 2. AI Scanning Configuration (Anthropic)
+The `ai-scan` edge function uses Anthropic's Claude models to extract structured data from invoices and receipts.
+
+1. **API Key**: Obtain an API key from the [Anthropic Console](https://console.anthropic.com/).
+2. **Model Support**:
+   - **Claude 3.6 Sonnet (Latest)**: Used by default (`claude-sonnet-4-6`). This model has native PDF support and high extraction accuracy.
+3. **PDF Support Requirement**: 
+   - **Tier 1+ Required**: To use PDF scanning support, your Anthropic API account must be **Tier 1 or higher** (requires at least $5 in credits and a successful payment). 
+   - **Tier 0 (Free/Build)**: Accounts on the free tier only support **image scanning** (JPG, PNG, WebP). PDF uploads will trigger a manual entry fallback in the UI.
+4. **Verification**: 
+   To verify if your API key has access to the latest models, run this command in your terminal (replace `YOUR_KEY_HERE`):
+   ```bash
+   curl https://api.anthropic.com/v1/messages \
+     --header "x-api-key: YOUR_KEY_HERE" \
+     --header "anthropic-version: 2023-06-01" \
+     --header "content-type: application/json" \
+     --data '{
+       "model": "claude-sonnet-4-6",
+       "max_tokens": 10,
+       "messages": [{"role": "user", "content": "test"}]
+     }'
+   ```
+   - **Success**: Returns a JSON message object.
+   - **Failure**: Returns a `404` error (model not found) or `400` (bad request), confirming the model is unavailable for your current configuration.
+
+5. **Diagnostic Test (via Supabase)**:
+   To verify that your Supabase Edge Function is correctly configured and can reach Anthropic, run:
+   ```bash
+   curl -i -X POST https://YOUR_PROJECT_ID.supabase.co/functions/v1/ai-scan \
+     -H "Authorization: Bearer YOUR_ANON_KEY" \
+     -H "x-diagnostic: true"
+   ```
+   - **Success**: Returns `Anthropic connectivity successful`, confirming the function can communicate with the API using your stored secret.
+   - **Failure**: Returns an error message with details from the Anthropic API (e.g., "invalid api key" or "model not found").
+
+6. **Local Development**: Add the key to your `.env.local`:
+   ```env
+   ANTHROPIC_API_KEY=your_anthropic_key
+   ```
+   Run the function locally:
+   ```bash
+   supabase functions serve ai-scan --env-file .env.local
+   ```
+3. **Production**: Set the secret in Supabase:
+   ```bash
+   supabase secrets set ANTHROPIC_API_KEY=your_anthropic_key
+   ```
+
+### 3. Secrets Management
 - **List Secrets**: `supabase secrets list`
 - **Set Secret**: `supabase secrets set NAME=VALUE`
 - **Unset Secret**: `supabase secrets unset NAME`

@@ -16,7 +16,9 @@ import GigBasicInfoSection from './gig/GigBasicInfoSection';
 import GigParticipantsSection from './gig/GigParticipantsSection';
 import GigStaffSlotsSection from './gig/GigStaffSlotsSection';
 import GigFinancialsSection from './gig/GigFinancialsSection';
+import GigPurchaseExpenses from './gig/GigPurchaseExpenses';
 import GigKitAssignmentsSection from './gig/GigKitAssignmentsSection';
+import AttachmentManager from './AttachmentManager';
 
 interface GigScreenProps {
   organization: Organization;
@@ -201,10 +203,24 @@ export default function GigScreen({
                 currentOrganizationId={organization.id}
                 userRole={userRole}
               />
+              <GigPurchaseExpenses
+                gigId={gigId}
+                currentOrganizationId={organization.id}
+                userRole={userRole}
+              />
               <GigKitAssignmentsSection
                 gigId={gigId}
                 currentOrganizationId={organization.id}
               />
+
+              <div className="pt-6 border-t border-gray-100">
+                <AttachmentManager
+                  organizationId={organization.id}
+                  entityType="gig"
+                  entityId={gigId}
+                  title="Gig Attachments"
+                />
+              </div>
             </div>
 
             <div className="mt-8 flex justify-center pb-12">

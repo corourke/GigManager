@@ -1,7 +1,8 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { Package, Plus, Search, Filter, Loader2, Edit, Trash2, AlertCircle, Shield, Upload, Eye, Copy } from 'lucide-react';
+import { Package, Plus, Search, Filter, Loader2, Edit, Trash2, AlertCircle, Shield, Upload, Eye, Copy, FileText } from 'lucide-react';
 import { toast } from 'sonner';
 import { getAssets, deleteAsset, duplicateAsset, updateAsset } from '../services/asset.service';
+import { scanInvoice } from '../services/purchase.service';
 import { Button } from './ui/button';
 import { Card } from './ui/card';
 import AppHeader from './AppHeader';
@@ -10,6 +11,7 @@ import { Organization, User, UserRole } from '../utils/supabase/types';
 import type { DbAsset } from '../utils/supabase/types';
 import { SmartDataTable, ColumnDef, RowAction } from './tables/SmartDataTable';
 import { PageHeader } from './ui/PageHeader';
+import ReviewScannedDataDialog from './ReviewScannedDataDialog';
 
 interface AssetListScreenProps {
   organization: Organization;
@@ -53,6 +55,10 @@ export default function AssetListScreen({
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [deletedAssetIds, setDeletedAssetIds] = useState<Set<string>>(new Set());
+  const [isScanning, setIsScanning] = useState(false);
+  const [scannedData, setScannedData] = useState<any>(null);
+  const [scannedFile, setScannedFile] = useState<File | null>(null);
+  const [showReviewDialog, setShowReviewDialog] = useState(false);
 
   const refresh = async () => {
     try {
@@ -119,6 +125,33 @@ export default function AssetListScreen({
       refresh();
     } catch (err: any) {
       toast.error(err.message || 'Failed to duplicate asset');
+    }
+  };
+
+  const handleUploadInvoice = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    setScannedFile(file);
+    setIsScanning(true);
+    try {
+      const data = await scanInvoice(file);
+      setScannedData(data);
+      setShowReviewDialog(true);
+    } catch (err: any) {
+      console.error('Error scanning invoice:', err);
+      // If it's a known scan error (like Tier 1+ required), we still open the dialog
+      // so the user can enter data manually and the file still gets uploaded.
+      if (err.message?.includes('PDF_SCAN_ACCESS_REQUIRED') || err.message?.includes('access to the Claude 3.5 Sonnet PDF beta')) {
+        toast.error('AI scan unavailable for this file type. Opening manual entry.');
+        setScannedData(null); // Explicitly null to trigger manual mode in dialog
+        setShowReviewDialog(true);
+      } else {
+        toast.error(err.message || 'Failed to scan invoice');
+      }
+    } finally {
+      setIsScanning(false);
+      event.target.value = ''; // Reset input
     }
   };
 
@@ -304,6 +337,29 @@ export default function AssetListScreen({
           description="Manage your equipment inventory"
           actions={
             <>
+              <div className="relative overflow-hidden">
+                <input
+                  type="file"
+                  title=""
+                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                  onChange={handleUploadInvoice}
+                  disabled={isScanning}
+                  accept=".pdf,image/*"
+                />
+                <Button variant="outline" className="border-sky-500 text-sky-600 hover:bg-sky-50" disabled={isScanning}>
+                  {isScanning ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Scanning...
+                    </>
+                  ) : (
+                    <>
+                      <FileText className="w-4 h-4 mr-2" />
+                      Upload Invoice
+                    </>
+                  )}
+                </Button>
+              </div>
               <Button onClick={onCreateAsset} className="bg-sky-500 hover:bg-sky-600 text-white">
                 <Plus className="w-4 h-4 mr-2" />
                 Add Asset
@@ -390,6 +446,17 @@ export default function AssetListScreen({
           )}
         </Card>
       </div>
+
+      <ReviewScannedDataDialog
+        open={showReviewDialog}
+        onOpenChange={setShowReviewDialog}
+        organizationId={organization.id}
+        scannedData={scannedData}
+        file={scannedFile}
+        onSuccess={() => {
+          refresh();
+        }}
+      />
     </div>
   );
 }

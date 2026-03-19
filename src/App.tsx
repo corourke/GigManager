@@ -18,6 +18,7 @@ import KitScreen from './components/KitScreen';
 import KitDetailScreen from './components/KitDetailScreen';
 import TeamMemberDetailScreen from './components/TeamMemberDetailScreen';
 import ImportScreen from './components/ImportScreen';
+import FinancialsScreen from './components/FinancialsScreen';
 import EditUserProfileDialog from './components/EditUserProfileDialog';
 import InvitationErrorScreen from './components/InvitationErrorScreen';
 import CalendarAuthCallback from './components/CalendarAuthCallback';
@@ -58,6 +59,7 @@ type Route =
   | 'calendar-auth-callback'
   | 'settings'
   | 'import'
+  | 'financials'
   | 'dev-demo'
   | 'mobile-gig-list'
   | 'mobile-gig-detail'
@@ -515,6 +517,13 @@ function App() {
     setCurrentRoute('import');
   };
 
+  const [highlightPurchaseId, setHighlightPurchaseId] = useState<string | null>(null);
+
+  const handleNavigateToFinancials = () => {
+    setHighlightPurchaseId(null);
+    setCurrentRoute('financials');
+  };
+
   const handleEditProfile = () => {
     setShowEditProfileDialog(true);
   };
@@ -551,6 +560,7 @@ function App() {
       onNavigateToGigs={handleNavigateToGigs}
       onNavigateToTeam={handleNavigateToTeam}
       onNavigateToAssets={handleNavigateToAssets}
+      onNavigateToFinancials={handleNavigateToFinancials}
       onEditProfile={handleEditProfile}
       onNavigateToSettings={handleNavigateToSettings}
     >
@@ -801,6 +811,10 @@ function App() {
                 onSwitchOrganization={handleBackToSelection}
                 onEditProfile={handleEditProfile}
                 onLogout={handleLogout}
+                onNavigateToPurchases={(purchaseId) => {
+                  setHighlightPurchaseId(purchaseId || null);
+                  setCurrentRoute('financials');
+                }}
               />
             )}
 
@@ -813,6 +827,10 @@ function App() {
                 onCancel={handleBackToAssetList}
                 onAssetCreated={handleAssetCreated}
                 onAssetUpdated={handleBackToAssetList} // After updating, go back to list
+                onNavigateToPurchases={(purchaseId) => {
+                  setHighlightPurchaseId(purchaseId || null);
+                  setCurrentRoute('financials');
+                }}
                 onAssetDeleted={handleBackToAssetList} // After deleting, go back to list
                 onSwitchOrganization={handleBackToSelection}
                 onEditProfile={handleEditProfile}
@@ -890,6 +908,19 @@ function App() {
                 onNavigateToGigs={handleNavigateToGigs}
                 onSwitchOrganization={handleBackToSelection}
                 onLogout={handleLogout}
+              />
+            )}
+
+            {currentRoute === 'financials' && (
+              <FinancialsScreen
+                organization={selectedOrganization}
+                user={user}
+                userRole={userRole}
+                onSwitchOrganization={handleBackToSelection}
+                onLogout={handleLogout}
+                onNavigateToGigs={handleNavigateToGigs}
+                onNavigateToAssets={handleNavigateToAssets}
+                highlightPurchaseId={highlightPurchaseId}
               />
             )}
           </>

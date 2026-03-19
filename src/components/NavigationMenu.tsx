@@ -1,5 +1,5 @@
 import React from 'react';
-import { LayoutDashboard, Calendar, Users, Package } from 'lucide-react';
+import { LayoutDashboard, Calendar, Users, Package, Banknote } from 'lucide-react';
 
 export type RouteType =
   | 'dashboard'
@@ -16,7 +16,8 @@ export type RouteType =
   | 'edit-kit'
   | 'kit-detail'
   | 'calendar'
-  | 'import';
+  | 'import'
+  | 'financials';
 
 interface NavigationMenuItem {
   id: string;
@@ -32,6 +33,7 @@ interface NavigationMenuProps {
   onNavigateToGigs?: () => void;
   onNavigateToTeam?: () => void;
   onNavigateToAssets?: () => void;
+  onNavigateToFinancials?: () => void;
 }
 
 const NavigationMenu = React.memo(function NavigationMenu({
@@ -40,6 +42,7 @@ const NavigationMenu = React.memo(function NavigationMenu({
   onNavigateToGigs,
   onNavigateToTeam,
   onNavigateToAssets,
+  onNavigateToFinancials,
 }: NavigationMenuProps) {
   const menuItems: NavigationMenuItem[] = [
     {
@@ -55,6 +58,13 @@ const NavigationMenu = React.memo(function NavigationMenu({
       icon: Calendar,
       onClick: onNavigateToGigs,
       isActive: (route) => ['gig-list', 'create-gig', 'edit-gig', 'gig-detail', 'calendar'].includes(route),
+    },
+    {
+      id: 'financials',
+      label: 'Financials',
+      icon: Banknote,
+      onClick: onNavigateToFinancials,
+      isActive: (route) => route === 'financials',
     },
     {
       id: 'team',
