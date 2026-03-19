@@ -417,11 +417,9 @@ Two levels of conflict detection are implemented:
 ---
 ## Major Functionality Enhancements
 
-### Technical Documentation
+### Attachments and File Management
 
-#### Attachments & File Management
-
-There is a uniform file attachment facility that is used in multiple places. 
+There must be a uniform file attachment facility that is used in multiple places. 
 
 - **Organization Attachments**: Upload contracts, insurance certificates, W-9s, vendor agreements
 - **Gig Attachments**: Upload stage plots, input lists, contracts, riders, production schedules
