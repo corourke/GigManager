@@ -82,7 +82,6 @@ export default function AttachmentManager({
       console.error('Error uploading files:', err);
       toast.error(err.message || 'Failed to upload files');
     } finally {
-      setIsUploading(true);
       setIsUploading(false);
       // Reset input
       event.target.value = '';

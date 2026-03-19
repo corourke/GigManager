@@ -32,17 +32,17 @@ describe('LoginScreen', () => {
   })
 
   it('renders without throwing errors', () => {
-    expect(() => render(<LoginScreen onLogin={mockOnLogin} />)).not.toThrow()
+    expect(() => render(<LoginScreen />)).not.toThrow()
   })
 
   it('renders the sign-in email and password inputs', () => {
-    render(<LoginScreen onLogin={mockOnLogin} />)
+    render(<LoginScreen />)
     expect(document.getElementById('signin-email')).not.toBeNull()
     expect(document.getElementById('signin-password')).not.toBeNull()
   })
 
   it('renders the sign-in submit button', () => {
-    render(<LoginScreen onLogin={mockOnLogin} />)
+    render(<LoginScreen />)
     expect(screen.getByRole('button', { name: /sign in with email/i })).toBeTruthy()
   })
 
@@ -50,7 +50,7 @@ describe('LoginScreen', () => {
     // Never resolves — simulates a slow network
     mockAuth.signInWithPassword.mockReturnValue(new Promise(() => {}))
 
-    render(<LoginScreen onLogin={mockOnLogin} />)
+    render(<LoginScreen />)
 
     const emailInput = document.getElementById('signin-email') as HTMLInputElement
     const passwordInput = document.getElementById('signin-password') as HTMLInputElement
@@ -71,7 +71,7 @@ describe('LoginScreen', () => {
       error: { message: 'Invalid login credentials' },
     })
 
-    render(<LoginScreen onLogin={mockOnLogin} />)
+    render(<LoginScreen />)
 
     const emailInput = document.getElementById('signin-email') as HTMLInputElement
     const passwordInput = document.getElementById('signin-password') as HTMLInputElement
@@ -94,7 +94,7 @@ describe('LoginScreen', () => {
       error: { message: 'test error' },
     })
 
-    render(<LoginScreen onLogin={mockOnLogin} />)
+    render(<LoginScreen />)
 
     const emailInput = document.getElementById('signin-email') as HTMLInputElement
     const passwordInput = document.getElementById('signin-password') as HTMLInputElement
@@ -112,12 +112,12 @@ describe('LoginScreen', () => {
   })
 
   it('renders the Google sign-in button', () => {
-    render(<LoginScreen onLogin={mockOnLogin} />)
+    render(<LoginScreen />)
     expect(screen.getByRole('button', { name: /continue with google/i })).toBeTruthy()
   })
 
   it('renders both Sign In and Sign Up tab triggers', () => {
-    render(<LoginScreen onLogin={mockOnLogin} />)
+    render(<LoginScreen />)
     expect(screen.getByRole('tab', { name: /sign in/i })).toBeTruthy()
     expect(screen.getByRole('tab', { name: /sign up/i })).toBeTruthy()
   })

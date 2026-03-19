@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { getPurchases, createPurchase, createPurchaseTransaction, scanInvoice } from './purchase.service';
+import { getPurchases, createPurchase, createPurchaseTransaction, scanInvoice, importPurchases } from './purchase.service';
 import { createClient } from '../utils/supabase/client';
 import { requireAuth } from '../utils/supabase/auth-utils';
 
@@ -103,6 +103,41 @@ describe('purchase.service', () => {
 
       expect(mockSupabase.functions.invoke).toHaveBeenCalledWith('ai-scan', expect.any(Object));
       expect(result).toEqual(mockResult);
+    });
+  });
+
+  describe('importPurchases', () => {
+    it('should group rows by header and call createPurchaseTransaction', async () => {
+      const rows = [
+        {
+          data: {
+            source: '0',
+            acquisition_date: '2024-03-19',
+            vendor: 'Amazon',
+            total_inv_amount: '100.00',
+            category: 'Electronics'
+          }
+        },
+        {
+          data: {
+            source: '1',
+            acquisition_date: '2024-03-19',
+            vendor: 'Amazon',
+            manufacturer_model: 'Cable',
+            item_price: '50.00',
+            quantity: '2',
+            category: 'Electronics'
+          }
+        }
+      ];
+
+      mockSupabase.rpc.mockResolvedValue({ data: { id: 'h1' }, error: null });
+
+      const result = await importPurchases('org-1', rows);
+
+      expect(mockSupabase.rpc).toHaveBeenCalledTimes(1);
+      expect(result.successCount).toBe(3);
+      expect(result.errors).toHaveLength(0);
     });
   });
 });

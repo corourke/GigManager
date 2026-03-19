@@ -10,11 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import { Alert, AlertDescription } from './ui/alert';
 import { Separator } from './ui/separator';
 
-interface LoginScreenProps {
-  onLogin: (user: User, organizations: OrganizationMembership[]) => void;
-}
-
-export default function LoginScreen({ onLogin }: LoginScreenProps) {
+export default function LoginScreen() {
   const [isSignUp, setIsSignUp] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);

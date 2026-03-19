@@ -82,88 +82,35 @@ const GIG_STATUSES = Object.keys(GIG_STATUS_CONFIG);
  */
 function parseDate(dateStr: string): string | null {
   if (!dateStr || !dateStr.trim()) return null;
-  
   const trimmed = dateStr.trim();
   
-  // Try various date formats
-  const formats = [
-    // ISO format (preferred)
-    /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/,
-    // YYYY-MM-DD HH:MM:SS
-    /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/,
-    // YYYY-MM-DD HH:MM
-    /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/,
-    // YYYY-MM-DD
-    /^\d{4}-\d{2}-\d{2}$/,
-    // MM/DD/YYYY HH:MM:SS
-    /^\d{1,2}\/\d{1,2}\/\d{4} \d{2}:\d{2}:\d{2}$/,
-    // MM/DD/YYYY HH:MM
-    /^\d{1,2}\/\d{1,2}\/\d{4} \d{2}:\d{2}$/,
-    // MM/DD/YYYY
-    /^\d{1,2}\/\d{1,2}\/\d{4}$/,
-    // MM-DD-YYYY HH:MM:SS
-    /^\d{1,2}-\d{1,2}-\d{4} \d{2}:\d{2}:\d{2}$/,
-    // MM-DD-YYYY HH:MM
-    /^\d{1,2}-\d{1,2}-\d{4} \d{2}:\d{2}$/,
-    // MM-DD-YYYY
-    /^\d{1,2}-\d{1,2}-\d{4}$/,
-  ];
+  // Helper to create date and check validity
+  const createValidDate = (isoStr: string) => {
+    const d = new Date(isoStr);
+    return isNaN(d.getTime()) ? null : d.toISOString();
+  };
 
-  // Check if this is a date-only format (YYYY-MM-DD, MM/DD/YYYY, MM-DD-YYYY)
-  const isDateOnly = (
-    /^\d{4}-\d{2}-\d{2}$/.test(trimmed) ||
-    /^\d{1,2}\/\d{1,2}\/\d{4}$/.test(trimmed) ||
-    /^\d{1,2}-\d{1,2}-\d{4}$/.test(trimmed)
-  );
-
-  // Handle date-only formats first to ensure they get T12:00:00Z (noon UTC)
-  if (isDateOnly) {
-    // Handle MM/DD/YYYY and MM-DD-YYYY date-only formats
-    const mdySlashMatch = trimmed.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
-    const mdyDashMatch = trimmed.match(/^(\d{1,2})-(\d{1,2})-(\d{4})$/);
-    
-    if (mdySlashMatch || mdyDashMatch) {
-      const match = mdySlashMatch || mdyDashMatch;
-      const [, month, day, year] = match;
-      const date = new Date(`${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}T12:00:00Z`);
-      if (!isNaN(date.getTime())) {
-        return date.toISOString();
-      }
-    }
-    
-    // Handle YYYY-MM-DD date-only format
-    if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
-      const date = new Date(`${trimmed}T12:00:00Z`);
-      if (!isNaN(date.getTime())) {
-        return date.toISOString();
-      }
-    }
+  // 1. Handle YYYY-MM-DD date-only format explicitly for noon UTC
+  if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+    return createValidDate(`${trimmed}T12:00:00Z`);
   }
 
-  // Try to parse as-is first (handles ISO and many other formats with time)
-  let date = new Date(trimmed);
-  if (!isNaN(date.getTime())) {
-    return date.toISOString();
-  }
-
-  // Handle MM/DD/YYYY and MM-DD-YYYY formats with time
-  const mdySlashMatch = trimmed.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})(.*)$/);
-  const mdyDashMatch = trimmed.match(/^(\d{1,2})-(\d{1,2})-(\d{4})(.*)$/);
-  
-  if (mdySlashMatch || mdyDashMatch) {
-    const match = mdySlashMatch || mdyDashMatch;
-    const [, month, day, year, timePart = ''] = match;
+  // 2. Handle MM/DD/YYYY or MM-DD-YYYY formats (date-only or with time)
+  const mdyMatch = trimmed.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})(.*)$/);
+  if (mdyMatch) {
+    const [, month, day, year, timePart = ''] = mdyMatch;
+    const normalizedMonth = month.padStart(2, '0');
+    const normalizedDay = day.padStart(2, '0');
     
-    // Convert to YYYY-MM-DD format with time
-    const isoDateStr = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}${timePart}`;
-    date = new Date(isoDateStr);
-    
-    if (!isNaN(date.getTime())) {
-      return date.toISOString();
+    if (!timePart.trim()) {
+      return createValidDate(`${year}-${normalizedMonth}-${normalizedDay}T12:00:00Z`);
     }
+    
+    return createValidDate(`${year}-${normalizedMonth}-${normalizedDay}${timePart}`);
   }
 
-  return null;
+  // 3. Try to parse as-is (handles ISO and many other formats)
+  return createValidDate(trimmed);
 }
 
 /**
@@ -240,6 +187,65 @@ export function parseCSV<T>(file: File): Promise<Papa.ParseResult<T>> {
   });
 }
 
+function validateDate(field: 'start' | 'end', value: string, originalValue: string, errors: ValidationError[]) {
+  if (!value.trim()) {
+    errors.push({ field, message: `${field === 'start' ? 'Start' : 'End'} date/time is required` });
+    return false;
+  }
+  
+  const date = new Date(value);
+  if (isNaN(date.getTime())) {
+    const exampleFormats = ['YYYY-MM-DD', 'MM/DD/YYYY', 'MM-DD-YYYY', 'YYYY-MM-DD HH:mm', 'MM/DD/YYYY HH:mm'];
+    errors.push({ 
+      field, 
+      message: `Invalid ${field} date "${originalValue}". Use formats like: ${exampleFormats.join(', ')}. Examples: "2024-07-15", "07/15/2024", "2024-07-15 18:00"` 
+    });
+    return false;
+  }
+  return true;
+}
+
+function validateTimezone(value: string, originalValue: string, errors: ValidationError[]) {
+  if (!value.trim()) {
+    errors.push({ field: 'timezone', message: 'Timezone is required' });
+    return false;
+  }
+  if (!isValidTimezone(value)) {
+    errors.push({ 
+      field: 'timezone', 
+      message: `Invalid timezone "${originalValue}". Use IANA timezone names like: America/New_York, America/Los_Angeles, Europe/London, or UTC. See dropdown for full list.` 
+    });
+    return false;
+  }
+  return true;
+}
+
+function validateStatus(value: string, originalValue: string, errors: ValidationError[]) {
+  if (!value.trim()) {
+    errors.push({ field: 'status', message: 'Status is required' });
+    return false;
+  }
+  if (!GIG_STATUSES.includes(value)) {
+    errors.push({ 
+      field: 'status', 
+      message: `Invalid status "${originalValue}". Valid options: ${GIG_STATUSES.join(', ')}. Use the dropdown to select a valid status.` 
+    });
+    return false;
+  }
+  return true;
+}
+
+function validateAmount(value: string, errors: ValidationError[]) {
+  if (value && value.trim()) {
+    const amount = parseFloat(value);
+    if (isNaN(amount)) {
+      errors.push({ field: 'amount', message: `Invalid amount "${value}". Must be a number (e.g., 1000, 1000.50, 0)` });
+    } else if (amount < 0) {
+      errors.push({ field: 'amount', message: 'Amount cannot be negative. Use 0 for free gigs or positive numbers for paid gigs.' });
+    }
+  }
+}
+
 export function validateGigRow(row: any, rowIndex: number, userTimezone?: string | null): ParsedRow<GigRow> {
   const errors: ValidationError[] = [];
   const originalValues: Record<string, string> = {};
@@ -258,81 +264,44 @@ export function validateGigRow(row: any, rowIndex: number, userTimezone?: string
     errors.push({ field: 'title', message: 'Title is required' });
   }
 
-  if (!data.start.trim()) {
-    errors.push({ field: 'start', message: 'Start date/time is required' });
-  } else {
+  const isStartValid = validateDate('start', data.start, originalStart, errors);
+  if (!isStartValid && data.start.trim()) {
+    originalValues.start = originalStart;
+    data.originalStart = originalStart;
+  }
+
+  const isEndValid = validateDate('end', data.end, originalEnd, errors);
+  if (!isEndValid && data.end.trim()) {
+    originalValues.end = originalEnd;
+    data.originalEnd = originalEnd;
+  }
+
+  // Cross-field date validation
+  if (isStartValid && isEndValid) {
     const startDate = new Date(data.start);
-    if (isNaN(startDate.getTime())) {
-      const exampleFormats = ['YYYY-MM-DD', 'MM/DD/YYYY', 'MM-DD-YYYY', 'YYYY-MM-DD HH:mm', 'MM/DD/YYYY HH:mm'];
-      errors.push({ 
-        field: 'start', 
-        message: `Invalid start date "${originalStart}". Use formats like: ${exampleFormats.join(', ')}. Examples: "2024-07-15", "07/15/2024", "2024-07-15 18:00"` 
-      });
-      // Store original value for display when invalid
-      originalValues.start = originalStart;
-      data.originalStart = originalStart;
-    }
-  }
-
-  if (!data.end.trim()) {
-    errors.push({ field: 'end', message: 'End date/time is required' });
-  } else {
     const endDate = new Date(data.end);
-    if (isNaN(endDate.getTime())) {
-      const exampleFormats = ['YYYY-MM-DD', 'MM/DD/YYYY', 'MM-DD-YYYY', 'YYYY-MM-DD HH:mm', 'MM/DD/YYYY HH:mm'];
-      errors.push({ 
-        field: 'end', 
-        message: `Invalid end date "${originalEnd}". Use formats like: ${exampleFormats.join(', ')}. Examples: "2024-07-15", "07/15/2024", "2024-07-15 22:00"` 
-      });
-      // Store original value for display when invalid
-      originalValues.end = originalEnd;
-      data.originalEnd = originalEnd;
-    } else if (data.start) {
-      const startDate = new Date(data.start);
-      if (!isNaN(startDate.getTime()) && endDate < startDate) {
-        errors.push({ field: 'end', message: 'End time must be after start time' });
-      } else if (!isNaN(startDate.getTime()) && endDate.getTime() === startDate.getTime()) {
-        // Equal times are only allowed for date-only entries (both at noon UTC)
-        if (!(isNoonUTC(data.start) && isNoonUTC(data.end))) {
-          errors.push({ field: 'end', message: 'End time must be after start time' });
-        }
-      }
+    if (endDate < startDate) {
+      errors.push({ field: 'end', message: 'End time must be after start time' });
+    } else if (endDate.getTime() === startDate.getTime() && !(isNoonUTC(data.start) && isNoonUTC(data.end))) {
+      errors.push({ field: 'end', message: 'End time must be after start time' });
     }
   }
 
-  if (!data.timezone.trim()) {
-    errors.push({ field: 'timezone', message: 'Timezone is required' });
-  } else if (!isValidTimezone(data.timezone)) {
-    errors.push({ 
-      field: 'timezone', 
-      message: `Invalid timezone "${originalTimezone}". Use IANA timezone names like: America/New_York, America/Los_Angeles, Europe/London, or UTC. See dropdown for full list.` 
-    });
-    // Store original value for display when invalid
-    originalValues.timezone = originalTimezone;
-    data.originalTimezone = originalTimezone;
-  }
-
-  if (!data.status.trim()) {
-    errors.push({ field: 'status', message: 'Status is required' });
-  } else if (!GIG_STATUSES.includes(data.status)) {
-    errors.push({ 
-      field: 'status', 
-      message: `Invalid status "${originalStatus}". Valid options: ${GIG_STATUSES.join(', ')}. Use the dropdown to select a valid status.` 
-    });
-    // Store original value for display when invalid
-    originalValues.status = originalStatus;
-    data.originalStatus = originalStatus;
-  }
-
-  // Optional numeric validation
-  if (data.amount && data.amount.trim()) {
-    const amount = parseFloat(data.amount);
-    if (isNaN(amount)) {
-      errors.push({ field: 'amount', message: `Invalid amount "${data.amount}". Must be a number (e.g., 1000, 1000.50, 0)` });
-    } else if (amount < 0) {
-      errors.push({ field: 'amount', message: 'Amount cannot be negative. Use 0 for free gigs or positive numbers for paid gigs.' });
+  if (!validateTimezone(data.timezone, originalTimezone, errors)) {
+    if (data.timezone.trim()) {
+      originalValues.timezone = originalTimezone;
+      data.originalTimezone = originalTimezone;
     }
   }
+
+  if (!validateStatus(data.status, originalStatus, errors)) {
+    if (data.status.trim()) {
+      originalValues.status = originalStatus;
+      data.originalStatus = originalStatus;
+    }
+  }
+
+  validateAmount(data.amount, errors);
 
   return {
     rowIndex,

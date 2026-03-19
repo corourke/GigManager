@@ -18,7 +18,27 @@ Do not make assumptions on important decisions — get clarification first.
 
 ## Workflow Steps
 
-### [ ] Step: Implementation
+### [x] Step: Investigation & Refactoring
+<!-- chat-id: fb60852b-35f6-4a8a-918f-38978135ab06 -->
+
+1.  **Investigation**: [x]
+    *   Scan files changed in the past 7 days for unused imports, dead code, and deprecated API usage.
+    *   Analyze complexity (cyclomatic complexity, parameter count) of modified functions.
+    *   Identify the highest-impact improvement.
+2.  **Refactoring**: [x]
+    *   Fixed redundant `setIsUploading` calls in `AttachmentManager.tsx`.
+    *   Refactored `importPurchases` in `purchase.service.ts` into cleaner helper functions.
+    *   Removed dead `handleLogin` code and `onLogin` prop from `App.tsx` and `LoginScreen.tsx`.
+    *   Added remaining findings to `plan.md` for future tasks.
+3.  **Verification**: [x]
+    *   Run `npm run build && npm run test:run` to ensure no regressions.
+
+### [x] Step: Future Refactoring Items
+<!-- chat-id: 97c31960-f639-4585-aabc-6718a1cfff07 -->
+1.  **Refactor `parseDate` in `src/utils/csvImport.ts`**: [x] Streamline the multiple regex checks and date parsing logic.
+2.  **Simplify `validateGigRow` in `src/utils/csvImport.ts`**: [x] Extract specific validation blocks (start/end dates, timezone, status) into smaller helper functions to reduce cyclomatic complexity.
+3.  **Improve Supabase Type Safety**: [x] Define a comprehensive `Database` type in `src/utils/supabase/types.tsx` and use it in `createClient` to eliminate the need for `as any` when calling `supabase.from()`.
+4.  **Refactor `NavigationMenu` Props**: [x] Group navigation callbacks into a single `navigation` or `actions` object to reduce the number of props (currently 6).
 
 **Debug requests, questions, and investigations:** answer or investigate first. Do not create a plan upfront — the user needs an answer, not a plan. A plan may become relevant later once the investigation reveals what needs to change.
 

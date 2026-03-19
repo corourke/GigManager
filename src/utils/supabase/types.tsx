@@ -376,3 +376,123 @@ export interface DbGigSyncStatus {
 
 export type UserGoogleCalendarSettings = DbUserGoogleCalendarSettings;
 export type GigSyncStatus = DbGigSyncStatus;
+
+export interface Database {
+  public: {
+    Tables: {
+      users: {
+        Row: DbUser;
+        Insert: Omit<DbUser, 'id' | 'created_at' | 'updated_at'>;
+        Update: Partial<Omit<DbUser, 'id' | 'created_at' | 'updated_at'>>;
+      };
+      organizations: {
+        Row: DbOrganization;
+        Insert: Omit<DbOrganization, 'id' | 'created_at' | 'updated_at'>;
+        Update: Partial<Omit<DbOrganization, 'id' | 'created_at' | 'updated_at'>>;
+      };
+      organization_members: {
+        Row: DbOrganizationMember;
+        Insert: Omit<DbOrganizationMember, 'id' | 'created_at'>;
+        Update: Partial<Omit<DbOrganizationMember, 'id' | 'created_at'>>;
+      };
+      gigs: {
+        Row: DbGig;
+        Insert: Omit<DbGig, 'id' | 'created_at' | 'updated_at'>;
+        Update: Partial<Omit<DbGig, 'id' | 'created_at' | 'updated_at'>>;
+      };
+      staff_roles: {
+        Row: DbStaffRole;
+        Insert: Omit<DbStaffRole, 'id' | 'created_at' | 'updated_at'>;
+        Update: Partial<Omit<DbStaffRole, 'id' | 'created_at' | 'updated_at'>>;
+      };
+      gig_status_history: {
+        Row: DbGigStatusHistory;
+        Insert: Omit<DbGigStatusHistory, 'id' | 'changed_at'>;
+        Update: Partial<Omit<DbGigStatusHistory, 'id' | 'changed_at'>>;
+      };
+      gig_participants: {
+        Row: DbGigParticipant;
+        Insert: Omit<DbGigParticipant, 'id'>;
+        Update: Partial<Omit<DbGigParticipant, 'id'>>;
+      };
+      gig_staff_slots: {
+        Row: DbGigStaffSlot;
+        Insert: Omit<DbGigStaffSlot, 'id' | 'created_at' | 'updated_at'>;
+        Update: Partial<Omit<DbGigStaffSlot, 'id' | 'created_at' | 'updated_at'>>;
+      };
+      gig_staff_assignments: {
+        Row: DbGigStaffAssignment;
+        Insert: Omit<DbGigStaffAssignment, 'id' | 'assigned_at'>;
+        Update: Partial<Omit<DbGigStaffAssignment, 'id' | 'assigned_at'>>;
+      };
+      gig_financials: {
+        Row: DbGigFinancial;
+        Insert: Omit<DbGigFinancial, 'id' | 'created_at' | 'updated_at'>;
+        Update: Partial<Omit<DbGigFinancial, 'id' | 'created_at' | 'updated_at'>>;
+      };
+      invitations: {
+        Row: DbInvitation;
+        Insert: Omit<DbInvitation, 'id' | 'created_at' | 'updated_at'>;
+        Update: Partial<Omit<DbInvitation, 'id' | 'created_at' | 'updated_at'>>;
+      };
+      assets: {
+        Row: DbAsset;
+        Insert: Omit<DbAsset, 'id' | 'created_at' | 'updated_at'>;
+        Update: Partial<Omit<DbAsset, 'id' | 'created_at' | 'updated_at'>>;
+      };
+      purchases: {
+        Row: DbPurchase;
+        Insert: Omit<DbPurchase, 'id' | 'created_at' | 'updated_at'>;
+        Update: Partial<Omit<DbPurchase, 'id' | 'created_at' | 'updated_at'>>;
+      };
+      attachments: {
+        Row: DbAttachment;
+        Insert: Omit<DbAttachment, 'id' | 'created_at'>;
+        Update: Partial<Omit<DbAttachment, 'id' | 'created_at'>>;
+      };
+      entity_attachments: {
+        Row: DbEntityAttachment;
+        Insert: Omit<DbEntityAttachment, 'id' | 'created_at'>;
+        Update: Partial<Omit<DbEntityAttachment, 'id' | 'created_at'>>;
+      };
+      asset_status_history: {
+        Row: DbAssetStatusHistory;
+        Insert: Omit<DbAssetStatusHistory, 'id' | 'changed_at'>;
+        Update: Partial<Omit<DbAssetStatusHistory, 'id' | 'changed_at'>>;
+      };
+      inventory_tracking: {
+        Row: DbInventoryTracking;
+        Insert: Omit<DbInventoryTracking, 'id' | 'created_at'>;
+        Update: Partial<Omit<DbInventoryTracking, 'id' | 'created_at'>>;
+      };
+      kits: {
+        Row: DbKit;
+        Insert: Omit<DbKit, 'id' | 'created_at' | 'updated_at'>;
+        Update: Partial<Omit<DbKit, 'id' | 'created_at' | 'updated_at'>>;
+      };
+      kit_assets: {
+        Row: DbKitAsset;
+        Insert: Omit<DbKitAsset, 'id' | 'created_at'>;
+        Update: Partial<Omit<DbKitAsset, 'id' | 'created_at'>>;
+      };
+      gig_kit_assignments: {
+        Row: DbGigKitAssignment;
+        Insert: Omit<DbGigKitAssignment, 'id' | 'assigned_at'>;
+        Update: Partial<Omit<DbGigKitAssignment, 'id' | 'assigned_at'>>;
+      };
+      user_google_calendar_settings: {
+        Row: DbUserGoogleCalendarSettings;
+        Insert: Omit<DbUserGoogleCalendarSettings, 'id' | 'created_at' | 'updated_at'>;
+        Update: Partial<Omit<DbUserGoogleCalendarSettings, 'id' | 'created_at' | 'updated_at'>>;
+      };
+      gig_sync_status: {
+        Row: DbGigSyncStatus;
+        Insert: Omit<DbGigSyncStatus, 'id' | 'created_at' | 'updated_at'>;
+        Update: Partial<Omit<DbGigSyncStatus, 'id' | 'created_at' | 'updated_at'>>;
+      };
+    };
+    Views: {};
+    Functions: {};
+    Enums: {};
+  };
+}

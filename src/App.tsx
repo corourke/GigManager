@@ -284,10 +284,6 @@ function App() {
     }
   }, [isLoading, user, selectedOrganization, userRole, currentRoute]);
 
-  const handleLogin = (userData: User, userOrgs: OrganizationMembership[]) => {
-    login(userData, userOrgs);
-  };
-
   const handleProfileCompleted = (updatedUser: User) => {
     setUser(updatedUser);
     
@@ -569,7 +565,7 @@ function App() {
       )}
 
       {currentRoute === 'login' && (
-        <LoginScreen onLogin={handleLogin} />
+        <LoginScreen />
       )}
       
       {currentRoute === 'profile-completion' && user && (

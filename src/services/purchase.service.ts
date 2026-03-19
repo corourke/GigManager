@@ -200,16 +200,7 @@ export async function importPurchases(
         } else {
           // Start a NEW group
           const newGroup: PurchaseGroup = {
-            header: {
-              organization_id: organizationId,
-              purchase_date: data.acquisition_date,
-              vendor: data.vendor,
-              total_inv_amount: invAmt,
-              payment_method: data.payment_method,
-              description: data.manufacturer_model || data.description || '',
-              category: data.category,
-              sub_category: data['sub-category'] || undefined,
-            },
+            header: mapRowToPurchaseHeader(organizationId, data, invAmt),
             items: [],
             assets: [],
           };
@@ -220,16 +211,7 @@ export async function importPurchases(
         // Start a NEW group
         const invAmt = hasTotal ? parseFloat(data.total_inv_amount!.toString().replace(/[^0-9.-]/g, '')) : 0;
         const newGroup: PurchaseGroup = {
-          header: {
-            organization_id: organizationId,
-            purchase_date: data.acquisition_date,
-            vendor: data.vendor,
-            total_inv_amount: invAmt,
-            payment_method: data.payment_method,
-            description: data.manufacturer_model || data.description || '',
-            category: data.category,
-            sub_category: data['sub-category'] || undefined,
-          },
+          header: mapRowToPurchaseHeader(organizationId, data, invAmt),
           items: [],
           assets: [],
         };
@@ -240,53 +222,10 @@ export async function importPurchases(
         // Actually, by NOT using its lookupKey in the map, we ensure it's "Isolated".
 
         const currentGroup = allGroups[allGroups.length - 1];
-        const parsedQty = data.quantity ? parseInt(data.quantity.toString().replace(/[^0-9.-]/g, '')) : 1;
-        const parsedItemPrice = data.item_price ? parseFloat(data.item_price.toString().replace(/[^0-9.-]/g, '')) : undefined;
-        const parsedItemCost = data.item_cost ? parseFloat(data.item_cost.toString().replace(/[^0-9.-]/g, '')) : undefined;
-        const parsedLineAmount = data.line_amount ? parseFloat(data.line_amount.toString().replace(/[^0-9.-]/g, '')) : undefined;
-        const parsedLineCost = data.line_cost ? parseFloat(data.line_cost.toString().replace(/[^0-9.-]/g, '')) : undefined;
-        const desc = data.manufacturer_model || data.description || undefined;
-
-        currentGroup.items.push({
-          organization_id: organizationId,
-          purchase_date: data.acquisition_date,
-          vendor: data.vendor,
-          category: data.category,
-          sub_category: data['sub-category'] || undefined,
-          description: desc,
-          line_amount: parsedLineAmount,
-          line_cost: parsedLineCost,
-          quantity: parsedQty,
-          item_price: parsedItemPrice,
-          item_cost: parsedItemCost,
-          row_type: data.source === '1' ? 'asset' : 'item',
-        });
+        currentGroup.items.push(mapRowToPurchaseItem(organizationId, data));
 
         if (data.source === '1') {
-          currentGroup.assets.push({
-            organization_id: organizationId,
-            category: data.category,
-            sub_category: data['sub-category'] || undefined,
-            manufacturer_model: data.manufacturer_model,
-            type: data.type || undefined,
-            serial_number: data.serial_number || undefined,
-            tag_number: data.tag_number || undefined,
-            acquisition_date: data.acquisition_date,
-            vendor: data.vendor,
-            item_price: parsedItemPrice,
-            item_cost: parsedItemCost,
-            quantity: parsedQty,
-            description: desc,
-            insurance_policy_added: data.insured ? (data.insured.toLowerCase() === 'yes' || data.insured === 'true') : false,
-            insurance_class: data.insurance_class || undefined,
-            replacement_value: data.replacement_value ? parseFloat(data.replacement_value.toString().replace(/[^0-9.-]/g, '')) : undefined,
-            retired_on: data.retired_on || undefined,
-            liquidation_amt: data.liquidation_amt ? parseFloat(data.liquidation_amt.toString().replace(/[^0-9.-]/g, '')) : undefined,
-            service_life: data.service_life ? parseFloat(data.service_life.toString().replace(/[^0-9.-]/g, '')) : undefined,
-            dep_method: data.dep_method || undefined,
-            status: data.status || 'Active',
-            kit: data.kit || undefined,
-          });
+          currentGroup.assets.push(mapRowToAsset(organizationId, data));
         }
       } else {
         // It's an item/asset that belongs to the LATEST matching group
@@ -311,55 +250,13 @@ export async function importPurchases(
         }
 
         const currentGroup = allGroups[groupIdx];
-        const parsedQty2 = data.quantity ? parseInt(data.quantity.toString().replace(/[^0-9.-]/g, '')) : 1;
-        const parsedItemPrice2 = data.item_price ? parseFloat(data.item_price.toString().replace(/[^0-9.-]/g, '')) : undefined;
-        const parsedItemCost2 = data.item_cost ? parseFloat(data.item_cost.toString().replace(/[^0-9.-]/g, '')) : undefined;
-        const parsedLineAmount2 = data.line_amount ? parseFloat(data.line_amount.toString().replace(/[^0-9.-]/g, '')) : undefined;
-        const parsedLineCost2 = data.line_cost ? parseFloat(data.line_cost.toString().replace(/[^0-9.-]/g, '')) : undefined;
-        const desc2 = data.manufacturer_model || data.description || undefined;
-
+        
         if (data.source === '1' || data.source === '2') {
-          currentGroup.items.push({
-            organization_id: organizationId,
-            purchase_date: data.acquisition_date,
-            vendor: data.vendor,
-            category: data.category,
-            sub_category: data['sub-category'] || undefined,
-            description: desc2,
-            line_amount: parsedLineAmount2,
-            line_cost: parsedLineCost2,
-            quantity: parsedQty2,
-            item_price: parsedItemPrice2,
-            item_cost: parsedItemCost2,
-            row_type: data.source === '1' ? 'asset' : 'item',
-          });
+          currentGroup.items.push(mapRowToPurchaseItem(organizationId, data));
         }
 
         if (data.source === '1') {
-          currentGroup.assets.push({
-            organization_id: organizationId,
-            category: data.category,
-            sub_category: data['sub-category'] || undefined,
-            manufacturer_model: data.manufacturer_model,
-            type: data.type || undefined,
-            serial_number: data.serial_number || undefined,
-            tag_number: data.tag_number || undefined,
-            acquisition_date: data.acquisition_date,
-            vendor: data.vendor,
-            item_price: parsedItemPrice2,
-            item_cost: parsedItemCost2,
-            quantity: parsedQty2,
-            description: desc2,
-            insurance_policy_added: data.insured ? (data.insured.toLowerCase() === 'yes' || data.insured === 'true') : false,
-            insurance_class: data.insurance_class || undefined,
-            replacement_value: data.replacement_value ? parseFloat(data.replacement_value.toString().replace(/[^0-9.-]/g, '')) : undefined,
-            retired_on: data.retired_on || undefined,
-            liquidation_amt: data.liquidation_amt ? parseFloat(data.liquidation_amt.toString().replace(/[^0-9.-]/g, '')) : undefined,
-            service_life: data.service_life ? parseFloat(data.service_life.toString().replace(/[^0-9.-]/g, '')) : undefined,
-            dep_method: data.dep_method || undefined,
-            status: data.status || 'Active',
-            kit: data.kit || undefined,
-          });
+          currentGroup.assets.push(mapRowToAsset(organizationId, data));
         }
       }
     });
@@ -524,4 +421,82 @@ export async function scanInvoice(file: File) {
   } catch (err) {
     return handleFunctionsError(err, 'scan invoice');
   }
+}
+
+/**
+ * Maps a CSV row to a Purchase Header object
+ */
+function mapRowToPurchaseHeader(organizationId: string, data: any, invAmt: number) {
+  return {
+    organization_id: organizationId,
+    purchase_date: data.acquisition_date,
+    vendor: data.vendor,
+    total_inv_amount: invAmt,
+    payment_method: data.payment_method,
+    description: data.manufacturer_model || data.description || '',
+    category: data.category,
+    sub_category: data['sub-category'] || undefined,
+  };
+}
+
+/**
+ * Maps a CSV row to a Purchase Item object
+ */
+function mapRowToPurchaseItem(organizationId: string, data: any) {
+  const parsedQty = data.quantity ? parseInt(data.quantity.toString().replace(/[^0-9.-]/g, '')) : 1;
+  const parsedItemPrice = data.item_price ? parseFloat(data.item_price.toString().replace(/[^0-9.-]/g, '')) : undefined;
+  const parsedItemCost = data.item_cost ? parseFloat(data.item_cost.toString().replace(/[^0-9.-]/g, '')) : undefined;
+  const parsedLineAmount = data.line_amount ? parseFloat(data.line_amount.toString().replace(/[^0-9.-]/g, '')) : undefined;
+  const parsedLineCost = data.line_cost ? parseFloat(data.line_cost.toString().replace(/[^0-9.-]/g, '')) : undefined;
+  const desc = data.manufacturer_model || data.description || undefined;
+
+  return {
+    organization_id: organizationId,
+    purchase_date: data.acquisition_date,
+    vendor: data.vendor,
+    category: data.category,
+    sub_category: data['sub-category'] || undefined,
+    description: desc,
+    line_amount: parsedLineAmount,
+    line_cost: parsedLineCost,
+    quantity: parsedQty,
+    item_price: parsedItemPrice,
+    item_cost: parsedItemCost,
+    row_type: (data.source === '1' ? 'asset' : 'item') as 'asset' | 'item',
+  };
+}
+
+/**
+ * Maps a CSV row to an Asset object
+ */
+function mapRowToAsset(organizationId: string, data: any) {
+  const parsedQty = data.quantity ? parseInt(data.quantity.toString().replace(/[^0-9.-]/g, '')) : 1;
+  const parsedItemPrice = data.item_price ? parseFloat(data.item_price.toString().replace(/[^0-9.-]/g, '')) : undefined;
+  const parsedItemCost = data.item_cost ? parseFloat(data.item_cost.toString().replace(/[^0-9.-]/g, '')) : undefined;
+  const desc = data.manufacturer_model || data.description || undefined;
+
+  return {
+    organization_id: organizationId,
+    category: data.category,
+    sub_category: data['sub-category'] || undefined,
+    manufacturer_model: data.manufacturer_model,
+    type: data.type || undefined,
+    serial_number: data.serial_number || undefined,
+    tag_number: data.tag_number || undefined,
+    acquisition_date: data.acquisition_date,
+    vendor: data.vendor,
+    item_price: parsedItemPrice,
+    item_cost: parsedItemCost,
+    quantity: parsedQty,
+    description: desc,
+    insurance_policy_added: data.insured ? (data.insured.toLowerCase() === 'yes' || data.insured === 'true') : false,
+    insurance_class: data.insurance_class || undefined,
+    replacement_value: data.replacement_value ? parseFloat(data.replacement_value.toString().replace(/[^0-9.-]/g, '')) : undefined,
+    retired_on: data.retired_on || undefined,
+    liquidation_amt: data.liquidation_amt ? parseFloat(data.liquidation_amt.toString().replace(/[^0-9.-]/g, '')) : undefined,
+    service_life: data.service_life ? parseFloat(data.service_life.toString().replace(/[^0-9.-]/g, '')) : undefined,
+    dep_method: data.dep_method || undefined,
+    status: data.status || 'Active',
+    kit: data.kit || undefined,
+  };
 }

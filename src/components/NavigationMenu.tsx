@@ -29,55 +29,53 @@ interface NavigationMenuItem {
 
 interface NavigationMenuProps {
   currentRoute: RouteType;
-  onNavigateToDashboard?: () => void;
-  onNavigateToGigs?: () => void;
-  onNavigateToTeam?: () => void;
-  onNavigateToAssets?: () => void;
-  onNavigateToFinancials?: () => void;
+  onNavigate: {
+    dashboard?: () => void;
+    gigs?: () => void;
+    team?: () => void;
+    assets?: () => void;
+    financials?: () => void;
+  };
 }
 
 const NavigationMenu = React.memo(function NavigationMenu({
   currentRoute,
-  onNavigateToDashboard,
-  onNavigateToGigs,
-  onNavigateToTeam,
-  onNavigateToAssets,
-  onNavigateToFinancials,
+  onNavigate,
 }: NavigationMenuProps) {
   const menuItems: NavigationMenuItem[] = [
     {
       id: 'dashboard',
       label: 'Dashboard',
       icon: LayoutDashboard,
-      onClick: onNavigateToDashboard,
+      onClick: onNavigate.dashboard,
       isActive: (route) => route === 'dashboard',
     },
     {
       id: 'gigs',
       label: 'Gigs',
       icon: Calendar,
-      onClick: onNavigateToGigs,
+      onClick: onNavigate.gigs,
       isActive: (route) => ['gig-list', 'create-gig', 'edit-gig', 'gig-detail', 'calendar'].includes(route),
     },
     {
       id: 'financials',
       label: 'Financials',
       icon: Banknote,
-      onClick: onNavigateToFinancials,
+      onClick: onNavigate.financials,
       isActive: (route) => route === 'financials',
     },
     {
       id: 'team',
       label: 'Team',
       icon: Users,
-      onClick: onNavigateToTeam,
+      onClick: onNavigate.team,
       isActive: (route) => route === 'team',
     },
     {
       id: 'equipment',
       label: 'Equipment',
       icon: Package,
-      onClick: onNavigateToAssets,
+      onClick: onNavigate.assets,
       isActive: (route) => 
         ['asset-list', 'create-asset', 'edit-asset', 'kit-list', 'create-kit', 'edit-kit', 'kit-detail'].includes(route),
     },
