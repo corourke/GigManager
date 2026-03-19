@@ -211,10 +211,10 @@ This app streamlines the management of gigs (where an act performs at a venue) f
 - **Purpose**: Track all financial transactions for a gig and calculate gig profitability
 - **Single-Ledger Model**: `gig_financials` is the single source of truth. Every financial event — revenue, expense, staff labor — is a row in this table. Profitability = querying one table (plus uncompleted staff assignments for projections).
 - **Source Documents Feed the Ledger**:
-  - `purchases` — receipt/invoice archive. When a receipt is a gig expense, a `gig_financials` record is created with `purchase_id` linking back to the receipt. The `gig_id` column does not exist on `purchases`.
-  - `gig_staff_assignments` — staff scheduling with fee/rate. When marked complete, a `gig_financials` record is created with `staff_assignment_id` linking back. Before completion, fees are projected costs only.
+  - `purchases` — receipt/invoice archive. When a receipt is a gig expense, a `gig_financials` record is created with `purchase_id` linking back. The purchase also retains `gig_id` for tracking. Two-way linking: purchases ↔ gig_financials.
+  - `gig_staff_assignments` — staff scheduling with fee/rate. When marked complete, a `gig_financials` record is created with `staff_assignment_id`, and the assignment gets `gig_financial_id` back-link. Before completion, fees are projected costs only.
 - **Financial Record Fields**: organization_id, amount, currency, type (fin_type enum), category (fin_category enum), description, counterparty_id, external_entity_name, due_date, paid_at, reference_number, notes, purchase_id (nullable FK), staff_assignment_id (nullable FK)
-- **Staff Assignment Completion Fields**: completed_at (timestamp), units_completed (numeric, for rate-based)
+- **Staff Assignment Completion Fields**: completed_at (timestamp), units_completed (numeric, for rate-based), gig_financial_id (FK back to ledger entry)
 - **Profitability View**: Contract amount minus (actual costs from ledger + projected staff from uncompleted assignments) = Profit with margin percentage
 - **Type Grouping**: The 24-value `fin_type` enum is grouped in the UI into Revenue, Cost, Tracking, and Advanced categories. Common types shown prominently; full list accessible via expand
 
@@ -1086,19 +1086,34 @@ The application provides a centralized system for managing file attachments (PDF
 
 #### Single-Ledger Architecture
 - **`gig_financials`** is the ledger. Manual expenses, receipt-sourced expenses, and completed staff labor all become rows here. Profitability = Revenue entries minus Cost entries.
-- **`purchases`** is the receipt archive. When a scanned receipt is a gig expense, the system creates BOTH a purchase record (receipt storage) AND a `gig_financials` record (the financial effect) linked via `purchase_id`. The `gig_id` column does not exist on purchases — gig linkage goes through the ledger.
-- **`gig_staff_assignments`** holds projected labor costs. When an assignment is marked complete, a `gig_financials` record is created (type = `Expense Incurred`, category = `Labor`) linked via `staff_assignment_id`. Before completion, fees are projected costs only.
+- **`purchases`** is the receipt archive. When a scanned receipt is a gig expense, the system creates BOTH a purchase record (with `gig_id` for tracking) AND a `gig_financials` record (the financial effect) linked via `purchase_id`. Two-way linking: `gig_financials.purchase_id` → purchases, `purchases.gig_id` → gigs.
+- **`gig_staff_assignments`** holds projected labor costs. When an assignment is marked complete, a `gig_financials` record is created (type = `Expense Incurred`, category = `Labor`) with two-way linking: `gig_financials.staff_assignment_id` → assignment, `gig_staff_assignments.gig_financial_id` → gig_financials. Before completion, fees are projected costs only.
 - **Capital asset purchases** (where items create `assets` records) do NOT create gig_financials entries. They are inventory acquisitions, not gig expenses.
+
+#### Entity Relationships
+
+Two-way linking pattern across the financial data model:
+
+```mermaid
+erDiagram
+    gig_financials ||--o| purchases : "purchase_id ↔ gig_id"
+    gig_financials ||--o| gig_staff_assignments : "staff_assignment_id ↔ gig_financial_id"
+    purchases ||--o| assets : "asset_id"
+    purchases ||--o| gigs : "gig_id"
+    gigs ||--o{ gig_financials : "gig_id"
+    gigs ||--o{ gig_staff_slots : "gig_id"
+    gig_staff_slots ||--o{ gig_staff_assignments : "staff_slot_id"
+```
 
 #### Staff Cost Lifecycle
 - **Before gig**: Staff assigned with fee/rate → shows as projected cost in profitability view (from assignments table)
 - **After gig**: Assignment marked complete → `gig_financials` record created → becomes actual cost in ledger
 - **Payment**: `Payment Sent` record added → clear visibility into "expense incurred but not yet paid"
-- **Completion fields**: `completed_at` (timestamp), `units_completed` (numeric, for rate-based: actual hours/days)
+- **Completion fields**: `completed_at` (timestamp), `units_completed` (numeric, for rate-based: actual hours/days), `gig_financial_id` (back-link to created ledger entry)
 - **Bulk finalization**: "Finalize All" action completes all confirmed fee-based assignments in one click when gig moves to Completed
 
 #### Gig Profitability
-- **Revenue**: Sum of `Contract Signed` records from gig_financials
+- **Revenue**: Sum of `Contract Signed` + `Bid Accepted` records from gig_financials
 - **Received**: Sum of `Deposit Received` + `Payment Recieved` from gig_financials
 - **Actual Costs**: Sum of `Expense Incurred` + `Payment Sent` from gig_financials (includes completed staff, manual expenses, receipt-sourced expenses)
 - **Projected Staff**: Sum of fees from uncompleted assignments (goes to zero as staff are finalized)
@@ -1107,13 +1122,13 @@ The application provides a centralized system for managing file attachments (PDF
 
 #### Requirements
 - **Manual Expense Entry**: Quick entry via Financials section — type, amount, category, description. Creates a `gig_financials` record directly.
-- **AI-Powered Receipt Entry**: Upload receipt image in Purchase Receipts section; AI extracts data; system creates both `purchases` record (archive) and `gig_financials` record (ledger entry) automatically.
+- **AI-Powered Receipt Entry**: Upload receipt via "Upload Receipt" button in Financials section; AI extracts data; system creates both `purchases` record (archive, with `gig_id`) and `gig_financials` record (ledger entry, with `purchase_id`) automatically.
 - **General Business Expenses**: Purchases without a linked gig_financials record are general business receipts.
 - **Categorization**: Eight categories: Labor, Equipment, Transportation, Venue, Production, Insurance, Rebillable, Other.
 - **Profitability Summary**: Three-card display: Contract (received/outstanding), Total Costs (actual + projected staff), Profit (with margin).
 - **Source Indicators**: Each expense row shows its source: Manual, Receipt (linked to purchase), Staff (linked to assignment).
 - **Paid/Unpaid Visibility**: All revenue and expense records show payment status.
-- **Purchase Receipts Display**: Shows headers with nested line items, linked to corresponding gig_financials records.
+- **Receipt-Linked Expenses**: Receipt-sourced expenses in the Financials section link to the original purchase record for viewing line items and attachments. No separate Purchase Receipts section.
 - **Reporting**: Revenue vs. expenses per gig, outstanding payments across gigs, staff earnings.
 
 ## Related Documentation
@@ -1122,6 +1137,7 @@ The application provides a centralized system for managing file attachments (PDF
 - [Feature Catalog](./feature-catalog.md) - Implementation status of all features
 - [AI Coding Guide](../development/coding-guide.md) - Implementation patterns
 - [Database Documentation](../technical/database.md) - Schema and RLS policies
+- [Gig Financials Technical Reference](../technical/gig-financials.md) - Financial architecture, data boundaries, ER diagram
 - [Tech Stack](../technical/tech-stack.md) - Technology overview
 - [UI Workflows](./workflows/) - User interface specifications
 

@@ -15,13 +15,15 @@ After reading all specified files, here is what exists:
 
 (This is the end state, not the current state.)
 
-- **`GigFinancialsSection`**: Admin and managers only. Shows a flat table of financial records with Date, Type, Amount, Description. Add/Edit via modal with all fields. Auto-saves. Shows current gig income, outgo and profit totals.
-- **`GigPurchaseExpenses`**: Admin and managers only. Queries `purchases` where `gig_id` matches AND `row_type = 'item'`. Shows columns (Date, Vendor, Description, item_price, line_cost (as total cost)) with link to full purchase record. Allows AI receipt upload. Shows attachments.
-- **`GigStaffSlotsSection`**: Shows role slots with assignments. Each assignment has user selector, status dropdown, compensation_type (rate/fee), and dollar amount. **Rate/fee IS captured in UI** but **never surfaces in any financial summary**.
+- **`GigFinancialsSection`**: Admin and managers only. Shows profitability summary cards, revenue/expense records grouped by type, projected staff costs, and an "Upload Receipt" button for AI receipt scanning. Add/Edit via modal with all fields. Auto-saves.
+- **`GigStaffSlotsSection`**: Shows role slots with assignments. Each assignment has user selector, status dropdown, compensation_type (rate/fee), and dollar amount. **Rate/fee are captured in UI** — they feed projected costs in the profitability summary, and become actual costs when assignments are completed into the ledger.
 
 ### Constants
-- `FIN_TYPE_CONFIG`: All 24 fin_type values with labels. Labels are just the enum value itself (no grouping, no icons, no color).
-- `FIN_CATEGORY_CONFIG`: 8 categories: Labor, Equipment, Transportation, Venue, Production, Insurance, Rebillable, Other.
+- **`FIN_TYPE_CONFIG`**: All 24 `fin_type` enum values with display labels. Labels match the enum value (except "Payment Recieved" → "Payment Received" for display). No grouping, icons, or color — grouping is added via `FIN_TYPE_GROUPS` (see Phase 2).
+- **`FIN_CATEGORY_CONFIG`**: 8 `fin_category` enum values with display labels: Labor, Equipment, Transportation, Venue, Production, Insurance, Rebillable, Other. Each `gig_financials` record has both a `type` (what happened — Contract Signed, Expense Incurred, etc.) and a `category` (what it's for — Labor, Equipment, etc.).
+
+### Attachments
+- `gig_financials` supports file attachments via the existing `entity_attachments` system (polymorphic attachment table). Receipts, invoices, and supporting documents can be attached directly to financial records.
 
 ---
 
@@ -31,34 +33,34 @@ After reading all specified files, here is what exists:
 
 **`gig_financials` is the single source of truth for all gig financial data.** Every financial event that impacts a gig — revenue, expense, staff labor cost — is recorded as a row in `gig_financials`. Profitability is calculated by querying this one table.
 
-Other tables serve as **source documents** that feed into the ledger:
-- **`purchases`** is the receipt/invoice archive. When a scanned receipt is a gig expense, a `gig_financials` expense record is created and linked back to the purchase via `purchase_id`. The receipt stays in `purchases` for traceability; the financial effect lives in `gig_financials`.
-- **`gig_staff_assignments`** tracks who is assigned to work a gig and their agreed compensation. When an assignment is marked complete, a `gig_financials` record is created and linked back via `staff_assignment_id`. Before completion, assignment fees serve as **projected** costs only.
+Other tables serve as **source documents** that feed into the ledger, with **two-way linking**:
+- **`purchases`** is the receipt/invoice archive. When a scanned receipt is a gig expense, a `gig_financials` expense record is created with `purchase_id` → purchases.id. The purchase also retains `gig_id` for tracking. The receipt stays in `purchases` for traceability; the financial effect lives in `gig_financials`.
+- **`gig_staff_assignments`** tracks who is assigned to work a gig and their agreed compensation. When an assignment is marked complete, a `gig_financials` record is created with `staff_assignment_id` → gig_staff_assignments.id, and the assignment gets `gig_financial_id` → gig_financials.id back. Before completion, assignment fees serve as **projected** costs only.
 
-This mirrors how assets already work: a purchase creates an asset record (the effect), and the asset links back to the purchase (the source document). The pattern is consistent: source document → ledger entry → financial reporting.
+This mirrors how assets already work: a purchase creates an asset record (the effect), and the asset links back to the purchase (the source document). The pattern is consistent and uses two-way linking throughout: purchases ↔ assets, purchases ↔ gig_financials, gig_staff_assignments ↔ gig_financials.
 
 ### Data Flow Diagram
 
 ```mermaid
 flowchart LR
     subgraph sources ["Source Documents"]
-        P["**PURCHASES**<br />AI scan / CSV import\nreceipt & invoice archive"]
-        M["**MANUAL ENTRY**<br />User enters directly\nin Financials UI"]
-        S["**STAFF ASSIGNMENTS**\nAssignment completed\nfee or rate × units"]
+        P["**PURCHASES**<br />AI scan / CSV import<br />receipt & invoice archive"]
+        M["**MANUAL ENTRY**<br />User enters directly<br />in Financials UI"]
+        S["**STAFF ASSIGNMENTS**<br />Assignment completed<br />fee or rate × units"]
     end
 
     subgraph ledger ["GIG_FINANCIALS (the ledger)"]
-        R["**Revenue**\nContract Signed\nDeposit Received\nPayment Received"]
-        E["**Expenses**\nExpense Incurred\nPayment Sent"]
-        L["**Labor**\nExpense Incurred\ncategory = Labor\nstaff_assignment_id →"]
+        R["**Revenue**<br />Contract Signed<br />Deposit Received<br />Payment Received"]
+        E["**Expenses**<br />Expense Incurred<br />Payment Sent"]
+        L["**Labor**<br />Expense Incurred<br />category = Labor<br />staff_assignment_id ↔"]
     end
 
-    P -- "creates gig_financials\nwith purchase_id →" --> E
-    M -- "creates gig_financials\nrecord directly" --> R
-    M -- "creates gig_financials\nrecord directly" --> E
-    S -- "creates gig_financials\nwith staff_assignment_id →" --> L
+    P -- "creates gig_financials<br />with purchase_id ↔" --> E
+    M -- "creates gig_financials<br />record directly" --> R
+    M -- "creates gig_financials<br />record directly" --> E
+    S -- "creates gig_financials<br />with staff_assignment_id ↔" --> L
 
-    ledger --> PROFIT["**PROFITABILITY**\nRevenue − Costs = Profit"]
+    ledger --> PROFIT["**PROFITABILITY**<br />Revenue − Costs = Profit"]
 ```
 
 ---
@@ -70,10 +72,12 @@ flowchart LR
 **`purchases` is the receipt box. `gig_financials` is the ledger. The financial effect of a purchase flows into the ledger; the receipt stays in the archive.**
 
 When a user scans a receipt on the gig detail page, the system creates:
-1. A `purchases` record (header + items) — the receipt archive, with attachments
-2. A `gig_financials` record (type = `Expense Incurred`) — the financial effect, with `purchase_id` pointing back to the purchase
+1. A `purchases` record (header + items, `gig_id` set) — the receipt archive, with attachments
+2. A `gig_financials` record (type = `Expense Incurred`, `purchase_id` → purchases.id) — the financial effect
 
-The `gig_id` column is **removed from `purchases`**. The gig linkage lives on `gig_financials.purchase_id` — you find a gig's receipts by joining through the ledger. This eliminates the ambiguity of "is this purchase a gig expense?" — if there's a `gig_financials` record pointing to it, yes; if not, no.
+The `gig_id` column is **kept on `purchases`** for tracking purposes — analogous to how `asset_id` exists on purchase items to link back to assets. The authoritative gig expense data still comes from `gig_financials`; `purchases.gig_id` is a convenience for finding which receipts belong to a gig without joining through the ledger.
+
+**Edit propagation**: If a purchase record is edited after the linked `gig_financials` record was created, the amounts may diverge. The `gig_financials` record is the financial truth; the purchase is the receipt archive. A future enhancement could flag discrepancies for reconciliation, but for now, edits to either record are independent.
 
 **Concrete scenarios:**
 - "Rented a subwoofer for $200" → User adds an `Expense Incurred` record in Financials. No purchase record needed (no receipt to archive).
@@ -91,6 +95,7 @@ The `gig_id` column is **removed from `purchases`**. The gig linkage lives on `g
 **New fields on `gig_staff_assignments`:**
 - `completed_at` (nullable timestamp) — when the work was marked done
 - `units_completed` (nullable numeric) — for rate-based, actual hours/days worked
+- `gig_financial_id` (nullable UUID FK → gig_financials.id) — back-link to the ledger entry created on completion
 
 **Completion UX**: When gig status changes to Completed, offer a "Finalize Staff Costs" action that completes all confirmed assignments at their stated fees in one click. Rate-based assignments prompt for units individually.
 
@@ -101,7 +106,8 @@ The `gig_id` column is **removed from `purchases`**. The gig linkage lives on `g
 For a sound company managing their own books, the practical types are:
 
 **Revenue types (money coming IN):**
-- `Contract Signed` — the agreed fee
+- `Contract Signed` — the agreed fee (formal contract)
+- `Bid Accepted` — verbal or informal agreement (use when no formal contract exists)
 - `Deposit Received` — client deposit
 - `Payment Recieved` — client payment (enum typo is permanent)
 
@@ -120,7 +126,7 @@ The Add Financial modal shows these common types prominently; advanced/bid/sub-c
 With the single-ledger model, profitability is straightforward:
 
 ```
-REVENUE     = SUM(gig_financials.amount) WHERE type IN (Contract Signed)
+REVENUE     = SUM(gig_financials.amount) WHERE type IN (Contract Signed, Bid Accepted)
 RECEIVED    = SUM(gig_financials.amount) WHERE type IN (Deposit Received, Payment Recieved)
 OUTSTANDING = REVENUE - RECEIVED
 
@@ -146,18 +152,17 @@ ALTER TABLE gig_financials ADD COLUMN purchase_id UUID REFERENCES purchases(id) 
 ALTER TABLE gig_financials ADD COLUMN staff_assignment_id UUID REFERENCES gig_staff_assignments(id) ON DELETE SET NULL;
 ```
 
-### `gig_staff_assignments` — add completion tracking
+### `gig_staff_assignments` — add completion tracking + back-link
 
 ```sql
 ALTER TABLE gig_staff_assignments ADD COLUMN completed_at TIMESTAMPTZ;
 ALTER TABLE gig_staff_assignments ADD COLUMN units_completed NUMERIC(10,2);
+ALTER TABLE gig_staff_assignments ADD COLUMN gig_financial_id UUID REFERENCES gig_financials(id) ON DELETE SET NULL;
 ```
 
-### `purchases` — remove gig_id
+### `purchases` — keep gig_id (no changes needed)
 
-```sql
-ALTER TABLE purchases DROP COLUMN gig_id;
-```
+`purchases.gig_id` is retained for tracking purposes (analogous to `purchases.asset_id`). No schema change required.
 
 (Since we're on test data, no migration needed — just reset the schema.)
 
@@ -169,35 +174,40 @@ ALTER TABLE purchases DROP COLUMN gig_id;
 
 ```mermaid
 flowchart TD
-    A["**1. BOOK THE GIG**\nCreate gig or set status → Booked\n_gigs.status = Booked_"] --> B
+    A["**1. BOOK THE GIG**<br />Create gig or set status → Booked<br />_gigs.status = Booked_"] --> B
 
-    B["**2. RECORD THE CONTRACT**\nAdd 'Contract Signed' in Financials\n_gig_financials: type=Contract Signed, amount=fee_"] --> C
+    B["**2. RECORD THE CONTRACT**<br />Add Contract Signed in Financials<br />_gig_financials: type=Contract Signed, amount=fee_"] --> C
 
-    C["**3. RECORD A DEPOSIT**\nClient pays deposit → 'Deposit Received'\n_gig_financials: type=Deposit Received, paid_at=today_"] --> D
+    C["**3. RECORD A DEPOSIT**<br />Client pays deposit → Deposit Received<br />_gig_financials: type=Deposit Received, paid_at=today_"] --> D
 
-    D["**4. ASSIGN STAFF & SET FEES**\nAdd slots, assign people, set fees/rates\n_gig_staff_assignments with fee/rate_\n→ Projected costs appear in Summary"] --> E
+    D["**4. ASSIGN STAFF & SET FEES**<br />Add slots, assign people, set fees/rates<br />_gig_staff_assignments with fee/rate_<br />→ Projected costs appear in Summary"] --> E
 
-    E["**5. ADD EXPENSES (MANUAL)**\nRentals, travel, misc → 'Expense Incurred'\n_gig_financials: type=Expense Incurred_"] --> F
+    E["**5–7. ADD EXPENSES & MONITOR**<br />These steps happen in parallel throughout the gig"]
 
-    F["**6. ADD EXPENSES (RECEIPT)**\nUpload receipt → AI extracts → dual record\n_purchases + gig_financials with purchase_id_"] --> G
+    E --> E1["**5. MANUAL EXPENSES**<br />Rentals, travel, misc → Expense Incurred<br />_gig_financials: type=Expense Incurred_"]
+    E --> E2["**6. RECEIPT EXPENSES**<br />Upload receipt → AI extracts → dual record<br />_purchases + gig_financials with purchase_id_"]
+    E --> E3["**7. MONITOR PROFITABILITY**<br />View Summary cards: Contract / Costs / Profit<br />_Read-only from gig_financials + assignments_"]
 
-    G["**7. MONITOR PROFITABILITY**\nView Summary cards: Contract / Costs / Profit\n_Read-only from gig_financials + assignments_"]
+    E1 --> H
+    E2 --> H
+    E3 --> H
 
-    G --> H["**8. COMPLETE STAFF**\nFinalize All → creates labor expenses\n_gig_financials: Expense Incurred, category=Labor_\n_staff_assignment_id linked_"]
+    H["**8. COMPLETE STAFF**<br />Finalize All → creates labor expenses<br />_gig_financials: Expense Incurred, category=Labor_<br />_staff_assignment_id ↔ gig_financial_id linked_"]
 
-    H --> I["**9. RECEIVE FINAL PAYMENT**\nRecord remaining balance\n_gig_financials: type=Payment Recieved, paid_at=today_"]
+    H --> I["**9. RECEIVE FINAL PAYMENT**<br />Record remaining balance<br />_gig_financials: type=Payment Recieved, paid_at=today_"]
 
-    I --> J["**10. PAY FREELANCERS**\nRecord payments to staff/vendors\n_gig_financials: type=Payment Sent, paid_at_"]
+    I --> J["**10. PAY FREELANCERS**<br />Record payments to staff/vendors<br />_gig_financials: type=Payment Sent, paid_at_"]
 
-    J --> K["**11. SETTLE THE GIG**\nAll money in, all money out\n_gigs.status = Settled_"]
+    J --> K["**11. SETTLE THE GIG**<br />All money in, all money out<br />_gigs.status = Settled_"]
 
     style A fill:#e3f2fd
     style B fill:#e8f5e9
     style C fill:#e8f5e9
     style D fill:#fff3e0
-    style E fill:#fce4ec
-    style F fill:#fce4ec
-    style G fill:#f3e5f5
+    style E fill:#f3e5f5
+    style E1 fill:#fce4ec
+    style E2 fill:#fce4ec
+    style E3 fill:#f3e5f5
     style H fill:#fff3e0
     style I fill:#e8f5e9
     style J fill:#fce4ec
@@ -209,13 +219,14 @@ flowchart TD
 | Step | UI Location | Data Recorded |
 |------|------------|---------------|
 | 1. Book the Gig | Gig creation form or status dropdown | `gigs.status = Booked` |
-| 2. Record Contract | Financials → Add modal | `gig_financials`: Contract Signed |
+| 2. Record Contract | Financials → Add modal | `gig_financials`: Contract Signed (or Bid Accepted for informal) |
 | 3. Record Deposit | Financials → Add modal | `gig_financials`: Deposit Received, paid_at |
 | 4. Assign Staff | Staff Assignments section | `gig_staff_slots` + `gig_staff_assignments` with fee/rate |
 | 5. Manual Expenses | Financials → Add modal | `gig_financials`: Expense Incurred |
-| 6. Receipt Scan | Purchase Receipts → Upload | `purchases` + `gig_financials` with purchase_id |
+| 6. Receipt Scan | Financials → Upload Receipt | `purchases` (with gig_id) + `gig_financials` with purchase_id |
 | 7. Monitor Profit | Financials → Summary cards | Read-only calculation |
-| 8. Complete Staff | Staff Assignments → Finalize All | `gig_staff_assignments.completed_at` + `gig_financials` Labor |
+| 5–7 run in parallel | — | Expenses and monitoring happen throughout the gig lifecycle |
+| 8. Complete Staff | Staff Assignments → Finalize All | `gig_staff_assignments.completed_at` + `gig_financials` Labor (two-way link) |
 | 9. Final Payment | Financials → Add modal | `gig_financials`: Payment Recieved |
 | 10. Pay Freelancers | Financials → Add modal | `gig_financials`: Payment Sent |
 | 11. Settle | Status dropdown | `gigs.status = Settled` |
@@ -233,7 +244,7 @@ block-beta
     block:header:3
         columns 3
         title["Gig Financials"]
-        space
+        upload["Upload Receipt"]
         addBtn["+ Add Record"]
     end
 
@@ -296,6 +307,7 @@ block-beta
 - Uncompleted staff show in a separate "Projected Staff" section (sourced from assignments)
 - Receipt-sourced expenses show a "Receipt" source indicator and can link to the original document
 - Paid/Unpaid column gives clear visibility into cash flow
+- "Upload Receipt" button is in this section — no separate Purchase Receipts section. Receipt upload creates both a `purchases` record and a linked `gig_financials` record.
 
 ### Staff Assignments Section (Enhanced)
 
@@ -337,46 +349,10 @@ block-beta
 - Individual assignments show completion status (Done / Pending)
 - Rate-based assignments show a "Complete" button that prompts for units
 
-### Purchase Receipts Section (Fixed)
-
-```mermaid
-block-beta
-    columns 2
-
-    block:prheader:2
-        columns 2
-        prh["Purchase Receipts"]
-        upload["Upload Receipt"]
-    end
-
-    block:receipt1:2
-        columns 1
-        r1h["Shell Gas Station — Feb 02, 2026 — $85.00"]
-        r1a["├─ Gas fill-up — $65.00"]
-        r1b["└─ Toll charges — $20.00"]
-        r1l["Linked → Expense Incurred #1234"]
-    end
-
-    block:receipt2:2
-        columns 1
-        r2h["Bob's Audio Rentals — Feb 01, 2026 — $200.00"]
-        r2a["└─ Subwoofer rental (1 day) — $200.00"]
-        r2l["Linked → Expense Incurred #1235"]
-    end
-
-    style receipt1 fill:#f5f5f5
-    style receipt2 fill:#f5f5f5
-```
-
-- Renamed to "Purchase Receipts" to clarify its role as an archive
-- Shows headers with nested items (not just headers)
-- Each entry shows which `gig_financials` record it's linked to
-- No separate total needed — the financial totals are in the Financials section
-
 ### Profitability Summary Cards
 
 **Contract Card:**
-- Contract Amount: Sum of `Contract Signed` from `gig_financials`
+- Contract Amount: Sum of `Contract Signed` + `Bid Accepted` from `gig_financials`
 - Received: Sum of `Deposit Received` + `Payment Recieved`
 - Outstanding: Contract - Received
 - Color: Green when fully paid, amber partial, gray nothing
@@ -398,11 +374,12 @@ block-beta
 ### Phase 1: Schema Changes + Profitability Summary
 
 **Database changes:**
-- Add `purchase_id` (nullable UUID FK) to `gig_financials`
-- Add `staff_assignment_id` (nullable UUID FK) to `gig_financials`
+- Add `purchase_id` (nullable UUID FK → purchases.id) to `gig_financials`
+- Add `staff_assignment_id` (nullable UUID FK → gig_staff_assignments.id) to `gig_financials`
 - Add `completed_at` (nullable timestamptz) to `gig_staff_assignments`
 - Add `units_completed` (nullable numeric) to `gig_staff_assignments`
-- Drop `gig_id` from `purchases`
+- Add `gig_financial_id` (nullable UUID FK → gig_financials.id) to `gig_staff_assignments`
+- Keep `gig_id` on `purchases` (no change needed)
 
 **Service layer:**
 - New `getGigProfitabilitySummary(gigId, organizationId)` — queries `gig_financials` grouped by type, plus uncompleted staff assignments for projected costs
@@ -425,23 +402,23 @@ block-beta
 ### Phase 3: Staff Completion Flow
 
 **Service layer:**
-- New `completeStaffAssignment(assignmentId, unitsCompleted?)` — sets `completed_at`, creates linked `gig_financials` record
-- New `completeAllStaffAssignments(gigId)` — bulk completion for fee-based confirmed assignments
+- New `completeStaffAssignment(assignmentId, unitsCompleted?)` — sets `completed_at`, creates linked `gig_financials` record, sets `gig_financial_id` back-link on the assignment
+- New `completeAllStaffAssignments(gigId)` — bulk completion for fee-based confirmed assignments (sets two-way links for each)
 
 **Components:**
 - Update `GigStaffSlotsSection.tsx`: add completion status per assignment, "Finalize All" button, total footer with finalized/projected breakdown
 - Add projected-staff sub-section to `GigFinancialsSection.tsx`
 
-### Phase 4: Fix Purchase Receipts Display
+### Phase 4: Receipt Upload Integration + Cleanup
 
 **Service layer:**
-- New `getGigPurchaseReceipts(gigId, organizationId)` — joins `gig_financials` (where `purchase_id` IS NOT NULL) to `purchases` to get headers + items
-- Update receipt scanning: when scanning from gig page, auto-create both purchase and gig_financials records
+- Update receipt scanning flow: when scanning from gig page, auto-create both `purchases` record (with `gig_id`) and `gig_financials` record (with `purchase_id`)
+- When scanning from global purchases page, create only the `purchases` record (no gig_financials)
 
 **Components:**
-- Rewrite `GigPurchaseExpenses.tsx` → rename to `GigPurchaseReceipts.tsx`
-- Show header/item tree with link to corresponding gig_financials record
-- Remove standalone totaling (financials section handles that)
+- Remove `GigPurchaseExpenses.tsx` entirely — receipt expenses now show in `GigFinancialsSection` as rows with "Receipt" source indicator
+- Add "Upload Receipt" button to `GigFinancialsSection` header (triggers the existing AI receipt scan flow)
+- Receipt-linked expense rows in the Financials section should link to the original purchase record for viewing line items and attachments
 
 ---
 
@@ -452,3 +429,32 @@ block-beta
 - **Hours tracking**: Rate × hours with clock-in/clock-out
 - **Financial reports page**: Cross-gig profitability, outstanding payments, staff earnings
 - **Recurring expense templates**: Common gig cost presets
+- **Purchase/ledger reconciliation**: Flag discrepancies when a linked purchase is edited after the gig_financials record was created
+
+---
+
+## Verification Checklist
+
+- [ ] Profitability summary correct for: empty gig, contract only, contract + costs, negative profit
+- [ ] Staff completion creates gig_financials record with correct amount, staff_assignment_id link, and gig_financial_id back-link
+- [ ] Rate-based completion: amount = rate × units_completed
+- [ ] "Finalize All" completes only confirmed fee-based assignments
+- [ ] Receipt scan from gig page creates both purchase (with gig_id) and gig_financials records (with purchase_id)
+- [ ] Receipt scan from global page creates only purchase (no gig_financials)
+- [ ] Receipt-sourced expenses display in Financials section with "Receipt" source indicator
+- [ ] No double-counting: each cost appears in gig_financials exactly once
+- [ ] Projected staff costs disappear from projection as assignments are completed
+- [ ] Paid/unpaid status visible on all expense and revenue records
+- [ ] All 24 fin_type values still accessible via "All Types" expander
+- [ ] Bid Accepted available as revenue type for informal agreements
+- [ ] Admin and manager-only visibility preserved on Financials section
+- [ ] Upload Receipt button works from Financials section (no separate Purchase Receipts section)
+- [ ] Two-way links: purchases ↔ gig_financials, gig_staff_assignments ↔ gig_financials
+
+---
+
+## Related Documentation
+
+- [Technical Reference: Gig Financials](../../technical/gig-financials.md) — Architecture, data boundaries, ER diagram, schema DDL
+- [Coding Prompt](./07_financials-coding-prompt.md) — AI coding agent prompt for implementation
+- [Requirements](../requirements.md) — Section 7 (Expense Management & Gig Profitability)
