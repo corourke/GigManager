@@ -1271,7 +1271,9 @@ CREATE TABLE IF NOT EXISTS "public"."gig_financials" (
     "due_date" "date",
     "paid_at" timestamp with time zone,
     "updated_by" "uuid",
-    "updated_at" timestamp with time zone DEFAULT "now"()
+    "updated_at" timestamp with time zone DEFAULT "now"(),
+    "purchase_id" "uuid",
+    "staff_assignment_id" "uuid"
 );
 
 
@@ -1313,7 +1315,10 @@ CREATE TABLE IF NOT EXISTS "public"."gig_staff_assignments" (
     "fee" numeric(10,2),
     "notes" "text",
     "assigned_at" timestamp with time zone DEFAULT "now"() NOT NULL,
-    "confirmed_at" timestamp with time zone
+    "confirmed_at" timestamp with time zone,
+    "completed_at" timestamp with time zone,
+    "units_completed" numeric(10,2),
+    "gig_financial_id" "uuid"
 );
 
 
@@ -2011,6 +2016,16 @@ ALTER TABLE ONLY "public"."gig_financials"
 
 
 ALTER TABLE ONLY "public"."gig_financials"
+    ADD CONSTRAINT "gig_financials_purchase_id_fkey" FOREIGN KEY ("purchase_id") REFERENCES "public"."purchases"("id") ON DELETE SET NULL;
+
+
+
+ALTER TABLE ONLY "public"."gig_financials"
+    ADD CONSTRAINT "gig_financials_staff_assignment_id_fkey" FOREIGN KEY ("staff_assignment_id") REFERENCES "public"."gig_staff_assignments"("id") ON DELETE SET NULL;
+
+
+
+ALTER TABLE ONLY "public"."gig_financials"
     ADD CONSTRAINT "gig_financials_updated_by_fkey" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id");
 
 
@@ -2037,6 +2052,11 @@ ALTER TABLE ONLY "public"."gig_participants"
 
 ALTER TABLE ONLY "public"."gig_participants"
     ADD CONSTRAINT "gig_participants_organization_id_fkey" FOREIGN KEY ("organization_id") REFERENCES "public"."organizations"("id") ON DELETE CASCADE;
+
+
+
+ALTER TABLE ONLY "public"."gig_staff_assignments"
+    ADD CONSTRAINT "gig_staff_assignments_gig_financial_id_fkey" FOREIGN KEY ("gig_financial_id") REFERENCES "public"."gig_financials"("id") ON DELETE SET NULL;
 
 
 
@@ -2305,7 +2325,7 @@ CREATE POLICY "Authenticated users can create organizations" ON "public"."organi
 
 
 
-CREATE POLICY "Staff can update their own assignments" ON "public"."gig_staff_assignments" FOR UPDATE USING (("user_id" = "auth"."uid"())) WITH CHECK (("user_id" = "auth"."uid"()));
+CREATE POLICY "Staff can update their own assignments" ON "public"."gig_staff_assignments" FOR UPDATE USING (("user_id" = "auth"."uid"())) WITH CHECK ((("user_id" = "auth"."uid"()) AND (NOT ("completed_at" IS DISTINCT FROM "completed_at")) AND (NOT ("units_completed" IS DISTINCT FROM "units_completed")) AND (NOT ("gig_financial_id" IS DISTINCT FROM "gig_financial_id"))));
 
 
 

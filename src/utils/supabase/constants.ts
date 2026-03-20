@@ -98,6 +98,12 @@ export const FIN_TYPE_CONFIG = {
 
 export type FinType = keyof typeof FIN_TYPE_CONFIG;
 
+export const FIN_TYPE_GROUPS = {
+  revenue: ['Contract Signed', 'Bid Accepted', 'Deposit Received', 'Payment Received'],
+  cost: ['Expense Incurred', 'Payment Sent', 'Deposit Sent'],
+  tracking: ['Invoice Issued', 'Invoice Settled'],
+} as const;
+
 export const FIN_CATEGORY_CONFIG = {
   'Labor': { label: 'Labor' },
   'Equipment': { label: 'Equipment' },

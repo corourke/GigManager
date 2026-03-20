@@ -16,7 +16,6 @@ import GigBasicInfoSection from './gig/GigBasicInfoSection';
 import GigParticipantsSection from './gig/GigParticipantsSection';
 import GigStaffSlotsSection from './gig/GigStaffSlotsSection';
 import GigFinancialsSection from './gig/GigFinancialsSection';
-import GigPurchaseExpenses from './gig/GigPurchaseExpenses';
 import GigKitAssignmentsSection from './gig/GigKitAssignmentsSection';
 import AttachmentManager from './AttachmentManager';
 
@@ -199,11 +198,6 @@ export default function GigScreen({
                 participantOrganizationIds={participantOrgIds}
               />
               <GigFinancialsSection
-                gigId={gigId}
-                currentOrganizationId={organization.id}
-                userRole={userRole}
-              />
-              <GigPurchaseExpenses
                 gigId={gigId}
                 currentOrganizationId={organization.id}
                 userRole={userRole}

@@ -122,6 +122,9 @@ export interface DbGigStaffAssignment {
   notes?: string;
   assigned_at: string;
   confirmed_at?: string;
+  completed_at?: string;
+  units_completed?: number;
+  gig_financial_id?: string;
 }
 
 export interface DbGigFinancial {
@@ -140,6 +143,8 @@ export interface DbGigFinancial {
   notes?: string;
   due_date?: string;
   paid_at?: string;
+  purchase_id?: string;
+  staff_assignment_id?: string;
   created_by: string;
   updated_by?: string;
   created_at: string;

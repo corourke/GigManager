@@ -9,6 +9,7 @@ vi.mock('../../services/gig.service', () => ({
   updateGigFinancials: vi.fn(),
   createGigFinancial: vi.fn(),
   deleteGigFinancial: vi.fn(),
+  getGigProfitabilitySummary: vi.fn(),
 }));
 
 // Mock the useAutoSave hook
@@ -36,7 +37,7 @@ describe('GigFinancialsSection', () => {
       id: 'fin-1',
       date: '2024-01-15',
       amount: 5000,
-      type: 'Payment Recieved',
+      type: 'Payment Received',
       category: 'Production',
       description: 'Initial payment',
       reference_number: 'INV-001',
@@ -59,6 +60,16 @@ describe('GigFinancialsSection', () => {
     vi.mocked(gigService.getGigFinancials).mockResolvedValue(mockFinancials);
     vi.mocked(gigService.updateGigFinancials).mockResolvedValue(undefined);
     vi.mocked(gigService.deleteGigFinancial).mockResolvedValue({ success: true });
+    vi.mocked(gigService.getGigProfitabilitySummary).mockResolvedValue({
+      contractAmount: 5000,
+      received: 5000,
+      outstandingRevenue: 0,
+      actualCosts: 1200,
+      projectedStaffCosts: 0,
+      totalCosts: 1200,
+      profit: 3800,
+      margin: 76
+    });
   });
 
   it('renders loading state initially', () => {
@@ -80,26 +91,36 @@ describe('GigFinancialsSection', () => {
       expect(screen.getByText('Financials')).toBeInTheDocument();
     });
 
-    // Check table headers
-    expect(screen.getByText('Date')).toBeInTheDocument();
-    expect(screen.getByText('Type')).toBeInTheDocument();
-    expect(screen.getByText('Amount')).toBeInTheDocument();
-    expect(screen.getByText('Description')).toBeInTheDocument();
-    expect(screen.getByText('Actions')).toBeInTheDocument();
+    // Check table headers (may appear multiple times due to grouping)
+    expect(screen.getAllByText('Date')[0]).toBeInTheDocument();
+    expect(screen.getAllByText('Type')[0]).toBeInTheDocument();
+    expect(screen.getAllByText('Amount')[0]).toBeInTheDocument();
+    expect(screen.getAllByText('Description')[0]).toBeInTheDocument();
+    expect(screen.getAllByText('Actions')[0]).toBeInTheDocument();
 
-    // Check financial records (dates may vary slightly due to formatting)
+    // Check financial records
     expect(screen.getAllByText(/Jan \d+, 2024/)).toHaveLength(2);
     expect(screen.getByText('Payment Received')).toBeInTheDocument();
-    expect(screen.getByText('$5,000.00')).toBeInTheDocument();
+    expect(screen.getAllByText('$5,000.00').length).toBeGreaterThan(0);
     expect(screen.getByText('Initial payment')).toBeInTheDocument();
     
     expect(screen.getByText('Expense Incurred')).toBeInTheDocument();
-    expect(screen.getByText('$1,200.00')).toBeInTheDocument();
+    expect(screen.getAllByText('$1,200.00').length).toBeGreaterThan(0);
     expect(screen.getByText('Camera rental')).toBeInTheDocument();
   });
 
   it('shows empty state when no financials exist', async () => {
     vi.mocked(gigService.getGigFinancials).mockResolvedValue([]);
+    vi.mocked(gigService.getGigProfitabilitySummary).mockResolvedValue({
+      contractAmount: 0,
+      received: 0,
+      outstandingRevenue: 0,
+      actualCosts: 0,
+      projectedStaffCosts: 0,
+      totalCosts: 0,
+      profit: 0,
+      margin: 0
+    });
     
     render(<GigFinancialsSection {...defaultProps} />);
     
@@ -108,14 +129,14 @@ describe('GigFinancialsSection', () => {
     });
   });
 
-  it('opens modal when Add Financial Record button is clicked', async () => {
+  it('opens modal when Add Record button is clicked', async () => {
     render(<GigFinancialsSection {...defaultProps} />);
     
     await waitFor(() => {
       expect(screen.getByText('Financials')).toBeInTheDocument();
     });
 
-    fireEvent.click(screen.getByText('Add Financial Record'));
+    fireEvent.click(screen.getByText('Add Record'));
     
     await waitFor(() => {
       // Check for dialog header content
@@ -133,12 +154,7 @@ describe('GigFinancialsSection', () => {
       expect(screen.getByText('Financials')).toBeInTheDocument();
     });
 
-    const editButtons = screen.getAllByRole('button');
-    const editButton = editButtons.find(button => 
-      button.querySelector('svg') && 
-      button.getAttribute('class')?.includes('h-7 w-7 p-0') &&
-      !button.getAttribute('class')?.includes('text-red-600')
-    );
+    const editButton = screen.getByTestId('edit-financial-0');
     
     if (editButton) {
       fireEvent.click(editButton);
@@ -156,11 +172,7 @@ describe('GigFinancialsSection', () => {
       expect(screen.getByText('Financials')).toBeInTheDocument();
     });
 
-    const deleteButtons = screen.getAllByRole('button');
-    const deleteButton = deleteButtons.find(button => 
-      button.querySelector('svg') && 
-      button.getAttribute('class')?.includes('text-red-600')
-    );
+    const deleteButton = screen.getByTestId('delete-financial-0');
     
     if (deleteButton) {
       fireEvent.click(deleteButton);

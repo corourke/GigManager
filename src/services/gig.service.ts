@@ -254,7 +254,7 @@ export async function createGig(gigData: any) {
           organization_id: primary_organization_id,
           amount: parseFloat(amount),
           date: finDate,
-          type: 'Payment Recieved',
+          type: 'Payment Received',
           category: 'Production',
           description: 'Payment from import'
         });
@@ -544,6 +544,8 @@ export async function updateGigStaffSlots(gigId: string, staff_slots: Array<{
             rate: assignment.rate || null,
             fee: assignment.fee || null,
             notes: assignment.notes || null,
+            completed_at: (assignment as any).completed_at || null,
+            units_completed: (assignment as any).units_completed || null,
           };
 
           if (assignment.id && existingAssignmentIds.includes(assignment.id)) {
@@ -872,6 +874,90 @@ export async function getGigFinancials(gigId: string, organizationId?: string) {
 }
 
 /**
+ * Fetch a summary of gig profitability
+ */
+export async function getGigProfitabilitySummary(gigId: string, organizationId: string) {
+  const supabase = getSupabase();
+  try {
+    // 1. Fetch all financial records for this gig
+    const { data: financials, error: finError } = await supabase
+      .from('gig_financials')
+      .select('type, amount')
+      .eq('gig_id', gigId)
+      .eq('organization_id', organizationId);
+
+    if (finError) throw finError;
+
+    // 2. Fetch all uncompleted staff assignments for projected costs
+    // Sourced from gig_staff_assignments where completed_at IS NULL
+    // Join with gig_staff_slots to ensure they belong to this gig and organization
+    const { data: assignments, error: staffError } = await supabase
+      .from('gig_staff_assignments')
+      .select(`
+        fee,
+        rate,
+        status,
+        completed_at,
+        slot:gig_staff_slots!inner(gig_id, organization_id)
+      `)
+      .eq('slot.gig_id', gigId)
+      .eq('slot.organization_id', organizationId)
+      .is('completed_at', null);
+
+    if (staffError) throw staffError;
+
+    // 3. Calculate metrics
+    let contractAmount = 0;
+    let received = 0;
+    let actualCosts = 0;
+
+    (financials || []).forEach(f => {
+      const amount = Number(f.amount) || 0;
+      // Revenue types
+      if (f.type === 'Contract Signed' || f.type === 'Bid Accepted') {
+        contractAmount += amount;
+      }
+      // Received types
+      if (f.type === 'Deposit Received' || f.type === 'Payment Received') {
+        received += amount;
+      }
+      // Cost types
+      if (f.type === 'Expense Incurred' || f.type === 'Payment Sent' || f.type === 'Deposit Sent') {
+        actualCosts += amount;
+      }
+    });
+
+    let projectedStaffCosts = 0;
+    (assignments || []).forEach(a => {
+      // Only include Confirmed or Requested assignments in projected costs
+      if (a.status === 'Confirmed' || a.status === 'Requested') {
+        // Use fee if available, otherwise rate (assume 1 unit for projection)
+        const amount = a.fee !== null ? Number(a.fee) : (a.rate !== null ? Number(a.rate) : 0);
+        projectedStaffCosts += amount;
+      }
+    });
+
+    const outstandingRevenue = Math.max(0, contractAmount - received);
+    const totalCosts = actualCosts + projectedStaffCosts;
+    const profit = contractAmount - totalCosts;
+    const margin = contractAmount > 0 ? (profit / contractAmount) * 100 : 0;
+
+    return {
+      contractAmount,
+      received,
+      outstandingRevenue,
+      actualCosts,
+      projectedStaffCosts,
+      totalCosts,
+      profit,
+      margin
+    };
+  } catch (err) {
+    return handleApiError(err, 'calculate gig profitability summary');
+  }
+}
+
+/**
  * Legacy alias for getGigFinancials
  */
 export const getGigBids = getGigFinancials;
@@ -894,6 +980,8 @@ export async function createGigFinancial(finData: {
   notes?: string;
   due_date?: string;
   paid_at?: string;
+  purchase_id?: string;
+  staff_assignment_id?: string;
 }) {
   try {
     const { supabase, user } = await requireAuth();
@@ -934,6 +1022,8 @@ export async function updateGigFinancial(finId: string, finData: {
   notes?: string;
   due_date?: string;
   paid_at?: string;
+  purchase_id?: string;
+  staff_assignment_id?: string;
 }) {
   const supabase = getSupabase();
   try {
@@ -1096,6 +1186,106 @@ export {
  */
 export async function getGigs(organizationId: string) {
   return getGigsForOrganization(organizationId);
+}
+
+/**
+ * Complete a staff assignment and create a corresponding financial record
+ */
+export async function completeStaffAssignment(assignmentId: string, unitsCompleted?: number) {
+  try {
+    const { supabase, user } = await requireAuth();
+
+    // 1. Get assignment details
+    const { data: assignment, error: fetchError } = await supabase
+      .from('gig_staff_assignments')
+      .select('*, slot:gig_staff_slots(gig_id, organization_id, role_info:staff_roles(name))')
+      .eq('id', assignmentId)
+      .single();
+
+    if (fetchError) throw fetchError;
+    if (!assignment) throw new Error('Assignment not found');
+
+    const amount = assignment.fee || (assignment.rate ? (assignment.rate * (unitsCompleted || 1)) : 0);
+    const gigId = assignment.slot.gig_id;
+    const organizationId = assignment.slot.organization_id;
+    const roleName = assignment.slot.role_info?.name || 'Staff';
+
+    // 2. Create gig_financials record
+    const { data: financial, error: finError } = await supabase
+      .from('gig_financials')
+      .insert({
+        gig_id: gigId,
+        organization_id: organizationId,
+        amount: amount,
+        date: new Date().toISOString().split('T')[0],
+        type: 'Expense Incurred',
+        category: 'Labor',
+        description: `Labor: ${roleName}`,
+        staff_assignment_id: assignmentId,
+        created_by: user.id,
+      })
+      .select()
+      .single();
+
+    if (finError) throw finError;
+
+    // 3. Update assignment with completed_at, units_completed, and gig_financial_id
+    const { error: updateError } = await supabase
+      .from('gig_staff_assignments')
+      .update({
+        completed_at: new Date().toISOString(),
+        units_completed: unitsCompleted || null,
+        gig_financial_id: financial.id,
+      })
+      .eq('id', assignmentId);
+
+    if (updateError) throw updateError;
+
+    return { success: true, financialId: financial.id };
+  } catch (err) {
+    return handleApiError(err, 'complete staff assignment');
+  }
+}
+
+/**
+ * Bulk completion for all confirmed fee-based assignments that haven't been completed yet
+ */
+export async function completeAllStaffAssignments(gigId: string, organizationId: string) {
+  try {
+    const { supabase } = await requireAuth();
+
+    // 1. Get all confirmed fee-based assignments for this gig/org that aren't completed
+    const { data: validAssignments, error: joinError } = await supabase
+      .from('gig_staff_assignments')
+      .select(`
+        id, 
+        fee,
+        slot:gig_staff_slots!inner(gig_id, organization_id)
+      `)
+      .eq('slot.gig_id', gigId)
+      .eq('slot.organization_id', organizationId)
+      .eq('status', 'Confirmed')
+      .is('completed_at', null)
+      .not('fee', 'is', null);
+
+    if (joinError) throw joinError;
+
+    if (!validAssignments || validAssignments.length === 0) {
+      return { success: true, count: 0 };
+    }
+
+    // 2. Complete each assignment
+    const results = await Promise.all(
+      validAssignments.map(a => completeStaffAssignment(a.id))
+    );
+
+    return { 
+      success: true, 
+      count: results.filter(r => (r as any).success).length 
+    };
+  } catch (err) {
+    return handleApiError(err, 'complete all staff assignments');
+  }
 }
 
 export async function updateStaffAssignmentStatus(

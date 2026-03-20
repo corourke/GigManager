@@ -17,6 +17,7 @@ import {
 import { format } from 'date-fns';
 import { toast } from 'sonner';
 import { createPurchaseTransaction } from '../services/purchase.service';
+import { createGigFinancial } from '../services/gig.service';
 import { uploadAttachment, linkAttachmentToEntity } from '../services/attachment.service';
 
 function NumericInput({ value, onChange, placeholder = '0.00', className = '' }: {
@@ -305,6 +306,24 @@ export default function ReviewScannedDataDialog({
         }));
 
       const result = await createPurchaseTransaction(header, items, assets);
+
+      if (gigId) {
+        try {
+          await createGigFinancial({
+            gig_id: gigId,
+            organization_id: organizationId,
+            date: formData.purchase_date,
+            amount: formData.total_inv_amount,
+            type: 'Expense Incurred',
+            category: (formData.category as any) || 'Production',
+            description: formData.description || `Receipt: ${formData.vendor}`,
+            purchase_id: result.id,
+          });
+        } catch (finErr) {
+          console.error('Error creating linked gig financial record:', finErr);
+        }
+      }
+
       if (file) {
         try {
           const attachment = await uploadAttachment(organizationId, file);

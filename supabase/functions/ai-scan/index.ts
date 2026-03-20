@@ -25,10 +25,23 @@ Misc        → (anything that doesn't fit above)
 
 const EXPENSE_CATEGORY_HINTS = `
 EXPENSE categories (IRS Schedule C Part II — use for non-durable / consumable items):
-Advertising, Car and truck expenses, Commissions and fees, Contract labor,
-Depreciation, Insurance, Legal and professional services, Office expense,
-Rent or lease, Repairs and maintenance, Supplies, Taxes and licenses,
-Travel, Meals, Utilities, Wages, Other expenses
+Advertising                   → Promo flyers, social media ads, event listings, graphic design, sponsorship materials
+Car and truck expenses        → Mileage/fuel for load-in/out, van/truck rentals, tolls, parking
+Commissions and fees          → Booking agent fees, ticketing platform cuts, credit card processing fees
+Contract labor                → Stagehands, riggers, freelance engineers, day-of crew, security, photographers
+Depreciation                  → Annual write-down of PA systems, lighting rigs, road cases, vehicles
+Insurance                     → Event liability, equipment floater, performer insurance, venue insurance
+Legal and professional services → Performance contracts, rider reviews, accountant/CPA fees, legal counsel
+Office expense                → Scheduling software, DAW subscriptions, cloud storage, office supplies
+Rent or lease                 → Venue rental, backline rentals, generator rental, tent/staging rental, speaker/lighting rig rental
+Repairs and maintenance       → Blown driver replacement, fixture re-lamping, cable repair, console servicing, tuning
+Supplies                      → Gaffer tape, batteries, lamps/bulbs, consumable cables, cleaning supplies, zip ties, expendables
+Taxes and licenses            → Music licenses (ASCAP/BMI/SESAC), business licenses, venue permits, noise permits
+Travel                        → Airfare, hotels, per diem for touring crew, ground transport, ride-shares
+Meals                         → Crew meals, hospitality rider food, catering buyouts, craft services
+Utilities                     → Generator fuel, temporary power drops, internet/comms at venue, water/sanitation
+Wages                         → W-2 employees — full-time crew, office staff, salaried production managers
+Other expenses                → Misc production costs not fitting above
 `;
 
 const EXTRACTION_PROMPT = `

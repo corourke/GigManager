@@ -4,18 +4,24 @@ import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { toast } from 'sonner';
 import { createClient } from '../../utils/supabase/client';
-import { FileText, Loader2, Plus, Trash2, Users, AlertCircle } from 'lucide-react';
+import { FileText, Loader2, Plus, Trash2, Users, AlertCircle, CheckCircle2, Circle } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
-import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
+import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '../ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '../ui/dialog';
 import { Textarea } from '../ui/textarea';
 import UserSelector from '../UserSelector';
-import { getGig, updateGigStaffSlots } from '../../services/gig.service';
+import { 
+  getGig, 
+  updateGigStaffSlots, 
+  completeStaffAssignment, 
+  completeAllStaffAssignments 
+} from '../../services/gig.service';
 import { useAutoSave } from '../../utils/hooks/useAutoSave';
 import SaveStateIndicator from './SaveStateIndicator';
+import { Badge } from '../ui/badge';
 
 const staffAssignmentSchema = z.object({
   id: z.string(),
@@ -29,6 +35,8 @@ const staffAssignmentSchema = z.object({
     return !isNaN(num) && num >= 0;
   }, 'Amount must be a positive number'),
   notes: z.string().optional(),
+  completed_at: z.string().optional().nullable(),
+  units_completed: z.number().optional().nullable(),
 });
 
 const staffSlotSchema = z.object({
@@ -54,6 +62,8 @@ interface StaffAssignmentData {
   compensation_type: 'rate' | 'fee';
   amount: string;
   notes: string;
+  completed_at?: string | null;
+  units_completed?: number | null;
 }
 
 interface StaffSlotData {
@@ -83,6 +93,10 @@ export default function GigStaffSlotsSection({
   const [currentSlotNotes, setCurrentSlotNotes] = useState('');
   const [showAssignmentNotes, setShowAssignmentNotes] = useState<{ slotIndex: number; assignmentIndex: number } | null>(null);
   const [currentAssignmentNotes, setCurrentAssignmentNotes] = useState('');
+  const [isFinalizing, setIsFinalizing] = useState(false);
+  const [isCompleting, setIsCompleting] = useState<string | null>(null);
+  const [showCompleteModal, setShowCompleteModal] = useState<{ slotIndex: number; assignmentIndex: number } | null>(null);
+  const [completionUnits, setCompletionUnits] = useState<string>('1');
 
   const { control, handleSubmit, formState: { errors, isDirty }, watch, reset, setValue, getValues } = useForm<StaffSlotsFormData>({
     resolver: zodResolver(staffSlotsFormSchema),
@@ -96,6 +110,31 @@ export default function GigStaffSlotsSection({
     control,
     name: 'slots',
   });
+
+  const calculateStaffCosts = () => {
+    let finalized = 0;
+    let projected = 0;
+
+    fields.forEach((slot, slotIndex) => {
+      const assignments = watch(`slots.${slotIndex}.assignments`) || [];
+      assignments.forEach((assignment: any) => {
+        const amount = parseFloat(assignment.amount) || 0;
+        if (assignment.completed_at) {
+          if (assignment.compensation_type === 'rate') {
+            finalized += amount * (assignment.units_completed || 1);
+          } else {
+            finalized += amount;
+          }
+        } else if (assignment.status === 'Confirmed' || assignment.status === 'Requested') {
+          projected += amount;
+        }
+      });
+    });
+
+    return { finalized, projected };
+  };
+
+  const { finalized, projected } = calculateStaffCosts();
 
   const handleSave = useCallback(async (data: StaffSlotsFormData) => {
     const slotsData = data.slots
@@ -115,6 +154,8 @@ export default function GigStaffSlotsSection({
             rate: a.compensation_type === 'rate' ? (a.amount ? parseFloat(a.amount) : null) : null,
             fee: a.compensation_type === 'fee' ? (a.amount ? parseFloat(a.amount) : null) : null,
             notes: a.notes || null,
+            completed_at: a.completed_at || null,
+            units_completed: a.units_completed || null,
           })),
       }));
 
@@ -192,6 +233,8 @@ export default function GigStaffSlotsSection({
           compensation_type: assignment.rate !== null ? 'rate' : 'fee',
           amount: assignment.rate !== null ? assignment.rate.toString() : (assignment.fee !== null ? assignment.fee.toString() : ''),
           notes: assignment.notes || '',
+          completed_at: assignment.completed_at,
+          units_completed: assignment.units_completed,
         }));
 
         const count = slot.count || 1;
@@ -209,6 +252,8 @@ export default function GigStaffSlotsSection({
               compensation_type: 'rate',
               amount: '',
               notes: '',
+              completed_at: null,
+              units_completed: null,
             });
           }
         }
@@ -240,6 +285,58 @@ export default function GigStaffSlotsSection({
       notes: '',
       assignments: [],
     });
+  };
+
+  const handleCompleteStaffAssignmentAction = async (slotIndex: number, assignmentIndex: number) => {
+    const assignment = getValues(`slots.${slotIndex}.assignments.${assignmentIndex}`);
+    if (!assignment.id || assignment.id.startsWith('temp-')) {
+      toast.error('Please save the assignment before completing');
+      return;
+    }
+
+    if (assignment.compensation_type === 'rate' && !showCompleteModal) {
+      setShowCompleteModal({ slotIndex, assignmentIndex });
+      setCompletionUnits('1');
+      return;
+    }
+
+    setIsCompleting(assignment.id);
+    try {
+      const result = await completeStaffAssignment(
+        assignment.id, 
+        assignment.compensation_type === 'rate' ? parseFloat(completionUnits) : undefined
+      );
+      if (result.success) {
+        toast.success('Staff assignment finalized');
+        setShowCompleteModal(null);
+        loadStaffSlotsData();
+      } else {
+        toast.error('Failed to finalize staff assignment');
+      }
+    } catch (error) {
+      console.error('Error completing staff assignment:', error);
+      toast.error('Error finalizing staff assignment');
+    } finally {
+      setIsCompleting(null);
+    }
+  };
+
+  const handleFinalizeAll = async () => {
+    setIsFinalizing(true);
+    try {
+      const result = await completeAllStaffAssignments(gigId, currentOrganizationId);
+      if (result.success) {
+        toast.success(`Finalized ${result.count} staff assignments`);
+        loadStaffSlotsData();
+      } else {
+        toast.error('Failed to finalize all staff assignments');
+      }
+    } catch (error) {
+      console.error('Error finalizing all staff assignments:', error);
+      toast.error('Error finalizing all staff assignments');
+    } finally {
+      setIsFinalizing(false);
+    }
   };
 
   const handleCountChange = (index: number, value: number) => {
@@ -344,15 +441,31 @@ export default function GigStaffSlotsSection({
               <CardTitle>Staff Assignments</CardTitle>
               <SaveStateIndicator state={saveState} />
             </div>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={handleAddStaffSlot}
-            >
-              <Plus className="w-4 h-4 mr-1" />
-              Add Staff Slot
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={handleFinalizeAll}
+                disabled={isFinalizing}
+              >
+                {isFinalizing ? (
+                  <Loader2 className="w-4 h-4 mr-1 animate-spin" />
+                ) : (
+                  <CheckCircle2 className="w-4 h-4 mr-1" />
+                )}
+                Finalize All
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={handleAddStaffSlot}
+              >
+                <Plus className="w-4 h-4 mr-1" />
+                Add Staff Slot
+              </Button>
+            </div>
           </div>
         </CardHeader>
         <CardContent>
@@ -429,104 +542,197 @@ export default function GigStaffSlotsSection({
 
                 <div className="p-4">
                   <div className="space-y-2">
-                    {watch(`slots.${slotIndex}.assignments`)?.map((assignment: any, assignmentIndex: number) => (
-                      <div
-                        key={assignment.id}
-                        className="flex items-center gap-2 p-2 bg-gray-50 rounded border border-gray-200"
-                      >
-                        <div className="flex-1">
-                          <Controller
-                            name={`slots.${slotIndex}.assignments.${assignmentIndex}.user_name`}
-                            control={control}
-                            render={({ field: nameField }) => (
-                              <UserSelector
-                                onSelect={(selectedUser) => {
-                                  const fullName = `${selectedUser.first_name} ${selectedUser.last_name}`.trim();
-                                  setValue(`slots.${slotIndex}.assignments.${assignmentIndex}.user_id`, selectedUser.id, { shouldDirty: true });
-                                  nameField.onChange(fullName);
-                                }}
-                                placeholder="Search for user..."
-                                value={nameField.value}
-                                organizationIds={participantOrganizationIds}
-                              />
-                            )}
-                          />
-                        </div>
-                        <Controller
-                          name={`slots.${slotIndex}.assignments.${assignmentIndex}.status`}
-                          control={control}
-                          render={({ field: statusField }) => (
-                            <Select
-                              value={statusField.value}
-                              onValueChange={statusField.onChange}
-                            >
-                              <SelectTrigger className="w-32 bg-white">
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="Open">Open</SelectItem>
-                                <SelectItem value="Requested">Requested</SelectItem>
-                                <SelectItem value="Confirmed">Confirmed</SelectItem>
-                                <SelectItem value="Declined">Declined</SelectItem>
-                              </SelectContent>
-                            </Select>
-                          )}
-                        />
-                        <Controller
-                          name={`slots.${slotIndex}.assignments.${assignmentIndex}.compensation_type`}
-                          control={control}
-                          render={({ field: compField }) => (
-                            <Select
-                              value={compField.value}
-                              onValueChange={compField.onChange}
-                            >
-                              <SelectTrigger className="w-24 bg-white">
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="rate">Rate</SelectItem>
-                                <SelectItem value="fee">Fee</SelectItem>
-                              </SelectContent>
-                            </Select>
-                          )}
-                        />
-                        <div className="relative w-24">
-                          <span className="absolute left-2 top-1/2 transform -translate-y-1/2 text-xs text-gray-500">
-                            $
-                          </span>
-                          <Controller
-                            name={`slots.${slotIndex}.assignments.${assignmentIndex}.amount`}
-                            control={control}
-                            render={({ field: amountField }) => (
-                              <Input
-                                {...amountField}
-                                type="number"
-                                step="0.01"
-                                min="0"
-                                placeholder="0.00"
-                                className={`pl-5 bg-white ${errors.slots?.[slotIndex]?.assignments?.[assignmentIndex]?.amount ? 'border-red-500' : ''}`}
-                                onFocus={(e) => e.target.select()}
-                              />
-                            )}
-                          />
-                        </div>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleOpenAssignmentNotes(slotIndex, assignmentIndex)}
+                    {watch(`slots.${slotIndex}.assignments`)?.map((assignment: any, assignmentIndex: number) => {
+                      const isCompleted = !!assignment.completed_at;
+                      const isConfirmed = assignment.status === 'Confirmed';
+                      
+                      return (
+                        <div
+                          key={assignment.id}
+                          className={`flex items-center gap-2 p-2 bg-gray-50 rounded border ${isCompleted ? 'border-green-200 bg-green-50/30' : 'border-gray-200'}`}
                         >
-                          <FileText className="w-4 h-4" />
-                        </Button>
-                      </div>
-                    ))}
+                          <div className="flex-none">
+                            {isCompleted ? (
+                              <CheckCircle2 className="w-4 h-4 text-green-600" title="Finalized" />
+                            ) : (
+                              <Circle className="w-4 h-4 text-gray-300" title="Pending" />
+                            )}
+                          </div>
+                          <div className="flex-1">
+                            <Controller
+                              name={`slots.${slotIndex}.assignments.${assignmentIndex}.user_name`}
+                              control={control}
+                              render={({ field: nameField }) => (
+                                <UserSelector
+                                  onSelect={(selectedUser) => {
+                                    const fullName = `${selectedUser.first_name} ${selectedUser.last_name}`.trim();
+                                    setValue(`slots.${slotIndex}.assignments.${assignmentIndex}.user_id`, selectedUser.id, { shouldDirty: true });
+                                    nameField.onChange(fullName);
+                                  }}
+                                  placeholder="Search for user..."
+                                  value={nameField.value}
+                                  organizationIds={participantOrganizationIds}
+                                  disabled={isCompleted}
+                                />
+                              )}
+                            />
+                          </div>
+                          <Controller
+                            name={`slots.${slotIndex}.assignments.${assignmentIndex}.status`}
+                            control={control}
+                            render={({ field: statusField }) => (
+                              <Select
+                                value={statusField.value}
+                                onValueChange={statusField.onChange}
+                                disabled={isCompleted}
+                              >
+                                <SelectTrigger className="w-32 bg-white">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="Open">Open</SelectItem>
+                                  <SelectItem value="Requested">Requested</SelectItem>
+                                  <SelectItem value="Confirmed">Confirmed</SelectItem>
+                                  <SelectItem value="Declined">Declined</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            )}
+                          />
+                          <Controller
+                            name={`slots.${slotIndex}.assignments.${assignmentIndex}.compensation_type`}
+                            control={control}
+                            render={({ field: compField }) => (
+                              <Select
+                                value={compField.value}
+                                onValueChange={compField.onChange}
+                                disabled={isCompleted}
+                              >
+                                <SelectTrigger className="w-24 bg-white">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="rate">Rate</SelectItem>
+                                  <SelectItem value="fee">Fee</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            )}
+                          />
+                          <div className="relative w-24">
+                            <span className="absolute left-2 top-1/2 transform -translate-y-1/2 text-xs text-gray-500">
+                              $
+                            </span>
+                            <Controller
+                              name={`slots.${slotIndex}.assignments.${assignmentIndex}.amount`}
+                              control={control}
+                              render={({ field: amountField }) => (
+                                <Input
+                                  {...amountField}
+                                  type="number"
+                                  step="0.01"
+                                  min="0"
+                                  placeholder="0.00"
+                                  disabled={isCompleted}
+                                  className={`pl-5 bg-white ${errors.slots?.[slotIndex]?.assignments?.[assignmentIndex]?.amount ? 'border-red-500' : ''}`}
+                                  onFocus={(e) => e.target.select()}
+                                />
+                              )}
+                            />
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleOpenAssignmentNotes(slotIndex, assignmentIndex)}
+                            >
+                              <FileText className="w-4 h-4" />
+                            </Button>
+                            {!isCompleted && isConfirmed && assignment.user_id && (
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleCompleteStaffAssignmentAction(slotIndex, assignmentIndex)}
+                                disabled={isCompleting === assignment.id}
+                                className="text-green-600 border-green-200 hover:bg-green-50"
+                                title="Finalize Assignment"
+                              >
+                                {isCompleting === assignment.id ? (
+                                  <Loader2 className="w-4 h-4 animate-spin" />
+                                ) : (
+                                  <CheckCircle2 className="w-4 h-4" />
+                                )}
+                              </Button>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               </div>
             ))}
           </div>
         </CardContent>
+        <CardFooter className="bg-gray-50 border-t py-3">
+          <div className="w-full flex justify-between items-center text-sm">
+            <div className="text-gray-500">
+              Total Staff Cost
+            </div>
+            <div className="font-medium space-x-3">
+              <span>Finalized: <span className="text-green-600">${finalized.toFixed(2)}</span></span>
+              <span className="text-gray-300">|</span>
+              <span>Projected: <span className="text-amber-600">${projected.toFixed(2)}</span></span>
+              <span className="text-gray-300">|</span>
+              <span>Total: ${ (finalized + projected).toFixed(2) }</span>
+            </div>
+          </div>
+        </CardFooter>
       </Card>
+
+      <Dialog open={showCompleteModal !== null} onOpenChange={(open) => {
+        if (!open) {
+          setShowCompleteModal(null);
+          setCompletionUnits('1');
+        }
+      }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Finalize Rate-based Labor</DialogTitle>
+            <DialogDescription>
+              Enter the actual units completed (e.g., hours or days) for this assignment.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            <Label htmlFor="units" className="mb-2 block">Units Completed</Label>
+            <Input
+              id="units"
+              type="number"
+              step="0.25"
+              min="0.25"
+              value={completionUnits}
+              onChange={(e) => setCompletionUnits(e.target.value)}
+              onFocus={(e) => e.target.select()}
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowCompleteModal(null)}>
+              Cancel
+            </Button>
+            <Button 
+              onClick={() => {
+                if (showCompleteModal) {
+                  handleCompleteStaffAssignmentAction(showCompleteModal.slotIndex, showCompleteModal.assignmentIndex);
+                }
+              }}
+              disabled={isCompleting !== null}
+            >
+              {isCompleting ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+              Finalize
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={showSlotNotes !== null} onOpenChange={(open) => {
         if (!open) {
