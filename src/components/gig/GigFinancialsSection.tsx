@@ -30,6 +30,7 @@ import { UserRole, FinType, FinCategory } from '../../utils/supabase/types';
 import { FIN_TYPE_CONFIG, FIN_CATEGORY_CONFIG, FIN_TYPE_GROUPS } from '../../utils/supabase/constants';
 import GigProfitabilitySummary from './GigProfitabilitySummary';
 import { Badge } from '../ui/badge';
+import { useNavigation } from '../../contexts/NavigationContext';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '../ui/collapsible';
 import { ChevronDown, ChevronRight, Receipt, Users, MousePointer2 } from 'lucide-react';
 
@@ -113,6 +114,7 @@ export default function GigFinancialsSection({
   currentOrganizationId,
   userRole,
 }: GigFinancialsSectionProps) {
+  const navigation = useNavigation();
   const [isLoading, setIsLoading] = useState(true);
   const [isSummaryLoading, setIsSummaryLoading] = useState(true);
   const [summary, setSummary] = useState<any>(null);
@@ -147,7 +149,7 @@ export default function GigFinancialsSection({
   // Only show to admins
   const isAdmin = userRole === 'Admin';
 
-  const { control, handleSubmit, formState: { errors, isDirty }, watch, reset, setValue } = useForm<FinancialsFormData>({
+  const { control, handleSubmit, formState: { errors, isDirty }, watch, reset, setValue, getValues } = useForm<FinancialsFormData>({
     resolver: zodResolver(financialsFormSchema),
     mode: 'onChange',
     defaultValues: {
@@ -227,6 +229,20 @@ export default function GigFinancialsSection({
       loadProjectedStaff();
     }
   }, [gigId, isAdmin]);
+
+  // Listen for external updates (like staff finalization)
+  useEffect(() => {
+    const handleExternalUpdate = (event: any) => {
+      if (event.detail?.gigId === gigId) {
+        loadFinancialsData();
+        loadSummaryData();
+        loadProjectedStaff();
+      }
+    };
+
+    window.addEventListener('gig-financials-updated', handleExternalUpdate);
+    return () => window.removeEventListener('gig-financials-updated', handleExternalUpdate);
+  }, [gigId]);
 
   const loadProjectedStaff = async () => {
     try {
@@ -321,6 +337,19 @@ export default function GigFinancialsSection({
     setShowFinancialModal(true);
   };
 
+  const handleModalTypeChange = (type: FinType) => {
+    setModalData(prev => {
+      const next = { ...prev, type };
+      // Infer paid_at for certain types
+      if (type === 'Expense Incurred' || type === 'Payment Received' || type === 'Payment Sent' || type === 'Deposit Received') {
+        if (!prev.paid_at) {
+          next.paid_at = format(new Date(), "yyyy-MM-dd'T'HH:mm:ss");
+        }
+      }
+      return next;
+    });
+  };
+
   const handleEditFinancial = (index: number) => {
     const financial = fields[index] as any;
     setModalData({
@@ -391,6 +420,12 @@ export default function GigFinancialsSection({
       });
     }
     setShowFinancialModal(false);
+    
+    // Explicitly trigger save for new records because isDirty might not update immediately
+    if (currentFinancialIndex === null) {
+      // Trigger save with the current form state
+      triggerSave(getValues());
+    }
   };
 
   const handleOpenNotes = (index: number) => {
@@ -486,12 +521,16 @@ export default function GigFinancialsSection({
           <div className="flex flex-col gap-1">
             <span className="text-sm">{FIN_TYPE_CONFIG[field.type as FinType]?.label || field.type}</span>
             <div className="flex items-center gap-1">
-              {isPaid ? (
-                <Badge className="h-4 px-1 text-[9px] bg-green-100 text-green-700 hover:bg-green-100 border-none">Paid</Badge>
-              ) : (
-                <Badge className="h-4 px-1 text-[9px] bg-amber-100 text-amber-700 hover:bg-amber-100 border-none">Unpaid</Badge>
+              {!field.type.toLowerCase().includes('bid') && !field.type.toLowerCase().includes('proposal') && (
+                <>
+                  {isPaid ? (
+                    <Badge className="h-4 px-1 text-[9px] bg-green-100 text-green-700 hover:bg-green-100 border-none">Paid</Badge>
+                  ) : (
+                    <Badge className="h-4 px-1 text-[9px] bg-amber-100 text-amber-700 hover:bg-amber-100 border-none">Unpaid</Badge>
+                  )}
+                  <span className="text-[10px] text-gray-400">•</span>
+                </>
               )}
-              <span className="text-[10px] text-gray-400">•</span>
               <span className="text-[10px] text-gray-500">{field.category}</span>
             </div>
           </div>
@@ -512,7 +551,7 @@ export default function GigFinancialsSection({
                 variant="ghost"
                 size="sm"
                 className="h-8 w-8 p-0 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
-                onClick={() => window.open(`/purchases/${field.purchase_id}`, '_blank')}
+                onClick={() => navigation?.onNavigateToPurchase?.(field.purchase_id!, gigId)}
                 title="View Receipt Details"
               >
                 <ExternalLink className="w-4 h-4" />
@@ -660,7 +699,7 @@ export default function GigFinancialsSection({
                 </div>
 
                 {/* Expenses Section */}
-                <div className="space-y-3">
+                <div className="space-y-3 pt-10">
                   <div className="flex items-center gap-2 pb-1 border-b">
                     <h3 className="text-sm font-semibold text-red-700">Expenses</h3>
                     <Badge variant="outline" className="h-5 px-1.5 text-[10px] bg-red-50 text-red-700 border-red-200">
@@ -694,7 +733,7 @@ export default function GigFinancialsSection({
 
                 {/* Projected Staff Section */}
                 {projectedStaff.length > 0 && (
-                  <div className="space-y-3">
+                  <div className="space-y-3 pt-10">
                     <div className="flex items-center gap-2 pb-1 border-b">
                       <h3 className="text-sm font-semibold text-amber-700">Projected Staff Costs</h3>
                       <Badge variant="outline" className="h-5 px-1.5 text-[10px] bg-amber-50 text-amber-700 border-amber-200">
@@ -837,7 +876,7 @@ export default function GigFinancialsSection({
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <Label htmlFor="modal-type">Type</Label>
-                <Select value={modalData.type} onValueChange={(value: FinType) => setModalData({ ...modalData, type: value })}>
+                <Select value={modalData.type} onValueChange={(value: FinType) => handleModalTypeChange(value)}>
                   <SelectTrigger>
                     <SelectValue placeholder="Select type" />
                   </SelectTrigger>

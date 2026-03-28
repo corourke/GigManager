@@ -19,6 +19,7 @@ import { Badge } from './ui/badge';
 import AppHeader from './AppHeader';
 import AttachmentManager from './AttachmentManager';
 import GigFinancialsSection from './gig/GigFinancialsSection';
+import GigStaffSlotsSection from './gig/GigStaffSlotsSection';
 import { Organization, User, UserRole, Gig } from '../utils/supabase/types';
 import { GIG_STATUS_CONFIG, ORG_TYPE_CONFIG } from '../utils/supabase/constants';
 import { getGig, deleteGig, duplicateGig } from '../services/gig.service';
@@ -125,6 +126,7 @@ export default function GigDetailScreen({
   }
 
   const canViewFinancials = gig.created_by === user.id || userRole === 'Admin' || userRole === 'Manager';
+  const participantOrgIds = [organization.id, ...gig.participants.map((p: any) => p.organization_id)];
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -275,6 +277,13 @@ export default function GigDetailScreen({
                 </div>
               </Card>
             )}
+
+            {/* Staff Section */}
+            <GigStaffSlotsSection
+              gigId={gigId}
+              currentOrganizationId={organization.id}
+              participantOrganizationIds={participantOrgIds}
+            />
 
             {/* Attachments Section */}
             <div className="mt-4">

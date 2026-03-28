@@ -58,7 +58,7 @@ CREATE TYPE "public"."fin_type" AS ENUM (
     'Deposit Sent',
     'Deposit Refunded',
     'Payment Sent',
-    'Payment Recieved',
+    'Payment Received',
     'Expense Incurred',
     'Expense Reimbursed',
     'Invoice Issued',

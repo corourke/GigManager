@@ -318,7 +318,10 @@ export default function ReviewScannedDataDialog({
             category: (formData.category as any) || 'Production',
             description: formData.description || `Receipt: ${formData.vendor}`,
             purchase_id: result.id,
+            paid_at: new Date().toISOString(), // Incurred from receipt implies paid
           });
+          // Dispatch event to refresh financials
+          window.dispatchEvent(new CustomEvent('gig-financials-updated', { detail: { gigId } }));
         } catch (finErr) {
           console.error('Error creating linked gig financial record:', finErr);
         }

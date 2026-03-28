@@ -514,9 +514,17 @@ function App() {
   };
 
   const [highlightPurchaseId, setHighlightPurchaseId] = useState<string | null>(null);
+  const [returnGigId, setReturnGigId] = useState<string | null>(null);
 
   const handleNavigateToFinancials = () => {
     setHighlightPurchaseId(null);
+    setReturnGigId(null);
+    setCurrentRoute('financials');
+  };
+
+  const handleNavigateToPurchase = (purchaseId: string, returnGigId?: string) => {
+    setHighlightPurchaseId(purchaseId);
+    setReturnGigId(returnGigId || null);
     setCurrentRoute('financials');
   };
 
@@ -557,6 +565,8 @@ function App() {
       onNavigateToTeam={handleNavigateToTeam}
       onNavigateToAssets={handleNavigateToAssets}
       onNavigateToFinancials={handleNavigateToFinancials}
+      onNavigateToPurchase={handleNavigateToPurchase}
+      onNavigateToGigDetail={(gigId) => handleViewGig(gigId)}
       onEditProfile={handleEditProfile}
       onNavigateToSettings={handleNavigateToSettings}
     >
@@ -917,6 +927,8 @@ function App() {
                 onNavigateToGigs={handleNavigateToGigs}
                 onNavigateToAssets={handleNavigateToAssets}
                 highlightPurchaseId={highlightPurchaseId}
+                returnGigId={returnGigId}
+                onNavigateToGigDetail={handleViewGig}
               />
             )}
           </>

@@ -17,11 +17,13 @@ import {
   getGig, 
   updateGigStaffSlots, 
   completeStaffAssignment, 
-  completeAllStaffAssignments 
+  completeAllStaffAssignments,
+  unfinalizeStaffAssignment
 } from '../../services/gig.service';
 import { useAutoSave } from '../../utils/hooks/useAutoSave';
 import SaveStateIndicator from './SaveStateIndicator';
 import { Badge } from '../ui/badge';
+import { RotateCcw } from 'lucide-react';
 
 const staffAssignmentSchema = z.object({
   id: z.string(),
@@ -310,12 +312,34 @@ export default function GigStaffSlotsSection({
         toast.success('Staff assignment finalized');
         setShowCompleteModal(null);
         loadStaffSlotsData();
+        // Dispatch event to refresh financials
+        window.dispatchEvent(new CustomEvent('gig-financials-updated', { detail: { gigId } }));
       } else {
         toast.error('Failed to finalize staff assignment');
       }
     } catch (error) {
       console.error('Error completing staff assignment:', error);
       toast.error('Error finalizing staff assignment');
+    } finally {
+      setIsCompleting(null);
+    }
+  };
+
+  const handleUnfinalizeStaffAssignment = async (assignmentId: string) => {
+    setIsCompleting(assignmentId);
+    try {
+      const result = await unfinalizeStaffAssignment(assignmentId);
+      if (result.success) {
+        toast.success('Staff assignment un-finalized');
+        loadStaffSlotsData();
+        // Dispatch event to refresh financials
+        window.dispatchEvent(new CustomEvent('gig-financials-updated', { detail: { gigId } }));
+      } else {
+        toast.error('Failed to un-finalize staff assignment');
+      }
+    } catch (error) {
+      console.error('Error un-finalizing staff assignment:', error);
+      toast.error('Error un-finalizing staff assignment');
     } finally {
       setIsCompleting(null);
     }
@@ -328,6 +352,8 @@ export default function GigStaffSlotsSection({
       if (result.success) {
         toast.success(`Finalized ${result.count} staff assignments`);
         loadStaffSlotsData();
+        // Dispatch event to refresh financials
+        window.dispatchEvent(new CustomEvent('gig-financials-updated', { detail: { gigId } }));
       } else {
         toast.error('Failed to finalize all staff assignments');
       }
@@ -494,7 +520,7 @@ export default function GigStaffSlotsSection({
                                 </SelectItem>
                               ))
                             ) : (
-                              <SelectItem value="" disabled>
+                              <SelectItem value="none" disabled>
                                 {isLoadingRoles ? 'Loading roles...' : 'No roles available'}
                               </SelectItem>
                             )}
@@ -647,22 +673,41 @@ export default function GigStaffSlotsSection({
                             >
                               <FileText className="w-4 h-4" />
                             </Button>
-                            {!isCompleted && isConfirmed && assignment.user_id && (
+                            
+                            {isCompleted ? (
                               <Button
                                 type="button"
                                 variant="outline"
                                 size="sm"
-                                onClick={() => handleCompleteStaffAssignmentAction(slotIndex, assignmentIndex)}
+                                onClick={() => handleUnfinalizeStaffAssignment(assignment.id)}
                                 disabled={isCompleting === assignment.id}
-                                className="text-green-600 border-green-200 hover:bg-green-50"
-                                title="Finalize Assignment"
+                                className="text-amber-600 border-amber-200 hover:bg-amber-50"
+                                title="Undo Finalize"
                               >
                                 {isCompleting === assignment.id ? (
                                   <Loader2 className="w-4 h-4 animate-spin" />
                                 ) : (
-                                  <CheckCircle2 className="w-4 h-4" />
+                                  <RotateCcw className="w-4 h-4" />
                                 )}
                               </Button>
+                            ) : (
+                              isConfirmed && assignment.user_id && (
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => handleCompleteStaffAssignmentAction(slotIndex, assignmentIndex)}
+                                  disabled={isCompleting === assignment.id}
+                                  className="text-green-600 border-green-200 hover:bg-green-50"
+                                  title="Finalize Assignment"
+                                >
+                                  {isCompleting === assignment.id ? (
+                                    <Loader2 className="w-4 h-4 animate-spin" />
+                                  ) : (
+                                    <CheckCircle2 className="w-4 h-4" />
+                                  )}
+                                </Button>
+                              )
                             )}
                           </div>
                         </div>

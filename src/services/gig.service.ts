@@ -5,6 +5,7 @@ import {
   FinType,
   FinCategory,
 } from '../utils/supabase/types';
+import { FIN_TYPE_CONFIG, FIN_CATEGORY_CONFIG, FIN_TYPE_GROUPS } from '../utils/supabase/constants';
 import { handleApiError } from '../utils/api-error-utils';
 import { requireAuth } from '../utils/supabase/auth-utils';
 import { UUID_REGEX } from '../utils/validation-utils';
@@ -911,18 +912,25 @@ export async function getGigProfitabilitySummary(gigId: string, organizationId: 
     let received = 0;
     let actualCosts = 0;
 
+    const revenueTypes = FIN_TYPE_GROUPS.revenue as readonly string[];
+    const costTypes = FIN_TYPE_GROUPS.cost as readonly string[];
+
     (financials || []).forEach(f => {
       const amount = Number(f.amount) || 0;
-      // Revenue types
-      if (f.type === 'Contract Signed' || f.type === 'Bid Accepted') {
+      // Revenue types (Total Contract value)
+      // Note: We use only 'Contract Signed' for the total contract value.
+      // 'Bid Accepted' is informative and does not increase revenue projection.
+      if (f.type === 'Contract Signed') {
         contractAmount += amount;
       }
-      // Received types
+      
+      // Received revenue
       if (f.type === 'Deposit Received' || f.type === 'Payment Received') {
         received += amount;
       }
+
       // Cost types
-      if (f.type === 'Expense Incurred' || f.type === 'Payment Sent' || f.type === 'Deposit Sent') {
+      if (costTypes.includes(f.type)) {
         actualCosts += amount;
       }
     });
@@ -1082,6 +1090,8 @@ export async function updateGigFinancials(gigId: string, organizationId: string,
   notes?: string;
   due_date?: string;
   paid_at?: string;
+  purchase_id?: string;
+  staff_assignment_id?: string;
 }>) {
   try {
     const { supabase, user } = await requireAuth();
@@ -1098,16 +1108,40 @@ export async function updateGigFinancials(gigId: string, organizationId: string,
     }
 
     for (const fin of financials) {
+      // Strip out any non-database fields like 'counterparty' object
+      const { id, counterparty, ...restFin } = fin as any;
+      
+      // Clean and sanitize data: convert empty strings to null for UUID and Date fields
+      // This prevents Supabase 400 Bad Request errors for invalid formats
+      const cleanFin: any = { ...restFin };
+      
+      const uuidFields = ['counterparty_id', 'purchase_id', 'staff_assignment_id'];
+      const dateFields = ['date', 'due_date', 'paid_at'];
+      
+      uuidFields.forEach(field => {
+        if (cleanFin[field] === '' || cleanFin[field] === undefined) {
+          delete cleanFin[field];
+        }
+      });
+      
+      dateFields.forEach(field => {
+        if (cleanFin[field] === '' || cleanFin[field] === undefined) {
+          delete cleanFin[field];
+        }
+      });
+
       const finData = {
-        ...fin,
+        ...cleanFin,
         gig_id: gigId,
         organization_id: organizationId,
       };
 
-      if (fin.id && existingIds.includes(fin.id)) {
-        await supabase.from('gig_financials').update(finData).eq('id', fin.id);
+      if (id && existingIds.includes(id)) {
+        const { error: updateErr } = await supabase.from('gig_financials').update(finData).eq('id', id);
+        if (updateErr) throw updateErr;
       } else {
-        await supabase.from('gig_financials').insert({ ...finData, created_by: user.id });
+        const { error: insertErr } = await supabase.from('gig_financials').insert({ ...finData, created_by: user.id });
+        if (insertErr) throw insertErr;
       }
     }
     return { success: true };
@@ -1244,6 +1278,51 @@ export async function completeStaffAssignment(assignmentId: string, unitsComplet
     return { success: true, financialId: financial.id };
   } catch (err) {
     return handleApiError(err, 'complete staff assignment');
+  }
+}
+
+/**
+ * Un-finalize a staff assignment by deleting the linked financial record
+ */
+export async function unfinalizeStaffAssignment(assignmentId: string) {
+  try {
+    const { supabase } = await requireAuth();
+
+    // 1. Get assignment details
+    const { data: assignment, error: fetchError } = await supabase
+      .from('gig_staff_assignments')
+      .select('gig_financial_id')
+      .eq('id', assignmentId)
+      .single();
+
+    if (fetchError) throw fetchError;
+    if (!assignment) throw new Error('Assignment not found');
+
+    // 2. Delete the financial record if it exists
+    if (assignment.gig_financial_id) {
+      const { error: deleteError } = await supabase
+        .from('gig_financials')
+        .delete()
+        .eq('id', assignment.gig_financial_id);
+      
+      if (deleteError) throw deleteError;
+    }
+
+    // 3. Reset assignment completion fields
+    const { error: updateError } = await supabase
+      .from('gig_staff_assignments')
+      .update({
+        completed_at: null,
+        units_completed: null,
+        gig_financial_id: null,
+      })
+      .eq('id', assignmentId);
+
+    if (updateError) throw updateError;
+
+    return { success: true };
+  } catch (err) {
+    return handleApiError(err, 'un-finalize staff assignment');
   }
 }
 

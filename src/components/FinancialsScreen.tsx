@@ -9,13 +9,16 @@ import {
   ChevronDown,
   ChevronRight,
   ExternalLink,
-  FileText
+  FileText,
+  ArrowLeft,
+  X
 } from 'lucide-react';
 import { Card } from './ui/card';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Badge } from './ui/badge';
+import { Alert, AlertDescription } from './ui/alert';
 import { 
   Tabs, 
   TabsList, 
@@ -52,6 +55,8 @@ interface FinancialsScreenProps {
   onNavigateToGigs: () => void;
   onNavigateToAssets: () => void;
   highlightPurchaseId?: string | null;
+  returnGigId?: string | null;
+  onNavigateToGigDetail?: (gigId: string) => void;
 }
 
 type FinancialTab = 'purchases' | 'gig-accounting' | 'reporting';
@@ -64,13 +69,25 @@ export default function FinancialsScreen({
   onLogout,
   onNavigateToGigs,
   onNavigateToAssets,
-  highlightPurchaseId
+  highlightPurchaseId: initialHighlightId,
+  returnGigId,
+  onNavigateToGigDetail
 }: FinancialsScreenProps) {
   const [activeTab, setActiveTab] = useState<FinancialTab>('purchases');
   const [purchases, setPurchases] = useState<DbPurchase[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [expandedItemId, setExpandedItemId] = useState<string | null>(null);
+  const [highlightPurchaseId, setHighlightPurchaseId] = useState<string | null>(initialHighlightId || null);
+  const [showOnlyHighlighted, setShowOnlyHighlighted] = useState(!!initialHighlightId);
   
+  // Update state when initialHighlightId changes
+  useEffect(() => {
+    if (initialHighlightId) {
+      setHighlightPurchaseId(initialHighlightId);
+      setShowOnlyHighlighted(true);
+    }
+  }, [initialHighlightId]);
+
   // Filters
   const [vendorFilter, setVendorFilter] = useState('');
   const [typeFilter, setTypeFilter] = useState<'all' | 'asset' | 'expense'>('all');
@@ -132,6 +149,14 @@ export default function FinancialsScreen({
   // Filter and group purchases
   const filteredPurchases = useMemo(() => {
     return purchases.filter(p => {
+      // If filtering by a specific receipt link
+      if (showOnlyHighlighted && highlightPurchaseId) {
+        // If it's a header, match ID
+        if (p.row_type === 'header') return p.id === highlightPurchaseId;
+        // If it's an item/asset, match ID or its parent_id
+        return p.id === highlightPurchaseId || p.parent_id === highlightPurchaseId;
+      }
+
       // Vendor filter
       if (vendorFilter && !p.vendor?.toLowerCase().includes(vendorFilter.toLowerCase())) {
         return false;
@@ -269,91 +294,131 @@ export default function FinancialsScreen({
         </div>
 
         <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as FinancialTab)} className="space-y-6">
-          <TabsList className="bg-white border border-gray-200 p-1">
-            <TabsTrigger value="purchases" className="flex items-center gap-2">
-              <Receipt className="w-4 h-4" />
-              Purchases
-            </TabsTrigger>
-            <TabsTrigger value="gig-accounting" className="flex items-center gap-2">
-              <Banknote className="w-4 h-4" />
-              Gig Accounting
-            </TabsTrigger>
-            <TabsTrigger value="reporting" className="flex items-center gap-2">
-              <TrendingUp className="w-4 h-4" />
-              Reporting
-            </TabsTrigger>
-          </TabsList>
+          <div className="flex items-center justify-between">
+            <TabsList className="bg-white border border-gray-200 p-1">
+              <TabsTrigger value="purchases" className="flex items-center gap-2">
+                <Receipt className="w-4 h-4" />
+                Purchases
+              </TabsTrigger>
+              <TabsTrigger value="gig-accounting" className="flex items-center gap-2">
+                <Banknote className="w-4 h-4" />
+                Gig Accounting
+              </TabsTrigger>
+              <TabsTrigger value="reporting" className="flex items-center gap-2">
+                <TrendingUp className="w-4 h-4" />
+                Reporting
+              </TabsTrigger>
+            </TabsList>
+
+            {returnGigId && onNavigateToGigDetail && (
+              <Button 
+                variant="outline" 
+                size="sm" 
+                className="flex items-center gap-2"
+                onClick={() => onNavigateToGigDetail(returnGigId)}
+              >
+                <ArrowLeft className="w-4 h-4" />
+                Back to Gig
+              </Button>
+            )}
+          </div>
 
           <TabsContent value="purchases" className="space-y-6">
-            {/* Filters & Totals */}
-            <Card className="p-4">
-              <div className="flex flex-wrap items-end gap-4">
-                <div className="flex-1 min-w-[200px]">
-                  <Label htmlFor="vendor-filter" className="text-xs">Vendor</Label>
-                  <div className="relative">
-                    <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-400" />
+            {showOnlyHighlighted && highlightPurchaseId ? (
+              <Alert className="bg-sky-50 border-sky-200 py-6 px-6 flex items-center justify-between gap-6 shadow-sm border-l-4 border-l-sky-500">
+                <div className="flex items-center gap-4 text-sky-900">
+                  <div className="bg-sky-100 p-3 rounded-xl text-sky-600 shadow-inner">
+                    <Filter className="w-6 h-6" />
+                  </div>
+                  <div className="space-y-1">
+                    <h3 className="text-lg font-bold leading-none tracking-tight">Viewing Linked Receipt</h3>
+                    <p className="text-sm text-sky-700/90 font-medium">
+                      Showing specific record linked from <span className="font-bold underline decoration-sky-300 underline-offset-2">Gig Financials</span>.
+                    </p>
+                  </div>
+                </div>
+                <Button 
+                  variant="outline" 
+                  className="border-sky-300 text-sky-600 hover:bg-sky-100 hover:text-sky-700 bg-white shadow-sm px-6 h-11 text-sm font-semibold transition-all hover:scale-[1.02] active:scale-[0.98]"
+                  onClick={() => {
+                    setShowOnlyHighlighted(false);
+                    setHighlightPurchaseId(null);
+                  }}
+                >
+                  <X className="w-4 h-4 mr-2" />
+                  Clear Filter & Show All
+                </Button>
+              </Alert>
+            ) : (
+              /* Filters & Totals */
+              <Card className="p-4">
+                <div className="flex flex-wrap items-end gap-4">
+                  <div className="flex-1 min-w-[200px]">
+                    <Label htmlFor="vendor-filter" className="text-xs">Vendor</Label>
+                    <div className="relative">
+                      <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-400" />
+                      <Input
+                        id="vendor-filter"
+                        placeholder="Search vendor..."
+                        className="pl-9 h-9 text-sm"
+                        value={vendorFilter}
+                        onChange={(e) => setVendorFilter(e.target.value)}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="w-40">
+                    <Label className="text-xs">Type</Label>
+                    <Select value={typeFilter} onValueChange={(v: any) => setTypeFilter(v)}>
+                      <SelectTrigger className="h-9 text-sm">
+                        <SelectValue placeholder="All Types" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All Types</SelectItem>
+                        <SelectItem value="asset">Assets</SelectItem>
+                        <SelectItem value="expense">Expenses</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="w-36">
+                    <Label className="text-xs">From</Label>
                     <Input
-                      id="vendor-filter"
-                      placeholder="Search vendor..."
-                      className="pl-9 h-9 text-sm"
-                      value={vendorFilter}
-                      onChange={(e) => setVendorFilter(e.target.value)}
+                      type="date"
+                      className="h-9 text-sm"
+                      value={startDate}
+                      onChange={(e) => setStartDate(e.target.value)}
                     />
                   </div>
-                </div>
-
-                <div className="w-40">
-                  <Label className="text-xs">Type</Label>
-                  <Select value={typeFilter} onValueChange={(v: any) => setTypeFilter(v)}>
-                    <SelectTrigger className="h-9 text-sm">
-                      <SelectValue placeholder="All Types" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Types</SelectItem>
-                      <SelectItem value="asset">Assets</SelectItem>
-                      <SelectItem value="expense">Expenses</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="w-36">
-                  <Label className="text-xs">From</Label>
-                  <Input
-                    type="date"
-                    className="h-9 text-sm"
-                    value={startDate}
-                    onChange={(e) => setStartDate(e.target.value)}
-                  />
-                </div>
-                <div className="w-36">
-                  <Label className="text-xs">To</Label>
-                  <Input
-                    type="date"
-                    className="h-9 text-sm"
-                    value={endDate}
-                    onChange={(e) => setEndDate(e.target.value)}
-                  />
-                </div>
-
-                <div className="ml-auto flex gap-4 px-4 py-2 bg-gray-50 rounded-lg border border-gray-100">
-                  <div className="text-center">
-                    <p className="text-[10px] uppercase text-gray-500 font-semibold">Total Cost</p>
-                    <p className="text-lg font-bold text-gray-900">${totals.totalCost.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+                  <div className="w-36">
+                    <Label className="text-xs">To</Label>
+                    <Input
+                      type="date"
+                      className="h-9 text-sm"
+                      value={endDate}
+                      onChange={(e) => setEndDate(e.target.value)}
+                    />
                   </div>
-                  <div className="w-px bg-gray-200" />
-                  <div className="text-center">
-                    <p className="text-[10px] uppercase text-gray-500 font-semibold">Assets</p>
-                    <p className="text-lg font-bold text-blue-600">{totals.assetCount}</p>
-                  </div>
-                  <div className="w-px bg-gray-200" />
-                  <div className="text-center">
-                    <p className="text-[10px] uppercase text-gray-500 font-semibold">Expenses</p>
-                    <p className="text-lg font-bold text-orange-600">{totals.expenseCount}</p>
+
+                  <div className="ml-auto flex gap-4 px-4 py-2 bg-gray-50 rounded-lg border border-gray-100">
+                    <div className="text-center">
+                      <p className="text-[10px] uppercase text-gray-500 font-semibold">Total Cost</p>
+                      <p className="text-lg font-bold text-gray-900">${totals.totalCost.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+                    </div>
+                    <div className="w-px bg-gray-200" />
+                    <div className="text-center">
+                      <p className="text-[10px] uppercase text-gray-500 font-semibold">Assets</p>
+                      <p className="text-lg font-bold text-blue-600">{totals.assetCount}</p>
+                    </div>
+                    <div className="w-px bg-gray-200" />
+                    <div className="text-center">
+                      <p className="text-[10px] uppercase text-gray-500 font-semibold">Expenses</p>
+                      <p className="text-lg font-bold text-orange-600">{totals.expenseCount}</p>
+                    </div>
                   </div>
                 </div>
-              </div>
-            </Card>
-
+              </Card>
+            )}
             {/* Purchases Table/List */}
             <div className="space-y-4">
               {isLoading ? (
