@@ -24,14 +24,23 @@ COMMENT ON SCHEMA "public" IS 'standard public schema';
 
 
 CREATE TYPE "public"."fin_category" AS ENUM (
-    'Labor',
-    'Equipment',
-    'Transportation',
-    'Venue',
-    'Production',
+    'Advertising',
+    'Car and truck expenses',
+    'Commissions and fees',
+    'Contract labor',
+    'Depreciation',
     'Insurance',
-    'Rebillable',
-    'Other'
+    'Legal and professional services',
+    'Office expense',
+    'Rent or lease',
+    'Repairs and maintenance',
+    'Supplies',
+    'Taxes and licenses',
+    'Travel',
+    'Meals',
+    'Utilities',
+    'Wages',
+    'Other expenses'
 );
 
 

@@ -49,7 +49,7 @@ Below is the checklist to verify the implementation.
 #### 4. Receipt Upload Integration
 - [x] In the **Financials** tab, click the **"Upload Receipt"** button.
 - [x] Upload a receipt and verify that both a `purchases` and a `gig_financials` record are created.
-- [ ] Verify the row in the Financials table shows the "Receipt" source badge and links back to the purchase.
+- [x] Verify the row in the Financials table shows the "Receipt" source badge and links back to the purchase.
 
 #### 5. Projected Staff Subsection
 - [x] In the **Financials** tab, verify a **"Projected Staff"** subsection appears below Expenses for uncompleted confirmed/requested assignments.

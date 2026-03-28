@@ -233,6 +233,12 @@ flowchart TD
 
 ---
 
+## Transaction Types
+
+
+
+---
+
 ## UI Designs
 
 ### Gig Financials Section (Redesigned)

@@ -105,14 +105,23 @@ export const FIN_TYPE_GROUPS = {
 } as const;
 
 export const FIN_CATEGORY_CONFIG = {
-  'Labor': { label: 'Labor' },
-  'Equipment': { label: 'Equipment' },
-  'Transportation': { label: 'Transportation' },
-  'Venue': { label: 'Venue' },
-  'Production': { label: 'Production' },
+  'Advertising': { label: 'Advertising' },
+  'Car and truck expenses': { label: 'Car and truck expenses' },
+  'Commissions and fees': { label: 'Commissions and fees' },
+  'Contract labor': { label: 'Contract labor' },
+  'Depreciation': { label: 'Depreciation' },
   'Insurance': { label: 'Insurance' },
-  'Rebillable': { label: 'Rebillable' },
-  'Other': { label: 'Other' },
+  'Legal and professional services': { label: 'Legal and professional services' },
+  'Office expense': { label: 'Office expense' },
+  'Rent or lease': { label: 'Rent or lease' },
+  'Repairs and maintenance': { label: 'Repairs and maintenance' },
+  'Supplies': { label: 'Supplies' },
+  'Taxes and licenses': { label: 'Taxes and licenses' },
+  'Travel': { label: 'Travel' },
+  'Meals': { label: 'Meals' },
+  'Utilities': { label: 'Utilities' },
+  'Wages': { label: 'Wages' },
+  'Other expenses': { label: 'Other expenses' },
 } as const;
 
 export type FinCategory = keyof typeof FIN_CATEGORY_CONFIG;
