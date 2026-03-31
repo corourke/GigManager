@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, Platform } from 'react-native';
 import { GestureDetector, Gesture } from 'react-native-gesture-handler';
 import Animated, { 
   useAnimatedStyle, 
@@ -104,7 +104,13 @@ export function DeviceNode({
   };
 
   return (
-    <Animated.View style={[styles.container, animatedStyle]}>
+    <Animated.View 
+      style={[styles.container, animatedStyle]}
+      {...Platform.select({
+        web: { onContextMenu: (e: any) => e.preventDefault() } as any,
+        default: {}
+      })}
+    >
       <GestureDetector gesture={dragGesture}>
         <View 
           className="bg-white dark:bg-gray-800 shadow-md border border-gray-200 dark:border-gray-700 rounded-lg p-3 w-40"

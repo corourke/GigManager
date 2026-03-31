@@ -25,25 +25,25 @@ describe('Signal Chain Logic', () => {
           id: micId,
           name: 'Kick Mic',
           type: 'Microphone',
-          outputPorts: [{ id: micOutId, number: 1, channelCount: 1 }],
+          outputPorts: [{ id: micOutId, number: 1, channelCount: 1, phantomPower: false, pad: false }],
           inputPorts: [],
-          metadata: { generalName: 'Kick', phantomPower: false, pad: false },
+          metadata: { generalName: 'Kick' },
         },
         {
           id: stageboxId,
           name: 'Stagebox 1',
           type: 'Stagebox',
-          inputPorts: [{ id: stageboxInId, number: 1, channelCount: 1 }],
-          outputPorts: [{ id: stageboxOutId, number: 1, channelCount: 1 }],
-          metadata: { phantomPower: false, pad: false },
+          inputPorts: [{ id: stageboxInId, number: 1, channelCount: 1, phantomPower: false, pad: false }],
+          outputPorts: [{ id: stageboxOutId, number: 1, channelCount: 1, phantomPower: false, pad: false }],
+          metadata: {},
         },
         {
           id: mixerId,
           name: 'X32 Mixer',
           type: 'Mixer',
-          inputPorts: [{ id: mixerInId, number: 1, channelCount: 1 }],
+          inputPorts: [{ id: mixerInId, number: 1, channelCount: 1, phantomPower: false, pad: false }],
           outputPorts: [],
-          metadata: { phantomPower: false, pad: false },
+          metadata: {},
         },
       ],
       connections: [
@@ -82,8 +82,8 @@ describe('Signal Chain Logic', () => {
   });
 
   it('handles 1:1 default channel mapping', () => {
-    const sourcePort: Port = { id: 's1', number: 1, channelCount: 8 };
-    const destPort: Port = { id: 'd1', number: 1, channelCount: 8 };
+    const sourcePort: Port = { id: 's1', number: 1, channelCount: 8, phantomPower: false, pad: false };
+    const destPort: Port = { id: 'd1', number: 1, channelCount: 8, phantomPower: false, pad: false };
     const conn: Connection = {
       id: 'c1',
       sourceDeviceId: 'd_src',
@@ -99,8 +99,8 @@ describe('Signal Chain Logic', () => {
   });
 
   it('handles explicit channel mapping (offset/routing)', () => {
-    const sourcePort: Port = { id: 's1', number: 1, channelCount: 1 };
-    const destPort: Port = { id: 'd1', number: 1, channelCount: 8 };
+    const sourcePort: Port = { id: 's1', number: 1, channelCount: 1, phantomPower: false, pad: false };
+    const destPort: Port = { id: 'd1', number: 1, channelCount: 8, phantomPower: false, pad: false };
     const conn: Connection = {
       id: 'c1',
       sourceDeviceId: 'd_src',
@@ -131,17 +131,17 @@ describe('Signal Chain Logic', () => {
           id: micId,
           name: 'Kick Mic',
           type: 'Microphone',
-          outputPorts: [{ id: micOutId, number: 1, channelCount: 1 }],
+          outputPorts: [{ id: micOutId, number: 1, channelCount: 1, phantomPower: false, pad: false }],
           inputPorts: [],
-          metadata: { generalName: 'Kick', phantomPower: false, pad: false },
+          metadata: { generalName: 'Kick' },
         },
         {
           id: mixerId,
           name: 'Mixer',
           type: 'Mixer',
-          inputPorts: [{ id: mixerInId, number: 1, channelCount: 1, name: 'Kick In' }], // Override
+          inputPorts: [{ id: mixerInId, number: 1, channelCount: 1, name: 'Kick In', phantomPower: false, pad: false }], // Override
           outputPorts: [],
-          metadata: { phantomPower: false, pad: false },
+          metadata: {},
         },
       ],
       connections: [

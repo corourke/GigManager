@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from 'react';
-import { View, StyleSheet, Dimensions, TouchableOpacity, Text } from 'react-native';
+import { View, StyleSheet, Dimensions, TouchableOpacity, Text, Platform } from 'react-native';
 import Svg, { Line, Marker, Path, Defs } from 'react-native-svg';
 import { useProject } from '../../contexts/ProjectContext';
 import { DeviceNode } from '../../components/DeviceNode';
@@ -99,7 +99,13 @@ export default function DiagramScreen() {
         </View>
       </View>
 
-      <View className="flex-1 overflow-hidden">
+      <View 
+        className="flex-1 overflow-hidden"
+        {...Platform.select({
+          web: { onContextMenu: (e: any) => e.preventDefault() } as any,
+          default: {}
+        })}
+      >
         <Svg style={StyleSheet.absoluteFill}>
           <Defs>
             <Marker

@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
-import { Project, Device, Group, Category, ProjectSchema } from '../models';
+import { Project, Device, Group, Category, Connection, ProjectSchema } from '../models';
 
 interface ProjectContextType {
   project: Project;
@@ -31,30 +31,30 @@ const INITIAL_PROJECT: Project = {
       name: 'Wireless Mic 1',
       type: 'Microphone',
       inputPorts: [],
-      outputPorts: [{ id: '550e8400-e29b-41d4-a716-446655440002', number: 1, name: 'Out', channelCount: 1 }],
+      outputPorts: [{ id: '550e8400-e29b-41d4-a716-446655440002', number: 1, name: 'Out', channelCount: 1, phantomPower: false, pad: false }],
       position: { x: 50, y: 100 },
-      metadata: { phantomPower: false, pad: false },
+      metadata: { generalName: 'Lead Vocals' },
     },
     {
       id: '550e8400-e29b-41d4-a716-446655440003',
       name: 'Stagebox A',
       type: 'Stagebox',
       inputPorts: [
-        { id: '550e8400-e29b-41d4-a716-446655440004', number: 1, name: 'In 1', channelCount: 1 },
-        { id: '550e8400-e29b-41d4-a716-446655440005', number: 2, name: 'In 2', channelCount: 1 },
+        { id: '550e8400-e29b-41d4-a716-446655440004', number: 1, name: 'In 1', channelCount: 1, phantomPower: false, pad: false },
+        { id: '550e8400-e29b-41d4-a716-446655440005', number: 2, name: 'In 2', channelCount: 1, phantomPower: false, pad: false },
       ],
-      outputPorts: [{ id: '550e8400-e29b-41d4-a716-446655440006', number: 1, name: 'Main', channelCount: 2 }],
+      outputPorts: [{ id: '550e8400-e29b-41d4-a716-446655440006', number: 1, name: 'Main', channelCount: 2, phantomPower: false, pad: false }],
       position: { x: 250, y: 150 },
-      metadata: { phantomPower: false, pad: false },
+      metadata: {},
     },
     {
       id: '550e8400-e29b-41d4-a716-446655440007',
       name: 'FOH Mixer',
       type: 'Mixer',
-      inputPorts: [{ id: '550e8400-e29b-41d4-a716-446655440008', number: 1, name: 'Ch 1', channelCount: 1 }],
+      inputPorts: [{ id: '550e8400-e29b-41d4-a716-446655440008', number: 1, name: 'Ch 1', channelCount: 1, phantomPower: false, pad: false }],
       outputPorts: [],
       position: { x: 450, y: 100 },
-      metadata: { phantomPower: false, pad: false },
+      metadata: {},
     },
   ],
   connections: [

@@ -80,7 +80,8 @@ Save to `{@artifacts_path}/plan.md`.
 - Add drag-to-connect functionality for creating routings.
 - Verification: Successfully create and visualize a multi-hop connection via the canvas.
 
-### [ ] Step: Develop Connection Patch Table (Patch View)
+### [x] Step: Develop Connection Patch Table (Patch View)
+<!-- chat-id: 3615f883-af76-4e6c-b927-1fccfd3ff6e6 -->
 - Build high-performance table view with sorting and filtering.
 - Implement perspective switching (Stage, FOH, Monitor World).
 - Verification: Verify correct filtering and sorting based on user selection.

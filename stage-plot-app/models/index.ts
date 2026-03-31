@@ -26,6 +26,7 @@ export const DeviceSchema = z.object({
   inputPorts: z.array(PortSchema).default([]),
   outputPorts: z.array(PortSchema).default([]),
   metadata: MetadataSchema.default({}),
+  position: z.object({ x: z.number(), y: z.number() }).optional(),
 });
 
 export const ConnectionSchema = z.object({
