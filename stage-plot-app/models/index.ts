@@ -1,16 +1,16 @@
 import { z } from 'zod';
 
 export const PortSchema = z.object({
-  id: z.string().uuid(),
+  id: z.string(),
   number: z.number().int().min(1),
   name: z.string().optional(),
   channelCount: z.number().int().min(1).default(1),
   connectorType: z.string().optional(), // e.g., 'XLR', 'TRS', 'TS'
+  phantomPower: z.boolean().default(false),
+  pad: z.boolean().default(false),
 });
 
 export const MetadataSchema = z.object({
-  phantomPower: z.boolean().default(false),
-  pad: z.boolean().default(false),
   gainNote: z.string().optional(),
   stagePosition: z.enum(['L', 'C', 'R']).optional(),
   generalName: z.string().optional(), // e.g., 'Kick'
@@ -18,25 +18,22 @@ export const MetadataSchema = z.object({
 });
 
 export const DeviceSchema = z.object({
-  id: z.string().uuid(),
+  id: z.string(),
   name: z.string(),
   type: z.string(), // e.g., 'Microphone', 'DI', 'Stagebox'
-  categoryId: z.string().uuid().optional(),
-  groupId: z.string().uuid().optional(),
+  categoryId: z.string().optional(),
+  groupId: z.string().optional(),
   inputPorts: z.array(PortSchema).default([]),
   outputPorts: z.array(PortSchema).default([]),
-  metadata: MetadataSchema.default({
-    phantomPower: false,
-    pad: false,
-  }),
+  metadata: MetadataSchema.default({}),
 });
 
 export const ConnectionSchema = z.object({
-  id: z.string().uuid(),
-  sourceDeviceId: z.string().uuid(),
-  sourcePortId: z.string().uuid(),
-  destinationDeviceId: z.string().uuid(),
-  destinationPortId: z.string().uuid(),
+  id: z.string(),
+  sourceDeviceId: z.string(),
+  sourcePortId: z.string(),
+  destinationDeviceId: z.string(),
+  destinationPortId: z.string(),
   channelMapping: z.record(z.string(), z.string()).optional(), // Map source channels to destination channels
   cableLength: z.number().optional(), // in ft or m
   cableLabel: z.string().optional(),
@@ -44,19 +41,19 @@ export const ConnectionSchema = z.object({
 });
 
 export const GroupSchema = z.object({
-  id: z.string().uuid(),
+  id: z.string(),
   name: z.string(),
   color: z.string().optional(),
 });
 
 export const CategorySchema = z.object({
-  id: z.string().uuid(),
+  id: z.string(),
   name: z.string(),
   color: z.string().optional(),
 });
 
 export const ProjectSchema = z.object({
-  id: z.string().uuid(),
+  id: z.string(),
   name: z.string(),
   notes: z.string().optional(),
   devices: z.array(DeviceSchema).default([]),

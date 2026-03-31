@@ -62,17 +62,20 @@ Save to `{@artifacts_path}/plan.md`.
 - Add Zod validation for JSON persistence.
 - Verification: Run unit tests for data model validation.
 
-### [ ] Step: Implement Core Signal Chain Logic
+### [x] Step: Implement Core Signal Chain Logic
+<!-- chat-id: 02f001cd-783e-4af0-b454-c032f54b5dfc -->
 - Develop graph traversal algorithm for automatic name cascading from Stage terminal sources.
 - Implement logic for 1:1 and offset channel mapping.
 - Verification: Unit tests with complex signal chains (cascaded stageboxes/mixers).
 
-### [ ] Step: Develop Device & Group Management (Setups View)
+### [x] Step: Develop Device & Group Management (Setups View)
+<!-- chat-id: 62c2d5c5-f49d-44f7-a961-fa5133674aab -->
 - Build UI for adding/editing devices, ports, and assigning groups/categories.
 - Implement pre-populated device type library.
 - Verification: Manually add/edit devices and verify state updates in the UI.
 
-### [ ] Step: Develop Node-based Signal Chain Visualization (Diagram View)
+### [x] Step: Develop Node-based Signal Chain Visualization (Diagram View)
+<!-- chat-id: 9a583714-a510-4614-9dc0-22b09714296a -->
 - Implement interactive diagram canvas with draggable nodes and labeled connection arrows.
 - Add drag-to-connect functionality for creating routings.
 - Verification: Successfully create and visualize a multi-hop connection via the canvas.

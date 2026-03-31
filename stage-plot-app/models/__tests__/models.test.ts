@@ -26,7 +26,6 @@ describe('Stage Plot Models', () => {
     const result = DeviceSchema.safeParse(validDevice);
     expect(result.success).toBe(true);
     if (result.success) {
-      expect(result.data.metadata.phantomPower).toBe(false);
       expect(result.data.inputPorts).toEqual([]);
     }
   });
@@ -50,14 +49,19 @@ describe('Stage Plot Models', () => {
       name: 'Rock Concert',
       devices: [
         {
-          id: '123e4567-e89b-12d3-a456-426614174001',
+          id: 'dev-1',
           name: 'Kick Mic',
           type: 'Microphone',
           metadata: {
             generalName: 'Kick',
             specificType: 'D112',
-            phantomPower: false,
           },
+          outputPorts: [{
+            id: 'port-1',
+            number: 1,
+            name: 'Output',
+            phantomPower: false,
+          }]
         },
       ],
       connections: [],
@@ -68,16 +72,6 @@ describe('Stage Plot Models', () => {
     };
     const result = ProjectSchema.safeParse(validProject);
     expect(result.success).toBe(true);
-  });
-
-  it('fails on invalid UUID', () => {
-    const invalidDevice = {
-      id: 'not-a-uuid',
-      name: 'Bad Device',
-      type: 'Test',
-    };
-    const result = DeviceSchema.safeParse(invalidDevice);
-    expect(result.success).toBe(false);
   });
 
   it('fails on invalid stage position', () => {
