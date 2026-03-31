@@ -15,7 +15,7 @@ interface DeviceNodeProps {
   onSelect: (device: Device) => void;
   onStartConnection: (deviceId: string, portId: string, x: number, y: number) => void;
   onUpdateConnection: (x: number, y: number) => void;
-  onEndConnection: (deviceId: string, portId: string) => void;
+  onEndConnection: (deviceId: string, portId: string, x: number, y: number) => void;
   onCancelConnection: () => void;
 }
 
@@ -63,39 +63,38 @@ export function DeviceNode({
     ],
   }));
 
-  const renderPort = (port: Port, isOutput: boolean) => {
+  const renderPort = (port: Port, isOutput: boolean, index: number) => {
     const portGesture = Gesture.Pan()
       .onBegin(() => {
         const x = translateX.value + (isOutput ? 160 : 0);
-        const y = translateY.value + 80; // Approximate
+        const y = translateY.value + 60 + (index * 24);
         runOnJS(onStartConnection)(device.id, port.id, x, y);
       })
       .onUpdate((event) => {
         const x = translateX.value + (isOutput ? 160 : 0) + event.translationX;
-        const y = translateY.value + 80 + event.translationY;
+        const y = translateY.value + 60 + (index * 24) + event.translationY;
         runOnJS(onUpdateConnection)(x, y);
       })
-      .onEnd(() => {
-        runOnJS(onEndConnection)(device.id, port.id);
-      })
-      .onFinalize(() => {
-        // This handles cancel/fail too
+      .onEnd((event) => {
+        const x = translateX.value + (isOutput ? 160 : 0) + event.translationX;
+        const y = translateY.value + 60 + (index * 24) + event.translationY;
+        runOnJS(onEndConnection)(device.id, port.id, x, y);
       });
 
     return (
-      <View key={port.id} className={`flex-row items-center mb-1 ${isOutput ? 'justify-end' : ''}`}>
+      <View key={port.id} className={`flex-row items-center mb-2 ${isOutput ? 'justify-end' : ''}`}>
         {!isOutput && (
           <GestureDetector gesture={portGesture}>
-            <View className="w-6 h-6 items-center justify-center -ml-6 pr-2">
-              <View className="w-3 h-3 rounded-full bg-green-500" />
+            <View className="w-8 h-8 items-center justify-center -ml-8 pr-2 bg-transparent">
+              <View className="w-3 h-3 rounded-full bg-green-500 border border-white dark:border-gray-900" />
             </View>
           </GestureDetector>
         )}
         <Text className="text-[10px] text-gray-500">{port.name || `${isOutput ? 'Out' : 'In'} ${port.number}`}</Text>
         {isOutput && (
           <GestureDetector gesture={portGesture}>
-            <View className="w-6 h-6 items-center justify-center -mr-6 pl-2">
-              <View className="w-3 h-3 rounded-full bg-red-500" />
+            <View className="w-8 h-8 items-center justify-center -mr-8 pl-2 bg-transparent">
+              <View className="w-3 h-3 rounded-full bg-red-500 border border-white dark:border-gray-900" />
             </View>
           </GestureDetector>
         )}
@@ -127,10 +126,10 @@ export function DeviceNode({
           
           <View className="flex-row justify-between">
             <View>
-              {device.inputPorts.map(p => renderPort(p, false))}
+              {device.inputPorts.map((p, i) => renderPort(p, false, i))}
             </View>
             <View className="items-end">
-              {device.outputPorts.map(p => renderPort(p, true))}
+              {device.outputPorts.map((p, i) => renderPort(p, true, i))}
             </View>
           </View>
         </View>

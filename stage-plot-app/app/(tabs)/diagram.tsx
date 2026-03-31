@@ -38,13 +38,35 @@ export default function DiagramScreen() {
     setActiveConnection(prev => prev ? { ...prev, currentX: x, currentY: y } : null);
   };
 
-  const handleEndConnection = (deviceId: string, portId: string) => {
-    if (activeConnection && activeConnection.startDeviceId !== deviceId) {
+  const handleEndConnection = (sourceDeviceId: string, sourcePortId: string, x: number, y: number) => {
+    // Hit test: find device under (x, y)
+    const targetDevice = project.devices.find(d => {
+      if (d.id === sourceDeviceId) return false;
+      const dx = x - d.position.x;
+      const dy = y - d.position.y;
+      // Assume node is 160 wide and roughly 120 high
+      return dx >= -20 && dx <= 180 && dy >= -20 && dy <= 160;
+    });
+
+    if (targetDevice && targetDevice.inputPorts.length > 0) {
+      // Find the specific port under (x, y) if possible, or just the first input
+      let targetPort = targetDevice.inputPorts[0];
+      
+      // Heuristic: if multiple ports, pick based on Y offset
+      if (targetDevice.inputPorts.length > 1) {
+        const dy = y - targetDevice.position.y;
+        const portIndex = Math.max(0, Math.min(
+          targetDevice.inputPorts.length - 1, 
+          Math.floor((dy - 60) / 24)
+        ));
+        targetPort = targetDevice.inputPorts[portIndex];
+      }
+
       addConnection({
-        sourceDeviceId: activeConnection.startDeviceId,
-        sourcePortId: activeConnection.startPortId,
-        destinationDeviceId: deviceId,
-        destinationPortId: portId,
+        sourceDeviceId,
+        sourcePortId,
+        destinationDeviceId: targetDevice.id,
+        destinationPortId: targetPort.id,
       });
     }
     setActiveConnection(null);
@@ -61,12 +83,13 @@ export default function DiagramScreen() {
 
       if (!sourceDevice || !destDevice) return null;
 
-      // Simplified connection point logic: from center-right of source to center-left of destination
-      // A more robust logic would calculate port-specific coordinates
-      const x1 = sourceDevice.position.x + 160; // w-40 = 160
-      const y1 = sourceDevice.position.y + 40;  // roughly center vertically
+      const sourcePortIndex = sourceDevice.outputPorts.findIndex(p => p.id === connection.sourcePortId);
+      const destPortIndex = destDevice.inputPorts.findIndex(p => p.id === connection.destinationPortId);
+
+      const x1 = sourceDevice.position.x + 160;
+      const y1 = sourceDevice.position.y + 60 + (sourcePortIndex >= 0 ? sourcePortIndex * 24 : 0);
       const x2 = destDevice.position.x;
-      const y2 = destDevice.position.y + 40;
+      const y2 = destDevice.position.y + 60 + (destPortIndex >= 0 ? destPortIndex * 24 : 0);
 
       return (
         <React.Fragment key={connection.id}>
@@ -106,13 +129,17 @@ export default function DiagramScreen() {
           default: {}
         })}
       >
-        <Svg style={StyleSheet.absoluteFill}>
+        <Svg 
+          width={SCREEN_WIDTH} 
+          height={SCREEN_HEIGHT} 
+          style={StyleSheet.absoluteFill}
+        >
           <Defs>
             <Marker
               id="arrowhead"
               markerWidth="10"
               markerHeight="7"
-              refX="0"
+              refX="10"
               refY="3.5"
               orient="auto"
             >
