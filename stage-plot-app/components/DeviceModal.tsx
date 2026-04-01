@@ -11,8 +11,8 @@ import {
   Switch
 } from 'react-native';
 import { X, Plus, Trash2, ChevronDown, Zap, ChevronRight } from 'lucide-react-native';
-import { Device, Port, Group, Category } from '../models';
-import { DEVICE_TYPES, CONNECTOR_TYPES, OUTPUT_CONNECTOR_TYPES, MIC_MODELS } from '../constants/DeviceLibrary';
+import { Device, Channel, Group, Category } from '../models';
+import { DEVICE_TYPES, CONNECTOR_TYPES, MIC_MODELS, CHANNEL_CONFIGS, DEVICE_TYPE_DEFAULTS, CHANNEL_CONFIG_TEMPLATES, ChannelConfig } from '../constants/DeviceLibrary';
 
 interface DeviceModalProps {
   visible: boolean;
@@ -21,65 +21,99 @@ interface DeviceModalProps {
   categories: Category[];
   onClose: () => void;
   onSave: (device: Omit<Device, 'id'> | Device) => void;
+  onDelete?: (id: string) => void;
 }
 
 const generateId = () => Math.random().toString(36).substring(2, 11) + Date.now().toString(36);
 
-export function DeviceModal({ visible, device, groups, categories, onClose, onSave }: DeviceModalProps) {
+export function DeviceModal({ visible, device, groups, categories, onClose, onSave, onDelete }: DeviceModalProps) {
   const [name, setName] = useState('');
+  const [model, setModel] = useState('');
   const [type, setType] = useState(DEVICE_TYPES[0]);
   const [generalName, setGeneralName] = useState('');
-  const [specificType, setSpecificType] = useState('');
   const [groupId, setGroupId] = useState<string | undefined>(undefined);
   const [categoryId, setCategoryId] = useState<string | undefined>(undefined);
-  const [inputPorts, setInputPorts] = useState<Port[]>([]);
-  const [outputPorts, setOutputPorts] = useState<Port[]>([]);
+  const [inputChannels, setInputChannels] = useState<Channel[]>([]);
+  const [outputChannels, setOutputChannels] = useState<Channel[]>([]);
   const [stagePosition, setStagePosition] = useState<'L' | 'C' | 'R' | undefined>(undefined);
   const [micPhantom, setMicPhantom] = useState(false);
+  const [channelConfig, setChannelConfig] = useState<ChannelConfig>('Multi');
 
   const inputRefs = useRef<Record<string, TextInput | null>>({});
 
   const isMic = type === 'Microphone';
   const isTerminalSource = isMic || type === 'DI Box' || type === 'Instrument';
+  const isSimpleConfig = channelConfig !== 'Multi';
+
+  const applyChannelConfig = (config: ChannelConfig) => {
+    setChannelConfig(config);
+    if (config === 'Multi') return;
+    const tmpl = CHANNEL_CONFIG_TEMPLATES[config];
+    setInputChannels(tmpl.inputs.map((t, i) => ({
+      id: generateId(),
+      number: i + 1,
+      name: `Ch ${i + 1}`,
+      channelCount: 1,
+      connectorType: t.connectorType,
+      phantomPower: false,
+      pad: false,
+    })));
+    setOutputChannels(tmpl.outputs.map((t, i) => ({
+      id: generateId(),
+      number: i + 1,
+      name: `Ch ${i + 1}`,
+      channelCount: 1,
+      connectorType: t.connectorType,
+      phantomPower: false,
+      pad: false,
+    })));
+  };
+
+  const handleTypeChange = (newType: string) => {
+    setType(newType);
+    const defaultConfig = DEVICE_TYPE_DEFAULTS[newType] || 'Multi';
+    applyChannelConfig(defaultConfig);
+  };
 
   useEffect(() => {
     if (device) {
       setName(device.name);
+      setModel(device.model || '');
       setType(device.type);
       setGeneralName(device.metadata.generalName || '');
-      setSpecificType(device.metadata.specificType || '');
       setGroupId(device.groupId);
       setCategoryId(device.categoryId);
-      setInputPorts(device.inputPorts);
-      setOutputPorts(device.outputPorts);
+      setInputChannels(device.inputChannels);
+      setOutputChannels(device.outputChannels);
       setStagePosition(device.metadata.stagePosition);
-      if (device.type === 'Microphone' && device.outputPorts.length > 0) {
-        setMicPhantom(device.outputPorts[0].phantomPower);
+      setChannelConfig(DEVICE_TYPE_DEFAULTS[device.type] || 'Multi');
+      if (device.type === 'Microphone' && device.outputChannels.length > 0) {
+        setMicPhantom(device.outputChannels[0].phantomPower);
       }
     } else {
       setName('');
+      setModel('');
       setType(DEVICE_TYPES[0]);
       setGeneralName('');
-      setSpecificType('');
       setGroupId(undefined);
       setCategoryId(undefined);
-      setInputPorts([]);
-      setOutputPorts([]);
+      setInputChannels([]);
+      setOutputChannels([]);
       setStagePosition(undefined);
       setMicPhantom(false);
+      setChannelConfig(DEVICE_TYPE_DEFAULTS[DEVICE_TYPES[0]] || 'Multi');
     }
   }, [device, visible]);
 
   const handleSave = () => {
-    let finalName = isTerminalSource 
-      ? (generalName || specificType || 'Unnamed Device')
-      : (name || 'Unnamed Device');
-
-    let finalOutputPorts = outputPorts;
-    if (isMic) {
-      // Microphones always have 1 output
-      finalOutputPorts = [{
-        id: outputPorts[0]?.id || generateId(),
+    let finalName = name || generalName || 'Unnamed Device';
+    
+    let finalInputChannels = inputChannels;
+    let finalOutputChannels = outputChannels;
+    if (isMic && isSimpleConfig) {
+      finalInputChannels = [];
+      finalOutputChannels = [{
+        id: outputChannels[0]?.id || generateId(),
         number: 1,
         name: 'Output',
         channelCount: 1,
@@ -92,83 +126,83 @@ export function DeviceModal({ visible, device, groups, categories, onClose, onSa
     const deviceData = {
       ...(device ? { id: device.id } : {}),
       name: finalName,
+      model: model || (isTerminalSource ? '' : undefined),
       type,
       groupId,
       categoryId,
-      inputPorts: isMic ? [] : inputPorts,
-      outputPorts: finalOutputPorts,
+      inputChannels: finalInputChannels,
+      outputChannels: finalOutputChannels,
       metadata: {
         generalName: isTerminalSource ? generalName : undefined,
-        specificType: isTerminalSource ? specificType : undefined,
         stagePosition,
-      }
+      },
+      position: device?.position || { x: 100, y: 100 }
     };
 
     onSave(deviceData as any);
     onClose();
   };
 
-  const addPort = (portType: 'input' | 'output') => {
-    const ports = portType === 'input' ? inputPorts : outputPorts;
-    const newPort: Port = {
+  const addChannel = (channelType: 'input' | 'output') => {
+    const channels = channelType === 'input' ? inputChannels : outputChannels;
+    const newChannel: Channel = {
       id: generateId(),
-      number: ports.length + 1,
-      name: `Port ${ports.length + 1}`,
+      number: channels.length + 1,
+      name: `Ch ${channels.length + 1}`,
       channelCount: 1,
-      connectorType: portType === 'input' ? 'XLR' : 'Analog',
+      connectorType: 'XLR',
       phantomPower: false,
       pad: false,
     };
 
-    if (portType === 'input') setInputPorts([...inputPorts, newPort]);
-    else setOutputPorts([...outputPorts, newPort]);
+    if (channelType === 'input') setInputChannels([...inputChannels, newChannel]);
+    else setOutputChannels([...outputChannels, newChannel]);
   };
 
-  const cycleConnector = (portType: 'input' | 'output', index: number) => {
-    const lib = portType === 'input' ? CONNECTOR_TYPES : OUTPUT_CONNECTOR_TYPES;
-    const ports = portType === 'input' ? [...inputPorts] : [...outputPorts];
-    const current = ports[index].connectorType || lib[0];
-    const currentIndex = lib.indexOf(current as any);
-    const nextIndex = (currentIndex + 1) % lib.length;
-    ports[index].connectorType = lib[nextIndex];
+  const cycleConnector = (channelType: 'input' | 'output', index: number) => {
+    const channels = channelType === 'input' ? [...inputChannels] : [...outputChannels];
+    const current = channels[index].connectorType || CONNECTOR_TYPES[0];
+    const currentIndex = CONNECTOR_TYPES.indexOf(current);
+    const nextIndex = (currentIndex + 1) % CONNECTOR_TYPES.length;
+    channels[index].connectorType = CONNECTOR_TYPES[nextIndex];
     
-    if (portType === 'input') setInputPorts(ports);
-    else setOutputPorts(ports);
+    if (channelType === 'input') setInputChannels(channels);
+    else setOutputChannels(channels);
   };
 
-  const updatePort = (portType: 'input' | 'output', index: number, updates: Partial<Port>) => {
-    if (portType === 'input') {
-      const newPorts = [...inputPorts];
-      newPorts[index] = { ...newPorts[index], ...updates };
-      setInputPorts(newPorts);
+  const updateChannel = (channelType: 'input' | 'output', index: number, updates: Partial<Channel>) => {
+    if (channelType === 'input') {
+      const newChannels = [...inputChannels];
+      newChannels[index] = { ...newChannels[index], ...updates };
+      setInputChannels(newChannels);
     } else {
-      const newPorts = [...outputPorts];
-      newPorts[index] = { ...newPorts[index], ...updates };
-      setOutputPorts(newPorts);
+      const newChannels = [...outputChannels];
+      newChannels[index] = { ...newChannels[index], ...updates };
+      setOutputChannels(newChannels);
     }
   };
 
-  const deletePort = (portType: 'input' | 'output', id: string) => {
-    if (portType === 'input') setInputPorts(inputPorts.filter(p => p.id !== id));
-    else setOutputPorts(outputPorts.filter(p => p.id !== id));
+  const deleteChannel = (channelType: 'input' | 'output', id: string) => {
+    if (channelType === 'input') setInputChannels(inputChannels.filter(c => c.id !== id));
+    else setOutputChannels(outputChannels.filter(c => c.id !== id));
   };
 
-  const renderPortRow = (port: Port, index: number, portType: 'input' | 'output') => {
-    const nextId = (portType === 'input' ? inputPorts[index + 1] : outputPorts[index + 1])?.id;
-    const isLastInThisSection = portType === 'input' && index === inputPorts.length - 1;
-    const firstOutputId = outputPorts[0]?.id;
+  const renderChannelRow = (channel: Channel, index: number, channelType: 'input' | 'output') => {
+    const nextId = (channelType === 'input' ? inputChannels[index + 1] : outputChannels[index + 1])?.id;
+    const isLastInThisSection = channelType === 'input' && index === inputChannels.length - 1;
+    const firstOutputId = outputChannels[0]?.id;
 
     return (
-      <View key={port.id} className="flex-row items-center bg-gray-50 dark:bg-gray-800 rounded-lg px-2 py-1.5 mb-1.5">
-        <Text className="text-gray-400 font-bold w-5 text-center mr-1">{port.number}</Text>
+      <View key={channel.id} className="flex-row items-center bg-gray-50 dark:bg-gray-800 rounded-lg px-2 py-1.5 mb-1.5">
+        <Text className="text-gray-400 font-bold w-5 text-center mr-1">{channel.number}</Text>
         
         <TextInput
-          ref={el => inputRefs.current[port.id] = el}
+          ref={el => inputRefs.current[channel.id] = el}
           className="flex-1 text-black dark:text-white font-medium mr-2"
-          value={port.name}
+          value={channel.name}
           placeholder="Name"
           placeholderTextColor="#9ca3af"
-          onChangeText={(val) => updatePort(portType, index, { name: val })}
+          onChangeText={(val) => updateChannel(channelType, index, { name: val })}
           returnKeyType={nextId || (isLastInThisSection && firstOutputId) ? "next" : "done"}
           onSubmitEditing={() => {
             if (nextId) inputRefs.current[nextId]?.focus();
@@ -178,32 +212,32 @@ export function DeviceModal({ visible, device, groups, categories, onClose, onSa
         />
 
         <TouchableOpacity 
-          onPress={() => cycleConnector(portType, index)}
+          onPress={() => cycleConnector(channelType, index)}
           className="px-2 py-1 bg-gray-200 dark:bg-gray-700 rounded mr-2 min-w-[50px] items-center"
         >
           <Text className="text-[10px] font-bold text-gray-600 dark:text-gray-300">
-            {port.connectorType || '---'}
+            {channel.connectorType || '---'}
           </Text>
         </TouchableOpacity>
 
-        {portType === 'input' && (
+        {channelType === 'input' && (
           <View className="flex-row items-center mr-2">
             <TouchableOpacity 
-              onPress={() => updatePort('input', index, { phantomPower: !port.phantomPower })}
-              className={`p-1 rounded mr-1 ${port.phantomPower ? 'bg-yellow-400' : 'bg-gray-200 dark:bg-gray-700'}`}
+              onPress={() => updateChannel('input', index, { phantomPower: !channel.phantomPower })}
+              className={`p-1 rounded mr-1 ${channel.phantomPower ? 'bg-yellow-400' : 'bg-gray-200 dark:bg-gray-700'}`}
             >
-              <Zap size={12} color={port.phantomPower ? 'white' : '#9ca3af'} />
+              <Zap size={12} color={channel.phantomPower ? 'white' : '#9ca3af'} />
             </TouchableOpacity>
             <TouchableOpacity 
-              onPress={() => updatePort('input', index, { pad: !port.pad })}
-              className={`px-1 py-0.5 rounded ${port.pad ? 'bg-orange-500' : 'bg-gray-200 dark:bg-gray-700'}`}
+              onPress={() => updateChannel('input', index, { pad: !channel.pad })}
+              className={`px-1 py-0.5 rounded ${channel.pad ? 'bg-orange-500' : 'bg-gray-200 dark:bg-gray-700'}`}
             >
-              <Text className={`text-[8px] font-bold ${port.pad ? 'text-white' : 'text-gray-400'}`}>PAD</Text>
+              <Text className={`text-[8px] font-bold ${channel.pad ? 'text-white' : 'text-gray-400'}`}>PAD</Text>
             </TouchableOpacity>
           </View>
         )}
 
-        <TouchableOpacity onPress={() => deletePort(portType, port.id)} className="p-1">
+        <TouchableOpacity onPress={() => deleteChannel(channelType, channel.id)} className="p-1">
           <Trash2 size={14} color="#ef4444" />
         </TouchableOpacity>
       </View>
@@ -236,13 +270,33 @@ export function DeviceModal({ visible, device, groups, categories, onClose, onSa
               {DEVICE_TYPES.map(t => (
                 <TouchableOpacity
                   key={t}
-                  onPress={() => setType(t)}
+                  onPress={() => handleTypeChange(t)}
                   className={`px-3 py-1.5 rounded-full mr-2 ${
                     type === t ? 'bg-blue-500' : 'bg-gray-100 dark:bg-gray-800'
                   }`}
                 >
                   <Text className={`text-xs ${type === t ? 'text-white font-medium' : 'text-gray-600 dark:text-gray-400'}`}>
                     {t}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+
+          {/* Channel Config */}
+          <View className="mb-4">
+            <Text className="text-[10px] font-bold text-gray-400 mb-2 uppercase tracking-widest">Channel Configuration</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} className="flex-row pb-2">
+              {CHANNEL_CONFIGS.map(c => (
+                <TouchableOpacity
+                  key={c}
+                  onPress={() => applyChannelConfig(c)}
+                  className={`px-3 py-1.5 rounded-full mr-2 ${
+                    channelConfig === c ? 'bg-blue-500' : 'bg-gray-100 dark:bg-gray-800'
+                  }`}
+                >
+                  <Text className={`text-xs ${channelConfig === c ? 'text-white font-medium' : 'text-gray-600 dark:text-gray-400'}`}>
+                    {c}
                   </Text>
                 </TouchableOpacity>
               ))}
@@ -269,24 +323,24 @@ export function DeviceModal({ visible, device, groups, categories, onClose, onSa
                     {MIC_MODELS.map(m => (
                       <TouchableOpacity
                         key={m}
-                        onPress={() => setSpecificType(m)}
+                        onPress={() => setModel(m)}
                         className={`px-3 py-1.5 rounded-lg mr-2 ${
-                          specificType === m ? 'bg-blue-500' : 'bg-gray-100 dark:bg-gray-800'
+                          model === m ? 'bg-blue-500' : 'bg-gray-100 dark:bg-gray-800'
                         }`}
                       >
-                        <Text className={`text-xs ${specificType === m ? 'text-white font-medium' : 'text-gray-600 dark:text-gray-400'}`}>
+                        <Text className={`text-xs ${model === m ? 'text-white font-medium' : 'text-gray-600 dark:text-gray-400'}`}>
                           {m}
                         </Text>
                       </TouchableOpacity>
                     ))}
                   </ScrollView>
-                  {specificType === 'Other' && (
+                  {model === 'Other' && (
                     <TextInput
                       className="text-base text-black dark:text-white mt-2 bg-white dark:bg-gray-800 rounded-lg p-2"
                       placeholder="Enter model..."
                       placeholderTextColor="#9ca3af"
                       autoFocus
-                      onChangeText={setSpecificType}
+                      onChangeText={setModel}
                     />
                   )}
                   <View className="flex-row justify-between items-center mt-4 pt-3 border-t border-gray-100 dark:border-gray-800">
@@ -307,18 +361,27 @@ export function DeviceModal({ visible, device, groups, categories, onClose, onSa
                     className="text-lg text-black dark:text-white"
                     placeholder="Specific Model (e.g. J48)"
                     placeholderTextColor="#9ca3af"
-                    value={specificType}
-                    onChangeText={setSpecificType}
+                    value={model}
+                    onChangeText={setModel}
                   />
                 </>
               ) : (
-                <TextInput
-                  className="text-lg text-black dark:text-white"
-                  placeholder="Device Name (e.g. Stagebox A, WING)"
-                  placeholderTextColor="#9ca3af"
-                  value={name}
-                  onChangeText={setName}
-                />
+                <>
+                  <TextInput
+                    className="text-lg text-black dark:text-white mb-2 pb-2 border-b border-gray-200 dark:border-gray-800"
+                    placeholder="Device Name (e.g. Stagebox A, WING)"
+                    placeholderTextColor="#9ca3af"
+                    value={name}
+                    onChangeText={setName}
+                  />
+                  <TextInput
+                    className="text-lg text-black dark:text-white"
+                    placeholder="Model (e.g. X32, DL16)"
+                    placeholderTextColor="#9ca3af"
+                    value={model}
+                    onChangeText={setModel}
+                  />
+                </>
               )}
             </View>
           </View>
@@ -369,33 +432,48 @@ export function DeviceModal({ visible, device, groups, categories, onClose, onSa
             </View>
           </View>
 
-          {/* Port Management (Hidden for Mics) */}
-          {!isMic && (
+          {/* Channel Management (Hidden for Mics and simple configs) */}
+          {!isMic && !isSimpleConfig && (
             <>
               <View className="mb-4">
                 <View className="flex-row justify-between items-center mb-2">
-                  <Text className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Input Ports</Text>
-                  <TouchableOpacity onPress={() => addPort('input')} className="flex-row items-center px-2 py-1 bg-blue-50 dark:bg-blue-900/30 rounded-lg">
+                  <Text className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Input Channels</Text>
+                  <TouchableOpacity onPress={() => addChannel('input')} className="flex-row items-center px-2 py-1 bg-blue-50 dark:bg-blue-900/30 rounded-lg">
                     <Plus size={12} color="#3b82f6" />
                     <Text className="text-blue-500 text-[10px] font-bold ml-1">ADD</Text>
                   </TouchableOpacity>
                 </View>
-                {inputPorts.map((port, idx) => renderPortRow(port, idx, 'input'))}
-                {inputPorts.length === 0 && <Text className="text-xs text-gray-400 italic mb-2 px-1">No inputs</Text>}
+                {inputChannels.map((channel, idx) => renderChannelRow(channel, idx, 'input'))}
+                {inputChannels.length === 0 && <Text className="text-xs text-gray-400 italic mb-2 px-1">No inputs</Text>}
               </View>
 
               <View className="mb-8">
                 <View className="flex-row justify-between items-center mb-2">
-                  <Text className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Output Ports</Text>
-                  <TouchableOpacity onPress={() => addPort('output')} className="flex-row items-center px-2 py-1 bg-blue-50 dark:bg-blue-900/30 rounded-lg">
+                  <Text className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Output Channels</Text>
+                  <TouchableOpacity onPress={() => addChannel('output')} className="flex-row items-center px-2 py-1 bg-blue-50 dark:bg-blue-900/30 rounded-lg">
                     <Plus size={12} color="#3b82f6" />
                     <Text className="text-blue-500 text-[10px] font-bold ml-1">ADD</Text>
                   </TouchableOpacity>
                 </View>
-                {outputPorts.map((port, idx) => renderPortRow(port, idx, 'output'))}
-                {outputPorts.length === 0 && <Text className="text-xs text-gray-400 italic mb-2 px-1">No outputs</Text>}
+                {outputChannels.map((channel, idx) => renderChannelRow(channel, idx, 'output'))}
+                {outputChannels.length === 0 && <Text className="text-xs text-gray-400 italic mb-2 px-1">No outputs</Text>}
               </View>
             </>
+          )}
+
+          {/* Delete Device Button */}
+          {device && onDelete && (
+            <TouchableOpacity 
+              onPress={() => {
+                onDelete(device.id);
+                onClose();
+              }}
+              className="mt-8 mb-12 bg-red-50 dark:bg-red-900/10 py-4 rounded-xl flex-row justify-center items-center border border-red-100 dark:border-red-900/20"
+            >
+              <Trash2 size={18} color="#ef4444" />
+              <View className="mr-2" />
+              <Text className="text-red-500 font-bold text-base">Delete Device</Text>
+            </TouchableOpacity>
           )}
         </ScrollView>
       </KeyboardAvoidingView>

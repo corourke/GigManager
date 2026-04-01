@@ -68,10 +68,7 @@ export default function SetupsScreen() {
       .map(title => ({
         title,
         data: groups[title].sort((a, b) => {
-          // Inside groups, sort by category then name
-          const catA = project.categories.find(c => c.id === a.categoryId)?.name || '';
-          const catB = project.categories.find(c => c.id === b.categoryId)?.name || '';
-          return catA.localeCompare(catB) || a.name.localeCompare(b.name);
+          return a.type.localeCompare(b.type) || a.name.localeCompare(b.name);
         })
       }));
   }, [project.devices, project.groups, project.categories, searchQuery, filterType]);
@@ -111,9 +108,9 @@ export default function SetupsScreen() {
       <StatusBar barStyle="default" />
       
       {/* Header */}
-      <View className="px-6 pt-4 pb-2 bg-white dark:bg-gray-900 shadow-sm">
+      <View className="px-6 pt-2 pb-2 bg-white dark:bg-gray-900 shadow-sm">
         <View className="flex-row justify-between items-center mb-4">
-          <Text className="text-3xl font-bold text-black dark:text-white">Setups</Text>
+          <Text className="text-xl font-bold text-black dark:text-white">Setups</Text>
           <View className="flex-row">
             <TouchableOpacity 
               className="p-2 bg-gray-100 dark:bg-gray-800 rounded-full mr-2"
@@ -235,6 +232,7 @@ export default function SetupsScreen() {
         categories={project.categories}
         onClose={() => setIsDeviceModalVisible(false)}
         onSave={handleSaveDevice}
+        onDelete={handleDeleteDevice}
       />
 
       <ManageListModal

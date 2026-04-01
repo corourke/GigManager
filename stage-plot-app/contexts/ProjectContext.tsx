@@ -1,5 +1,5 @@
-import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
-import { Project, Device, Group, Category, Connection, ProjectSchema } from '../models';
+import React, { createContext, useContext, useState, useCallback } from 'react';
+import { Project, Device, Group, Category, Connection } from '../models';
 
 interface ProjectContextType {
   project: Project;
@@ -28,22 +28,24 @@ const INITIAL_PROJECT: Project = {
   devices: [
     {
       id: '550e8400-e29b-41d4-a716-446655440001',
-      name: 'Wireless Mic 1',
+      name: 'Vocals',
       type: 'Microphone',
-      inputPorts: [],
-      outputPorts: [{ id: '550e8400-e29b-41d4-a716-446655440002', number: 1, name: 'Out', channelCount: 1, phantomPower: false, pad: false }],
+      model: 'SM58',
+      inputChannels: [],
+      outputChannels: [{ id: '550e8400-e29b-41d4-a716-446655440002', number: 1, name: 'Ch 1', channelCount: 1, phantomPower: false, pad: false }],
       position: { x: 50, y: 100 },
-      metadata: { generalName: 'Lead Vocals' },
+      metadata: {},
     },
     {
       id: '550e8400-e29b-41d4-a716-446655440003',
       name: 'Stagebox A',
       type: 'Stagebox',
-      inputPorts: [
-        { id: '550e8400-e29b-41d4-a716-446655440004', number: 1, name: 'In 1', channelCount: 1, phantomPower: false, pad: false },
-        { id: '550e8400-e29b-41d4-a716-446655440005', number: 2, name: 'In 2', channelCount: 1, phantomPower: false, pad: false },
+      model: 'S16',
+      inputChannels: [
+        { id: '550e8400-e29b-41d4-a716-446655440004', number: 1, name: 'Ch 1', channelCount: 1, phantomPower: false, pad: false },
+        { id: '550e8400-e29b-41d4-a716-446655440005', number: 2, name: 'Ch 2', channelCount: 1, phantomPower: false, pad: false },
       ],
-      outputPorts: [{ id: '550e8400-e29b-41d4-a716-446655440006', number: 1, name: 'Main', channelCount: 2, phantomPower: false, pad: false }],
+      outputChannels: [{ id: '550e8400-e29b-41d4-a716-446655440006', number: 1, name: 'Main', channelCount: 2, phantomPower: false, pad: false }],
       position: { x: 250, y: 150 },
       metadata: {},
     },
@@ -51,8 +53,9 @@ const INITIAL_PROJECT: Project = {
       id: '550e8400-e29b-41d4-a716-446655440007',
       name: 'FOH Mixer',
       type: 'Mixer',
-      inputPorts: [{ id: '550e8400-e29b-41d4-a716-446655440008', number: 1, name: 'Ch 1', channelCount: 1, phantomPower: false, pad: false }],
-      outputPorts: [],
+      model: 'X32',
+      inputChannels: [{ id: '550e8400-e29b-41d4-a716-446655440008', number: 1, name: 'Ch 1', channelCount: 1, phantomPower: false, pad: false }],
+      outputChannels: [],
       position: { x: 450, y: 100 },
       metadata: {},
     },
@@ -61,16 +64,16 @@ const INITIAL_PROJECT: Project = {
     {
       id: '550e8400-e29b-41d4-a716-446655440009',
       sourceDeviceId: '550e8400-e29b-41d4-a716-446655440001',
-      sourcePortId: '550e8400-e29b-41d4-a716-446655440002',
+      sourceChannelId: '550e8400-e29b-41d4-a716-446655440002',
       destinationDeviceId: '550e8400-e29b-41d4-a716-446655440003',
-      destinationPortId: '550e8400-e29b-41d4-a716-446655440004',
+      destinationChannelId: '550e8400-e29b-41d4-a716-446655440004',
     },
     {
       id: '550e8400-e29b-41d4-a716-446655440010',
       sourceDeviceId: '550e8400-e29b-41d4-a716-446655440003',
-      sourcePortId: '550e8400-e29b-41d4-a716-446655440006',
+      sourceChannelId: '550e8400-e29b-41d4-a716-446655440006',
       destinationDeviceId: '550e8400-e29b-41d4-a716-446655440007',
-      destinationPortId: '550e8400-e29b-41d4-a716-446655440008',
+      destinationChannelId: '550e8400-e29b-41d4-a716-446655440008',
     },
   ],
   groups: [],
@@ -164,7 +167,13 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
   const addConnection = useCallback((connection: Omit<Connection, 'id'>) => {
     setProjectState((prev) => ({
       ...prev,
-      connections: [...prev.connections, { ...connection, id: generateId() }],
+      connections: [
+        ...prev.connections.filter(c => 
+          !(c.sourceDeviceId === connection.sourceDeviceId && c.sourceChannelId === connection.sourceChannelId) &&
+          !(c.destinationDeviceId === connection.destinationDeviceId && c.destinationChannelId === connection.destinationChannelId)
+        ),
+        { ...connection, id: generateId() }
+      ],
       updatedAt: new Date().toISOString(),
     }));
   }, []);

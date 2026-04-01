@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { resolveSignalChain, resolveChannelMapping } from '../signalChain';
-import { Project, Device, Connection, Port } from '../../models';
+import { Project, Device, Connection, Channel } from '../../models';
 
 const mockId = () => Math.random().toString(36).substr(2, 9);
 const mockTimestamp = new Date().toISOString();
@@ -25,24 +25,24 @@ describe('Signal Chain Logic', () => {
           id: micId,
           name: 'Kick Mic',
           type: 'Microphone',
-          outputPorts: [{ id: micOutId, number: 1, channelCount: 1, phantomPower: false, pad: false }],
-          inputPorts: [],
+          outputChannels: [{ id: micOutId, number: 1, channelCount: 1, phantomPower: false, pad: false }],
+          inputChannels: [],
           metadata: { generalName: 'Kick' },
         },
         {
           id: stageboxId,
           name: 'Stagebox 1',
           type: 'Stagebox',
-          inputPorts: [{ id: stageboxInId, number: 1, channelCount: 1, phantomPower: false, pad: false }],
-          outputPorts: [{ id: stageboxOutId, number: 1, channelCount: 1, phantomPower: false, pad: false }],
+          inputChannels: [{ id: stageboxInId, number: 1, channelCount: 1, phantomPower: false, pad: false }],
+          outputChannels: [{ id: stageboxOutId, number: 1, channelCount: 1, phantomPower: false, pad: false }],
           metadata: {},
         },
         {
           id: mixerId,
           name: 'X32 Mixer',
           type: 'Mixer',
-          inputPorts: [{ id: mixerInId, number: 1, channelCount: 1, phantomPower: false, pad: false }],
-          outputPorts: [],
+          inputChannels: [{ id: mixerInId, number: 1, channelCount: 1, phantomPower: false, pad: false }],
+          outputChannels: [],
           metadata: {},
         },
       ],
@@ -50,16 +50,16 @@ describe('Signal Chain Logic', () => {
         {
           id: mockId(),
           sourceDeviceId: micId,
-          sourcePortId: micOutId,
+          sourceChannelId: micOutId,
           destinationDeviceId: stageboxId,
-          destinationPortId: stageboxInId,
+          destinationChannelId: stageboxInId,
         },
         {
           id: mockId(),
           sourceDeviceId: stageboxId,
-          sourcePortId: stageboxOutId,
+          sourceChannelId: stageboxOutId,
           destinationDeviceId: mixerId,
-          destinationPortId: mixerInId,
+          destinationChannelId: mixerInId,
         },
       ],
       groups: [],
@@ -82,40 +82,40 @@ describe('Signal Chain Logic', () => {
   });
 
   it('handles 1:1 default channel mapping', () => {
-    const sourcePort: Port = { id: 's1', number: 1, channelCount: 8, phantomPower: false, pad: false };
-    const destPort: Port = { id: 'd1', number: 1, channelCount: 8, phantomPower: false, pad: false };
+    const sourceChannel: Channel = { id: 's1', number: 1, channelCount: 8, phantomPower: false, pad: false };
+    const destChannel: Channel = { id: 'd1', number: 1, channelCount: 8, phantomPower: false, pad: false };
     const conn: Connection = {
       id: 'c1',
       sourceDeviceId: 'd_src',
-      sourcePortId: 's1',
+      sourceChannelId: 's1',
       destinationDeviceId: 'd_dest',
-      destinationPortId: 'd1',
+      destinationChannelId: 'd1',
     };
 
-    const mapping = resolveChannelMapping(conn, sourcePort, destPort);
+    const mapping = resolveChannelMapping(conn, sourceChannel, destChannel);
     expect(mapping[1]).toBe(1);
     expect(mapping[8]).toBe(8);
     expect(Object.keys(mapping).length).toBe(8);
   });
 
   it('handles explicit channel mapping (offset/routing)', () => {
-    const sourcePort: Port = { id: 's1', number: 1, channelCount: 1, phantomPower: false, pad: false };
-    const destPort: Port = { id: 'd1', number: 1, channelCount: 8, phantomPower: false, pad: false };
+    const sourceChannel: Channel = { id: 's1', number: 1, channelCount: 1, phantomPower: false, pad: false };
+    const destChannel: Channel = { id: 'd1', number: 1, channelCount: 8, phantomPower: false, pad: false };
     const conn: Connection = {
       id: 'c1',
       sourceDeviceId: 'd_src',
-      sourcePortId: 's1',
+      sourceChannelId: 's1',
       destinationDeviceId: 'd_dest',
-      destinationPortId: 'd1',
+      destinationChannelId: 'd1',
       channelMapping: { '1': '5' }, // Source channel 1 to Destination channel 5
     };
 
-    const mapping = resolveChannelMapping(conn, sourcePort, destPort);
+    const mapping = resolveChannelMapping(conn, sourceChannel, destChannel);
     expect(mapping[1]).toBe(5);
     expect(Object.keys(mapping).length).toBe(1);
   });
 
-  it('respects port name overrides', () => {
+  it('respects channel name overrides', () => {
     const micId = mockId();
     const micOutId = mockId();
     const mixerId = mockId();
@@ -131,16 +131,16 @@ describe('Signal Chain Logic', () => {
           id: micId,
           name: 'Kick Mic',
           type: 'Microphone',
-          outputPorts: [{ id: micOutId, number: 1, channelCount: 1, phantomPower: false, pad: false }],
-          inputPorts: [],
+          outputChannels: [{ id: micOutId, number: 1, channelCount: 1, phantomPower: false, pad: false }],
+          inputChannels: [],
           metadata: { generalName: 'Kick' },
         },
         {
           id: mixerId,
           name: 'Mixer',
           type: 'Mixer',
-          inputPorts: [{ id: mixerInId, number: 1, channelCount: 1, name: 'Kick In', phantomPower: false, pad: false }], // Override
-          outputPorts: [],
+          inputChannels: [{ id: mixerInId, number: 1, channelCount: 1, name: 'Kick In', phantomPower: false, pad: false }], // Override
+          outputChannels: [],
           metadata: {},
         },
       ],
@@ -148,9 +148,9 @@ describe('Signal Chain Logic', () => {
         {
           id: mockId(),
           sourceDeviceId: micId,
-          sourcePortId: micOutId,
+          sourceChannelId: micOutId,
           destinationDeviceId: mixerId,
-          destinationPortId: mixerInId,
+          destinationChannelId: mixerInId,
         },
       ],
       groups: [],

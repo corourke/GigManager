@@ -15,16 +15,16 @@ export function DeviceCard({ device, group, category, onEdit, onDelete }: Device
   const isTerminalSource = device.type === 'Microphone' || device.type === 'DI Box' || device.type === 'Instrument';
   
   return (
-    <View className="bg-white dark:bg-gray-900 rounded-xl p-3 mb-2 shadow-sm border border-gray-100 dark:border-gray-800">
-      <View className="flex-row justify-between items-center">
+    <View className="bg-white dark:bg-gray-900 rounded-xl px-3 py-0 mb-2 shadow-sm border border-gray-100 dark:border-gray-800">
+      <View className="flex-row justify-between items-center py-1">
         <View className="flex-1">
           <View className="flex-row items-center mb-0.5">
-            <Text className="text-base font-bold text-black dark:text-white mr-2">
+            <Text className="text-[17px] font-bold text-black dark:text-white mr-2">
               {device.name}
             </Text>
-            {isTerminalSource && device.metadata.specificType && (
-              <Text className="text-sm text-gray-400 font-medium">
-                ({device.metadata.specificType})
+            {device.model && (
+              <Text className="text-[16px] text-gray-400 font-medium">
+                ({device.model})
               </Text>
             )}
             {category && (
@@ -32,7 +32,7 @@ export function DeviceCard({ device, group, category, onEdit, onDelete }: Device
                 className="px-2 py-0.5 rounded-md ml-2" 
                 style={{ backgroundColor: category.color || '#e2e8f0' }}
               >
-                <Text className="text-[10px] font-bold text-gray-700 uppercase">
+                <Text className="text-[11px] font-bold text-gray-700 uppercase">
                   {category.name}
                 </Text>
               </View>
@@ -40,12 +40,12 @@ export function DeviceCard({ device, group, category, onEdit, onDelete }: Device
           </View>
           
           <View className="flex-row items-center">
-            <Text className="text-xs text-gray-500 mr-3">
+            <Text className="text-[15px] text-gray-500 mr-3">
               {device.type} {group ? `• ${group.name}` : ''}
             </Text>
             <View className="flex-row items-center">
-              <Text className="text-[10px] text-gray-400 font-bold uppercase">
-                {device.inputPorts.length} IN / {device.outputPorts.length} OUT
+              <Text className="text-[12px] text-gray-400 font-bold uppercase">
+                {device.inputChannels.length} IN / {device.outputChannels.length} OUT
               </Text>
             </View>
           </View>

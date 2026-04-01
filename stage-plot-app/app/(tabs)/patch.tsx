@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Text, View, ScrollView, TouchableOpacity, TextInput } from 'react-native';
+import { Text, View, ScrollView, TouchableOpacity, TextInput, SafeAreaView, StatusBar } from 'react-native';
 import { useProject } from '../../contexts/ProjectContext';
 import { resolveSignalChain } from '../../utils/signalChain';
 import { Device, Connection } from '../../models';
@@ -20,11 +20,11 @@ export default function PatchScreen() {
     return project.connections.map((conn) => {
       const sourceDevice = project.devices.find((d) => d.id === conn.sourceDeviceId);
       const destDevice = project.devices.find((d) => d.id === conn.destinationDeviceId);
-      const sourcePort = sourceDevice?.outputPorts.find((p) => p.id === conn.sourcePortId);
-      const destPort = destDevice?.inputPorts.find((p) => p.id === conn.destinationPortId);
+      const sourceChannel = sourceDevice?.outputChannels.find((c) => c.id === conn.sourceChannelId);
+      const destChannel = destDevice?.inputChannels.find((c) => c.id === conn.destinationChannelId);
 
-      const sourceKey = `${conn.sourceDeviceId}:${conn.sourcePortId}`;
-      const destKey = `${conn.destinationDeviceId}:${conn.destinationPortId}`;
+      const sourceKey = `${conn.sourceDeviceId}:${conn.sourceChannelId}`;
+      const destKey = `${conn.destinationDeviceId}:${conn.destinationChannelId}`;
 
       const sourceEffectiveName = signalChain[sourceKey]?.effectiveName || sourceDevice?.metadata?.generalName || sourceDevice?.name || 'Unknown';
       const destEffectiveName = signalChain[destKey]?.effectiveName || destDevice?.name || 'Unknown';
@@ -32,9 +32,9 @@ export default function PatchScreen() {
       return {
         id: conn.id,
         source: sourceDevice?.name || 'Unknown',
-        sourcePort: sourcePort?.number || '?',
+        sourceChannel: sourceChannel?.number || '?',
         destination: destDevice?.name || 'Unknown',
-        destPort: destPort?.number || '?',
+        destChannel: destChannel?.number || '?',
         effectiveName: sourceEffectiveName,
         cableLabel: conn.cableLabel || '',
         perspectiveInfo: {
@@ -79,8 +79,10 @@ export default function PatchScreen() {
   };
 
   return (
-    <View className="flex-1 bg-gray-50 dark:bg-zinc-950">
-      <View className="p-4 border-b border-gray-200 dark:border-zinc-800">
+    <SafeAreaView className="flex-1 bg-gray-50 dark:bg-black">
+      <StatusBar barStyle="default" />
+      <View className="px-6 pt-2 pb-2 bg-white dark:bg-gray-900 shadow-sm border-b border-gray-200 dark:border-zinc-800">
+        <Text className="text-xl font-bold text-black dark:text-white mb-4">Patch</Text>
         <View className="flex-row items-center bg-white dark:bg-zinc-900 px-3 py-2 rounded-lg border border-gray-200 dark:border-zinc-800 mb-4">
           <Search size={18} color="#666" />
           <TextInput
@@ -116,17 +118,17 @@ export default function PatchScreen() {
               <Text className="font-bold mr-1 text-gray-700 dark:text-gray-300">Source</Text>
               {renderSortIcon('source')}
             </TouchableOpacity>
-            <TouchableOpacity onPress={() => toggleSort('sourcePort')} className="w-20 p-3 flex-row items-center">
-              <Text className="font-bold mr-1 text-gray-700 dark:text-gray-300">P</Text>
-              {renderSortIcon('sourcePort')}
+            <TouchableOpacity onPress={() => toggleSort('sourceChannel')} className="w-20 p-3 flex-row items-center">
+              <Text className="font-bold mr-1 text-gray-700 dark:text-gray-300">Ch</Text>
+              {renderSortIcon('sourceChannel')}
             </TouchableOpacity>
             <TouchableOpacity onPress={() => toggleSort('destination')} className="w-40 p-3 flex-row items-center">
               <Text className="font-bold mr-1 text-gray-700 dark:text-gray-300">Destination</Text>
               {renderSortIcon('destination')}
             </TouchableOpacity>
-            <TouchableOpacity onPress={() => toggleSort('destPort')} className="w-20 p-3 flex-row items-center">
-              <Text className="font-bold mr-1 text-gray-700 dark:text-gray-300">P</Text>
-              {renderSortIcon('destPort')}
+            <TouchableOpacity onPress={() => toggleSort('destChannel')} className="w-20 p-3 flex-row items-center">
+              <Text className="font-bold mr-1 text-gray-700 dark:text-gray-300">Ch</Text>
+              {renderSortIcon('destChannel')}
             </TouchableOpacity>
             <TouchableOpacity onPress={() => toggleSort('effectiveName')} className="w-48 p-3 flex-row items-center">
               <Text className="font-bold mr-1 text-gray-700 dark:text-gray-300">Label ({perspective})</Text>
@@ -145,13 +147,13 @@ export default function PatchScreen() {
                   <Text className="text-black dark:text-white" numberOfLines={1}>{item.source}</Text>
                 </View>
                 <View className="w-20 p-3">
-                  <Text className="text-gray-600 dark:text-gray-400">{item.sourcePort}</Text>
+                  <Text className="text-gray-600 dark:text-gray-400">{item.sourceChannel}</Text>
                 </View>
                 <View className="w-40 p-3">
                   <Text className="text-black dark:text-white" numberOfLines={1}>{item.destination}</Text>
                 </View>
                 <View className="w-20 p-3">
-                  <Text className="text-gray-600 dark:text-gray-400">{item.destPort}</Text>
+                  <Text className="text-gray-600 dark:text-gray-400">{item.destChannel}</Text>
                 </View>
                 <View className="w-48 p-3">
                   <Text className="font-medium text-blue-600 dark:text-blue-400" numberOfLines={1}>
@@ -166,6 +168,6 @@ export default function PatchScreen() {
           </ScrollView>
         </View>
       </ScrollView>
-    </View>
+    </SafeAreaView>
   );
 }

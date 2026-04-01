@@ -1,9 +1,9 @@
 import { z } from 'zod';
 
-export const PortSchema = z.object({
+export const ChannelSchema = z.object({
   id: z.string(),
   number: z.number().int().min(1),
-  name: z.string().optional(),
+  name: z.string().optional(), // Default should be "Ch #"
   channelCount: z.number().int().min(1).default(1),
   connectorType: z.string().optional(), // e.g., 'XLR', 'TRS', 'TS'
   phantomPower: z.boolean().default(false),
@@ -14,17 +14,17 @@ export const MetadataSchema = z.object({
   gainNote: z.string().optional(),
   stagePosition: z.enum(['L', 'C', 'R']).optional(),
   generalName: z.string().optional(), // e.g., 'Kick'
-  specificType: z.string().optional(), // e.g., 'SM92a'
 });
 
 export const DeviceSchema = z.object({
   id: z.string(),
   name: z.string(),
   type: z.string(), // e.g., 'Microphone', 'DI', 'Stagebox'
+  model: z.string().optional(), // e.g., 'SM58', 'X32'
   categoryId: z.string().optional(),
   groupId: z.string().optional(),
-  inputPorts: z.array(PortSchema).default([]),
-  outputPorts: z.array(PortSchema).default([]),
+  inputChannels: z.array(ChannelSchema).default([]),
+  outputChannels: z.array(ChannelSchema).default([]),
   metadata: MetadataSchema.default({}),
   position: z.object({ x: z.number(), y: z.number() }).optional(),
 });
@@ -32,9 +32,9 @@ export const DeviceSchema = z.object({
 export const ConnectionSchema = z.object({
   id: z.string(),
   sourceDeviceId: z.string(),
-  sourcePortId: z.string(),
+  sourceChannelId: z.string(),
   destinationDeviceId: z.string(),
-  destinationPortId: z.string(),
+  destinationChannelId: z.string(),
   channelMapping: z.record(z.string(), z.string()).optional(), // Map source channels to destination channels
   cableLength: z.number().optional(), // in ft or m
   cableLabel: z.string().optional(),
@@ -65,7 +65,7 @@ export const ProjectSchema = z.object({
   updatedAt: z.string().datetime(),
 });
 
-export type Port = z.infer<typeof PortSchema>;
+export type Channel = z.infer<typeof ChannelSchema>;
 export type Metadata = z.infer<typeof MetadataSchema>;
 export type Device = z.infer<typeof DeviceSchema>;
 export type Connection = z.infer<typeof ConnectionSchema>;

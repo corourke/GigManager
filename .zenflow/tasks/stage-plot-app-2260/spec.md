@@ -19,7 +19,17 @@
 - **Core Views**:
     - **Setups**: List and form-based management of devices and ports.
     - **Diagram**: Node-based visual signal chain using `react-native-svg` or a lightweight custom canvas.
-    - **Patch**: High-performance sortable/filterable tables with perspective switching (Stage, FOH, Monitors).
+    - **Patch**: High-performance sortable/filterable tables with perspective switching (Example: Stage, FOH, Monitors).
+    
+      | Stage                |      | Stagebox A |           | FOH Mixer |
+      | -------------------- | ---- | ---------- | --------- | --------- |
+      |                      |      | XLR IN     | AES50 Out | AES50 In  |
+      | Kick (Beta 91)       |      | Ch 1       | A         | A         |
+      | Bass DI (Radial AV2) | R    | Ch 2       |           |           |
+      |                      | L    | Ch 3       |           | XLR In    |
+      | VOX 1 (SM58)         |      |            |           | Ch 1      |
+    
+      
 - **Cloud & Sharing**:
     - **Cloud Saving**: Integration with GigManager/Supabase for backup and gig attachments.
     - **iCloud Integration**: One-tap "Share Link" (read-only view).

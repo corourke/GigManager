@@ -1,19 +1,19 @@
 import { describe, it, expect } from 'vitest';
-import { ProjectSchema, DeviceSchema, ConnectionSchema, PortSchema } from '../index';
+import { ProjectSchema, DeviceSchema, ConnectionSchema, ChannelSchema } from '../index';
 
 describe('Stage Plot Models', () => {
   const mockId = '123e4567-e89b-12d3-a456-426614174000';
   const mockTimestamp = new Date().toISOString();
 
-  it('validates a valid Port', () => {
-    const validPort = {
+  it('validates a valid Channel', () => {
+    const validChannel = {
       id: mockId,
       number: 1,
       name: 'Main Out',
       channelCount: 2,
       connectorType: 'XLR',
     };
-    const result = PortSchema.safeParse(validPort);
+    const result = ChannelSchema.safeParse(validChannel);
     expect(result.success).toBe(true);
   });
 
@@ -26,7 +26,7 @@ describe('Stage Plot Models', () => {
     const result = DeviceSchema.safeParse(validDevice);
     expect(result.success).toBe(true);
     if (result.success) {
-      expect(result.data.inputPorts).toEqual([]);
+      expect(result.data.inputChannels).toEqual([]);
     }
   });
 
@@ -34,9 +34,9 @@ describe('Stage Plot Models', () => {
     const validConnection = {
       id: mockId,
       sourceDeviceId: mockId,
-      sourcePortId: mockId,
+      sourceChannelId: mockId,
       destinationDeviceId: mockId,
-      destinationPortId: mockId,
+      destinationChannelId: mockId,
       cableLength: 10,
     };
     const result = ConnectionSchema.safeParse(validConnection);
@@ -52,12 +52,12 @@ describe('Stage Plot Models', () => {
           id: 'dev-1',
           name: 'Kick Mic',
           type: 'Microphone',
+          model: 'D112',
           metadata: {
             generalName: 'Kick',
-            specificType: 'D112',
           },
-          outputPorts: [{
-            id: 'port-1',
+          outputChannels: [{
+            id: 'channel-1',
             number: 1,
             name: 'Output',
             phantomPower: false,
