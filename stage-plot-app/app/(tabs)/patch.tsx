@@ -3,9 +3,11 @@ import { Text, View, ScrollView, TouchableOpacity, TextInput, SafeAreaView, Stat
 import { useProject } from '../../contexts/ProjectContext';
 import { resolveTabularPatch, TabularRow, SignalHop, isSimpleDevice } from '../../utils/signalChain';
 import { Device, Connection } from '../../models';
-import { Search, Plus, X, Settings2, ArrowRightLeft, ArrowUpRight, ArrowDownLeft } from 'lucide-react-native';
+import { Search, Plus, X, Settings2, ArrowRightLeft, ArrowUpRight, ArrowDownLeft, FileDown } from 'lucide-react-native';
+import { ExportService } from '../../services/ExportService';
 
-const COLUMN_WIDTH = 256;
+const COLUMN_WIDTH = 240;
+const SMALL_COLUMN_WIDTH = 48;
 
 export default function PatchScreen() {
   const { project } = useProject();
@@ -30,12 +32,56 @@ export default function PatchScreen() {
 
   const tabularData = useMemo(() => resolveTabularPatch(project), [project]);
 
+  const tableWidth = useMemo(() => 
+    SMALL_COLUMN_WIDTH * 2 + // Idx and 48V
+    COLUMN_WIDTH * 2 + // Source and Destination
+    (selectedDeviceIds.length * COLUMN_WIDTH), 
+    [selectedDeviceIds]
+  );
+
   const filteredData = useMemo(() => {
-    return tabularData.filter((row) => {
-      const searchStr = `${row.sourceDeviceName} ${row.sourceEffectiveName} ${row.hops.map(h => h.deviceName).join(' ')}`.toLowerCase();
+    const filtered = tabularData.filter((row) => {
+      const searchStr = `${row.sourceDeviceName} ${row.sourceEffectiveName} ${row.terminalDeviceName || ''} ${row.hops.map(h => h.deviceName).join(' ')}`.toLowerCase();
       return searchStr.includes(searchQuery.toLowerCase());
     });
-  }, [tabularData, searchQuery]);
+
+    // Group by Category
+    const grouped: (TabularRow | { isHeader: true, categoryName: string, color: string })[] = [];
+    let lastCategoryId: string | undefined = undefined;
+
+    // Sort by category first, then by the first complex device's channel number
+    const sorted = [...filtered].sort((a, b) => {
+      // Category Sort
+      const catA = project.categories.find(c => c.id === a.sourceCategoryId)?.name || 'Uncategorized';
+      const catB = project.categories.find(c => c.id === b.sourceCategoryId)?.name || 'Uncategorized';
+      if (catA !== catB) return catA.localeCompare(catB);
+
+      // Channel Sort (use first complex hop as primary channel reference)
+      const getPrimaryChannel = (row: TabularRow) => {
+        if (row.hops.length > 0) {
+          return row.hops[0].inputChannelNumber || row.hops[0].outputChannelNumber || 0;
+        }
+        return row.sourceChannelNumber || 0;
+      };
+
+      return getPrimaryChannel(a) - getPrimaryChannel(b);
+    });
+
+    for (const row of sorted) {
+      if (row.sourceCategoryId !== lastCategoryId) {
+        const category = project.categories.find(c => c.id === row.sourceCategoryId);
+        grouped.push({ 
+          isHeader: true, 
+          categoryName: category?.name || 'Uncategorized',
+          color: category?.color || '#e5e7eb'
+        });
+        lastCategoryId = row.sourceCategoryId;
+      }
+      grouped.push(row);
+    }
+    
+    return grouped;
+  }, [tabularData, searchQuery, project.categories]);
 
   const toggleDeviceColumn = (id: string) => {
     setSelectedDeviceIds(prev => 
@@ -43,69 +89,106 @@ export default function PatchScreen() {
     );
   };
 
-  const tableWidth = useMemo(() => COLUMN_WIDTH + (selectedDeviceIds.length * COLUMN_WIDTH), [selectedDeviceIds]);
-
   const renderHeader = () => (
-    <View style={{ flexDirection: 'row', width: tableWidth, height: 60, backgroundColor: '#f3f4f6', borderBottomWidth: 1, borderColor: '#e5e7eb' }}>
-      <View style={{ width: COLUMN_WIDTH, padding: 12, borderRightWidth: 1, borderColor: '#e5e7eb', justifyContent: 'center' }}>
-        <Text style={{ fontWeight: 'bold', color: '#374151' }}>Simple Devices (Rows)</Text>
+    <View style={{ flexDirection: 'row', width: tableWidth, height: 60, backgroundColor: '#374151', borderBottomWidth: 1, borderColor: '#1f2937' }}>
+      <View style={{ width: SMALL_COLUMN_WIDTH, padding: 8, borderRightWidth: 1, borderColor: '#4b5563', justifyContent: 'center', alignItems: 'center' }}>
+        <Text style={{ fontWeight: 'bold', color: 'white', fontSize: 10 }}>IDX</Text>
+      </View>
+      <View style={{ width: SMALL_COLUMN_WIDTH, padding: 8, borderRightWidth: 1, borderColor: '#4b5563', justifyContent: 'center', alignItems: 'center' }}>
+        <Text style={{ fontWeight: 'bold', color: 'white', fontSize: 10 }}>48V</Text>
+      </View>
+      <View style={{ width: COLUMN_WIDTH, padding: 12, borderRightWidth: 1, borderColor: '#4b5563', justifyContent: 'center' }}>
+        <Text style={{ fontWeight: 'bold', color: 'white', textTransform: 'uppercase', fontSize: 10, letterSpacing: 1 }}>Source / Terminal</Text>
       </View>
       
       {selectedDeviceIds.map(deviceId => {
         const device = project.devices.find(d => d.id === deviceId);
         return (
-          <View key={deviceId} style={{ width: COLUMN_WIDTH, padding: 12, borderRightWidth: 1, borderColor: '#e5e7eb', backgroundColor: '#eff6ff', justifyContent: 'center' }}>
-            <Text style={{ fontWeight: 'bold', color: '#1d4ed8', textAlign: 'center' }} numberOfLines={1}>
+          <View key={deviceId} style={{ width: COLUMN_WIDTH, padding: 12, borderRightWidth: 1, borderColor: '#4b5563', backgroundColor: '#1e3a8a', justifyContent: 'center' }}>
+            <Text style={{ fontWeight: 'bold', color: '#bfdbfe', textAlign: 'center', fontSize: 12 }} numberOfLines={1}>
               {device?.name || 'Unknown Device'}
             </Text>
-            <View style={{ flexDirection: 'row', justifyContent: 'between', marginTop: 4, paddingHorizontal: 8 }}>
-              <Text style={{ fontSize: 10, color: '#9ca3af', fontWeight: 'bold' }}>IN</Text>
-              <Text style={{ fontSize: 10, color: '#9ca3af', fontWeight: 'bold' }}>OUT</Text>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 4, paddingHorizontal: 16 }}>
+              <Text style={{ fontSize: 9, color: '#93c5fd', fontWeight: 'bold' }}>IN</Text>
+              <Text style={{ fontSize: 9, color: '#93c5fd', fontWeight: 'bold' }}>OUT</Text>
             </View>
           </View>
         );
       })}
+
+      <View style={{ width: COLUMN_WIDTH, padding: 12, borderRightWidth: 1, borderColor: '#4b5563', justifyContent: 'center' }}>
+        <Text style={{ fontWeight: 'bold', color: 'white', textTransform: 'uppercase', fontSize: 10, letterSpacing: 1, textAlign: 'right' }}>Destination / Terminal</Text>
+      </View>
     </View>
   );
 
   const renderRow = (item: TabularRow, index: number) => {
+    const isEven = index % 2 === 0;
+    const category = project.categories.find(c => c.id === item.sourceCategoryId);
+    
     return (
-      <View key={`${item.sourceDeviceId}:${item.sourceChannelId}:${item.isSink ? 'sink' : 'source'}`} style={{ flexDirection: 'row', width: tableWidth, height: 70, borderBottomWidth: 1, borderColor: '#f3f4f6', backgroundColor: 'white' }}>
-        {/* Simple Device Cell */}
-        <View style={{ width: COLUMN_WIDTH, padding: 12, borderRightWidth: 1, borderColor: '#f9fafb', justifyContent: 'center' }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-            {item.isSink ? (
-              <ArrowDownLeft size={14} color="#ef4444" style={{ marginRight: 4 }} />
-            ) : (
-              <ArrowUpRight size={14} color="#22c55e" style={{ marginRight: 4 }} />
-            )}
-            <Text style={{ fontWeight: 'bold', color: 'black' }}>{item.sourceEffectiveName}</Text>
-          </View>
-          <Text style={{ fontSize: 12, color: '#6b7280', fontStyle: 'italic' }}>{item.sourceDeviceName} ({item.sourceChannelNumber})</Text>
+      <View key={`${item.sourceDeviceId}:${item.sourceChannelId}:${item.isSink ? 'sink' : 'source'}`} style={{ flexDirection: 'row', width: tableWidth, height: 70, borderBottomWidth: 1, borderColor: '#e5e7eb', backgroundColor: isEven ? 'white' : '#f9fafb' }}>
+        {/* Index */}
+        <View style={{ width: SMALL_COLUMN_WIDTH, padding: 8, borderRightWidth: 1, borderColor: '#f3f4f6', justifyContent: 'center', alignItems: 'center' }}>
+          <Text style={{ fontSize: 12, color: '#6b7280', fontWeight: 'bold' }}>{item.index}</Text>
+        </View>
+
+        {/* 48V */}
+        <View style={{ width: SMALL_COLUMN_WIDTH, padding: 8, borderRightWidth: 1, borderColor: '#f3f4f6', justifyContent: 'center', alignItems: 'center' }}>
+          {item.sourcePhantomPower && (
+            <View style={{ backgroundColor: '#fee2e2', paddingHorizontal: 4, paddingVertical: 2, borderRadius: 4, borderWidth: 1, borderColor: '#f87171' }}>
+              <Text style={{ fontSize: 9, color: '#b91c1c', fontWeight: 'bold' }}>48V</Text>
+            </View>
+          )}
+        </View>
+
+        {/* Simple Device Cell (Left Side: Source) */}
+        <View style={{ width: COLUMN_WIDTH, padding: 12, borderRightWidth: 1, borderColor: '#f3f4f6', justifyContent: 'center' }}>
+          {item.sourceDeviceId ? (
+            <View style={{ flexDirection: 'row', alignItems: 'flex-start' }}>
+              <View style={{ width: 4, height: '100%', backgroundColor: category?.color || '#e5e7eb', marginRight: 8, borderRadius: 2 }} />
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontWeight: 'bold', color: 'black', fontSize: 13 }}>
+                  {item.sourceDeviceName}
+                  {item.sourceEffectiveName && 
+                   item.sourceEffectiveName !== item.sourceDeviceName && 
+                   item.sourceEffectiveName !== 'Ch 1' 
+                   ? ` - ${item.sourceEffectiveName}` : ''}
+                </Text>
+                <Text style={{ fontSize: 10, color: '#6b7280', marginTop: 1 }}>
+                  ({item.sourceDeviceModel || item.sourceDeviceType})
+                </Text>
+              </View>
+            </View>
+          ) : (
+            <View style={{ paddingLeft: 12 }}>
+              <Text style={{ fontSize: 11, color: '#9ca3af', fontStyle: 'italic' }}>System Output</Text>
+            </View>
+          )}
         </View>
 
         {/* Selected Device Columns */}
         {selectedDeviceIds.map(deviceId => {
           const hop = item.fullPath[deviceId];
           return (
-            <View key={deviceId} style={{ width: COLUMN_WIDTH, padding: 12, borderRightWidth: 1, borderColor: '#f9fafb', flexDirection: 'row', alignItems: 'center', justifyContent: 'between' }}>
+            <View key={deviceId} style={{ width: COLUMN_WIDTH, padding: 12, borderRightWidth: 1, borderColor: '#f3f4f6', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
               {hop ? (
                 <>
                   <View style={{ flex: 1, alignItems: 'center' }}>
-                    <Text style={{ color: 'black', fontWeight: '500' }} numberOfLines={1}>
+                    <Text style={{ color: 'black', fontWeight: '500', fontSize: 13 }} numberOfLines={1}>
                       {hop.inputChannelName || (hop.inputChannelNumber ? `Ch ${hop.inputChannelNumber}` : '-')}
                     </Text>
                     {hop.connectorType && <Text style={{ fontSize: 10, color: '#9ca3af' }}>{hop.connectorType}</Text>}
                   </View>
                   
-                  <View style={{ paddingHorizontal: 8 }}>
-                    <Text style={{ color: '#e5e7eb' }}>→</Text>
+                  <View style={{ paddingHorizontal: 4 }}>
+                    <ArrowRightLeft size={12} color="#e5e7eb" />
                   </View>
 
                   <View style={{ flex: 1, alignItems: 'center' }}>
                     {hop.outputChannelId ? (
                       <>
-                        <Text style={{ color: '#2563eb', fontWeight: '500' }} numberOfLines={1}>
+                        <Text style={{ color: '#2563eb', fontWeight: '500', fontSize: 13 }} numberOfLines={1}>
                           {hop.outputChannelName || `Ch ${hop.outputChannelNumber}`}
                         </Text>
                         {hop.cableLabel && <Text style={{ fontSize: 10, color: '#9ca3af', fontStyle: 'italic' }} numberOfLines={1}>{hop.cableLabel}</Text>}
@@ -117,12 +200,29 @@ export default function PatchScreen() {
                 </>
               ) : (
                 <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-                  <Text style={{ color: '#f3f4f6', fontSize: 12 }}>No Route</Text>
+                  <Text style={{ color: '#f3f4f6', fontSize: 12 }}>-</Text>
                 </View>
               )}
             </View>
           );
         })}
+
+        {/* Terminal Device Cell */}
+        <View style={{ width: COLUMN_WIDTH, padding: 12, borderRightWidth: 1, borderColor: '#f3f4f6', justifyContent: 'center', alignItems: 'flex-end' }}>
+          {item.terminalDeviceId ? (
+            <View style={{ alignItems: 'flex-end' }}>
+              <Text style={{ fontWeight: 'bold', color: 'black', fontSize: 13, textAlign: 'right' }}>
+                {item.terminalDeviceName}
+                {item.terminalChannelName && item.terminalChannelName !== item.terminalDeviceName ? ` - ${item.terminalChannelName}` : ''}
+              </Text>
+              <Text style={{ fontSize: 10, color: '#6b7280', marginTop: 1, textAlign: 'right' }}>
+                ({item.terminalDeviceType})
+              </Text>
+            </View>
+          ) : (
+            <Text style={{ color: '#e5e7eb', fontSize: 12 }}>-</Text>
+          )}
+        </View>
       </View>
     );
   };
@@ -133,14 +233,22 @@ export default function PatchScreen() {
       
       {/* Header Section */}
       <View style={{ paddingHorizontal: 24, paddingVertical: 8, backgroundColor: 'white', borderBottomWidth: 1, borderColor: '#e5e7eb' }}>
-        <View style={{ flexDirection: 'row', justifyContent: 'between', alignItems: 'center', marginBottom: 16 }}>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
           <Text style={{ fontSize: 20, fontWeight: 'bold', color: 'black' }}>Patch Sheet ({filteredData.length})</Text>
-          <TouchableOpacity 
-            onPress={() => setIsColumnPickerVisible(!isColumnPickerVisible)}
-            style={{ padding: 8, borderRadius: 999, backgroundColor: isColumnPickerVisible ? '#dbeafe' : '#f3f4f6' }}
-          >
-            <Settings2 size={20} color={isColumnPickerVisible ? '#2563eb' : '#666'} />
-          </TouchableOpacity>
+          <View style={{ flexDirection: 'row' }}>
+            <TouchableOpacity 
+              onPress={() => ExportService.exportPatchPDF(project, selectedDeviceIds)}
+              style={{ padding: 8, borderRadius: 999, backgroundColor: '#f3f4f6', marginRight: 8 }}
+            >
+              <FileDown size={20} color="#666" />
+            </TouchableOpacity>
+            <TouchableOpacity 
+              onPress={() => setIsColumnPickerVisible(!isColumnPickerVisible)}
+              style={{ padding: 8, borderRadius: 999, backgroundColor: isColumnPickerVisible ? '#dbeafe' : '#f3f4f6' }}
+            >
+              <Settings2 size={20} color={isColumnPickerVisible ? '#2563eb' : '#666'} />
+            </TouchableOpacity>
+          </View>
         </View>
 
         {isColumnPickerVisible ? (
@@ -195,7 +303,19 @@ export default function PatchScreen() {
             {renderHeader()}
             
             {filteredData.length > 0 ? (
-              filteredData.map((item, index) => renderRow(item, index))
+              filteredData.map((item, index) => {
+                if ('isHeader' in item) {
+                  return (
+                    <View key={`header-${item.categoryName}`} style={{ width: tableWidth, height: 32, backgroundColor: '#f3f4f6', borderBottomWidth: 1, borderColor: '#e5e7eb', paddingHorizontal: 12, justifyContent: 'center' }}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                        <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: item.color, marginRight: 8 }} />
+                        <Text style={{ fontSize: 11, fontWeight: 'bold', color: '#4b5563', textTransform: 'uppercase', letterSpacing: 0.5 }}>{item.categoryName}</Text>
+                      </View>
+                    </View>
+                  );
+                }
+                return renderRow(item as TabularRow, index);
+              })
             ) : (
               <View style={{ width: tableWidth, padding: 80, alignItems: 'center', justifyContent: 'center' }}>
                 <Text style={{ color: '#9ca3af' }}>No patch data found</Text>

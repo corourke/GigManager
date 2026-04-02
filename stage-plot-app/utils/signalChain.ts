@@ -145,32 +145,61 @@ export interface SignalHop {
   outputChannelName?: string;
   connectorType?: string;
   cableLabel?: string;
+  phantomPower?: boolean;
+  pad?: boolean;
 }
 
 export interface TabularRow {
+  index: number;
   sourceDeviceId: string;
   sourceDeviceName: string;
+  sourceDeviceType: string;
+  sourceDeviceModel?: string;
+  sourceGroupId?: string;
+  sourceCategoryId?: string;
   sourceChannelId: string;
   sourceChannelNumber: number;
   sourceEffectiveName: string;
+  sourcePhantomPower?: boolean;
+  sourcePad?: boolean;
   isSink?: boolean; // If true, this row represents a terminal sink (like a speaker)
   hops: SignalHop[]; // Sequence of connections
   fullPath: Record<string, SignalHop>; // Map deviceId to hop info for easier lookup
+  terminalDeviceId?: string;
+  terminalDeviceName?: string;
+  terminalDeviceType?: string;
+  terminalChannelName?: string;
 }
 
 export function resolveTabularPatch(project: Project): TabularRow[] {
   const rows: TabularRow[] = [];
   const simpleDevices = project.devices.filter(d => isSimpleDevice(d));
+  let rowIdx = 1;
+
+  // Track ports that have already been included as endpoints in a row
+  // key: deviceId:channelId:type (source/sink)
+  const coveredPorts = new Set<string>();
 
   for (const device of simpleDevices) {
-    // 1. Handle Output Ports (Sources)
+    // 1. Handle Output Ports (Terminal Sources: Mics, DIs, etc.)
     for (const channel of device.outputChannels) {
+      const portKey = `${device.id}:${channel.id}:source`;
+      if (coveredPorts.has(portKey)) continue;
+      coveredPorts.add(portKey);
+
       const row: TabularRow = {
+        index: rowIdx++,
         sourceDeviceId: device.id,
         sourceDeviceName: device.name,
+        sourceDeviceType: device.type,
+        sourceDeviceModel: device.metadata?.modelName || device.model,
+        sourceGroupId: device.groupId,
+        sourceCategoryId: device.categoryId,
         sourceChannelId: channel.id,
         sourceChannelNumber: channel.number,
         sourceEffectiveName: channel.name || device.metadata?.generalName || device.name,
+        sourcePhantomPower: channel.phantomPower,
+        sourcePad: channel.pad,
         hops: [],
         fullPath: {}
       };
@@ -205,19 +234,24 @@ export function resolveTabularPatch(project: Project): TabularRow[] {
             inputChannelNumber: destChannel.number,
             inputChannelName: destChannel.name,
             connectorType: destChannel.connectorType,
-            cableLabel: connection.cableLabel
+            cableLabel: connection.cableLabel,
+            phantomPower: destChannel.phantomPower,
+            pad: destChannel.pad
           };
 
-          const inputIndex = destDevice.inputChannels.findIndex(c => c.id === destChannel.id);
-          if (inputIndex !== -1 && destDevice.outputChannels[inputIndex]) {
-            const outChan = destDevice.outputChannels[inputIndex];
-            hop.outputChannelId = outChan.id;
-            hop.outputChannelNumber = outChan.number;
-            hop.outputChannelName = outChan.name;
+          // Try to find matching internal output (e.g. Stagebox In 1 -> AES50 Out 1)
+          // We match by channel number as requested
+          const matchingOutChan = destDevice.outputChannels.find(c => c.number === destChannel.number);
+          
+          if (matchingOutChan) {
+            hop.outputChannelId = matchingOutChan.id;
+            hop.outputChannelNumber = matchingOutChan.number;
+            hop.outputChannelName = matchingOutChan.name;
             
             currentDeviceId = destDevice.id;
-            currentChannelId = outChan.id;
+            currentChannelId = matchingOutChan.id;
           } else {
+            // Signal stops here (e.g. ends at Mixer input)
             currentDeviceId = ""; 
             currentChannelId = "";
           }
@@ -225,7 +259,13 @@ export function resolveTabularPatch(project: Project): TabularRow[] {
           row.hops.push(hop);
           row.fullPath[hop.deviceId] = hop;
         } else {
-          // Terminal simple device reached
+          // Terminal simple device reached (Sink: Speaker, Monitor)
+          row.terminalDeviceId = destDevice.id;
+          row.terminalDeviceName = destDevice.name;
+          row.terminalDeviceType = destDevice.type;
+          row.terminalChannelName = destChannel.name || (destDevice.inputChannels.length > 1 ? `Ch ${destChannel.number}` : '');
+          
+          coveredPorts.add(`${destDevice.id}:${destChannel.id}:sink`);
           break;
         }
         
@@ -233,18 +273,30 @@ export function resolveTabularPatch(project: Project): TabularRow[] {
       }
       rows.push(row);
     }
+  }
 
-    // 2. Handle Input Ports (Sinks)
+  // 2. Handle System Outputs (Sinks that weren't reached by sources, like Mixer direct to Speakers)
+  for (const device of simpleDevices) {
     for (const channel of device.inputChannels) {
+      const portKey = `${device.id}:${channel.id}:sink`;
+      if (coveredPorts.has(portKey)) continue;
+      coveredPorts.add(portKey);
+
       const row: TabularRow = {
-        sourceDeviceId: device.id,
-        sourceDeviceName: device.name,
-        sourceChannelId: channel.id,
-        sourceChannelNumber: channel.number,
-        sourceEffectiveName: channel.name || device.metadata?.generalName || device.name,
+        index: rowIdx++,
+        sourceDeviceId: "", // System Output (empty left side)
+        sourceDeviceName: "",
+        sourceDeviceType: "",
+        sourceChannelId: "",
+        sourceChannelNumber: 0,
+        sourceEffectiveName: "",
         isSink: true,
         hops: [],
-        fullPath: {}
+        fullPath: {},
+        terminalDeviceId: device.id,
+        terminalDeviceName: device.name,
+        terminalDeviceType: device.type,
+        terminalChannelName: channel.name || (device.inputChannels.length > 1 ? `Ch ${channel.number}` : '')
       };
 
       // Traverse backward to find connections through complex devices
@@ -277,27 +329,31 @@ export function resolveTabularPatch(project: Project): TabularRow[] {
             outputChannelNumber: srcChannel.number,
             outputChannelName: srcChannel.name,
             connectorType: srcChannel.connectorType,
-            cableLabel: connection.cableLabel
+            cableLabel: connection.cableLabel,
+            phantomPower: srcChannel.phantomPower,
+            pad: srcChannel.pad
           };
 
-          const outputIndex = srcDevice.outputChannels.findIndex(c => c.id === srcChannel.id);
-          if (outputIndex !== -1 && srcDevice.inputChannels[outputIndex]) {
-            const inChan = srcDevice.inputChannels[outputIndex];
-            hop.inputChannelId = inChan.id;
-            hop.inputChannelNumber = inChan.number;
-            hop.inputChannelName = inChan.name;
+          // Try to find matching internal input (e.g. Mixer Out 1 <- Mixer Internal 1)
+          const matchingInChan = srcDevice.inputChannels.find(c => c.number === srcChannel.number);
+          
+          if (matchingInChan) {
+            hop.inputChannelId = matchingInChan.id;
+            hop.inputChannelNumber = matchingInChan.number;
+            hop.inputChannelName = matchingInChan.name;
             
             currentDeviceId = srcDevice.id;
-            currentChannelId = inChan.id;
+            currentChannelId = matchingInChan.id;
           } else {
             currentDeviceId = ""; 
             currentChannelId = "";
           }
 
-          row.hops.push(hop);
+          // In backward traversal, hops are added in reverse, but fullPath lookup works fine
+          row.hops.unshift(hop); 
           row.fullPath[hop.deviceId] = hop;
         } else {
-          // Reached another simple device
+          // Reached another simple device (should not happen if coveredPorts is correct)
           break;
         }
         

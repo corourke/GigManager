@@ -28,9 +28,12 @@
       | Bass DI (Radial AV2) | R    | Ch 2       |           |           |
       |                      | L    | Ch 3       |           | XLR In    |
       | VOX 1 (SM58)         |      |            |           | Ch 1      |
+      | VOX 2 (SM58)         |      |            |           |           |
+      | Keys (Nord) L        |      |            |           |           |
     
       
 - **Cloud & Sharing**:
+    
     - **Cloud Saving**: Integration with GigManager/Supabase for backup and gig attachments.
     - **iCloud Integration**: One-tap "Share Link" (read-only view).
     - **Phone Home Service**: Periodic check for update alerts and service status.

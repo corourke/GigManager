@@ -95,13 +95,26 @@ Save to `{@artifacts_path}/plan.md`.
 ### [x] Step: Improve diagram connection routing
 <!-- chat-id: 509aeba5-e6eb-4bc3-8847-f1ac08fa76d0 -->
 
-Connections need to route neatly and avoid running behind devices. A typical issue is a line originating from the output of a device that is positioned to the right and above another device. The line doubles back on itself and travels through the device and then through the target device. It needs to first route to the right, then down, then to the left past the receiving device, and then double back to the input. Also, try to get lines that are travelling in the same direction to run parallel. 
+Refined the diagram connection routing logic for cleaner signal paths and stable grouping:
+
+1.  **Refactored pathfinding**: Centralized routing logic into a `useMemo` in `diagram.tsx` and implemented template-based routing to ensure all connections in a (Source, Destination) pair follow the exact same lane (`midX` or `bypassY`).
+2.  **Stable Orthogonal Routing**:
+    - Increased `stub` size to 60px to ensure escape/entry lanes always clear device obstacle padding.
+    - Improved `isBackwards` detection and added lane prioritization for stability.
+    - Updated `getOrthogonalPoints` to return and accept routing parameters for group consistency.
+3.  **Signal Path Grouping**:
+    - Channels between the same (Source, Destination) pair now share the same routing strategy and overlap into a visually single line for the long run.
+    - Different source devices going to the same destination are correctly separated by a 14px `LINE_SPACING`.
+4.  **Clean Aesthetics**:
+    - Updated `simplifyPath` to eliminate micro-segments and ensure consistent 10px rounded corners.
+    - Filtered out bypass candidates that would cause "hairpin" 180-degree turns.
+5.  **Verification**: Verified with Vitest unit tests covering forward, backward, and complex bypass scenarios.
 
 ### [x] Step: User experience feedback and fixes
 <!-- chat-id: 8bf26ac0-2649-4a9c-97a5-7e64f86acaeb -->
 User testing and user interface fixes. 
 
-### [ ] Step: Implement PDF & Image Export Services
+### [x] Step: Implement PDF & Image Export Services
 - Implement PDF generation optimized for "Load-In Sheet" and "System Diagram" presets.
 - Add PNG export for the Diagram view.
 - Verification: Generate and view a PDF on the device.

@@ -7,7 +7,9 @@ import { useProject } from '../../contexts/ProjectContext';
 import { DeviceNode, getChannelLayout, getNodeWidth, getNodeHeight } from '../../components/DeviceNode';
 import { DeviceModal } from '../../components/DeviceModal';
 import { Device } from '../../models';
-import { Plus, Maximize, Minimize, RefreshCcw, Trash2 } from 'lucide-react-native';
+import { Plus, Maximize, Minimize, RefreshCcw, Trash2, Share2 } from 'lucide-react-native';
+import ViewShot, { captureRef } from 'react-native-view-shot';
+import { ExportService } from '../../services/ExportService';
 import { 
   Point, 
   Obstacle, 
@@ -47,6 +49,21 @@ export default function DiagramScreen() {
   const canvasOffsetY = useSharedValue(0);
 
   const canvasContainerRef = useRef<View>(null);
+  const viewShotRef = useRef<ViewShot>(null);
+
+  const handleExportDiagram = async () => {
+    try {
+      const uri = await captureRef(viewShotRef, {
+        format: 'png',
+        quality: 1,
+        result: 'tmpfile'
+      });
+      await ExportService.shareDiagramImage(uri, project.name);
+    } catch (err) {
+      console.error('Failed to capture diagram:', err);
+      Alert.alert('Export Error', 'Could not capture diagram image.');
+    }
+  };
 
   const canvasAnimatedStyle = useAnimatedStyle(() => ({
     transform: [
@@ -259,10 +276,7 @@ export default function DiagramScreen() {
       }));
   };
 
-  const selectConnectionAtPoint = (px: number, py: number) => {
-    let closestId: string | null = null;
-    let closestDist = 20;
-
+  const connectionData = useMemo(() => {
     const hitEndpoints: Array<{ id: string; x1: number; y1: number; x2: number; y2: number; srcId: string; dstId: string }> = [];
     project.connections.forEach(c => {
       const src = project.devices.find(d => d.id === c.sourceDeviceId);
@@ -289,54 +303,109 @@ export default function DiagramScreen() {
     const dstOffX: Record<string, number> = {};
     const dstOffY: Record<string, number> = {};
 
-    const byDest: Record<string, string[]> = {};
+    const pairs: Array<{ srcId: string; dstId: string; connectionIds: string[] }> = [];
     hitEndpoints.forEach(ep => {
-      if (!byDest[ep.dstId]) byDest[ep.dstId] = [];
-      byDest[ep.dstId].push(ep.id);
+      let p = pairs.find(x => x.srcId === ep.srcId && x.dstId === ep.dstId);
+      if (!p) {
+        p = { srcId: ep.srcId, dstId: ep.dstId, connectionIds: [] };
+        pairs.push(p);
+      }
+      p.connectionIds.push(ep.id);
     });
-    Object.values(byDest).forEach(ids => {
-      ids.sort((a, b) => {
-        const epA = hitEndpoints.find(e => e.id === a)!;
-        const epB = hitEndpoints.find(e => e.id === b)!;
+
+    const pairsByDest: Record<string, typeof pairs> = {};
+    pairs.forEach(p => {
+      if (!pairsByDest[p.dstId]) pairsByDest[p.dstId] = [];
+      pairsByDest[p.dstId].push(p);
+    });
+
+    Object.values(pairsByDest).forEach(destPairs => {
+      destPairs.sort((a, b) => {
+        const epA = hitEndpoints.find(e => e.id === a.connectionIds[0])!;
+        const epB = hitEndpoints.find(e => e.id === b.connectionIds[0])!;
         return epA.y1 - epB.y1;
       });
-      ids.forEach((id, idx) => {
-        dstOffX[id] = (idx - (ids.length - 1) / 2) * LINE_SPACING;
-        dstOffY[id] = (idx - (ids.length - 1) / 2) * (LINE_SPACING / 2);
+      destPairs.forEach((p, idx) => {
+        const off = (idx - (destPairs.length - 1) / 2) * LINE_SPACING;
+        p.connectionIds.forEach(id => {
+          dstOffX[id] = off;
+          dstOffY[id] = off / 2;
+        });
       });
     });
 
-    const bySrc: Record<string, string[]> = {};
-    hitEndpoints.forEach(ep => {
-      if (!bySrc[ep.srcId]) bySrc[ep.srcId] = [];
-      bySrc[ep.srcId].push(ep.id);
+    const pairsBySrc: Record<string, typeof pairs> = {};
+    pairs.forEach(p => {
+      if (!pairsBySrc[p.srcId]) pairsBySrc[p.srcId] = [];
+      pairsBySrc[p.srcId].push(p);
     });
-    Object.values(bySrc).forEach(ids => {
-      ids.sort((a, b) => {
-        const epA = hitEndpoints.find(e => e.id === a)!;
-        const epB = hitEndpoints.find(e => e.id === b)!;
-        return epA.y1 - epB.y1;
+
+    Object.values(pairsBySrc).forEach(srcPairs => {
+      srcPairs.sort((a, b) => {
+        const epA = hitEndpoints.find(e => e.id === a.connectionIds[0])!;
+        const epB = hitEndpoints.find(e => e.id === b.connectionIds[0])!;
+        return epA.x2 - epB.x2;
       });
-      ids.forEach((id, idx) => {
-        srcOffX[id] = (idx - (ids.length - 1) / 2) * LINE_SPACING;
-        srcOffY[id] = (idx - (ids.length - 1) / 2) * (LINE_SPACING / 2);
+      srcPairs.forEach((p, idx) => {
+        const off = (idx - (srcPairs.length - 1) / 2) * LINE_SPACING;
+        p.connectionIds.forEach(id => {
+          srcOffX[id] = off;
+          srcOffY[id] = off / 2;
+        });
       });
     });
 
-    hitEndpoints.forEach(ep => {
-      const obstacles = getDeviceObstacles();
-      const pts = getOrthogonalPoints(
-        ep.x1, ep.y1, ep.x2, ep.y2, 
-        obstacles, 
-        srcOffX[ep.id] || 0, 
-        srcOffY[ep.id] || 0,
-        dstOffX[ep.id] || 0,
-        dstOffY[ep.id] || 0,
-        ep.srcId, 
+    const connectionPts: Record<string, Point[]> = {};
+    const obstacles = getDeviceObstacles();
+
+    pairs.forEach(pair => {
+      const midIdx = Math.floor(pair.connectionIds.length / 2);
+      const templateId = pair.connectionIds[midIdx];
+      const ep = hitEndpoints.find(e => e.id === templateId)!;
+      
+      const templateResult = getOrthogonalPoints(
+        ep.x1, ep.y1, ep.x2, ep.y2,
+        obstacles,
+        srcOffX[templateId] || 0,
+        srcOffY[templateId] || 0,
+        dstOffX[templateId] || 0,
+        dstOffY[templateId] || 0,
+        ep.srcId,
         ep.dstId
       );
+
+      // Apply the same midX or bypassY to all connections in the pair
+      pair.connectionIds.forEach(id => {
+        const cEp = hitEndpoints.find(e => e.id === id)!;
+        const res = getOrthogonalPoints(
+          cEp.x1, cEp.y1, cEp.x2, cEp.y2,
+          obstacles,
+          srcOffX[id] || 0,
+          srcOffY[id] || 0,
+          dstOffX[id] || 0,
+          dstOffY[id] || 0,
+          cEp.srcId,
+          cEp.dstId,
+          templateResult.midX,
+          templateResult.bypassY
+        );
+        connectionPts[id] = res.points;
+      });
+    });
+
+    return { connectionPts, hitEndpoints };
+  }, [project.connections, project.devices]);
+
+  const selectConnectionAtPoint = (px: number, py: number) => {
+    let closestId: string | null = null;
+    let closestDist = 20;
+
+    Object.entries(connectionData.connectionPts).forEach(([id, pts]) => {
       const d = distToSegments(px, py, pts);
-      if (d < closestDist) { closestDist = d; closestId = ep.id; }
+      if (d < closestDist) { 
+        closestDist = d; 
+        closestId = id; 
+      }
     });
 
     setSelectedConnectionId(closestId);
@@ -401,90 +470,9 @@ export default function DiagramScreen() {
   const canvasGesture = Gesture.Simultaneous(canvasPanGesture, canvasPinchGesture, Gesture.Exclusive(doubleTapGesture, canvasTapGesture));
 
   const renderConnections = () => {
-    const hitEndpoints: Array<{ id: string; x1: number; y1: number; x2: number; y2: number; srcId: string; dstId: string }> = [];
-    project.connections.forEach(c => {
-      const src = project.devices.find(d => d.id === c.sourceDeviceId);
-      const dst = project.devices.find(d => d.id === c.destinationDeviceId);
-      if (!src || !dst) return;
-      const sl = getChannelLayout(src);
-      const dl = getChannelLayout(dst);
-      const sci = sl[c.sourceChannelId];
-      const dci = dl[c.destinationChannelId];
-      if (!sci || !dci) return;
-      hitEndpoints.push({
-        id: c.id,
-        x1: (src.position?.x ?? 0) + getNodeWidth(src),
-        y1: (src.position?.y ?? 0) + sci.y,
-        x2: (dst.position?.x ?? 0),
-        y2: (dst.position?.y ?? 0) + dci.y,
-        srcId: c.sourceDeviceId,
-        dstId: c.destinationDeviceId,
-      });
-    });
-
-    const srcOffX: Record<string, number> = {};
-    const srcOffY: Record<string, number> = {};
-    const dstOffX: Record<string, number> = {};
-    const dstOffY: Record<string, number> = {};
-
-    // Group by destination to space out vertical segments entering the same device
-    const byDest: Record<string, string[]> = {};
-    hitEndpoints.forEach(ep => {
-      if (!byDest[ep.dstId]) byDest[ep.dstId] = [];
-      byDest[ep.dstId].push(ep.id);
-    });
-
-    Object.values(byDest).forEach(ids => {
-      // Sort by source Y to keep relative order clean
-      ids.sort((a, b) => {
-        const epA = hitEndpoints.find(e => e.id === a)!;
-        const epB = hitEndpoints.find(e => e.id === b)!;
-        return epA.y1 - epB.y1;
-      });
-      ids.forEach((id, idx) => {
-        dstOffX[id] = (idx - (ids.length - 1) / 2) * LINE_SPACING;
-        dstOffY[id] = (idx - (ids.length - 1) / 2) * (LINE_SPACING / 2);
-      });
-    });
-
-    // Group by source to space out vertical segments leaving the same device
-    const bySrc: Record<string, string[]> = {};
-    hitEndpoints.forEach(ep => {
-      if (!bySrc[ep.srcId]) bySrc[ep.srcId] = [];
-      bySrc[ep.srcId].push(ep.id);
-    });
-
-    Object.values(bySrc).forEach(ids => {
-      ids.sort((a, b) => {
-        const epA = hitEndpoints.find(e => e.id === a)!;
-        const epB = hitEndpoints.find(e => e.id === b)!;
-        return epA.y1 - epB.y1;
-      });
-      ids.forEach((id, idx) => {
-        srcOffX[id] = (idx - (ids.length - 1) / 2) * LINE_SPACING;
-        srcOffY[id] = (idx - (ids.length - 1) / 2) * (LINE_SPACING / 2);
-      });
-    });
-
     return project.connections.map(connection => {
-      const ep = hitEndpoints.find(e => e.id === connection.id);
-      if (!ep) return null;
-      const sourceDevice = project.devices.find(d => d.id === connection.sourceDeviceId)!;
-      const destDevice = project.devices.find(d => d.id === connection.destinationDeviceId)!;
-      if (!sourceDevice || !destDevice) return null;
-
-      const { x1, y1, x2, y2 } = ep;
-      const obstacles = getDeviceObstacles();
-      const pts = getOrthogonalPoints(
-        x1, y1, x2, y2, 
-        obstacles, 
-        srcOffX[connection.id] || 0, 
-        srcOffY[connection.id] || 0,
-        dstOffX[connection.id] || 0,
-        dstOffY[connection.id] || 0,
-        connection.sourceDeviceId, 
-        connection.destinationDeviceId
-      );
+      const pts = connectionData.connectionPts[connection.id];
+      if (!pts) return null;
       const pathData = pointsToRoundedPath(pts);
       const isSelected = selectedConnectionId === connection.id;
 
@@ -539,12 +527,16 @@ export default function DiagramScreen() {
               <Trash2 size={20} color="#ef4444" />
             </TouchableOpacity>
           )}
+          <TouchableOpacity onPress={handleExportDiagram} style={[styles.toolBtn, { marginRight: 8 }]}>
+            <Share2 size={20} color="#6b7280" />
+          </TouchableOpacity>
           <TouchableOpacity onPress={() => { setEditingDevice(undefined); setIsDeviceModalVisible(true); }} style={styles.toolBtn}>
             <Plus size={20} color="#6b7280" />
           </TouchableOpacity>
         </View>
       </View>
 
+      <ViewShot ref={viewShotRef} options={{ format: 'png', quality: 1.0 }} style={{ flex: 1, backgroundColor: '#f9fafb' }}>
       <View
         ref={canvasContainerRef}
         style={{ flex: 1, overflow: 'hidden' }}
@@ -591,6 +583,7 @@ export default function DiagramScreen() {
           </Animated.View>
         </GestureDetector>
       </View>
+      </ViewShot>
 
       <DeviceModal
         visible={isDeviceModalVisible}

@@ -206,6 +206,7 @@ export default function SetupsScreen() {
 
       {/* Device List */}
       <SectionList
+        style={{ flex: 1 }}
         sections={sections}
         keyExtractor={(item) => item.id}
         renderItem={({ item }) => (

@@ -8,8 +8,8 @@ export type Obstacle = {
 };
 
 export const ROUTE_MARGIN = 40;
-export const CORNER_RADIUS = 8;
-export const LINE_SPACING = 12;
+export const CORNER_RADIUS = 10;
+export const LINE_SPACING = 14;
 export const GRID_SIZE = 10;
 export const OBSTACLE_PADDING = 20;
 
@@ -59,39 +59,42 @@ export function totalPathLen(pts: Point[]): number {
 }
 
 export function simplifyPath(pts: Point[]): Point[] {
-  if (pts.length < 3) return pts;
+  if (pts.length < 2) return pts;
   const result: Point[] = [pts[0]];
-  for (let i = 1; i < pts.length - 1; i++) {
+  for (let i = 1; i < pts.length; i++) {
     const prev = result[result.length - 1];
     const cur = pts[i];
     const next = pts[i + 1];
 
-    // Skip duplicate points
-    if (Math.abs(cur.x - prev.x) < 0.1 && Math.abs(cur.y - prev.y) < 0.1) continue;
+    // Skip points that are too close to each other
+    if (Math.abs(cur.x - prev.x) < 1.5 && Math.abs(cur.y - prev.y) < 1.5) continue;
 
-    // Check if colinear AND cur is between prev and next (redundant point on a straight line)
-    const isColinearX = Math.abs(prev.x - cur.x) < 0.1 && Math.abs(cur.x - next.x) < 0.1;
-    const isColinearY = Math.abs(prev.y - cur.y) < 0.1 && Math.abs(cur.y - next.y) < 0.1;
+    if (next) {
+      // Check if colinear (redundant point on a straight line)
+      const isColinearX = Math.abs(prev.x - cur.x) < 0.2 && Math.abs(cur.x - next.x) < 0.2;
+      const isColinearY = Math.abs(prev.y - cur.y) < 0.2 && Math.abs(cur.y - next.y) < 0.2;
 
-    if (isColinearX) {
-      const betweenY = (cur.y > prev.y && cur.y < next.y) || (cur.y < prev.y && cur.y > next.y);
-      if (betweenY) continue;
-    }
-    if (isColinearY) {
-      const betweenX = (cur.x > prev.x && cur.x < next.x) || (cur.x < prev.x && cur.x > next.x);
-      if (betweenX) continue;
+      if (isColinearX) {
+        const minP = Math.min(prev.y, next.y), maxP = Math.max(prev.y, next.y);
+        if (cur.y >= minP && cur.y <= maxP) continue;
+      }
+      if (isColinearY) {
+        const minP = Math.min(prev.x, next.x), maxP = Math.max(prev.x, next.x);
+        if (cur.x >= minP && cur.x <= maxP) continue;
+      }
     }
 
     result.push(cur);
   }
   
-  const last = pts[pts.length - 1];
-  const prevLast = result[result.length - 1];
-  if (Math.abs(last.x - prevLast.x) > 0.1 || Math.abs(last.y - prevLast.y) > 0.1) {
-    result.push(last);
-  }
   return result;
 }
+
+export type RoutingResult = {
+  points: Point[];
+  midX?: number;
+  bypassY?: number;
+};
 
 export function getOrthogonalPoints(
   x1: number,
@@ -104,121 +107,123 @@ export function getOrthogonalPoints(
   dstOffsetX: number = 0,
   dstOffsetY: number = 0,
   sourceId?: string,
-  destId?: string
-): Point[] {
-  // Ensure stub is large enough to accommodate offsets without hitting the device
-  let stub = Math.max(30, Math.abs(srcOffsetX) + OBSTACLE_PADDING + 5, Math.abs(dstOffsetX) + OBSTACLE_PADDING + 5);
-  if (Math.abs(x1 - x2) < stub * 2.5) stub = Math.max(8, Math.abs(x1 - x2) / 3);
+  destId?: string,
+  preferredMidX?: number,
+  preferredBypassY?: number
+): RoutingResult {
+  // Fixed stub to ensure parallel lines with offsets
+  // Increased to 60 to clear obstacle padding even with large group offsets
+  const stub = 60;
   
-  const sx = x1 + stub;
-  const ex = x2 - stub;
-
-  const isBackwards = x1 > x2 - stub * 2;
+  const osx = x1 + stub + srcOffsetX;
+  const oex = x2 - stub + dstOffsetX;
+  
+  const isBackwards = x1 > x2 - 60; // Threshold for loop-around
 
   let best: Point[] | null = null;
   let bestLen = Infinity;
+  let selectedMidX: number | undefined;
+  let selectedBypassY: number | undefined;
 
-  const tryPath = (path: Point[]) => {
+  const tryPath = (path: Point[], mx?: number, by?: number) => {
     const simplified = simplifyPath(path);
     if (!pathHitsObstacles(simplified, obstacles, sourceId, destId)) {
       const len = totalPathLen(simplified);
       if (len < bestLen) {
         best = simplified;
         bestLen = len;
+        selectedMidX = mx;
+        selectedBypassY = by;
       }
     }
   };
 
+  // 0. Preferred Paths
+  if (preferredMidX !== undefined) {
+    tryPath([
+      { x: x1, y: y1 }, { x: preferredMidX, y: y1 }, { x: preferredMidX, y: y2 }, { x: x2, y: y2 }
+    ], preferredMidX, undefined);
+  }
+  if (preferredBypassY !== undefined) {
+    tryPath([
+      { x: x1, y: y1 }, { x: osx, y: y1 }, { x: osx, y: preferredBypassY }, { x: oex, y: preferredBypassY }, { x: oex, y: y2 }, { x: x2, y: y2 }
+    ], undefined, preferredBypassY);
+  }
+
+  // If we already have a valid best path from preferred candidates, we can skip others
+  if (best) return { points: best, midX: selectedMidX, bypassY: selectedBypassY };
+
   // Turn points that incorporate spacing offsets
-  const osx = sx + srcOffsetX;
-  const oex = ex + dstOffsetX;
-
-  // 1. Basic Z-paths (only if not backwards)
+  // A. Z-paths (3-segment) - Only for forward routing
   if (!isBackwards) {
-    const candidateXs = [
-      (osx + oex) / 2,
-      osx + 10,
-      oex - 10,
+    const midXCandidates = [
+        oex, // Prefer destination-aligned lanes
+        osx, // Or source-aligned
+        (osx + oex) / 2,
     ];
-    
-    obstacles.forEach(obs => {
-      candidateXs.push(obs.right + ROUTE_MARGIN + srcOffsetX);
-      candidateXs.push(obs.left - ROUTE_MARGIN + dstOffsetX);
-    });
-
-    for (const midX of candidateXs) {
-      tryPath([
-        { x: x1, y: y1 }, { x: osx, y: y1 },
-        { x: midX, y: y1 }, { x: midX, y: y2 },
-        { x: oex, y: y2 }, { x: x2, y: y2 },
-      ]);
+    for (const mx of midXCandidates) {
+        // Ensure mx is actually between the escape points or at least to the right of x1
+        if (mx > x1 + 10 && mx < x2 - 10) {
+            tryPath([
+                { x: x1, y: y1 }, { x: mx, y: y1 }, { x: mx, y: y2 }, { x: x2, y: y2 }
+            ], mx, undefined);
+        }
     }
   }
 
-  // 2. Bypass paths (5-segment or 6-segment)
-  const candidateYs = [
-    y1 + srcOffsetY,
-    y2 + dstOffsetY,
-    y1 - ROUTE_MARGIN + srcOffsetY,
-    y1 + ROUTE_MARGIN + srcOffsetY,
-    y2 - ROUTE_MARGIN + dstOffsetY,
-    y2 + ROUTE_MARGIN + dstOffsetY,
+  // B. Bypass paths (5-segment)
+  // We need to be careful with yCandidates to avoid "hairpin" turns where the bypass 
+  // is on the same line as the output, which might cut through the device.
+  const yCandidates = [
+      y1 - ROUTE_MARGIN + srcOffsetY,
+      y1 + ROUTE_MARGIN + srcOffsetY,
+      y2 - ROUTE_MARGIN + dstOffsetY,
+      y2 + ROUTE_MARGIN + dstOffsetY,
   ];
+
+  // Avoid using y1 or y2 directly as bypass if it causes a back-track through device
+  if (Math.abs(y1 - y2) > 40) {
+      yCandidates.push((y1 + y2) / 2);
+  }
   
   obstacles.forEach(obs => {
-    candidateYs.push(obs.top - ROUTE_MARGIN + srcOffsetY);
-    candidateYs.push(obs.bottom + ROUTE_MARGIN + srcOffsetY);
-    candidateYs.push(obs.top - ROUTE_MARGIN + dstOffsetY);
-    candidateYs.push(obs.bottom + ROUTE_MARGIN + dstOffsetY);
+      yCandidates.push(obs.top - ROUTE_MARGIN + srcOffsetY);
+      yCandidates.push(obs.bottom + ROUTE_MARGIN + srcOffsetY);
+      yCandidates.push(obs.top - ROUTE_MARGIN + dstOffsetY);
+      yCandidates.push(obs.bottom + ROUTE_MARGIN + dstOffsetY);
   });
 
-  const sortedYs = Array.from(new Set(candidateYs)).sort((a, b) => a - b);
-
-  for (const bY of sortedYs) {
-    // 5-segment bypass
-    tryPath([
-      { x: x1, y: y1 }, { x: osx, y: y1 }, { x: osx, y: bY }, { x: oex, y: bY },
-      { x: oex, y: y2 }, { x: x2, y: y2 },
-    ]);
-
-    // 6-segment bypass (includes a midX)
-    if (isBackwards || Math.abs(y1 - y2) > 100) {
-      const midXs = [(osx + oex) / 2];
-      for (const midX of midXs) {
-        tryPath([
-          { x: x1, y: y1 }, { x: osx, y: y1 }, { x: osx, y: bY }, 
-          { x: midX, y: bY }, { x: midX, y: y2 },
-          { x: oex, y: y2 }, { x: x2, y: y2 },
-        ]);
-      }
-    }
-  }
-
-  // 3. Ultra-bypass
-  if (!best) {
-    let globalTop = Math.min(y1, y2), globalBottom = Math.max(y1, y2);
-    let globalLeft = Math.min(x1, x2), globalRight = Math.max(x1, x2);
-    obstacles.forEach(obs => {
-      globalTop = Math.min(globalTop, obs.top);
-      globalBottom = Math.max(globalBottom, obs.bottom);
-      globalLeft = Math.min(globalLeft, obs.left);
-      globalRight = Math.max(globalRight, obs.right);
+  const sortedYs = Array.from(new Set(yCandidates))
+    .filter(y => Math.abs(y - y1) > 15 && Math.abs(y - y2) > 15) // Prevent micro-segments/hairpins
+    .sort((a, b) => {
+        // Prioritize Ys that are closer to the y1-y2 range
+        const midY = (y1 + y2) / 2;
+        return Math.abs(a - midY) - Math.abs(b - midY);
     });
-    
-    const bypassYs = [globalTop - ROUTE_MARGIN * 2, globalBottom + ROUTE_MARGIN * 2];
-    for (const bY of bypassYs) {
+
+  for (const by of sortedYs) {
       tryPath([
-        { x: x1, y: y1 }, { x: osx, y: y1 }, { x: osx, y: bY }, { x: oex, y: bY },
-        { x: oex, y: y2 }, { x: x2, y: y2 },
-      ]);
-    }
+          { x: x1, y: y1 }, { x: osx, y: y1 }, { x: osx, y: by }, { x: oex, y: by }, { x: oex, y: y2 }, { x: x2, y: y2 }
+      ], undefined, by);
+      // If we found a good path within reasonable range, stop searching to keep it stable
+      if (best && bestLen < totalPathLen([{x:x1,y:y1},{x:x2,y:y2}]) * 2) break;
   }
 
-  return best || simplifyPath([
-    { x: x1, y: y1 }, { x: osx, y: y1 },
-    { x: (osx + oex) / 2, y: y1 }, { x: (osx + oex) / 2, y: y2 },
-    { x: oex, y: y2 }, { x: x2, y: y2 },
+  // C. Emergency Fallbacks
+  if (!best) {
+      const bypassYs = [y1 - 200, y2 + 200, y1 - 400, y2 + 400];
+      for (const by of bypassYs) {
+          tryPath([
+              { x: x1, y: y1 }, { x: osx, y: y1 }, { x: osx, y: by }, { x: oex, y: by }, { x: oex, y: y2 }, { x: x2, y: y2 }
+          ], undefined, by);
+      }
+  }
+
+  const resultPoints = best || simplifyPath([
+      { x: x1, y: y1 }, { x: osx, y: y1 }, { x: osx, y: y1 + 50 }, { x: oex, y: y1 + 50 }, { x: oex, y: y2 }, { x: x2, y: y2 }
   ]);
+
+  return { points: resultPoints, midX: selectedMidX, bypassY: selectedBypassY };
 }
 
 export function pointsToRoundedPath(pts: Point[]): string {
