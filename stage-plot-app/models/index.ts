@@ -27,6 +27,7 @@ export const DeviceSchema = z.object({
   outputChannels: z.array(ChannelSchema).default([]),
   metadata: MetadataSchema.default({}),
   position: z.object({ x: z.number(), y: z.number() }).optional(),
+  isSource: z.boolean().optional(),
 });
 
 export const ConnectionSchema = z.object({

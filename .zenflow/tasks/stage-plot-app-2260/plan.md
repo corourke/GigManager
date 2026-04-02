@@ -86,10 +86,20 @@ Save to `{@artifacts_path}/plan.md`.
 - Implement perspective switching (Stage, FOH, Monitor World).
 - Verification: Verify correct filtering and sorting based on user selection.
 
-### [ ] Step: Implement Local Persistence & Template Library
+### [x] Step: Implement Local Persistence & Template Library
+<!-- chat-id: e5b60959-fb11-4d7d-966b-c155d724857e -->
 - Integrate `Expo-FileSystem` for local JSON project storage and project-to-template conversion.
 - Implement project list view with save/load/rename functionality.
 - Verification: Verify projects persist across app restarts and templates can be applied.
+
+### [x] Step: Improve diagram connection routing
+<!-- chat-id: 509aeba5-e6eb-4bc3-8847-f1ac08fa76d0 -->
+
+Connections need to route neatly and avoid running behind devices. A typical issue is a line originating from the output of a device that is positioned to the right and above another device. The line doubles back on itself and travels through the device and then through the target device. It needs to first route to the right, then down, then to the left past the receiving device, and then double back to the input. Also, try to get lines that are travelling in the same direction to run parallel. 
+
+### [x] Step: User experience feedback and fixes
+<!-- chat-id: 8bf26ac0-2649-4a9c-97a5-7e64f86acaeb -->
+User testing and user interface fixes. 
 
 ### [ ] Step: Implement PDF & Image Export Services
 - Implement PDF generation optimized for "Load-In Sheet" and "System Diagram" presets.
@@ -104,3 +114,5 @@ Save to `{@artifacts_path}/plan.md`.
 ### [ ] Step: Implement Heartbeat & Service Status Service
 - Implement periodic "phone-home" to check for app updates and service alerts.
 - Verification: Verify the app receives and displays a mock update alert from the status endpoint.
+
+

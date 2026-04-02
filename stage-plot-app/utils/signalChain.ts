@@ -120,3 +120,192 @@ export function resolveChannelMapping(
 
   return mapping;
 }
+
+/**
+ * Identifies if a device is "simple" (total channels <= 2).
+ * Simple devices are handled as rows in the patch sheet.
+ */
+export function isSimpleDevice(device: Device): boolean {
+  const totalChannels = device.inputChannels.length + device.outputChannels.length;
+  return totalChannels <= 2;
+}
+
+/**
+ * Resolves the signal chain into a tabular format where each terminal simple device port is a row
+ * and complex devices are "hops" (columns).
+ */
+export interface SignalHop {
+  deviceId: string;
+  deviceName: string;
+  inputChannelId?: string;
+  inputChannelNumber?: number;
+  inputChannelName?: string;
+  outputChannelId?: string;
+  outputChannelNumber?: number;
+  outputChannelName?: string;
+  connectorType?: string;
+  cableLabel?: string;
+}
+
+export interface TabularRow {
+  sourceDeviceId: string;
+  sourceDeviceName: string;
+  sourceChannelId: string;
+  sourceChannelNumber: number;
+  sourceEffectiveName: string;
+  isSink?: boolean; // If true, this row represents a terminal sink (like a speaker)
+  hops: SignalHop[]; // Sequence of connections
+  fullPath: Record<string, SignalHop>; // Map deviceId to hop info for easier lookup
+}
+
+export function resolveTabularPatch(project: Project): TabularRow[] {
+  const rows: TabularRow[] = [];
+  const simpleDevices = project.devices.filter(d => isSimpleDevice(d));
+
+  for (const device of simpleDevices) {
+    // 1. Handle Output Ports (Sources)
+    for (const channel of device.outputChannels) {
+      const row: TabularRow = {
+        sourceDeviceId: device.id,
+        sourceDeviceName: device.name,
+        sourceChannelId: channel.id,
+        sourceChannelNumber: channel.number,
+        sourceEffectiveName: channel.name || device.metadata?.generalName || device.name,
+        hops: [],
+        fullPath: {}
+      };
+
+      // Traverse forward
+      let currentDeviceId = device.id;
+      let currentChannelId = channel.id;
+      let visited = new Set<string>();
+
+      while (true) {
+        const key = `${currentDeviceId}:${currentChannelId}`;
+        if (visited.has(key)) break;
+        visited.add(key);
+
+        const connection = project.connections.find(c => 
+          c.sourceDeviceId === currentDeviceId && c.sourceChannelId === currentChannelId
+        );
+
+        if (!connection) break;
+
+        const destDevice = project.devices.find(d => d.id === connection.destinationDeviceId);
+        const destChannel = destDevice?.inputChannels.find(c => c.id === connection.destinationChannelId);
+
+        if (!destDevice || !destChannel) break;
+
+        // If destination is complex, add as a hop
+        if (!isSimpleDevice(destDevice)) {
+          const hop: SignalHop = {
+            deviceId: destDevice.id,
+            deviceName: destDevice.name,
+            inputChannelId: destChannel.id,
+            inputChannelNumber: destChannel.number,
+            inputChannelName: destChannel.name,
+            connectorType: destChannel.connectorType,
+            cableLabel: connection.cableLabel
+          };
+
+          const inputIndex = destDevice.inputChannels.findIndex(c => c.id === destChannel.id);
+          if (inputIndex !== -1 && destDevice.outputChannels[inputIndex]) {
+            const outChan = destDevice.outputChannels[inputIndex];
+            hop.outputChannelId = outChan.id;
+            hop.outputChannelNumber = outChan.number;
+            hop.outputChannelName = outChan.name;
+            
+            currentDeviceId = destDevice.id;
+            currentChannelId = outChan.id;
+          } else {
+            currentDeviceId = ""; 
+            currentChannelId = "";
+          }
+
+          row.hops.push(hop);
+          row.fullPath[hop.deviceId] = hop;
+        } else {
+          // Terminal simple device reached
+          break;
+        }
+        
+        if (!currentDeviceId) break;
+      }
+      rows.push(row);
+    }
+
+    // 2. Handle Input Ports (Sinks)
+    for (const channel of device.inputChannels) {
+      const row: TabularRow = {
+        sourceDeviceId: device.id,
+        sourceDeviceName: device.name,
+        sourceChannelId: channel.id,
+        sourceChannelNumber: channel.number,
+        sourceEffectiveName: channel.name || device.metadata?.generalName || device.name,
+        isSink: true,
+        hops: [],
+        fullPath: {}
+      };
+
+      // Traverse backward to find connections through complex devices
+      let currentDeviceId = device.id;
+      let currentChannelId = channel.id;
+      let visited = new Set<string>();
+
+      while (true) {
+        const key = `${currentDeviceId}:${currentChannelId}`;
+        if (visited.has(key)) break;
+        visited.add(key);
+
+        const connection = project.connections.find(c => 
+          c.destinationDeviceId === currentDeviceId && c.destinationChannelId === currentChannelId
+        );
+
+        if (!connection) break;
+
+        const srcDevice = project.devices.find(d => d.id === connection.sourceDeviceId);
+        const srcChannel = srcDevice?.outputChannels.find(c => c.id === connection.sourceChannelId);
+
+        if (!srcDevice || !srcChannel) break;
+
+        // If source is complex, add as a hop
+        if (!isSimpleDevice(srcDevice)) {
+          const hop: SignalHop = {
+            deviceId: srcDevice.id,
+            deviceName: srcDevice.name,
+            outputChannelId: srcChannel.id,
+            outputChannelNumber: srcChannel.number,
+            outputChannelName: srcChannel.name,
+            connectorType: srcChannel.connectorType,
+            cableLabel: connection.cableLabel
+          };
+
+          const outputIndex = srcDevice.outputChannels.findIndex(c => c.id === srcChannel.id);
+          if (outputIndex !== -1 && srcDevice.inputChannels[outputIndex]) {
+            const inChan = srcDevice.inputChannels[outputIndex];
+            hop.inputChannelId = inChan.id;
+            hop.inputChannelNumber = inChan.number;
+            hop.inputChannelName = inChan.name;
+            
+            currentDeviceId = srcDevice.id;
+            currentChannelId = inChan.id;
+          } else {
+            currentDeviceId = ""; 
+            currentChannelId = "";
+          }
+
+          row.hops.push(hop);
+          row.fullPath[hop.deviceId] = hop;
+        } else {
+          // Reached another simple device
+          break;
+        }
+        
+        if (!currentDeviceId) break;
+      }
+      rows.push(row);
+    }
+  }
+
+  return rows;
+}

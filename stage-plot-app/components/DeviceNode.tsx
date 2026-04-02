@@ -4,6 +4,7 @@ import { GestureDetector, Gesture } from 'react-native-gesture-handler';
 import Animated, {
   useAnimatedStyle,
   useSharedValue,
+  SharedValue,
   runOnJS
 } from 'react-native-reanimated';
 import { Device, Channel } from '../models';
@@ -101,8 +102,7 @@ interface DeviceNodeProps {
   onUpdateConnection: (x: number, y: number) => void;
   onEndConnection: (deviceId: string, channelId: string, x: number, y: number) => void;
   onCancelConnection: () => void;
-  canvasWidth: number;
-  canvasHeight: number;
+  canvasScale: SharedValue<number>;
 }
 
 const getIcon = (type: string) => {
@@ -118,7 +118,7 @@ const getIcon = (type: string) => {
 export function DeviceNode({
   device, onPositionChange, onSelect,
   onStartConnection, onUpdateConnection, onEndConnection, onCancelConnection,
-  canvasWidth, canvasHeight
+  canvasScale
 }: DeviceNodeProps) {
   const translateX = useSharedValue(device.position?.x ?? 100);
   const translateY = useSharedValue(device.position?.y ?? 100);
@@ -141,10 +141,13 @@ export function DeviceNode({
       context.value = { x: translateX.value, y: translateY.value };
     })
     .onUpdate((event) => {
-      translateX.value = Math.max(0, Math.min(context.value.x + event.translationX, canvasWidth - nodeWidth));
-      translateY.value = Math.max(0, Math.min(context.value.y + event.translationY, canvasHeight - 60));
+      const s = canvasScale.value;
+      translateX.value = Math.max(0, context.value.x + event.translationX / s);
+      translateY.value = Math.max(0, context.value.y + event.translationY / s);
     })
     .onEnd(() => {
+      translateX.value = Math.round(translateX.value / 10) * 10;
+      translateY.value = Math.round(translateY.value / 10) * 10;
       runOnJS(onPositionChange)(device.id, translateX.value, translateY.value);
     });
 
@@ -152,7 +155,7 @@ export function DeviceNode({
     transform: [
       { translateX: translateX.value },
       { translateY: translateY.value },
-    ],
+    ] as any,
   }));
 
   const channelLayout = useMemo(() => getChannelLayout(device), [device]);
@@ -177,12 +180,14 @@ export function DeviceNode({
         runOnJS(onStartConnection)(device.id, channel.id, x, translateY.value + y);
       })
       .onUpdate((event) => {
-        const x = translateX.value + (isOutput ? nodeWidth : 0) + event.translationX;
-        runOnJS(onUpdateConnection)(x, translateY.value + y + event.translationY);
+        const s = canvasScale.value;
+        const x = translateX.value + (isOutput ? nodeWidth : 0) + event.translationX / s;
+        runOnJS(onUpdateConnection)(x, translateY.value + y + event.translationY / s);
       })
       .onEnd((event) => {
-        const x = translateX.value + (isOutput ? nodeWidth : 0) + event.translationX;
-        runOnJS(onEndConnection)(device.id, channel.id, x, translateY.value + y + event.translationY);
+        const s = canvasScale.value;
+        const x = translateX.value + (isOutput ? nodeWidth : 0) + event.translationX / s;
+        runOnJS(onEndConnection)(device.id, channel.id, x, translateY.value + y + event.translationY / s);
       });
 
     return (
@@ -288,11 +293,20 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#e5e7eb',
     padding: NODE_LAYOUT.BOX_PADDING,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 4,
+      },
+      android: {
+        elevation: 3,
+      },
+      web: {
+        boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+      } as any,
+    }),
   },
   header: {
     flexDirection: 'row',

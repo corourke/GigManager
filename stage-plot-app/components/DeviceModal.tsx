@@ -106,7 +106,7 @@ export function DeviceModal({ visible, device, groups, categories, onClose, onSa
   }, [device, visible]);
 
   const handleSave = () => {
-    let finalName = name || generalName || 'Unnamed Device';
+    let finalName = isTerminalSource ? (generalName || name || 'Unnamed Device') : (name || 'Unnamed Device');
     
     let finalInputChannels = inputChannels;
     let finalOutputChannels = outputChannels;
@@ -197,7 +197,7 @@ export function DeviceModal({ visible, device, groups, categories, onClose, onSa
         <Text className="text-gray-400 font-bold w-5 text-center mr-1">{channel.number}</Text>
         
         <TextInput
-          ref={el => inputRefs.current[channel.id] = el}
+          ref={el => { inputRefs.current[channel.id] = el; }}
           className="flex-1 text-black dark:text-white font-medium mr-2"
           value={channel.name}
           placeholder="Name"

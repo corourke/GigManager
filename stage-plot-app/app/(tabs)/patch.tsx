@@ -1,170 +1,207 @@
 import React, { useState, useMemo } from 'react';
 import { Text, View, ScrollView, TouchableOpacity, TextInput, SafeAreaView, StatusBar } from 'react-native';
 import { useProject } from '../../contexts/ProjectContext';
-import { resolveSignalChain } from '../../utils/signalChain';
+import { resolveTabularPatch, TabularRow, SignalHop, isSimpleDevice } from '../../utils/signalChain';
 import { Device, Connection } from '../../models';
-import { ChevronDown, ChevronUp, Search, Filter } from 'lucide-react-native';
+import { Search, Plus, X, Settings2, ArrowRightLeft, ArrowUpRight, ArrowDownLeft } from 'lucide-react-native';
 
-type Perspective = 'Stage' | 'FOH' | 'Monitor World';
+const COLUMN_WIDTH = 256;
 
 export default function PatchScreen() {
   const { project } = useProject();
-  const [perspective, setPerspective] = useState<Perspective>('Stage');
   const [searchQuery, setSearchQuery] = useState('');
-  const [sortField, setSortField] = useState<string>('source');
-  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
+  
+  // Complex devices are non-simple devices (Stageboxes, Mixers, etc.)
+  const complexDevices = useMemo(() => 
+    project.devices.filter(d => !isSimpleDevice(d)),
+    [project]
+  );
 
-  const signalChain = useMemo(() => resolveSignalChain(project), [project]);
+  const [selectedDeviceIds, setSelectedDeviceIds] = useState<string[]>([]);
+  
+  // Initialize selectedDeviceIds when complexDevices are first loaded
+  React.useEffect(() => {
+    if (selectedDeviceIds.length === 0 && complexDevices.length > 0) {
+      setSelectedDeviceIds(complexDevices.map(d => d.id));
+    }
+  }, [complexDevices]);
+  
+  const [isColumnPickerVisible, setIsColumnPickerVisible] = useState(false);
 
-  const patchData = useMemo(() => {
-    return project.connections.map((conn) => {
-      const sourceDevice = project.devices.find((d) => d.id === conn.sourceDeviceId);
-      const destDevice = project.devices.find((d) => d.id === conn.destinationDeviceId);
-      const sourceChannel = sourceDevice?.outputChannels.find((c) => c.id === conn.sourceChannelId);
-      const destChannel = destDevice?.inputChannels.find((c) => c.id === conn.destinationChannelId);
-
-      const sourceKey = `${conn.sourceDeviceId}:${conn.sourceChannelId}`;
-      const destKey = `${conn.destinationDeviceId}:${conn.destinationChannelId}`;
-
-      const sourceEffectiveName = signalChain[sourceKey]?.effectiveName || sourceDevice?.metadata?.generalName || sourceDevice?.name || 'Unknown';
-      const destEffectiveName = signalChain[destKey]?.effectiveName || destDevice?.name || 'Unknown';
-
-      return {
-        id: conn.id,
-        source: sourceDevice?.name || 'Unknown',
-        sourceChannel: sourceChannel?.number || '?',
-        destination: destDevice?.name || 'Unknown',
-        destChannel: destChannel?.number || '?',
-        effectiveName: sourceEffectiveName,
-        cableLabel: conn.cableLabel || '',
-        perspectiveInfo: {
-          Stage: sourceEffectiveName,
-          FOH: destEffectiveName,
-          'Monitor World': sourceEffectiveName, // Placeholder
-        },
-      };
-    });
-  }, [project, signalChain]);
+  const tabularData = useMemo(() => resolveTabularPatch(project), [project]);
 
   const filteredData = useMemo(() => {
-    let data = patchData.filter((item) => {
-      const searchStr = `${item.source} ${item.destination} ${item.effectiveName} ${item.cableLabel}`.toLowerCase();
+    return tabularData.filter((row) => {
+      const searchStr = `${row.sourceDeviceName} ${row.sourceEffectiveName} ${row.hops.map(h => h.deviceName).join(' ')}`.toLowerCase();
       return searchStr.includes(searchQuery.toLowerCase());
     });
+  }, [tabularData, searchQuery]);
 
-    data.sort((a, b) => {
-      const valA = (a as any)[sortField];
-      const valB = (b as any)[sortField];
-
-      if (valA < valB) return sortDirection === 'asc' ? -1 : 1;
-      if (valA > valB) return sortDirection === 'asc' ? 1 : -1;
-      return 0;
-    });
-
-    return data;
-  }, [patchData, searchQuery, sortField, sortDirection]);
-
-  const toggleSort = (field: string) => {
-    if (sortField === field) {
-      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
-    } else {
-      setSortField(field);
-      setSortDirection('asc');
-    }
+  const toggleDeviceColumn = (id: string) => {
+    setSelectedDeviceIds(prev => 
+      prev.includes(id) ? prev.filter(d => d !== id) : [...prev, id]
+    );
   };
 
-  const renderSortIcon = (field: string) => {
-    if (sortField !== field) return null;
-    return sortDirection === 'asc' ? <ChevronUp size={14} color="#666" /> : <ChevronDown size={14} color="#666" />;
+  const tableWidth = useMemo(() => COLUMN_WIDTH + (selectedDeviceIds.length * COLUMN_WIDTH), [selectedDeviceIds]);
+
+  const renderHeader = () => (
+    <View style={{ flexDirection: 'row', width: tableWidth, height: 60, backgroundColor: '#f3f4f6', borderBottomWidth: 1, borderColor: '#e5e7eb' }}>
+      <View style={{ width: COLUMN_WIDTH, padding: 12, borderRightWidth: 1, borderColor: '#e5e7eb', justifyContent: 'center' }}>
+        <Text style={{ fontWeight: 'bold', color: '#374151' }}>Simple Devices (Rows)</Text>
+      </View>
+      
+      {selectedDeviceIds.map(deviceId => {
+        const device = project.devices.find(d => d.id === deviceId);
+        return (
+          <View key={deviceId} style={{ width: COLUMN_WIDTH, padding: 12, borderRightWidth: 1, borderColor: '#e5e7eb', backgroundColor: '#eff6ff', justifyContent: 'center' }}>
+            <Text style={{ fontWeight: 'bold', color: '#1d4ed8', textAlign: 'center' }} numberOfLines={1}>
+              {device?.name || 'Unknown Device'}
+            </Text>
+            <View style={{ flexDirection: 'row', justifyContent: 'between', marginTop: 4, paddingHorizontal: 8 }}>
+              <Text style={{ fontSize: 10, color: '#9ca3af', fontWeight: 'bold' }}>IN</Text>
+              <Text style={{ fontSize: 10, color: '#9ca3af', fontWeight: 'bold' }}>OUT</Text>
+            </View>
+          </View>
+        );
+      })}
+    </View>
+  );
+
+  const renderRow = (item: TabularRow, index: number) => {
+    return (
+      <View key={`${item.sourceDeviceId}:${item.sourceChannelId}:${item.isSink ? 'sink' : 'source'}`} style={{ flexDirection: 'row', width: tableWidth, height: 70, borderBottomWidth: 1, borderColor: '#f3f4f6', backgroundColor: 'white' }}>
+        {/* Simple Device Cell */}
+        <View style={{ width: COLUMN_WIDTH, padding: 12, borderRightWidth: 1, borderColor: '#f9fafb', justifyContent: 'center' }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            {item.isSink ? (
+              <ArrowDownLeft size={14} color="#ef4444" style={{ marginRight: 4 }} />
+            ) : (
+              <ArrowUpRight size={14} color="#22c55e" style={{ marginRight: 4 }} />
+            )}
+            <Text style={{ fontWeight: 'bold', color: 'black' }}>{item.sourceEffectiveName}</Text>
+          </View>
+          <Text style={{ fontSize: 12, color: '#6b7280', fontStyle: 'italic' }}>{item.sourceDeviceName} ({item.sourceChannelNumber})</Text>
+        </View>
+
+        {/* Selected Device Columns */}
+        {selectedDeviceIds.map(deviceId => {
+          const hop = item.fullPath[deviceId];
+          return (
+            <View key={deviceId} style={{ width: COLUMN_WIDTH, padding: 12, borderRightWidth: 1, borderColor: '#f9fafb', flexDirection: 'row', alignItems: 'center', justifyContent: 'between' }}>
+              {hop ? (
+                <>
+                  <View style={{ flex: 1, alignItems: 'center' }}>
+                    <Text style={{ color: 'black', fontWeight: '500' }} numberOfLines={1}>
+                      {hop.inputChannelName || (hop.inputChannelNumber ? `Ch ${hop.inputChannelNumber}` : '-')}
+                    </Text>
+                    {hop.connectorType && <Text style={{ fontSize: 10, color: '#9ca3af' }}>{hop.connectorType}</Text>}
+                  </View>
+                  
+                  <View style={{ paddingHorizontal: 8 }}>
+                    <Text style={{ color: '#e5e7eb' }}>→</Text>
+                  </View>
+
+                  <View style={{ flex: 1, alignItems: 'center' }}>
+                    {hop.outputChannelId ? (
+                      <>
+                        <Text style={{ color: '#2563eb', fontWeight: '500' }} numberOfLines={1}>
+                          {hop.outputChannelName || `Ch ${hop.outputChannelNumber}`}
+                        </Text>
+                        {hop.cableLabel && <Text style={{ fontSize: 10, color: '#9ca3af', fontStyle: 'italic' }} numberOfLines={1}>{hop.cableLabel}</Text>}
+                      </>
+                    ) : (
+                      <Text style={{ color: '#e5e7eb' }}>-</Text>
+                    )}
+                  </View>
+                </>
+              ) : (
+                <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+                  <Text style={{ color: '#f3f4f6', fontSize: 12 }}>No Route</Text>
+                </View>
+              )}
+            </View>
+          );
+        })}
+      </View>
+    );
   };
 
   return (
-    <SafeAreaView className="flex-1 bg-gray-50 dark:bg-black">
+    <SafeAreaView style={{ flex: 1, backgroundColor: '#f9fafb' }}>
       <StatusBar barStyle="default" />
-      <View className="px-6 pt-2 pb-2 bg-white dark:bg-gray-900 shadow-sm border-b border-gray-200 dark:border-zinc-800">
-        <Text className="text-xl font-bold text-black dark:text-white mb-4">Patch</Text>
-        <View className="flex-row items-center bg-white dark:bg-zinc-900 px-3 py-2 rounded-lg border border-gray-200 dark:border-zinc-800 mb-4">
-          <Search size={18} color="#666" />
-          <TextInput
-            className="flex-1 ml-2 text-black dark:text-white"
-            placeholder="Search patch..."
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-            placeholderTextColor="#666"
-          />
+      
+      {/* Header Section */}
+      <View style={{ paddingHorizontal: 24, paddingVertical: 8, backgroundColor: 'white', borderBottomWidth: 1, borderColor: '#e5e7eb' }}>
+        <View style={{ flexDirection: 'row', justifyContent: 'between', alignItems: 'center', marginBottom: 16 }}>
+          <Text style={{ fontSize: 20, fontWeight: 'bold', color: 'black' }}>Patch Sheet ({filteredData.length})</Text>
+          <TouchableOpacity 
+            onPress={() => setIsColumnPickerVisible(!isColumnPickerVisible)}
+            style={{ padding: 8, borderRadius: 999, backgroundColor: isColumnPickerVisible ? '#dbeafe' : '#f3f4f6' }}
+          >
+            <Settings2 size={20} color={isColumnPickerVisible ? '#2563eb' : '#666'} />
+          </TouchableOpacity>
         </View>
 
-        <View className="flex-row justify-between">
-          {(['Stage', 'FOH', 'Monitor World'] as Perspective[]).map((p) => (
-            <TouchableOpacity
-              key={p}
-              onPress={() => setPerspective(p)}
-              className={`px-4 py-2 rounded-full ${
-                perspective === p ? 'bg-blue-600' : 'bg-gray-200 dark:bg-zinc-800'
-              }`}
-            >
-              <Text className={`font-medium ${perspective === p ? 'text-white' : 'text-gray-700 dark:text-gray-300'}`}>
-                {p}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </View>
+        {isColumnPickerVisible ? (
+          <View style={{ marginBottom: 16 }}>
+            <Text style={{ fontSize: 10, fontWeight: 'bold', color: '#6b7280', marginBottom: 8, textTransform: 'uppercase', letterSpacing: 1 }}>Active Columns (Devices)</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexDirection: 'row' }}>
+              {complexDevices.map(d => (
+                <TouchableOpacity
+                  key={d.id}
+                  onPress={() => toggleDeviceColumn(d.id)}
+                  style={{ 
+                    marginRight: 8, 
+                    paddingHorizontal: 12, 
+                    paddingVertical: 6, 
+                    borderRadius: 8, 
+                    borderWidth: 1,
+                    backgroundColor: selectedDeviceIds.includes(d.id) ? '#2563eb' : 'white',
+                    borderColor: selectedDeviceIds.includes(d.id) ? '#2563eb' : '#e5e7eb'
+                  }}
+                >
+                  <Text style={{ fontSize: 12, fontWeight: '500', color: selectedDeviceIds.includes(d.id) ? 'white' : '#374151' }}>
+                    {d.name}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        ) : (
+          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
+            <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', backgroundColor: 'white', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8, borderWidth: 1, borderColor: '#e5e7eb' }}>
+              <Search size={18} color="#666" />
+              <TextInput
+                style={{ flex: 1, marginLeft: 8, color: 'black' }}
+                placeholder="Search source mics, DIs, etc..."
+                value={searchQuery}
+                onChangeText={setSearchQuery}
+                placeholderTextColor="#666"
+              />
+            </View>
+          </View>
+        )}
       </View>
 
-      <ScrollView horizontal>
-        <View>
-          <View className="flex-row bg-gray-100 dark:bg-zinc-900 border-b border-gray-200 dark:border-zinc-800">
-            <TouchableOpacity onPress={() => toggleSort('source')} className="w-40 p-3 flex-row items-center">
-              <Text className="font-bold mr-1 text-gray-700 dark:text-gray-300">Source</Text>
-              {renderSortIcon('source')}
-            </TouchableOpacity>
-            <TouchableOpacity onPress={() => toggleSort('sourceChannel')} className="w-20 p-3 flex-row items-center">
-              <Text className="font-bold mr-1 text-gray-700 dark:text-gray-300">Ch</Text>
-              {renderSortIcon('sourceChannel')}
-            </TouchableOpacity>
-            <TouchableOpacity onPress={() => toggleSort('destination')} className="w-40 p-3 flex-row items-center">
-              <Text className="font-bold mr-1 text-gray-700 dark:text-gray-300">Destination</Text>
-              {renderSortIcon('destination')}
-            </TouchableOpacity>
-            <TouchableOpacity onPress={() => toggleSort('destChannel')} className="w-20 p-3 flex-row items-center">
-              <Text className="font-bold mr-1 text-gray-700 dark:text-gray-300">Ch</Text>
-              {renderSortIcon('destChannel')}
-            </TouchableOpacity>
-            <TouchableOpacity onPress={() => toggleSort('effectiveName')} className="w-48 p-3 flex-row items-center">
-              <Text className="font-bold mr-1 text-gray-700 dark:text-gray-300">Label ({perspective})</Text>
-              {renderSortIcon('effectiveName')}
-            </TouchableOpacity>
-            <TouchableOpacity onPress={() => toggleSort('cableLabel')} className="w-32 p-3 flex-row items-center">
-              <Text className="font-bold mr-1 text-gray-700 dark:text-gray-300">Cable</Text>
-              {renderSortIcon('cableLabel')}
-            </TouchableOpacity>
-          </View>
-
-          <ScrollView className="flex-1">
-            {filteredData.map((item) => (
-              <View key={item.id} className="flex-row border-b border-gray-100 dark:border-zinc-900 bg-white dark:bg-zinc-950">
-                <View className="w-40 p-3">
-                  <Text className="text-black dark:text-white" numberOfLines={1}>{item.source}</Text>
-                </View>
-                <View className="w-20 p-3">
-                  <Text className="text-gray-600 dark:text-gray-400">{item.sourceChannel}</Text>
-                </View>
-                <View className="w-40 p-3">
-                  <Text className="text-black dark:text-white" numberOfLines={1}>{item.destination}</Text>
-                </View>
-                <View className="w-20 p-3">
-                  <Text className="text-gray-600 dark:text-gray-400">{item.destChannel}</Text>
-                </View>
-                <View className="w-48 p-3">
-                  <Text className="font-medium text-blue-600 dark:text-blue-400" numberOfLines={1}>
-                    {item.perspectiveInfo[perspective]}
-                  </Text>
-                </View>
-                <View className="w-32 p-3">
-                  <Text className="text-gray-500 dark:text-gray-500 italic" numberOfLines={1}>{item.cableLabel || '-'}</Text>
-                </View>
+      {/* Table Section */}
+      <ScrollView horizontal bounces={false} style={{ flex: 1 }} contentContainerStyle={{ minWidth: tableWidth }}>
+        <View style={{ flex: 1 }}>
+          <ScrollView 
+            style={{ flex: 1 }}
+            contentContainerStyle={{ flexGrow: 1 }}
+            showsVerticalScrollIndicator={true}
+          >
+            {renderHeader()}
+            
+            {filteredData.length > 0 ? (
+              filteredData.map((item, index) => renderRow(item, index))
+            ) : (
+              <View style={{ width: tableWidth, padding: 80, alignItems: 'center', justifyContent: 'center' }}>
+                <Text style={{ color: '#9ca3af' }}>No patch data found</Text>
+                <Text style={{ fontSize: 12, color: '#6b7280', marginTop: 8 }}>Check source device settings</Text>
               </View>
-            ))}
+            )}
           </ScrollView>
         </View>
       </ScrollView>

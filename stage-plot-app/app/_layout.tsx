@@ -8,8 +8,9 @@ import 'react-native-reanimated';
 
 import '../global.css';
 
-import { useColorScheme } from '@/components/useColorScheme';
+import { useColorScheme as useReactNativeColorScheme } from 'react-native';
 import { ProjectProvider } from '../contexts/ProjectContext';
+import { ThemeProvider as StagePlotThemeProvider } from '../contexts/ThemeContext';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 export {
@@ -50,18 +51,20 @@ export default function RootLayout() {
 }
 
 function RootLayoutNav() {
-  const colorScheme = useColorScheme();
+  const colorScheme = useReactNativeColorScheme();
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <ProjectProvider>
-        <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-          <Stack>
-            <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-            <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
-          </Stack>
-        </ThemeProvider>
-      </ProjectProvider>
+      <StagePlotThemeProvider>
+        <ProjectProvider>
+          <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+            <Stack>
+              <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+              <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
+            </Stack>
+          </ThemeProvider>
+        </ProjectProvider>
+      </StagePlotThemeProvider>
     </GestureHandlerRootView>
   );
 }

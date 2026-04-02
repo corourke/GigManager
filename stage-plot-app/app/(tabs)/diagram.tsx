@@ -1,151 +1,26 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { View, StyleSheet, Dimensions, TouchableOpacity, Text, Platform, Alert, SafeAreaView, StatusBar } from 'react-native';
 import Svg, { G, Circle, Path } from 'react-native-svg';
+import { GestureDetector, Gesture } from 'react-native-gesture-handler';
+import Animated, { useAnimatedStyle, useSharedValue, runOnJS, SharedValue } from 'react-native-reanimated';
 import { useProject } from '../../contexts/ProjectContext';
 import { DeviceNode, getChannelLayout, getNodeWidth, getNodeHeight } from '../../components/DeviceNode';
 import { DeviceModal } from '../../components/DeviceModal';
 import { Device } from '../../models';
 import { Plus, Maximize, Minimize, RefreshCcw, Trash2 } from 'lucide-react-native';
+import { 
+  Point, 
+  Obstacle, 
+  getOrthogonalPoints, 
+  pointsToRoundedPath, 
+  distToSegments, 
+  snap,
+  ROUTE_MARGIN,
+  LINE_SPACING,
+  OBSTACLE_PADDING
+} from '../../utils/routing';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
-
-type Obstacle = { left: number; top: number; right: number; bottom: number };
-type Point = { x: number; y: number };
-
-const ROUTE_MARGIN = 24;
-const CORNER_RADIUS = 8;
-const LINE_SPACING = 6;
-
-function segmentIntersectsBox(a: Point, b: Point, obs: Obstacle, pad: number = 0): boolean {
-  const left = obs.left - pad, right = obs.right + pad, top = obs.top - pad, bottom = obs.bottom + pad;
-  if (a.x === b.x) {
-    if (a.x <= left || a.x >= right) return false;
-    const minY = Math.min(a.y, b.y), maxY = Math.max(a.y, b.y);
-    return maxY > top && minY < bottom;
-  }
-  if (a.y === b.y) {
-    if (a.y <= top || a.y >= bottom) return false;
-    const minX = Math.min(a.x, b.x), maxX = Math.max(a.x, b.x);
-    return maxX > left && minX < right;
-  }
-  const minX = Math.min(a.x, b.x), maxX = Math.max(a.x, b.x);
-  const minY = Math.min(a.y, b.y), maxY = Math.max(a.y, b.y);
-  return maxX > left && minX < right && maxY > top && minY < bottom;
-}
-
-function pathHitsObstacles(pts: Point[], obstacles: Obstacle[]): boolean {
-  for (let i = 0; i < pts.length - 1; i++) {
-    for (const obs of obstacles) {
-      if (segmentIntersectsBox(pts[i], pts[i + 1], obs)) return true;
-    }
-  }
-  return false;
-}
-
-function getOrthogonalPoints(x1: number, y1: number, x2: number, y2: number, obstacles: Obstacle[], midXOffset: number = 0): Point[] {
-  const stub = 16;
-  const sx = x1 + stub;
-  const ex = x2 - stub;
-  const midX = (sx + ex) / 2 + midXOffset;
-
-  const simplePath: Point[] = [
-    { x: x1, y: y1 }, { x: sx, y: y1 },
-    { x: midX, y: y1 }, { x: midX, y: y2 },
-    { x: ex, y: y2 }, { x: x2, y: y2 },
-  ];
-
-  if (!pathHitsObstacles(simplePath, obstacles)) return simplePath;
-
-  let bestBypass: Point[] | null = null;
-  const candidateYs: number[] = [];
-
-  obstacles.forEach(obs => {
-    candidateYs.push(obs.top - ROUTE_MARGIN);
-    candidateYs.push(obs.bottom + ROUTE_MARGIN);
-  });
-
-  for (const bypassY of candidateYs) {
-    const path: Point[] = [
-      { x: x1, y: y1 }, { x: sx, y: y1 },
-      { x: sx, y: bypassY },
-      { x: ex, y: bypassY },
-      { x: ex, y: y2 }, { x: x2, y: y2 },
-    ];
-    if (!pathHitsObstacles(path, obstacles)) {
-      if (!bestBypass) {
-        bestBypass = path;
-      } else {
-        const curLen = totalPathLen(bestBypass);
-        const newLen = totalPathLen(path);
-        if (newLen < curLen) bestBypass = path;
-      }
-    }
-  }
-
-  if (bestBypass) return bestBypass;
-
-  let globalTop = Infinity, globalBottom = -Infinity;
-  obstacles.forEach(obs => {
-    globalTop = Math.min(globalTop, obs.top);
-    globalBottom = Math.max(globalBottom, obs.bottom);
-  });
-  const avgY = (y1 + y2) / 2;
-  const bypassY = (avgY - globalTop) <= (globalBottom - avgY) ? globalTop - ROUTE_MARGIN : globalBottom + ROUTE_MARGIN;
-
-  return [
-    { x: x1, y: y1 }, { x: sx, y: y1 },
-    { x: sx, y: bypassY },
-    { x: ex, y: bypassY },
-    { x: ex, y: y2 }, { x: x2, y: y2 },
-  ];
-}
-
-function totalPathLen(pts: Point[]): number {
-  let len = 0;
-  for (let i = 0; i < pts.length - 1; i++) {
-    len += Math.abs(pts[i + 1].x - pts[i].x) + Math.abs(pts[i + 1].y - pts[i].y);
-  }
-  return len;
-}
-
-function pointsToRoundedPath(pts: Point[]): string {
-  if (pts.length < 2) return '';
-  const r = CORNER_RADIUS;
-  let d = `M ${pts[0].x} ${pts[0].y}`;
-
-  for (let i = 1; i < pts.length - 1; i++) {
-    const prev = pts[i - 1], cur = pts[i], next = pts[i + 1];
-    const dx1 = cur.x - prev.x, dy1 = cur.y - prev.y;
-    const dx2 = next.x - cur.x, dy2 = next.y - cur.y;
-    const len1 = Math.sqrt(dx1 * dx1 + dy1 * dy1);
-    const len2 = Math.sqrt(dx2 * dx2 + dy2 * dy2);
-    if (len1 === 0 || len2 === 0) { d += ` L ${cur.x} ${cur.y}`; continue; }
-    const rr = Math.min(r, len1 / 2, len2 / 2);
-    const startX = cur.x - (dx1 / len1) * rr;
-    const startY = cur.y - (dy1 / len1) * rr;
-    const endX = cur.x + (dx2 / len2) * rr;
-    const endY = cur.y + (dy2 / len2) * rr;
-    d += ` L ${startX} ${startY} Q ${cur.x} ${cur.y} ${endX} ${endY}`;
-  }
-
-  d += ` L ${pts[pts.length - 1].x} ${pts[pts.length - 1].y}`;
-  return d;
-}
-
-function distToSegments(px: number, py: number, pts: Point[]): number {
-  let min = Infinity;
-  for (let i = 0; i < pts.length - 1; i++) {
-    const ax = pts[i].x, ay = pts[i].y;
-    const bx = pts[i + 1].x, by = pts[i + 1].y;
-    const dx = bx - ax, dy = by - ay;
-    const len2 = dx * dx + dy * dy;
-    let t = len2 === 0 ? 0 : Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / len2));
-    const cx = ax + t * dx, cy = ay + t * dy;
-    const d = Math.sqrt((px - cx) ** 2 + (py - cy) ** 2);
-    if (d < min) min = d;
-  }
-  return min;
-}
 
 export default function DiagramScreen() {
   const { project, updateDevice, addConnection, deleteConnection, deleteDevice } = useProject();
@@ -161,6 +36,55 @@ export default function DiagramScreen() {
     currentX: number;
     currentY: number;
   } | null>(null);
+
+  const vpX = useSharedValue(0);
+  const vpY = useSharedValue(0);
+  const vpScale = useSharedValue(1);
+  const panCtx = useSharedValue({ x: 0, y: 0 });
+  const scaleCtx = useSharedValue(1);
+  const didPan = useSharedValue(false);
+  const canvasOffsetX = useSharedValue(0);
+  const canvasOffsetY = useSharedValue(0);
+
+  const canvasContainerRef = useRef<View>(null);
+
+  const canvasAnimatedStyle = useAnimatedStyle(() => ({
+    transform: [
+      { translateX: vpX.value },
+      { translateY: vpY.value },
+      { scale: vpScale.value },
+    ] as any,
+  }));
+
+  const svgSize = useMemo(() => {
+    let maxX = canvasSize.width * 2;
+    let maxY = canvasSize.height * 2;
+    project.devices.forEach(d => {
+      maxX = Math.max(maxX, (d.position?.x ?? 0) + 500);
+      maxY = Math.max(maxY, (d.position?.y ?? 0) + 500);
+    });
+    return { width: maxX, height: maxY };
+  }, [project.devices, canvasSize]);
+
+  useEffect(() => {
+    if (Platform.OS !== 'web') return;
+    const el = canvasContainerRef.current as any;
+    if (!el) return;
+    const handleWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      const rect = (el as HTMLElement).getBoundingClientRect();
+      const mouseX = e.clientX - rect.left;
+      const mouseY = e.clientY - rect.top;
+      const factor = e.deltaY > 0 ? 0.92 : 1.08;
+      const newScale = Math.max(0.15, Math.min(3, vpScale.value * factor));
+      const ratio = newScale / vpScale.value;
+      vpX.value = mouseX - (mouseX - vpX.value) * ratio;
+      vpY.value = mouseY - (mouseY - vpY.value) * ratio;
+      vpScale.value = newScale;
+    };
+    el.addEventListener('wheel', handleWheel, { passive: false });
+    return () => el.removeEventListener('wheel', handleWheel);
+  }, []);
 
   const handleDeleteDevice = (id: string) => {
     if (Platform.OS === 'web') {
@@ -184,7 +108,7 @@ export default function DiagramScreen() {
   };
 
   const handlePositionChange = useCallback((id: string, x: number, y: number) => {
-    updateDevice(id, { position: { x, y } });
+    updateDevice(id, { position: { x: snap(x), y: snap(y) } });
   }, [updateDevice]);
 
   const handleStartConnection = (deviceId: string, channelId: string, x: number, y: number) => {
@@ -222,10 +146,99 @@ export default function DiagramScreen() {
 
   const handleCancelConnection = () => setActiveConnection(null);
 
-  const handleResetLayout = () => {
-    project.devices.forEach((device, index) => {
-      updateDevice(device.id, { position: { x: 50 + (index % 2) * 220, y: 50 + Math.floor(index / 2) * 180 } });
+  const handleAutoLayout = () => {
+    const outEdges: Record<string, Set<string>> = {};
+    const inDeg: Record<string, number> = {};
+
+    project.devices.forEach(d => {
+      outEdges[d.id] = new Set();
+      inDeg[d.id] = 0;
     });
+
+    project.connections.forEach(c => {
+      if (outEdges[c.sourceDeviceId] && !outEdges[c.sourceDeviceId].has(c.destinationDeviceId)) {
+        outEdges[c.sourceDeviceId].add(c.destinationDeviceId);
+        inDeg[c.destinationDeviceId] = (inDeg[c.destinationDeviceId] || 0) + 1;
+      }
+    });
+
+    const layer: Record<string, number> = {};
+    const queue: string[] = [];
+
+    project.devices.forEach(d => {
+      if (inDeg[d.id] === 0) {
+        queue.push(d.id);
+        layer[d.id] = 0;
+      }
+    });
+
+    while (queue.length > 0) {
+      const id = queue.shift()!;
+      for (const dest of outEdges[id] || []) {
+        layer[dest] = Math.max(layer[dest] || 0, layer[id] + 1);
+        inDeg[dest]--;
+        if (inDeg[dest] === 0) queue.push(dest);
+      }
+    }
+
+    project.devices.forEach(d => {
+      if (layer[d.id] === undefined) layer[d.id] = 0;
+    });
+
+    const layers: Record<number, Device[]> = {};
+    project.devices.forEach(d => {
+      const l = layer[d.id];
+      if (!layers[l]) layers[l] = [];
+      layers[l].push(d);
+    });
+
+    Object.values(layers).forEach(devs => {
+      devs.sort((a, b) => a.type.localeCompare(b.type) || a.name.localeCompare(b.name));
+    });
+
+    const COL_WIDTH = 300;
+    const ROW_GAP = 40;
+    const START_X = 20;
+    const START_Y = 20;
+
+    Object.entries(layers)
+      .sort(([a], [b]) => Number(a) - Number(b))
+      .forEach(([layerStr, devs]) => {
+        const col = Number(layerStr);
+        let y = START_Y;
+        devs.forEach(d => {
+          updateDevice(d.id, { position: { x: snap(START_X + col * COL_WIDTH), y: snap(y) } });
+          y += getNodeHeight(d) + ROW_GAP;
+        });
+      });
+  };
+
+  const handleFitAll = () => {
+    if (project.devices.length === 0) return;
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    project.devices.forEach(d => {
+      const x = d.position?.x ?? 0;
+      const y = d.position?.y ?? 0;
+      minX = Math.min(minX, x);
+      minY = Math.min(minY, y);
+      maxX = Math.max(maxX, x + getNodeWidth(d));
+      maxY = Math.max(maxY, y + getNodeHeight(d));
+    });
+    const pad = 40;
+    const contentW = maxX - minX + pad * 2;
+    const contentH = maxY - minY + pad * 2;
+    const scaleX = canvasSize.width / contentW;
+    const scaleY = canvasSize.height / contentH;
+    const newScale = Math.min(scaleX, scaleY, 2);
+    vpScale.value = newScale;
+    vpX.value = (canvasSize.width - contentW * newScale) / 2 - (minX - pad) * newScale;
+    vpY.value = (canvasSize.height - contentH * newScale) / 2 - (minY - pad) * newScale;
+  };
+
+  const handleResetZoom = () => {
+    vpX.value = 0;
+    vpY.value = 0;
+    vpScale.value = 1;
   };
 
   const handleDeleteSelectedConnection = () => {
@@ -235,33 +248,18 @@ export default function DiagramScreen() {
     }
   };
 
-  const getDeviceObstacles = (excludeIds: string[]): Obstacle[] => {
+  const getDeviceObstacles = (): Obstacle[] => {
     return project.devices
-      .filter(d => !excludeIds.includes(d.id))
       .map(d => ({
-        left: (d.position?.x ?? 0) - 5,
-        top: (d.position?.y ?? 0) - 5,
-        right: (d.position?.x ?? 0) + getNodeWidth(d) + 5,
-        bottom: (d.position?.y ?? 0) + getNodeHeight(d) + 5,
+        id: d.id,
+        left: (d.position?.x ?? 0) - OBSTACLE_PADDING,
+        top: (d.position?.y ?? 0) - OBSTACLE_PADDING,
+        right: (d.position?.x ?? 0) + getNodeWidth(d) + OBSTACLE_PADDING,
+        bottom: (d.position?.y ?? 0) + getNodeHeight(d) + OBSTACLE_PADDING,
       }));
   };
 
-  const handleCanvasPress = (event: any) => {
-    let px: number, py: number;
-    if (Platform.OS === 'web') {
-      const rect = event.currentTarget?.getBoundingClientRect?.();
-      if (rect) {
-        px = event.clientX - rect.left;
-        py = event.clientY - rect.top;
-      } else {
-        setSelectedConnectionId(null);
-        return;
-      }
-    } else {
-      px = event.nativeEvent?.locationX ?? 0;
-      py = event.nativeEvent?.locationY ?? 0;
-    }
-
+  const selectConnectionAtPoint = (px: number, py: number) => {
     let closestId: string | null = null;
     let closestDist = 20;
 
@@ -286,26 +284,57 @@ export default function DiagramScreen() {
       });
     });
 
-    const hitMidX: Record<string, number> = {};
+    const srcOffX: Record<string, number> = {};
+    const srcOffY: Record<string, number> = {};
+    const dstOffX: Record<string, number> = {};
+    const dstOffY: Record<string, number> = {};
+
+    const byDest: Record<string, string[]> = {};
     hitEndpoints.forEach(ep => {
-      hitMidX[ep.id] = (ep.x1 + 16 + ep.x2 - 16) / 2;
+      if (!byDest[ep.dstId]) byDest[ep.dstId] = [];
+      byDest[ep.dstId].push(ep.id);
     });
-    const hitSorted = [...hitEndpoints].sort((a, b) => hitMidX[a.id] - hitMidX[b.id]);
-    const hitAssigned: number[] = [];
-    hitSorted.forEach(ep => {
-      let mx = hitMidX[ep.id];
-      for (const used of hitAssigned) {
-        if (Math.abs(mx - used) < LINE_SPACING) mx = used + LINE_SPACING;
-      }
-      hitMidX[ep.id] = mx;
-      hitAssigned.push(mx);
+    Object.values(byDest).forEach(ids => {
+      ids.sort((a, b) => {
+        const epA = hitEndpoints.find(e => e.id === a)!;
+        const epB = hitEndpoints.find(e => e.id === b)!;
+        return epA.y1 - epB.y1;
+      });
+      ids.forEach((id, idx) => {
+        dstOffX[id] = (idx - (ids.length - 1) / 2) * LINE_SPACING;
+        dstOffY[id] = (idx - (ids.length - 1) / 2) * (LINE_SPACING / 2);
+      });
+    });
+
+    const bySrc: Record<string, string[]> = {};
+    hitEndpoints.forEach(ep => {
+      if (!bySrc[ep.srcId]) bySrc[ep.srcId] = [];
+      bySrc[ep.srcId].push(ep.id);
+    });
+    Object.values(bySrc).forEach(ids => {
+      ids.sort((a, b) => {
+        const epA = hitEndpoints.find(e => e.id === a)!;
+        const epB = hitEndpoints.find(e => e.id === b)!;
+        return epA.y1 - epB.y1;
+      });
+      ids.forEach((id, idx) => {
+        srcOffX[id] = (idx - (ids.length - 1) / 2) * LINE_SPACING;
+        srcOffY[id] = (idx - (ids.length - 1) / 2) * (LINE_SPACING / 2);
+      });
     });
 
     hitEndpoints.forEach(ep => {
-      const baseMidX = (ep.x1 + 16 + ep.x2 - 16) / 2;
-      const hitOffset = hitMidX[ep.id] - baseMidX;
-      const obstacles = getDeviceObstacles([ep.srcId, ep.dstId]);
-      const pts = getOrthogonalPoints(ep.x1, ep.y1, ep.x2, ep.y2, obstacles, hitOffset);
+      const obstacles = getDeviceObstacles();
+      const pts = getOrthogonalPoints(
+        ep.x1, ep.y1, ep.x2, ep.y2, 
+        obstacles, 
+        srcOffX[ep.id] || 0, 
+        srcOffY[ep.id] || 0,
+        dstOffX[ep.id] || 0,
+        dstOffY[ep.id] || 0,
+        ep.srcId, 
+        ep.dstId
+      );
       const d = distToSegments(px, py, pts);
       if (d < closestDist) { closestDist = d; closestId = ep.id; }
     });
@@ -313,8 +342,66 @@ export default function DiagramScreen() {
     setSelectedConnectionId(closestId);
   };
 
+
+  const handleCanvasPress = (event: any) => {
+    if (didPan.value) {
+      didPan.value = false;
+      return;
+    }
+    let screenX: number, screenY: number;
+    if (Platform.OS === 'web') {
+      const rect = event.currentTarget?.getBoundingClientRect?.();
+      if (!rect) { setSelectedConnectionId(null); return; }
+      screenX = event.clientX - rect.left;
+      screenY = event.clientY - rect.top;
+    } else {
+      screenX = event.nativeEvent?.locationX ?? 0;
+      screenY = event.nativeEvent?.locationY ?? 0;
+    }
+    const cx = (screenX - vpX.value) / vpScale.value;
+    const cy = (screenY - vpY.value) / vpScale.value;
+    selectConnectionAtPoint(cx, cy);
+  };
+
+  const canvasPanGesture = Gesture.Pan()
+    .minPointers(Platform.OS === 'web' ? 1 : 2)
+    .minDistance(5)
+    .onStart(() => {
+      didPan.value = false;
+      panCtx.value = { x: vpX.value, y: vpY.value };
+    })
+    .onUpdate((e) => {
+      didPan.value = true;
+      vpX.value = panCtx.value.x + e.translationX;
+      vpY.value = panCtx.value.y + e.translationY;
+    });
+
+  const canvasPinchGesture = Gesture.Pinch()
+    .onStart(() => { scaleCtx.value = vpScale.value; })
+    .onUpdate((e) => {
+      vpScale.value = Math.max(0.15, Math.min(3, scaleCtx.value * e.scale));
+    });
+
+  const doubleTapGesture = Gesture.Tap()
+    .numberOfTaps(2)
+    .onEnd(() => {
+      runOnJS(handleResetZoom)();
+    });
+
+  const canvasTapGesture = Gesture.Tap()
+    .onEnd((e) => {
+      runOnJS(handleCanvasPress)({
+        nativeEvent: {
+          locationX: e.absoluteX - canvasOffsetX.value,
+          locationY: e.absoluteY - canvasOffsetY.value,
+        }
+      });
+    });
+
+  const canvasGesture = Gesture.Simultaneous(canvasPanGesture, canvasPinchGesture, Gesture.Exclusive(doubleTapGesture, canvasTapGesture));
+
   const renderConnections = () => {
-    const connEndpoints: Array<{ id: string; x1: number; y1: number; x2: number; y2: number; srcId: string; dstId: string }> = [];
+    const hitEndpoints: Array<{ id: string; x1: number; y1: number; x2: number; y2: number; srcId: string; dstId: string }> = [];
     project.connections.forEach(c => {
       const src = project.devices.find(d => d.id === c.sourceDeviceId);
       const dst = project.devices.find(d => d.id === c.destinationDeviceId);
@@ -324,7 +411,7 @@ export default function DiagramScreen() {
       const sci = sl[c.sourceChannelId];
       const dci = dl[c.destinationChannelId];
       if (!sci || !dci) return;
-      connEndpoints.push({
+      hitEndpoints.push({
         id: c.id,
         x1: (src.position?.x ?? 0) + getNodeWidth(src),
         y1: (src.position?.y ?? 0) + sci.y,
@@ -335,42 +422,76 @@ export default function DiagramScreen() {
       });
     });
 
-    const midXForConn: Record<string, number> = {};
-    connEndpoints.forEach(ep => {
-      midXForConn[ep.id] = (ep.x1 + 16 + ep.x2 - 16) / 2;
+    const srcOffX: Record<string, number> = {};
+    const srcOffY: Record<string, number> = {};
+    const dstOffX: Record<string, number> = {};
+    const dstOffY: Record<string, number> = {};
+
+    // Group by destination to space out vertical segments entering the same device
+    const byDest: Record<string, string[]> = {};
+    hitEndpoints.forEach(ep => {
+      if (!byDest[ep.dstId]) byDest[ep.dstId] = [];
+      byDest[ep.dstId].push(ep.id);
     });
 
-    const sorted = [...connEndpoints].sort((a, b) => midXForConn[a.id] - midXForConn[b.id]);
-    const assignedMidX: number[] = [];
-    sorted.forEach(ep => {
-      let mx = midXForConn[ep.id];
-      for (const used of assignedMidX) {
-        if (Math.abs(mx - used) < LINE_SPACING) {
-          mx = used + LINE_SPACING;
-        }
-      }
-      midXForConn[ep.id] = mx;
-      assignedMidX.push(mx);
+    Object.values(byDest).forEach(ids => {
+      // Sort by source Y to keep relative order clean
+      ids.sort((a, b) => {
+        const epA = hitEndpoints.find(e => e.id === a)!;
+        const epB = hitEndpoints.find(e => e.id === b)!;
+        return epA.y1 - epB.y1;
+      });
+      ids.forEach((id, idx) => {
+        dstOffX[id] = (idx - (ids.length - 1) / 2) * LINE_SPACING;
+        dstOffY[id] = (idx - (ids.length - 1) / 2) * (LINE_SPACING / 2);
+      });
+    });
+
+    // Group by source to space out vertical segments leaving the same device
+    const bySrc: Record<string, string[]> = {};
+    hitEndpoints.forEach(ep => {
+      if (!bySrc[ep.srcId]) bySrc[ep.srcId] = [];
+      bySrc[ep.srcId].push(ep.id);
+    });
+
+    Object.values(bySrc).forEach(ids => {
+      ids.sort((a, b) => {
+        const epA = hitEndpoints.find(e => e.id === a)!;
+        const epB = hitEndpoints.find(e => e.id === b)!;
+        return epA.y1 - epB.y1;
+      });
+      ids.forEach((id, idx) => {
+        srcOffX[id] = (idx - (ids.length - 1) / 2) * LINE_SPACING;
+        srcOffY[id] = (idx - (ids.length - 1) / 2) * (LINE_SPACING / 2);
+      });
     });
 
     return project.connections.map(connection => {
-      const ep = connEndpoints.find(e => e.id === connection.id);
+      const ep = hitEndpoints.find(e => e.id === connection.id);
       if (!ep) return null;
       const sourceDevice = project.devices.find(d => d.id === connection.sourceDeviceId)!;
       const destDevice = project.devices.find(d => d.id === connection.destinationDeviceId)!;
       if (!sourceDevice || !destDevice) return null;
 
       const { x1, y1, x2, y2 } = ep;
-      const baseMidX = (x1 + 16 + x2 - 16) / 2;
-      const midXOffset = midXForConn[connection.id] - baseMidX;
-
-      const obstacles = getDeviceObstacles([connection.sourceDeviceId, connection.destinationDeviceId]);
-      const pts = getOrthogonalPoints(x1, y1, x2, y2, obstacles, midXOffset);
+      const obstacles = getDeviceObstacles();
+      const pts = getOrthogonalPoints(
+        x1, y1, x2, y2, 
+        obstacles, 
+        srcOffX[connection.id] || 0, 
+        srcOffY[connection.id] || 0,
+        dstOffX[connection.id] || 0,
+        dstOffY[connection.id] || 0,
+        connection.sourceDeviceId, 
+        connection.destinationDeviceId
+      );
       const pathData = pointsToRoundedPath(pts);
       const isSelected = selectedConnectionId === connection.id;
 
+
       return (
         <G key={connection.id}>
+          {isSelected && <Path d={pathData} stroke="#ef4444" strokeWidth="8" strokeOpacity="0.2" fill="none" />}
           <Path d={pathData} stroke={isSelected ? "#ef4444" : "#3b82f6"} strokeWidth={isSelected ? "3" : "2"} fill="none" />
           {isSelected && (() => {
             let totalLen = 0;
@@ -418,20 +539,24 @@ export default function DiagramScreen() {
               <Trash2 size={20} color="#ef4444" />
             </TouchableOpacity>
           )}
-          <TouchableOpacity style={[styles.toolBtn, { marginRight: 8 }]}>
-            <Maximize size={20} color="#6b7280" />
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.toolBtn}>
+          <TouchableOpacity onPress={() => { setEditingDevice(undefined); setIsDeviceModalVisible(true); }} style={styles.toolBtn}>
             <Plus size={20} color="#6b7280" />
           </TouchableOpacity>
         </View>
       </View>
 
       <View
+        ref={canvasContainerRef}
         style={{ flex: 1, overflow: 'hidden' }}
         onLayout={(e) => {
           const { width, height } = e.nativeEvent.layout;
           setCanvasSize({ width, height });
+          if (canvasContainerRef.current) {
+            canvasContainerRef.current.measureInWindow((x, y) => {
+              canvasOffsetX.value = x;
+              canvasOffsetY.value = y;
+            });
+          }
         }}
         {...Platform.select({
           web: {
@@ -441,27 +566,30 @@ export default function DiagramScreen() {
           default: { onTouchEnd: handleCanvasPress }
         })}
       >
-        <Svg width={canvasSize.width} height={canvasSize.height} style={StyleSheet.absoluteFill}>
-          {renderConnections()}
-          {activePathData && (
-            <Path d={activePathData} stroke="#3b82f6" strokeWidth="2" strokeDasharray="5,5" fill="none" />
-          )}
-        </Svg>
+        <GestureDetector gesture={canvasGesture}>
+          <Animated.View style={[{ position: 'absolute', left: 0, top: 0 }, { transformOrigin: '0 0' } as any, canvasAnimatedStyle]}>
+            <Svg width={svgSize.width} height={svgSize.height} style={{ position: 'absolute', left: 0, top: 0 }}>
+              {renderConnections()}
+              {activePathData && (
+                <Path d={activePathData} stroke="#3b82f6" strokeWidth="2" strokeDasharray="5,5" fill="none" />
+              )}
+            </Svg>
 
-        {project.devices.map(device => (
-          <DeviceNode
-            key={device.id}
-            device={device}
-            onPositionChange={handlePositionChange}
-            onSelect={handleSelectDevice}
-            onStartConnection={handleStartConnection}
-            onUpdateConnection={handleUpdateConnection}
-            onEndConnection={handleEndConnection}
-            onCancelConnection={handleCancelConnection}
-            canvasWidth={canvasSize.width}
-            canvasHeight={canvasSize.height}
-          />
-        ))}
+            {project.devices.map(device => (
+              <DeviceNode
+                key={device.id}
+                device={device}
+                onPositionChange={handlePositionChange}
+                onSelect={handleSelectDevice}
+                onStartConnection={handleStartConnection}
+                onUpdateConnection={handleUpdateConnection}
+                onEndConnection={handleEndConnection}
+                onCancelConnection={handleCancelConnection}
+                canvasScale={vpScale}
+              />
+            ))}
+          </Animated.View>
+        </GestureDetector>
       </View>
 
       <DeviceModal
@@ -475,13 +603,13 @@ export default function DiagramScreen() {
       />
 
       <View style={styles.floatingControls}>
-        <TouchableOpacity onPress={handleResetLayout} style={styles.fab}>
+        <TouchableOpacity onPress={handleAutoLayout} style={styles.fab}>
           <RefreshCcw size={24} color="#6b7280" />
         </TouchableOpacity>
-        <TouchableOpacity style={styles.fab}>
+        <TouchableOpacity onPress={handleFitAll} style={styles.fab}>
           <Maximize size={24} color="#6b7280" />
         </TouchableOpacity>
-        <TouchableOpacity style={styles.fab}>
+        <TouchableOpacity onPress={handleResetZoom} style={styles.fab}>
           <Minimize size={24} color="#6b7280" />
         </TouchableOpacity>
       </View>
@@ -526,10 +654,19 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
-    shadowRadius: 4,
-    elevation: 4,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.15,
+        shadowRadius: 4,
+      },
+      android: {
+        elevation: 4,
+      },
+      web: {
+        boxShadow: '0 2px 4px rgba(0,0,0,0.15)',
+      } as any,
+    }),
   },
 });

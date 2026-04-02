@@ -10,12 +10,15 @@ import {
   ScrollView,
   Alert
 } from 'react-native';
-import { Plus, Search, Filter, X, LayoutGrid, Layers, Settings } from 'lucide-react-native';
+import { Plus, Search, Filter, X, LayoutGrid, Layers, Settings, FileText } from 'lucide-react-native';
 import { useProject } from '../../contexts/ProjectContext';
 import { DeviceCard } from '../../components/DeviceCard';
 import { DeviceModal } from '../../components/DeviceModal';
 import { ManageListModal } from '../../components/ManageListModal';
+import { ProjectListModal } from '../../components/ProjectListModal';
+import { SettingsModal } from '../../components/SettingsModal';
 import { Device } from '../../models';
+import { DEVICE_TYPES } from '../../constants/DeviceLibrary';
 
 export default function SetupsScreen() {
   const { 
@@ -37,6 +40,8 @@ export default function SetupsScreen() {
   const [isDeviceModalVisible, setIsDeviceModalVisible] = useState(false);
   const [isGroupModalVisible, setIsGroupModalVisible] = useState(false);
   const [isCategoryModalVisible, setIsCategoryModalVisible] = useState(false);
+  const [isProjectModalVisible, setIsProjectModalVisible] = useState(false);
+  const [isSettingsModalVisible, setIsSettingsModalVisible] = useState(false);
   
   const [editingDevice, setEditingDevice] = useState<Device | undefined>(undefined);
 
@@ -110,8 +115,14 @@ export default function SetupsScreen() {
       {/* Header */}
       <View className="px-6 pt-2 pb-2 bg-white dark:bg-gray-900 shadow-sm">
         <View className="flex-row justify-between items-center mb-4">
-          <Text className="text-xl font-bold text-black dark:text-white">Setups</Text>
-          <View className="flex-row">
+          <TouchableOpacity 
+            className="flex-row items-center"
+            onPress={() => setIsProjectModalVisible(true)}
+          >
+            <Text className="text-xl font-bold text-black dark:text-white mr-2">{project.name}</Text>
+            <FileText size={18} color="#3b82f6" />
+          </TouchableOpacity>
+          <View className="flex-row items-center">
             <TouchableOpacity 
               className="p-2 bg-gray-100 dark:bg-gray-800 rounded-full mr-2"
               onPress={() => setIsGroupModalVisible(true)}
@@ -125,10 +136,18 @@ export default function SetupsScreen() {
               <Layers size={18} color="#6b7280" />
             </TouchableOpacity>
             <TouchableOpacity 
-              className="p-2 bg-gray-100 dark:bg-gray-800 rounded-full"
-              onPress={() => console.log('Settings')}
+              className="p-2 bg-gray-100 dark:bg-gray-800 rounded-full mr-3"
+              onPress={() => setIsSettingsModalVisible(true)}
             >
               <Settings size={18} color="#6b7280" />
+            </TouchableOpacity>
+            
+            <TouchableOpacity 
+              className="flex-row items-center bg-blue-500 px-3 py-1.5 rounded-full shadow-sm"
+              onPress={handleAddDevice}
+            >
+              <Plus size={18} color="white" />
+              <Text className="text-white font-bold ml-1.5 mr-0.5">Add</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -166,17 +185,22 @@ export default function SetupsScreen() {
               All ({project.devices.length})
             </Text>
           </TouchableOpacity>
-          {Array.from(new Set(project.devices.map(d => d.type))).map(type => (
-            <TouchableOpacity 
-              key={type}
-              className={`px-4 py-2 rounded-full mr-2 ${filterType === type ? 'bg-blue-500' : 'bg-gray-100 dark:bg-gray-800'}`}
-              onPress={() => setFilterType(type)}
-            >
-              <Text className={`font-medium ${filterType === type ? 'text-white' : 'text-gray-600 dark:text-gray-400'}`}>
-                {type}
-              </Text>
-            </TouchableOpacity>
-          ))}
+          {DEVICE_TYPES.map(type => {
+            const count = project.devices.filter(d => d.type === type).length;
+            if (count === 0 && filterType !== type) return null; // Only show if has devices or is selected
+            
+            return (
+              <TouchableOpacity 
+                key={type}
+                className={`px-4 py-2 rounded-full mr-2 ${filterType === type ? 'bg-blue-500' : 'bg-gray-100 dark:bg-gray-800'}`}
+                onPress={() => setFilterType(type)}
+              >
+                <Text className={`font-medium ${filterType === type ? 'text-white' : 'text-gray-600 dark:text-gray-400'}`}>
+                  {type} ({count})
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
         </ScrollView>
       </View>
 
@@ -207,23 +231,15 @@ export default function SetupsScreen() {
             </View>
           );
         }}
-        contentContainerStyle={{ paddingBottom: 100 }}
-        stickySectionHeadersEnabled={false}
+        contentContainerStyle={{ paddingBottom: 40 }}
+        stickySectionHeadersEnabled={true}
         ListEmptyComponent={() => (
           <View className="flex-1 items-center justify-center py-20">
             <Text className="text-gray-500 text-lg mb-2">No devices found</Text>
-            <Text className="text-gray-400 text-sm">Tap the + button to add your first device</Text>
+            <Text className="text-gray-400 text-sm">Tap the Add button to add your first device</Text>
           </View>
         )}
       />
-
-      {/* Floating Action Button */}
-      <TouchableOpacity 
-        className="absolute bottom-8 right-6 w-16 h-16 bg-blue-500 rounded-full items-center justify-center shadow-lg"
-        onPress={handleAddDevice}
-      >
-        <Plus size={32} color="white" />
-      </TouchableOpacity>
 
       <DeviceModal
         visible={isDeviceModalVisible}
@@ -253,6 +269,16 @@ export default function SetupsScreen() {
         onAdd={(name, color) => addCategory({ name, color })}
         onUpdate={updateCategory}
         onDelete={deleteCategory}
+      />
+
+      <ProjectListModal
+        visible={isProjectModalVisible}
+        onClose={() => setIsProjectModalVisible(false)}
+      />
+
+      <SettingsModal
+        visible={isSettingsModalVisible}
+        onClose={() => setIsSettingsModalVisible(false)}
       />
     </SafeAreaView>
   );
