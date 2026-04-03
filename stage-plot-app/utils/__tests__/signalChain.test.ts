@@ -1,121 +1,12 @@
 import { describe, it, expect } from 'vitest';
-import { resolveSignalChain, resolveChannelMapping } from '../signalChain';
+import { resolveSignalChain, resolveChannelMapping, resolveTabularPatch } from '../signalChain';
 import { Project, Device, Connection, Channel } from '../../models';
 
 const mockId = () => Math.random().toString(36).substr(2, 9);
 const mockTimestamp = new Date().toISOString();
 
-describe('Signal Chain Logic', () => {
-  it('cascades name from terminal source through a chain', () => {
-    const micId = mockId();
-    const micOutId = mockId();
-    const stageboxId = mockId();
-    const stageboxInId = mockId();
-    const stageboxOutId = mockId();
-    const mixerId = mockId();
-    const mixerInId = mockId();
-
-    const project: Project = {
-      id: mockId(),
-      name: 'Test Project',
-      createdAt: mockTimestamp,
-      updatedAt: mockTimestamp,
-      devices: [
-        {
-          id: micId,
-          name: 'Kick Mic',
-          type: 'Microphone',
-          outputChannels: [{ id: micOutId, number: 1, channelCount: 1, phantomPower: false, pad: false }],
-          inputChannels: [],
-          metadata: { generalName: 'Kick' },
-        },
-        {
-          id: stageboxId,
-          name: 'Stagebox 1',
-          type: 'Stagebox',
-          inputChannels: [{ id: stageboxInId, number: 1, channelCount: 1, phantomPower: false, pad: false }],
-          outputChannels: [{ id: stageboxOutId, number: 1, channelCount: 1, phantomPower: false, pad: false }],
-          metadata: {},
-        },
-        {
-          id: mixerId,
-          name: 'X32 Mixer',
-          type: 'Mixer',
-          inputChannels: [{ id: mixerInId, number: 1, channelCount: 1, phantomPower: false, pad: false }],
-          outputChannels: [],
-          metadata: {},
-        },
-      ],
-      connections: [
-        {
-          id: mockId(),
-          sourceDeviceId: micId,
-          sourceChannelId: micOutId,
-          destinationDeviceId: stageboxId,
-          destinationChannelId: stageboxInId,
-        },
-        {
-          id: mockId(),
-          sourceDeviceId: stageboxId,
-          sourceChannelId: stageboxOutId,
-          destinationDeviceId: mixerId,
-          destinationChannelId: mixerInId,
-        },
-      ],
-      groups: [],
-      categories: [],
-    };
-
-    const state = resolveSignalChain(project);
-
-    // Mic output carries the name
-    expect(state[`${micId}:${micOutId}`]?.effectiveName).toBe('Kick');
-
-    // Stagebox input carries the name from mic
-    expect(state[`${stageboxId}:${stageboxInId}`]?.effectiveName).toBe('Kick');
-
-    // Stagebox output carries the name (automatic 1:1 internal mapping)
-    expect(state[`${stageboxId}:${stageboxOutId}`]?.effectiveName).toBe('Kick');
-
-    // Mixer input carries the name from stagebox output
-    expect(state[`${mixerId}:${mixerInId}`]?.effectiveName).toBe('Kick');
-  });
-
-  it('handles 1:1 default channel mapping', () => {
-    const sourceChannel: Channel = { id: 's1', number: 1, channelCount: 8, phantomPower: false, pad: false };
-    const destChannel: Channel = { id: 'd1', number: 1, channelCount: 8, phantomPower: false, pad: false };
-    const conn: Connection = {
-      id: 'c1',
-      sourceDeviceId: 'd_src',
-      sourceChannelId: 's1',
-      destinationDeviceId: 'd_dest',
-      destinationChannelId: 'd1',
-    };
-
-    const mapping = resolveChannelMapping(conn, sourceChannel, destChannel);
-    expect(mapping[1]).toBe(1);
-    expect(mapping[8]).toBe(8);
-    expect(Object.keys(mapping).length).toBe(8);
-  });
-
-  it('handles explicit channel mapping (offset/routing)', () => {
-    const sourceChannel: Channel = { id: 's1', number: 1, channelCount: 1, phantomPower: false, pad: false };
-    const destChannel: Channel = { id: 'd1', number: 1, channelCount: 8, phantomPower: false, pad: false };
-    const conn: Connection = {
-      id: 'c1',
-      sourceDeviceId: 'd_src',
-      sourceChannelId: 's1',
-      destinationDeviceId: 'd_dest',
-      destinationChannelId: 'd1',
-      channelMapping: { '1': '5' }, // Source channel 1 to Destination channel 5
-    };
-
-    const mapping = resolveChannelMapping(conn, sourceChannel, destChannel);
-    expect(mapping[1]).toBe(5);
-    expect(Object.keys(mapping).length).toBe(1);
-  });
-
-  it('respects channel name overrides', () => {
+describe('Signal Chain Logic (Refined)', () => {
+  it('cascades name ONLY if channel name is blank', () => {
     const micId = mockId();
     const micOutId = mockId();
     const mixerId = mockId();
@@ -131,7 +22,7 @@ describe('Signal Chain Logic', () => {
           id: micId,
           name: 'Kick Mic',
           type: 'Microphone',
-          outputChannels: [{ id: micOutId, number: 1, channelCount: 1, phantomPower: false, pad: false }],
+          outputChannels: [{ id: micOutId, number: 1, channelCount: 1 }],
           inputChannels: [],
           metadata: { generalName: 'Kick' },
         },
@@ -139,7 +30,7 @@ describe('Signal Chain Logic', () => {
           id: mixerId,
           name: 'Mixer',
           type: 'Mixer',
-          inputChannels: [{ id: mixerInId, number: 1, channelCount: 1, name: 'Kick In', phantomPower: false, pad: false }], // Override
+          inputChannels: [{ id: mixerInId, number: 1, channelCount: 1, name: 'Custom Name' }], // Override
           outputChannels: [],
           metadata: {},
         },
@@ -158,6 +49,166 @@ describe('Signal Chain Logic', () => {
     };
 
     const state = resolveSignalChain(project);
-    expect(state[`${mixerId}:${mixerInId}`]?.effectiveName).toBe('Kick In');
+    expect(state[`${mixerId}:${mixerInId}`]?.effectiveName).toBe('Custom Name');
+  });
+
+  it('Mixer (routable) signal flow follows matching effectiveNames', () => {
+    const micId = mockId();
+    const micOutId = mockId();
+    const mixerId = mockId();
+    const mixerInId = mockId();
+    const mixerOutId = mockId();
+
+    const project: Project = {
+      id: mockId(),
+      name: 'Routable Test',
+      createdAt: mockTimestamp,
+      updatedAt: mockTimestamp,
+      devices: [
+        {
+          id: micId,
+          name: 'Mic',
+          type: 'Microphone',
+          isSource: true,
+          outputChannels: [{ id: micOutId, number: 1, channelCount: 1 }],
+          inputChannels: [],
+          metadata: { generalName: 'Kick' },
+        },
+        {
+          id: mixerId,
+          name: 'Mixer',
+          type: 'Mixer',
+          // Add extra channels to make it "complex"
+          inputChannels: [
+            { id: mixerInId, number: 1, channelCount: 1 },
+            { id: 'extra-in', number: 2, channelCount: 1 }
+          ],
+          outputChannels: [
+            { id: mixerOutId, number: 1, channelCount: 1, name: 'Kick' },
+            { id: 'extra-out', number: 2, channelCount: 1 }
+          ],
+          metadata: {},
+        },
+      ],
+      connections: [
+        {
+          id: mockId(),
+          sourceDeviceId: micId,
+          sourceChannelId: micOutId,
+          destinationDeviceId: mixerId,
+          destinationChannelId: mixerInId,
+        },
+      ],
+      groups: [],
+      categories: [],
+    };
+
+    const state = resolveSignalChain(project);
+    expect(state[`${mixerId}:${mixerInId}`]?.effectiveName).toBe('Kick');
+    expect(state[`${mixerId}:${mixerOutId}`]?.effectiveName).toBe('Kick');
+    
+    // Check tabular patch logic (should stay on one row)
+    const tabular = resolveTabularPatch(project);
+    const row = tabular.find(r => r.sourceDeviceId === micId);
+    expect(row?.hops.length).toBe(1);
+    expect(row?.hops[0].outputChannelId).toBe(mixerOutId);
+  });
+
+  it('Stagebox (non-routable) signal flow is 1:1 by number', () => {
+    const micId = mockId();
+    const micOutId = mockId();
+    const sbId = mockId();
+    const sbInId = mockId();
+    const sbOutId = mockId();
+
+    const project: Project = {
+      id: mockId(),
+      name: 'Stagebox Test',
+      createdAt: mockTimestamp,
+      updatedAt: mockTimestamp,
+      devices: [
+        {
+          id: micId,
+          name: 'Mic',
+          type: 'Microphone',
+          isSource: true,
+          outputChannels: [{ id: micOutId, number: 1, channelCount: 1 }],
+          inputChannels: [],
+          metadata: { generalName: 'Vocal' },
+        },
+        {
+          id: sbId,
+          name: 'Stagebox',
+          type: 'Stagebox',
+          isInternallyRoutable: false,
+          inputChannels: [{ id: sbInId, number: 5, channelCount: 1 }],
+          outputChannels: [{ id: sbOutId, number: 5, channelCount: 1 }],
+          metadata: {},
+        },
+      ],
+      connections: [
+        {
+          id: mockId(),
+          sourceDeviceId: micId,
+          sourceChannelId: micOutId,
+          destinationDeviceId: sbId,
+          destinationChannelId: sbInId,
+        },
+      ],
+      groups: [],
+      categories: [],
+    };
+
+    const state = resolveSignalChain(project);
+    expect(state[`${sbId}:${sbInId}`]?.effectiveName).toBe('Vocal');
+    expect(state[`${sbId}:${sbOutId}`]?.effectiveName).toBe('Vocal');
+  });
+
+  it('separates Inputs and Outputs in tabular patch', () => {
+    const micId = mockId();
+    const mixerId = mockId();
+    const mixerOutId = mockId();
+
+    const project: Project = {
+      id: mockId(),
+      name: 'Sorting Test',
+      createdAt: mockTimestamp,
+      updatedAt: mockTimestamp,
+      devices: [
+        {
+          id: micId,
+          name: 'Mic',
+          type: 'Microphone',
+          outputChannels: [{ id: 'm1', number: 1, channelCount: 1 }],
+          inputChannels: [],
+          metadata: { generalName: 'Kick' },
+        },
+        {
+          id: mixerId,
+          name: 'Mixer',
+          type: 'Mixer',
+          // Make it complex
+          inputChannels: [
+            { id: 'i1', number: 1, channelCount: 1 },
+            { id: 'i2', number: 2, channelCount: 1 }
+          ],
+          outputChannels: [
+            { id: mixerOutId, number: 1, channelCount: 1, name: 'Main L' },
+            { id: 'o2', number: 2, channelCount: 1 }
+          ],
+          metadata: {},
+        },
+      ],
+      connections: [],
+      groups: [],
+      categories: [],
+    };
+
+    const tabular = resolveTabularPatch(project);
+    expect(tabular.length).toBe(2);
+    expect(tabular[0].sourceDeviceName).toBe('Mic'); // Input
+    expect(tabular[0].isSink).toBeFalsy();
+    expect(tabular[1].sourceDeviceName).toBe('Mixer'); // Output
+    expect(tabular[1].isSink).toBeTruthy();
   });
 });

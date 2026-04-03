@@ -5,16 +5,16 @@ import { PersistenceService, ProjectMetadata } from '../services/PersistenceServ
 interface ProjectContextType {
   project: Project;
   setProject: (project: Project) => void;
-  addDevice: (device: Omit<Device, 'id'>) => void;
+  addDevice: (device: Omit<Device, 'id'>) => string;
   updateDevice: (id: string, updates: Partial<Device>) => void;
   deleteDevice: (id: string) => void;
-  addGroup: (group: Omit<Group, 'id'>) => void;
+  addGroup: (group: Omit<Group, 'id'>) => string;
   updateGroup: (id: string, updates: Partial<Group>) => void;
   deleteGroup: (id: string) => void;
-  addCategory: (category: Omit<Category, 'id'>) => void;
+  addCategory: (category: Omit<Category, 'id'>) => string;
   updateCategory: (id: string, updates: Partial<Category>) => void;
   deleteCategory: (id: string) => void;
-  addConnection: (connection: Omit<Connection, 'id'>) => void;
+  addConnection: (connection: Omit<Connection, 'id'>) => string;
   updateConnection: (id: string, updates: Partial<Connection>) => void;
   deleteConnection: (id: string) => void;
   
@@ -43,7 +43,7 @@ const INITIAL_PROJECT: Project = {
       type: 'Microphone',
       model: 'SM58',
       inputChannels: [],
-      outputChannels: [{ id: 'ch-vox1-out', number: 1, name: 'Ch 1', channelCount: 1, connectorType: 'XLR', phantomPower: false, pad: false }],
+      outputChannels: [{ id: 'ch-vox1-out', number: 1, name: '', channelCount: 1, connectorType: 'XLR', phantomPower: false, pad: false }],
       position: { x: 20, y: 30 },
       metadata: { generalName: 'VOX 1' },
       isSource: true,
@@ -55,7 +55,7 @@ const INITIAL_PROJECT: Project = {
       type: 'Microphone',
       model: 'SM58',
       inputChannels: [],
-      outputChannels: [{ id: 'ch-vox2-out', number: 1, name: 'Ch 1', channelCount: 1, connectorType: 'XLR', phantomPower: false, pad: false }],
+      outputChannels: [{ id: 'ch-vox2-out', number: 1, name: '', channelCount: 1, connectorType: 'XLR', phantomPower: false, pad: false }],
       position: { x: 20, y: 80 },
       metadata: { generalName: 'VOX 2' },
       isSource: true,
@@ -67,7 +67,7 @@ const INITIAL_PROJECT: Project = {
       type: 'Microphone',
       model: 'Beta 52',
       inputChannels: [],
-      outputChannels: [{ id: 'ch-kick-out', number: 1, name: 'Ch 1', channelCount: 1, connectorType: 'XLR', phantomPower: false, pad: false }],
+      outputChannels: [{ id: 'ch-kick-out', number: 1, name: '', channelCount: 1, connectorType: 'XLR', phantomPower: false, pad: false }],
       position: { x: 20, y: 130 },
       metadata: { generalName: 'Kick' },
       isSource: true,
@@ -79,7 +79,7 @@ const INITIAL_PROJECT: Project = {
       type: 'Microphone',
       model: 'SM57',
       inputChannels: [],
-      outputChannels: [{ id: 'ch-snare-out', number: 1, name: 'Ch 1', channelCount: 1, connectorType: 'XLR', phantomPower: false, pad: false }],
+      outputChannels: [{ id: 'ch-snare-out', number: 1, name: '', channelCount: 1, connectorType: 'XLR', phantomPower: false, pad: false }],
       position: { x: 20, y: 180 },
       metadata: { generalName: 'Snare' },
       isSource: true,
@@ -91,7 +91,7 @@ const INITIAL_PROJECT: Project = {
       type: 'Microphone',
       model: 'e904',
       inputChannels: [],
-      outputChannels: [{ id: 'ch-tom-out', number: 1, name: 'Ch 1', channelCount: 1, connectorType: 'XLR', phantomPower: false, pad: false }],
+      outputChannels: [{ id: 'ch-tom-out', number: 1, name: '', channelCount: 1, connectorType: 'XLR', phantomPower: false, pad: false }],
       position: { x: 20, y: 230 },
       metadata: { generalName: 'Tom' },
       isSource: true,
@@ -104,8 +104,8 @@ const INITIAL_PROJECT: Project = {
       model: 'Nord Stage',
       inputChannels: [],
       outputChannels: [
-        { id: 'ch-keys-outl', number: 1, name: 'L', channelCount: 1, connectorType: '1/4"', phantomPower: false, pad: false },
-        { id: 'ch-keys-outr', number: 2, name: 'R', channelCount: 1, connectorType: '1/4"', phantomPower: false, pad: false },
+        { id: 'ch-keys-outl', number: 1, name: '', channelCount: 1, connectorType: '1/4"', phantomPower: false, pad: false },
+        { id: 'ch-keys-outr', number: 2, name: '', channelCount: 1, connectorType: '1/4"', phantomPower: false, pad: false },
       ],
       position: { x: 20, y: 280 },
       metadata: { generalName: 'Keys' },
@@ -118,16 +118,16 @@ const INITIAL_PROJECT: Project = {
       type: 'Stagebox',
       model: 'S16',
       inputChannels: [
-        { id: 'ch-sb-in1', number: 1, name: 'Ch 1', channelCount: 1, connectorType: 'XLR', phantomPower: false, pad: false },
-        { id: 'ch-sb-in2', number: 2, name: 'Ch 2', channelCount: 1, connectorType: 'XLR', phantomPower: false, pad: false },
-        { id: 'ch-sb-in3', number: 3, name: 'Ch 3', channelCount: 1, connectorType: 'XLR', phantomPower: false, pad: false },
-        { id: 'ch-sb-in4', number: 4, name: 'Ch 4', channelCount: 1, connectorType: 'XLR', phantomPower: false, pad: false },
-        { id: 'ch-sb-in5', number: 5, name: 'Ch 5', channelCount: 1, connectorType: 'XLR', phantomPower: false, pad: false },
-        { id: 'ch-sb-in6', number: 6, name: 'Ch 6', channelCount: 1, connectorType: '1/4"', phantomPower: false, pad: false },
-        { id: 'ch-sb-in7', number: 7, name: 'Ch 7', channelCount: 1, connectorType: '1/4"', phantomPower: false, pad: false },
+        { id: 'ch-sb-in1', number: 1, name: '', channelCount: 1, connectorType: 'XLR', phantomPower: false, pad: false },
+        { id: 'ch-sb-in2', number: 2, name: '', channelCount: 1, connectorType: 'XLR', phantomPower: false, pad: false },
+        { id: 'ch-sb-in3', number: 3, name: '', channelCount: 1, connectorType: 'XLR', phantomPower: false, pad: false },
+        { id: 'ch-sb-in4', number: 4, name: '', channelCount: 1, connectorType: 'XLR', phantomPower: false, pad: false },
+        { id: 'ch-sb-in5', number: 5, name: '', channelCount: 1, connectorType: 'XLR', phantomPower: false, pad: false },
+        { id: 'ch-sb-in6', number: 6, name: '', channelCount: 1, connectorType: '1/4"', phantomPower: false, pad: false },
+        { id: 'ch-sb-in7', number: 7, name: '', channelCount: 1, connectorType: '1/4"', phantomPower: false, pad: false },
       ],
       outputChannels: [
-        { id: 'ch-sb-out1', number: 1, name: 'AES50 A', channelCount: 1, connectorType: 'AES50', phantomPower: false, pad: false },
+        { id: 'ch-sb-out1', number: 1, name: '', channelCount: 1, connectorType: 'AES50', phantomPower: false, pad: false },
       ],
       position: { x: 350, y: 100 },
       metadata: {},
@@ -139,7 +139,7 @@ const INITIAL_PROJECT: Project = {
       type: 'Mixer',
       model: 'X32',
       inputChannels: [
-        { id: 'ch-mx-in1', number: 1, name: 'AES50 A', channelCount: 1, connectorType: 'AES50', phantomPower: false, pad: false },
+        { id: 'ch-mx-in1', number: 1, name: '', channelCount: 1, connectorType: 'AES50', phantomPower: false, pad: false },
       ],
       outputChannels: [
         { id: 'ch-mx-out1', number: 1, name: 'Main L', channelCount: 1, connectorType: 'XLR', phantomPower: false, pad: false },
@@ -148,13 +148,14 @@ const INITIAL_PROJECT: Project = {
       position: { x: 650, y: 150 },
       metadata: {},
       groupId: 'grp-foh',
+      isInternallyRoutable: true,
     },
     {
       id: 'dev-spk-l',
       name: 'Main L',
       type: 'Speaker',
       model: 'EV ELX',
-      inputChannels: [{ id: 'ch-spkl-in', number: 1, name: 'Ch 1', channelCount: 1, connectorType: 'XLR', phantomPower: false, pad: false }],
+      inputChannels: [{ id: 'ch-spkl-in', number: 1, name: '', channelCount: 1, connectorType: 'XLR', phantomPower: false, pad: false }],
       outputChannels: [],
       position: { x: 950, y: 50 },
       metadata: {},
@@ -164,7 +165,7 @@ const INITIAL_PROJECT: Project = {
       name: 'Main R',
       type: 'Speaker',
       model: 'EV ELX',
-      inputChannels: [{ id: 'ch-spkr-in', number: 1, name: 'Ch 1', channelCount: 1, connectorType: 'XLR', phantomPower: false, pad: false }],
+      inputChannels: [{ id: 'ch-spkr-in', number: 1, name: '', channelCount: 1, connectorType: 'XLR', phantomPower: false, pad: false }],
       outputChannels: [],
       position: { x: 950, y: 250 },
       metadata: {},
@@ -314,11 +315,13 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const addDevice = useCallback((device: Omit<Device, 'id'>) => {
+    const id = generateId();
     setProjectState((prev) => ({
       ...prev,
-      devices: [...prev.devices, { ...device, id: generateId() }],
+      devices: [...prev.devices, { ...device, id }],
       updatedAt: new Date().toISOString(),
     }));
+    return id;
   }, []);
 
   const updateDevice = useCallback((id: string, updates: Partial<Device>) => {
@@ -339,11 +342,13 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const addGroup = useCallback((group: Omit<Group, 'id'>) => {
+    const id = generateId();
     setProjectState((prev) => ({
       ...prev,
-      groups: [...prev.groups, { ...group, id: generateId() }],
+      groups: [...prev.groups, { ...group, id }],
       updatedAt: new Date().toISOString(),
     }));
+    return id;
   }, []);
 
   const updateGroup = useCallback((id: string, updates: Partial<Group>) => {
@@ -364,11 +369,13 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const addCategory = useCallback((category: Omit<Category, 'id'>) => {
+    const id = generateId();
     setProjectState((prev) => ({
       ...prev,
-      categories: [...prev.categories, { ...category, id: generateId() }],
+      categories: [...prev.categories, { ...category, id }],
       updatedAt: new Date().toISOString(),
     }));
+    return id;
   }, []);
 
   const updateCategory = useCallback((id: string, updates: Partial<Category>) => {
@@ -389,6 +396,7 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
   }, []);
   
   const addConnection = useCallback((connection: Omit<Connection, 'id'>) => {
+    const id = generateId();
     setProjectState((prev) => ({
       ...prev,
       connections: [
@@ -396,10 +404,11 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
           !(c.sourceDeviceId === connection.sourceDeviceId && c.sourceChannelId === connection.sourceChannelId) &&
           !(c.destinationDeviceId === connection.destinationDeviceId && c.destinationChannelId === connection.destinationChannelId)
         ),
-        { ...connection, id: generateId() }
+        { ...connection, id }
       ],
       updatedAt: new Date().toISOString(),
     }));
+    return id;
   }, []);
 
   const updateConnection = useCallback((id: string, updates: Partial<Connection>) => {
@@ -418,33 +427,56 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
     }));
   }, []);
 
+  const value = React.useMemo(() => ({
+    project,
+    setProject,
+    addDevice,
+    updateDevice,
+    deleteDevice,
+    addGroup,
+    updateGroup,
+    deleteGroup,
+    addCategory,
+    updateCategory,
+    deleteCategory,
+    addConnection,
+    updateConnection,
+    deleteConnection,
+    listProjects,
+    loadProject,
+    createNewProject,
+    deleteProject,
+    saveAsTemplate,
+    listTemplates,
+    loadTemplate,
+    deleteTemplate,
+  }), [
+    project,
+    setProject,
+    addDevice,
+    updateDevice,
+    deleteDevice,
+    addGroup,
+    updateGroup,
+    deleteGroup,
+    addCategory,
+    updateCategory,
+    deleteCategory,
+    addConnection,
+    updateConnection,
+    deleteConnection,
+    listProjects,
+    loadProject,
+    createNewProject,
+    deleteProject,
+    saveAsTemplate,
+    listTemplates,
+    loadTemplate,
+    deleteTemplate,
+  ]);
+
   return (
-    <ProjectContext.Provider
-      value={{
-        project,
-        setProject,
-        addDevice,
-        updateDevice,
-        deleteDevice,
-        addGroup,
-        updateGroup,
-        deleteGroup,
-        addCategory,
-        updateCategory,
-        deleteCategory,
-        addConnection,
-        updateConnection,
-        deleteConnection,
-        listProjects,
-        loadProject,
-        createNewProject,
-        deleteProject,
-        saveAsTemplate,
-        listTemplates,
-        loadTemplate,
-        deleteTemplate,
-      }}
-    >
+    <ProjectContext.Provider value={value}>
       {children}
     </ProjectContext.Provider>
   );

@@ -81,10 +81,17 @@ Save to `{@artifacts_path}/plan.md`.
 - Verification: Successfully create and visualize a multi-hop connection via the canvas.
 
 ### [x] Step: Develop Connection Patch Table (Patch View)
-<!-- chat-id: 3615f883-af76-4e6c-b927-1fccfd3ff6e6 -->
+<!-- chat-id: c839f41c-b98f-4eb1-bb34-790b34b01f05 -->
 - Build high-performance table view with sorting and filtering.
-- Implement perspective switching (Stage, FOH, Monitor World).
-- Verification: Verify correct filtering and sorting based on user selection.
+- Implement device-centric columns and terminal device rows.
+- Format row headers with device name, channel, and model/type.
+- Add IDX and 48V columns.
+- Implement category-based grouping and headers.
+- Fix internal routing and deduplicate signal chain rows.
+- Sort rows by hardware input channel number.
+- Separate input paths from output paths (Mixer outputs on separate rows).
+- Implement inline editability for quick entry of names and channels.
+- Verification: Verified correct rendering, sorting, and state updates via unit tests.
 
 ### [x] Step: Implement Local Persistence & Template Library
 <!-- chat-id: e5b60959-fb11-4d7d-966b-c155d724857e -->
@@ -113,19 +120,34 @@ Refined the diagram connection routing logic for cleaner signal paths and stable
 ### [x] Step: User experience feedback and fixes
 <!-- chat-id: 8bf26ac0-2649-4a9c-97a5-7e64f86acaeb -->
 User testing and user interface fixes. 
+- [x] Fixed Setups screen layout to ensure SectionList is visible and scrolls correctly.
+- [x] Moved Add button to top right of header as requested.
+- [x] Improved SectionList rendering for mobile.
+- [x] Fixed device saving logic in Diagram screen (addDevice was not called).
+- [x] Added "Add Device" button to Diagram screen header.
 
 ### [x] Step: Implement PDF & Image Export Services
 - Implement PDF generation optimized for "Load-In Sheet" and "System Diagram" presets.
 - Add PNG export for the Diagram view.
 - Verification: Generate and view a PDF on the device.
 
+### [x] Step: Improve Patch Screen Sorting & Quick Entry
+<!-- chat-id: ddcf9cbf-7e93-4ee4-90fd-9d49c78338ed -->
+Improved the Patch screen with better sorting and inline quick entry:
+- [x] Fixed sorting logic to group Stagebox channels together (including orphaned inputs).
+- [x] Implemented "Primary Sort Device" logic to prioritize Stageboxes and sort by channel number even for sink paths.
+- [x] Added support for orphaned Stagebox inputs as rows in the patch sheet.
+- [x] Implemented quick entry syntax `Type:Name/Channel(Model)` in the source cell.
+- [x] Added support for aliases (Mic, DI, SB, etc.) in quick entry.
+- [x] Updated `ProjectContext` to return new IDs from `addDevice` and `addConnection`.
+- [x] Verification: Verified with unit tests for sorting and orphaned input generation.
+
 ### [ ] Step: Integrate Supabase for Cloud Sync & Collaboration
-- Set up Supabase client for project backup and real-time WebSocket co-editing.
-- Implement "Save to Gig" / "Open from Gig Attachment" logic for GigManager.
+- Set up Supabase client for project backup and real-time co-editing.
 - Verification: Verify changes on one device sync to another in real-time.
 
 ### [ ] Step: Implement Heartbeat & Service Status Service
-- Implement periodic "phone-home" to check for app updates and service alerts.
-- Verification: Verify the app receives and displays a mock update alert from the status endpoint.
+- Implement periodic "phone-home" to check for app updates and service alerts (This can be to a supabase endpoint, logging to a supabase table).
+- Verification: Verify the app receives and displays a mock update alert from the status endpoint. (Have these alerts in the supabase database. The client should keep track of which alerts have been seen and dismissed.)
 
 

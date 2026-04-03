@@ -137,13 +137,12 @@ export function DeviceNode({
   const Icon = getIcon(device.type);
 
   const dragGesture = Gesture.Pan()
-    .onStart(() => {
-      context.value = { x: translateX.value, y: translateY.value };
-    })
-    .onUpdate((event) => {
+    .minPointers(1)
+    .maxPointers(1)
+    .onChange((event) => {
       const s = canvasScale.value;
-      translateX.value = Math.max(0, context.value.x + event.translationX / s);
-      translateY.value = Math.max(0, context.value.y + event.translationY / s);
+      translateX.value += event.changeX / s;
+      translateY.value += event.changeY / s;
     })
     .onEnd(() => {
       translateX.value = Math.round(translateX.value / 10) * 10;
@@ -174,20 +173,30 @@ export function DeviceNode({
   }, [device, channelLayout]);
 
   const renderDot = (channel: Channel, y: number, isOutput: boolean) => {
+    const sumX = useSharedValue(0);
+    const sumY = useSharedValue(0);
+
     const channelGesture = Gesture.Pan()
+      .minPointers(1)
+      .maxPointers(1)
       .onBegin(() => {
+        sumX.value = 0;
+        sumY.value = 0;
         const x = translateX.value + (isOutput ? nodeWidth : 0);
         runOnJS(onStartConnection)(device.id, channel.id, x, translateY.value + y);
       })
-      .onUpdate((event) => {
+      .onChange((event) => {
         const s = canvasScale.value;
-        const x = translateX.value + (isOutput ? nodeWidth : 0) + event.translationX / s;
-        runOnJS(onUpdateConnection)(x, translateY.value + y + event.translationY / s);
+        sumX.value += event.changeX / s;
+        sumY.value += event.changeY / s;
+        const x = translateX.value + (isOutput ? nodeWidth : 0) + sumX.value;
+        const cy = translateY.value + y + sumY.value;
+        runOnJS(onUpdateConnection)(x, cy);
       })
-      .onEnd((event) => {
-        const s = canvasScale.value;
-        const x = translateX.value + (isOutput ? nodeWidth : 0) + event.translationX / s;
-        runOnJS(onEndConnection)(device.id, channel.id, x, translateY.value + y + event.translationY / s);
+      .onEnd(() => {
+        const x = translateX.value + (isOutput ? nodeWidth : 0) + sumX.value;
+        const cy = translateY.value + y + sumY.value;
+        runOnJS(onEndConnection)(device.id, channel.id, x, cy);
       });
 
     return (

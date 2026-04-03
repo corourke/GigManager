@@ -15,8 +15,8 @@ export function DeviceCard({ device, group, category, onEdit, onDelete }: Device
   const isTerminalSource = device.type === 'Microphone' || device.type === 'DI Box' || device.type === 'Instrument';
   
   return (
-    <View className="bg-white dark:bg-gray-900 rounded-xl px-3 py-0 mb-2 shadow-sm border border-gray-100 dark:border-gray-800">
-      <View className="flex-row justify-between items-center py-1">
+    <View className="bg-white dark:bg-gray-900 rounded-xl px-3 py-1 mb-2 shadow-sm border border-gray-100 dark:border-gray-800">
+      <View className="flex-row justify-between items-center py-2">
         <View className="flex-1">
           <View className="flex-row items-center mb-0.5">
             <Text className="text-[17px] font-bold text-black dark:text-white mr-2">

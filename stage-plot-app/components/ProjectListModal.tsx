@@ -38,7 +38,9 @@ export function ProjectListModal({ visible, onClose }: ProjectListModalProps) {
   const [templates, setTemplates] = useState<ProjectMetadata[]>([]);
   const [loading, setLoading] = useState(true);
   const [newProjectName, setNewProjectName] = useState('');
+  const [newTemplateName, setNewTemplateName] = useState(project.name);
   const [activeTab, setActiveTab] = useState<'projects' | 'templates'>('projects');
+  const [isNamingTemplate, setIsNamingTemplate] = useState(false);
 
   const fetchLists = async () => {
     try {
@@ -58,14 +60,22 @@ export function ProjectListModal({ visible, onClose }: ProjectListModalProps) {
   useEffect(() => {
     if (visible) {
       fetchLists();
+      setNewTemplateName(project.name);
     }
-  }, [visible]);
+  }, [visible, project.name]);
 
   const handleCreateProject = async () => {
     if (!newProjectName.trim()) return;
-    await createNewProject(newProjectName);
-    setNewProjectName('');
-    onClose();
+    try {
+      console.log('ProjectListModal: handleCreateProject start', newProjectName);
+      await createNewProject(newProjectName);
+      console.log('ProjectListModal: handleCreateProject success');
+      setNewProjectName('');
+      onClose();
+    } catch (err) {
+      console.error('ProjectListModal: handleCreateProject error', err);
+      Alert.alert('Error', 'Failed to create new project');
+    }
   };
 
   const handleLoadProject = async (id: string) => {
@@ -114,25 +124,11 @@ export function ProjectListModal({ visible, onClose }: ProjectListModalProps) {
     );
   };
 
-  const handleSaveAsTemplate = () => {
-    Alert.prompt(
-      "Save as Template",
-      "Enter a name for the new template",
-      [
-        { text: "Cancel", style: "cancel" },
-        { 
-          text: "Save", 
-          onPress: async (name?: string) => {
-            if (name) {
-              await saveAsTemplate(name);
-              fetchLists();
-            }
-          } 
-        }
-      ],
-      'plain-text',
-      project.name
-    );
+  const handleSaveAsTemplate = async () => {
+    if (!newTemplateName.trim()) return;
+    await saveAsTemplate(newTemplateName);
+    setIsNamingTemplate(false);
+    fetchLists();
   };
 
   const renderProjectItem = ({ item }: { item: ProjectMetadata }) => {
@@ -209,7 +205,7 @@ export function ProjectListModal({ visible, onClose }: ProjectListModalProps) {
   console.log('ProjectListModal: Main render', { projectsCount: projects.length, loading, activeTab });
 
   return (
-    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet">
+    <Modal visible={visible} transparent={false}>
       <View 
         style={{ 
           flex: 1, 
@@ -224,7 +220,13 @@ export function ProjectListModal({ visible, onClose }: ProjectListModalProps) {
             <X size={24} color="#6b7280" />
           </TouchableOpacity>
           <Text className="text-xl font-bold text-black dark:text-white">Project Manager</Text>
-          <TouchableOpacity onPress={handleSaveAsTemplate} className="p-2">
+          <TouchableOpacity 
+            onPress={() => {
+              setActiveTab('templates');
+              setIsNamingTemplate(true);
+            }} 
+            className="p-2"
+          >
             <Copy size={24} color="#3b82f6" />
           </TouchableOpacity>
         </View>
@@ -267,6 +269,36 @@ export function ProjectListModal({ visible, onClose }: ProjectListModalProps) {
                 className={`w-12 h-12 rounded-full items-center justify-center ${newProjectName.trim() ? 'bg-blue-500' : 'bg-gray-200 dark:bg-gray-700'}`}
               >
                 <Plus size={24} color="white" />
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
+
+        {activeTab === 'templates' && isNamingTemplate && (
+          <View className="px-4 py-4 bg-purple-50 dark:bg-purple-900/10 mb-2 border-b border-purple-100 dark:border-purple-900/20">
+            <View className="flex-row justify-between items-center mb-2">
+              <Text className="text-sm font-semibold text-purple-600 dark:text-purple-400 uppercase tracking-wider">Save Current as Template</Text>
+              <TouchableOpacity onPress={() => setIsNamingTemplate(false)}>
+                <X size={16} color="#9333ea" />
+              </TouchableOpacity>
+            </View>
+            <View className="flex-row items-center">
+              <View className="flex-1 bg-white dark:bg-gray-800 border border-purple-200 dark:border-purple-800 rounded-lg px-4 py-2 mr-2">
+                <TextInput
+                  className="text-black dark:text-white h-10"
+                  placeholder="Template name..."
+                  placeholderTextColor="#9ca3af"
+                  value={newTemplateName}
+                  onChangeText={setNewTemplateName}
+                  autoFocus
+                />
+              </View>
+              <TouchableOpacity 
+                onPress={handleSaveAsTemplate}
+                disabled={!newTemplateName.trim()}
+                className={`w-12 h-12 rounded-full items-center justify-center ${newTemplateName.trim() ? 'bg-purple-600' : 'bg-gray-200 dark:bg-gray-700'}`}
+              >
+                <Save size={24} color="white" />
               </TouchableOpacity>
             </View>
           </View>

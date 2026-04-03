@@ -52,7 +52,7 @@ export function DeviceModal({ visible, device, groups, categories, onClose, onSa
     setInputChannels(tmpl.inputs.map((t, i) => ({
       id: generateId(),
       number: i + 1,
-      name: `Ch ${i + 1}`,
+      name: '',
       channelCount: 1,
       connectorType: t.connectorType,
       phantomPower: false,
@@ -61,7 +61,7 @@ export function DeviceModal({ visible, device, groups, categories, onClose, onSa
     setOutputChannels(tmpl.outputs.map((t, i) => ({
       id: generateId(),
       number: i + 1,
-      name: `Ch ${i + 1}`,
+      name: '',
       channelCount: 1,
       connectorType: t.connectorType,
       phantomPower: false,
@@ -148,7 +148,7 @@ export function DeviceModal({ visible, device, groups, categories, onClose, onSa
     const newChannel: Channel = {
       id: generateId(),
       number: channels.length + 1,
-      name: `Ch ${channels.length + 1}`,
+      name: '',
       channelCount: 1,
       connectorType: 'XLR',
       phantomPower: false,

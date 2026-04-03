@@ -1,6 +1,9 @@
 # Competitive Analysis: GigManager vs. Industry
 
 ## 1. Competitor Profiles
+New competitors to consider: 
+https://gig-manager.app/
+
 
 ### 1.1 Rentman
 - **Website**: [rentman.io](https://rentman.io)

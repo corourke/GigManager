@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useRef, useEffect, useMemo } from 'react';
-import { View, StyleSheet, Dimensions, TouchableOpacity, Text, Platform, Alert, SafeAreaView, StatusBar } from 'react-native';
+import { View, StyleSheet, Dimensions, Text, Platform, Alert, SafeAreaView, StatusBar, TouchableOpacity } from 'react-native';
 import Svg, { G, Circle, Path } from 'react-native-svg';
 import { GestureDetector, Gesture } from 'react-native-gesture-handler';
 import Animated, { useAnimatedStyle, useSharedValue, runOnJS, SharedValue } from 'react-native-reanimated';
@@ -25,7 +25,7 @@ import {
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 export default function DiagramScreen() {
-  const { project, updateDevice, addConnection, deleteConnection, deleteDevice } = useProject();
+  const { project, updateDevice, addDevice, addConnection, deleteConnection, deleteDevice } = useProject();
   const [selectedConnectionId, setSelectedConnectionId] = useState<string | null>(null);
   const [isDeviceModalVisible, setIsDeviceModalVisible] = useState(false);
   const [editingDevice, setEditingDevice] = useState<Device | undefined>(undefined);
@@ -119,8 +119,17 @@ export default function DiagramScreen() {
     setIsDeviceModalVisible(true);
   };
 
+  const handleAddDevice = () => {
+    setEditingDevice(undefined);
+    setIsDeviceModalVisible(true);
+  };
+
   const handleSaveDevice = (deviceData: Omit<Device, 'id'> | Device) => {
-    if ('id' in deviceData) updateDevice(deviceData.id, deviceData);
+    if ('id' in deviceData) {
+      updateDevice(deviceData.id, deviceData);
+    } else {
+      addDevice(deviceData);
+    }
     setIsDeviceModalVisible(false);
   };
 
@@ -433,22 +442,20 @@ export default function DiagramScreen() {
   };
 
   const canvasPanGesture = Gesture.Pan()
-    .minPointers(Platform.OS === 'web' ? 1 : 2)
-    .minDistance(5)
-    .onStart(() => {
-      didPan.value = false;
-      panCtx.value = { x: vpX.value, y: vpY.value };
-    })
-    .onUpdate((e) => {
+    .minPointers(1)
+    .onChange((e) => {
+      vpX.value += e.changeX;
+      vpY.value += e.changeY;
       didPan.value = true;
-      vpX.value = panCtx.value.x + e.translationX;
-      vpY.value = panCtx.value.y + e.translationY;
+    })
+    .onEnd(() => {
+      runOnJS(setTimeout)(() => { didPan.value = false; }, 100);
     });
 
   const canvasPinchGesture = Gesture.Pinch()
-    .onStart(() => { scaleCtx.value = vpScale.value; })
-    .onUpdate((e) => {
-      vpScale.value = Math.max(0.15, Math.min(3, scaleCtx.value * e.scale));
+    .onChange((e) => {
+      const newScale = Math.max(0.15, Math.min(3, vpScale.value * e.scaleChange));
+      vpScale.value = newScale;
     });
 
   const doubleTapGesture = Gesture.Tap()
@@ -467,7 +474,11 @@ export default function DiagramScreen() {
       });
     });
 
-  const canvasGesture = Gesture.Simultaneous(canvasPanGesture, canvasPinchGesture, Gesture.Exclusive(doubleTapGesture, canvasTapGesture));
+  const canvasGesture = Gesture.Simultaneous(
+    canvasPanGesture,
+    canvasPinchGesture,
+    Gesture.Exclusive(doubleTapGesture, canvasTapGesture)
+  );
 
   const renderConnections = () => {
     return project.connections.map(connection => {
@@ -512,8 +523,8 @@ export default function DiagramScreen() {
 
   const activePathData = activeConnection ? (() => {
     const { startX, startY, currentX, currentY } = activeConnection;
-    const pts = getOrthogonalPoints(startX, startY, currentX, currentY, []);
-    return pointsToRoundedPath(pts);
+    const result = getOrthogonalPoints(startX, startY, currentX, currentY, []);
+    return pointsToRoundedPath(result.points);
   })() : null;
 
   return (
@@ -530,42 +541,36 @@ export default function DiagramScreen() {
           <TouchableOpacity onPress={handleExportDiagram} style={[styles.toolBtn, { marginRight: 8 }]}>
             <Share2 size={20} color="#6b7280" />
           </TouchableOpacity>
-          <TouchableOpacity onPress={() => { setEditingDevice(undefined); setIsDeviceModalVisible(true); }} style={styles.toolBtn}>
+          <TouchableOpacity onPress={handleAddDevice} style={styles.toolBtn}>
             <Plus size={20} color="#6b7280" />
           </TouchableOpacity>
         </View>
       </View>
 
-      <ViewShot ref={viewShotRef} options={{ format: 'png', quality: 1.0 }} style={{ flex: 1, backgroundColor: '#f9fafb' }}>
-      <View
-        ref={canvasContainerRef}
-        style={{ flex: 1, overflow: 'hidden' }}
-        onLayout={(e) => {
-          const { width, height } = e.nativeEvent.layout;
-          setCanvasSize({ width, height });
-          if (canvasContainerRef.current) {
-            canvasContainerRef.current.measureInWindow((x, y) => {
-              canvasOffsetX.value = x;
-              canvasOffsetY.value = y;
-            });
-          }
-        }}
-        {...Platform.select({
-          web: {
-            onClick: handleCanvasPress,
-            onContextMenu: (e: any) => e.preventDefault(),
-          } as any,
-          default: { onTouchEnd: handleCanvasPress }
-        })}
-      >
-        <GestureDetector gesture={canvasGesture}>
-          <Animated.View style={[{ position: 'absolute', left: 0, top: 0 }, { transformOrigin: '0 0' } as any, canvasAnimatedStyle]}>
-            <Svg width={svgSize.width} height={svgSize.height} style={{ position: 'absolute', left: 0, top: 0 }}>
-              {renderConnections()}
-              {activePathData && (
-                <Path d={activePathData} stroke="#3b82f6" strokeWidth="2" strokeDasharray="5,5" fill="none" />
-              )}
-            </Svg>
+      <GestureDetector gesture={canvasGesture}>
+        <View
+          ref={canvasContainerRef}
+          style={{ flex: 1, overflow: 'hidden', backgroundColor: '#f9fafb' }}
+          onLayout={(e) => {
+            const { width, height } = e.nativeEvent.layout;
+            setCanvasSize({ width, height });
+            if (canvasContainerRef.current) {
+              canvasContainerRef.current.measureInWindow((x, y) => {
+                canvasOffsetX.value = x;
+                canvasOffsetY.value = y;
+              });
+            }
+          }}
+        >
+          <Animated.View style={[{ position: 'absolute', left: 0, top: 0, width: svgSize.width, height: svgSize.height, backgroundColor: 'transparent' }, canvasAnimatedStyle]}>
+            <ViewShot ref={viewShotRef} options={{ format: 'png', quality: 1.0 }} style={{ width: svgSize.width, height: svgSize.height }} pointerEvents="none">
+              <Svg width={svgSize.width} height={svgSize.height} style={{ position: 'absolute', left: 0, top: 0 }}>
+                {renderConnections()}
+                {activePathData && (
+                  <Path d={activePathData} stroke="#3b82f6" strokeWidth="2" strokeDasharray="5,5" fill="none" />
+                )}
+              </Svg>
+            </ViewShot>
 
             {project.devices.map(device => (
               <DeviceNode
@@ -581,9 +586,8 @@ export default function DiagramScreen() {
               />
             ))}
           </Animated.View>
-        </GestureDetector>
-      </View>
-      </ViewShot>
+        </View>
+      </GestureDetector>
 
       <DeviceModal
         visible={isDeviceModalVisible}
@@ -638,6 +642,7 @@ const styles = StyleSheet.create({
     bottom: 32,
     right: 24,
     flexDirection: 'column',
+    zIndex: 999,
   },
   fab: {
     width: 48,
@@ -647,6 +652,7 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     alignItems: 'center',
     justifyContent: 'center',
+    zIndex: 1000,
     ...Platform.select({
       ios: {
         shadowColor: '#000',

@@ -39,7 +39,9 @@ export default function RootLayout() {
 
   useEffect(() => {
     if (loaded) {
-      SplashScreen.hideAsync();
+      SplashScreen.hideAsync().catch(err => {
+        console.warn("SplashScreen.hideAsync error:", err);
+      });
     }
   }, [loaded]);
 

@@ -48,9 +48,13 @@ export default function SetupsScreen() {
   // Group devices for SectionList
   const sections = useMemo(() => {
     const filtered = project.devices.filter(device => {
-      const matchesSearch = device.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                            device.type.toLowerCase().includes(searchQuery.toLowerCase());
-      const matchesType = !filterType || device.type === filterType;
+      const name = device.name || '';
+      const type = device.type || '';
+      const search = searchQuery.toLowerCase();
+      
+      const matchesSearch = name.toLowerCase().includes(search) ||
+                            type.toLowerCase().includes(search);
+      const matchesType = !filterType || type === filterType;
       return matchesSearch && matchesType;
     });
 
@@ -73,7 +77,11 @@ export default function SetupsScreen() {
       .map(title => ({
         title,
         data: groups[title].sort((a, b) => {
-          return a.type.localeCompare(b.type) || a.name.localeCompare(b.name);
+          const typeA = a.type || '';
+          const typeB = b.type || '';
+          const nameA = a.name || '';
+          const nameB = b.name || '';
+          return typeA.localeCompare(typeB) || nameA.localeCompare(nameB);
         })
       }));
   }, [project.devices, project.groups, project.categories, searchQuery, filterType]);
@@ -109,28 +117,34 @@ export default function SetupsScreen() {
   };
 
   return (
-    <SafeAreaView className="flex-1 bg-gray-50 dark:bg-black">
+    <SafeAreaView style={{ flex: 1 }} className="bg-gray-50 dark:bg-black">
       <StatusBar barStyle="default" />
       
       {/* Header */}
       <View className="px-6 pt-2 pb-2 bg-white dark:bg-gray-900 shadow-sm">
-        <View className="flex-row justify-between items-center mb-4">
+        <View className="flex-row justify-between items-center mb-3">
           <TouchableOpacity 
-            className="flex-row items-center"
+            className="flex-1 flex-row items-center mr-4"
             onPress={() => setIsProjectModalVisible(true)}
           >
-            <Text className="text-xl font-bold text-black dark:text-white mr-2">{project.name}</Text>
+            <Text 
+              className="text-xl font-bold text-black dark:text-white mr-2"
+              numberOfLines={1}
+            >
+              {project.name}
+            </Text>
             <FileText size={18} color="#3b82f6" />
           </TouchableOpacity>
+          
           <View className="flex-row items-center">
             <TouchableOpacity 
-              className="p-2 bg-gray-100 dark:bg-gray-800 rounded-full mr-2"
+              className="p-2 bg-gray-100 dark:bg-gray-800 rounded-full mr-1.5"
               onPress={() => setIsGroupModalVisible(true)}
             >
               <LayoutGrid size={18} color="#6b7280" />
             </TouchableOpacity>
             <TouchableOpacity 
-              className="p-2 bg-gray-100 dark:bg-gray-800 rounded-full mr-2"
+              className="p-2 bg-gray-100 dark:bg-gray-800 rounded-full mr-1.5"
               onPress={() => setIsCategoryModalVisible(true)}
             >
               <Layers size={18} color="#6b7280" />
@@ -153,11 +167,11 @@ export default function SetupsScreen() {
         </View>
 
         {/* Search and Filters */}
-        <View className="flex-row items-center mb-2">
-          <View className="flex-1 flex-row items-center bg-gray-100 dark:bg-gray-800 rounded-lg px-3 py-2 mr-2">
+        <View className="flex-row items-center mb-1">
+          <View className="flex-1 flex-row items-center bg-gray-100 dark:bg-gray-800 rounded-lg px-3 py-1.5">
             <Search size={18} color="#6b7280" />
             <TextInput
-              className="flex-1 ml-2 text-black dark:text-white"
+              className="flex-1 ml-2 text-black dark:text-white py-1"
               placeholder="Search devices..."
               placeholderTextColor="#9ca3af"
               value={searchQuery}
@@ -205,42 +219,44 @@ export default function SetupsScreen() {
       </View>
 
       {/* Device List */}
-      <SectionList
-        style={{ flex: 1 }}
-        sections={sections}
-        keyExtractor={(item) => item.id}
-        renderItem={({ item }) => (
-          <DeviceCard
-            device={item}
-            group={project.groups.find(g => g.id === item.groupId)}
-            category={project.categories.find(c => c.id === item.categoryId)}
-            onEdit={handleEditDevice}
-            onDelete={handleDeleteDevice}
-          />
-        )}
-        renderSectionHeader={({ section: { title } }) => {
-          const group = project.groups.find(g => g.name === title);
-          return (
-            <View className="bg-gray-50 dark:bg-black px-4 pt-3 pb-1 mb-2 flex-row items-center">
-              <View 
-                className="w-1.5 h-4 rounded-full mr-2" 
-                style={{ backgroundColor: group?.color || '#9ca3af' }} 
-              />
-              <Text className="text-gray-500 font-bold text-xs uppercase tracking-widest">
-                {title}
-              </Text>
+      <View style={{ flex: 1 }}>
+        <SectionList
+          style={{ flex: 1 }}
+          sections={sections}
+          keyExtractor={(item) => item.id}
+          renderItem={({ item }) => (
+            <DeviceCard
+              device={item}
+              group={project.groups.find(g => g.id === item.groupId)}
+              category={project.categories.find(c => c.id === item.categoryId)}
+              onEdit={handleEditDevice}
+              onDelete={handleDeleteDevice}
+            />
+          )}
+          renderSectionHeader={({ section: { title } }) => {
+            const group = project.groups.find(g => g.name === title);
+            return (
+              <View className="bg-gray-50 dark:bg-black px-4 pt-3 pb-1 mb-2 flex-row items-center">
+                <View 
+                  className="w-1.5 h-4 rounded-full mr-2" 
+                  style={{ backgroundColor: group?.color || '#9ca3af' }} 
+                />
+                <Text className="text-gray-500 font-bold text-xs uppercase tracking-widest">
+                  {title}
+                </Text>
+              </View>
+            );
+          }}
+          contentContainerStyle={{ paddingBottom: 100, flexGrow: 1, minHeight: '100%' }}
+          stickySectionHeadersEnabled={true}
+          ListEmptyComponent={() => (
+            <View className="flex-1 items-center justify-center py-20">
+              <Text className="text-gray-500 text-lg mb-2">No devices found</Text>
+              <Text className="text-gray-400 text-sm">Tap the Add button to add your first device</Text>
             </View>
-          );
-        }}
-        contentContainerStyle={{ paddingBottom: 40 }}
-        stickySectionHeadersEnabled={true}
-        ListEmptyComponent={() => (
-          <View className="flex-1 items-center justify-center py-20">
-            <Text className="text-gray-500 text-lg mb-2">No devices found</Text>
-            <Text className="text-gray-400 text-sm">Tap the Add button to add your first device</Text>
-          </View>
-        )}
-      />
+          )}
+        />
+      </View>
 
       <DeviceModal
         visible={isDeviceModalVisible}
