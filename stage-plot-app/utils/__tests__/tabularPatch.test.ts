@@ -25,14 +25,12 @@ describe('Tabular Patch Logic', () => {
           type: 'Microphone',
           outputChannels: [{ id: 'mic-out', number: 1, channelCount: 1, phantomPower: false, pad: false }],
           inputChannels: [],
-          isInternallyRoutable: false,
           metadata: { generalName: 'Vocal' },
         },
         {
           id: spkId,
           name: 'Speaker 1',
           type: 'Speaker',
-          isInternallyRoutable: false,
           inputChannels: [{ id: 'spk-in', number: 1, channelCount: 1, phantomPower: false, pad: false }],
           outputChannels: [],
           metadata: {},
@@ -41,7 +39,6 @@ describe('Tabular Patch Logic', () => {
           id: stageboxId,
           name: 'Stagebox',
           type: 'Stagebox',
-          isInternallyRoutable: false,
           // Complex device
           inputChannels: [
             { id: 'sb-in-7', number: 7, channelCount: 1, phantomPower: false, pad: false },
@@ -59,14 +56,13 @@ describe('Tabular Patch Logic', () => {
           id: mixerId,
           name: 'Mixer',
           type: 'Mixer',
-          isInternallyRoutable: true,
           inputChannels: [
             { id: 'mix-in-1', number: 1, channelCount: 1, phantomPower: false, pad: false },
             { id: 'mix-in-2', number: 2, channelCount: 1, phantomPower: false, pad: false },
           ],
           outputChannels: [
-            { id: 'mix-out-1', number: 1, channelCount: 1, name: 'Main L' },
-            { id: 'mix-out-2', number: 2, channelCount: 1 },
+            { id: 'mix-out-1', number: 1, channelCount: 1, name: 'Main L', phantomPower: false, pad: false },
+            { id: 'mix-out-2', number: 2, channelCount: 1, phantomPower: false, pad: false },
           ],
           metadata: {},
         },

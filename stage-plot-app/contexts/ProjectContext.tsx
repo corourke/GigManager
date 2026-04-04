@@ -1,6 +1,8 @@
 import React, { createContext, useContext, useState, useCallback, useEffect, useRef } from 'react';
+import { Alert, Platform } from 'react-native';
 import { Project, Device, Group, Category, Connection } from '../models';
 import { PersistenceService, ProjectMetadata } from '../services/PersistenceService';
+import { DEMO_PROJECT } from '../constants/DemoProject';
 
 interface ProjectContextType {
   project: Project;
@@ -33,167 +35,8 @@ const ProjectContext = createContext<ProjectContextType | undefined>(undefined);
 
 const generateId = () => Math.random().toString(36).substring(2, 11) + Date.now().toString(36);
 
-const INITIAL_PROJECT: Project = {
-  id: '550e8400-e29b-41d4-a716-446655440000',
-  name: 'Demo Project',
-  devices: [
-    {
-      id: 'dev-vox1',
-      name: 'VOX 1',
-      type: 'Microphone',
-      model: 'SM58',
-      inputChannels: [],
-      outputChannels: [{ id: 'ch-vox1-out', number: 1, name: '', channelCount: 1, connectorType: 'XLR', phantomPower: false, pad: false }],
-      position: { x: 20, y: 30 },
-      metadata: { generalName: 'VOX 1' },
-      isSource: true,
-      groupId: 'grp-stage',
-    },
-    {
-      id: 'dev-vox2',
-      name: 'VOX 2',
-      type: 'Microphone',
-      model: 'SM58',
-      inputChannels: [],
-      outputChannels: [{ id: 'ch-vox2-out', number: 1, name: '', channelCount: 1, connectorType: 'XLR', phantomPower: false, pad: false }],
-      position: { x: 20, y: 80 },
-      metadata: { generalName: 'VOX 2' },
-      isSource: true,
-      groupId: 'grp-stage',
-    },
-    {
-      id: 'dev-kick',
-      name: 'Kick',
-      type: 'Microphone',
-      model: 'Beta 52',
-      inputChannels: [],
-      outputChannels: [{ id: 'ch-kick-out', number: 1, name: '', channelCount: 1, connectorType: 'XLR', phantomPower: false, pad: false }],
-      position: { x: 20, y: 130 },
-      metadata: { generalName: 'Kick' },
-      isSource: true,
-      groupId: 'grp-stage',
-    },
-    {
-      id: 'dev-snare',
-      name: 'Snare',
-      type: 'Microphone',
-      model: 'SM57',
-      inputChannels: [],
-      outputChannels: [{ id: 'ch-snare-out', number: 1, name: '', channelCount: 1, connectorType: 'XLR', phantomPower: false, pad: false }],
-      position: { x: 20, y: 180 },
-      metadata: { generalName: 'Snare' },
-      isSource: true,
-      groupId: 'grp-stage',
-    },
-    {
-      id: 'dev-tom',
-      name: 'Tom',
-      type: 'Microphone',
-      model: 'e904',
-      inputChannels: [],
-      outputChannels: [{ id: 'ch-tom-out', number: 1, name: '', channelCount: 1, connectorType: 'XLR', phantomPower: false, pad: false }],
-      position: { x: 20, y: 230 },
-      metadata: { generalName: 'Tom' },
-      isSource: true,
-      groupId: 'grp-stage',
-    },
-    {
-      id: 'dev-keys',
-      name: 'Keys',
-      type: 'Instrument',
-      model: 'Nord Stage',
-      inputChannels: [],
-      outputChannels: [
-        { id: 'ch-keys-outl', number: 1, name: '', channelCount: 1, connectorType: '1/4"', phantomPower: false, pad: false },
-        { id: 'ch-keys-outr', number: 2, name: '', channelCount: 1, connectorType: '1/4"', phantomPower: false, pad: false },
-      ],
-      position: { x: 20, y: 280 },
-      metadata: { generalName: 'Keys' },
-      isSource: true,
-      groupId: 'grp-stage',
-    },
-    {
-      id: 'dev-stagebox',
-      name: 'Stagebox A',
-      type: 'Stagebox',
-      model: 'S16',
-      inputChannels: [
-        { id: 'ch-sb-in1', number: 1, name: '', channelCount: 1, connectorType: 'XLR', phantomPower: false, pad: false },
-        { id: 'ch-sb-in2', number: 2, name: '', channelCount: 1, connectorType: 'XLR', phantomPower: false, pad: false },
-        { id: 'ch-sb-in3', number: 3, name: '', channelCount: 1, connectorType: 'XLR', phantomPower: false, pad: false },
-        { id: 'ch-sb-in4', number: 4, name: '', channelCount: 1, connectorType: 'XLR', phantomPower: false, pad: false },
-        { id: 'ch-sb-in5', number: 5, name: '', channelCount: 1, connectorType: 'XLR', phantomPower: false, pad: false },
-        { id: 'ch-sb-in6', number: 6, name: '', channelCount: 1, connectorType: '1/4"', phantomPower: false, pad: false },
-        { id: 'ch-sb-in7', number: 7, name: '', channelCount: 1, connectorType: '1/4"', phantomPower: false, pad: false },
-      ],
-      outputChannels: [
-        { id: 'ch-sb-out1', number: 1, name: '', channelCount: 1, connectorType: 'AES50', phantomPower: false, pad: false },
-      ],
-      position: { x: 350, y: 100 },
-      metadata: {},
-      groupId: 'grp-stage',
-    },
-    {
-      id: 'dev-mixer',
-      name: 'FOH Mixer',
-      type: 'Mixer',
-      model: 'X32',
-      inputChannels: [
-        { id: 'ch-mx-in1', number: 1, name: '', channelCount: 1, connectorType: 'AES50', phantomPower: false, pad: false },
-      ],
-      outputChannels: [
-        { id: 'ch-mx-out1', number: 1, name: 'Main L', channelCount: 1, connectorType: 'XLR', phantomPower: false, pad: false },
-        { id: 'ch-mx-out2', number: 2, name: 'Main R', channelCount: 1, connectorType: 'XLR', phantomPower: false, pad: false },
-      ],
-      position: { x: 650, y: 150 },
-      metadata: {},
-      groupId: 'grp-foh',
-      isInternallyRoutable: true,
-    },
-    {
-      id: 'dev-spk-l',
-      name: 'Main L',
-      type: 'Speaker',
-      model: 'EV ELX',
-      inputChannels: [{ id: 'ch-spkl-in', number: 1, name: '', channelCount: 1, connectorType: 'XLR', phantomPower: false, pad: false }],
-      outputChannels: [],
-      position: { x: 950, y: 50 },
-      metadata: {},
-    },
-    {
-      id: 'dev-spk-r',
-      name: 'Main R',
-      type: 'Speaker',
-      model: 'EV ELX',
-      inputChannels: [{ id: 'ch-spkr-in', number: 1, name: '', channelCount: 1, connectorType: 'XLR', phantomPower: false, pad: false }],
-      outputChannels: [],
-      position: { x: 950, y: 250 },
-      metadata: {},
-    },
-  ],
-  connections: [
-    { id: 'conn-1', sourceDeviceId: 'dev-vox1', sourceChannelId: 'ch-vox1-out', destinationDeviceId: 'dev-stagebox', destinationChannelId: 'ch-sb-in1' },
-    { id: 'conn-2', sourceDeviceId: 'dev-vox2', sourceChannelId: 'ch-vox2-out', destinationDeviceId: 'dev-stagebox', destinationChannelId: 'ch-sb-in2' },
-    { id: 'conn-3', sourceDeviceId: 'dev-kick', sourceChannelId: 'ch-kick-out', destinationDeviceId: 'dev-stagebox', destinationChannelId: 'ch-sb-in3' },
-    { id: 'conn-4', sourceDeviceId: 'dev-snare', sourceChannelId: 'ch-snare-out', destinationDeviceId: 'dev-stagebox', destinationChannelId: 'ch-sb-in4' },
-    { id: 'conn-5', sourceDeviceId: 'dev-tom', sourceChannelId: 'ch-tom-out', destinationDeviceId: 'dev-stagebox', destinationChannelId: 'ch-sb-in5' },
-    { id: 'conn-6', sourceDeviceId: 'dev-keys', sourceChannelId: 'ch-keys-outl', destinationDeviceId: 'dev-stagebox', destinationChannelId: 'ch-sb-in6' },
-    { id: 'conn-7', sourceDeviceId: 'dev-keys', sourceChannelId: 'ch-keys-outr', destinationDeviceId: 'dev-stagebox', destinationChannelId: 'ch-sb-in7' },
-    { id: 'conn-8', sourceDeviceId: 'dev-stagebox', sourceChannelId: 'ch-sb-out1', destinationDeviceId: 'dev-mixer', destinationChannelId: 'ch-mx-in1' },
-    { id: 'conn-9', sourceDeviceId: 'dev-mixer', sourceChannelId: 'ch-mx-out1', destinationDeviceId: 'dev-spk-l', destinationChannelId: 'ch-spkl-in' },
-    { id: 'conn-10', sourceDeviceId: 'dev-mixer', sourceChannelId: 'ch-mx-out2', destinationDeviceId: 'dev-spk-r', destinationChannelId: 'ch-spkr-in' },
-  ],
-  groups: [
-    { id: 'grp-stage', name: 'Stage', color: '#22c55e' },
-    { id: 'grp-foh', name: 'FOH', color: '#3b82f6' },
-  ],
-  categories: [],
-  createdAt: new Date().toISOString(),
-  updatedAt: new Date().toISOString(),
-};
-
 export function ProjectProvider({ children }: { children: React.ReactNode }) {
-  const [project, setProjectState] = useState<Project>(INITIAL_PROJECT);
+  const [project, setProjectState] = useState<Project>(DEMO_PROJECT);
   const [isInitialized, setIsInitialized] = useState(false);
   const isSaving = useRef(false);
 
@@ -225,17 +68,41 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const deleteProject = useCallback(async (id: string) => {
+    console.log('ProjectContext: deleteProject', id);
+    const targetProjectName = id === project.id ? project.name : 'Project';
     await PersistenceService.deleteProject(id);
-    // If we deleted current project, load another one or create new
+    
+    let message = `Project "${targetProjectName}" deleted.`;
+
+    // If it was the demo project, re-create it immediately
+    if (id === DEMO_PROJECT.id) {
+      console.log('ProjectContext: Re-creating demo project after deletion');
+      await PersistenceService.saveProject(DEMO_PROJECT);
+      message = `Demo Project reset to original state.`;
+    }
+
+    if (Platform.OS === 'web') {
+      window.alert(message);
+    } else {
+      Alert.alert("Success", message);
+    }
+
+    // If we deleted the current project, load another one or the demo project
     if (project.id === id) {
       const projects = await PersistenceService.listProjects();
       if (projects.length > 0) {
-        await loadProject(projects[0].id);
+        // Try to load the first available project (could be the newly re-created demo)
+        const nextId = projects[0].id;
+        console.log('ProjectContext: Loading next project', nextId);
+        await loadProject(nextId);
       } else {
-        await createNewProject('New Project');
+        // Fallback: should not happen since we re-created demo above if it was deleted,
+        // but for safety:
+        console.log('ProjectContext: No projects left, using demo project');
+        setProjectState(DEMO_PROJECT);
       }
     }
-  }, [project.id, loadProject, createNewProject]);
+  }, [project.id, project.name, loadProject]);
 
   const saveAsTemplate = useCallback(async (name: string) => {
     const template: Project = {
@@ -284,12 +151,12 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
         } else {
           console.log('ProjectContext: no projects found, saving initial project');
           // First run, save initial project
-          await PersistenceService.saveProject(INITIAL_PROJECT);
-          setProjectState(INITIAL_PROJECT);
+          await PersistenceService.saveProject(DEMO_PROJECT);
+          setProjectState(DEMO_PROJECT);
         }
       } catch (err) {
         console.error('ProjectContext: init error:', err);
-        setProjectState(INITIAL_PROJECT);
+        setProjectState(DEMO_PROJECT);
       } finally {
         setIsInitialized(true);
       }

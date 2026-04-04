@@ -142,6 +142,13 @@ Improved the Patch screen with better sorting and inline quick entry:
 - [x] Updated `ProjectContext` to return new IDs from `addDevice` and `addConnection`.
 - [x] Verification: Verified with unit tests for sorting and orphaned input generation.
 
+### [x] Step: Code quality and framework compatibility fixes
+- [x] Removed `isInternallyRoutable` property from models and all usages.
+- [x] Fixed `PersistenceService` deprecation error by using `expo-file-system/legacy` API as the new File/Directory API was throwing `writeAsStringAsync` deprecation errors in runtime.
+- [x] Fixed Rules of Hooks violation in `DeviceNode` by extracting `ChannelDot` into a separate file.
+- [x] Externalized Demo Project JSON into `constants/DemoProject.ts` and updated `ProjectContext` to use it.
+- [x] Verification: Ran all tests (npm test) and verified they pass.
+
 ### [ ] Step: Integrate Supabase for Cloud Sync & Collaboration
 - Set up Supabase client for project backup and real-time co-editing.
 - Verification: Verify changes on one device sync to another in real-time.
@@ -149,5 +156,3 @@ Improved the Patch screen with better sorting and inline quick entry:
 ### [ ] Step: Implement Heartbeat & Service Status Service
 - Implement periodic "phone-home" to check for app updates and service alerts (This can be to a supabase endpoint, logging to a supabase table).
 - Verification: Verify the app receives and displays a mock update alert from the status endpoint. (Have these alerts in the supabase database. The client should keep track of which alerts have been seen and dismissed.)
-
-

@@ -6,8 +6,8 @@ export const ChannelSchema = z.object({
   name: z.string().optional(), // Blank/null by default to allow propagation
   channelCount: z.number().int().min(1).default(1),
   connectorType: z.string().optional(), // e.g., 'XLR', 'TRS', 'TS'
-  phantomPower: z.boolean().default(false),
-  pad: z.boolean().default(false),
+  phantomPower: z.boolean().optional().default(false),
+  pad: z.boolean().optional().default(false),
 });
 
 export const MetadataSchema = z.object({
@@ -28,7 +28,6 @@ export const DeviceSchema = z.object({
   metadata: MetadataSchema.default({}),
   position: z.object({ x: z.number(), y: z.number() }).optional(),
   isSource: z.boolean().optional(),
-  isInternallyRoutable: z.boolean().default(false),
 });
 
 export const ConnectionSchema = z.object({

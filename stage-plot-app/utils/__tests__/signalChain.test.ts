@@ -22,7 +22,7 @@ describe('Signal Chain Logic (Refined)', () => {
           id: micId,
           name: 'Kick Mic',
           type: 'Microphone',
-          outputChannels: [{ id: micOutId, number: 1, channelCount: 1 }],
+          outputChannels: [{ id: micOutId, number: 1, channelCount: 1, phantomPower: false, pad: false }],
           inputChannels: [],
           metadata: { generalName: 'Kick' },
         },
@@ -30,7 +30,7 @@ describe('Signal Chain Logic (Refined)', () => {
           id: mixerId,
           name: 'Mixer',
           type: 'Mixer',
-          inputChannels: [{ id: mixerInId, number: 1, channelCount: 1, name: 'Custom Name' }], // Override
+          inputChannels: [{ id: mixerInId, number: 1, channelCount: 1, name: 'Custom Name', phantomPower: false, pad: false }], // Override
           outputChannels: [],
           metadata: {},
         },
@@ -70,7 +70,7 @@ describe('Signal Chain Logic (Refined)', () => {
           name: 'Mic',
           type: 'Microphone',
           isSource: true,
-          outputChannels: [{ id: micOutId, number: 1, channelCount: 1 }],
+          outputChannels: [{ id: micOutId, number: 1, channelCount: 1, phantomPower: false, pad: false }],
           inputChannels: [],
           metadata: { generalName: 'Kick' },
         },
@@ -80,12 +80,12 @@ describe('Signal Chain Logic (Refined)', () => {
           type: 'Mixer',
           // Add extra channels to make it "complex"
           inputChannels: [
-            { id: mixerInId, number: 1, channelCount: 1 },
-            { id: 'extra-in', number: 2, channelCount: 1 }
+            { id: mixerInId, number: 1, channelCount: 1, phantomPower: false, pad: false },
+            { id: 'extra-in', number: 2, channelCount: 1, phantomPower: false, pad: false }
           ],
           outputChannels: [
-            { id: mixerOutId, number: 1, channelCount: 1, name: 'Kick' },
-            { id: 'extra-out', number: 2, channelCount: 1 }
+            { id: mixerOutId, number: 1, channelCount: 1, name: 'Kick', phantomPower: false, pad: false },
+            { id: 'extra-out', number: 2, channelCount: 1, phantomPower: false, pad: false }
           ],
           metadata: {},
         },
@@ -132,7 +132,7 @@ describe('Signal Chain Logic (Refined)', () => {
           name: 'Mic',
           type: 'Microphone',
           isSource: true,
-          outputChannels: [{ id: micOutId, number: 1, channelCount: 1 }],
+          outputChannels: [{ id: micOutId, number: 1, channelCount: 1, phantomPower: false, pad: false }],
           inputChannels: [],
           metadata: { generalName: 'Vocal' },
         },
@@ -140,9 +140,8 @@ describe('Signal Chain Logic (Refined)', () => {
           id: sbId,
           name: 'Stagebox',
           type: 'Stagebox',
-          isInternallyRoutable: false,
-          inputChannels: [{ id: sbInId, number: 5, channelCount: 1 }],
-          outputChannels: [{ id: sbOutId, number: 5, channelCount: 1 }],
+          inputChannels: [{ id: sbInId, number: 5, channelCount: 1, phantomPower: false, pad: false }],
+          outputChannels: [{ id: sbOutId, number: 5, channelCount: 1, phantomPower: false, pad: false }],
           metadata: {},
         },
       ],
@@ -179,7 +178,7 @@ describe('Signal Chain Logic (Refined)', () => {
           id: micId,
           name: 'Mic',
           type: 'Microphone',
-          outputChannels: [{ id: 'm1', number: 1, channelCount: 1 }],
+          outputChannels: [{ id: 'm1', number: 1, channelCount: 1, phantomPower: false, pad: false }],
           inputChannels: [],
           metadata: { generalName: 'Kick' },
         },
@@ -189,12 +188,12 @@ describe('Signal Chain Logic (Refined)', () => {
           type: 'Mixer',
           // Make it complex
           inputChannels: [
-            { id: 'i1', number: 1, channelCount: 1 },
-            { id: 'i2', number: 2, channelCount: 1 }
+            { id: 'i1', number: 1, channelCount: 1, phantomPower: false, pad: false },
+            { id: 'i2', number: 2, channelCount: 1, phantomPower: false, pad: false }
           ],
           outputChannels: [
-            { id: mixerOutId, number: 1, channelCount: 1, name: 'Main L' },
-            { id: 'o2', number: 2, channelCount: 1 }
+            { id: mixerOutId, number: 1, channelCount: 1, name: 'Main L', phantomPower: false, pad: false },
+            { id: 'o2', number: 2, channelCount: 1, phantomPower: false, pad: false }
           ],
           metadata: {},
         },

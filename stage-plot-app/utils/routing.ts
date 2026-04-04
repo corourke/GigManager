@@ -7,11 +7,12 @@ export type Obstacle = {
   bottom: number 
 };
 
-export const ROUTE_MARGIN = 40;
-export const CORNER_RADIUS = 10;
-export const LINE_SPACING = 14;
-export const GRID_SIZE = 10;
-export const OBSTACLE_PADDING = 20;
+export const ROUTE_MARGIN = 10; // Minimum distance to keep from devices and obstacles when routing to ensure visual separation and avoid collisions, especially important for native where we can't rely on hover interactions for precision.
+export const CORNER_RADIUS = 10; // Radius for rounded corners in the path. This is purely visual and does not affect routing logic, but it helps make the paths look smoother and more polished. Adjust as needed for aesthetics.
+export const LINE_SPACING = 10; // Minimum spacing between parallel lines when routing multiple connections between the same pair of devices. This helps prevent visual overlap and makes it easier to distinguish individual connections. Adjust as needed based on the typical density of connections in your stage plot.
+export const GRID_SIZE = 10; // Grid size for snapping points during routing. This helps to keep paths aligned and visually consistent. Adjust as needed for finer or coarser routing control.
+export const OBSTACLE_PADDING = 8; // Additional padding around obstacles to ensure paths don't run too close to them, which can help prevent visual clutter and make it clearer that the path is intentionally avoiding the obstacle. Adjust as needed based on the typical size of devices and obstacles in your stage plot.
+export const OUTPUT_STUB_LENGTH = 20; // Minimum length of the initial stub from the device to ensure proper spacing and parallelism
 
 export function snap(v: number): number {
   return Math.round(v / GRID_SIZE) * GRID_SIZE;
@@ -112,13 +113,13 @@ export function getOrthogonalPoints(
   preferredBypassY?: number
 ): RoutingResult {
   // Fixed stub to ensure parallel lines with offsets
-  // Increased to 60 to clear obstacle padding even with large group offsets
-  const stub = 60;
+  const stub = OUTPUT_STUB_LENGTH;
+  ;
   
-  const osx = x1 + stub + srcOffsetX;
-  const oex = x2 - stub + dstOffsetX;
+  const osx = x1 + Math.max(OBSTACLE_PADDING + 2, stub + srcOffsetX);
+  const oex = x2 - Math.max(OBSTACLE_PADDING + 2, stub - dstOffsetX);
   
-  const isBackwards = x1 > x2 - 60; // Threshold for loop-around
+  const isBackwards = x1 > x2 - 5; // Very sensitive to backward routing
 
   let best: Point[] | null = null;
   let bestLen = Infinity;
@@ -157,13 +158,13 @@ export function getOrthogonalPoints(
   // A. Z-paths (3-segment) - Only for forward routing
   if (!isBackwards) {
     const midXCandidates = [
-        oex, // Prefer destination-aligned lanes
-        osx, // Or source-aligned
+        osx, // Source-aligned lanes are also unique per-pair
+        oex, // Destination-aligned lanes are unique per-pair
         (osx + oex) / 2,
     ];
     for (const mx of midXCandidates) {
         // Ensure mx is actually between the escape points or at least to the right of x1
-        if (mx > x1 + 10 && mx < x2 - 10) {
+        if (mx > x1 + 5 && mx < x2 - 5) {
             tryPath([
                 { x: x1, y: y1 }, { x: mx, y: y1 }, { x: mx, y: y2 }, { x: x2, y: y2 }
             ], mx, undefined);
@@ -194,11 +195,25 @@ export function getOrthogonalPoints(
   });
 
   const sortedYs = Array.from(new Set(yCandidates))
-    .filter(y => Math.abs(y - y1) > 15 && Math.abs(y - y2) > 15) // Prevent micro-segments/hairpins
+    .filter(y => Math.abs(y - y1) > 10 && Math.abs(y - y2) > 10) // Reduced threshold for more flexibility
     .sort((a, b) => {
-        // Prioritize Ys that are closer to the y1-y2 range
+        // Favor y-values between the source and destination for a cleaner "between" look
         const midY = (y1 + y2) / 2;
-        return Math.abs(a - midY) - Math.abs(b - midY);
+        const distA = Math.abs(a - midY);
+        const distB = Math.abs(b - midY);
+        const isAInBetween = a >= Math.min(y1, y2) && a <= Math.max(y1, y2);
+        const isBInBetween = b >= Math.min(y1, y2) && b <= Math.max(y1, y2);
+        
+        let scoreA = distA;
+        let scoreB = distB;
+        if (isAInBetween) scoreA -= 500; // Stronger preference for "between"
+        if (isBInBetween) scoreB -= 500;
+        
+        // Secondary preference for top
+        if (a < Math.min(y1, y2)) scoreA -= 20;
+        if (b < Math.min(y1, y2)) scoreB -= 20;
+        
+        return scoreA - scoreB;
     });
 
   for (const by of sortedYs) {

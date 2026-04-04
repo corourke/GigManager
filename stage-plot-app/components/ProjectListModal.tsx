@@ -8,7 +8,8 @@ import {
   FlatList, 
   Alert,
   ActivityIndicator,
-  ScrollView
+  ScrollView,
+  Platform
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { X, Plus, Trash2, FileText, Copy, ArrowRight, Save, Layout } from 'lucide-react-native';
@@ -89,6 +90,13 @@ export function ProjectListModal({ visible, onClose }: ProjectListModalProps) {
   };
 
   const handleDeleteProject = (id: string, name: string) => {
+    if (Platform.OS === 'web') {
+      if (window.confirm(`Are you sure you want to delete "${name}"?`)) {
+        deleteProject(id).then(() => fetchLists());
+      }
+      return;
+    }
+
     Alert.alert(
       "Delete Project",
       `Are you sure you want to delete "${name}"?`,
@@ -107,6 +115,13 @@ export function ProjectListModal({ visible, onClose }: ProjectListModalProps) {
   };
 
   const handleDeleteTemplate = (id: string, name: string) => {
+    if (Platform.OS === 'web') {
+      if (window.confirm(`Are you sure you want to delete template "${name}"?`)) {
+        deleteTemplate(id).then(() => fetchLists());
+      }
+      return;
+    }
+
     Alert.alert(
       "Delete Template",
       `Are you sure you want to delete template "${name}"?`,

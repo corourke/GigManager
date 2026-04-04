@@ -7,7 +7,8 @@ import {
   TouchableOpacity, 
   FlatList, 
   KeyboardAvoidingView, 
-  Platform 
+  Platform,
+  Alert 
 } from 'react-native';
 import { X, Plus, Trash2, Check } from 'lucide-react-native';
 
@@ -49,6 +50,24 @@ export function ManageListModal({
     if (!newItemName.trim()) return;
     onAdd(newItemName, selectedColor);
     setNewItemName('');
+  };
+
+  const handleDelete = (id: string, name: string) => {
+    if (Platform.OS === 'web') {
+      if (window.confirm(`Are you sure you want to delete "${name}"?`)) {
+        onDelete(id);
+      }
+      return;
+    }
+
+    Alert.alert(
+      "Delete Item",
+      `Are you sure you want to delete "${name}"?`,
+      [
+        { text: "Cancel", style: "cancel" },
+        { text: "Delete", style: "destructive", onPress: () => onDelete(id) }
+      ]
+    );
   };
 
   return (
@@ -116,7 +135,7 @@ export function ManageListModal({
                     onChangeText={(val) => onUpdate(item.id, { name: val })}
                   />
                 </View>
-                <TouchableOpacity onPress={() => onDelete(item.id)}>
+                <TouchableOpacity onPress={() => handleDelete(item.id, item.name)}>
                   <Trash2 size={20} color="#ef4444" />
                 </TouchableOpacity>
               </View>

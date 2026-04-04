@@ -8,6 +8,9 @@ import { DeviceNode, getChannelLayout, getNodeWidth, getNodeHeight } from '../..
 import { DeviceModal } from '../../components/DeviceModal';
 import { Device } from '../../models';
 import { Plus, Maximize, Minimize, RefreshCcw, Trash2, Share2 } from 'lucide-react-native';
+
+const AnimatedG = Animated.createAnimatedComponent(G);
+const AnimatedSvg = Animated.createAnimatedComponent(Svg);
 import ViewShot, { captureRef } from 'react-native-view-shot';
 import { ExportService } from '../../services/ExportService';
 import { 
@@ -49,7 +52,7 @@ export default function DiagramScreen() {
   const canvasOffsetY = useSharedValue(0);
 
   const canvasContainerRef = useRef<View>(null);
-  const viewShotRef = useRef<ViewShot>(null);
+  const viewShotRef = useRef<View>(null);
 
   const handleExportDiagram = async () => {
     try {
@@ -61,26 +64,45 @@ export default function DiagramScreen() {
       await ExportService.shareDiagramImage(uri, project.name);
     } catch (err) {
       console.error('Failed to capture diagram:', err);
-      Alert.alert('Export Error', 'Could not capture diagram image.');
+      if (Platform.OS === 'web') {
+        window.alert('Export Error: Could not capture diagram image.');
+      } else {
+        Alert.alert('Export Error', 'Could not capture diagram image.');
+      }
     }
   };
 
-  const canvasAnimatedStyle = useAnimatedStyle(() => ({
-    transform: [
-      { translateX: vpX.value },
-      { translateY: vpY.value },
-      { scale: vpScale.value },
-    ] as any,
-  }));
+  const canvasAnimatedStyle = useAnimatedStyle(() => {
+    return {
+      transform: [
+        { translateX: vpX.value },
+        { translateY: vpY.value },
+        { scale: vpScale.value },
+      ] as any,
+      transformOrigin: '0 0',
+    };
+  });
+
+  const svgAnimatedStyle = useAnimatedStyle(() => {
+    return {
+      transform: [
+        { translateX: vpX.value },
+        { translateY: vpY.value },
+        { scale: vpScale.value },
+      ] as any,
+      transformOrigin: '0 0',
+    };
+  });
 
   const svgSize = useMemo(() => {
-    let maxX = canvasSize.width * 2;
-    let maxY = canvasSize.height * 2;
+    let maxX = canvasSize.width;
+    let maxY = canvasSize.height;
     project.devices.forEach(d => {
-      maxX = Math.max(maxX, (d.position?.x ?? 0) + 500);
-      maxY = Math.max(maxY, (d.position?.y ?? 0) + 500);
+      maxX = Math.max(maxX, (d.position?.x ?? 0) + 600);
+      maxY = Math.max(maxY, (d.position?.y ?? 0) + 600);
     });
-    return { width: maxX, height: maxY };
+    // Cap size to prevent massive memory allocation
+    return { width: Math.min(maxX, 4000), height: Math.min(maxY, 4000) };
   }, [project.devices, canvasSize]);
 
   useEffect(() => {
@@ -312,6 +334,28 @@ export default function DiagramScreen() {
     const dstOffX: Record<string, number> = {};
     const dstOffY: Record<string, number> = {};
 
+    // Group devices by their X position to stagger columns independently
+    const sourceDeviceIds = Array.from(new Set(hitEndpoints.map(ep => ep.srcId)));
+    const sourceDevices = sourceDeviceIds
+      .map(id => project.devices.find(d => d.id === id)!)
+      .filter(Boolean);
+
+    const deviceStaggerMap: Record<string, number> = {};
+    const devicesByX: Record<number, Device[]> = {};
+    sourceDevices.forEach(d => {
+      const x = d.position?.x ?? 0;
+      if (!devicesByX[x]) devicesByX[x] = [];
+      devicesByX[x].push(d);
+    });
+
+    Object.values(devicesByX).forEach(group => {
+      group.sort((a, b) => (a.position?.y ?? 0) - (b.position?.y ?? 0));
+      group.forEach((d, idx) => {
+        // Stagger each column starting from 0
+        deviceStaggerMap[d.id] = idx * LINE_SPACING;
+      });
+    });
+
     const pairs: Array<{ srcId: string; dstId: string; connectionIds: string[] }> = [];
     hitEndpoints.forEach(ep => {
       let p = pairs.find(x => x.srcId === ep.srcId && x.dstId === ep.dstId);
@@ -336,9 +380,14 @@ export default function DiagramScreen() {
       });
       destPairs.forEach((p, idx) => {
         const off = (idx - (destPairs.length - 1) / 2) * LINE_SPACING;
+        const deviceBaseline = deviceStaggerMap[p.srcId] || 0;
         p.connectionIds.forEach(id => {
           dstOffX[id] = off;
           dstOffY[id] = off / 2;
+          // Apply same offset to source side to ensure stagger if we pick osx
+          // Incorporate device baseline
+          srcOffX[id] = deviceBaseline + off;
+          srcOffY[id] = off / 2;
         });
       });
     });
@@ -357,13 +406,15 @@ export default function DiagramScreen() {
       });
       srcPairs.forEach((p, idx) => {
         const off = (idx - (srcPairs.length - 1) / 2) * LINE_SPACING;
+        const deviceBaseline = deviceStaggerMap[p.srcId] || 0;
         p.connectionIds.forEach(id => {
-          srcOffX[id] = off;
+          srcOffX[id] = deviceBaseline + off;
           srcOffY[id] = off / 2;
         });
       });
     });
 
+    const connectionPaths: Record<string, string> = {};
     const connectionPts: Record<string, Point[]> = {};
     const obstacles = getDeviceObstacles();
 
@@ -399,6 +450,7 @@ export default function DiagramScreen() {
           templateResult.bypassY
         );
         connectionPts[id] = res.points;
+        connectionPaths[id] = pointsToRoundedPath(res.points);
       });
     });
 
@@ -444,16 +496,19 @@ export default function DiagramScreen() {
   const canvasPanGesture = Gesture.Pan()
     .minPointers(1)
     .onChange((e) => {
+      'worklet';
       vpX.value += e.changeX;
       vpY.value += e.changeY;
       didPan.value = true;
     })
     .onEnd(() => {
+      'worklet';
       runOnJS(setTimeout)(() => { didPan.value = false; }, 100);
     });
 
   const canvasPinchGesture = Gesture.Pinch()
     .onChange((e) => {
+      'worklet';
       const newScale = Math.max(0.15, Math.min(3, vpScale.value * e.scaleChange));
       vpScale.value = newScale;
     });
@@ -486,7 +541,6 @@ export default function DiagramScreen() {
       if (!pts) return null;
       const pathData = pointsToRoundedPath(pts);
       const isSelected = selectedConnectionId === connection.id;
-
 
       return (
         <G key={connection.id}>
@@ -562,30 +616,37 @@ export default function DiagramScreen() {
             }
           }}
         >
-          <Animated.View style={[{ position: 'absolute', left: 0, top: 0, width: svgSize.width, height: svgSize.height, backgroundColor: 'transparent' }, canvasAnimatedStyle]}>
-            <ViewShot ref={viewShotRef} options={{ format: 'png', quality: 1.0 }} style={{ width: svgSize.width, height: svgSize.height }} pointerEvents="none">
-              <Svg width={svgSize.width} height={svgSize.height} style={{ position: 'absolute', left: 0, top: 0 }}>
-                {renderConnections()}
-                {activePathData && (
-                  <Path d={activePathData} stroke="#3b82f6" strokeWidth="2" strokeDasharray="5,5" fill="none" />
-                )}
-              </Svg>
-            </ViewShot>
+          <View 
+            ref={viewShotRef as any}
+            style={{ position: 'absolute', left: 0, top: 0, width: canvasSize.width, height: canvasSize.height }}
+          >
+            <Animated.View style={[{ position: 'absolute', left: 0, top: 0, width: svgSize.width, height: svgSize.height }, canvasAnimatedStyle]}>
+              <View pointerEvents="none" style={{ position: 'absolute', top: 0, left: 0, width: svgSize.width, height: svgSize.height }}>
+                <Svg width={svgSize.width} height={svgSize.height}>
+                  <G>
+                    {renderConnections()}
+                    {activePathData && (
+                      <Path d={activePathData} stroke="#3b82f6" strokeWidth="2" strokeDasharray="5,5" fill="none" />
+                    )}
+                  </G>
+                </Svg>
+              </View>
 
-            {project.devices.map(device => (
-              <DeviceNode
-                key={device.id}
-                device={device}
-                onPositionChange={handlePositionChange}
-                onSelect={handleSelectDevice}
-                onStartConnection={handleStartConnection}
-                onUpdateConnection={handleUpdateConnection}
-                onEndConnection={handleEndConnection}
-                onCancelConnection={handleCancelConnection}
-                canvasScale={vpScale}
-              />
-            ))}
-          </Animated.View>
+              {project.devices.map(device => (
+                <DeviceNode
+                  key={device.id}
+                  device={device}
+                  onPositionChange={handlePositionChange}
+                  onSelect={handleSelectDevice}
+                  onStartConnection={handleStartConnection}
+                  onUpdateConnection={handleUpdateConnection}
+                  onEndConnection={handleEndConnection}
+                  onCancelConnection={handleCancelConnection}
+                  canvasScale={vpScale}
+                />
+              ))}
+            </Animated.View>
+          </View>
         </View>
       </GestureDetector>
 

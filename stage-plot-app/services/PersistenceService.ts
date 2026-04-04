@@ -1,11 +1,11 @@
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 import { Platform } from 'react-native';
 import { Project, ProjectSchema } from '../models';
 
 const IS_WEB = Platform.OS === 'web' && typeof localStorage !== 'undefined';
 
-const getProjectsDir = () => (IS_WEB || !FileSystem.documentDirectory) ? '' : `${FileSystem.documentDirectory}projects/`;
-const getTemplatesDir = () => (IS_WEB || !FileSystem.documentDirectory) ? '' : `${FileSystem.documentDirectory}templates/`;
+const getProjectsDir = () => IS_WEB ? null : `${FileSystem.documentDirectory}projects/`;
+const getTemplatesDir = () => IS_WEB ? null : `${FileSystem.documentDirectory}templates/`;
 
 export interface ProjectMetadata {
   id: string;
@@ -16,23 +16,22 @@ export interface ProjectMetadata {
 
 export const PersistenceService = {
   async ensureDirsExist() {
-    if (IS_WEB || !FileSystem.documentDirectory) return;
+    if (IS_WEB) return;
     
     const projectsDir = getProjectsDir();
     const templatesDir = getTemplatesDir();
     
-    try {
-      const projectDirInfo = await FileSystem.getInfoAsync(projectsDir);
-      if (!projectDirInfo.exists) {
+    if (projectsDir) {
+      const info = await FileSystem.getInfoAsync(projectsDir);
+      if (!info.exists) {
         await FileSystem.makeDirectoryAsync(projectsDir, { intermediates: true });
       }
-
-      const templateDirInfo = await FileSystem.getInfoAsync(templatesDir);
-      if (!templateDirInfo.exists) {
+    }
+    if (templatesDir) {
+      const info = await FileSystem.getInfoAsync(templatesDir);
+      if (!info.exists) {
         await FileSystem.makeDirectoryAsync(templatesDir, { intermediates: true });
       }
-    } catch (e) {
-      console.error('PersistenceService: Error in ensureDirsExist', e);
     }
   },
 
@@ -66,41 +65,29 @@ export const PersistenceService = {
       console.log('PersistenceService: listProjects (NATIVE)');
       await this.ensureDirsExist();
       const projectsDir = getProjectsDir();
-      if (!projectsDir) {
-        console.log('PersistenceService: No projects directory');
-        return [];
-      }
+      if (!projectsDir) return [];
       
       const files = await FileSystem.readDirectoryAsync(projectsDir);
-      console.log('PersistenceService: Files in projects dir:', files);
       const projects: ProjectMetadata[] = [];
 
-      for (const file of files) {
-        if (file.endsWith('.json')) {
+      for (const fileName of files) {
+        if (fileName.endsWith('.json')) {
           try {
-            const fileNameId = file.replace('.json', '');
-            const filePath = `${projectsDir}${file}`;
-            const content = await FileSystem.readAsStringAsync(filePath);
+            const content = await FileSystem.readAsStringAsync(`${projectsDir}${fileName}`);
             const data = JSON.parse(content);
             
-            // Use the ID from the data, but fallback to fileNameId if missing
-            const projectId = data.id || fileNameId;
-            
-            console.log(`PersistenceService: Found project file: ${file}, id in data: ${data.id}`);
-            
             projects.push({
-              id: projectId,
-              name: data.name || fileNameId,
+              id: data.id || fileName.replace('.json', ''),
+              name: data.name || fileName.replace('.json', ''),
               updatedAt: data.updatedAt || new Date().toISOString(),
               isTemplate: false,
             });
           } catch (error) {
-            console.error(`PersistenceService: Failed to read/parse project file: ${file}`, error);
+            console.error(`PersistenceService: Failed to read/parse project file: ${fileName}`, error);
           }
         }
       }
 
-      console.log('PersistenceService: Returning projects:', projects.length);
       return projects.sort((a, b) => {
         const tA = new Date(a.updatedAt).getTime() || 0;
         const tB = new Date(b.updatedAt).getTime() || 0;
@@ -135,13 +122,15 @@ export const PersistenceService = {
 
     await this.ensureDirsExist();
     const templatesDir = getTemplatesDir();
+    if (!templatesDir) return [];
+    
     const files = await FileSystem.readDirectoryAsync(templatesDir);
     const templates: ProjectMetadata[] = [];
 
-    for (const file of files) {
-      if (file.endsWith('.json')) {
+    for (const fileName of files) {
+      if (fileName.endsWith('.json')) {
         try {
-          const content = await FileSystem.readAsStringAsync(`${templatesDir}${file}`);
+          const content = await FileSystem.readAsStringAsync(`${templatesDir}${fileName}`);
           const data = JSON.parse(content);
           templates.push({
             id: data.id,
@@ -150,7 +139,7 @@ export const PersistenceService = {
             isTemplate: true,
           });
         } catch (error) {
-          console.error(`Failed to read template file: ${file}`, error);
+          console.error(`Failed to read template file: ${fileName}`, error);
         }
       }
     }
@@ -170,8 +159,10 @@ export const PersistenceService = {
     }
 
     await this.ensureDirsExist();
-    const filePath = `${getProjectsDir()}${project.id}.json`;
-    await FileSystem.writeAsStringAsync(filePath, JSON.stringify(project));
+    const projectsDir = getProjectsDir();
+    if (projectsDir) {
+      await FileSystem.writeAsStringAsync(`${projectsDir}${project.id}.json`, JSON.stringify(project));
+    }
   },
 
   async loadProject(id: string): Promise<Project | null> {
@@ -189,24 +180,23 @@ export const PersistenceService = {
     try {
       await this.ensureDirsExist();
       const projectsDir = getProjectsDir();
-      const filePath = `${projectsDir}${id}.json`;
-      
-      const fileInfo = await FileSystem.getInfoAsync(filePath);
-      if (fileInfo.exists) {
-        const content = await FileSystem.readAsStringAsync(filePath);
+      if (!projectsDir) return null;
+
+      const fileUri = `${projectsDir}${id}.json`;
+      const info = await FileSystem.getInfoAsync(fileUri);
+      if (info.exists) {
+        const content = await FileSystem.readAsStringAsync(fileUri);
         const data = JSON.parse(content);
         return ProjectSchema.parse(data);
       }
 
-      // If file not found by ID, maybe it's named differently? Search by scanning.
-      console.log(`PersistenceService: File ${id}.json not found, scanning directory...`);
+      // Scan if not found by ID.json
       const files = await FileSystem.readDirectoryAsync(projectsDir);
-      for (const file of files) {
-        if (file.endsWith('.json')) {
-          const content = await FileSystem.readAsStringAsync(`${projectsDir}${file}`);
+      for (const fileName of files) {
+        if (fileName.endsWith('.json')) {
+          const content = await FileSystem.readAsStringAsync(`${projectsDir}${fileName}`);
           const data = JSON.parse(content);
           if (data.id === id) {
-            console.log(`PersistenceService: Found project ${id} in file ${file}`);
             return ProjectSchema.parse(data);
           }
         }
@@ -227,11 +217,13 @@ export const PersistenceService = {
       return;
     }
 
-    await this.ensureDirsExist();
-    const filePath = `${getProjectsDir()}${id}.json`;
-    const fileInfo = await FileSystem.getInfoAsync(filePath);
-    if (fileInfo.exists) {
-      await FileSystem.deleteAsync(filePath);
+    const projectsDir = getProjectsDir();
+    if (projectsDir) {
+      const fileUri = `${projectsDir}${id}.json`;
+      const info = await FileSystem.getInfoAsync(fileUri);
+      if (info.exists) {
+        await FileSystem.deleteAsync(fileUri);
+      }
     }
   },
 
@@ -247,8 +239,10 @@ export const PersistenceService = {
     }
 
     await this.ensureDirsExist();
-    const filePath = `${getTemplatesDir()}${project.id}.json`;
-    await FileSystem.writeAsStringAsync(filePath, JSON.stringify(project));
+    const templatesDir = getTemplatesDir();
+    if (templatesDir) {
+      await FileSystem.writeAsStringAsync(`${templatesDir}${project.id}.json`, JSON.stringify(project));
+    }
   },
 
   async loadTemplate(id: string): Promise<Project | null> {
@@ -264,11 +258,18 @@ export const PersistenceService = {
     }
 
     await this.ensureDirsExist();
-    const filePath = `${getTemplatesDir()}${id}.json`;
+    const templatesDir = getTemplatesDir();
+    if (!templatesDir) return null;
+    
+    const fileUri = `${templatesDir}${id}.json`;
     try {
-      const content = await FileSystem.readAsStringAsync(filePath);
-      const data = JSON.parse(content);
-      return ProjectSchema.parse(data);
+      const info = await FileSystem.getInfoAsync(fileUri);
+      if (info.exists) {
+        const content = await FileSystem.readAsStringAsync(fileUri);
+        const data = JSON.parse(content);
+        return ProjectSchema.parse(data);
+      }
+      return null;
     } catch (error) {
       console.error(`Failed to load template: ${id}`, error);
       return null;
@@ -283,11 +284,13 @@ export const PersistenceService = {
       return;
     }
 
-    await this.ensureDirsExist();
-    const filePath = `${getTemplatesDir()}${id}.json`;
-    const fileInfo = await FileSystem.getInfoAsync(filePath);
-    if (fileInfo.exists) {
-      await FileSystem.deleteAsync(filePath);
+    const templatesDir = getTemplatesDir();
+    if (templatesDir) {
+      const fileUri = `${templatesDir}${id}.json`;
+      const info = await FileSystem.getInfoAsync(fileUri);
+      if (info.exists) {
+        await FileSystem.deleteAsync(fileUri);
+      }
     }
   },
 
@@ -296,8 +299,8 @@ export const PersistenceService = {
       localStorage.setItem('sp_theme', theme);
       return;
     }
-    const themePath = `${FileSystem.documentDirectory}theme.txt`;
-    await FileSystem.writeAsStringAsync(themePath, theme);
+    const themeFile = `${FileSystem.documentDirectory}theme.txt`;
+    await FileSystem.writeAsStringAsync(themeFile, theme);
   },
 
   async getTheme(): Promise<'light' | 'dark' | 'auto'> {
@@ -305,14 +308,11 @@ export const PersistenceService = {
       return (localStorage.getItem('sp_theme') as 'light' | 'dark' | 'auto') || 'auto';
     }
     
-    if (!FileSystem.documentDirectory) return 'auto';
-    
-    const themePath = `${FileSystem.documentDirectory}theme.txt`;
+    const themeFile = `${FileSystem.documentDirectory}theme.txt`;
     try {
-      const fileInfo = await FileSystem.getInfoAsync(themePath);
-      if (!fileInfo.exists) return 'auto';
-      
-      const content = await FileSystem.readAsStringAsync(themePath);
+      const info = await FileSystem.getInfoAsync(themeFile);
+      if (!info.exists) return 'auto';
+      const content = await FileSystem.readAsStringAsync(themeFile);
       return (content as 'light' | 'dark' | 'auto') || 'auto';
     } catch (e) {
       return 'auto';

@@ -8,7 +8,8 @@ import {
   ScrollView,
   StyleSheet,
   Alert,
-  useColorScheme as useReactNativeColorScheme
+  useColorScheme as useReactNativeColorScheme,
+  Platform
 } from 'react-native';
 import { X, Sun, Moon, Monitor, Check, Trash2 } from 'lucide-react-native';
 import { useTheme } from '../contexts/ThemeContext';
@@ -25,6 +26,18 @@ export function SettingsModal({ visible, onClose }: SettingsModalProps) {
   const systemColorScheme = useReactNativeColorScheme();
 
   const handleDeleteCurrentProject = () => {
+    if (Platform.OS === 'web') {
+      const confirmed = window.confirm(`Are you sure you want to delete the current project "${project.name}"? This action cannot be undone.`);
+      if (confirmed) {
+        (async () => {
+          console.log('SettingsModal: Deleting current project (WEB)', project.id);
+          await deleteProject(project.id);
+          onClose();
+        })();
+      }
+      return;
+    }
+
     Alert.alert(
       "Delete Current Project",
       `Are you sure you want to delete the current project "${project.name}"? This action cannot be undone.`,
@@ -34,6 +47,7 @@ export function SettingsModal({ visible, onClose }: SettingsModalProps) {
           text: "Delete Project", 
           style: "destructive", 
           onPress: async () => {
+            console.log('SettingsModal: Deleting current project (NATIVE)', project.id);
             await deleteProject(project.id);
             onClose();
           } 

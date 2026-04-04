@@ -9,6 +9,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { Device, Channel } from '../models';
 import { Mic, Speaker, Box, Settings, Music, MoreVertical } from 'lucide-react-native';
+import { ChannelDot } from './ChannelDot';
 
 export function isSimpleDevice(device: { type: string; inputChannels: any[]; outputChannels: any[] }): boolean {
   const totalChannels = device.inputChannels.length + device.outputChannels.length;
@@ -122,7 +123,6 @@ export function DeviceNode({
 }: DeviceNodeProps) {
   const translateX = useSharedValue(device.position?.x ?? 100);
   const translateY = useSharedValue(device.position?.y ?? 100);
-  const context = useSharedValue({ x: 0, y: 0 });
 
   const isSimple = isSimpleDevice(device);
   const nodeWidth = getNodeWidth(device);
@@ -171,48 +171,6 @@ export function DeviceNode({
     });
     return result;
   }, [device, channelLayout]);
-
-  const renderDot = (channel: Channel, y: number, isOutput: boolean) => {
-    const sumX = useSharedValue(0);
-    const sumY = useSharedValue(0);
-
-    const channelGesture = Gesture.Pan()
-      .minPointers(1)
-      .maxPointers(1)
-      .onBegin(() => {
-        sumX.value = 0;
-        sumY.value = 0;
-        const x = translateX.value + (isOutput ? nodeWidth : 0);
-        runOnJS(onStartConnection)(device.id, channel.id, x, translateY.value + y);
-      })
-      .onChange((event) => {
-        const s = canvasScale.value;
-        sumX.value += event.changeX / s;
-        sumY.value += event.changeY / s;
-        const x = translateX.value + (isOutput ? nodeWidth : 0) + sumX.value;
-        const cy = translateY.value + y + sumY.value;
-        runOnJS(onUpdateConnection)(x, cy);
-      })
-      .onEnd(() => {
-        const x = translateX.value + (isOutput ? nodeWidth : 0) + sumX.value;
-        const cy = translateY.value + y + sumY.value;
-        runOnJS(onEndConnection)(device.id, channel.id, x, cy);
-      });
-
-    return (
-      <GestureDetector key={channel.id} gesture={channelGesture}>
-        <View
-          style={[
-            styles.dotTarget,
-            isOutput ? { right: -8 } : { left: -8 },
-            { top: y - 8 },
-          ]}
-        >
-          <View style={[styles.dot, { backgroundColor: isOutput ? '#ef4444' : '#22c55e' }]} />
-        </View>
-      </GestureDetector>
-    );
-  };
 
   const groupedInputs = useMemo(() => groupChannels(device.inputChannels), [device.inputChannels]);
   const groupedOutputs = useMemo(() => groupChannels(device.outputChannels), [device.outputChannels]);
@@ -285,7 +243,22 @@ export function DeviceNode({
           {!isSimple && <View style={{ marginTop: NODE_LAYOUT.CHANNEL_GAP }}>{renderComplexChannels()}</View>}
         </View>
       </GestureDetector>
-      {allChannels.map(({ channel, y, isOutput }) => renderDot(channel, y, isOutput))}
+      {allChannels.map(({ channel, y, isOutput }) => (
+        <ChannelDot
+          key={channel.id}
+          channel={channel}
+          y={y}
+          isOutput={isOutput}
+          deviceId={device.id}
+          nodeWidth={nodeWidth}
+          translateX={translateX}
+          translateY={translateY}
+          canvasScale={canvasScale}
+          onStartConnection={onStartConnection}
+          onUpdateConnection={onUpdateConnection}
+          onEndConnection={onEndConnection}
+        />
+      ))}
     </Animated.View>
   );
 }
@@ -350,20 +323,5 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: '#6b7280',
     fontWeight: '500',
-  },
-  dotTarget: {
-    position: 'absolute',
-    width: 16,
-    height: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-    zIndex: 20,
-  },
-  dot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    borderWidth: 1,
-    borderColor: '#ffffff',
   },
 });

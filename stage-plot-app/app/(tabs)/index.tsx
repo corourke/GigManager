@@ -8,7 +8,8 @@ import {
   StatusBar, 
   TextInput,
   ScrollView,
-  Alert
+  Alert,
+  Platform
 } from 'react-native';
 import { Plus, Search, Filter, X, LayoutGrid, Layers, Settings, FileText } from 'lucide-react-native';
 import { useProject } from '../../contexts/ProjectContext';
@@ -87,6 +88,13 @@ export default function SetupsScreen() {
   }, [project.devices, project.groups, project.categories, searchQuery, filterType]);
 
   const handleDeleteDevice = (id: string) => {
+    if (Platform.OS === 'web') {
+      if (window.confirm("Are you sure you want to delete this device and all its connections?")) {
+        deleteDevice(id);
+      }
+      return;
+    }
+
     Alert.alert(
       "Delete Device",
       "Are you sure you want to delete this device and all its connections?",
