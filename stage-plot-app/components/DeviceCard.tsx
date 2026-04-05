@@ -11,7 +11,7 @@ interface DeviceCardProps {
   onDelete: (id: string) => void;
 }
 
-export function DeviceCard({ device, group, category, onEdit, onDelete }: DeviceCardProps) {
+export const DeviceCard = React.memo(({ device, group, category, onEdit, onDelete }: DeviceCardProps) => {
   const isTerminalSource = device.type === 'Microphone' || device.type === 'DI Box' || device.type === 'Instrument';
   
   return (
@@ -68,4 +68,4 @@ export function DeviceCard({ device, group, category, onEdit, onDelete }: Device
       </View>
     </View>
   );
-}
+});

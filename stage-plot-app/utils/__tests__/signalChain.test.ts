@@ -204,10 +204,24 @@ describe('Signal Chain Logic (Refined)', () => {
     };
 
     const tabular = resolveTabularPatch(project);
-    expect(tabular.length).toBe(2);
+    // Should have 4 rows: 
+    // 1. Mic 1 (Terminal Source)
+    // 2. Mixer In 1 (Orphaned Input)
+    // 3. Mixer In 2 (Orphaned Input)
+    // 4. Mixer Out 1 (Sink Output)
+    expect(tabular.length).toBe(4);
+    
+    // Sort logic puts terminal sources (Mic) first
     expect(tabular[0].sourceDeviceName).toBe('Mic'); // Input
     expect(tabular[0].isSink).toBeFalsy();
-    expect(tabular[1].sourceDeviceName).toBe('Mixer'); // Output
-    expect(tabular[1].isSink).toBeTruthy();
+    
+    // Then orphaned inputs
+    expect(tabular[1].sourceDeviceName).toBe(''); // Orphaned Input
+    expect(tabular[1].hops[0].deviceId).toBe(mixerId);
+    
+    // Finally sink rows
+    const sinkRow = tabular.find(r => r.isSink);
+    expect(sinkRow?.sourceDeviceName).toBe('Mixer'); // Output
+    expect(sinkRow?.isSink).toBeTruthy();
   });
 });

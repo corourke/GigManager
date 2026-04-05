@@ -43,27 +43,33 @@ export function ProjectListModal({ visible, onClose }: ProjectListModalProps) {
   const [activeTab, setActiveTab] = useState<'projects' | 'templates'>('projects');
   const [isNamingTemplate, setIsNamingTemplate] = useState(false);
 
-  const fetchLists = async () => {
+  const isMounted = React.useRef(true);
+
+  const fetchLists = React.useCallback(async () => {
     try {
-      setLoading(true);
-      console.log('ProjectListModal: fetchLists start');
+      if (isMounted.current) setLoading(true);
       const [pList, tList] = await Promise.all([listProjects(), listTemplates()]);
-      console.log('ProjectListModal: fetchLists pList:', pList.length, 'tList:', tList.length);
-      setProjects(pList);
-      setTemplates(tList);
+      if (isMounted.current) {
+        setProjects(pList);
+        setTemplates(tList);
+        setLoading(false);
+      }
     } catch (err) {
       console.error('ProjectListModal: fetchLists error:', err);
-    } finally {
-      setLoading(false);
+      if (isMounted.current) setLoading(false);
     }
-  };
+  }, [listProjects, listTemplates]);
 
   useEffect(() => {
+    isMounted.current = true;
     if (visible) {
       fetchLists();
       setNewTemplateName(project.name);
     }
-  }, [visible, project.name]);
+    return () => {
+      isMounted.current = false;
+    };
+  }, [visible, project.name, fetchLists]);
 
   const handleCreateProject = async () => {
     if (!newProjectName.trim()) return;

@@ -105,21 +105,67 @@ describe('Tabular Patch Logic', () => {
 
     const rows = resolveTabularPatch(project);
 
-    // Should have 3 rows (SB 7, SB 8, SB 9)
-    expect(rows.length).toBe(3);
+    // Should have 4 rows: 
+    // 1. SB 7 (Mic 1 -> SB 7 -> Mixer 1)
+    // 2. SB 8 (Mixer 1 -> SB 8 -> Speaker 1)
+    // 3. SB 9 (Orphaned SB 9)
+    // 4. Mixer In 2 (Orphaned Mixer In 2)
+    expect(rows.length).toBe(4);
 
-    // Sorting rule: Stagebox inputs should be together and in order
-    // SB Ch 7 (Mic 1 -> SB Ch 7)
-    // SB Ch 8 (Mixer Out 1 -> SB Ch 8)
-    // SB Ch 9 (Orphaned SB Ch 9)
+    // Sorting rule: ALL inputs first, then ALL outputs (sinks)
+    // 1. SB 7 (Mic 1 -> SB 7 -> Mixer 1)
+    // 2. SB 9 (Orphaned SB 9)
+    // 3. Mixer In 2 (Orphaned Mixer In 2)
+    // 4. SB 8 (Mixer 1 -> SB 8 -> Speaker 1) - THIS IS A SINK because source is Mixer output
     
     expect(rows[0].sourceDeviceName).toBe('Mic 1');
     expect(rows[0].hops.find(h => h.deviceId === stageboxId)?.inputChannelNumber).toBe(7);
     
-    expect(rows[1].sourceDeviceName).toBe('Mixer');
-    expect(rows[1].hops.find(h => h.deviceId === stageboxId)?.inputChannelNumber).toBe(8);
+    expect(rows[1].sourceDeviceName).toBe(''); // Orphaned SB 9
+    expect(rows[1].hops.find(h => h.deviceId === stageboxId)?.inputChannelNumber).toBe(9);
 
-    expect(rows[2].sourceDeviceName).toBe('Stagebox');
-    expect(rows[2].sourceChannelNumber).toBe(9);
+    expect(rows[2].sourceDeviceName).toBe(''); // Orphaned Mixer In 2
+    expect(rows[2].hops.find(h => h.deviceId === mixerId)?.inputChannelNumber).toBe(2);
+
+    expect(rows[3].sourceDeviceName).toBe('Mixer'); // Sink SB 8
+    expect(rows[3].isSink).toBe(true);
+    expect(rows[3].hops.find(h => h.deviceId === stageboxId)?.inputChannelNumber).toBe(8);
+  });
+
+  it('generates orphaned rows for Mixer inputs', () => {
+    const mixerId = 'mix1';
+    
+    const project: Project = {
+      id: mockId(),
+      name: 'Test Project',
+      createdAt: mockTimestamp,
+      updatedAt: mockTimestamp,
+      devices: [
+        {
+          id: mixerId,
+          name: 'FOH',
+          type: 'Mixer',
+          inputChannels: [
+            { id: 'mix-in-1', number: 1, channelCount: 1, phantomPower: false, pad: false },
+            { id: 'mix-in-2', number: 2, channelCount: 1, phantomPower: false, pad: false },
+            { id: 'mix-in-3', number: 3, channelCount: 1, phantomPower: false, pad: false },
+          ],
+          outputChannels: [],
+          metadata: {},
+        },
+      ],
+      connections: [],
+      groups: [],
+      categories: [],
+    };
+
+    const rows = resolveTabularPatch(project);
+
+    // Should have 3 rows (Mixer Input 1, 2, 3)
+    expect(rows.length).toBe(3);
+    expect(rows[0].sourceDeviceName).toBe('');
+    expect(rows[0].hops[0].deviceId).toBe(mixerId);
+    expect(rows[0].hops[0].inputChannelNumber).toBe(1);
+    expect(rows[1].hops[0].inputChannelNumber).toBe(2);
   });
 });

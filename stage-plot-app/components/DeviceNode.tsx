@@ -8,17 +8,12 @@ import Animated, {
   runOnJS
 } from 'react-native-reanimated';
 import { Device, Channel } from '../models';
+import { shouldShowChannelNames as shouldShowChannelNamesUtil } from '../utils/signalChain';
 import { Mic, Speaker, Box, Settings, Music, MoreVertical } from 'lucide-react-native';
 import { ChannelDot } from './ChannelDot';
 
 export function shouldShowChannelNames(device: Device): boolean {
-  // If explicitly set in metadata, respect that
-  if (device.metadata.showChannelNames !== undefined) {
-    return device.metadata.showChannelNames;
-  }
-  // Fallback: only show for devices with > 2 total channels
-  const totalChannels = device.inputChannels.length + device.outputChannels.length;
-  return totalChannels > 2;
+  return shouldShowChannelNamesUtil(device);
 }
 
 export const NODE_LAYOUT = {

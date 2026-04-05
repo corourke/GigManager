@@ -48,7 +48,7 @@ const parseQuickEntry = (text: string) => {
   return { type, name, channelName, model };
 };
 
-const SourceDeviceCell = ({ item, isMono, category, updateDevice, handleUpdateStereo, addDevice, addConnection, project }: any) => {
+const SourceDeviceCell = ({ item, isMono, category, updateDevice, handleUpdateStereo, addDevice, addConnection, project, inputRef, onSubmitEditing }: any) => {
   const initialValue = isMono ? item.sourceDeviceName : `${item.sourceDeviceName} / ${item.sourceEffectiveName}`;
   const [localValue, setLocalValue] = useState(initialValue);
 
@@ -57,11 +57,17 @@ const SourceDeviceCell = ({ item, isMono, category, updateDevice, handleUpdateSt
     setLocalValue(initialValue);
   }, [initialValue]);
 
-  const handleBlur = () => {
-    if (localValue === initialValue) return;
+  const handleCommit = (value: string) => {
+    if (value === initialValue) return;
     
-    const quickEntry = parseQuickEntry(localValue);
-    if (quickEntry && (localValue.includes(':') || localValue.includes('/') || localValue.includes('('))) {
+    let commitValue = value;
+    // If it's an orphaned row and NOT a quick entry syntax, wrap it as a quick entry
+    if (!item.sourceDeviceId && !value.includes(':') && !value.includes('/') && !value.includes('(') && value.trim()) {
+        commitValue = `${value.trim()}`;
+    }
+
+    const quickEntry = parseQuickEntry(commitValue);
+    if (quickEntry && (commitValue.includes(':') || commitValue.includes('/') || commitValue.includes('(') || !item.sourceDeviceId)) {
       // It's a quick entry!
       // 1. Find if device already exists by name
       let device = project.devices.find((d: Device) => d.name.toLowerCase() === quickEntry.name.toLowerCase());
@@ -126,11 +132,17 @@ const SourceDeviceCell = ({ item, isMono, category, updateDevice, handleUpdateSt
       return;
     }
 
-    if (isMono) {
-      updateDevice(item.sourceDeviceId, { name: localValue });
-    } else {
-      handleUpdateStereo(item, localValue);
+    if (item.sourceDeviceId) {
+        if (isMono) {
+          updateDevice(item.sourceDeviceId, { name: value });
+        } else {
+          handleUpdateStereo(item, value);
+        }
     }
+  };
+
+  const handleBlur = () => {
+    handleCommit(localValue);
   };
 
   return (
@@ -139,15 +151,24 @@ const SourceDeviceCell = ({ item, isMono, category, updateDevice, handleUpdateSt
       <View style={{ flex: 1 }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap' }}>
           <TextInput
+            ref={inputRef}
             style={{ fontWeight: 'bold', color: 'black', fontSize: 11, padding: 0, marginRight: 2, flex: 1 }}
             value={localValue}
+            placeholder={!item.sourceDeviceId ? "Assign Source..." : ""}
+            placeholderTextColor="#9ca3af"
             onChangeText={setLocalValue}
             onBlur={handleBlur}
-          />
-          <Text style={{ fontSize: 9, color: '#6b7280' }}>
-            ({item.sourceDeviceModel || item.sourceDeviceType})
-          </Text>
-        </View>
+            onSubmitEditing={() => {
+                handleCommit(localValue);
+                onSubmitEditing();
+            }}
+            returnKeyType="next"
+            blurOnSubmit={false}
+          />{item.sourceDeviceId && (
+            <Text style={{ fontSize: 9, color: '#6b7280' }}>
+                ({item.sourceDeviceModel || item.sourceDeviceType})
+            </Text>
+          )}</View>
       </View>
     </View>
   );
@@ -156,6 +177,7 @@ const SourceDeviceCell = ({ item, isMono, category, updateDevice, handleUpdateSt
 export default function PatchScreen() {
   const { project, updateDevice, addDevice, addConnection } = useProject();
   const [searchQuery, setSearchQuery] = useState('');
+  const inputRefs = React.useRef<Record<string, any>>({});
   
   // Complex devices are non-source/terminal devices (Stageboxes, Mixers, etc.)
   // We use shouldShowChannelNames to determine which devices get columns
@@ -164,14 +186,16 @@ export default function PatchScreen() {
     [project]
   );
 
-  const [selectedDeviceIds, setSelectedDeviceIds] = useState<string[]>([]);
+  const [userSelectedDeviceIds, setUserSelectedDeviceIds] = useState<string[] | null>(null);
   
-  // Initialize selectedDeviceIds when complexDevices are first loaded
-  React.useEffect(() => {
-    if (selectedDeviceIds.length === 0 && complexDevices.length > 0) {
-      setSelectedDeviceIds(complexDevices.map(d => d.id));
-    }
-  }, [complexDevices]);
+  const selectedDeviceIds = useMemo(() => {
+    const ids = userSelectedDeviceIds === null 
+      ? complexDevices.map(d => d.id) 
+      : userSelectedDeviceIds;
+    
+    // Prune IDs that no longer exist in complexDevices
+    return ids.filter(id => complexDevices.some(d => d.id === id));
+  }, [userSelectedDeviceIds, complexDevices]);
   
   const [isColumnPickerVisible, setIsColumnPickerVisible] = useState(false);
 
@@ -208,9 +232,10 @@ export default function PatchScreen() {
   }, [tabularData, searchQuery]);
 
   const toggleDeviceColumn = (id: string) => {
-    setSelectedDeviceIds(prev => 
-      prev.includes(id) ? prev.filter(d => d !== id) : [...prev, id]
-    );
+    setUserSelectedDeviceIds(prev => {
+      const current = prev === null ? complexDevices.map(d => d.id) : prev;
+      return current.includes(id) ? current.filter(d => d !== id) : [...current, id];
+    });
   };
 
   const handleUpdateName = (deviceId: string, channelId: string, newName: string) => {
@@ -278,7 +303,7 @@ export default function PatchScreen() {
     const category = project.categories.find(c => c.id === item.sourceCategoryId);
     const sourceDevice = project.devices.find(d => d.id === item.sourceDeviceId);
     const isMono = (sourceDevice?.outputChannels.length || 0) <= 1;
-    const isComplexSource = shouldShowChannelNames(sourceDevice!);
+    const isComplexSource = sourceDevice ? shouldShowChannelNames(sourceDevice) : false;
     
     return (
       <View key={`${item.sourceDeviceId}:${item.sourceChannelId}:${item.isSink ? 'sink' : 'source'}:${item.index}`} style={{ flexDirection: 'row', width: tableWidth, height: 60, borderBottomWidth: 1, borderColor: '#e5e7eb', backgroundColor: isEven ? 'white' : '#f9fafb' }}>
@@ -293,7 +318,7 @@ export default function PatchScreen() {
 
         {/* Simple Device Cell (Left Side: Source) */}
         <View style={{ width: COLUMN_WIDTH, padding: 6, borderRightWidth: 1, borderColor: '#f3f4f6', justifyContent: 'center' }}>
-          {item.sourceDeviceId && !item.isSink && (!isComplexSource || (isComplexSource && item.hops.length > 0 && item.hops[0].deviceId === item.sourceDeviceId)) ? (
+          {!item.isSink && (!sourceDevice || !isComplexSource || (isComplexSource && item.hops.length > 0 && item.hops[0].deviceId === item.sourceDeviceId)) ? (
             <SourceDeviceCell 
                 item={item} 
                 isMono={isMono} 
@@ -303,6 +328,13 @@ export default function PatchScreen() {
                 addDevice={addDevice}
                 addConnection={addConnection}
                 project={project}
+                inputRef={(ref: any) => { inputRefs.current[item.index] = ref; }}
+                onSubmitEditing={() => {
+                    const nextIndex = item.index + 1;
+                    if (inputRefs.current[nextIndex]) {
+                        inputRefs.current[nextIndex].focus();
+                    }
+                }}
             />
           ) : (item.isSink || isComplexSource) && item.sourceDeviceId ? (
              <View style={{ paddingLeft: 4 }}>

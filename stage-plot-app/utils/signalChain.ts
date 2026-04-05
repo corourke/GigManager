@@ -197,10 +197,11 @@ export function resolveChannelMapping(
 }
 
 export function shouldShowChannelNames(device: Device): boolean {
+  if (!device || !device.metadata) return false;
   if (device.metadata.showChannelNames !== undefined) {
     return device.metadata.showChannelNames;
   }
-  const totalChannels = device.inputChannels.length + device.outputChannels.length;
+  const totalChannels = (device.inputChannels?.length || 0) + (device.outputChannels?.length || 0);
   return totalChannels > 2;
 }
 
@@ -499,23 +500,19 @@ export function resolveTabularPatch(project: Project): TabularRow[] {
 
   // 3. Generate Rows from Complex Device Inputs that have NO incoming connection
   for (const device of complexDevices) {
-    if (device.type?.toLowerCase() === 'stagebox') {
+    // Only show orphaned inputs if the device has more than 2 channels (to avoid showing orphaned speakers as sources)
+    if (shouldShowChannelNames(device)) {
       for (const channel of device.inputChannels) {
         const isConnected = project.connections.some(c => c.destinationDeviceId === device.id && c.destinationChannelId === channel.id);
         if (!isConnected) {
           const row: TabularRow = {
             index: 0,
-            sourceDeviceId: device.id,
-            sourceDeviceName: device.name,
-            sourceDeviceType: device.type,
-            sourceDeviceModel: device.model,
-            sourceGroupId: device.groupId,
-            sourceCategoryId: device.categoryId,
-            sourceChannelId: channel.id,
-            sourceChannelNumber: channel.number,
+            sourceDeviceId: "", // No source yet
+            sourceDeviceName: "", // Empty name
+            sourceDeviceType: "Other",
+            sourceChannelId: "",
+            sourceChannelNumber: 0,
             sourceEffectiveName: channel.name || `Ch ${channel.number}`,
-            sourcePhantomPower: channel.phantomPower,
-            sourcePad: channel.pad,
             hops: [],
             fullPath: {}
           };
@@ -525,7 +522,7 @@ export function resolveTabularPatch(project: Project): TabularRow[] {
           let currentChannelId = channel.id;
           let visited = new Set<string>();
 
-          // Add initial hop for the source device itself if it's complex
+          // Add initial hop for the source device itself
           const startHop: SignalHop = {
             deviceId: device.id,
             deviceName: device.name,
@@ -537,11 +534,10 @@ export function resolveTabularPatch(project: Project): TabularRow[] {
             pad: channel.pad
           };
           
-          // Find if there's an internal route to an output
-          const matchingOutChan = device.outputChannels.find(out => {
-             // For stageboxes, we assume 1:1 if no explicit mapping
-             return out.number === channel.number;
-          });
+          // Find if there's an internal route to an output (only for stageboxes currently)
+          const matchingOutChan = device.type?.toLowerCase() === 'stagebox' 
+            ? device.outputChannels.find(out => out.number === channel.number)
+            : undefined;
 
           if (matchingOutChan) {
             startHop.outputChannelId = matchingOutChan.id;
@@ -629,6 +625,11 @@ export function resolveTabularPatch(project: Project): TabularRow[] {
 
   // 4. Sorting logic: terminal sources first, then complex device output rows
   allRows.sort((a, b) => {
+    // PRIMARY RULE: Inputs (non-sink) always come before Sinks (outputs)
+    if (!!a.isSink !== !!b.isSink) {
+        return a.isSink ? 1 : -1;
+    }
+
     // 1. Sort by the "Primary" complex device (e.g., Stagebox)
     const getPrimarySortInfo = (row: TabularRow) => {
         // PREFER STAGEBOX: Look for ANY Stagebox in the hops first

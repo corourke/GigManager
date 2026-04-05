@@ -136,9 +136,11 @@ User testing and user interface fixes.
 Improved the Patch screen with better sorting and inline quick entry:
 - [x] Fixed sorting logic to group Stagebox channels together (including orphaned inputs).
 - [x] Implemented "Primary Sort Device" logic to prioritize Stageboxes and sort by channel number even for sink paths.
-- [x] Added support for orphaned Stagebox inputs as rows in the patch sheet.
+- [x] Added support for orphaned Stagebox inputs as rows in the patch sheet for ALL complex devices (Mixers, etc.).
 - [x] Implemented quick entry syntax `Type:Name/Channel(Model)` in the source cell.
 - [x] Added support for aliases (Mic, DI, SB, etc.) in quick entry.
+- [x] Implemented keyboard navigation ("hit return to go to next row") in Patch list.
+- [x] Fixed "Unknown Device" column issue by robustly syncing selected columns.
 - [x] Updated `ProjectContext` to return new IDs from `addDevice` and `addConnection`.
 - [x] Verification: Verified with unit tests for sorting and orphaned input generation.
 

@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import { 
   Text, 
   View, 
@@ -87,7 +87,7 @@ export default function SetupsScreen() {
       }));
   }, [project.devices, project.groups, project.categories, searchQuery, filterType]);
 
-  const handleDeleteDevice = (id: string) => {
+  const handleDeleteDevice = useCallback((id: string) => {
     if (Platform.OS === 'web') {
       if (window.confirm("Are you sure you want to delete this device and all its connections?")) {
         deleteDevice(id);
@@ -103,12 +103,12 @@ export default function SetupsScreen() {
         { text: "Delete", style: "destructive", onPress: () => deleteDevice(id) }
       ]
     );
-  };
+  }, [deleteDevice]);
 
-  const handleEditDevice = (device: Device) => {
+  const handleEditDevice = useCallback((device: Device) => {
     setEditingDevice(device);
     setIsDeviceModalVisible(true);
-  };
+  }, []);
 
   const handleAddDevice = () => {
     setEditingDevice(undefined);
@@ -232,7 +232,7 @@ export default function SetupsScreen() {
           style={{ flex: 1 }}
           sections={sections}
           keyExtractor={(item) => item.id}
-          renderItem={({ item }) => (
+          renderItem={useCallback(({ item }: any) => (
             <DeviceCard
               device={item}
               group={project.groups.find(g => g.id === item.groupId)}
@@ -240,8 +240,8 @@ export default function SetupsScreen() {
               onEdit={handleEditDevice}
               onDelete={handleDeleteDevice}
             />
-          )}
-          renderSectionHeader={({ section: { title } }) => {
+          ), [project.groups, project.categories, handleEditDevice, handleDeleteDevice])}
+          renderSectionHeader={useCallback(({ section: { title } }: any) => {
             const group = project.groups.find(g => g.name === title);
             return (
               <View className="bg-gray-50 dark:bg-black px-4 pt-3 pb-1 mb-2 flex-row items-center">
@@ -254,7 +254,7 @@ export default function SetupsScreen() {
                 </Text>
               </View>
             );
-          }}
+          }, [project.groups])}
           contentContainerStyle={{ paddingBottom: 100, flexGrow: 1, minHeight: '100%' }}
           stickySectionHeadersEnabled={true}
           ListEmptyComponent={() => (

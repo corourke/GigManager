@@ -354,6 +354,7 @@ export default function DiagramScreen() {
 
   const getDeviceObstacles = (): Obstacle[] => {
     return project.devices
+      .filter(d => !!d)
       .map(d => ({
         id: d.id,
         left: (d.position?.x ?? 0) - OBSTACLE_PADDING,
