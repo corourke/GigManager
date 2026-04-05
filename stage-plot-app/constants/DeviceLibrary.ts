@@ -60,7 +60,7 @@ export const DEVICE_TYPE_DEFAULTS: Record<string, ChannelConfig> = {
   'Microphone':            'Mono Out',
   'DI Box':                'Mono Thru',
   'Instrument':            'Stereo Out',
-  'Amplifier':             'Mono In',
+  'Amplifier':             'Mono Thru',
   'Stagebox':              'Multi',
   'Mixer':                 'Multi',
   'Speaker':               'Mono In',

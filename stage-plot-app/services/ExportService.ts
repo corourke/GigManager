@@ -120,8 +120,13 @@ export class ExportService {
       if (Platform.OS === 'ios' || Platform.OS === 'android') {
         await Sharing.shareAsync(uri, { dialogTitle: `Share ${projectName} Diagram` });
       } else {
-        // Simple download for web if possible, or just log
-        console.log('Diagram capture URI:', uri);
+        // Simple download for web
+        const link = document.createElement('a');
+        link.href = uri;
+        link.download = `${projectName.replace(/\s+/g, '_')}_diagram.png`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
       }
     } catch (error) {
       console.error('Error sharing diagram image:', error);

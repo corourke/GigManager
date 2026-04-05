@@ -7,7 +7,7 @@ import { useProject } from '../../contexts/ProjectContext';
 import { DeviceNode, getChannelLayout, getNodeWidth, getNodeHeight } from '../../components/DeviceNode';
 import { DeviceModal } from '../../components/DeviceModal';
 import { Device } from '../../models';
-import { Plus, Maximize, Minimize, RefreshCcw, Trash2, Share2 } from 'lucide-react-native';
+import { Plus, Maximize, Minimize, RefreshCcw, Trash2, Share2, Layers, X } from 'lucide-react-native';
 
 const AnimatedG = Animated.createAnimatedComponent(G);
 const AnimatedSvg = Animated.createAnimatedComponent(Svg);
@@ -30,6 +30,7 @@ const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 export default function DiagramScreen() {
   const { project, updateDevice, addDevice, addConnection, deleteConnection, deleteDevice } = useProject();
   const [selectedConnectionId, setSelectedConnectionId] = useState<string | null>(null);
+  const [selectedDeviceIds, setSelectedDeviceIds] = useState<string[]>([]);
   const [isDeviceModalVisible, setIsDeviceModalVisible] = useState(false);
   const [editingDevice, setEditingDevice] = useState<Device | undefined>(undefined);
   const [canvasSize, setCanvasSize] = useState({ width: SCREEN_WIDTH, height: SCREEN_HEIGHT });
@@ -56,6 +57,12 @@ export default function DiagramScreen() {
 
   const handleExportDiagram = async () => {
     try {
+      if (Platform.OS === 'web') {
+        // captureRef/react-native-view-shot is often broken on web in many expo versions
+        window.alert('Web Export: Please use the browser Print (Cmd/Ctrl+P) or a screenshot tool for now. We are working on a better web export.');
+        return;
+      }
+      
       const uri = await captureRef(viewShotRef, {
         format: 'png',
         quality: 1,
@@ -65,7 +72,7 @@ export default function DiagramScreen() {
     } catch (err) {
       console.error('Failed to capture diagram:', err);
       if (Platform.OS === 'web') {
-        window.alert('Export Error: Could not capture diagram image.');
+        window.alert('Export Error: Web environment does not support direct diagram capture yet.');
       } else {
         Alert.alert('Export Error', 'Could not capture diagram image.');
       }
@@ -156,8 +163,57 @@ export default function DiagramScreen() {
   };
 
   const handlePositionChange = useCallback((id: string, x: number, y: number) => {
-    updateDevice(id, { position: { x: snap(x), y: snap(y) } });
-  }, [updateDevice]);
+    const device = project.devices.find(d => d.id === id);
+    if (!device) return;
+    
+    const dx = x - (device.position?.x ?? 0);
+    const dy = y - (device.position?.y ?? 0);
+
+    if (selectedDeviceIds.includes(id)) {
+      // Move all selected devices
+      selectedDeviceIds.forEach(sid => {
+        const d = project.devices.find(dev => dev.id === sid);
+        if (d) {
+          updateDevice(sid, { 
+            position: { 
+              x: snap((d.position?.x ?? 0) + dx), 
+              y: snap((d.position?.y ?? 0) + dy) 
+            } 
+          });
+        }
+      });
+    } else {
+      // Move only this device
+      updateDevice(id, { position: { x: snap(x), y: snap(y) } });
+    }
+  }, [updateDevice, project.devices, selectedDeviceIds]);
+
+  const handleToggleDeviceSelection = (id: string) => {
+    setSelectedDeviceIds(prev => 
+      prev.includes(id) ? prev.filter(sid => sid !== id) : [...prev, id]
+    );
+  };
+
+  const handleStackSelected = () => {
+    if (selectedDeviceIds.length < 2) return;
+    
+    // Stack in selection order
+    const devsToStack = selectedDeviceIds
+      .map(id => project.devices.find(d => d.id === id))
+      .filter(Boolean) as Device[];
+
+    if (devsToStack.length < 2) return;
+
+    const first = devsToStack[0];
+    let currentY = (first.position?.y ?? 0) + getNodeHeight(first) + 4;
+    const stackX = first.position?.x ?? 0;
+
+    for (let i = 1; i < devsToStack.length; i++) {
+      const d = devsToStack[i];
+      updateDevice(d.id, { position: { x: snap(stackX), y: snap(currentY) } });
+      currentY += getNodeHeight(d) + 4;
+    }
+  };
 
   const handleStartConnection = (deviceId: string, channelId: string, x: number, y: number) => {
     setActiveConnection({ startDeviceId: deviceId, startChannelId: channelId, startX: x, startY: y, currentX: x, currentY: y });
@@ -245,7 +301,7 @@ export default function DiagramScreen() {
     });
 
     const COL_WIDTH = 300;
-    const ROW_GAP = 40;
+    const ROW_GAP = 4; // Tighter 4px gap to match demo project stacking
     const START_X = 20;
     const START_Y = 20;
 
@@ -473,7 +529,7 @@ export default function DiagramScreen() {
   };
 
 
-  const handleCanvasPress = (event: any) => {
+  const handleCanvasPress = useCallback((event: any) => {
     if (didPan.value) {
       didPan.value = false;
       return;
@@ -491,7 +547,20 @@ export default function DiagramScreen() {
     const cx = (screenX - vpX.value) / vpScale.value;
     const cy = (screenY - vpY.value) / vpScale.value;
     selectConnectionAtPoint(cx, cy);
-  };
+  }, []);
+
+  const resetDidPan = useCallback(() => {
+    setTimeout(() => { didPan.value = false; }, 100);
+  }, []);
+
+  const handleTapAtPoint = useCallback((absX: number, absY: number) => {
+    handleCanvasPress({
+      nativeEvent: {
+        locationX: absX - canvasOffsetX.value,
+        locationY: absY - canvasOffsetY.value,
+      }
+    });
+  }, [handleCanvasPress]);
 
   const canvasPanGesture = Gesture.Pan()
     .minPointers(1)
@@ -503,7 +572,7 @@ export default function DiagramScreen() {
     })
     .onEnd(() => {
       'worklet';
-      runOnJS(setTimeout)(() => { didPan.value = false; }, 100);
+      runOnJS(resetDidPan)();
     });
 
   const canvasPinchGesture = Gesture.Pinch()
@@ -516,17 +585,14 @@ export default function DiagramScreen() {
   const doubleTapGesture = Gesture.Tap()
     .numberOfTaps(2)
     .onEnd(() => {
+      'worklet';
       runOnJS(handleResetZoom)();
     });
 
   const canvasTapGesture = Gesture.Tap()
     .onEnd((e) => {
-      runOnJS(handleCanvasPress)({
-        nativeEvent: {
-          locationX: e.absoluteX - canvasOffsetX.value,
-          locationY: e.absoluteY - canvasOffsetY.value,
-        }
-      });
+      'worklet';
+      runOnJS(handleTapAtPoint)(e.absoluteX, e.absoluteY);
     });
 
   const canvasGesture = Gesture.Simultaneous(
@@ -587,6 +653,29 @@ export default function DiagramScreen() {
       <View style={styles.toolbar}>
         <Text style={styles.title}>Diagram</Text>
         <View style={{ flexDirection: 'row' }}>
+          {selectedDeviceIds.length > 1 && (
+            <TouchableOpacity onPress={handleStackSelected} style={[styles.toolBtn, { marginRight: 8, backgroundColor: '#dcfce7' }]}>
+              <Layers size={20} color="#16a34a" />
+            </TouchableOpacity>
+          )}
+          {selectedDeviceIds.length > 0 && (
+            <TouchableOpacity onPress={() => setSelectedDeviceIds([])} style={[styles.toolBtn, { marginRight: 8, backgroundColor: '#f3f4f6' }]}>
+              <X size={20} color="#6b7280" />
+            </TouchableOpacity>
+          )}
+          {selectedDeviceIds.length === 0 && (
+            <>
+              <TouchableOpacity onPress={handleAutoLayout} style={[styles.toolBtn, { marginRight: 8 }]}>
+                <RefreshCcw size={20} color="#6b7280" />
+              </TouchableOpacity>
+              <TouchableOpacity onPress={handleFitAll} style={[styles.toolBtn, { marginRight: 8 }]}>
+                <Maximize size={20} color="#6b7280" />
+              </TouchableOpacity>
+              <TouchableOpacity onPress={handleResetZoom} style={[styles.toolBtn, { marginRight: 8 }]}>
+                <Minimize size={20} color="#6b7280" />
+              </TouchableOpacity>
+            </>
+          )}
           {selectedConnectionId && (
             <TouchableOpacity onPress={handleDeleteSelectedConnection} style={[styles.toolBtn, { backgroundColor: '#fee2e2', marginRight: 8 }]}>
               <Trash2 size={20} color="#ef4444" />
@@ -636,6 +725,8 @@ export default function DiagramScreen() {
                 <DeviceNode
                   key={device.id}
                   device={device}
+                  isSelected={selectedDeviceIds.includes(device.id)}
+                  onToggleSelection={() => handleToggleDeviceSelection(device.id)}
                   onPositionChange={handlePositionChange}
                   onSelect={handleSelectDevice}
                   onStartConnection={handleStartConnection}
@@ -659,18 +750,6 @@ export default function DiagramScreen() {
         onSave={handleSaveDevice}
         onDelete={handleDeleteDevice}
       />
-
-      <View style={styles.floatingControls}>
-        <TouchableOpacity onPress={handleAutoLayout} style={styles.fab}>
-          <RefreshCcw size={24} color="#6b7280" />
-        </TouchableOpacity>
-        <TouchableOpacity onPress={handleFitAll} style={styles.fab}>
-          <Maximize size={24} color="#6b7280" />
-        </TouchableOpacity>
-        <TouchableOpacity onPress={handleResetZoom} style={styles.fab}>
-          <Minimize size={24} color="#6b7280" />
-        </TouchableOpacity>
-      </View>
     </SafeAreaView>
   );
 }

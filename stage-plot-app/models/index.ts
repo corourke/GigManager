@@ -14,6 +14,7 @@ export const MetadataSchema = z.object({
   gainNote: z.string().optional(),
   stagePosition: z.enum(['L', 'C', 'R']).optional(),
   generalName: z.string().optional(), // e.g., 'Kick'
+  showChannelNames: z.boolean().optional(),
 });
 
 export const DeviceSchema = z.object({

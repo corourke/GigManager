@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { Text, View, ScrollView, TouchableOpacity, TextInput, SafeAreaView, StatusBar } from 'react-native';
 import { useProject } from '../../contexts/ProjectContext';
-import { resolveTabularPatch, TabularRow, SignalHop, isSimpleDevice } from '../../utils/signalChain';
+import { resolveTabularPatch, TabularRow, SignalHop, isSourceOrTerminal, shouldShowChannelNames } from '../../utils/signalChain';
 import { Device, Connection } from '../../models';
 import { Search, Plus, X, Settings2, ArrowRightLeft, ArrowUpRight, ArrowDownLeft, FileDown } from 'lucide-react-native';
 import { ExportService } from '../../services/ExportService';
@@ -157,9 +157,10 @@ export default function PatchScreen() {
   const { project, updateDevice, addDevice, addConnection } = useProject();
   const [searchQuery, setSearchQuery] = useState('');
   
-  // Complex devices are non-simple devices (Stageboxes, Mixers, etc.)
+  // Complex devices are non-source/terminal devices (Stageboxes, Mixers, etc.)
+  // We use shouldShowChannelNames to determine which devices get columns
   const complexDevices = useMemo(() => 
-    project.devices.filter(d => !isSimpleDevice(d)),
+    project.devices.filter(d => shouldShowChannelNames(d)),
     [project]
   );
 
@@ -277,7 +278,7 @@ export default function PatchScreen() {
     const category = project.categories.find(c => c.id === item.sourceCategoryId);
     const sourceDevice = project.devices.find(d => d.id === item.sourceDeviceId);
     const isMono = (sourceDevice?.outputChannels.length || 0) <= 1;
-    const isComplexSource = !isSimpleDevice(sourceDevice!);
+    const isComplexSource = shouldShowChannelNames(sourceDevice!);
     
     return (
       <View key={`${item.sourceDeviceId}:${item.sourceChannelId}:${item.isSink ? 'sink' : 'source'}:${item.index}`} style={{ flexDirection: 'row', width: tableWidth, height: 60, borderBottomWidth: 1, borderColor: '#e5e7eb', backgroundColor: isEven ? 'white' : '#f9fafb' }}>

@@ -38,16 +38,25 @@ export function DeviceModal({ visible, device, groups, categories, onClose, onSa
   const [stagePosition, setStagePosition] = useState<'L' | 'C' | 'R' | undefined>(undefined);
   const [micPhantom, setMicPhantom] = useState(false);
   const [channelConfig, setChannelConfig] = useState<ChannelConfig>('Multi');
+  const [showChannelNames, setShowChannelNames] = useState(false);
+  const [isConfigManual, setIsConfigManual] = useState(false);
+  const [isChannelsManual, setIsChannelsManual] = useState(false);
 
   const inputRefs = useRef<Record<string, TextInput | null>>({});
 
   const isMic = type === 'Microphone';
   const isTerminalSource = isMic || type === 'DI Box' || type === 'Instrument';
-  const isSimpleConfig = channelConfig !== 'Multi';
 
-  const applyChannelConfig = (config: ChannelConfig) => {
+  const applyChannelConfig = (config: ChannelConfig, manual = false) => {
     setChannelConfig(config);
-    if (config === 'Multi') return;
+    if (manual) setIsConfigManual(true);
+    
+    if (config === 'Multi' || isChannelsManual) {
+      if (config === 'Multi') setShowChannelNames(true);
+      return;
+    }
+    
+    setShowChannelNames(false);
     const tmpl = CHANNEL_CONFIG_TEMPLATES[config];
     setInputChannels(tmpl.inputs.map((t, i) => ({
       id: generateId(),
@@ -71,8 +80,10 @@ export function DeviceModal({ visible, device, groups, categories, onClose, onSa
 
   const handleTypeChange = (newType: string) => {
     setType(newType);
-    const defaultConfig = DEVICE_TYPE_DEFAULTS[newType] || 'Multi';
-    applyChannelConfig(defaultConfig);
+    if (!isConfigManual) {
+      const defaultConfig = DEVICE_TYPE_DEFAULTS[newType] || 'Multi';
+      applyChannelConfig(defaultConfig);
+    }
   };
 
   useEffect(() => {
@@ -86,7 +97,10 @@ export function DeviceModal({ visible, device, groups, categories, onClose, onSa
       setInputChannels(device.inputChannels);
       setOutputChannels(device.outputChannels);
       setStagePosition(device.metadata.stagePosition);
+      setShowChannelNames(device.metadata.showChannelNames ?? false);
       setChannelConfig(DEVICE_TYPE_DEFAULTS[device.type] || 'Multi');
+      setIsConfigManual(false); // Reset on load
+      setIsChannelsManual(true); // Treat existing as manual to avoid overwrite
       if (device.type === 'Microphone' && device.outputChannels.length > 0) {
         setMicPhantom(device.outputChannels[0].phantomPower);
       }
@@ -101,7 +115,13 @@ export function DeviceModal({ visible, device, groups, categories, onClose, onSa
       setOutputChannels([]);
       setStagePosition(undefined);
       setMicPhantom(false);
-      setChannelConfig(DEVICE_TYPE_DEFAULTS[DEVICE_TYPES[0]] || 'Multi');
+      setShowChannelNames(false);
+      const defaultConfig = DEVICE_TYPE_DEFAULTS[DEVICE_TYPES[0]] || 'Multi';
+      setChannelConfig(defaultConfig);
+      setIsConfigManual(false);
+      setIsChannelsManual(false);
+      // Initialize with defaults for new device
+      applyChannelConfig(defaultConfig);
     }
   }, [device, visible]);
 
@@ -110,7 +130,8 @@ export function DeviceModal({ visible, device, groups, categories, onClose, onSa
     
     let finalInputChannels = inputChannels;
     let finalOutputChannels = outputChannels;
-    if (isMic && isSimpleConfig) {
+    // We only force-override mic if it's NOT a multi-config or manual override
+    if (isMic && !isChannelsManual && channelConfig !== 'Multi') {
       finalInputChannels = [];
       finalOutputChannels = [{
         id: outputChannels[0]?.id || generateId(),
@@ -135,6 +156,7 @@ export function DeviceModal({ visible, device, groups, categories, onClose, onSa
       metadata: {
         generalName: isTerminalSource ? generalName : undefined,
         stagePosition,
+        showChannelNames,
       },
       position: device?.position || { x: 100, y: 100 }
     };
@@ -144,6 +166,7 @@ export function DeviceModal({ visible, device, groups, categories, onClose, onSa
   };
 
   const addChannel = (channelType: 'input' | 'output') => {
+    setIsChannelsManual(true);
     const channels = channelType === 'input' ? inputChannels : outputChannels;
     const newChannel: Channel = {
       id: generateId(),
@@ -160,6 +183,7 @@ export function DeviceModal({ visible, device, groups, categories, onClose, onSa
   };
 
   const cycleConnector = (channelType: 'input' | 'output', index: number) => {
+    setIsChannelsManual(true);
     const channels = channelType === 'input' ? [...inputChannels] : [...outputChannels];
     const current = channels[index].connectorType || CONNECTOR_TYPES[0];
     const currentIndex = CONNECTOR_TYPES.indexOf(current);
@@ -171,6 +195,7 @@ export function DeviceModal({ visible, device, groups, categories, onClose, onSa
   };
 
   const updateChannel = (channelType: 'input' | 'output', index: number, updates: Partial<Channel>) => {
+    setIsChannelsManual(true);
     if (channelType === 'input') {
       const newChannels = [...inputChannels];
       newChannels[index] = { ...newChannels[index], ...updates };
@@ -183,6 +208,7 @@ export function DeviceModal({ visible, device, groups, categories, onClose, onSa
   };
 
   const deleteChannel = (channelType: 'input' | 'output', id: string) => {
+    setIsChannelsManual(true);
     if (channelType === 'input') setInputChannels(inputChannels.filter(c => c.id !== id));
     else setOutputChannels(outputChannels.filter(c => c.id !== id));
   };
@@ -383,6 +409,18 @@ export function DeviceModal({ visible, device, groups, categories, onClose, onSa
                   />
                 </>
               )}
+
+              <View className="flex-row justify-between items-center mt-4 pt-3 border-t border-gray-100 dark:border-gray-800">
+                <View className="flex-1 mr-4">
+                  <Text className="text-sm font-medium text-gray-600 dark:text-gray-400">Show Channel Names</Text>
+                  <Text className="text-[10px] text-gray-400">Show custom channel labels in the diagram</Text>
+                </View>
+                <Switch 
+                  value={showChannelNames} 
+                  onValueChange={setShowChannelNames} 
+                  trackColor={{ true: '#3b82f6' }} 
+                />
+              </View>
             </View>
           </View>
 
@@ -432,34 +470,30 @@ export function DeviceModal({ visible, device, groups, categories, onClose, onSa
             </View>
           </View>
 
-          {/* Channel Management (Hidden for Mics and simple configs) */}
-          {!isMic && !isSimpleConfig && (
-            <>
-              <View className="mb-4">
-                <View className="flex-row justify-between items-center mb-2">
-                  <Text className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Input Channels</Text>
-                  <TouchableOpacity onPress={() => addChannel('input')} className="flex-row items-center px-2 py-1 bg-blue-50 dark:bg-blue-900/30 rounded-lg">
-                    <Plus size={12} color="#3b82f6" />
-                    <Text className="text-blue-500 text-[10px] font-bold ml-1">ADD</Text>
-                  </TouchableOpacity>
-                </View>
-                {inputChannels.map((channel, idx) => renderChannelRow(channel, idx, 'input'))}
-                {inputChannels.length === 0 && <Text className="text-xs text-gray-400 italic mb-2 px-1">No inputs</Text>}
-              </View>
+          {/* Channel Management - Always shown for better visibility */}
+          <View className="mb-4">
+            <View className="flex-row justify-between items-center mb-2">
+              <Text className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Input Channels</Text>
+              <TouchableOpacity onPress={() => addChannel('input')} className="flex-row items-center px-2 py-1 bg-blue-50 dark:bg-blue-900/30 rounded-lg">
+                <Plus size={12} color="#3b82f6" />
+                <Text className="text-blue-500 text-[10px] font-bold ml-1">ADD</Text>
+              </TouchableOpacity>
+            </View>
+            {inputChannels.map((channel, idx) => renderChannelRow(channel, idx, 'input'))}
+            {inputChannels.length === 0 && <Text className="text-xs text-gray-400 italic mb-2 px-1">No inputs</Text>}
+          </View>
 
-              <View className="mb-8">
-                <View className="flex-row justify-between items-center mb-2">
-                  <Text className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Output Channels</Text>
-                  <TouchableOpacity onPress={() => addChannel('output')} className="flex-row items-center px-2 py-1 bg-blue-50 dark:bg-blue-900/30 rounded-lg">
-                    <Plus size={12} color="#3b82f6" />
-                    <Text className="text-blue-500 text-[10px] font-bold ml-1">ADD</Text>
-                  </TouchableOpacity>
-                </View>
-                {outputChannels.map((channel, idx) => renderChannelRow(channel, idx, 'output'))}
-                {outputChannels.length === 0 && <Text className="text-xs text-gray-400 italic mb-2 px-1">No outputs</Text>}
-              </View>
-            </>
-          )}
+          <View className="mb-8">
+            <View className="flex-row justify-between items-center mb-2">
+              <Text className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Output Channels</Text>
+              <TouchableOpacity onPress={() => addChannel('output')} className="flex-row items-center px-2 py-1 bg-blue-50 dark:bg-blue-900/30 rounded-lg">
+                <Plus size={12} color="#3b82f6" />
+                <Text className="text-blue-500 text-[10px] font-bold ml-1">ADD</Text>
+              </TouchableOpacity>
+            </View>
+            {outputChannels.map((channel, idx) => renderChannelRow(channel, idx, 'output'))}
+            {outputChannels.length === 0 && <Text className="text-xs text-gray-400 italic mb-2 px-1">No outputs</Text>}
+          </View>
 
           {/* Delete Device Button */}
           {device && onDelete && (

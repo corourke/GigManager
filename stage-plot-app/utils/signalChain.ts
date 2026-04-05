@@ -21,7 +21,7 @@ export function resolveSignalChain(project: Project): SignalChainState {
   // Seeds are terminal sources (simple devices with names/isSource) 
   // and ANY manual names on complex device outputs.
   for (const device of project.devices) {
-    const isSimple = isSimpleDevice(device);
+    const isSimple = isSourceOrTerminal(device);
     
     // For Sources, the device name or generalName is the intended signal name
     const deviceDefaultName = (isSimple || device.isSource) 
@@ -93,7 +93,7 @@ export function resolveSignalChain(project: Project): SignalChainState {
     // Internal Device Routing/Propagation
     for (const device of project.devices) {
       // Passthrough for simple devices (e.g. DI box or Adapter)
-      if (isSimpleDevice(device)) {
+      if (isSourceOrTerminal(device)) {
         if (device.inputChannels.length === 1 && device.outputChannels.length === 1) {
           const inKey = `${device.id}:${device.inputChannels[0].id}`;
           const inState = state[inKey];
@@ -196,7 +196,15 @@ export function resolveChannelMapping(
   return mapping;
 }
 
-export function isSimpleDevice(device: Device): boolean {
+export function shouldShowChannelNames(device: Device): boolean {
+  if (device.metadata.showChannelNames !== undefined) {
+    return device.metadata.showChannelNames;
+  }
+  const totalChannels = device.inputChannels.length + device.outputChannels.length;
+  return totalChannels > 2;
+}
+
+export function isSourceOrTerminal(device: Device): boolean {
   if (device.isSource) return true;
   
   const type = device.type?.toLowerCase();
@@ -251,7 +259,7 @@ export function resolveTabularPatch(project: Project): TabularRow[] {
   const signalState = resolveSignalChain(project);
   
   // 1. Generate Rows from Terminal Sources
-  const terminalSources = project.devices.filter(d => isSimpleDevice(d));
+  const terminalSources = project.devices.filter(d => isSourceOrTerminal(d));
   for (const device of terminalSources) {
     if (device.outputChannels.length === 0) continue;
 
@@ -313,7 +321,7 @@ export function resolveTabularPatch(project: Project): TabularRow[] {
           pad: destChannel.pad
         };
 
-        if (!isSimpleDevice(destDevice)) {
+        if (!isSourceOrTerminal(destDevice)) {
           // Find matching output based on signalState AND name matching
           const matchingOutChan = destDevice.outputChannels.find(out => {
             const outKey = `${destDevice.id}:${out.id}`;
@@ -370,7 +378,7 @@ export function resolveTabularPatch(project: Project): TabularRow[] {
   }
 
   // 2. Generate Rows from Complex Device Outputs that are NOT reached by terminal sources with matching names
-  const complexDevices = project.devices.filter(d => !isSimpleDevice(d));
+  const complexDevices = project.devices.filter(d => !isSourceOrTerminal(d));
   for (const device of complexDevices) {
     for (const channel of device.outputChannels) {
       const stateKey = `${device.id}:${channel.id}`;
@@ -448,7 +456,7 @@ export function resolveTabularPatch(project: Project): TabularRow[] {
           cableLabel: connection.cableLabel
         };
 
-        if (!isSimpleDevice(destDevice)) {
+        if (!isSourceOrTerminal(destDevice)) {
           const matchingOutChan = destDevice.outputChannels.find(out => {
              const outKey = `${destDevice.id}:${out.id}`;
              const outState = signalState[outKey];
@@ -577,7 +585,7 @@ export function resolveTabularPatch(project: Project): TabularRow[] {
               cableLabel: connection.cableLabel
             };
 
-            if (!isSimpleDevice(destDevice)) {
+            if (!isSourceOrTerminal(destDevice)) {
               const matchingOutChan = destDevice.outputChannels.find(out => {
                  const outKey = `${destDevice.id}:${out.id}`;
                  const outState = signalState[outKey];
@@ -650,7 +658,7 @@ export function resolveTabularPatch(project: Project): TabularRow[] {
         }
 
         // Fallback to first complex device
-        if (sourceDev && !isSimpleDevice(sourceDev) && !row.isSink) {
+        if (sourceDev && !isSourceOrTerminal(sourceDev) && !row.isSink) {
              return {
                  name: sourceDev.name,
                  number: row.sourceChannelNumber,
@@ -661,7 +669,7 @@ export function resolveTabularPatch(project: Project): TabularRow[] {
 
         const complexHop = row.hops.find(h => {
             const d = project.devices.find(dev => dev.id === h.deviceId);
-            return d && !isSimpleDevice(d);
+            return d && !isSourceOrTerminal(d);
         });
 
         if (complexHop) {

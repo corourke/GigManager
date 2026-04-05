@@ -149,6 +149,17 @@ Improved the Patch screen with better sorting and inline quick entry:
 - [x] Externalized Demo Project JSON into `constants/DemoProject.ts` and updated `ProjectContext` to use it.
 - [x] Verification: Ran all tests (npm test) and verified they pass.
 
+### [x] Step: Improve Device Modal & Channel Configuration Logic
+- [x] Always show input and output channels regardless of configuration.
+- [x] Only apply default channel configuration if the user hasn't manually changed it.
+- [x] Only apply channel templates if the user hasn't manually edited the channels.
+- [x] Added "Show Channel Names" switch linked to metadata and auto-toggled by "Multi" config.
+- [x] Updated `MetadataSchema` to include `showChannelNames`.
+- [x] Implement 'Show Channel Names' logic in Diagram view (DeviceNode).
+- [x] Renamed `isSimpleDevice` to `isSourceOrTerminal` in signalChain utils to avoid confusion.
+- [x] Updated Patch screen to use `shouldShowChannelNames` for device column visibility.
+- [x] Verification: Ran unit tests and verified model integrity.
+
 ### [ ] Step: Integrate Supabase for Cloud Sync & Collaboration
 - Set up Supabase client for project backup and real-time co-editing.
 - Verification: Verify changes on one device sync to another in real-time.

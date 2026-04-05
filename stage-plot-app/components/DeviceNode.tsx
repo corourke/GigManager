@@ -11,9 +11,14 @@ import { Device, Channel } from '../models';
 import { Mic, Speaker, Box, Settings, Music, MoreVertical } from 'lucide-react-native';
 import { ChannelDot } from './ChannelDot';
 
-export function isSimpleDevice(device: { type: string; inputChannels: any[]; outputChannels: any[] }): boolean {
+export function shouldShowChannelNames(device: Device): boolean {
+  // If explicitly set in metadata, respect that
+  if (device.metadata.showChannelNames !== undefined) {
+    return device.metadata.showChannelNames;
+  }
+  // Fallback: only show for devices with > 2 total channels
   const totalChannels = device.inputChannels.length + device.outputChannels.length;
-  return totalChannels <= 2;
+  return totalChannels > 2;
 }
 
 export const NODE_LAYOUT = {
@@ -34,15 +39,17 @@ const groupChannels = (channels: Channel[]) => {
 };
 
 export function getNodeWidth(device: Device): number {
-  return isSimpleDevice(device) ? 140 : 180;
+  return shouldShowChannelNames(device) ? 180 : 140;
 }
 
 export function getNodeHeight(device: Device): number {
   const P = NODE_LAYOUT.BOX_PADDING;
   const H = NODE_LAYOUT.HEADER_HEIGHT;
-  if (isSimpleDevice(device)) {
+  if (!shouldShowChannelNames(device)) {
     const maxCh = Math.max(device.inputChannels.length, device.outputChannels.length, 1);
-    return P * 2 + H + Math.max(0, maxCh - 1) * 14;
+    // For devices without channel names, if 1 channel, it's centered. 
+    // If 2 channels, they are spaced by CHANNEL_ROW_HEIGHT (16px) to match devices with names
+    return P * 2 + H + (maxCh === 2 ? NODE_LAYOUT.CHANNEL_ROW_HEIGHT : 0);
   }
   const gi = groupChannels(device.inputChannels);
   const go = groupChannels(device.outputChannels);
@@ -58,18 +65,24 @@ export function getNodeHeight(device: Device): number {
 }
 
 export function getChannelLayout(device: Device): Record<string, { y: number; isOutput: boolean }> {
-  const isSimple = isSimpleDevice(device);
+  const showNames = shouldShowChannelNames(device);
   const layout: Record<string, { y: number; isOutput: boolean }> = {};
   const P = NODE_LAYOUT.BOX_PADDING;
   const H = NODE_LAYOUT.HEADER_HEIGHT;
 
-  if (isSimple) {
+  if (!showNames) {
     const baseY = P + H / 2;
+    // Align dots with name-based device spacing (CHANNEL_ROW_HEIGHT = 16px)
+    // If mono, center it. If stereo, offset from center by ±8px.
+    const outCount = device.outputChannels.length;
     device.outputChannels.forEach((c, i) => {
-      layout[c.id] = { y: baseY + i * 14, isOutput: true };
+      const offset = outCount === 2 ? (i === 0 ? -NODE_LAYOUT.CHANNEL_ROW_HEIGHT / 2 : NODE_LAYOUT.CHANNEL_ROW_HEIGHT / 2) : 0;
+      layout[c.id] = { y: baseY + offset, isOutput: true };
     });
+    const inCount = device.inputChannels.length;
     device.inputChannels.forEach((c, i) => {
-      layout[c.id] = { y: baseY + i * 14, isOutput: false };
+      const offset = inCount === 2 ? (i === 0 ? -NODE_LAYOUT.CHANNEL_ROW_HEIGHT / 2 : NODE_LAYOUT.CHANNEL_ROW_HEIGHT / 2) : 0;
+      layout[c.id] = { y: baseY + offset, isOutput: false };
     });
     return layout;
   }
@@ -97,6 +110,8 @@ export function getChannelLayout(device: Device): Record<string, { y: number; is
 
 interface DeviceNodeProps {
   device: Device;
+  isSelected?: boolean;
+  onToggleSelection?: () => void;
   onPositionChange: (id: string, x: number, y: number) => void;
   onSelect: (device: Device) => void;
   onStartConnection: (deviceId: string, channelId: string, x: number, y: number) => void;
@@ -117,14 +132,14 @@ const getIcon = (type: string) => {
 };
 
 export function DeviceNode({
-  device, onPositionChange, onSelect,
+  device, isSelected, onToggleSelection, onPositionChange, onSelect,
   onStartConnection, onUpdateConnection, onEndConnection, onCancelConnection,
   canvasScale
 }: DeviceNodeProps) {
   const translateX = useSharedValue(device.position?.x ?? 100);
   const translateY = useSharedValue(device.position?.y ?? 100);
 
-  const isSimple = isSimpleDevice(device);
+  const showNames = shouldShowChannelNames(device);
   const nodeWidth = getNodeWidth(device);
 
   React.useEffect(() => {
@@ -136,9 +151,15 @@ export function DeviceNode({
 
   const Icon = getIcon(device.type);
 
+  const traceDeviceDrag = (msg: string) => { console.log(`[DEVICE_DRAG:${device.name}]`, msg); };
+
   const dragGesture = Gesture.Pan()
     .minPointers(1)
     .maxPointers(1)
+    .onBegin(() => {
+      'worklet';
+      runOnJS(traceDeviceDrag)('begin');
+    })
     .onChange((event) => {
       const s = canvasScale.value;
       translateX.value += event.changeX / s;
@@ -147,8 +168,16 @@ export function DeviceNode({
     .onEnd(() => {
       translateX.value = Math.round(translateX.value / 10) * 10;
       translateY.value = Math.round(translateY.value / 10) * 10;
+      runOnJS(traceDeviceDrag)(`end x=${translateX.value} y=${translateY.value}`);
       runOnJS(onPositionChange)(device.id, translateX.value, translateY.value);
     });
+
+  const tapGesture = Gesture.Tap()
+    .onEnd(() => {
+      if (onToggleSelection) runOnJS(onToggleSelection)();
+    });
+
+  const composedGesture = Gesture.Exclusive(dragGesture, tapGesture);
 
   const animatedStyle = useAnimatedStyle(() => ({
     transform: [
@@ -218,19 +247,28 @@ export function DeviceNode({
 
   return (
     <Animated.View
-      style={[styles.container, animatedStyle, { width: nodeWidth }]}
+      style={[
+        styles.container, 
+        animatedStyle, 
+        { width: nodeWidth },
+        isSelected && { zIndex: 20 }
+      ]}
       {...Platform.select({
         web: { onContextMenu: (e: any) => e.preventDefault() } as any,
         default: {}
       })}
     >
-      <GestureDetector gesture={dragGesture}>
-        <View style={[styles.box, { width: nodeWidth }]}>
+      <GestureDetector gesture={composedGesture}>
+        <View style={[
+          styles.box, 
+          { width: nodeWidth },
+          isSelected && { borderColor: '#3b82f6', borderWidth: 2, backgroundColor: '#eff6ff' }
+        ]}>
           <View style={styles.header}>
             <View style={styles.iconWrap}>
               <Icon size={12} color="#3b82f6" />
             </View>
-            <View style={{ flex: 1 }}>
+            <View style={{ flex: 1, marginTop: -1 }}>
               <Text style={styles.deviceName} numberOfLines={1}>{device.name}</Text>
               {device.model ? (
                 <Text style={styles.deviceModel} numberOfLines={1}>{device.model}</Text>
@@ -240,7 +278,7 @@ export function DeviceNode({
               <MoreVertical size={14} color="#9ca3af" />
             </TouchableOpacity>
           </View>
-          {!isSimple && <View style={{ marginTop: NODE_LAYOUT.CHANNEL_GAP }}>{renderComplexChannels()}</View>}
+          {showNames && <View style={{ marginTop: NODE_LAYOUT.CHANNEL_GAP }}>{renderComplexChannels()}</View>}
         </View>
       </GestureDetector>
       {allChannels.map(({ channel, y, isOutput }) => (
