@@ -29,19 +29,29 @@ export const MIC_MODELS = [
   'SM58',
   'SM57',
   'Beta 52',
-  'Beta 91',
+  'Beta 91A',
   'Beta 58',
   'Beta 57',
   'e904',
   'e906',
   'e609',
   'D6',
+  'D4',
   'i5',
   'MD421',
   'MD441',
   'C414',
   'AT2020',
   'Other'
+];
+
+export const COMMON_NAMES = [
+  'Kick', 'Snare', 'Hat', 'Tom', 'Rack-Tom', 'Floor-Tom', 'OH', 'Overhead',
+  'Bass', 'Guitar', 'Acoustic', 'Acoustic-Gtr', 'Keys', 'Keys',
+  'Vocal-1', 'Vocal-2', 'Vocal-3', 'Vocal-4',
+  'Laptop', 'Track',
+  'Mon', 'Monitor',
+  'Main', 'Mains', 'Sub', 'Fill', 'Delay', 'FX', 'Reverb'
 ];
 
 export type ChannelConfig = 'Multi' | 'Mono Out' | 'Stereo Out' | 'Mono In' | 'Stereo In' | 'Mono Thru' | 'Stereo Thru';

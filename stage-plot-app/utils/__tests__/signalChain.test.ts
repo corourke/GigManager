@@ -20,11 +20,11 @@ describe('Signal Chain Logic (Refined)', () => {
       devices: [
         {
           id: micId,
-          name: 'Kick Mic',
+          name: 'Kick',
           type: 'Microphone',
           outputChannels: [{ id: micOutId, number: 1, channelCount: 1, phantomPower: false, pad: false }],
           inputChannels: [],
-          metadata: { generalName: 'Kick' },
+          metadata: {},
         },
         {
           id: mixerId,
@@ -67,12 +67,12 @@ describe('Signal Chain Logic (Refined)', () => {
       devices: [
         {
           id: micId,
-          name: 'Mic',
+          name: 'Kick',
           type: 'Microphone',
           isSource: true,
           outputChannels: [{ id: micOutId, number: 1, channelCount: 1, phantomPower: false, pad: false }],
           inputChannels: [],
-          metadata: { generalName: 'Kick' },
+          metadata: {},
         },
         {
           id: mixerId,
@@ -129,12 +129,12 @@ describe('Signal Chain Logic (Refined)', () => {
       devices: [
         {
           id: micId,
-          name: 'Mic',
+          name: 'Vocal',
           type: 'Microphone',
           isSource: true,
           outputChannels: [{ id: micOutId, number: 1, channelCount: 1, phantomPower: false, pad: false }],
           inputChannels: [],
-          metadata: { generalName: 'Vocal' },
+          metadata: {},
         },
         {
           id: sbId,
@@ -176,11 +176,11 @@ describe('Signal Chain Logic (Refined)', () => {
       devices: [
         {
           id: micId,
-          name: 'Mic',
+          name: 'Kick',
           type: 'Microphone',
           outputChannels: [{ id: 'm1', number: 1, channelCount: 1, phantomPower: false, pad: false }],
           inputChannels: [],
-          metadata: { generalName: 'Kick' },
+          metadata: {},
         },
         {
           id: mixerId,
@@ -204,15 +204,16 @@ describe('Signal Chain Logic (Refined)', () => {
     };
 
     const tabular = resolveTabularPatch(project);
-    // Should have 4 rows: 
+    // Should have 5 rows: 
     // 1. Mic 1 (Terminal Source)
     // 2. Mixer In 1 (Orphaned Input)
     // 3. Mixer In 2 (Orphaned Input)
     // 4. Mixer Out 1 (Sink Output)
-    expect(tabular.length).toBe(4);
+    // 5. Mixer Out 2 (Sink Output)
+    expect(tabular.length).toBe(5);
     
     // Sort logic puts terminal sources (Mic) first
-    expect(tabular[0].sourceDeviceName).toBe('Mic'); // Input
+    expect(tabular[0].sourceDeviceName).toBe('Kick'); // Input
     expect(tabular[0].isSink).toBeFalsy();
     
     // Then orphaned inputs

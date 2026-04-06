@@ -1,12 +1,13 @@
 import React, { createContext, useContext, useState, useCallback, useEffect, useRef } from 'react';
 import { Alert, Platform } from 'react-native';
-import { Project, Device, Group, Category, Connection } from '../models';
+import { Project, Device, Group, Category, Connection, ProjectConfig } from '../models';
 import { PersistenceService, ProjectMetadata } from '../services/PersistenceService';
 import { DEMO_PROJECT } from '../constants/DemoProject';
 
 interface ProjectContextType {
   project: Project;
   setProject: (project: Project) => void;
+  updateConfig: (updates: Partial<ProjectConfig>) => void;
   addDevice: (device: Omit<Device, 'id'>) => string;
   updateDevice: (id: string, updates: Partial<Device>) => void;
   deleteDevice: (id: string) => void;
@@ -19,6 +20,11 @@ interface ProjectContextType {
   addConnection: (connection: Omit<Connection, 'id'>) => string;
   updateConnection: (id: string, updates: Partial<Connection>) => void;
   deleteConnection: (id: string) => void;
+  findDeviceByName: (name: string) => Device | undefined;
+  
+  // UI state for cross-tab navigation
+  editingDeviceId: string | null;
+  setEditingDeviceId: (id: string | null) => void;
   
   // Persistence methods
   listProjects: () => Promise<ProjectMetadata[]>;
@@ -37,8 +43,22 @@ const generateId = () => Math.random().toString(36).substring(2, 11) + Date.now(
 
 export function ProjectProvider({ children }: { children: React.ReactNode }) {
   const [project, setProjectState] = useState<Project>(DEMO_PROJECT);
+  const projectRef = useRef(project);
   const [isInitialized, setIsInitialized] = useState(false);
+
+  useEffect(() => {
+    projectRef.current = project;
+  }, [project]);
+  const [editingDeviceId, setEditingDeviceId] = useState<string | null>(null);
   const isSaving = useRef(false);
+
+  const setProjectStateWithRef = useCallback((updater: (prev: Project) => Project) => {
+    setProjectState((prev) => {
+      const next = updater(prev);
+      projectRef.current = next;
+      return next;
+    });
+  }, []);
 
   const listProjects = useCallback(async () => {
     return PersistenceService.listProjects();
@@ -48,14 +68,15 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
     const loaded = await PersistenceService.loadProject(id);
     if (loaded) {
       console.log('ProjectContext: loadProject success:', loaded.id);
-      setProjectState(loaded);
+      setProjectStateWithRef(() => loaded);
     }
-  }, []);
+  }, [setProjectStateWithRef]);
 
   const createNewProject = useCallback(async (name: string) => {
     const newProject: Project = {
       id: generateId(),
       name,
+      config: { sortByGroup: false },
       devices: [],
       connections: [],
       groups: [],
@@ -64,8 +85,8 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
       updatedAt: new Date().toISOString(),
     };
     await PersistenceService.saveProject(newProject);
-    setProjectState(newProject);
-  }, []);
+    setProjectStateWithRef(() => newProject);
+  }, [setProjectStateWithRef]);
 
   const deleteProject = useCallback(async (id: string) => {
     console.log('ProjectContext: deleteProject', id);
@@ -99,10 +120,10 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
         // Fallback: should not happen since we re-created demo above if it was deleted,
         // but for safety:
         console.log('ProjectContext: No projects left, using demo project');
-        setProjectState(DEMO_PROJECT);
+        setProjectStateWithRef(() => DEMO_PROJECT);
       }
     }
-  }, [project.id, project.name, loadProject]);
+  }, [project.id, project.name, loadProject, setProjectStateWithRef]);
 
   const saveAsTemplate = useCallback(async (name: string) => {
     const template: Project = {
@@ -129,9 +150,9 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
         updatedAt: new Date().toISOString(),
       };
       await PersistenceService.saveProject(newProject);
-      setProjectState(newProject);
+      setProjectStateWithRef(() => newProject);
     }
-  }, []);
+  }, [setProjectStateWithRef]);
 
   const deleteTemplate = useCallback(async (id: string) => {
     await PersistenceService.deleteTemplate(id);
@@ -152,17 +173,17 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
           console.log('ProjectContext: no projects found, saving initial project');
           // First run, save initial project
           await PersistenceService.saveProject(DEMO_PROJECT);
-          setProjectState(DEMO_PROJECT);
+          setProjectStateWithRef(() => DEMO_PROJECT);
         }
       } catch (err) {
         console.error('ProjectContext: init error:', err);
-        setProjectState(DEMO_PROJECT);
+        setProjectStateWithRef(() => DEMO_PROJECT);
       } finally {
         setIsInitialized(true);
       }
     };
     init();
-  }, [listProjects, loadProject]);
+  }, [listProjects, loadProject, setProjectStateWithRef]);
 
   // Auto-save on project changes
   useEffect(() => {
@@ -175,96 +196,104 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
   }, [project, isInitialized]);
 
   const setProject = useCallback((newProject: Project) => {
-    setProjectState({
+    setProjectStateWithRef(() => ({
       ...newProject,
       updatedAt: new Date().toISOString(),
-    });
-  }, []);
+    }));
+  }, [setProjectStateWithRef]);
+
+  const updateConfig = useCallback((updates: Partial<ProjectConfig>) => {
+    setProjectStateWithRef((prev) => ({
+      ...prev,
+      config: { ...prev.config, ...updates },
+      updatedAt: new Date().toISOString(),
+    }));
+  }, [setProjectStateWithRef]);
 
   const addDevice = useCallback((device: Omit<Device, 'id'>) => {
     const id = generateId();
-    setProjectState((prev) => ({
+    setProjectStateWithRef((prev) => ({
       ...prev,
       devices: [...prev.devices, { ...device, id }],
       updatedAt: new Date().toISOString(),
     }));
     return id;
-  }, []);
+  }, [setProjectStateWithRef]);
 
   const updateDevice = useCallback((id: string, updates: Partial<Device>) => {
-    setProjectState((prev) => ({
+    setProjectStateWithRef((prev) => ({
       ...prev,
       devices: prev.devices.map((d) => (d.id === id ? { ...d, ...updates } : d)),
       updatedAt: new Date().toISOString(),
     }));
-  }, []);
+  }, [setProjectStateWithRef]);
 
   const deleteDevice = useCallback((id: string) => {
-    setProjectState((prev) => ({
+    setProjectStateWithRef((prev) => ({
       ...prev,
       devices: prev.devices.filter((d) => d.id !== id),
       connections: prev.connections.filter(c => c.sourceDeviceId !== id && c.destinationDeviceId !== id),
       updatedAt: new Date().toISOString(),
     }));
-  }, []);
+  }, [setProjectStateWithRef]);
 
   const addGroup = useCallback((group: Omit<Group, 'id'>) => {
     const id = generateId();
-    setProjectState((prev) => ({
+    setProjectStateWithRef((prev) => ({
       ...prev,
       groups: [...prev.groups, { ...group, id }],
       updatedAt: new Date().toISOString(),
     }));
     return id;
-  }, []);
+  }, [setProjectStateWithRef]);
 
   const updateGroup = useCallback((id: string, updates: Partial<Group>) => {
-    setProjectState((prev) => ({
+    setProjectStateWithRef((prev) => ({
       ...prev,
       groups: prev.groups.map((g) => (g.id === id ? { ...g, ...updates } : g)),
       updatedAt: new Date().toISOString(),
     }));
-  }, []);
+  }, [setProjectStateWithRef]);
 
   const deleteGroup = useCallback((id: string) => {
-    setProjectState((prev) => ({
+    setProjectStateWithRef((prev) => ({
       ...prev,
       groups: prev.groups.filter((g) => g.id !== id),
       devices: prev.devices.map(d => d.groupId === id ? { ...d, groupId: undefined } : d),
       updatedAt: new Date().toISOString(),
     }));
-  }, []);
+  }, [setProjectStateWithRef]);
 
   const addCategory = useCallback((category: Omit<Category, 'id'>) => {
     const id = generateId();
-    setProjectState((prev) => ({
+    setProjectStateWithRef((prev) => ({
       ...prev,
       categories: [...prev.categories, { ...category, id }],
       updatedAt: new Date().toISOString(),
     }));
     return id;
-  }, []);
+  }, [setProjectStateWithRef]);
 
   const updateCategory = useCallback((id: string, updates: Partial<Category>) => {
-    setProjectState((prev) => ({
+    setProjectStateWithRef((prev) => ({
       ...prev,
       categories: prev.categories.map((c) => (c.id === id ? { ...c, ...updates } : c)),
       updatedAt: new Date().toISOString(),
     }));
-  }, []);
+  }, [setProjectStateWithRef]);
 
   const deleteCategory = useCallback((id: string) => {
-    setProjectState((prev) => ({
+    setProjectStateWithRef((prev) => ({
       ...prev,
       categories: prev.categories.filter((c) => c.id !== id),
       devices: prev.devices.map(d => d.categoryId === id ? { ...d, categoryId: undefined } : d),
       updatedAt: new Date().toISOString(),
     }));
-  }, []);
+  }, [setProjectStateWithRef]);
   
   const addConnection = useCallback((connection: Omit<Connection, 'id'>) => {
     const id = generateId();
-    setProjectState((prev) => ({
+    setProjectStateWithRef((prev) => ({
       ...prev,
       connections: [
         ...prev.connections.filter(c => 
@@ -276,27 +305,39 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
       updatedAt: new Date().toISOString(),
     }));
     return id;
-  }, []);
+  }, [setProjectStateWithRef]);
 
   const updateConnection = useCallback((id: string, updates: Partial<Connection>) => {
-    setProjectState((prev) => ({
+    setProjectStateWithRef((prev) => ({
       ...prev,
       connections: prev.connections.map((c) => (c.id === id ? { ...c, ...updates } : c)),
       updatedAt: new Date().toISOString(),
     }));
-  }, []);
+  }, [setProjectStateWithRef]);
 
   const deleteConnection = useCallback((id: string) => {
-    setProjectState((prev) => ({
+    setProjectStateWithRef((prev) => ({
       ...prev,
       connections: prev.connections.filter((c) => c.id !== id),
       updatedAt: new Date().toISOString(),
     }));
+  }, [setProjectStateWithRef]);
+
+  const findDeviceByName = useCallback((name: string) => {
+    if (!name) return undefined;
+    const lowerName = name.toLowerCase();
+    // Prioritize exact match
+    const exact = projectRef.current.devices.find(d => d.name.toLowerCase() === lowerName);
+    if (exact) return exact;
+    
+    // Fallback to startsWith for suggestions
+    return projectRef.current.devices.find(d => d.name.toLowerCase().startsWith(lowerName));
   }, []);
 
   const value = React.useMemo(() => ({
     project,
     setProject,
+    updateConfig,
     addDevice,
     updateDevice,
     deleteDevice,
@@ -309,6 +350,9 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
     addConnection,
     updateConnection,
     deleteConnection,
+    findDeviceByName,
+    editingDeviceId,
+    setEditingDeviceId,
     listProjects,
     loadProject,
     createNewProject,
@@ -332,6 +376,9 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
     addConnection,
     updateConnection,
     deleteConnection,
+    findDeviceByName,
+    editingDeviceId,
+    setEditingDeviceId,
     listProjects,
     loadProject,
     createNewProject,

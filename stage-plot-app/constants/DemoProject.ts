@@ -3,6 +3,9 @@ import { Project } from '../models';
 export const DEMO_PROJECT: Project = {
     "id": "550e8400-e29b-41d4-a716-446655440000",
     "name": "Demo Project",
+    "config": {
+        "sortByGroup": false
+    },
     "devices": [
         {
             "id": "dev-vox1",
@@ -23,7 +26,7 @@ export const DEMO_PROJECT: Project = {
                 }
             ],
             "metadata": {
-                "generalName": "VOX 1"
+
             },
             "position": {
                 "x": 0,
@@ -50,7 +53,7 @@ export const DEMO_PROJECT: Project = {
                 }
             ],
             "metadata": {
-                "generalName": "VOX 2"
+
             },
             "position": {
                 "x": 0,
@@ -77,7 +80,7 @@ export const DEMO_PROJECT: Project = {
                 }
             ],
             "metadata": {
-                "generalName": "Kick"
+
             },
             "position": {
                 "x": 0,
@@ -104,7 +107,7 @@ export const DEMO_PROJECT: Project = {
                 }
             ],
             "metadata": {
-                "generalName": "Snare"
+
             },
             "position": {
                 "x": 0,
@@ -131,7 +134,7 @@ export const DEMO_PROJECT: Project = {
                 }
             ],
             "metadata": {
-                "generalName": "Tom"
+
             },
             "position": {
                 "x": 0,
@@ -167,7 +170,7 @@ export const DEMO_PROJECT: Project = {
                 }
             ],
             "metadata": {
-                "generalName": "Keys"
+
             },
             "position": {
                 "x": 0,
@@ -535,7 +538,7 @@ export const DEMO_PROJECT: Project = {
                 }
             ],
             "metadata": {
-                "generalName": "DI"
+
             },
             "position": {
                 "x": 280,

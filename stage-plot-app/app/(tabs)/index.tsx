@@ -32,8 +32,22 @@ export default function SetupsScreen() {
     deleteGroup,
     addCategory,
     updateCategory,
-    deleteCategory
+    deleteCategory,
+    editingDeviceId,
+    setEditingDeviceId
   } = useProject();
+
+  // Watch for external editing requests
+  React.useEffect(() => {
+    if (editingDeviceId) {
+      const device = project.devices.find(d => d.id === editingDeviceId);
+      if (device) {
+        setEditingDevice(device);
+        setIsDeviceModalVisible(true);
+      }
+      setEditingDeviceId(null); // Clear once handled
+    }
+  }, [editingDeviceId, project.devices, setEditingDeviceId]);
 
   const [searchQuery, setSearchQuery] = useState('');
   const [filterType, setFilterType] = useState<string | null>(null);

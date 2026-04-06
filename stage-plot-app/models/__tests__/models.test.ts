@@ -50,12 +50,10 @@ describe('Stage Plot Models', () => {
       devices: [
         {
           id: 'dev-1',
-          name: 'Kick Mic',
+          name: 'Kick',
           type: 'Microphone',
           model: 'D112',
-          metadata: {
-            generalName: 'Kick',
-          },
+          metadata: {},
           outputChannels: [{
             id: 'channel-1',
             number: 1,

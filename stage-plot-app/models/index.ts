@@ -13,8 +13,11 @@ export const ChannelSchema = z.object({
 export const MetadataSchema = z.object({
   gainNote: z.string().optional(),
   stagePosition: z.enum(['L', 'C', 'R']).optional(),
-  generalName: z.string().optional(), // e.g., 'Kick'
   showChannelNames: z.boolean().optional(),
+});
+
+export const ProjectConfigSchema = z.object({
+  sortByGroup: z.boolean().optional().default(false),
 });
 
 export const DeviceSchema = z.object({
@@ -59,6 +62,7 @@ export const ProjectSchema = z.object({
   id: z.string(),
   name: z.string(),
   notes: z.string().optional(),
+  config: ProjectConfigSchema.default({}),
   devices: z.array(DeviceSchema).default([]),
   connections: z.array(ConnectionSchema).default([]),
   groups: z.array(GroupSchema).default([]),
@@ -69,6 +73,7 @@ export const ProjectSchema = z.object({
 
 export type Channel = z.infer<typeof ChannelSchema>;
 export type Metadata = z.infer<typeof MetadataSchema>;
+export type ProjectConfig = z.infer<typeof ProjectConfigSchema>;
 export type Device = z.infer<typeof DeviceSchema>;
 export type Connection = z.infer<typeof ConnectionSchema>;
 export type Group = z.infer<typeof GroupSchema>;

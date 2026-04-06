@@ -21,11 +21,11 @@ describe('Tabular Patch Logic', () => {
       devices: [
         {
           id: micId,
-          name: 'Mic 1',
+          name: 'Vocal',
           type: 'Microphone',
           outputChannels: [{ id: 'mic-out', number: 1, channelCount: 1, phantomPower: false, pad: false }],
           inputChannels: [],
-          metadata: { generalName: 'Vocal' },
+          metadata: {},
         },
         {
           id: spkId,
@@ -105,12 +105,13 @@ describe('Tabular Patch Logic', () => {
 
     const rows = resolveTabularPatch(project);
 
-    // Should have 4 rows: 
+    // Should have 5 rows: 
     // 1. SB 7 (Mic 1 -> SB 7 -> Mixer 1)
-    // 2. SB 8 (Mixer 1 -> SB 8 -> Speaker 1)
-    // 3. SB 9 (Orphaned SB 9)
-    // 4. Mixer In 2 (Orphaned Mixer In 2)
-    expect(rows.length).toBe(4);
+    // 2. SB 9 (Orphaned SB 9)
+    // 3. Mixer In 2 (Orphaned Mixer In 2)
+    // 4. Mixer Out 1 (Sink Output)
+    // 5. Mixer Out 2 (Sink Output)
+    expect(rows.length).toBe(5);
 
     // Sorting rule: ALL inputs first, then ALL outputs (sinks)
     // 1. SB 7 (Mic 1 -> SB 7 -> Mixer 1)
@@ -118,7 +119,7 @@ describe('Tabular Patch Logic', () => {
     // 3. Mixer In 2 (Orphaned Mixer In 2)
     // 4. SB 8 (Mixer 1 -> SB 8 -> Speaker 1) - THIS IS A SINK because source is Mixer output
     
-    expect(rows[0].sourceDeviceName).toBe('Mic 1');
+    expect(rows[0].sourceDeviceName).toBe('Vocal');
     expect(rows[0].hops.find(h => h.deviceId === stageboxId)?.inputChannelNumber).toBe(7);
     
     expect(rows[1].sourceDeviceName).toBe(''); // Orphaned SB 9

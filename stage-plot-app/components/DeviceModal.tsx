@@ -30,7 +30,6 @@ export function DeviceModal({ visible, device, groups, categories, onClose, onSa
   const [name, setName] = useState('');
   const [model, setModel] = useState('');
   const [type, setType] = useState(DEVICE_TYPES[0]);
-  const [generalName, setGeneralName] = useState('');
   const [groupId, setGroupId] = useState<string | undefined>(undefined);
   const [categoryId, setCategoryId] = useState<string | undefined>(undefined);
   const [inputChannels, setInputChannels] = useState<Channel[]>([]);
@@ -91,7 +90,6 @@ export function DeviceModal({ visible, device, groups, categories, onClose, onSa
       setName(device.name);
       setModel(device.model || '');
       setType(device.type);
-      setGeneralName(device.metadata.generalName || '');
       setGroupId(device.groupId);
       setCategoryId(device.categoryId);
       setInputChannels(device.inputChannels);
@@ -101,14 +99,13 @@ export function DeviceModal({ visible, device, groups, categories, onClose, onSa
       setChannelConfig(DEVICE_TYPE_DEFAULTS[device.type] || 'Multi');
       setIsConfigManual(false); // Reset on load
       setIsChannelsManual(true); // Treat existing as manual to avoid overwrite
-      if (device.type === 'Microphone' && device.outputChannels.length > 0) {
-        setMicPhantom(device.outputChannels[0].phantomPower);
+      if (isTerminalSource && device.outputChannels.length > 0) {
+        setMicPhantom(device.outputChannels[0].phantomPower || false);
       }
     } else {
       setName('');
       setModel('');
       setType(DEVICE_TYPES[0]);
-      setGeneralName('');
       setGroupId(undefined);
       setCategoryId(undefined);
       setInputChannels([]);
@@ -126,11 +123,19 @@ export function DeviceModal({ visible, device, groups, categories, onClose, onSa
   }, [device, visible]);
 
   const handleSave = () => {
-    let finalName = isTerminalSource ? (generalName || name || 'Unnamed Device') : (name || 'Unnamed Device');
+    let finalName = name || 'Unnamed Device';
     
     let finalInputChannels = inputChannels;
     let finalOutputChannels = outputChannels;
-    // We only force-override mic if it's NOT a multi-config or manual override
+
+    // Apply phantom power to the first output channel for all terminal sources
+    if (isTerminalSource && finalOutputChannels.length > 0) {
+      finalOutputChannels = finalOutputChannels.map((c, i) => 
+        i === 0 ? { ...c, phantomPower: micPhantom } : c
+      );
+    }
+    
+    // We only force-recreate channels for mic if it's NOT a multi-config or manual override
     if (isMic && !isChannelsManual && channelConfig !== 'Multi') {
       finalInputChannels = [];
       finalOutputChannels = [{
@@ -154,7 +159,6 @@ export function DeviceModal({ visible, device, groups, categories, onClose, onSa
       inputChannels: finalInputChannels,
       outputChannels: finalOutputChannels,
       metadata: {
-        generalName: isTerminalSource ? generalName : undefined,
         stagePosition,
         showChannelNames,
       },
@@ -339,10 +343,10 @@ export function DeviceModal({ visible, device, groups, categories, onClose, onSa
                 <>
                   <TextInput
                     className="text-lg text-black dark:text-white mb-3 pb-2 border-b border-gray-200 dark:border-gray-800"
-                    placeholder="General Name (e.g. Kick, Vocal)"
+                    placeholder="Name (e.g. Kick, Vocal)"
                     placeholderTextColor="#9ca3af"
-                    value={generalName}
-                    onChangeText={setGeneralName}
+                    value={name}
+                    onChangeText={setName}
                   />
                   <Text className="text-[10px] font-bold text-gray-400 mb-2 uppercase tracking-widest">Mic Model</Text>
                   <ScrollView horizontal showsHorizontalScrollIndicator={false} className="flex-row pb-1">
@@ -378,10 +382,10 @@ export function DeviceModal({ visible, device, groups, categories, onClose, onSa
                 <>
                   <TextInput
                     className="text-lg text-black dark:text-white mb-2 pb-2 border-b border-gray-200 dark:border-gray-800"
-                    placeholder="General Name (e.g. Bass DI)"
+                    placeholder="Name (e.g. Bass DI)"
                     placeholderTextColor="#9ca3af"
-                    value={generalName}
-                    onChangeText={setGeneralName}
+                    value={name}
+                    onChangeText={setName}
                   />
                   <TextInput
                     className="text-lg text-black dark:text-white"
@@ -390,12 +394,16 @@ export function DeviceModal({ visible, device, groups, categories, onClose, onSa
                     value={model}
                     onChangeText={setModel}
                   />
+                  <View className="flex-row justify-between items-center mt-4 pt-3 border-t border-gray-100 dark:border-gray-800">
+                    <Text className="text-sm font-medium text-gray-600 dark:text-gray-400">Phantom Power Required</Text>
+                    <Switch value={micPhantom} onValueChange={setMicPhantom} trackColor={{ true: '#facc15' }} />
+                  </View>
                 </>
               ) : (
                 <>
                   <TextInput
                     className="text-lg text-black dark:text-white mb-2 pb-2 border-b border-gray-200 dark:border-gray-800"
-                    placeholder="Device Name (e.g. Stagebox A, WING)"
+                    placeholder="Name (e.g. Stagebox A, WING)"
                     placeholderTextColor="#9ca3af"
                     value={name}
                     onChangeText={setName}

@@ -8,9 +8,9 @@ export class ExportService {
   /**
    * Generates a PDF of the Patch Sheet and opens the share dialog.
    */
-  static async exportPatchPDF(project: Project, selectedDeviceIds: string[]) {
+  static async exportPatchPDF(project: Project, selectedDeviceIds: string[] = []) {
     const tabularData = resolveTabularPatch(project);
-    const devices = project.devices.filter(d => selectedDeviceIds.includes(d.id));
+    const devices = project.devices.filter(d => selectedDeviceIds?.includes(d.id) || false);
     
     const html = `
       <!DOCTYPE html>
@@ -62,7 +62,7 @@ export class ExportService {
                     ${row.sourceDeviceName} (${row.sourceChannelNumber})
                   </div>
                 </td>
-                ${selectedDeviceIds.map(deviceId => {
+                ${(selectedDeviceIds || []).map(deviceId => {
                   const hop = row.fullPath[deviceId];
                   if (!hop) return '<td class="no-route">No Route</td>';
                   return `
