@@ -12,9 +12,12 @@ import {
   Platform
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { X, Plus, Trash2, FileText, Copy, ArrowRight, Save, Layout } from 'lucide-react-native';
+import { X, Plus, Trash2, FileText, Copy, ArrowRight, Save, Layout, Upload } from 'lucide-react-native';
+import * as DocumentPicker from 'expo-document-picker';
+import * as FileSystem from 'expo-file-system/legacy';
 import { useProject } from '../contexts/ProjectContext';
 import { ProjectMetadata } from '../services/PersistenceService';
+import { ProjectSchema } from '../models';
 
 interface ProjectListModalProps {
   visible: boolean;
@@ -32,7 +35,8 @@ export function ProjectListModal({ visible, onClose }: ProjectListModalProps) {
     saveAsTemplate,
     listTemplates,
     loadTemplate,
-    deleteTemplate
+    deleteTemplate,
+    importProject
   } = useProject();
 
   const [projects, setProjects] = useState<ProjectMetadata[]>([]);
@@ -150,6 +154,58 @@ export function ProjectListModal({ visible, onClose }: ProjectListModalProps) {
     await saveAsTemplate(newTemplateName);
     setIsNamingTemplate(false);
     fetchLists();
+  };
+
+  const handleImportProject = async () => {
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: 'application/json',
+        copyToCacheDirectory: true,
+      });
+
+      if (result.canceled || !result.assets || result.assets.length === 0) return;
+
+      const asset = result.assets[0];
+      let jsonString: string;
+
+      if (Platform.OS === 'web') {
+        const response = await fetch(asset.uri);
+        jsonString = await response.text();
+      } else {
+        jsonString = await FileSystem.readAsStringAsync(asset.uri);
+      }
+
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(jsonString);
+      } catch {
+        Alert.alert('Import Failed', 'The file does not contain valid JSON.');
+        return;
+      }
+
+      const validation = ProjectSchema.safeParse(parsed);
+      if (!validation.success) {
+        const issues = validation.error.issues.map((issue) => {
+          const path = issue.path.length > 0 ? issue.path.join('.') : '(root)';
+          return `- ${path}: ${issue.message}`;
+        }).join('\n');
+        const message = `The project file failed validation:\n\n${issues}`;
+        if (Platform.OS === 'web') {
+          window.alert(message);
+        } else {
+          Alert.alert('Import Failed', message);
+        }
+        return;
+      }
+
+      await importProject(validation.data);
+      await fetchLists();
+      onClose();
+    } catch (err) {
+      console.error('ProjectListModal: handleImportProject error', err);
+      const message = err instanceof Error ? err.message : 'An unknown error occurred.';
+      Alert.alert('Import Failed', message);
+    }
   };
 
   const renderProjectItem = ({ item }: { item: ProjectMetadata }) => {
@@ -292,6 +348,13 @@ export function ProjectListModal({ visible, onClose }: ProjectListModalProps) {
                 <Plus size={24} color="white" />
               </TouchableOpacity>
             </View>
+            <TouchableOpacity
+              onPress={handleImportProject}
+              className="flex-row items-center justify-center mt-3 py-3 rounded-lg bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700"
+            >
+              <Upload size={18} color="#6b7280" />
+              <Text className="text-gray-600 dark:text-gray-300 font-semibold ml-2">Import Project from JSON</Text>
+            </TouchableOpacity>
           </View>
         )}
 

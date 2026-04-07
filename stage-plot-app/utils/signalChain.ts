@@ -92,34 +92,8 @@ export function resolveSignalChain(project: Project): SignalChainState {
 
     // Internal Device Routing/Propagation
     for (const device of project.devices) {
-      // Passthrough for simple devices (e.g. DI box or Adapter)
-      if (isSourceOrTerminal(device)) {
-        if (device.inputChannels.length === 1 && device.outputChannels.length === 1) {
-          const inKey = `${device.id}:${device.inputChannels[0].id}`;
-          const inState = state[inKey];
-          if (inState) {
-            const outChan = device.outputChannels[0];
-            const outKey = `${device.id}:${outChan.id}`;
-            
-            const outName = outChan.name;
-            const isOutGeneric = !outName || outName.match(/^Ch \d+$/i) || outName.toLowerCase() === 'output';
-            const effectiveName = isOutGeneric ? inState.effectiveName : outName;
-            
-            const existing = state[outKey];
-            if (!existing || existing.effectiveName !== effectiveName || existing.sourceDeviceId !== inState.sourceDeviceId) {
-              state[outKey] = {
-                ...inState,
-                effectiveName,
-                path: inState.path
-              };
-              changed = true;
-            }
-          }
-        }
-        continue;
-      }
-
-      // Complex Devices (Stageboxes, Mixers)
+      const isSimple = isSourceOrTerminal(device);
+      
       for (const outChan of device.outputChannels) {
         let matchedInState: ChannelState | null = null;
 
@@ -136,8 +110,8 @@ export function resolveSignalChain(project: Project): SignalChainState {
           }
         }
 
-        // B. Fallback to 1:1 number mapping ONLY for Stageboxes
-        if (!matchedInState && device.type?.toLowerCase() === 'stagebox') {
+        // B. Fallback to 1:1 number mapping for Stageboxes AND simple devices with inputs
+        if (!matchedInState && (device.type?.toLowerCase() === 'stagebox' || isSimple)) {
           const inChan = device.inputChannels.find(c => c.number === outChan.number);
           if (inChan) {
             const inKey = `${device.id}:${inChan.id}`;
@@ -160,7 +134,7 @@ export function resolveSignalChain(project: Project): SignalChainState {
             state[outKey] = {
               ...matchedInState,
               effectiveName,
-              path: matchedInState.path
+              path: matchedInState.path.includes(device.id) ? matchedInState.path : [...matchedInState.path, device.id]
             };
             changed = true;
           }
@@ -260,6 +234,7 @@ export interface TabularRow {
   terminalDeviceName?: string;
   terminalDeviceType?: string;
   terminalChannelName?: string;
+  isNonSequential?: boolean;
 }
 
 export function resolveTabularPatch(project: Project): TabularRow[] {
@@ -329,37 +304,36 @@ export function resolveTabularPatch(project: Project): TabularRow[] {
           pad: destChannel.pad
         };
 
-        if (!isSourceOrTerminal(destDevice)) {
-          // Find matching output based on signalState AND name matching
-          const matchingOutChan = destDevice.outputChannels.find(out => {
-            const outKey = `${destDevice.id}:${out.id}`;
-            const outState = signalState[outKey];
-            if (!outState) return false;
-            return outState.sourceDeviceId === chState.sourceDeviceId && 
-                   outState.sourceChannelId === chState.sourceChannelId &&
-                   outState.effectiveName === destInState?.effectiveName;
-          });
+        // Find matching output based on signalState
+        const matchingOutChan = destDevice.outputChannels.find(out => {
+          const outKey = `${destDevice.id}:${out.id}`;
+          const outState = signalState[outKey];
+          if (!outState) return false;
+          return outState.sourceDeviceId === chState.sourceDeviceId && 
+                 outState.sourceChannelId === chState.sourceChannelId;
+        });
 
-          if (matchingOutChan) {
-            const outKey = `${destDevice.id}:${matchingOutChan.id}`;
-            const outState = signalState[outKey];
-            hop.outputChannelId = matchingOutChan.id;
-            hop.outputChannelNumber = matchingOutChan.number;
-            hop.outputChannelName = matchingOutChan.name;
-            hop.outputEffectiveName = outState?.effectiveName || matchingOutChan.name || `Ch ${matchingOutChan.number}`;
-            currentDeviceId = destDevice.id;
-            currentChannelId = matchingOutChan.id;
-          } else {
-            currentDeviceId = "";
-            currentChannelId = "";
-          }
+        if (matchingOutChan) {
+          const outKey = `${destDevice.id}:${matchingOutChan.id}`;
+          const outState = signalState[outKey];
+          hop.outputChannelId = matchingOutChan.id;
+          hop.outputChannelNumber = matchingOutChan.number;
+          hop.outputChannelName = matchingOutChan.name;
+          hop.outputEffectiveName = outState?.effectiveName || matchingOutChan.name || `Ch ${matchingOutChan.number}`;
+          
           row.hops.push(hop);
           row.fullPath[hop.deviceId] = hop;
+          
+          currentDeviceId = destDevice.id;
+          currentChannelId = matchingOutChan.id;
         } else {
-          row.terminalDeviceId = destDevice.id;
-          row.terminalDeviceName = destDevice.name;
-          row.terminalDeviceType = destDevice.type;
-          row.terminalChannelName = destChannel.name || destInState?.effectiveName || `Ch ${destChannel.number}`;
+          // Terminal device - only if it doesn't have its own column
+          if (!shouldShowChannelNames(destDevice)) {
+            row.terminalDeviceId = destDevice.id;
+            row.terminalDeviceName = destDevice.name;
+            row.terminalDeviceType = destDevice.type;
+            row.terminalChannelName = destChannel.name || destInState?.effectiveName || `Ch ${destChannel.number}`;
+          }
           break;
         }
         if (!currentDeviceId) break;
@@ -368,21 +342,19 @@ export function resolveTabularPatch(project: Project): TabularRow[] {
     }
   }
 
-  // 2. Generate Rows from Complex Device Outputs that are seeds
+  // 2. Generate Rows from Mixer/Console Outputs that are seeds
   const complexDevices = project.devices.filter(d => shouldShowChannelNames(d));
   for (const device of complexDevices) {
     const isMixer = device.type?.toLowerCase() === 'mixer' || device.type?.toLowerCase() === 'console';
+    // We only generate seed rows for Mixer outputs. 
+    // Stagebox outputs are handled by following paths from their inputs (Step 3).
+    if (!isMixer) continue;
+
     for (const channel of device.outputChannels) {
       const stateKey = `${device.id}:${channel.id}`;
       const chState = signalState[stateKey];
       
-      // Sink rows (outputs) are normally seeds. 
-      // But for Mixers, we ALWAYS show outputs as separate rows even if they have an incoming signal.
-      if (chState && chState.sourceDeviceId !== device.id && !isMixer) continue;
-      
-      const isConnected = project.connections.some(c => c.sourceDeviceId === device.id && c.sourceChannelId === channel.id);
-      if (!isConnected && !channel.name && !isMixer) continue;
-
+      // For Mixers, we ALWAYS show outputs as separate rows.
       const row: TabularRow = {
         index: 0,
         sourceDeviceId: device.id,
@@ -443,31 +415,30 @@ export function resolveTabularPatch(project: Project): TabularRow[] {
           inputChannelName: destChannel.name,
           inputEffectiveName: destInState?.effectiveName || destChannel.name || `Ch ${destChannel.number}`,
           connectorType: destChannel.connectorType,
-          cableLabel: connection.cableLabel
+          cableLabel: connection.cableLabel,
+          phantomPower: destChannel.phantomPower,
+          pad: destChannel.pad
         };
 
-        if (!isSourceOrTerminal(destDevice)) {
-          const matchingOutChan = destDevice.outputChannels.find(out => {
-             const outKey = `${destDevice.id}:${out.id}`;
-             const outState = signalState[outKey];
-             return outState && outState.sourceDeviceId === row.sourceDeviceId && outState.sourceChannelId === row.sourceChannelId;
-          });
+        const matchingOutChan = destDevice.outputChannels.find(out => {
+           const outKey = `${destDevice.id}:${out.id}`;
+           const outState = signalState[outKey];
+           return outState && outState.sourceDeviceId === row.sourceDeviceId && outState.sourceChannelId === row.sourceChannelId;
+        });
 
-          if (matchingOutChan) {
-            const outKey = `${destDevice.id}:${matchingOutChan.id}`;
-            const outState = signalState[outKey];
-            hop.outputChannelId = matchingOutChan.id;
-            hop.outputChannelNumber = matchingOutChan.number;
-            hop.outputChannelName = matchingOutChan.name;
-            hop.outputEffectiveName = outState?.effectiveName || matchingOutChan.name || `Ch ${matchingOutChan.number}`;
-            currentDeviceId = destDevice.id;
-            currentChannelId = matchingOutChan.id;
-          } else {
-            currentDeviceId = "";
-            currentChannelId = "";
-          }
+        if (matchingOutChan) {
+          const outKey = `${destDevice.id}:${matchingOutChan.id}`;
+          const outState = signalState[outKey];
+          hop.outputChannelId = matchingOutChan.id;
+          hop.outputChannelNumber = matchingOutChan.number;
+          hop.outputChannelName = matchingOutChan.name;
+          hop.outputEffectiveName = outState?.effectiveName || matchingOutChan.name || `Ch ${matchingOutChan.number}`;
+          
           row.hops.push(hop);
           row.fullPath[hop.deviceId] = hop;
+          
+          currentDeviceId = destDevice.id;
+          currentChannelId = matchingOutChan.id;
         } else {
           row.terminalDeviceId = destDevice.id;
           row.terminalDeviceName = destDevice.name;
@@ -513,8 +484,9 @@ export function resolveTabularPatch(project: Project): TabularRow[] {
           row.hops.push(startHop);
           row.fullPath[device.id] = startHop;
 
-          // Try to follow if there's internal routing (only for stageboxes)
-          const matchingOutChan = device.type?.toLowerCase() === 'stagebox' 
+          // Try to follow if there's internal routing (only for stageboxes and simple devices)
+          const isSimple = isSourceOrTerminal(device);
+          const matchingOutChan = (device.type?.toLowerCase() === 'stagebox' || isSimple)
             ? device.outputChannels.find(out => out.number === channel.number)
             : undefined;
 
@@ -551,26 +523,29 @@ export function resolveTabularPatch(project: Project): TabularRow[] {
                 cableLabel: connection.cableLabel
               };
 
-              if (!isSourceOrTerminal(destDevice)) {
-                const dOut = destDevice.outputChannels.find(o => destDevice.type?.toLowerCase() === 'stagebox' && o.number === destChannel.number);
-                if (dOut) {
-                   hop.outputChannelId = dOut.id;
-                   hop.outputChannelNumber = dOut.number;
-                   hop.outputChannelName = dOut.name;
-                   hop.outputEffectiveName = dOut.name || destChannel.name || `Ch ${destChannel.number}`;
-                   curDevId = destDevice.id;
-                   curChanId = dOut.id;
-                } else {
-                   curDevId = "";
-                   curChanId = "";
-                }
-                row.hops.push(hop);
-                row.fullPath[hop.deviceId] = hop;
+              const dIsSimple = isSourceOrTerminal(destDevice);
+              const dOut = (destDevice.type?.toLowerCase() === 'stagebox' || dIsSimple)
+                ? destDevice.outputChannels.find(o => o.number === destChannel.number)
+                : undefined;
+
+              if (dOut) {
+                 hop.outputChannelId = dOut.id;
+                 hop.outputChannelNumber = dOut.number;
+                 hop.outputChannelName = dOut.name;
+                 hop.outputEffectiveName = dOut.name || destChannel.name || `Ch ${destChannel.number}`;
+                 
+                 row.hops.push(hop);
+                 row.fullPath[hop.deviceId] = hop;
+                 
+                 curDevId = destDevice.id;
+                 curChanId = dOut.id;
               } else {
-                row.terminalDeviceId = destDevice.id;
-                row.terminalDeviceName = destDevice.name;
-                row.terminalDeviceType = destDevice.type;
-                row.terminalChannelName = destChannel.name || `Ch ${destChannel.number}`;
+                if (!shouldShowChannelNames(destDevice)) {
+                  row.terminalDeviceId = destDevice.id;
+                  row.terminalDeviceName = destDevice.name;
+                  row.terminalDeviceType = destDevice.type;
+                  row.terminalChannelName = destChannel.name || `Ch ${destChannel.number}`;
+                }
                 break;
               }
               if (!curDevId) break;
@@ -594,36 +569,89 @@ export function resolveTabularPatch(project: Project): TabularRow[] {
         if (groupA !== groupB) return groupA.localeCompare(groupB);
     }
 
-    // 3. Sort by Primary Device (Stagebox > Mixer > Other)
-    const getPrimarySortInfo = (row: TabularRow) => {
-        const stageboxHop = row.hops.find(h => project.devices.find(dev => dev.id === h.deviceId)?.type?.toLowerCase() === 'stagebox');
-        if (stageboxHop) return { priority: 1, name: stageboxHop.deviceName, channel: stageboxHop.inputChannelNumber || stageboxHop.outputChannelNumber || 0 };
-
-        const mixerHop = row.hops.find(h => project.devices.find(dev => dev.id === h.deviceId)?.type?.toLowerCase() === 'mixer');
-        if (mixerHop) return { priority: 2, name: mixerHop.deviceName, channel: mixerHop.inputChannelNumber || mixerHop.outputChannelNumber || 0 };
-
-        if (row.sourceDeviceId) {
-           const src = project.devices.find(d => d.id === row.sourceDeviceId);
-           if (src && !isSourceOrTerminal(src)) return { priority: 2, name: src.name, channel: row.sourceChannelNumber };
+    // 3. Hierarchical Sort by Complex Devices in signal chain
+    // We get the list of complex devices each row passes through
+    const getComplexPath = (row: TabularRow) => {
+        const path: { name: string, type: string, channel: number }[] = [];
+        
+        // Find all complex devices in the chain
+        const visited = new Set<string>();
+        
+        // Start from source
+        const src = project.devices.find(d => d.id === row.sourceDeviceId);
+        if (src && shouldShowChannelNames(src)) {
+           path.push({ name: src.name, type: src.type, channel: row.sourceChannelNumber });
+           visited.add(src.id);
         }
 
-        return { priority: 2, name: row.sourceDeviceName || "ZZZ", channel: row.sourceChannelNumber };
+        // Add hops
+        for (const hop of row.hops) {
+           if (visited.has(hop.deviceId)) continue;
+           const dev = project.devices.find(d => d.id === hop.deviceId);
+           if (dev && shouldShowChannelNames(dev)) {
+              path.push({ name: dev.name, type: dev.type, channel: hop.inputChannelNumber || hop.outputChannelNumber || 0 });
+              visited.add(dev.id);
+           }
+        }
+
+        return path;
     };
 
-    const infoA = getPrimarySortInfo(a);
-    const infoB = getPrimarySortInfo(b);
+    const pathA = getComplexPath(a);
+    const pathB = getComplexPath(b);
 
-    if (infoA.priority !== infoB.priority) return infoA.priority - infoB.priority;
+    const maxLength = Math.max(pathA.length, pathB.length);
+    for (let i = 0; i < maxLength; i++) {
+        const devA = pathA[i];
+        const devB = pathB[i];
 
-    // 4. Tie-breaker: Terminal Sources (actual inputs) before Orphaned Inputs
+        // If one path is shorter, the shorter path (direct mixer) comes first if it matches
+        if (!devA && devB) return -1;
+        if (devA && !devB) return 1;
+        if (!devA && !devB) break;
+
+        // Sort by Type (Mixer < Stagebox < Other) to keep XLR 1-12 first
+        const getTypePriority = (type: string) => {
+            const t = type.toLowerCase();
+            if (t === 'mixer' || t === 'console') return 1;
+            if (t === 'stagebox') return 2;
+            return 3;
+        };
+
+        const pA = getTypePriority(devA.type);
+        const pB = getTypePriority(devB.type);
+        if (pA !== pB) return pA - pB;
+
+        if (devA.name !== devB.name) return devA.name.localeCompare(devB.name);
+        if (devA.channel !== devB.channel) return devA.channel - devB.channel;
+    }
+
+    // 4. Tie-breaker: Actual inputs before Orphaned Inputs
     if (a.sourceDeviceId && !b.sourceDeviceId) return -1;
     if (!a.sourceDeviceId && b.sourceDeviceId) return 1;
 
-    if (infoA.name !== infoB.name) return infoA.name.localeCompare(infoB.name);
-    if (infoA.channel !== infoB.channel) return infoA.channel - infoB.channel;
-
     return (a.sourceDeviceName || "").localeCompare(b.sourceDeviceName || "");
   });
+
+  // 5. Detection of non-sequential routing
+  // A row is non-sequential if it shares a complex device with the previous row,
+  // but their channels on that device are out of order relative to the final sort.
+  for (let i = 1; i < allRows.length; i++) {
+    const prev = allRows[i-1];
+    const curr = allRows[i];
+    
+    // Check all common complex devices
+    for (const devId in curr.fullPath) {
+      if (prev.fullPath[devId]) {
+        const prevChan = prev.fullPath[devId].inputChannelNumber || prev.fullPath[devId].outputChannelNumber || 0;
+        const currChan = curr.fullPath[devId].inputChannelNumber || curr.fullPath[devId].outputChannelNumber || 0;
+        if (prevChan > currChan && prevChan !== 0 && currChan !== 0) {
+          curr.isNonSequential = true;
+          break;
+        }
+      }
+    }
+  }
 
   allRows.forEach((r, i) => r.index = i + 1);
   return allRows;

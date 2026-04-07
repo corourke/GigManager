@@ -62,7 +62,7 @@ export const ProjectSchema = z.object({
   id: z.string(),
   name: z.string(),
   notes: z.string().optional(),
-  config: ProjectConfigSchema.default({}),
+  config: ProjectConfigSchema.default({ sortByGroup: false }),
   devices: z.array(DeviceSchema).default([]),
   connections: z.array(ConnectionSchema).default([]),
   groups: z.array(GroupSchema).default([]),

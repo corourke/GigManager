@@ -37,28 +37,88 @@ export const PersistenceService = {
 
   async listProjects(): Promise<ProjectMetadata[]> {
     if (IS_WEB) {
-      console.log('PersistenceService: listProjects (WEB)');
-      const projects: ProjectMetadata[] = [];
-      const keys = JSON.parse(localStorage.getItem('sp_project_keys') || '[]');
+      console.log('PersistenceService: listProjects (WEB) - localStorage.length:', localStorage.length);
+      const projectMap = new Map<string, ProjectMetadata>();
+      
+      let keys: string[] = [];
+      try {
+        const storedKeys = localStorage.getItem('sp_project_keys');
+        console.log('PersistenceService: raw sp_project_keys:', storedKeys);
+        keys = JSON.parse(storedKeys || '[]');
+      } catch (e) {
+        console.error('PersistenceService: Failed to parse sp_project_keys', e);
+        keys = [];
+      }
+      
+      console.log('PersistenceService: parsed keys:', JSON.stringify(keys));
+
+      // 1. Load from keys array
       for (const key of keys) {
-        const content = localStorage.getItem(`sp_project_${key}`);
+        const storageKey = `sp_project_${key}`;
+        const content = localStorage.getItem(storageKey);
         if (content) {
           try {
             const data = JSON.parse(content);
             if (data && data.id) {
-              projects.push({
+              console.log(`PersistenceService: Found project from keys: ${data.id} (${data.name})`);
+              projectMap.set(data.id, {
                 id: data.id,
                 name: data.name || 'Untitled Project',
                 updatedAt: data.updatedAt || new Date().toISOString(),
                 isTemplate: false,
               });
+            } else {
+              console.warn(`PersistenceService: Project at ${storageKey} has no ID or is invalid:`, content.substring(0, 50));
             }
           } catch (e) {
             console.error('PersistenceService: Error parsing localStorage project', key, e);
           }
+        } else {
+          console.warn('PersistenceService: No content found for key in sp_project_keys:', storageKey);
         }
       }
-      return projects.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+
+      // 2. Recovery: Scan for orphaned projects
+      const allStoreKeys: string[] = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (k) allStoreKeys.push(k);
+      }
+
+      for (const storageKey of allStoreKeys) {
+        if (storageKey.startsWith('sp_project_') && storageKey !== 'sp_project_keys') {
+          const content = localStorage.getItem(storageKey);
+          if (content) {
+            try {
+              const data = JSON.parse(content);
+              if (data && data.id && !projectMap.has(data.id)) {
+                console.warn('PersistenceService: Recovered orphaned project from', storageKey, 'id:', data.id);
+                projectMap.set(data.id, {
+                  id: data.id,
+                  name: data.name || 'Untitled Project',
+                  updatedAt: data.updatedAt || new Date().toISOString(),
+                  isTemplate: false,
+                });
+                if (!keys.includes(data.id)) {
+                  keys.push(data.id);
+                }
+              }
+            } catch (e) {
+              console.error('PersistenceService: Error parsing potential orphan', storageKey, e);
+            }
+          }
+        }
+      }
+
+      // Update keys if we found orphans
+      const finalKeys = Array.from(projectMap.keys());
+      if (finalKeys.length !== keys.length) {
+        localStorage.setItem('sp_project_keys', JSON.stringify(finalKeys));
+      }
+
+      const result = Array.from(projectMap.values()).sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+      console.log('PersistenceService: listProjects returning', result.length, 'projects');
+      return result;
     }
 
     try {
@@ -167,12 +227,39 @@ export const PersistenceService = {
 
   async loadProject(id: string): Promise<Project | null> {
     if (IS_WEB) {
-      const content = localStorage.getItem(`sp_project_${id}`);
-      if (!content) return null;
+      const storageKey = `sp_project_${id}`;
+      let content = localStorage.getItem(storageKey);
+
+      if (!content) {
+        console.warn('PersistenceService: No content at', storageKey, '- scanning localStorage for id:', id);
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i);
+          if (key && key.startsWith('sp_project_') && key !== 'sp_project_keys') {
+            const candidate = localStorage.getItem(key);
+            if (candidate) {
+              try {
+                const parsed = JSON.parse(candidate);
+                if (parsed && parsed.id === id) {
+                  console.warn('PersistenceService: Found project', id, 'under key:', key);
+                  content = candidate;
+                  break;
+                }
+              } catch { /* skip */ }
+            }
+          }
+        }
+      }
+
+      if (!content) {
+        console.warn('PersistenceService: Project not found in localStorage:', id);
+        return null;
+      }
+
       try {
         const data = JSON.parse(content);
         return ProjectSchema.parse(data);
       } catch (e) {
+        console.error('PersistenceService: Failed to parse/validate project', id, e);
         return null;
       }
     }

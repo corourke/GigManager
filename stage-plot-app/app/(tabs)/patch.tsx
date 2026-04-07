@@ -47,7 +47,7 @@ const SuggestionList = ({ visible, filter, onSelect }: { visible: boolean, filte
   if (!visible || suggestions.length === 0) return null;
 
   return (
-    <View style={{ position: 'absolute', bottom: 25, left: 0, right: 0, backgroundColor: 'white', borderRadius: 8, padding: 4, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4, elevation: 5, zIndex: 100, borderWeight: 1, borderColor: '#e5e7eb' }}>
+    <View style={{ position: 'absolute', bottom: 25, left: 0, right: 0, backgroundColor: 'white', borderRadius: 8, padding: 4, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4, elevation: 5, zIndex: 100, borderWidth: 1, borderColor: '#e5e7eb' }}>
       {suggestions.map((s, i) => (
         <TouchableOpacity 
           key={i} 
@@ -339,7 +339,7 @@ export default function PatchScreen() {
   const renderHeader = () => (
     <View style={{ flexDirection: 'row', width: tableWidth, height: 60, backgroundColor: '#374151', borderBottomWidth: 1, borderColor: '#1f2937' }}>
       <View style={{ width: COLUMN_WIDTH, padding: 12, borderRightWidth: 1, borderColor: '#4b5563', justifyContent: 'center' }}>
-        <Text style={{ fontWeight: 'bold', color: 'white', textTransform: 'uppercase', fontSize: 10, letterSpacing: 1 }}>Source / Terminal</Text>
+        <Text style={{ fontWeight: 'bold', color: 'white', textTransform: 'uppercase', fontSize: 10, letterSpacing: 1 }}>Source</Text>
       </View>
       
       {selectedDeviceIds.map(deviceId => {
@@ -359,7 +359,7 @@ export default function PatchScreen() {
       })}
 
       <View style={{ width: COLUMN_WIDTH, padding: 12, borderRightWidth: 1, borderColor: '#4b5563', justifyContent: 'center' }}>
-        <Text style={{ fontWeight: 'bold', color: 'white', textTransform: 'uppercase', fontSize: 10, letterSpacing: 1, textAlign: 'right' }}>Destination / Terminal</Text>
+        <Text style={{ fontWeight: 'bold', color: 'white', textTransform: 'uppercase', fontSize: 10, letterSpacing: 1, textAlign: 'right' }}>Terminal</Text>
       </View>
     </View>
   );
@@ -391,7 +391,7 @@ export default function PatchScreen() {
       >
         {/* Simple Device Cell (Left Side: Source) */}
         <View style={{ width: COLUMN_WIDTH, padding: 6, borderRightWidth: 1, borderColor: '#f3f4f6', justifyContent: 'center', overflow: 'visible' }}>
-          {!item.isSink && (!sourceDevice || !isComplexSource || (isComplexSource && item.hops.length > 0 && item.hops[0].deviceId === item.sourceDeviceId)) ? (
+          {(!item.isSink && sourceDevice && !isComplexSource) ? (
             <SourceDeviceCell 
                 item={item} 
                 isMono={isMono} 
@@ -414,23 +414,7 @@ export default function PatchScreen() {
                     }
                 }}
             />
-          ) : (item.isSink || isComplexSource) && item.sourceDeviceId ? (
-             <TouchableOpacity 
-               style={{ paddingLeft: 4, flex: 1, justifyContent: 'center' }}
-               onPress={() => onSelectDevice(item.sourceDeviceId)}
-             >
-                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                   <Text style={{ fontWeight: 'bold', color: '#1d4ed8', fontSize: 10 }}>{item.sourceDeviceName}</Text>
-                   {item.sourcePhantomPower && <Zap size={8} color="#ef4444" fill="#ef4444" style={{ marginLeft: 2 }} />}
-                   {category && <View style={{ width: 4, height: 4, borderRadius: 2, backgroundColor: category.color, marginLeft: 2 }} />}
-                </View>
-                <Text style={{ fontSize: 9, color: '#6b7280' }}>Ch {item.sourceChannelNumber} ({item.sourceEffectiveName})</Text>
-             </TouchableOpacity>
-          ) : (
-            <View style={{ paddingLeft: 4 }}>
-              <Text style={{ fontSize: 10, color: '#9ca3af', fontStyle: 'italic' }}>System Output</Text>
-            </View>
-          )}
+          ) : null}
         </View>
 
         {/* Selected Device Columns */}
@@ -511,9 +495,7 @@ export default function PatchScreen() {
                 ({item.terminalDeviceType})
               </Text>
             </TouchableOpacity>
-          ) : (
-            <Text style={{ color: '#e5e7eb', fontSize: 12 }}>-</Text>
-          )}
+          ) : null}
         </View>
       </View>
     );

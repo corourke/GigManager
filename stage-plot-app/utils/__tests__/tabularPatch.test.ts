@@ -16,6 +16,7 @@ describe('Tabular Patch Logic', () => {
     const project: Project = {
       id: mockId(),
       name: 'Test Project',
+      config: { sortByGroup: false },
       createdAt: mockTimestamp,
       updatedAt: mockTimestamp,
       devices: [
@@ -106,29 +107,23 @@ describe('Tabular Patch Logic', () => {
     const rows = resolveTabularPatch(project);
 
     // Should have 5 rows: 
-    // 1. SB 7 (Mic 1 -> SB 7 -> Mixer 1)
-    // 2. SB 9 (Orphaned SB 9)
-    // 3. Mixer In 2 (Orphaned Mixer In 2)
-    // 4. Mixer Out 1 (Sink Output)
-    // 5. Mixer Out 2 (Sink Output)
+    // Sorting: inputs first, sinks last. Within inputs, Mixer-only paths before Stagebox paths.
+    // 1. Mixer In 2 (Orphaned, Mixer-only path)
+    // 2. Vocal (Mic -> SB 7 -> Mixer 1, first complex device = Stagebox)
+    // 3. SB 9 (Orphaned SB 9)
+    // 4. Mixer Out 1 Main L (Sink, Mixer -> SB 8 -> Speaker)
+    // 5. Mixer Out 2 (Sink)
     expect(rows.length).toBe(5);
 
-    // Sorting rule: ALL inputs first, then ALL outputs (sinks)
-    // 1. SB 7 (Mic 1 -> SB 7 -> Mixer 1)
-    // 2. SB 9 (Orphaned SB 9)
-    // 3. Mixer In 2 (Orphaned Mixer In 2)
-    // 4. SB 8 (Mixer 1 -> SB 8 -> Speaker 1) - THIS IS A SINK because source is Mixer output
-    
-    expect(rows[0].sourceDeviceName).toBe('Vocal');
-    expect(rows[0].hops.find(h => h.deviceId === stageboxId)?.inputChannelNumber).toBe(7);
-    
-    expect(rows[1].sourceDeviceName).toBe(''); // Orphaned SB 9
-    expect(rows[1].hops.find(h => h.deviceId === stageboxId)?.inputChannelNumber).toBe(9);
+    expect(rows[0].sourceDeviceName).toBe('');
+    expect(rows[0].hops.find(h => h.deviceId === mixerId)?.inputChannelNumber).toBe(2);
 
-    expect(rows[2].sourceDeviceName).toBe(''); // Orphaned Mixer In 2
-    expect(rows[2].hops.find(h => h.deviceId === mixerId)?.inputChannelNumber).toBe(2);
+    expect(rows[1].sourceDeviceName).toBe('Vocal');
+    expect(rows[1].hops.find(h => h.deviceId === stageboxId)?.inputChannelNumber).toBe(7);
 
-    expect(rows[3].sourceDeviceName).toBe('Mixer'); // Sink SB 8
+    expect(rows[2].sourceDeviceName).toBe('');
+    expect(rows[2].hops.find(h => h.deviceId === stageboxId)?.inputChannelNumber).toBe(9);
+
     expect(rows[3].isSink).toBe(true);
     expect(rows[3].hops.find(h => h.deviceId === stageboxId)?.inputChannelNumber).toBe(8);
   });
@@ -139,6 +134,7 @@ describe('Tabular Patch Logic', () => {
     const project: Project = {
       id: mockId(),
       name: 'Test Project',
+      config: { sortByGroup: false },
       createdAt: mockTimestamp,
       updatedAt: mockTimestamp,
       devices: [

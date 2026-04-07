@@ -35,6 +35,7 @@ interface ProjectContextType {
   listTemplates: () => Promise<ProjectMetadata[]>;
   loadTemplate: (id: string) => Promise<void>;
   deleteTemplate: (id: string) => Promise<void>;
+  importProject: (project: Project) => Promise<void>;
 }
 
 const ProjectContext = createContext<ProjectContextType | undefined>(undefined);
@@ -157,6 +158,11 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
   const deleteTemplate = useCallback(async (id: string) => {
     await PersistenceService.deleteTemplate(id);
   }, []);
+
+  const importProject = useCallback(async (newProject: Project) => {
+    await PersistenceService.saveProject(newProject);
+    setProjectStateWithRef(() => newProject);
+  }, [setProjectStateWithRef]);
 
   // Initialize: Load last project or create default
   useEffect(() => {
@@ -361,6 +367,7 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
     listTemplates,
     loadTemplate,
     deleteTemplate,
+    importProject,
   }), [
     project,
     setProject,
@@ -387,6 +394,7 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
     listTemplates,
     loadTemplate,
     deleteTemplate,
+    importProject,
   ]);
 
   return (

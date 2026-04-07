@@ -15,6 +15,7 @@ describe('Signal Chain Logic (Refined)', () => {
     const project: Project = {
       id: mockId(),
       name: 'Test Project',
+      config: { sortByGroup: false },
       createdAt: mockTimestamp,
       updatedAt: mockTimestamp,
       devices: [
@@ -62,6 +63,7 @@ describe('Signal Chain Logic (Refined)', () => {
     const project: Project = {
       id: mockId(),
       name: 'Routable Test',
+      config: { sortByGroup: false },
       createdAt: mockTimestamp,
       updatedAt: mockTimestamp,
       devices: [
@@ -124,6 +126,7 @@ describe('Signal Chain Logic (Refined)', () => {
     const project: Project = {
       id: mockId(),
       name: 'Stagebox Test',
+      config: { sortByGroup: false },
       createdAt: mockTimestamp,
       updatedAt: mockTimestamp,
       devices: [
@@ -171,6 +174,7 @@ describe('Signal Chain Logic (Refined)', () => {
     const project: Project = {
       id: mockId(),
       name: 'Sorting Test',
+      config: { sortByGroup: false },
       createdAt: mockTimestamp,
       updatedAt: mockTimestamp,
       devices: [
