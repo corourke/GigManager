@@ -1,0 +1,890 @@
+{
+    "id": "6z5vq2sj7mnqivv5c",
+    "name": "SnakeTest",
+    "config": {
+        "sortByGroup": false
+    },
+    "devices": [
+        {
+            "id": "bqku1vioemnl89j5v",
+            "name": "FOH",
+            "type": "Mixer",
+            "model": "WING",
+            "inputChannels": [
+                {
+                    "id": "w48xg74dpmnl899b0",
+                    "number": 1,
+                    "name": "",
+                    "channelCount": 1,
+                    "connectorType": "XLR",
+                    "phantomPower": false,
+                    "pad": false
+                },
+                {
+                    "id": "eoix0cx77mnl899i6",
+                    "number": 2,
+                    "name": "",
+                    "channelCount": 1,
+                    "connectorType": "XLR",
+                    "phantomPower": false,
+                    "pad": false
+                },
+                {
+                    "id": "la7m0imozmnl899ny",
+                    "number": 3,
+                    "name": "",
+                    "channelCount": 1,
+                    "connectorType": "XLR",
+                    "phantomPower": false,
+                    "pad": false
+                },
+                {
+                    "id": "uqifndtsemnl89a0j",
+                    "number": 4,
+                    "name": "",
+                    "channelCount": 1,
+                    "connectorType": "XLR",
+                    "phantomPower": false,
+                    "pad": false
+                },
+                {
+                    "id": "6pv12fnukmnl8jk9g",
+                    "number": 5,
+                    "name": "",
+                    "channelCount": 1,
+                    "connectorType": "XLR",
+                    "phantomPower": false,
+                    "pad": false
+                },
+                {
+                    "id": "8tfrzjzkhmnl8jktd",
+                    "number": 6,
+                    "name": "",
+                    "channelCount": 1,
+                    "connectorType": "XLR",
+                    "phantomPower": false,
+                    "pad": false
+                },
+                {
+                    "id": "o13zwjgh3mnl8jl3x",
+                    "number": 7,
+                    "name": "",
+                    "channelCount": 1,
+                    "connectorType": "XLR",
+                    "phantomPower": false,
+                    "pad": false
+                },
+                {
+                    "id": "h1hpqsni9mnl8jlem",
+                    "number": 8,
+                    "name": "",
+                    "channelCount": 1,
+                    "connectorType": "XLR",
+                    "phantomPower": false,
+                    "pad": false
+                },
+                {
+                    "id": "p29wxvi6xmnmgzjbw",
+                    "number": 9,
+                    "name": "",
+                    "channelCount": 1,
+                    "connectorType": "XLR",
+                    "phantomPower": false,
+                    "pad": false
+                },
+                {
+                    "id": "ok7ux5uivmnmgzjpv",
+                    "number": 10,
+                    "name": "",
+                    "channelCount": 1,
+                    "connectorType": "XLR",
+                    "phantomPower": false,
+                    "pad": false
+                },
+                {
+                    "id": "wwbvyl7o8mnmgzk0h",
+                    "number": 11,
+                    "name": "",
+                    "channelCount": 1,
+                    "connectorType": "XLR",
+                    "phantomPower": false,
+                    "pad": false
+                },
+                {
+                    "id": "pg05xul3nmnmgzka8",
+                    "number": 12,
+                    "name": "",
+                    "channelCount": 1,
+                    "connectorType": "XLR",
+                    "phantomPower": false,
+                    "pad": false
+                },
+                {
+                    "id": "w8m5lylvtmnmpyngi",
+                    "number": 13,
+                    "name": "A1",
+                    "channelCount": 1,
+                    "connectorType": "AES50",
+                    "phantomPower": false,
+                    "pad": false
+                },
+                {
+                    "id": "pb4qqzcofmnnenjdb",
+                    "number": 14,
+                    "name": "A2",
+                    "channelCount": 1,
+                    "connectorType": "AES50",
+                    "phantomPower": false,
+                    "pad": false
+                },
+                {
+                    "id": "o82i3fyr7mnneno7l",
+                    "number": 15,
+                    "name": "A3",
+                    "channelCount": 1,
+                    "connectorType": "AES50",
+                    "phantomPower": false,
+                    "pad": false
+                },
+                {
+                    "id": "fbxdnnvcxmnnenrsr",
+                    "number": 16,
+                    "name": "A4",
+                    "channelCount": 1,
+                    "connectorType": "AES50",
+                    "phantomPower": false,
+                    "pad": false
+                },
+                {
+                    "id": "dp4ej9x1lmnqj08k5",
+                    "number": 17,
+                    "name": "A5",
+                    "channelCount": 1,
+                    "connectorType": "AES50",
+                    "phantomPower": false,
+                    "pad": false
+                },
+                {
+                    "id": "jzlo3nzixmnqj091d",
+                    "number": 18,
+                    "name": "A6",
+                    "channelCount": 1,
+                    "connectorType": "AES50",
+                    "phantomPower": false,
+                    "pad": false
+                },
+                {
+                    "id": "5vphmxsqvmnqj0995",
+                    "number": 19,
+                    "name": "A7",
+                    "channelCount": 1,
+                    "connectorType": "AES50",
+                    "phantomPower": false,
+                    "pad": false
+                },
+                {
+                    "id": "qt0f1b5admnqj09iv",
+                    "number": 20,
+                    "name": "A8",
+                    "channelCount": 1,
+                    "connectorType": "AES50",
+                    "phantomPower": false,
+                    "pad": false
+                }
+            ],
+            "outputChannels": [
+                {
+                    "id": "p6mm9j1nqmnl88yfo",
+                    "number": 1,
+                    "name": "Main L",
+                    "channelCount": 1,
+                    "connectorType": "XLR",
+                    "phantomPower": false,
+                    "pad": false
+                },
+                {
+                    "id": "96j2ydlutmnl89ax4",
+                    "number": 2,
+                    "name": "Main R",
+                    "channelCount": 1,
+                    "connectorType": "XLR",
+                    "phantomPower": false,
+                    "pad": false
+                }
+            ],
+            "metadata": {
+                "showChannelNames": true
+            },
+            "position": {
+                "x": 530,
+                "y": 110
+            }
+        },
+        {
+            "id": "9w9wzjktomnmfhggi",
+            "name": "SAM1",
+            "type": "DI Box",
+            "model": "",
+            "categoryId": "47bmzgkqlmnmpdgqb",
+            "inputChannels": [],
+            "outputChannels": [
+                {
+                    "id": "ch-v6welkm",
+                    "number": 1,
+                    "name": "",
+                    "channelCount": 1,
+                    "connectorType": "XLR",
+                    "phantomPower": false,
+                    "pad": false
+                }
+            ],
+            "metadata": {
+                "showChannelNames": false
+            },
+            "position": {
+                "x": 20,
+                "y": 150
+            },
+            "isSource": true
+        },
+        {
+            "id": "3o25nft63mnmfhitd",
+            "name": "SAM2",
+            "type": "DI Box",
+            "model": "",
+            "categoryId": "47bmzgkqlmnmpdgqb",
+            "inputChannels": [],
+            "outputChannels": [
+                {
+                    "id": "ch-59snhq8",
+                    "number": 1,
+                    "name": "",
+                    "channelCount": 1,
+                    "connectorType": "XLR",
+                    "phantomPower": false,
+                    "pad": false
+                }
+            ],
+            "metadata": {
+                "showChannelNames": false
+            },
+            "position": {
+                "x": 20,
+                "y": 190
+            },
+            "isSource": true
+        },
+        {
+            "id": "n197kx0stmnmfhrhi",
+            "name": "Kick",
+            "type": "Microphone",
+            "model": "Beta 91",
+            "groupId": "4q0xitpjdmnmibe1k",
+            "inputChannels": [],
+            "outputChannels": [
+                {
+                    "id": "ch-9gn91nf",
+                    "number": 1,
+                    "name": "",
+                    "channelCount": 1,
+                    "connectorType": "XLR",
+                    "phantomPower": true,
+                    "pad": false
+                }
+            ],
+            "metadata": {
+                "showChannelNames": false
+            },
+            "position": {
+                "x": 20,
+                "y": 230
+            },
+            "isSource": true
+        },
+        {
+            "id": "gfzlazds3mnmfk0mb",
+            "name": "Snare",
+            "type": "Microphone",
+            "model": "SM57",
+            "groupId": "4q0xitpjdmnmibe1k",
+            "inputChannels": [],
+            "outputChannels": [
+                {
+                    "id": "ch-bw6wnfo",
+                    "number": 1,
+                    "name": "",
+                    "channelCount": 1,
+                    "connectorType": "XLR",
+                    "phantomPower": false,
+                    "pad": false
+                }
+            ],
+            "metadata": {
+                "showChannelNames": false
+            },
+            "position": {
+                "x": 20,
+                "y": 270
+            },
+            "isSource": true
+        },
+        {
+            "id": "4vllimifrmnmfk37x",
+            "name": "Tom1",
+            "type": "Other",
+            "groupId": "4q0xitpjdmnmibe1k",
+            "inputChannels": [],
+            "outputChannels": [
+                {
+                    "id": "ch-8uzvd6y",
+                    "number": 1,
+                    "name": "",
+                    "channelCount": 1,
+                    "connectorType": "XLR",
+                    "phantomPower": false,
+                    "pad": false
+                }
+            ],
+            "metadata": {
+                "showChannelNames": false
+            },
+            "position": {
+                "x": 20,
+                "y": 310
+            },
+            "isSource": true
+        },
+        {
+            "id": "qjpsi20gkmnmfk47z",
+            "name": "Tom2",
+            "type": "Other",
+            "groupId": "4q0xitpjdmnmibe1k",
+            "inputChannels": [],
+            "outputChannels": [
+                {
+                    "id": "ch-3qzghpw",
+                    "number": 1,
+                    "name": "",
+                    "channelCount": 1,
+                    "connectorType": "XLR",
+                    "phantomPower": false,
+                    "pad": false
+                }
+            ],
+            "metadata": {
+                "showChannelNames": false
+            },
+            "position": {
+                "x": 20,
+                "y": 350
+            },
+            "isSource": true
+        },
+        {
+            "id": "6b763naahmnmfmlbo",
+            "name": "Keys",
+            "type": "Other",
+            "inputChannels": [],
+            "outputChannels": [
+                {
+                    "id": "ch-qs5zg2m",
+                    "number": 1,
+                    "name": "L",
+                    "channelCount": 1,
+                    "connectorType": "XLR",
+                    "phantomPower": false,
+                    "pad": false
+                },
+                {
+                    "id": "ch-04dz6ik",
+                    "number": 2,
+                    "name": "R",
+                    "channelCount": 1,
+                    "connectorType": "XLR",
+                    "phantomPower": false,
+                    "pad": false
+                }
+            ],
+            "metadata": {
+                "showChannelNames": false
+            },
+            "position": {
+                "x": 20,
+                "y": 490
+            },
+            "isSource": true
+        },
+        {
+            "id": "i6nonqlfbmnmgzydl",
+            "name": "VOX1",
+            "type": "Microphone",
+            "inputChannels": [],
+            "outputChannels": [
+                {
+                    "id": "ch-l6juegu",
+                    "number": 1,
+                    "name": "",
+                    "channelCount": 1,
+                    "connectorType": "XLR",
+                    "phantomPower": false,
+                    "pad": false
+                }
+            ],
+            "metadata": {
+                "showChannelNames": false
+            },
+            "position": {
+                "x": 20,
+                "y": 410
+            },
+            "isSource": true
+        },
+        {
+            "id": "r4g7d6z2hmnmh2vhb",
+            "name": "Bass",
+            "type": "DI Box",
+            "model": "Hartke M500",
+            "inputChannels": [],
+            "outputChannels": [
+                {
+                    "id": "ch-g5d0g15",
+                    "number": 1,
+                    "name": "",
+                    "channelCount": 1,
+                    "connectorType": "XLR",
+                    "phantomPower": false,
+                    "pad": false
+                }
+            ],
+            "metadata": {
+                "showChannelNames": false
+            },
+            "position": {
+                "x": 20,
+                "y": 450
+            },
+            "isSource": true
+        },
+        {
+            "id": "if5tlu42rmnmpy00q",
+            "name": "StageBox A",
+            "type": "Stagebox",
+            "model": "DL16",
+            "inputChannels": [
+                {
+                    "id": "w6qd43v00mnmpxjr4",
+                    "number": 1,
+                    "name": "",
+                    "channelCount": 1,
+                    "connectorType": "XLR",
+                    "phantomPower": false,
+                    "pad": false
+                },
+                {
+                    "id": "440kxvcxbmnmpxjy4",
+                    "number": 2,
+                    "name": "",
+                    "channelCount": 1,
+                    "connectorType": "XLR",
+                    "phantomPower": false,
+                    "pad": false
+                },
+                {
+                    "id": "f742uj4f1mnmpxk4s",
+                    "number": 3,
+                    "name": "",
+                    "channelCount": 1,
+                    "connectorType": "XLR",
+                    "phantomPower": false,
+                    "pad": false
+                },
+                {
+                    "id": "v0km27or8mnmpxkcl",
+                    "number": 4,
+                    "name": "",
+                    "channelCount": 1,
+                    "connectorType": "XLR",
+                    "phantomPower": false,
+                    "pad": false
+                },
+                {
+                    "id": "v68isr2abmnqizc4p",
+                    "number": 5,
+                    "name": "",
+                    "channelCount": 1,
+                    "connectorType": "XLR",
+                    "phantomPower": false,
+                    "pad": false
+                },
+                {
+                    "id": "x36easvidmnqizcb1",
+                    "number": 6,
+                    "name": "",
+                    "channelCount": 1,
+                    "connectorType": "XLR",
+                    "phantomPower": false,
+                    "pad": false
+                },
+                {
+                    "id": "dvonbymuwmnqizch2",
+                    "number": 7,
+                    "name": "",
+                    "channelCount": 1,
+                    "connectorType": "XLR",
+                    "phantomPower": false,
+                    "pad": false
+                },
+                {
+                    "id": "dkjfy0lzbmnqizcnz",
+                    "number": 8,
+                    "name": "",
+                    "channelCount": 1,
+                    "connectorType": "XLR",
+                    "phantomPower": false,
+                    "pad": false
+                }
+            ],
+            "outputChannels": [
+                {
+                    "id": "e9nsee0famnmpxlcp",
+                    "number": 1,
+                    "name": "",
+                    "channelCount": 1,
+                    "connectorType": "AES50",
+                    "phantomPower": false,
+                    "pad": false
+                },
+                {
+                    "id": "zppelljljmnneoapi",
+                    "number": 2,
+                    "name": "",
+                    "channelCount": 1,
+                    "connectorType": "AES50",
+                    "phantomPower": false,
+                    "pad": false
+                },
+                {
+                    "id": "qqupnzj5lmnneobco",
+                    "number": 3,
+                    "name": "",
+                    "channelCount": 1,
+                    "connectorType": "AES50",
+                    "phantomPower": false,
+                    "pad": false
+                },
+                {
+                    "id": "cixh5os2smnneoblh",
+                    "number": 4,
+                    "name": "",
+                    "channelCount": 1,
+                    "connectorType": "AES50",
+                    "phantomPower": false,
+                    "pad": false
+                },
+                {
+                    "id": "itgmaohnwmnqiz9bn",
+                    "number": 5,
+                    "name": "",
+                    "channelCount": 1,
+                    "connectorType": "AES50",
+                    "phantomPower": false,
+                    "pad": false
+                },
+                {
+                    "id": "sp4wb7ku9mnqiza13",
+                    "number": 6,
+                    "name": "",
+                    "channelCount": 1,
+                    "connectorType": "AES50",
+                    "phantomPower": false,
+                    "pad": false
+                },
+                {
+                    "id": "9lrxmj3lemnqizabq",
+                    "number": 7,
+                    "name": "",
+                    "channelCount": 1,
+                    "connectorType": "AES50",
+                    "phantomPower": false,
+                    "pad": false
+                },
+                {
+                    "id": "c5pgzh823mnqizarv",
+                    "number": 8,
+                    "name": "",
+                    "channelCount": 1,
+                    "connectorType": "AES50",
+                    "phantomPower": false,
+                    "pad": false
+                }
+            ],
+            "metadata": {
+                "showChannelNames": true
+            },
+            "position": {
+                "x": 250,
+                "y": 420
+            }
+        },
+        {
+            "id": "l6ssidtijmnqj2lvm",
+            "name": "Snake A",
+            "type": "Other",
+            "inputChannels": [
+                {
+                    "id": "3dabm8pfxmnqj213v",
+                    "number": 1,
+                    "name": "Ch 1",
+                    "channelCount": 1,
+                    "connectorType": "XLR",
+                    "phantomPower": false,
+                    "pad": false
+                },
+                {
+                    "id": "8cp0bhsa6mnqj284t",
+                    "number": 2,
+                    "name": "Ch 2",
+                    "channelCount": 1,
+                    "connectorType": "XLR",
+                    "phantomPower": false,
+                    "pad": false
+                },
+                {
+                    "id": "myz13zs3lmnqj28ba",
+                    "number": 3,
+                    "name": "Ch 3",
+                    "channelCount": 1,
+                    "connectorType": "XLR",
+                    "phantomPower": false,
+                    "pad": false
+                },
+                {
+                    "id": "ft46q4qw1mnqj28qn",
+                    "number": 4,
+                    "name": "Ch 4",
+                    "channelCount": 1,
+                    "connectorType": "XLR",
+                    "phantomPower": false,
+                    "pad": false
+                }
+            ],
+            "outputChannels": [
+                {
+                    "id": "1gjdqz9udmnqj2a0x",
+                    "number": 1,
+                    "name": "Ch 1",
+                    "channelCount": 1,
+                    "connectorType": "XLR",
+                    "phantomPower": false,
+                    "pad": false
+                },
+                {
+                    "id": "6sgac94armnqj2d6x",
+                    "number": 2,
+                    "name": "Ch 2",
+                    "channelCount": 1,
+                    "connectorType": "XLR",
+                    "phantomPower": false,
+                    "pad": false
+                },
+                {
+                    "id": "kr6t2rkncmnqj2dc3",
+                    "number": 3,
+                    "name": "Ch 3",
+                    "channelCount": 1,
+                    "connectorType": "XLR",
+                    "phantomPower": false,
+                    "pad": false
+                },
+                {
+                    "id": "k96rb4esrmnqj2dgm",
+                    "number": 4,
+                    "name": "Ch 4",
+                    "channelCount": 1,
+                    "connectorType": "XLR",
+                    "phantomPower": false,
+                    "pad": false
+                }
+            ],
+            "metadata": {
+                "showChannelNames": true
+            },
+            "position": {
+                "x": 240,
+                "y": 220
+            }
+        }
+    ],
+    "connections": [
+        {
+            "id": "6ak2wqf5zmnmfhggi",
+            "sourceDeviceId": "9w9wzjktomnmfhggi",
+            "sourceChannelId": "ch-v6welkm",
+            "destinationDeviceId": "bqku1vioemnl89j5v",
+            "destinationChannelId": "w48xg74dpmnl899b0"
+        },
+        {
+            "id": "sl993231mmnmfhitd",
+            "sourceDeviceId": "3o25nft63mnmfhitd",
+            "sourceChannelId": "ch-59snhq8",
+            "destinationDeviceId": "bqku1vioemnl89j5v",
+            "destinationChannelId": "eoix0cx77mnl899i6"
+        },
+        {
+            "id": "sfa2smd42mnmpyxk0",
+            "sourceDeviceId": "if5tlu42rmnmpy00q",
+            "sourceChannelId": "e9nsee0famnmpxlcp",
+            "destinationDeviceId": "bqku1vioemnl89j5v",
+            "destinationChannelId": "w8m5lylvtmnmpyngi"
+        },
+        {
+            "id": "1inkvk3wmmnneom04",
+            "sourceDeviceId": "if5tlu42rmnmpy00q",
+            "sourceChannelId": "zppelljljmnneoapi",
+            "destinationDeviceId": "bqku1vioemnl89j5v",
+            "destinationChannelId": "pb4qqzcofmnnenjdb"
+        },
+        {
+            "id": "4cz09z6twmnnep3kt",
+            "sourceDeviceId": "i6nonqlfbmnmgzydl",
+            "sourceChannelId": "ch-l6juegu",
+            "destinationDeviceId": "if5tlu42rmnmpy00q",
+            "destinationChannelId": "w6qd43v00mnmpxjr4"
+        },
+        {
+            "id": "tl249wc9emnqj0iew",
+            "sourceDeviceId": "if5tlu42rmnmpy00q",
+            "sourceChannelId": "qqupnzj5lmnneobco",
+            "destinationDeviceId": "bqku1vioemnl89j5v",
+            "destinationChannelId": "o82i3fyr7mnneno7l"
+        },
+        {
+            "id": "tm9wr34kwmnqj0l2x",
+            "sourceDeviceId": "if5tlu42rmnmpy00q",
+            "sourceChannelId": "cixh5os2smnneoblh",
+            "destinationDeviceId": "bqku1vioemnl89j5v",
+            "destinationChannelId": "fbxdnnvcxmnnenrsr"
+        },
+        {
+            "id": "whhb2gawwmnqj0nx8",
+            "sourceDeviceId": "if5tlu42rmnmpy00q",
+            "sourceChannelId": "itgmaohnwmnqiz9bn",
+            "destinationDeviceId": "bqku1vioemnl89j5v",
+            "destinationChannelId": "dp4ej9x1lmnqj08k5"
+        },
+        {
+            "id": "hhoeckff2mnqj0r4z",
+            "sourceDeviceId": "if5tlu42rmnmpy00q",
+            "sourceChannelId": "sp4wb7ku9mnqiza13",
+            "destinationDeviceId": "bqku1vioemnl89j5v",
+            "destinationChannelId": "jzlo3nzixmnqj091d"
+        },
+        {
+            "id": "i4i4e3neemnqj0tty",
+            "sourceDeviceId": "if5tlu42rmnmpy00q",
+            "sourceChannelId": "9lrxmj3lemnqizabq",
+            "destinationDeviceId": "bqku1vioemnl89j5v",
+            "destinationChannelId": "5vphmxsqvmnqj0995"
+        },
+        {
+            "id": "qw92dec0rmnqj0wtp",
+            "sourceDeviceId": "if5tlu42rmnmpy00q",
+            "sourceChannelId": "c5pgzh823mnqizarv",
+            "destinationDeviceId": "bqku1vioemnl89j5v",
+            "destinationChannelId": "qt0f1b5admnqj09iv"
+        },
+        {
+            "id": "mlbaypmlgmnqj332u",
+            "sourceDeviceId": "n197kx0stmnmfhrhi",
+            "sourceChannelId": "ch-9gn91nf",
+            "destinationDeviceId": "l6ssidtijmnqj2lvm",
+            "destinationChannelId": "3dabm8pfxmnqj213v"
+        },
+        {
+            "id": "uc65tn4i3mnqj3c9d",
+            "sourceDeviceId": "gfzlazds3mnmfk0mb",
+            "sourceChannelId": "ch-bw6wnfo",
+            "destinationDeviceId": "l6ssidtijmnqj2lvm",
+            "destinationChannelId": "8cp0bhsa6mnqj284t"
+        },
+        {
+            "id": "c5zb18i7dmnqj3eyo",
+            "sourceDeviceId": "4vllimifrmnmfk37x",
+            "sourceChannelId": "ch-8uzvd6y",
+            "destinationDeviceId": "l6ssidtijmnqj2lvm",
+            "destinationChannelId": "myz13zs3lmnqj28ba"
+        },
+        {
+            "id": "4562yzty5mnqj3hgi",
+            "sourceDeviceId": "qjpsi20gkmnmfk47z",
+            "sourceChannelId": "ch-3qzghpw",
+            "destinationDeviceId": "l6ssidtijmnqj2lvm",
+            "destinationChannelId": "ft46q4qw1mnqj28qn"
+        },
+        {
+            "id": "set98xki0mnqj500e",
+            "sourceDeviceId": "r4g7d6z2hmnmh2vhb",
+            "sourceChannelId": "ch-g5d0g15",
+            "destinationDeviceId": "if5tlu42rmnmpy00q",
+            "destinationChannelId": "440kxvcxbmnmpxjy4"
+        },
+        {
+            "id": "mqjvfyzdxmnqj579k",
+            "sourceDeviceId": "6b763naahmnmfmlbo",
+            "sourceChannelId": "ch-qs5zg2m",
+            "destinationDeviceId": "if5tlu42rmnmpy00q",
+            "destinationChannelId": "f742uj4f1mnmpxk4s"
+        },
+        {
+            "id": "6fq41rmz1mnqj5adp",
+            "sourceDeviceId": "6b763naahmnmfmlbo",
+            "sourceChannelId": "ch-04dz6ik",
+            "destinationDeviceId": "if5tlu42rmnmpy00q",
+            "destinationChannelId": "v0km27or8mnmpxkcl"
+        },
+        {
+            "id": "p8e0u2hvjmnqj5tdt",
+            "sourceDeviceId": "l6ssidtijmnqj2lvm",
+            "sourceChannelId": "1gjdqz9udmnqj2a0x",
+            "destinationDeviceId": "if5tlu42rmnmpy00q",
+            "destinationChannelId": "v68isr2abmnqizc4p"
+        },
+        {
+            "id": "fgo3s5i6emnqj5wpt",
+            "sourceDeviceId": "l6ssidtijmnqj2lvm",
+            "sourceChannelId": "6sgac94armnqj2d6x",
+            "destinationDeviceId": "if5tlu42rmnmpy00q",
+            "destinationChannelId": "x36easvidmnqizcb1"
+        },
+        {
+            "id": "xbljip9v8mnqj61cz",
+            "sourceDeviceId": "l6ssidtijmnqj2lvm",
+            "sourceChannelId": "kr6t2rkncmnqj2dc3",
+            "destinationDeviceId": "if5tlu42rmnmpy00q",
+            "destinationChannelId": "dvonbymuwmnqizch2"
+        },
+        {
+            "id": "28hiymawgmnqj65i5",
+            "sourceDeviceId": "l6ssidtijmnqj2lvm",
+            "sourceChannelId": "k96rb4esrmnqj2dgm",
+            "destinationDeviceId": "if5tlu42rmnmpy00q",
+            "destinationChannelId": "dkjfy0lzbmnqizcnz"
+        }
+    ],
+    "groups": [
+        {
+            "id": "4q0xitpjdmnmibe1k",
+            "name": "Drums",
+            "color": "#ef4444"
+        }
+    ],
+    "categories": [
+        {
+            "id": "47bmzgkqlmnmpdgqb",
+            "name": "NoMute",
+            "color": "#d946ef"
+        }
+    ],
+    "createdAt": "2026-04-08T20:50:44.208Z",
+    "updatedAt": "2026-04-08T21:04:26.947Z"
+}
