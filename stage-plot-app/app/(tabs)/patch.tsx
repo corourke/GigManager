@@ -54,7 +54,7 @@ const SuggestionList = ({ visible, filter, onSelect }: { visible: boolean, filte
           onPress={() => onSelect(s)}
           style={{ paddingVertical: 8, paddingHorizontal: 12, borderBottomWidth: i === suggestions.length - 1 ? 0 : 1, borderBottomColor: '#f3f4f6' }}
         >
-          <Text style={{ fontSize: 12, color: '#374151', fontWeight: '500' }}>{s}</Text>
+          <Text style={{ fontSize: 13, color: '#374151', fontWeight: '500' }}>{s}</Text>
         </TouchableOpacity>
       ))}
     </View>
@@ -62,7 +62,11 @@ const SuggestionList = ({ visible, filter, onSelect }: { visible: boolean, filte
 };
 
 const SourceDeviceCell = ({ item, isMono, group, category, updateDevice, handleUpdateStereo, addDevice, addConnection, project, findDeviceByName, inputRef, onSubmitEditing, onSelectDevice, onFocus, onBlur }: any) => {
-  const initialValue = isMono ? item.sourceDeviceName : (item.sourceDeviceName ? `${item.sourceDeviceName} / ${item.sourceEffectiveName}` : "");
+  const sourceDevice = project.devices.find((d: Device) => d.id === item.sourceDeviceId);
+  const sourceChannel = sourceDevice?.outputChannels.find((c: any) => c.id === item.sourceChannelId);
+  const channelName = sourceChannel?.name || "";
+  const channelNameDisplay = channelName || (sourceChannel?.number ? `#${sourceChannel.number}` : "");
+  const initialValue = isMono ? item.sourceDeviceName : (item.sourceDeviceName ? `${item.sourceDeviceName} / ${channelNameDisplay}` : "");
   const [localValue, setLocalValue] = useState(initialValue);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const isCommitting = React.useRef(false);
@@ -224,7 +228,7 @@ const SourceDeviceCell = ({ item, isMono, group, category, updateDevice, handleU
               <View style={{ flex: 1, position: 'relative', height: 18, justifyContent: 'center' }}>
                 <TextInput
                   ref={inputRef}
-                  style={{ fontWeight: 'bold', color: 'black', fontSize: 11, padding: 0, marginRight: 2, height: 18, backgroundColor: 'transparent' }}
+                  style={{ fontWeight: 'bold', color: 'black', fontSize: 14, padding: 0, marginRight: 2, height: 18, backgroundColor: 'transparent' }}
                   value={localValue}
                   placeholder={!item.sourceDeviceId ? "Assign Source..." : ""}
                   placeholderTextColor="#9ca3af"
@@ -247,7 +251,7 @@ const SourceDeviceCell = ({ item, isMono, group, category, updateDevice, handleU
               )}
             </View>
             {item.sourceDeviceId && (
-              <Text style={{ fontSize: 9, color: '#6b7280' }} numberOfLines={1}>
+              <Text style={{ fontSize: 13, color: '#6b7280' }} numberOfLines={1}>
                 ({item.sourceDeviceModel || item.sourceDeviceType})
               </Text>
             )}
@@ -337,29 +341,29 @@ export default function PatchScreen() {
   };
 
   const renderHeader = () => (
-    <View style={{ flexDirection: 'row', width: tableWidth, height: 60, backgroundColor: '#374151', borderBottomWidth: 1, borderColor: '#1f2937' }}>
-      <View style={{ width: COLUMN_WIDTH, padding: 12, borderRightWidth: 1, borderColor: '#4b5563', justifyContent: 'center' }}>
-        <Text style={{ fontWeight: 'bold', color: 'white', textTransform: 'uppercase', fontSize: 10, letterSpacing: 1 }}>Source</Text>
+    <View style={{ flexDirection: 'row', width: tableWidth, height: 44, backgroundColor: '#374151', borderBottomWidth: 1, borderColor: '#1f2937' }}>
+      <View style={{ width: COLUMN_WIDTH, paddingHorizontal: 8, paddingVertical: 4, borderRightWidth: 1, borderColor: '#4b5563', justifyContent: 'center' }}>
+        <Text style={{ fontWeight: 'bold', color: 'white', textTransform: 'uppercase', fontSize: 11, letterSpacing: 1 }}>Source</Text>
       </View>
       
       {selectedDeviceIds.map(deviceId => {
         const device = project.devices.find(d => d.id === deviceId);
         return (
-          <View key={deviceId} style={{ width: COLUMN_WIDTH, padding: 8, borderRightWidth: 1, borderColor: '#4b5563', backgroundColor: '#1e3a8a', justifyContent: 'center' }}>
-            <Text style={{ fontWeight: 'bold', color: '#bfdbfe', textAlign: 'center', fontSize: 10 }} numberOfLines={1}>
+          <View key={deviceId} style={{ width: COLUMN_WIDTH, padding: 2, borderRightWidth: 1, borderColor: '#4b5563', backgroundColor: '#1e3a8a', justifyContent: 'center' }}>
+            <Text style={{ fontWeight: 'bold', color: '#bfdbfe', textAlign: 'center', fontSize: 11 }} numberOfLines={1}>
               {device?.name || 'Unknown Device'}
             </Text>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 4, paddingHorizontal: 2 }}>
-              <Text style={{ fontSize: 8, color: '#93c5fd', fontWeight: 'bold', width: 18, textAlign: 'center' }}>IN #</Text>
-              <Text style={{ fontSize: 8, color: '#93c5fd', fontWeight: 'bold', flex: 1, textAlign: 'center' }}>CHANNEL</Text>
-              <Text style={{ fontSize: 8, color: '#93c5fd', fontWeight: 'bold', width: 18, textAlign: 'center' }}>OUT #</Text>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 1, paddingHorizontal: 2 }}>
+              <Text style={{ fontSize: 9, color: '#93c5fd', fontWeight: 'bold', width: 18, textAlign: 'center' }}>IN #</Text>
+              <Text style={{ fontSize: 9, color: '#93c5fd', fontWeight: 'bold', flex: 1, textAlign: 'center' }}>CHANNEL</Text>
+              <Text style={{ fontSize: 9, color: '#93c5fd', fontWeight: 'bold', width: 18, textAlign: 'center' }}>OUT #</Text>
             </View>
           </View>
         );
       })}
 
-      <View style={{ width: COLUMN_WIDTH, padding: 12, borderRightWidth: 1, borderColor: '#4b5563', justifyContent: 'center' }}>
-        <Text style={{ fontWeight: 'bold', color: 'white', textTransform: 'uppercase', fontSize: 10, letterSpacing: 1, textAlign: 'right' }}>Terminal</Text>
+      <View style={{ width: COLUMN_WIDTH, paddingHorizontal: 8, paddingVertical: 4, borderRightWidth: 1, borderColor: '#4b5563', justifyContent: 'center' }}>
+        <Text style={{ fontWeight: 'bold', color: 'white', textTransform: 'uppercase', fontSize: 11, letterSpacing: 1, textAlign: 'right' }}>Terminal</Text>
       </View>
     </View>
   );
@@ -370,17 +374,15 @@ export default function PatchScreen() {
     const category = project.categories.find(c => c.id === item.sourceCategoryId);
     const sourceDevice = project.devices.find(d => d.id === item.sourceDeviceId);
     const isMono = (sourceDevice?.outputChannels.length || 0) <= 1;
-    const isComplexSource = sourceDevice ? shouldShowChannelNames(sourceDevice) : false;
     
     const isEditing = editingRowIndex === index;
     
     return (
       <View 
-        key={`${item.sourceDeviceId}:${item.sourceChannelId}:${item.isSink ? 'sink' : 'source'}:${item.index}`} 
         style={{ 
           flexDirection: 'row', 
           width: tableWidth, 
-          height: 60, 
+          height: 40, 
           borderBottomWidth: 1, 
           borderColor: '#e5e7eb', 
           backgroundColor: isEven ? 'white' : '#f9fafb',
@@ -390,8 +392,8 @@ export default function PatchScreen() {
         }}
       >
         {/* Simple Device Cell (Left Side: Source) */}
-        <View style={{ width: COLUMN_WIDTH, padding: 6, borderRightWidth: 1, borderColor: '#f3f4f6', justifyContent: 'center', overflow: 'visible' }}>
-          {(!item.isSink && sourceDevice && !isComplexSource) ? (
+        <View style={{ width: COLUMN_WIDTH, padding: 2, borderRightWidth: 1, borderColor: '#f3f4f6', justifyContent: 'center', overflow: 'visible' }}>
+          {item.sourceDeviceId ? (
             <SourceDeviceCell 
                 item={item} 
                 isMono={isMono} 
@@ -424,12 +426,12 @@ export default function PatchScreen() {
           const showOut = !!hop?.outputChannelNumber && hop.outputChannelNumber !== hop.inputChannelNumber;
           
           return (
-            <View key={deviceId} style={{ width: COLUMN_WIDTH, padding: 2, borderRightWidth: 1, borderColor: '#f3f4f6', flexDirection: 'row', alignItems: 'center' }}>
+            <View key={deviceId} style={{ width: COLUMN_WIDTH, padding: 1, borderRightWidth: 1, borderColor: '#f3f4f6', flexDirection: 'row', alignItems: 'center' }}>
               {hop ? (
                 <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
                   <View style={{ width: 14, alignItems: 'center' }}>
                     {showIn && (
-                      <Text style={{ color: '#6b7280', fontSize: 9, fontWeight: 'bold' }}>
+                      <Text style={{ color: '#6b7280', fontSize: 14, fontWeight: 'bold' }}>
                         {hop.inputChannelNumber}
                       </Text>
                     )}
@@ -437,7 +439,7 @@ export default function PatchScreen() {
                   
                   <View style={{ flex: 1, alignItems: 'center', paddingHorizontal: 1 }}>
                     <TextInput
-                      style={{ color: 'black', fontWeight: '500', fontSize: 10, textAlign: 'center', padding: 0, width: '100%' }}
+                      style={{ color: 'black', fontWeight: '500', fontSize: 12, textAlign: 'center', padding: 0, width: '100%' }}
                       value={hop.inputChannelName || hop.outputChannelName || ''}
                       placeholder={hop.inputEffectiveName || hop.outputEffectiveName || `Ch ${hop.inputChannelNumber || hop.outputChannelNumber}`}
                       placeholderTextColor="#9ca3af"
@@ -450,7 +452,7 @@ export default function PatchScreen() {
 
                   <View style={{ width: 14, alignItems: 'center' }}>
                     {showOut && (
-                      <Text style={{ color: '#2563eb', fontSize: 9, fontWeight: 'bold' }}>
+                      <Text style={{ color: '#2563eb', fontSize: 14, fontWeight: 'bold' }}>
                         {hop.outputChannelNumber}
                       </Text>
                     )}
@@ -466,19 +468,19 @@ export default function PatchScreen() {
         })}
 
         {/* Terminal Device Cell (Right Side: Sink) */}
-        <View style={{ width: COLUMN_WIDTH, padding: 8, borderRightWidth: 1, borderColor: '#f3f4f6', justifyContent: 'center', alignItems: 'flex-end' }}>
+        <View style={{ width: COLUMN_WIDTH, paddingVertical: 2, paddingHorizontal: 4, borderRightWidth: 1, borderColor: '#f3f4f6', justifyContent: 'center', alignItems: 'flex-end' }}>
           {item.terminalDeviceId ? (
             <TouchableOpacity 
               style={{ alignItems: 'flex-end' }}
               onPress={() => onSelectDevice(item.terminalDeviceId!)}
             >
               <TextInput
-                style={{ fontWeight: 'bold', color: 'black', fontSize: 12, textAlign: 'right', padding: 0 }}
+                style={{ fontWeight: 'bold', color: 'black', fontSize: 14, textAlign: 'right', padding: 0, height: 16 }}
                 value={item.terminalDeviceName}
                 onChangeText={(val) => updateDevice(item.terminalDeviceId!, { name: val })}
               />
               <TextInput
-                style={{ fontSize: 10, color: '#6b7280', textAlign: 'right', padding: 0 }}
+                style={{ fontSize: 11, color: '#6b7280', textAlign: 'right', padding: 0, height: 13 }}
                 value={item.terminalChannelName?.replace(/^Ch \d+/, '').trim() || item.terminalChannelName}
                 onChangeText={(val) => {
                     const device = project.devices.find(d => d.id === item.terminalDeviceId);
@@ -490,10 +492,8 @@ export default function PatchScreen() {
                     }
                 }}
                 placeholder="Name"
+                placeholderTextColor="#9ca3af"
               />
-              <Text style={{ fontSize: 9, color: '#9ca3af', marginTop: 1, textAlign: 'right' }}>
-                ({item.terminalDeviceType})
-              </Text>
             </TouchableOpacity>
           ) : null}
         </View>
@@ -575,7 +575,39 @@ export default function PatchScreen() {
         <View>
           {renderHeader()}
           <ScrollView style={{ flex: 1 }}>
-            {filteredData.map((row, index) => renderRow(row, index))}
+            {filteredData.map((row, index) => {
+              const prevRow = index > 0 ? filteredData[index - 1] : null;
+              const showHeader = !prevRow || 
+                                prevRow.isSink !== row.isSink || 
+                                (prevRow.primaryConnectorType !== row.primaryConnectorType && !!row.primaryConnectorType);
+              
+              return (
+                <View key={`${row.sourceDeviceId}:${row.sourceChannelId}:${row.isSink ? 'sink' : 'source'}:${row.index}`}>
+                  {showHeader && (
+                    <View style={{ 
+                      height: 32, 
+                      backgroundColor: row.isSink ? '#fef2f2' : '#f0fdf4', 
+                      justifyContent: 'center', 
+                      paddingHorizontal: 12, 
+                      borderBottomWidth: 1, 
+                      borderColor: row.isSink ? '#fee2e2' : '#dcfce7', 
+                      width: tableWidth 
+                    }}>
+                      <Text style={{ 
+                        fontSize: 11, 
+                        fontWeight: '800', 
+                        color: row.isSink ? '#991b1b' : '#166534', 
+                        textTransform: 'uppercase', 
+                        letterSpacing: 1 
+                      }}>
+                        {row.isSink ? 'Outputs' : 'Inputs'} — {row.primaryConnectorType || (row.isSink ? 'Analog' : 'Source')}
+                      </Text>
+                    </View>
+                  )}
+                  {renderRow(row, index)}
+                </View>
+              );
+            })}
             <View style={{ height: 100 }} />
           </ScrollView>
         </View>

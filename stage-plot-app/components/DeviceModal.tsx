@@ -172,12 +172,31 @@ export function DeviceModal({ visible, device, groups, categories, onClose, onSa
   const addChannel = (channelType: 'input' | 'output') => {
     setIsChannelsManual(true);
     const channels = channelType === 'input' ? inputChannels : outputChannels;
+    const lastChannel = channels[channels.length - 1];
+    
+    let newName = '';
+    if (lastChannel && lastChannel.name) {
+      // Improved regex to handle numbers even without whitespace
+      const match = lastChannel.name.match(/^(.*?)(\d+)$/);
+      if (match) {
+        const prefix = match[1];
+        const numStr = match[2];
+        const num = parseInt(numStr, 10);
+        const nextNum = (num + 1).toString();
+        // Preserve leading zeros if any
+        const paddedNum = nextNum.padStart(numStr.length, '0');
+        newName = `${prefix}${paddedNum}`;
+      } else {
+        newName = lastChannel.name;
+      }
+    }
+
     const newChannel: Channel = {
       id: generateId(),
       number: channels.length + 1,
-      name: '',
+      name: newName,
       channelCount: 1,
-      connectorType: 'XLR',
+      connectorType: lastChannel?.connectorType || 'XLR',
       phantomPower: false,
       pad: false,
     };

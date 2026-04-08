@@ -235,15 +235,16 @@ export interface TabularRow {
   terminalDeviceType?: string;
   terminalChannelName?: string;
   isNonSequential?: boolean;
+  primaryConnectorType?: string;
 }
 
 export function resolveTabularPatch(project: Project): TabularRow[] {
   const allRows: TabularRow[] = [];
   const signalState = resolveSignalChain(project);
   
-  // 1. Generate Rows from Terminal Sources
-  const terminalSources = project.devices.filter(d => isSourceOrTerminal(d) && !shouldShowChannelNames(d));
-  for (const device of terminalSources) {
+  // 1. Generate Rows from Sources (Simple and Complex Sources)
+  const sources = project.devices.filter(d => (isSourceOrTerminal(d) || d.isSource) && !shouldShowChannelNames(d));
+  for (const device of sources) {
     if (device.outputChannels.length === 0) continue;
 
     for (const channel of device.outputChannels) {
@@ -304,6 +305,9 @@ export function resolveTabularPatch(project: Project): TabularRow[] {
           pad: destChannel.pad
         };
 
+        row.hops.push(hop);
+        row.fullPath[hop.deviceId] = hop;
+
         // Find matching output based on signalState
         const matchingOutChan = destDevice.outputChannels.find(out => {
           const outKey = `${destDevice.id}:${out.id}`;
@@ -321,9 +325,6 @@ export function resolveTabularPatch(project: Project): TabularRow[] {
           hop.outputChannelName = matchingOutChan.name;
           hop.outputEffectiveName = outState?.effectiveName || matchingOutChan.name || `Ch ${matchingOutChan.number}`;
           
-          row.hops.push(hop);
-          row.fullPath[hop.deviceId] = hop;
-          
           currentDeviceId = destDevice.id;
           currentChannelId = matchingOutChan.id;
         } else {
@@ -338,6 +339,7 @@ export function resolveTabularPatch(project: Project): TabularRow[] {
         }
         if (!currentDeviceId) break;
       }
+      row.primaryConnectorType = row.hops[0]?.connectorType || channel.connectorType;
       allRows.push(row);
     }
   }
@@ -380,6 +382,7 @@ export function resolveTabularPatch(project: Project): TabularRow[] {
         outputChannelNumber: channel.number,
         outputChannelName: channel.name,
         outputEffectiveName: chState?.effectiveName || channel.name || `Out ${channel.number}`,
+        connectorType: channel.connectorType,
         phantomPower: channel.phantomPower,
         pad: channel.pad
       };
@@ -398,6 +401,7 @@ export function resolveTabularPatch(project: Project): TabularRow[] {
         const connection = project.connections.find(c => 
           c.sourceDeviceId === currentDeviceId && c.sourceChannelId === currentChannelId
         );
+
         if (!connection) break;
 
         const destDevice = project.devices.find(d => d.id === connection.destinationDeviceId);
@@ -420,6 +424,9 @@ export function resolveTabularPatch(project: Project): TabularRow[] {
           pad: destChannel.pad
         };
 
+        row.hops.push(hop);
+        row.fullPath[hop.deviceId] = hop;
+
         const matchingOutChan = destDevice.outputChannels.find(out => {
            const outKey = `${destDevice.id}:${out.id}`;
            const outState = signalState[outKey];
@@ -434,20 +441,21 @@ export function resolveTabularPatch(project: Project): TabularRow[] {
           hop.outputChannelName = matchingOutChan.name;
           hop.outputEffectiveName = outState?.effectiveName || matchingOutChan.name || `Ch ${matchingOutChan.number}`;
           
-          row.hops.push(hop);
-          row.fullPath[hop.deviceId] = hop;
-          
           currentDeviceId = destDevice.id;
           currentChannelId = matchingOutChan.id;
         } else {
-          row.terminalDeviceId = destDevice.id;
-          row.terminalDeviceName = destDevice.name;
-          row.terminalDeviceType = destDevice.type;
-          row.terminalChannelName = destChannel.name || destInState?.effectiveName || `Ch ${destChannel.number}`;
+          // Terminal device - only if it doesn't have its own column
+          if (!shouldShowChannelNames(destDevice)) {
+            row.terminalDeviceId = destDevice.id;
+            row.terminalDeviceName = destDevice.name;
+            row.terminalDeviceType = destDevice.type;
+            row.terminalChannelName = destChannel.name || destInState?.effectiveName || `Ch ${destChannel.number}`;
+          }
           break;
         }
         if (!currentDeviceId) break;
       }
+      row.primaryConnectorType = row.hops[0]?.connectorType || channel.connectorType;
       allRows.push(row);
     }
   }
@@ -477,6 +485,7 @@ export function resolveTabularPatch(project: Project): TabularRow[] {
             inputChannelNumber: channel.number,
             inputChannelName: channel.name,
             inputEffectiveName: channel.name || `Ch ${channel.number}`,
+            connectorType: channel.connectorType,
             phantomPower: channel.phantomPower,
             pad: channel.pad
           };
@@ -523,6 +532,9 @@ export function resolveTabularPatch(project: Project): TabularRow[] {
                 cableLabel: connection.cableLabel
               };
 
+              row.hops.push(hop);
+              row.fullPath[hop.deviceId] = hop;
+
               const dIsSimple = isSourceOrTerminal(destDevice);
               const dOut = (destDevice.type?.toLowerCase() === 'stagebox' || dIsSimple)
                 ? destDevice.outputChannels.find(o => o.number === destChannel.number)
@@ -533,9 +545,6 @@ export function resolveTabularPatch(project: Project): TabularRow[] {
                  hop.outputChannelNumber = dOut.number;
                  hop.outputChannelName = dOut.name;
                  hop.outputEffectiveName = dOut.name || destChannel.name || `Ch ${destChannel.number}`;
-                 
-                 row.hops.push(hop);
-                 row.fullPath[hop.deviceId] = hop;
                  
                  curDevId = destDevice.id;
                  curChanId = dOut.id;
@@ -551,6 +560,7 @@ export function resolveTabularPatch(project: Project): TabularRow[] {
               if (!curDevId) break;
             }
           }
+          row.primaryConnectorType = row.hops[0]?.connectorType || channel.connectorType;
           allRows.push(row);
         }
       }
