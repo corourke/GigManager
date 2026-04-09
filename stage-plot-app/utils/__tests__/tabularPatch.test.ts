@@ -107,25 +107,76 @@ describe('Tabular Patch Logic', () => {
     const rows = resolveTabularPatch(project);
 
     // Should have 5 rows: 
-    // Sorting: inputs first, sinks last. Within inputs, Mixer-only paths before Stagebox paths.
-    // 1. Mixer In 2 (Orphaned, Mixer-only path)
-    // 2. Vocal (Mic -> SB 7 -> Mixer 1, first complex device = Stagebox)
-    // 3. SB 9 (Orphaned SB 9)
-    // 4. Mixer Out 1 Main L (Sink, Mixer -> SB 8 -> Speaker)
-    // 5. Mixer Out 2 (Sink)
+    // Sorting: inputs first, sinks last. Hierarchical Sort: Snake < Stagebox < Mixer.
+    // 1. Vocal (Mic -> SB 7 -> Mixer 1, first complex device = Stagebox [Priority 2])
+    // 2. SB 9 (Orphaned SB 9 [Priority 2])
+    // 3. Mixer In 2 (Orphaned, Mixer-only path [Priority 3])
+    // 4. Mixer Out 1 Main L (Sink, Mixer -> SB 8 -> Speaker [Priority 3])
+    // 5. Mixer Out 2 (Sink [Priority 3])
     expect(rows.length).toBe(5);
 
-    expect(rows[0].sourceDeviceName).toBe('');
-    expect(rows[0].hops.find(h => h.deviceId === mixerId)?.inputChannelNumber).toBe(2);
+    expect(rows[0].sourceDeviceName).toBe('Vocal');
+    expect(rows[0].hops.find(h => h.deviceId === stageboxId)?.inputChannelNumber).toBe(7);
 
-    expect(rows[1].sourceDeviceName).toBe('Vocal');
-    expect(rows[1].hops.find(h => h.deviceId === stageboxId)?.inputChannelNumber).toBe(7);
+    expect(rows[1].sourceDeviceName).toBe('');
+    expect(rows[1].hops.find(h => h.deviceId === stageboxId)?.inputChannelNumber).toBe(9);
 
     expect(rows[2].sourceDeviceName).toBe('');
-    expect(rows[2].hops.find(h => h.deviceId === stageboxId)?.inputChannelNumber).toBe(9);
+    expect(rows[2].hops.find(h => h.deviceId === mixerId)?.inputChannelNumber).toBe(2);
 
     expect(rows[3].isSink).toBe(true);
     expect(rows[3].hops.find(h => h.deviceId === stageboxId)?.inputChannelNumber).toBe(8);
+  });
+
+  it('sorts Snake before Stagebox before Mixer', () => {
+    const snakeId = 'snake1';
+    const sbId = 'sb1';
+    const mixId = 'mix1';
+    
+    const project: Project = {
+      id: mockId(),
+      name: 'Sort Test',
+      config: { sortByGroup: false },
+      createdAt: mockTimestamp,
+      updatedAt: mockTimestamp,
+      devices: [
+        {
+          id: mixId,
+          name: 'Mixer',
+          type: 'Mixer',
+          inputChannels: [{ id: 'm-in', number: 1, channelCount: 1, phantomPower: false, pad: false }],
+          outputChannels: [],
+          metadata: {},
+        },
+        {
+          id: sbId,
+          name: 'Stagebox',
+          type: 'Stagebox',
+          inputChannels: [{ id: 's-in', number: 1, channelCount: 1, phantomPower: false, pad: false }],
+          outputChannels: [],
+          metadata: {},
+        },
+        {
+          id: snakeId,
+          name: 'Snake',
+          type: 'Snake',
+          inputChannels: [{ id: 'nk-in', number: 1, channelCount: 1, phantomPower: false, pad: false }],
+          outputChannels: [],
+          metadata: {},
+        }
+      ],
+      connections: [],
+      groups: [],
+      categories: [],
+    };
+
+    const rows = resolveTabularPatch(project);
+    expect(rows.length).toBe(3);
+    
+    // Based on priority: Snake (1), Stagebox (2), Mixer (3)
+    expect(rows[0].hops[0].deviceId).toBe(snakeId);
+    expect(rows[1].hops[0].deviceId).toBe(sbId);
+    expect(rows[2].hops[0].deviceId).toBe(mixId);
   });
 
   it('generates orphaned rows for Mixer inputs', () => {

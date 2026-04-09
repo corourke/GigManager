@@ -30,10 +30,12 @@ interface ProjectContextType {
   listProjects: () => Promise<ProjectMetadata[]>;
   loadProject: (id: string) => Promise<void>;
   createNewProject: (name: string) => Promise<void>;
+  saveAsProject: (name: string) => Promise<void>;
+  renameProject: (name: string) => Promise<void>;
   deleteProject: (id: string) => Promise<void>;
   saveAsTemplate: (name: string) => Promise<void>;
   listTemplates: () => Promise<ProjectMetadata[]>;
-  loadTemplate: (id: string) => Promise<void>;
+  loadTemplate: (id: string, newName?: string) => Promise<void>;
   deleteTemplate: (id: string) => Promise<void>;
   importProject: (project: Project) => Promise<void>;
 }
@@ -89,6 +91,26 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
     setProjectStateWithRef(() => newProject);
   }, [setProjectStateWithRef]);
 
+  const saveAsProject = useCallback(async (name: string) => {
+    const newProject: Project = {
+      ...project,
+      id: generateId(),
+      name,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    await PersistenceService.saveProject(newProject);
+    setProjectStateWithRef(() => newProject);
+  }, [project, setProjectStateWithRef]);
+
+  const renameProject = useCallback(async (name: string) => {
+    setProjectStateWithRef((prev) => ({
+      ...prev,
+      name,
+      updatedAt: new Date().toISOString(),
+    }));
+  }, [setProjectStateWithRef]);
+
   const deleteProject = useCallback(async (id: string) => {
     console.log('ProjectContext: deleteProject', id);
     const targetProjectName = id === project.id ? project.name : 'Project';
@@ -140,13 +162,14 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
     return PersistenceService.listTemplates();
   }, []);
 
-  const loadTemplate = useCallback(async (id: string) => {
+  const loadTemplate = useCallback(async (id: string, newName?: string) => {
     const template = await PersistenceService.loadTemplate(id);
     if (template) {
       // When loading a template, create a NEW project from it
       const newProject: Project = {
         ...template,
         id: generateId(),
+        name: newName || template.name,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       };
@@ -362,6 +385,8 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
     listProjects,
     loadProject,
     createNewProject,
+    saveAsProject,
+    renameProject,
     deleteProject,
     saveAsTemplate,
     listTemplates,
@@ -389,6 +414,8 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
     listProjects,
     loadProject,
     createNewProject,
+    saveAsProject,
+    renameProject,
     deleteProject,
     saveAsTemplate,
     listTemplates,

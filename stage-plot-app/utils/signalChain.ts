@@ -110,8 +110,8 @@ export function resolveSignalChain(project: Project): SignalChainState {
           }
         }
 
-        // B. Fallback to 1:1 number mapping for Stageboxes AND simple devices with inputs
-        if (!matchedInState && (device.type?.toLowerCase() === 'stagebox' || isSimple)) {
+        // B. Fallback to 1:1 number mapping for Stageboxes, Snakes AND simple devices with inputs
+        if (!matchedInState && (device.type?.toLowerCase() === 'stagebox' || device.type?.toLowerCase() === 'snake' || isSimple)) {
           const inChan = device.inputChannels.find(c => c.number === outChan.number);
           if (inChan) {
             const inKey = `${device.id}:${inChan.id}`;
@@ -177,9 +177,9 @@ export function shouldShowChannelNames(device: Device): boolean {
     return !!device.metadata.showChannelNames;
   }
   
-  // Force show for Stageboxes and Mixers as they are patch targets
+  // Force show for Stageboxes, Snakes and Mixers as they are patch targets
   const type = device.type?.toLowerCase();
-  if (type === 'stagebox' || type === 'mixer' || type === 'console') return true;
+  if (type === 'stagebox' || type === 'mixer' || type === 'console' || type === 'snake') return true;
 
   const totalChannels = (device.inputChannels?.length || 0) + (device.outputChannels?.length || 0);
   return totalChannels > 2;
@@ -190,7 +190,7 @@ export function isSourceOrTerminal(device: Device | undefined): boolean {
   if (device.isSource) return true;
   
   const type = device.type?.toLowerCase();
-  if (type === 'stagebox' || type === 'mixer' || type === 'console') return false;
+  if (type === 'stagebox' || type === 'mixer' || type === 'console' || type === 'snake') return false;
 
   const totalChannels = (device.inputChannels?.length || 0) + (device.outputChannels?.length || 0);
   // Mics, DIs, Speakers usually have 1-4 channels
@@ -493,9 +493,9 @@ export function resolveTabularPatch(project: Project): TabularRow[] {
           row.hops.push(startHop);
           row.fullPath[device.id] = startHop;
 
-          // Try to follow if there's internal routing (only for stageboxes and simple devices)
+          // Try to follow if there's internal routing (only for stageboxes, snakes and simple devices)
           const isSimple = isSourceOrTerminal(device);
-          const matchingOutChan = (device.type?.toLowerCase() === 'stagebox' || isSimple)
+          const matchingOutChan = (device.type?.toLowerCase() === 'stagebox' || device.type?.toLowerCase() === 'snake' || isSimple)
             ? device.outputChannels.find(out => out.number === channel.number)
             : undefined;
 
@@ -536,7 +536,7 @@ export function resolveTabularPatch(project: Project): TabularRow[] {
               row.fullPath[hop.deviceId] = hop;
 
               const dIsSimple = isSourceOrTerminal(destDevice);
-              const dOut = (destDevice.type?.toLowerCase() === 'stagebox' || dIsSimple)
+              const dOut = (destDevice.type?.toLowerCase() === 'stagebox' || destDevice.type?.toLowerCase() === 'snake' || dIsSimple)
                 ? destDevice.outputChannels.find(o => o.number === destChannel.number)
                 : undefined;
 
@@ -620,12 +620,13 @@ export function resolveTabularPatch(project: Project): TabularRow[] {
         if (devA && !devB) return 1;
         if (!devA && !devB) break;
 
-        // Sort by Type (Mixer < Stagebox < Other) to keep XLR 1-12 first
+        // Sort by Type (Snake < Stagebox < Mixer < Other)
         const getTypePriority = (type: string) => {
             const t = type.toLowerCase();
-            if (t === 'mixer' || t === 'console') return 1;
+            if (t === 'snake') return 1;
             if (t === 'stagebox') return 2;
-            return 3;
+            if (t === 'mixer' || t === 'console') return 3;
+            return 4;
         };
 
         const pA = getTypePriority(devA.type);

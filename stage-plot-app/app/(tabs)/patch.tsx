@@ -349,14 +349,20 @@ export default function PatchScreen() {
       {selectedDeviceIds.map(deviceId => {
         const device = project.devices.find(d => d.id === deviceId);
         return (
-          <View key={deviceId} style={{ width: COLUMN_WIDTH, padding: 2, borderRightWidth: 1, borderColor: '#4b5563', backgroundColor: '#1e3a8a', justifyContent: 'center' }}>
+          <View key={deviceId} style={{ width: COLUMN_WIDTH, padding: 2, borderRightWidth: 1, borderColor: '#4b5563', backgroundColor: device?.type?.toLowerCase() === 'snake' ? '#1e40af' : '#1e3a8a', justifyContent: 'center' }}>
             <Text style={{ fontWeight: 'bold', color: '#bfdbfe', textAlign: 'center', fontSize: 11 }} numberOfLines={1}>
               {device?.name || 'Unknown Device'}
             </Text>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 1, paddingHorizontal: 2 }}>
-              <Text style={{ fontSize: 9, color: '#93c5fd', fontWeight: 'bold', width: 18, textAlign: 'center' }}>IN #</Text>
-              <Text style={{ fontSize: 9, color: '#93c5fd', fontWeight: 'bold', flex: 1, textAlign: 'center' }}>CHANNEL</Text>
-              <Text style={{ fontSize: 9, color: '#93c5fd', fontWeight: 'bold', width: 18, textAlign: 'center' }}>OUT #</Text>
+              <Text style={{ fontSize: 9, color: '#93c5fd', fontWeight: 'bold', width: device?.type?.toLowerCase() === 'snake' ? '100%' : 18, textAlign: 'center' }}>
+                {device?.type?.toLowerCase() === 'snake' ? 'CH #' : 'IN #'}
+              </Text>
+              {device?.type?.toLowerCase() !== 'snake' && (
+                <>
+                  <Text style={{ fontSize: 9, color: '#93c5fd', fontWeight: 'bold', flex: 1, textAlign: 'center' }}>CHANNEL</Text>
+                  <Text style={{ fontSize: 9, color: '#93c5fd', fontWeight: 'bold', width: 18, textAlign: 'center' }}>OUT #</Text>
+                </>
+              )}
             </View>
           </View>
         );
@@ -421,9 +427,11 @@ export default function PatchScreen() {
 
         {/* Selected Device Columns */}
         {selectedDeviceIds.map(deviceId => {
+          const device = project.devices.find(d => d.id === deviceId);
+          const isSnake = device?.type?.toLowerCase() === 'snake';
           const hop = item.fullPath[deviceId];
           const showIn = !!hop?.inputChannelNumber;
-          const showOut = !!hop?.outputChannelNumber && hop.outputChannelNumber !== hop.inputChannelNumber;
+          const showOut = !isSnake && !!hop?.outputChannelNumber && hop.outputChannelNumber !== hop.inputChannelNumber;
           
           return (
             <View key={deviceId} style={{ width: COLUMN_WIDTH, padding: 1, borderRightWidth: 1, borderColor: '#f3f4f6', flexDirection: 'row', alignItems: 'center' }}>
@@ -431,24 +439,28 @@ export default function PatchScreen() {
                 <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
                   <View style={{ width: 14, alignItems: 'center' }}>
                     {showIn && (
-                      <Text style={{ color: '#6b7280', fontSize: 14, fontWeight: 'bold' }}>
+                      <Text style={{ color: isSnake ? '#3b82f6' : '#6b7280', fontSize: 14, fontWeight: 'bold' }}>
                         {hop.inputChannelNumber}
                       </Text>
                     )}
                   </View>
                   
-                  <View style={{ flex: 1, alignItems: 'center', paddingHorizontal: 1 }}>
-                    <TextInput
-                      style={{ color: 'black', fontWeight: '500', fontSize: 12, textAlign: 'center', padding: 0, width: '100%' }}
-                      value={hop.inputChannelName || hop.outputChannelName || ''}
-                      placeholder={hop.inputEffectiveName || hop.outputEffectiveName || `Ch ${hop.inputChannelNumber || hop.outputChannelNumber}`}
-                      placeholderTextColor="#9ca3af"
-                      onChangeText={(val) => {
-                        if (hop.inputChannelId) handleUpdateName(hop.deviceId, hop.inputChannelId, val);
-                        if (hop.outputChannelId) handleUpdateName(hop.deviceId, hop.outputChannelId, val);
-                      }}
-                    />
-                  </View>
+                  {!isSnake && (
+                    <View style={{ flex: 1, alignItems: 'center', paddingHorizontal: 1 }}>
+                      <TextInput
+                        style={{ color: 'black', fontWeight: '500', fontSize: 12, textAlign: 'center', padding: 0, width: '100%' }}
+                        value={hop.inputChannelName || hop.outputChannelName || ''}
+                        placeholder={hop.inputEffectiveName || hop.outputEffectiveName || `Ch ${hop.inputChannelNumber || hop.outputChannelNumber}`}
+                        placeholderTextColor="#9ca3af"
+                        onChangeText={(val) => {
+                          if (hop.inputChannelId) handleUpdateName(hop.deviceId, hop.inputChannelId, val);
+                          if (hop.outputChannelId) handleUpdateName(hop.deviceId, hop.outputChannelId, val);
+                        }}
+                      />
+                    </View>
+                  )}
+
+                  {isSnake && <View style={{ flex: 1 }} />}
 
                   <View style={{ width: 14, alignItems: 'center' }}>
                     {showOut && (

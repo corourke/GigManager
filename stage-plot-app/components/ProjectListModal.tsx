@@ -31,6 +31,8 @@ export function ProjectListModal({ visible, onClose }: ProjectListModalProps) {
     listProjects, 
     loadProject, 
     createNewProject, 
+    saveAsProject,
+    renameProject,
     deleteProject,
     saveAsTemplate,
     listTemplates,
@@ -43,9 +45,11 @@ export function ProjectListModal({ visible, onClose }: ProjectListModalProps) {
   const [templates, setTemplates] = useState<ProjectMetadata[]>([]);
   const [loading, setLoading] = useState(true);
   const [newProjectName, setNewProjectName] = useState('');
-  const [newTemplateName, setNewTemplateName] = useState(project.name);
+  const [saveAsName, setSaveAsName] = useState(project.name);
   const [activeTab, setActiveTab] = useState<'projects' | 'templates'>('projects');
-  const [isNamingTemplate, setIsNamingTemplate] = useState(false);
+  const [isNamingSaveAs, setIsNamingSaveAs] = useState(false);
+  const [isRenamingCurrent, setIsRenamingCurrent] = useState(false);
+  const [renameValue, setRenameValue] = useState(project.name);
 
   const isMounted = React.useRef(true);
 
@@ -68,7 +72,8 @@ export function ProjectListModal({ visible, onClose }: ProjectListModalProps) {
     isMounted.current = true;
     if (visible) {
       fetchLists();
-      setNewTemplateName(project.name);
+      setSaveAsName(project.name);
+      setRenameValue(project.name);
     }
     return () => {
       isMounted.current = false;
@@ -89,14 +94,65 @@ export function ProjectListModal({ visible, onClose }: ProjectListModalProps) {
     }
   };
 
+  const handleRenameCurrentProject = async () => {
+    if (!renameValue.trim()) return;
+    try {
+      await renameProject(renameValue);
+      setIsRenamingCurrent(false);
+      fetchLists();
+    } catch (err) {
+      console.error('ProjectListModal: handleRenameCurrentProject error', err);
+      Alert.alert('Error', 'Failed to rename project');
+    }
+  };
+
+  const handleSaveAs = async () => {
+    if (!saveAsName.trim()) return;
+    try {
+      if (activeTab === 'projects') {
+        await saveAsProject(saveAsName);
+        onClose();
+      } else {
+        await saveAsTemplate(saveAsName);
+        setIsNamingSaveAs(false);
+        fetchLists();
+      }
+    } catch (err) {
+      console.error('ProjectListModal: handleSaveAs error', err);
+      Alert.alert('Error', `Failed to save as ${activeTab === 'projects' ? 'project' : 'template'}`);
+    }
+  };
+
   const handleLoadProject = async (id: string) => {
     await loadProject(id);
     onClose();
   };
 
-  const handleLoadTemplate = async (id: string) => {
-    await loadTemplate(id);
-    onClose();
+  const handleLoadTemplate = async (id: string, name: string) => {
+    if (Platform.OS === 'web') {
+      const newName = window.prompt('Enter name for the new project:', name);
+      if (newName === null) return; // Cancelled
+      await loadTemplate(id, newName || name);
+      onClose();
+      return;
+    }
+
+    Alert.prompt(
+      "New Project Name",
+      "Enter a name for the project created from this template:",
+      [
+        { text: "Cancel", style: "cancel" },
+        { 
+          text: "Create", 
+          onPress: async (newName) => {
+            await loadTemplate(id, newName || name);
+            onClose();
+          } 
+        }
+      ],
+      'plain-text',
+      name
+    );
   };
 
   const handleDeleteProject = (id: string, name: string) => {
@@ -147,13 +203,6 @@ export function ProjectListModal({ visible, onClose }: ProjectListModalProps) {
         }
       ]
     );
-  };
-
-  const handleSaveAsTemplate = async () => {
-    if (!newTemplateName.trim()) return;
-    await saveAsTemplate(newTemplateName);
-    setIsNamingTemplate(false);
-    fetchLists();
   };
 
   const handleImportProject = async () => {
@@ -210,7 +259,6 @@ export function ProjectListModal({ visible, onClose }: ProjectListModalProps) {
 
   const renderProjectItem = ({ item }: { item: ProjectMetadata }) => {
     const isCurrent = item.id === project.id;
-    console.log(`ProjectListModal: Rendering project item: ${item.name}, isCurrent: ${isCurrent}`);
     return (
       <TouchableOpacity 
         className={`flex-row items-center justify-between p-4 mb-2 rounded-xl border ${isCurrent ? 'bg-blue-50 border-blue-200 dark:bg-blue-900/20 dark:border-blue-800' : 'bg-white border-gray-100 dark:bg-gray-800 dark:border-gray-700 shadow-sm'}`}
@@ -221,9 +269,23 @@ export function ProjectListModal({ visible, onClose }: ProjectListModalProps) {
             <FileText size={20} color={isCurrent ? 'white' : '#6b7280'} />
           </View>
           <View>
-            <Text className={`font-bold ${isCurrent ? 'text-blue-700 dark:text-blue-300' : 'text-black dark:text-white'}`}>
-              {item.name}
-            </Text>
+            <View className="flex-row items-center">
+              <Text className={`font-bold ${isCurrent ? 'text-blue-700 dark:text-blue-300' : 'text-black dark:text-white'}`}>
+                {item.name}
+              </Text>
+              {isCurrent && (
+                <TouchableOpacity 
+                  onPress={(e) => {
+                    e.stopPropagation();
+                    setRenameValue(item.name);
+                    setIsRenamingCurrent(true);
+                  }}
+                  className="ml-2 p-1"
+                >
+                  <Copy size={12} color="#3b82f6" />
+                </TouchableOpacity>
+              )}
+            </View>
             <Text className="text-gray-400 text-xs">
               Last modified: {new Date(item.updatedAt).toLocaleDateString()}
             </Text>
@@ -251,7 +313,7 @@ export function ProjectListModal({ visible, onClose }: ProjectListModalProps) {
     return (
       <TouchableOpacity 
         className="flex-row items-center justify-between p-4 mb-2 rounded-xl bg-white border border-gray-100 dark:bg-gray-800 dark:border-gray-700 shadow-sm"
-        onPress={() => handleLoadTemplate(item.id)}
+        onPress={() => handleLoadTemplate(item.id, item.name)}
       >
         <View className="flex-row items-center flex-1">
           <View className="p-2 bg-purple-100 dark:bg-purple-900/30 rounded-lg mr-3">
@@ -299,8 +361,9 @@ export function ProjectListModal({ visible, onClose }: ProjectListModalProps) {
           <Text className="text-xl font-bold text-black dark:text-white">Project Manager</Text>
           <TouchableOpacity 
             onPress={() => {
-              setActiveTab('templates');
-              setIsNamingTemplate(true);
+              setSaveAsName(project.name);
+              setIsNamingSaveAs(true);
+              setIsRenamingCurrent(false);
             }} 
             className="p-2"
           >
@@ -311,7 +374,11 @@ export function ProjectListModal({ visible, onClose }: ProjectListModalProps) {
         <View className="flex-row px-4 py-3 bg-white dark:bg-gray-900">
           <TouchableOpacity 
             className={`flex-1 py-2 items-center border-b-2 ${activeTab === 'projects' ? 'border-blue-500' : 'border-transparent'}`}
-            onPress={() => setActiveTab('projects')}
+            onPress={() => {
+              setActiveTab('projects');
+              setIsNamingSaveAs(false);
+              setIsRenamingCurrent(false);
+            }}
           >
             <Text className={`font-bold ${activeTab === 'projects' ? 'text-blue-500' : 'text-gray-400'}`}>
               Projects ({projects.length})
@@ -319,7 +386,11 @@ export function ProjectListModal({ visible, onClose }: ProjectListModalProps) {
           </TouchableOpacity>
           <TouchableOpacity 
             className={`flex-1 py-2 items-center border-b-2 ${activeTab === 'templates' ? 'border-blue-500' : 'border-transparent'}`}
-            onPress={() => setActiveTab('templates')}
+            onPress={() => {
+              setActiveTab('templates');
+              setIsNamingSaveAs(false);
+              setIsRenamingCurrent(false);
+            }}
           >
             <Text className={`font-bold ${activeTab === 'templates' ? 'text-blue-500' : 'text-gray-400'}`}>
               Templates ({templates.length})
@@ -327,14 +398,76 @@ export function ProjectListModal({ visible, onClose }: ProjectListModalProps) {
           </TouchableOpacity>
         </View>
 
-        {activeTab === 'projects' && (
+        {isRenamingCurrent && (
+          <View className="px-4 py-4 bg-blue-50 dark:bg-blue-900/10 mb-2 border-b border-blue-100 dark:border-blue-900/20">
+            <View className="flex-row justify-between items-center mb-2">
+              <Text className="text-sm font-semibold text-blue-600 dark:text-blue-400 uppercase tracking-wider">Rename Current Project</Text>
+              <TouchableOpacity onPress={() => setIsRenamingCurrent(false)}>
+                <X size={16} color="#3b82f6" />
+              </TouchableOpacity>
+            </View>
+            <View className="flex-row items-center">
+              <View className="flex-1 bg-white dark:bg-gray-800 border border-blue-200 dark:border-blue-800 rounded-lg px-4 py-2 mr-2">
+                <TextInput
+                  className="text-black dark:text-white h-10"
+                  placeholder="New name..."
+                  placeholderTextColor="#9ca3af"
+                  value={renameValue}
+                  onChangeText={setRenameValue}
+                  autoFocus
+                />
+              </View>
+              <TouchableOpacity 
+                onPress={handleRenameCurrentProject}
+                disabled={!renameValue.trim() || renameValue === project.name}
+                className={`w-12 h-12 rounded-full items-center justify-center ${renameValue.trim() && renameValue !== project.name ? 'bg-blue-500' : 'bg-gray-200 dark:bg-gray-700'}`}
+              >
+                <Save size={24} color="white" />
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
+
+        {isNamingSaveAs && (
+          <View className={`px-4 py-4 mb-2 border-b ${activeTab === 'projects' ? 'bg-blue-50 border-blue-100 dark:bg-blue-900/10 dark:border-blue-900/20' : 'bg-purple-50 border-purple-100 dark:bg-purple-900/10 dark:border-purple-900/20'}`}>
+            <View className="flex-row justify-between items-center mb-2">
+              <Text className={`text-sm font-semibold uppercase tracking-wider ${activeTab === 'projects' ? 'text-blue-600 dark:text-blue-400' : 'text-purple-600 dark:text-purple-400'}`}>
+                Save Current as {activeTab === 'projects' ? 'New Project' : 'Template'}
+              </Text>
+              <TouchableOpacity onPress={() => setIsNamingSaveAs(false)}>
+                <X size={16} color={activeTab === 'projects' ? '#3b82f6' : '#9333ea'} />
+              </TouchableOpacity>
+            </View>
+            <View className="flex-row items-center">
+              <View className={`flex-1 bg-white dark:bg-gray-800 border rounded-lg px-4 py-2 mr-2 ${activeTab === 'projects' ? 'border-blue-200 dark:border-blue-800' : 'border-purple-200 dark:border-purple-800'}`}>
+                <TextInput
+                  className="text-black dark:text-white h-10"
+                  placeholder={activeTab === 'projects' ? "Project name..." : "Template name..."}
+                  placeholderTextColor="#9ca3af"
+                  value={saveAsName}
+                  onChangeText={setSaveAsName}
+                  autoFocus
+                />
+              </View>
+              <TouchableOpacity 
+                onPress={handleSaveAs}
+                disabled={!saveAsName.trim()}
+                className={`w-12 h-12 rounded-full items-center justify-center ${saveAsName.trim() ? (activeTab === 'projects' ? 'bg-blue-500' : 'bg-purple-600') : 'bg-gray-200 dark:bg-gray-700'}`}
+              >
+                <Save size={24} color="white" />
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
+
+        {activeTab === 'projects' && !isNamingSaveAs && !isRenamingCurrent && (
           <View className="px-4 py-4 bg-white dark:bg-gray-900 mb-2">
-            <Text className="text-sm font-semibold text-gray-500 mb-2 uppercase">Create New Project</Text>
+            <Text className="text-sm font-semibold text-gray-500 mb-2 uppercase">Create Blank Project</Text>
             <View className="flex-row items-center">
               <View className="flex-1 bg-gray-100 dark:bg-gray-800 rounded-lg px-4 py-2 mr-2">
                 <TextInput
                   className="text-black dark:text-white h-10"
-                  placeholder="Project name..."
+                  placeholder="New project name..."
                   placeholderTextColor="#9ca3af"
                   value={newProjectName}
                   onChangeText={setNewProjectName}
@@ -355,36 +488,6 @@ export function ProjectListModal({ visible, onClose }: ProjectListModalProps) {
               <Upload size={18} color="#6b7280" />
               <Text className="text-gray-600 dark:text-gray-300 font-semibold ml-2">Import Project from JSON</Text>
             </TouchableOpacity>
-          </View>
-        )}
-
-        {activeTab === 'templates' && isNamingTemplate && (
-          <View className="px-4 py-4 bg-purple-50 dark:bg-purple-900/10 mb-2 border-b border-purple-100 dark:border-purple-900/20">
-            <View className="flex-row justify-between items-center mb-2">
-              <Text className="text-sm font-semibold text-purple-600 dark:text-purple-400 uppercase tracking-wider">Save Current as Template</Text>
-              <TouchableOpacity onPress={() => setIsNamingTemplate(false)}>
-                <X size={16} color="#9333ea" />
-              </TouchableOpacity>
-            </View>
-            <View className="flex-row items-center">
-              <View className="flex-1 bg-white dark:bg-gray-800 border border-purple-200 dark:border-purple-800 rounded-lg px-4 py-2 mr-2">
-                <TextInput
-                  className="text-black dark:text-white h-10"
-                  placeholder="Template name..."
-                  placeholderTextColor="#9ca3af"
-                  value={newTemplateName}
-                  onChangeText={setNewTemplateName}
-                  autoFocus
-                />
-              </View>
-              <TouchableOpacity 
-                onPress={handleSaveAsTemplate}
-                disabled={!newTemplateName.trim()}
-                className={`w-12 h-12 rounded-full items-center justify-center ${newTemplateName.trim() ? 'bg-purple-600' : 'bg-gray-200 dark:bg-gray-700'}`}
-              >
-                <Save size={24} color="white" />
-              </TouchableOpacity>
-            </View>
           </View>
         )}
 
