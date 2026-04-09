@@ -106,26 +106,28 @@ describe('Tabular Patch Logic', () => {
 
     const rows = resolveTabularPatch(project);
 
-    // Should have 5 rows: 
-    // Sorting: inputs first, sinks last. Hierarchical Sort: Snake < Stagebox < Mixer.
-    // 1. Vocal (Mic -> SB 7 -> Mixer 1, first complex device = Stagebox [Priority 2])
-    // 2. SB 9 (Orphaned SB 9 [Priority 2])
-    // 3. Mixer In 2 (Orphaned, Mixer-only path [Priority 3])
-    // 4. Mixer Out 1 Main L (Sink, Mixer -> SB 8 -> Speaker [Priority 3])
-    // 5. Mixer Out 2 (Sink [Priority 3])
+    // Sorting: inputs first, sinks last. Hierarchical Sort: 
+    // 1. Vocal (Mic -> SB 7 -> Mixer 1)
+    // 2. Mixer In 2 (Orphaned, Mixer-only path) [Priority 1]
+    // 3. SB 9 (Orphaned SB 9) [Priority 2]
+    // 4. Mixer Out 1 Main L (Sink)
+    // 5. Mixer Out 2 (Sink)
     expect(rows.length).toBe(5);
 
     expect(rows[0].sourceDeviceName).toBe('Vocal');
     expect(rows[0].hops.find(h => h.deviceId === stageboxId)?.inputChannelNumber).toBe(7);
 
     expect(rows[1].sourceDeviceName).toBe('');
-    expect(rows[1].hops.find(h => h.deviceId === stageboxId)?.inputChannelNumber).toBe(9);
+    expect(rows[1].hops.find(h => h.deviceId === mixerId)?.inputChannelNumber).toBe(2);
 
     expect(rows[2].sourceDeviceName).toBe('');
-    expect(rows[2].hops.find(h => h.deviceId === mixerId)?.inputChannelNumber).toBe(2);
+    expect(rows[2].hops.find(h => h.deviceId === stageboxId)?.inputChannelNumber).toBe(9);
 
     expect(rows[3].isSink).toBe(true);
-    expect(rows[3].hops.find(h => h.deviceId === stageboxId)?.inputChannelNumber).toBe(8);
+    expect(rows[3].hops.find(h => h.deviceId === mixerId)?.outputChannelNumber).toBe(1);
+
+    expect(rows[4].isSink).toBe(true);
+    expect(rows[4].hops.find(h => h.deviceId === mixerId)?.outputChannelNumber).toBe(2);
   });
 
   it('sorts Snake before Stagebox before Mixer', () => {
@@ -173,10 +175,10 @@ describe('Tabular Patch Logic', () => {
     const rows = resolveTabularPatch(project);
     expect(rows.length).toBe(3);
     
-    // Based on priority: Snake (1), Stagebox (2), Mixer (3)
-    expect(rows[0].hops[0].deviceId).toBe(snakeId);
+    // Priority: Mixer (1), Stagebox (2), Snake (3)
+    expect(rows[0].hops[0].deviceId).toBe(mixId);
     expect(rows[1].hops[0].deviceId).toBe(sbId);
-    expect(rows[2].hops[0].deviceId).toBe(mixId);
+    expect(rows[2].hops[0].deviceId).toBe(snakeId);
   });
 
   it('generates orphaned rows for Mixer inputs', () => {

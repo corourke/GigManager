@@ -162,6 +162,17 @@ Improved the Patch screen with better sorting and inline quick entry:
 - [x] Updated Patch screen to use `shouldShowChannelNames` for device column visibility.
 - [x] Verification: Ran unit tests and verified model integrity.
 
+### [x] Step: Implement Snake Device Type & Refined Patch Sorting
+<!-- chat-id: 40b5e994-8a8c-44e3-925f-eae1dc9fcdfc -->
+Implemented the "Snake" device type and perfected the Patch Sheet sorting hierarchy:
+- [x] Added "Snake" as a complex device type with 1:1 internal routing.
+- [x] Implemented "Most Upstream Common Device" sorting algorithm to handle complex signal chains.
+- [x] Refined row priority to Mixer > Stagebox > Snake for "overall Mixer order" with physical overrides.
+- [x] Set default column priority to Snake > Stagebox > Mixer.
+- [x] Made Snake columns narrower (60px) and display only input channel numbers as requested.
+- [x] Restored "Assign Input" quick entry prompt for orphaned channels.
+- [x] Verification: Verified with unit tests covering user's complex project order (FOH 1-12, 17, 18, 13...).
+
 ### [ ] Step: Integrate Supabase for Cloud Sync & Collaboration
 - Set up Supabase client for project backup and real-time co-editing.
 - Verification: Verify changes on one device sync to another in real-time.

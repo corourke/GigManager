@@ -236,6 +236,9 @@ export interface TabularRow {
   terminalChannelName?: string;
   isNonSequential?: boolean;
   primaryConnectorType?: string;
+  snakeHop?: SignalHop;
+  stageboxHop?: SignalHop;
+  mixerHop?: SignalHop;
 }
 
 export function resolveTabularPatch(project: Project): TabularRow[] {
@@ -340,6 +343,37 @@ export function resolveTabularPatch(project: Project): TabularRow[] {
         if (!currentDeviceId) break;
       }
       row.primaryConnectorType = row.hops[0]?.connectorType || channel.connectorType;
+
+      // Identify specific hops for sorting and layout
+      const visitedHops = new Set<string>();
+      const src = project.devices.find(d => d.id === row.sourceDeviceId);
+      if (src && shouldShowChannelNames(src)) {
+        const type = src.type?.toLowerCase();
+        const hop: SignalHop = {
+          deviceId: src.id,
+          deviceName: src.name,
+          outputChannelId: row.sourceChannelId,
+          outputChannelNumber: row.sourceChannelNumber,
+          outputEffectiveName: row.sourceEffectiveName
+        };
+        if (type === 'snake' && !row.snakeHop) row.snakeHop = hop;
+        if (type === 'stagebox' && !row.stageboxHop) row.stageboxHop = hop;
+        if ((type === 'mixer' || type === 'console') && !row.mixerHop) row.mixerHop = hop;
+        visitedHops.add(src.id);
+      }
+
+      for (const hop of row.hops) {
+        if (visitedHops.has(hop.deviceId)) continue;
+        const dev = project.devices.find(d => d.id === hop.deviceId);
+        if (dev && shouldShowChannelNames(dev)) {
+          const type = dev.type?.toLowerCase();
+          if (type === 'snake' && !row.snakeHop) row.snakeHop = hop;
+          if (type === 'stagebox' && !row.stageboxHop) row.stageboxHop = hop;
+          if ((type === 'mixer' || type === 'console') && !row.mixerHop) row.mixerHop = hop;
+          visitedHops.add(hop.deviceId);
+        }
+      }
+
       allRows.push(row);
     }
   }
@@ -372,20 +406,20 @@ export function resolveTabularPatch(project: Project): TabularRow[] {
         sourcePad: channel.pad,
         isSink: true,
         hops: [],
-        fullPath: {}
+        fullPath: {},
+        mixerHop: {
+          deviceId: device.id,
+          deviceName: device.name,
+          outputChannelId: channel.id,
+          outputChannelNumber: channel.number,
+          outputEffectiveName: chState?.effectiveName || channel.name || `Out ${channel.number}`,
+          connectorType: channel.connectorType,
+          phantomPower: channel.phantomPower,
+          pad: channel.pad
+        }
       };
 
-      const startHop: SignalHop = {
-        deviceId: device.id,
-        deviceName: device.name,
-        outputChannelId: channel.id,
-        outputChannelNumber: channel.number,
-        outputChannelName: channel.name,
-        outputEffectiveName: chState?.effectiveName || channel.name || `Out ${channel.number}`,
-        connectorType: channel.connectorType,
-        phantomPower: channel.phantomPower,
-        pad: channel.pad
-      };
+      const startHop = row.mixerHop!;
       row.hops.push(startHop);
       row.fullPath[device.id] = startHop;
 
@@ -426,6 +460,12 @@ export function resolveTabularPatch(project: Project): TabularRow[] {
 
         row.hops.push(hop);
         row.fullPath[hop.deviceId] = hop;
+
+        // Populate hop fields
+        const type = destDevice.type?.toLowerCase();
+        if (type === 'snake' && !row.snakeHop) row.snakeHop = hop;
+        if (type === 'stagebox' && !row.stageboxHop) row.stageboxHop = hop;
+        if ((type === 'mixer' || type === 'console') && !row.mixerHop) row.mixerHop = hop;
 
         const matchingOutChan = destDevice.outputChannels.find(out => {
            const outKey = `${destDevice.id}:${out.id}`;
@@ -468,7 +508,7 @@ export function resolveTabularPatch(project: Project): TabularRow[] {
         if (!isConnected) {
           const row: TabularRow = {
             index: 0,
-            sourceDeviceId: "",
+            sourceDeviceId: undefined,
             sourceDeviceName: "",
             sourceDeviceType: "",
             sourceChannelId: "",
@@ -492,6 +532,11 @@ export function resolveTabularPatch(project: Project): TabularRow[] {
           
           row.hops.push(startHop);
           row.fullPath[device.id] = startHop;
+
+          const type = device.type?.toLowerCase();
+          if (type === 'snake' && !row.snakeHop) row.snakeHop = startHop;
+          if (type === 'stagebox' && !row.stageboxHop) row.stageboxHop = startHop;
+          if ((type === 'mixer' || type === 'console') && !row.mixerHop) row.mixerHop = startHop;
 
           // Try to follow if there's internal routing (only for stageboxes, snakes and simple devices)
           const isSimple = isSourceOrTerminal(device);
@@ -534,6 +579,11 @@ export function resolveTabularPatch(project: Project): TabularRow[] {
 
               row.hops.push(hop);
               row.fullPath[hop.deviceId] = hop;
+
+              const dType = destDevice.type?.toLowerCase();
+              if (dType === 'snake' && !row.snakeHop) row.snakeHop = hop;
+              if (dType === 'stagebox' && !row.stageboxHop) row.stageboxHop = hop;
+              if ((dType === 'mixer' || dType === 'console') && !row.mixerHop) row.mixerHop = hop;
 
               const dIsSimple = isSourceOrTerminal(destDevice);
               const dOut = (destDevice.type?.toLowerCase() === 'stagebox' || destDevice.type?.toLowerCase() === 'snake' || dIsSimple)
@@ -579,68 +629,64 @@ export function resolveTabularPatch(project: Project): TabularRow[] {
         if (groupA !== groupB) return groupA.localeCompare(groupB);
     }
 
-    // 3. Hierarchical Sort by Complex Devices in signal chain
-    // We get the list of complex devices each row passes through
-    const getComplexPath = (row: TabularRow) => {
-        const path: { name: string, type: string, channel: number }[] = [];
+    // 3. Hierarchical Recursive Sort
+    // Strategy: Find all common complex devices. Sort by the MOST UPSTREAM common device.
+    
+    const commonDeviceIds = Object.keys(a.fullPath).filter(id => !!b.fullPath[id]);
+    
+    if (commonDeviceIds.length > 0) {
+      let bestCommonDeviceId: string | null = null;
+      let bestPriority = 999;
+      
+      for (const id of commonDeviceIds) {
+        const device = project.devices.find(d => d.id === id);
+        if (!device) continue;
         
-        // Find all complex devices in the chain
-        const visited = new Set<string>();
+        const type = device.type?.toLowerCase();
+        let priority = 4;
+        if (type === 'snake') priority = 1;
+        else if (type === 'stagebox') priority = 2;
+        else if (type === 'mixer' || type === 'console') priority = 3;
         
-        // Start from source
-        const src = project.devices.find(d => d.id === row.sourceDeviceId);
-        if (src && shouldShowChannelNames(src)) {
-           path.push({ name: src.name, type: src.type, channel: row.sourceChannelNumber });
-           visited.add(src.id);
+        if (priority < bestPriority) {
+          bestPriority = priority;
+          bestCommonDeviceId = id;
         }
-
-        // Add hops
-        for (const hop of row.hops) {
-           if (visited.has(hop.deviceId)) continue;
-           const dev = project.devices.find(d => d.id === hop.deviceId);
-           if (dev && shouldShowChannelNames(dev)) {
-              path.push({ name: dev.name, type: dev.type, channel: hop.inputChannelNumber || hop.outputChannelNumber || 0 });
-              visited.add(dev.id);
-           }
-        }
-
-        return path;
-    };
-
-    const pathA = getComplexPath(a);
-    const pathB = getComplexPath(b);
-
-    const maxLength = Math.max(pathA.length, pathB.length);
-    for (let i = 0; i < maxLength; i++) {
-        const devA = pathA[i];
-        const devB = pathB[i];
-
-        // If one path is shorter, the shorter path (direct mixer) comes first if it matches
-        if (!devA && devB) return -1;
-        if (devA && !devB) return 1;
-        if (!devA && !devB) break;
-
-        // Sort by Type (Snake < Stagebox < Mixer < Other)
-        const getTypePriority = (type: string) => {
-            const t = type.toLowerCase();
-            if (t === 'snake') return 1;
-            if (t === 'stagebox') return 2;
-            if (t === 'mixer' || t === 'console') return 3;
-            return 4;
-        };
-
-        const pA = getTypePriority(devA.type);
-        const pB = getTypePriority(devB.type);
-        if (pA !== pB) return pA - pB;
-
-        if (devA.name !== devB.name) return devA.name.localeCompare(devB.name);
-        if (devA.channel !== devB.channel) return devA.channel - devB.channel;
+      }
+      
+      if (bestCommonDeviceId) {
+        const hopA = a.fullPath[bestCommonDeviceId];
+        const hopB = b.fullPath[bestCommonDeviceId];
+        const chanA = hopA.inputChannelNumber || hopA.outputChannelNumber || 0;
+        const chanB = hopB.inputChannelNumber || hopB.outputChannelNumber || 0;
+        if (chanA !== chanB) return chanA - chanB;
+      }
     }
 
-    // 4. Tie-breaker: Actual inputs before Orphaned Inputs
-    if (a.sourceDeviceId && !b.sourceDeviceId) return -1;
-    if (!a.sourceDeviceId && b.sourceDeviceId) return 1;
+    // 4. No common complex device. Use priority of their most downstream device.
+    // (Overall order is Mixer order)
+    const getPriority = (row: TabularRow) => {
+      if (row.mixerHop) return 1;
+      if (row.stageboxHop) return 2;
+      if (row.snakeHop) return 3;
+      return 4;
+    };
 
+    const pA = getPriority(a);
+    const pB = getPriority(b);
+    if (pA !== pB) return pA - pB;
+
+    // Same priority but different devices.
+    if (pA === 1) { // Different Mixers
+      const aM = a.mixerHop!.inputChannelNumber || a.mixerHop!.outputChannelNumber || 0;
+      const bM = b.mixerHop!.inputChannelNumber || b.mixerHop!.outputChannelNumber || 0;
+      if (aM !== bM) return aM - bM;
+      return a.mixerHop!.deviceName.localeCompare(b.mixerHop!.deviceName);
+    }
+    if (pA === 2) return (a.stageboxHop?.deviceName || "").localeCompare(b.stageboxHop?.deviceName || "");
+    if (pA === 3) return (a.snakeHop?.deviceName || "").localeCompare(b.snakeHop?.deviceName || "");
+
+    // 5. Final tie-breaker: Alphabetical by Name
     return (a.sourceDeviceName || "").localeCompare(b.sourceDeviceName || "");
   });
 

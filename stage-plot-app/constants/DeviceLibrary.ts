@@ -55,12 +55,13 @@ export const COMMON_NAMES = [
   'Main', 'Mains', 'Sub', 'Fill', 'Delay', 'FX', 'Reverb'
 ];
 
-export type ChannelConfig = 'Multi' | 'Mono Out' | 'Stereo Out' | 'Mono In' | 'Stereo In' | 'Mono Thru' | 'Stereo Thru';
+export type ChannelConfig = 'Multi' | 'Mono Out' | 'Stereo Out' | 'L/Mono/R Out' | 'Mono In' | 'Stereo In' | 'Mono Thru' | 'Stereo Thru';
 
 export const CHANNEL_CONFIGS: ChannelConfig[] = [
   'Multi',
   'Mono Out',
   'Stereo Out',
+  'L/Mono/R Out',
   'Mono In',
   'Stereo In',
   'Mono Thru',
@@ -70,14 +71,14 @@ export const CHANNEL_CONFIGS: ChannelConfig[] = [
 export const DEVICE_TYPE_DEFAULTS: Record<string, ChannelConfig> = {
   'Microphone':            'Mono Out',
   'DI Box':                'Mono Thru',
-  'Instrument':            'Stereo Out',
+  'Instrument':            'L/Mono/R Out',
   'Amplifier':             'Mono Thru',
   'Stagebox':              'Multi',
   'Snake':                 'Multi',
   'Mixer':                 'Multi',
   'Speaker':               'Mono In',
-  'Wireless Receiver':     'Stereo In',
-  'Wireless Transmitter':  'Stereo Out',
+  'Wireless Receiver':     'Stereo Out',
+  'Wireless Transmitter':  'Stereo In',
   'Other':                 'Multi',
 };
 
@@ -87,7 +88,8 @@ export const CHANNEL_CONFIG_TEMPLATES: Record<ChannelConfig, {
 }> = {
   'Multi':       { inputs: [], outputs: [] },
   'Mono Out':    { inputs: [], outputs: [{ connectorType: 'XLR' }] },
-  'Stereo Out':  { inputs: [], outputs: [{ connectorType: '1/4"' }, { connectorType: '1/4"' }] },
+  'Stereo Out':  { inputs: [], outputs: [{ connectorType: 'XLR"' }, { connectorType: 'XLR"' }] },
+  'L/Mono/R Out':  { inputs: [], outputs: [{ connectorType: '1/4"' }, { connectorType: '1/4"' }] },
   'Mono In':     { inputs: [{ connectorType: 'XLR' }], outputs: [] },
   'Stereo In':   { inputs: [{ connectorType: 'XLR' }, { connectorType: 'XLR' }], outputs: [] },
   'Mono Thru':   { inputs: [{ connectorType: '1/4"' }], outputs: [{ connectorType: 'XLR' }] },

@@ -10,7 +10,24 @@ export class ExportService {
    */
   static async exportPatchPDF(project: Project, selectedDeviceIds: string[] = []) {
     const tabularData = resolveTabularPatch(project);
-    const devices = project.devices.filter(d => selectedDeviceIds?.includes(d.id) || false);
+    
+    // Sort devices for column consistency: Snake (already separate), Stagebox, Mixer, others
+    const devices = project.devices
+      .filter(d => (selectedDeviceIds?.includes(d.id) || false) && d.type?.toLowerCase() !== 'snake')
+      .sort((a, b) => {
+        const getTypePriority = (type: string) => {
+          const t = type.toLowerCase();
+          if (t === 'stagebox') return 1;
+          if (t === 'mixer' || t === 'console') return 2;
+          return 3;
+        };
+        const pA = getTypePriority(a.type);
+        const pB = getTypePriority(b.type);
+        if (pA !== pB) return pA - pB;
+        return a.name.localeCompare(b.name);
+      });
+      
+    const hasSnakes = project.devices.some(d => d.type?.toLowerCase() === 'snake');
     
     const html = `
       <!DOCTYPE html>
@@ -24,8 +41,9 @@ export class ExportService {
           table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 11px; }
           th { background-color: #f3f4f6; text-align: left; padding: 10px; border: 1px solid #e5e7eb; }
           td { padding: 10px; border: 1px solid #e5e7eb; vertical-align: top; }
-          .source-cell { font-weight: bold; width: 200px; }
-          .hop-cell { width: 200px; }
+          .source-cell { font-weight: bold; width: 180px; }
+          .snake-cell { width: 60px; text-align: center; }
+          .hop-cell { width: 180px; }
           .hop-content { display: flex; justify-content: space-between; align-items: center; }
           .channel-name { font-weight: 500; }
           .connector { font-size: 9px; color: #9ca3af; }
@@ -50,6 +68,7 @@ export class ExportService {
           <thead>
             <tr>
               <th>Source / Input</th>
+              ${hasSnakes ? '<th class="snake-cell">Snake</th>' : ''}
               ${devices.map(d => `<th>${d.name}</th>`).join('')}
             </tr>
           </thead>
@@ -57,14 +76,19 @@ export class ExportService {
             ${tabularData.map(row => `
               <tr>
                 <td class="source-cell">
-                  <div>${row.sourceEffectiveName}</div>
+                  <div>${row.sourceEffectiveName || (row.isSink ? 'OUTPUT' : 'INPUT')}</div>
                   <div style="font-weight: normal; font-size: 9px; color: #666; font-style: italic;">
-                    ${row.sourceDeviceName} (${row.sourceChannelNumber})
+                    ${row.sourceDeviceName || row.sourceDeviceType || '-'} ${row.sourceChannelNumber ? `(${row.sourceChannelNumber})` : ''}
                   </div>
                 </td>
-                ${(selectedDeviceIds || []).map(deviceId => {
+                ${hasSnakes ? `
+                  <td class="snake-cell">
+                    <div class="channel-name">${row.snakeHop?.inputChannelNumber || '-'}</div>
+                  </td>
+                ` : ''}
+                ${(selectedDeviceIds || []).filter(id => !project.devices.find(d => d.id === id && d.type?.toLowerCase() === 'snake')).map(deviceId => {
                   const hop = row.fullPath[deviceId];
-                  if (!hop) return '<td class="no-route">No Route</td>';
+                  if (!hop) return '<td class="no-route">-</td>';
                   return `
                     <td class="hop-cell">
                       <div class="hop-content">

@@ -216,17 +216,21 @@ describe('Signal Chain Logic (Refined)', () => {
     // 5. Mixer Out 2 (Sink Output)
     expect(tabular.length).toBe(5);
     
-    // Sort logic puts terminal sources (Mic) first
-    expect(tabular[0].sourceDeviceName).toBe('Kick'); // Input
-    expect(tabular[0].isSink).toBeFalsy();
+    // New Sort logic: Mixer-only inputs first (by channel), then terminal sources without complex hops
+    expect(tabular[0].hops[0].deviceId).toBe(mixerId);
+    expect(tabular[0].hops[0].inputChannelNumber).toBe(1);
+    expect(tabular[0].sourceDeviceName).toBe('');
     
-    // Then orphaned inputs
-    expect(tabular[1].sourceDeviceName).toBe(''); // Orphaned Input
     expect(tabular[1].hops[0].deviceId).toBe(mixerId);
+    expect(tabular[1].hops[0].inputChannelNumber).toBe(2);
+    
+    expect(tabular[2].sourceDeviceName).toBe('Kick');
+    expect(tabular[2].isSink).toBeFalsy();
     
     // Finally sink rows
-    const sinkRow = tabular.find(r => r.isSink);
-    expect(sinkRow?.sourceDeviceName).toBe('Mixer'); // Output
-    expect(sinkRow?.isSink).toBeTruthy();
+    const sinkRows = tabular.filter(r => r.isSink);
+    expect(sinkRows.length).toBe(2);
+    expect(sinkRows[0].sourceDeviceName).toBe('Mixer'); // Output
+    expect(sinkRows[0].isSink).toBeTruthy();
   });
 });

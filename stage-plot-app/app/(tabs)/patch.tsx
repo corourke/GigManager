@@ -10,6 +10,7 @@ import { ALIASES, parseQuickEntry } from '../../utils/quickEntry';
 import { COMMON_NAMES, DEVICE_TYPES, MIC_MODELS } from '../../constants/DeviceLibrary';
 
 const COLUMN_WIDTH = 120;
+const SNAKE_COLUMN_WIDTH = 60;
 
 const SuggestionList = ({ visible, filter, onSelect }: { visible: boolean, filter: string, onSelect: (val: string) => void }) => {
   const suggestions = useMemo(() => {
@@ -61,7 +62,13 @@ const SuggestionList = ({ visible, filter, onSelect }: { visible: boolean, filte
   );
 };
 
-const SourceDeviceCell = ({ item, isMono, group, category, updateDevice, handleUpdateStereo, addDevice, addConnection, project, findDeviceByName, inputRef, onSubmitEditing, onSelectDevice, onFocus, onBlur }: any) => {
+const SourceDeviceCell = ({ item, group, category, updateDevice, handleUpdateStereo, addDevice, addConnection, project, findDeviceByName, inputRef, onSubmitEditing, onSelectDevice, onFocus, onBlur }: any) => {
+  const isMono = useMemo(() => {
+    if (!item.sourceDeviceId) return true;
+    const device = project.devices.find((d: Device) => d.id === item.sourceDeviceId);
+    if (!device) return true;
+    return !device.outputChannels.some((c: any) => c.channelCount > 1);
+  }, [item.sourceDeviceId, project.devices]);
   const sourceDevice = project.devices.find((d: Device) => d.id === item.sourceDeviceId);
   const sourceChannel = sourceDevice?.outputChannels.find((c: any) => c.id === item.sourceChannelId);
   const channelName = sourceChannel?.name || "";
@@ -230,7 +237,7 @@ const SourceDeviceCell = ({ item, isMono, group, category, updateDevice, handleU
                   ref={inputRef}
                   style={{ fontWeight: 'bold', color: 'black', fontSize: 14, padding: 0, marginRight: 2, height: 18, backgroundColor: 'transparent' }}
                   value={localValue}
-                  placeholder={!item.sourceDeviceId ? "Assign Source..." : ""}
+                  placeholder={!item.sourceDeviceId ? "Assign Input..." : ""}
                   placeholderTextColor="#9ca3af"
                   onChangeText={handleTextChange}
                   onFocus={onFocus}
@@ -268,8 +275,15 @@ export default function PatchScreen() {
   const [editingRowIndex, setEditingRowIndex] = useState<number | null>(null);
   const router = useRouter();
   
+  const snakes = useMemo(() => 
+    project.devices.filter(d => d.type?.toLowerCase() === 'snake'),
+    [project]
+  );
+
+  const hasSnakes = snakes.length > 0;
+
   const complexDevices = useMemo(() => 
-    project.devices.filter(d => shouldShowChannelNames(d)),
+    project.devices.filter(d => shouldShowChannelNames(d) && d.type?.toLowerCase() !== 'snake'),
     [project]
   );
 
@@ -279,8 +293,33 @@ export default function PatchScreen() {
     const ids = userSelectedDeviceIds === null 
       ? complexDevices.map(d => d.id) 
       : userSelectedDeviceIds;
-    return ids.filter(id => complexDevices.some(d => d.id === id));
-  }, [userSelectedDeviceIds, complexDevices]);
+    
+    const filtered = ids.filter(id => complexDevices.some(d => d.id === id));
+
+    // Apply default sorting if user hasn't manually picked/ordered
+    if (userSelectedDeviceIds === null) {
+      filtered.sort((aId, bId) => {
+        const a = project.devices.find(d => d.id === aId);
+        const b = project.devices.find(d => d.id === bId);
+        if (!a || !b) return 0;
+
+        const getTypePriority = (type: string) => {
+          const t = type.toLowerCase();
+          if (t === 'snake') return 1;
+          if (t === 'stagebox') return 2;
+          if (t === 'mixer' || t === 'console') return 3;
+          return 4;
+        };
+
+        const pA = getTypePriority(a.type);
+        const pB = getTypePriority(b.type);
+        if (pA !== pB) return pA - pB;
+        return a.name.localeCompare(b.name);
+      });
+    }
+
+    return filtered;
+  }, [userSelectedDeviceIds, complexDevices, project.devices]);
   
   const [isColumnPickerVisible, setIsColumnPickerVisible] = useState(false);
 
@@ -288,8 +327,9 @@ export default function PatchScreen() {
 
   const tableWidth = useMemo(() => 
     COLUMN_WIDTH * 2 + // Source and Destination
+    (hasSnakes ? SNAKE_COLUMN_WIDTH : 0) +
     (selectedDeviceIds.length * COLUMN_WIDTH), 
-    [selectedDeviceIds]
+    [selectedDeviceIds, hasSnakes]
   );
 
   const filteredData = useMemo(() => {
@@ -345,24 +385,25 @@ export default function PatchScreen() {
       <View style={{ width: COLUMN_WIDTH, paddingHorizontal: 8, paddingVertical: 4, borderRightWidth: 1, borderColor: '#4b5563', justifyContent: 'center' }}>
         <Text style={{ fontWeight: 'bold', color: 'white', textTransform: 'uppercase', fontSize: 11, letterSpacing: 1 }}>Source</Text>
       </View>
+
+      {hasSnakes && (
+        <View style={{ width: SNAKE_COLUMN_WIDTH, padding: 2, borderRightWidth: 1, borderColor: '#4b5563', backgroundColor: '#1e40af', justifyContent: 'center' }}>
+          <Text style={{ fontWeight: 'bold', color: '#bfdbfe', textAlign: 'center', fontSize: 11 }}>SNAKE</Text>
+          <Text style={{ fontSize: 9, color: '#93c5fd', fontWeight: 'bold', textAlign: 'center', marginTop: 1 }}>CH #</Text>
+        </View>
+      )}
       
       {selectedDeviceIds.map(deviceId => {
         const device = project.devices.find(d => d.id === deviceId);
         return (
-          <View key={deviceId} style={{ width: COLUMN_WIDTH, padding: 2, borderRightWidth: 1, borderColor: '#4b5563', backgroundColor: device?.type?.toLowerCase() === 'snake' ? '#1e40af' : '#1e3a8a', justifyContent: 'center' }}>
+          <View key={deviceId} style={{ width: COLUMN_WIDTH, padding: 2, borderRightWidth: 1, borderColor: '#4b5563', backgroundColor: '#1e3a8a', justifyContent: 'center' }}>
             <Text style={{ fontWeight: 'bold', color: '#bfdbfe', textAlign: 'center', fontSize: 11 }} numberOfLines={1}>
               {device?.name || 'Unknown Device'}
             </Text>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 1, paddingHorizontal: 2 }}>
-              <Text style={{ fontSize: 9, color: '#93c5fd', fontWeight: 'bold', width: device?.type?.toLowerCase() === 'snake' ? '100%' : 18, textAlign: 'center' }}>
-                {device?.type?.toLowerCase() === 'snake' ? 'CH #' : 'IN #'}
-              </Text>
-              {device?.type?.toLowerCase() !== 'snake' && (
-                <>
-                  <Text style={{ fontSize: 9, color: '#93c5fd', fontWeight: 'bold', flex: 1, textAlign: 'center' }}>CHANNEL</Text>
-                  <Text style={{ fontSize: 9, color: '#93c5fd', fontWeight: 'bold', width: 18, textAlign: 'center' }}>OUT #</Text>
-                </>
-              )}
+              <Text style={{ fontSize: 9, color: '#93c5fd', fontWeight: 'bold', width: 18, textAlign: 'center' }}>IN #</Text>
+              <Text style={{ fontSize: 9, color: '#93c5fd', fontWeight: 'bold', flex: 1, textAlign: 'center' }}>CHANNEL</Text>
+              <Text style={{ fontSize: 9, color: '#93c5fd', fontWeight: 'bold', width: 18, textAlign: 'center' }}>OUT #</Text>
             </View>
           </View>
         );
@@ -399,39 +440,47 @@ export default function PatchScreen() {
       >
         {/* Simple Device Cell (Left Side: Source) */}
         <View style={{ width: COLUMN_WIDTH, padding: 2, borderRightWidth: 1, borderColor: '#f3f4f6', justifyContent: 'center', overflow: 'visible' }}>
-          {item.sourceDeviceId ? (
-            <SourceDeviceCell 
-                item={item} 
-                isMono={isMono} 
-                group={group} 
-                category={category}
-                updateDevice={updateDevice} 
-                handleUpdateStereo={handleUpdateStereo} 
-                addDevice={addDevice}
-                addConnection={addConnection}
-                project={project}
-                findDeviceByName={findDeviceByName}
-                inputRef={(ref: any) => { inputRefs.current[item.index] = ref; }}
-                onSelectDevice={onSelectDevice}
-                onFocus={() => setEditingRowIndex(index)}
-                onBlur={() => setEditingRowIndex(null)}
-                onSubmitEditing={() => {
-                    const nextIndex = item.index + 1;
-                    if (inputRefs.current[nextIndex]) {
-                        inputRefs.current[nextIndex].focus();
-                    }
-                }}
-            />
-          ) : null}
+          <SourceDeviceCell 
+              item={item} 
+              group={group} 
+              category={category}
+              updateDevice={updateDevice} 
+              handleUpdateStereo={handleUpdateStereo} 
+              addDevice={addDevice}
+              addConnection={addConnection}
+              project={project}
+              findDeviceByName={findDeviceByName}
+              inputRef={(ref: any) => { inputRefs.current[item.index] = ref; }}
+              onSelectDevice={onSelectDevice}
+              onFocus={() => setEditingRowIndex(index)}
+              onBlur={() => setEditingRowIndex(null)}
+              onSubmitEditing={() => {
+                  const nextIndex = item.index + 1;
+                  if (inputRefs.current[nextIndex]) {
+                      inputRefs.current[nextIndex].focus();
+                  }
+              }}
+          />
         </View>
+
+        {/* Grouped Snake Column */}
+        {hasSnakes && (
+          <View style={{ width: SNAKE_COLUMN_WIDTH, padding: 1, borderRightWidth: 1, borderColor: '#f3f4f6', justifyContent: 'center', alignItems: 'center' }}>
+            {item.snakeHop ? (
+              <Text style={{ color: '#2563eb', fontSize: 14, fontWeight: 'bold' }}>
+                {item.snakeHop.inputChannelNumber}
+              </Text>
+            ) : (
+              <Text style={{ color: '#f3f4f6', fontSize: 12 }}>-</Text>
+            )}
+          </View>
+        )}
 
         {/* Selected Device Columns */}
         {selectedDeviceIds.map(deviceId => {
-          const device = project.devices.find(d => d.id === deviceId);
-          const isSnake = device?.type?.toLowerCase() === 'snake';
           const hop = item.fullPath[deviceId];
           const showIn = !!hop?.inputChannelNumber;
-          const showOut = !isSnake && !!hop?.outputChannelNumber && hop.outputChannelNumber !== hop.inputChannelNumber;
+          const showOut = !!hop?.outputChannelNumber && hop.outputChannelNumber !== hop.inputChannelNumber;
           
           return (
             <View key={deviceId} style={{ width: COLUMN_WIDTH, padding: 1, borderRightWidth: 1, borderColor: '#f3f4f6', flexDirection: 'row', alignItems: 'center' }}>
@@ -439,28 +488,24 @@ export default function PatchScreen() {
                 <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
                   <View style={{ width: 14, alignItems: 'center' }}>
                     {showIn && (
-                      <Text style={{ color: isSnake ? '#3b82f6' : '#6b7280', fontSize: 14, fontWeight: 'bold' }}>
+                      <Text style={{ color: '#6b7280', fontSize: 14, fontWeight: 'bold' }}>
                         {hop.inputChannelNumber}
                       </Text>
                     )}
                   </View>
                   
-                  {!isSnake && (
-                    <View style={{ flex: 1, alignItems: 'center', paddingHorizontal: 1 }}>
-                      <TextInput
-                        style={{ color: 'black', fontWeight: '500', fontSize: 12, textAlign: 'center', padding: 0, width: '100%' }}
-                        value={hop.inputChannelName || hop.outputChannelName || ''}
-                        placeholder={hop.inputEffectiveName || hop.outputEffectiveName || `Ch ${hop.inputChannelNumber || hop.outputChannelNumber}`}
-                        placeholderTextColor="#9ca3af"
-                        onChangeText={(val) => {
-                          if (hop.inputChannelId) handleUpdateName(hop.deviceId, hop.inputChannelId, val);
-                          if (hop.outputChannelId) handleUpdateName(hop.deviceId, hop.outputChannelId, val);
-                        }}
-                      />
-                    </View>
-                  )}
-
-                  {isSnake && <View style={{ flex: 1 }} />}
+                  <View style={{ flex: 1, alignItems: 'center', paddingHorizontal: 1 }}>
+                    <TextInput
+                      style={{ color: 'black', fontWeight: '500', fontSize: 12, textAlign: 'center', padding: 0, width: '100%' }}
+                      value={hop.inputChannelName || hop.outputChannelName || ''}
+                      placeholder={hop.inputEffectiveName || hop.outputEffectiveName || `Ch ${hop.inputChannelNumber || hop.outputChannelNumber}`}
+                      placeholderTextColor="#9ca3af"
+                      onChangeText={(val) => {
+                        if (hop.inputChannelId) handleUpdateName(hop.deviceId, hop.inputChannelId, val);
+                        if (hop.outputChannelId) handleUpdateName(hop.deviceId, hop.outputChannelId, val);
+                      }}
+                    />
+                  </View>
 
                   <View style={{ width: 14, alignItems: 'center' }}>
                     {showOut && (
