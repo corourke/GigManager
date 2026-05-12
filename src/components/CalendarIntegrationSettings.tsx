@@ -334,7 +334,7 @@ export default function CalendarIntegrationSettings({
                 <AlertCircle className="h-4 w-4" />
                 <AlertDescription>
                   Connect your Google Calendar to enable automatic synchronization of gigs.
-                  Your calendar events will be kept in sync with your GigManager schedule.
+                  Your calendar events will be kept in sync with your GigWrangler schedule.
                 </AlertDescription>
               </Alert>
 
@@ -437,10 +437,10 @@ export default function CalendarIntegrationSettings({
                 <Alert>
                   <Settings className="h-4 w-4" />
                   <AlertDescription>
-                    <strong>One-way sync:</strong> Changes in GigManager will update Google Calendar,
+                    <strong>One-way sync:</strong> Changes in GigWrangler will update Google Calendar,
                     but changes in Google Calendar will be overwritten on the next sync.
                     <br />
-                    <strong>Links:</strong> Calendar events include links back to the corresponding gig in GigManager.
+                    <strong>Links:</strong> Calendar events include links back to the corresponding gig in GigWrangler.
                   </AlertDescription>
                 </Alert>
               </div>

@@ -10,10 +10,56 @@ There are user instructions to all AI Agents that are of highest priority.
 9. If you are confused by something, ASK!
 
 
-# GigManager Information
+# GigWrangler Information
+
+## Supabase Environments
+
+Two separate Supabase projects are in use. Use `supabase link` to switch targets before running `db push`.
+
+| Environment | Project Ref | Used by |
+|---|---|---|
+| **Development** | `[DEV_REF]` | `npm run dev` via `.env.local` |
+| **Production** | `hqnnhtxcxedisasvtbqv` | Cloudflare Pages via dashboard env vars |
+
+> **Note:** Replace `[DEV_REF]` with the actual dev project reference ID from its **Settings → General** page.
+
+### Common CLI commands
+
+```bash
+# One-time login (per machine)
+supabase login
+
+# --- Targeting dev ---
+supabase link --project-ref [DEV_REF]
+supabase db push
+
+# --- Targeting prod ---
+supabase link --project-ref hqnnhtxcxedisasvtbqv
+supabase db push
+
+# After linking, functions deploy and secrets set use the linked project automatically.
+# --project-ref is optional if already linked to the correct project.
+supabase functions deploy
+supabase secrets set GOOGLE_PLACES_API_KEY=your_key_here
+
+# Pre-migration backup (run before any prod migration)
+# Get the connection string from: Supabase dashboard → Project Settings → Database → URI
+supabase db dump \
+  --db-url "postgresql://postgres:[password]@db.hqnnhtxcxedisasvtbqv.supabase.co:5432/postgres" \
+  -f ./backups/prod-backup-$(date +%Y%m%d-%H%M%S).sql
+```
+
+### Deploy to Cloudflare Pages
+
+```bash
+npm run build
+npx wrangler pages deploy build/ --project-name gigwrangler
+```
+
+---
 
 ## Summary
-**GigManager** is a comprehensive production and event management platform designed for organizing gigs, teams, finances and equipment. It features a multi-tenant architecture that allows different organizations (venues, acts, production companies) to collaborate on the same events while maintaining private data isolation through Supabase Row-Level Security (RLS). The system supports real-time updates, secure authentication, and a composable UI built with **React**, **Shadcn/ui**, and **Tailwind CSS v4.0**.
+**GigWrangler** is a comprehensive production and event management platform designed for organizing gigs, teams, finances and equipment. It features a multi-tenant architecture that allows different organizations (venues, acts, production companies) to collaborate on the same events while maintaining private data isolation through Supabase Row-Level Security (RLS). The system supports real-time updates, secure authentication, and a composable UI built with **React**, **Shadcn/ui**, and **Tailwind CSS v4.0**.
 
 ## Structure
 - [./src/](./src/): Frontend source code.

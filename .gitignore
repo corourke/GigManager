@@ -113,3 +113,6 @@ coverage/
 # Misc
 .cache/
 .certs/
+
+# Pre-migration database backups (store outside repo)
+backups/

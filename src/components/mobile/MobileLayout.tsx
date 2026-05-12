@@ -80,7 +80,7 @@ const MobileLayout: React.FC<MobileLayoutProps> = ({ children, currentRoute, onN
             </div>
             <div style={{ minWidth: 0 }}>
               <div style={{ fontSize: 15, fontWeight: 700, letterSpacing: '-0.025em', color: 'var(--foreground)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                {selectedOrganization?.name || 'GigManager'}
+                {selectedOrganization?.name || 'GigWrangler'}
               </div>
               {organizations && organizations.length > 1 && onSwitchOrganization && (
                 <button
