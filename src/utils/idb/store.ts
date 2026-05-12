@@ -8,7 +8,7 @@ export interface OutboxItem {
   attempts: number;
 }
 
-interface GigManagerDB extends DBSchema {
+interface GigWranglerDB extends DBSchema {
   gigs: {
     key: string;
     value: any;
@@ -28,11 +28,11 @@ interface GigManagerDB extends DBSchema {
 const DB_NAME = 'gig-manager-mobile';
 const DB_VERSION = 2;
 
-let dbPromise: Promise<IDBPDatabase<GigManagerDB>>;
+let dbPromise: Promise<IDBPDatabase<GigWranglerDB>>;
 
 export const getDB = () => {
   if (!dbPromise) {
-    dbPromise = openDB<GigManagerDB>(DB_NAME, DB_VERSION, {
+    dbPromise = openDB<GigWranglerDB>(DB_NAME, DB_VERSION, {
       upgrade(db, oldVersion, _newVersion, transaction) {
         if (oldVersion < 1) {
           const gigStore = db.createObjectStore('gigs', { keyPath: 'id' });

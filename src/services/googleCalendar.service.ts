@@ -311,7 +311,7 @@ export async function syncGigToCalendar(
 
     const eventData = {
       summary: gigData.title,
-      description: `${gigData.description || ''}\n\n[View in GigManager](${window.location.origin}/gigs/${gigId})`,
+      description: `${gigData.description || ''}\n\n[View in GigWrangler](${window.location.origin}/gigs/${gigId})`,
       start: startProp,
       end: endProp,
       location: gigData.location,

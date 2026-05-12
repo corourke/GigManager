@@ -17,8 +17,8 @@
         registerType: 'autoUpdate',
         includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'masked-icon.svg'],
         manifest: {
-          name: 'GigManager',
-          short_name: 'GigMgr',
+          name: 'GigWrangler',
+          short_name: 'GigWrnglr',
           description: 'Production and Event Management Platform',
           theme_color: '#000000',
           background_color: '#000000',
