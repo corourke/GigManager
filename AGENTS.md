@@ -30,7 +30,7 @@ Two separate Supabase projects are in use. Use `supabase link` to switch targets
 supabase login
 
 # --- Targeting dev ---
-supabase link --project-ref [DEV_REF]
+supabase link --project-ref qcrzwsazasaojqoqxwnr
 supabase db push
 
 # --- Targeting prod ---
