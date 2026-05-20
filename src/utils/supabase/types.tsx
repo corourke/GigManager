@@ -133,7 +133,7 @@ export interface DbGigFinancial {
   organization_id: string;
   date: string; // Date
   type: FinType;
-  category: FinCategory;
+  category?: FinCategory | null;
   reference_number?: string;
   counterparty_id?: string;
   external_entity_name?: string;

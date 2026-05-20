@@ -116,3 +116,4 @@ coverage/
 
 # Pre-migration database backups (store outside repo)
 backups/
+supabase/.temp/
