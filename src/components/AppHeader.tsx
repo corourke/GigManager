@@ -62,7 +62,7 @@ const AppHeader = React.memo(function AppHeader({
               <Building2 className="w-6 h-6 text-white" />
             </div>
             <div>
-              <h2 className="text-gray-900">{organization?.name || 'Gig Manager'}</h2>
+              <h2 className="text-gray-900">{organization?.name || 'GigWrangler'}</h2>
               {userRole && organization && (
                 <Badge className={`text-xs ${USER_ROLE_CONFIG[userRole].color}`} variant="outline">
                   {USER_ROLE_CONFIG[userRole].label}

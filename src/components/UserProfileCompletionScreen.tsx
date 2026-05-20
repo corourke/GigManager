@@ -188,7 +188,7 @@ export default function UserProfileCompletionScreen({
           <div className="inline-flex items-center justify-center w-16 h-16 bg-sky-500 rounded-2xl mb-4">
             <Building2 className="w-8 h-8 text-white" />
           </div>
-          <h1 className="text-sky-900 mb-2">Welcome to Gig Manager!</h1>
+          <h1 className="text-sky-900 mb-2">Welcome to GigWrangler!</h1>
           <p className="text-gray-600">Complete your profile to get started</p>
         </div>
 
