@@ -256,7 +256,6 @@ export async function createGig(gigData: any) {
           amount: parseFloat(amount),
           date: finDate,
           type: 'Payment Received',
-          category: 'Production',
           description: 'Payment from import'
         });
       } catch (finError) {
@@ -979,7 +978,7 @@ export async function createGigFinancial(finData: {
   amount: number;
   date: string;
   type: FinType;
-  category: FinCategory;
+  category?: FinCategory;
   reference_number?: string;
   counterparty_id?: string;
   external_entity_name?: string;
@@ -1010,7 +1009,6 @@ export async function createGigBid(bidData: any) {
     ...bidData,
     date: bidData.date_given,
     type: 'Bid Submitted',
-    category: 'Other'
   });
 }
 
@@ -1081,7 +1079,7 @@ export async function updateGigFinancials(gigId: string, organizationId: string,
   amount: number;
   date: string;
   type: FinType;
-  category: FinCategory;
+  category?: FinCategory;
   reference_number?: string;
   counterparty_id?: string;
   external_entity_name?: string;

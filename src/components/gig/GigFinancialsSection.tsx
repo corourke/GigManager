@@ -74,7 +74,7 @@ interface FinancialData {
   date: string;
   amount: string;
   type: FinType;
-  category: FinCategory;
+  category?: FinCategory | null;
   description: string;
   reference_number: string;
   counterparty_id: string;
@@ -92,7 +92,7 @@ interface FinancialModalData {
   date: string;
   amount: string;
   type: FinType;
-  category: FinCategory;
+  category?: FinCategory | null;
   description: string;
   reference_number: string;
   counterparty_id: string;
