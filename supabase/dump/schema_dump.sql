@@ -1271,7 +1271,7 @@ CREATE TABLE IF NOT EXISTS "public"."gig_financials" (
     "created_by" "uuid" NOT NULL,
     "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
     "type" "public"."fin_type" DEFAULT 'Bid Submitted'::"public"."fin_type" NOT NULL,
-    "category" "public"."fin_category" DEFAULT 'Other'::"public"."fin_category" NOT NULL,
+    "category" "public"."fin_category",
     "reference_number" "text",
     "counterparty_id" "uuid",
     "external_entity_name" "text",

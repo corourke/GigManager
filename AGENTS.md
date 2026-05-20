@@ -1,16 +1,16 @@
+# GigWrangler Information
+
 There are user instructions to all AI Agents that are of highest priority. 
 
-2. NEVER proceed from requirements to technical specification to planning to implementation without getting user approval first. ALWYAS propose a solution and get approval BEFORE proceeing with code changes.
-3. ALWAYS ask the user for clarification if intent is unclear, findings seem inconsistent, or requirements are ambiguous or incomplete. There may be trade-offs that need to be made due to business context.
-4. Before fixing bugs ALWAYS implement a failing test case first. This proves you understand the bug and ensures it doesn't return.
-5. IMPORTANT: Changes to schema.sql don't do anything! If we want to change the schema, we need to create migrations and apply them to the remote supabase database. After writing new migrations, Ask the user to apply them to the databse. Wait for confirmation that these steps have been performed. 
+1. NEVER proceed from requirements to technical specification to planning to implementation without getting user approval first. ALWYAS propose a solution and get approval BEFORE proceeing with code changes.
+2. ALWAYS ask the user for clarification if intent is unclear, findings seem inconsistent, or requirements are ambiguous or incomplete. There may be trade-offs that need to be made due to business context.
+3. Before fixing bugs ALWAYS implement a failing test case first. This proves you understand the bug and ensures it doesn't return.
+4. IMPORTANT: NEVER change a committed migration. Changes to schema.sql don't do anything! If we want to change the schema, we need to create migrations and apply them to the remote supabase database. After writing new migrations, Ask the user to apply them to the databse. Wait for confirmation that these steps have been performed. 
 6. STAY FOCUSED: If you discover potential performance issues or unrelated bugs during investigation, document them as "Future Considerations" rather than pursuing them immediately.
 7. After implementing changes, if there are manual deployment or verification steps, you MUST enumerate these steps to the user for implementation. 
 8. Keep project documents updated. Mark tasks done as they are completed. This includes both high-level plans (i.e. @plan.md) as well as detailed implementation plans (i.e. implementation-plan.md).
 9. If you are confused by something, ASK!
 
-
-# GigWrangler Information
 
 ## Supabase Environments
 
@@ -18,7 +18,7 @@ Two separate Supabase projects are in use. Use `supabase link` to switch targets
 
 | Environment | Project Ref | Used by |
 |---|---|---|
-| **Development** | `[DEV_REF]` | `npm run dev` via `.env.local` |
+| **Development** | `qcrzwsazasaojqoqxwnr` | `npm run dev` via `.env.local` |
 | **Production** | `hqnnhtxcxedisasvtbqv` | Cloudflare Pages via dashboard env vars |
 
 > **Note:** Replace `[DEV_REF]` with the actual dev project reference ID from its **Settings → General** page.
@@ -35,18 +35,21 @@ supabase db push
 
 # --- Targeting prod ---
 supabase link --project-ref hqnnhtxcxedisasvtbqv
+
+# List migrations
+supabase migration list
+
+# Pre-migration backup (run before any prod migration)
+supabase db dump -f ./backups/prod-schema-backup-$(date +%Y%m%d-%H%M%S).sql
+supabase db dump --data-only --schema public --schema auth --use-copy --linked -f ./backups/prod-data-backup-$(date +%Y%m%d-%H%M%S).sql
+
+# Push migrations 
 supabase db push
 
 # After linking, functions deploy and secrets set use the linked project automatically.
-# --project-ref is optional if already linked to the correct project.
 supabase functions deploy
 supabase secrets set GOOGLE_PLACES_API_KEY=your_key_here
 
-# Pre-migration backup (run before any prod migration)
-# Get the connection string from: Supabase dashboard → Project Settings → Database → URI
-supabase db dump \
-  --db-url "postgresql://postgres:[password]@db.hqnnhtxcxedisasvtbqv.supabase.co:5432/postgres" \
-  -f ./backups/prod-backup-$(date +%Y%m%d-%H%M%S).sql
 ```
 
 ### Deploy to Cloudflare Pages
@@ -54,6 +57,19 @@ supabase db dump \
 ```bash
 npm run build
 npx wrangler pages deploy build/ --project-name gigwrangler
+```
+
+### Build & Installation
+
+```bash
+# Install dependencies
+npm install
+
+# Start development server
+npm run dev
+
+# Build for production
+npm run build
 ```
 
 ---
@@ -101,18 +117,6 @@ npx wrangler pages deploy build/ --project-name gigwrangler
 - **@testing-library/react 14.1.2**: Simple and complete React testing utilities.
 - **jsdom 23.0.1**: Browser environment simulation for unit tests.
 - **@vitejs/plugin-react-swc**: Fast React plugin for Vite using SWC.
-
-## Build & Installation
-```bash
-# Install dependencies
-npm install
-
-# Start development server
-npm run dev
-
-# Build for production
-npm run build
-```
 
 ## Backend (Supabase)
 **Database**: PostgreSQL 17 (Managed via migrations)  
