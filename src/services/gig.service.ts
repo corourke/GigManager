@@ -907,32 +907,39 @@ export async function getGigProfitabilitySummary(gigId: string, organizationId: 
     if (staffError) throw staffError;
 
     // 3. Calculate metrics
-    let contractAmount = 0;
     let received = 0;
     let actualCosts = 0;
+    let contractSignedTotal = 0;
+    let bidAcceptedTotal = 0;
+    let informalTermsTotal = 0;
 
-    const revenueTypes = FIN_TYPE_GROUPS.revenue as readonly string[];
     const costTypes = FIN_TYPE_GROUPS.cost as readonly string[];
 
     (financials || []).forEach(f => {
       const amount = Number(f.amount) || 0;
-      // Revenue types (Total Contract value)
-      // Note: We use only 'Contract Signed' for the total contract value.
-      // 'Bid Accepted' is informative and does not increase revenue projection.
+
       if (f.type === 'Contract Signed') {
-        contractAmount += amount;
+        contractSignedTotal += amount;
+      } else if (f.type === 'Bid Accepted') {
+        bidAcceptedTotal += amount;
+      } else if (f.type === 'Informal Terms') {
+        informalTermsTotal += amount;
       }
-      
-      // Received revenue
+
       if (f.type === 'Deposit Received' || f.type === 'Payment Received') {
         received += amount;
       }
 
-      // Cost types
       if (costTypes.includes(f.type)) {
         actualCosts += amount;
       }
     });
+
+    const contractAmount = contractSignedTotal > 0
+      ? contractSignedTotal
+      : bidAcceptedTotal > 0
+        ? bidAcceptedTotal
+        : informalTermsTotal;
 
     let projectedStaffCosts = 0;
     (assignments || []).forEach(a => {

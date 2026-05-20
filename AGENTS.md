@@ -40,7 +40,7 @@ supabase link --project-ref hqnnhtxcxedisasvtbqv
 supabase migration list
 
 # Pre-migration backup (run before any prod migration)
-supabase db dump -f ./backups/prod-schema-backup-$(date +%Y%m%d-%H%M%S).sql
+supabase db dump --schema public,auth --linked -f ./backups/prod-schema-backup-$(date +%Y%m%d-%H%M%S).sql
 supabase db dump --data-only --schema public --schema auth --use-copy --linked -f ./backups/prod-data-backup-$(date +%Y%m%d-%H%M%S).sql
 
 # Push migrations 
@@ -154,3 +154,20 @@ npm run test:ui
 # Run tests with coverage
 npm run test:coverage
 ```
+
+### Restoring Data
+
+When you go to restore that data-only dump, the database will try to verify foreign keys for every row it inserts. Since the rows are inserted in a specific order, it will fail if it tries to insert an `Asset` before the `Purchase` it belongs to exists.
+
+To fix this during restoration, wrap your SQL import with a command to temporarily ignore constraints:
+
+```sql
+-- Disable all triggers (including foreign key checks)
+SET session_replication_role = 'replica';
+
+-- [INSERT YOUR DUMP DATA HERE]
+
+-- Re-enable everything
+SET session_replication_role = 'origin';
+```
+

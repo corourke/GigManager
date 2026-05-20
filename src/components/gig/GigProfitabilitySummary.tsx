@@ -74,7 +74,7 @@ const GigProfitabilitySummary: React.FC<GigProfitabilitySummaryProps> = ({ summa
       <Card className={cn("border-l-4 transition-all", contractCardColor)}>
         <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
           <CardTitle className="text-sm font-medium text-muted-foreground uppercase tracking-wider">
-            Contract
+            Revenue
           </CardTitle>
           <FileText className="h-4 w-4 text-muted-foreground" />
         </CardHeader>

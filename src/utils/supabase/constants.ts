@@ -70,6 +70,7 @@ export const ENTITY_TYPE = {
 export type EntityType = keyof typeof ENTITY_TYPE;
 
 export const FIN_TYPE_CONFIG = {
+  'Informal Terms': { label: 'Informal Terms' },
   'Bid Submitted': { label: 'Bid Submitted' },
   'Bid Accepted': { label: 'Bid Accepted' },
   'Bid Rejected': { label: 'Bid Rejected' },
@@ -99,7 +100,7 @@ export const FIN_TYPE_CONFIG = {
 export type FinType = keyof typeof FIN_TYPE_CONFIG;
 
 export const FIN_TYPE_GROUPS = {
-  revenue: ['Contract Signed', 'Bid Accepted', 'Deposit Received', 'Payment Received'],
+  revenue: ['Contract Signed', 'Bid Accepted', 'Informal Terms', 'Deposit Received', 'Payment Received'],
   cost: ['Expense Incurred', 'Payment Sent', 'Deposit Sent'],
   tracking: ['Invoice Issued', 'Invoice Settled'],
 } as const;

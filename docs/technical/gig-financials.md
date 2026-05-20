@@ -151,7 +151,7 @@ For rate-based assignments, completion requires entering `units_completed`. The 
 
 The `fin_type` enum has 24 values to support future multi-tenant workflows. For the single-org sound company, the UI groups types into practical categories via `FIN_TYPE_GROUPS`:
 
-**Revenue** (money coming in): `Contract Signed`, `Bid Accepted`, `Deposit Received`, `Payment Recieved`
+**Revenue** (money coming in): `Informal Terms`, `Contract Signed`, `Bid Accepted`, `Deposit Received`, `Payment Recieved`
 
 **Cost** (money going out): `Expense Incurred`, `Payment Sent`, `Deposit Sent`
 
@@ -168,8 +168,14 @@ Note: The `fin_type` enum has a permanent typo: `Payment Recieved` (not Received
 ## 4. Profitability Calculation
 
 ```
-CONTRACT AMOUNT  = SUM(gig_financials.amount) WHERE type IN (Contract Signed, Bid Accepted)
-RECEIVED         = SUM(gig_financials.amount) WHERE type IN (Deposit Received, Payment Recieved)
+CONTRACT AMOUNT  = SUM(amount) WHERE type = 'Contract Signed'      [if any Contract Signed records exist]
+                   ELSE SUM(amount) WHERE type = 'Bid Accepted'    [if any Bid Accepted records exist]
+                   ELSE SUM(amount) WHERE type = 'Informal Terms'
+
+                   Priority order prevents double-counting: Contract Signed > Bid Accepted > Informal Terms.
+                   Only one tier is used; lower-priority tiers are ignored when a higher one is present.
+
+RECEIVED         = SUM(gig_financials.amount) WHERE type IN (Deposit Received, Payment Received)
 OUTSTANDING REV  = CONTRACT AMOUNT - RECEIVED
 
 ACTUAL COSTS     = SUM(gig_financials.amount) WHERE type IN (Expense Incurred, Payment Sent, Deposit Sent)

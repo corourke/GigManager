@@ -885,6 +885,7 @@ export default function GigFinancialsSection({
                     {[
                       'Contract Signed',
                       'Bid Accepted',
+                      'Informal Terms',
                       'Deposit Received',
                       'Payment Received',
                       'Expense Incurred',
@@ -907,6 +908,7 @@ export default function GigFinancialsSection({
                           .filter(([type]) => ![
                             'Contract Signed',
                             'Bid Accepted',
+                            'Informal Terms',
                             'Deposit Received',
                             'Payment Received',
                             'Expense Incurred',
