@@ -161,55 +161,67 @@ The `fin_type` enum has 24 values to support future multi-tenant workflows. For 
 
 Each `gig_financials` record also has a `category` (`fin_category` enum): Labor, Equipment, Transportation, Venue, Production, Insurance, Rebillable, Other. The `type` describes *what happened*; the `category` describes *what it's for*.
 
-Note: The `fin_type` enum has a permanent typo: `Payment Recieved` (not Received). Use the misspelled version in code; the display label corrects it.
-
 ---
 
 ## 4. Profitability Calculation
 
+The system calculates a single set of numbers that reflects the best available picture at any point in the gig lifecycle — using formal contract records when present, and falling back to actual receipts when they're not. All three summary tiles (Revenue, Total Costs, Profit) update in real time as records are added.
+
+### Revenue
+
 ```
-CONTRACT AMOUNT  = SUM(amount) WHERE type = 'Contract Signed'      [if any Contract Signed records exist]
-                   ELSE SUM(amount) WHERE type = 'Bid Accepted'    [if any Bid Accepted records exist]
+FORMAL REVENUE   = SUM(amount) WHERE type = 'Contract Signed'      [if any exist]
+                   ELSE SUM(amount) WHERE type = 'Bid Accepted'    [if any exist]
                    ELSE SUM(amount) WHERE type = 'Informal Terms'
 
                    Priority order prevents double-counting: Contract Signed > Bid Accepted > Informal Terms.
-                   Only one tier is used; lower-priority tiers are ignored when a higher one is present.
+                   Only one tier contributes; lower tiers are ignored when a higher one is present.
 
-RECEIVED         = SUM(gig_financials.amount) WHERE type IN (Deposit Received, Payment Received)
-OUTSTANDING REV  = CONTRACT AMOUNT - RECEIVED
+RECEIVED         = SUM(amount) WHERE type IN (Deposit Received, Payment Received)
 
-ACTUAL COSTS     = SUM(gig_financials.amount) WHERE type IN (Expense Incurred, Payment Sent, Deposit Sent)
+REVENUE          = MAX(FORMAL REVENUE, RECEIVED)
+```
+
+`REVENUE` is the effective top line. If a formal contract record exists, that defines the expected revenue (even if not yet received). If there is no formal contract record, money actually received IS the revenue — a `Payment Received` record alone is sufficient to establish both revenue and a profit baseline.
+
+```
+OUTSTANDING REV  = MAX(0, REVENUE - RECEIVED)
+```
+
+### Costs
+
+```
+ACTUAL COSTS     = SUM(amount) WHERE type IN (Expense Incurred, Payment Sent, Deposit Sent)
+
 PROJECTED STAFF  = SUM(gig_staff_assignments.fee) WHERE completed_at IS NULL
                    AND status IN (Confirmed, Requested)
+                   [rate used as proxy for fee when fee is null]
+
 TOTAL COSTS      = ACTUAL COSTS + PROJECTED STAFF
-
-PROFIT           = CONTRACT AMOUNT - TOTAL COSTS
-MARGIN           = PROFIT / CONTRACT AMOUNT × 100
 ```
 
-All settled/actual financials come from one table. Projected staff costs are the only read-time calculation from another table, and those go away as assignments are completed into ledger entries.
+Projected staff costs disappear as assignments are completed: each completion creates a ledger entry (`Expense Incurred / Labor`) and removes the assignment from the projection.
+
+### Profit
+
+```
+PROFIT           = REVENUE - TOTAL COSTS
+MARGIN           = PROFIT / REVENUE × 100
+```
+
+### Lifecycle examples
+
+| Stage | Revenue tile | Costs tile | Profit tile |
+|-------|-------------|------------|-------------|
+| Contract signed, no costs yet | Formal contract amount | $0 | = contract amount |
+| Contract + some staff confirmed | Formal contract amount | Projected staff | Contract − staff projection |
+| Payment received, no contract | Received amount | Actual costs | Received − costs |
+| Fully settled | Contract amount (= received) | Actual costs only | Final margin |
+
+All settled/actual financials come from `gig_financials`. Projected staff costs are the only read-time calculation from a second table, and they disappear as assignments are completed into ledger entries.
 
 ---
 
-## 5. Schema Changes (from baseline)
-
-```sql
--- gig_financials: add two FK columns for source document linking
-ALTER TABLE gig_financials ADD COLUMN purchase_id UUID REFERENCES purchases(id) ON DELETE SET NULL;
-ALTER TABLE gig_financials ADD COLUMN staff_assignment_id UUID REFERENCES gig_staff_assignments(id) ON DELETE SET NULL;
-
--- gig_staff_assignments: add completion tracking + back-link
-ALTER TABLE gig_staff_assignments ADD COLUMN completed_at TIMESTAMPTZ;
-ALTER TABLE gig_staff_assignments ADD COLUMN units_completed NUMERIC(10,2);
-ALTER TABLE gig_staff_assignments ADD COLUMN gig_financial_id UUID REFERENCES gig_financials(id) ON DELETE SET NULL;
-
--- purchases: keep gig_id (no change needed — analogous to asset_id for tracking)
-```
-
-Since we're on test data, no migration needed — just reset the schema.
-
----
-
-## 6. Attachments
+## 5. Attachments
 
 `gig_financials` supports file attachments via the existing `entity_attachments` polymorphic attachment system. Receipts, invoices, and supporting documents can be attached directly to financial records, independent of any linked `purchases` record.

@@ -935,11 +935,13 @@ export async function getGigProfitabilitySummary(gigId: string, organizationId: 
       }
     });
 
-    const contractAmount = contractSignedTotal > 0
+    const formalContractAmount = contractSignedTotal > 0
       ? contractSignedTotal
       : bidAcceptedTotal > 0
         ? bidAcceptedTotal
         : informalTermsTotal;
+
+    const contractAmount = Math.max(formalContractAmount, received);
 
     let projectedStaffCosts = 0;
     (assignments || []).forEach(a => {

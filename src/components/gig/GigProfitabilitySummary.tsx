@@ -122,7 +122,7 @@ const GigProfitabilitySummary: React.FC<GigProfitabilitySummaryProps> = ({ summa
       <Card className={cn("border-l-4 transition-all", profitCardColor)}>
         <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
           <CardTitle className="text-sm font-medium text-muted-foreground uppercase tracking-wider">
-            {profit >= 0 ? 'Projected Profit' : 'Projected Loss'}
+            {profit >= 0 ? 'Profit' : 'Loss'}
           </CardTitle>
           {profit >= 0 ? (
             <TrendingUp className="h-4 w-4 text-green-600" />
