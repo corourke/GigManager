@@ -11,11 +11,10 @@ import {
   RefreshCw,
   Calendar,
   X,
-  Filter,
   Plus,
   Music,
 } from 'lucide-react';
-import { format, parseISO, subDays, addDays } from 'date-fns';
+import { format, parseISO } from 'date-fns';
 import { getGigsForOrganization, createGig, updateGig } from '../../services/gig.service';
 import { searchOrganizations } from '../../services/organization.service';
 import { useAuth } from '../../contexts/AuthContext';
@@ -24,19 +23,20 @@ import { cn } from '../ui/utils';
 import type { GigStatus } from '../../utils/supabase/types';
 import { getAllTimezones } from '../../utils/timezones';
 import { toast } from 'sonner';
+import {
+  GigDateFilterDropdown,
+  applyDateFilter,
+  type FutureDateKey,
+  type PastDateKey,
+  FUTURE_FILTER_LABEL,
+  PAST_FILTER_LABEL,
+} from '../gigs/GigDateFilterDropdown';
+import { GigStatusFilterDropdown } from '../gigs/GigStatusFilterDropdown';
 
 interface MobileGigListProps {
   onViewGig: (gigId: string) => void;
 }
 
-const STATUS_TABS: { key: 'all' | GigStatus; label: string }[] = [
-  { key: 'all', label: 'All' },
-  { key: 'Booked', label: 'Booked' },
-  { key: 'Proposed', label: 'Proposed' },
-  { key: 'DateHold', label: 'Hold' },
-  { key: 'Completed', label: 'Done' },
-  { key: 'Cancelled', label: 'Cancel' },
-];
 
 const GIG_STATUSES: { key: GigStatus; label: string }[] = [
   { key: 'DateHold', label: 'Date Hold' },
@@ -44,6 +44,7 @@ const GIG_STATUSES: { key: GigStatus; label: string }[] = [
   { key: 'Booked', label: 'Booked' },
   { key: 'Completed', label: 'Completed' },
   { key: 'Cancelled', label: 'Cancelled' },
+  { key: 'Settled', label: 'Settled' },
 ];
 
 export default function MobileGigList({ onViewGig }: MobileGigListProps) {
@@ -52,8 +53,9 @@ export default function MobileGigList({ onViewGig }: MobileGigListProps) {
   const [loading, setLoading] = useState(true);
   const [isOffline, setIsOffline] = useState(!navigator.onLine);
   const [searchQuery, setSearchQuery] = useState('');
-  const [activeStatus, setActiveStatus] = useState<'all' | GigStatus>('all');
-  const [dateFilter, setDateFilter] = useState<'upcoming' | 'all'>('upcoming');
+  const [activeStatuses, setActiveStatuses] = useState<GigStatus[]>([]);
+  const [futureDateFilter, setFutureDateFilter] = useState<FutureDateKey>('none');
+  const [pastDateFilter, setPastDateFilter] = useState<PastDateKey>('none');
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [statusMenuGigId, setStatusMenuGigId] = useState<string | null>(null);
   const [updatingStatus, setUpdatingStatus] = useState<string | null>(null);
@@ -109,17 +111,10 @@ export default function MobileGigList({ onViewGig }: MobileGigListProps) {
   const filteredGigs = useMemo(() => {
     let result = gigs;
 
-    if (dateFilter === 'upcoming') {
-      const yesterday = subDays(new Date(), 1);
-      const weekAhead = addDays(new Date(), 7);
-      result = result.filter((g) => {
-        const start = new Date(g.start);
-        return start >= yesterday && start <= weekAhead;
-      });
-    }
+    result = applyDateFilter(result, futureDateFilter, pastDateFilter);
 
-    if (activeStatus !== 'all') {
-      result = result.filter((g) => g.status === activeStatus);
+    if (activeStatuses.length > 0) {
+      result = result.filter((g) => activeStatuses.includes(g.status));
     }
 
     if (searchQuery.trim()) {
@@ -136,8 +131,8 @@ export default function MobileGigList({ onViewGig }: MobileGigListProps) {
       });
     }
 
-    return result.sort((a: any, b: any) => new Date(b.start).getTime() - new Date(a.start).getTime());
-  }, [gigs, activeStatus, searchQuery, dateFilter]);
+    return [...result].sort((a: any, b: any) => new Date(b.start).getTime() - new Date(a.start).getTime());
+  }, [gigs, activeStatuses, searchQuery, futureDateFilter, pastDateFilter]);
 
   const upcomingGigs = useMemo(() => {
     const now = new Date();
@@ -156,7 +151,10 @@ export default function MobileGigList({ onViewGig }: MobileGigListProps) {
           <div>
             <h1 className="text-xl font-bold">Gigs</h1>
             <p className="text-xs text-muted-foreground">
-              {dateFilter === 'upcoming' ? 'Next 7 days' : 'All dates'} · {filteredGigs.length} gigs
+              {futureDateFilter === 'none' && pastDateFilter === 'none'
+                ? 'All Dates'
+                : [FUTURE_FILTER_LABEL[futureDateFilter], PAST_FILTER_LABEL[pastDateFilter]]
+                    .filter(Boolean).join(' / ')} · {filteredGigs.length} gigs
             </p>
           </div>
           <div className="flex items-center gap-1">
@@ -194,35 +192,21 @@ export default function MobileGigList({ onViewGig }: MobileGigListProps) {
               </button>
             )}
           </div>
-          <button
-            onClick={() => setDateFilter(dateFilter === 'upcoming' ? 'all' : 'upcoming')}
-            className={cn(
-              'flex items-center gap-1 px-4 h-9 rounded-md text-[10px] font-medium border shrink-0 transition-colors',
-              dateFilter === 'all'
-                ? 'bg-sky-500 text-white border-sky-500'
-                : 'bg-muted/50 text-muted-foreground border-transparent hover:bg-muted'
-            )}
-          >
-            <Filter className="w-3 h-3" />
-            {dateFilter === 'upcoming' ? '7d' : 'All'}
-          </button>
         </div>
 
-        <div className="px-4 pt-1 pb-3 flex gap-1.5 overflow-x-auto no-scrollbar">
-          {STATUS_TABS.map((tab) => (
-            <button
-              key={tab.key}
-              onClick={() => setActiveStatus(tab.key)}
-              className={cn(
-                'px-3 py-0.5 rounded-md text-[10px] font-medium whitespace-nowrap transition-colors border',
-                activeStatus === tab.key
-                  ? 'bg-sky-500 text-white border-sky-500'
-                  : 'bg-muted/50 text-muted-foreground border-transparent hover:bg-muted'
-              )}
-            >
-              {tab.label}
-            </button>
-          ))}
+        <div className="px-4 pt-0 pb-3 flex gap-2">
+          <GigDateFilterDropdown
+            futureDateFilter={futureDateFilter}
+            pastDateFilter={pastDateFilter}
+            onFutureChange={setFutureDateFilter}
+            onPastChange={setPastDateFilter}
+            compact
+          />
+          <GigStatusFilterDropdown
+            activeStatuses={activeStatuses}
+            onChange={setActiveStatuses}
+            compact
+          />
         </div>
       </div>
 

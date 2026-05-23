@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect, useCallback } from 'react';
 import { Calendar as BigCalendar, dateFnsLocalizer } from 'react-big-calendar';
-import { format, parse, startOfWeek, getDay, startOfDay, addDays } from 'date-fns';
+import { format, parse, startOfWeek, getDay, addDays } from 'date-fns';
 import { enUS } from 'date-fns/locale';
 import 'react-big-calendar/lib/css/react-big-calendar.css';
 import { Button } from './ui/button';
@@ -20,15 +20,19 @@ import { SmartDataTable, ColumnDef, RowAction } from './tables/SmartDataTable';
 import { GigListEmptyState } from './gigs/GigListEmptyState';
 import { ConflictWarning } from './ConflictWarning';
 import {
+  GigDateFilterDropdown,
+  applyDateFilter,
+  type FutureDateKey,
+  type PastDateKey,
+} from './gigs/GigDateFilterDropdown';
+import { GigStatusFilterDropdown } from './gigs/GigStatusFilterDropdown';
+import {
   Plus,
   Upload,
-  Calendar,
+  Calendar as CalendarIcon,
   List,
   ChevronLeft,
   ChevronRight,
-  Calendar as CalendarIcon,
-  ToggleLeft,
-  ToggleRight,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Organization, User, UserRole, GigStatus, Gig } from '../utils/supabase/types';
@@ -99,7 +103,9 @@ export default function GigListScreen({
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>(initialViewMode);
-  const [futureOnly, setFutureOnly] = useState(false);
+  const [futureDateFilter, setFutureDateFilter] = useState<FutureDateKey>('none');
+  const [pastDateFilter, setPastDateFilter] = useState<PastDateKey>('none');
+  const [activeStatuses, setActiveStatuses] = useState<GigStatus[]>([]);
 
   const [calendarDate, setCalendarDate] = useState(new Date());
   const [calendarView, setCalendarView] = useState<CalendarViewType>('month');
@@ -132,10 +138,12 @@ export default function GigListScreen({
   };
 
   const filteredGigs = useMemo(() => {
-    if (!futureOnly) return gigs;
-    const today = startOfDay(new Date());
-    return gigs.filter(gig => new Date(gig.end || gig.start) >= today);
-  }, [gigs, futureOnly]);
+    let result = applyDateFilter(gigs, futureDateFilter, pastDateFilter);
+    if (activeStatuses.length > 0) {
+      result = result.filter((g) => activeStatuses.includes(g.status as GigStatus));
+    }
+    return result;
+  }, [gigs, futureDateFilter, pastDateFilter, activeStatuses]);
 
   const handleGigDuplicate = useCallback(async (gigId: string) => {
     try {
@@ -177,10 +185,13 @@ export default function GigListScreen({
     const gig = gigs.find(g => g.id === id);
     if (!gig) return;
 
-    setGigs(prev => prev.map(g => (g.id === id ? { ...g, ...updates } : g)));
+    const updatedGigs = gigs.map(g => (g.id === id ? { ...g, ...updates } : g));
+    setGigs(updatedGigs);
 
     try {
       await updateGig(id, updates);
+      const detected = await checkAllConflictsForGigs(updatedGigs);
+      setConflicts(detected);
     } catch (err: any) {
       setGigs(prev => prev.map(g => (g.id === id ? gig : g)));
       console.error('Error updating gig:', err);
@@ -436,22 +447,25 @@ export default function GigListScreen({
             : 'bg-white text-gray-600 hover:bg-gray-50'
         }`}
       >
-        <Calendar className="w-4 h-4" />
+        <CalendarIcon className="w-4 h-4" />
         Calendar
       </button>
     </div>
   );
 
-  const futureGigsToggle = (
-    <Button
-      variant={futureOnly ? 'default' : 'outline'}
-      size="sm"
-      onClick={() => setFutureOnly(!futureOnly)}
-      className={futureOnly ? 'bg-sky-500 hover:bg-sky-600 text-white' : ''}
-    >
-      {futureOnly ? <ToggleRight className="w-4 h-4 mr-1.5" /> : <ToggleLeft className="w-4 h-4 mr-1.5" />}
-      Future Gigs
-    </Button>
+  const dateFilterControl = (
+    <div className="flex items-center gap-2">
+      <GigDateFilterDropdown
+        futureDateFilter={futureDateFilter}
+        pastDateFilter={pastDateFilter}
+        onFutureChange={setFutureDateFilter}
+        onPastChange={setPastDateFilter}
+      />
+      <GigStatusFilterDropdown
+        activeStatuses={activeStatuses}
+        onChange={setActiveStatuses}
+      />
+    </div>
   );
 
   const calendarToolbar = (
@@ -510,7 +524,7 @@ export default function GigListScreen({
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <PageHeader
-          icon={Calendar}
+          icon={CalendarIcon}
           title="Gigs"
           description={`Manage gigs for ${organization.name}`}
           actions={
@@ -574,7 +588,7 @@ export default function GigListScreen({
                   onAddRowClick={canEdit ? onCreateGig : undefined}
                   isLoading={isLoading}
                   emptyMessage="No gigs found"
-                  toolbarLeft={futureGigsToggle}
+                  toolbarLeft={dateFilterControl}
                 />
               </>
             )
