@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect, useCallback } from 'react';
+import { useGigListFilters } from '../hooks/useGigListFilters';
 import { Calendar as BigCalendar, dateFnsLocalizer } from 'react-big-calendar';
 import { format, parse, startOfWeek, getDay, addDays } from 'date-fns';
 import { enUS } from 'date-fns/locale';
@@ -19,12 +20,7 @@ import AppHeader from './AppHeader';
 import { SmartDataTable, ColumnDef, RowAction } from './tables/SmartDataTable';
 import { GigListEmptyState } from './gigs/GigListEmptyState';
 import { ConflictWarning } from './ConflictWarning';
-import {
-  GigDateFilterDropdown,
-  applyDateFilter,
-  type FutureDateKey,
-  type PastDateKey,
-} from './gigs/GigDateFilterDropdown';
+import { GigDateFilterDropdown, applyDateFilter } from './gigs/GigDateFilterDropdown';
 import { GigStatusFilterDropdown } from './gigs/GigStatusFilterDropdown';
 import {
   Plus,
@@ -103,9 +99,7 @@ export default function GigListScreen({
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>(initialViewMode);
-  const [futureDateFilter, setFutureDateFilter] = useState<FutureDateKey>('none');
-  const [pastDateFilter, setPastDateFilter] = useState<PastDateKey>('none');
-  const [activeStatuses, setActiveStatuses] = useState<GigStatus[]>([]);
+  const { futureDateFilter, setFutureDateFilter, pastDateFilter, setPastDateFilter, activeStatuses, setActiveStatuses } = useGigListFilters();
 
   const [calendarDate, setCalendarDate] = useState(new Date());
   const [calendarView, setCalendarView] = useState<CalendarViewType>('month');

@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
+import { useGigListFilters } from '../../hooks/useGigListFilters';
 import { Card, CardContent } from '../ui/card';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
@@ -26,8 +27,6 @@ import { toast } from 'sonner';
 import {
   GigDateFilterDropdown,
   applyDateFilter,
-  type FutureDateKey,
-  type PastDateKey,
   FUTURE_FILTER_LABEL,
   PAST_FILTER_LABEL,
 } from '../gigs/GigDateFilterDropdown';
@@ -53,9 +52,7 @@ export default function MobileGigList({ onViewGig }: MobileGigListProps) {
   const [loading, setLoading] = useState(true);
   const [isOffline, setIsOffline] = useState(!navigator.onLine);
   const [searchQuery, setSearchQuery] = useState('');
-  const [activeStatuses, setActiveStatuses] = useState<GigStatus[]>([]);
-  const [futureDateFilter, setFutureDateFilter] = useState<FutureDateKey>('none');
-  const [pastDateFilter, setPastDateFilter] = useState<PastDateKey>('none');
+  const { futureDateFilter, setFutureDateFilter, pastDateFilter, setPastDateFilter, activeStatuses, setActiveStatuses } = useGigListFilters();
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [statusMenuGigId, setStatusMenuGigId] = useState<string | null>(null);
   const [updatingStatus, setUpdatingStatus] = useState<string | null>(null);
