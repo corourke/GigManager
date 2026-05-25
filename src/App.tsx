@@ -737,6 +737,7 @@ function App() {
                 onSwitchOrganization={handleBackToSelection}
                 onEditProfile={handleEditProfile}
                 onLogout={handleLogout}
+                onEditOrganization={handleAdminEditOrganization}
               />
             )}
 
@@ -751,6 +752,7 @@ function App() {
                 onEdit={handleEditGig}
                 onSwitchOrganization={handleBackToSelection}
                 onLogout={handleLogout}
+                onEditOrganization={handleAdminEditOrganization}
               />
             )}
             

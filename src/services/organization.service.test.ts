@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { inviteUserToOrganization, createOrganization } from './organization.service';
 import { createClient } from '../utils/supabase/client';
+import { OrganizationRole } from '../utils/supabase/types';
 
 // Mock Supabase client
 vi.mock('../utils/supabase/client', () => ({
@@ -90,7 +91,7 @@ describe('organization.service', () => {
   describe('createOrganization', () => {
     const orgData = {
       name: 'Test Org',
-      type: 'Act' as const,
+      roles: ['Act'] as OrganizationRole[],
     };
 
     it('should call the edge function with default auto_join: true', async () => {
@@ -103,7 +104,7 @@ describe('organization.service', () => {
         method: 'POST',
         body: {
           name: 'Test Org',
-          type: 'Act',
+          roles: ['Act'],
           auto_join: true,
         }
       });
@@ -120,7 +121,7 @@ describe('organization.service', () => {
         method: 'POST',
         body: {
           name: 'Test Org',
-          type: 'Act',
+          roles: ['Act'],
           auto_join: false,
         }
       });

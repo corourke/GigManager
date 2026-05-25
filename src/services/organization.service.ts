@@ -1,7 +1,7 @@
 import { createClient } from '../utils/supabase/client';
 import { 
   Organization, 
-  OrganizationType, 
+  OrganizationRole, 
   UserRole,
   OrganizationMembershipWithOrg,
   User
@@ -14,7 +14,7 @@ const getSupabase = () => createClient();
 /**
  * Search for organizations
  */
-export async function searchOrganizations(filters?: { type?: OrganizationType; search?: string }): Promise<Organization[]> {
+export async function searchOrganizations(filters?: { type?: OrganizationRole; search?: string }): Promise<Organization[]> {
   const supabase = getSupabase();
   try {
     let query = supabase
@@ -23,7 +23,7 @@ export async function searchOrganizations(filters?: { type?: OrganizationType; s
       .order('name');
 
     if (filters?.type) {
-      query = query.eq('type', filters.type);
+      query = query.contains('roles', [filters.type]);
     }
 
     if (filters?.search) {
@@ -42,7 +42,7 @@ export async function searchOrganizations(filters?: { type?: OrganizationType; s
  * Fetch all organizations, optionally filtered by type
  */
 export async function getOrganizations(type?: string): Promise<Organization[]> {
-  return searchOrganizations(type ? { type: type as OrganizationType } : undefined);
+  return searchOrganizations(type ? { type: type as OrganizationRole } : undefined);
 }
 
 /**
@@ -50,7 +50,7 @@ export async function getOrganizations(type?: string): Promise<Organization[]> {
  */
 export async function createOrganization(orgData: {
   name: string;
-  type: OrganizationType;
+  roles: OrganizationRole[];
   description?: string;
   phone?: string;
   email?: string;
@@ -87,7 +87,7 @@ export async function createOrganization(orgData: {
  */
 export async function updateOrganization(organizationId: string, orgData: {
   name?: string;
-  type?: OrganizationType;
+  roles?: OrganizationRole[];
   url?: string;
   phone_number?: string;
   description?: string;

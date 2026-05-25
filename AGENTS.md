@@ -21,7 +21,20 @@ Two separate Supabase projects are in use. Use `supabase link` to switch targets
 | **Development** | `qcrzwsazasaojqoqxwnr` | `npm run dev` via `.env.local` |
 | **Production** | `hqnnhtxcxedisasvtbqv` | Cloudflare Pages via dashboard env vars |
 
-> **Note:** Replace `[DEV_REF]` with the actual dev project reference ID from its **Settings → General** page.
+### ⚠️ MANDATORY: Verify linked project before ANY remote Supabase command
+
+**NEVER run `supabase functions deploy`, `supabase db push`, `supabase secrets set`, or any other CLI command that affects a remote Supabase project without first verifying which project is linked.**
+
+```bash
+# Always run this check FIRST — confirm the output matches your intended target
+cat supabase/.temp/project-ref
+# Expected for dev:  qcrzwsazasaojqoqxwnr
+# Expected for prod: hqnnhtxcxedisasvtbqv
+```
+
+If the output does not match the intended environment, run `supabase link --project-ref <ref>` before proceeding.
+
+All Supabase CLI work (edge function deploys, migrations, secrets) should target **development** unless the user explicitly instructs otherwise. Deploying to production without an explicit instruction is **not allowed**.
 
 ### Common CLI commands
 
@@ -29,12 +42,15 @@ Two separate Supabase projects are in use. Use `supabase link` to switch targets
 # One-time login (per machine)
 supabase login
 
-# --- Targeting dev ---
+# --- Targeting dev (default for all agent work) ---
 supabase link --project-ref qcrzwsazasaojqoqxwnr
+cat supabase/.temp/project-ref   # verify before proceeding
 supabase db push
+supabase functions deploy
 
-# --- Targeting prod ---
+# --- Targeting prod (only when explicitly instructed) ---
 supabase link --project-ref hqnnhtxcxedisasvtbqv
+cat supabase/.temp/project-ref   # verify before proceeding
 
 # List migrations
 supabase migration list
@@ -43,7 +59,7 @@ supabase migration list
 supabase db dump --schema public,auth --linked -f ./backups/prod-schema-backup-$(date +%Y%m%d-%H%M%S).sql
 supabase db dump --data-only --schema public --schema auth --use-copy --linked -f ./backups/prod-data-backup-$(date +%Y%m%d-%H%M%S).sql
 
-# Push migrations 
+# Push migrations
 supabase db push
 
 # After linking, functions deploy and secrets set use the linked project automatically.

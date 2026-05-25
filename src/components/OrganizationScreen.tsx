@@ -12,9 +12,9 @@ import { Building2, Search, Loader2, MapPin, Phone, Globe, Check, AlertCircle, X
 import { toast } from 'sonner';
 import { 
   Organization, 
-  OrganizationType 
+  OrganizationRole 
 } from '../utils/supabase/types';
-import { ORG_TYPE_CONFIG } from '../utils/supabase/constants';
+import { ORG_ROLE_CONFIG } from '../utils/supabase/constants';
 import { useSimpleFormChanges } from '../utils/hooks/useSimpleFormChanges';
 import { createSubmissionPayload, normalizeFormData } from '../utils/form-utils';
 import { createClient } from '../utils/supabase/client';
@@ -45,7 +45,7 @@ interface OrganizationScreenProps {
 
 interface FormData {
   name: string;
-  type: OrganizationType | '';
+  roles: OrganizationRole[];
   url: string;
   phone_number: string;
   description: string;
@@ -60,7 +60,7 @@ interface FormData {
 
 interface FormErrors {
   name?: string;
-  type?: string;
+  roles?: string;
   url?: string;
   phone?: string;
   general?: string;
@@ -80,8 +80,8 @@ interface GooglePlace {
   }>;
 }
 
-const ORG_TYPES = Object.entries(ORG_TYPE_CONFIG).map(([value, config]) => ({
-  value: value as OrganizationType,
+const ORG_ROLES = Object.entries(ORG_ROLE_CONFIG).map(([value, config]) => ({
+  value: value as OrganizationRole,
   label: config.label,
 }));
 
@@ -101,9 +101,13 @@ export default function OrganizationScreen({
   const [selectedPlace, setSelectedPlace] = useState<GooglePlace | null>(null);
   const [showManualEntry, setShowManualEntry] = useState(isEditMode); // Show form directly in edit mode
 
+  const [isGlobalAdmin, setIsGlobalAdmin] = useState(false);
+  const [isOrgAdmin, setIsOrgAdmin] = useState(false);
+  const [hasMembers, setHasMembers] = useState(false);
+
   const [formData, setFormData] = useState<FormData>({
     name: organization?.name || '',
-    type: organization?.type || '',
+    roles: organization?.roles || [],
     url: organization?.url || '',
     phone_number: organization?.phone_number || '',
     description: organization?.description || '',
@@ -120,7 +124,7 @@ export default function OrganizationScreen({
   const changeDetection = useSimpleFormChanges({
     initialData: {
       name: organization?.name || '',
-      type: organization?.type || '',
+      roles: organization?.roles || [],
       url: organization?.url || '',
       phone_number: organization?.phone_number || '',
       description: organization?.description || '',
@@ -138,6 +142,38 @@ export default function OrganizationScreen({
   const [errors, setErrors] = useState<FormErrors>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [autoJoin, setAutoJoin] = useState(true);
+
+  useEffect(() => {
+    async function checkPermissions() {
+      if (!isEditMode || !organization || !userId) return;
+
+      const supabase = createClient();
+      
+      // Check if global admin
+      const { data: isAdmin } = await supabase.rpc('user_is_admin', { user_uuid: userId });
+      setIsGlobalAdmin(!!isAdmin);
+
+      // Check if org admin
+      const { data: memberships } = await supabase
+        .from('organization_members')
+        .select('role')
+        .eq('organization_id', organization.id)
+        .eq('user_id', userId);
+      
+      const isOwnerOrAdmin = memberships?.some(m => m.role === 'Admin');
+      setIsOrgAdmin(!!isOwnerOrAdmin);
+
+      // Check if has members
+      const { count } = await supabase
+        .from('organization_members')
+        .select('*', { count: 'exact', head: true })
+        .eq('organization_id', organization.id);
+      
+      setHasMembers((count || 0) > 0);
+    }
+
+    checkPermissions();
+  }, [isEditMode, organization, userId]);
 
   const searchInputRef = useRef<HTMLInputElement>(null);
 
@@ -297,7 +333,7 @@ export default function OrganizationScreen({
     setSelectedPlace(null);
     setFormData({
       name: '',
-      type: '',
+      roles: [],
       url: '',
       phone_number: '',
       description: '',
@@ -316,6 +352,21 @@ export default function OrganizationScreen({
     setShowResults(false);
     setSearchQuery('');
     toast.info('Fill in the form manually');
+  };
+
+  const handleToggleRole = (role: OrganizationRole) => {
+    setFormData(prev => {
+      const roles = prev.roles.includes(role)
+        ? prev.roles.filter(r => r !== role)
+        : [...prev.roles, role];
+      
+      // Clear error if at least one role is selected
+      if (roles.length > 0 && errors.roles) {
+        setErrors(prevErrors => ({ ...prevErrors, roles: undefined }));
+      }
+      
+      return { ...prev, roles };
+    });
   };
 
   const handleInputChange = (field: keyof FormData, value: string | string[]) => {
@@ -338,9 +389,9 @@ export default function OrganizationScreen({
       newErrors.name = 'Organization name must be less than 100 characters';
     }
 
-    // Required: Organization type
-    if (!formData.type) {
-      newErrors.type = 'Organization type is required';
+    // Required: At least one organization role
+    if (formData.roles.length === 0) {
+      newErrors.roles = 'At least one organization role is required';
     }
 
     // Optional: URL validation
@@ -388,7 +439,7 @@ export default function OrganizationScreen({
       // Normalize form data
       const normalizedData = normalizeFormData({
         name: formData.name,
-        type: formData.type,
+        roles: formData.roles,
         url: formData.url,
         phone_number: formData.phone_number,
         description: formData.description,
@@ -432,7 +483,7 @@ export default function OrganizationScreen({
         // Mark as saved for change detection
         changeDetection.markAsSaved({
           name: resultOrganization.name || '',
-          type: resultOrganization.type || '',
+          roles: resultOrganization.roles || [],
           url: resultOrganization.url || '',
           phone_number: resultOrganization.phone_number || '',
           description: resultOrganization.description || '',
@@ -634,6 +685,14 @@ export default function OrganizationScreen({
         {/* Form - Show only when place is selected or manual entry is chosen */}
         {(selectedPlace || showManualEntry) && (
           <Card className="p-6 sm:p-8">
+            {isEditMode && hasMembers && !isOrgAdmin && isGlobalAdmin && (
+              <Alert className="mb-6 bg-amber-50 border-amber-200 text-amber-900 shadow-sm">
+                <AlertCircle className="h-4 w-4 text-amber-600" />
+                <AlertDescription className="font-semibold text-amber-900">
+                  You are making changes to another organization's information, you may wish to contact the admin of this organization instead.
+                </AlertDescription>
+              </Alert>
+            )}
             <form onSubmit={handleSubmit}>
               {/* General Error */}
               {errors.general && (
@@ -669,31 +728,33 @@ export default function OrganizationScreen({
                   )}
                 </div>
 
-                {/* Organization Type */}
-                <div className="space-y-2">
-                  <Label htmlFor="type">
-                    Organization Type <span className="text-red-500">*</span>
+                {/* Organization Roles */}
+                <div className="space-y-3">
+                  <Label>
+                    Organization Roles <span className="text-red-500">*</span>
                   </Label>
-                  <Select
-                    value={formData.type}
-                    onValueChange={(value) => handleInputChange('type', value)}
-                    disabled={isSubmitting}
-                  >
-                    <SelectTrigger className={errors.type ? 'border-red-500' : ''}>
-                      <SelectValue placeholder="Select organization type" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {ORG_TYPES.map((type) => (
-                        <SelectItem key={type.value} value={type.value}>
-                          {type.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  {errors.type && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 border border-gray-100 rounded-lg p-4 bg-gray-50/50">
+                    {ORG_ROLES.map((role) => (
+                      <div key={role.value} className="flex items-center space-x-2">
+                        <Checkbox
+                          id={`role-${role.value}`}
+                          checked={formData.roles.includes(role.value)}
+                          onCheckedChange={() => handleToggleRole(role.value)}
+                          disabled={isSubmitting}
+                        />
+                        <label
+                          htmlFor={`role-${role.value}`}
+                          className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+                        >
+                          {role.label}
+                        </label>
+                      </div>
+                    ))}
+                  </div>
+                  {errors.roles && (
                     <p className="text-sm text-red-600 flex items-center gap-1">
                       <AlertCircle className="w-4 h-4" />
-                      {errors.type}
+                      {errors.roles}
                     </p>
                   )}
                 </div>

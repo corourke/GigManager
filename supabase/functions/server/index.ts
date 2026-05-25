@@ -476,6 +476,21 @@ Deno.serve(async (req) => {
       const body = await req.json();
       const { auto_join = true, ...orgData } = body;
 
+      // Validate required fields
+      if (!orgData.name) {
+        return new Response(JSON.stringify({ error: 'Name is required' }), {
+          status: 400,
+          headers: { ...responseHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      if (!orgData.roles || !Array.isArray(orgData.roles) || orgData.roles.length === 0) {
+        return new Response(JSON.stringify({ error: 'At least one role is required' }), {
+          status: 400,
+          headers: { ...responseHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
       // Create organization
       const { data: org, error: orgError } = await supabaseAdmin
         .from('organizations')
@@ -545,13 +560,17 @@ Deno.serve(async (req) => {
         });
       }
 
-      // Verify user is an Admin of the organization
-      const { error: memberError } = await verifyOrgMembership(user.id, orgId, ['Admin']);
-      if (memberError) {
-        return new Response(JSON.stringify({ error: memberError }), {
-          status: 403,
-          headers: { ...responseHeaders, 'Content-Type': 'application/json' },
-        });
+      // Verify user is an Admin of ANY organization (relaxed permissions)
+      const { data: isAdmin, error: rpcError } = await supabaseAdmin.rpc('user_is_admin', { user_uuid: user.id });
+      if (rpcError || !isAdmin) {
+        // Fallback: check if they are an Admin of THIS specific organization
+        const { error: memberError } = await verifyOrgMembership(user.id, orgId, ['Admin']);
+        if (memberError) {
+          return new Response(JSON.stringify({ error: 'Only administrators can update organizations' }), {
+            status: 403,
+            headers: { ...responseHeaders, 'Content-Type': 'application/json' },
+          });
+        }
       }
 
       // Parse request body
@@ -560,7 +579,7 @@ Deno.serve(async (req) => {
       // Only include fields that are present in the request body (partial updates)
       const updateData: Record<string, any> = {};
       const allowedFields = [
-        'name', 'type', 'url', 'phone_number', 'description',
+        'name', 'roles', 'url', 'phone_number', 'description',
         'address_line1', 'address_line2', 'city', 'state',
         'postal_code', 'country', 'allowed_domains'
       ];
@@ -579,8 +598,8 @@ Deno.serve(async (req) => {
         });
       }
       
-      if (updateData.type !== undefined && !updateData.type) {
-        return new Response(JSON.stringify({ error: 'Type is required' }), {
+      if (updateData.roles !== undefined && (!Array.isArray(updateData.roles) || updateData.roles.length === 0)) {
+        return new Response(JSON.stringify({ error: 'At least one role is required' }), {
           status: 400,
           headers: { ...responseHeaders, 'Content-Type': 'application/json' },
         });
@@ -645,16 +664,60 @@ Deno.serve(async (req) => {
         });
       }
 
-      // Verify user is an Admin of the organization
-      const { error: memberError } = await verifyOrgMembership(user.id, orgId, ['Admin']);
-      if (memberError) {
-        return new Response(JSON.stringify({ error: memberError }), {
-          status: 403,
+      // Verify user is an Admin of ANY organization (relaxed permissions)
+      const { data: isAdmin, error: rpcError } = await supabaseAdmin.rpc('user_is_admin', { user_uuid: user.id });
+      if (rpcError || !isAdmin) {
+        // Fallback: check if they are an Admin of THIS specific organization
+        const { error: memberError } = await verifyOrgMembership(user.id, orgId, ['Admin']);
+        if (memberError) {
+          return new Response(JSON.stringify({ error: 'Only administrators can delete organizations' }), {
+            status: 403,
+            headers: { ...responseHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+      }
+
+      // Block deletion if the organization has members
+      const { count: memberCount, error: memberCountError } = await supabaseAdmin
+        .from('organization_members')
+        .select('*', { count: 'exact', head: true })
+        .eq('organization_id', orgId);
+
+      if (memberCountError) {
+        return new Response(JSON.stringify({ error: 'Failed to check organization members' }), {
+          status: 500,
           headers: { ...responseHeaders, 'Content-Type': 'application/json' },
         });
       }
 
-      // Delete the organization (cascade will handle members, gigs, etc.)
+      if ((memberCount ?? 0) > 0) {
+        return new Response(JSON.stringify({ error: 'Cannot delete an organization that has members. Remove all members first.' }), {
+          status: 409,
+          headers: { ...responseHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      // Block deletion if the organization is a participant in any gigs
+      const { count: participantCount, error: participantCountError } = await supabaseAdmin
+        .from('gig_participants')
+        .select('*', { count: 'exact', head: true })
+        .eq('organization_id', orgId);
+
+      if (participantCountError) {
+        return new Response(JSON.stringify({ error: 'Failed to check gig participants' }), {
+          status: 500,
+          headers: { ...responseHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      if ((participantCount ?? 0) > 0) {
+        return new Response(JSON.stringify({ error: 'Cannot delete an organization that is a participant in gigs. Remove it from all gigs first.' }), {
+          status: 409,
+          headers: { ...responseHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      // Delete the organization (cascade will handle assets, kits, etc.)
       const { error: deleteError } = await supabaseAdmin
         .from('organizations')
         .delete()
@@ -810,13 +873,16 @@ Deno.serve(async (req) => {
         });
       }
 
-      // Verify user is a member of the organization
-      const { error: memberError } = await verifyOrgMembership(user.id, orgId);
-      if (memberError) {
-        return new Response(JSON.stringify({ error: memberError }), {
-          status: 403,
-          headers: { ...responseHeaders, 'Content-Type': 'application/json' },
-        });
+      // Verify user is a global admin OR a member of the organization
+      const { data: isAdmin } = await supabaseAdmin.rpc('user_is_admin', { user_uuid: user.id });
+      if (!isAdmin) {
+        const { error: memberError } = await verifyOrgMembership(user.id, orgId);
+        if (memberError) {
+          return new Response(JSON.stringify({ error: memberError }), {
+            status: 403,
+            headers: { ...responseHeaders, 'Content-Type': 'application/json' },
+          });
+        }
       }
 
       // Get organization members with public user data

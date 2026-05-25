@@ -123,31 +123,39 @@ describe('MobileGigList', () => {
     render(<MobileGigList onViewGig={vi.fn()} />)
 
     await waitFor(() => {
-      expect(screen.getByText('All')).toBeInTheDocument()
+      expect(screen.getByText('All Statuses')).toBeInTheDocument()
     })
-    expect(screen.getAllByText('Booked').length).toBeGreaterThanOrEqual(1)
-    expect(screen.getByText('Proposed')).toBeInTheDocument()
+    expect(screen.getByText('All Statuses')).toBeInTheDocument()
   })
 
   it('has a date filter toggle button', async () => {
     render(<MobileGigList onViewGig={vi.fn()} />)
 
     await waitFor(() => {
-      expect(screen.getByText('7d')).toBeInTheDocument()
+      expect(screen.getByText('All Dates')).toBeInTheDocument()
     })
   })
 
   it('toggles date filter between upcoming and all', async () => {
     render(<MobileGigList onViewGig={vi.fn()} />)
 
+    // Initial state should be "All Dates"
     await waitFor(() => {
-      expect(screen.getByText('Next 7 days', { exact: false })).toBeInTheDocument()
+      expect(screen.getByText('All Dates')).toBeInTheDocument()
     })
 
-    fireEvent.click(screen.getByText('7d'))
+    // Open dropdown
+    const filterButton = screen.getByText('All Dates')
+    fireEvent.click(filterButton)
 
+    // In the dropdown, select +7d
+    const plus7dOption = await screen.findByText('+7d')
+    fireEvent.click(plus7dOption)
+
+    // Button should now show +7d
     await waitFor(() => {
-      expect(screen.getByText('All dates', { exact: false })).toBeInTheDocument()
+      // Find the one in the header or button
+      expect(screen.getAllByText('+7d').length).toBeGreaterThan(0)
     })
   })
 

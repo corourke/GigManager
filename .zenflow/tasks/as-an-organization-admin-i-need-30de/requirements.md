@@ -21,15 +21,15 @@ This feature aims to relax the restrictions on editing organization details to a
 
 ### 4.1. Relaxed Organization Edit Permissions
 *   **Update Access**: Any user who is an "Admin" in at least one organization shall be permitted to edit details for any organization in the system.
-*   **Ownership Warning**: If a user is editing an organization where they do not have an "Admin" or "Manager" role, and that organization has at least one member, a prominent warning must be displayed at the top of the Edit Organization screen.
+*   **Ownership Warning**: If a user is editing an organization where they do not have an "Admin" role, and that organization has at least one member, a prominent warning must be displayed at the top of the Edit Organization screen.
 *   **Warning Message**: "You are making changes to another organization's information, you may wish to contact the admin of this organization instead."
-*   **No Warning**: No warning should be shown if the user is an Admin/Manager of the organization being edited, or if the organization has zero members.
+*   **No Warning**: No warning should be shown if the user is an Admin of the organization being edited, or if the organization has zero members.
 
 ### 4.2. Gig Participant UI Enhancements
-*   **Action Buttons**: Add "View" and "Edit" buttons to the organization tiles/rows in the "Gig Participants" section of the Gig Detail screen.
+*   **Action Buttons**: Add "View" and "Edit" icon buttons to the organization tiles/rows in the "Gig Participants" section of the Gig Detail screen.
 *   **Navigation**:
-    *   "View": Navigates to a read-only view of the organization (or the edit screen if they have permission, but "View" implies read-only first if possible). *Decision: Since we are allowing editing, "View" could show a summary and "Edit" goes to the edit form.*
-    *   "Edit": Navigates directly to the Organization Edit screen for that participant.
+    *   "View": Provides a read-only modal popup view of the organization.
+    *   "Edit": Navigates directly to the Organization Edit screen for that participant. *Only show the Edit view if the user is an Admin.*
 
 ### 4.3. Improved Participant Search
 *   **Debounced Search**: When typing in the Organization name in the "Add Participant" dialog/field, the search should automatically trigger after a 1-second delay (debounce) without requiring a second click or focus change.
@@ -37,12 +37,12 @@ This feature aims to relax the restrictions on editing organization details to a
 
 ### 4.4. Multi-Role Organizations
 *   **Data Model Change**: Rename `organization_type` to `organization_role`.
-*   **Schema Update**: Change the field from a single selection to a collection (array or join table) that allows an organization to have multiple roles.
+*   **Schema Update**: Change the field from a single selection to a collection (array) that allows an organization to have multiple roles.
 *   **Roles**: Use the existing roles (Production, Sound, Lighting, Staging, Rentals, Venue, Act, Agency).
 *   **UI Update**:
-    *   Update the Organization Edit screen to allow selecting multiple roles (e.g., using checkboxes or a multi-select component).
+    *   Update the Organization Edit screen to allow selecting multiple roles (e.g., using checkboxes).
     *   Update all displays of organization "type" to show the list of roles as badges or a comma-separated list.
-    *   Update filtering logic to support multi-role organizations.
+    *   Update filtering logic, especially when selecting gig participants, to support multi-role organizations.
 
 ## 5. Constraints & Assumptions
 *   "Any Admin" means any user with an 'Admin' role in at least one organization they belong to.
@@ -52,6 +52,6 @@ This feature aims to relax the restrictions on editing organization details to a
 ## 6. Verification Plan
 *   **Permission Test**: Verify an Admin of Org A can edit Org B.
 *   **Warning Test**: Verify the warning appears for Org B if it has members, and doesn't appear for Org A (when edited by its own Admin) or Org C (with no members).
-*   **UI Test**: Verify "View" and "Edit" buttons appear in Gig Participants and function correctly.
+*   **UI Test**: Verify "View" and "Edit" buttons appear in Gig Participants and function correctly. Ensure that the "Edit" button only appears for Admins.
 *   **Search Test**: Verify the 1-second debounce when searching for organizations.
-*   **Multi-Role Test**: Verify an organization can be saved with multiple roles and they are displayed correctly.
+*   **Multi-Role Test**: Verify an organization can be saved with multiple roles and they are displayed correctly, and that they are shown in the Gig Participants search when one of the included roles is selected.

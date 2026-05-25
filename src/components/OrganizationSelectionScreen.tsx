@@ -29,7 +29,7 @@ import {
 import { toast } from 'sonner';
 import { searchOrganizations, joinOrganization } from '../services/organization.service';
 import { 
-  ORG_TYPE_CONFIG, 
+  ORG_ROLE_CONFIG, 
   USER_ROLE_CONFIG 
 } from '../utils/supabase/constants';
 import { 
@@ -128,7 +128,7 @@ export default function OrganizationSelectionScreen({
     const query = searchQuery.toLowerCase();
     return organizations.filter(({ organization }) =>
       organization.name.toLowerCase().includes(query) ||
-      organization.type.toLowerCase().includes(query) ||
+      (organization.roles || []).some(role => role.toLowerCase().includes(query)) ||
       organization.city?.toLowerCase().includes(query) ||
       organization.state?.toLowerCase().includes(query)
     );
@@ -242,7 +242,8 @@ export default function OrganizationSelectionScreen({
             <h2 className="text-gray-700 mb-4">Your Organizations</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
               {filteredUserOrgs.map(({ organization, role }) => {
-                const typeConfig = ORG_TYPE_CONFIG[organization.type];
+                const firstRole = organization.roles?.[0] || 'Production';
+                const typeConfig = ORG_ROLE_CONFIG[firstRole];
                 const TypeIcon = typeConfig.icon;
 
                 return (
@@ -263,6 +264,7 @@ export default function OrganizationSelectionScreen({
                           <div className="flex flex-wrap gap-1.5 mb-1">
                             <Badge variant="secondary" className={`${typeConfig.color} text-xs px-2 py-0`}>
                               {typeConfig.label}
+                              {organization.roles && organization.roles.length > 1 && ` (+${organization.roles.length - 1})`}
                             </Badge>
                             <Badge variant="outline" className={`${USER_ROLE_CONFIG[role].color} text-xs px-2 py-0`}>
                               {role}
@@ -294,7 +296,8 @@ export default function OrganizationSelectionScreen({
             </h2>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {searchResults.map((organization) => {
-                const typeConfig = ORG_TYPE_CONFIG[organization.type];
+                const firstRole = organization.roles?.[0] || 'Production';
+                const typeConfig = ORG_ROLE_CONFIG[firstRole];
                 const TypeIcon = typeConfig.icon;
                 const isMember = userOrgIds.has(organization.id);
                 const role = getUserRole(organization.id);
@@ -317,6 +320,7 @@ export default function OrganizationSelectionScreen({
                           <div className="flex flex-wrap gap-1.5 mb-2">
                             <Badge variant="secondary" className={`${typeConfig.color} text-xs px-2 py-0`}>
                               {typeConfig.label}
+                              {organization.roles && organization.roles.length > 1 && ` (+${organization.roles.length - 1})`}
                             </Badge>
                             {isMember && role && (
                               <Badge variant="outline" className={`${USER_ROLE_CONFIG[role].color} text-xs px-2 py-0`}>

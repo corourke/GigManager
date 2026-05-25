@@ -19,15 +19,15 @@ import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
 import { Search, X, Building2, MapPin, Loader2 } from 'lucide-react';
 import { 
   Organization, 
-  OrganizationType 
+  OrganizationRole 
 } from '../utils/supabase/types';
-import { ORG_TYPE_CONFIG } from '../utils/supabase/constants';
+import { ORG_ROLE_CONFIG } from '../utils/supabase/constants';
 import { searchOrganizations } from '../services/organization.service';
 
 interface OrganizationSelectorProps {
   onSelect: (org: Organization | null) => void;
   selectedOrganization: Organization | null;
-  organizationType?: OrganizationType;
+  organizationRole?: OrganizationRole;
   placeholder?: string;
   disabled?: boolean;
 }
@@ -35,7 +35,7 @@ interface OrganizationSelectorProps {
 export default function OrganizationSelector({
   onSelect,
   selectedOrganization,
-  organizationType,
+  organizationRole,
   placeholder = 'Search for organization...',
   disabled = false,
 }: OrganizationSelectorProps) {
@@ -45,28 +45,48 @@ export default function OrganizationSelector({
   const [searchResults, setSearchResults] = useState<Organization[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const handleSearch = async (query: string) => {
-    setSearchQuery(query);
-    
-    if (!query.trim()) {
+  useEffect(() => {
+    let ignore = false;
+
+    if (!searchQuery.trim()) {
       setSearchResults([]);
+      setIsSearching(false);
       return;
     }
 
     setIsSearching(true);
 
-    try {
-      // Use API function instead of Edge Function
-      const orgs = await searchOrganizations({
-        search: query,
-        type: organizationType,
-      });
-      setSearchResults(orgs || []);
-    } catch (error) {
-      console.error('Error searching organizations:', error);
-      setSearchResults([]);
-    } finally {
-      setIsSearching(false);
+    const debounceTimer = setTimeout(async () => {
+      try {
+        const orgs = await searchOrganizations({
+          search: searchQuery,
+          type: organizationRole,
+        });
+        if (!ignore) {
+          setSearchResults(orgs || []);
+        }
+      } catch (error) {
+        console.error('Error searching organizations:', error);
+        if (!ignore) {
+          setSearchResults([]);
+        }
+      } finally {
+        if (!ignore) {
+          setIsSearching(false);
+        }
+      }
+    }, 1000);
+
+    return () => {
+      ignore = true;
+      clearTimeout(debounceTimer);
+    };
+  }, [searchQuery, organizationRole]);
+
+  const handleSearchInputChange = (query: string) => {
+    setSearchQuery(query);
+    if (!isOpen && query.trim()) {
+      setIsOpen(true);
     }
   };
 
@@ -92,9 +112,12 @@ export default function OrganizationSelector({
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-1">
               <p className="text-sm truncate">{selectedOrganization.name}</p>
-              <Badge variant="secondary" className={`${ORG_TYPE_CONFIG[selectedOrganization.type].color} text-xs`}>
-                {ORG_TYPE_CONFIG[selectedOrganization.type].label}
-              </Badge>
+              {selectedOrganization.roles && selectedOrganization.roles.length > 0 && (
+                <Badge variant="secondary" className={`${ORG_ROLE_CONFIG[selectedOrganization.roles[0]].color} text-xs`}>
+                  {ORG_ROLE_CONFIG[selectedOrganization.roles[0]].label}
+                  {selectedOrganization.roles.length > 1 && ` (+${selectedOrganization.roles.length - 1})`}
+                </Badge>
+              )}
             </div>
             {(selectedOrganization.city || selectedOrganization.state) && (
               <p className="text-xs text-gray-500 flex items-center gap-1">
@@ -123,7 +146,7 @@ export default function OrganizationSelector({
                 ref={inputRef}
                 type="text"
                 value={searchQuery}
-                onChange={(e) => handleSearch(e.target.value)}
+                onChange={(e) => handleSearchInputChange(e.target.value)}
                 onFocus={() => setIsOpen(true)}
                 placeholder={placeholder}
                 disabled={disabled}
@@ -160,9 +183,12 @@ export default function OrganizationSelector({
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2 mb-1">
                               <p className="text-sm truncate">{org.name}</p>
-                              <Badge variant="secondary" className={`${ORG_TYPE_CONFIG[org.type].color} text-xs`}>
-                                {ORG_TYPE_CONFIG[org.type].label}
-                              </Badge>
+                              {org.roles && org.roles.length > 0 && (
+                                <Badge variant="secondary" className={`${ORG_ROLE_CONFIG[org.roles[0]].color} text-xs`}>
+                                  {ORG_ROLE_CONFIG[org.roles[0]].label}
+                                  {org.roles.length > 1 && ` (+${org.roles.length - 1})`}
+                                </Badge>
+                              )}
                             </div>
                             {(org.city || org.state) && (
                               <p className="text-xs text-gray-500 flex items-center gap-1">
@@ -189,7 +215,7 @@ export default function OrganizationSelector({
                   <div className="p-8 text-center">
                     <Search className="h-8 w-8 mx-auto mb-2 text-gray-400" />
                     <p className="text-sm text-gray-600">
-                      Start typing to search for {organizationType ? ORG_TYPE_CONFIG[organizationType].label.toLowerCase() : 'organizations'}
+                      Start typing to search for {organizationRole ? ORG_ROLE_CONFIG[organizationRole].label.toLowerCase() : 'organizations'}
                     </p>
                   </div>
                 )}

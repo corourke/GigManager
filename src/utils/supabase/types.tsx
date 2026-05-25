@@ -1,7 +1,7 @@
-import { OrganizationType, UserRole, GigStatus, FinType, FinCategory, AssetStatus, PurchaseRowType, EntityType } from './constants';
+import { OrganizationRole, UserRole, GigStatus, FinType, FinCategory, AssetStatus, PurchaseRowType, EntityType } from './constants';
 
 // Re-export constants types for convenience
-export type { OrganizationType, UserRole, GigStatus, FinType, FinCategory, AssetStatus, PurchaseRowType, EntityType };
+export type { OrganizationRole, UserRole, GigStatus, FinType, FinCategory, AssetStatus, PurchaseRowType, EntityType };
 
 // Database types for Supabase tables
 
@@ -33,7 +33,7 @@ export type User = DbUser;
 export interface DbOrganization {
   id: string;
   name: string;
-  type: OrganizationType;
+  roles: OrganizationRole[];
   url?: string;
   phone_number?: string;
   address_line1?: string;
@@ -97,7 +97,7 @@ export interface DbGigParticipant {
   id: string;
   gig_id: string;
   organization_id: string;
-  role: OrganizationType;
+  role: OrganizationRole;
   notes?: string;
 }
 

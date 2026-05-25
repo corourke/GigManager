@@ -11,7 +11,7 @@ import {
   Clock,
 } from 'lucide-react';
 
-export const ORG_TYPE_CONFIG = {
+export const ORG_ROLE_CONFIG = {
   Production: { label: 'Production Company', icon: Building2, color: 'bg-purple-100 text-purple-700' },
   Sound: { label: 'Sound Company', icon: Volume2, color: 'bg-blue-100 text-blue-700' },
   Lighting: { label: 'Lighting Company', icon: Lightbulb, color: 'bg-yellow-100 text-yellow-700' },
@@ -22,7 +22,7 @@ export const ORG_TYPE_CONFIG = {
   Agency: { label: 'Agency', icon: Building2, color: 'bg-indigo-100 text-indigo-700' },
 } as const;
 
-export type OrganizationType = keyof typeof ORG_TYPE_CONFIG;
+export type OrganizationRole = keyof typeof ORG_ROLE_CONFIG;
 
 export const USER_ROLE_CONFIG = {
   Admin: { label: 'Admin', icon: Crown, color: 'bg-purple-100 text-purple-700' },
@@ -157,16 +157,16 @@ export function getTagColor(tag: string): string {
   return TAG_CONFIG[tag as TagType]?.color || 'bg-gray-100 text-gray-800 border-gray-300';
 }
 
-export function getOrgTypeIcon(type: OrganizationType) {
-  return ORG_TYPE_CONFIG[type].icon;
+export function getOrgRoleIcon(role: OrganizationRole) {
+  return ORG_ROLE_CONFIG[role].icon;
 }
 
-export function getOrgTypeColor(type: OrganizationType) {
-  return ORG_TYPE_CONFIG[type].color;
+export function getOrgRoleColor(role: OrganizationRole) {
+  return ORG_ROLE_CONFIG[role].color;
 }
 
-export function getOrgTypeLabel(type: OrganizationType) {
-  return ORG_TYPE_CONFIG[type].label;
+export function getOrgRoleLabel(role: OrganizationRole) {
+  return ORG_ROLE_CONFIG[role].label;
 }
 
 // Comprehensive timezone list using IANA timezone identifiers

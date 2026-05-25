@@ -3,8 +3,9 @@ import { useForm, useFieldArray, Controller } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { toast } from 'sonner';
-import { Building2, FileText, Loader2, Plus, Trash2, AlertCircle } from 'lucide-react';
+import { Building2, FileText, Loader2, Plus, Trash2, AlertCircle, Eye, Pencil } from 'lucide-react';
 import { Button } from '../ui/button';
+import { Badge } from '../ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table';
@@ -12,11 +13,12 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Textarea } from '../ui/textarea';
 import OrganizationSelector from '../OrganizationSelector';
 import { getGig, updateGigParticipants } from '../../services/gig.service';
+import { createClient } from '../../utils/supabase/client';
 import { 
   Organization, 
-  OrganizationType 
+  OrganizationRole 
 } from '../../utils/supabase/types';
-import { ORG_TYPE_CONFIG } from '../../utils/supabase/constants';
+import { ORG_ROLE_CONFIG } from '../../utils/supabase/constants';
 import { useAutoSave } from '../../utils/hooks/useAutoSave';
 import SaveStateIndicator from './SaveStateIndicator';
 
@@ -48,18 +50,26 @@ interface GigParticipantsSectionProps {
   gigId: string;
   currentOrganizationId: string;
   currentOrganizationName: string;
-  currentOrganizationType: OrganizationType;
+  currentOrganizationRole: OrganizationRole;
+  currentOrganizationRoles?: OrganizationRole[];
+  userRole?: string;
+  onEditOrganization?: (org: Organization) => void;
 }
 
 export default function GigParticipantsSection({
   gigId,
   currentOrganizationId,
   currentOrganizationName,
-  currentOrganizationType,
+  currentOrganizationRole,
+  currentOrganizationRoles,
+  userRole,
+  onEditOrganization,
 }: GigParticipantsSectionProps) {
   const [isLoading, setIsLoading] = useState(true);
   const [showParticipantNotes, setShowParticipantNotes] = useState<number | null>(null);
   const [currentParticipantNotes, setCurrentParticipantNotes] = useState('');
+  const [viewingOrganization, setViewingOrganization] = useState<Organization | null>(null);
+  const [isUserAdmin, setIsUserAdmin] = useState(false);
 
   const { control, handleSubmit, formState: { errors, isDirty }, watch, reset, setValue } = useForm<ParticipantsFormData>({
     resolver: zodResolver(participantsFormSchema),
@@ -113,6 +123,17 @@ export default function GigParticipantsSection({
     loadParticipantsData();
   }, [gigId]);
 
+  useEffect(() => {
+    const checkAdmin = async () => {
+      const supabase = createClient();
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.user?.id) return;
+      const { data } = await supabase.rpc('user_is_admin', { user_uuid: session.user.id });
+      setIsUserAdmin(!!data);
+    };
+    checkAdmin();
+  }, []);
+
   const loadParticipantsData = async () => {
     setIsLoading(true);
     try {
@@ -127,10 +148,14 @@ export default function GigParticipantsSection({
         organization: p.organization || (p.organization_id && p.organization_name ? {
           id: p.organization_id,
           name: p.organization_name,
-          type: p.role as OrganizationType,
+          roles: [p.role] as OrganizationRole[],
         } : null)
       }));
       
+      const allCurrentOrgRoles = currentOrganizationRoles && currentOrganizationRoles.length > 0
+        ? currentOrganizationRoles
+        : [currentOrganizationRole];
+
       let initialParticipants = [...loadedParticipants];
       if (initialParticipants.length === 0 || !initialParticipants.some((p: any) => p.organization_id === currentOrganizationId)) {
         initialParticipants = [
@@ -138,12 +163,12 @@ export default function GigParticipantsSection({
             id: 'current-org',
             organization_id: currentOrganizationId,
             organization_name: currentOrganizationName,
-            role: currentOrganizationType,
+            role: currentOrganizationRole,
             notes: '',
             organization: {
               id: currentOrganizationId,
               name: currentOrganizationName,
-              type: currentOrganizationType,
+              roles: allCurrentOrgRoles,
             }
           },
           ...initialParticipants,
@@ -154,18 +179,21 @@ export default function GigParticipantsSection({
     } catch (error: any) {
       console.error('Error loading participants:', error);
       toast.error('Failed to load participants');
+      const allCurrentOrgRoles = currentOrganizationRoles && currentOrganizationRoles.length > 0
+        ? currentOrganizationRoles
+        : [currentOrganizationRole];
       reset({
         participants: [
           {
             id: 'current-org',
             organization_id: currentOrganizationId,
             organization_name: currentOrganizationName,
-            role: currentOrganizationType,
+            role: currentOrganizationRole,
             notes: '',
             organization: {
               id: currentOrganizationId,
               name: currentOrganizationName,
-              type: currentOrganizationType,
+              roles: allCurrentOrgRoles,
             }
           },
         ]
@@ -251,7 +279,7 @@ export default function GigParticipantsSection({
                 <TableRow>
                   <TableHead className="w-[150px]">Role</TableHead>
                   <TableHead>Organization</TableHead>
-                  <TableHead className="w-[100px]">Notes</TableHead>
+                  <TableHead className="w-[140px]">Actions</TableHead>
                   <TableHead className="w-[60px]"></TableHead>
                 </TableRow>
               </TableHeader>
@@ -272,7 +300,7 @@ export default function GigParticipantsSection({
                               <SelectValue placeholder="Select role" />
                             </SelectTrigger>
                             <SelectContent>
-  {Object.keys(ORG_TYPE_CONFIG).map((type) => (
+  {Object.keys(ORG_ROLE_CONFIG).map((type) => (
     <SelectItem key={type} value={type}>
       {type}
     </SelectItem>
@@ -311,7 +339,7 @@ export default function GigParticipantsSection({
                                   }
                                 }}
                                 selectedOrganization={orgField.value || null}
-                                organizationType={watch(`participants.${index}.role`) as OrganizationType || undefined}
+                                organizationRole={watch(`participants.${index}.role`) as OrganizationRole || undefined}
                                 placeholder="Search organizations..."
                                 className={errors.participants?.[index]?.organization_id ? 'border-red-500' : ''}
                               />
@@ -327,14 +355,41 @@ export default function GigParticipantsSection({
                       )}
                     </TableCell>
                     <TableCell>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleOpenParticipantNotes(index)}
-                      >
-                        <FileText className="w-4 h-4" />
-                      </Button>
+                      <div className="flex items-center gap-1">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleOpenParticipantNotes(index)}
+                          title="Notes"
+                        >
+                          <FileText className="w-4 h-4" />
+                        </Button>
+                        {field.organization && (
+                          <>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() => setViewingOrganization(field.organization as Organization)}
+                              title="View Organization"
+                            >
+                              <Eye className="w-4 h-4" />
+                            </Button>
+                            {isUserAdmin && onEditOrganization && (
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onClick={() => onEditOrganization!(field.organization as Organization)}
+                                title="Edit Organization"
+                              >
+                                <Pencil className="w-4 h-4" />
+                              </Button>
+                            )}
+                          </>
+                        )}
+                      </div>
                     </TableCell>
                     <TableCell>
                       <Button
@@ -388,6 +443,83 @@ export default function GigParticipantsSection({
             </Button>
             <Button onClick={handleSaveParticipantNotes}>
               Save Notes
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={viewingOrganization !== null} onOpenChange={(open) => {
+        if (!open) setViewingOrganization(null);
+      }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Organization Details</DialogTitle>
+          </DialogHeader>
+          {viewingOrganization && (
+            <div className="space-y-4">
+              <div>
+                <p className="text-xs font-medium text-gray-500 uppercase">Name</p>
+                <p className="text-sm text-gray-900">{viewingOrganization.name}</p>
+              </div>
+              {viewingOrganization.roles && viewingOrganization.roles.length > 0 && (
+                <div>
+                  <p className="text-xs font-medium text-gray-500 uppercase">Roles</p>
+                  <div className="flex flex-wrap gap-1 mt-1">
+                    {viewingOrganization.roles.map(role => (
+                      <Badge key={role} variant="outline" className="text-[10px]">
+                        {role}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {viewingOrganization.phone_number && (
+                <div>
+                  <p className="text-xs font-medium text-gray-500 uppercase">Phone</p>
+                  <p className="text-sm text-gray-900">{viewingOrganization.phone_number}</p>
+                </div>
+              )}
+              {viewingOrganization.address_line1 && (
+                <div>
+                  <p className="text-xs font-medium text-gray-500 uppercase">Address</p>
+                  <p className="text-sm text-gray-900">
+                    {[
+                      viewingOrganization.address_line1,
+                      viewingOrganization.address_line2,
+                      viewingOrganization.city,
+                      viewingOrganization.state,
+                      viewingOrganization.postal_code,
+                    ].filter(Boolean).join(', ')}
+                  </p>
+                </div>
+              )}
+              {!viewingOrganization.address_line1 && (viewingOrganization.city || viewingOrganization.state) && (
+                <div>
+                  <p className="text-xs font-medium text-gray-500 uppercase">Location</p>
+                  <p className="text-sm text-gray-900">
+                    {[viewingOrganization.city, viewingOrganization.state].filter(Boolean).join(', ')}
+                  </p>
+                </div>
+              )}
+              {viewingOrganization.url && (
+                <div>
+                  <p className="text-xs font-medium text-gray-500 uppercase">Website</p>
+                  <a href={viewingOrganization.url} target="_blank" rel="noopener noreferrer" className="text-sm text-sky-600 hover:underline">
+                    {viewingOrganization.url}
+                  </a>
+                </div>
+              )}
+              {viewingOrganization.description && (
+                <div>
+                  <p className="text-xs font-medium text-gray-500 uppercase">Description</p>
+                  <p className="text-sm text-gray-900 whitespace-pre-wrap">{viewingOrganization.description}</p>
+                </div>
+              )}
+            </div>
+          )}
+          <DialogFooter>
+            <Button onClick={() => setViewingOrganization(null)}>
+              Close
             </Button>
           </DialogFooter>
         </DialogContent>

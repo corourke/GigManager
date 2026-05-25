@@ -218,17 +218,10 @@ export default function ImportScreen({
                 async (orgData) => {
                   const created = await createOrganization({
                     name: orgData.name,
-                    type: orgData.type,
+                    roles: orgData.roles,
                     autoJoin: false,
                   });
-                  // Convert to Organization type
-                  return {
-                    id: created.id,
-                    name: created.name,
-                    type: created.type as any,
-                    created_at: created.created_at,
-                    updated_at: created.updated_at,
-                  };
+                  return created;
                 }
               );
               actOrgId = actOrg.id;
@@ -242,17 +235,10 @@ export default function ImportScreen({
                 async (orgData) => {
                   const created = await createOrganization({
                     name: orgData.name,
-                    type: orgData.type,
+                    roles: orgData.roles,
                     autoJoin: false,
                   });
-                  // Convert to Organization type
-                  return {
-                    id: created.id,
-                    name: created.name,
-                    type: created.type as any,
-                    created_at: created.created_at,
-                    updated_at: created.updated_at,
-                  };
+                  return created;
                 }
               );
               venueOrgId = venueOrg.id;
@@ -267,7 +253,7 @@ export default function ImportScreen({
               participants.push({ organization_id: venueOrgId, role: 'Venue' });
             }
             // Add current organization as participant
-            participants.push({ organization_id: organization.id, role: organization.type });
+            participants.push({ organization_id: organization.id, role: organization.roles?.[0] || 'Production' });
 
             await createGig({
               title: gigData.title,

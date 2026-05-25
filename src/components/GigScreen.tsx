@@ -31,6 +31,7 @@ interface GigScreenProps {
   onSwitchOrganization: () => void;
   onEditProfile?: () => void;
   onLogout: () => void;
+  onEditOrganization?: (org: Organization) => void;
 }
 
 export default function GigScreen({
@@ -45,6 +46,7 @@ export default function GigScreen({
   onSwitchOrganization,
   onEditProfile,
   onLogout,
+  onEditOrganization,
 }: GigScreenProps) {
   const [isLoading, setIsLoading] = useState(!!gigId);
   const [gig, setGig] = useState<Gig | null>(null);
@@ -102,7 +104,7 @@ export default function GigScreen({
         participants: [
           {
             organization_id: organization.id,
-            role: organization.type,
+            role: organization.roles?.[0] || 'Production',
           }
         ]
       };
@@ -190,7 +192,10 @@ export default function GigScreen({
                 gigId={gigId}
                 currentOrganizationId={organization.id}
                 currentOrganizationName={organization.name}
-                currentOrganizationType={organization.type}
+                currentOrganizationRole={organization.roles?.[0] || 'Production'}
+                currentOrganizationRoles={organization.roles}
+                onEditOrganization={onEditOrganization}
+                userRole={userRole}
               />
               <GigStaffSlotsSection
                 gigId={gigId}

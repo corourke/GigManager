@@ -3,11 +3,11 @@ import { Edit2, Trash2, Users, Loader2, AlertCircle, Plus, Shield, Building2 } f
 import { toast } from 'sonner';
 import { 
   Organization, 
-  OrganizationType 
+  OrganizationRole 
 } from '../utils/supabase/types';
 import { 
-  ORG_TYPE_CONFIG, 
-  getOrgTypeColor 
+  ORG_ROLE_CONFIG, 
+  getOrgRoleColor 
 } from '../utils/supabase/constants';
 import { handleFunctionsError } from '../utils/api-error-utils';
 import { createClient } from '../utils/supabase/client';
@@ -225,7 +225,7 @@ export default function AdminOrganizationsScreen({
               <TableHeader>
                 <TableRow>
                   <TableHead>Organization</TableHead>
-                  <TableHead>Type</TableHead>
+                  <TableHead>Roles</TableHead>
                   <TableHead>Members</TableHead>
                   <TableHead>Location</TableHead>
                   <TableHead>Contact</TableHead>
@@ -234,7 +234,8 @@ export default function AdminOrganizationsScreen({
               </TableHeader>
               <TableBody>
                 {organizations.map((org) => {
-                  const typeConfig = ORG_TYPE_CONFIG[org.type];
+                  const firstRole = org.roles?.[0] || 'Production';
+                  const typeConfig = ORG_ROLE_CONFIG[firstRole];
                   const TypeIcon = typeConfig.icon;
                   
                   return (
@@ -248,9 +249,13 @@ export default function AdminOrganizationsScreen({
                         </div>
                       </TableCell>
                       <TableCell>
-                        <Badge className={getOrgTypeColor(org.type)}>
-                          {org.type}
-                        </Badge>
+                        <div className="flex flex-wrap gap-1">
+                          {org.roles?.map((role) => (
+                            <Badge key={role} className={getOrgRoleColor(role)}>
+                              {role}
+                            </Badge>
+                          ))}
+                        </div>
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-2">
@@ -270,8 +275,8 @@ export default function AdminOrganizationsScreen({
                         )}
                       </TableCell>
                       <TableCell>
-                        {org.phone ? (
-                          <span className="text-gray-900">{org.phone}</span>
+                        {org.phone_number ? (
+                          <span className="text-gray-900">{org.phone_number}</span>
                         ) : (
                           <span className="text-gray-400">—</span>
                         )}

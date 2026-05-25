@@ -23,7 +23,7 @@ describe('GigParticipantsSection', () => {
     gigId: 'test-gig-id',
     currentOrganizationId: 'current-org-id',
     currentOrganizationName: 'Current Org',
-    currentOrganizationType: 'Production' as const,
+    currentOrganizationRole: 'Production' as const,
   };
 
   beforeEach(() => {

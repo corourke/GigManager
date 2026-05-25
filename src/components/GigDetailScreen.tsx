@@ -10,19 +10,30 @@ import {
   Copy,
   Loader2,
   FileText,
-  Music
+  Music,
+  Eye,
+  Pencil
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from './ui/button';
 import { Card } from './ui/card';
 import { Badge } from './ui/badge';
+import { 
+  Dialog, 
+  DialogContent, 
+  DialogDescription, 
+  DialogFooter, 
+  DialogHeader, 
+  DialogTitle 
+} from './ui/dialog';
 import AppHeader from './AppHeader';
 import AttachmentManager from './AttachmentManager';
 import GigFinancialsSection from './gig/GigFinancialsSection';
 import GigStaffSlotsSection from './gig/GigStaffSlotsSection';
 import { Organization, User, UserRole, Gig } from '../utils/supabase/types';
-import { GIG_STATUS_CONFIG, ORG_TYPE_CONFIG } from '../utils/supabase/constants';
+import { GIG_STATUS_CONFIG, ORG_ROLE_CONFIG } from '../utils/supabase/constants';
 import { getGig, deleteGig, duplicateGig } from '../services/gig.service';
+import { createClient } from '../utils/supabase/client';
 import { checkAllConflicts, Conflict } from '../services/conflictDetection.service';
 import { ConflictWarning } from './ConflictWarning';
 import { cn } from './ui/utils';
@@ -35,6 +46,7 @@ interface GigDetailScreenProps {
   userRole?: UserRole;
   onBack: () => void;
   onEdit: (gigId: string) => void;
+  onEditOrganization?: (org: Organization) => void;
   backLabel?: string;
   onSwitchOrganization: () => void;
   onLogout: () => void;
@@ -47,6 +59,7 @@ export default function GigDetailScreen({
   userRole,
   onBack,
   onEdit,
+  onEditOrganization,
   backLabel = 'Back to Gigs',
   onSwitchOrganization,
   onLogout,
@@ -54,10 +67,23 @@ export default function GigDetailScreen({
   const [gig, setGig] = useState<Gig | null>(null);
   const [conflicts, setConflicts] = useState<Conflict[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [viewingOrganization, setViewingOrganization] = useState<Organization | null>(null);
+  const [isUserAdmin, setIsUserAdmin] = useState(false);
 
   useEffect(() => {
     loadGig();
   }, [gigId]);
+
+  useEffect(() => {
+    const checkAdmin = async () => {
+      const supabase = createClient();
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.user?.id) return;
+      const { data } = await supabase.rpc('user_is_admin', { user_uuid: session.user.id });
+      setIsUserAdmin(!!data);
+    };
+    checkAdmin();
+  }, []);
 
   const loadGig = async () => {
     setIsLoading(true);
@@ -318,18 +344,42 @@ export default function GigDetailScreen({
                   gig.participants.map((participant: any) => (
                     <div key={participant.id} className="flex flex-col gap-1">
                       <p className="text-xs font-medium text-gray-500 uppercase">{participant.role}</p>
-                      <div>
+                      <div className="flex items-center justify-between">
                         <Badge 
                           variant="outline" 
                           className={cn(
                             "font-medium", 
-                            participant.role === 'Venue' ? ORG_TYPE_CONFIG.Venue.color : 
-                            participant.role === 'Act' ? ORG_TYPE_CONFIG.Act.color : 
+                            participant.role === 'Venue' ? ORG_ROLE_CONFIG.Venue.color : 
+                            participant.role === 'Act' ? ORG_ROLE_CONFIG.Act.color : 
                             'bg-gray-100 text-gray-700 border-gray-200'
                           )}
                         >
                           {participant.organization?.name || 'Unknown'}
                         </Badge>
+                        {participant.organization && (
+                          <div className="flex items-center gap-1">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7"
+                              onClick={() => setViewingOrganization(participant.organization)}
+                              title="View Organization"
+                            >
+                              <Eye className="w-3.5 h-3.5" />
+                            </Button>
+                            {isUserAdmin && onEditOrganization && (
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7"
+                                onClick={() => onEditOrganization(participant.organization)}
+                                title="Edit Organization"
+                              >
+                                <Pencil className="w-3.5 h-3.5" />
+                              </Button>
+                            )}
+                          </div>
+                        )}
                       </div>
                     </div>
                   ))
@@ -370,6 +420,83 @@ export default function GigDetailScreen({
           </div>
         </div>
       </div>
+
+      <Dialog open={viewingOrganization !== null} onOpenChange={(open) => {
+        if (!open) setViewingOrganization(null);
+      }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Organization Details</DialogTitle>
+          </DialogHeader>
+          {viewingOrganization && (
+            <div className="space-y-4">
+              <div>
+                <p className="text-xs font-medium text-gray-500 uppercase">Name</p>
+                <p className="text-sm text-gray-900">{viewingOrganization.name}</p>
+              </div>
+              {viewingOrganization.roles && viewingOrganization.roles.length > 0 && (
+                <div>
+                  <p className="text-xs font-medium text-gray-500 uppercase">Roles</p>
+                  <div className="flex flex-wrap gap-1 mt-1">
+                    {viewingOrganization.roles.map(role => (
+                      <Badge key={role} variant="outline" className="text-[10px]">
+                        {role}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {viewingOrganization.phone_number && (
+                <div>
+                  <p className="text-xs font-medium text-gray-500 uppercase">Phone</p>
+                  <p className="text-sm text-gray-900">{viewingOrganization.phone_number}</p>
+                </div>
+              )}
+              {viewingOrganization.address_line1 && (
+                <div>
+                  <p className="text-xs font-medium text-gray-500 uppercase">Address</p>
+                  <p className="text-sm text-gray-900">
+                    {[
+                      viewingOrganization.address_line1,
+                      viewingOrganization.address_line2,
+                      viewingOrganization.city,
+                      viewingOrganization.state,
+                      viewingOrganization.postal_code,
+                    ].filter(Boolean).join(', ')}
+                  </p>
+                </div>
+              )}
+              {!viewingOrganization.address_line1 && (viewingOrganization.city || viewingOrganization.state) && (
+                <div>
+                  <p className="text-xs font-medium text-gray-500 uppercase">Location</p>
+                  <p className="text-sm text-gray-900">
+                    {[viewingOrganization.city, viewingOrganization.state].filter(Boolean).join(', ')}
+                  </p>
+                </div>
+              )}
+              {viewingOrganization.url && (
+                <div>
+                  <p className="text-xs font-medium text-gray-500 uppercase">Website</p>
+                  <a href={viewingOrganization.url} target="_blank" rel="noopener noreferrer" className="text-sm text-sky-600 hover:underline">
+                    {viewingOrganization.url}
+                  </a>
+                </div>
+              )}
+              {viewingOrganization.description && (
+                <div>
+                  <p className="text-xs font-medium text-gray-500 uppercase">Description</p>
+                  <p className="text-sm text-gray-900 whitespace-pre-wrap">{viewingOrganization.description}</p>
+                </div>
+              )}
+            </div>
+          )}
+          <DialogFooter>
+            <Button onClick={() => setViewingOrganization(null)}>
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

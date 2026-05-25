@@ -1,5 +1,5 @@
 import Papa from 'papaparse';
-import { Organization } from './supabase/types';
+import { Organization, OrganizationRole } from './supabase/types';
 import { isValidTimezone, getDefaultTimezone } from './timezones';
 import { GIG_STATUS_CONFIG } from './supabase/constants';
 import { isNoonUTC } from './dateUtils';
@@ -917,18 +917,18 @@ export function parseTags(tagsString: string | undefined): string[] {
 // Helper to find or create organization
 export async function findOrCreateOrganization(
   name: string,
-  type: 'Act' | 'Venue',
-  searchOrganizations: (filters?: { type?: string; search?: string }) => Promise<Organization[]>,
-  createOrganization: (orgData: { name: string; type: string }) => Promise<Organization>
+  role: OrganizationRole,
+  searchOrganizations: (filters?: { type?: OrganizationRole; search?: string }) => Promise<Organization[]>,
+  createOrganization: (orgData: { name: string; roles: OrganizationRole[] }) => Promise<Organization>
 ): Promise<Organization> {
   if (!name || !name.trim()) {
-    throw new Error(`Organization name is required for type ${type}`);
+    throw new Error(`Organization name is required for role ${role}`);
   }
 
   // Search for existing organization
-  const existing = await searchOrganizations({ type, search: name.trim() });
+  const existing = await searchOrganizations({ type: role, search: name.trim() });
   const match = existing.find(org => 
-    org.name.toLowerCase().trim() === name.toLowerCase().trim() && org.type === type
+    org.name.toLowerCase().trim() === name.toLowerCase().trim() && org.roles?.includes(role)
   );
 
   if (match) {
@@ -938,7 +938,7 @@ export async function findOrCreateOrganization(
   // Create new organization
   return await createOrganization({
     name: name.trim(),
-    type,
+    roles: [role],
   });
 }
 

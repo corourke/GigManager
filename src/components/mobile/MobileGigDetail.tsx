@@ -21,7 +21,7 @@ import {
 import { format, parseISO } from 'date-fns';
 import { getGig, updateGig } from '../../services/gig.service';
 import { updateStaffAssignmentStatus } from '../../services/gig.service';
-import { GIG_STATUS_CONFIG, ORG_TYPE_CONFIG } from '../../utils/supabase/constants';
+import { GIG_STATUS_CONFIG, ORG_ROLE_CONFIG } from '../../utils/supabase/constants';
 import { formatDateTimeDisplay } from '../../utils/dateUtils';
 import { useAuth } from '../../contexts/AuthContext';
 import { toast } from 'sonner';
@@ -346,7 +346,7 @@ export default function MobileGigDetail({ gigId, onBack, onViewPackingList }: Mo
               </p>
               <div className="divide-y divide-border/50">
                 {gig.participants.map((p: any) => {
-                  const orgTypeConf = ORG_TYPE_CONFIG[p.role as keyof typeof ORG_TYPE_CONFIG];
+                  const orgTypeConf = ORG_ROLE_CONFIG[p.role as keyof typeof ORG_ROLE_CONFIG];
                   const org = p.organization;
                   return (
                     <div key={p.id} className="flex items-center py-1.5 first:pt-0 last:pb-0">
