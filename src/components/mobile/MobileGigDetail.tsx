@@ -1,11 +1,10 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Card, CardContent } from '../ui/card';
 import { Button } from '../ui/button';
+import AttachmentManager from '../AttachmentManager';
 import {
   ArrowLeft,
   Calendar,
-  MapPin,
-  Music,
   Users,
   Phone,
   FileText,
@@ -17,21 +16,36 @@ import {
   Clock,
   User as UserIcon,
   Navigation,
+  Pencil,
+  X,
+  Plus,
+  Check,
+  ChevronDown,
 } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
-import { getGig, updateGig } from '../../services/gig.service';
+import { getGig, updateGig, updateGigParticipants } from '../../services/gig.service';
 import { updateStaffAssignmentStatus } from '../../services/gig.service';
 import { GIG_STATUS_CONFIG, ORG_ROLE_CONFIG } from '../../utils/supabase/constants';
-import { formatDateTimeDisplay } from '../../utils/dateUtils';
+import { formatDateTimeDisplay, formatGigDateTimeForInput, parseGigDateTimeFromInput } from '../../utils/dateUtils';
+import { getAllTimezones } from '../../utils/timezones';
+import { searchOrganizations } from '../../services/organization.service';
 import { useAuth } from '../../contexts/AuthContext';
 import { toast } from 'sonner';
 import { cn } from '../ui/utils';
 import type { GigStatus } from '../../utils/supabase/types';
+import type { OrganizationRole } from '../../utils/supabase/types';
 
 interface MobileGigDetailProps {
   gigId: string;
   onBack: () => void;
   onViewPackingList: (gigId: string) => void;
+}
+
+interface EditParticipant {
+  id?: string;
+  organization_id: string;
+  organization_name: string;
+  role: string;
 }
 
 const ASSIGNMENT_STATUS_CONFIG: Record<string, { label: string; color: string; textColor: string; icon: React.ElementType }> = {
@@ -42,13 +56,38 @@ const ASSIGNMENT_STATUS_CONFIG: Record<string, { label: string; color: string; t
   Declined: { label: 'Declined', color: 'bg-red-100 text-red-700 border-red-200', textColor: 'text-red-600', icon: XCircle },
 };
 
+const INPUT_CLASS = 'w-full h-10 px-3 text-sm bg-muted/50 rounded-lg border-0 outline-none focus:ring-2 focus:ring-sky-500/30';
+
 export default function MobileGigDetail({ gigId, onBack, onViewPackingList }: MobileGigDetailProps) {
-  const { user } = useAuth();
+  const { user, userRole, selectedOrganization } = useAuth();
+  const canEdit = userRole === 'Admin' || userRole === 'Manager';
   const [gig, setGig] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [updatingAssignment, setUpdatingAssignment] = useState<string | null>(null);
   const [showStatusMenu, setShowStatusMenu] = useState(false);
   const [updatingStatus, setUpdatingStatus] = useState(false);
+
+  const [isEditing, setIsEditing] = useState(false);
+  const [editTitle, setEditTitle] = useState('');
+  const [editStartDate, setEditStartDate] = useState('');
+  const [editStartTime, setEditStartTime] = useState('');
+  const [editEndDate, setEditEndDate] = useState('');
+  const [editEndTime, setEditEndTime] = useState('');
+  const [editAllDay, setEditAllDay] = useState(false);
+  const [editTimezone, setEditTimezone] = useState('');
+  const [editTags, setEditTags] = useState<string[]>([]);
+  const [editTagInput, setEditTagInput] = useState('');
+  const [editNotes, setEditNotes] = useState('');
+  const [editParticipants, setEditParticipants] = useState<EditParticipant[]>([]);
+  const [isSaving, setIsSaving] = useState(false);
+  const [showAddParticipant, setShowAddParticipant] = useState(false);
+  const [orgSearchQuery, setOrgSearchQuery] = useState('');
+  const [orgSearchResults, setOrgSearchResults] = useState<any[]>([]);
+  const [selectedOrgResult, setSelectedOrgResult] = useState<any>(null);
+  const [addParticipantRole, setAddParticipantRole] = useState('');
+  const [showRoleDropdown, setShowRoleDropdown] = useState(false);
+
+  const orgSearchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     loadGig();
@@ -75,6 +114,102 @@ export default function MobileGigDetail({ gigId, onBack, onViewPackingList }: Mo
       onBack();
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleStartEdit = () => {
+    if (!gig) return;
+    setEditTitle(gig.title || '');
+    setEditTimezone(gig.timezone || '');
+    setEditTags(gig.tags || []);
+    setEditTagInput('');
+    setEditNotes(gig.notes || '');
+
+    const startForInput = formatGigDateTimeForInput(gig.start, gig.timezone);
+    const endForInput = gig.end ? formatGigDateTimeForInput(gig.end, gig.timezone) : '';
+    const isAllDay = !startForInput.includes('T');
+
+    setEditAllDay(isAllDay);
+    if (isAllDay) {
+      setEditStartDate(startForInput);
+      setEditStartTime('');
+      setEditEndDate(endForInput);
+      setEditEndTime('');
+    } else {
+      const [sd, st] = startForInput.includes('T') ? startForInput.split('T') : [startForInput, ''];
+      setEditStartDate(sd);
+      setEditStartTime(st || '');
+      if (endForInput.includes('T')) {
+        const [ed, et] = endForInput.split('T');
+        setEditEndDate(ed);
+        setEditEndTime(et);
+      } else {
+        setEditEndDate(endForInput);
+        setEditEndTime('');
+      }
+    }
+
+    setEditParticipants(
+      (gig.participants || []).map((p: any) => ({
+        id: p.id,
+        organization_id: p.organization?.id || p.organization_id,
+        organization_name: p.organization?.name || '',
+        role: p.role,
+      }))
+    );
+
+    setShowAddParticipant(false);
+    setOrgSearchQuery('');
+    setOrgSearchResults([]);
+    setSelectedOrgResult(null);
+    setAddParticipantRole('');
+    setShowRoleDropdown(false);
+    setIsEditing(true);
+  };
+
+  const handleSave = async () => {
+    setIsSaving(true);
+    try {
+      let start: string;
+      let end: string | undefined;
+
+      if (editAllDay) {
+        start = parseGigDateTimeFromInput(editStartDate, editTimezone, true);
+        end = editEndDate ? parseGigDateTimeFromInput(editEndDate, editTimezone, true) : undefined;
+      } else {
+        start = parseGigDateTimeFromInput(
+          editStartDate && editStartTime ? `${editStartDate}T${editStartTime}` : editStartDate,
+          editTimezone
+        );
+        end = editEndDate
+          ? parseGigDateTimeFromInput(
+              editEndDate && editEndTime ? `${editEndDate}T${editEndTime}` : editEndDate,
+              editTimezone
+            )
+          : undefined;
+      }
+
+      const updatePayload: any = {
+        title: editTitle,
+        start,
+        timezone: editTimezone,
+        tags: editTags,
+        notes: editNotes,
+      };
+      if (end) updatePayload.end = end;
+
+      await updateGig(gigId, updatePayload);
+      await updateGigParticipants(
+        gigId,
+        editParticipants.map(p => ({ id: p.id, organization_id: p.organization_id, role: p.role }))
+      );
+      toast.success('Gig updated');
+      await loadGig();
+      setIsEditing(false);
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to save');
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -132,6 +267,64 @@ export default function MobileGigDetail({ gigId, onBack, onViewPackingList }: Mo
     return false;
   };
 
+  const handleTagKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter' || e.key === ',') {
+      e.preventDefault();
+      const tag = editTagInput.trim().replace(/,$/, '');
+      if (tag && !editTags.includes(tag)) {
+        setEditTags([...editTags, tag]);
+      }
+      setEditTagInput('');
+    }
+  };
+
+  const handleOrgSearchChange = (query: string, roleOverride?: string) => {
+    setOrgSearchQuery(query);
+    setSelectedOrgResult(null);
+    if (orgSearchTimerRef.current) clearTimeout(orgSearchTimerRef.current);
+    if (!query.trim()) {
+      setOrgSearchResults([]);
+      return;
+    }
+    const role = roleOverride !== undefined ? roleOverride : addParticipantRole;
+    orgSearchTimerRef.current = setTimeout(async () => {
+      try {
+        const filters: { search: string; type?: OrganizationRole } = { search: query };
+        if (role) filters.type = role as OrganizationRole;
+        const results = await searchOrganizations(filters);
+        setOrgSearchResults(results);
+      } catch {
+        setOrgSearchResults([]);
+      }
+    }, 300);
+  };
+
+  const handleRoleSelect = (role: string) => {
+    setAddParticipantRole(role);
+    setShowRoleDropdown(false);
+    if (orgSearchQuery.trim() && !selectedOrgResult) {
+      handleOrgSearchChange(orgSearchQuery, role);
+    }
+  };
+
+  const handleAddParticipantConfirm = () => {
+    if (!selectedOrgResult || !addParticipantRole) return;
+    setEditParticipants(prev => [
+      ...prev,
+      {
+        organization_id: selectedOrgResult.id,
+        organization_name: selectedOrgResult.name,
+        role: addParticipantRole,
+      },
+    ]);
+    setShowAddParticipant(false);
+    setOrgSearchQuery('');
+    setOrgSearchResults([]);
+    setSelectedOrgResult(null);
+    setAddParticipantRole('');
+    setShowRoleDropdown(false);
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
@@ -152,6 +345,8 @@ export default function MobileGigDetail({ gigId, onBack, onViewPackingList }: Mo
   const showActionButtons = (status: string) => status === 'Invited' || status === 'Requested';
   const showTimestamp = (status: string) => status === 'Confirmed' || status === 'Declined';
 
+  const allTimezones = getAllTimezones();
+
   return (
     <div className="flex flex-col">
       <div className="sticky top-0 z-40 bg-background/90 backdrop-blur-md px-4 py-3 border-b border-border/50">
@@ -169,6 +364,33 @@ export default function MobileGigDetail({ gigId, onBack, onViewPackingList }: Mo
               </button>
             </div>
           </div>
+          {canEdit && !isEditing && (
+            <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0" aria-label="Edit gig" onClick={handleStartEdit}>
+              <Pencil className="w-4 h-4" />
+            </Button>
+          )}
+          {isEditing && (
+            <div className="flex gap-1 shrink-0">
+              <Button
+                size="sm"
+                className="h-8 px-3 text-xs gap-1"
+                onClick={handleSave}
+                disabled={isSaving}
+              >
+                {isSaving ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" />}
+                Save
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-8 px-2 text-xs"
+                onClick={() => setIsEditing(false)}
+                disabled={isSaving}
+              >
+                Cancel
+              </Button>
+            </div>
+          )}
         </div>
         {showStatusMenu && (
           <div className="mt-2 flex flex-wrap gap-1">
@@ -256,62 +478,161 @@ export default function MobileGigDetail({ gigId, onBack, onViewPackingList }: Mo
 
         <Card style={{ gap: 0 }}>
           <CardContent className="p-3 space-y-3" style={{ paddingBottom: '12px' }}>
-            <div className="flex items-start gap-2.5">
-              <Calendar className="w-4 h-4 text-muted-foreground mt-0.5 shrink-0" />
-              <div>
-                <p className="text-[10px] font-medium text-muted-foreground uppercase">Date & Time</p>
-                <p className="text-sm font-medium mt-0.5">
-                  {formatDateTimeDisplay(gig.start, gig.end, gig.timezone)}
-                </p>
-                <p className="text-[10px] text-muted-foreground">{gig.timezone}</p>
-              </div>
-            </div>
-
-            {gig.venue && (
-              <div className="flex items-start gap-2.5">
-                <MapPin className="w-4 h-4 text-muted-foreground mt-0.5 shrink-0" />
-                <div className="flex-1">
-                  <p className="text-[10px] font-medium text-muted-foreground uppercase">Venue</p>
-                  <p className="text-sm font-medium mt-0.5">{gig.venue.name}</p>
-                  {(gig.venue.city || gig.venue.state) && (
-                    <p className="text-[10px] text-muted-foreground">
-                      {[gig.venue.city, gig.venue.state].filter(Boolean).join(', ')}
-                    </p>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {gig.act && (
-              <div className="flex items-start gap-2.5">
-                <Music className="w-4 h-4 text-muted-foreground mt-0.5 shrink-0" />
+            {isEditing ? (
+              <>
                 <div>
-                  <p className="text-[10px] font-medium text-muted-foreground uppercase">Act</p>
-                  <p className="text-sm font-medium mt-0.5">{gig.act.name}</p>
+                  <p className="text-[10px] font-medium text-muted-foreground uppercase mb-1">Title</p>
+                  <input
+                    type="text"
+                    className={INPUT_CLASS}
+                    value={editTitle}
+                    onChange={e => setEditTitle(e.target.value)}
+                    placeholder="Gig title"
+                  />
                 </div>
-              </div>
-            )}
 
-            {gig.tags && gig.tags.length > 0 && (
-              <div className="flex items-start gap-2.5">
-                <Tag className="w-4 h-4 text-muted-foreground mt-0.5 shrink-0" />
-                <div className="flex flex-wrap gap-1">
-                  {gig.tags.map((tag: string) => (
-                    <span key={tag} className="rounded bg-sky-50 text-sky-700 border border-sky-100" style={{ fontSize: '10px', padding: '1px 6px' }}>
-                      {tag}
-                    </span>
-                  ))}
+                <div>
+                  <div className="flex items-center gap-2 mb-2">
+                    <label className="text-[10px] font-medium text-muted-foreground uppercase flex items-center gap-1.5 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={editAllDay}
+                        onChange={e => setEditAllDay(e.target.checked)}
+                        className="rounded"
+                      />
+                      All Day
+                    </label>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <p className="text-[10px] font-medium text-muted-foreground uppercase mb-1">Start Date</p>
+                      <input
+                        type="date"
+                        className={INPUT_CLASS}
+                        value={editStartDate}
+                        onChange={e => setEditStartDate(e.target.value)}
+                      />
+                    </div>
+                    {!editAllDay && (
+                      <div>
+                        <p className="text-[10px] font-medium text-muted-foreground uppercase mb-1">Start Time</p>
+                        <input
+                          type="time"
+                          className={INPUT_CLASS}
+                          value={editStartTime}
+                          onChange={e => setEditStartTime(e.target.value)}
+                        />
+                      </div>
+                    )}
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 mt-2">
+                    <div>
+                      <p className="text-[10px] font-medium text-muted-foreground uppercase mb-1">End Date</p>
+                      <input
+                        type="date"
+                        className={INPUT_CLASS}
+                        value={editEndDate}
+                        onChange={e => setEditEndDate(e.target.value)}
+                      />
+                    </div>
+                    {!editAllDay && (
+                      <div>
+                        <p className="text-[10px] font-medium text-muted-foreground uppercase mb-1">End Time</p>
+                        <input
+                          type="time"
+                          className={INPUT_CLASS}
+                          value={editEndTime}
+                          onChange={e => setEditEndTime(e.target.value)}
+                        />
+                      </div>
+                    )}
+                  </div>
                 </div>
-              </div>
-            )}
 
-            {gig.notes && (
-              <div className="flex items-start gap-2.5">
-                <FileText className="w-4 h-4 text-muted-foreground mt-0.5 shrink-0" />
-                <div className="text-[11px] text-muted-foreground whitespace-pre-wrap bg-muted/30 p-2 rounded flex-1">
-                  {gig.notes}
+                <div>
+                  <p className="text-[10px] font-medium text-muted-foreground uppercase mb-1">Timezone</p>
+                  <select
+                    className={cn(INPUT_CLASS, 'cursor-pointer')}
+                    value={editTimezone}
+                    onChange={e => setEditTimezone(e.target.value)}
+                  >
+                    {allTimezones.map(tz => (
+                      <option key={tz} value={tz}>{tz}</option>
+                    ))}
+                  </select>
                 </div>
-              </div>
+
+                <div>
+                  <p className="text-[10px] font-medium text-muted-foreground uppercase mb-1">Tags</p>
+                  <div className="flex flex-wrap gap-1 mb-1.5">
+                    {editTags.map(tag => (
+                      <span key={tag} className="inline-flex items-center gap-1 rounded bg-sky-50 text-sky-700 border border-sky-100" style={{ fontSize: '10px', padding: '2px 6px' }}>
+                        {tag}
+                        <button
+                          onClick={() => setEditTags(editTags.filter(t => t !== tag))}
+                          className="text-sky-500 hover:text-sky-700 ml-0.5"
+                        >
+                          ×
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                  <input
+                    type="text"
+                    className={INPUT_CLASS}
+                    value={editTagInput}
+                    onChange={e => setEditTagInput(e.target.value)}
+                    onKeyDown={handleTagKeyDown}
+                    placeholder="Add tag, press Enter or comma"
+                  />
+                </div>
+
+                <div>
+                  <p className="text-[10px] font-medium text-muted-foreground uppercase mb-1">Notes</p>
+                  <textarea
+                    className={cn(INPUT_CLASS, 'h-auto py-2')}
+                    rows={3}
+                    value={editNotes}
+                    onChange={e => setEditNotes(e.target.value)}
+                    placeholder="Notes…"
+                  />
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="flex items-start gap-2.5">
+                  <Calendar className="w-4 h-4 text-muted-foreground mt-0.5 shrink-0" />
+                  <div>
+                    <p className="text-[10px] font-medium text-muted-foreground uppercase">Date & Time</p>
+                    <p className="text-sm font-medium mt-0.5">
+                      {formatDateTimeDisplay(gig.start, gig.end, gig.timezone)}
+                    </p>
+                    <p className="text-[10px] text-muted-foreground">{gig.timezone}</p>
+                  </div>
+                </div>
+
+                {gig.tags && gig.tags.length > 0 && (
+                  <div className="flex items-start gap-2.5">
+                    <Tag className="w-4 h-4 text-muted-foreground mt-0.5 shrink-0" />
+                    <div className="flex flex-wrap gap-1">
+                      {gig.tags.map((tag: string) => (
+                        <span key={tag} className="rounded bg-sky-50 text-sky-700 border border-sky-100" style={{ fontSize: '10px', padding: '1px 6px' }}>
+                          {tag}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {gig.notes && (
+                  <div className="flex items-start gap-2.5">
+                    <FileText className="w-4 h-4 text-muted-foreground mt-0.5 shrink-0" />
+                    <div className="text-[11px] text-muted-foreground whitespace-pre-wrap bg-muted/30 p-2 rounded flex-1">
+                      {gig.notes}
+                    </div>
+                  </div>
+                )}
+              </>
             )}
           </CardContent>
         </Card>
@@ -337,15 +658,136 @@ export default function MobileGigDetail({ gigId, onBack, onViewPackingList }: Mo
           </Button>
         </div>
 
-        {gig.participants && gig.participants.length > 0 && (
-          <Card style={{ gap: 0 }}>
-            <CardContent className="p-3" style={{ paddingBottom: '12px' }}>
-              <p className="text-[11px] font-semibold flex items-center gap-1.5 text-muted-foreground mb-2">
-                <Users className="w-3.5 h-3.5" />
-                Organizations
-              </p>
+        <Card style={{ gap: 0 }}>
+          <CardContent className="p-3" style={{ paddingBottom: '12px' }}>
+            <p className="text-[11px] font-semibold flex items-center gap-1.5 text-muted-foreground mb-2">
+              <Users className="w-3.5 h-3.5" />
+              Participants
+            </p>
+            {isEditing ? (
+              <div className="space-y-1">
+                {editParticipants.map((p, idx) => {
+                  const orgTypeConf = ORG_ROLE_CONFIG[p.role as keyof typeof ORG_ROLE_CONFIG];
+                  const isCurrentOrg = selectedOrganization?.id === p.organization_id;
+                  return (
+                    <div key={idx} className="flex items-center gap-2 py-1">
+                      <span className={cn('font-semibold w-24 shrink-0 truncate', extractTextColor(orgTypeConf?.color))} style={{ fontSize: '11px' }}>
+                        {orgTypeConf?.label || p.role}
+                      </span>
+                      <span className="text-sm font-medium flex-1 truncate">{p.organization_name}</span>
+                      <button
+                        aria-label={`Remove ${p.organization_name}`}
+                        disabled={isCurrentOrg}
+                        onClick={() => setEditParticipants(editParticipants.filter((_, i) => i !== idx))}
+                        className={cn(
+                          'p-1 rounded text-red-500 hover:bg-red-50 shrink-0',
+                          isCurrentOrg && 'opacity-30 cursor-not-allowed'
+                        )}
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  );
+                })}
+
+                {showAddParticipant ? (
+                  <div className="mt-2 space-y-2 border border-border/50 rounded-lg p-2">
+                    <div className="relative">
+                      <input
+                        type="text"
+                        className={INPUT_CLASS}
+                        value={orgSearchQuery}
+                        onChange={e => handleOrgSearchChange(e.target.value)}
+                        placeholder="Search organizations…"
+                        autoFocus
+                      />
+                      {orgSearchResults.length > 0 && !selectedOrgResult && (
+                        <ul className="absolute z-50 top-full mt-1 w-full bg-background border border-border rounded-lg shadow-lg max-h-40 overflow-y-auto">
+                          {orgSearchResults.map(org => (
+                            <li
+                              key={org.id}
+                              className="px-3 py-1.5 text-sm cursor-pointer hover:bg-muted"
+                              onClick={() => {
+                                setSelectedOrgResult(org);
+                                setOrgSearchQuery(org.name);
+                                setOrgSearchResults([]);
+                              }}
+                            >
+                              {org.name}
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                    <div className="relative">
+                      <button
+                        type="button"
+                        className={cn(INPUT_CLASS, 'cursor-pointer flex items-center justify-between')}
+                        onClick={() => setShowRoleDropdown(!showRoleDropdown)}
+                      >
+                        <span className={addParticipantRole ? '' : 'text-muted-foreground'}>
+                          {addParticipantRole
+                            ? ORG_ROLE_CONFIG[addParticipantRole as keyof typeof ORG_ROLE_CONFIG]?.label || addParticipantRole
+                            : 'Select role…'}
+                        </span>
+                        <ChevronDown className="w-4 h-4 text-muted-foreground shrink-0" />
+                      </button>
+                      {showRoleDropdown && (
+                        <ul className="absolute z-50 top-full mt-1 w-full bg-background border border-border rounded-lg shadow-lg max-h-40 overflow-y-auto">
+                          {Object.keys(ORG_ROLE_CONFIG).map(role => (
+                            <li
+                              key={role}
+                              className={cn(
+                                'px-3 py-2 text-sm cursor-pointer hover:bg-muted',
+                                addParticipantRole === role && 'font-medium text-sky-600'
+                              )}
+                              onClick={() => handleRoleSelect(role)}
+                            >
+                              {ORG_ROLE_CONFIG[role as keyof typeof ORG_ROLE_CONFIG]?.label || role}
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                    <div className="flex gap-2">
+                      <Button
+                        size="sm"
+                        className="flex-1 h-8 text-xs"
+                        onClick={handleAddParticipantConfirm}
+                        disabled={!selectedOrgResult || !addParticipantRole}
+                      >
+                        Add
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="flex-1 h-8 text-xs"
+                        onClick={() => {
+                          setShowAddParticipant(false);
+                          setOrgSearchQuery('');
+                          setOrgSearchResults([]);
+                          setSelectedOrgResult(null);
+                          setAddParticipantRole('');
+                          setShowRoleDropdown(false);
+                        }}
+                      >
+                        Cancel
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => setShowAddParticipant(true)}
+                    className="flex items-center gap-1.5 text-[11px] text-sky-600 hover:text-sky-700 mt-1 font-medium"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    Add Participant
+                  </button>
+                )}
+              </div>
+            ) : (
               <div className="divide-y divide-border/50">
-                {gig.participants.map((p: any) => {
+                {(gig.participants || []).map((p: any) => {
                   const orgTypeConf = ORG_ROLE_CONFIG[p.role as keyof typeof ORG_ROLE_CONFIG];
                   const org = p.organization;
                   return (
@@ -376,9 +818,20 @@ export default function MobileGigDetail({ gigId, onBack, onViewPackingList }: Mo
                   );
                 })}
               </div>
-            </CardContent>
-          </Card>
-        )}
+            )}
+          </CardContent>
+        </Card>
+
+        <Card style={{ gap: 0 }}>
+          <CardContent className="p-3" style={{ paddingBottom: '12px' }}>
+            <AttachmentManager
+              organizationId={selectedOrganization?.id ?? ''}
+              entityType="gig"
+              entityId={gigId}
+              allowUpload={canEdit}
+            />
+          </CardContent>
+        </Card>
 
         {gig.staff_slots && gig.staff_slots.length > 0 && (
           <Card style={{ gap: 0 }}>

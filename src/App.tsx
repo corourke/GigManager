@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import LoginScreen from './components/LoginScreen';
 import UserProfileCompletionScreen from './components/UserProfileCompletionScreen';
 import AcceptInvitationScreen from './components/AcceptInvitationScreen';
@@ -130,6 +130,7 @@ function App() {
   const [showEditProfileDialog, setShowEditProfileDialog] = useState(false);
   const [viewedFromCalendar, setViewedFromCalendar] = useState(false);
   const [gigListKey, setGigListKey] = useState(0);
+  const mobileGigListScrollTop = useRef(0);
 
   // Ensure route is appropriate for device mode
   useEffect(() => {
@@ -642,10 +643,14 @@ function App() {
             onSwitchOrganization={organizations.length > 1 ? handleBackToSelection : undefined}
           >
             {currentRoute === 'mobile-gig-list' && (
-              <MobileGigList onViewGig={(gigId) => {
-                setSelectedGigId(gigId);
-                setCurrentRoute('mobile-gig-detail');
-              }} />
+              <MobileGigList
+                onViewGig={(gigId) => {
+                  setSelectedGigId(gigId);
+                  setCurrentRoute('mobile-gig-detail');
+                }}
+                initialScrollTop={mobileGigListScrollTop.current}
+                onScrollPositionChange={(pos) => { mobileGigListScrollTop.current = pos; }}
+              />
             )}
             {currentRoute === 'mobile-gig-detail' && selectedGigId && (
               <MobileGigDetail

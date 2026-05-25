@@ -123,6 +123,7 @@ const MobileLayout: React.FC<MobileLayoutProps> = ({ children, currentRoute, onN
 
       <main
         data-testid="mobile-main-content"
+        data-mobile-scroll
         style={{
           flex: 1,
           minHeight: 0,

@@ -170,4 +170,59 @@ describe('MobileGigList', () => {
     const plusButton = buttons.find(btn => btn.querySelector('svg.lucide-plus'))
     expect(plusButton).toBeDefined()
   })
+
+  it('sorts upcoming gigs in ascending order (nearest first)', async () => {
+    const now = Date.now()
+    const nearFuture = new Date(now + 86400000).toISOString()
+    const farFuture = new Date(now + 864000000).toISOString()
+    vi.mocked(getGigsForOrganization).mockResolvedValue([
+      { id: 'far', title: 'Far Future Gig', status: 'Booked', start: farFuture, end: farFuture, timezone: 'UTC', tags: [], participants: [] },
+      { id: 'near', title: 'Near Future Gig', status: 'Booked', start: nearFuture, end: nearFuture, timezone: 'UTC', tags: [], participants: [] },
+    ])
+    render(<MobileGigList onViewGig={vi.fn()} />)
+    await waitFor(() => {
+      expect(screen.getByText('Near Future Gig')).toBeInTheDocument()
+    })
+    const cards = screen.getAllByText(/Future Gig/)
+    expect(cards[0].textContent).toBe('Near Future Gig')
+    expect(cards[1].textContent).toBe('Far Future Gig')
+  })
+
+  it('sorts past gigs in descending order (most recent first)', async () => {
+    const now = Date.now()
+    const recentPast = new Date(now - 86400000).toISOString()
+    const olderPast = new Date(now - 864000000).toISOString()
+    vi.mocked(getGigsForOrganization).mockResolvedValue([
+      { id: 'older', title: 'Older Past Gig', status: 'Completed', start: olderPast, end: olderPast, timezone: 'UTC', tags: [], participants: [] },
+      { id: 'recent', title: 'Recent Past Gig', status: 'Completed', start: recentPast, end: recentPast, timezone: 'UTC', tags: [], participants: [] },
+    ])
+    render(<MobileGigList onViewGig={vi.fn()} />)
+    await waitFor(() => {
+      expect(screen.getByText('Recent Past Gig')).toBeInTheDocument()
+    })
+    const cards = screen.getAllByText(/Past Gig/)
+    expect(cards[0].textContent).toBe('Recent Past Gig')
+    expect(cards[1].textContent).toBe('Older Past Gig')
+  })
+
+  it('restores scroll position via initialScrollTop', async () => {
+    const container = document.createElement('div')
+    container.setAttribute('data-mobile-scroll', '')
+    container.scrollTop = 0
+    const scrollSpy = vi.fn()
+    Object.defineProperty(container, 'scrollTop', {
+      get: () => 0,
+      set: scrollSpy,
+      configurable: true,
+    })
+    document.body.appendChild(container)
+
+    render(<MobileGigList onViewGig={vi.fn()} initialScrollTop={200} />)
+
+    await waitFor(() => {
+      expect(scrollSpy).toHaveBeenCalledWith(200)
+    })
+
+    document.body.removeChild(container)
+  })
 })

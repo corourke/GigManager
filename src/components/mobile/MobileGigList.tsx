@@ -34,6 +34,8 @@ import { GigStatusFilterDropdown } from '../gigs/GigStatusFilterDropdown';
 
 interface MobileGigListProps {
   onViewGig: (gigId: string) => void;
+  initialScrollTop?: number;
+  onScrollPositionChange?: (scrollTop: number) => void;
 }
 
 
@@ -46,7 +48,7 @@ const GIG_STATUSES: { key: GigStatus; label: string }[] = [
   { key: 'Settled', label: 'Settled' },
 ];
 
-export default function MobileGigList({ onViewGig }: MobileGigListProps) {
+export default function MobileGigList({ onViewGig, initialScrollTop, onScrollPositionChange }: MobileGigListProps) {
   const { selectedOrganization } = useAuth();
   const [gigs, setGigs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -72,6 +74,24 @@ export default function MobileGigList({ onViewGig }: MobileGigListProps) {
       loadGigs();
     }
   }, [selectedOrganization?.id]);
+
+  useEffect(() => {
+    const container = document.querySelector('[data-mobile-scroll]') as HTMLElement | null;
+    const target = container || window;
+    if (initialScrollTop) {
+      if (container) {
+        container.scrollTop = initialScrollTop;
+      } else {
+        window.scrollTo(0, initialScrollTop);
+      }
+    }
+    const handleScroll = () => {
+      const scrollTop = container ? container.scrollTop : window.scrollY;
+      onScrollPositionChange?.(scrollTop);
+    };
+    target.addEventListener('scroll', handleScroll, { passive: true });
+    return () => target.removeEventListener('scroll', handleScroll);
+  }, []);
 
   const loadGigs = async () => {
     if (!selectedOrganization?.id) return;
@@ -128,17 +148,21 @@ export default function MobileGigList({ onViewGig }: MobileGigListProps) {
       });
     }
 
-    return [...result].sort((a: any, b: any) => new Date(b.start).getTime() - new Date(a.start).getTime());
+    return result;
   }, [gigs, activeStatuses, searchQuery, futureDateFilter, pastDateFilter]);
 
   const upcomingGigs = useMemo(() => {
     const now = new Date();
-    return filteredGigs.filter((g) => new Date(g.start) >= now);
+    return filteredGigs
+      .filter((g) => new Date(g.start) >= now)
+      .sort((a: any, b: any) => new Date(a.start).getTime() - new Date(b.start).getTime());
   }, [filteredGigs]);
 
   const pastGigs = useMemo(() => {
     const now = new Date();
-    return filteredGigs.filter((g) => new Date(g.start) < now);
+    return filteredGigs
+      .filter((g) => new Date(g.start) < now)
+      .sort((a: any, b: any) => new Date(b.start).getTime() - new Date(a.start).getTime());
   }, [filteredGigs]);
 
   return (

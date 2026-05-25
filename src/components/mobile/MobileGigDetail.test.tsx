@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, waitFor, fireEvent } from '@testing-library/react'
+import { render, screen, waitFor, fireEvent, act } from '@testing-library/react'
 import MobileGigDetail from './MobileGigDetail'
 
 const mockGig = {
@@ -27,22 +27,56 @@ const mockGig = {
   ],
 }
 
+vi.mock('../AttachmentManager', () => ({
+  default: ({ allowUpload }: { allowUpload: boolean }) => (
+    <div data-testid="attachment-manager" data-allow-upload={String(allowUpload)}>Attachments</div>
+  ),
+}))
+
+vi.mock('sonner', () => ({
+  toast: {
+    success: vi.fn(),
+    error: vi.fn(),
+  },
+}))
+
+vi.mock('../../utils/timezones', () => ({
+  getAllTimezones: () => ['America/New_York', 'America/Los_Angeles', 'UTC'],
+}))
+
+const mockUseAuth = vi.fn()
+
 vi.mock('../../contexts/AuthContext', () => ({
-  useAuth: () => ({ user: { id: 'user-1' } }),
+  useAuth: () => mockUseAuth(),
 }))
 
 vi.mock('../../services/gig.service', () => ({
   getGig: vi.fn(),
   updateGig: vi.fn(),
   updateStaffAssignmentStatus: vi.fn(),
+  updateGigParticipants: vi.fn(),
 }))
 
-import { getGig, updateStaffAssignmentStatus, updateGig } from '../../services/gig.service'
+vi.mock('../../services/organization.service', () => ({
+  searchOrganizations: vi.fn(),
+}))
+
+import { getGig, updateStaffAssignmentStatus, updateGig, updateGigParticipants } from '../../services/gig.service'
+import { searchOrganizations } from '../../services/organization.service'
+import { toast } from 'sonner'
 
 describe('MobileGigDetail', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     vi.mocked(getGig).mockResolvedValue(mockGig)
+    vi.mocked(updateGig).mockResolvedValue(undefined)
+    vi.mocked(updateGigParticipants).mockResolvedValue(undefined)
+    vi.mocked(searchOrganizations).mockResolvedValue([])
+    mockUseAuth.mockReturnValue({
+      user: { id: 'user-1' },
+      userRole: 'Staff',
+      selectedOrganization: { id: 'org-1' },
+    })
   })
 
   it('renders gig title and status', async () => {
@@ -54,14 +88,14 @@ describe('MobileGigDetail', () => {
     expect(screen.getByText('Booked')).toBeInTheDocument()
   })
 
-  it('renders venue and act information', async () => {
+  it('does not render venue or act detail rows in the info card', async () => {
     render(<MobileGigDetail gigId="gig-1" onBack={vi.fn()} onViewPackingList={vi.fn()} />)
 
     await waitFor(() => {
-      expect(screen.getAllByText('Madison Square Garden').length).toBeGreaterThanOrEqual(1)
+      expect(screen.getByText('Summer Festival')).toBeInTheDocument()
     })
-    expect(screen.getAllByText('The Rock Band').length).toBeGreaterThanOrEqual(1)
-    expect(screen.getByText('New York, NY')).toBeInTheDocument()
+    expect(screen.queryByText('New York, NY')).not.toBeInTheDocument()
+    expect(screen.queryByText('Date & Time')).toBeInTheDocument()
   })
 
   it('shows accept/decline buttons for invited staff assignment', async () => {
@@ -144,11 +178,314 @@ describe('MobileGigDetail', () => {
     })
   })
 
-  it('renders compact participant list with org type badges', async () => {
+  it('renders Participants section heading instead of Organizations', async () => {
     render(<MobileGigDetail gigId="gig-1" onBack={vi.fn()} onViewPackingList={vi.fn()} />)
 
     await waitFor(() => {
-      expect(screen.getByText('Organizations')).toBeInTheDocument()
+      expect(screen.getByText('Participants')).toBeInTheDocument()
+    })
+    expect(screen.queryByText('Organizations')).not.toBeInTheDocument()
+  })
+
+  it('renders AttachmentManager with allowUpload=false for Staff role', async () => {
+    mockUseAuth.mockReturnValue({
+      user: { id: 'user-1' },
+      userRole: 'Staff',
+      selectedOrganization: { id: 'org-1' },
+    })
+    render(<MobileGigDetail gigId="gig-1" onBack={vi.fn()} onViewPackingList={vi.fn()} />)
+
+    await waitFor(() => {
+      expect(screen.getByTestId('attachment-manager')).toBeInTheDocument()
+    })
+    expect(screen.getByTestId('attachment-manager')).toHaveAttribute('data-allow-upload', 'false')
+  })
+
+  it('renders AttachmentManager with allowUpload=true for Admin role', async () => {
+    mockUseAuth.mockReturnValue({
+      user: { id: 'user-1' },
+      userRole: 'Admin',
+      selectedOrganization: { id: 'org-1' },
+    })
+    render(<MobileGigDetail gigId="gig-1" onBack={vi.fn()} onViewPackingList={vi.fn()} />)
+
+    await waitFor(() => {
+      expect(screen.getByTestId('attachment-manager')).toBeInTheDocument()
+    })
+    expect(screen.getByTestId('attachment-manager')).toHaveAttribute('data-allow-upload', 'true')
+  })
+
+  describe('inline edit mode', () => {
+    it('shows edit button for Admin role', async () => {
+      mockUseAuth.mockReturnValue({
+        user: { id: 'user-1' },
+        userRole: 'Admin',
+        selectedOrganization: { id: 'org-1' },
+      })
+      render(<MobileGigDetail gigId="gig-1" onBack={vi.fn()} onViewPackingList={vi.fn()} />)
+
+      await waitFor(() => {
+        expect(screen.getByText('Summer Festival')).toBeInTheDocument()
+      })
+
+      const editButton = screen.getByRole('button', { name: /edit gig/i })
+      expect(editButton).toBeInTheDocument()
+    })
+
+    it('shows edit button for Manager role', async () => {
+      mockUseAuth.mockReturnValue({
+        user: { id: 'user-1' },
+        userRole: 'Manager',
+        selectedOrganization: { id: 'org-1' },
+      })
+      render(<MobileGigDetail gigId="gig-1" onBack={vi.fn()} onViewPackingList={vi.fn()} />)
+
+      await waitFor(() => {
+        expect(screen.getByText('Summer Festival')).toBeInTheDocument()
+      })
+
+      expect(screen.getByRole('button', { name: /edit gig/i })).toBeInTheDocument()
+    })
+
+    it('does not show edit button for Staff role', async () => {
+      mockUseAuth.mockReturnValue({
+        user: { id: 'user-1' },
+        userRole: 'Staff',
+        selectedOrganization: { id: 'org-1' },
+      })
+      render(<MobileGigDetail gigId="gig-1" onBack={vi.fn()} onViewPackingList={vi.fn()} />)
+
+      await waitFor(() => {
+        expect(screen.getByText('Summer Festival')).toBeInTheDocument()
+      })
+
+      expect(screen.queryByRole('button', { name: /edit gig/i })).not.toBeInTheDocument()
+      expect(screen.queryByText('Save')).not.toBeInTheDocument()
+      expect(screen.queryByText('Cancel')).not.toBeInTheDocument()
+    })
+
+    it('clicking Edit shows title input, date input, textarea for notes, timezone select', async () => {
+      mockUseAuth.mockReturnValue({
+        user: { id: 'user-1' },
+        userRole: 'Admin',
+        selectedOrganization: { id: 'org-1' },
+      })
+      render(<MobileGigDetail gigId="gig-1" onBack={vi.fn()} onViewPackingList={vi.fn()} />)
+
+      await waitFor(() => {
+        expect(screen.getByText('Summer Festival')).toBeInTheDocument()
+      })
+
+      const editButton = screen.getByRole('button', { name: /edit gig/i })
+      fireEvent.click(editButton)
+
+      await waitFor(() => {
+        expect(screen.getByPlaceholderText('Gig title')).toBeInTheDocument()
+      })
+      expect(screen.getByPlaceholderText('Notes…')).toBeInTheDocument()
+      expect(screen.getByText('Save')).toBeInTheDocument()
+      expect(screen.getByText('Cancel')).toBeInTheDocument()
+
+      const selects = screen.getAllByRole('combobox')
+      expect(selects.some(s => s.querySelector('option[value="America/New_York"]') !== null || Array.from(s.options || []).some((o: any) => o.value === 'America/New_York'))).toBe(true)
+    })
+
+    it('title input is pre-populated with current gig title', async () => {
+      mockUseAuth.mockReturnValue({
+        user: { id: 'user-1' },
+        userRole: 'Admin',
+        selectedOrganization: { id: 'org-1' },
+      })
+      render(<MobileGigDetail gigId="gig-1" onBack={vi.fn()} onViewPackingList={vi.fn()} />)
+
+      await waitFor(() => {
+        expect(screen.getByText('Summer Festival')).toBeInTheDocument()
+      })
+
+      fireEvent.click(screen.getByRole('button', { name: /edit gig/i }))
+
+      await waitFor(() => {
+        const titleInput = screen.getByPlaceholderText('Gig title') as HTMLInputElement
+        expect(titleInput.value).toBe('Summer Festival')
+      })
+    })
+
+    it('clicking Cancel returns to view mode without calling updateGig', async () => {
+      mockUseAuth.mockReturnValue({
+        user: { id: 'user-1' },
+        userRole: 'Admin',
+        selectedOrganization: { id: 'org-1' },
+      })
+      render(<MobileGigDetail gigId="gig-1" onBack={vi.fn()} onViewPackingList={vi.fn()} />)
+
+      await waitFor(() => {
+        expect(screen.getByText('Summer Festival')).toBeInTheDocument()
+      })
+
+      fireEvent.click(screen.getByRole('button', { name: /edit gig/i }))
+
+      await waitFor(() => {
+        expect(screen.getByText('Cancel')).toBeInTheDocument()
+      })
+
+      fireEvent.click(screen.getByText('Cancel'))
+
+      await waitFor(() => {
+        expect(screen.queryByText('Cancel')).not.toBeInTheDocument()
+        expect(screen.queryByPlaceholderText('Gig title')).not.toBeInTheDocument()
+      })
+
+      expect(updateGig).not.toHaveBeenCalled()
+    })
+
+    it('clicking Save calls updateGig and updateGigParticipants', async () => {
+      mockUseAuth.mockReturnValue({
+        user: { id: 'user-1' },
+        userRole: 'Admin',
+        selectedOrganization: { id: 'org-1' },
+      })
+      render(<MobileGigDetail gigId="gig-1" onBack={vi.fn()} onViewPackingList={vi.fn()} />)
+
+      await waitFor(() => {
+        expect(screen.getByText('Summer Festival')).toBeInTheDocument()
+      })
+
+      fireEvent.click(screen.getByRole('button', { name: /edit gig/i }))
+
+      await waitFor(() => {
+        expect(screen.getByPlaceholderText('Gig title')).toBeInTheDocument()
+      })
+
+      const titleInput = screen.getByPlaceholderText('Gig title')
+      fireEvent.change(titleInput, { target: { value: 'Updated Festival' } })
+
+      fireEvent.click(screen.getByText('Save'))
+
+      await waitFor(() => {
+        expect(updateGig).toHaveBeenCalledWith('gig-1', expect.objectContaining({
+          title: 'Updated Festival',
+        }))
+      })
+
+      await waitFor(() => {
+        expect(updateGigParticipants).toHaveBeenCalledWith('gig-1', expect.any(Array))
+      })
+    })
+
+    it('shows toast error and stays in edit mode when updateGig rejects', async () => {
+      vi.mocked(updateGig).mockRejectedValue(new Error('Server error'))
+      mockUseAuth.mockReturnValue({
+        user: { id: 'user-1' },
+        userRole: 'Admin',
+        selectedOrganization: { id: 'org-1' },
+      })
+      render(<MobileGigDetail gigId="gig-1" onBack={vi.fn()} onViewPackingList={vi.fn()} />)
+
+      await waitFor(() => {
+        expect(screen.getByText('Summer Festival')).toBeInTheDocument()
+      })
+
+      fireEvent.click(screen.getByRole('button', { name: /edit gig/i }))
+
+      await waitFor(() => {
+        expect(screen.getByText('Save')).toBeInTheDocument()
+      })
+
+      await act(async () => {
+        fireEvent.click(screen.getByText('Save'))
+      })
+
+      await waitFor(() => {
+        expect(toast.error).toHaveBeenCalledWith('Server error')
+      })
+
+      expect(screen.getByText('Save')).toBeInTheDocument()
+      expect(screen.getByText('Cancel')).toBeInTheDocument()
+    })
+
+    it('participant X button removes participant from edit list', async () => {
+      mockUseAuth.mockReturnValue({
+        user: { id: 'user-1' },
+        userRole: 'Admin',
+        selectedOrganization: { id: 'different-org' },
+      })
+      render(<MobileGigDetail gigId="gig-1" onBack={vi.fn()} onViewPackingList={vi.fn()} />)
+
+      await waitFor(() => {
+        expect(screen.getByText('Summer Festival')).toBeInTheDocument()
+      })
+
+      fireEvent.click(screen.getByRole('button', { name: /edit gig/i }))
+
+      await waitFor(() => {
+        expect(screen.getByText('Madison Square Garden')).toBeInTheDocument()
+      })
+
+      expect(screen.getByText('The Rock Band')).toBeInTheDocument()
+
+      fireEvent.click(screen.getByRole('button', { name: /remove madison square garden/i }))
+
+      await waitFor(() => {
+        expect(screen.queryByText('Madison Square Garden')).not.toBeInTheDocument()
+      })
+
+      expect(screen.getByText('The Rock Band')).toBeInTheDocument()
+    })
+
+    it('add participant flow: search, select org, choose role, confirm adds to list', async () => {
+      vi.mocked(searchOrganizations).mockResolvedValue([
+        { id: 'org-99', name: 'New Venue' },
+      ])
+      mockUseAuth.mockReturnValue({
+        user: { id: 'user-1' },
+        userRole: 'Admin',
+        selectedOrganization: { id: 'org-1' },
+      })
+      render(<MobileGigDetail gigId="gig-1" onBack={vi.fn()} onViewPackingList={vi.fn()} />)
+
+      await waitFor(() => {
+        expect(screen.getByText('Summer Festival')).toBeInTheDocument()
+      })
+
+      fireEvent.click(screen.getByRole('button', { name: /edit gig/i }))
+
+      await waitFor(() => {
+        expect(screen.getByText('Add Participant')).toBeInTheDocument()
+      })
+
+      fireEvent.click(screen.getByText('Add Participant'))
+
+      await waitFor(() => {
+        expect(screen.getByPlaceholderText('Search organizations…')).toBeInTheDocument()
+      })
+
+      fireEvent.change(screen.getByPlaceholderText('Search organizations…'), { target: { value: 'New' } })
+
+      await waitFor(() => {
+        expect(searchOrganizations).toHaveBeenCalledWith({ search: 'New' })
+      }, { timeout: 1000 })
+
+      await waitFor(() => {
+        expect(screen.getByText('New Venue')).toBeInTheDocument()
+      })
+
+      fireEvent.click(screen.getByText('New Venue'))
+
+      fireEvent.click(screen.getByText('Select role…'))
+
+      await waitFor(() => {
+        expect(screen.getByText('Sound Company')).toBeInTheDocument()
+      })
+
+      fireEvent.click(screen.getByText('Sound Company'))
+
+      fireEvent.click(screen.getByText('Add'))
+
+      await waitFor(() => {
+        expect(screen.getByText('New Venue')).toBeInTheDocument()
+      })
+
+      expect(screen.queryByPlaceholderText('Search organizations…')).not.toBeInTheDocument()
     })
   })
 })
