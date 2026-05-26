@@ -2,8 +2,8 @@
 
 There are user instructions to all AI Agents that are of highest priority. 
 
-1. NEVER proceed from requirements to technical specification to planning to implementation without getting user approval first. ALWYAS propose a solution and get approval BEFORE proceeing with code changes.
-2. ALWAYS ask the user for clarification if intent is unclear, findings seem inconsistent, or requirements are ambiguous or incomplete. There may be trade-offs that need to be made due to business context.
+1. NEVER proceed from requirements to technical specification to planning to implementation without getting user approval first. ALWYAS propose a solution and get approval BEFORE making code changes.
+2. ALWAYS ask the user for clarification if intent is unclear, findings seem inconsistent, or requirements are ambiguous or incomplete. There may be a simple explanation or trade-offs that need to be made due to business context.
 3. Before fixing bugs ALWAYS implement a failing test case first. This proves you understand the bug and ensures it doesn't return.
 4. IMPORTANT: NEVER change a committed migration. Changes to schema.sql don't do anything! If we want to change the schema, we need to create migrations and apply them to the remote supabase database. After writing new migrations, Ask the user to apply them to the databse. Wait for confirmation that these steps have been performed. 
 6. STAY FOCUSED: If you discover potential performance issues or unrelated bugs during investigation, document them as "Future Considerations" rather than pursuing them immediately.
