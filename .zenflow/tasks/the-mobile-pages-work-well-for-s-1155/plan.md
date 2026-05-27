@@ -222,3 +222,49 @@ Save to `{@artifacts_path}/plan.md`.
 <!-- chat-id: 5d6d63ee-4021-45e3-8741-672488455933 -->
 
 As detailed by user.
+
+### [x] Step: Cross Review Issues
+<!-- chat-id: f08ea7ad-b65d-4459-a855-9b6f461a14f3 -->
+
+
+#### Summary
+The changes implement the requested mobile enhancements, including date-based sorting, enhanced gig detail views with participants and notes management, and improved admin editing capabilities. However, several critical issues were identified regarding security (unauthorized attachment removal), reliability (broken scroll restoration), and usability (flickering UI during updates).
+
+#### Findings
+
+| Priority | Issue | Location |
+|----------|-------|----------|
+| P1 | Attachment removal is not restricted by permissions | `./src/components/AttachmentManager.tsx:183` |
+| P1 | Scroll position restoration fails due to timing | `./src/components/mobile/MobileGigList.tsx:81` |
+| P2 | Full-screen flicker occurs during data refresh | `./src/components/mobile/MobileGigDetail.tsx:96` |
+| P2 | Lack of frontend validation in save handler | `./src/components/mobile/MobileGigDetail.tsx:170` |
+| P3 | Inefficient sorting for past gigs (Oldest first) | `./src/components/mobile/MobileGigList.tsx:164` |
+
+#### Details
+
+##### [P1] Attachment removal is not restricted by permissions
+**File:** `./src/components/AttachmentManager.tsx:183`
+
+The "Remove" button for attachments is not guarded by the `allowUpload` (or an equivalent `allowDelete`) prop. This allows any user with view access to the mobile gig page to unlink or delete attachments, which bypasses the intended role-based access control.
+
+##### [P1] Scroll position restoration fails due to timing
+**File:** `./src/components/mobile/MobileGigList.tsx:81`
+
+The `useEffect` that restores the scroll position runs immediately on mount. However, because the list is initially empty and `loading` is true, there is no content height. The browser automatically clamps the scroll position to 0. By the time the gigs are loaded and rendered, the scroll command has already fired and failed.
+
+##### [P2] Full-screen flicker occurs during data refresh
+**File:** `./src/components/mobile/MobileGigDetail.tsx:96`
+
+The `loadGig` function always sets `loading` to true, which renders a full-page spinner. This causes a disruptive flicker every time a user saves an edit, changes a status, or updates an assignment.
+
+##### [P2] Lack of frontend validation in save handler
+**File:** `./src/components/mobile/MobileGigDetail.tsx:170`
+
+There is no check to ensure the end date is after the start date, or that required fields are non-empty before calling the update service.
+
+#### Recommendation
+1.  **Restrict attachment removal**: Wrap the remove button in `allowUpload && (...)`.
+2.  **Fix scroll timing**: Defer scroll restoration until after `loading` becomes false and `gigs` has content.
+3.  **Optimize loading state**: Only set `loading` to true if `gig` is null (initial load).
+4.  **Add basic validation**: Ensure `start < end` and titles are not empty before saving.
+5.  **Re-evaluate past sorting**: Consider sorting past gigs descending (most recent first) for better accessibility of recent history.

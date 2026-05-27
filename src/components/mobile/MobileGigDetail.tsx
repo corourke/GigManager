@@ -60,7 +60,7 @@ const INPUT_CLASS = 'w-full h-10 px-3 text-sm bg-muted/50 rounded-lg border-0 ou
 
 export default function MobileGigDetail({ gigId, onBack, onViewPackingList }: MobileGigDetailProps) {
   const { user, userRole, selectedOrganization } = useAuth();
-  const canEdit = userRole === 'Admin' || userRole === 'Manager';
+  const canEdit = userRole?.toLowerCase() === 'admin' || userRole?.toLowerCase() === 'manager';
   const [gig, setGig] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [updatingAssignment, setUpdatingAssignment] = useState<string | null>(null);
@@ -94,7 +94,7 @@ export default function MobileGigDetail({ gigId, onBack, onViewPackingList }: Mo
   }, [gigId]);
 
   const loadGig = async () => {
-    setLoading(true);
+    if (!gig) setLoading(true);
     try {
       const data = await getGig(gigId);
       const venue = data.participants?.find((p: any) => p.role === 'Venue')?.organization;
@@ -168,6 +168,10 @@ export default function MobileGigDetail({ gigId, onBack, onViewPackingList }: Mo
   };
 
   const handleSave = async () => {
+    if (!editTitle.trim()) {
+      toast.error('Title is required');
+      return;
+    }
     setIsSaving(true);
     try {
       let start: string;
@@ -187,6 +191,12 @@ export default function MobileGigDetail({ gigId, onBack, onViewPackingList }: Mo
               editTimezone
             )
           : undefined;
+      }
+
+      if (end && new Date(end) <= new Date(start)) {
+        toast.error('End date/time must be after start date/time');
+        setIsSaving(false);
+        return;
       }
 
       const updatePayload: any = {
@@ -587,16 +597,6 @@ export default function MobileGigDetail({ gigId, onBack, onViewPackingList }: Mo
                   />
                 </div>
 
-                <div>
-                  <p className="text-[10px] font-medium text-muted-foreground uppercase mb-1">Notes</p>
-                  <textarea
-                    className={cn(INPUT_CLASS, 'h-auto py-2')}
-                    rows={3}
-                    value={editNotes}
-                    onChange={e => setEditNotes(e.target.value)}
-                    placeholder="Notes…"
-                  />
-                </div>
               </>
             ) : (
               <>
@@ -624,14 +624,6 @@ export default function MobileGigDetail({ gigId, onBack, onViewPackingList }: Mo
                   </div>
                 )}
 
-                {gig.notes && (
-                  <div className="flex items-start gap-2.5">
-                    <FileText className="w-4 h-4 text-muted-foreground mt-0.5 shrink-0" />
-                    <div className="text-[11px] text-muted-foreground whitespace-pre-wrap bg-muted/30 p-2 rounded flex-1">
-                      {gig.notes}
-                    </div>
-                  </div>
-                )}
               </>
             )}
           </CardContent>
@@ -822,17 +814,6 @@ export default function MobileGigDetail({ gigId, onBack, onViewPackingList }: Mo
           </CardContent>
         </Card>
 
-        <Card style={{ gap: 0 }}>
-          <CardContent className="p-3" style={{ paddingBottom: '12px' }}>
-            <AttachmentManager
-              organizationId={selectedOrganization?.id ?? ''}
-              entityType="gig"
-              entityId={gigId}
-              allowUpload={canEdit}
-            />
-          </CardContent>
-        </Card>
-
         {gig.staff_slots && gig.staff_slots.length > 0 && (
           <Card style={{ gap: 0 }}>
             <CardContent className="p-3" style={{ paddingBottom: '12px' }}>
@@ -875,6 +856,42 @@ export default function MobileGigDetail({ gigId, onBack, onViewPackingList }: Mo
                   </div>
                 ))}
               </div>
+            </CardContent>
+          </Card>
+        )}
+
+        <Card style={{ gap: 0 }}>
+          <CardContent className="p-3" style={{ paddingBottom: '12px' }}>
+            <AttachmentManager
+              organizationId={selectedOrganization?.id ?? ''}
+              entityType="gig"
+              entityId={gigId}
+              allowUpload={canEdit}
+            />
+          </CardContent>
+        </Card>
+
+        {(isEditing || gig.notes) && (
+          <Card style={{ gap: 0 }}>
+            <CardContent className="p-3" style={{ paddingBottom: '12px' }}>
+              <p className="text-[11px] font-semibold flex items-center gap-1.5 text-muted-foreground mb-2">
+                <FileText className="w-3.5 h-3.5" />
+                Notes
+              </p>
+              {isEditing ? (
+                <textarea
+                  className={cn(INPUT_CLASS, 'h-auto py-2')}
+                  style={{ fontSize: '14px' }}
+                  rows={3}
+                  value={editNotes}
+                  onChange={e => setEditNotes(e.target.value)}
+                  placeholder="Notes…"
+                />
+              ) : (
+                <div className="text-sm text-muted-foreground whitespace-pre-wrap bg-muted/30 p-2 rounded" style={{ fontSize: '14px' }}>
+                  {gig.notes}
+                </div>
+              )}
             </CardContent>
           </Card>
         )}

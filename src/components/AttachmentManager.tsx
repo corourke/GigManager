@@ -148,7 +148,7 @@ export default function AttachmentManager({
       </div>
 
       {attachments.length === 0 ? (
-        <div className="text-center py-8 border-2 border-dashed border-gray-200 rounded-lg">
+        <div className="text-center py-4 border-2 border-dashed border-gray-200 rounded-lg">
           <FileText className="w-8 h-8 text-gray-300 mx-auto mb-2" />
           <p className="text-sm text-gray-500">No attachments found</p>
         </div>
@@ -180,15 +180,17 @@ export default function AttachmentManager({
                 >
                   <Eye className="h-4 w-4" />
                 </Button>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-8 w-8 text-gray-400 hover:text-red-600"
-                  onClick={() => handleRemove(attachment)}
-                  title="Remove"
-                >
-                  <X className="h-4 w-4" />
-                </Button>
+                {allowUpload && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 text-gray-400 hover:text-red-600"
+                    onClick={() => handleRemove(attachment)}
+                    title="Remove"
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                )}
               </div>
             </div>
           ))}
