@@ -4,6 +4,8 @@ import {
   GigStatus,
   FinType,
   FinCategory,
+  GigAccountingSummary,
+  PaymentHealth,
 } from '../utils/supabase/types';
 import { FIN_TYPE_CONFIG, FIN_CATEGORY_CONFIG, FIN_TYPE_GROUPS } from '../utils/supabase/constants';
 import { handleApiError } from '../utils/api-error-utils';
@@ -21,51 +23,26 @@ const getSupabase = () => createClient();
 async function syncGigToAllCalendars(gigId: string): Promise<void> {
   try {
     const supabase = getSupabase();
-    const gig = await getGig(gigId);
-
-    if (!gig) return;
-
-    const { data: usersWithCalendar, error } = await supabase
-      .from('user_google_calendar_settings')
-      .select('user_id, sync_filters')
-      .eq('is_enabled', true);
+    
+    // Call the edge function to handle multi-user sync server-side (bypassing RLS)
+    const { data, error } = await supabase.functions.invoke(
+      'server/integrations/google-calendar/sync-gig-all-users',
+      {
+        method: 'POST',
+        body: { 
+          gig_id: gigId,
+          origin: window.location.origin
+        },
+      }
+    );
 
     if (error) {
-      console.error('Error fetching users with calendar integration:', error);
-      return;
+      console.error('Error triggering server-side gig sync:', error);
+    } else {
+      console.log('Server-side gig sync triggered successfully:', data);
     }
-
-    if (!usersWithCalendar || usersWithCalendar.length === 0) {
-      return;
-    }
-
-    // Get venue information for location
-    const venue = gig.participants?.find((p: any) => p.role === 'Venue')?.organization;
-    const location = venue ? `${venue.name}${venue.address_line1 ? `, ${venue.address_line1}` : ''}${venue.city ? `, ${venue.city}` : ''}` : undefined;
-
-    const syncPromises = usersWithCalendar.map(async (userSetting) => {
-      try {
-        const frequency = (userSetting as any).sync_filters?.frequency || 'realtime';
-        if (frequency !== 'realtime') {
-          return;
-        }
-        await syncGigToCalendar(userSetting.user_id, gigId, {
-          title: gig.title,
-          start: gig.start,
-          end: gig.end,
-          timezone: gig.timezone,
-          description: gig.notes,
-          location,
-        });
-      } catch (syncError) {
-        console.error(`Failed to sync gig ${gigId} to user ${userSetting.user_id}'s calendar:`, syncError);
-      }
-    });
-
-    await Promise.allSettled(syncPromises);
   } catch (error) {
     console.error('Error in syncGigToAllCalendars:', error);
-    // Don't throw - sync failures shouldn't break gig operations
   }
 }
 
@@ -393,16 +370,20 @@ export async function updateGig(gigId: string, gigData: {
 
     const { participants, staff_slots, ...restGigData } = gigData;
 
-    const { error: updateError } = await supabase
+    const { data: updatedRows, error: updateError } = await supabase
       .from('gigs')
       .update({
         ...restGigData,
         updated_by: user.id,
         updated_at: new Date().toISOString(),
       })
-      .eq('id', gigId);
+      .eq('id', gigId)
+      .select('id');
 
     if (updateError) throw updateError;
+    if (!updatedRows || updatedRows.length === 0) {
+      throw new Error('Failed to save gig — you may not have permission to edit this gig.');
+    }
 
     if (participants !== undefined && Array.isArray(participants)) {
       await updateGigParticipants(gigId, participants);
@@ -1392,5 +1373,210 @@ export async function updateStaffAssignmentStatus(
     if (error) throw error;
   } catch (err) {
     return handleApiError(err, 'update staff assignment status');
+  }
+}
+
+export async function getAllGigAccountingSummaries(
+  organizationId: string
+): Promise<GigAccountingSummary[]> {
+  const supabase = getSupabase();
+  try {
+    const { data: participants, error: partError } = await supabase
+      .from('gig_participants')
+      .select('gig_id')
+      .eq('organization_id', organizationId);
+
+    if (partError) throw partError;
+
+    if (!participants || participants.length === 0) return [];
+
+    const gigIds = participants.map((p: { gig_id: string }) => p.gig_id);
+
+    const { data: gigs, error: gigsError } = await supabase
+      .from('gigs')
+      .select('id, title, status, start, end')
+      .in('id', gigIds);
+
+    if (gigsError) throw gigsError;
+
+    const { data: financials, error: finError } = await supabase
+      .from('gig_financials')
+      .select('id, gig_id, type, amount, paid_at, staff_assignment_id')
+      .in('gig_id', gigIds)
+      .eq('organization_id', organizationId);
+
+    if (finError) throw finError;
+
+    const { data: assignments, error: staffError } = await supabase
+      .from('gig_staff_assignments')
+      .select(`
+        id,
+        fee,
+        rate,
+        status,
+        completed_at,
+        gig_financial_id,
+        slot:gig_staff_slots!inner(gig_id, organization_id)
+      `)
+      .in('slot.gig_id', gigIds)
+      .eq('slot.organization_id', organizationId);
+
+    if (staffError) throw staffError;
+
+    type RawFinancial = {
+      id: string;
+      gig_id: string;
+      type: string;
+      amount: number;
+      paid_at: string | null;
+      staff_assignment_id: string | null;
+    };
+
+    type RawAssignment = {
+      id: string;
+      fee: number | null;
+      rate: number | null;
+      status: string;
+      completed_at: string | null;
+      gig_financial_id: string | null;
+      slot: { gig_id: string; organization_id: string };
+    };
+
+    const financialsByGig = new Map<string, RawFinancial[]>();
+    for (const f of (financials || []) as RawFinancial[]) {
+      const list = financialsByGig.get(f.gig_id) ?? [];
+      list.push(f);
+      financialsByGig.set(f.gig_id, list);
+    }
+
+    const assignmentsByGig = new Map<string, RawAssignment[]>();
+    for (const a of (assignments || []) as RawAssignment[]) {
+      const gigId = (a.slot as { gig_id: string }).gig_id;
+      const list = assignmentsByGig.get(gigId) ?? [];
+      list.push(a);
+      assignmentsByGig.set(gigId, list);
+    }
+
+    const financialIdToPaidAt = new Map<string, string | null>();
+    for (const f of (financials || []) as RawFinancial[]) {
+      financialIdToPaidAt.set(f.id, f.paid_at);
+    }
+
+    return (gigs || []).map((gig: { id: string; title: string; status: string; start: string; end: string }) => {
+      const gigFinancials = financialsByGig.get(gig.id) ?? [];
+      const gigAssignments = assignmentsByGig.get(gig.id) ?? [];
+
+      let contractSignedTotal = 0;
+      let bidAcceptedTotal = 0;
+      let informalTermsTotal = 0;
+      let received = 0;
+      let actualCosts = 0;
+      let expectedSubContractCosts = 0;
+      let subContractSignedTotal = 0;
+      let subContractSettledTotal = 0;
+
+      for (const f of gigFinancials) {
+        const amount = Number(f.amount) || 0;
+
+        if (f.type === 'Contract Signed') {
+          contractSignedTotal += amount;
+        } else if (f.type === 'Bid Accepted') {
+          bidAcceptedTotal += amount;
+        } else if (f.type === 'Informal Terms') {
+          informalTermsTotal += amount;
+        }
+
+        if (f.type === 'Deposit Received' || f.type === 'Payment Received') {
+          received += amount;
+        }
+
+        if (
+          f.type === 'Expense Incurred' ||
+          f.type === 'Payment Sent' ||
+          f.type === 'Deposit Sent' ||
+          f.type === 'Sub-Contract Settled'
+        ) {
+          actualCosts += amount;
+        }
+
+        if (f.type === 'Sub-Contract Submitted' || f.type === 'Sub-Contract Signed') {
+          expectedSubContractCosts += amount;
+        }
+
+        if (f.type === 'Sub-Contract Signed') {
+          subContractSignedTotal += amount;
+        }
+
+        if (f.type === 'Sub-Contract Settled') {
+          subContractSettledTotal += amount;
+        }
+      }
+
+      const formalContractAmount = contractSignedTotal > 0
+        ? contractSignedTotal
+        : bidAcceptedTotal > 0
+          ? bidAcceptedTotal
+          : informalTermsTotal;
+
+      const contractAmount = Math.max(formalContractAmount, received);
+      const outstandingRevenue = Math.max(0, contractAmount - received);
+
+      let expectedStaffCosts = 0;
+      let paymentsToMakeStaff = 0;
+
+      for (const a of gigAssignments) {
+        if ((a.status === 'Confirmed' || a.status === 'Requested') && !a.completed_at) {
+          const amount = a.fee !== null ? Number(a.fee) : (a.rate !== null ? Number(a.rate) : 0);
+          expectedStaffCosts += amount;
+        }
+
+        if (a.completed_at && a.gig_financial_id) {
+          const paidAt = financialIdToPaidAt.get(a.gig_financial_id);
+          if (paidAt === null || paidAt === undefined) {
+            const fee = a.fee !== null ? Number(a.fee) : (a.rate !== null ? Number(a.rate) : 0);
+            paymentsToMakeStaff += fee;
+          }
+        }
+      }
+
+      const paymentsToMakeSubContracts = Math.max(0, subContractSignedTotal - subContractSettledTotal);
+      const paymentsToMake = paymentsToMakeSubContracts + paymentsToMakeStaff;
+
+      const totalCosts = actualCosts + expectedStaffCosts + expectedSubContractCosts;
+      const profit = contractAmount - totalCosts;
+      const margin = contractAmount > 0 ? (profit / contractAmount) * 100 : 0;
+
+      let paymentHealth: PaymentHealth;
+      if (outstandingRevenue === 0 && paymentsToMake === 0) {
+        paymentHealth = 'all-clear';
+      } else if (outstandingRevenue > 0 && paymentsToMake === 0) {
+        paymentHealth = 'revenue-outstanding';
+      } else if (outstandingRevenue === 0 && paymentsToMake > 0) {
+        paymentHealth = 'payments-due';
+      } else {
+        paymentHealth = 'both';
+      }
+
+      return {
+        gigId: gig.id,
+        gigTitle: gig.title,
+        gigStatus: gig.status as GigStatus,
+        gigStart: gig.start,
+        gigEnd: gig.end,
+        contractAmount,
+        received,
+        outstandingRevenue,
+        actualCosts,
+        expectedStaffCosts,
+        expectedSubContractCosts,
+        totalCosts,
+        paymentsToMake,
+        profit,
+        margin,
+        paymentHealth,
+      } satisfies GigAccountingSummary;
+    });
+  } catch (err) {
+    return handleApiError(err, 'get all gig accounting summaries') as never;
   }
 }

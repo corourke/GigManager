@@ -123,11 +123,9 @@ export async function getUserGoogleCalendarSettings(userId: string): Promise<Use
       .from('user_google_calendar_settings')
       .select(SETTINGS_COLS)
       .eq('user_id', userId)
-      .single();
+      .maybeSingle();
 
-    if (error && error.code !== 'PGRST116') { // PGRST116 = no rows returned
-      throw error;
-    }
+    if (error) throw error;
 
     return data || null;
   } catch (error) {
@@ -154,11 +152,13 @@ export async function saveUserGoogleCalendarSettings(
 
   try {
     // Check if user already has settings (app supports only one calendar per user)
-    const { data: existing } = await supabase
+    const { data: existing, error: checkError } = await supabase
       .from('user_google_calendar_settings')
       .select('id')
       .eq('user_id', userId)
-      .single();
+      .maybeSingle();
+
+    if (checkError) throw checkError;
 
     let result;
     if (existing) {
@@ -211,9 +211,10 @@ export async function updateUserGoogleCalendarSettings(
       })
       .eq('user_id', userId)
       .select(SETTINGS_COLS)
-      .single();
+      .maybeSingle();
 
     if (error) throw error;
+    if (!data) throw new Error('Failed to update settings: Not found');
     return data;
   } catch (error) {
     return handleApiError(error, 'update user Google Calendar settings');
@@ -345,9 +346,9 @@ export async function getGigSyncStatus(gigId: string, userId: string): Promise<G
       .select('id, gig_id, user_id, google_event_id, last_synced_at, sync_status, sync_error, created_at, updated_at')
       .eq('gig_id', gigId)
       .eq('user_id', userId)
-      .single();
+      .maybeSingle();
 
-    if (error && error.code !== 'PGRST116') {
+    if (error) {
       throw error;
     }
 
@@ -661,9 +662,10 @@ export async function updateGigSyncStatus(
         { onConflict: 'gig_id,user_id' }
       )
       .select('id, gig_id, user_id, google_event_id, last_synced_at, sync_status, sync_error, created_at, updated_at')
-      .single();
+      .maybeSingle();
 
     if (error) throw error;
+    if (!data) throw new Error('Failed to update sync status');
     return data;
   } catch (error) {
     return handleApiError(error, 'update gig sync status');

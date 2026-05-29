@@ -7,6 +7,7 @@ import {
   deleteGigFinancial,
   removeKitFromGig,
   getGigKits,
+  getAllGigAccountingSummaries,
 } from './gig.service';
 import { createClient } from '../utils/supabase/client';
 
@@ -293,6 +294,229 @@ describe('gig.service', () => {
       mockSupabase.from.mockReturnValue(makeChain({ data: null, error: null }));
       const result = await getGigKits('gig-1');
       expect(result).toEqual([]);
+    });
+  });
+
+  // ─── getAllGigAccountingSummaries ──────────────────────────────────────────
+
+  describe('getAllGigAccountingSummaries', () => {
+    function setupMocks({
+      participants = [],
+      gigs = [],
+      financials = [],
+      assignments = [],
+    }: {
+      participants?: any[];
+      gigs?: any[];
+      financials?: any[];
+      assignments?: any[];
+    }) {
+      mockSupabase.from.mockImplementation((table: string) => {
+        if (table === 'gig_participants') return makeChain({ data: participants, error: null });
+        if (table === 'gigs') return makeChain({ data: gigs, error: null });
+        if (table === 'gig_financials') return makeChain({ data: financials, error: null });
+        if (table === 'gig_staff_assignments') return makeChain({ data: assignments, error: null });
+        return makeChain({ data: [], error: null });
+      });
+    }
+
+    it('returns empty array when org has no gigs', async () => {
+      setupMocks({ participants: [] });
+      const result = await getAllGigAccountingSummaries('org-1');
+      expect(result).toEqual([]);
+    });
+
+    it('correctly groups financials by gig across multiple gigs', async () => {
+      setupMocks({
+        participants: [{ gig_id: 'gig-1' }, { gig_id: 'gig-2' }],
+        gigs: [
+          { id: 'gig-1', title: 'Gig One', status: 'Completed', start: '2026-01-01T00:00:00Z', end: '2026-01-01T23:00:00Z' },
+          { id: 'gig-2', title: 'Gig Two', status: 'Booked', start: '2026-06-01T00:00:00Z', end: '2026-06-01T23:00:00Z' },
+        ],
+        financials: [
+          { id: 'f1', gig_id: 'gig-1', type: 'Contract Signed', amount: 1000, paid_at: null, staff_assignment_id: null },
+          { id: 'f2', gig_id: 'gig-1', type: 'Payment Received', amount: 500, paid_at: null, staff_assignment_id: null },
+          { id: 'f3', gig_id: 'gig-2', type: 'Contract Signed', amount: 2000, paid_at: null, staff_assignment_id: null },
+        ],
+        assignments: [],
+      });
+
+      const result = await getAllGigAccountingSummaries('org-1');
+
+      expect(result).toHaveLength(2);
+
+      const gig1 = result.find(r => r.gigId === 'gig-1')!;
+      expect(gig1.contractAmount).toBe(1000);
+      expect(gig1.received).toBe(500);
+      expect(gig1.outstandingRevenue).toBe(500);
+
+      const gig2 = result.find(r => r.gigId === 'gig-2')!;
+      expect(gig2.contractAmount).toBe(2000);
+      expect(gig2.received).toBe(0);
+    });
+
+    it('uses Contract Signed priority over Bid Accepted and Informal Terms', async () => {
+      setupMocks({
+        participants: [{ gig_id: 'gig-1' }],
+        gigs: [{ id: 'gig-1', title: 'G', status: 'Completed', start: '2026-01-01T00:00:00Z', end: '2026-01-01T23:00:00Z' }],
+        financials: [
+          { id: 'f1', gig_id: 'gig-1', type: 'Contract Signed', amount: 3000, paid_at: null, staff_assignment_id: null },
+          { id: 'f2', gig_id: 'gig-1', type: 'Bid Accepted', amount: 2000, paid_at: null, staff_assignment_id: null },
+          { id: 'f3', gig_id: 'gig-1', type: 'Informal Terms', amount: 1000, paid_at: null, staff_assignment_id: null },
+        ],
+        assignments: [],
+      });
+
+      const [result] = await getAllGigAccountingSummaries('org-1');
+      expect(result.contractAmount).toBe(3000);
+    });
+
+    it('uses Bid Accepted when no Contract Signed exists', async () => {
+      setupMocks({
+        participants: [{ gig_id: 'gig-1' }],
+        gigs: [{ id: 'gig-1', title: 'G', status: 'Booked', start: '2026-06-01T00:00:00Z', end: '2026-06-01T23:00:00Z' }],
+        financials: [
+          { id: 'f1', gig_id: 'gig-1', type: 'Bid Accepted', amount: 2000, paid_at: null, staff_assignment_id: null },
+          { id: 'f2', gig_id: 'gig-1', type: 'Informal Terms', amount: 1000, paid_at: null, staff_assignment_id: null },
+        ],
+        assignments: [],
+      });
+
+      const [result] = await getAllGigAccountingSummaries('org-1');
+      expect(result.contractAmount).toBe(2000);
+    });
+
+    it('uses Informal Terms when no Contract Signed or Bid Accepted exists', async () => {
+      setupMocks({
+        participants: [{ gig_id: 'gig-1' }],
+        gigs: [{ id: 'gig-1', title: 'G', status: 'Proposed', start: '2026-09-01T00:00:00Z', end: '2026-09-01T23:00:00Z' }],
+        financials: [
+          { id: 'f1', gig_id: 'gig-1', type: 'Informal Terms', amount: 1500, paid_at: null, staff_assignment_id: null },
+        ],
+        assignments: [],
+      });
+
+      const [result] = await getAllGigAccountingSummaries('org-1');
+      expect(result.contractAmount).toBe(1500);
+    });
+
+    it('classifies sub-contract costs: Submitted/Signed as expected, Settled as actual, Rejected/Cancelled excluded', async () => {
+      setupMocks({
+        participants: [{ gig_id: 'gig-1' }],
+        gigs: [{ id: 'gig-1', title: 'G', status: 'Completed', start: '2026-01-01T00:00:00Z', end: '2026-01-01T23:00:00Z' }],
+        financials: [
+          { id: 'f1', gig_id: 'gig-1', type: 'Contract Signed', amount: 5000, paid_at: null, staff_assignment_id: null },
+          { id: 'f2', gig_id: 'gig-1', type: 'Sub-Contract Submitted', amount: 400, paid_at: null, staff_assignment_id: null },
+          { id: 'f3', gig_id: 'gig-1', type: 'Sub-Contract Signed', amount: 600, paid_at: null, staff_assignment_id: null },
+          { id: 'f4', gig_id: 'gig-1', type: 'Sub-Contract Settled', amount: 800, paid_at: '2026-01-10', staff_assignment_id: null },
+          { id: 'f5', gig_id: 'gig-1', type: 'Sub-Contract Rejected', amount: 999, paid_at: null, staff_assignment_id: null },
+          { id: 'f6', gig_id: 'gig-1', type: 'Sub-Contract Cancelled', amount: 999, paid_at: null, staff_assignment_id: null },
+        ],
+        assignments: [],
+      });
+
+      const [result] = await getAllGigAccountingSummaries('org-1');
+      expect(result.expectedSubContractCosts).toBe(1000);
+      expect(result.actualCosts).toBe(800);
+    });
+
+    it('computes paymentsToMake: Sub-Contract Signed (not settled) + unpaid completed staff', async () => {
+      setupMocks({
+        participants: [{ gig_id: 'gig-1' }],
+        gigs: [{ id: 'gig-1', title: 'G', status: 'Completed', start: '2026-01-01T00:00:00Z', end: '2026-01-01T23:00:00Z' }],
+        financials: [
+          { id: 'f1', gig_id: 'gig-1', type: 'Contract Signed', amount: 5000, paid_at: null, staff_assignment_id: null },
+          { id: 'f2', gig_id: 'gig-1', type: 'Sub-Contract Signed', amount: 1000, paid_at: null, staff_assignment_id: null },
+          { id: 'f3', gig_id: 'gig-1', type: 'Sub-Contract Settled', amount: 400, paid_at: '2026-01-10', staff_assignment_id: null },
+          { id: 'labor-fin', gig_id: 'gig-1', type: 'Expense Incurred', amount: 200, paid_at: null, staff_assignment_id: 'assign-1' },
+        ],
+        assignments: [
+          {
+            id: 'assign-1',
+            fee: 200,
+            rate: null,
+            status: 'Confirmed',
+            completed_at: '2026-01-02T00:00:00Z',
+            gig_financial_id: 'labor-fin',
+            slot: { gig_id: 'gig-1', organization_id: 'org-1' },
+          },
+        ],
+      });
+
+      const [result] = await getAllGigAccountingSummaries('org-1');
+      expect(result.paymentsToMake).toBe(800);
+    });
+
+    it('derivates paymentHealth as all-clear when no outstanding revenue or payments', async () => {
+      setupMocks({
+        participants: [{ gig_id: 'gig-1' }],
+        gigs: [{ id: 'gig-1', title: 'G', status: 'Settled', start: '2026-01-01T00:00:00Z', end: '2026-01-01T23:00:00Z' }],
+        financials: [
+          { id: 'f1', gig_id: 'gig-1', type: 'Contract Signed', amount: 1000, paid_at: null, staff_assignment_id: null },
+          { id: 'f2', gig_id: 'gig-1', type: 'Payment Received', amount: 1000, paid_at: null, staff_assignment_id: null },
+        ],
+        assignments: [],
+      });
+
+      const [result] = await getAllGigAccountingSummaries('org-1');
+      expect(result.paymentHealth).toBe('all-clear');
+    });
+
+    it('derivates paymentHealth as revenue-outstanding when revenue outstanding but no payments due', async () => {
+      setupMocks({
+        participants: [{ gig_id: 'gig-1' }],
+        gigs: [{ id: 'gig-1', title: 'G', status: 'Completed', start: '2026-01-01T00:00:00Z', end: '2026-01-01T23:00:00Z' }],
+        financials: [
+          { id: 'f1', gig_id: 'gig-1', type: 'Contract Signed', amount: 1000, paid_at: null, staff_assignment_id: null },
+          { id: 'f2', gig_id: 'gig-1', type: 'Payment Received', amount: 600, paid_at: null, staff_assignment_id: null },
+        ],
+        assignments: [],
+      });
+
+      const [result] = await getAllGigAccountingSummaries('org-1');
+      expect(result.paymentHealth).toBe('revenue-outstanding');
+    });
+
+    it('derivates paymentHealth as payments-due when payments owed but revenue fully received', async () => {
+      setupMocks({
+        participants: [{ gig_id: 'gig-1' }],
+        gigs: [{ id: 'gig-1', title: 'G', status: 'Completed', start: '2026-01-01T00:00:00Z', end: '2026-01-01T23:00:00Z' }],
+        financials: [
+          { id: 'f1', gig_id: 'gig-1', type: 'Contract Signed', amount: 1000, paid_at: null, staff_assignment_id: null },
+          { id: 'f2', gig_id: 'gig-1', type: 'Payment Received', amount: 1000, paid_at: null, staff_assignment_id: null },
+          { id: 'f3', gig_id: 'gig-1', type: 'Sub-Contract Signed', amount: 300, paid_at: null, staff_assignment_id: null },
+        ],
+        assignments: [],
+      });
+
+      const [result] = await getAllGigAccountingSummaries('org-1');
+      expect(result.paymentHealth).toBe('payments-due');
+    });
+
+    it('derivates paymentHealth as both when both outstanding revenue and payments due', async () => {
+      setupMocks({
+        participants: [{ gig_id: 'gig-1' }],
+        gigs: [{ id: 'gig-1', title: 'G', status: 'Completed', start: '2026-01-01T00:00:00Z', end: '2026-01-01T23:00:00Z' }],
+        financials: [
+          { id: 'f1', gig_id: 'gig-1', type: 'Contract Signed', amount: 1000, paid_at: null, staff_assignment_id: null },
+          { id: 'f2', gig_id: 'gig-1', type: 'Payment Received', amount: 500, paid_at: null, staff_assignment_id: null },
+          { id: 'f3', gig_id: 'gig-1', type: 'Sub-Contract Signed', amount: 300, paid_at: null, staff_assignment_id: null },
+        ],
+        assignments: [],
+      });
+
+      const [result] = await getAllGigAccountingSummaries('org-1');
+      expect(result.paymentHealth).toBe('both');
+    });
+
+    it('propagates Supabase errors from gig_participants query', async () => {
+      const dbError = new Error('permission denied');
+      mockSupabase.from.mockImplementation((table: string) => {
+        if (table === 'gig_participants') return makeChain({ data: null, error: dbError });
+        return makeChain({ data: [], error: null });
+      });
+
+      await expect(getAllGigAccountingSummaries('org-1')).rejects.toThrow('permission denied');
     });
   });
 });

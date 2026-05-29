@@ -41,6 +41,7 @@ import {
   SelectValue,
 } from './ui/select';
 import AppHeader from './AppHeader';
+import GigAccountingTab from './financials/GigAccountingTab';
 import { Organization, User, UserRole, DbPurchase } from '../utils/supabase/types';
 import { getPurchases } from '../services/purchase.service';
 import { getEntityAttachments, getAttachmentUrl } from '../services/attachment.service';
@@ -556,14 +557,11 @@ export default function FinancialsScreen({
           </TabsContent>
 
           <TabsContent value="gig-accounting">
-            <Card className="p-12 text-center text-gray-500">
-              <Banknote className="w-12 h-12 mx-auto text-gray-300 mb-4" />
-              <p className="text-lg font-medium">Gig Accounting Coming Soon</p>
-              <p className="text-sm">This view will track gig-related expenses and financial performance.</p>
-              <Button onClick={onNavigateToGigs} variant="outline" className="mt-4">
-                View Gigs
-              </Button>
-            </Card>
+            <GigAccountingTab
+              organization={organization}
+              userRole={userRole}
+              onNavigateToGigDetail={onNavigateToGigDetail}
+            />
           </TabsContent>
 
           <TabsContent value="reporting">

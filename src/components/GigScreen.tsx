@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { toast } from 'sonner';
 import { 
   Loader2, 
@@ -12,7 +12,7 @@ import AppHeader from './AppHeader';
 import { User, Organization, UserRole, Gig } from '../utils/supabase/types';
 import { getGig, deleteGig, duplicateGig, createGig } from '../services/gig.service';
 import GigHeader from './gig/GigHeader';
-import GigBasicInfoSection from './gig/GigBasicInfoSection';
+import GigBasicInfoSection, { GigBasicInfoSectionHandle } from './gig/GigBasicInfoSection';
 import GigParticipantsSection from './gig/GigParticipantsSection';
 import GigStaffSlotsSection from './gig/GigStaffSlotsSection';
 import GigFinancialsSection from './gig/GigFinancialsSection';
@@ -53,6 +53,14 @@ export default function GigScreen({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [generalError, setGeneralError] = useState<string>('');
   const isEditMode = !!gigId;
+  const basicInfoRef = useRef<GigBasicInfoSectionHandle>(null);
+
+  const handleBack = async () => {
+    if (basicInfoRef.current) {
+      await basicInfoRef.current.flush();
+    }
+    onCancel();
+  };
 
   // Load gig data in edit mode
   useEffect(() => {
@@ -181,13 +189,13 @@ export default function GigScreen({
           <>
             <GigHeader
               gigId={gigId}
-              onBack={onCancel}
+              onBack={handleBack}
               onDelete={handleDelete}
               onDuplicate={handleDuplicate}
             />
             
             <div className="space-y-6">
-              <GigBasicInfoSection gigId={gigId} />
+              <GigBasicInfoSection ref={basicInfoRef} gigId={gigId} />
               <GigParticipantsSection
                 gigId={gigId}
                 currentOrganizationId={organization.id}

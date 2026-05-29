@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useForm, Controller } from 'react-hook-form';
+import { forwardRef, useImperativeHandle } from 'react';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { format } from 'date-fns';
@@ -30,6 +31,7 @@ const basicInfoSchema = z.object({
   tags: z.array(z.string()).optional(),
   notes: z.string().optional(),
 }).refine((data) => {
+  if (data.all_day) return true;
   if (data.start_time && data.end_time) {
     return data.end_time > data.start_time;
   }
@@ -57,13 +59,17 @@ const STATUS_OPTIONS: { value: GigStatus; label: string }[] = Object.entries(GIG
 
 
 
+export interface GigBasicInfoSectionHandle {
+  flush: () => Promise<void>;
+}
+
 interface GigBasicInfoSectionProps {
   gigId?: string;
   onCreate?: (data: BasicInfoFormData) => Promise<void>;
   isSubmitting?: boolean;
 }
 
-export default function GigBasicInfoSection({ gigId, onCreate, isSubmitting: externalIsSubmitting }: GigBasicInfoSectionProps) {
+const GigBasicInfoSection = forwardRef<GigBasicInfoSectionHandle, GigBasicInfoSectionProps>(function GigBasicInfoSection({ gigId, onCreate, isSubmitting: externalIsSubmitting }, ref) {
   const [isLoading, setIsLoading] = useState(!!gigId);
   const isCreateMode = !gigId;
 
@@ -97,7 +103,7 @@ export default function GigBasicInfoSection({ gigId, onCreate, isSubmitting: ext
     if (!gigId) return;
     if (!data.start_time) return;
     const effectiveEnd = computeEffectiveEnd(data);
-    if (effectiveEnd && new Date(effectiveEnd) <= data.start_time) return;
+    if (!data.all_day && effectiveEnd && new Date(effectiveEnd) <= data.start_time) return;
     await updateGig(gigId, {
       title: data.title,
       start: data.start_time.toISOString(),
@@ -113,12 +119,16 @@ export default function GigBasicInfoSection({ gigId, onCreate, isSubmitting: ext
     reset(data, { keepDirty: false, keepValues: true });
   }, [reset]);
 
-  const { saveState, triggerSave } = useAutoSave<BasicInfoFormData>({
+  const { saveState, triggerSave, flushAsync } = useAutoSave<BasicInfoFormData>({
     gigId: gigId || '',
     onSave: handleSave,
     onSuccess: handleSaveSuccess,
-    debounceMs: 3000
+    debounceMs: 1500
   });
+
+  useImperativeHandle(ref, () => ({
+    flush: flushAsync,
+  }), [flushAsync]);
 
   const formValues = watch();
 
@@ -497,4 +507,6 @@ export default function GigBasicInfoSection({ gigId, onCreate, isSubmitting: ext
       </CardContent>
     </Card>
   );
-}
+});
+
+export default GigBasicInfoSection;

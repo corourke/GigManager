@@ -15,6 +15,7 @@ interface UseAutoSaveReturn<T> {
   error: Error | null;
   triggerSave: (data: T) => void;
   flush: () => void;
+  flushAsync: () => Promise<void>;
 }
 
 export function useAutoSave<T>({
@@ -46,7 +47,6 @@ export function useAutoSave<T>({
         onSuccess(data);
       }
       
-      // Reset to idle after 2 seconds
       setTimeout(() => {
         setSaveState((current) => (current === 'saved' ? 'idle' : current));
       }, 2000);
@@ -68,6 +68,16 @@ export function useAutoSave<T>({
     }
   }, [performSave]);
 
+  const flushAsync = useCallback(async () => {
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+      timeoutRef.current = null;
+      if (dataToSaveRef.current) {
+        await performSave(dataToSaveRef.current);
+      }
+    }
+  }, [performSave]);
+
   const triggerSave = useCallback((data: T) => {
     dataToSaveRef.current = data;
     
@@ -83,14 +93,11 @@ export function useAutoSave<T>({
     }, debounceMs);
   }, [debounceMs, performSave]);
 
-  // Cleanup on unmount - trigger save if pending
   useEffect(() => {
     return () => {
       if (timeoutRef.current) {
         clearTimeout(timeoutRef.current);
         if (dataToSaveRef.current) {
-          // Note: performSave is async and we are unmounting,
-          // but the promise will still execute.
           performSave(dataToSaveRef.current);
         }
       }
@@ -102,5 +109,6 @@ export function useAutoSave<T>({
     error,
     triggerSave,
     flush,
+    flushAsync,
   };
 }

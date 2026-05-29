@@ -382,6 +382,32 @@ export interface DbGigSyncStatus {
 export type UserGoogleCalendarSettings = DbUserGoogleCalendarSettings;
 export type GigSyncStatus = DbGigSyncStatus;
 
+export type PaymentHealth = 'all-clear' | 'revenue-outstanding' | 'payments-due' | 'both';
+
+export interface GigAccountingSummary {
+  gigId: string;
+  gigTitle: string;
+  gigStatus: GigStatus;
+  gigStart: string;
+  gigEnd: string;
+
+  contractAmount: number;
+  received: number;
+  outstandingRevenue: number;
+
+  actualCosts: number;
+  expectedStaffCosts: number;
+  expectedSubContractCosts: number;
+  totalCosts: number;
+
+  paymentsToMake: number;
+
+  profit: number;
+  margin: number;
+
+  paymentHealth: PaymentHealth;
+}
+
 export interface Database {
   public: {
     Tables: {
