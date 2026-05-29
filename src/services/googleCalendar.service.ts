@@ -7,8 +7,8 @@ const getSupabase = () => createClient();
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
 
 const SCOPES = [
-  'https://www.googleapis.com/auth/calendar.calendarlist.readonly',
-  'https://www.googleapis.com/auth/calendar.events.owned'
+  'https://www.googleapis.com/auth/calendar.readonly',
+  'https://www.googleapis.com/auth/calendar.events'
 ];
 
 const REDIRECT_URI = () => `${window.location.origin}/auth/google-calendar/callback`;
@@ -277,81 +277,8 @@ export async function syncGigToCalendar(
     location?: string;
   }
 ): Promise<{ eventId: string; syncedAt: Date }> {
-  const supabase = getSupabase();
   const { accessToken, settings } = await getValidAccessToken(userId);
-
-  if (!settings.is_enabled || !settings.calendar_id) {
-    throw new Error('Google Calendar sync not enabled or no calendar selected');
-  }
-
-  try {
-    const existingSync = await getGigSyncStatus(gigId, userId);
-
-    const startDate = new Date(gigData.start);
-    const endDate = gigData.end ? new Date(gigData.end) : null;
-    const isAllDay = startDate.getUTCHours() === 12 && startDate.getUTCMinutes() === 0 && (!endDate || (endDate.getUTCHours() === 12 && endDate.getUTCMinutes() === 0));
-
-    let startProp: Record<string, string>;
-    let endProp: Record<string, string>;
-
-    if (isAllDay) {
-      const startStr = startDate.toISOString().split('T')[0];
-      const endStr = endDate
-        ? new Date(endDate.getTime() + 86400000).toISOString().split('T')[0]
-        : new Date(startDate.getTime() + 86400000).toISOString().split('T')[0];
-      startProp = { date: startStr };
-      endProp = { date: endStr };
-    } else {
-      startProp = { dateTime: startDate.toISOString(), timeZone: gigData.timezone };
-      const effectiveEnd = endDate && endDate.getTime() > startDate.getTime()
-        ? endDate
-        : new Date(startDate.getTime() + 3600000);
-      endProp = { dateTime: effectiveEnd.toISOString(), timeZone: gigData.timezone };
-    }
-
-    const eventData = {
-      summary: gigData.title,
-      description: `${gigData.description || ''}\n\n[View in GigWrangler](${window.location.origin}/gigs/${gigId})`,
-      start: startProp,
-      end: endProp,
-      location: gigData.location,
-    };
-
-    const { data, error } = await supabase.functions.invoke(
-      'server/integrations/google-calendar/events',
-      {
-        method: 'POST',
-        body: {
-          access_token: accessToken,
-          calendar_id: settings.calendar_id,
-          event_data: eventData,
-          event_id: existingSync?.google_event_id || undefined,
-        },
-      }
-    );
-
-    if (error) throw error;
-    if (data?.error) throw new Error(data.details || data.error);
-
-    const eventId = data.event_id;
-
-    const syncStatus = existingSync?.google_event_id ? 'updated' : 'synced';
-    await updateGigSyncStatus(gigId, userId, {
-      google_event_id: eventId,
-      sync_status: syncStatus,
-      last_synced_at: new Date().toISOString(),
-      sync_error: null,
-    });
-
-    return { eventId, syncedAt: new Date() };
-  } catch (error) {
-    await updateGigSyncStatus(gigId, userId, {
-      sync_status: 'failed',
-      sync_error: error instanceof Error ? error.message : 'Unknown error',
-      last_synced_at: new Date().toISOString(),
-    });
-    throw handleApiError(error, 'sync gig to calendar');
-  }
+  return syncGigToCalendarWithToken(userId, accessToken, settings, gigId, gigData);
 }
 
 export async function deleteGigFromCalendar(userId: string, gigId: string): Promise<void> {
@@ -535,7 +462,7 @@ export async function syncAllGigsForUser(
 ): Promise<{ synced: number; failed: number; total: number }> {
   const supabase = getSupabase();
 
-  const settings = await getUserGoogleCalendarSettings(userId);
+  const { accessToken, settings } = await getValidAccessToken(userId);
   const allowedStatuses = getFilteredStatuses(settings?.sync_filters);
 
   const { data: participatingGigs, error: partError } = await supabase
@@ -591,7 +518,8 @@ export async function syncAllGigsForUser(
         ? `${venue.name}${venue.address_line1 ? `, ${venue.address_line1}` : ''}${venue.city ? `, ${venue.city}` : ''}`
         : undefined;
 
-      await syncGigToCalendar(userId, gig.id, {
+      // Pass the already fetched accessToken to syncGigToCalendar to avoid redundant lookups
+      await syncGigToCalendarWithToken(userId, accessToken, settings, gig.id, {
         title: gig.title,
         start: gig.start,
         end: gig.end,
@@ -600,7 +528,8 @@ export async function syncAllGigsForUser(
         location,
       });
       synced++;
-    } catch {
+    } catch (err) {
+      console.error(`Failed to sync gig ${gig.id}:`, err);
       failed++;
     }
     progress++;
@@ -608,6 +537,108 @@ export async function syncAllGigsForUser(
   }
 
   return { synced, failed, total: gigsToSync.length };
+}
+
+/**
+ * Internal version of syncGigToCalendar that takes an already validated token
+ */
+async function syncGigToCalendarWithToken(
+  userId: string,
+  accessToken: string,
+  settings: UserGoogleCalendarSettings,
+  gigId: string,
+  gigData: {
+    title: string;
+    start: string;
+    end: string;
+    timezone: string;
+    description?: string;
+    location?: string;
+  }
+): Promise<{ eventId: string; syncedAt: Date }> {
+  const supabase = getSupabase();
+
+  if (!settings.is_enabled || !settings.calendar_id) {
+    throw new Error('Google Calendar sync not enabled or no calendar selected');
+  }
+
+  try {
+    const existingSync = await getGigSyncStatus(gigId, userId);
+
+    const startDate = new Date(gigData.start);
+    const endDate = gigData.end ? new Date(gigData.end) : null;
+    
+    const isMidnight = (date: Date) => 
+      date.getHours() === 0 && 
+      date.getMinutes() === 0 && 
+      date.getSeconds() === 0 && 
+      date.getMilliseconds() === 0;
+
+    const isAllDay = endDate 
+      ? (isMidnight(startDate) && isMidnight(endDate) && (endDate.getTime() - startDate.getTime() >= 86400000))
+      : isMidnight(startDate);
+
+    let startProp: Record<string, string>;
+    let endProp: Record<string, string>;
+
+    if (isAllDay) {
+      const startStr = startDate.toISOString().split('T')[0];
+      const endStr = endDate
+        ? endDate.toISOString().split('T')[0]
+        : new Date(startDate.getTime() + 86400000).toISOString().split('T')[0];
+      startProp = { date: startStr };
+      endProp = { date: endStr };
+    } else {
+      startProp = { dateTime: startDate.toISOString(), timeZone: gigData.timezone };
+      const effectiveEnd = endDate && endDate.getTime() > startDate.getTime()
+        ? endDate
+        : new Date(startDate.getTime() + 3600000);
+      endProp = { dateTime: effectiveEnd.toISOString(), timeZone: gigData.timezone };
+    }
+
+    const eventData = {
+      summary: gigData.title,
+      description: `${gigData.description || ''}\n\n[View in GigWrangler](${window.location.origin}/gigs/${gigId})`,
+      start: startProp,
+      end: endProp,
+      location: gigData.location,
+    };
+
+    const { data, error } = await supabase.functions.invoke(
+      'server/integrations/google-calendar/events',
+      {
+        method: 'POST',
+        body: {
+          access_token: accessToken,
+          calendar_id: settings.calendar_id,
+          event_data: eventData,
+          event_id: existingSync?.google_event_id || undefined,
+        },
+      }
+    );
+
+    if (error) throw error;
+    if (data?.error) throw new Error(data.details || data.error);
+
+    const eventId = data.event_id;
+
+    const syncStatus = existingSync?.google_event_id ? 'updated' : 'synced';
+    await updateGigSyncStatus(gigId, userId, {
+      google_event_id: eventId,
+      sync_status: syncStatus,
+      last_synced_at: new Date().toISOString(),
+      sync_error: null,
+    });
+
+    return { eventId, syncedAt: new Date() };
+  } catch (error) {
+    await updateGigSyncStatus(gigId, userId, {
+      sync_status: 'failed',
+      sync_error: error instanceof Error ? error.message : 'Unknown error',
+      last_synced_at: new Date().toISOString(),
+    });
+    throw handleApiError(error, 'sync gig to calendar');
+  }
 }
 
 export async function updateGigSyncStatus(

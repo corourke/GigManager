@@ -2773,6 +2773,216 @@ Deno.serve(async (req) => {
       });
     }
 
+    if (path === '/integrations/google-calendar/sync-gig-all-users' && method === 'POST') {
+      const authHeader = req.headers.get('Authorization');
+      const { user, error: authError } = await getAuthenticatedUser(authHeader);
+
+      if (authError || !user) {
+        return new Response(JSON.stringify({ error: authError ?? 'Unauthorized' }), {
+          status: 401,
+          headers: { ...responseHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      const { gig_id, origin } = await req.json();
+      if (!gig_id) {
+        return new Response(JSON.stringify({ error: 'gig_id is required' }), {
+          status: 400,
+          headers: { ...responseHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      // Background process: fetch users and sync
+      (async () => {
+        try {
+          // 1. Fetch gig data
+          const { data: gig, error: gigError } = await supabaseAdmin
+            .from('gigs')
+            .select(`
+              *,
+              participants:gig_participants(
+                *,
+                organization:organization_id(*)
+              )
+            `)
+            .eq('id', gig_id)
+            .single();
+
+          if (gigError || !gig) {
+            console.error(`Error fetching gig ${gig_id} for sync:`, gigError);
+            return;
+          }
+
+          // 2. Fetch all users with calendar integration enabled
+          const { data: userSettings, error: settingsError } = await supabaseAdmin
+            .from('user_google_calendar_settings')
+            .select('*')
+            .eq('is_enabled', true);
+
+          if (settingsError) {
+            console.error('Error fetching calendar settings for sync:', settingsError);
+            return;
+          }
+
+          if (!userSettings || userSettings.length === 0) return;
+
+          // 3. Prepare gig location
+          const venue = gig.participants?.find((p: any) => p.role === 'Venue')?.organization;
+          const location = venue 
+            ? `${venue.name}${venue.address_line1 ? `, ${venue.address_line1}` : ''}${venue.city ? `, ${venue.city}` : ''}` 
+            : undefined;
+
+          const startDate = new Date(gig.start);
+          const endDate = gig.end ? new Date(gig.end) : null;
+          
+          const isMidnight = (date: Date) => 
+            date.getHours() === 0 && 
+            date.getMinutes() === 0 && 
+            date.getSeconds() === 0 && 
+            date.getMilliseconds() === 0;
+
+          const isAllDay = endDate 
+            ? (isMidnight(startDate) && isMidnight(endDate) && (endDate.getTime() - startDate.getTime() >= 86400000))
+            : isMidnight(startDate);
+
+          let startProp: Record<string, string>;
+          let endProp: Record<string, string>;
+
+          if (isAllDay) {
+            startProp = { date: startDate.toISOString().split('T')[0] };
+            endProp = { 
+              date: endDate 
+                ? endDate.toISOString().split('T')[0] 
+                : new Date(startDate.getTime() + 86400000).toISOString().split('T')[0] 
+            };
+          } else {
+            startProp = { dateTime: startDate.toISOString(), timeZone: gig.timezone };
+            const effectiveEnd = endDate && endDate.getTime() > startDate.getTime()
+              ? endDate
+              : new Date(startDate.getTime() + 3600000);
+            endProp = { dateTime: effectiveEnd.toISOString(), timeZone: gig.timezone };
+          }
+
+          const eventData = {
+            summary: gig.title,
+            description: `${gig.notes || ''}\n\n[View in GigWrangler](${origin || 'http://localhost:3000'}/gigs/${gig_id})`,
+            start: startProp,
+            end: endProp,
+            location: location,
+          };
+
+          // 4. Sync for each user
+          const clientId = Deno.env.get('GOOGLE_CLIENT_ID');
+          const clientSecret = Deno.env.get('GOOGLE_CLIENT_SECRET');
+
+          for (const settings of userSettings) {
+            try {
+              let accessToken = settings.access_token;
+              
+              // Refresh token if needed
+              if (new Date(settings.token_expires_at) <= new Date()) {
+                if (!clientId || !clientSecret) {
+                  console.error('Missing Google credentials for token refresh');
+                  continue;
+                }
+
+                const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                  body: new URLSearchParams({
+                    refresh_token: settings.refresh_token,
+                    client_id: clientId,
+                    client_secret: clientSecret,
+                    grant_type: 'refresh_token',
+                  }),
+                });
+
+                if (tokenResponse.ok) {
+                  const tokenData = await tokenResponse.json();
+                  accessToken = tokenData.access_token;
+                  
+                  // Update tokens in DB
+                  await supabaseAdmin
+                    .from('user_google_calendar_settings')
+                    .update({
+                      access_token: accessToken,
+                      token_expires_at: new Date(Date.now() + (tokenData.expires_in || 3600) * 1000).toISOString(),
+                      updated_at: new Date().toISOString(),
+                    })
+                    .eq('id', settings.id);
+                } else {
+                  console.error(`Failed to refresh token for user ${settings.user_id}`);
+                  continue;
+                }
+              }
+
+              // Check existing sync
+              const { data: existingSync } = await supabaseAdmin
+                .from('gig_sync_status')
+                .select('google_event_id')
+                .eq('gig_id', gig_id)
+                .eq('user_id', settings.user_id)
+                .maybeSingle();
+
+              // Sync to Google
+              let apiUrl: string;
+              let method_: string;
+
+              if (existingSync?.google_event_id) {
+                apiUrl = `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(settings.calendar_id)}/events/${encodeURIComponent(existingSync.google_event_id)}`;
+                method_ = 'PUT';
+              } else {
+                apiUrl = `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(settings.calendar_id)}/events`;
+                method_ = 'POST';
+              }
+
+              const eventResponse = await fetch(apiUrl, {
+                method: method_,
+                headers: {
+                  Authorization: `Bearer ${accessToken}`,
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(eventData),
+              });
+
+              if (eventResponse.ok) {
+                const eventResult = await eventResponse.json();
+                await supabaseAdmin
+                  .from('gig_sync_status')
+                  .upsert({
+                    gig_id: gig_id,
+                    user_id: settings.user_id,
+                    google_event_id: eventResult.id,
+                    sync_status: existingSync?.google_event_id ? 'updated' : 'synced',
+                    last_synced_at: new Date().toISOString(),
+                    sync_error: null,
+                  }, { onConflict: 'gig_id,user_id' });
+              } else {
+                const errData = await eventResponse.json().catch(() => ({}));
+                await supabaseAdmin
+                  .from('gig_sync_status')
+                  .upsert({
+                    gig_id: gig_id,
+                    user_id: settings.user_id,
+                    sync_status: 'failed',
+                    sync_error: errData.error?.message || 'Google API error',
+                    last_synced_at: new Date().toISOString(),
+                  }, { onConflict: 'gig_id,user_id' });
+              }
+            } catch (userSyncError) {
+              console.error(`Error syncing for user ${settings.user_id}:`, userSyncError);
+            }
+          }
+        } catch (syncError) {
+          console.error('Background sync failed:', syncError);
+        }
+      })();
+
+      return new Response(JSON.stringify({ success: true, message: 'Sync process started' }), {
+        headers: { ...responseHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
     // ===== WebAuthn Endpoints =====
 
     if (path === '/webauthn/register/options' && method === 'POST') {

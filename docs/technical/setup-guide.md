@@ -224,7 +224,36 @@ The `ai-scan` edge function uses Anthropic's Claude models to extract structured
    supabase secrets set ANTHROPIC_API_KEY=your_anthropic_key
    ```
 
-### 3. Secrets Management
+### 3. Google Calendar Integration
+The Google Calendar integration requires OAuth 2.0 credentials and specific Edge Function secrets.
+
+#### OAuth Configuration
+1. Create a project in the [Google Cloud Console](https://console.cloud.google.com/).
+2. Enable the **Google Calendar API**.
+3. Configure the **OAuth Consent Screen** (External).
+4. Create **OAuth 2.0 Client IDs** for a Web Application.
+   - **Authorized JavaScript Origins**: 
+     - `http://localhost:3000` (Local)
+     - `https://your-app-domain.com` (Production)
+   - **Authorized Redirect URIs**: 
+     - `http://localhost:3000/auth/google-calendar/callback`
+     - `https://your-app-domain.com/auth/google-calendar/callback`
+
+#### Environment Variables
+Add the client ID to your frontend environment variables:
+```env
+# .env.local
+VITE_GOOGLE_CLIENT_ID=your-google-client-id
+```
+
+#### Edge Function Secrets
+Set the client ID and secret as Supabase secrets so the Edge Function can perform token exchanges:
+```bash
+supabase secrets set GOOGLE_CLIENT_ID=your-google-client-id
+supabase secrets set GOOGLE_CLIENT_SECRET=your-google-client-secret
+```
+
+### 4. Secrets Management
 - **List Secrets**: `supabase secrets list`
 - **Set Secret**: `supabase secrets set NAME=VALUE`
 - **Unset Secret**: `supabase secrets unset NAME`
