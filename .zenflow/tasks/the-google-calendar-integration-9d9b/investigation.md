@@ -31,9 +31,21 @@ The frontend uses `.maybeSingle()` or `.single()` for queries that are returning
 - **Finding**: Client-side syncing only works for the current user. When a gig is updated, it should sync for all participants.
 - **Finding**: The current Edge Function implementation attempts this but uses `supabaseAdmin` to bypass RLS, which is correct, but it relies on `user_google_calendar_settings` being globally readable or queried via admin.
 
+### 6. Documentation
+- **Finding**: The existing `setup-guide.md` is minimal and lacks detailed troubleshooting and configuration steps for the Google Cloud Console.
+
 ## Proposed Solution
 
 ### 1. Fix OAuth Scopes and Calendar Listing
+...
+...
+### 6. Comprehensive Setup Guide
+- Create a dedicated `./docs/integrations/google-calendar.md` with:
+  - Step-by-step Google Cloud Console configuration (with screenshots placeholders).
+  - Required OAuth scopes explanation.
+  - Environment variable and Supabase secret configuration.
+  - Troubleshooting common errors (403, 401, 404).
+  - Sync behavior details.
 - Broaden requested scopes to include `https://www.googleapis.com/auth/calendar` if necessary, or better:
 - Remove `minAccessRole=writer` from the Google API call and filter the results in the Edge Function or frontend to avoid 403s.
 
@@ -52,3 +64,33 @@ The frontend uses `.maybeSingle()` or `.single()` for queries that are returning
 ### 5. Server-Side Sync Optimization
 - Ensure the Edge Function route `/sync-gig-all-users` is robustly handling token refreshes and batching updates.
 - Verify that the `service_role` key is correctly used to bypass RLS for multi-user synchronization.
+
+## Implementation Notes
+
+### 1. OAuth and Scopes
+- Updated `SCOPES` in `./src/services/googleCalendar.service.ts` to include `https://www.googleapis.com/auth/calendar` for broader access to settings and secondary calendars.
+- Removed `minAccessRole=writer` from the `calendarList` API call in the Edge Function to prevent `403 Forbidden` errors for users with read-only access to some calendars.
+
+### 2. Database Integrity
+- Created migration `20260528000000_fix_google_calendar_settings_unique_constraint.sql`:
+    - Removes duplicate records in `user_google_calendar_settings`.
+    - Changes `UNIQUE(user_id, calendar_id)` to `UNIQUE(user_id)` to enforce the "one calendar per user" rule.
+    - Ensures `sync_status` enum contains `'updated'` and `'removed'` values.
+
+### 3. Robust Frontend Queries
+- Refactored `saveUserGoogleCalendarSettings` in `./src/services/googleCalendar.service.ts` to use `upsert()` with `onConflict: 'user_id'`.
+- Verified `getUserGoogleCalendarSettings` and `updateUserGoogleCalendarSettings` use `maybeSingle()` to handle missing records gracefully.
+
+### 4. Improved All-Day Logic
+- Implemented `isMidnightInTimezone` using `Intl.DateTimeFormat` in both the frontend service and the Edge Function. This ensures that "all-day" events are correctly identified based on the gig's specific timezone rather than the server/client's local or UTC time.
+
+### 5. Multi-User Sync Optimization
+- Enhanced the Edge Function `/sync-gig-all-users` to:
+    - Correctly identify relevant users (assigned staff and participating organization members).
+    - Fetch calendar settings only for those relevant users.
+    - Use `supabaseAdmin` (service role) to bypass RLS for consistent synchronization across all participants.
+
+## Test Results
+- Ran `npm run build && npm run test:run`.
+- All 452 tests passed across 53 test files.
+- Verified `src/services/googleCalendar.service.test.ts` passed.

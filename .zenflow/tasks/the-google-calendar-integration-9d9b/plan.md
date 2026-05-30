@@ -29,13 +29,15 @@ Save findings to `{@artifacts_path}/investigation.md` with:
 - Affected components
 - Proposed solution
 
-### [ ] Step: Implementation
+### [x] Step: Implementation
+<!-- chat-id: 98e63e49-81cb-446d-a895-7c1287aa9f9c -->
 Read `{@artifacts_path}/investigation.md`
-Implement the bug fix.
+Implement the bug fix and create documentation.
 
 1. Add/adjust regression test(s) that fail before the fix and pass after
 2. Implement the fix
-3. Run relevant tests
-4. Update `{@artifacts_path}/investigation.md` with implementation notes and test results
+3. Create comprehensive setup guide in `./docs/integrations/google-calendar.md`
+4. Run relevant tests
+5. Update `{@artifacts_path}/investigation.md` with implementation notes and test results
 
 If blocked or uncertain, ask the user for direction.

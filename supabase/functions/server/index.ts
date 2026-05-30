@@ -2656,7 +2656,7 @@ Deno.serve(async (req) => {
         });
       }
 
-      const calResponse = await fetch('https://www.googleapis.com/calendar/v3/users/me/calendarList?minAccessRole=writer', {
+      const calResponse = await fetch('https://www.googleapis.com/calendar/v3/users/me/calendarList', {
         headers: { Authorization: `Bearer ${accessToken}` },
       });
 
@@ -2795,7 +2795,7 @@ Deno.serve(async (req) => {
       // Background process: fetch users and sync
       (async () => {
         try {
-          // 1. Fetch gig data
+          // 1. Fetch gig data with participants and staff assignments
           const { data: gig, error: gigError } = await supabaseAdmin
             .from('gigs')
             .select(`
@@ -2803,6 +2803,9 @@ Deno.serve(async (req) => {
               participants:gig_participants(
                 *,
                 organization:organization_id(*)
+              ),
+              staff_assignments:gig_staff_slots(
+                assignments:gig_staff_assignments(user_id)
               )
             `)
             .eq('id', gig_id)
@@ -2813,11 +2816,28 @@ Deno.serve(async (req) => {
             return;
           }
 
-          // 2. Fetch all users with calendar integration enabled
+          // 2. Identify all relevant users for this gig
+          const participantOrgIds = gig.participants?.map((p: any) => p.organization_id) || [];
+          
+          // Fetch members of these organizations
+          const { data: orgMembers } = await supabaseAdmin
+            .from('organization_members')
+            .select('user_id')
+            .in('organization_id', participantOrgIds);
+          
+          const assignedUserIds = gig.staff_assignments?.flatMap((s: any) => s.assignments?.map((a: any) => a.user_id)) || [];
+          const memberUserIds = orgMembers?.map((m: any) => m.user_id) || [];
+          
+          const relevantUserIds = [...new Set([...assignedUserIds, ...memberUserIds])];
+          
+          if (relevantUserIds.length === 0) return;
+
+          // 3. Fetch calendar settings only for relevant users
           const { data: userSettings, error: settingsError } = await supabaseAdmin
             .from('user_google_calendar_settings')
             .select('*')
-            .eq('is_enabled', true);
+            .eq('is_enabled', true)
+            .in('user_id', relevantUserIds);
 
           if (settingsError) {
             console.error('Error fetching calendar settings for sync:', settingsError);
@@ -2826,7 +2846,7 @@ Deno.serve(async (req) => {
 
           if (!userSettings || userSettings.length === 0) return;
 
-          // 3. Prepare gig location
+          // 4. Prepare gig location
           const venue = gig.participants?.find((p: any) => p.role === 'Venue')?.organization;
           const location = venue 
             ? `${venue.name}${venue.address_line1 ? `, ${venue.address_line1}` : ''}${venue.city ? `, ${venue.city}` : ''}` 
@@ -2835,15 +2855,28 @@ Deno.serve(async (req) => {
           const startDate = new Date(gig.start);
           const endDate = gig.end ? new Date(gig.end) : null;
           
-          const isMidnight = (date: Date) => 
-            date.getHours() === 0 && 
-            date.getMinutes() === 0 && 
-            date.getSeconds() === 0 && 
-            date.getMilliseconds() === 0;
+          const isMidnight = (date: Date, timeZone: string) => {
+            try {
+              const formatter = new Intl.DateTimeFormat('en-US', {
+                timeZone,
+                hour: 'numeric',
+                minute: 'numeric',
+                second: 'numeric',
+                hour12: false,
+              });
+              const parts = formatter.formatToParts(date);
+              const hour = parts.find(p => p.type === 'hour')?.value;
+              const minute = parts.find(p => p.type === 'minute')?.value;
+              const second = parts.find(p => p.type === 'second')?.value;
+              return (hour === '00' || hour === '24') && minute === '00' && second === '00';
+            } catch (e) {
+              return date.getUTCHours() === 0 && date.getUTCMinutes() === 0 && date.getUTCSeconds() === 0;
+            }
+          };
 
           const isAllDay = endDate 
-            ? (isMidnight(startDate) && isMidnight(endDate) && (endDate.getTime() - startDate.getTime() >= 86400000))
-            : isMidnight(startDate);
+            ? (isMidnight(startDate, gig.timezone) && isMidnight(endDate, gig.timezone) && (endDate.getTime() - startDate.getTime() >= 86400000))
+            : isMidnight(startDate, gig.timezone);
 
           let startProp: Record<string, string>;
           let endProp: Record<string, string>;

@@ -7,7 +7,7 @@ const getSupabase = () => createClient();
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
 
 const SCOPES = [
-  'https://www.googleapis.com/auth/calendar.readonly',
+  'https://www.googleapis.com/auth/calendar',
   'https://www.googleapis.com/auth/calendar.events'
 ];
 
@@ -151,43 +151,19 @@ export async function saveUserGoogleCalendarSettings(
   const supabase = getSupabase();
 
   try {
-    // Check if user already has settings (app supports only one calendar per user)
-    const { data: existing, error: checkError } = await supabase
+    const { data, error } = await supabase
       .from('user_google_calendar_settings')
-      .select('id')
-      .eq('user_id', userId)
-      .maybeSingle();
+      .upsert({
+        user_id: userId,
+        ...settings,
+        updated_at: new Date().toISOString(),
+      }, { onConflict: 'user_id' })
+      .select(SETTINGS_COLS)
+      .single();
 
-    if (checkError) throw checkError;
-
-    let result;
-    if (existing) {
-      const { data, error } = await supabase
-        .from('user_google_calendar_settings')
-        .update({
-          ...settings,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('user_id', userId)
-        .select(SETTINGS_COLS)
-        .single();
-      if (error) throw error;
-      result = data;
-    } else {
-      const { data, error } = await supabase
-        .from('user_google_calendar_settings')
-        .insert({
-          user_id: userId,
-          ...settings,
-          updated_at: new Date().toISOString(),
-        })
-        .select(SETTINGS_COLS)
-        .single();
-      if (error) throw error;
-      result = data;
-    }
-
-    return result;
+    if (error) throw error;
+    if (!data) throw new Error('Failed to save settings');
+    return data;
   } catch (error) {
     return handleApiError(error, 'save user Google Calendar settings');
   }
@@ -569,15 +545,29 @@ async function syncGigToCalendarWithToken(
     const startDate = new Date(gigData.start);
     const endDate = gigData.end ? new Date(gigData.end) : null;
     
-    const isMidnight = (date: Date) => 
-      date.getHours() === 0 && 
-      date.getMinutes() === 0 && 
-      date.getSeconds() === 0 && 
-      date.getMilliseconds() === 0;
+    const isMidnight = (date: Date, timeZone: string) => {
+      try {
+        const formatter = new Intl.DateTimeFormat('en-US', {
+          timeZone,
+          hour: 'numeric',
+          minute: 'numeric',
+          second: 'numeric',
+          hour12: false,
+        });
+        const parts = formatter.formatToParts(date);
+        const hour = parts.find(p => p.type === 'hour')?.value;
+        const minute = parts.find(p => p.type === 'minute')?.value;
+        const second = parts.find(p => p.type === 'second')?.value;
+        return (hour === '00' || hour === '24') && minute === '00' && second === '00';
+      } catch (e) {
+        // Fallback to UTC if timezone is invalid
+        return date.getUTCHours() === 0 && date.getUTCMinutes() === 0 && date.getUTCSeconds() === 0;
+      }
+    };
 
     const isAllDay = endDate 
-      ? (isMidnight(startDate) && isMidnight(endDate) && (endDate.getTime() - startDate.getTime() >= 86400000))
-      : isMidnight(startDate);
+      ? (isMidnight(startDate, gigData.timezone) && isMidnight(endDate, gigData.timezone) && (endDate.getTime() - startDate.getTime() >= 86400000))
+      : isMidnight(startDate, gigData.timezone);
 
     let startProp: Record<string, string>;
     let endProp: Record<string, string>;
