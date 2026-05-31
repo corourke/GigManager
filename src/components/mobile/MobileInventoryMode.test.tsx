@@ -3,6 +3,7 @@ import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { format } from 'date-fns'
 import MobileInventoryMode from './MobileInventoryMode'
+import { SCANNING_MODES } from '../../config/inventoryWorkflow'
 
 function getLatestTrackingRecord(tracking: any[] = [], kitId: string, assetId?: string) {
   return tracking
@@ -143,5 +144,47 @@ describe('MobileInventoryMode', () => {
     expect(screen.getByLabelText(/maintenance req'd/i)).toBeChecked()
     expect(screen.getByText(format(new Date('2026-03-09T10:00:00.000Z'), 'MMM d, yyyy h:mm a'))).toBeInTheDocument()
     expect(screen.getByText('Alex Crew')).toBeInTheDocument()
+  })
+
+  it('initializes location input from the first scanning mode locationLabel', async () => {
+    render(<MobileInventoryMode gigId="gig-1" onSelectGig={vi.fn()} />)
+
+    await screen.findByText('Audio Case')
+
+    const locationInput = screen.getByLabelText(/current location/i)
+    expect(locationInput).toHaveValue(SCANNING_MODES[0].locationLabel)
+  })
+
+  it('updates location input when switching modes if value was not customized', async () => {
+    const user = userEvent.setup()
+
+    render(<MobileInventoryMode gigId="gig-1" onSelectGig={vi.fn()} />)
+
+    await screen.findByText('Audio Case')
+
+    const locationInput = screen.getByLabelText(/current location/i)
+    expect(locationInput).toHaveValue(SCANNING_MODES[0].locationLabel)
+
+    const secondMode = SCANNING_MODES[1]
+    await user.click(screen.getByRole('button', { name: secondMode.label }))
+
+    expect(locationInput).toHaveValue(secondMode.locationLabel)
+  })
+
+  it('preserves customized location when switching modes', async () => {
+    const user = userEvent.setup()
+
+    render(<MobileInventoryMode gigId="gig-1" onSelectGig={vi.fn()} />)
+
+    await screen.findByText('Audio Case')
+
+    const locationInput = screen.getByLabelText(/current location/i)
+    await user.clear(locationInput)
+    await user.type(locationInput, 'Truck 3 - North Dock')
+
+    const secondMode = SCANNING_MODES[1]
+    await user.click(screen.getByRole('button', { name: secondMode.label }))
+
+    expect(locationInput).toHaveValue('Truck 3 - North Dock')
   })
 })

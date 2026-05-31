@@ -2,9 +2,11 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import { Package, Plus, Search, Filter, Loader2, Edit, Trash2, AlertCircle, Shield, Upload, Eye, Copy, FileText } from 'lucide-react';
 import { toast } from 'sonner';
 import { getAssets, deleteAsset, duplicateAsset, updateAsset } from '../services/asset.service';
+import { getAssetTrackingSummary } from '../services/inventoryManagement.service';
 import { scanInvoice } from '../services/purchase.service';
 import { Button } from './ui/button';
 import { Card } from './ui/card';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import AppHeader from './AppHeader';
 import EquipmentTabs from './EquipmentTabs';
 import { Organization, User, UserRole } from '../utils/supabase/types';
@@ -12,6 +14,7 @@ import type { DbAsset } from '../utils/supabase/types';
 import { SmartDataTable, ColumnDef, RowAction } from './tables/SmartDataTable';
 import { PageHeader } from './ui/PageHeader';
 import ReviewScannedDataDialog from './ReviewScannedDataDialog';
+import { TrackingStatusBadge } from './inventory/TrackingStatusBadge';
 
 interface AssetListScreenProps {
   organization: Organization;
@@ -24,6 +27,7 @@ interface AssetListScreenProps {
   onNavigateToGigs: () => void;
   onNavigateToAssets: () => void;
   onNavigateToKits: () => void;
+  onNavigateToInventory?: () => void;
   onNavigateToImport?: () => void;
   onSwitchOrganization: () => void;
   onLogout: () => void;
@@ -41,6 +45,7 @@ export default function AssetListScreen({
   onNavigateToGigs,
   onNavigateToAssets,
   onNavigateToKits,
+  onNavigateToInventory,
   onNavigateToImport,
   onSwitchOrganization,
   onLogout,
@@ -59,13 +64,19 @@ export default function AssetListScreen({
   const [scannedData, setScannedData] = useState<any>(null);
   const [scannedFile, setScannedFile] = useState<File | null>(null);
   const [showReviewDialog, setShowReviewDialog] = useState(false);
+  const [assetTrackingSummary, setAssetTrackingSummary] = useState<Map<string, { status: string; location?: string | null; gigTitle?: string | null }>>(new Map());
+  const [trackingStatusFilter, setTrackingStatusFilter] = useState<string>('All');
 
   const refresh = async () => {
     try {
       setIsLoading(true);
       setError(null);
-      const assets = await getAssets(organization.id);
+      const [assets, trackingSummary] = await Promise.all([
+        getAssets(organization.id),
+        getAssetTrackingSummary(organization.id),
+      ]);
       setAllAssets(assets);
+      setAssetTrackingSummary(trackingSummary);
     } catch (err: any) {
       setError(err.message || 'Failed to load assets');
     } finally {
@@ -155,10 +166,15 @@ export default function AssetListScreen({
     }
   };
 
-  const activeAssets = useMemo(() => 
-    allAssets.filter(asset => !deletedAssetIds.has(asset.id)),
-    [allAssets, deletedAssetIds]
-  );
+  const activeAssets = useMemo(() => {
+    const nonDeleted = allAssets.filter(asset => !deletedAssetIds.has(asset.id));
+    if (trackingStatusFilter === 'All') return nonDeleted;
+    return nonDeleted.filter(asset => {
+      const tracking = assetTrackingSummary.get(asset.id);
+      if (trackingStatusFilter === 'Untracked') return !tracking;
+      return tracking?.status === trackingStatusFilter;
+    });
+  }, [allAssets, deletedAssetIds, trackingStatusFilter, assetTrackingSummary]);
 
   const categories = useMemo(() => 
     Array.from(new Set(allAssets.map(a => a.category).filter(Boolean))),
@@ -283,8 +299,36 @@ export default function AssetListScreen({
       editable: true,
       optional: true,
       type: 'text',
-    }
-  ], [categories]);
+    },
+    {
+      id: 'current_status',
+      header: 'Current Status',
+      accessor: (row) => assetTrackingSummary.get(row.id)?.status ?? null,
+      readOnly: true,
+      type: 'text',
+      render: (value, row) => {
+        const tracking = assetTrackingSummary.get(row.id);
+        if (!tracking) return <span className="text-xs text-muted-foreground">Untracked</span>;
+        return <TrackingStatusBadge status={tracking.status} />;
+      },
+    },
+    {
+      id: 'last_location',
+      header: 'Last Location',
+      accessor: (row) => assetTrackingSummary.get(row.id)?.location ?? null,
+      readOnly: true,
+      type: 'text',
+      render: (value) => value ? <span className="text-xs">{value}</span> : <span className="text-xs text-muted-foreground">—</span>,
+    },
+    {
+      id: 'active_gig',
+      header: 'Active Gig',
+      accessor: (row) => assetTrackingSummary.get(row.id)?.gigTitle ?? null,
+      readOnly: true,
+      type: 'text',
+      render: (value) => value ? <span className="text-xs">{value}</span> : <span className="text-xs text-muted-foreground">—</span>,
+    },
+  ], [categories, assetTrackingSummary]);
 
   const rowActions = useMemo<RowAction<DbAsset>[]>(() => [
     {
@@ -328,6 +372,7 @@ export default function AssetListScreen({
           activeTab="assets"
           onNavigateToAssets={onNavigateToAssets}
           onNavigateToKits={onNavigateToKits}
+          onNavigateToInventory={onNavigateToInventory ?? (() => {})}
         />
 
         {/* Header */}
@@ -377,6 +422,24 @@ export default function AssetListScreen({
             </>
           }
         />
+
+        {/* Tracking Status Filter */}
+        <div className="flex items-center gap-2 mb-4">
+          <span className="text-sm text-muted-foreground">Tracking Status:</span>
+          <Select value={trackingStatusFilter} onValueChange={setTrackingStatusFilter}>
+            <SelectTrigger className="w-[180px] h-8 text-sm">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="All">All</SelectItem>
+              <SelectItem value="Checked Out">Checked Out</SelectItem>
+              <SelectItem value="In Transit">In Transit</SelectItem>
+              <SelectItem value="On Site">On Site</SelectItem>
+              <SelectItem value="In Warehouse">In Warehouse</SelectItem>
+              <SelectItem value="Untracked">Untracked</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
 
         {/* Assets Table */}
         <Card className="p-6">

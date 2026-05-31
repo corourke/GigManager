@@ -2,14 +2,17 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import { Package, Plus, Search, Loader2, Edit, Trash2, Copy, Eye, AlertCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import { getKits, deleteKit, duplicateKit, updateKit } from '../services/kit.service';
+import { getKitTrackingSummary, KitTrackingSummary } from '../services/inventoryManagement.service';
 import { Button } from './ui/button';
 import { Card } from './ui/card';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import AppHeader from './AppHeader';
 import EquipmentTabs from './EquipmentTabs';
 import { Organization, User, UserRole } from '../utils/supabase/types';
 import { SmartDataTable, ColumnDef, RowAction } from './tables/SmartDataTable';
 import { PageHeader } from './ui/PageHeader';
 import { TAG_CONFIG } from '../utils/supabase/constants';
+import { TrackingStatusBadge } from './inventory/TrackingStatusBadge';
 
 interface KitListScreenProps {
   organization: Organization;
@@ -23,6 +26,7 @@ interface KitListScreenProps {
   onNavigateToGigs: () => void;
   onNavigateToAssets: () => void;
   onNavigateToKits: () => void;
+  onNavigateToInventory?: () => void;
   onSwitchOrganization: () => void;
   onLogout: () => void;
 }
@@ -39,6 +43,7 @@ export default function KitListScreen({
   onNavigateToGigs,
   onNavigateToAssets,
   onNavigateToKits,
+  onNavigateToInventory,
   onSwitchOrganization,
   onLogout,
 }: KitListScreenProps) {
@@ -47,13 +52,19 @@ export default function KitListScreen({
   const [filteredKits, setFilteredKits] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [kitTrackingSummary, setKitTrackingSummary] = useState<Map<string, KitTrackingSummary>>(new Map());
+  const [trackingStatusFilter, setTrackingStatusFilter] = useState<string>('All');
 
   const refresh = async () => {
     try {
       setIsLoading(true);
       setError(null);
-      const kits = await getKits(organization.id);
+      const [kits, trackingSummary] = await Promise.all([
+        getKits(organization.id),
+        getKitTrackingSummary(organization.id),
+      ]);
       setAllKits(kits);
+      setKitTrackingSummary(trackingSummary);
     } catch (err: any) {
       setError(err.message || 'Failed to load kits');
     } finally {
@@ -100,6 +111,15 @@ export default function KitListScreen({
       refresh();
     }
   };
+
+  const displayedKits = useMemo(() => {
+    if (trackingStatusFilter === 'All') return allKits;
+    return allKits.filter(kit => {
+      const tracking = kitTrackingSummary.get(kit.id);
+      if (trackingStatusFilter === 'Untracked') return !tracking || (!tracking.status);
+      return tracking?.status === trackingStatusFilter;
+    });
+  }, [allKits, trackingStatusFilter, kitTrackingSummary]);
 
   const categories = useMemo(() => 
     Array.from(new Set(allKits.map(k => k.category).filter(Boolean))),
@@ -181,8 +201,45 @@ export default function KitListScreen({
       editable: true,
       optional: true,
       type: 'text',
-    }
-  ], [categories, TAG_PILL_CONFIG]);
+    },
+    {
+      id: 'tracking_status',
+      header: 'Tracking Status',
+      accessor: (row) => kitTrackingSummary.get(row.id)?.status ?? null,
+      readOnly: true,
+      type: 'text',
+      render: (value, row) => {
+        const tracking = kitTrackingSummary.get(row.id);
+        if (!tracking || !tracking.status) return <span className="text-xs text-muted-foreground">Untracked</span>;
+        if (tracking.isContainer) return <TrackingStatusBadge status={tracking.status} />;
+        const dominant = Object.entries(tracking.statusCounts).sort((a, b) => b[1] - a[1])[0];
+        const dominantStatus = dominant?.[0] ?? tracking.status;
+        const count = dominant?.[1] ?? tracking.scannedAssets;
+        return (
+          <span className="text-xs">
+            <TrackingStatusBadge status={dominantStatus} />
+            <span className="ml-1 text-muted-foreground">{count}/{tracking.totalAssets}</span>
+          </span>
+        );
+      },
+    },
+    {
+      id: 'last_location',
+      header: 'Last Location',
+      accessor: (row) => kitTrackingSummary.get(row.id)?.location ?? null,
+      readOnly: true,
+      type: 'text',
+      render: (value) => value ? <span className="text-xs">{value}</span> : <span className="text-xs text-muted-foreground">—</span>,
+    },
+    {
+      id: 'active_gig',
+      header: 'Active Gig',
+      accessor: (row) => kitTrackingSummary.get(row.id)?.gigTitle ?? null,
+      readOnly: true,
+      type: 'text',
+      render: (value) => value ? <span className="text-xs">{value}</span> : <span className="text-xs text-muted-foreground">—</span>,
+    },
+  ], [categories, TAG_PILL_CONFIG, kitTrackingSummary]);
 
   const rowActions = useMemo<RowAction<any>[]>(() => [
     {
@@ -243,6 +300,7 @@ export default function KitListScreen({
           activeTab="kits"
           onNavigateToAssets={onNavigateToAssets}
           onNavigateToKits={onNavigateToKits}
+          onNavigateToInventory={onNavigateToInventory ?? (() => {})}
         />
 
         {/* Header */}
@@ -257,6 +315,24 @@ export default function KitListScreen({
             </Button>
           }
         />
+
+        {/* Tracking Status Filter */}
+        <div className="flex items-center gap-2 mb-4">
+          <span className="text-sm text-muted-foreground">Tracking Status:</span>
+          <Select value={trackingStatusFilter} onValueChange={setTrackingStatusFilter}>
+            <SelectTrigger className="w-[180px] h-8 text-sm">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="All">All</SelectItem>
+              <SelectItem value="Checked Out">Checked Out</SelectItem>
+              <SelectItem value="In Transit">In Transit</SelectItem>
+              <SelectItem value="On Site">On Site</SelectItem>
+              <SelectItem value="In Warehouse">In Warehouse</SelectItem>
+              <SelectItem value="Untracked">Untracked</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
 
         {/* Kits Table */}
         <Card className="p-6">
@@ -284,7 +360,7 @@ export default function KitListScreen({
           ) : (
             <SmartDataTable
               tableId="kits-table"
-              data={allKits}
+              data={displayedKits}
               columns={columns}
               isLoading={isLoading}
               onRowUpdate={handleUpdateKit}

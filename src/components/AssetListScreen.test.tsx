@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render } from '@testing-library/react'
+import { render, waitFor } from '@testing-library/react'
 import AssetListScreen from './AssetListScreen'
 
 // Mock localStorage
@@ -27,8 +27,25 @@ Object.defineProperty(window, 'localStorage', {
 
 // Mock all dependencies
 vi.mock('../services/asset.service', () => ({
-  getAssets: vi.fn().mockResolvedValue([]),
+  getAssets: vi.fn().mockResolvedValue([{
+    id: 'asset-1',
+    organization_id: 'org-1',
+    manufacturer_model: 'Test Asset',
+    category: 'Audio',
+    quantity: 1,
+    replacement_value: 100,
+  }]),
   deleteAsset: vi.fn().mockResolvedValue({ success: true }),
+  duplicateAsset: vi.fn().mockResolvedValue({ id: 'new-asset-id' }),
+  updateAsset: vi.fn().mockResolvedValue({}),
+}))
+
+vi.mock('../services/inventoryManagement.service', () => ({
+  getAssetTrackingSummary: vi.fn().mockResolvedValue(new Map()),
+}))
+
+vi.mock('../services/purchase.service', () => ({
+  scanInvoice: vi.fn().mockResolvedValue({}),
 }))
 
 vi.mock('../contexts/NavigationContext', () => ({
@@ -75,6 +92,18 @@ describe('AssetListScreen', () => {
     expect(() => {
       render(<AssetListScreen {...mockProps} />)
     }).not.toThrow()
+  })
+
+  it('renders tracking columns in table header', async () => {
+    const { findAllByText } = render(<AssetListScreen {...mockProps} />)
+    expect((await findAllByText('Current Status')).length).toBeGreaterThan(0)
+    expect((await findAllByText('Last Location')).length).toBeGreaterThan(0)
+    expect((await findAllByText('Active Gig')).length).toBeGreaterThan(0)
+  })
+
+  it('renders tracking status filter dropdown', async () => {
+    const { findAllByText } = render(<AssetListScreen {...mockProps} />)
+    expect((await findAllByText('Tracking Status:')).length).toBeGreaterThan(0)
   })
 })
 

@@ -16,6 +16,7 @@ import AssetDetailScreen from './components/AssetDetailScreen';
 import KitListScreen from './components/KitListScreen';
 import KitScreen from './components/KitScreen';
 import KitDetailScreen from './components/KitDetailScreen';
+import InventoryTabScreen from './components/inventory/InventoryTabScreen';
 import TeamMemberDetailScreen from './components/TeamMemberDetailScreen';
 import ImportScreen from './components/ImportScreen';
 import FinancialsScreen from './components/FinancialsScreen';
@@ -55,6 +56,7 @@ type Route =
   | 'kit-list'
   | 'create-kit'
   | 'kit-detail'
+  | 'inventory'
   | 'calendar'
   | 'calendar-auth-callback'
   | 'settings'
@@ -449,6 +451,10 @@ function App() {
     setCurrentRoute('kit-list');
   };
 
+  const handleNavigateToInventory = () => {
+    setCurrentRoute('inventory');
+  };
+
   const handleCreateKit = () => {
     setSelectedKitId(null); // Clear selected kit when creating new
     setCurrentRoute('create-kit');
@@ -805,6 +811,7 @@ function App() {
                 onNavigateToGigs={handleBackToGigList}
                 onNavigateToAssets={handleNavigateToAssets}
                 onNavigateToKits={handleNavigateToKits}
+                onNavigateToInventory={handleNavigateToInventory}
                 onNavigateToImport={handleNavigateToImport}
                 onSwitchOrganization={handleBackToSelection}
                 onEditProfile={handleEditProfile}
@@ -864,6 +871,7 @@ function App() {
                 onNavigateToGigs={handleBackToGigList}
                 onNavigateToAssets={handleNavigateToAssets}
                 onNavigateToKits={handleNavigateToKits}
+                onNavigateToInventory={handleNavigateToInventory}
                 onSwitchOrganization={handleBackToSelection}
                 onLogout={handleLogout}
               />
@@ -894,6 +902,17 @@ function App() {
                 onEdit={handleEditKit}
                 onSwitchOrganization={handleBackToSelection}
                 onLogout={handleLogout}
+              />
+            )}
+
+            {currentRoute === 'inventory' && (
+              <InventoryTabScreen
+                organization={selectedOrganization}
+                user={user}
+                userRole={userRole}
+                onNavigateToAssets={handleNavigateToAssets}
+                onNavigateToKits={handleNavigateToKits}
+                onNavigateToInventory={handleNavigateToInventory}
               />
             )}
 

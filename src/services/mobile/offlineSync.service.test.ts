@@ -74,6 +74,7 @@ describe('offlineSyncService — INVENTORY_SCAN handler', () => {
       scanned_at: '2026-03-15T12:00:00Z',
       scanned_by: 'user-1',
       notes: 'test note',
+      location: null,
     })
   })
 

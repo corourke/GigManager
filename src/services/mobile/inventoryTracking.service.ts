@@ -14,6 +14,7 @@ type TrackingRecord = {
   scanned_at: string;
   scanned_by: string;
   notes?: string | null;
+  location?: string | null;
   created_at?: string;
   scanned_by_user?: {
     id: string;
@@ -31,6 +32,7 @@ type SubmitScanParams = {
   organizationId: string;
   scannedBy: string;
   scannedAt?: string;
+  location?: string | null;
 };
 
 type ClearTrackingParams = {
@@ -240,7 +242,7 @@ export const inventoryTrackingService = {
   },
 
   async submitScan(params: SubmitScanParams) {
-    const { gigId, kitId, assetId, status, organizationId, scannedBy, scannedAt } = params;
+    const { gigId, kitId, assetId, status, organizationId, scannedBy, scannedAt, location } = params;
     const timestamp = scannedAt || new Date().toISOString();
     const packingList = await idbStore.getPackingList(gigId);
     const tracking = packingList?.tracking || [];
@@ -258,6 +260,7 @@ export const inventoryTrackingService = {
         scanned_at: timestamp,
         scanned_by: scannedBy,
         notes: previousNote,
+        location: location ?? null,
       },
       ...childAssetIds.map((childAssetId) => {
         const childNote = getLatestTrackingRecord(tracking, kitId, childAssetId)?.notes || null;
@@ -270,6 +273,7 @@ export const inventoryTrackingService = {
           scanned_at: timestamp,
           scanned_by: scannedBy,
           notes: childNote,
+          location: location ?? null,
         };
       }),
     ];

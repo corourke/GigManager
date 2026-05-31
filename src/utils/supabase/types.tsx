@@ -254,11 +254,12 @@ export interface DbInventoryTracking {
   kit_id?: string | null;
   asset_id?: string | null;
   status: string;
+  location?: string | null;
   scanned_at: string;
   scanned_by: string;
   notes?: string | null;
   created_at: string;
-  scanned_by_user?: { first_name: string; last_name: string } | null;
+  scanned_by_user?: { first_name: string; last_name: string; email?: string } | null;
   gig?: { title: string } | null;
   kit?: { name: string } | null;
 }

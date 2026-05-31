@@ -33,6 +33,7 @@ import { Label } from '../ui/label';
 import { Textarea } from '../ui/textarea';
 import { cn } from '../ui/utils';
 import { useAuth } from '../../contexts/AuthContext';
+import { TrackingStatusBadge } from '../inventory/TrackingStatusBadge';
 
 interface MobileInventoryModeProps {
   gigId: string | null;
@@ -69,29 +70,6 @@ type NoteDialogState = {
   assetStatus?: string | null;
 };
 
-const getTrackingStatusBadgeClasses = (status?: string | null) => {
-  switch (status) {
-    case 'Checked Out':
-      return 'border-sky-200 bg-sky-50 text-sky-700';
-    case 'In Transit':
-      return 'border-amber-200 bg-amber-50 text-amber-700';
-    case 'On Site':
-      return 'border-violet-200 bg-violet-50 text-violet-700';
-    case 'In Warehouse':
-      return 'border-emerald-200 bg-emerald-50 text-emerald-700';
-    default:
-      return 'border-border bg-muted/40 text-muted-foreground';
-  }
-};
-
-const TrackingStatusBadge = ({ status }: { status?: string | null }) => (
-  <Badge
-    variant="outline"
-    className={cn('text-[10px] py-0 h-4 px-1.5 font-normal border', getTrackingStatusBadgeClasses(status))}
-  >
-    {status || 'Not tracked'}
-  </Badge>
-);
 
 const getLatestTrackingRecordForItem = (tracking: TrackingRecord[] = [], kitId: string, assetId?: string) => {
   return inventoryTrackingService.getLatestTrackingRecord(tracking, kitId, assetId) as TrackingRecord | null;
@@ -134,6 +112,7 @@ const formatScannedAt = (value?: string) => {
 export default function MobileInventoryMode({ gigId }: MobileInventoryModeProps) {
   const { user, selectedOrganization } = useAuth();
   const [selectedMode, setSelectedMode] = useState<ScanningMode>(SCANNING_MODES[0]);
+  const [locationInput, setLocationInput] = useState<string>(SCANNING_MODES[0].locationLabel);
   const [packingList, setPackingList] = useState<any>(null);
   const [gigTitle, setGigTitle] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -278,11 +257,12 @@ export default function MobileInventoryMode({ gigId }: MobileInventoryModeProps)
       status: selectedMode.resultingStatus,
       organizationId: selectedOrganization.id,
       scannedBy: user.id,
+      location: locationInput || null,
     });
 
     await refreshPackingList(gigId);
     toast.success('Item checked');
-  }, [gigId, packingList, refreshPackingList, selectedMode, selectedOrganization, user]);
+  }, [gigId, locationInput, packingList, refreshPackingList, selectedMode, selectedOrganization, user]);
 
   const handleSaveNote = useCallback(async () => {
     if (!gigId || !selectedOrganization || !user || !noteDialog.kitId) {
@@ -324,6 +304,13 @@ export default function MobileInventoryMode({ gigId }: MobileInventoryModeProps)
     closeNoteDialog();
     toast.success(noteDialog.note.trim() ? 'Note saved' : 'Note cleared');
   }, [gigId, noteDialog, refreshPackingList, selectedMode, selectedOrganization, user]);
+
+  const handleModeSelect = useCallback((mode: ScanningMode) => {
+    setLocationInput((currentLocation) =>
+      currentLocation === selectedMode.locationLabel ? mode.locationLabel : currentLocation
+    );
+    setSelectedMode(mode);
+  }, [selectedMode]);
 
   const matchTagLocally = useCallback((tagNumber: string) => {
     if (!packingList?.kits) return null;
@@ -375,6 +362,7 @@ export default function MobileInventoryMode({ gigId }: MobileInventoryModeProps)
         status: selectedMode.resultingStatus,
         organizationId: selectedOrganization.id,
         scannedBy: user.id,
+        location: locationInput || null,
       });
 
       await refreshPackingList(gigId);
@@ -495,12 +483,29 @@ export default function MobileInventoryMode({ gigId }: MobileInventoryModeProps)
                       ? { backgroundColor: '#0284c7', color: '#ffffff', borderColor: '#0284c7' }
                       : { backgroundColor: 'transparent', color: 'inherit', borderColor: 'var(--border)' }
                   }
-                  onClick={() => setSelectedMode(mode)}
+                  onClick={() => handleModeSelect(mode)}
                 >
                   {mode.label}
                 </button>
               );
             })}
+          </div>
+
+          <div className="px-4 pb-3">
+            <input
+              type="text"
+              list="location-suggestions"
+              placeholder="Location (e.g. Truck 1, Warehouse A)"
+              className="w-full bg-muted/50 border-none rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-sky-500 transition-all"
+              value={locationInput}
+              onChange={(event) => setLocationInput(event.target.value)}
+              aria-label="Current location"
+            />
+            <datalist id="location-suggestions">
+              {Array.from(new Set(SCANNING_MODES.map((mode) => mode.locationLabel))).map((label) => (
+                <option key={label} value={label} />
+              ))}
+            </datalist>
           </div>
         </div>
 
@@ -540,6 +545,13 @@ export default function MobileInventoryMode({ gigId }: MobileInventoryModeProps)
                 const isKitChecked = kitTracking?.status === selectedMode.resultingStatus;
                 const isExpanded = expandedKits.has(kit.id);
                 const hasNoTag = !kit.tag_number;
+                const isLogicalKit = kit.is_container === false;
+                const kitAssets = kit.assets || [];
+                const logicalKitScanned = isLogicalKit ? kitAssets.filter((assetAssignment: any) => {
+                  const asset = assetAssignment.asset || {};
+                  const assetId = assetAssignment.asset_id || asset.id || assetAssignment.id;
+                  return getDisplayedTrackingRecord(packingList?.tracking || [], kit.id, assetId)?.status === selectedMode.resultingStatus;
+                }).length : 0;
 
                 return (
                   <div key={kit.id} className="space-y-1">
@@ -570,6 +582,9 @@ export default function MobileInventoryMode({ gigId }: MobileInventoryModeProps)
                             </div>
                             {kitTracking?.notes ? (
                               <p className="mt-1 text-[11px] text-muted-foreground leading-snug truncate">Note: {kitTracking.notes}</p>
+                            ) : null}
+                            {isLogicalKit && kitAssets.length > 0 ? (
+                              <p className="mt-1 text-[10px] text-muted-foreground">{logicalKitScanned} / {kitAssets.length} items {selectedMode.resultingStatus}</p>
                             ) : null}
                           </div>
                           <div className="flex items-stretch shrink-0 border-l border-border/50">

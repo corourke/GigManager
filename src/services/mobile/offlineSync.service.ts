@@ -42,6 +42,7 @@ registerSyncHandler('INVENTORY_SCAN', async (payload: any) => {
       scanned_at: payload.scanned_at,
       scanned_by: payload.scanned_by,
       notes: payload.notes ?? null,
+      location: payload.location ?? null,
     });
 
   if (error) {

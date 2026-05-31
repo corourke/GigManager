@@ -1,13 +1,15 @@
 interface EquipmentTabsProps {
-  activeTab: 'assets' | 'kits';
+  activeTab: 'assets' | 'kits' | 'inventory';
   onNavigateToAssets: () => void;
   onNavigateToKits: () => void;
+  onNavigateToInventory: () => void;
 }
 
 export default function EquipmentTabs({
   activeTab,
   onNavigateToAssets,
   onNavigateToKits,
+  onNavigateToInventory,
 }: EquipmentTabsProps) {
   return (
     <div className="border-b border-gray-200 mb-8">
@@ -37,6 +39,19 @@ export default function EquipmentTabs({
           `}
         >
           Kits
+        </button>
+        <button
+          onClick={onNavigateToInventory}
+          className={`
+            py-4 px-1 border-b-2 text-sm transition-colors
+            ${
+              activeTab === 'inventory'
+                ? 'border-sky-500 text-sky-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+            }
+          `}
+        >
+          Inventory
         </button>
       </nav>
     </div>

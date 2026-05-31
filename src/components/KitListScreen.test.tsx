@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render } from '@testing-library/react'
+import { render, waitFor } from '@testing-library/react'
 import KitListScreen from './KitListScreen'
 
 // Mock localStorage
@@ -25,9 +25,21 @@ Object.defineProperty(window, 'localStorage', {
 
 // Mock all dependencies
 vi.mock('../services/kit.service', () => ({
-  getKits: vi.fn().mockResolvedValue([]),
+  getKits: vi.fn().mockResolvedValue([{
+    id: 'kit-1',
+    organization_id: 'org-1',
+    name: 'Test Kit',
+    category: 'Audio',
+    is_container: true,
+    kit_assets: [],
+  }]),
   deleteKit: vi.fn().mockResolvedValue({ success: true }),
   duplicateKit: vi.fn().mockResolvedValue({ id: 'new-kit-id' }),
+  updateKit: vi.fn().mockResolvedValue({}),
+}))
+
+vi.mock('../services/inventoryManagement.service', () => ({
+  getKitTrackingSummary: vi.fn().mockResolvedValue(new Map()),
 }))
 
 vi.mock('../contexts/NavigationContext', () => ({
@@ -75,6 +87,18 @@ describe('KitListScreen', () => {
     expect(() => {
       render(<KitListScreen {...mockProps} />)
     }).not.toThrow()
+  })
+
+  it('renders tracking columns in table header', async () => {
+    const { findAllByText } = render(<KitListScreen {...mockProps} />)
+    expect((await findAllByText('Tracking Status')).length).toBeGreaterThan(0)
+    expect((await findAllByText('Last Location')).length).toBeGreaterThan(0)
+    expect((await findAllByText('Active Gig')).length).toBeGreaterThan(0)
+  })
+
+  it('renders tracking status filter dropdown', async () => {
+    const { findAllByText } = render(<KitListScreen {...mockProps} />)
+    expect((await findAllByText('Tracking Status:')).length).toBeGreaterThan(0)
   })
 })
 

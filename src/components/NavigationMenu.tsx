@@ -15,6 +15,7 @@ export type RouteType =
   | 'create-kit'
   | 'edit-kit'
   | 'kit-detail'
+  | 'inventory'
   | 'calendar'
   | 'import'
   | 'financials';
@@ -77,7 +78,7 @@ const NavigationMenu = React.memo(function NavigationMenu({
       icon: Package,
       onClick: onNavigate.assets,
       isActive: (route) => 
-        ['asset-list', 'create-asset', 'edit-asset', 'kit-list', 'create-kit', 'edit-kit', 'kit-detail'].includes(route),
+        ['asset-list', 'create-asset', 'edit-asset', 'kit-list', 'create-kit', 'edit-kit', 'kit-detail', 'inventory'].includes(route),
     },
   ];
 

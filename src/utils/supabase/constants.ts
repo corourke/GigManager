@@ -54,6 +54,15 @@ export const ASSET_STATUS_CONFIG = {
 
 export type AssetStatus = keyof typeof ASSET_STATUS_CONFIG;
 
+export const TRACKING_STATUS_CONFIG = {
+  'Checked Out':  { label: 'Checked Out',  color: 'border-sky-200 bg-sky-50 text-sky-700' },
+  'In Transit':   { label: 'In Transit',   color: 'border-amber-200 bg-amber-50 text-amber-700' },
+  'On Site':      { label: 'On Site',      color: 'border-violet-200 bg-violet-50 text-violet-700' },
+  'In Warehouse': { label: 'In Warehouse', color: 'border-emerald-200 bg-emerald-50 text-emerald-700' },
+} as const;
+
+export type TrackingStatus = keyof typeof TRACKING_STATUS_CONFIG;
+
 export const PURCHASE_ROW_TYPE = {
   header: 'header',
   item: 'item',

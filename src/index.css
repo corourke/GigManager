@@ -3885,6 +3885,39 @@ html {
   }
 }
 
+@media print {
+  .no-print { display: none !important; }
+  .print-only { display: block !important; }
+  
+  /* Reset table container overflow/rounding for print */
+  div.rounded-md.border.overflow-hidden {
+    overflow: visible !important;
+    border: none !important;
+    border-radius: 0 !important;
+  }
+
+  table {
+    width: 100% !important;
+    border-collapse: collapse !important;
+  }
+
+  th, td {
+    border: 1px solid #e2e8f0 !important;
+    padding: 4px 8px !important;
+  }
+
+  /* Prevent page breaks inside kit sections */
+  div[key] {
+    page-break-inside: avoid;
+  }
+
+  /* Ensure background colors print (for status badges) */
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+}
+
 .mobile-layout-root {
   position: fixed;
   top: 0;
