@@ -1,7 +1,9 @@
 import { useState } from 'react';
+import { ScanLine } from 'lucide-react';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '../ui/tabs';
 import AppHeader from '../AppHeader';
 import EquipmentTabs from '../EquipmentTabs';
+import { PageHeader } from '../ui/PageHeader';
 import { InventorySummaryDashboard } from './InventorySummaryDashboard';
 import { LocationExplorer } from './LocationExplorer';
 import { InventoryReports } from './InventoryReports';
@@ -34,26 +36,38 @@ export default function InventoryTabScreen({
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <AppHeader
-        organization={organization}
-        user={user}
-        userRole={userRole}
-        currentRoute="inventory"
-        onSwitchOrganization={onSwitchOrganization}
-        onEditProfile={onEditProfile}
-        onLogout={onLogout ?? (() => {})}
-      />
+      <div className="no-print">
+        <AppHeader
+          organization={organization}
+          user={user}
+          userRole={userRole}
+          currentRoute="inventory"
+          onSwitchOrganization={onSwitchOrganization}
+          onEditProfile={onEditProfile}
+          onLogout={onLogout ?? (() => {})}
+        />
+      </div>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <EquipmentTabs
-          activeTab="inventory"
-          onNavigateToAssets={onNavigateToAssets}
-          onNavigateToKits={onNavigateToKits}
-          onNavigateToInventory={onNavigateToInventory}
-        />
+        <div className="no-print">
+          <EquipmentTabs
+            activeTab="inventory"
+            onNavigateToAssets={onNavigateToAssets}
+            onNavigateToKits={onNavigateToKits}
+            onNavigateToInventory={onNavigateToInventory}
+          />
+        </div>
+
+        <div className="no-print">
+          <PageHeader
+            icon={ScanLine}
+            title="Inventory"
+            description="Track equipment through Pack-Out, Load, On-Site, and Unload workflows."
+          />
+        </div>
 
         <Tabs value={subTab} onValueChange={(v) => setSubTab(v as typeof subTab)}>
-          <TabsList className="mb-6">
+          <TabsList className="mb-6 no-print">
             <TabsTrigger value="summary">Summary</TabsTrigger>
             <TabsTrigger value="explorer">Location Explorer</TabsTrigger>
             <TabsTrigger value="reports">Reports</TabsTrigger>

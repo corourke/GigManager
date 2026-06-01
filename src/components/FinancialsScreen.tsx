@@ -14,6 +14,7 @@ import {
   X
 } from 'lucide-react';
 import { Card } from './ui/card';
+import { PageHeader } from './ui/PageHeader';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
@@ -286,13 +287,12 @@ export default function FinancialsScreen({
       />
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="mb-8">
-          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-            <Banknote className="w-8 h-8 text-green-600" />
-            Financials
-          </h1>
-          <p className="text-gray-600">Manage purchases, gig accounting, and financial reporting.</p>
-        </div>
+        <PageHeader
+          icon={Banknote}
+          iconClassName="w-8 h-8 text-green-600"
+          title="Financials"
+          description="Manage purchases, gig accounting, and financial reporting."
+        />
 
         <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as FinancialTab)} className="space-y-6">
           <div className="flex items-center justify-between">

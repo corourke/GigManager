@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { format } from 'date-fns';
-import { AlertTriangle, Printer } from 'lucide-react';
+import { AlertTriangle, Printer, SlidersHorizontal } from 'lucide-react';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '../ui/tabs';
 import {
   Select,
@@ -19,6 +19,13 @@ import {
 } from '../ui/table';
 import { Button } from '../ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../ui/tooltip';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '../ui/popover';
+import { Checkbox } from '../ui/checkbox';
+import { Label } from '../ui/label';
 import { LocationCombobox } from './LocationCombobox';
 import { TrackingStatusBadge } from './TrackingStatusBadge';
 import {
@@ -65,6 +72,23 @@ function ConflictBadge() {
   );
 }
 
+function KitTypeBadge({ isContainer }: { isContainer: boolean }) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span className="text-[10px] text-muted-foreground border rounded px-1.5 py-0.5 cursor-help shrink-0">
+          {isContainer ? 'Container' : 'Items'}
+        </span>
+      </TooltipTrigger>
+      <TooltipContent>
+        {isContainer
+          ? 'Container kit: tracked as a single physical unit'
+          : 'Items kit: each asset inside is tracked individually'}
+      </TooltipContent>
+    </Tooltip>
+  );
+}
+
 function PrintHeader({
   organizationName,
   reportTitle,
@@ -86,6 +110,15 @@ function PrintHeader({
   );
 }
 
+type ManifestColumn = 'status' | 'gig' | 'scanned_at' | 'scanned_by' | 'notes';
+const MANIFEST_COLUMNS: { key: ManifestColumn; label: string }[] = [
+  { key: 'status', label: 'Status' },
+  { key: 'gig', label: 'Gig' },
+  { key: 'scanned_at', label: 'Last Scanned' },
+  { key: 'scanned_by', label: 'Scanned By' },
+  { key: 'notes', label: 'Notes' },
+];
+
 function ManifestTab({
   organizationId,
   organizationName,
@@ -101,6 +134,18 @@ function ManifestTab({
   const [gigFilter, setGigFilter] = useState('all');
   const [rows, setRows] = useState<ManifestRow[]>([]);
   const [loading, setLoading] = useState(false);
+  const [visibleColumns, setVisibleColumns] = useState<Set<ManifestColumn>>(
+    new Set(['status', 'gig', 'scanned_at', 'scanned_by', 'notes'])
+  );
+
+  const toggleColumn = (col: ManifestColumn) => {
+    setVisibleColumns((prev) => {
+      const next = new Set(prev);
+      if (next.has(col)) next.delete(col);
+      else next.add(col);
+      return next;
+    });
+  };
 
   const fetchManifest = useCallback(async () => {
     if (!location) {
@@ -138,6 +183,8 @@ function ManifestTab({
 
   const gigTitle = gigs.find((g) => g.id === gigFilter)?.title;
 
+  const show = (col: ManifestColumn) => visibleColumns.has(col);
+
   return (
     <div className="flex flex-col gap-4">
       <PrintHeader
@@ -174,6 +221,30 @@ function ManifestTab({
             </SelectContent>
           </Select>
         </div>
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button variant="outline" size="sm" className="gap-2 shrink-0">
+              <SlidersHorizontal className="h-4 w-4" />
+              Columns
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-48 p-3" align="end">
+            <div className="flex flex-col gap-2">
+              {MANIFEST_COLUMNS.map((col) => (
+                <div key={col.key} className="flex items-center gap-2">
+                  <Checkbox
+                    id={`manifest-col-${col.key}`}
+                    checked={visibleColumns.has(col.key)}
+                    onCheckedChange={() => toggleColumn(col.key)}
+                  />
+                  <Label htmlFor={`manifest-col-${col.key}`} className="text-sm font-normal cursor-pointer">
+                    {col.label}
+                  </Label>
+                </div>
+              ))}
+            </div>
+          </PopoverContent>
+        </Popover>
         <Button
           variant="outline"
           size="sm"
@@ -217,35 +288,49 @@ function ManifestTab({
                   <Table>
                     <TableHeader>
                       <TableRow>
+                        <TableHead className="print-cell hidden w-8 text-center">✓</TableHead>
                         <TableHead>Asset / Kit</TableHead>
                         <TableHead>Tag #</TableHead>
-                        <TableHead>Status</TableHead>
-                        <TableHead>Gig</TableHead>
-                        <TableHead>Last Scanned</TableHead>
-                        <TableHead>Scanned By</TableHead>
-                        <TableHead>Notes</TableHead>
+                        {show('status') && <TableHead>Status</TableHead>}
+                        {show('gig') && <TableHead>Gig</TableHead>}
+                        {show('scanned_at') && <TableHead>Last Scanned</TableHead>}
+                        {show('scanned_by') && <TableHead>Scanned By</TableHead>}
+                        {show('notes') && <TableHead>Notes</TableHead>}
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {kitRows.map((row, i) => (
                         <TableRow key={`${row.kit_id}-${row.asset_id ?? 'kit'}-${i}`}>
+                          <TableCell className="print-cell hidden text-center">
+                            <span className="inline-block w-4 h-4 border border-gray-400 rounded-sm" />
+                          </TableCell>
                           <TableCell className="font-medium">
                             {row.asset_name ?? row.kit_name ?? '—'}
                           </TableCell>
                           <TableCell>{row.tag_number ?? '—'}</TableCell>
-                          <TableCell>
-                            <TrackingStatusBadge status={row.status} />
-                          </TableCell>
-                          <TableCell>{row.gig_title ?? '—'}</TableCell>
-                          <TableCell className="text-xs text-muted-foreground">
-                            {formatScanned(row.scanned_at)}
-                          </TableCell>
-                          <TableCell className="text-xs text-muted-foreground">
-                            {row.scanned_by_name ?? '—'}
-                          </TableCell>
-                          <TableCell className="text-xs text-muted-foreground">
-                            {row.notes ?? '—'}
-                          </TableCell>
+                          {show('status') && (
+                            <TableCell>
+                              <TrackingStatusBadge status={row.status} />
+                            </TableCell>
+                          )}
+                          {show('gig') && (
+                            <TableCell>{row.gig_title ?? '—'}</TableCell>
+                          )}
+                          {show('scanned_at') && (
+                            <TableCell className="text-xs text-muted-foreground">
+                              {formatScanned(row.scanned_at)}
+                            </TableCell>
+                          )}
+                          {show('scanned_by') && (
+                            <TableCell className="text-xs text-muted-foreground">
+                              {row.scanned_by_name ?? '—'}
+                            </TableCell>
+                          )}
+                          {show('notes') && (
+                            <TableCell className="text-xs text-muted-foreground">
+                              {row.notes ?? '—'}
+                            </TableCell>
+                          )}
                         </TableRow>
                       ))}
                     </TableBody>
@@ -259,6 +344,15 @@ function ManifestTab({
     </div>
   );
 }
+
+type PackingColumn = 'status' | 'scanned_at' | 'location' | 'scanned_by' | 'notes';
+const PACKING_COLUMNS: { key: PackingColumn; label: string }[] = [
+  { key: 'status', label: 'Status' },
+  { key: 'scanned_at', label: 'Last Scanned' },
+  { key: 'location', label: 'Location' },
+  { key: 'scanned_by', label: 'Scanned By' },
+  { key: 'notes', label: 'Notes' },
+];
 
 function PackingListTab({
   organizationId,
@@ -274,6 +368,18 @@ function PackingListTab({
   const [gigId, setGigId] = useState('');
   const [rows, setRows] = useState<PackingListRow[]>([]);
   const [loading, setLoading] = useState(false);
+  const [visibleColumns, setVisibleColumns] = useState<Set<PackingColumn>>(
+    new Set(['status', 'scanned_at', 'location', 'scanned_by', 'notes'])
+  );
+
+  const toggleColumn = (col: PackingColumn) => {
+    setVisibleColumns((prev) => {
+      const next = new Set(prev);
+      if (next.has(col)) next.delete(col);
+      else next.add(col);
+      return next;
+    });
+  };
 
   const fetchPackingList = useCallback(async () => {
     if (!gigId) {
@@ -306,6 +412,7 @@ function PackingListTab({
   }, [rows]);
 
   const selectedGigTitle = gigs.find((g) => g.id === gigId)?.title;
+  const show = (col: PackingColumn) => visibleColumns.has(col);
 
   return (
     <div className="flex flex-col gap-4">
@@ -333,6 +440,30 @@ function PackingListTab({
             </SelectContent>
           </Select>
         </div>
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button variant="outline" size="sm" className="gap-2 shrink-0">
+              <SlidersHorizontal className="h-4 w-4" />
+              Columns
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-48 p-3" align="end">
+            <div className="flex flex-col gap-2">
+              {PACKING_COLUMNS.map((col) => (
+                <div key={col.key} className="flex items-center gap-2">
+                  <Checkbox
+                    id={`packing-col-${col.key}`}
+                    checked={visibleColumns.has(col.key)}
+                    onCheckedChange={() => toggleColumn(col.key)}
+                  />
+                  <Label htmlFor={`packing-col-${col.key}`} className="text-sm font-normal cursor-pointer">
+                    {col.label}
+                  </Label>
+                </div>
+              ))}
+            </div>
+          </PopoverContent>
+        </Popover>
         <Button
           variant="outline"
           size="sm"
@@ -372,53 +503,61 @@ function PackingListTab({
                 <div key={kitId}>
                   <div className="bg-muted/40 px-4 py-2 flex items-center gap-2 border-b">
                     <span className="font-medium text-sm">{kitName}</span>
-                    <span className="text-[10px] text-muted-foreground border rounded px-1.5 py-0.5">
-                      {isContainer ? 'Container' : 'Logical'}
-                    </span>
+                    <KitTypeBadge isContainer={isContainer} />
                     {hasConflict && <ConflictBadge />}
                   </div>
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead className="print-only hidden w-8">✓</TableHead>
+                        <TableHead className="print-cell hidden w-8 text-center">✓</TableHead>
                         <TableHead>Name</TableHead>
                         <TableHead>Tag #</TableHead>
-                        <TableHead>Status</TableHead>
-                        <TableHead>Last Scanned</TableHead>
-                        <TableHead>Location</TableHead>
-                        <TableHead>Scanned By</TableHead>
-                        <TableHead>Notes</TableHead>
+                        {show('status') && <TableHead>Status</TableHead>}
+                        {show('scanned_at') && <TableHead>Last Scanned</TableHead>}
+                        {show('location') && <TableHead>Location</TableHead>}
+                        {show('scanned_by') && <TableHead>Scanned By</TableHead>}
+                        {show('notes') && <TableHead>Notes</TableHead>}
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {kitRows.map((row, i) => (
                         <TableRow key={`${row.kit_id}-${row.asset_id ?? 'kit'}-${i}`}>
-                          <TableCell className="print-only hidden">
+                          <TableCell className="print-cell hidden text-center">
                             <span className="inline-block w-4 h-4 border border-gray-400 rounded-sm" />
                           </TableCell>
                           <TableCell className="font-medium">
                             {row.asset_name ?? row.kit_name ?? '—'}
                           </TableCell>
                           <TableCell>{row.tag_number ?? '—'}</TableCell>
-                          <TableCell>
-                            {row.status ? (
-                              <TrackingStatusBadge status={row.status} />
-                            ) : (
-                              <span className="text-xs text-muted-foreground">Not scanned</span>
-                            )}
-                          </TableCell>
-                          <TableCell className="text-xs text-muted-foreground">
-                            {formatScanned(row.scanned_at)}
-                          </TableCell>
-                          <TableCell className="text-xs text-muted-foreground">
-                            {row.location ?? '—'}
-                          </TableCell>
-                          <TableCell className="text-xs text-muted-foreground">
-                            {row.scanned_by_name ?? '—'}
-                          </TableCell>
-                          <TableCell className="text-xs text-muted-foreground">
-                            {row.notes ?? '—'}
-                          </TableCell>
+                          {show('status') && (
+                            <TableCell>
+                              {row.status ? (
+                                <TrackingStatusBadge status={row.status} />
+                              ) : (
+                                <span className="text-xs text-muted-foreground">Not scanned</span>
+                              )}
+                            </TableCell>
+                          )}
+                          {show('scanned_at') && (
+                            <TableCell className="text-xs text-muted-foreground">
+                              {formatScanned(row.scanned_at)}
+                            </TableCell>
+                          )}
+                          {show('location') && (
+                            <TableCell className="text-xs text-muted-foreground">
+                              {row.location ?? '—'}
+                            </TableCell>
+                          )}
+                          {show('scanned_by') && (
+                            <TableCell className="text-xs text-muted-foreground">
+                              {row.scanned_by_name ?? '—'}
+                            </TableCell>
+                          )}
+                          {show('notes') && (
+                            <TableCell className="text-xs text-muted-foreground">
+                              {row.notes ?? '—'}
+                            </TableCell>
+                          )}
                         </TableRow>
                       ))}
                     </TableBody>

@@ -13,6 +13,7 @@ import { handleFunctionsError } from '../utils/api-error-utils';
 import { createClient } from '../utils/supabase/client';
 import { Button } from './ui/button';
 import AppHeader from './AppHeader';
+import { PageHeader } from './ui/PageHeader';
 import { Card } from './ui/card';
 import { Badge } from './ui/badge';
 import { Alert, AlertDescription } from './ui/alert';
@@ -168,32 +169,28 @@ export default function AdminOrganizationsScreen({
       {/* Admin Header Info */}
       <div className="bg-white border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="inline-flex items-center justify-center w-10 h-10 bg-sky-500 rounded-lg">
-                <Shield className="w-6 h-6 text-white" />
-              </div>
-              <div>
-                <h1 className="text-gray-900">Admin: All Organizations</h1>
-                <p className="text-sm text-gray-600">Manage all organizations in the system</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <Button
-                onClick={onBack}
-                variant="outline"
-              >
-                Back
-              </Button>
-              <Button
-                onClick={onCreateOrganization}
-                className="bg-sky-500 hover:bg-sky-600 text-white"
-              >
-                <Plus className="w-4 h-4 mr-2" />
-                Create Organization
-              </Button>
-            </div>
-          </div>
+          <PageHeader
+            icon={Shield}
+            title="Admin: All Organizations"
+            description="Manage all organizations in the system"
+            actions={
+              <>
+                <Button
+                  onClick={onBack}
+                  variant="outline"
+                >
+                  Back
+                </Button>
+                <Button
+                  onClick={onCreateOrganization}
+                  className="bg-sky-500 hover:bg-sky-600 text-white"
+                >
+                  <Plus className="w-4 h-4 mr-2" />
+                  Create Organization
+                </Button>
+              </>
+            }
+          />
         </div>
       </div>
 

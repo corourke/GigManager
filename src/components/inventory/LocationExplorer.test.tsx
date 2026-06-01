@@ -116,17 +116,17 @@ describe('LocationExplorer', () => {
     render(<LocationExplorer organizationId="org-1" />);
 
     expect(screen.getByPlaceholderText('Filter by location...')).toBeInTheDocument();
-    expect(screen.getByText('Status Toggles')).toBeInTheDocument();
+    expect(screen.getByText('Status Filter')).toBeInTheDocument();
     expect(screen.getByRole('combobox', { name: 'Filter by gig' })).toBeInTheDocument();
   });
 
   it('renders status toggles for core statuses', () => {
     render(<LocationExplorer organizationId="org-1" />);
 
-    expect(screen.getByLabelText('On Site')).toBeInTheDocument();
-    expect(screen.getByLabelText('In Transit')).toBeInTheDocument();
-    expect(screen.getByLabelText('Checked Out')).toBeInTheDocument();
-    expect(screen.getByLabelText('In Warehouse')).toBeInTheDocument();
+    expect(screen.getByText('On Site')).toBeInTheDocument();
+    expect(screen.getByText('In Transit')).toBeInTheDocument();
+    expect(screen.getByText('Checked Out')).toBeInTheDocument();
+    expect(screen.getByText('In Warehouse')).toBeInTheDocument();
   });
 
   it('renders gig options from active gigs', async () => {
@@ -149,11 +149,11 @@ describe('LocationExplorer', () => {
       expect(screen.queryByTestId('loading-spinner')).not.toBeInTheDocument();
     });
 
-    // Turn off all default toggles
-    fireEvent.click(screen.getByLabelText('On Site'));
-    fireEvent.click(screen.getByLabelText('In Transit'));
-    fireEvent.click(screen.getByLabelText('Checked Out'));
-    fireEvent.click(screen.getByLabelText('In Warehouse'));
+    // Turn off all default status filter buttons
+    fireEvent.click(screen.getByText('On Site'));
+    fireEvent.click(screen.getByText('In Transit'));
+    fireEvent.click(screen.getByText('Checked Out'));
+    fireEvent.click(screen.getByText('In Warehouse'));
 
     await waitFor(() => {
       expect(screen.getByText(/Apply filters above/i)).toBeInTheDocument();

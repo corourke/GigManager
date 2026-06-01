@@ -3888,6 +3888,7 @@ html {
 @media print {
   .no-print { display: none !important; }
   .print-only { display: block !important; }
+  .print-cell { display: table-cell !important; }
   
   /* Reset table container overflow/rounding for print */
   div.rounded-md.border.overflow-hidden {

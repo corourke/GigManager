@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { Package, ArrowLeft, Save, Loader2, AlertCircle, Plus, X, Search } from 'lucide-react';
+import { Package, ArrowLeft, Save, Loader2, AlertCircle, Plus, X, Search, CheckCircle2, Boxes, Container } from 'lucide-react';
 import { useSimpleFormChanges } from '../utils/hooks/useSimpleFormChanges';
 import { createSubmissionPayload, normalizeFormData } from '../utils/form-utils';
 import { toast } from 'sonner';
@@ -25,6 +25,7 @@ import {
   DialogTitle,
 } from './ui/dialog';
 import AppHeader from './AppHeader';
+import { PageHeader } from './ui/PageHeader';
 import { Organization, User, UserRole } from '../utils/supabase/types';
 import { getKit, createKit, updateKit } from '../services/kit.service';
 import { getAssets } from '../services/asset.service';
@@ -81,6 +82,7 @@ export default function KitScreen({
     rental_value: '',
   });
 
+  const [isContainer, setIsContainer] = useState(false);
   const [kitAssets, setKitAssets] = useState<KitAsset[]>([]);
   const [errors, setErrors] = useState<Record<string, string>>({});
   
@@ -104,7 +106,8 @@ export default function KitScreen({
   const currentData = useMemo(() => ({
     ...formData,
     kitAssets: kitAssets,
-  }), [formData, kitAssets]);
+    isContainer: isContainer,
+  }), [formData, kitAssets, isContainer]);
 
   // Change detection for efficient updates
   const changeDetection = useSimpleFormChanges({
@@ -115,7 +118,8 @@ export default function KitScreen({
       tags: [],
       tag_number: '',
       rental_value: '',
-      kitAssets: [], // Include kit assets in initial data
+      kitAssets: [],
+      isContainer: false,
     },
     currentData: currentData, // Pass the memoized currentData
   });
@@ -145,6 +149,7 @@ export default function KitScreen({
       };
 
       setFormData(loadedData);
+      setIsContainer(kit.is_container ?? false);
 
       let loadedKitAssets: KitAsset[] = [];
       const mappedAssets = (kit.kit_assets || []).map((ka: any) => ({
@@ -156,10 +161,11 @@ export default function KitScreen({
       setKitAssets(mappedAssets);
       loadedKitAssets = mappedAssets;
 
-      // Load initial data for change detection (including kit assets)
+      // Load initial data for change detection (including kit assets and tracking type)
       changeDetection.loadInitialData({
         ...loadedData,
         kitAssets: loadedKitAssets || [],
+        isContainer: kit.is_container ?? false,
       });
     } catch (error: any) {
       console.error('Error loading kit:', error);
@@ -297,6 +303,7 @@ export default function KitScreen({
       const kitData: any = {
         organization_id: organization.id,
         ...basicKitData,
+        is_container: isContainer,
       };
 
       // Always send assets (complex nested data)
@@ -318,7 +325,8 @@ export default function KitScreen({
           tags: formData.tags,
           tag_number: formData.tag_number.trim(),
           rental_value: formData.rental_value,
-          kitAssets: kitAssets, // Include current kit assets in saved state
+          kitAssets: kitAssets,
+          isContainer: isContainer,
         });
 
         onKitUpdated();
@@ -374,15 +382,11 @@ export default function KitScreen({
             <ArrowLeft className="w-4 h-4 mr-2" />
             Back to Kits
           </Button>
-          <h1 className="text-gray-900 flex items-center gap-2">
-            <Package className="w-8 h-8 text-sky-500" />
-            {isEditMode ? 'Edit Kit' : 'Create New Kit'}
-          </h1>
-          <p className="text-sm text-gray-600 mt-1">
-            {isEditMode
-              ? 'Update kit information and assets'
-              : 'Create a reusable equipment collection'}
-          </p>
+          <PageHeader
+            icon={Package}
+            title={isEditMode ? 'Edit Kit' : 'Create New Kit'}
+            description={isEditMode ? 'Update kit information and assets' : 'Create a reusable equipment collection'}
+          />
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -619,6 +623,52 @@ export default function KitScreen({
 
           {/* Summary Sidebar */}
           <div className="space-y-6">
+            <Card className="p-6">
+              <h3 className="text-gray-900 mb-3">Tracking Type</h3>
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onClick={() => setIsContainer(false)}
+                  className={`relative flex flex-col items-start gap-1.5 rounded-lg border-2 p-3 text-left transition-colors ${
+                    !isContainer
+                      ? 'border-sky-500 bg-sky-50'
+                      : 'border-gray-200 bg-white hover:border-gray-300'
+                  }`}
+                >
+                  {!isContainer && (
+                    <CheckCircle2 className="absolute top-2 right-2 h-4 w-4 text-sky-500" />
+                  )}
+                  <Boxes className={`h-5 w-5 ${!isContainer ? 'text-sky-600' : 'text-gray-400'}`} />
+                  <span className={`text-sm font-medium ${!isContainer ? 'text-sky-700' : 'text-gray-700'}`}>
+                    Items
+                  </span>
+                  <span className="text-xs text-gray-500 leading-snug">
+                    Each asset is scanned individually
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsContainer(true)}
+                  className={`relative flex flex-col items-start gap-1.5 rounded-lg border-2 p-3 text-left transition-colors ${
+                    isContainer
+                      ? 'border-sky-500 bg-sky-50'
+                      : 'border-gray-200 bg-white hover:border-gray-300'
+                  }`}
+                >
+                  {isContainer && (
+                    <CheckCircle2 className="absolute top-2 right-2 h-4 w-4 text-sky-500" />
+                  )}
+                  <Container className={`h-5 w-5 ${isContainer ? 'text-sky-600' : 'text-gray-400'}`} />
+                  <span className={`text-sm font-medium ${isContainer ? 'text-sky-700' : 'text-gray-700'}`}>
+                    Container
+                  </span>
+                  <span className="text-xs text-gray-500 leading-snug">
+                    Whole kit scanned as one unit
+                  </span>
+                </button>
+              </div>
+            </Card>
+
             <Card className="p-6">
               <h3 className="text-gray-900 mb-4">Kit Summary</h3>
               <div className="space-y-4">

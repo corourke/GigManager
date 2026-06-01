@@ -17,6 +17,7 @@ import {
 } from './ui/table';
 import { Badge } from './ui/badge';
 import AppHeader from './AppHeader';
+import { PageHeader } from './ui/PageHeader';
 import { Organization, User, UserRole } from '../utils/supabase/types';
 import { GIG_STATUS_CONFIG } from '../utils/supabase/constants';
 import { getTimezoneOptions } from '../utils/timezones';
@@ -390,13 +391,11 @@ export default function ImportScreen({
             <ArrowLeft className="w-4 h-4 mr-2" />
             Back
           </Button>
-          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-            <Upload className="w-6 h-6 text-sky-500" />
-            CSV Import
-          </h1>
-          <p className="text-sm text-gray-600 mt-1">
-            Import {importType === 'gigs' ? 'gigs' : 'assets'} from a CSV file
-          </p>
+          <PageHeader
+            icon={Upload}
+            title="CSV Import"
+            description={`Import ${importType === 'gigs' ? 'gigs' : 'assets'} from a CSV file`}
+          />
         </div>
 
         {/* Import Type Selection */}

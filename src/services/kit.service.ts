@@ -110,6 +110,7 @@ export async function createKit(kitData: {
   category?: string;
   description?: string;
   tags?: string[];
+  is_container?: boolean;
   assets: Array<{
     asset_id: string;
     quantity: number;
@@ -162,6 +163,10 @@ export async function updateKit(kitId: string, kitData: {
   category?: string;
   description?: string;
   tags?: string[];
+  tag_number?: string;
+  rental_value?: number | null;
+  is_container?: boolean;
+  organization_id?: string;
   assets?: Array<{
     id?: string;
     asset_id: string;
@@ -172,7 +177,7 @@ export async function updateKit(kitId: string, kitData: {
   try {
     const { supabase, user } = await requireAuth();
 
-    const { assets, ...restKitData } = kitData;
+    const { assets, organization_id: _orgId, ...restKitData } = kitData;
 
     const { error: updateError } = await supabase
       .from('kits')

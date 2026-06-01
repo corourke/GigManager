@@ -17,14 +17,15 @@ import {
   TableHeader,
   TableRow,
 } from '../ui/table';
-import { Switch } from '../ui/switch';
 import { Label } from '../ui/label';
+import { cn } from '../ui/utils';
 import {
   getItemsByLocation,
   getActiveGigsWithTracking,
 } from '../../services/inventoryManagement.service';
 import type { LocationItem, GigWithTracking } from '../../services/inventoryManagement.service';
 import { SCANNING_MODES } from '../../config/inventoryWorkflow';
+import { TRACKING_STATUS_CONFIG } from '../../utils/supabase/constants';
 
 interface LocationExplorerProps {
   organizationId: string;
@@ -144,20 +145,26 @@ export function LocationExplorer({ organizationId }: LocationExplorerProps) {
           </div>
 
           <div className="flex flex-col gap-2">
-            <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Status Toggles</Label>
-            <div className="flex flex-wrap gap-x-4 gap-y-2 pt-1">
-              {UNIQUE_STATUSES.map((status) => (
-                <div key={status} className="flex items-center space-x-2">
-                  <Switch 
-                    id={`status-${status}`} 
-                    checked={selectedStatuses.includes(status)}
-                    onCheckedChange={() => toggleStatus(status)}
-                  />
-                  <Label htmlFor={`status-${status}`} className="text-sm cursor-pointer whitespace-nowrap">
+            <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Status Filter</Label>
+            <div className="flex flex-wrap gap-2 pt-1">
+              {UNIQUE_STATUSES.map((status) => {
+                const isActive = selectedStatuses.includes(status);
+                const config = TRACKING_STATUS_CONFIG[status as keyof typeof TRACKING_STATUS_CONFIG];
+                return (
+                  <button
+                    key={status}
+                    onClick={() => toggleStatus(status)}
+                    className={cn(
+                      'text-xs font-medium px-3 py-1.5 rounded-full border transition-all',
+                      isActive
+                        ? config?.color ?? 'border-border bg-muted/40 text-muted-foreground'
+                        : 'border-dashed border-muted-foreground/30 text-muted-foreground/50 bg-transparent hover:border-muted-foreground/50 hover:text-muted-foreground/70'
+                    )}
+                  >
                     {status}
-                  </Label>
-                </div>
-              ))}
+                  </button>
+                );
+              })}
             </div>
           </div>
         </div>

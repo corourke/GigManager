@@ -33,6 +33,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from './ui/select';
+import { PageHeader } from './ui/PageHeader';
 import MarkdownEditor from './MarkdownEditor';
 
 interface OrganizationScreenProps {
@@ -535,10 +536,11 @@ export default function OrganizationScreen({
 
       {/* Main Content */}
       <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="mb-8">
-          <h1 className="text-gray-900 mb-2">{isEditMode ? 'Edit Organization' : 'Create New Organization'}</h1>
-          <p className="text-gray-600">{isEditMode ? 'Update organization details' : 'Search for your business or enter details manually'}</p>
-        </div>
+        <PageHeader
+          icon={Building2}
+          title={isEditMode ? 'Edit Organization' : 'Create New Organization'}
+          description={isEditMode ? 'Update organization details' : 'Search for your business or enter details manually'}
+        />
 
         {/* Google Places Search - Only show in create mode */}
         {!isEditMode && !selectedPlace && (

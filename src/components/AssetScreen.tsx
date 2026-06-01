@@ -11,6 +11,7 @@ import { Textarea } from './ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './ui/table';
 import AppHeader from './AppHeader';
+import { PageHeader } from './ui/PageHeader';
 import { Organization, User, UserRole } from '../utils/supabase/types';
 import { getAsset, createAsset, updateAsset, getAssetStatusHistory, getAssetInventoryTracking } from '../services/asset.service';
 import type { DbAsset, DbAssetStatusHistory, DbInventoryTracking } from '../utils/supabase/types';
@@ -379,15 +380,11 @@ export default function AssetScreen({
             <ArrowLeft className="w-4 h-4 mr-2" />
             Back to Assets
           </Button>
-          <h1 className="text-gray-900 flex items-center gap-2">
-            <Package className="w-8 h-8 text-sky-500" />
-            {isEditMode ? 'Edit Asset' : 'Add New Asset'}
-          </h1>
-          <p className="text-sm text-gray-600 mt-1">
-            {isEditMode
-              ? 'Update asset information'
-              : 'Add a new asset to your inventory'}
-          </p>
+          <PageHeader
+            icon={Package}
+            title={isEditMode ? 'Edit Asset' : 'Add New Asset'}
+            description={isEditMode ? 'Update asset information' : 'Add a new asset to your inventory'}
+          />
         </div>
 
         {/* Form */}

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { ChevronDown, ChevronRight, AlertTriangle } from 'lucide-react';
+import { ChevronDown, ChevronRight, AlertTriangle, Package } from 'lucide-react';
 import { format } from 'date-fns';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '../ui/collapsible';
 import { Progress } from '../ui/progress';
@@ -121,6 +121,8 @@ function KitRow({ assignment, gigId, conflictKitIds, canOverride, onOverride }: 
   const { kit } = assignment;
   const progress = getKitProgress(assignment);
   const hasConflict = conflictKitIds.has(kit.id);
+  const [expanded, setExpanded] = useState(false);
+  const canExpand = !kit.is_container && kit.assets.length > 0;
 
   const handleOverride = () => {
     onOverride({
@@ -131,52 +133,109 @@ function KitRow({ assignment, gigId, conflictKitIds, canOverride, onOverride }: 
     });
   };
 
+  const trackingByAsset = new Map(
+    assignment.tracking_records
+      .filter((r) => r.asset_id)
+      .map((r) => [r.asset_id!, r])
+  );
+
   return (
-    <div className="flex items-start justify-between gap-3 py-3 px-4 border-b last:border-b-0 bg-white">
-      <div className="flex flex-col gap-1 min-w-0">
-        <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-sm font-medium truncate">{kit.name}</span>
-          <Badge variant="outline" className="text-[10px] py-0 h-4 px-1.5 font-normal border shrink-0">
-            {kit.is_container ? 'Container' : 'Logical'}
-          </Badge>
-          {hasConflict && (
+    <div className="border-b last:border-b-0 bg-white">
+      <div className="flex items-start justify-between gap-3 py-2.5 px-4">
+        <div className="flex flex-col gap-1 min-w-0 flex-1">
+          <div className="flex items-center gap-2 flex-wrap">
+            {canExpand && (
+              <button
+                onClick={() => setExpanded((e) => !e)}
+                className="shrink-0 text-muted-foreground hover:text-foreground transition-colors"
+                aria-label={expanded ? 'Collapse kit' : 'Expand kit'}
+              >
+                {expanded ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+              </button>
+            )}
+            <span className="text-sm font-medium truncate">{kit.name}</span>
             <Tooltip>
               <TooltipTrigger asChild>
-                <span className="inline-flex items-center gap-1 text-[10px] font-medium text-amber-700 bg-amber-50 border border-amber-200 rounded px-1.5 py-0.5 cursor-default shrink-0">
-                  <AlertTriangle className="h-3 w-3" />
-                  Conflict
-                </span>
+                <Badge
+                  variant="outline"
+                  className={`text-[10px] py-0 h-4 px-1.5 font-normal border shrink-0 cursor-help ${
+                    kit.is_container
+                      ? 'border-slate-200 bg-slate-50 text-slate-600'
+                      : 'border-indigo-200 bg-indigo-50 text-indigo-700'
+                  }`}
+                >
+                  {kit.is_container ? 'Container' : 'Items'}
+                </Badge>
               </TooltipTrigger>
               <TooltipContent>
-                This kit is assigned to overlapping gigs
+                {kit.is_container
+                  ? 'Container kit: tracked as a single physical unit'
+                  : 'Items kit: each asset inside is tracked individually'}
               </TooltipContent>
             </Tooltip>
-          )}
-        </div>
-        <div className="flex items-center gap-3 text-xs text-muted-foreground flex-wrap">
-          {kit.is_container ? (
-            progress.latestStatus ? (
-              <TrackingStatusBadge status={progress.latestStatus} />
+            {hasConflict && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span className="inline-flex items-center gap-1 text-[10px] font-medium text-amber-700 bg-amber-50 border border-amber-200 rounded px-1.5 py-0.5 cursor-default shrink-0">
+                    <AlertTriangle className="h-3 w-3" />
+                    Conflict
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent>
+                  This kit is assigned to overlapping gigs
+                </TooltipContent>
+              </Tooltip>
+            )}
+          </div>
+          <div className="flex items-center gap-3 text-xs text-muted-foreground flex-wrap pl-5">
+            {kit.is_container ? (
+              progress.latestStatus ? (
+                <TrackingStatusBadge status={progress.latestStatus} />
+              ) : (
+                <span className="text-muted-foreground">Not tracked</span>
+              )
             ) : (
-              <span className="text-muted-foreground">Not tracked</span>
-            )
-          ) : (
-            <span>
-              {progress.scanned}/{progress.total} items
-              {progress.latestStatus ? ` — ${progress.latestStatus}` : ''}
-            </span>
-          )}
-          {progress.latestLocation && <span>{progress.latestLocation}</span>}
-          {progress.latestScannedAt && (
-            <span>Scanned {formatScannedAt(progress.latestScannedAt)}</span>
-          )}
-          {progress.scannedByName && <span>by {progress.scannedByName}</span>}
+              <span>
+                {progress.scanned}/{progress.total} items scanned
+                {progress.latestStatus ? ` — ${progress.latestStatus}` : ''}
+              </span>
+            )}
+            {progress.latestLocation && <span>@ {progress.latestLocation}</span>}
+            {progress.latestScannedAt && (
+              <span>{formatScannedAt(progress.latestScannedAt)}</span>
+            )}
+            {progress.scannedByName && <span>by {progress.scannedByName}</span>}
+          </div>
         </div>
+        {canOverride && (
+          <Button variant="outline" size="sm" className="shrink-0 text-xs h-7" onClick={handleOverride}>
+            Override
+          </Button>
+        )}
       </div>
-      {canOverride && (
-        <Button variant="outline" size="sm" className="shrink-0 text-xs h-7" onClick={handleOverride}>
-          Override
-        </Button>
+
+      {expanded && canExpand && (
+        <div className="bg-muted/20 border-t px-6 py-2 flex flex-col divide-y divide-border/50">
+          {kit.assets.map((a) => {
+            const record = trackingByAsset.get(a.asset_id);
+            return (
+              <div key={a.asset_id} className="flex items-center gap-3 py-1.5 text-xs">
+                <Package className="h-3 w-3 text-muted-foreground/50 shrink-0" />
+                <span className="flex-1 min-w-0 truncate text-muted-foreground">
+                  {a.asset.manufacturer_model ?? 'Unnamed Asset'}
+                </span>
+                {a.asset.tag_number && (
+                  <span className="font-mono text-muted-foreground/60 shrink-0">{a.asset.tag_number}</span>
+                )}
+                {record ? (
+                  <TrackingStatusBadge status={record.status} />
+                ) : (
+                  <span className="text-muted-foreground/50 shrink-0">Not scanned</span>
+                )}
+              </div>
+            );
+          })}
+        </div>
       )}
     </div>
   );
@@ -219,11 +278,6 @@ function GigRow({ gig, conflictKitIds, canOverride, onOverride }: GigRowProps) {
           <div className="flex flex-col gap-1 min-w-0 flex-1">
             <div className="flex items-center gap-2 flex-wrap">
               <span className="font-medium text-sm truncate">{gig.title}</span>
-              {dateLabel && (
-                <Badge variant="outline" className="text-[10px] py-0 h-4 px-1.5 font-normal border shrink-0">
-                  {dateLabel}
-                </Badge>
-              )}
               {hasConflict && (
                 <Tooltip>
                   <TooltipTrigger asChild>
@@ -238,7 +292,11 @@ function GigRow({ gig, conflictKitIds, canOverride, onOverride }: GigRowProps) {
                 </Tooltip>
               )}
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-3 text-xs text-muted-foreground">
+              {dateLabel && <span>{dateLabel}</span>}
+              <span>{gig.kit_assignments.length} kit{gig.kit_assignments.length !== 1 ? 's' : ''}</span>
+            </div>
+            <div className="flex items-center gap-2 mt-0.5">
               <Progress value={progressPercent} className="h-1.5 flex-1 max-w-48" />
               <span className="text-xs text-muted-foreground shrink-0">
                 {onSite}/{total} items tracked
