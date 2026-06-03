@@ -16,10 +16,21 @@ import { syncGigToCalendar, deleteGigFromCalendar } from './googleCalendar.servi
 
 const getSupabase = () => createClient();
 
-/**
- * Sync gig to Google Calendar for all users with integration enabled
- * This is called after gig create/update operations
- */
+const SYNC_DEBOUNCE_MS = 30_000;
+const pendingSyncTimers = new Map<string, ReturnType<typeof setTimeout>>();
+
+function debouncedSyncGigToAllCalendars(gigId: string): void {
+  const existing = pendingSyncTimers.get(gigId);
+  if (existing) clearTimeout(existing);
+  const timer = setTimeout(() => {
+    pendingSyncTimers.delete(gigId);
+    syncGigToAllCalendars(gigId).catch(err =>
+      console.error('Debounced sync failed for gig:', gigId, err)
+    );
+  }, SYNC_DEBOUNCE_MS);
+  pendingSyncTimers.set(gigId, timer);
+}
+
 async function syncGigToAllCalendars(gigId: string): Promise<void> {
   try {
     const supabase = getSupabase();
@@ -251,10 +262,7 @@ export async function createGig(gigData: any) {
     // Fetch the full gig details for the response
     const createdGig = await getGig(data[0].id);
 
-    // Sync to Google Calendar (fire and forget - don't block on sync failures)
-    syncGigToAllCalendars(data[0].id).catch(syncError =>
-      console.error('Background sync failed for created gig:', syncError)
-    );
+    debouncedSyncGigToAllCalendars(data[0].id);
 
     return createdGig;
   } catch (err) {
@@ -396,9 +404,7 @@ export async function updateGig(gigId: string, gigData: {
     const updatedGig = await getGig(gigId);
 
     if (updatedGig.start && updatedGig.end && new Date(updatedGig.end) > new Date(updatedGig.start)) {
-      syncGigToAllCalendars(gigId).catch(syncError =>
-        console.error('Background sync failed for updated gig:', syncError)
-      );
+      debouncedSyncGigToAllCalendars(gigId);
     }
 
     return updatedGig;

@@ -197,4 +197,9 @@ Completed: Fixed calendar week view rendering, sync status/log, time picker, and
 - GigDetailScreen now passes `data.timezone` to `checkAllConflicts`
 - Added 2 new timezone-specific tests: PST date-only vs UTC evening overlap, and different-day non-overlap
 - 21 comprehensive functional tests for conflict detection service (all passing)
-- All 192 tests pass across 29 test files, production build succeeds
+- Removed override button (was placeholder) from ConflictWarning, GigDetailScreen, CalendarScreen, GigListScreen
+- Excluded cancelled gigs from conflict detection: added `EXCLUDED_STATUSES` filter and `.neq('status', 'Cancelled')` to all queries
+- Changed Cancelled status color from red to muted grey (`#9ca3af` / `bg-gray-200 text-gray-500`) to avoid confusion with conflict highlighting
+- Skip conflict detection entirely for cancelled gigs in GigDetailScreen
+- Added 30-second debounce to Google Calendar sync (`debouncedSyncGigToAllCalendars`) to reduce unnecessary API calls during editing
+- All 190 tests pass across 29 test files, production build succeeds
