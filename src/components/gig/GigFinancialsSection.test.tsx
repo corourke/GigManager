@@ -77,11 +77,18 @@ describe('GigFinancialsSection', () => {
     expect(screen.getByText('Loading financials...')).toBeInTheDocument();
   });
 
-  it('does not render for non-admin users', () => {
+  it('does not render for non-admin/manager users', () => {
     const { container } = render(
-      <GigFinancialsSection {...defaultProps} userRole="Manager" />
+      <GigFinancialsSection {...defaultProps} userRole="Staff" />
     );
     expect(container.firstChild).toBeNull();
+  });
+
+  it('renders for manager users', async () => {
+    render(<GigFinancialsSection {...defaultProps} userRole="Manager" />);
+    await waitFor(() => {
+      expect(screen.getByText('Financials')).toBeInTheDocument();
+    });
   });
 
   it('renders financial records in table format', async () => {
@@ -136,11 +143,16 @@ describe('GigFinancialsSection', () => {
       expect(screen.getByText('Financials')).toBeInTheDocument();
     });
 
-    fireEvent.click(screen.getByText('Add Record'));
+    fireEvent.click(screen.getByText('Edit Financials'));
+    await waitFor(() => {
+      expect(screen.getByText('Other')).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByText('Other'));
     
     await waitFor(() => {
       // Check for dialog header content
-      expect(screen.getByRole('dialog')).toBeInTheDocument();
+      expect(screen.getByRole('heading', { name: 'Add Financial Record' })).toBeInTheDocument();
       expect(screen.getByLabelText('Date')).toBeInTheDocument();
       expect(screen.getByLabelText('Amount')).toBeInTheDocument();
       expect(screen.getByLabelText('Description')).toBeInTheDocument();
@@ -152,6 +164,11 @@ describe('GigFinancialsSection', () => {
     
     await waitFor(() => {
       expect(screen.getByText('Financials')).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByText('Edit Financials'));
+    await waitFor(() => {
+      expect(screen.getByTestId('edit-financial-0')).toBeInTheDocument();
     });
 
     const editButton = screen.getByTestId('edit-financial-0');
@@ -170,6 +187,11 @@ describe('GigFinancialsSection', () => {
     
     await waitFor(() => {
       expect(screen.getByText('Financials')).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByText('Edit Financials'));
+    await waitFor(() => {
+      expect(screen.getByTestId('delete-financial-0')).toBeInTheDocument();
     });
 
     const deleteButton = screen.getByTestId('delete-financial-0');
@@ -191,8 +213,16 @@ describe('GigFinancialsSection', () => {
     });
   });
 
-  it('does not load financials for non-admin users', () => {
+  it('loads financials on mount for manager users', async () => {
     render(<GigFinancialsSection {...defaultProps} userRole="Manager" />);
+    
+    await waitFor(() => {
+      expect(gigService.getGigFinancials).toHaveBeenCalledWith('test-gig-id', 'test-org-id');
+    });
+  });
+
+  it('does not load financials for unauthorized users', () => {
+    render(<GigFinancialsSection {...defaultProps} userRole="Staff" />);
     expect(gigService.getGigFinancials).not.toHaveBeenCalled();
   });
 

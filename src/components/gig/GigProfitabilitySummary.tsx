@@ -1,7 +1,5 @@
 import React from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { cn } from '../ui/utils';
-import { DollarSign, TrendingUp, TrendingDown, Users, Receipt, FileText } from 'lucide-react';
 
 interface GigProfitabilitySummaryProps {
   summary: {
@@ -24,20 +22,42 @@ const formatCurrency = (amount: number) => {
   }).format(amount);
 };
 
+const labelStyle: React.CSSProperties = {
+  fontSize: '12px',
+  textTransform: 'uppercase',
+  letterSpacing: '0.08em',
+  fontWeight: 600,
+  marginBottom: '2px',
+};
+
+const valueStyle: React.CSSProperties = {
+  fontSize: '15px',
+  fontWeight: 600,
+  lineHeight: 1.2,
+};
+
+const detailStyle: React.CSSProperties = {
+  fontSize: '12px',
+  marginTop: '3px',
+};
+
+const dividerStyle: React.CSSProperties = {
+  width: '1px',
+  alignSelf: 'stretch',
+  flexShrink: 0,
+  margin: '0 16px',
+};
+
 const GigProfitabilitySummary: React.FC<GigProfitabilitySummaryProps> = ({ summary, isLoading }) => {
   if (isLoading) {
     return (
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+      <div style={{ display: 'flex', alignItems: 'flex-start' }}>
         {[1, 2, 3].map((i) => (
-          <Card key={i} className="animate-pulse">
-            <CardHeader className="pb-2">
-              <div className="h-4 w-24 bg-gray-200 rounded" />
-            </CardHeader>
-            <CardContent>
-              <div className="h-8 w-32 bg-gray-200 rounded mb-2" />
-              <div className="h-4 w-48 bg-gray-100 rounded" />
-            </CardContent>
-          </Card>
+          <div key={i} className="animate-pulse" style={{ paddingRight: 16, marginRight: i < 3 ? 16 : 0, borderRight: i < 3 ? '1px solid var(--border)' : 'none' }}>
+            <div className="bg-muted rounded" style={{ height: 10, width: 40, marginBottom: 6 }} />
+            <div className="bg-muted rounded" style={{ height: 14, width: 64, marginBottom: 4 }} />
+            <div className="bg-muted rounded" style={{ height: 10, width: 96, opacity: 0.6 }} />
+          </div>
         ))}
       </div>
     );
@@ -54,100 +74,43 @@ const GigProfitabilitySummary: React.FC<GigProfitabilitySummaryProps> = ({ summa
     margin,
   } = summary;
 
-  // Contract card colors
-  const contractCardColor = contractAmount === 0 
-    ? 'border-gray-200' 
-    : received >= contractAmount 
-      ? 'border-green-500 bg-green-50/30' 
-      : 'border-amber-500 bg-amber-50/30';
-
-  // Profit card colors
-  const profitCardColor = profit === 0
-    ? 'border-gray-200'
-    : profit > 0
-      ? 'border-green-500 bg-green-50/30'
-      : 'border-red-500 bg-red-50/30';
-
   return (
-    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-      {/* Contract Card */}
-      <Card className={cn("border-l-4 transition-all", contractCardColor)}>
-        <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
-          <CardTitle className="text-sm font-medium text-muted-foreground uppercase tracking-wider">
-            Revenue
-          </CardTitle>
-          <FileText className="h-4 w-4 text-muted-foreground" />
-        </CardHeader>
-        <CardContent>
-          <div className="text-2xl font-bold">{formatCurrency(contractAmount)}</div>
-          <div className="flex flex-col mt-1 text-xs text-muted-foreground">
-            <div className="flex justify-between">
-              <span>Received:</span>
-              <span className="font-medium text-foreground">{formatCurrency(received)}</span>
-            </div>
-            <div className="flex justify-between">
-              <span>Outstanding:</span>
-              <span className={cn("font-medium", outstandingRevenue > 0 ? "text-amber-600" : "text-green-600")}>
-                {formatCurrency(outstandingRevenue)}
-              </span>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+    <div style={{ display: 'flex', alignItems: 'flex-start' }}>
+      <div style={{ paddingRight: 16 }}>
+        <p className="text-muted-foreground" style={labelStyle}>Revenue</p>
+        <p style={valueStyle}>{formatCurrency(contractAmount)}</p>
+        <p className="text-muted-foreground" style={detailStyle}>
+          Rcvd <span className="font-medium">{formatCurrency(received)}</span>
+          {' · '}
+          Due <span className={cn("font-medium", outstandingRevenue > 0 ? "text-amber-600" : "text-green-600")}>{formatCurrency(outstandingRevenue)}</span>
+        </p>
+      </div>
 
-      {/* Total Costs Card */}
-      <Card className="border-l-4 border-blue-500 bg-blue-50/30 transition-all">
-        <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
-          <CardTitle className="text-sm font-medium text-muted-foreground uppercase tracking-wider">
-            Total Costs
-          </CardTitle>
-          <Receipt className="h-4 w-4 text-muted-foreground" />
-        </CardHeader>
-        <CardContent>
-          <div className="text-2xl font-bold">{formatCurrency(totalCosts)}</div>
-          <div className="flex flex-col mt-1 text-xs text-muted-foreground">
-            <div className="flex justify-between">
-              <span>Actual:</span>
-              <span className="font-medium text-foreground">{formatCurrency(actualCosts)}</span>
-            </div>
-            <div className="flex justify-between">
-              <span>Projected Staff:</span>
-              <span className="font-medium text-foreground">{formatCurrency(projectedStaffCosts)}</span>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+      <div className="bg-border" style={dividerStyle} />
 
-      {/* Profit Card */}
-      <Card className={cn("border-l-4 transition-all", profitCardColor)}>
-        <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
-          <CardTitle className="text-sm font-medium text-muted-foreground uppercase tracking-wider">
-            {profit >= 0 ? 'Profit' : 'Loss'}
-          </CardTitle>
-          {profit >= 0 ? (
-            <TrendingUp className="h-4 w-4 text-green-600" />
-          ) : (
-            <TrendingDown className="h-4 w-4 text-red-600" />
-          )}
-        </CardHeader>
-        <CardContent>
-          <div className={cn("text-2xl font-bold", profit > 0 ? "text-green-700" : profit < 0 ? "text-red-700" : "")}>
-            {formatCurrency(profit)}
-          </div>
-          <div className="flex flex-col mt-1 text-xs text-muted-foreground">
-            <div className="flex justify-between items-center">
-              <span>Margin:</span>
-              <span className={cn(
-                "font-bold px-1.5 py-0.5 rounded text-[10px]",
-                profit > 0 ? "bg-green-100 text-green-700" : profit < 0 ? "bg-red-100 text-red-700" : "bg-gray-100"
-              )}>
-                {margin.toFixed(1)}%
-              </span>
-            </div>
-            <div className="h-1 mt-1.5" />
-          </div>
-        </CardContent>
-      </Card>
+      <div style={{ paddingRight: 16 }}>
+        <p className="text-muted-foreground" style={labelStyle}>Costs</p>
+        <p style={valueStyle}>{formatCurrency(totalCosts)}</p>
+        <p className="text-muted-foreground" style={detailStyle}>
+          Actual <span className="font-medium">{formatCurrency(actualCosts)}</span>
+          {' · '}
+          Staff <span className="font-medium">{formatCurrency(projectedStaffCosts)}</span>
+        </p>
+      </div>
+
+      <div className="bg-border" style={dividerStyle} />
+
+      <div>
+        <p className="text-muted-foreground" style={labelStyle}>
+          {profit >= 0 ? 'Profit' : 'Loss'}
+        </p>
+        <p className={cn(profit > 0 ? "text-green-600" : profit < 0 ? "text-red-600" : "")} style={valueStyle}>
+          {formatCurrency(profit)}
+        </p>
+        <p className="text-muted-foreground" style={detailStyle}>
+          Margin <span className={cn("font-medium", profit > 0 ? "text-green-600" : profit < 0 ? "text-red-600" : "")}>{margin.toFixed(1)}%</span>
+        </p>
+      </div>
     </div>
   );
 };

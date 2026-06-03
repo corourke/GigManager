@@ -214,6 +214,7 @@ export default function GigScreen({
                 gigId={gigId}
                 currentOrganizationId={organization.id}
                 userRole={userRole}
+                gigStartDate={gig?.start?.substring(0, 10)}
               />
               <GigKitAssignmentsSection
                 gigId={gigId}

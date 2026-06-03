@@ -29,6 +29,7 @@ import SaveStateIndicator from './SaveStateIndicator';
 import { UserRole, FinType, FinCategory } from '../../utils/supabase/types';
 import { FIN_TYPE_CONFIG, FIN_CATEGORY_CONFIG, FIN_TYPE_GROUPS } from '../../utils/supabase/constants';
 import GigProfitabilitySummary from './GigProfitabilitySummary';
+import QuickActionButtons from './QuickActionButtons';
 import { Badge } from '../ui/badge';
 import { useNavigation } from '../../contexts/NavigationContext';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '../ui/collapsible';
@@ -107,12 +108,14 @@ interface GigFinancialsSectionProps {
   gigId: string;
   currentOrganizationId: string;
   userRole?: UserRole;
+  gigStartDate?: string;
 }
 
 export default function GigFinancialsSection({
   gigId,
   currentOrganizationId,
   userRole,
+  gigStartDate,
 }: GigFinancialsSectionProps) {
   const navigation = useNavigation();
   const [isLoading, setIsLoading] = useState(true);
@@ -146,8 +149,8 @@ export default function GigFinancialsSection({
     notes: '',
   });
 
-  // Only show to admins
-  const isAdmin = userRole === 'Admin';
+  const isAdmin = userRole === 'Admin' || userRole === 'Manager';
+  const [isEditMode, setIsEditMode] = useState(false);
 
   const { control, handleSubmit, formState: { errors, isDirty }, watch, reset, setValue, getValues } = useForm<FinancialsFormData>({
     resolver: zodResolver(financialsFormSchema),
@@ -557,6 +560,7 @@ export default function GigFinancialsSection({
                 <ExternalLink className="w-4 h-4" />
               </Button>
             )}
+            {isEditMode && (
             <Button
               type="button"
               variant="ghost"
@@ -566,6 +570,8 @@ export default function GigFinancialsSection({
             >
               <FileText className="w-4 h-4" />
             </Button>
+            )}
+            {isEditMode && (
             <Button
               type="button"
               variant="ghost"
@@ -576,6 +582,8 @@ export default function GigFinancialsSection({
             >
               <Edit className="w-4 h-4" />
             </Button>
+            )}
+            {isEditMode && (
             <Button
               type="button"
               variant="ghost"
@@ -586,6 +594,7 @@ export default function GigFinancialsSection({
             >
               <Trash2 className="w-4 h-4" />
             </Button>
+            )}
           </div>
         </TableCell>
       </TableRow>
@@ -611,12 +620,6 @@ export default function GigFinancialsSection({
 
   return (
     <>
-      {summary && (
-        <GigProfitabilitySummary 
-          summary={summary} 
-          isLoading={isSummaryLoading} 
-        />
-      )}
       <Card className="mb-6">
         <CardHeader>
           <div className="flex items-center justify-between">
@@ -626,15 +629,40 @@ export default function GigFinancialsSection({
               <SaveStateIndicator state={saveState} />
             </div>
             <div className="flex items-center gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={handleAddFinancial}
-              >
-                <Plus className="w-4 h-4 mr-1" />
-                Add Record
-              </Button>
+              {isAdmin && (
+                <Button
+                  variant={isEditMode ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setIsEditMode(!isEditMode)}
+                  className="h-7 text-xs gap-1.5"
+                >
+                  <Edit className="h-3 w-3" />
+                  {isEditMode ? 'Done Editing' : 'Edit Financials'}
+                </Button>
+              )}
+            </div>
+          </div>
+          {(summary || isSummaryLoading) && (
+            <div className="pt-2">
+              <GigProfitabilitySummary
+                summary={summary ?? { contractAmount: 0, received: 0, outstandingRevenue: 0, actualCosts: 0, projectedStaffCosts: 0, totalCosts: 0, profit: 0, margin: 0 }}
+                isLoading={isSummaryLoading}
+              />
+            </div>
+          )}
+          {isAdmin && isEditMode && (
+            <div className="flex flex-wrap items-center gap-2 pt-1">
+              <QuickActionButtons
+                gigId={gigId}
+                organizationId={currentOrganizationId}
+                onSuccess={() => {
+                  loadFinancialsData();
+                  loadSummaryData();
+                }}
+                onOther={handleAddFinancial}
+                gigStartDate={gigStartDate}
+                userRole={userRole}
+              />
               <div className="relative overflow-hidden">
                 <input
                   type="file"
@@ -659,7 +687,7 @@ export default function GigFinancialsSection({
                 </Button>
               </div>
             </div>
-          </div>
+          )}
         </CardHeader>
         <CardContent>
           <div className="space-y-8">
@@ -817,7 +845,7 @@ export default function GigFinancialsSection({
           setCurrentFinancialIndex(null);
         }
       }}>
-        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+        <DialogContent className="max-w-[800px] max-h-[80vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
               {currentFinancialIndex !== null ? 'Edit Financial Record' : 'Add Financial Record'}
@@ -841,7 +869,7 @@ export default function GigFinancialsSection({
               <div>
                 <Label htmlFor="modal-amount">Amount</Label>
                 <div className="relative flex items-center">
-                  <span className="absolute left-3 text-sm text-gray-500 font-medium">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-500 font-medium pointer-events-none">
                     {CURRENCY_OPTIONS.find(c => c.code === modalData.currency)?.symbol || '$'}
                   </span>
                   <Input

@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Financial Summary — Variant A</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontSize: {
+            '9px': ['9px', { lineHeight: '1.3' }],
+            '10px': ['10px', { lineHeight: '1.4' }],
+            '11px': ['11px', { lineHeight: '1.4' }],
+            '13px': ['13px', { lineHeight: '1.5' }],
+          }
+        }
+      }
+    }
+  </script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
+  <style>
+    body { font-family: 'Inter', sans-serif; }
+    :root {
+      --foreground: #111827;
+      --muted-foreground: #6b7280;
+      --border: #e5e7eb;
+      --card-bg: #ffffff;
+      --page-bg: #f9fafb;
+    }
+  </style>
+</head>
+<body class="bg-[#f9fafb] p-8 space-y-12">
+
+  <!-- Label -->
+  <p class="text-[11px] font-semibold uppercase tracking-widest text-gray-400 mb-2">Desktop (~800px card context)</p>
+
+  <!-- DESKTOP VERSION -->
+  <div class="w-[800px] bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
+
+    <!-- Surrounding card context: Gig header -->
+    <div class="px-4 pt-4 pb-3 border-b border-gray-100">
+      <div class="flex items-center justify-between">
+        <div>
+          <p class="text-[11px] font-semibold uppercase tracking-widest text-gray-400 flex items-center gap-1.5">
+            <svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+            Gig Details
+          </p>
+          <p class="text-[13px] font-semibold text-gray-900 mt-0.5">Wedding Reception — Riverside Hall</p>
+          <p class="text-[13px] text-gray-500">Sat, Jun 14 · 6:00 PM – 11:00 PM</p>
+        </div>
+        <span class="text-[11px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded bg-amber-50 text-amber-700 border border-amber-200">Confirmed</span>
+      </div>
+    </div>
+
+    <!-- Participants row (context) -->
+    <div class="px-4 py-3 border-b border-gray-100">
+      <p class="text-[11px] font-semibold uppercase tracking-widest text-gray-400 flex items-center gap-1.5 mb-2">
+        <svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+        Participants
+      </p>
+      <div class="flex items-center gap-3">
+        <div class="flex items-center gap-1.5">
+          <div class="w-5 h-5 rounded-full bg-indigo-100 flex items-center justify-center">
+            <span class="text-[9px] font-semibold text-indigo-600">JM</span>
+          </div>
+          <span class="text-[13px] text-gray-700">James M.</span>
+          <span class="text-[10px] text-gray-400 uppercase tracking-wide">Lead</span>
+        </div>
+        <div class="flex items-center gap-1.5">
+          <div class="w-5 h-5 rounded-full bg-emerald-100 flex items-center justify-center">
+            <span class="text-[9px] font-semibold text-emerald-600">SK</span>
+          </div>
+          <span class="text-[13px] text-gray-700">Sarah K.</span>
+        </div>
+        <div class="flex items-center gap-1.5">
+          <div class="w-5 h-5 rounded-full bg-violet-100 flex items-center justify-center">
+            <span class="text-[9px] font-semibold text-violet-600">DP</span>
+          </div>
+          <span class="text-[13px] text-gray-700">Dan P.</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- FINANCIAL SUMMARY — Web version -->
+    <div class="px-4 py-3 border-b border-gray-100">
+      <p class="text-[11px] font-semibold uppercase tracking-widest text-gray-400 flex items-center gap-1.5 mb-2.5">
+        <svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+        Financials
+      </p>
+
+      <!-- Inline stats row -->
+      <div class="flex items-start gap-0">
+
+        <!-- Revenue -->
+        <div class="pr-4">
+          <p class="text-[10px] uppercase tracking-widest text-gray-400 font-semibold mb-0.5">Revenue</p>
+          <p class="text-[13px] font-semibold text-gray-900">$250.00</p>
+          <p class="text-[10px] text-gray-400 mt-0.5">Rcvd <span class="text-gray-500">$0.00</span> · Due <span class="text-gray-500">$250.00</span></p>
+        </div>
+
+        <!-- Divider -->
+        <div class="self-stretch w-px bg-gray-200 mx-4 flex-shrink-0"></div>
+
+        <!-- Costs -->
+        <div class="pr-4">
+          <p class="text-[10px] uppercase tracking-widest text-gray-400 font-semibold mb-0.5">Costs</p>
+          <p class="text-[13px] font-semibold text-gray-900">$169.58</p>
+          <p class="text-[10px] text-gray-400 mt-0.5">Actual <span class="text-gray-500">$169.58</span> · Staff <span class="text-gray-500">$0.00</span></p>
+        </div>
+
+        <!-- Divider -->
+        <div class="self-stretch w-px bg-gray-200 mx-4 flex-shrink-0"></div>
+
+        <!-- Profit -->
+        <div>
+          <p class="text-[10px] uppercase tracking-widest text-gray-400 font-semibold mb-0.5">Profit</p>
+          <p class="text-[13px] font-semibold text-green-600">$80.42</p>
+          <p class="text-[10px] text-gray-400 mt-0.5">Margin <span class="text-green-600">32.2%</span></p>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Notes row (context) -->
+    <div class="px-4 py-3">
+      <p class="text-[11px] font-semibold uppercase tracking-widest text-gray-400 flex items-center gap-1.5 mb-1.5">
+        <svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z"/></svg>
+        Notes
+      </p>
+      <p class="text-[13px] text-gray-500">Client requested acoustic set for cocktail hour. Load-in at 4:30 PM through rear entrance.</p>
+    </div>
+
+  </div>
+
+  <!-- Label -->
+  <p class="text-[11px] font-semibold uppercase tracking-widest text-gray-400 mb-2">Mobile (375px)</p>
+
+  <!-- MOBILE VERSION -->
+  <div class="w-[375px] bg-[#f9fafb] rounded-xl overflow-hidden">
+
+    <!-- Mock mobile app chrome: status bar -->
+    <div class="bg-white px-4 py-2 flex items-center justify-between border-b border-gray-100">
+      <span class="text-[11px] font-semibold text-gray-900">9:41</span>
+      <span class="text-[11px] font-semibold text-gray-900">Gig Detail</span>
+      <div class="flex items-center gap-1">
+        <svg class="w-3.5 h-3.5 text-gray-700" fill="currentColor" viewBox="0 0 24 24"><path d="M1.5 8.5a13 13 0 0121 0M5 12a10 10 0 0114 0M8.5 15.5a6 6 0 017 0M12 19h.01"/></svg>
+        <svg class="w-3.5 h-3.5 text-gray-700" fill="currentColor" viewBox="0 0 20 20"><path d="M2 11a1 1 0 011-1h2a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5zm6-4a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1 1H9a1 1 0 01-1-1V7zm6-3a1 1 0 011-1h2a1 1 0 011 1v12a1 1 0 01-1 1h-2a1 1 0 01-1-1V4z"/></svg>
+      </div>
+    </div>
+
+    <!-- Gig header -->
+    <div class="bg-white px-4 pt-4 pb-3 border-b border-gray-100">
+      <div class="flex items-start justify-between">
+        <div>
+          <p class="text-[13px] font-semibold text-gray-900">Wedding Reception</p>
+          <p class="text-[11px] text-gray-500">Riverside Hall · Jun 14</p>
+        </div>
+        <span class="text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded bg-amber-50 text-amber-700">Confirmed</span>
+      </div>
+    </div>
+
+    <div class="px-3 py-3 space-y-2.5">
+
+      <!-- Participants card (context) -->
+      <div class="bg-white rounded-lg border border-gray-200 p-3">
+        <p class="text-[11px] font-semibold uppercase tracking-widest text-gray-400 flex items-center gap-1.5 mb-2">
+          <svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+          Participants
+        </p>
+        <div class="flex items-center gap-2">
+          <div class="flex -space-x-1.5">
+            <div class="w-6 h-6 rounded-full bg-indigo-100 border-2 border-white flex items-center justify-center"><span class="text-[8px] font-bold text-indigo-600">JM</span></div>
+            <div class="w-6 h-6 rounded-full bg-emerald-100 border-2 border-white flex items-center justify-center"><span class="text-[8px] font-bold text-emerald-600">SK</span></div>
+            <div class="w-6 h-6 rounded-full bg-violet-100 border-2 border-white flex items-center justify-center"><span class="text-[8px] font-bold text-violet-600">DP</span></div>
+          </div>
+          <span class="text-[11px] text-gray-500">3 musicians</span>
+        </div>
+      </div>
+
+      <!-- FINANCIAL SUMMARY — Mobile version -->
+      <div class="bg-white rounded-lg border border-gray-200 p-3">
+        <p class="text-[11px] font-semibold uppercase tracking-widest text-gray-400 flex items-center gap-1.5 mb-2.5">
+          <svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+          Financials
+        </p>
+
+        <!-- Inline stats: 3 metrics side by side -->
+        <div class="flex items-stretch divide-x divide-gray-200">
+
+          <div class="flex-1 pr-3">
+            <p class="text-[9px] uppercase tracking-widest text-gray-400 font-semibold mb-0.5">Revenue</p>
+            <p class="text-[11px] font-semibold text-gray-900">$250.00</p>
+          </div>
+
+          <div class="flex-1 px-3">
+            <p class="text-[9px] uppercase tracking-widest text-gray-400 font-semibold mb-0.5">Costs</p>
+            <p class="text-[11px] font-semibold text-gray-900">$169.58</p>
+          </div>
+
+          <div class="flex-1 pl-3">
+            <p class="text-[9px] uppercase tracking-widest text-gray-400 font-semibold mb-0.5">Profit</p>
+            <p class="text-[11px] font-semibold text-green-600">$80.42</p>
+          </div>
+
+        </div>
+
+        <!-- Divider -->
+        <div class="mt-3 pt-3 border-t border-gray-100 flex items-center justify-between">
+          <div class="flex items-center gap-2">
+            <button class="text-[11px] font-semibold text-gray-700 bg-gray-50 border border-gray-200 px-2.5 py-1 rounded-md hover:bg-gray-100 transition-colors">Add Cost</button>
+            <button class="text-[11px] font-semibold text-gray-700 bg-gray-50 border border-gray-200 px-2.5 py-1 rounded-md hover:bg-gray-100 transition-colors">Record Payment</button>
+          </div>
+          <button class="text-[11px] text-indigo-600 font-medium hover:underline">View 3 Transactions</button>
+        </div>
+
+      </div>
+
+      <!-- Notes card (context) -->
+      <div class="bg-white rounded-lg border border-gray-200 p-3">
+        <p class="text-[11px] font-semibold uppercase tracking-widest text-gray-400 flex items-center gap-1.5 mb-1.5">
+          <svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z"/></svg>
+          Notes
+        </p>
+        <p class="text-[13px] text-gray-500 leading-relaxed">Acoustic set for cocktail hour. Load-in at 4:30 PM.</p>
+      </div>
+
+    </div>
+  </div>
+
+</body>
+</html>

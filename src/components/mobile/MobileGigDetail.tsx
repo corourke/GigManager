@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Card, CardContent } from '../ui/card';
 import { Button } from '../ui/button';
 import AttachmentManager from '../AttachmentManager';
+import MobileGigFinancials from './MobileGigFinancials';
 import {
   ArrowLeft,
   Calendar,
@@ -858,6 +859,16 @@ export default function MobileGigDetail({ gigId, onBack, onViewPackingList }: Mo
               </div>
             </CardContent>
           </Card>
+        )}
+
+        {canEdit && (
+          <MobileGigFinancials 
+            gigId={gigId}
+            organizationId={selectedOrganization?.id ?? ''}
+            userRole={userRole}
+            isEditing={isEditing}
+            gigStartDate={gig.start ? format(parseISO(gig.start), 'yyyy-MM-dd') : undefined}
+          />
         )}
 
         <Card style={{ gap: 0 }}>

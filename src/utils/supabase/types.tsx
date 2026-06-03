@@ -145,6 +145,7 @@ export interface DbGigFinancial {
   paid_at?: string;
   purchase_id?: string;
   staff_assignment_id?: string;
+  mileage?: number;
   created_by: string;
   updated_by?: string;
   created_at: string;

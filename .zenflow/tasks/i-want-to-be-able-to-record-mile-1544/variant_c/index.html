@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Financial Summary — Variant C: Metric Pills</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background-color: #f4f4f5;
+    }
+
+    /* Pill hover tooltip */
+    .pill-wrapper {
+      position: relative;
+    }
+
+    .pill-tooltip {
+      display: none;
+      position: absolute;
+      bottom: calc(100% + 6px);
+      left: 50%;
+      transform: translateX(-50%);
+      background: #1e293b;
+      color: #e2e8f0;
+      font-size: 10px;
+      line-height: 1.5;
+      border-radius: 6px;
+      padding: 6px 9px;
+      white-space: nowrap;
+      z-index: 10;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+      pointer-events: none;
+    }
+
+    .pill-tooltip::after {
+      content: '';
+      position: absolute;
+      top: 100%;
+      left: 50%;
+      transform: translateX(-50%);
+      border: 4px solid transparent;
+      border-top-color: #1e293b;
+    }
+
+    .pill-wrapper:hover .pill-tooltip {
+      display: block;
+    }
+
+    /* Section label style matching app conventions */
+    .section-header {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: #71717a;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    /* Pill base */
+    .metric-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      height: 26px;
+      padding: 0 9px;
+      border-radius: 9999px;
+      white-space: nowrap;
+      cursor: default;
+    }
+
+    .pill-label {
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    .pill-value {
+      font-size: 11px;
+      font-weight: 600;
+    }
+
+    /* Mobile pill */
+    .metric-pill-sm {
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
+      height: 22px;
+      padding: 0 8px;
+      border-radius: 9999px;
+      white-space: nowrap;
+    }
+
+    .pill-label-sm {
+      font-size: 9px;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+    }
+
+    .pill-value-sm {
+      font-size: 10px;
+      font-weight: 600;
+    }
+
+    /* Sub-detail line */
+    .sub-detail {
+      font-size: 10px;
+      color: #71717a;
+      margin-top: 5px;
+      line-height: 1.4;
+    }
+
+    /* Card shell */
+    .card {
+      background: #ffffff;
+      border: 1px solid #e4e4e7;
+      border-radius: 10px;
+      padding: 12px;
+    }
+
+    /* Divider */
+    .card-divider {
+      border: none;
+      border-top: 1px solid #f1f1f3;
+      margin: 10px 0;
+    }
+
+    /* Transactions link */
+    .transactions-link {
+      font-size: 11px;
+      font-weight: 500;
+      color: #3b82f6;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
+      margin-top: 8px;
+    }
+
+    .transactions-link:hover {
+      text-decoration: underline;
+    }
+
+    /* Action buttons */
+    .action-btn {
+      font-size: 11px;
+      font-weight: 500;
+      padding: 5px 10px;
+      border-radius: 6px;
+      border: 1px solid #e4e4e7;
+      background: #fafafa;
+      color: #3f3f46;
+      cursor: pointer;
+      line-height: 1;
+    }
+
+    .action-btn:hover {
+      background: #f4f4f5;
+      border-color: #d4d4d8;
+    }
+
+    /* Surrounding page context */
+    .page-context {
+      background: #ffffff;
+      border: 1px solid #e4e4e7;
+      border-radius: 10px;
+      padding: 12px;
+    }
+
+    .context-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 0;
+      border-bottom: 1px solid #f1f1f3;
+      font-size: 13px;
+      color: #3f3f46;
+    }
+
+    .context-row:last-child {
+      border-bottom: none;
+    }
+
+    .context-label {
+      font-size: 13px;
+      color: #71717a;
+    }
+
+    .status-badge {
+      font-size: 11px;
+      font-weight: 500;
+      padding: 2px 8px;
+      border-radius: 9999px;
+      background: #f0fdf4;
+      color: #16a34a;
+    }
+  </style>
+</head>
+<body class="min-h-screen p-8">
+
+  <div class="max-w-3xl mx-auto space-y-12">
+
+    <!-- Label -->
+    <div>
+      <p class="text-xs font-semibold uppercase tracking-widest text-zinc-400 mb-1">Web Version — ~800px</p>
+    </div>
+
+    <!-- ─── WEB VERSION ─────────────────────────────────── -->
+    <div style="width: 800px;">
+
+      <!-- Surrounding page context: gig detail card rows above -->
+      <div class="page-context mb-2">
+        <div class="context-row">
+          <span class="context-label">Client</span>
+          <span class="font-medium text-zinc-800">Meridian Studio</span>
+        </div>
+        <div class="context-row">
+          <span class="context-label">Date</span>
+          <span>May 28, 2026</span>
+        </div>
+        <div class="context-row">
+          <span class="context-label">Status</span>
+          <span class="status-badge">Completed</span>
+        </div>
+      </div>
+
+      <!-- Financials card -->
+      <div class="card">
+        <!-- Section header -->
+        <div class="section-header">
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M1 9.5L4.5 6L6.5 8L9 5M9 5H7M9 5V7" stroke="#71717a" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          Financials
+        </div>
+
+        <hr class="card-divider" />
+
+        <!-- Pills row -->
+        <div style="display: flex; align-items: center; gap: 6px; flex-wrap: nowrap;">
+
+          <!-- Revenue pill -->
+          <div class="pill-wrapper">
+            <div class="metric-pill" style="background: #f1f5f9;">
+              <span class="pill-label" style="color: #64748b;">Rev</span>
+              <span class="pill-value" style="color: #334155;">$250.00</span>
+            </div>
+            <div class="pill-tooltip">
+              <div style="font-weight: 600; margin-bottom: 3px; color: #94a3b8; font-size: 9px; text-transform: uppercase; letter-spacing: 0.05em;">Revenue</div>
+              <div>Received <span style="color:#f8fafc; font-weight:500;">$0.00</span></div>
+              <div>Outstanding <span style="color:#f8fafc; font-weight:500;">$250.00</span></div>
+            </div>
+          </div>
+
+          <!-- Costs pill -->
+          <div class="pill-wrapper">
+            <div class="metric-pill" style="background: #f1f5f9;">
+              <span class="pill-label" style="color: #64748b;">Cost</span>
+              <span class="pill-value" style="color: #334155;">$169.58</span>
+            </div>
+            <div class="pill-tooltip">
+              <div style="font-weight: 600; margin-bottom: 3px; color: #94a3b8; font-size: 9px; text-transform: uppercase; letter-spacing: 0.05em;">Costs</div>
+              <div>Actual <span style="color:#f8fafc; font-weight:500;">$169.58</span></div>
+              <div>Staff <span style="color:#f8fafc; font-weight:500;">$0.00</span></div>
+            </div>
+          </div>
+
+          <!-- Profit pill (positive) -->
+          <div class="pill-wrapper">
+            <div class="metric-pill" style="background: #f0fdf4;">
+              <span class="pill-label" style="color: #4ade80; color: #16a34a; opacity: 0.8;">Profit</span>
+              <span class="pill-value" style="color: #15803d;">$80.42</span>
+            </div>
+            <div class="pill-tooltip">
+              <div style="font-weight: 600; margin-bottom: 3px; color: #94a3b8; font-size: 9px; text-transform: uppercase; letter-spacing: 0.05em;">Profit</div>
+              <div>Margin <span style="color:#86efac; font-weight:500;">32.2%</span></div>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- Sub-detail line -->
+        <div class="sub-detail">
+          Recv $0 &nbsp;·&nbsp; Outs $250 &nbsp;·&nbsp; Actual $170 &nbsp;·&nbsp; Staff $0 &nbsp;·&nbsp; Margin 32%
+        </div>
+
+        <hr class="card-divider" style="margin-top: 8px;" />
+
+        <!-- Transactions link -->
+        <a href="#" class="transactions-link">
+          <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+            <path d="M1 5h8M6 2l3 3-3 3" stroke="#3b82f6" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          View 4 Transactions
+        </a>
+      </div>
+
+      <!-- Surrounding context below -->
+      <div class="page-context mt-2">
+        <div class="context-row">
+          <span class="context-label">Notes</span>
+          <span class="text-zinc-400 text-xs italic">No notes added</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ─── MOBILE VERSION ─────────────────────────────── -->
+    <div>
+      <p class="text-xs font-semibold uppercase tracking-widest text-zinc-400 mb-1">Mobile Version — 375px</p>
+
+      <div style="width: 375px; background: #f4f4f5; border-radius: 16px; padding: 16px; border: 1px solid #e4e4e7;">
+
+        <!-- Surrounding context rows above -->
+        <div class="card mb-2">
+          <div class="context-row" style="padding: 6px 0;">
+            <span class="context-label" style="font-size: 12px;">Client</span>
+            <span style="font-size: 12px; font-weight: 500; color: #27272a;">Meridian Studio</span>
+          </div>
+          <div class="context-row" style="padding: 6px 0;">
+            <span class="context-label" style="font-size: 12px;">Status</span>
+            <span class="status-badge">Completed</span>
+          </div>
+        </div>
+
+        <!-- Financials card (mobile) -->
+        <div class="card">
+
+          <!-- Section header -->
+          <div class="section-header">
+            <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
+              <path d="M1 9.5L4.5 6L6.5 8L9 5M9 5H7M9 5V7" stroke="#71717a" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            Financials
+          </div>
+
+          <hr class="card-divider" />
+
+          <!-- Mobile pills row -->
+          <div style="display: flex; align-items: center; gap: 5px;">
+
+            <!-- Revenue -->
+            <div class="metric-pill-sm" style="background: #f1f5f9;">
+              <span class="pill-label-sm" style="color: #64748b;">Rev</span>
+              <span class="pill-value-sm" style="color: #334155;">$250</span>
+            </div>
+
+            <!-- Cost -->
+            <div class="metric-pill-sm" style="background: #f1f5f9;">
+              <span class="pill-label-sm" style="color: #64748b;">Cost</span>
+              <span class="pill-value-sm" style="color: #334155;">$170</span>
+            </div>
+
+            <!-- Profit -->
+            <div class="metric-pill-sm" style="background: #f0fdf4;">
+              <span class="pill-label-sm" style="color: #16a34a; opacity: 0.8;">$80</span>
+              <span class="pill-value-sm" style="color: #15803d;">▲</span>
+            </div>
+
+          </div>
+
+          <hr class="card-divider" />
+
+          <!-- Action buttons -->
+          <div style="display: flex; gap: 6px; flex-wrap: wrap;">
+            <button class="action-btn">Add Payment</button>
+            <button class="action-btn">Add Expense</button>
+          </div>
+
+          <!-- Transactions link -->
+          <a href="#" class="transactions-link">
+            <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+              <path d="M1 5h8M6 2l3 3-3 3" stroke="#3b82f6" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            View 4 Transactions
+          </a>
+
+        </div>
+
+        <!-- Surrounding context below -->
+        <div class="card mt-2">
+          <div class="context-row" style="padding: 6px 0;">
+            <span class="context-label" style="font-size: 12px;">Notes</span>
+            <span style="font-size: 11px; color: #a1a1aa; font-style: italic;">No notes added</span>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+  </div>
+
+</body>
+</html>

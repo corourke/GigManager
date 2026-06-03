@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Financial Summary — Compact Ledger</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            mono: ['ui-monospace', 'SFMono-Regular', 'Menlo', 'Monaco', 'Consolas', 'monospace'],
+          },
+        }
+      }
+    }
+  </script>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #f4f4f5;
+    }
+
+    .tnum {
+      font-variant-numeric: tabular-nums;
+      font-feature-settings: "tnum" 1;
+    }
+
+    .section-label {
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: #71717a;
+    }
+
+    .section-label-mobile {
+      font-size: 9px;
+      font-weight: 600;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: #71717a;
+    }
+
+    .metric-value {
+      font-size: 12px;
+      font-weight: 600;
+      color: #18181b;
+    }
+
+    .metric-value-mobile {
+      font-size: 11px;
+      font-weight: 600;
+      color: #18181b;
+    }
+
+    .sub-detail {
+      font-size: 10px;
+      font-weight: 400;
+      color: #a1a1aa;
+    }
+
+    .ledger-container {
+      background: rgba(244, 244, 245, 0.5);
+      border: 1px solid #e4e4e7;
+      border-radius: 4px;
+      overflow: hidden;
+    }
+
+    .ledger-col {
+      padding: 6px 12px;
+      min-width: 120px;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 1px;
+    }
+
+    .ledger-divider {
+      width: 1px;
+      background: #e4e4e7;
+      align-self: stretch;
+    }
+
+    .ledger-container-mobile {
+      background: rgba(244, 244, 245, 0.5);
+      border: 1px solid #e4e4e7;
+      border-radius: 4px;
+      overflow: hidden;
+      display: flex;
+    }
+
+    .ledger-col-mobile {
+      flex: 1;
+      padding: 5px 10px;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 1px;
+    }
+
+    .card {
+      background: #ffffff;
+      border: 1px solid #e4e4e7;
+      border-radius: 8px;
+    }
+
+    .card-header {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: #71717a;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .icon-dollar {
+      width: 13px;
+      height: 13px;
+      color: #a1a1aa;
+    }
+
+    .action-btn {
+      font-size: 12px;
+      font-weight: 500;
+      color: #52525b;
+      background: #f4f4f5;
+      border: 1px solid #e4e4e7;
+      border-radius: 4px;
+      padding: 4px 10px;
+      cursor: pointer;
+    }
+
+    .action-btn:hover {
+      background: #e4e4e7;
+    }
+
+    .tx-link {
+      font-size: 11px;
+      color: #71717a;
+      text-decoration: underline;
+      text-underline-offset: 2px;
+      cursor: pointer;
+    }
+
+    .tx-link:hover {
+      color: #18181b;
+    }
+
+    .demo-label {
+      font-size: 11px;
+      font-weight: 500;
+      color: #a1a1aa;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+  </style>
+</head>
+<body class="min-h-screen p-8 md:p-12">
+
+  <div class="max-w-3xl mx-auto space-y-10">
+
+    <!-- ─── WEB VERSION ─────────────────────────────────────────────── -->
+    <div>
+      <p class="demo-label mb-3">Web — ~800px card context</p>
+
+      <div class="card p-5" style="max-width: 800px;">
+
+        <!-- Card header (surrounding UI context) -->
+        <div class="mb-4 pb-3 border-b border-zinc-100 flex items-center justify-between">
+          <span style="font-size:13px; font-weight:600; color:#18181b;">Photography Session — Lakeside Engagement</span>
+          <span style="font-size:11px; color:#a1a1aa;">Jun 14, 2026</span>
+        </div>
+
+        <!-- Financials section -->
+        <div class="mb-3">
+          <div class="card-header mb-2">
+            <svg class="icon-dollar" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="8" cy="8" r="6.5"/>
+              <path d="M8 4.5v7M6 6.5c0-.83.9-1.5 2-1.5s2 .67 2 1.5S9.1 8 8 8s-2 .67-2 1.5S6.9 11 8 11s2-.67 2-1.5"/>
+            </svg>
+            Financials
+          </div>
+
+          <!-- Ledger Container -->
+          <div class="ledger-container" style="display:inline-flex; max-width:400px;">
+            <!-- Revenue -->
+            <div class="ledger-col">
+              <span class="section-label">Revenue</span>
+              <span class="metric-value tnum">$250.00</span>
+              <span class="sub-detail tnum">
+                Outst. <span style="color:#d97706;">$250.00</span>
+              </span>
+            </div>
+
+            <div class="ledger-divider"></div>
+
+            <!-- Costs -->
+            <div class="ledger-col">
+              <span class="section-label">Costs</span>
+              <span class="metric-value tnum">$169.58</span>
+              <span class="sub-detail tnum">Actual $169.58</span>
+            </div>
+
+            <div class="ledger-divider"></div>
+
+            <!-- Profit -->
+            <div class="ledger-col">
+              <span class="section-label">Profit</span>
+              <span class="metric-value tnum" style="color:#15803d;">$80.42</span>
+              <span class="sub-detail">Margin 32.2%</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Action row (surrounding context) -->
+        <div class="mt-3 flex items-center gap-2">
+          <button class="action-btn">Record Payment</button>
+          <button class="action-btn">Add Expense</button>
+          <span class="ml-auto tx-link">View transactions →</span>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- ─── MOBILE VERSION ──────────────────────────────────────────── -->
+    <div>
+      <p class="demo-label mb-3">Mobile — 375px</p>
+
+      <div style="width:375px;">
+        <div class="card p-3">
+
+          <!-- Mobile card header -->
+          <div class="mb-2.5 pb-2 border-b border-zinc-100">
+            <span style="font-size:12px; font-weight:600; color:#18181b;">Photography Session</span>
+          </div>
+
+          <!-- Financials section -->
+          <div class="mb-2.5">
+            <div class="card-header mb-1.5">
+              <svg style="width:12px;height:12px;color:#a1a1aa;" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="8" cy="8" r="6.5"/>
+                <path d="M8 4.5v7M6 6.5c0-.83.9-1.5 2-1.5s2 .67 2 1.5S9.1 8 8 8s-2 .67-2 1.5S6.9 11 8 11s2-.67 2-1.5"/>
+              </svg>
+              Financials
+            </div>
+
+            <!-- Mobile Ledger Strip -->
+            <div class="ledger-container-mobile">
+              <!-- Revenue -->
+              <div class="ledger-col-mobile">
+                <span class="section-label-mobile">Revenue</span>
+                <span class="metric-value-mobile tnum">$250.00</span>
+              </div>
+
+              <div class="ledger-divider"></div>
+
+              <!-- Costs -->
+              <div class="ledger-col-mobile">
+                <span class="section-label-mobile">Costs</span>
+                <span class="metric-value-mobile tnum">$169.58</span>
+              </div>
+
+              <div class="ledger-divider"></div>
+
+              <!-- Profit -->
+              <div class="ledger-col-mobile">
+                <span class="section-label-mobile">Profit</span>
+                <span class="metric-value-mobile tnum" style="color:#15803d;">$80.42</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Mobile action row -->
+          <div class="flex items-center gap-1.5">
+            <button class="action-btn" style="font-size:11px; padding:3px 8px;">Record Payment</button>
+            <button class="action-btn" style="font-size:11px; padding:3px 8px;">Add Expense</button>
+            <span class="ml-auto tx-link" style="font-size:10px;">Transactions →</span>
+          </div>
+
+        </div>
+      </div>
+    </div>
+
+  </div>
+</body>
+</html>
