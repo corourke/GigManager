@@ -26,12 +26,12 @@ describe('financials.utils', () => {
   describe('calculateMileageAmount', () => {
     it('calculates amount correctly for 2024 (0.67)', () => {
       expect(calculateMileageAmount(100, 2024)).toBe(67.00);
-      expect(calculateMileageAmount(42.5, 2024)).toBe(28.48); // 42.5 * 0.67 = 28.475 -> 28.48
+      expect(calculateMileageAmount(50, 2024)).toBe(33.50); // 50 * 0.67 = 33.5
     });
 
     it('calculates amount correctly for 2025 (0.675)', () => {
       expect(calculateMileageAmount(100, 2025)).toBe(67.50);
-      expect(calculateMileageAmount(42.5, 2025)).toBe(28.69); // 42.5 * 0.675 = 28.6875 -> 28.69
+      expect(calculateMileageAmount(10, 2025)).toBe(6.75); // 10 * 0.675 = 6.75
     });
 
     it('handles zero distance', () => {

@@ -178,7 +178,7 @@ export default function MobileGigFinancials({
                   <div className="flex justify-between">
                     <span className="text-[11px] text-muted-foreground">Date</span>
                     <span className="text-[11px] font-medium">
-                      {format(parseISO(selectedTransaction.date), 'MMM d, yyyy')}
+                      {selectedTransaction.date ? format(parseISO(selectedTransaction.date), 'MMM d, yyyy') : '—'}
                     </span>
                   </div>
                   <div className="flex justify-between">
@@ -232,7 +232,7 @@ export default function MobileGigFinancials({
                         <div className="min-w-0">
                           <p className="text-[11px] font-semibold truncate">{fin.description || fin.type}</p>
                           <p className="text-[10px] text-muted-foreground">
-                            {format(parseISO(fin.date), 'MMM d, yyyy')}
+                            {fin.date ? format(parseISO(fin.date), 'MMM d, yyyy') : '—'}
                           </p>
                         </div>
                       </div>

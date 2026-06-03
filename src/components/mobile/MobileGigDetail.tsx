@@ -62,6 +62,7 @@ const INPUT_CLASS = 'w-full h-10 px-3 text-sm bg-muted/50 rounded-lg border-0 ou
 export default function MobileGigDetail({ gigId, onBack, onViewPackingList }: MobileGigDetailProps) {
   const { user, userRole, selectedOrganization } = useAuth();
   const canEdit = userRole?.toLowerCase() === 'admin' || userRole?.toLowerCase() === 'manager';
+  const isAdmin = userRole === 'Admin' || userRole === 'Manager';
   const [gig, setGig] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [updatingAssignment, setUpdatingAssignment] = useState<string | null>(null);
@@ -861,7 +862,7 @@ export default function MobileGigDetail({ gigId, onBack, onViewPackingList }: Mo
           </Card>
         )}
 
-        {canEdit && (
+        {isAdmin && (
           <MobileGigFinancials 
             gigId={gigId}
             organizationId={selectedOrganization?.id ?? ''}

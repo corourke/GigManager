@@ -16,7 +16,7 @@ export const IRS_MILEAGE_RATES: Record<number, number> = {
  * Defaults to the latest known rate if the year is not found.
  */
 export function getMileageRateForYear(year: number): number {
-  if (IRS_MILEAGE_RATES[year]) {
+  if (year in IRS_MILEAGE_RATES) {
     return IRS_MILEAGE_RATES[year];
   }
   

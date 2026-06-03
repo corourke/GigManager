@@ -154,6 +154,11 @@ export default function QuickActionButtons({
     expenseForm.reset({ ...expenseForm.formState.defaultValues, date: defaultDate });
   };
 
+  const openModal = (modal: 'agreement' | 'payment' | 'expense' | 'mileage' | 'simple_expense') => {
+    setShowAdvanced(false);
+    setActiveModal(modal);
+  };
+
   const onAgreementSubmit = async (data: z.infer<typeof agreementSchema>) => {
     setIsSubmitting(true);
     try {
@@ -275,15 +280,15 @@ export default function QuickActionButtons({
 
   return (
     <div className="flex flex-wrap gap-2">
-      <Button variant="outline" size="sm" onClick={() => setActiveModal('agreement')} className="flex items-center gap-2">
+      <Button variant="outline" size="sm" onClick={() => openModal('agreement')} className="flex items-center gap-2">
         <FileText className="h-4 w-4" />
         Agreement
       </Button>
-      <Button variant="outline" size="sm" onClick={() => setActiveModal('payment')} className="flex items-center gap-2">
+      <Button variant="outline" size="sm" onClick={() => openModal('payment')} className="flex items-center gap-2">
         <DollarSign className="h-4 w-4" />
         Payment
       </Button>
-      <Button variant="outline" size="sm" onClick={() => setActiveModal('expense')} className="flex items-center gap-2">
+      <Button variant="outline" size="sm" onClick={() => openModal('expense')} className="flex items-center gap-2">
         <Receipt className="h-4 w-4" />
         Expense / Mileage
       </Button>
@@ -395,15 +400,21 @@ export default function QuickActionButtons({
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="pay-date">Date Paid</Label>
-                <Input id="pay-date" type="date" {...paymentForm.register('paid_at')} />
+                <Label htmlFor="pay-date">Date</Label>
+                <Input id="pay-date" type="date" {...paymentForm.register('date')} />
               </div>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="pay-amount">Amount</Label>
-              <div className="relative">
-                <DollarSign className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
-                <Input id="pay-amount" placeholder="0.00" className="pl-8" {...paymentForm.register('amount')} />
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="pay-paid-date">Paid Date</Label>
+                <Input id="pay-paid-date" type="date" {...paymentForm.register('paid_at')} />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="pay-amount">Amount</Label>
+                <div className="relative">
+                  <DollarSign className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+                  <Input id="pay-amount" placeholder="0.00" className="pl-8" {...paymentForm.register('amount')} />
+                </div>
               </div>
             </div>
             <div className="space-y-2">
@@ -460,7 +471,7 @@ export default function QuickActionButtons({
             <Button 
               variant="outline" 
               className="h-32 flex flex-col gap-2 items-center justify-center border-2 hover:border-primary"
-              onClick={() => setActiveModal('mileage')}
+              onClick={() => openModal('mileage')}
             >
               <Car className="h-8 w-8 text-primary" />
               <div className="font-semibold">Mileage</div>
@@ -469,7 +480,7 @@ export default function QuickActionButtons({
             <Button 
               variant="outline" 
               className="h-32 flex flex-col gap-2 items-center justify-center border-2 hover:border-primary"
-              onClick={() => setActiveModal('simple_expense')}
+              onClick={() => openModal('simple_expense')}
             >
               <Receipt className="h-8 w-8 text-primary" />
               <div className="font-semibold">Simple Expense</div>
