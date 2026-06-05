@@ -1,0 +1,544 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GigManager — Equipment</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #ffffff;
+    --fg: #030213;
+    --card: #ffffff;
+    --primary: #030213;
+    --secondary: #f2f2f7;
+    --muted: #ececf0;
+    --muted-fg: #717182;
+    --accent: #e9ebef;
+    --destructive: #d4183d;
+    --border: rgba(0,0,0,0.1);
+    --input-bg: #f3f3f5;
+    --sky: #0284c7;
+    --sky-bg: #f0f9ff;
+    --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    --sidebar-w: 220px;
+    --header-h: 64px;
+  }
+
+  html, body {
+    height: 100%;
+    font-family: var(--font);
+    background: var(--bg);
+    color: var(--fg);
+    font-size: 14px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ─── Layout ─── */
+  .app {
+    display: grid;
+    grid-template-rows: var(--header-h) 1fr;
+    grid-template-columns: var(--sidebar-w) 1fr;
+    height: 100vh;
+    overflow: hidden;
+  }
+
+  /* ─── Header ─── */
+  .header {
+    grid-column: 1 / -1;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 20px;
+    background: var(--bg);
+    border-bottom: 1px solid var(--border);
+    height: var(--header-h);
+    position: sticky;
+    top: 0;
+    z-index: 10;
+  }
+  .header-left {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .logo-mark {
+    width: 40px;
+    height: 40px;
+    background: var(--primary);
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+  .org-name {
+    font-size: 15px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    color: var(--fg);
+  }
+  .badge-outline {
+    display: inline-flex;
+    align-items: center;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 1px 6px;
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--muted-fg);
+    background: transparent;
+  }
+  .header-right {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+  }
+  .avatar {
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    background: #e0f2fe;
+    color: #0369a1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    font-weight: 600;
+  }
+  .chevron-icon { color: var(--muted-fg); }
+
+  /* ─── Sidebar ─── */
+  .sidebar {
+    background: var(--bg);
+    border-right: 1px solid var(--border);
+    padding: 12px 0;
+    overflow-y: auto;
+  }
+  .nav-section-label {
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--muted-fg);
+    padding: 8px 16px 4px;
+    margin-top: 8px;
+  }
+  .nav-item {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    padding: 8px 16px;
+    font-size: 13.5px;
+    font-weight: 400;
+    color: var(--muted-fg);
+    cursor: pointer;
+    text-decoration: none;
+    border-left: 2px solid transparent;
+    transition: background 0.12s, color 0.12s;
+    user-select: none;
+  }
+  .nav-item:hover { background: var(--accent); color: var(--fg); }
+  .nav-item.active {
+    color: var(--sky);
+    background: var(--sky-bg);
+    border-left-color: var(--sky);
+    font-weight: 500;
+  }
+  .nav-item svg { flex-shrink: 0; }
+
+  /* ─── Main ─── */
+  .main {
+    background: var(--bg);
+    padding: 24px;
+    overflow-y: auto;
+  }
+
+  /* ─── Page Header ─── */
+  .page-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 20px;
+  }
+  .page-title {
+    font-size: 20px;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+  }
+  .page-subtitle { font-size: 13px; color: var(--muted-fg); margin-top: 2px; }
+
+  /* ─── Section Label ─── */
+  .section-label {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--muted-fg);
+    margin-bottom: 10px;
+  }
+
+  /* ─── Stats Grid ─── */
+  .stats-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+    margin-bottom: 28px;
+  }
+  .stat-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 16px;
+    cursor: pointer;
+    transition: box-shadow 0.15s;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+  }
+  .stat-card:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+  .stat-card-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 14px;
+  }
+  .stat-card-title {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--fg);
+  }
+  .stat-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 3px 0;
+  }
+  .stat-label { font-size: 11px; color: var(--muted-fg); }
+  .stat-value { font-size: 13px; font-weight: 600; color: var(--fg); }
+
+  /* ─── Upcoming Gigs ─── */
+  .section-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+    overflow: hidden;
+  }
+  .section-card-header {
+    padding: 16px 20px 12px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .gig-table { width: 100%; border-collapse: collapse; }
+  .gig-table th {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--muted-fg);
+    padding: 10px 20px;
+    text-align: left;
+    border-bottom: 1px solid var(--border);
+    background: #fafafa;
+  }
+  .gig-table td {
+    padding: 13px 20px;
+    border-bottom: 1px solid var(--border);
+    font-size: 13.5px;
+    vertical-align: middle;
+  }
+  .gig-table tr:last-child td { border-bottom: none; }
+  .gig-table tr:hover td { background: var(--accent); }
+
+  .gig-name { font-weight: 600; color: var(--fg); }
+  .gig-venue { font-size: 12px; color: var(--muted-fg); margin-top: 2px; }
+  .gig-date { font-size: 12px; color: var(--muted-fg); }
+  .gig-revenue { font-size: 14px; font-weight: 600; color: var(--fg); text-align: right; }
+
+  /* ─── Badges ─── */
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    border-radius: 4px;
+    padding: 2px 7px;
+    font-size: 11px;
+    font-weight: 500;
+    border: 1px solid;
+    white-space: nowrap;
+  }
+  .badge-green { background: #f0fdf4; color: #166534; border-color: #bbf7d0; }
+  .badge-blue { background: #eff6ff; color: #1d4ed8; border-color: #bfdbfe; }
+  .badge-gray { background: #f9fafb; color: #374151; border-color: #e5e7eb; }
+
+  /* ─── Btn ─── */
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background 0.12s, border-color 0.12s;
+    font-family: var(--font);
+    text-decoration: none;
+  }
+  .btn-sm { padding: 5px 12px; font-size: 12px; }
+  .btn-outline {
+    border: 1px solid var(--border);
+    background: var(--bg);
+    color: var(--fg);
+  }
+  .btn-outline:hover { background: var(--accent); }
+
+  /* Sub-tabs */
+  .sub-tabs { display:flex; border-bottom:1px solid var(--border); margin-bottom:20px; }
+  .sub-tab { padding:10px 16px; font-size:13px; font-weight:500; color:var(--muted-fg); cursor:pointer; border-bottom:2px solid transparent; margin-bottom:-1px; transition:color 0.12s, border-color 0.12s; }
+  .sub-tab.active { color:var(--sky); border-bottom-color:var(--sky); }
+  .sub-tab:hover:not(.active) { color:var(--fg); }
+
+  /* Filter row */
+  .filter-row { display:flex; align-items:center; gap:10px; margin-bottom:16px; }
+  .search-wrapper { display:flex; align-items:center; gap:8px; flex:1; background:var(--input-bg); border:1px solid var(--border); border-radius:6px; padding:6px 12px; }
+  .search-wrapper input { border:none; background:transparent; font-size:13px; color:var(--fg); outline:none; flex:1; font-family:var(--font); }
+  .search-wrapper input::placeholder { color:var(--muted-fg); }
+
+  /* Tracking badge */
+  .tracking-active { display:inline-flex; align-items:center; gap:5px; }
+  .dot-green { width:8px; height:8px; border-radius:50%; background:#22c55e; flex-shrink:0; }
+  .dot-gray { width:8px; height:8px; border-radius:50%; background:#9ca3af; flex-shrink:0; }
+  .text-green { color:#166534; font-size:13px; font-weight:500; }
+  .text-gray-muted { color:var(--muted-fg); font-size:13px; }
+
+  /* Table footer */
+  .table-footer { padding:12px 20px; font-size:12px; color:var(--muted-fg); border-top:1px solid var(--border); }
+
+  /* Currency right-align */
+  .currency { text-align:right; font-weight:600; font-size:13px; }
+
+  /* Btn primary */
+  .btn-primary { background:var(--primary); color:#fff; border:1px solid var(--primary); }
+  .btn-primary:hover { background:#1a1a2e; }
+
+  /* Actions btn */
+  .actions-btn { background:transparent; border:1px solid var(--border); border-radius:4px; padding:2px 8px; cursor:pointer; font-size:16px; color:var(--muted-fg); letter-spacing:1px; }
+  .actions-btn:hover { background:var(--accent); }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- Header -->
+  <header class="header">
+    <div class="header-left">
+      <div class="logo-mark">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect width="16" height="20" x="4" y="2" rx="2" ry="2"/><path d="M9 22v-4h6v4"/><path d="M8 6h.01"/><path d="M16 6h.01"/><path d="M12 6h.01"/><path d="M12 10h.01"/><path d="M12 14h.01"/><path d="M16 10h.01"/><path d="M16 14h.01"/><path d="M8 10h.01"/><path d="M8 14h.01"/>
+        </svg>
+      </div>
+      <div>
+        <div class="org-name">Main Stage Productions</div>
+      </div>
+      <span class="badge-outline">Admin</span>
+    </div>
+    <div class="header-right">
+      <div class="avatar">JD</div>
+      <svg class="chevron-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+    </div>
+  </header>
+
+  <!-- Sidebar -->
+  <nav class="sidebar">
+    <a class="nav-item" href="dashboard.html">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/></svg>
+      Dashboard
+    </a>
+    <a class="nav-item" href="gig-detail.html">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="4" rx="2" ry="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/></svg>
+      Gigs
+    </a>
+    <a class="nav-item" href="#">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="4" rx="2" ry="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/><path d="M8 14h.01"/><path d="M12 14h.01"/><path d="M16 14h.01"/><path d="M8 18h.01"/><path d="M12 18h.01"/><path d="M16 18h.01"/></svg>
+      Calendar
+    </a>
+    <a class="nav-item" href="financials.html">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><line x1="12" x2="12" y1="2" y2="22"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+      Financials
+    </a>
+    <a class="nav-item" href="#">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+      Team
+    </a>
+    <a class="nav-item" href="#">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M16 16v1a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h2"/><rect width="13" height="8" x="9" y="2" rx="1.5"/><path d="M9 8h4"/><path d="M9 11h3"/></svg>
+      Inventory
+    </a>
+    <a class="nav-item active" href="#">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
+      Equipment
+    </a>
+    <a class="nav-item" href="#">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
+      Settings
+    </a>
+  </nav>
+
+  <!-- Main Content -->
+  <main class="main">
+
+    <!-- Sub-tabs -->
+    <div class="sub-tabs">
+      <div class="sub-tab active">Assets</div>
+      <div class="sub-tab">Kits</div>
+      <div class="sub-tab">Inventory</div>
+      <div class="sub-tab">Reports</div>
+    </div>
+
+    <!-- Page Header -->
+    <div class="page-header">
+      <div>
+        <div class="page-title">Assets</div>
+        <div class="page-subtitle">Your gear and equipment</div>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <button class="btn btn-sm btn-outline">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 16 12 12 8 16"/><line x1="12" x2="12" y1="12" y2="21"/><path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/></svg>
+          Scan Invoice
+        </button>
+        <button class="btn btn-sm btn-primary">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" x2="12" y1="5" y2="19"/><line x1="5" x2="19" y1="12" y2="12"/></svg>
+          New Asset
+        </button>
+      </div>
+    </div>
+
+    <!-- Filter Row -->
+    <div class="filter-row">
+      <button class="btn btn-sm btn-outline">All Categories ▾</button>
+      <div class="search-wrapper">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:var(--muted-fg);flex-shrink:0;"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+        <input type="text" placeholder="Search assets...">
+      </div>
+    </div>
+
+    <!-- Assets Table -->
+    <div class="section-card">
+      <table class="gig-table">
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Category</th>
+            <th>Make / Model</th>
+            <th style="text-align:right;">Purchase Value</th>
+            <th style="text-align:right;">Insured Value</th>
+            <th>Tracking</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><span style="font-weight:600;">Yamaha QL5 Console</span></td>
+            <td><span style="font-size:13px;color:var(--muted-fg);">Audio</span></td>
+            <td><span style="font-size:13px;">Yamaha / QL5</span></td>
+            <td class="currency">$8,500</td>
+            <td class="currency">$10,000</td>
+            <td>
+              <span class="tracking-active">
+                <span class="dot-green"></span>
+                <span class="text-green">Active</span>
+              </span>
+            </td>
+            <td><button class="actions-btn">···</button></td>
+          </tr>
+          <tr>
+            <td><span style="font-weight:600;">L-Acoustics K2 Array (×8)</span></td>
+            <td><span style="font-size:13px;color:var(--muted-fg);">Audio</span></td>
+            <td><span style="font-size:13px;">L-Acoustics / K2</span></td>
+            <td class="currency">$42,000</td>
+            <td class="currency">$50,000</td>
+            <td>
+              <span class="tracking-active">
+                <span class="dot-green"></span>
+                <span class="text-green">Active</span>
+              </span>
+            </td>
+            <td><button class="actions-btn">···</button></td>
+          </tr>
+          <tr>
+            <td><span style="font-weight:600;">Martin MAC Aura XIP (×12)</span></td>
+            <td><span style="font-size:13px;color:var(--muted-fg);">Lighting</span></td>
+            <td><span style="font-size:13px;">Martin / MAC Aura XIP</span></td>
+            <td class="currency">$18,000</td>
+            <td class="currency">$22,000</td>
+            <td>
+              <span class="tracking-active">
+                <span class="dot-green"></span>
+                <span class="text-green">Active</span>
+              </span>
+            </td>
+            <td><button class="actions-btn">···</button></td>
+          </tr>
+          <tr>
+            <td><span style="font-weight:600;">DiGiCo SD9 Console</span></td>
+            <td><span style="font-size:13px;color:var(--muted-fg);">Audio</span></td>
+            <td><span style="font-size:13px;">DiGiCo / SD9</span></td>
+            <td class="currency">$12,000</td>
+            <td class="currency">$15,000</td>
+            <td>
+              <span class="tracking-active">
+                <span class="dot-gray"></span>
+                <span class="text-gray-muted">Inactive</span>
+              </span>
+            </td>
+            <td><button class="actions-btn">···</button></td>
+          </tr>
+          <tr>
+            <td><span style="font-weight:600;">Shure SM58 Mic (×6)</span></td>
+            <td><span style="font-size:13px;color:var(--muted-fg);">Audio</span></td>
+            <td><span style="font-size:13px;">Shure / SM58</span></td>
+            <td class="currency">$360</td>
+            <td class="currency">$400</td>
+            <td>
+              <span class="tracking-active">
+                <span class="dot-green"></span>
+                <span class="text-green">Active</span>
+              </span>
+            </td>
+            <td><button class="actions-btn">···</button></td>
+          </tr>
+          <tr>
+            <td><span style="font-weight:600;">Chauvet Maverick Storm</span></td>
+            <td><span style="font-size:13px;color:var(--muted-fg);">Lighting</span></td>
+            <td><span style="font-size:13px;">Chauvet / Maverick Storm</span></td>
+            <td class="currency">$4,200</td>
+            <td class="currency">$5,000</td>
+            <td>
+              <span class="tracking-active">
+                <span class="dot-green"></span>
+                <span class="text-green">Active</span>
+              </span>
+            </td>
+            <td><button class="actions-btn">···</button></td>
+          </tr>
+          <tr>
+            <td><span style="font-weight:600;">Custom Cable Kit</span></td>
+            <td><span style="font-size:13px;color:var(--muted-fg);">Accessories</span></td>
+            <td><span style="font-size:13px;color:var(--muted-fg);">—</span></td>
+            <td class="currency">$800</td>
+            <td class="currency">$1,000</td>
+            <td><span style="color:var(--muted-fg);">—</span></td>
+            <td><button class="actions-btn">···</button></td>
+          </tr>
+        </tbody>
+      </table>
+      <div class="table-footer">7 assets · Total value: $85,860</div>
+    </div>
+
+  </main>
+</div>
+</body>
+</html>
