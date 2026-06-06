@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GigManager — Calendar Settings</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --background: #ffffff;
+    --foreground: #030213;
+    --card: #ffffff;
+    --muted: #f4f4f5;
+    --muted-foreground: #71717a;
+    --accent-sky: #0ea5e9;
+    --accent-sky-foreground: #ffffff;
+    --border: #e4e4e7;
+    --destructive: #ef4444;
+    --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    --sidebar-w: 240px;
+    --header-h: 56px;
+  }
+
+  html, body {
+    height: 100%;
+    font-family: var(--font);
+    background: var(--background);
+    color: var(--foreground);
+    font-size: 14px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ─── Utilities ─── */
+  .metadata-label {
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--muted-foreground);
+  }
+
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 8px 16px;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.1s;
+    border: 1px solid var(--border);
+    background: #ffffff;
+    gap: 8px;
+    outline: none;
+  }
+  .btn:focus-visible { box-shadow: 0 0 0 2px var(--background), 0 0 0 4px var(--accent-sky); }
+  .btn-primary {
+    background: var(--accent-sky);
+    color: #ffffff;
+    border-color: var(--accent-sky);
+  }
+  .btn-primary:hover { background: #0284c7; }
+  
+  .input, .select {
+    width: 100%;
+    padding: 8px 12px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font-size: 14px;
+    font-family: inherit;
+    outline: none;
+  }
+  .input:focus, .select:focus { border-color: var(--accent-sky); ring: 2px solid #e0f2fe; }
+
+  /* ─── Layout ─── */
+  .app {
+    display: grid;
+    grid-template-rows: var(--header-h) 1fr;
+    grid-template-columns: var(--sidebar-w) 1fr;
+    height: 100vh;
+    overflow: hidden;
+  }
+
+  /* ─── Header ─── */
+  .header {
+    grid-column: 1 / -1;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 20px;
+    background: var(--background);
+    border-bottom: 1px solid var(--border);
+    height: var(--header-h);
+  }
+  .header-left { display: flex; align-items: center; gap: 10px; }
+  .logo-mark {
+    width: 32px; height: 32px;
+    background: var(--foreground);
+    border-radius: 6px;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .org-name { font-size: 14px; font-weight: 700; }
+
+  /* ─── Sidebar ─── */
+  .sidebar {
+    background: #fafafa;
+    border-right: 1px solid var(--border);
+    padding: 8px 0;
+  }
+  .nav-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 16px;
+    font-size: 13px; font-weight: 500;
+    color: var(--muted-foreground);
+    text-decoration: none;
+    transition: all 0.1s;
+  }
+  .nav-item:hover { color: var(--foreground); background: #f4f4f5; }
+  .nav-item.active {
+    color: var(--foreground);
+    background: #ffffff;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    border-right: 2px solid var(--accent-sky);
+  }
+  .nav-section-label {
+    font-size: 10px; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 0.1em;
+    color: var(--muted-foreground);
+    padding: 20px 16px 8px;
+  }
+
+  /* ─── Main ─── */
+  .main {
+    padding: 40px;
+    overflow-y: auto;
+    background: #ffffff;
+    max-width: 1000px;
+  }
+  .settings-header { margin-bottom: 32px; }
+  .settings-title { font-size: 24px; font-weight: 700; letter-spacing: -0.02em; margin-bottom: 4px; }
+  .settings-desc { color: var(--muted-foreground); font-size: 14px; }
+
+  .settings-section {
+    margin-bottom: 40px;
+    padding-bottom: 40px;
+    border-bottom: 1px solid var(--border);
+  }
+  .settings-section:last-child { border-bottom: none; }
+  
+  .section-grid {
+    display: grid;
+    grid-template-columns: 240px 1fr;
+    gap: 40px;
+  }
+  .section-info h3 { font-size: 16px; font-weight: 600; margin-bottom: 8px; }
+  .section-info p { color: var(--muted-foreground); font-size: 13px; line-height: 1.6; }
+
+  .form-group { margin-bottom: 20px; }
+  .form-group label { display: block; margin-bottom: 6px; }
+  .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+
+  /* ─── Controls ─── */
+  .switch {
+    display: flex; align-items: center; gap: 12px; cursor: pointer;
+    user-select: none;
+  }
+  .switch-track {
+    width: 36px; height: 20px;
+    background: var(--border);
+    border-radius: 10px;
+    position: relative;
+    transition: background 0.2s;
+  }
+  .switch-thumb {
+    width: 16px; height: 16px;
+    background: #ffffff;
+    border-radius: 50%;
+    position: absolute;
+    top: 2px; left: 2px;
+    transition: transform 0.2s;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+  }
+  .switch.active .switch-track { background: var(--accent-sky); }
+  .switch.active .switch-thumb { transform: translateX(16px); }
+
+  .radio-group { display: flex; flex-direction: column; gap: 12px; }
+  .radio-item { display: flex; align-items: flex-start; gap: 10px; cursor: pointer; }
+  .radio-circle {
+    width: 16px; height: 16px;
+    border: 1px solid var(--border);
+    border-radius: 50%;
+    margin-top: 2px;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+  }
+  .radio-item.active .radio-circle { border-color: var(--accent-sky); border-width: 5px; }
+
+  /* ─── Color Coding Table ─── */
+  .status-table { width: 100%; border-collapse: collapse; }
+  .status-table th { text-align: left; padding: 12px 8px; border-bottom: 1px solid var(--border); }
+  .status-table td { padding: 12px 8px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+  .color-swatch {
+    width: 24px; height: 24px;
+    border-radius: 4px;
+    border: 1px solid rgba(0,0,0,0.1);
+    cursor: pointer;
+  }
+
+  /* ─── Integrations ─── */
+  .integration-card {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 16px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    margin-bottom: 12px;
+  }
+  .integration-info { display: flex; align-items: center; gap: 12px; }
+  .integration-icon {
+    width: 40px; height: 40px;
+    border-radius: 8px;
+    background: var(--muted);
+    display: flex; align-items: center; justify-content: center;
+  }
+</style>
+</head>
+<body>
+
+<div class="app">
+  <!-- Header -->
+  <header class="header">
+    <div class="header-left">
+      <div class="logo-mark">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>
+      </div>
+      <span class="org-name">GigManager</span>
+      <div class="badge-outline">Pro</div>
+    </div>
+    <div class="header-right">
+      <button class="btn btn-primary">Save Changes</button>
+    </div>
+  </header>
+
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div class="nav-section-label">General</div>
+    <a href="#" class="nav-item">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+      Settings
+    </a>
+    <a href="#" class="nav-item">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
+      Team
+    </a>
+
+    <div class="nav-section-label">Preferences</div>
+    <a href="#" class="nav-item active">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
+      Calendar
+    </a>
+    <a href="#" class="nav-item">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg>
+      Notifications
+    </a>
+    <a href="#" class="nav-item">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg>
+      Financials
+    </a>
+
+    <div class="nav-section-label">Advanced</div>
+    <a href="#" class="nav-item">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line></svg>
+      Integrations
+    </a>
+    <a href="#" class="nav-item">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
+      API Access
+    </a>
+  </aside>
+
+  <!-- Main Content -->
+  <main class="main">
+    <div class="settings-header">
+      <h1 class="settings-title">Calendar Settings</h1>
+      <p class="settings-desc">Manage how your gigs and events are displayed and synchronized.</p>
+    </div>
+
+    <!-- Section: Display Settings -->
+    <section class="settings-section">
+      <div class="section-grid">
+        <div class="section-info">
+          <h3>Display Settings</h3>
+          <p>Configure the default look and feel of your calendar views.</p>
+        </div>
+        <div class="section-content">
+          <div class="form-row">
+            <div class="form-group">
+              <label class="metadata-label">Default View</label>
+              <select class="select">
+                <option>Month View</option>
+                <option selected>Week View (Agenda)</option>
+                <option>Day View</option>
+                <option>List View</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="metadata-label">First Day of Week</label>
+              <select class="select">
+                <option selected>Sunday</option>
+                <option>Monday</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label class="metadata-label">Work Hours Range</label>
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <select class="select"><option>08:00 AM</option><option selected>09:00 AM</option></select>
+                <span class="metadata-label">To</span>
+                <select class="select"><option>05:00 PM</option><option selected>06:00 PM</option></select>
+              </div>
+            </div>
+            <div class="form-group">
+              <label class="metadata-label">Time Zone</label>
+              <select class="select">
+                <option selected>(GMT-08:00) Pacific Time (US & Canada)</option>
+                <option>(GMT-05:00) Eastern Time (US & Canada)</option>
+                <option>(GMT+00:00) UTC</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="form-group" style="margin-top: 10px;">
+            <div class="switch active">
+              <div class="switch-track"><div class="switch-thumb"></div></div>
+              <span style="font-size: 14px; font-weight: 500;">Show weekends</span>
+            </div>
+          </div>
+          <div class="form-group">
+            <div class="switch">
+              <div class="switch-track"><div class="switch-thumb"></div></div>
+              <span style="font-size: 14px; font-weight: 500;">Show declined events</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Section: Sync & Integrations -->
+    <section class="settings-section">
+      <div class="section-grid">
+        <div class="section-info">
+          <h3>Sync & Integrations</h3>
+          <p>Connect your external calendars to keep everything in one place.</p>
+        </div>
+        <div class="section-content">
+          <div class="integration-card">
+            <div class="integration-info">
+              <div class="integration-icon">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M12.48 10.92v3.28h7.84c-.24 1.84-2.12 5.4-7.84 5.4-4.8 0-8.72-3.96-8.72-8.76s3.92-8.76 8.72-8.76c2.72 0 4.56 1.16 5.6 2.16l2.6-2.52c-1.64-1.52-3.8-2.44-8.2-2.44-6.48 0-11.76 5.28-11.76 11.76s5.28 11.76 11.76 11.76c6.72 0 11.24-4.72 11.24-11.4 0-.76-.08-1.36-.2-1.92h-11.04z"/></svg>
+              </div>
+              <div>
+                <div style="font-weight: 600;">Google Calendar</div>
+                <div style="font-size: 12px; color: #16a34a; font-weight: 500;">Connected as cameron@example.com</div>
+              </div>
+            </div>
+            <button class="btn">Disconnect</button>
+          </div>
+
+          <div class="integration-card">
+            <div class="integration-info">
+              <div class="integration-icon">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"></path></svg>
+              </div>
+              <div>
+                <div style="font-weight: 600;">Apple iCal Feed</div>
+                <div style="font-size: 12px; color: var(--muted-foreground);">Not connected</div>
+              </div>
+            </div>
+            <button class="btn">Connect Feed</button>
+          </div>
+
+          <div class="form-row" style="margin-top: 24px;">
+            <div class="form-group">
+              <label class="metadata-label">Sync Direction</label>
+              <div class="radio-group">
+                <div class="radio-item active">
+                  <div class="radio-circle"></div>
+                  <div>
+                    <div style="font-size: 14px; font-weight: 500;">Two-way Sync</div>
+                    <div style="font-size: 12px; color: var(--muted-foreground);">Changes sync in both directions.</div>
+                  </div>
+                </div>
+                <div class="radio-item">
+                  <div class="radio-circle"></div>
+                  <div>
+                    <div style="font-size: 14px; font-weight: 500;">Read Only</div>
+                    <div style="font-size: 12px; color: var(--muted-foreground);">Only import external events.</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="form-group">
+              <label class="metadata-label">Sync Frequency</label>
+              <select class="select">
+                <option>Real-time (Push)</option>
+                <option selected>Every 15 minutes</option>
+                <option>Every hour</option>
+                <option>Daily</option>
+              </select>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Section: Color Coding -->
+    <section class="settings-section">
+      <div class="section-grid">
+        <div class="section-info">
+          <h3>Gig Color Coding</h3>
+          <p>Define how different gig statuses appear on your calendar.</p>
+        </div>
+        <div class="section-content">
+          <table class="status-table">
+            <thead>
+              <tr>
+                <th class="metadata-label">Status</th>
+                <th class="metadata-label">Display Name</th>
+                <th class="metadata-label" style="width: 80px;">Color</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><span style="font-weight: 600;">Confirmed</span></td>
+                <td><input type="text" class="input" value="Confirmed Gig" style="padding: 4px 8px;"></td>
+                <td style="text-align: center;"><div class="color-swatch" style="background: #10b981;"></div></td>
+              </tr>
+              <tr>
+                <td><span style="font-weight: 600;">Pending</span></td>
+                <td><input type="text" class="input" value="Awaiting Response" style="padding: 4px 8px;"></td>
+                <td style="text-align: center;"><div class="color-swatch" style="background: #3b82f6;"></div></td>
+              </tr>
+              <tr>
+                <td><span style="font-weight: 600;">Tentative</span></td>
+                <td><input type="text" class="input" value="Hold / Tentative" style="padding: 4px 8px;"></td>
+                <td style="text-align: center;"><div class="color-swatch" style="background: #f59e0b;"></div></td>
+              </tr>
+              <tr>
+                <td><span style="font-weight: 600;">Cancelled</span></td>
+                <td><input type="text" class="input" value="Cancelled" style="padding: 4px 8px;"></td>
+                <td style="text-align: center;"><div class="color-swatch" style="background: #ef4444;"></div></td>
+              </tr>
+            </tbody>
+          </table>
+          <p style="font-size: 12px; color: var(--muted-foreground); margin-top: 12px;">
+            Tip: These colors will be applied to the background of event blocks in all calendar views.
+          </p>
+        </div>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+</body>
+</html>

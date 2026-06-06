@@ -23,11 +23,13 @@
     color: #717182;
     font-weight: 500;
     margin-bottom: 28px;
-    letter-spacing: 0.02em;
+    letter-spacing: 0.1em;
   }
 
   .frames-container {
     display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
     gap: 40px;
     align-items: flex-start;
   }
@@ -138,7 +140,7 @@
 
   .switch-link {
     font-size: 11px;
-    color: #0284c7;
+    color: #0ea5e9;
     font-weight: 500;
   }
 
@@ -180,26 +182,35 @@
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 2px;
+    justify-content: center;
+    gap: 4px;
     flex: 1;
+    height: 100%;
     cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
   }
 
   .nav-icon-wrap {
-    padding: 4px 14px;
-    border-radius: 6px;
+    width: 42px;
+    height: 28px;
+    border-radius: 14px;
     display: flex;
     align-items: center;
     justify-content: center;
+    transition: background 0.2s;
   }
-  .nav-icon-wrap.active { background: rgba(2,132,199,0.1); }
+  .nav-icon-wrap.active { background: rgba(14, 165, 233, 0.15); }
 
   .nav-label {
     font-size: 10px;
     font-weight: 700;
     text-transform: uppercase;
-    letter-spacing: 0.05em;
+    letter-spacing: 0.1em;
+    color: #64748b;
   }
+  .nav-tab.active .nav-label { color: #0ea5e9; }
+  .nav-tab .nav-icon-wrap svg { stroke: #64748b; transition: stroke 0.2s; }
+  .nav-tab.active .nav-icon-wrap svg { stroke: #0ea5e9; }
 
   /* ══════════════════════════════════════════
      SCREEN 1 — GIG LIST
@@ -211,22 +222,29 @@
     z-index: 10;
     background: #ffffff;
     border-bottom: 1px solid rgba(0,0,0,0.08);
-    padding: 8px 12px;
+    padding: 12px;
     display: flex;
     gap: 8px;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
   }
+  .filter-row::-webkit-scrollbar { display: none; }
 
   .filter-chip {
     border-radius: 9999px;
-    font-size: 12px;
-    padding: 4px 12px;
-    font-weight: 500;
+    font-size: 13px;
+    padding: 0 16px;
+    height: 40px; /* Nearly 44px, combined with row padding it's a good target */
+    font-weight: 600;
     cursor: pointer;
     white-space: nowrap;
-    line-height: 1.4;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid transparent;
   }
-  .filter-chip.active  { background: #0284c7; color: #ffffff; border: 1px solid #0284c7; }
-  .filter-chip.inactive{ background: transparent; color: #030213; border: 1px solid rgba(0,0,0,0.18); }
+  .filter-chip.active  { background: #0ea5e9; color: #ffffff; border-color: #0ea5e9; }
+  .filter-chip.inactive{ background: #f1f5f9; color: #64748b; border-color: #e2e8f0; }
 
   .gig-list { padding: 8px 12px 72px; }
 
@@ -257,36 +275,41 @@
   }
 
   .badge {
-    border-radius: 6px;
+    border-radius: 4px;
     border: 1px solid transparent;
-    padding: 2px 6px;
-    font-size: 11px;
-    font-weight: 500;
+    padding: 3px 6px;
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
     white-space: nowrap;
     flex-shrink: 0;
   }
   .badge-green  { color: #16a34a; border-color: #bbf7d0; background: #f0fdf4; }
-  .badge-blue   { color: #0284c7; border-color: #bae6fd; background: #f0f9ff; }
-  .badge-gray   { color: #717182; border-color: rgba(0,0,0,0.14); background: #f5f5f7; }
+  .badge-blue   { color: #0ea5e9; border-color: #bae6fd; background: #f0f9ff; }
+  .badge-gray   { color: #64748b; border-color: #e2e8f0; background: #f8fafc; }
 
   .gig-card-line2 {
     display: flex;
     align-items: center;
-    gap: 5px;
-    margin-bottom: 6px;
+    gap: 6px;
+    margin-bottom: 8px;
   }
 
-  .gig-date, .gig-venue { font-size: 12px; color: #717182; }
+  .gig-date, .gig-venue { font-size: 13px; color: #64748b; font-weight: 500; }
   .gig-venue { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .dot { font-size: 11px; color: #d1d1d9; }
+  .dot { font-size: 11px; color: #cbd5e1; }
 
   .gig-card-line3 {
     display: flex;
     align-items: center;
     justify-content: space-between;
+    margin-top: 4px;
+    padding-top: 8px;
+    border-top: 1px solid #f1f5f9;
   }
-  .gig-revenue    { font-size: 13px; font-weight: 600; color: #030213; }
-  .gig-pax        { font-size: 12px; color: #717182; }
+  .gig-revenue    { font-size: 14px; font-weight: 700; color: #0f172a; }
+  .gig-pax        { font-size: 12px; font-weight: 500; color: #64748b; }
 
   /* FAB */
   .fab {
@@ -318,11 +341,15 @@
   .back-button {
     display: flex;
     align-items: center;
-    gap: 3px;
-    color: #0284c7;
-    font-size: 14px;
-    font-weight: 500;
-    margin-bottom: 9px;
+    gap: 4px;
+    color: #0ea5e9;
+    font-size: 15px;
+    font-weight: 600;
+    margin-bottom: 12px;
+    margin-left: -4px;
+    padding: 8px 4px;
+    width: fit-content;
+    cursor: pointer;
   }
 
   .detail-title {
@@ -342,29 +369,34 @@
   .detail-date { font-size: 13px; color: #717182; }
 
   .quick-actions {
-    padding: 9px 14px;
+    padding: 12px;
     display: flex;
-    gap: 8px;
+    gap: 10px;
     overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
     border-bottom: 1px solid rgba(0,0,0,0.08);
   }
   .quick-actions::-webkit-scrollbar { display: none; }
 
   .action-btn {
-    height: 30px;
-    padding: 0 10px;
-    border: 1px solid rgba(0,0,0,0.18);
-    border-radius: 6px;
-    font-size: 12px;
-    font-weight: 500;
-    color: #030213;
-    background: transparent;
+    height: 44px;
+    padding: 0 16px;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    font-size: 14px;
+    font-weight: 600;
+    color: #0f172a;
+    background: #ffffff;
     white-space: nowrap;
     cursor: pointer;
     display: flex;
     align-items: center;
+    justify-content: center;
     font-family: inherit;
+    transition: all 0.2s;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.05);
   }
+  .action-btn:active { background: #f8fafc; transform: scale(0.98); }
 
   .detail-cards {
     padding: 10px 12px 72px;
@@ -403,11 +435,11 @@
   }
 
   .card-header-label {
-    font-size: 11px;
-    font-weight: 600;
+    font-size: 10px;
+    font-weight: 700;
     text-transform: uppercase;
-    letter-spacing: 0.08em;
-    color: #717182;
+    letter-spacing: 0.1em;
+    color: #64748b;
   }
 
   /* Financials */
@@ -415,7 +447,7 @@
 
   .stats-row {
     display: flex;
-    padding-top: 9px;
+    padding-top: 12px;
   }
 
   .stat-cell {
@@ -428,11 +460,11 @@
 
   .stat-label {
     font-size: 9px;
-    font-weight: 600;
+    font-weight: 700;
     text-transform: uppercase;
-    letter-spacing: 0.08em;
-    color: #717182;
-    margin-bottom: 3px;
+    letter-spacing: 0.1em;
+    color: #64748b;
+    margin-bottom: 4px;
   }
   .stat-value       { font-size: 13px; font-weight: 600; color: #030213; }
   .stat-value.green { color: #16a34a; }
@@ -451,18 +483,21 @@
   .row-sub  { font-size: 11px; color: #717182; margin-top: 1px; }
 
   .add-btn {
-    width: 26px;
-    height: 26px;
-    border-radius: 6px;
-    border: 1px solid rgba(0,0,0,0.14);
-    background: transparent;
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+    border: 1px solid #e2e8f0;
+    background: #ffffff;
     display: flex;
     align-items: center;
     justify-content: center;
     cursor: pointer;
-    color: #717182;
+    color: #0ea5e9;
     flex-shrink: 0;
+    transition: all 0.2s;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.05);
   }
+  .add-btn:active { background: #f8fafc; transform: scale(0.95); }
 
   .notes-text {
     font-size: 13px;
@@ -652,10 +687,10 @@
 
         <!-- Bottom Nav -->
         <div class="bottom-nav">
-          <div class="nav-tab">
+          <div class="nav-tab active">
             <div class="nav-icon-wrap active">
               <!-- List icon -->
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#0284c7" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <line x1="8" y1="6" x2="21" y2="6"/>
                 <line x1="8" y1="12" x2="21" y2="12"/>
                 <line x1="8" y1="18" x2="21" y2="18"/>
@@ -664,12 +699,12 @@
                 <line x1="3" y1="18" x2="3.01" y2="18"/>
               </svg>
             </div>
-            <span class="nav-label" style="color:#0284c7;">Gigs</span>
+            <span class="nav-label">Gigs</span>
           </div>
           <div class="nav-tab">
             <div class="nav-icon-wrap">
               <!-- Barcode icon -->
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#717182" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M3 5v2M3 17v2M7 5v2M7 17v2M11 5v2M11 17v2M15 5v2M15 17v2M19 5v2M19 17v2"/>
                 <rect x="2" y="8" width="20" height="8" rx="0"/>
                 <line x1="4" y1="8" x2="4" y2="16"/>
@@ -682,17 +717,17 @@
                 <line x1="20" y1="8" x2="20" y2="16"/>
               </svg>
             </div>
-            <span class="nav-label" style="color:#717182;">Scanning</span>
+            <span class="nav-label">Scanning</span>
           </div>
           <div class="nav-tab">
             <div class="nav-icon-wrap">
               <!-- Settings gear -->
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#717182" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <circle cx="12" cy="12" r="3"/>
                 <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
               </svg>
             </div>
-            <span class="nav-label" style="color:#717182;">Settings</span>
+            <span class="nav-label">Settings</span>
           </div>
         </div>
 
@@ -946,9 +981,9 @@
 
         <!-- Bottom Nav -->
         <div class="bottom-nav">
-          <div class="nav-tab">
+          <div class="nav-tab active">
             <div class="nav-icon-wrap active">
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#0284c7" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <line x1="8" y1="6" x2="21" y2="6"/>
                 <line x1="8" y1="12" x2="21" y2="12"/>
                 <line x1="8" y1="18" x2="21" y2="18"/>
@@ -957,11 +992,11 @@
                 <line x1="3" y1="18" x2="3.01" y2="18"/>
               </svg>
             </div>
-            <span class="nav-label" style="color:#0284c7;">Gigs</span>
+            <span class="nav-label">Gigs</span>
           </div>
           <div class="nav-tab">
             <div class="nav-icon-wrap">
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#717182" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M3 5v2M3 17v2M7 5v2M7 17v2M11 5v2M11 17v2M15 5v2M15 17v2M19 5v2M19 17v2"/>
                 <line x1="4" y1="8" x2="4" y2="16"/>
                 <line x1="6" y1="8" x2="6" y2="16"/>
@@ -973,16 +1008,16 @@
                 <line x1="20" y1="8" x2="20" y2="16"/>
               </svg>
             </div>
-            <span class="nav-label" style="color:#717182;">Scanning</span>
+            <span class="nav-label">Scanning</span>
           </div>
           <div class="nav-tab">
             <div class="nav-icon-wrap">
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#717182" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <circle cx="12" cy="12" r="3"/>
                 <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
               </svg>
             </div>
-            <span class="nav-label" style="color:#717182;">Settings</span>
+            <span class="nav-label">Settings</span>
           </div>
         </div>
 

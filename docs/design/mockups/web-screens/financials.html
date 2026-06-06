@@ -19,7 +19,7 @@
     --destructive: #d4183d;
     --border: rgba(0,0,0,0.1);
     --input-bg: #f3f3f5;
-    --sky: #0284c7;
+    --sky: #0ea5e9;
     --sky-bg: #f0f9ff;
     --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     --sidebar-w: 220px;
@@ -127,7 +127,9 @@
     font-family: var(--font);
     padding: 5px 12px;
     text-decoration: none;
+    outline: none;
   }
+  .btn:focus-visible { box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--sky); }
   .btn-outline {
     border: 1px solid var(--border);
     background: var(--bg); color: var(--fg);
@@ -176,25 +178,39 @@
 
   /* Summary Bar */
   .summary-bar {
-    display: flex; align-items: flex-start;
+    display: flex; flex-wrap: wrap;
     border: 1px solid var(--border);
     border-radius: 10px;
-    padding: 14px 20px;
+    padding: 0;
     margin-bottom: 18px;
     background: #fafafa;
-    gap: 0;
+    overflow: hidden;
   }
-  .sum-col { flex: 1; padding: 0 20px; }
-  .sum-col:first-child { padding-left: 0; }
-  .sum-col:last-child { padding-right: 0; }
-  .sum-divider { width: 1px; background: var(--border); align-self: stretch; }
+  .sum-col { 
+    flex: 1 1 120px; /* Allow growing and shrinking, but set a base width */
+    padding: 12px 16px; 
+    border-right: 1px solid var(--border);
+  }
+  .sum-col:last-child { border-right: none; }
+  .sum-divider { display: none; } /* Replaced with border-right */
   .sum-label {
-    font-size: 11px; font-weight: 600;
+    font-size: 10px; font-weight: 700;
     text-transform: uppercase; letter-spacing: 0.1em;
-    color: var(--muted-fg); margin-bottom: 3px;
+    color: var(--muted-fg); margin-bottom: 4px;
+    white-space: nowrap;
   }
-  .sum-value { font-size: 18px; font-weight: 700; color: var(--fg); }
+  .sum-value { font-size: 16px; font-weight: 700; color: var(--fg); white-space: nowrap; }
   .sum-value.green { color: #16a34a; }
+
+  /* Page Header Refinement */
+  .page-header {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 12px;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+  .page-title { font-size: 22px; font-weight: 700; letter-spacing: -0.01em; }
+  .page-subtitle { font-size: 13px; color: var(--muted-fg); margin-top: 1px; }
 
   /* Table */
   .table-wrap {
@@ -208,12 +224,12 @@
     border-collapse: collapse;
   }
   .data-table thead th {
-    font-size: 11px;
-    font-weight: 600;
+    font-size: 10px;
+    font-weight: 700;
     text-transform: uppercase;
-    letter-spacing: 0.08em;
+    letter-spacing: 0.1em;
     color: var(--muted-fg);
-    padding: 10px 14px;
+    padding: 8px 12px;
     text-align: left;
     border-bottom: 1px solid var(--border);
     background: #fafafa;
@@ -223,8 +239,8 @@
   .data-table thead th.right { text-align: right; }
   .data-table tbody tr:hover td { background: rgba(233,235,239,0.5); }
   .data-table tbody td {
-    padding: 11px 14px;
-    font-size: 13.5px;
+    padding: 8px 12px;
+    font-size: 13px;
     border-bottom: 1px solid var(--border);
     vertical-align: middle;
     color: var(--fg);
@@ -281,7 +297,54 @@
     background: var(--border);
     flex-shrink: 0;
   }
-  .sub-amount { font-weight: 600; color: var(--fg); }
+  /* Table Grouping */
+  .table-group { margin-bottom: 32px; }
+  .group-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 8px 4px;
+    border-bottom: 2px solid var(--fg);
+    margin-bottom: 12px;
+  }
+  .group-title {
+    font-size: 14px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.1em;
+  }
+  .group-total { font-size: 14px; font-weight: 700; }
+
+  /* Linking Indicators */
+  .ledger-link {
+    display: inline-flex; align-items: center; gap: 4px;
+    color: var(--sky); font-size: 11px; font-weight: 600;
+    text-transform: uppercase; cursor: pointer;
+  }
+  .ledger-link:hover { text-decoration: underline; }
+  .link-line {
+    position: relative;
+    padding-left: 20px;
+  }
+  .link-line::before {
+    content: '';
+    position: absolute; left: 0; top: 50%;
+    width: 14px; height: 1px;
+    background: var(--sky); opacity: 0.5;
+  }
+  .link-dot {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: var(--sky);
+    display: inline-block; margin-right: 6px;
+  }
+
+  /* Tabular numbers for financials */
+  .tabular-nums { font-variant-numeric: tabular-nums; }
+
+  /* Sticky Header Adjustment */
+  .sticky-top {
+    position: sticky;
+    top: -24px; /* Offset for main padding */
+    background: var(--bg);
+    z-index: 20;
+    padding-bottom: 10px;
+    margin-top: -10px;
+  }
 </style>
 </head>
 <body>
@@ -345,197 +408,259 @@
   <!-- Main Content -->
   <main class="main">
 
-    <!-- Page Header -->
-    <div class="page-header">
-      <div>
-        <div class="page-title">Gig Accounting</div>
-        <div class="page-subtitle">Track revenue and costs across all gigs</div>
+    <!-- Sticky Page Info -->
+    <div class="sticky-top">
+      <div class="page-header">
+        <div>
+          <div class="page-title">Gig Settlement: Summer Festival 2024</div>
+          <div class="page-subtitle">Detailed financial breakdown and ledger tracing</div>
+        </div>
+        <div style="display:flex;gap:8px;">
+          <button class="btn btn-outline">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>
+            Export CSV
+          </button>
+          <button class="btn" style="background:var(--sky); color:white; border:none;">
+            Finalize Settlement
+          </button>
+        </div>
       </div>
-      <button class="btn btn-outline">
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" x2="12" y1="5" y2="19"/><line x1="5" x2="19" y1="12" y2="12"/></svg>
-        New Gig
-      </button>
-    </div>
 
-    <!-- Filter Bar -->
-    <div class="filter-bar">
-      <select class="filter-select">
-        <option>Last 90 Days</option>
-        <option>Last 30 Days</option>
-        <option>This Year</option>
-        <option>All Time</option>
-      </select>
-      <select class="filter-select">
-        <option>All Statuses</option>
-        <option>Booked</option>
-        <option>Proposed</option>
-        <option>Settled</option>
-        <option>Completed</option>
-        <option>Cancelled</option>
-      </select>
-      <input class="filter-input" type="text" placeholder="Search gigs…" />
-      <div class="filter-spacer"></div>
-      <button class="btn btn-outline">
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>
-        Export
-      </button>
-    </div>
-
-    <!-- Summary Bar -->
-    <div class="summary-bar">
-      <div class="sum-col">
-        <div class="sum-label">Total Revenue</div>
-        <div class="sum-value">$284,500</div>
-      </div>
-      <div class="sum-divider"></div>
-      <div class="sum-col">
-        <div class="sum-label">Total Costs</div>
-        <div class="sum-value">$142,200</div>
-      </div>
-      <div class="sum-divider"></div>
-      <div class="sum-col">
-        <div class="sum-label">Net Profit</div>
-        <div class="sum-value green">$142,300</div>
-      </div>
-      <div class="sum-divider"></div>
-      <div class="sum-col">
-        <div class="sum-label">Avg Margin</div>
-        <div class="sum-value green">50.0%</div>
+      <!-- Summary Bar -->
+      <div class="summary-bar" style="margin-bottom:0;">
+        <div class="sum-col">
+          <div class="sum-label">Revenue</div>
+          <div class="sum-value tabular-nums">$28,000.00</div>
+        </div>
+        <div class="sum-col">
+          <div class="sum-label">Labor</div>
+          <div class="sum-value tabular-nums">$8,400.00</div>
+        </div>
+        <div class="sum-col">
+          <div class="sum-label">Expenses</div>
+          <div class="sum-value tabular-nums">$4,000.00</div>
+        </div>
+        <div class="sum-col">
+          <div class="sum-label">Net Profit</div>
+          <div class="sum-value green tabular-nums">$15,600.00</div>
+        </div>
       </div>
     </div>
 
-    <!-- Data Table -->
-    <div class="table-wrap">
-      <table class="data-table">
-        <thead>
-          <tr>
-            <th>Gig Name</th>
-            <th>Date</th>
-            <th>Status</th>
-            <th class="right">Contract</th>
-            <th class="right">Received</th>
-            <th class="right">Costs</th>
-            <th class="right">Profit</th>
-            <th class="right">Margin</th>
-          </tr>
-        </thead>
-        <tbody>
-
-          <!-- Row 1 — expanded -->
-          <tr style="background: #f8fbff;">
-            <td>
-              <div style="display:flex;align-items:center;gap:6px;">
-                <button class="expand-btn" aria-label="Collapse">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 15-6-6-6 6"/></svg>
-                </button>
-                <span class="gig-name-cell">Summer Festival 2024</span>
-              </div>
-            </td>
-            <td class="td-muted">Jun 15–17</td>
-            <td><span class="badge badge-green">Booked</span></td>
-            <td class="td-right">$28,000</td>
-            <td class="td-right">$14,000</td>
-            <td class="td-right">$12,400</td>
-            <td class="td-right td-green">$15,600</td>
-            <td class="td-right td-muted">55.7%</td>
-          </tr>
-          <tr class="detail-row">
-            <td colspan="8">
-              <div class="detail-inner">
-                <div class="sub-row">
-                  <span class="sub-name">Audio Equipment Rental</span>
-                  <span class="sub-amount">$4,200</span>
+    <!-- Group: Revenue -->
+    <div class="table-group">
+      <div class="group-header">
+        <div class="group-title">Revenue & Receivables</div>
+        <div class="group-total tabular-nums">$28,000.00</div>
+      </div>
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Description</th>
+              <th>Status</th>
+              <th>Ledger Ref</th>
+              <th class="right">Rate</th>
+              <th class="right">Qty</th>
+              <th class="right">Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>
+                <div class="gig-name-cell">Performance Fee (Contract #882)</div>
+                <div class="td-muted" style="font-size:11px;">Summer Festival Main Stage - Night 1</div>
+              </td>
+              <td><span class="badge badge-green">Received</span></td>
+              <td>
+                <div class="ledger-link">
+                  <span class="link-dot"></span>
+                  L-99201-REV
                 </div>
-                <div class="sub-row">
-                  <span class="sub-name">Staff</span>
-                  <span class="sub-amount">$4,000</span>
+              </td>
+              <td class="td-right tabular-nums">$15,000.00</td>
+              <td class="td-right tabular-nums">1.0</td>
+              <td class="td-right tabular-nums">$15,000.00</td>
+            </tr>
+            <tr>
+              <td>
+                <div class="gig-name-cell">Production Stipend</div>
+                <div class="td-muted" style="font-size:11px;">Equipment & Travel allowance</div>
+              </td>
+              <td><span class="badge badge-green">Received</span></td>
+              <td>
+                <div class="ledger-link">
+                  <span class="link-dot"></span>
+                  L-99202-REV
                 </div>
-                <div class="sub-row">
-                  <span class="sub-name">Venue Fees</span>
-                  <span class="sub-amount">$4,200</span>
+              </td>
+              <td class="td-right tabular-nums">$8,000.00</td>
+              <td class="td-right tabular-nums">1.0</td>
+              <td class="td-right tabular-nums">$8,000.00</td>
+            </tr>
+            <tr>
+              <td>
+                <div class="gig-name-cell">Merchandise % Share (Settled)</div>
+                <div class="td-muted" style="font-size:11px;">15% of gross soft goods</div>
+              </td>
+              <td><span class="badge badge-blue">Pending</span></td>
+              <td>
+                <div class="ledger-link">
+                  <span class="link-dot"></span>
+                  L-99205-REV
                 </div>
-              </div>
-            </td>
-          </tr>
+              </td>
+              <td class="td-right tabular-nums">$5,000.00</td>
+              <td class="td-right tabular-nums">1.0</td>
+              <td class="td-right tabular-nums">$5,000.00</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
 
-          <!-- Row 2 -->
-          <tr>
-            <td>
-              <div style="display:flex;align-items:center;gap:6px;">
-                <button class="expand-btn" aria-label="Expand">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
-                </button>
-                <span class="gig-name-cell">Corporate Gala</span>
-              </div>
-            </td>
-            <td class="td-muted">Jun 22</td>
-            <td><span class="badge badge-blue">Proposed</span></td>
-            <td class="td-right">$12,500</td>
-            <td class="td-right td-muted">$0</td>
-            <td class="td-right">$3,200</td>
-            <td class="td-right td-green">$9,300</td>
-            <td class="td-right td-muted">74.4%</td>
-          </tr>
+    <!-- Group: Labor -->
+    <div class="table-group">
+      <div class="group-header">
+        <div class="group-title">Labor & Personnel</div>
+        <div class="group-total tabular-nums">$8,400.00</div>
+      </div>
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Staff Member</th>
+              <th>Role</th>
+              <th>Ledger Ref</th>
+              <th class="right">Rate</th>
+              <th class="right">Units</th>
+              <th class="right">Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>
+                <div class="gig-name-cell">Alex Rivera</div>
+                <div class="td-muted" style="font-size:11px;">Primary Engineer</div>
+              </td>
+              <td><span class="badge badge-indigo">FOH Engineer</span></td>
+              <td>
+                <div class="ledger-link">
+                  <span class="link-dot"></span>
+                  P-ALEX-882
+                </div>
+              </td>
+              <td class="td-right tabular-nums">$800.00</td>
+              <td class="td-right tabular-nums">3.0 Days</td>
+              <td class="td-right tabular-nums">$2,400.00</td>
+            </tr>
+            <tr>
+              <td>
+                <div class="gig-name-cell">Sarah Chen</div>
+                <div class="td-muted" style="font-size:11px;">Stage Manager</div>
+              </td>
+              <td><span class="badge badge-indigo">Stage Lead</span></td>
+              <td>
+                <div class="ledger-link">
+                  <span class="link-dot"></span>
+                  P-SARA-882
+                </div>
+              </td>
+              <td class="td-right tabular-nums">$600.00</td>
+              <td class="td-right tabular-nums">3.0 Days</td>
+              <td class="td-right tabular-nums">$1,800.00</td>
+            </tr>
+            <tr>
+              <td>
+                <div class="gig-name-cell">Local Crew (Stagehands)</div>
+                <div class="td-muted" style="font-size:11px;">Load-in/Load-out assistance</div>
+              </td>
+              <td><span class="badge badge-gray">Contract</span></td>
+              <td>
+                <div class="ledger-link">
+                  <span class="link-dot"></span>
+                  V-LOCAL-882
+                </div>
+              </td>
+              <td class="td-right tabular-nums">$350.00</td>
+              <td class="td-right tabular-nums">12.0 Hours</td>
+              <td class="td-right tabular-nums">$4,200.00</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
 
-          <!-- Row 3 -->
-          <tr>
-            <td>
-              <div style="display:flex;align-items:center;gap:6px;">
-                <button class="expand-btn" aria-label="Expand">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
-                </button>
-                <span class="gig-name-cell">Spring Tour Kickoff</span>
-              </div>
-            </td>
-            <td class="td-muted">May 4</td>
-            <td><span class="badge badge-indigo">Settled</span></td>
-            <td class="td-right">$18,000</td>
-            <td class="td-right">$18,000</td>
-            <td class="td-right">$9,800</td>
-            <td class="td-right td-green">$8,200</td>
-            <td class="td-right td-muted">45.6%</td>
-          </tr>
-
-          <!-- Row 4 -->
-          <tr>
-            <td>
-              <div style="display:flex;align-items:center;gap:6px;">
-                <button class="expand-btn" aria-label="Expand">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
-                </button>
-                <span class="gig-name-cell">Private Event</span>
-              </div>
-            </td>
-            <td class="td-muted">Apr 18</td>
-            <td><span class="badge badge-purple">Completed</span></td>
-            <td class="td-right">$8,500</td>
-            <td class="td-right">$8,500</td>
-            <td class="td-right">$5,400</td>
-            <td class="td-right td-green">$3,100</td>
-            <td class="td-right td-muted">36.5%</td>
-          </tr>
-
-          <!-- Row 5 -->
-          <tr>
-            <td>
-              <div style="display:flex;align-items:center;gap:6px;">
-                <button class="expand-btn" aria-label="Expand">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
-                </button>
-                <span class="gig-name-cell">Tech Conference</span>
-              </div>
-            </td>
-            <td class="td-muted">Mar 12</td>
-            <td><span class="badge badge-gray">Cancelled</span></td>
-            <td class="td-right">$15,000</td>
-            <td class="td-right">$2,500</td>
-            <td class="td-right">$1,800</td>
-            <td class="td-right td-green">$700</td>
-            <td class="td-right td-muted">4.7%</td>
-          </tr>
-
-        </tbody>
-      </table>
+    <!-- Group: Expenses -->
+    <div class="table-group">
+      <div class="group-header">
+        <div class="group-title">Operating Expenses</div>
+        <div class="group-total tabular-nums">$4,000.00</div>
+      </div>
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Expense Item</th>
+              <th>Category</th>
+              <th>Ledger Ref</th>
+              <th class="right">Unit Cost</th>
+              <th class="right">Qty</th>
+              <th class="right">Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>
+                <div class="gig-name-cell">Audio Backline Rental</div>
+                <div class="td-muted" style="font-size:11px;">S-Series Console + Mic Package</div>
+              </td>
+              <td><span class="badge badge-purple">Rentals</span></td>
+              <td>
+                <div class="ledger-link">
+                  <span class="link-dot"></span>
+                  E-RENT-001
+                </div>
+              </td>
+              <td class="td-right tabular-nums">$2,500.00</td>
+              <td class="td-right tabular-nums">1.0</td>
+              <td class="td-right tabular-nums">$2,500.00</td>
+            </tr>
+            <tr>
+              <td>
+                <div class="gig-name-cell">Ground Transport</div>
+                <div class="td-muted" style="font-size:11px;">Sprinter Van Rental (3 Days)</div>
+              </td>
+              <td><span class="badge badge-purple">Travel</span></td>
+              <td>
+                <div class="ledger-link">
+                  <span class="link-dot"></span>
+                  E-TRAV-042
+                </div>
+              </td>
+              <td class="td-right tabular-nums">$450.00</td>
+              <td class="td-right tabular-nums">2.0</td>
+              <td class="td-right tabular-nums">$900.00</td>
+            </tr>
+            <tr>
+              <td>
+                <div class="gig-name-cell">Catering & Per Diem</div>
+                <div class="td-muted" style="font-size:11px;">Crew hospitality allocation</div>
+              </td>
+              <td><span class="badge badge-purple">Hospitality</span></td>
+              <td>
+                <div class="ledger-link">
+                  <span class="link-dot"></span>
+                  E-HOSP-102
+                </div>
+              </td>
+              <td class="td-right tabular-nums">$60.00</td>
+              <td class="td-right tabular-nums">10.0</td>
+              <td class="td-right tabular-nums">$600.00</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
     </div>
 
   </main>

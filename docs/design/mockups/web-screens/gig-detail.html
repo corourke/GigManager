@@ -1,539 +1,348 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>GigManager — Summer Festival 2024</title>
-<style>
-  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-  :root {
-    --bg: #ffffff;
-    --fg: #030213;
-    --card: #ffffff;
-    --primary: #030213;
-    --secondary: #f2f2f7;
-    --muted: #ececf0;
-    --muted-fg: #717182;
-    --accent: #e9ebef;
-    --destructive: #d4183d;
-    --border: rgba(0,0,0,0.1);
-    --input-bg: #f3f3f5;
-    --sky: #0284c7;
-    --sky-bg: #f0f9ff;
-    --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-    --sidebar-w: 220px;
-    --header-h: 64px;
-  }
-
-  html, body {
-    height: 100%;
-    font-family: var(--font);
-    background: var(--bg);
-    color: var(--fg);
-    font-size: 14px;
-    line-height: 1.5;
-    -webkit-font-smoothing: antialiased;
-  }
-
-  .app {
-    display: grid;
-    grid-template-rows: var(--header-h) 1fr;
-    grid-template-columns: var(--sidebar-w) 1fr;
-    height: 100vh;
-    overflow: hidden;
-  }
-
-  /* Header */
-  .header {
-    grid-column: 1 / -1;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 0 20px;
-    background: var(--bg);
-    border-bottom: 1px solid var(--border);
-    height: var(--header-h);
-    position: sticky;
-    top: 0;
-    z-index: 10;
-  }
-  .header-left { display: flex; align-items: center; gap: 10px; }
-  .logo-mark {
-    width: 40px; height: 40px;
-    background: var(--primary);
-    border-radius: 8px;
-    display: flex; align-items: center; justify-content: center;
-    flex-shrink: 0;
-  }
-  .org-name { font-size: 15px; font-weight: 700; letter-spacing: -0.02em; }
-  .badge-outline {
-    display: inline-flex; align-items: center;
-    border: 1px solid var(--border);
-    border-radius: 4px; padding: 1px 6px;
-    font-size: 11px; font-weight: 500; color: var(--muted-fg);
-  }
-  .header-right { display: flex; align-items: center; gap: 8px; cursor: pointer; }
-  .avatar {
-    width: 34px; height: 34px; border-radius: 50%;
-    background: #e0f2fe; color: #0369a1;
-    display: flex; align-items: center; justify-content: center;
-    font-size: 12px; font-weight: 600;
-  }
-
-  /* Sidebar */
-  .sidebar {
-    background: var(--bg);
-    border-right: 1px solid var(--border);
-    padding: 12px 0;
-    overflow-y: auto;
-  }
-  .nav-item {
-    display: flex; align-items: center; gap: 9px;
-    padding: 8px 16px;
-    font-size: 13.5px; font-weight: 400;
-    color: var(--muted-fg);
-    cursor: pointer; text-decoration: none;
-    border-left: 2px solid transparent;
-    transition: background 0.12s, color 0.12s;
-    user-select: none;
-  }
-  .nav-item:hover { background: var(--accent); color: var(--fg); }
-  .nav-item.active {
-    color: var(--sky); background: var(--sky-bg);
-    border-left-color: var(--sky); font-weight: 500;
-  }
-
-  /* Main */
-  .main {
-    background: var(--bg);
-    padding: 24px;
-    overflow-y: auto;
-  }
-
-  /* Breadcrumb */
-  .breadcrumb {
-    display: flex; align-items: center; gap: 6px;
-    font-size: 12.5px; color: var(--muted-fg);
-    margin-bottom: 14px;
-  }
-  .breadcrumb a { color: var(--muted-fg); text-decoration: none; }
-  .breadcrumb a:hover { color: var(--fg); }
-  .breadcrumb-sep { color: var(--border); }
-  .breadcrumb-current { color: var(--fg); font-weight: 500; }
-
-  /* Gig Header */
-  .gig-header { margin-bottom: 16px; }
-  .gig-title { font-size: 22px; font-weight: 700; letter-spacing: -0.02em; margin-bottom: 8px; }
-  .gig-meta {
-    display: flex; align-items: center; gap: 12px;
-    flex-wrap: wrap;
-    margin-bottom: 12px;
-  }
-  .meta-item {
-    display: flex; align-items: center; gap: 5px;
-    font-size: 13px; color: var(--muted-fg);
-  }
-
-  /* Badges */
-  .badge {
-    display: inline-flex; align-items: center;
-    border-radius: 4px; padding: 2px 7px;
-    font-size: 11px; font-weight: 500; border: 1px solid;
-    white-space: nowrap;
-  }
-  .badge-green { background: #f0fdf4; color: #166534; border-color: #bbf7d0; }
-  .badge-blue { background: #eff6ff; color: #1d4ed8; border-color: #bfdbfe; }
-  .badge-gray { background: #f9fafb; color: #374151; border-color: #e5e7eb; }
-
-  /* Action buttons row */
-  .action-row {
-    display: flex; align-items: center; gap: 8px;
-    flex-wrap: wrap;
-    margin-bottom: 20px;
-  }
-  .btn {
-    display: inline-flex; align-items: center; gap: 5px;
-    border-radius: 6px;
-    font-size: 12px; font-weight: 500;
-    cursor: pointer;
-    transition: background 0.12s;
-    font-family: var(--font);
-    padding: 5px 12px;
-    text-decoration: none;
-  }
-  .btn-outline {
-    border: 1px solid var(--border);
-    background: var(--bg); color: var(--fg);
-  }
-  .btn-outline:hover { background: var(--accent); }
-  .btn-destructive-outline {
-    border: 1px solid rgba(212,24,61,0.3);
-    background: var(--bg); color: var(--destructive);
-  }
-  .btn-destructive-outline:hover { background: #fff1f3; }
-  .btn-ghost {
-    border: none; background: transparent; color: var(--sky);
-    padding: 4px 0; font-size: 13px;
-  }
-  .btn-ghost:hover { text-decoration: underline; }
-
-  /* Profitability Summary */
-  .profit-summary {
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    padding: 16px 20px;
-    display: flex;
-    align-items: flex-start;
-    gap: 0;
-    margin-bottom: 20px;
-    background: #fafafa;
-  }
-  .profit-col {
-    flex: 1;
-    padding: 0 20px;
-  }
-  .profit-col:first-child { padding-left: 0; }
-  .profit-col:last-child { padding-right: 0; }
-  .profit-divider {
-    width: 1px;
-    background: var(--border);
-    align-self: stretch;
-    margin: 0;
-    flex-shrink: 0;
-  }
-  .profit-label {
-    font-size: 11px; font-weight: 600;
-    text-transform: uppercase; letter-spacing: 0.1em;
-    color: var(--muted-fg);
-    margin-bottom: 4px;
-  }
-  .profit-value {
-    font-size: 20px; font-weight: 700;
-    color: var(--fg);
-    margin-bottom: 3px;
-  }
-  .profit-value.green { color: #16a34a; }
-  .profit-subtext { font-size: 12px; color: var(--muted-fg); }
-  .profit-subtext .amber { color: #d97706; font-weight: 500; }
-  .profit-subtext .green { color: #16a34a; font-weight: 500; }
-
-  /* Tabs */
-  .tabs {
-    display: flex; align-items: center; gap: 0;
-    border-bottom: 1px solid var(--border);
-    margin-bottom: 20px;
-  }
-  .tab {
-    padding: 9px 14px;
-    font-size: 13px; font-weight: 500;
-    color: var(--muted-fg);
-    cursor: pointer;
-    border-bottom: 2px solid transparent;
-    margin-bottom: -1px;
-    transition: color 0.12s;
-    text-decoration: none;
-    user-select: none;
-  }
-  .tab:hover { color: var(--fg); }
-  .tab.active { color: var(--sky); border-bottom-color: var(--sky); }
-
-  /* Two-column layout */
-  .detail-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 24px;
-  }
-
-  /* Section */
-  .detail-section { margin-bottom: 24px; }
-  .section-label {
-    font-size: 11px; font-weight: 600;
-    text-transform: uppercase; letter-spacing: 0.1em;
-    color: var(--muted-fg);
-    margin-bottom: 10px;
-    display: flex; align-items: center; gap: 6px;
-  }
-  .info-row {
-    display: flex; align-items: flex-start;
-    padding: 7px 0;
-    border-bottom: 1px solid #f5f5f7;
-    gap: 12px;
-  }
-  .info-row:last-child { border-bottom: none; }
-  .info-key { font-size: 12.5px; color: var(--muted-fg); min-width: 96px; flex-shrink: 0; }
-  .info-val { font-size: 13px; font-weight: 500; color: var(--fg); }
-
-  .tag-row { display: flex; gap: 6px; flex-wrap: wrap; padding-top: 4px; }
-  .tag {
-    display: inline-flex; align-items: center;
-    background: var(--secondary);
-    border-radius: 4px; padding: 2px 8px;
-    font-size: 11.5px; font-weight: 500; color: var(--muted-fg);
-  }
-
-  .notes-text {
-    font-size: 13.5px; color: var(--muted-fg);
-    line-height: 1.6;
-    background: var(--input-bg);
-    border-radius: 6px;
-    padding: 12px 14px;
-  }
-
-  /* Participants */
-  .participant-row {
-    display: flex; align-items: center; justify-content: space-between;
-    padding: 9px 0;
-    border-bottom: 1px solid #f5f5f7;
-  }
-  .participant-row:last-child { border-bottom: none; }
-  .participant-name { font-size: 13.5px; font-weight: 500; color: var(--fg); }
-
-  /* Financial summary compact */
-  .fin-compact {
-    display: flex; align-items: flex-start;
-    gap: 0; padding: 12px 0 8px;
-    margin-bottom: 10px;
-  }
-  .fin-col { flex: 1; padding: 0 12px; }
-  .fin-col:first-child { padding-left: 0; }
-  .fin-divider { width: 1px; background: var(--border); align-self: stretch; }
-  .fin-label { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted-fg); margin-bottom: 2px; }
-  .fin-value { font-size: 14px; font-weight: 700; color: var(--fg); }
-  .fin-value.green { color: #16a34a; }
-</style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GigManager — Summer Festival 2024</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            sky: {
+              50: '#f0f9ff',
+              100: '#e0f2fe',
+              200: '#bae6fd',
+              300: '#7dd3fc',
+              400: '#38bdf8',
+              500: '#0ea5e9',
+              600: '#0284c7',
+              700: '#0369a1',
+              800: '#075985',
+              900: '#0c4a6e',
+            },
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+    body { font-family: 'Inter', sans-serif; }
+    .metadata-label {
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+    }
+    .tree-connector-v {
+      position: absolute; left: -16px; top: -12px; bottom: 20px;
+      width: 2px; background: #e5e7eb;
+    }
+    .tree-connector-h {
+      position: absolute; left: -16px; top: 20px;
+      width: 16px; height: 2px; background: #e5e7eb;
+    }
+    .tabular-nums { font-variant-numeric: tabular-nums; }
+  </style>
 </head>
-<body>
-<div class="app">
-
-  <!-- Header -->
-  <header class="header">
-    <div class="header-left">
-      <div class="logo-mark">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <rect width="16" height="20" x="4" y="2" rx="2" ry="2"/><path d="M9 22v-4h6v4"/><path d="M8 6h.01"/><path d="M16 6h.01"/><path d="M12 6h.01"/><path d="M12 10h.01"/><path d="M12 14h.01"/><path d="M16 10h.01"/><path d="M16 14h.01"/><path d="M8 10h.01"/><path d="M8 14h.01"/>
-        </svg>
+<body class="bg-white text-slate-900 antialiased overflow-hidden h-screen flex flex-col">
+  <!-- Top Header -->
+  <header class="h-14 border-b flex items-center justify-between px-6 shrink-0 bg-white/80 backdrop-blur-md z-20">
+    <div class="flex items-center gap-3">
+      <div class="w-8 h-8 bg-slate-900 rounded-lg flex items-center justify-center">
+        <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m4 0h1m-5 4h1m4 0h1m-5 4h1m4 0h1m-5 4h1m4 0h1"></path></svg>
       </div>
-      <div>
-        <div class="org-name">Main Stage Productions</div>
-      </div>
-      <span class="badge-outline">Admin</span>
+      <span class="font-bold text-[15px] tracking-tight">Main Stage Productions</span>
+      <span class="px-2 py-0.5 border rounded text-[10px] font-bold uppercase tracking-wider text-slate-500">Admin</span>
     </div>
-    <div class="header-right">
-      <div class="avatar">JD</div>
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#717182" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+    <div class="flex items-center gap-2 cursor-pointer">
+      <div class="w-8 h-8 rounded-full bg-sky-100 text-sky-700 flex items-center justify-center text-xs font-bold">JD</div>
+      <svg class="w-3.5 h-3.5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
     </div>
   </header>
 
-  <!-- Sidebar -->
-  <nav class="sidebar">
-    <a class="nav-item" href="dashboard.html">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/></svg>
-      Dashboard
-    </a>
-    <a class="nav-item active" href="gig-detail.html">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="4" rx="2" ry="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/></svg>
-      Gigs
-    </a>
-    <a class="nav-item" href="#">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="4" rx="2" ry="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/><path d="M8 14h.01"/><path d="M12 14h.01"/><path d="M16 14h.01"/><path d="M8 18h.01"/><path d="M12 18h.01"/><path d="M16 18h.01"/></svg>
-      Calendar
-    </a>
-    <a class="nav-item" href="financials.html">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><line x1="12" x2="12" y1="2" y2="22"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
-      Financials
-    </a>
-    <a class="nav-item" href="#">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-      Team
-    </a>
-    <a class="nav-item" href="#">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M16 16v1a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h2"/><rect width="13" height="8" x="9" y="2" rx="1.5"/><path d="M9 8h4"/><path d="M9 11h3"/></svg>
-      Inventory
-    </a>
-    <a class="nav-item" href="#">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
-      Equipment
-    </a>
-    <a class="nav-item" href="#">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
-      Settings
-    </a>
-  </nav>
+  <div class="flex flex-1 overflow-hidden">
+    <!-- Main Sidebar -->
+    <nav class="w-14 md:w-56 border-r flex flex-col py-4 shrink-0 bg-white">
+      <a href="dashboard.html" class="flex items-center gap-3 px-4 py-2 text-slate-500 hover:bg-slate-50 hover:text-slate-900 transition-colors">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.75" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"></path></svg>
+        <span class="text-sm font-medium hidden md:inline">Dashboard</span>
+      </a>
+      <a href="gig-detail.html" class="flex items-center gap-3 px-4 py-2 text-sky-600 bg-sky-50 border-l-2 border-sky-600 font-semibold">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.75" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+        <span class="text-sm hidden md:inline">Gigs</span>
+      </a>
+      <a href="#" class="flex items-center gap-3 px-4 py-2 text-slate-500 hover:bg-slate-50 hover:text-slate-900 transition-colors">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.75" d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2m16-10a4 4 0 11-8 0 4 4 0 018 0zM12 7a4 4 0 11-8 0 4 4 0 018 0z"></path></svg>
+        <span class="text-sm font-medium hidden md:inline">Team</span>
+      </a>
+      <a href="financials.html" class="flex items-center gap-3 px-4 py-2 text-slate-500 hover:bg-slate-50 hover:text-slate-900 transition-colors">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.75" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+        <span class="text-sm font-medium hidden md:inline">Financials</span>
+      </a>
+      <a href="equipment.html" class="flex items-center gap-3 px-4 py-2 text-slate-500 hover:bg-slate-50 hover:text-slate-900 transition-colors">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.75" d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"></path></svg>
+        <span class="text-sm font-medium hidden md:inline">Equipment</span>
+      </a>
+    </nav>
 
-  <!-- Main Content -->
-  <main class="main">
+    <!-- Split Pane Container -->
+    <div class="flex flex-1 overflow-hidden">
+      <!-- Hierarchy Tree Sidebar -->
+      <aside class="w-72 border-r bg-slate-50/50 flex flex-col shrink-0 overflow-y-auto">
+        <div class="p-4 border-b bg-white/50">
+          <h2 class="metadata-label text-slate-500">Gig Hierarchy</h2>
+        </div>
+        <div class="p-6">
+          <div class="relative pl-5">
+            <!-- Parent -->
+            <div class="relative mb-6">
+              <div class="flex items-center gap-3 p-3 bg-white border rounded-xl shadow-sm cursor-pointer hover:border-sky-200 transition-all ring-2 ring-sky-500/20">
+                <div class="w-8 h-8 rounded-lg bg-sky-100 flex items-center justify-center text-sky-600">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m4 0h1m-5 4h1m4 0h1m-5 4h1m4 0h1m-5 4h1m4 0h1"></path></svg>
+                </div>
+                <div class="flex-1">
+                  <div class="text-[13px] font-bold tracking-tight">Summer Festival 2024</div>
+                  <div class="metadata-label text-[9px] text-sky-600 mt-0.5">Project Root</div>
+                </div>
+              </div>
+            </div>
 
-    <!-- Breadcrumb -->
-    <div class="breadcrumb">
-      <a href="gig-detail.html">Gigs</a>
-      <span class="breadcrumb-sep">/</span>
-      <span class="breadcrumb-current">Summer Festival 2024</span>
-    </div>
+            <!-- Children -->
+            <div class="relative ml-8">
+              <div class="tree-connector-v"></div>
+              
+              <!-- Sub-gig 1 -->
+              <div class="relative mb-4">
+                <div class="tree-connector-h"></div>
+                <div class="flex items-center gap-3 p-3 bg-white border rounded-xl hover:border-slate-300 transition-all cursor-pointer">
+                  <div class="w-7 h-7 rounded-lg bg-slate-100 flex items-center justify-center text-slate-500">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+                  </div>
+                  <div class="flex-1">
+                    <div class="text-[12px] font-semibold">Load-In / Setup</div>
+                    <div class="metadata-label text-[8px] text-slate-400">Sub-Event</div>
+                  </div>
+                </div>
+              </div>
 
-    <!-- Gig Header -->
-    <div class="gig-header">
-      <h1 class="gig-title">Summer Festival 2024</h1>
-      <div class="gig-meta">
-        <span class="badge badge-green">Booked</span>
-        <span class="meta-item">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="4" rx="2" ry="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/></svg>
-          Jun 15–17, 2024
-        </span>
-        <span class="meta-item">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
-          Red Rocks Amphitheater, Morrison CO
-        </span>
-      </div>
-      <div class="action-row">
-        <button class="btn btn-outline">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-          Edit
-        </button>
-        <button class="btn btn-outline">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
-          Duplicate
-        </button>
-        <button class="btn btn-outline">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-          Mark Completed
-        </button>
-        <button class="btn btn-destructive-outline">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" x2="9" y1="9" y2="15"/><line x1="9" x2="15" y1="9" y2="15"/></svg>
-          Cancel Gig
-        </button>
-      </div>
-    </div>
-
-    <!-- Profitability Summary -->
-    <div class="profit-summary">
-      <div class="profit-col">
-        <div class="profit-label">Revenue</div>
-        <div class="profit-value">$28,000</div>
-        <div class="profit-subtext">Rcvd $14,000 · <span class="amber">Due $14,000</span></div>
-      </div>
-      <div class="profit-divider"></div>
-      <div class="profit-col">
-        <div class="profit-label">Costs</div>
-        <div class="profit-value">$12,400</div>
-        <div class="profit-subtext">Actual $8,400 · Staff $4,000</div>
-      </div>
-      <div class="profit-divider"></div>
-      <div class="profit-col">
-        <div class="profit-label">Profit</div>
-        <div class="profit-value green">$15,600</div>
-        <div class="profit-subtext"><span class="green">Margin 55.7%</span></div>
-      </div>
-    </div>
-
-    <!-- Tabs -->
-    <div class="tabs">
-      <a class="tab active" href="#">Details</a>
-      <a class="tab" href="#">Participants</a>
-      <a class="tab" href="#">Staff</a>
-      <a class="tab" href="#">Equipment</a>
-      <a class="tab" href="#">Notes</a>
-      <a class="tab" href="#">Attachments</a>
-    </div>
-
-    <!-- Details Tab Content -->
-    <div class="detail-grid">
-
-      <!-- Left Column -->
-      <div>
-        <div class="detail-section">
-          <div class="section-label">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></svg>
-            Basic Info
-          </div>
-          <div class="info-row">
-            <span class="info-key">Venue</span>
-            <span class="info-val">Red Rocks Amphitheater</span>
-          </div>
-          <div class="info-row">
-            <span class="info-key">Location</span>
-            <span class="info-val">Morrison, CO</span>
-          </div>
-          <div class="info-row">
-            <span class="info-key">Load-in</span>
-            <span class="info-val">Jun 15, 2024 at 8:00 AM MDT</span>
-          </div>
-          <div class="info-row">
-            <span class="info-key">Show Start</span>
-            <span class="info-val">Jun 15, 2024 at 7:00 PM MDT</span>
-          </div>
-          <div class="info-row">
-            <span class="info-key">Show End</span>
-            <span class="info-val">Jun 15, 2024 at 11:00 PM MDT</span>
-          </div>
-          <div class="info-row">
-            <span class="info-key">Tags</span>
-            <div class="tag-row">
-              <span class="tag">Festival</span>
-              <span class="tag">Outdoor</span>
-              <span class="tag">Summer</span>
+              <!-- Sub-gig 2 (Selected) -->
+              <div class="relative mb-4">
+                <div class="tree-connector-h"></div>
+                <div class="flex items-center gap-3 p-3 bg-sky-50 border border-sky-200 rounded-xl ring-2 ring-sky-500/10 cursor-default">
+                  <div class="w-7 h-7 rounded-lg bg-sky-500 flex items-center justify-center text-white">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                  </div>
+                  <div class="flex-1">
+                    <div class="text-[12px] font-bold text-sky-900">Show: Main Stage</div>
+                    <div class="metadata-label text-[8px] text-sky-600">Active Node</div>
+                  </div>
+                </div>
+              </div>
+              
+              <!-- Sub-gig 3 -->
+              <div class="relative">
+                <div class="tree-connector-h"></div>
+                <div class="flex items-center gap-3 p-3 bg-white border rounded-xl hover:border-slate-300 transition-all cursor-pointer">
+                  <div class="w-7 h-7 rounded-lg bg-slate-100 flex items-center justify-center text-slate-500">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+                  </div>
+                  <div class="flex-1">
+                    <div class="text-[12px] font-semibold">Load-Out</div>
+                    <div class="metadata-label text-[8px] text-slate-400">Sub-Event</div>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </div>
+      </aside>
 
-        <div class="detail-section">
-          <div class="section-label">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/></svg>
-            Notes
-          </div>
-          <div class="notes-text">Three-day festival. Coordinate with local vendors for catering. Stage plot to be confirmed by June 1st.</div>
-        </div>
-      </div>
+      <!-- Main Content Area -->
+      <main class="flex-1 overflow-y-auto bg-white">
+        <div class="p-8 max-w-5xl mx-auto">
+          <!-- Breadcrumbs -->
+          <nav class="flex items-center gap-2 mb-6">
+            <a href="gig-list.html" class="text-xs font-medium text-slate-500 hover:text-slate-900 transition-colors">Gigs</a>
+            <svg class="w-3 h-3 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+            <a href="#" class="text-xs font-medium text-slate-500 hover:text-slate-900 transition-colors">Summer Festival 2024</a>
+            <svg class="w-3 h-3 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+            <span class="text-xs font-bold text-slate-900">Show: Main Stage</span>
+          </nav>
 
-      <!-- Right Column -->
-      <div>
-        <div class="detail-section">
-          <div class="section-label">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-            Participants
-          </div>
-          <div class="participant-row">
-            <span class="participant-name">Acme Audio</span>
-            <span class="badge badge-gray" style="font-size:10.5px;">Sound Company</span>
-          </div>
-          <div class="participant-row">
-            <span class="participant-name">Light Wizards LLC</span>
-            <span class="badge badge-gray" style="font-size:10.5px;">Lighting</span>
-          </div>
-          <div class="participant-row">
-            <span class="participant-name">Main Stage Productions</span>
-            <span class="badge badge-blue" style="font-size:10.5px;">Promoter</span>
-          </div>
-        </div>
-
-        <div class="detail-section">
-          <div class="section-label">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" x2="12" y1="2" y2="22"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
-            Financial Summary
-          </div>
-          <div class="fin-compact">
-            <div class="fin-col">
-              <div class="fin-label">Revenue</div>
-              <div class="fin-value">$28,000</div>
+          <!-- Gig Title & Actions -->
+          <div class="flex flex-col md:flex-row md:items-start justify-between gap-4 mb-8">
+            <div>
+              <div class="flex items-center gap-3 mb-2 flex-wrap">
+                <h1 class="text-3xl font-extrabold tracking-tight text-slate-900">Show: Main Stage</h1>
+                <span class="px-2.5 py-1 bg-sky-100 text-sky-700 text-[11px] font-bold uppercase tracking-wider rounded-md border border-sky-200">Confirmed</span>
+              </div>
+              <div class="flex flex-wrap items-center gap-y-2 gap-x-4 text-slate-500">
+                <div class="flex items-center gap-1.5">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+                  <span class="text-[13px] font-medium">Jun 15, 2024</span>
+                </div>
+                <div class="flex items-center gap-1.5">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+                  <span class="text-[13px] font-medium">Red Rocks Amphitheater</span>
+                </div>
+              </div>
             </div>
-            <div class="fin-divider"></div>
-            <div class="fin-col">
-              <div class="fin-label">Costs</div>
-              <div class="fin-value">$12,400</div>
-            </div>
-            <div class="fin-divider"></div>
-            <div class="fin-col">
-              <div class="fin-label">Profit</div>
-              <div class="fin-value green">$15,600</div>
+            <div class="flex items-center gap-2">
+              <button class="px-3 py-1.5 border rounded-lg text-sm font-semibold hover:bg-slate-50 transition-colors">Edit</button>
+              <button class="px-3 py-1.5 bg-sky-500 text-white rounded-lg text-sm font-semibold hover:bg-sky-600 shadow-sm shadow-sky-200 transition-colors">Actions</button>
             </div>
           </div>
-          <button class="btn btn-ghost">View Full Financials →</button>
-        </div>
-      </div>
 
+          <!-- Tabs -->
+          <div class="border-b flex gap-8 mb-8 overflow-x-auto">
+            <button class="pb-3 border-b-2 border-sky-500 text-sky-600 font-bold text-sm whitespace-nowrap">Overview</button>
+            <button class="pb-3 border-b-2 border-transparent text-slate-500 hover:text-slate-900 font-medium text-sm transition-colors whitespace-nowrap">Staffing</button>
+            <button class="pb-3 border-b-2 border-transparent text-slate-500 hover:text-slate-900 font-medium text-sm transition-colors whitespace-nowrap">Equipment</button>
+            <button class="pb-3 border-b-2 border-transparent text-slate-500 hover:text-slate-900 font-medium text-sm transition-colors whitespace-nowrap">Financials</button>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-12 gap-8">
+            <!-- Details Column -->
+            <div class="md:col-span-7 space-y-8">
+              <section>
+                <div class="flex items-center gap-2 mb-4">
+                  <h3 class="metadata-label text-slate-400">Inheritance & Policies</h3>
+                  <div class="h-px flex-1 bg-slate-100"></div>
+                </div>
+                <div class="space-y-4">
+                  <!-- Inherited Data Example -->
+                  <div class="group relative bg-white border border-slate-100 rounded-xl p-4 transition-all">
+                    <div class="flex items-start justify-between">
+                      <div class="space-y-1">
+                        <div class="flex items-center gap-2">
+                          <span class="metadata-label text-slate-500">Venue Curfew</span>
+                          <span class="text-[10px] font-bold uppercase tracking-wider bg-sky-100 text-sky-700 px-1.5 py-0.5 rounded-sm">Inherited</span>
+                        </div>
+                        <p class="text-sm font-medium text-slate-900">11:45 PM MDT strictly enforced. $1k/min penalty.</p>
+                      </div>
+                      <button class="text-[10px] font-bold uppercase text-sky-600 opacity-0 group-hover:opacity-100 transition-opacity">Override</button>
+                    </div>
+                  </div>
+
+                  <!-- Overridden Data Example -->
+                  <div class="relative bg-white border border-sky-200 border-l-[3px] border-l-sky-500 rounded-xl p-4 shadow-sm shadow-sky-50">
+                    <div class="flex items-start justify-between">
+                      <div class="space-y-1">
+                        <div class="flex items-center gap-2">
+                          <span class="metadata-label text-slate-500">Day Rate Adjustment</span>
+                          <span class="text-[10px] font-bold uppercase tracking-wider bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-sm">Overridden</span>
+                        </div>
+                        <p class="text-sm font-bold text-slate-900">$1,850.00 <span class="text-slate-400 font-normal line-through ml-2">$1,200.00</span></p>
+                      </div>
+                      <button class="text-[10px] font-bold uppercase text-sky-600 hover:underline transition-colors">Revert</button>
+                    </div>
+                  </div>
+
+                  <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div class="p-4 bg-slate-50 rounded-xl">
+                      <div class="metadata-label text-slate-500 mb-1">Load-in</div>
+                      <div class="text-[13px] font-semibold">08:00 AM</div>
+                    </div>
+                    <div class="p-4 bg-slate-50 rounded-xl">
+                      <div class="metadata-label text-slate-500 mb-1">Sound Check</div>
+                      <div class="text-[13px] font-semibold">02:00 PM</div>
+                    </div>
+                  </div>
+                </div>
+              </section>
+
+              <!-- Resource Rollups -->
+              <section>
+                <div class="flex items-center gap-2 mb-4">
+                  <h3 class="metadata-label text-slate-400">Resource Rollups</h3>
+                  <div class="h-px flex-1 bg-slate-100"></div>
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <!-- Staff Rollup -->
+                  <div class="p-4 border rounded-xl bg-white shadow-sm hover:shadow-md transition-shadow">
+                    <div class="flex items-center justify-between mb-3">
+                      <div class="metadata-label text-slate-500">Staffing</div>
+                      <svg class="w-4 h-4 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"></path></svg>
+                    </div>
+                    <div class="flex items-baseline gap-1">
+                      <span class="text-2xl font-bold tracking-tight tabular-nums">12</span>
+                      <span class="metadata-label text-[10px] text-slate-400">Assigned</span>
+                    </div>
+                    <div class="mt-3 pt-3 border-t flex items-center justify-between text-[11px] font-medium">
+                      <span class="text-slate-500">Total Hours</span>
+                      <span class="text-slate-900 tabular-nums">96.5h</span>
+                    </div>
+                  </div>
+
+                  <!-- Equipment Rollup -->
+                  <div class="p-4 border rounded-xl bg-white shadow-sm hover:shadow-md transition-shadow">
+                    <div class="flex items-center justify-between mb-3">
+                      <div class="metadata-label text-slate-500">Equipment</div>
+                      <svg class="w-4 h-4 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"></path></svg>
+                    </div>
+                    <div class="flex items-baseline gap-1">
+                      <span class="text-2xl font-bold tracking-tight tabular-nums">42</span>
+                      <span class="metadata-label text-[10px] text-slate-400">Items</span>
+                    </div>
+                    <div class="mt-3 pt-3 border-t flex items-center justify-between text-[11px] font-medium">
+                      <span class="text-slate-500">Total Weight</span>
+                      <span class="text-slate-900 tabular-nums">1,240kg</span>
+                    </div>
+                  </div>
+                </div>
+              </section>
+            </div>
+
+            <!-- Financials & Quick Info -->
+            <div class="md:col-span-5 space-y-6">
+              <div class="p-6 bg-slate-900 text-white rounded-2xl shadow-xl shadow-slate-200">
+                <div class="metadata-label text-slate-400 mb-4">Financial Summary</div>
+                <div class="space-y-6">
+                  <div>
+                    <div class="metadata-label text-slate-500 mb-1">Estimated Revenue</div>
+                    <div class="text-3xl font-extrabold tabular-nums">$28,000.00</div>
+                  </div>
+                  <div class="grid grid-cols-2 gap-4">
+                    <div>
+                      <div class="metadata-label text-slate-500 mb-1">Projected Costs</div>
+                      <div class="text-lg font-bold tabular-nums text-slate-200">$12,400.00</div>
+                    </div>
+                    <div>
+                      <div class="metadata-label text-slate-500 mb-1">Net Margin</div>
+                      <div class="text-lg font-bold tabular-nums text-emerald-400">$15,600.00</div>
+                    </div>
+                  </div>
+                </div>
+                <button class="w-full mt-8 py-3 bg-white/10 hover:bg-white/20 text-white rounded-xl text-sm font-bold transition-colors">Details & Ledger</button>
+              </div>
+
+              <div class="p-6 border border-slate-100 rounded-2xl bg-white shadow-sm">
+                <div class="metadata-label text-slate-500 mb-4">Primary Contacts</div>
+                <div class="space-y-4">
+                  <div class="flex items-center gap-3">
+                    <div class="w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center text-slate-600 font-bold text-xs shrink-0">SM</div>
+                    <div class="overflow-hidden">
+                      <div class="text-[13px] font-bold truncate">Sarah Miller</div>
+                      <div class="text-[11px] text-slate-500 font-medium truncate">Stage Manager · +1 303-555-0123</div>
+                    </div>
+                  </div>
+                  <div class="flex items-center gap-3">
+                    <div class="w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center text-slate-600 font-bold text-xs shrink-0">RK</div>
+                    <div class="overflow-hidden">
+                      <div class="text-[13px] font-bold truncate">Robert King</div>
+                      <div class="text-[11px] text-slate-500 font-medium truncate">Head Rigger · +1 303-555-0987</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </main>
     </div>
-
-  </main>
-</div>
+  </div>
 </body>
 </html>
