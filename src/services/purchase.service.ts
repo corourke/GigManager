@@ -404,6 +404,24 @@ export async function createPurchaseTransaction(
 }
 
 /**
+ * Reclassify a purchase expense item as a capital asset
+ */
+export async function reclassifyExpenseAsAsset(purchaseItemId: string): Promise<{ asset_id: string }> {
+  try {
+    const { supabase } = await requireAuth();
+
+    const { data, error } = await supabase.rpc('reclassify_expense_as_asset', {
+      p_purchase_item_id: purchaseItemId,
+    });
+
+    if (error) throw error;
+    return data as { asset_id: string };
+  } catch (err) {
+    return handleApiError(err, 'reclassify expense as asset');
+  }
+}
+
+/**
  * Scan an invoice or receipt PDF using AI
  */
 export async function scanInvoice(file: File) {

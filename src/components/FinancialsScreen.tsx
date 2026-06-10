@@ -11,7 +11,8 @@ import {
   ExternalLink,
   FileText,
   ArrowLeft,
-  X
+  X,
+  RefreshCw
 } from 'lucide-react';
 import { Card } from './ui/card';
 import { PageHeader } from './ui/PageHeader';
@@ -41,10 +42,21 @@ import {
   SelectTrigger,
   SelectValue,
 } from './ui/select';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from './ui/alert-dialog';
 import AppHeader from './AppHeader';
 import GigAccountingTab from './financials/GigAccountingTab';
 import { Organization, User, UserRole, DbPurchase } from '../utils/supabase/types';
-import { getPurchases } from '../services/purchase.service';
+import { getPurchases, reclassifyExpenseAsAsset } from '../services/purchase.service';
 import { getEntityAttachments, getAttachmentUrl } from '../services/attachment.service';
 import { toast } from 'sonner';
 
@@ -79,6 +91,7 @@ export default function FinancialsScreen({
   const [purchases, setPurchases] = useState<DbPurchase[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [expandedItemId, setExpandedItemId] = useState<string | null>(null);
+  const [reclassifyingItemId, setReclassifyingItemId] = useState<string | null>(null);
   const [highlightPurchaseId, setHighlightPurchaseId] = useState<string | null>(initialHighlightId || null);
   const [showOnlyHighlighted, setShowOnlyHighlighted] = useState(!!initialHighlightId);
   
@@ -145,6 +158,20 @@ export default function FinancialsScreen({
       if (url) window.open(url, '_blank');
     } catch (err) {
       toast.error('Failed to get document URL');
+    }
+  };
+
+  const handleReclassifyAsAsset = async (itemId: string) => {
+    setReclassifyingItemId(itemId);
+    try {
+      await reclassifyExpenseAsAsset(itemId);
+      toast.success('Item reclassified as asset');
+      await loadPurchases();
+      setExpandedItemId(null);
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to reclassify item');
+    } finally {
+      setReclassifyingItemId(null);
     }
   };
 
@@ -540,6 +567,36 @@ export default function FinancialsScreen({
                                     <div><span className="text-gray-500 font-medium">ID:</span> <span className="font-mono text-[10px]">{item.id}</span></div>
                                     {item.asset_id && <div className="col-span-2"><span className="text-gray-500 font-medium">Asset ID:</span> <span className="font-mono text-[10px]">{item.asset_id}</span></div>}
                                   </div>
+                                  {item.row_type === 'item' && (userRole === 'Admin' || userRole === 'Manager') && (
+                                    <div className="mt-3 pt-3 border-t border-gray-200">
+                                      <AlertDialog>
+                                        <AlertDialogTrigger asChild>
+                                          <Button variant="outline" size="sm" className="h-7 px-3 text-xs text-blue-600 border-blue-200 hover:bg-blue-50 hover:text-blue-700">
+                                            <RefreshCw className="w-3 h-3 mr-1.5" />
+                                            Reclassify as Asset
+                                          </Button>
+                                        </AlertDialogTrigger>
+                                        <AlertDialogContent>
+                                          <AlertDialogHeader>
+                                            <AlertDialogTitle>Reclassify as Asset?</AlertDialogTitle>
+                                            <AlertDialogDescription>
+                                              This will register the item as a capital asset in inventory. If this purchase is linked to a gig, the linked gig expense record will also be removed. This action cannot be undone.
+                                            </AlertDialogDescription>
+                                          </AlertDialogHeader>
+                                          <AlertDialogFooter>
+                                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                            <AlertDialogAction
+                                              onClick={() => handleReclassifyAsAsset(item.id)}
+                                              disabled={reclassifyingItemId === item.id}
+                                            >
+                                              {reclassifyingItemId === item.id && <RefreshCw className="w-3.5 h-3.5 mr-1.5 animate-spin" />}
+                                              Reclassify as Asset
+                                            </AlertDialogAction>
+                                          </AlertDialogFooter>
+                                        </AlertDialogContent>
+                                      </AlertDialog>
+                                    </div>
+                                  )}
                                 </TableCell>
                               </TableRow>
                             )}

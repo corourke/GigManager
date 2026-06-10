@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { getPurchases, createPurchase, createPurchaseTransaction, scanInvoice, importPurchases } from './purchase.service';
+import { getPurchases, createPurchase, createPurchaseTransaction, scanInvoice, importPurchases, reclassifyExpenseAsAsset } from './purchase.service';
 import { createClient } from '../utils/supabase/client';
 import { requireAuth } from '../utils/supabase/auth-utils';
 
@@ -103,6 +103,23 @@ describe('purchase.service', () => {
 
       expect(mockSupabase.functions.invoke).toHaveBeenCalledWith('ai-scan', expect.any(Object));
       expect(result).toEqual(mockResult);
+    });
+  });
+
+  describe('reclassifyExpenseAsAsset', () => {
+    it('should call reclassify_expense_as_asset RPC and return asset_id', async () => {
+      mockSupabase.rpc.mockResolvedValue({ data: { asset_id: 'asset-1' }, error: null });
+
+      const result = await reclassifyExpenseAsAsset('item-1');
+
+      expect(mockSupabase.rpc).toHaveBeenCalledWith('reclassify_expense_as_asset', { p_purchase_item_id: 'item-1' });
+      expect(result).toEqual({ asset_id: 'asset-1' });
+    });
+
+    it('should throw when RPC returns an error', async () => {
+      mockSupabase.rpc.mockResolvedValue({ data: null, error: { message: 'DB error' } });
+
+      await expect(reclassifyExpenseAsAsset('item-1')).rejects.toThrow();
     });
   });
 

@@ -209,6 +209,16 @@ export async function updateAsset(assetId: string, assetData: Partial<DbAsset> &
   try {
     const { supabase, user } = await requireAuth();
 
+    // If status is being updated, use the specialized RPC to ensure history is tracked
+    // regardless of RLS on the history table (though the policy is still good to have)
+    if (assetData.status) {
+      const { error: rpcError } = await supabase.rpc('update_asset_status', {
+        p_asset_id: assetId,
+        p_status: assetData.status
+      });
+      if (rpcError) throw rpcError;
+    }
+
     // Handle legacy 'cost' field mapping
     const finalData = { ...assetData };
     if (finalData.cost !== undefined && finalData.item_cost === undefined) {
@@ -216,18 +226,27 @@ export async function updateAsset(assetId: string, assetData: Partial<DbAsset> &
       delete finalData.cost;
     }
 
-    const { data, error } = await (supabase.from('assets') as any)
-      .update({
-        ...finalData,
-        updated_by: user.id,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', assetId)
-      .select()
-      .single();
+    // If there are other fields to update besides status
+    const updatePayload = { ...finalData };
+    delete updatePayload.status; // Already handled by RPC if present
 
-    if (error) throw error;
-    return data;
+    if (Object.keys(updatePayload).length > 0) {
+      const { data, error } = await (supabase.from('assets') as any)
+        .update({
+          ...updatePayload,
+          updated_by: user.id,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', assetId)
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data;
+    }
+
+    // If only status was updated, fetch the latest asset to return
+    return getAsset(assetId);
   } catch (err) {
     return handleApiError(err, 'update asset');
   }
