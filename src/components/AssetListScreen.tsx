@@ -1,16 +1,18 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { Package, Plus, Search, Filter, Loader2, Edit, Trash2, AlertCircle, Shield, Upload, Eye, Copy, FileText } from 'lucide-react';
+import { Package, Plus, Search, Filter, Loader2, Edit, Trash2, AlertCircle, Shield, Upload, Eye, Copy, FileText, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { getAssets, deleteAsset, duplicateAsset, updateAsset } from '../services/asset.service';
 import { getAssetTrackingSummary } from '../services/inventoryManagement.service';
 import { scanInvoice } from '../services/purchase.service';
 import { Button } from './ui/button';
 import { Card } from './ui/card';
+import { Input } from './ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import AppHeader from './AppHeader';
 import EquipmentTabs from './EquipmentTabs';
 import { Organization, User, UserRole } from '../utils/supabase/types';
 import type { DbAsset } from '../utils/supabase/types';
+import { ASSET_STATUS_CONFIG } from '../utils/supabase/constants';
 import { SmartDataTable, ColumnDef, RowAction } from './tables/SmartDataTable';
 import { PageHeader } from './ui/PageHeader';
 import ReviewScannedDataDialog from './ReviewScannedDataDialog';
@@ -66,6 +68,7 @@ export default function AssetListScreen({
   const [showReviewDialog, setShowReviewDialog] = useState(false);
   const [assetTrackingSummary, setAssetTrackingSummary] = useState<Map<string, { status: string; location?: string | null; gigTitle?: string | null }>>(new Map());
   const [trackingStatusFilter, setTrackingStatusFilter] = useState<string>('All');
+  const [searchQuery, setSearchQuery] = useState('');
 
   const refresh = async () => {
     try {
@@ -167,14 +170,35 @@ export default function AssetListScreen({
   };
 
   const activeAssets = useMemo(() => {
-    const nonDeleted = allAssets.filter(asset => !deletedAssetIds.has(asset.id));
-    if (trackingStatusFilter === 'All') return nonDeleted;
-    return nonDeleted.filter(asset => {
-      const tracking = assetTrackingSummary.get(asset.id);
-      if (trackingStatusFilter === 'Untracked') return !tracking;
-      return tracking?.status === trackingStatusFilter;
-    });
-  }, [allAssets, deletedAssetIds, trackingStatusFilter, assetTrackingSummary]);
+    let filtered = allAssets.filter(asset => !deletedAssetIds.has(asset.id));
+    
+    // Apply tracking status filter
+    if (trackingStatusFilter !== 'All') {
+      filtered = filtered.filter(asset => {
+        const tracking = assetTrackingSummary.get(asset.id);
+        if (trackingStatusFilter === 'Untracked') return !tracking;
+        return tracking?.status === trackingStatusFilter;
+      });
+    }
+
+    // Apply global search
+    if (searchQuery) {
+      const query = searchQuery.toLowerCase();
+      filtered = filtered.filter(asset => {
+        return (
+          asset.manufacturer_model?.toLowerCase().includes(query) ||
+          asset.category?.toLowerCase().includes(query) ||
+          asset.sub_category?.toLowerCase().includes(query) ||
+          asset.serial_number?.toLowerCase().includes(query) ||
+          asset.tag_number?.toLowerCase().includes(query) ||
+          asset.type?.toLowerCase().includes(query) ||
+          asset.vendor?.toLowerCase().includes(query)
+        );
+      });
+    }
+
+    return filtered;
+  }, [allAssets, deletedAssetIds, trackingStatusFilter, assetTrackingSummary, searchQuery]);
 
   const categories = useMemo(() => 
     Array.from(new Set(allAssets.map(a => a.category).filter(Boolean))),
@@ -230,6 +254,19 @@ export default function AssetListScreen({
       filterable: true,
       editable: true,
       type: 'text',
+    },
+    {
+      id: 'status',
+      header: 'Status',
+      accessor: 'status',
+      sortable: true,
+      filterable: true,
+      editable: true,
+      type: 'pill',
+      pillConfig: Object.entries(ASSET_STATUS_CONFIG).reduce((acc, [key, config]) => {
+        acc[key] = { label: config.label, color: config.color };
+        return acc;
+      }, {} as any),
     },
     {
       id: 'quantity',
@@ -302,7 +339,7 @@ export default function AssetListScreen({
     },
     {
       id: 'current_status',
-      header: 'Current Status',
+      header: 'Inventory Status',
       accessor: (row) => assetTrackingSummary.get(row.id)?.status ?? null,
       readOnly: true,
       type: 'text',
@@ -423,22 +460,42 @@ export default function AssetListScreen({
           }
         />
 
-        {/* Tracking Status Filter */}
-        <div className="flex items-center gap-2 mb-4">
-          <span className="text-sm text-muted-foreground">Tracking Status:</span>
-          <Select value={trackingStatusFilter} onValueChange={setTrackingStatusFilter}>
-            <SelectTrigger className="w-[180px] h-8 text-sm">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="All">All</SelectItem>
-              <SelectItem value="Checked Out">Checked Out</SelectItem>
-              <SelectItem value="In Transit">In Transit</SelectItem>
-              <SelectItem value="On Site">On Site</SelectItem>
-              <SelectItem value="In Warehouse">In Warehouse</SelectItem>
-              <SelectItem value="Untracked">Untracked</SelectItem>
-            </SelectContent>
-          </Select>
+        {/* Filters */}
+        <div className="flex flex-col md:flex-row md:items-center gap-4 mb-6">
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-muted-foreground whitespace-nowrap">Tracking:</span>
+            <Select value={trackingStatusFilter} onValueChange={setTrackingStatusFilter}>
+              <SelectTrigger className="w-[160px] h-9 text-sm">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="All">All Statuses</SelectItem>
+                <SelectItem value="Checked Out">Checked Out</SelectItem>
+                <SelectItem value="In Transit">In Transit</SelectItem>
+                <SelectItem value="On Site">On Site</SelectItem>
+                <SelectItem value="In Warehouse">In Warehouse</SelectItem>
+                <SelectItem value="Untracked">Untracked</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="relative flex-1 max-w-md">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Search by model, category, serial, etc..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-9 h-9"
+            />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery('')}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Assets Table */}

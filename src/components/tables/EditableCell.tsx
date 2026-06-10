@@ -69,6 +69,16 @@ export function EditableCell<T>({
     const handleGlobalKeyDown = (e: KeyboardEvent) => {
       if (!isSelected || isEditing || e.metaKey || e.ctrlKey || e.altKey) return;
       
+      // Ignore if typing in an input, textarea, or contenteditable element
+      const target = e.target as HTMLElement;
+      if (
+        target.tagName === 'INPUT' || 
+        target.tagName === 'TEXTAREA' || 
+        target.isContentEditable
+      ) {
+        return;
+      }
+      
       // Handle Spacebar for checkbox toggle
       if (e.key === ' ' && column.type === 'checkbox') {
         e.preventDefault();
