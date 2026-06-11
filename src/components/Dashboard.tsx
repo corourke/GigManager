@@ -135,7 +135,7 @@ export default function Dashboard({
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-muted/30">
       <AppHeader
         organization={organization}
         user={user}
@@ -156,11 +156,11 @@ export default function Dashboard({
 
         {loading ? (
           <div className="flex items-center justify-center py-12">
-            <Loader2 className="w-8 h-8 animate-spin text-gray-400" />
+            <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
           </div>
         ) : error ? (
-          <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-            <p className="text-red-800">{error}</p>
+          <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-4">
+            <p className="text-destructive">{error}</p>
             <Button onClick={fetchDashboardStats} variant="outline" size="sm" className="mt-2">
               Retry
             </Button>
@@ -174,84 +174,84 @@ export default function Dashboard({
                 onClick={onNavigateToGigs}
               >
                 <div className="flex items-center justify-between mb-[4px] mt-[0px] mr-[0px] ml-[0px]">
-                  <p className="text-sm text-gray-600 font-bold">Gigs</p>
-                  <Calendar className="w-5 h-5 text-sky-500" />
+                  <p className="text-sm text-muted-foreground font-bold">Gigs</p>
+                  <Calendar className="w-5 h-5 text-primary" />
                 </div>
                 <div className="space-y-1">
                   <div className="flex items-baseline justify-between">
-                    <p className="text-xs text-gray-500">{GIG_STATUS_CONFIG.Booked.label}</p>
-                    <p className="text-gray-900">{stats.gigsByStatus.Booked}</p>
+                    <p className="text-xs text-muted-foreground">{GIG_STATUS_CONFIG.Booked.label}</p>
+                    <p className="text-foreground">{stats.gigsByStatus.Booked}</p>
                   </div>
                   <div className="flex items-baseline justify-between">
-                    <p className="text-xs text-gray-500">{GIG_STATUS_CONFIG.Proposed.label}</p>
-                    <p className="text-gray-900">{stats.gigsByStatus.Proposed}</p>
+                    <p className="text-xs text-muted-foreground">{GIG_STATUS_CONFIG.Proposed.label}</p>
+                    <p className="text-foreground">{stats.gigsByStatus.Proposed}</p>
                   </div>
                   <div className="flex items-baseline justify-between">
-                    <p className="text-xs text-gray-500">{GIG_STATUS_CONFIG.DateHold.label}</p>
-                    <p className="text-gray-900">{stats.gigsByStatus.DateHold}</p>
+                    <p className="text-xs text-muted-foreground">{GIG_STATUS_CONFIG.DateHold.label}</p>
+                    <p className="text-foreground">{stats.gigsByStatus.DateHold}</p>
                   </div>
                 </div>
               </Card>
 
               <Card className="p-4 cursor-pointer hover:shadow-lg transition-shadow" onClick={onNavigateToAssets}>
                 <div className="flex items-center justify-between mb-[4px] mt-[0px] mr-[0px] ml-[0px]">
-                  <p className="text-sm text-gray-600 font-bold">Equipment</p>
+                  <p className="text-sm text-muted-foreground font-bold">Equipment</p>
                   <Package className="w-5 h-5 text-purple-500" />
                 </div>
                 <div className="space-y-1">
                   <div className="flex items-baseline justify-between">
-                    <p className="text-xs text-gray-500">Total Value</p>
-                    <p className="text-gray-900">{formatCurrency(stats.assetValues.totalAssetValue)}</p>
+                    <p className="text-xs text-muted-foreground">Total Value</p>
+                    <p className="text-foreground">{formatCurrency(stats.assetValues.totalAssetValue)}</p>
                   </div>
                   <div className="flex items-baseline justify-between">
-                    <p className="text-xs text-gray-500">Insured</p>
-                    <p className="text-gray-900">{formatCurrency(stats.assetValues.totalInsuredValue)}</p>
+                    <p className="text-xs text-muted-foreground">Insured</p>
+                    <p className="text-foreground">{formatCurrency(stats.assetValues.totalInsuredValue)}</p>
                   </div>
                   <div className="flex items-baseline justify-between">
-                    <p className="text-xs text-gray-500">Rental Value</p>
-                    <p className="text-gray-900">{formatCurrency(stats.assetValues.totalRentalValue)}</p>
+                    <p className="text-xs text-muted-foreground">Rental Value</p>
+                    <p className="text-foreground">{formatCurrency(stats.assetValues.totalRentalValue)}</p>
                   </div>
                 </div>
               </Card>
 
               <Card className="p-4">
                 <div className="flex items-center justify-between mb-[4px] mt-[0px] mr-[0px] ml-[0px]">
-                  <p className="text-sm text-gray-600 font-bold">Revenue</p>
+                  <p className="text-sm text-muted-foreground font-bold">Revenue</p>
                   <LayoutDashboard className="w-5 h-5 text-amber-500" />
                 </div>
                 <div className="space-y-1">
                   <div className="flex items-baseline justify-between">
-                    <p className="text-xs text-gray-500">This Month</p>
-                    <p className="text-gray-900">{formatCurrency(stats.revenue.thisMonth)}</p>
+                    <p className="text-xs text-muted-foreground">This Month</p>
+                    <p className="text-foreground">{formatCurrency(stats.revenue.thisMonth)}</p>
                   </div>
                   <div className="flex items-baseline justify-between">
-                    <p className="text-xs text-gray-500">Last Month</p>
-                    <p className="text-gray-900">{formatCurrency(stats.revenue.lastMonth)}</p>
+                    <p className="text-xs text-muted-foreground">Last Month</p>
+                    <p className="text-foreground">{formatCurrency(stats.revenue.lastMonth)}</p>
                   </div>
                   <div className="flex items-baseline justify-between">
-                    <p className="text-xs text-gray-500">This Year</p>
-                    <p className="text-gray-900">{formatCurrency(stats.revenue.thisYear)}</p>
+                    <p className="text-xs text-muted-foreground">This Year</p>
+                    <p className="text-foreground">{formatCurrency(stats.revenue.thisYear)}</p>
                   </div>
                 </div>
               </Card>
 
               <Card className="p-4">
                 <div className="flex items-center justify-between mb-[4px] mt-[0px] mr-[0px] ml-[0px]">
-                  <p className="text-sm text-gray-600 font-bold">Status Summary</p>
+                  <p className="text-sm text-muted-foreground font-bold">Status Summary</p>
                   <Users className="w-5 h-5 text-green-500" />
                 </div>
                 <div className="space-y-1">
                   <div className="flex items-baseline justify-between">
-                    <p className="text-xs text-gray-500">{GIG_STATUS_CONFIG.Completed.label}</p>
-                    <p className="text-gray-900">{stats.gigsByStatus.Completed}</p>
+                    <p className="text-xs text-muted-foreground">{GIG_STATUS_CONFIG.Completed.label}</p>
+                    <p className="text-foreground">{stats.gigsByStatus.Completed}</p>
                   </div>
                   <div className="flex items-baseline justify-between">
-                    <p className="text-xs text-gray-500">{GIG_STATUS_CONFIG.Settled.label}</p>
-                    <p className="text-gray-900">{stats.gigsByStatus.Settled}</p>
+                    <p className="text-xs text-muted-foreground">{GIG_STATUS_CONFIG.Settled.label}</p>
+                    <p className="text-foreground">{stats.gigsByStatus.Settled}</p>
                   </div>
                   <div className="flex items-baseline justify-between">
-                    <p className="text-xs text-gray-500">{GIG_STATUS_CONFIG.Cancelled.label}</p>
-                    <p className="text-gray-900">{stats.gigsByStatus.Cancelled}</p>
+                    <p className="text-xs text-muted-foreground">{GIG_STATUS_CONFIG.Cancelled.label}</p>
+                    <p className="text-foreground">{stats.gigsByStatus.Cancelled}</p>
                   </div>
                 </div>
               </Card>
@@ -262,19 +262,19 @@ export default function Dashboard({
               {/* Upcoming Events */}
               <Card className="p-6">
                 <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-gray-900">Upcoming Gigs (Next 30 Days)</h3>
+                  <h3 className="text-foreground">Upcoming Gigs (Next 30 Days)</h3>
                   <Button
                     variant="outline"
                     size="sm"
                     onClick={onNavigateToGigs}
-                    className="text-sky-600 hover:text-sky-700 hover:bg-sky-50 border-sky-200"
+                    className="text-primary hover:text-primary/80 hover:bg-primary/5 border-primary/20"
                   >
                     View All Gigs
                   </Button>
                 </div>
                 {stats.upcomingGigs.length === 0 ? (
-                  <div className="text-center py-8 text-gray-500">
-                    <Calendar className="w-12 h-12 mx-auto mb-3 text-gray-300" />
+                  <div className="text-center py-8 text-muted-foreground">
+                    <Calendar className="w-12 h-12 mx-auto mb-3 text-muted-foreground/40" />
                     <p>No upcoming gigs in the next 30 days</p>
                   </div>
                 ) : (

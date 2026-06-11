@@ -244,7 +244,7 @@ export function EditableCell<T>({
     return (
       <Popover open={isEditing} onOpenChange={(open) => { if (!open) closeEditor(); }}>
         <PopoverAnchor asChild>
-          <div ref={multiPillAnchorRef} className="w-full bg-white flex flex-wrap items-start gap-1 px-4 py-2 min-h-[40px] z-40 relative">
+          <div ref={multiPillAnchorRef} className="w-full bg-background flex flex-wrap items-start gap-1 px-4 py-2 min-h-[40px] z-40 relative">
             {currentItems.map((item) => {
               const config = column.pillConfig?.[item];
               return (
@@ -509,7 +509,7 @@ export function EditableCell<T>({
     }
 
     return (
-      <div className="absolute inset-0 z-40 bg-white flex items-center px-4">
+      <div className="absolute inset-0 z-40 bg-background flex items-center px-4">
         <input
           ref={inputRef}
           value={editValue ?? ''}
@@ -526,9 +526,9 @@ export function EditableCell<T>({
   return (
     <TableCell
       className={cn(
-        "p-0 border-r last:border-r-0 relative h-full align-top transition-none whitespace-normal",
+        "p-0 relative h-full align-top transition-none whitespace-normal",
         !(isEditing && column.type === 'multi-pill') && "overflow-hidden",
-        isSelected && "bg-sky-50/50"
+        isSelected && "bg-primary/5"
       )}
       onClick={(e) => {
         e.stopPropagation();
@@ -542,7 +542,7 @@ export function EditableCell<T>({
     >
       {/* Blue selection border - absolute inset-0 to cover the whole cell */}
       {isSelected && (
-        <div className="absolute inset-0 border-2 border-sky-500 z-50 pointer-events-none" />
+        <div className="absolute inset-0 border-2 border-primary z-50 pointer-events-none" />
       )}
 
       <div className="w-full h-full min-h-[40px] relative flex items-start">
@@ -556,21 +556,21 @@ export function EditableCell<T>({
         )}
 
         {isEditing && (column.type === 'text' || column.type === 'number' || column.type === 'currency') && (
-          <div className="absolute inset-0 z-40 bg-white flex items-start">
+          <div className="absolute inset-0 z-40 bg-background flex items-start">
             <input
               ref={inputRef}
               value={editValue ?? ''}
               onChange={(e) => setEditValue(e.target.value)}
               onBlur={handleBlur}
               onKeyDown={handleKeyDown}
-              className="h-full w-full px-4 py-2 text-sm border-none outline-none ring-0 bg-transparent min-w-0 text-slate-900"
+              className="h-full w-full px-4 py-2 text-sm border-none outline-none ring-0 bg-transparent min-w-0 text-foreground"
               type={column.type === 'number' || column.type === 'currency' ? 'number' : 'text'}
             />
           </div>
         )}
 
         {isEditing && column.type === 'date' && (
-          <div className="absolute inset-0 z-40 bg-white flex items-start">
+          <div className="absolute inset-0 z-40 bg-background flex items-start">
             <input
               ref={inputRef}
               defaultValue={toDateInputValue(editValue)}
@@ -590,7 +590,7 @@ export function EditableCell<T>({
                   save(inputRef.current?.value || value).then(() => onNavigate?.(e.shiftKey ? 'prev' : 'next'));
                 }
               }}
-              className="h-full w-full px-4 py-2 text-sm border-none outline-none ring-0 bg-transparent min-w-0 text-slate-900"
+              className="h-full w-full px-4 py-2 text-sm border-none outline-none ring-0 bg-transparent min-w-0 text-foreground"
               type="date"
               max="9999-12-31"
             />
@@ -598,7 +598,7 @@ export function EditableCell<T>({
         )}
 
         {isEditing && column.type === 'datetime' && (
-          <div className="absolute inset-0 z-40 bg-white flex items-start">
+          <div className="absolute inset-0 z-40 bg-background flex items-start">
             <input
               ref={inputRef}
               defaultValue={formatGigDateTimeForInput(editValue, resolvedTimezone)}
@@ -618,7 +618,7 @@ export function EditableCell<T>({
                   save(inputRef.current?.value || value).then(() => onNavigate?.(e.shiftKey ? 'prev' : 'next'));
                 }
               }}
-              className="h-full w-full px-4 py-2 text-sm border-none outline-none ring-0 bg-transparent min-w-0 text-slate-900"
+              className="h-full w-full px-4 py-2 text-sm border-none outline-none ring-0 bg-transparent min-w-0 text-foreground"
               type={value && !isNoonUTC(String(value)) ? 'datetime-local' : 'date'}
               max="9999-12-31T23:59"
             />
@@ -635,7 +635,7 @@ export function EditableCell<T>({
 
         {isSaving && (
           <div className="absolute right-2 top-2 z-[60]">
-            <Loader2 className="h-3 w-3 animate-spin text-sky-500" />
+            <Loader2 className="h-3 w-3 animate-spin text-primary" />
           </div>
         )}
       </div>

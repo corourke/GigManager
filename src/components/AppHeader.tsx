@@ -52,17 +52,17 @@ const AppHeader = React.memo(function AppHeader({
   };
 
   return (
-    <div className="bg-white border-b border-gray-200">
+    <div className="bg-background border-b border-border">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Top Bar */}
         <div className="flex items-center justify-between h-16">
           {/* Organization Info or App Title */}
           <div className="flex items-center gap-4">
-            <div className="inline-flex items-center justify-center w-10 h-10 bg-sky-500 rounded-lg">
-              <Building2 className="w-6 h-6 text-white" />
+            <div className="inline-flex items-center justify-center w-10 h-10 bg-primary rounded-lg">
+              <Building2 className="w-6 h-6 text-primary-foreground" />
             </div>
             <div>
-              <h2 className="text-gray-900">{organization?.name || 'GigWrangler'}</h2>
+              <h2 className="text-foreground">{organization?.name || 'GigWrangler'}</h2>
               {userRole && organization && (
                 <Badge className={`text-xs ${USER_ROLE_CONFIG[userRole].color}`} variant="outline">
                   {USER_ROLE_CONFIG[userRole].label}
@@ -78,7 +78,7 @@ const AppHeader = React.memo(function AppHeader({
                 <button className="flex items-center gap-2 hover:opacity-80 transition-opacity">
                   <Avatar className="w-10 h-10">
                     <AvatarImage src={user.avatar_url} alt={`${user.first_name} ${user.last_name}`} />
-                    <AvatarFallback className="bg-sky-100 text-sky-700">
+                    <AvatarFallback className="bg-primary/10 text-primary">
                       {getInitials(user.first_name, user.last_name)}
                     </AvatarFallback>
                   </Avatar>
@@ -88,7 +88,7 @@ const AppHeader = React.memo(function AppHeader({
                 <DropdownMenuLabel>
                   <div>
                     <p className="text-sm">{user.first_name} {user.last_name}</p>
-                    <p className="text-xs text-gray-500">{user.email}</p>
+                    <p className="text-xs text-muted-foreground">{user.email}</p>
                   </div>
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
@@ -120,7 +120,7 @@ const AppHeader = React.memo(function AppHeader({
                       console.error('Logout error:', error);
                     }
                   }} 
-                  className="text-red-600"
+                  className="text-destructive"
                 >
                   <LogOut className="w-4 h-4 mr-2" />
                   Sign Out

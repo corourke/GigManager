@@ -204,7 +204,7 @@ export default function AssetListScreen({
     },
     {
       id: 'manufacturer_model',
-      header: 'Manufacturer/Model',
+      header: 'Manufacturer & Model',
       accessor: 'manufacturer_model',
       sortable: true,
       filterable: true,
@@ -285,7 +285,7 @@ export default function AssetListScreen({
       header: 'Insurance',
       accessor: 'insurance_policy_added',
       sortable: true,
-      filterable: true,
+      filterable: false,
       editable: true,
       type: 'checkbox',
       className: 'w-[100px] text-center',

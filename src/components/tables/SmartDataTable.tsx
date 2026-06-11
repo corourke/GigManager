@@ -106,10 +106,12 @@ export function SmartDataTable<T extends { id: string }>({
     sorting,
     filters,
     columnVisibility,
+    columnWidths,
     toggleSorting,
     setFilter,
     removeFilter,
     toggleColumnVisibility,
+    setColumnWidth,
   } = useTableState(tableId);
 
   const [newRowIds, setNewRowIds] = useState<Set<string>>(new Set());
@@ -226,6 +228,53 @@ export function SmartDataTable<T extends { id: string }>({
   }, [onAddRow, isAddingRow, visibleColumns]);
 
   const tableContainerRef = useRef<HTMLDivElement>(null);
+  const tableRef = useRef<HTMLTableElement>(null);
+  const resizingRef = useRef<{ columnId: string; startX: number; startWidth: number } | null>(null);
+
+  const BASE_COL_WIDTH = 50;
+  const SORT_ICON_WIDTH = 20;
+  const FILTER_ICON_WIDTH = 25;
+  const ACTIONS_COL_WIDTH = 48;
+
+  const getMinColWidth = useCallback((column: ColumnDef<T>) => {
+    let w = BASE_COL_WIDTH;
+    if (column.sortable) w += SORT_ICON_WIDTH;
+    if (column.filterable) w += FILTER_ICON_WIDTH;
+    return w;
+  }, []);
+
+  const handleResizeStart = useCallback((columnId: string, e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    const th = (e.target as HTMLElement).closest('th');
+    if (!th) return;
+    const startWidth = th.getBoundingClientRect().width;
+
+    resizingRef.current = { columnId, startX: e.clientX, startWidth };
+
+    const handleMouseMove = (moveEvent: MouseEvent) => {
+      if (!resizingRef.current) return;
+      const col = columns.find(c => c.id === resizingRef.current!.columnId);
+      const minW = col ? getMinColWidth(col) : BASE_COL_WIDTH;
+      const diff = moveEvent.clientX - resizingRef.current.startX;
+      const newWidth = Math.max(minW, resizingRef.current.startWidth + diff);
+      setColumnWidth(resizingRef.current.columnId, newWidth);
+    };
+
+    const handleMouseUp = () => {
+      resizingRef.current = null;
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    };
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+  }, [setColumnWidth]);
 
   const moveSelection = useCallback((direction: 'next' | 'prev' | 'up' | 'down') => {
     if (!selectedCell) return false;
@@ -293,42 +342,46 @@ export function SmartDataTable<T extends { id: string }>({
     }
   };
 
-  // Helper to render row actions
   const renderRowActions = (row: T) => {
     if (!rowActions) return null;
 
     return (
-      <div className="flex justify-end gap-1">
-        {rowActions.map((action) => {
-          const Icon = action.icon || {
-            view: <Eye className="h-4 w-4" />,
-            edit: <Edit className="h-4 w-4" />,
-            duplicate: <Copy className="h-4 w-4" />,
-            delete: <Trash2 className="h-4 w-4" />,
-          }[action.id];
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground"
+          >
+            <MoreHorizontal className="h-4 w-4" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-[160px]">
+          {rowActions.map((action) => {
+            const Icon = action.icon || {
+              view: <Eye className="h-4 w-4" />,
+              edit: <Edit className="h-4 w-4" />,
+              duplicate: <Copy className="h-4 w-4" />,
+              delete: <Trash2 className="h-4 w-4" />,
+            }[action.id];
 
-          const baseClass = {
-            view: "text-gray-500 hover:text-sky-600",
-            edit: "text-gray-500 hover:text-sky-600",
-            duplicate: "text-gray-500 hover:text-sky-600",
-            delete: "text-gray-500 hover:text-red-600",
-          }[action.id];
-
-          return (
-            <Button
-              key={action.id}
-              variant="ghost"
-              size="sm"
-              className={cn("h-8 w-8 p-0", baseClass, action.className)}
-              onClick={() => action.onClick(row)}
-              disabled={action.disabled?.(row)}
-              title={action.label || action.id.charAt(0).toUpperCase() + action.id.slice(1)}
-            >
-              {Icon}
-            </Button>
-          );
-        })}
-      </div>
+            return (
+              <DropdownMenuItem
+                key={action.id}
+                onClick={() => action.onClick(row)}
+                disabled={action.disabled?.(row)}
+                className={cn(
+                  action.id === 'delete' && "text-destructive focus:text-destructive",
+                  action.className
+                )}
+              >
+                {Icon}
+                <span className="ml-2">{action.label || action.id.charAt(0).toUpperCase() + action.id.slice(1)}</span>
+              </DropdownMenuItem>
+            );
+          })}
+        </DropdownMenuContent>
+      </DropdownMenu>
     );
   };
 
@@ -417,36 +470,48 @@ export function SmartDataTable<T extends { id: string }>({
 
       <div 
         ref={tableContainerRef}
-        className="rounded-md border bg-white shadow-sm overflow-hidden outline-none focus:ring-1 focus:ring-sky-100"
+        className="rounded-md border bg-background shadow-sm overflow-x-auto outline-none focus:ring-1 focus:ring-ring/20"
         tabIndex={0}
         onKeyDown={handleTableKeyDown}
       >
-        <Table className="table-fixed w-full border-collapse">
+        <Table ref={tableRef} className="table-fixed border-collapse" style={{ minWidth: '100%' }}>
           <colgroup>
-            {visibleColumns.map((column) => (
-              <col key={column.id} className={column.className} />
-            ))}
-            {(actions || rowActions) && <col className="w-[120px]" />}
+            {visibleColumns.map((column) => {
+              const width = columnWidths[column.id];
+              const minW = getMinColWidth(column);
+              return (
+                <col
+                  key={column.id}
+                  style={width ? { width: `${width}px`, minWidth: `${minW}px` } : { minWidth: `${minW}px` }}
+                  className={!width ? column.className : undefined}
+                />
+              );
+            })}
+            {(actions || rowActions) && <col style={{ width: `${ACTIONS_COL_WIDTH}px`, minWidth: `${ACTIONS_COL_WIDTH}px` }} />}
           </colgroup>
           <TableHeader>
-            <TableRow className="bg-gray-50/50 hover:bg-gray-50/50">
+            <TableRow className="bg-muted/30 hover:bg-muted/30">
               {visibleColumns.map((column) => (
-                <TableHead key={column.id} className={cn("p-0 group border-r last:border-r-0 whitespace-normal", column.className)}>
-                  <div className="flex items-center gap-2 w-full h-full px-4 py-3">
+                <TableHead
+                  key={column.id}
+                  className={cn("p-0 group !whitespace-normal relative", !columnWidths[column.id] && column.className)}
+                  style={columnWidths[column.id] ? { width: `${columnWidths[column.id]}px` } : undefined}
+                >
+                  <div className="flex items-center gap-1 w-full h-full px-2.5 py-2.5">
                     <span 
                       className={cn(
-                        "font-semibold text-gray-700",
-                        column.sortable && "cursor-pointer select-none flex items-center gap-1"
+                        "font-semibold text-foreground text-xs leading-tight min-w-0",
+                        column.sortable && "cursor-pointer select-none flex items-center gap-0.5"
                       )}
                       onClick={() => column.sortable && toggleSorting(column.id)}
                     >
                       {column.header}
                       {column.sortable && (
-                        <span className="text-muted-foreground">
+                        <span className="text-muted-foreground shrink-0">
                           {sorting?.columnId === column.id ? (
-                            sorting.direction === 'asc' ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />
+                            sorting.direction === 'asc' ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />
                           ) : (
-                            <ChevronsUpDown className="h-4 w-4 transition-opacity" />
+                            <ChevronsUpDown className="h-3.5 w-3.5 transition-opacity" />
                           )}
                         </span>
                       )}
@@ -460,8 +525,8 @@ export function SmartDataTable<T extends { id: string }>({
                             size="sm" 
                             aria-label={`Filter ${column.header}`}
                             className={cn(
-                              "h-6 w-6 p-0 transition-opacity", 
-                              filters[column.id] && "text-sky-600"
+                              "h-5 w-5 p-0 shrink-0", 
+                              filters[column.id] && "text-primary"
                             )}
                           >
                             <Filter className="h-3 w-3" />
@@ -496,15 +561,21 @@ export function SmartDataTable<T extends { id: string }>({
                       </Popover>
                     )}
                   </div>
+                  <div
+                    className="absolute right-0 top-0 bottom-0 w-1.5 cursor-col-resize hover:bg-primary/30 active:bg-primary/50 z-10"
+                    onMouseDown={(e) => handleResizeStart(column.id, e)}
+                  />
                 </TableHead>
               ))}
-              {(actions || rowActions) && <TableHead className="w-[120px] text-right px-4">Actions</TableHead>}
+              {(actions || rowActions) && (
+                <TableHead style={{ width: `${ACTIONS_COL_WIDTH}px` }} className="px-1" />
+              )}
             </TableRow>
           </TableHeader>
           <TableBody>
             {processedData.length > 0 ? (
               processedData.map((row) => (
-                <TableRow key={row.id} className="group hover:bg-sky-50/30 transition-colors">
+                <TableRow key={row.id} className="group hover:bg-muted/30 transition-colors">
                   {visibleColumns.map((column) => {
                     const value = typeof column.accessor === 'function' 
                       ? column.accessor(row) 
@@ -532,18 +603,16 @@ export function SmartDataTable<T extends { id: string }>({
                     );
                   })}
                   {(actions || rowActions) && (
-                    <TableCell className="text-right px-4" onClick={(e) => e.stopPropagation()}>
-                      <div className="flex justify-end gap-1">
-                        {actions && actions(row)}
-                        {renderRowActions(row)}
-                      </div>
+                    <TableCell className="px-1 text-center" onClick={(e) => e.stopPropagation()}>
+                      {actions && actions(row)}
+                      {renderRowActions(row)}
                     </TableCell>
                   )}
                 </TableRow>
               ))
             ) : (
               <TableRow>
-                <TableCell colSpan={visibleColumns.length + (actions ? 1 : 0)} className="h-32 text-center text-muted-foreground">
+                <TableCell colSpan={visibleColumns.length + ((actions || rowActions) ? 1 : 0)} className="h-32 text-center text-muted-foreground">
                   {emptyMessage}
                 </TableCell>
               </TableRow>
@@ -556,7 +625,7 @@ export function SmartDataTable<T extends { id: string }>({
               type="button"
               onClick={onAddRowClick || handleAddRow}
               disabled={isAddingRow}
-              className="flex items-center gap-1.5 w-full px-4 py-2 text-sm text-muted-foreground hover:text-foreground hover:bg-gray-50 transition-colors disabled:opacity-50"
+              className="flex items-center gap-1.5 w-full px-4 py-2 text-sm text-muted-foreground hover:text-foreground hover:bg-muted/30 transition-colors disabled:opacity-50"
             >
               <Plus className="h-4 w-4" />
               {isAddingRow ? 'Adding...' : 'Add Row'}

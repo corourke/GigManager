@@ -75,8 +75,8 @@ const MobileLayout: React.FC<MobileLayoutProps> = ({ children, currentRoute, onN
       >
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: 56, padding: '0 16px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
-            <div style={{ width: 32, height: 32, borderRadius: 8, backgroundColor: '#0284c7', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-              <Building2 style={{ width: 18, height: 18, color: '#ffffff' }} />
+            <div style={{ width: 32, height: 32, borderRadius: 8, backgroundColor: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <Building2 style={{ width: 18, height: 18, color: 'var(--primary-foreground)' }} />
             </div>
             <div style={{ minWidth: 0 }}>
               <div style={{ fontSize: 15, fontWeight: 700, letterSpacing: '-0.025em', color: 'var(--foreground)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -85,7 +85,7 @@ const MobileLayout: React.FC<MobileLayoutProps> = ({ children, currentRoute, onN
               {organizations && organizations.length > 1 && onSwitchOrganization && (
                 <button
                   onClick={onSwitchOrganization}
-                  style={{ display: 'flex', alignItems: 'center', gap: 2, fontSize: 11, color: '#0284c7', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+                  style={{ display: 'flex', alignItems: 'center', gap: 2, fontSize: 11, color: 'var(--primary)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
                 >
                   <SwitchCamera style={{ width: 10, height: 10 }} />
                   <span>Switch</span>
@@ -98,7 +98,7 @@ const MobileLayout: React.FC<MobileLayoutProps> = ({ children, currentRoute, onN
               <button style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
                 <Avatar className="w-8 h-8">
                   <AvatarImage src={user?.avatar_url} alt={user ? `${user.first_name} ${user.last_name}` : ''} />
-                  <AvatarFallback className="bg-sky-100 text-sky-700 text-xs">
+                  <AvatarFallback className="bg-primary/10 text-primary text-xs">
                     {getInitials(user?.first_name, user?.last_name)}
                   </AvatarFallback>
                 </Avatar>
@@ -171,13 +171,13 @@ const MobileLayout: React.FC<MobileLayoutProps> = ({ children, currentRoute, onN
                   background: 'none',
                   cursor: 'pointer',
                   borderRadius: 8,
-                  color: isActive ? '#0284c7' : 'var(--muted-foreground)',
+                  color: isActive ? 'var(--primary)' : 'var(--muted-foreground)',
                 }}
               >
                 <div style={{
                   padding: 4,
                   borderRadius: 6,
-                  backgroundColor: isActive ? 'rgba(2,132,199,0.1)' : 'transparent',
+                  backgroundColor: isActive ? 'color-mix(in srgb, var(--primary) 10%, transparent)' : 'transparent',
                 }}>
                   <Icon style={{ width: 24, height: 24, strokeWidth: isActive ? 2.5 : 2 }} />
                 </div>

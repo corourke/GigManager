@@ -9,6 +9,7 @@ export interface TableState {
   sorting: SortingState | null;
   filters: Record<string, any>;
   columnVisibility: Record<string, boolean>;
+  columnWidths: Record<string, number>;
 }
 
 /**
@@ -29,6 +30,7 @@ export function useTableState(tableId: string, initialState?: Partial<TableState
           sorting: null,
           filters: {},
           columnVisibility: {},
+          columnWidths: {},
           ...initialState,
           ...JSON.parse(saved),
         };
@@ -40,6 +42,7 @@ export function useTableState(tableId: string, initialState?: Partial<TableState
       sorting: null,
       filters: {},
       columnVisibility: {},
+      columnWidths: {},
       ...initialState,
     };
   });
@@ -103,11 +106,22 @@ export function useTableState(tableId: string, initialState?: Partial<TableState
     }));
   };
 
+  const setColumnWidth = (columnId: string, width: number) => {
+    setState(prev => ({
+      ...prev,
+      columnWidths: {
+        ...prev.columnWidths,
+        [columnId]: width,
+      },
+    }));
+  };
+
   const resetState = () => {
     setState({
       sorting: null,
       filters: {},
       columnVisibility: {},
+      columnWidths: {},
       ...initialState,
     });
   };
@@ -121,6 +135,7 @@ export function useTableState(tableId: string, initialState?: Partial<TableState
     removeFilter,
     setColumnVisibility,
     toggleColumnVisibility,
+    setColumnWidth,
     resetState,
   };
 }
