@@ -172,6 +172,7 @@ export async function importPurchases(
     }
     const allGroups: PurchaseGroup[] = [];
     const latestGroupMap = new Map<string, number>(); // dateKey|vendorKey -> index in allGroups
+    let lastHeaderIdx: number | undefined = undefined;
 
     rows.forEach((row, rowIndex) => {
       const data = row.data as AssetRow;
@@ -197,6 +198,7 @@ export async function importPurchases(
               ? `${group.header.description}; ${data.manufacturer_model || data.description}`
               : (data.manufacturer_model || data.description);
           }
+          lastHeaderIdx = existingIdx;
         } else {
           // Start a NEW group
           const newGroup: PurchaseGroup = {
@@ -205,7 +207,8 @@ export async function importPurchases(
             assets: [],
           };
           allGroups.push(newGroup);
-          latestGroupMap.set(lookupKey, allGroups.length - 1);
+          lastHeaderIdx = allGroups.length - 1;
+          latestGroupMap.set(lookupKey, lastHeaderIdx);
         }
       } else if (isStandalone) {
         // Start a NEW group
@@ -217,10 +220,8 @@ export async function importPurchases(
         };
         allGroups.push(newGroup);
         // Standalone items NEVER receive further children from the map
-        // so we DON'T update latestGroupMap with the standalone-${rowIndex} key for children lookup,
-        // but wait, we need to distinguish it so it's not merged.
-        // Actually, by NOT using its lookupKey in the map, we ensure it's "Isolated".
-
+        // so we DON'T update latestGroupMap or lastHeaderIdx with the standalone row
+        
         const currentGroup = allGroups[allGroups.length - 1];
         currentGroup.items.push(mapRowToPurchaseItem(organizationId, data));
 
@@ -228,9 +229,14 @@ export async function importPurchases(
           currentGroup.assets.push(mapRowToAsset(organizationId, data));
         }
       } else {
-        // It's an item/asset that belongs to the LATEST matching group
+        // It's an item/asset that belongs to a group
         let groupIdx = latestGroupMap.get(lookupKey);
         
+        // If no explicit match via lookupKey, try the last seen header (positional grouping)
+        if (groupIdx === undefined && lastHeaderIdx !== undefined) {
+          groupIdx = lastHeaderIdx;
+        }
+
         if (groupIdx === undefined) {
           // No header found yet, create synthesized group
           const synthesizedGroup: PurchaseGroup = {
@@ -251,6 +257,14 @@ export async function importPurchases(
 
         const currentGroup = allGroups[groupIdx];
         
+        // Ensure child items have vendor/date if they were missing (inherited from header)
+        if (!data.vendor && currentGroup.header.vendor) {
+          data.vendor = currentGroup.header.vendor;
+        }
+        if (!data.acquisition_date && currentGroup.header.purchase_date) {
+          data.acquisition_date = currentGroup.header.purchase_date;
+        }
+
         if (data.source === '1' || data.source === '2') {
           currentGroup.items.push(mapRowToPurchaseItem(organizationId, data));
         }
