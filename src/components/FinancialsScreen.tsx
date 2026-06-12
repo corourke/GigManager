@@ -12,7 +12,9 @@ import {
   FileText,
   ArrowLeft,
   X,
-  RefreshCw
+  RefreshCw,
+  Upload,
+  Loader2
 } from 'lucide-react';
 import { Card } from './ui/card';
 import { PageHeader } from './ui/PageHeader';
@@ -57,7 +59,7 @@ import AppHeader from './AppHeader';
 import GigAccountingTab from './financials/GigAccountingTab';
 import { Organization, User, UserRole, DbPurchase } from '../utils/supabase/types';
 import { getPurchases, reclassifyExpenseAsAsset } from '../services/purchase.service';
-import { getEntityAttachments, getAttachmentUrl } from '../services/attachment.service';
+import { getEntityAttachments, getAttachmentUrl, uploadAttachment, linkAttachmentToEntity } from '../services/attachment.service';
 import { toast } from 'sonner';
 
 interface FinancialsScreenProps {
@@ -92,6 +94,7 @@ export default function FinancialsScreen({
   const [isLoading, setIsLoading] = useState(true);
   const [expandedItemId, setExpandedItemId] = useState<string | null>(null);
   const [reclassifyingItemId, setReclassifyingItemId] = useState<string | null>(null);
+  const [isUploadingAttachment, setIsUploadingAttachment] = useState<string | null>(null);
   const [highlightPurchaseId, setHighlightPurchaseId] = useState<string | null>(initialHighlightId || null);
   const [showOnlyHighlighted, setShowOnlyHighlighted] = useState(!!initialHighlightId);
   
@@ -109,6 +112,8 @@ export default function FinancialsScreen({
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [activeUploadHeaderId, setActiveUploadHeaderId] = useState<string | null>(null);
 
   const toggleGroup = useCallback((groupId: string) => {
     setCollapsedGroups(prev => {
@@ -158,6 +163,43 @@ export default function FinancialsScreen({
       if (url) window.open(url, '_blank');
     } catch (err) {
       toast.error('Failed to get document URL');
+    }
+  };
+
+  const triggerFileUpload = (headerId: string) => {
+    setActiveUploadHeaderId(headerId);
+    if (fileInputRef.current) {
+      fileInputRef.current.click();
+    }
+  };
+
+  const handleAttachFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    const headerId = activeUploadHeaderId;
+    
+    if (!file || !headerId) return;
+
+    setIsUploadingAttachment(headerId);
+    try {
+      const attachment = await uploadAttachment(organization.id, file);
+      await linkAttachmentToEntity(attachment.id, 'purchase', headerId);
+      
+      toast.success('File attached successfully');
+      
+      // Update local state to show the new attachment
+      setHeaderAttachments(prev => {
+        const next = new Map(prev);
+        next.set(headerId, { filePath: attachment.file_path, fileName: attachment.file_name });
+        return next;
+      });
+    } catch (err: any) {
+      console.error('Error attaching file:', err);
+      toast.error(err.message || 'Failed to attach file');
+    } finally {
+      setIsUploadingAttachment(null);
+      setActiveUploadHeaderId(null);
+      // Reset input so same file can be selected again if needed
+      if (e.target) e.target.value = '';
     }
   };
 
@@ -485,7 +527,7 @@ export default function FinancialsScreen({
                           )}
                         </div>
                         <div className="flex items-center gap-3">
-                          {headerAttachments.has(group.header.id) && (
+                          {headerAttachments.has(group.header.id) ? (
                             <Button
                               variant="ghost"
                               size="sm"
@@ -495,6 +537,22 @@ export default function FinancialsScreen({
                             >
                               <FileText className="w-3.5 h-3.5 mr-1" />
                               <span className="text-[10px]">View Doc</span>
+                            </Button>
+                          ) : (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 px-2 text-gray-500 hover:text-sky-600 hover:bg-sky-50"
+                              onClick={() => triggerFileUpload(group.header.id)}
+                              disabled={isUploadingAttachment === group.header.id}
+                              title="Attach a receipt or invoice PDF"
+                            >
+                              {isUploadingAttachment === group.header.id ? (
+                                <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" />
+                              ) : (
+                                <Upload className="w-3.5 h-3.5 mr-1" />
+                              )}
+                              <span className="text-[10px]">{isUploadingAttachment === group.header.id ? 'Attaching...' : 'Attach Doc'}</span>
                             </Button>
                           )}
                           <div className="text-right">
@@ -630,6 +688,13 @@ export default function FinancialsScreen({
           </TabsContent>
         </Tabs>
       </div>
+      <input
+        type="file"
+        ref={fileInputRef}
+        onChange={handleAttachFile}
+        className="hidden"
+        accept=".pdf,image/*"
+      />
     </div>
   );
 }
