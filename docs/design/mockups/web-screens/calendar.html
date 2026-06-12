@@ -250,15 +250,10 @@
     border: 1px solid var(--border);
     border-radius: 8px;
     overflow: hidden;
-    display: flex;
-    flex-direction: column;
-    min-height: 600px;
-  }
-  .calendar-grid-header {
     display: grid;
-    grid-template-columns: repeat(7, 1fr);
-    background: #fafafa;
-    border-bottom: 1px solid var(--border);
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    grid-template-rows: auto repeat(5, 1fr);
+    min-height: 600px;
   }
   .weekday-label {
     padding: 10px;
@@ -268,18 +263,19 @@
     letter-spacing: 0.1em;
     color: var(--muted-foreground);
     text-align: center;
+    background: #fafafa;
+    border-bottom: 1px solid var(--border);
+    border-right: 1px solid var(--border);
+    min-width: 0;
+    overflow: hidden;
   }
-  .calendar-grid-body {
-    display: grid;
-    grid-template-columns: repeat(7, 1fr);
-    grid-template-rows: repeat(5, 1fr);
-    flex: 1;
-  }
+  .weekday-label:nth-child(7) { border-right: none; }
   .day-cell {
     border-right: 1px solid var(--border);
     border-bottom: 1px solid var(--border);
     padding: 8px;
     min-height: 100px;
+    min-width: 0;
     position: relative;
   }
   .day-cell:nth-child(7n) { border-right: none; }
@@ -324,15 +320,30 @@
   .event-tentative { background: #fffbeb; color: #92400e; border: 1px solid #fef3c7; }
   .event-cancelled { background: #fef2f2; color: #991b1b; border: 1px solid #fee2e2; text-decoration: line-through; opacity: 0.7; }
 
-  .event-span {
-    position: absolute;
-    left: 8px;
-    right: -1px;
-    z-index: 2;
+  .event-span-start {
+    border-top-right-radius: 0;
+    border-bottom-right-radius: 0;
+    margin-right: -8px;
   }
-  .event-span.start { border-top-right-radius: 0; border-bottom-right-radius: 0; right: 0; }
-  .event-span.middle { border-radius: 0; left: 0; right: 0; }
-  .event-span.end { border-top-left-radius: 0; border-bottom-left-radius: 0; left: 0; }
+  .event-span-mid {
+    border-radius: 0;
+    border-left: none;
+    border-right: none;
+    margin: 0 -8px;
+    padding: 2px 0;
+    overflow: visible;
+    font-size: 0;
+    height: 20px;
+  }
+  .event-span-end {
+    border-top-left-radius: 0;
+    border-bottom-left-radius: 0;
+    border-left: none;
+    margin-left: -8px;
+    padding-left: 4px;
+    font-size: 0;
+    height: 20px;
+  }
 
   /* ─── Calendar Sidebar ─── */
   .calendar-sidebar {
@@ -406,7 +417,51 @@
   .agenda-day-num { font-size: 14px; font-weight: 700; }
   .agenda-details { flex: 1; }
   .agenda-gig-title { font-size: 13px; font-weight: 600; margin-bottom: 2px; }
-  .agenda-gig-meta { font-size: 11px; color: var(--muted-foreground); display: flex; items-center: center; gap: 4px; }
+  .agenda-gig-meta { font-size: 11px; color: var(--muted-foreground); display: flex; align-items: center; gap: 4px; }
+
+  /* ─── Recent Changes ─── */
+  .change-item {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 18px;
+    align-items: flex-start;
+  }
+  .change-date-badge {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 32px;
+    flex-shrink: 0;
+    padding-top: 2px;
+  }
+  .change-date-day-name {
+    font-size: 9px;
+    font-weight: 700;
+    text-transform: uppercase;
+    color: var(--muted-foreground);
+    line-height: 1;
+  }
+  .change-date-day-num {
+    font-size: 16px;
+    font-weight: 700;
+    line-height: 1.2;
+    color: var(--foreground);
+  }
+  .change-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    margin-top: 6px;
+    flex-shrink: 0;
+  }
+  .change-dot-new { background: #10b981; }
+  .change-dot-status { background: var(--accent-sky); }
+  .change-dot-update { background: #f59e0b; }
+  .change-dot-cancel { background: #ef4444; }
+  .change-body { flex: 1; min-width: 0; }
+  .change-gig { font-size: 12px; font-weight: 600; margin-bottom: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .change-desc { font-size: 11px; color: var(--muted-foreground); margin-bottom: 3px; }
+  .change-meta { font-size: 10px; color: var(--muted-foreground); opacity: 0.7; }
 
   /* ─── Buttons ─── */
   .btn {
@@ -581,148 +636,154 @@
 
       <!-- Calendar Grid -->
       <div class="calendar-grid-container">
-        <div class="calendar-grid-header">
-          <div class="weekday-label">Sun</div>
-          <div class="weekday-label">Mon</div>
-          <div class="weekday-label">Tue</div>
-          <div class="weekday-label">Wed</div>
-          <div class="weekday-label">Thu</div>
-          <div class="weekday-label">Fri</div>
-          <div class="weekday-label">Sat</div>
+        <!-- Header row -->
+        <div class="weekday-label">Sun</div>
+        <div class="weekday-label">Mon</div>
+        <div class="weekday-label">Tue</div>
+        <div class="weekday-label">Wed</div>
+        <div class="weekday-label">Thu</div>
+        <div class="weekday-label">Fri</div>
+        <div class="weekday-label">Sat</div>
+        <!-- Week 1: May 31 – Jun 6 -->
+        <div class="day-cell other-month">
+          <span class="day-number">31</span>
         </div>
-        <div class="calendar-grid-body">
-          <!-- Week 1 -->
-          <div class="day-cell other-month">
-            <span class="day-number">31</span>
+        <div class="day-cell">
+          <span class="day-number">1</span>
+        </div>
+        <div class="day-cell">
+          <span class="day-number">2</span>
+        </div>
+        <div class="day-cell">
+          <span class="day-number">3</span>
+        </div>
+        <div class="day-cell today">
+          <span class="day-number">4</span>
+          <div class="event-list">
+            <div class="event event-confirmed event-span-start">Northwest Tour — Leg 1</div>
           </div>
-          <div class="day-cell">
-            <span class="day-number">1</span>
+        </div>
+        <div class="day-cell">
+          <span class="day-number">5</span>
+          <div class="event-list">
+            <div class="event event-confirmed event-span-mid">&nbsp;</div>
+            <div class="event event-pending">Summer Jam Festival</div>
           </div>
-          <div class="day-cell">
-            <span class="day-number">2</span>
+        </div>
+        <div class="day-cell">
+          <span class="day-number">6</span>
+          <div class="event-list">
+            <div class="event event-confirmed event-span-end">&nbsp;</div>
+            <div class="event event-pending">Summer Jam Festival</div>
+            <div class="event" style="background:var(--muted);color:var(--muted-foreground);border-color:var(--border);">+ 1 more</div>
           </div>
-          <div class="day-cell">
-            <span class="day-number">3</span>
+        </div>
+        <!-- Week 2: Jun 7 – Jun 13 -->
+        <div class="day-cell">
+          <span class="day-number">7</span>
+        </div>
+        <div class="day-cell">
+          <span class="day-number">8</span>
+        </div>
+        <div class="day-cell">
+          <span class="day-number">9</span>
+        </div>
+        <div class="day-cell">
+          <span class="day-number">10</span>
+          <div class="event-list">
+            <div class="event event-pending">Corporate Gala: TechCorp</div>
           </div>
-          <div class="day-cell today">
-            <span class="day-number">4</span>
-            <div class="event-list">
-              <div class="event event-confirmed" style="position: absolute; width: 280%; top: 36px; left: 8px; z-index: 10;">Northwest Tour — Leg 1</div>
-            </div>
+        </div>
+        <div class="day-cell">
+          <span class="day-number">11</span>
+        </div>
+        <div class="day-cell">
+          <span class="day-number">12</span>
+        </div>
+        <div class="day-cell">
+          <span class="day-number">13</span>
+        </div>
+        <!-- Week 3: Jun 14 – Jun 20 -->
+        <div class="day-cell">
+          <span class="day-number">14</span>
+        </div>
+        <div class="day-cell">
+          <span class="day-number">15</span>
+          <div class="event-list">
+            <div class="event event-span-start" style="background:#e0f2fe;border-color:#7dd3fc;color:#0369a1;">Recording Session @ SoundGate</div>
           </div>
-          <div class="day-cell">
-            <span class="day-number">5</span>
-            <div class="event-list" style="margin-top: 22px;">
-              <div class="event event-confirmed">Summer Jam Festival</div>
-            </div>
+        </div>
+        <div class="day-cell">
+          <span class="day-number">16</span>
+          <div class="event-list">
+            <div class="event event-span-mid" style="background:#e0f2fe;border-color:#7dd3fc;color:#0369a1;">&nbsp;</div>
           </div>
-          <div class="day-cell">
-            <span class="day-number">6</span>
-            <div class="event-list" style="margin-top: 22px;">
-              <div class="event event-confirmed">Summer Jam Festival</div>
-              <div class="event event-muted">+ 2 more</div>
-            </div>
+        </div>
+        <div class="day-cell">
+          <span class="day-number">17</span>
+          <div class="event-list">
+            <div class="event event-span-mid" style="background:#e0f2fe;border-color:#7dd3fc;color:#0369a1;">&nbsp;</div>
           </div>
-          <!-- Week 2 -->
-          <div class="day-cell">
-            <span class="day-number">7</span>
+        </div>
+        <div class="day-cell">
+          <span class="day-number">18</span>
+          <div class="event-list">
+            <div class="event event-span-end" style="background:#e0f2fe;border-color:#7dd3fc;color:#0369a1;">&nbsp;</div>
+            <div class="event event-tentative">Wedding: Sarah &amp; Tom</div>
           </div>
-          <div class="day-cell">
-            <span class="day-number">8</span>
+        </div>
+        <div class="day-cell">
+          <span class="day-number">19</span>
+        </div>
+        <div class="day-cell">
+          <span class="day-number">20</span>
+        </div>
+        <!-- Week 4: Jun 21 – Jun 27 -->
+        <div class="day-cell">
+          <span class="day-number">21</span>
+        </div>
+        <div class="day-cell">
+          <span class="day-number">22</span>
+        </div>
+        <div class="day-cell">
+          <span class="day-number">23</span>
+          <div class="event-list">
+            <div class="event event-cancelled">Jazz Night @ Blue Note</div>
           </div>
-          <div class="day-cell">
-            <span class="day-number">9</span>
-          </div>
-          <div class="day-cell">
-            <span class="day-number">10</span>
-            <div class="event-list">
-              <div class="event event-pending">Corporate Gala: TechCorp</div>
-            </div>
-          </div>
-          <div class="day-cell">
-            <span class="day-number">11</span>
-          </div>
-          <div class="day-cell">
-            <span class="day-number">12</span>
-          </div>
-          <div class="day-cell">
-            <span class="day-number">13</span>
-          </div>
-          <!-- Week 3 -->
-          <div class="day-cell">
-            <span class="day-number">14</span>
-          </div>
-          <div class="day-cell">
-            <span class="day-number">15</span>
-            <div class="event-list">
-               <div class="event event-confirmed" style="position: absolute; width: 480%; top: 36px; left: 8px; z-index: 10; background: #e0f2fe; border-color: #7dd3fc; color: #0369a1;">Recording Session @ SoundGate</div>
-            </div>
-          </div>
-          <div class="day-cell">
-            <span class="day-number">16</span>
-          </div>
-          <div class="day-cell">
-            <span class="day-number">17</span>
-          </div>
-          <div class="day-cell">
-            <span class="day-number">18</span>
-            <div class="event-list" style="margin-top: 22px;">
-              <div class="event event-tentative">Wedding: Sarah & Tom</div>
-            </div>
-          </div>
-          <div class="day-cell">
-            <span class="day-number">19</span>
-          </div>
-          <div class="day-cell">
-            <span class="day-number">20</span>
-          </div>
-          <!-- Week 4 -->
-          <div class="day-cell">
-            <span class="day-number">21</span>
-          </div>
-          <div class="day-cell">
-            <span class="day-number">22</span>
-          </div>
-          <div class="day-cell">
-            <span class="day-number">23</span>
-            <div class="event-list">
-              <div class="event event-cancelled">Jazz Night @ Blue Note</div>
-            </div>
-          </div>
-          <div class="day-cell">
-            <span class="day-number">24</span>
-          </div>
-          <div class="day-cell">
-            <span class="day-number">25</span>
-          </div>
-          <div class="day-cell">
-            <span class="day-number">26</span>
-          </div>
-          <div class="day-cell">
-            <span class="day-number">27</span>
-          </div>
-          <!-- Week 5 -->
-          <div class="day-cell">
-            <span class="day-number">28</span>
-          </div>
-          <div class="day-cell">
-            <span class="day-number">29</span>
-          </div>
-          <div class="day-cell">
-            <span class="day-number">30</span>
-          </div>
-          <div class="day-cell other-month">
-            <span class="day-number">1</span>
-          </div>
-          <div class="day-cell other-month">
-            <span class="day-number">2</span>
-          </div>
-          <div class="day-cell other-month">
-            <span class="day-number">3</span>
-          </div>
-          <div class="day-cell other-month">
-            <span class="day-number">4</span>
-          </div>
+        </div>
+        <div class="day-cell">
+          <span class="day-number">24</span>
+        </div>
+        <div class="day-cell">
+          <span class="day-number">25</span>
+        </div>
+        <div class="day-cell">
+          <span class="day-number">26</span>
+        </div>
+        <div class="day-cell">
+          <span class="day-number">27</span>
+        </div>
+        <!-- Week 5: Jun 28 – Jul 4 -->
+        <div class="day-cell">
+          <span class="day-number">28</span>
+        </div>
+        <div class="day-cell">
+          <span class="day-number">29</span>
+        </div>
+        <div class="day-cell">
+          <span class="day-number">30</span>
+        </div>
+        <div class="day-cell other-month">
+          <span class="day-number">1</span>
+        </div>
+        <div class="day-cell other-month">
+          <span class="day-number">2</span>
+        </div>
+        <div class="day-cell other-month">
+          <span class="day-number">3</span>
+        </div>
+        <div class="day-cell other-month">
+          <span class="day-number">4</span>
         </div>
       </div>
     </div>
@@ -793,59 +854,83 @@
       </div>
       
       <div class="agenda-section">
-        <h3 class="agenda-title">Upcoming Gigs</h3>
-        
-        <div class="agenda-item">
-          <div class="agenda-date">
-            <span class="agenda-day-name">Fri</span>
-            <span class="agenda-day-num">05</span>
+        <h3 class="agenda-title">Recent Changes — June 2026</h3>
+
+        <div class="change-item">
+          <div class="change-date-badge">
+            <span class="change-date-day-name">Thu</span>
+            <span class="change-date-day-num">04</span>
           </div>
-          <div class="agenda-details">
-            <div class="agenda-gig-title">Summer Jam Festival</div>
-            <div class="agenda-gig-meta">
-              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-              14:00 – 22:00
-            </div>
-            <div class="agenda-gig-meta">
-              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
-              Central Park
-            </div>
+          <div class="change-dot change-dot-status"></div>
+          <div class="change-body">
+            <div class="change-gig">Northwest Tour — Leg 1</div>
+            <div class="change-desc">Status → Confirmed</div>
+            <div class="change-meta">Changed Jun 2</div>
           </div>
         </div>
-        
-        <div class="agenda-item">
-          <div class="agenda-date">
-            <span class="agenda-day-name">Wed</span>
-            <span class="agenda-day-num">10</span>
+
+        <div class="change-item">
+          <div class="change-date-badge">
+            <span class="change-date-day-name">Fri</span>
+            <span class="change-date-day-num">05</span>
           </div>
-          <div class="agenda-details">
-            <div class="agenda-gig-title">Corporate Gala: TechCorp</div>
-            <div class="agenda-gig-meta">
-              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-              18:30 – 23:00
-            </div>
-            <div class="agenda-gig-meta">
-              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
-              Grand Ballroom
-            </div>
+          <div class="change-dot change-dot-new"></div>
+          <div class="change-body">
+            <div class="change-gig">Summer Jam Festival</div>
+            <div class="change-desc">New booking added</div>
+            <div class="change-meta">Changed Jun 3</div>
           </div>
         </div>
-        
-        <div class="agenda-item">
-          <div class="agenda-date">
-            <span class="agenda-day-name">Thu</span>
-            <span class="agenda-day-num">18</span>
+
+        <div class="change-item">
+          <div class="change-date-badge">
+            <span class="change-date-day-name">Wed</span>
+            <span class="change-date-day-num">10</span>
           </div>
-          <div class="agenda-details">
-            <div class="agenda-gig-title">Wedding: Sarah & Tom</div>
-            <div class="agenda-gig-meta">
-              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-              16:00 – 00:00
-            </div>
-            <div class="agenda-gig-meta">
-              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
-              Pinecrest Estate
-            </div>
+          <div class="change-dot change-dot-update"></div>
+          <div class="change-body">
+            <div class="change-gig">Corporate Gala: TechCorp</div>
+            <div class="change-desc">Start time · 17:00 → 18:30</div>
+            <div class="change-meta">Changed Jun 7</div>
+          </div>
+        </div>
+
+        <div class="change-item">
+          <div class="change-date-badge">
+            <span class="change-date-day-name">Mon</span>
+            <span class="change-date-day-num">15</span>
+          </div>
+          <div class="change-dot change-dot-new"></div>
+          <div class="change-body">
+            <div class="change-gig">Recording Session @ SoundGate</div>
+            <div class="change-desc">New booking added</div>
+            <div class="change-meta">Changed Jun 11</div>
+          </div>
+        </div>
+
+        <div class="change-item">
+          <div class="change-date-badge">
+            <span class="change-date-day-name">Thu</span>
+            <span class="change-date-day-num">18</span>
+          </div>
+          <div class="change-dot change-dot-update"></div>
+          <div class="change-body">
+            <div class="change-gig">Wedding: Sarah &amp; Tom</div>
+            <div class="change-desc">Venue → Pinecrest Estate</div>
+            <div class="change-meta">Changed Jun 14</div>
+          </div>
+        </div>
+
+        <div class="change-item">
+          <div class="change-date-badge">
+            <span class="change-date-day-name">Mon</span>
+            <span class="change-date-day-num">23</span>
+          </div>
+          <div class="change-dot change-dot-cancel"></div>
+          <div class="change-body">
+            <div class="change-gig">Jazz Night @ Blue Note</div>
+            <div class="change-desc">Cancelled by client</div>
+            <div class="change-meta">Changed Jun 20</div>
           </div>
         </div>
       </div>
