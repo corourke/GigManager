@@ -2,10 +2,36 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.8";
 import Anthropic from "https://esm.sh/@anthropic-ai/sdk@0.32.1";
 import { encodeBase64 } from "https://deno.land/std@0.224.0/encoding/base64.ts";
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
+const ALLOWED_ORIGINS = new Set([
+  'https://gigwrangler.com',
+  'https://www.gigwrangler.com',
+  'https://gigwrangler.pages.dev',
+  'http://localhost:3000',
+  'https://localhost:3000',
+]);
+
+function getCorsHeaders(req: Request): Record<string, string> {
+  const origin = req.headers.get('Origin') ?? '';
+  const headers: Record<string, string> = {
+    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+    'Vary': 'Origin',
+  };
+  if (ALLOWED_ORIGINS.has(origin)) {
+    headers['Access-Control-Allow-Origin'] = origin;
+  }
+  return headers;
+}
+
+const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024; // 10 MB
+const SCANS_PER_HOUR_LIMIT = 20;
+const ALLOWED_MEDIA_TYPES = new Set([
+  'application/pdf',
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+  'image/gif',
+]);
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 const ASSET_CATEGORY_HINTS = `
 ASSET categories (for durable equipment):
@@ -105,62 +131,19 @@ function classifyItem(item: any) {
 }
 
 Deno.serve(async (req) => {
+  const corsHeaders = getCorsHeaders(req);
+
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
-  }
-
-  // Check for diagnostic request BEFORE auth
-  // This allows verifying the ANTHROPIC_API_KEY without a user session
-  const isDiagnostic = req.headers.get('x-diagnostic') === 'true';
-  if (isDiagnostic) {
-    const apiKey = Deno.env.get('ANTHROPIC_API_KEY');
-    if (!apiKey) {
-      return new Response(JSON.stringify({ 
-        status: 'error', 
-        message: 'ANTHROPIC_API_KEY environment variable is not set' 
-      }), {
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
-
-    try {
-      const anthropic = new Anthropic({ apiKey });
-      // Attempt a very simple message to verify connectivity and key validity
-      const testResponse = await anthropic.messages.create({
-        model: "claude-sonnet-4-6",
-        max_tokens: 5,
-        messages: [{ role: "user", content: "hi" }]
-      });
-      
-      return new Response(JSON.stringify({ 
-        status: 'ok', 
-        message: 'Anthropic connectivity successful',
-        apiKeyPrefix: apiKey.substring(0, 7) + '...',
-        modelUsed: testResponse.model,
-        usageRecorded: true
-      }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    } catch (e: any) {
-      return new Response(JSON.stringify({ 
-        status: 'error', 
-        message: 'Anthropic connectivity failed',
-        error: e.message,
-        errorType: e.type,
-        statusCode: e.status,
-        apiKeyPrefix: apiKey.substring(0, 7) + '...',
-      }), {
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
   }
 
   try {
     const authHeader = req.headers.get('Authorization');
     if (!authHeader) {
-      throw new Error('Missing Authorization header');
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+        status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
     }
 
     const supabaseClient = createClient(
@@ -179,6 +162,7 @@ Deno.serve(async (req) => {
 
     const formData = await req.formData();
     const file = formData.get('file') as File;
+    const organizationId = formData.get('organization_id');
 
     if (!file) {
       return new Response(JSON.stringify({ error: 'No file provided' }), {
@@ -186,6 +170,98 @@ Deno.serve(async (req) => {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
+
+    if (typeof organizationId !== 'string' || !UUID_REGEX.test(organizationId)) {
+      return new Response(JSON.stringify({ error: 'organization_id is required' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    // Service-role client for the membership check and rate limiting
+    // (ai_scan_usage has no RLS policies; it is service-role only)
+    const adminClient = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+    );
+
+    const { data: membership, error: membershipError } = await adminClient
+      .from('organization_members')
+      .select('id')
+      .eq('organization_id', organizationId)
+      .eq('user_id', user.id)
+      .maybeSingle();
+
+    if (membershipError || !membership) {
+      return new Response(JSON.stringify({ error: 'Not a member of this organization' }), {
+        status: 403,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    if (file.size > MAX_FILE_SIZE_BYTES) {
+      return new Response(JSON.stringify({ error: 'File too large (max 10 MB)' }), {
+        status: 413,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    // Resolve the media type (fall back to extension for clients that send
+    // a generic content type) and enforce the allowlist
+    let mediaType = file.type;
+    if (!ALLOWED_MEDIA_TYPES.has(mediaType)) {
+      const ext = file.name.split('.').pop()?.toLowerCase();
+      if (ext === 'pdf') mediaType = 'application/pdf';
+      else if (ext === 'jpg' || ext === 'jpeg') mediaType = 'image/jpeg';
+      else if (ext === 'png') mediaType = 'image/png';
+      else if (ext === 'webp') mediaType = 'image/webp';
+      else if (ext === 'gif') mediaType = 'image/gif';
+    }
+    if (!ALLOWED_MEDIA_TYPES.has(mediaType)) {
+      return new Response(
+        JSON.stringify({ error: 'Unsupported file type (PDF, JPEG, PNG, WebP, or GIF only)' }),
+        {
+          status: 415,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        }
+      );
+    }
+
+    // Per-user rate limit: count scans in the trailing hour before spending
+    // Anthropic credits; record the attempt before making the call
+    const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+    const { count: recentScans, error: usageError } = await adminClient
+      .from('ai_scan_usage')
+      .select('id', { count: 'exact', head: true })
+      .eq('user_id', user.id)
+      .gte('created_at', oneHourAgo);
+
+    if (usageError) {
+      console.error('Failed to check scan usage:', usageError);
+      throw new Error('Unable to verify scan quota');
+    }
+
+    if ((recentScans ?? 0) >= SCANS_PER_HOUR_LIMIT) {
+      return new Response(
+        JSON.stringify({ error: `Scan limit reached (${SCANS_PER_HOUR_LIMIT}/hour). Try again later.` }),
+        {
+          status: 429,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        }
+      );
+    }
+
+    const { error: insertError } = await adminClient
+      .from('ai_scan_usage')
+      .insert({ user_id: user.id, organization_id: organizationId });
+    if (insertError) {
+      console.error('Failed to record scan usage:', insertError);
+      throw new Error('Unable to record scan usage');
+    }
+
+    // Opportunistic cleanup so the usage table stays small
+    const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    await adminClient.from('ai_scan_usage').delete().lt('created_at', oneDayAgo);
 
     const arrayBuffer = await file.arrayBuffer();
     const uint8Array = new Uint8Array(arrayBuffer);
@@ -200,13 +276,10 @@ Deno.serve(async (req) => {
       apiKey,
     });
 
-    const fileType = file.type;
-    const isPDF = fileType === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
-    
     // Determine content for Anthropic message
     const content: any[] = [];
-    
-    if (isPDF) {
+
+    if (mediaType === 'application/pdf') {
       content.push({
         type: "document",
         source: {
@@ -216,16 +289,6 @@ Deno.serve(async (req) => {
         },
       });
     } else {
-      // Handle images (Anthropic supports image/jpeg, image/png, image/gif, image/webp)
-      let mediaType = fileType;
-      if (!mediaType.startsWith('image/')) {
-        const ext = file.name.split('.').pop()?.toLowerCase();
-        if (ext === 'png') mediaType = 'image/png';
-        else if (ext === 'webp') mediaType = 'image/webp';
-        else if (ext === 'gif') mediaType = 'image/gif';
-        else mediaType = 'image/jpeg'; // default fallback
-      }
-
       content.push({
         type: "image",
         source: {

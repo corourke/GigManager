@@ -438,11 +438,12 @@ export async function reclassifyExpenseAsAsset(purchaseItemId: string): Promise<
 /**
  * Scan an invoice or receipt PDF using AI
  */
-export async function scanInvoice(file: File) {
+export async function scanInvoice(file: File, organizationId: string) {
   const supabase = getSupabase();
   try {
     const formData = new FormData();
     formData.append('file', file);
+    formData.append('organization_id', organizationId);
 
     const { data, error } = await supabase.functions.invoke('ai-scan', {
       body: formData,

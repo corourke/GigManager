@@ -94,14 +94,18 @@ describe('purchase.service', () => {
   });
 
   describe('scanInvoice', () => {
-    it('should invoke the ai-scan edge function', async () => {
+    it('should invoke the ai-scan edge function with the file and organization id', async () => {
       const mockFile = new File(['test'], 'invoice.pdf', { type: 'application/pdf' });
       const mockResult = { vendor: 'Amazon', items: [] };
       mockSupabase.functions.invoke.mockResolvedValue({ data: mockResult, error: null });
 
-      const result = await scanInvoice(mockFile);
+      const result = await scanInvoice(mockFile, 'org-1');
 
       expect(mockSupabase.functions.invoke).toHaveBeenCalledWith('ai-scan', expect.any(Object));
+      const body = mockSupabase.functions.invoke.mock.calls[0][1].body as FormData;
+      // The edge function requires organization_id to enforce org membership
+      expect(body.get('organization_id')).toBe('org-1');
+      expect(body.get('file')).toBe(mockFile);
       expect(result).toEqual(mockResult);
     });
   });

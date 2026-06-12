@@ -149,7 +149,7 @@ export default function AssetListScreen({
     setScannedFile(file);
     setIsScanning(true);
     try {
-      const data = await scanInvoice(file);
+      const data = await scanInvoice(file, organization.id);
       setScannedData(data);
       setShowReviewDialog(true);
     } catch (err: any) {

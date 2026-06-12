@@ -18,9 +18,10 @@
 8. [Purchases & Attachments](#purchases--attachments)
 9. [Staff Management Tables](#staff-management-tables)
 10. [Equipment Tables](#equipment-tables)
-11. [Row-Level Security (RLS)](#row-level-security-rls)
-12. [Authentication](#authentication)
-13. [Real-Time Features](#real-time-features)
+11. [Operational Tables](#operational-tables)
+12. [Row-Level Security (RLS)](#row-level-security-rls)
+13. [Authentication](#authentication)
+14. [Real-Time Features](#real-time-features)
 
 ---
 
@@ -648,6 +649,7 @@ Metadata for files stored in Supabase Storage.
 - Files are stored in Supabase Storage; this table tracks metadata only.
 - Scoped to organization via `organization_id` for tenant isolation.
 - RLS is **ENABLED** on this table. Users can view attachments for their organization; Admins/Managers can manage.
+- `file_path` MUST follow the `{organization_id}/{filename}` convention: the storage policies on the `attachments` bucket derive the owning org from the first path segment (org members can read; Admins/Managers can write — see `docs/technical/security-scheme.md` §6 and migration `20260612000000_scope_attachment_storage_policies.sql`).
 
 ---
 
@@ -1023,6 +1025,26 @@ Tracks sync status of gigs to Google Calendar per user.
 - Unique constraint on (gig_id, user_id) — one sync record per gig per user.
 - RLS is **ENABLED**. Users can manage their own sync records; read access extends to gigs the user participates in.
 - Uses the `sync_status` enum type.
+
+---
+
+## Operational Tables
+
+### ai_scan_usage
+
+Usage log for the `ai-scan` edge function, used for per-user rate limiting (20 scans/hour).
+
+| Field | Type | Description |
+|-------|------|-------------|
+| id | UUID | Primary key |
+| user_id | UUID | The user who requested the scan (NOT NULL) |
+| organization_id | UUID | The organization the scan was for (NOT NULL) |
+| created_at | TIMESTAMPTZ | Scan timestamp (NOT NULL) |
+
+**Notes:**
+- RLS is **ENABLED with no policies** — only the edge function's service-role client can read or write.
+- Not a long-term audit log: the edge function opportunistically deletes rows older than 24 hours.
+- Indexed on (user_id, created_at) for the trailing-hour quota query.
 
 ---
 

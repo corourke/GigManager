@@ -153,8 +153,8 @@ Work through the phases in order. Do not start a phase until the previous phase'
 
 ## Progress Tracker
 
-- [ ] Phase 1 — Attachment storage policies scoped per-org (+ migration applied by user)
-- [ ] Phase 2 — ai-scan locked down (+ deployed to dev by user)
+- [x] Phase 1 — Attachment storage policies scoped per-org (+ migration applied by user)
+- [x] Phase 2 — ai-scan locked down (+ deployed to dev by user)
 - [ ] Phase 3 — tsconfig (strict) + ESLint + 2 failing tests fixed
 - [ ] Phase 4 — GitHub Actions CI + deploy script gates
 - [ ] Phase 5 — Sentry (web + edge), DSNs configured by user

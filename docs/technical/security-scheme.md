@@ -44,3 +44,30 @@ A user `U` can access Gig `G` if:
 - `user_is_admin_or_manager_of_org(org_id, user_id)`
 - `user_has_access_to_gig(gig_id, user_id)`
 - `get_user_role_in_org(org_id, user_id)`: Returns the `user_role` enum.
+
+## 6. Storage (Attachments Bucket)
+
+Files (invoices, receipts, photos) live in the private `attachments` storage bucket and are served exclusively via short-lived signed URLs (1-hour expiry, created in `attachment.service.ts`).
+
+### Path Convention
+Every object is stored as `{organization_id}/{filename}`. The org-id prefix is the unit of isolation: storage policies derive the owning organization from the first path segment with `(storage.foldername(name))[1]::uuid`. Uploads that do not carry a valid org-id prefix are rejected by policy.
+
+### Policies on `storage.objects` (bucket_id = 'attachments')
+| Operation | Requirement |
+|-----------|-------------|
+| SELECT (incl. signed-URL creation) | `user_is_member_of_org(prefix_org, auth.uid())` |
+| INSERT | `user_is_admin_or_manager_of_org(prefix_org, auth.uid())` |
+| UPDATE | `user_is_admin_or_manager_of_org(prefix_org, auth.uid())` |
+| DELETE | `user_is_admin_or_manager_of_org(prefix_org, auth.uid())` |
+
+This mirrors the table-level RBAC: any member of the org can view its files; only Admin/Manager can write. Cross-organization access is impossible regardless of client behavior, because the policy — not the client-supplied `organization_id` — is the enforcement point. Defined in migration `20260612000000_scope_attachment_storage_policies.sql`, which also gates on all existing objects/`attachments.file_path` rows conforming to the path convention before applying.
+
+## 7. Edge Function: ai-scan
+
+The `ai-scan` function makes paid Anthropic API calls, so it enforces its own gate chain (it cannot rely on RLS — the file never touches the database):
+
+1. **Authentication**: requires a valid Bearer token (`auth.getUser()`); no unauthenticated code path exists. The pre-auth `x-diagnostic` mode (which made a live Anthropic call and disclosed the API key prefix) was removed in June 2026.
+2. **Org membership**: the request must include an `organization_id` form field; the function verifies the caller's membership against `organization_members` (service-role client) and rejects with 403 otherwise.
+3. **File limits**: 10 MB max (413) and a media-type allowlist — PDF, JPEG, PNG, WebP, GIF (415).
+4. **Rate limit**: 20 scans per user per hour, tracked in the service-role-only `ai_scan_usage` table; exceeded → 429. Usage is recorded *before* the Anthropic call so failed/aborted calls still count toward the quota.
+5. **CORS**: pinned origin allowlist (production domains + `localhost:3000`); unknown origins receive no `Access-Control-Allow-Origin` header.
