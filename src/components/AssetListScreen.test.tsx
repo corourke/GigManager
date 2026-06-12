@@ -96,14 +96,14 @@ describe('AssetListScreen', () => {
 
   it('renders tracking columns in table header', async () => {
     const { findAllByText } = render(<AssetListScreen {...mockProps} />)
-    expect((await findAllByText('Current Status')).length).toBeGreaterThan(0)
+    expect((await findAllByText('Inventory Status')).length).toBeGreaterThan(0)
     expect((await findAllByText('Last Location')).length).toBeGreaterThan(0)
     expect((await findAllByText('Active Gig')).length).toBeGreaterThan(0)
   })
 
   it('renders tracking status filter dropdown', async () => {
     const { findAllByText } = render(<AssetListScreen {...mockProps} />)
-    expect((await findAllByText('Tracking Status:')).length).toBeGreaterThan(0)
+    expect((await findAllByText('Tracking:')).length).toBeGreaterThan(0)
   })
 })
 
