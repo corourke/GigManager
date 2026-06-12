@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useCallback, useRef } from 'react';
+import React, { useMemo, useState, useCallback, useRef, useEffect } from 'react';
 import {
   ChevronUp,
   ChevronDown,
@@ -116,6 +116,7 @@ export function SmartDataTable<T extends { id: string }>({
 
   const [newRowIds, setNewRowIds] = useState<Set<string>>(new Set());
   const [isAddingRow, setIsAddingRow] = useState(false);
+  const [resizingWidths, setResizingWidths] = useState<Record<string, number>>({});
 
   const processedData = useMemo(() => {
     let result = [...data];
@@ -230,6 +231,7 @@ export function SmartDataTable<T extends { id: string }>({
   const tableContainerRef = useRef<HTMLDivElement>(null);
   const tableRef = useRef<HTMLTableElement>(null);
   const resizingRef = useRef<{ columnId: string; startX: number; startWidth: number } | null>(null);
+  const activeResizeHandlers = useRef<{ move: (e: MouseEvent) => void; up: () => void } | null>(null);
 
   const BASE_COL_WIDTH = 50;
   const SORT_ICON_WIDTH = 20;
@@ -252,6 +254,8 @@ export function SmartDataTable<T extends { id: string }>({
     const startWidth = th.getBoundingClientRect().width;
 
     resizingRef.current = { columnId, startX: e.clientX, startWidth };
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
 
     const handleMouseMove = (moveEvent: MouseEvent) => {
       if (!resizingRef.current) return;
@@ -259,22 +263,53 @@ export function SmartDataTable<T extends { id: string }>({
       const minW = col ? getMinColWidth(col) : BASE_COL_WIDTH;
       const diff = moveEvent.clientX - resizingRef.current.startX;
       const newWidth = Math.max(minW, resizingRef.current.startWidth + diff);
-      setColumnWidth(resizingRef.current.columnId, newWidth);
+      
+      setResizingWidths(prev => ({
+        ...prev,
+        [resizingRef.current!.columnId]: newWidth
+      }));
     };
 
     const handleMouseUp = () => {
-      resizingRef.current = null;
-      document.removeEventListener('mousemove', handleMouseMove);
-      document.removeEventListener('mouseup', handleMouseUp);
+      if (resizingRef.current) {
+        const { columnId } = resizingRef.current;
+        setResizingWidths(prev => {
+          const finalWidth = prev[columnId];
+          if (finalWidth !== undefined) {
+            setColumnWidth(columnId, finalWidth);
+          }
+          const next = { ...prev };
+          delete next[columnId];
+          return next;
+        });
+        resizingRef.current = null;
+      }
+      if (activeResizeHandlers.current) {
+        document.removeEventListener('mousemove', activeResizeHandlers.current.move);
+        document.removeEventListener('mouseup', activeResizeHandlers.current.up);
+        activeResizeHandlers.current = null;
+      }
       document.body.style.cursor = '';
       document.body.style.userSelect = '';
     };
 
+    activeResizeHandlers.current = { move: handleMouseMove, up: handleMouseUp };
     document.addEventListener('mousemove', handleMouseMove);
     document.addEventListener('mouseup', handleMouseUp);
-    document.body.style.cursor = 'col-resize';
-    document.body.style.userSelect = 'none';
-  }, [setColumnWidth]);
+  }, [columns, getMinColWidth, setColumnWidth]);
+
+  // Cleanup in case of unmount during resize
+  useEffect(() => {
+    return () => {
+      if (activeResizeHandlers.current) {
+        document.removeEventListener('mousemove', activeResizeHandlers.current.move);
+        document.removeEventListener('mouseup', activeResizeHandlers.current.up);
+        activeResizeHandlers.current = null;
+      }
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    };
+  }, []);
 
   const moveSelection = useCallback((direction: 'next' | 'prev' | 'up' | 'down') => {
     if (!selectedCell) return false;
@@ -477,13 +512,13 @@ export function SmartDataTable<T extends { id: string }>({
         <Table ref={tableRef} className="table-fixed border-collapse" style={{ minWidth: '100%' }}>
           <colgroup>
             {visibleColumns.map((column) => {
-              const width = columnWidths[column.id];
+              const width = resizingWidths[column.id] ?? columnWidths[column.id];
               const minW = getMinColWidth(column);
               return (
                 <col
                   key={column.id}
                   style={width ? { width: `${width}px`, minWidth: `${minW}px` } : { minWidth: `${minW}px` }}
-                  className={!width ? column.className : undefined}
+                  className={column.className}
                 />
               );
             })}
@@ -491,12 +526,14 @@ export function SmartDataTable<T extends { id: string }>({
           </colgroup>
           <TableHeader>
             <TableRow className="bg-muted/30 hover:bg-muted/30">
-              {visibleColumns.map((column) => (
-                <TableHead
-                  key={column.id}
-                  className={cn("p-0 group !whitespace-normal relative", !columnWidths[column.id] && column.className)}
-                  style={columnWidths[column.id] ? { width: `${columnWidths[column.id]}px` } : undefined}
-                >
+              {visibleColumns.map((column) => {
+                const width = resizingWidths[column.id] ?? columnWidths[column.id];
+                return (
+                  <TableHead
+                    key={column.id}
+                    className={cn("p-0 group !whitespace-normal relative", column.className)}
+                    style={width ? { width: `${width}px` } : undefined}
+                  >
                   <div className="flex items-center gap-1 w-full h-full px-2.5 py-2.5">
                     <span 
                       className={cn(
@@ -566,7 +603,8 @@ export function SmartDataTable<T extends { id: string }>({
                     onMouseDown={(e) => handleResizeStart(column.id, e)}
                   />
                 </TableHead>
-              ))}
+              );
+            })}
               {(actions || rowActions) && (
                 <TableHead style={{ width: `${ACTIONS_COL_WIDTH}px` }} className="px-1" />
               )}

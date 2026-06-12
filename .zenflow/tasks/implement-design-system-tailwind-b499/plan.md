@@ -41,6 +41,13 @@ Migrated from a static pre-compiled `src/index.css` (Tailwind v4 snapshot) to a 
 - Updated `Table` component to forward refs for resize measurement
 - Updated test mocks and row-actions test to work with dropdown pattern
 
+### [x] Step 8: Design Review and Refinements
+- Performed cross-review using `sonnet-4-6-think`
+- Fixed `column.className` being dropped after resizing
+- Added unmount-safety cleanup for global resize event listeners
+- Optimized performance by delaying `localStorage` writes until `mouseup`
+- Verified all changes with `npm run build && npm run test:run` (523 tests passing)
+
 ## Verification
 
 `npm run build && npm run test:run` — **62 test files, 523 tests: all passed** ✓
