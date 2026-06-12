@@ -10,10 +10,12 @@ vi.mock('../../utils/hooks/useTableState', () => ({
     sorting: null,
     filters: {},
     columnVisibility: {},
+    columnWidths: {},
     toggleSorting: vi.fn(),
     setFilter: vi.fn(),
     removeFilter: vi.fn(),
     toggleColumnVisibility: vi.fn(),
+    setColumnWidth: vi.fn(),
   })),
 }));
 
@@ -164,10 +166,13 @@ describe('SmartDataTable', () => {
       />
     );
 
-    const deleteButtons = screen.getAllByTitle('Delete Row');
-    expect(deleteButtons).toHaveLength(3);
+    const menuTriggers = screen.getAllByRole('button', { name: '' });
+    const actionTriggers = menuTriggers.filter(btn => btn.querySelector('.lucide-ellipsis'));
+    expect(actionTriggers).toHaveLength(3);
 
-    await user.click(deleteButtons[0]);
+    await user.click(actionTriggers[0]);
+    const deleteItem = await screen.findByText('Delete Row');
+    await user.click(deleteItem);
     expect(onDelete).toHaveBeenCalledWith(data[0]);
   });
 
@@ -214,10 +219,12 @@ describe('SmartDataTable', () => {
       sorting: null,
       filters: {},
       columnVisibility: {},
+      columnWidths: {},
       toggleSorting: vi.fn(),
       setFilter: vi.fn(),
       removeFilter: vi.fn(),
       toggleColumnVisibility,
+      setColumnWidth: vi.fn(),
     } as any);
 
     render(
@@ -248,10 +255,12 @@ describe('SmartDataTable', () => {
       sorting: null,
       filters: {},
       columnVisibility: {},
+      columnWidths: {},
       toggleSorting: vi.fn(),
       setFilter,
       removeFilter: vi.fn(),
       toggleColumnVisibility: vi.fn(),
+      setColumnWidth: vi.fn(),
     } as any);
 
     render(
@@ -285,10 +294,12 @@ describe('SmartDataTable', () => {
       sorting: null,
       filters: {},
       columnVisibility: {},
+      columnWidths: {},
       toggleSorting,
       setFilter: vi.fn(),
       removeFilter: vi.fn(),
       toggleColumnVisibility: vi.fn(),
+      setColumnWidth: vi.fn(),
     } as any);
 
     render(

@@ -135,7 +135,7 @@ export default function MobileGigFinancials({
 
         {isLoading && (
           <div className="flex justify-center py-2">
-            <Loader2 className="w-5 h-5 animate-spin text-sky-500" />
+            <Loader2 className="w-5 h-5 animate-spin text-primary" />
           </div>
         )}
 

@@ -18,8 +18,8 @@ interface MetricCardProps {
 function MetricCard({ label, value, valueClassName }: MetricCardProps) {
   return (
     <Card className="flex-1 min-w-[140px] p-4 flex flex-col gap-1">
-      <p className="text-xs text-gray-500 font-medium uppercase tracking-wide">{label}</p>
-      <p className={`text-xl font-semibold ${valueClassName ?? 'text-gray-900'}`}>{formatCurrency(value)}</p>
+      <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">{label}</p>
+      <p className={`text-xl font-semibold ${valueClassName ?? 'text-foreground'}`}>{formatCurrency(value)}</p>
     </Card>
   );
 }

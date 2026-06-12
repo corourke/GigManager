@@ -57,7 +57,7 @@ const ASSIGNMENT_STATUS_CONFIG: Record<string, { label: string; color: string; t
   Declined: { label: 'Declined', color: 'bg-red-100 text-red-700 border-red-200', textColor: 'text-red-600', icon: XCircle },
 };
 
-const INPUT_CLASS = 'w-full h-10 px-3 text-sm bg-muted/50 rounded-lg border-0 outline-none focus:ring-2 focus:ring-sky-500/30';
+const INPUT_CLASS = 'w-full h-10 px-3 text-sm bg-muted/50 rounded-lg border-0 outline-none focus:ring-2 focus:ring-primary/30';
 
 export default function MobileGigDetail({ gigId, onBack, onViewPackingList }: MobileGigDetailProps) {
   const { user, userRole, selectedOrganization } = useAuth();
@@ -340,7 +340,7 @@ export default function MobileGigDetail({ gigId, onBack, onViewPackingList }: Mo
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
-        <Loader2 className="w-8 h-8 animate-spin text-sky-500" />
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
       </div>
     );
   }
@@ -427,9 +427,9 @@ export default function MobileGigDetail({ gigId, onBack, onViewPackingList }: Mo
 
       <div className="flex-1 p-4 space-y-3 pb-12">
         {myAssignments.length > 0 && (
-          <Card className="border-sky-200 bg-sky-50/50" style={{ gap: 0 }}>
+          <Card className="border-primary/20 bg-primary/5" style={{ gap: 0 }}>
             <CardContent className="px-3 py-2 space-y-1.5" style={{ paddingBottom: '8px' }}>
-              <p className="text-[11px] font-semibold flex items-center gap-1.5 text-sky-700">
+              <p className="text-[11px] font-semibold flex items-center gap-1.5 text-primary">
                 <UserIcon className="w-3 h-3" />
                 Your Assignments
               </p>
@@ -463,7 +463,7 @@ export default function MobileGigDetail({ gigId, onBack, onViewPackingList }: Mo
                         <Button
                           size="sm"
                           variant="outline"
-                          className="flex-1 h-8 gap-1 text-[11px] text-red-600 border-red-200 hover:bg-red-50"
+                          className="flex-1 h-8 gap-1 text-[11px] text-destructive border-destructive/20 hover:bg-destructive/5"
                           onClick={() => handleAssignmentAction(assignment.id, 'Declined')}
                           disabled={updatingAssignment === assignment.id}
                         >
@@ -578,11 +578,11 @@ export default function MobileGigDetail({ gigId, onBack, onViewPackingList }: Mo
                   <p className="text-[10px] font-medium text-muted-foreground uppercase mb-1">Tags</p>
                   <div className="flex flex-wrap gap-1 mb-1.5">
                     {editTags.map(tag => (
-                      <span key={tag} className="inline-flex items-center gap-1 rounded bg-sky-50 text-sky-700 border border-sky-100" style={{ fontSize: '10px', padding: '2px 6px' }}>
+                      <span key={tag} className="inline-flex items-center gap-1 rounded bg-primary/5 text-primary border border-primary/10" style={{ fontSize: '10px', padding: '2px 6px' }}>
                         {tag}
                         <button
                           onClick={() => setEditTags(editTags.filter(t => t !== tag))}
-                          className="text-sky-500 hover:text-sky-700 ml-0.5"
+                          className="text-primary hover:text-primary/70 ml-0.5"
                         >
                           ×
                         </button>
@@ -618,7 +618,7 @@ export default function MobileGigDetail({ gigId, onBack, onViewPackingList }: Mo
                     <Tag className="w-4 h-4 text-muted-foreground mt-0.5 shrink-0" />
                     <div className="flex flex-wrap gap-1">
                       {gig.tags.map((tag: string) => (
-                        <span key={tag} className="rounded bg-sky-50 text-sky-700 border border-sky-100" style={{ fontSize: '10px', padding: '1px 6px' }}>
+                        <span key={tag} className="rounded bg-primary/5 text-primary border border-primary/10" style={{ fontSize: '10px', padding: '1px 6px' }}>
                           {tag}
                         </span>
                       ))}
@@ -674,7 +674,7 @@ export default function MobileGigDetail({ gigId, onBack, onViewPackingList }: Mo
                         disabled={isCurrentOrg}
                         onClick={() => setEditParticipants(editParticipants.filter((_, i) => i !== idx))}
                         className={cn(
-                          'p-1 rounded text-red-500 hover:bg-red-50 shrink-0',
+                          'p-1 rounded text-destructive hover:bg-destructive/5 shrink-0',
                           isCurrentOrg && 'opacity-30 cursor-not-allowed'
                         )}
                       >
@@ -733,7 +733,7 @@ export default function MobileGigDetail({ gigId, onBack, onViewPackingList }: Mo
                               key={role}
                               className={cn(
                                 'px-3 py-2 text-sm cursor-pointer hover:bg-muted',
-                                addParticipantRole === role && 'font-medium text-sky-600'
+                                addParticipantRole === role && 'font-medium text-primary'
                               )}
                               onClick={() => handleRoleSelect(role)}
                             >
@@ -772,7 +772,7 @@ export default function MobileGigDetail({ gigId, onBack, onViewPackingList }: Mo
                 ) : (
                   <button
                     onClick={() => setShowAddParticipant(true)}
-                    className="flex items-center gap-1.5 text-[11px] text-sky-600 hover:text-sky-700 mt-1 font-medium"
+                    className="flex items-center gap-1.5 text-[11px] text-primary hover:text-primary/80 mt-1 font-medium"
                   >
                     <Plus className="w-3.5 h-3.5" />
                     Add Participant
@@ -839,7 +839,7 @@ export default function MobileGigDetail({ gigId, onBack, onViewPackingList }: Mo
                               </span>
                               <span className="text-base font-medium flex-1 truncate px-2">
                                 {a.user?.first_name} {a.user?.last_name}
-                                {isMe && <span className="ml-1 text-[10px] text-sky-600 font-bold">(You)</span>}
+                                {isMe && <span className="ml-1 text-[10px] text-primary font-bold">(You)</span>}
                               </span>
                               <span className="text-[10px] text-muted-foreground shrink-0 w-20 text-right truncate">{slot.role}</span>
                             </div>
