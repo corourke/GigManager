@@ -17,6 +17,8 @@ export default function LoginScreen() {
   const [password, setPassword] = useState('');
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
+  const [forgotMode, setForgotMode] = useState(false);
+  const [resetSent, setResetSent] = useState(false);
 
   // Check for existing session on mount
   useEffect(() => {
@@ -140,6 +142,27 @@ export default function LoginScreen() {
     }
   };
 
+  const handleForgotPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      const supabase = createClient();
+      const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/reset-password`,
+      });
+      if (resetError) throw resetError;
+      // Always show success (don't reveal whether the email exists).
+      setResetSent(true);
+    } catch (err: any) {
+      console.error('Error sending reset email:', err);
+      setError(err.message || 'Failed to send reset email. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const handleGoogleLogin = async () => {
     setIsLoading(true);
     setError(null);
@@ -198,56 +221,119 @@ export default function LoginScreen() {
 
             {/* Sign In Tab */}
             <TabsContent value="signin">
-              <form onSubmit={handleEmailSignIn} className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="signin-email">Email</Label>
-                  <div className="relative">
-                    <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                    <Input
-                      id="signin-email"
-                      type="email"
-                      placeholder="your.email@example.com"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      className="pl-10"
-                      required
-                      disabled={isLoading}
-                    />
+              {forgotMode ? (
+                resetSent ? (
+                  <div className="space-y-4 text-center py-4">
+                    <p className="text-gray-700">
+                      If an account exists for <span className="font-medium">{email}</span>, a password reset link has been sent. Check your email.
+                    </p>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="w-full h-11"
+                      onClick={() => { setForgotMode(false); setResetSent(false); setError(null); }}
+                    >
+                      Back to sign in
+                    </Button>
                   </div>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="signin-password">Password</Label>
-                  <div className="relative">
-                    <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                    <Input
-                      id="signin-password"
-                      type="password"
-                      placeholder="••••••••"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      className="pl-10"
-                      required
-                      disabled={isLoading}
-                    />
+                ) : (
+                  <form onSubmit={handleForgotPassword} className="space-y-4">
+                    <p className="text-sm text-gray-600">Enter your email and we'll send you a link to reset your password.</p>
+                    <div className="space-y-2">
+                      <Label htmlFor="forgot-email">Email</Label>
+                      <div className="relative">
+                        <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                        <Input
+                          id="forgot-email"
+                          type="email"
+                          placeholder="your.email@example.com"
+                          value={email}
+                          onChange={(e) => setEmail(e.target.value)}
+                          className="pl-10"
+                          required
+                          disabled={isLoading}
+                        />
+                      </div>
+                    </div>
+                    <Button type="submit" className="w-full h-11 bg-sky-500 hover:bg-sky-600" disabled={isLoading}>
+                      {isLoading ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Sending...
+                        </>
+                      ) : (
+                        'Send reset link'
+                      )}
+                    </Button>
+                    <button
+                      type="button"
+                      className="w-full text-sm text-sky-600 hover:text-sky-700"
+                      onClick={() => { setForgotMode(false); setError(null); }}
+                    >
+                      Back to sign in
+                    </button>
+                  </form>
+                )
+              ) : (
+                <form onSubmit={handleEmailSignIn} className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="signin-email">Email</Label>
+                    <div className="relative">
+                      <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                      <Input
+                        id="signin-email"
+                        type="email"
+                        placeholder="your.email@example.com"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        className="pl-10"
+                        required
+                        disabled={isLoading}
+                      />
+                    </div>
                   </div>
-                </div>
 
-                <Button
-                  type="submit"
-                  className="w-full h-11 bg-sky-500 hover:bg-sky-600"
-                  disabled={isLoading}
-                >
-                  {isLoading ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Signing in...
-                    </>
-                  ) : (
-                    'Sign in with Email'
-                  )}
-                </Button>
-              </form>
+                  <div className="space-y-2">
+                    <Label htmlFor="signin-password">Password</Label>
+                    <div className="relative">
+                      <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                      <Input
+                        id="signin-password"
+                        type="password"
+                        placeholder="••••••••"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        className="pl-10"
+                        required
+                        disabled={isLoading}
+                      />
+                    </div>
+                  </div>
+
+                  <Button
+                    type="submit"
+                    className="w-full h-11 bg-sky-500 hover:bg-sky-600"
+                    disabled={isLoading}
+                  >
+                    {isLoading ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Signing in...
+                      </>
+                    ) : (
+                      'Sign in with Email'
+                    )}
+                  </Button>
+
+                  <button
+                    type="button"
+                    className="w-full text-sm text-sky-600 hover:text-sky-700"
+                    onClick={() => { setForgotMode(true); setError(null); }}
+                  >
+                    Forgot password?
+                  </button>
+                </form>
+              )}
             </TabsContent>
 
             {/* Sign Up Tab */}

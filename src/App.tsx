@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import LoginScreen from './components/LoginScreen';
 import UserProfileCompletionScreen from './components/UserProfileCompletionScreen';
 import AcceptInvitationScreen from './components/AcceptInvitationScreen';
+import ResetPasswordScreen from './components/ResetPasswordScreen';
 import OrganizationSelectionScreen from './components/OrganizationSelectionScreen';
 import OrganizationScreen from './components/OrganizationScreen';
 import AdminOrganizationsScreen from './components/AdminOrganizationsScreen';
@@ -37,6 +38,7 @@ import DevTableDemoScreen from './components/dev/DevTableDemoScreen';
 
 type Route =
   | 'login'
+  | 'reset-password'
   | 'profile-completion'
   | 'accept-invitation'
   | 'org-selection'
@@ -100,6 +102,10 @@ function App() {
   const { isLocked, lock, unlock } = useMobileLock(user?.email, isMobile);
 
   const [currentRoute, setCurrentRoute] = useState<Route>(() => {
+    // Check for a password-recovery link (implicit flow puts type in the hash)
+    if (window.location.pathname === '/reset-password' || window.location.hash.includes('type=recovery')) {
+      return 'reset-password';
+    }
     // Check for invitation in URL
     if (window.location.pathname === '/accept-invitation' || window.location.hash.includes('type=invite')) {
       return 'accept-invitation';
@@ -221,10 +227,25 @@ function App() {
     else localStorage.removeItem('selectedMemberId');
   }, [selectedMemberId]);
 
+  // On the accept-invitation route, if no session establishes within a few
+  // seconds, surface a clear error instead of a blank screen.
+  const [inviteSessionTimedOut, setInviteSessionTimedOut] = useState(false);
+  useEffect(() => {
+    if (currentRoute !== 'accept-invitation' || user) {
+      setInviteSessionTimedOut(false);
+      return;
+    }
+    const timer = setTimeout(() => setInviteSessionTimedOut(true), 5000);
+    return () => clearTimeout(timer);
+  }, [currentRoute, user]);
+
   // Send to login and profile completion if needed, otherwise, attempt to
   // auto-select an organization if user belongs to only one.
   useEffect(() => {
     if (isLoading) return;
+
+    // Recovery flow owns its route until the user finishes (or cancels).
+    if (currentRoute === 'reset-password') return;
 
     if (!user) {
       // Don't redirect if we're on the dev-demo route
@@ -582,19 +603,41 @@ function App() {
       {currentRoute === 'login' && (
         <LoginScreen />
       )}
-      
+
+      {currentRoute === 'reset-password' && (
+        <ResetPasswordScreen
+          onComplete={() => {
+            window.history.replaceState({}, '', '/');
+            setCurrentRoute('login');
+          }}
+        />
+      )}
+
       {currentRoute === 'profile-completion' && user && (
         <UserProfileCompletionScreen
           user={user}
           onProfileCompleted={handleProfileCompleted}
         />
       )}
-      
+
       {currentRoute === 'accept-invitation' && user && (
         <AcceptInvitationScreen
           user={user}
           organizations={organizations}
           onContinue={handleBackToDashboard}
+        />
+      )}
+
+      {/* Invite link landed but no session could be established (expired link or
+          the app origin isn't allow-listed in Supabase Auth redirect URLs). */}
+      {currentRoute === 'accept-invitation' && !user && inviteSessionTimedOut && (
+        <InvitationErrorScreen
+          error="We couldn't verify your invitation"
+          errorDescription="The invite link may have expired, or this app's URL isn't allow-listed in the authentication settings. Ask an admin to resend the invitation."
+          onBackToLogin={() => {
+            window.history.replaceState({}, '', '/');
+            setCurrentRoute('login');
+          }}
         />
       )}
       
