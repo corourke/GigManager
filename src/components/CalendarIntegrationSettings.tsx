@@ -104,7 +104,7 @@ export default function CalendarIntegrationSettings({
   }, [userId]);
 
   const loadSettings = async () => {
-    if (reconnectRequired) return;
+    setReconnectRequired(false);
     
     try {
       setLoading(true);
@@ -112,17 +112,16 @@ export default function CalendarIntegrationSettings({
       setSettings(userSettings);
 
       if (userSettings?.access_token) {
+        // Only load data from Google if we are enabled or if the token is not expired.
+        // If it is expired and disabled, we don't proactively try to refresh (to avoid errors),
+        // but we show the existing settings.
         const isExpired = new Date(userSettings.token_expires_at) <= new Date();
         
-        // If it's expired and we already know it's a permanent failure, don't even try
-        if (isExpired && !userSettings.is_enabled) {
-          setReconnectRequired(true);
-          return;
-        }
-
-        await loadCalendars();
-        if (userSettings.is_enabled) {
-          await loadSyncData();
+        if (userSettings.is_enabled || !isExpired) {
+          await loadCalendars();
+          if (userSettings.is_enabled) {
+            await loadSyncData();
+          }
         }
       }
     } catch (error: any) {
@@ -170,6 +169,7 @@ export default function CalendarIntegrationSettings({
   const handleDisconnect = async () => {
     try {
       setDisconnecting(true);
+      setReconnectRequired(false);
       await deleteUserGoogleCalendarSettings(userId);
       setSettings(null);
       setAvailableCalendars([]);
