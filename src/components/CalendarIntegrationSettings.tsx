@@ -32,6 +32,7 @@ import {
   getSyncStatusSummary,
   updateUserGoogleCalendarSettings,
   syncAllGigsForUser,
+  bulkSyncAllGigsServerSide,
 } from '../services/googleCalendar.service';
 import { UserGoogleCalendarSettings, GigSyncStatus } from '../utils/supabase/types';
 
@@ -78,6 +79,8 @@ export default function CalendarIntegrationSettings({
   const [showAllLogs, setShowAllLogs] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [syncProgress, setSyncProgress] = useState<string | null>(null);
+  const [serverSyncing, setServerSyncing] = useState(false);
+  const [serverSyncProgress, setServerSyncProgress] = useState<string | null>(null);
 
   const loadSyncData = useCallback(async () => {
     try {
@@ -274,6 +277,32 @@ export default function CalendarIntegrationSettings({
     } finally {
       setSyncing(false);
       setSyncProgress(null);
+    }
+  };
+
+  const handleServerBulkSync = async () => {
+    try {
+      setServerSyncing(true);
+      setServerSyncProgress('Starting...');
+
+      const result = await bulkSyncAllGigsServerSide(
+        (done, total) => setServerSyncProgress(`${done} / ${total}`)
+      );
+
+      setServerSyncProgress(null);
+      await loadSyncData();
+
+      if (result.failed > 0) {
+        toast.warning(`Re-synced ${result.total - result.failed} gigs, ${result.failed} failed`);
+      } else {
+        toast.success(`Successfully re-synced all ${result.total} gigs server-side`);
+      }
+    } catch (error) {
+      console.error('Error server-side bulk syncing gigs:', error);
+      toast.error('Failed to bulk sync gigs server-side');
+    } finally {
+      setServerSyncing(false);
+      setServerSyncProgress(null);
     }
   };
 
@@ -567,6 +596,45 @@ export default function CalendarIntegrationSettings({
                     Select a calendar first
                   </p>
                 )}
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-base text-amber-600 dark:text-amber-400">
+                <RefreshCw className="h-4 w-4 animate-pulse" />
+                System-Wide Bulk Re-sync (Repair)
+              </CardTitle>
+              <CardDescription>
+                Re-sync all existing gigs server-side to update all participants' Google Calendar events. Use this to repair incorrectly formatted events (such as all-day events displaying as 5 AM-6 AM).
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="flex flex-col gap-2">
+                <div>
+                  <Button
+                    onClick={handleServerBulkSync}
+                    disabled={serverSyncing}
+                    variant="outline"
+                    className="border-amber-500 text-amber-700 hover:bg-amber-50 hover:text-amber-800 dark:border-amber-600 dark:text-amber-400 dark:hover:bg-amber-950 dark:hover:text-amber-300"
+                  >
+                    {serverSyncing ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                        {serverSyncProgress || 'Re-syncing...'}
+                      </>
+                    ) : (
+                      <>
+                        <RefreshCw className="h-4 w-4 mr-2" />
+                        Bulk Re-sync All Gigs Server-Side
+                      </>
+                    )}
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  This iterates over every gig in the system and triggers the `sync-gig-all-users` Edge Function, updating calendar entries for all users.
+                </p>
               </div>
             </CardContent>
           </Card>
