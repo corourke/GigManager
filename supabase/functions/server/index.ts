@@ -2566,7 +2566,12 @@ Deno.serve(async (req) => {
       const tokenData = await tokenResponse.json();
       if (!tokenResponse.ok) {
         console.error('Google token exchange error:', tokenData);
-        return new Response(JSON.stringify({ error: 'Token exchange failed', details: tokenData.error_description || tokenData.error }), {
+        const errorMsg = tokenData.error_description || tokenData.error || 'Token exchange failed';
+        return new Response(JSON.stringify({ 
+          error: 'Token exchange failed', 
+          details: errorMsg,
+          code: tokenData.error
+        }), {
           status: 400,
           headers: { ...responseHeaders, 'Content-Type': 'application/json' },
         });
@@ -2623,7 +2628,12 @@ Deno.serve(async (req) => {
       const tokenData = await tokenResponse.json();
       if (!tokenResponse.ok) {
         console.error('Google token refresh error:', tokenData);
-        return new Response(JSON.stringify({ error: 'Token refresh failed', details: tokenData.error_description || tokenData.error }), {
+        const errorMsg = tokenData.error_description || tokenData.error || 'Token refresh failed';
+        return new Response(JSON.stringify({ 
+          error: 'Token refresh failed', 
+          details: errorMsg,
+          code: tokenData.error // e.g. 'invalid_grant'
+        }), {
           status: 400,
           headers: { ...responseHeaders, 'Content-Type': 'application/json' },
         });

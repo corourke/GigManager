@@ -65,8 +65,12 @@ export async function refreshAccessToken(refreshToken: string): Promise<{
   access_token: string;
   expires_at: Date;
 }> {
-  const supabase = getSupabase();
+  console.log('[TRACE] refreshAccessToken called');
+  if (!refreshToken) {
+    throw new Error('No refresh token available');
+  }
 
+  const supabase = getSupabase();
   try {
     const { data, error } = await supabase.functions.invoke(
       'server/integrations/google-calendar/refresh-token',
@@ -76,23 +80,33 @@ export async function refreshAccessToken(refreshToken: string): Promise<{
       }
     );
 
-    if (error) throw error;
-    if (data?.error) throw new Error(data.details || data.error);
+    if (error) {
+      console.error('[TRACE] refreshAccessToken function error:', error);
+      throw error;
+    }
+    
+    if (data?.error) {
+      console.error('[TRACE] refreshAccessToken data error:', data);
+      throw new Error(data.details || data.error);
+    }
 
     if (!data.access_token) {
       throw new Error('Failed to refresh access token');
     }
 
+    console.log('[TRACE] refreshAccessToken success');
     return {
       access_token: data.access_token,
       expires_at: new Date(Date.now() + (data.expires_in || 3600) * 1000),
     };
   } catch (error) {
+    console.error('[TRACE] refreshAccessToken catch:', error);
     throw await handleFunctionsError(error, 'refresh access token');
   }
 }
 
 async function getValidAccessToken(userId: string): Promise<{ accessToken: string; settings: UserGoogleCalendarSettings }> {
+  console.log('[TRACE] getValidAccessToken called for user:', userId);
   const settings = await getUserGoogleCalendarSettings(userId);
 
   if (!settings) {
@@ -101,19 +115,58 @@ async function getValidAccessToken(userId: string): Promise<{ accessToken: strin
 
   let accessToken = settings.access_token;
   try {
-    if (new Date(settings.token_expires_at) <= new Date()) {
+    const now = new Date();
+    const expiresAt = new Date(settings.token_expires_at);
+    
+    if (expiresAt <= now) {
+      console.log('[TRACE] getValidAccessToken: Token expired, attempting refresh', {
+        now: now.toISOString(),
+        expiresAt: expiresAt.toISOString(),
+        hasRefreshToken: !!settings.refresh_token
+      });
+
+      // If we don't even have a refresh token, we can't refresh
+      if (!settings.refresh_token) {
+        throw { details: 'invalid_grant', message: 'No refresh token' };
+      }
+
       const refreshed = await refreshAccessToken(settings.refresh_token);
       accessToken = refreshed.access_token;
 
+      console.log('[TRACE] getValidAccessToken: Refresh successful, updating settings');
       await updateUserGoogleCalendarSettings(userId, {
         access_token: refreshed.access_token,
         token_expires_at: refreshed.expires_at.toISOString(),
       });
+    } else {
+      console.log('[TRACE] getValidAccessToken: Token still valid');
     }
   } catch (error: any) {
+    const errorDetails = error.details || (typeof error === 'string' ? error : '');
+    const errorMessage = error.message || '';
+    
+    console.error('[TRACE] getValidAccessToken error catch:', { 
+      status: error.status, 
+      details: errorDetails, 
+      message: errorMessage,
+      name: error.name 
+    });
+
     // If refresh token is invalid, disable the integration
-    if (error.details === 'invalid_grant' || error.message?.includes('invalid_grant')) {
-      await updateUserGoogleCalendarSettings(userId, { is_enabled: false });
+    if (
+      error.code === 'invalid_grant' ||
+      errorDetails === 'invalid_grant' || 
+      errorMessage.includes('invalid_grant') ||
+      errorMessage.includes('expired') ||
+      errorMessage.includes('revoked') ||
+      error.status === 400 // Often 400 from Google is invalid_grant
+    ) {
+      console.warn('[TRACE] getValidAccessToken: Invalid grant detected, disabling integration');
+      try {
+        await updateUserGoogleCalendarSettings(userId, { is_enabled: false });
+      } catch (updateError) {
+        console.error('[TRACE] getValidAccessToken: Failed to disable invalid integration:', updateError);
+      }
       throw new Error('Google Calendar connection has expired or been revoked. Please reconnect in settings.');
     }
     throw error;

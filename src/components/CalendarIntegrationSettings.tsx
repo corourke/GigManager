@@ -104,20 +104,34 @@ export default function CalendarIntegrationSettings({
   }, [userId]);
 
   const loadSettings = async () => {
+    if (reconnectRequired) return;
+    
     try {
       setLoading(true);
       const userSettings = await getUserGoogleCalendarSettings(userId);
       setSettings(userSettings);
 
       if (userSettings?.access_token) {
+        const isExpired = new Date(userSettings.token_expires_at) <= new Date();
+        
+        // If it's expired and we already know it's a permanent failure, don't even try
+        if (isExpired && !userSettings.is_enabled) {
+          setReconnectRequired(true);
+          return;
+        }
+
         await loadCalendars();
         if (userSettings.is_enabled) {
           await loadSyncData();
         }
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error loading calendar settings:', error);
-      toast.error('Failed to load calendar settings');
+      if (error.message?.includes('expired') || error.message?.includes('revoked') || error.message?.includes('invalid_grant')) {
+        setReconnectRequired(true);
+      } else {
+        toast.error('Failed to load calendar settings');
+      }
     } finally {
       setLoading(false);
     }
@@ -143,6 +157,7 @@ export default function CalendarIntegrationSettings({
   const handleConnect = async () => {
     try {
       setConnecting(true);
+      setReconnectRequired(false);
       const authUrl = await getGoogleAuthUrl();
       window.location.href = authUrl;
     } catch (error) {
