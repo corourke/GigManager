@@ -3,6 +3,36 @@ import type { OrgIdSource } from './types.ts';
 import { supabaseAdmin } from './supabaseAdmin.ts';
 import { isRoleAllowed } from './pure/authz.ts';
 
+/**
+ * Core membership check (the former inline `verifyOrgMembership`). Exported for
+ * the handful of routes whose authorization is conditional or derived from a
+ * looked-up record (member self-join, invitation cancel) rather than a fixed
+ * route param. Preserves the legacy messages exactly.
+ */
+export async function verifyOrgMembership(
+  userId: string,
+  orgId: string,
+  allowedRoles?: string[]
+): Promise<{ membership: any | null; error: string | null }> {
+  const { data: membership, error: dbError } = await supabaseAdmin
+    .from('organization_members')
+    .select('*, organization:organizations(*)')
+    .eq('organization_id', orgId)
+    .eq('user_id', userId)
+    .maybeSingle();
+
+  if (dbError) {
+    return { membership: null, error: `Database error: ${dbError.message}` };
+  }
+  if (!membership) {
+    return { membership: null, error: 'Not a member of this organization' };
+  }
+  if (!isRoleAllowed(membership.role, allowedRoles)) {
+    return { membership: null, error: 'Insufficient permissions' };
+  }
+  return { membership, error: null };
+}
+
 export interface OrgRoleOptions {
   /** Allowed roles; omit/empty for any member. */
   roles?: string[];
@@ -15,11 +45,7 @@ export interface OrgRoleOptions {
 /**
  * Verifies org membership (and optional role) for the authenticated user,
  * attaching the membership to the context. Replaces the inline
- * verifyOrgMembership blocks. Preserves the legacy semantics exactly:
- *  - membership selected with the joined organization
- *  - missing membership → 403 'Not a member of this organization'
- *  - role not allowed → 403 'Insufficient permissions'
- *  - optional global-admin short-circuit (orgs PUT/DELETE, members GET)
+ * verifyOrgMembership blocks across the org/member routes.
  */
 export function requireOrgRole(options: OrgRoleOptions = {}): MiddlewareHandler {
   const getOrgId: OrgIdSource = options.getOrgId ?? ((c) => c.req.param('id'));
@@ -41,21 +67,10 @@ export function requireOrgRole(options: OrgRoleOptions = {}): MiddlewareHandler 
       }
     }
 
-    const { data: membership, error: dbError } = await supabaseAdmin
-      .from('organization_members')
-      .select('*, organization:organizations(*)')
-      .eq('organization_id', orgId)
-      .eq('user_id', user.id)
-      .maybeSingle();
-
-    if (dbError) {
-      return c.json({ error: `Database error: ${dbError.message}` }, 500);
-    }
-    if (!membership) {
-      return c.json({ error: 'Not a member of this organization' }, 403);
-    }
-    if (!isRoleAllowed(membership.role, options.roles)) {
-      return c.json({ error: 'Insufficient permissions' }, 403);
+    const { membership, error } = await verifyOrgMembership(user.id, orgId, options.roles);
+    if (error || !membership) {
+      const status = error?.startsWith('Database error') ? 500 : 403;
+      return c.json({ error: error ?? 'Forbidden' }, status);
     }
 
     c.set('membership', membership);

@@ -2,25 +2,13 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.8";
 import Anthropic from "https://esm.sh/@anthropic-ai/sdk@0.32.1";
 import { encodeBase64 } from "https://deno.land/std@0.224.0/encoding/base64.ts";
 import { captureException } from "../_shared/sentry.ts";
-
-const ALLOWED_ORIGINS = new Set([
-  'https://gigwrangler.com',
-  'https://www.gigwrangler.com',
-  'https://gigwrangler.pages.dev',
-  'http://localhost:3000',
-  'https://localhost:3000',
-]);
+import { corsHeaders } from "../_shared/cors.ts";
 
 function getCorsHeaders(req: Request): Record<string, string> {
-  const origin = req.headers.get('Origin') ?? '';
-  const headers: Record<string, string> = {
-    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-    'Vary': 'Origin',
-  };
-  if (ALLOWED_ORIGINS.has(origin)) {
-    headers['Access-Control-Allow-Origin'] = origin;
-  }
-  return headers;
+  return corsHeaders(req.headers.get('Origin'), {
+    allowMethods: 'POST, OPTIONS',
+    allowHeaders: 'authorization, x-client-info, apikey, content-type',
+  });
 }
 
 const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024; // 10 MB

@@ -71,3 +71,19 @@ The `ai-scan` function makes paid Anthropic API calls, so it enforces its own ga
 3. **File limits**: 10 MB max (413) and a media-type allowlist — PDF, JPEG, PNG, WebP, GIF (415).
 4. **Rate limit**: 20 scans per user per hour, tracked in the service-role-only `ai_scan_usage` table; exceeded → 429. Usage is recorded *before* the Anthropic call so failed/aborted calls still count toward the quota.
 5. **CORS**: pinned origin allowlist (production domains + `localhost:3000`); unknown origins receive no `Access-Control-Allow-Origin` header.
+
+## 8. Edge Function: server (Hono)
+
+The `server` function runs with the service-role key (RLS bypassed), so it authorizes every request explicitly. As of the June 2026 refactor it uses **Hono with declarative middleware** instead of ~30 hand-copied inline checks; the per-endpoint authorization is the spec in `docs/technical/server-endpoint-inventory.md`.
+
+Middleware:
+- **CORS** — pinned-origin allowlist (shared `_shared/cors.ts` with `ai-scan`); no `Access-Control-Allow-Credentials` reflection.
+- **`requireUser`** — validates the Bearer token once; 401 otherwise.
+- **`requireOrgRole({ roles, allowGlobalAdmin })`** — org membership + optional role allow-list; optional global-admin (`user_is_admin`) bypass for the cross-org admin endpoints.
+- **`requireGigAccess(roles?)`** — the intersection model (caller's orgs ∩ the gig's participant orgs), with an optional role filter for mutations.
+
+Two authorization gaps the refactor closed (both had failing tests written first):
+- **Gig creation** now always requires Admin/Manager of a **required** `primary_organization_id` (previously the check was skipped entirely when the field was omitted).
+- **Calendar `sync-gig-all-users`** now requires the caller to be a member of a participant org of the target gig (previously any authenticated user could trigger it).
+
+WebAuthn `authenticate/*` endpoints remain intentionally public (the unlock flow) and gate only the cosmetic mobile lock, not data access. Top-level errors are captured to Sentry and returned as clean 500s with no internal detail.
