@@ -80,7 +80,7 @@ The review (§5) flagged this audit as outstanding — these are the resolutions
 
 - **Q-A — User directory exposure (#3, #5, #6).** ✅ **Decision: keep open for now**, preserve exact behavior during the refactor. Tightening to shared-org/gig is tracked in Future Considerations below.
 - **Q-B — Open org creation (#8).** ✅ **Decision: keep open** — self-serve onboarding. Revisit with rate-limiting/abuse controls before public launch.
-- **Q-C — Gig creation check bypass (#21).** ✅ **Decision: FIX** — require `primary_organization_id`, always enforce Admin/Manager membership of it. Failing test first.
+- **Q-C — Gig creation check bypass (#21).** ✅ **Decision: FIX** — require `primary_organization_id`, always enforce Admin/Manager membership of it. Failing test first. **Note (smoke test, June 2026):** the frontend actually creates gigs via the `create_gig_complex` SECURITY DEFINER RPC, **not** this server endpoint, so the same Admin/Manager check was also added inside the RPC and the permissive `gigs` INSERT policy dropped (migration `20260613000000`). The server-endpoint fix remains as defense-in-depth for that path.
 - **Q-D — Calendar sync access check (#32).** ✅ **Decision: FIX** — require caller be a member of a participant org of `gig_id` (intersection). Failing test first.
 - **Q-E — WebAuthn unlock endpoints (#35, #36).** ✅ **Decision: keep public** — unlock flow, gates only the cosmetic UI lock (the Supabase session in localStorage stays valid regardless), not data access.
 

@@ -26,8 +26,9 @@ A user `U` can access Gig `G` if:
 2. `O` is a participant in Gig `G` (entry exists in `gig_participants` for `O.id` and `G.id`).
 
 ### Implications for RLS Policies:
-- **`gigs` table**: Policy checks if `auth.uid()` belongs to an organization listed in `gig_participants` for that gig.
+- **`gigs` table**: SELECT requires `auth.uid()` to belong to a participant org. **Creation** is **Admin/Manager only**: it goes through the `create_gig_complex` SECURITY DEFINER RPC, which requires a `primary_organization_id` and Admin/Manager membership of it (migration `20260613000000`). The direct-insert RLS policy was removed so the authenticated role cannot bypass the RPC.
 - **`gig_financials` table**: Only accessible to **Admin** and **Manager** roles of the owning organization.
+- **`purchases` table** (org-level Financials): reads and writes are **Admin/Manager only** — Staff/Viewer cannot see Financials (migration `20260613000000` removed the prior member-level read).
 - **`gig_participants`**: Members can see the participant list.
 - **`gig_staff_assignments`**: **Staff** can update assignments where `user_id = auth.uid()`.
 
