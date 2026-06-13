@@ -81,6 +81,7 @@ export default function CalendarIntegrationSettings({
   const [syncProgress, setSyncProgress] = useState<string | null>(null);
   const [serverSyncing, setServerSyncing] = useState(false);
   const [serverSyncProgress, setServerSyncProgress] = useState<string | null>(null);
+  const [reconnectRequired, setReconnectRequired] = useState(false);
 
   const loadSyncData = useCallback(async () => {
     try {
@@ -127,9 +128,13 @@ export default function CalendarIntegrationSettings({
       setLoadingCalendars(true);
       const calendars = await getUserCalendars(userId);
       setAvailableCalendars(calendars);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error loading calendars:', error);
-      toast.error('Failed to load available calendars');
+      if (error.message?.includes('expired') || error.message?.includes('revoked') || error.message?.includes('invalid_grant')) {
+        setReconnectRequired(true);
+      } else {
+        toast.error('Failed to load available calendars');
+      }
     } finally {
       setLoadingCalendars(false);
     }
@@ -357,6 +362,32 @@ export default function CalendarIntegrationSettings({
         </CardHeader>
 
         <CardContent className="space-y-6">
+          {reconnectRequired && (
+            <Alert variant="destructive">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription className="flex flex-col gap-3">
+                <p>
+                  Your Google Calendar connection has expired or been revoked.
+                  Please reconnect your account to continue syncing.
+                </p>
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={handleConnect}
+                  disabled={connecting}
+                  className="w-fit"
+                >
+                  {connecting ? (
+                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                  ) : (
+                    <RefreshCw className="h-4 w-4 mr-2" />
+                  )}
+                  Reconnect Now
+                </Button>
+              </AlertDescription>
+            </Alert>
+          )}
+
           {!isConnected ? (
             <div className="space-y-4">
               <Alert>

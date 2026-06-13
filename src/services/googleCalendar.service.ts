@@ -1,6 +1,6 @@
 import { createClient } from '../utils/supabase/client';
 import { UserGoogleCalendarSettings, GigSyncStatus } from '../utils/supabase/types';
-import { handleApiError } from '../utils/api-error-utils';
+import { handleApiError, handleFunctionsError } from '../utils/api-error-utils';
 import { isNoonUTC } from '../utils/dateUtils';
 
 const getSupabase = () => createClient();
@@ -57,7 +57,7 @@ export async function exchangeCodeForTokens(code: string): Promise<{
       expires_at: new Date(Date.now() + (data.expires_in || 3600) * 1000),
     };
   } catch (error) {
-    throw handleApiError(error, 'exchange authorization code for tokens');
+    throw await handleFunctionsError(error, 'exchange authorization code for tokens');
   }
 }
 
@@ -88,7 +88,7 @@ export async function refreshAccessToken(refreshToken: string): Promise<{
       expires_at: new Date(Date.now() + (data.expires_in || 3600) * 1000),
     };
   } catch (error) {
-    throw handleApiError(error, 'refresh access token');
+    throw await handleFunctionsError(error, 'refresh access token');
   }
 }
 
@@ -100,14 +100,23 @@ async function getValidAccessToken(userId: string): Promise<{ accessToken: strin
   }
 
   let accessToken = settings.access_token;
-  if (new Date(settings.token_expires_at) <= new Date()) {
-    const refreshed = await refreshAccessToken(settings.refresh_token);
-    accessToken = refreshed.access_token;
+  try {
+    if (new Date(settings.token_expires_at) <= new Date()) {
+      const refreshed = await refreshAccessToken(settings.refresh_token);
+      accessToken = refreshed.access_token;
 
-    await updateUserGoogleCalendarSettings(userId, {
-      access_token: refreshed.access_token,
-      token_expires_at: refreshed.expires_at.toISOString(),
-    });
+      await updateUserGoogleCalendarSettings(userId, {
+        access_token: refreshed.access_token,
+        token_expires_at: refreshed.expires_at.toISOString(),
+      });
+    }
+  } catch (error: any) {
+    // If refresh token is invalid, disable the integration
+    if (error.details === 'invalid_grant' || error.message?.includes('invalid_grant')) {
+      await updateUserGoogleCalendarSettings(userId, { is_enabled: false });
+      throw new Error('Google Calendar connection has expired or been revoked. Please reconnect in settings.');
+    }
+    throw error;
   }
 
   return { accessToken, settings };
@@ -239,7 +248,7 @@ export async function getUserCalendars(userId: string): Promise<Array<{
 
     return data.calendars || [];
   } catch (error) {
-    throw handleApiError(error, 'get user calendars');
+    throw await handleFunctionsError(error, 'get user calendars');
   }
 }
 
@@ -306,7 +315,7 @@ export async function deleteGigFromCalendar(userId: string, gigId: string): Prom
         sync_error: error instanceof Error ? error.message : 'Unknown error',
         last_synced_at: new Date().toISOString(),
       });
-      throw handleApiError(error, 'delete gig from calendar');
+      throw await handleFunctionsError(error, 'delete gig from calendar');
     }
   }
 }
@@ -606,7 +615,7 @@ async function syncGigToCalendarWithToken(
       sync_error: error instanceof Error ? error.message : 'Unknown error',
       last_synced_at: new Date().toISOString(),
     });
-    throw handleApiError(error, 'sync gig to calendar');
+    throw await handleFunctionsError(error, 'sync gig to calendar');
   }
 }
 
@@ -679,14 +688,11 @@ export async function bulkSyncAllGigsServerSide(
         }
       );
 
-      if (invokeError) {
-        console.error(`Failed to invoke server sync for gig "${gig.title}" (${gig.id}):`, invokeError);
-        failed++;
-      } else {
-        synced++;
-      }
+      if (invokeError) throw invokeError;
+      synced++;
     } catch (err) {
-      console.error(`Error invoking server sync for gig "${gig.title}" (${gig.id}):`, err);
+      const error = await handleFunctionsError(err, `invoke server sync for gig "${gig.title}" (${gig.id})`);
+      console.error(error);
       failed++;
     }
     
