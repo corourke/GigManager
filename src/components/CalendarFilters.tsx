@@ -1,6 +1,5 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { Search, Filter, X, Calendar as CalendarIcon } from 'lucide-react';
-import { Input } from './ui/input';
+import React, {useState, useEffect } from 'react';
+import {Filter, Calendar as CalendarIcon } from 'lucide-react';
 import { Button } from './ui/button';
 import {
   Select,
@@ -69,7 +68,7 @@ export function CalendarFilters({
   const [venues, setVenues] = useState<Organization[]>([]);
   const [acts, setActs] = useState<Organization[]>([]);
   const [staff, setStaff] = useState<User[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [_loading, setLoading] = useState(false);
 
   // Load filter options
   useEffect(() => {

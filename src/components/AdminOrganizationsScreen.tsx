@@ -3,7 +3,7 @@ import { Edit2, Trash2, Users, Loader2, AlertCircle, Plus, Shield, Building2 } f
 import { toast } from 'sonner';
 import { 
   Organization, 
-  OrganizationRole 
+  User,
 } from '../utils/supabase/types';
 import { 
   ORG_ROLE_CONFIG, 

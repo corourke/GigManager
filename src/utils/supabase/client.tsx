@@ -1,6 +1,6 @@
 import { createClient as createSupabaseClient } from '@supabase/supabase-js';
 import { supabaseUrl, publicAnonKey } from './info';
-import { Database } from './types';
+import { Database } from './database.types';
 
 // Singleton Supabase client for frontend
 let supabaseClient: ReturnType<typeof createSupabaseClient<Database>> | null = null;

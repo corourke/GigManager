@@ -1,6 +1,7 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, waitFor } from '@testing-library/react'
+import {describe, it, expect, vi } from 'vitest'
+import {render } from '@testing-library/react'
 import KitListScreen from './KitListScreen'
+import { makeUser, makeOrganization } from '../test/factories'
 
 // Mock localStorage
 const localStorageMock = (() => {
@@ -53,14 +54,8 @@ vi.mock('../contexts/NavigationContext', () => ({
 }))
 
 const mockProps = {
-  organization: { id: 'org-1', name: 'Test Org', type: 'Production' },
-  user: { 
-    id: 'user-1', 
-    email: 'test@example.com',
-    first_name: 'Test',
-    last_name: 'User',
-    avatar_url: null,
-  },
+  organization: makeOrganization({ name: 'Test Org' }),
+  user: makeUser(),
   userRole: 'Admin' as const,
   onBack: vi.fn(),
   onCreateKit: vi.fn(),

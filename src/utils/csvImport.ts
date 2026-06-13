@@ -235,7 +235,7 @@ function validateStatus(value: string, originalValue: string, errors: Validation
   return true;
 }
 
-function validateAmount(value: string, errors: ValidationError[]) {
+function validateAmount(value: string | undefined, errors: ValidationError[]) {
   if (value && value.trim()) {
     const amount = parseFloat(value);
     if (isNaN(amount)) {
@@ -439,8 +439,9 @@ export function applyCostAllocation(
 export function validateAssetRow(row: any, rowIndex: number): ParsedRow<AssetRow> {
   const errors: ValidationError[] = [];
   
-  // Basic data extraction with legacy support
-  const data: AssetRow = {
+  // Basic data extraction with legacy support; Required<> because every
+  // field is initialized (missing CSV columns become '')
+  const data: Required<AssetRow> = {
     acquisition_date: row.acquisition_date || '',
     source: row.source || '1', // Default to Asset (1) if not specified for legacy compatibility
     vendor: row.vendor || '',
@@ -453,7 +454,7 @@ export function validateAssetRow(row: any, rowIndex: number): ParsedRow<AssetRow
     item_cost: row.item_cost || row.cost_per_item || '',
     manufacturer_model: row.manufacturer_model || row.description || row.notes || '',
     category: row.category || '',
-    'sub-category': row['sub-category'] || row['sub_category'] || '',
+    sub_category: row['sub-category'] || row['sub_category'] || '',
     type: row.type || row.equipment_type || '',
     kit: row.kit || '',
     serial_number: row.serial_number || '',

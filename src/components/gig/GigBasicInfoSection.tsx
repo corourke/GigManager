@@ -3,8 +3,7 @@ import { useForm, Controller } from 'react-hook-form';
 import { forwardRef, useImperativeHandle } from 'react';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { format } from 'date-fns';
-import { Clock, DollarSign, AlertCircle } from 'lucide-react';
+import {Clock, AlertCircle } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
@@ -23,11 +22,11 @@ import { getCommonUSTimezones } from '../../utils/timezones';
 
 const basicInfoSchema = z.object({
   title: z.string().min(1, 'Title is required').max(200, 'Title must be less than 200 characters'),
-  start_time: z.date({ required_error: 'Start date is required' }),
+  start_time: z.date({ error: 'Start date is required' }),
   end_time: z.date().optional().nullable(),
   all_day: z.boolean(),
   timezone: z.string().min(1, 'Timezone is required'),
-  status: z.enum(Object.keys(GIG_STATUS_CONFIG) as [string, ...string[]]),
+  status: z.enum(Object.keys(GIG_STATUS_CONFIG) as [GigStatus, ...GigStatus[]]),
   tags: z.array(z.string()).optional(),
   notes: z.string().optional(),
 }).refine((data) => {
@@ -41,16 +40,7 @@ const basicInfoSchema = z.object({
   path: ['end_time'],
 });
 
-interface BasicInfoFormData {
-  title: string;
-  start_time: Date | undefined;
-  end_time: Date | undefined | null;
-  all_day: boolean;
-  timezone: string;
-  status: GigStatus;
-  tags: string[];
-  notes: string;
-}
+type BasicInfoFormData = z.infer<typeof basicInfoSchema>;
 
 const STATUS_OPTIONS: { value: GigStatus; label: string }[] = Object.entries(GIG_STATUS_CONFIG).map(([value, config]) => ({
   value: value as GigStatus,

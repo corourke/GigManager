@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { validateGigRow, parseAndValidateCSV, type GigRow, type ParsedRow } from './csvImport';
+import { validateGigRow } from './csvImport';
 
 describe('CSV Import Timezone Handling', () => {
   describe('Date parsing and timezone interpretation', () => {

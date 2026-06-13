@@ -213,7 +213,7 @@ export default function MobileGigDetail({ gigId, onBack, onViewPackingList }: Mo
       await updateGig(gigId, updatePayload);
       await updateGigParticipants(
         gigId,
-        editParticipants.map(p => ({ id: p.id, organization_id: p.organization_id, role: p.role }))
+        editParticipants.map(p => ({ id: p.id, organization_id: p.organization_id, role: p.role as OrganizationRole }))
       );
       toast.success('Gig updated');
       await loadGig();
@@ -830,7 +830,7 @@ export default function MobileGigDetail({ gigId, onBack, onViewPackingList }: Mo
                       slot.staff_assignments.map((a: any) => {
                         const sConf = ASSIGNMENT_STATUS_CONFIG[a.status] || ASSIGNMENT_STATUS_CONFIG.Invited;
                         const isMe = isMyAssignment(a);
-                        const hasTs = isMe && showTimestamp(a.status) && a.confirmed_at;
+                        const _hasTs = isMe && showTimestamp(a.status) && a.confirmed_at;
                         return (
                           <div key={a.id} className="space-y-1">
                             <div className="flex items-center">

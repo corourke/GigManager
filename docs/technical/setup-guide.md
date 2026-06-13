@@ -12,10 +12,11 @@
 2. [Local Development Setup](#local-development-setup)
 3. [Environment Switching](#environment-switching)
 4. [Production Setup](#production-setup)
-5. [Edge Functions & External Integrations](#edge-functions--external-integrations)
-6. [Supabase CLI Procedures](#supabase-cli-procedures)
-7. [Troubleshooting](#troubleshooting)
-8. [Checklists](#checklists)
+5. [Continuous Integration & Deploy Gates](#continuous-integration--deploy-gates)
+6. [Edge Functions & External Integrations](#edge-functions--external-integrations)
+7. [Supabase CLI Procedures](#supabase-cli-procedures)
+8. [Troubleshooting](#troubleshooting)
+9. [Checklists](#checklists)
 
 ---
 
@@ -135,6 +136,70 @@ If your project uses Edge Functions, deploy them using the CLI:
 ```bash
 supabase functions deploy server --project-ref <your-project-id>
 ```
+
+---
+
+## Continuous Integration & Deploy Gates
+
+### GitHub Actions CI
+
+`.github/workflows/ci.yml` runs on every push and pull request to `main`:
+
+1. `npm ci`
+2. `npm run typecheck` — TypeScript strict mode against the root `tsconfig.json`
+3. `npm run lint` — ESLint flat config (`eslint.config.js`)
+4. `npm run test:run` — full Vitest suite
+5. `npm run build` — production Vite build
+
+No repository secrets are required: the build step uses obviously-fake placeholder values for `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY` (the client only validates their presence at runtime, and nothing contacts Supabase during a build).
+
+### Production deploy gates (`deploy_prod.sh`)
+
+The deploy script refuses to run unless all of the following hold, checked **before** linking to the prod Supabase project:
+
+- `git status --porcelain` is empty (no uncommitted/untracked changes)
+- the current branch is `main`
+- `npm run typecheck`, `npm run lint`, and `npm run test:run` all pass
+
+After the gates, the script keeps its existing safety behavior: explicit prod-ref verification, schema + data backups before migrations, and an exit trap that relinks to dev. The trap is registered before the gates, so **every** exit path — including a gate failure — leaves the CLI linked to dev.
+
+### Dev deploys (`deploy_dev.sh`)
+
+Pushes migrations and deploys edge functions to the **dev** Supabase project, encoding the AGENTS.md safety ritual (link → hard-verify project-ref → deploy). No branch/cleanliness/test gates and no backups: dev is where unmerged work lands and its data is disposable.
+
+```bash
+./deploy_dev.sh           # link to dev, verify, db push, functions deploy
+./deploy_dev.sh --check   # dry run: verifies link state, lists pending
+                          # migrations and functions, deploys nothing
+```
+
+The script refuses to continue if the verified project-ref is prod (or anything other than dev), and its exit trap guarantees the CLI is left linked to dev on every exit path. Run `--check` first when unsure — the migration list shows which migrations the remote is missing.
+
+---
+
+## Error Monitoring (Sentry)
+
+Sentry is integrated in three places, all **no-ops when the DSN env var is unset** (local dev and tests are unaffected):
+
+| Surface | Init location | Env vars |
+|---------|--------------|----------|
+| Web app | `src/main.tsx` (`Sentry.init` + top-level `ErrorBoundary`) | `VITE_SENTRY_DSN` |
+| `server` edge function | `supabase/functions/_shared/sentry.ts`, capture in the top-level catch | `SENTRY_DSN`, `SENTRY_ENVIRONMENT` |
+| `ai-scan` edge function | same shared helper | `SENTRY_DSN`, `SENTRY_ENVIRONMENT` |
+
+The web app tags events with `environment` (Vite mode) and `release` (`gigwrangler@<build timestamp>`). Edge functions flush events explicitly before responding because isolates can terminate immediately after the response.
+
+### Setup
+
+1. Create a Sentry organization/project at [sentry.io](https://sentry.io) — one **React** project for the web app and (optionally separate) one **Deno** project for edge functions. Copy each DSN.
+2. **Web (production)**: in the Cloudflare Pages dashboard → gigwrangler project → Settings → Environment variables, add `VITE_SENTRY_DSN`. Redeploy for it to take effect (build-time variable).
+3. **Edge functions (dev first)**:
+   ```bash
+   cat supabase/.temp/project-ref   # verify target before setting secrets
+   supabase secrets set SENTRY_DSN=<dsn> SENTRY_ENVIRONMENT=development
+   ```
+   Repeat against prod with `SENTRY_ENVIRONMENT=production` when ready.
+4. Verify: throw a test error (e.g. temporarily `throw new Error('sentry test')` in a button handler, or trigger a 500 in a function) and confirm the event appears in Sentry.
 
 ---
 

@@ -4,7 +4,7 @@ async function checkSchema() {
   const supabase = createClient();
   
   console.log('Checking purchases table...');
-  const { data: pData, error: pError } = await (supabase.from('purchases') as any).select('*').limit(1);
+  const { data: _pData, error: pError } = await (supabase.from('purchases') as any).select('*').limit(1);
   if (pError) {
     console.error('Error selecting from purchases:', pError);
   } else {
@@ -12,7 +12,7 @@ async function checkSchema() {
   }
 
   console.log('Checking assets table...');
-  const { data: aData, error: aError } = await (supabase.from('assets') as any).select('*').limit(1);
+  const { data: _aData, error: aError } = await (supabase.from('assets') as any).select('*').limit(1);
   if (aError) {
     console.error('Error selecting from assets:', aError);
   } else {

@@ -183,7 +183,9 @@ export default function GigListScreen({
     setGigs(updatedGigs);
 
     try {
-      await updateGig(id, updates);
+      // Strip view-model fields; inline edit only changes gig columns
+      const { venue, act, participants, financials, staff_slots, ...gigFields } = updates;
+      await updateGig(id, gigFields);
       const detected = await checkAllConflictsForGigs(updatedGigs);
       setConflicts(detected);
     } catch (err: any) {
@@ -613,10 +615,10 @@ export default function GigListScreen({
                       allDayAccessor="allDay"
                       style={{ height: 600 }}
                       view={calendarView}
-                      onView={(v) => setCalendarView(v as CalendarViewType)}
+                      onView={(v: string) => setCalendarView(v as CalendarViewType)}
                       date={calendarDate}
                       onNavigate={setCalendarDate}
-                      onSelectEvent={(event) => onViewGig(event.id, true)}
+                      onSelectEvent={(event: { id: string }) => onViewGig(event.id, true)}
                       onDrillDown={handleDrillDown}
                       eventPropGetter={eventStyleGetter}
                       showMultiDayTimes

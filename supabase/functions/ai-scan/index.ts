@@ -1,6 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.8";
 import Anthropic from "https://esm.sh/@anthropic-ai/sdk@0.32.1";
 import { encodeBase64 } from "https://deno.land/std@0.224.0/encoding/base64.ts";
+import { captureException } from "../_shared/sentry.ts";
 
 const ALLOWED_ORIGINS = new Set([
   'https://gigwrangler.com',
@@ -405,6 +406,7 @@ Deno.serve(async (req) => {
 
   } catch (error: any) {
     console.error('Error in ai-scan:', error);
+    await captureException(error);
     return new Response(
       JSON.stringify({ error: error.message || 'Internal Server Error' }),
       {

@@ -5,6 +5,7 @@ import { Conflict } from '../services/conflictDetection.service';
 
 const mockConflicts: Conflict[] = [
   {
+    level: 'conflict',
     type: 'staff',
     gig_id: 'gig-1',
     gig_title: 'Test Gig 1',
@@ -18,6 +19,7 @@ const mockConflicts: Conflict[] = [
     }
   },
   {
+    level: 'conflict',
     type: 'venue',
     gig_id: 'gig-2',
     gig_title: 'Test Gig 2',

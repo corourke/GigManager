@@ -63,14 +63,15 @@ vi.mock('../../services/organization.service', () => ({
 
 import { getGig, updateStaffAssignmentStatus, updateGig, updateGigParticipants } from '../../services/gig.service'
 import { searchOrganizations } from '../../services/organization.service'
+import { makeOrganization } from '../../test/factories'
 import { toast } from 'sonner'
 
 describe('MobileGigDetail', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    vi.mocked(getGig).mockResolvedValue(mockGig)
-    vi.mocked(updateGig).mockResolvedValue(undefined)
-    vi.mocked(updateGigParticipants).mockResolvedValue(undefined)
+    vi.mocked(getGig).mockResolvedValue(mockGig as unknown as Awaited<ReturnType<typeof getGig>>)
+    vi.mocked(updateGig).mockResolvedValue(undefined as unknown as Awaited<ReturnType<typeof updateGig>>)
+    vi.mocked(updateGigParticipants).mockResolvedValue({ success: true })
     vi.mocked(searchOrganizations).mockResolvedValue([])
     mockUseAuth.mockReturnValue({
       user: { id: 'user-1' },
@@ -287,7 +288,7 @@ describe('MobileGigDetail', () => {
       expect(screen.getByText('Cancel')).toBeInTheDocument()
 
       const selects = screen.getAllByRole('combobox')
-      expect(selects.some(s => s.querySelector('option[value="America/New_York"]') !== null || Array.from(s.options || []).some((o: any) => o.value === 'America/New_York'))).toBe(true)
+      expect(selects.some(s => s.querySelector('option[value="America/New_York"]') !== null || Array.from((s as HTMLSelectElement).options || []).some((o: any) => o.value === 'America/New_York'))).toBe(true)
     })
 
     it('title input is pre-populated with current gig title', async () => {
@@ -434,7 +435,7 @@ describe('MobileGigDetail', () => {
 
     it('add participant flow: search, select org, choose role, confirm adds to list', async () => {
       vi.mocked(searchOrganizations).mockResolvedValue([
-        { id: 'org-99', name: 'New Venue' },
+        makeOrganization({ id: 'org-99', name: 'New Venue' }),
       ])
       mockUseAuth.mockReturnValue({
         user: { id: 'user-1' },

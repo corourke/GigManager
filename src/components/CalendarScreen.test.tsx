@@ -1,5 +1,6 @@
 import { render, screen, waitFor, act } from '@testing-library/react';
-import { vi } from 'vitest';
+import { vi, type MockedFunction } from 'vitest';
+import { makeUser, makeOrganization } from '../test/factories';
 import CalendarScreen from './CalendarScreen';
 import { Organization, User, UserRole } from '../utils/supabase/types';
 import * as gigService from '../services/gig.service';
@@ -44,23 +45,9 @@ vi.mock('date-fns/locale', () => ({
   enUS: {},
 }));
 
-const mockOrganization: Organization = {
-  id: 'org-1',
-  name: 'Test Organization',
-  type: 'venue',
-  created_at: '2024-01-01T00:00:00Z',
-  updated_at: '2024-01-01T00:00:00Z',
-};
+const mockOrganization: Organization = makeOrganization({ name: 'Test Organization', roles: ['Venue'] });
 
-const mockUser: User = {
-  id: 'user-1',
-  email: 'test@example.com',
-  first_name: 'Test',
-  last_name: 'User',
-  created_at: '2024-01-01T00:00:00Z',
-  updated_at: '2024-01-01T00:00:00Z',
-  user_status: 'active',
-};
+const mockUser: User = makeUser();
 
 const defaultProps = {
   organization: mockOrganization,
@@ -84,7 +71,7 @@ describe('CalendarScreen', () => {
 
   it('renders the calendar screen with loading state initially', async () => {
     // Mock a delayed response to test loading state
-    const mockFn = gigService.getGigsForOrganization as vi.MockedFunction<typeof gigService.getGigsForOrganization>;
+    const mockFn = gigService.getGigsForOrganization as MockedFunction<typeof gigService.getGigsForOrganization>;
     mockFn.mockImplementation(() => new Promise(resolve => setTimeout(() => resolve([]), 100)));
 
     await act(async () => {
@@ -96,7 +83,7 @@ describe('CalendarScreen', () => {
   });
 
   it('renders calendar component after loading', async () => {
-    const mockFn = gigService.getGigsForOrganization as vi.MockedFunction<typeof gigService.getGigsForOrganization>;
+    const mockFn = gigService.getGigsForOrganization as MockedFunction<typeof gigService.getGigsForOrganization>;
     mockFn.mockResolvedValue([]);
 
     render(<CalendarScreen {...defaultProps} />);
@@ -112,7 +99,7 @@ describe('CalendarScreen', () => {
   });
 
   it('displays create gig button', async () => {
-    const mockFn = gigService.getGigsForOrganization as vi.MockedFunction<typeof gigService.getGigsForOrganization>;
+    const mockFn = gigService.getGigsForOrganization as MockedFunction<typeof gigService.getGigsForOrganization>;
     mockFn.mockResolvedValue([]);
 
     render(<CalendarScreen {...defaultProps} />);
@@ -126,7 +113,7 @@ describe('CalendarScreen', () => {
   });
 
   it('displays navigation controls', async () => {
-    const mockFn = gigService.getGigsForOrganization as vi.MockedFunction<typeof gigService.getGigsForOrganization>;
+    const mockFn = gigService.getGigsForOrganization as MockedFunction<typeof gigService.getGigsForOrganization>;
     mockFn.mockResolvedValue([]);
 
     render(<CalendarScreen {...defaultProps} />);
@@ -139,7 +126,7 @@ describe('CalendarScreen', () => {
   });
 
   it('displays view tabs', async () => {
-    const mockFn = gigService.getGigsForOrganization as vi.MockedFunction<typeof gigService.getGigsForOrganization>;
+    const mockFn = gigService.getGigsForOrganization as MockedFunction<typeof gigService.getGigsForOrganization>;
     mockFn.mockResolvedValue([]);
 
     render(<CalendarScreen {...defaultProps} />);

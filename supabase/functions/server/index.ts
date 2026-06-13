@@ -1,6 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.8";
 import * as WebAuthnServer from "https://esm.sh/@simplewebauthn/server@9.0.3";
 import * as kv from "./kv_store.ts";
+import { captureException } from "../_shared/sentry.ts";
 
 // Create Supabase client with service role key
 let supabaseAdmin: any;
@@ -3315,7 +3316,9 @@ Deno.serve(async (req) => {
 
   } catch (error) {
     console.error('Server error:', error);
-    return new Response(JSON.stringify({ error: 'Internal server error', details: error.message }), {
+    await captureException(error);
+    // Clean 500 — internal details go to Sentry/logs, not to the client
+    return new Response(JSON.stringify({ error: 'Internal server error' }), {
       status: 500,
       headers: { ...responseHeaders, 'Content-Type': 'application/json' },
     });

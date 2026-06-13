@@ -13,6 +13,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
+import { cn } from './ui/utils';
 import { Badge } from './ui/badge';
 import { Command, CommandEmpty, CommandGroup, CommandItem, CommandList } from './ui/command';
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
@@ -30,6 +31,7 @@ interface OrganizationSelectorProps {
   organizationRole?: OrganizationRole;
   placeholder?: string;
   disabled?: boolean;
+  className?: string;
 }
 
 export default function OrganizationSelector({
@@ -38,6 +40,7 @@ export default function OrganizationSelector({
   organizationRole,
   placeholder = 'Search for organization...',
   disabled = false,
+  className,
 }: OrganizationSelectorProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [isOpen, setIsOpen] = useState(false);
@@ -150,7 +153,7 @@ export default function OrganizationSelector({
                 onFocus={() => setIsOpen(true)}
                 placeholder={placeholder}
                 disabled={disabled}
-                className="pl-9"
+                className={cn('pl-9', className)}
               />
             </div>
           </PopoverTrigger>

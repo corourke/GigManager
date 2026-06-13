@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from 'vitest'
 import { render } from '@testing-library/react'
 import GigScreen from './GigScreen'
+import { makeUser, makeOrganization } from '../test/factories'
 
 // Mock all dependencies
 vi.mock('../services/gig.service', () => ({
@@ -20,14 +21,8 @@ vi.mock('../utils/supabase/client', () => ({
 }))
 
 const mockProps = {
-  organization: { id: 'org-1', name: 'Test Org', type: 'Production' },
-  user: { 
-    id: 'user-1', 
-    email: 'test@example.com',
-    first_name: 'Test',
-    last_name: 'User',
-    avatar_url: null,
-  },
+  organization: makeOrganization({ name: 'Test Org' }),
+  user: makeUser(),
   userRole: 'Admin' as const,
   onCancel: vi.fn(),
   onGigCreated: vi.fn(),

@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import AppHeader from './AppHeader'
+import { makeUser, makeOrganization } from '../test/factories'
 import { Organization, User } from '../utils/supabase/types'
 
 // Mock NavigationContext
@@ -13,19 +14,9 @@ vi.mock('../contexts/NavigationContext', () => ({
   })),
 }))
 
-const mockUser: User = {
-  id: 'user-1',
-  email: 'test@example.com',
-  first_name: 'Test',
-  last_name: 'User',
-  avatar_url: null,
-}
+const mockUser: User = makeUser()
 
-const mockOrganization: Organization = {
-  id: 'org-1',
-  name: 'Test Org',
-  type: 'Production',
-}
+const mockOrganization: Organization = makeOrganization({ name: 'Test Org' })
 
 describe('AppHeader', () => {
   beforeEach(() => {

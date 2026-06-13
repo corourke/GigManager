@@ -1,4 +1,5 @@
 import { createClient } from '../utils/supabase/client';
+import type { Json } from '../utils/supabase/database.types';
 import { UserGoogleCalendarSettings, GigSyncStatus } from '../utils/supabase/types';
 import { handleApiError } from '../utils/api-error-utils';
 
@@ -140,12 +141,12 @@ export async function saveUserGoogleCalendarSettings(
   userId: string,
   settings: {
     calendar_id: string;
-    calendar_name?: string;
+    calendar_name?: string | null;
     access_token: string;
     refresh_token: string;
     token_expires_at: string;
     is_enabled?: boolean;
-    sync_filters?: Record<string, any>;
+    sync_filters?: Json | null;
   }
 ): Promise<UserGoogleCalendarSettings> {
   const supabase = getSupabase();
@@ -271,7 +272,7 @@ export async function deleteGigFromCalendar(userId: string, gigId: string): Prom
 
     if (!settings.calendar_id) return;
 
-    const { data, error } = await supabase.functions.invoke(
+    const { data: _data, error } = await supabase.functions.invoke(
       'server/integrations/google-calendar/events',
       {
         method: 'DELETE',
@@ -413,9 +414,9 @@ export async function getSyncStatusSummary(userId: string): Promise<{
   }
 }
 
-function getFilteredStatuses(syncFilters: Record<string, any> | undefined): Set<string> {
+function getFilteredStatuses(syncFilters: Json | null | undefined): Set<string> {
   const statuses = new Set<string>();
-  const filters = syncFilters || {};
+  const filters: Record<string, any> = (syncFilters && typeof syncFilters === 'object' && !Array.isArray(syncFilters)) ? syncFilters : {};
 
   if (filters.sync_confirmed !== false) {
     statuses.add('Booked');
@@ -501,7 +502,7 @@ export async function syncAllGigsForUser(
         start: gig.start,
         end: gig.end,
         timezone: gig.timezone,
-        description: gig.notes,
+        description: gig.notes ?? undefined,
         location,
       });
       synced++;

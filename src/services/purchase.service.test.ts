@@ -89,7 +89,7 @@ describe('purchase.service', () => {
         p_items: items,
         p_assets: assets
       });
-      expect(result.id).toBe('h1');
+      expect(result?.id).toBe('h1');
     });
   });
 

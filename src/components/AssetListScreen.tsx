@@ -1,5 +1,5 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
-import { Package, Plus, Search, Filter, Loader2, Edit, Trash2, AlertCircle, Shield, Upload, Eye, Copy, FileText, X } from 'lucide-react';
+import {useState, useEffect, useMemo } from 'react';
+import {Package, Plus, Search, Loader2, AlertCircle, Upload, FileText, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { getAssets, deleteAsset, duplicateAsset, updateAsset } from '../services/asset.service';
 import { getAssetTrackingSummary } from '../services/inventoryManagement.service';
@@ -54,7 +54,7 @@ export default function AssetListScreen({
   onEditProfile,
 }: AssetListScreenProps) {
   // Memoize filters to prevent infinite re-renders
-  const assetFilters = useMemo(() => ({ organization_id: organization.id }), [organization.id]);
+  const _assetFilters = useMemo(() => ({ organization_id: organization.id }), [organization.id]);
 
   // Asset list data
   const [allAssets, setAllAssets] = useState<DbAsset[]>([]);

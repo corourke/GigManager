@@ -6,10 +6,12 @@
  * Normalize form data for submission (handle nulls, empty strings, etc.)
  */
 export function normalizeFormData<T extends Record<string, any>>(data: T): T {
-  const normalized = { ...data };
+  // Values are intentionally rewritten across types (string -> null, etc.),
+  // so normalization works on an untyped record and the caller keeps T
+  const normalized: Record<string, any> = { ...data };
 
   for (const key in normalized) {
-    if (normalized.hasOwnProperty(key)) {
+    if (Object.prototype.hasOwnProperty.call(normalized, key)) {
       let value = normalized[key];
 
       // Trim strings first
@@ -24,16 +26,16 @@ export function normalizeFormData<T extends Record<string, any>>(data: T): T {
 
       // Handle arrays
       if (Array.isArray(value)) {
-        value = value.filter(item =>
+        value = value.filter((item: unknown) =>
           item !== null && item !== undefined && item !== ''
-        ) as any;
+        );
       }
 
-      normalized[key] = value as any;
+      normalized[key] = value;
     }
   }
 
-  return normalized;
+  return normalized as T;
 }
 
 /**
@@ -68,7 +70,7 @@ export function createSubmissionPayload<T extends Record<string, any>>(
     deepCompare?: boolean;
   } = {}
 ): Partial<T> {
-  const { normalize = true, deepCompare = false } = options; // Changed default to false for simplicity
+  const { normalize = true, deepCompare: _deepCompare = false } = options; // Changed default to false for simplicity
 
   let dataToCompare = currentData;
   if (normalize) {

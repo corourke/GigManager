@@ -66,6 +66,7 @@ export type TrackingStatus = keyof typeof TRACKING_STATUS_CONFIG;
 export const PURCHASE_ROW_TYPE = {
   header: 'header',
   item: 'item',
+  asset: 'asset',
 } as const;
 
 export type PurchaseRowType = keyof typeof PURCHASE_ROW_TYPE;
@@ -135,6 +136,17 @@ export const FIN_CATEGORY_CONFIG = {
 } as const;
 
 export type FinCategory = keyof typeof FIN_CATEGORY_CONFIG;
+
+/**
+ * Validate an arbitrary value against the fin_category enum.
+ * Returns the category if valid, undefined otherwise — the database rejects
+ * any other value, so callers must not pass unvalidated strings through.
+ */
+export function toFinCategory(value: unknown): FinCategory | undefined {
+  return typeof value === 'string' && value in FIN_CATEGORY_CONFIG
+    ? (value as FinCategory)
+    : undefined;
+}
 
 export const TAG_CONFIG = {
   'Concert': { color: 'bg-blue-100 text-blue-800 border-blue-300' },

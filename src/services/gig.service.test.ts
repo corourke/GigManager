@@ -8,11 +8,18 @@ import {
   removeKitFromGig,
   getGigKits,
   getAllGigAccountingSummaries,
+  completeStaffAssignment,
 } from './gig.service';
 import { createClient } from '../utils/supabase/client';
+import { requireAuth } from '../utils/supabase/auth-utils';
+import { FIN_CATEGORY_CONFIG } from '../utils/supabase/constants';
 
 vi.mock('../utils/supabase/client', () => ({
   createClient: vi.fn(),
+}));
+
+vi.mock('../utils/supabase/auth-utils', () => ({
+  requireAuth: vi.fn(),
 }));
 
 // googleCalendar.service is called by deleteGigFromAllCalendars; stub it out
@@ -517,6 +524,32 @@ describe('gig.service', () => {
       });
 
       await expect(getAllGigAccountingSummaries('org-1')).rejects.toThrow('permission denied');
+    });
+  });
+
+  // ─── completeStaffAssignment ──────────────────────────────────────────────
+
+  describe('completeStaffAssignment', () => {
+    it('creates the labor financial with a valid fin_category enum value', async () => {
+      const assignment = {
+        id: 'as-1',
+        fee: 200,
+        rate: null,
+        slot: { gig_id: 'gig-1', organization_id: 'org-1', role_info: { name: 'FOH Engineer' } },
+      };
+      const financialsChain = makeChain({ data: { id: 'fin-1' }, error: null });
+      mockSupabase.from.mockImplementation((table: string) => {
+        if (table === 'gig_financials') return financialsChain;
+        return makeChain({ data: assignment, error: null });
+      });
+      (requireAuth as any).mockResolvedValue({ supabase: mockSupabase, user: { id: 'user-1' } });
+
+      const result = await completeStaffAssignment('as-1');
+
+      expect(result).toEqual({ success: true, financialId: 'fin-1' });
+      const inserted = financialsChain.insert.mock.calls[0][0];
+      // The database enum rejects anything outside FIN_CATEGORY_CONFIG
+      expect(Object.keys(FIN_CATEGORY_CONFIG)).toContain(inserted.category);
     });
   });
 });

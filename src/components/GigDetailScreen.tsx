@@ -21,7 +21,6 @@ import { Badge } from './ui/badge';
 import { 
   Dialog, 
   DialogContent, 
-  DialogDescription, 
   DialogFooter, 
   DialogHeader, 
   DialogTitle 
@@ -37,7 +36,7 @@ import { createClient } from '../utils/supabase/client';
 import { checkAllConflicts, Conflict } from '../services/conflictDetection.service';
 import { ConflictWarning } from './ConflictWarning';
 import { cn } from './ui/utils';
-import { formatTimeDisplay, formatInTimeZone, formatDateTimeDisplay } from '../utils/dateUtils';
+import {formatInTimeZone, formatDateTimeDisplay } from '../utils/dateUtils';
 
 interface GigDetailScreenProps {
   gigId: string;
@@ -152,7 +151,7 @@ export default function GigDetailScreen({
   }
 
   const canViewFinancials = gig.created_by === user.id || userRole === 'Admin' || userRole === 'Manager';
-  const participantOrgIds = [organization.id, ...gig.participants.map((p: any) => p.organization_id)];
+  const participantOrgIds = [organization.id, ...(gig.participants ?? []).map((p: any) => p.organization_id)];
 
   return (
     <div className="min-h-screen bg-gray-50">

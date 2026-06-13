@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import {useState } from 'react';
 import { Button } from './ui/button';
 import { useSimpleFormChanges } from '../utils/hooks/useSimpleFormChanges';
 import { createSubmissionPayload, normalizeFormData } from '../utils/form-utils';
@@ -7,7 +7,6 @@ import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Card } from './ui/card';
 import { Alert, AlertDescription } from './ui/alert';
-import AppHeader from './AppHeader';
 import { Building2, AlertCircle, Loader2, User } from 'lucide-react';
 import { toast } from 'sonner';
 import { User as UserType } from '../utils/supabase/types';

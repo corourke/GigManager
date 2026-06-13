@@ -6,7 +6,6 @@ import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Card } from './ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
-import { Alert, AlertDescription } from './ui/alert';
 import {
   Table,
   TableBody,
@@ -30,18 +29,15 @@ import {
   type ParsedRow,
   type GigRow,
   type AssetRow,
-  parseBoolean,
   parseTags,
   findOrCreateOrganization,
 } from '../utils/csvImport';
 import { createGig } from '../services/gig.service';
-import { createAsset } from '../services/asset.service';
 import { importPurchases } from '../services/purchase.service';
 import { searchOrganizations, createOrganization } from '../services/organization.service';
 import { createClient } from '../utils/supabase/client';
 import { 
   parseLocalToUTC, 
-  formatInTimeZone, 
   formatGigDateTimeForDisplay, 
   formatGigDateTimeForInput, 
   parseGigDateTimeFromInput 
@@ -553,7 +549,7 @@ export default function ImportScreen({
                     <Loader2 className="w-5 h-5 text-blue-600 animate-spin" />
                     Import Progress
                   </>
-                ) : importResults?.errors.length > 0 ? (
+                ) : (importResults?.errors.length ?? 0) > 0 ? (
                   <>
                     <AlertCircle className="w-5 h-5 text-yellow-600" />
                     Import Results

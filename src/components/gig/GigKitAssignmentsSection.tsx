@@ -36,9 +36,9 @@ type KitFormData = z.infer<typeof kitFormSchema>;
 interface Kit {
   id: string;
   name: string;
-  tag_number?: string;
-  category?: string;
-  rental_value?: string;
+  tag_number?: string | null;
+  category?: string | null;
+  rental_value?: number | null;
 }
 
 interface GigKitAssignmentsSectionProps {
@@ -151,7 +151,7 @@ export default function GigKitAssignmentsSection({
         name: kit.name,
         tag_number: kit.tag_number,
         category: kit.category,
-        rental_value: kit.rental_value,
+        rental_value: kit.rental_value != null ? String(kit.rental_value) : null,
       },
     });
   };

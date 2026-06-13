@@ -2,9 +2,7 @@ import { createClient } from '../utils/supabase/client';
 import { 
   Organization, 
   OrganizationRole, 
-  UserRole,
-  OrganizationMembershipWithOrg,
-  User
+  UserRole
 } from '../utils/supabase/types';
 import { handleApiError, handleFunctionsError } from '../utils/api-error-utils';
 import { sanitizeLikeInput } from '../utils/validation-utils';
@@ -270,7 +268,7 @@ export async function getOrganizationInvitations(organizationId: string) {
       .from('invitations')
       .select(`
         *,
-        invited_by_user:invited_by(
+        invited_by_user:users!invitations_invited_by_fkey(
           first_name,
           last_name,
           email

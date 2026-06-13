@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
+import { toFinCategory } from '../utils/supabase/constants';
 import { createPurchaseTransaction } from '../services/purchase.service';
 import { createGigFinancial } from '../services/gig.service';
 import { uploadAttachment, linkAttachmentToEntity } from '../services/attachment.service';
@@ -81,6 +82,7 @@ interface ScannedData {
   description?: string;
   category?: string;
   sub_category?: string;
+  invoice_number?: string;
   items: ScannedItem[];
 }
 
@@ -138,8 +140,7 @@ export default function ReviewScannedDataDialog({
         const canvas = document.createElement('canvas');
         canvas.width = viewport.width;
         canvas.height = viewport.height;
-        const ctx = canvas.getContext('2d')!;
-        await page.render({ canvasContext: ctx, viewport }).promise;
+        await page.render({ canvas, viewport }).promise;
         images.push(canvas.toDataURL('image/png'));
       }
       setPdfPageImages(images);
@@ -315,7 +316,7 @@ export default function ReviewScannedDataDialog({
             date: formData.purchase_date,
             amount: formData.total_inv_amount,
             type: 'Expense Incurred',
-            category: (formData.category as any) || 'Production',
+            category: toFinCategory(formData.category) ?? 'Other expenses',
             description: formData.description || `Receipt: ${formData.vendor}`,
             purchase_id: result.id,
             paid_at: new Date().toISOString(), // Incurred from receipt implies paid

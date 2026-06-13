@@ -31,7 +31,7 @@
 
 ## Core Technology Stack
 
-- **Frontend**: React 18 (Function components), TypeScript (Strict), Vite, Tailwind CSS v4.
+- **Frontend**: React 18 (Function components), TypeScript (strict — enforced by `npm run typecheck` against the root `tsconfig.json`), Vite, Tailwind CSS v4.
 - **UI Components**: Shadcn/ui (Radix), Lucide React icons.
 - **Forms**: `react-hook-form` + `zod` validation.
 - **Backend**: Supabase (JS Client), PostgreSQL, RLS.
@@ -80,10 +80,33 @@
 - [ ] Types are explicitly defined (avoid `any`).
 - [ ] Components are modular and focused.
 
+## Quality Gates
+
+All three must pass before merging (CI enforces them from Phase 4 of the June 2026 remediation plan):
+
+```bash
+npm run typecheck   # tsc --noEmit, strict mode, root tsconfig.json
+npm run lint        # ESLint flat config (eslint.config.js)
+npm run test:run    # Vitest
+```
+
+### Type system notes
+
+- The Supabase `Database` type is **generated** from the live dev schema into `src/utils/supabase/database.types.ts` (`supabase gen types typescript --linked`). Regenerate it after every schema migration. The `Db*` row types in `src/utils/supabase/types.tsx` are aliases of the generated rows and must not be hand-edited back into drift.
+- Test fixtures should use the factories in `src/test/factories.ts` (`makeUser`, `makeOrganization`) rather than hand-built objects.
+
+### Lint burn-down debt (intentional, tracked)
+
+- `@typescript-eslint/no-explicit-any` is **off**: ~500 legacy `any`s predate strict mode. Tighten to `error` as services/components are refactored (Phase 7).
+- The react-hooks v6 compiler rules (`set-state-in-effect`, `immutability`, `refs`, `purity`, `incompatible-library`, `static-components`) are **off**: they flag real but refactor-sized issues in the large screen components. Re-enable per-component as Phase 7 splits them.
+- `react-hooks/exhaustive-deps` is a **warning** (~45 open). Fix opportunistically; do not add new ones.
+- `react-big-calendar` is typed as `any` via `src/types/react-big-calendar.d.ts`; replace with `@types/react-big-calendar` when convenient.
+
 ## Future Refactoring Opportunities
 
 - **`src/App.tsx`** (~816 lines): Contains routing, auth flow, and organization selection logic in a single file. Consider extracting into a router module, auth orchestrator, and layout components.
 - **`src/services/gig.service.ts`** (~1110 lines): Handles all gig CRUD, participants, financials, staff, and kit assignments. Consider splitting into focused modules (e.g., `gigParticipant.service.ts`, `gigFinancial.service.ts`).
+- **`src/components/AssetScreen.tsx`**: form state uses in-place string→number normalization with boundary casts at the `createAsset`/`updateAsset` call sites; replace with a typed conversion layer when the component is split.
 
 ---
 **Last Updated**: 2026-02-24

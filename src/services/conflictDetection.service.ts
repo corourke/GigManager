@@ -1,12 +1,13 @@
 import { createClient } from '../utils/supabase/client';
 import { handleApiError } from '../utils/api-error-utils';
 import { isNoonUTC } from '../utils/dateUtils';
+import type { OrganizationRole } from '../utils/supabase/types';
 
 const getSupabase = () => createClient();
 
 const WARNING_BUFFER_MS = 4 * 60 * 60 * 1000;
 const DAY_MS = 24 * 60 * 60 * 1000;
-const PARTICIPANT_CONFLICT_ROLES = ['Venue', 'Act'];
+const PARTICIPANT_CONFLICT_ROLES: OrganizationRole[] = ['Venue', 'Act'];
 
 export interface Conflict {
   level: 'conflict' | 'warning';
@@ -108,7 +109,7 @@ export async function checkStaffConflicts(gigId: string, startTime: string, endT
     if (!currentAssignments || currentAssignments.length === 0) return { conflicts: [], warnings: [] };
 
     const staffUserIds = currentAssignments.map((a: any) => a.user_id);
-    const staffLookup = new Map(currentAssignments.map((a: any) => [a.user_id, a.user]));
+    const _staffLookup = new Map(currentAssignments.map((a: any) => [a.user_id, a.user]));
 
     const { effectiveStart: currentStart, effectiveEnd: currentEnd } = getEffectiveRange(startTime, endTime, timezone);
     const { queryStart, queryEnd } = widenedQueryRange(currentStart, currentEnd);

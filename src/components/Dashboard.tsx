@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Button } from './ui/button';
 import { Card } from './ui/card';
-import { Badge } from './ui/badge';
 import AppHeader from './AppHeader';
 import {
   LayoutDashboard,
@@ -11,10 +10,10 @@ import {
   Loader2,
 } from 'lucide-react';
 import { Organization, User, UserRole } from '../utils/supabase/types';
-import { USER_ROLE_CONFIG, GIG_STATUS_CONFIG } from '../utils/supabase/constants';
+import {GIG_STATUS_CONFIG } from '../utils/supabase/constants';
 import { createClient } from '../utils/supabase/client';
 import { handleFunctionsError } from '../utils/api-error-utils';
-import GigTable, { type Gig } from './tables/GigTable';
+import GigTable from './tables/GigTable';
 import { PageHeader } from './ui/PageHeader';
 
 interface DashboardProps {
@@ -284,7 +283,7 @@ export default function Dashboard({
                       title: g.title,
                       start: g.start,
                       end: g.end || g.end_time || g.endTime || g.start, // Try various field names for end time
-                      timezone: g.timezone, // Pass whatever the API gives (undefined will fallback to local)
+                      timezone: g.timezone ?? '', // Pass whatever the API gives (empty falls back to local)
                       status: g.status as any,
                       tags: [],
                       venue: g.venue ? { id: '', name: g.venue, type: 'Venue' } as any : undefined,

@@ -27,11 +27,6 @@ import { Badge } from './ui/badge';
 import { Alert, AlertDescription } from './ui/alert';
 import { Checkbox } from './ui/checkbox';
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
 } from './ui/select';
 import { PageHeader } from './ui/PageHeader';
 import MarkdownEditor from './MarkdownEditor';
@@ -142,7 +137,6 @@ export default function OrganizationScreen({
 
   const [errors, setErrors] = useState<FormErrors>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [autoJoin, setAutoJoin] = useState(true);
 
   useEffect(() => {
     async function checkPermissions() {
@@ -459,7 +453,7 @@ export default function OrganizationScreen({
         : normalizedData;
 
       let path = 'server/organizations';
-      let method = 'POST';
+      let method: 'POST' | 'PUT' = 'POST';
       
       if (isEditMode && organization) {
         path += `/${organization.id}`;

@@ -1,10 +1,8 @@
 import { useState, useRef, KeyboardEvent } from 'react';
 import { Badge } from './ui/badge';
-import { Button } from './ui/button';
-import { Input } from './ui/input';
 import { Command, CommandEmpty, CommandGroup, CommandItem, CommandList } from './ui/command';
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
-import { X, Plus, Check } from 'lucide-react';
+import {X, Check } from 'lucide-react';
 
 interface TagsInputProps {
   value: string[];

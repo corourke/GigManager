@@ -60,7 +60,7 @@ export default function KitDetailScreen({
 
   const handleDuplicate = async () => {
     try {
-      const newKit = await duplicateKit(kitId);
+      const _newKit = await duplicateKit(kitId);
       toast.success('Kit duplicated successfully');
       // Navigate to the new kit
       onBack();

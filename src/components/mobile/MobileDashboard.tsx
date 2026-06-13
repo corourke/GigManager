@@ -1,8 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../ui/card';
-import { PageHeader } from '../ui/PageHeader';
 import { 
-  LayoutDashboard, 
   MapPin, 
   Phone, 
   ChevronRight, 

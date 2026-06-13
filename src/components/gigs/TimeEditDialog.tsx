@@ -21,6 +21,8 @@ interface TimeEditDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   gigTitle?: string;
+  date: string;
+  setDate: (date: string) => void;
   startTime: string;
   setStartTime: (time: string) => void;
   endTime: string;

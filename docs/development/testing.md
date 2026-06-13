@@ -25,6 +25,8 @@ The primary goal of tests at this stage is to **ensure that code refactorings or
 
 The project uses [Vitest](https://vitest.dev/) as the test runner, which provides fast unit testing with TypeScript support and excellent React component testing capabilities.
 
+**Current suite size** (June 2026): 534 tests across 64 files, all passing. Treat this as a floor — `npm run test:run` must exit 0 before any merge. Shared fixtures live in `src/test/factories.ts` (`makeUser`, `makeOrganization`); use them instead of hand-built row objects so fixtures track the generated database types.
+
 ## Running Tests
 
 ### Run all tests

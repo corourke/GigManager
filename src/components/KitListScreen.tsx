@@ -1,5 +1,5 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
-import { Package, Plus, Search, Loader2, Edit, Trash2, Copy, Eye, AlertCircle } from 'lucide-react';
+import {useState, useEffect, useMemo } from 'react';
+import {Package, Plus, AlertCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import { getKits, deleteKit, duplicateKit, updateKit } from '../services/kit.service';
 import { getKitTrackingSummary, KitTrackingSummary } from '../services/inventoryManagement.service';
@@ -49,7 +49,7 @@ export default function KitListScreen({
 }: KitListScreenProps) {
   // Memoize filters to prevent infinite re-renders
   const [allKits, setAllKits] = useState<any[]>([]);
-  const [filteredKits, setFilteredKits] = useState<any[]>([]);
+  const [_filteredKits, setFilteredKits] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [kitTrackingSummary, setKitTrackingSummary] = useState<Map<string, KitTrackingSummary>>(new Map());
@@ -262,19 +262,19 @@ export default function KitListScreen({
     }
   ], [onViewKit, onEditKit, userRole]);
 
-  const formatCurrency = (amount: number) => {
+  const _formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
       currency: 'USD',
     }).format(amount);
   };
 
-  const getKitAssetCount = (kit: any) => {
+  const _getKitAssetCount = (kit: any) => {
     if (!kit.kit_assets || kit.kit_assets.length === 0) return 0;
     return kit.kit_assets.reduce((sum: number, ka: any) => sum + (ka.quantity || 1), 0);
   };
 
-  const getKitTotalValue = (kit: any) => {
+  const _getKitTotalValue = (kit: any) => {
     return (kit.kit_assets || []).reduce((total: number, ka: any) => {
       return total + (ka.asset?.replacement_value || 0) * ka.quantity;
     }, 0);

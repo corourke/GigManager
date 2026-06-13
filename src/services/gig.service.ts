@@ -1,18 +1,18 @@
 import { createClient } from '../utils/supabase/client';
 import {
-  Gig,
   GigStatus,
   FinType,
   FinCategory,
   GigAccountingSummary,
   PaymentHealth,
+  OrganizationRole,
 } from '../utils/supabase/types';
-import { FIN_TYPE_CONFIG, FIN_CATEGORY_CONFIG, FIN_TYPE_GROUPS } from '../utils/supabase/constants';
+import {FIN_TYPE_GROUPS } from '../utils/supabase/constants';
 import { handleApiError } from '../utils/api-error-utils';
 import { requireAuth } from '../utils/supabase/auth-utils';
 import { UUID_REGEX } from '../utils/validation-utils';
 import { getKit } from './kit.service';
-import { syncGigToCalendar, deleteGigFromCalendar } from './googleCalendar.service';
+import {deleteGigFromCalendar } from './googleCalendar.service';
 
 const getSupabase = () => createClient();
 
@@ -192,6 +192,7 @@ export async function getGig(gigId: string) {
 
     return {
       ...gig,
+      tags: gig.tags ?? [],
       staff_slots: processedSlots,
     };
   } catch (err) {
@@ -276,7 +277,7 @@ export async function createGig(gigData: any) {
 export async function updateGigParticipants(gigId: string, participants: Array<{
   id?: string;
   organization_id: string;
-  role: string;
+  role: OrganizationRole;
   notes?: string | null;
 }>) {
   try {
@@ -308,7 +309,7 @@ export async function updateGigParticipants(gigId: string, participants: Array<{
       };
 
       if (isDbId && existingIds.includes(participant.id!)) {
-        await supabase.from('gig_participants').update(participantData).eq('id', participant.id);
+        await supabase.from('gig_participants').update(participantData).eq('id', participant.id!);
       } else if (participant.organization_id && participant.role) {
         await supabase.from('gig_participants').insert({ gig_id: gigId, ...participantData });
       }
@@ -330,11 +331,11 @@ export async function updateGig(gigId: string, gigData: {
   timezone?: string;
   status?: GigStatus;
   tags?: string[];
-  notes?: string;
+  notes?: string | null;
   participants?: Array<{ 
     id?: string;
     organization_id: string; 
-    role: string; 
+    role: OrganizationRole; 
     notes?: string | null 
   }>;
   staff_slots?: Array<{
@@ -733,7 +734,7 @@ export async function updateGigKitAssignments(gigId: string, organizationId: str
       };
 
       if (isDbId) {
-        await supabase.from('gig_kit_assignments').update(assignmentData).eq('id', assignment.id);
+        await supabase.from('gig_kit_assignments').update(assignmentData).eq('id', assignment.id!);
       } else {
         await supabase.from('gig_kit_assignments').insert({ ...assignmentData, assigned_by: user.id });
       }
@@ -985,6 +986,7 @@ export async function createGigFinancial(finData: {
   paid_at?: string;
   purchase_id?: string;
   staff_assignment_id?: string;
+  mileage?: number;
 }) {
   try {
     const { supabase, user } = await requireAuth();
@@ -1247,7 +1249,7 @@ export async function completeStaffAssignment(assignmentId: string, unitsComplet
         amount: amount,
         date: new Date().toISOString().split('T')[0],
         type: 'Expense Incurred',
-        category: 'Labor',
+        category: 'Contract labor',
         description: `Labor: ${roleName}`,
         staff_assignment_id: assignmentId,
         created_by: user.id,

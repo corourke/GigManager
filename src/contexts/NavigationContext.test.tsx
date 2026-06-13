@@ -8,6 +8,7 @@ const defaultHandlers = {
   onNavigateToGigs: vi.fn(),
   onNavigateToTeam: vi.fn(),
   onNavigateToAssets: vi.fn(),
+  onNavigateToFinancials: vi.fn(),
 }
 
 describe('NavigationProvider', () => {
@@ -43,6 +44,7 @@ describe('useNavigation', () => {
       onNavigateToGigs: vi.fn(),
       onNavigateToTeam: vi.fn(),
       onNavigateToAssets: vi.fn(),
+      onNavigateToFinancials: vi.fn(),
     }
     const wrapper = ({ children }: { children: React.ReactNode }) => (
       <NavigationProvider {...handlers}>{children}</NavigationProvider>

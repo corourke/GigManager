@@ -1,5 +1,6 @@
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import { vi } from 'vitest';
+import { vi, type MockedFunction } from 'vitest';
+import { makeUser, makeOrganization } from '../test/factories';
 import { CalendarFilters } from './CalendarFilters';
 import * as organizationService from '../services/organization.service';
 import * as userService from '../services/user.service';
@@ -32,18 +33,18 @@ const mockProps = {
 };
 
 const mockVenues = [
-  { id: 'venue-1', name: 'Venue One', type: 'venue' as const },
-  { id: 'venue-2', name: 'Venue Two', type: 'venue' as const },
+  makeOrganization({ id: 'venue-1', name: 'Venue One', roles: ['Venue'] }),
+  makeOrganization({ id: 'venue-2', name: 'Venue Two', roles: ['Venue'] }),
 ];
 
 const mockActs = [
-  { id: 'act-1', name: 'Act One', type: 'act' as const },
-  { id: 'act-2', name: 'Act Two', type: 'act' as const },
+  makeOrganization({ id: 'act-1', name: 'Act One', roles: ['Act'] }),
+  makeOrganization({ id: 'act-2', name: 'Act Two', roles: ['Act'] }),
 ];
 
 const mockStaff = [
-  { id: 'user-1', first_name: 'John', last_name: 'Doe' },
-  { id: 'user-2', first_name: 'Jane', last_name: 'Smith' },
+  makeUser({ id: 'user-1', first_name: 'John', last_name: 'Doe' }),
+  makeUser({ id: 'user-2', first_name: 'Jane', last_name: 'Smith' }),
 ];
 
 describe('CalendarFilters', () => {
@@ -51,14 +52,14 @@ describe('CalendarFilters', () => {
     vi.clearAllMocks();
 
     // Mock the service calls
-    (organizationService.searchOrganizations as vi.MockedFunction<typeof organizationService.searchOrganizations>)
+    (organizationService.searchOrganizations as MockedFunction<typeof organizationService.searchOrganizations>)
       .mockImplementation((filters) => {
         if (filters?.type === 'Venue') return Promise.resolve(mockVenues);
         if (filters?.type === 'Act') return Promise.resolve(mockActs);
         return Promise.resolve([]);
       });
 
-    (userService.searchUsers as vi.MockedFunction<typeof userService.searchUsers>)
+    (userService.searchUsers as MockedFunction<typeof userService.searchUsers>)
       .mockResolvedValue(mockStaff);
   });
 

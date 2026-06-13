@@ -55,7 +55,7 @@ export function useAutocompleteSuggestions({
 
   useEffect(() => {
     if (!enabled || !organizationId) {
-      setSuggestions(resolvedSeedValues);
+      setSuggestions([...resolvedSeedValues]);
       return;
     }
 
@@ -81,7 +81,7 @@ export function useAutocompleteSuggestions({
         console.error(`Error loading ${field} suggestions:`, error);
         // On error, at least show seed values
         if (!cancelled) {
-          setSuggestions(resolvedSeedValues);
+          setSuggestions([...resolvedSeedValues]);
         }
       } finally {
         if (!cancelled) {

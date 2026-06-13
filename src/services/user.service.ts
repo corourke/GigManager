@@ -2,6 +2,8 @@ import { createClient } from '../utils/supabase/client';
 import { 
   User, 
   OrganizationMembershipWithOrg,
+  UserRole,
+  DbOrganization,
 } from '../utils/supabase/types';
 import { handleApiError } from '../utils/api-error-utils';
 import { requireAuth } from '../utils/supabase/auth-utils';
@@ -22,8 +24,10 @@ export async function getCompleteUserData(userId: string): Promise<{ profile: Us
       throw error;
     }
     
-    const profile = data?.profile || null;
-    const orgs = (data?.organizations || []).map((org: any) => ({
+    // The RPC returns Json; shape defined by get_complete_user_data
+    const result = data as { profile: User | null; organizations: any[] } | null;
+    const profile = result?.profile || null;
+    const orgs = (result?.organizations || []).map((org: any) => ({
       user_id: org.user_id,
       organization_id: org.organization_id,
       role: org.role,
@@ -64,8 +68,8 @@ export async function getUserProfile(userId: string): Promise<User | null> {
 export async function createUserProfile(userData: {
   id: string;
   email: string;
-  first_name?: string;
-  last_name?: string;
+  first_name: string;
+  last_name: string;
   avatar_url?: string;
 }): Promise<User> {
   const supabase = getSupabase();
@@ -204,7 +208,7 @@ export async function getUserOrganizations(userId: string): Promise<Organization
       throw error;
     }
 
-    let orgs = data || [];
+    const orgs = (data || []) as Array<{ user_id: string; organization_id: string; role: UserRole; created_at: string; organization: DbOrganization }>;
 
     // Optional: If we want to be extra sure about permissions when querying someone else,
     // we could fetch the current session here, but for self-queries (the common case),
@@ -212,7 +216,7 @@ export async function getUserOrganizations(userId: string): Promise<Organization
     // The server-side RPC and RLS should ideally handle security.
     
     // Transform the data to match the expected format
-    return orgs.map(org => ({
+    return orgs.map((org) => ({
       user_id: org.user_id,
       organization_id: org.organization_id,
       role: org.role,

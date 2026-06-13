@@ -34,10 +34,9 @@ import {
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
-import { Badge } from '../ui/badge';
 import { Skeleton } from '../ui/skeleton';
 import { cn } from '../ui/utils';
-import { useTableState, SortingState } from '../../utils/hooks/useTableState';
+import {useTableState } from '../../utils/hooks/useTableState';
 import { EditableCell } from './EditableCell';
 
 export type ColumnType = 'text' | 'number' | 'checkbox' | 'pill' | 'multi-pill' | 'select' | 'date' | 'datetime' | 'currency';

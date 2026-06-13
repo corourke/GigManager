@@ -2,8 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   calculateMileageAmount,
   formatMileageNotes,
-  getMileageRateForYear,
-  IRS_MILEAGE_RATES
+  getMileageRateForYear
 } from './financials.utils';
 
 describe('financials.utils', () => {

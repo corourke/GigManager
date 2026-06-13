@@ -6,7 +6,7 @@ import { MobileBarcodeScanner } from './MobileBarcodeScanner'
 const mockScanner = vi.fn()
 
 vi.mock('react-qr-barcode-scanner', () => ({
-  default: (props: any) => {
+  default: function MockBarcodeScanner(props: any) {
     mockScanner(props)
     React.useEffect(() => {
       props.onError?.(new DOMException('Permission denied', 'NotAllowedError'))

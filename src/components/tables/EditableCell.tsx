@@ -1,6 +1,5 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Check, Loader2, Plus, Search, X } from 'lucide-react';
-import { Input } from '../ui/input';
+import React, {useState, useEffect, useRef } from 'react';
+import {Check, Loader2, Plus } from 'lucide-react';
 import { Badge } from '../ui/badge';
 import { TableCell } from '../ui/table';
 import { cn } from '../ui/utils';

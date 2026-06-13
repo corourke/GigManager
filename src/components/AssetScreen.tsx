@@ -14,7 +14,7 @@ import AppHeader from './AppHeader';
 import { PageHeader } from './ui/PageHeader';
 import { Organization, User, UserRole } from '../utils/supabase/types';
 import { getAsset, createAsset, updateAsset, getAssetStatusHistory, getAssetInventoryTracking } from '../services/asset.service';
-import type { DbAsset, DbAssetStatusHistory, DbInventoryTracking } from '../utils/supabase/types';
+import type {DbAssetStatusHistory, DbInventoryTracking } from '../utils/supabase/types';
 import { ASSET_STATUS_CONFIG } from '../utils/supabase/constants';
 import { useSimpleFormChanges } from '../utils/hooks/useSimpleFormChanges';
 import { createSubmissionPayload, normalizeFormData } from '../utils/form-utils';
@@ -327,7 +327,10 @@ export default function AssetScreen({
           ...submissionData,
           organization_id: organization.id, // Always include for RLS
         };
-        await updateAsset(assetId, updateData);
+        // The in-place normalization above converts string form fields to the
+        // column types; the cast reflects that runtime conversion (refactor
+        // tracked for the Phase 7 component split)
+        await updateAsset(assetId, updateData as Parameters<typeof updateAsset>[1]);
         changeDetection.markAsSaved(normalizedData);
         toast.success('Asset updated successfully');
         onAssetUpdated();
@@ -337,7 +340,7 @@ export default function AssetScreen({
           organization_id: organization.id,
           ...normalizedData,
         };
-        const newAsset = await createAsset(createData);
+        const newAsset = await createAsset(createData as unknown as Parameters<typeof createAsset>[0]);
         toast.success('Asset created successfully');
         onAssetCreated(newAsset.id);
       }

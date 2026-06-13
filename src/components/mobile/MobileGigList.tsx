@@ -42,7 +42,7 @@ interface MobileGigListProps {
 }
 
 
-const GIG_STATUSES: { key: GigStatus; label: string }[] = [
+const _GIG_STATUSES: { key: GigStatus; label: string }[] = [
   { key: 'DateHold', label: 'Date Hold' },
   { key: 'Proposed', label: 'Proposed' },
   { key: 'Booked', label: 'Booked' },

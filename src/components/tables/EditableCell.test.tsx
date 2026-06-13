@@ -9,7 +9,7 @@ const tr = document.createElement('tr')
 table.appendChild(tbody)
 tbody.appendChild(tr)
 
-function renderCheckboxCell(value: boolean, onSave: ReturnType<typeof vi.fn>) {
+function renderCheckboxCell(value: boolean, onSave: (newValue: any) => Promise<void>) {
   const column: ColumnDef<any> = {
     id: 'active',
     header: 'Active',

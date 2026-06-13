@@ -1,11 +1,11 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useForm, useFieldArray, Controller } from 'react-hook-form';
+import {useForm, useFieldArray } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
 import { createClient } from '../../utils/supabase/client';
-import { DollarSign, FileText, Loader2, Plus, Trash2, AlertCircle, Edit, ExternalLink } from 'lucide-react';
+import {DollarSign, FileText, Loader2, Trash2, Edit, ExternalLink } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
@@ -18,7 +18,6 @@ import OrganizationSelector from '../OrganizationSelector';
 import { 
   getGigFinancials, 
   updateGigFinancials, 
-  createGigFinancial, 
   deleteGigFinancial,
   getGigProfitabilitySummary 
 } from '../../services/gig.service';
@@ -33,7 +32,7 @@ import QuickActionButtons from './QuickActionButtons';
 import { Badge } from '../ui/badge';
 import { useNavigation } from '../../contexts/NavigationContext';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '../ui/collapsible';
-import { ChevronDown, ChevronRight, Receipt, Users, MousePointer2 } from 'lucide-react';
+import {ChevronDown, Receipt, Users, MousePointer2 } from 'lucide-react';
 
 const CURRENCY_OPTIONS = [
   { code: 'USD', symbol: '$', name: 'US Dollar' },
@@ -62,6 +61,8 @@ const financialSchema = z.object({
   notes: z.string().optional().default(''),
   purchase_id: z.string().optional(),
   staff_assignment_id: z.string().optional(),
+  // Counterparty object carried in form state for display in the selector
+  counterparty: z.any().optional(),
 });
 
 const financialsFormSchema = z.object({
@@ -69,8 +70,10 @@ const financialsFormSchema = z.object({
 });
 
 type FinancialsFormData = z.infer<typeof financialsFormSchema>;
+// Raw form values before zod applies defaults — what watch()/getValues() return
+type FinancialsFormInput = z.input<typeof financialsFormSchema>;
 
-interface FinancialData {
+interface _FinancialData {
   id: string;
   date: string;
   amount: string;
@@ -102,6 +105,8 @@ interface FinancialModalData {
   due_date: string;
   paid_at: string;
   notes: string;
+  purchase_id?: string;
+  staff_assignment_id?: string;
 }
 
 interface GigFinancialsSectionProps {
@@ -152,7 +157,7 @@ export default function GigFinancialsSection({
   const isAdmin = userRole === 'Admin' || userRole === 'Manager';
   const [isEditMode, setIsEditMode] = useState(false);
 
-  const { control, handleSubmit, formState: { errors, isDirty }, watch, reset, setValue, getValues } = useForm<FinancialsFormData>({
+  const { control, handleSubmit: _handleSubmit, formState: { isDirty }, watch, reset, setValue, getValues } = useForm<z.input<typeof financialsFormSchema>, any, FinancialsFormData>({
     resolver: zodResolver(financialsFormSchema),
     mode: 'onChange',
     defaultValues: {
@@ -165,7 +170,7 @@ export default function GigFinancialsSection({
     name: 'financials',
   });
 
-  const handleSave = useCallback(async (data: FinancialsFormData) => {
+  const handleSave = useCallback(async (data: FinancialsFormInput) => {
     // Only save financials that have a valid amount
     const validFinancials = data.financials.filter(f => {
       const amount = parseFloat(f.amount);
@@ -197,11 +202,11 @@ export default function GigFinancialsSection({
     loadSummaryData();
   }, [gigId, currentOrganizationId]);
 
-  const handleSaveSuccess = useCallback((data: FinancialsFormData) => {
+  const handleSaveSuccess = useCallback((data: FinancialsFormInput) => {
     reset(data, { keepDirty: false, keepValues: true });
   }, [reset]);
 
-  const { saveState, triggerSave } = useAutoSave<FinancialsFormData>({
+  const { saveState, triggerSave } = useAutoSave<FinancialsFormInput>({
     gigId,
     onSave: handleSave,
     onSuccess: handleSaveSuccess,
@@ -360,7 +365,7 @@ export default function GigFinancialsSection({
       date: financial.date,
       amount: financial.amount,
       type: financial.type,
-      category: financial.category,
+      category: financial.category ?? undefined,
       description: financial.description || '',
       reference_number: financial.reference_number || '',
       counterparty_id: financial.counterparty_id || '',
@@ -408,7 +413,7 @@ export default function GigFinancialsSection({
         date: modalData.date,
         amount: modalData.amount,
         type: modalData.type,
-        category: modalData.category,
+        category: modalData.category ?? '',
         description: modalData.description,
         reference_number: modalData.reference_number,
         counterparty_id: modalData.counterparty_id,
@@ -418,7 +423,7 @@ export default function GigFinancialsSection({
         due_date: modalData.due_date,
         paid_at: modalData.paid_at,
         notes: modalData.notes,
-        purchase_id: (modalData as any).purchase_id,
+        purchase_id: modalData.purchase_id,
         staff_assignment_id: (modalData as any).staff_assignment_id,
       });
     }
@@ -954,7 +959,7 @@ export default function GigFinancialsSection({
               </div>
               <div>
                 <Label htmlFor="modal-category">Expense Category</Label>
-                <Select value={modalData.category} onValueChange={(value: FinCategory) => setModalData({ ...modalData, category: value })}>
+                <Select value={modalData.category ?? undefined} onValueChange={(value: FinCategory) => setModalData({ ...modalData, category: value })}>
                   <SelectTrigger>
                     <SelectValue placeholder="Select category" />
                   </SelectTrigger>

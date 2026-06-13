@@ -696,7 +696,7 @@ export async function getInventoryConflictFlags(organizationId: string): Promise
 
     if (kitError) throw kitError;
 
-    const gigMap = new Map((gigs ?? []).map((g: any) => [g.id, g]));
+    const _gigMap = new Map((gigs ?? []).map((g: any) => [g.id, g]));
     const kitsByGig = new Map<string, string[]>();
     for (const assignment of kitAssignments ?? []) {
       const list = kitsByGig.get((assignment as any).gig_id) ?? [];

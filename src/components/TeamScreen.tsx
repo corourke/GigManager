@@ -15,19 +15,16 @@ import { createClient } from '../utils/supabase/client';
 import { 
   Users, 
   Plus, 
-  Trash2, 
   Loader2,
   Mail,
   Shield,
   Crown,
   User as UserIcon,
-  Pencil as Edit,
+  Pencil as _Edit,
   Search,
   UserPlus,
   Send,
-  X,
-  Clock,
-  Eye
+  Clock
 } from 'lucide-react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -55,12 +52,6 @@ import {
   AlertDialogTitle,
 } from './ui/alert-dialog';
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
 } from './ui/table';
 import { SmartDataTable, ColumnDef, RowAction } from './tables/SmartDataTable';
 import AppHeader from './AppHeader';
@@ -104,7 +95,7 @@ export default function TeamScreen({
   onLogout,
 }: TeamScreenProps) {
   // Memoize filters to prevent infinite re-renders
-  const memberFilters = useMemo(() => ({ organization_id: organization.id }), [organization.id]);
+  const _memberFilters = useMemo(() => ({ organization_id: organization.id }), [organization.id]);
 
   // Organization members data
   const [members, setMembers] = useState<OrganizationMember[]>([]);

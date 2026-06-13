@@ -10,7 +10,6 @@ if (typeof globalThis.ResizeObserver === 'undefined') {
 
 // Mock Supabase client
 import { vi } from 'vitest'
-import { createClient } from '../utils/supabase/client'
 
 // Mock the createClient function
 vi.mock('../utils/supabase/client', () => ({

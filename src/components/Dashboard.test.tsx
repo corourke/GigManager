@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import Dashboard from './Dashboard'
+import { makeUser, makeOrganization } from '../test/factories'
 import { Organization, User } from '../utils/supabase/types'
 
 // Mock the createClient function
@@ -32,20 +33,9 @@ const mockFetch = vi.fn()
 global.fetch = mockFetch
 
 describe('Dashboard', () => {
-  const mockOrganization: Organization = {
-    id: 'org-1',
-    name: 'Test Production Company',
-    type: 'Production',
-    created_at: '2024-01-01T00:00:00Z',
-    updated_at: '2024-01-01T00:00:00Z',
-  }
+  const mockOrganization: Organization = makeOrganization({ name: 'Test Production Company' })
 
-  const mockUser: User = {
-    id: 'user-1',
-    email: 'test@example.com',
-    first_name: 'John',
-    last_name: 'Doe',
-  }
+  const mockUser: User = makeUser({ first_name: 'John', last_name: 'Doe' })
 
   const mockProps = {
     organization: mockOrganization,

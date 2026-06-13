@@ -4,7 +4,7 @@ import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { toast } from 'sonner';
 import { createClient } from '../../utils/supabase/client';
-import { FileText, Loader2, Plus, Trash2, Users, AlertCircle, CheckCircle2, Circle } from 'lucide-react';
+import {FileText, Loader2, Plus, Trash2, Users, CheckCircle2, Circle } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
@@ -22,7 +22,6 @@ import {
 } from '../../services/gig.service';
 import { useAutoSave } from '../../utils/hooks/useAutoSave';
 import SaveStateIndicator from './SaveStateIndicator';
-import { Badge } from '../ui/badge';
 import { RotateCcw } from 'lucide-react';
 
 const staffAssignmentSchema = z.object({
@@ -68,7 +67,7 @@ interface StaffAssignmentData {
   units_completed?: number | null;
 }
 
-interface StaffSlotData {
+interface _StaffSlotData {
   id: string;
   organization_id?: string;
   role: string;
@@ -100,7 +99,7 @@ export default function GigStaffSlotsSection({
   const [showCompleteModal, setShowCompleteModal] = useState<{ slotIndex: number; assignmentIndex: number } | null>(null);
   const [completionUnits, setCompletionUnits] = useState<string>('1');
 
-  const { control, handleSubmit, formState: { errors, isDirty }, watch, reset, setValue, getValues } = useForm<StaffSlotsFormData>({
+  const { control, handleSubmit: _handleSubmit, formState: { errors, isDirty }, watch, reset, setValue, getValues } = useForm<StaffSlotsFormData>({
     resolver: zodResolver(staffSlotsFormSchema),
     mode: 'onChange',
     defaultValues: {
@@ -241,7 +240,7 @@ export default function GigStaffSlotsSection({
 
         const count = slot.count || 1;
         // Count non-declined assignments
-        const activeAssignmentsCount = assignments.filter(a => a.status !== 'Declined').length;
+        const activeAssignmentsCount = assignments.filter((a: { status?: string }) => a.status !== 'Declined').length;
         
         // Pad with 'Open' assignments if active count is less than required count
         if (activeAssignmentsCount < count) {
@@ -386,17 +385,8 @@ export default function GigStaffSlotsSection({
       }
       setValue(`slots.${index}.assignments`, newAssignments, { shouldDirty: true });
     } else if (value < activeAssignments.length) {
-      // Remove 'Open' assignments first, then others if needed, but keep 'Declined'
-      const newActiveAssignments = [...activeAssignments];
-      // Try to remove 'Open' assignments that don't have a user first
-      let removedCount = 0;
-      const targetToRemove = activeAssignments.length - value;
-      
-      const resultActive = [];
-      // Keep assignments with users or that are not 'Open' if possible
-      // Actually, let's just slice from the end of active ones for simplicity, 
-      // but prefer keeping those with data.
-      
+      // Remove 'Open' assignments first, then others if needed, but keep 'Declined';
+      // prefer keeping assignments that already have a user attached
       const sortedActive = [...activeAssignments].sort((a, b) => {
         // Prefer keeping those with user_id
         if (a.user_id && !b.user_id) return -1;
@@ -579,9 +569,9 @@ export default function GigStaffSlotsSection({
                         >
                           <div className="flex-none">
                             {isCompleted ? (
-                              <CheckCircle2 className="w-4 h-4 text-green-600" title="Finalized" />
+                              <span title="Finalized"><CheckCircle2 className="w-4 h-4 text-green-600" /></span>
                             ) : (
-                              <Circle className="w-4 h-4 text-gray-300" title="Pending" />
+                              <span title="Pending"><Circle className="w-4 h-4 text-gray-300" /></span>
                             )}
                           </div>
                           <div className="flex-1">

@@ -25,7 +25,6 @@ import InvitationErrorScreen from './components/InvitationErrorScreen';
 import CalendarAuthCallback from './components/CalendarAuthCallback';
 import SettingsScreen from './components/SettingsScreen';
 import { Toaster } from './components/ui/sonner';
-import { toast } from 'sonner';
 import { NavigationProvider } from './contexts/NavigationContext';
 import { useAuth } from './contexts/AuthContext';
 import { 
@@ -92,7 +91,6 @@ function App() {
     selectedOrganization, 
     isLoading, 
     userRole, 
-    login, 
     logout, 
     selectOrganization,
     setOrganizations,
@@ -304,7 +302,7 @@ function App() {
     }
   };
 
-  const handleSkipProfile = () => {
+  const _handleSkipProfile = () => {
     // If we were in an invitation flow, go back to the acceptance screen
     if (window.location.pathname === '/accept-invitation') {
       setCurrentRoute('accept-invitation');
@@ -379,7 +377,7 @@ function App() {
     setCurrentRoute('create-gig');
   };
 
-  const handleNavigate = (route: Route) => {
+  const _handleNavigate = (route: Route) => {
     setCurrentRoute(route);
   };
 
@@ -589,8 +587,6 @@ function App() {
         <UserProfileCompletionScreen
           user={user}
           onProfileCompleted={handleProfileCompleted}
-          onSkip={handleSkipProfile}
-         
         />
       )}
       
@@ -806,7 +802,6 @@ function App() {
                 onBack={handleBackToDashboard}
                 onCreateAsset={handleCreateAsset}
                 onViewAsset={handleViewAsset}
-                onEditAsset={handleEditAsset}
                 onNavigateToDashboard={handleBackToDashboard}
                 onNavigateToGigs={handleBackToGigList}
                 onNavigateToAssets={handleNavigateToAssets}
@@ -851,7 +846,6 @@ function App() {
                   setHighlightPurchaseId(purchaseId || null);
                   setCurrentRoute('financials');
                 }}
-                onAssetDeleted={handleBackToAssetList} // After deleting, go back to list
                 onSwitchOrganization={handleBackToSelection}
                 onEditProfile={handleEditProfile}
                 onLogout={handleLogout}
@@ -886,7 +880,6 @@ function App() {
                 onCancel={handleBackToKitList}
                 onKitCreated={handleKitCreated}
                 onKitUpdated={handleBackToKitList} // After updating, go back to list
-                onKitDeleted={handleBackToKitList} // After deleting, go back to list
                 onSwitchOrganization={handleBackToSelection}
                 onLogout={handleLogout}
               />

@@ -66,6 +66,13 @@ export default function CalendarIntegrationSettings({
   onSettingsChanged,
   onStartAuth,
 }: CalendarIntegrationSettingsProps) {
+
+  // sync_filters is stored as Json — narrow it to an object for reads/spreads
+  const filtersOf = (s: { sync_filters?: unknown } | null): Record<string, any> =>
+    s?.sync_filters && typeof s.sync_filters === 'object' && !Array.isArray(s.sync_filters)
+      ? (s.sync_filters as Record<string, any>)
+      : {};
+
   const [settings, setSettings] = useState<UserGoogleCalendarSettings | null>(null);
   const [availableCalendars, setAvailableCalendars] = useState<CalendarOption[]>([]);
   const [loading, setLoading] = useState(true);
@@ -213,7 +220,7 @@ export default function CalendarIntegrationSettings({
     try {
       const updatedSettings = await updateUserGoogleCalendarSettings(userId, {
         sync_filters: {
-          ...settings.sync_filters,
+          ...filtersOf(settings),
           frequency,
         },
       });
@@ -233,7 +240,7 @@ export default function CalendarIntegrationSettings({
     try {
       const updatedSettings = await updateUserGoogleCalendarSettings(userId, {
         sync_filters: {
-          ...settings.sync_filters,
+          ...filtersOf(settings),
           [filterKey]: value,
         },
       });
@@ -278,11 +285,11 @@ export default function CalendarIntegrationSettings({
   };
 
   const getSyncFrequency = (): SyncFrequency => {
-    return (settings?.sync_filters?.frequency as SyncFrequency) || 'realtime';
+    return (filtersOf(settings).frequency as SyncFrequency) || 'realtime';
   };
 
   const getSyncFilter = (key: string, defaultValue: boolean = true): boolean => {
-    return settings?.sync_filters?.[key] ?? defaultValue;
+    return filtersOf(settings)[key] ?? defaultValue;
   };
 
   const getSyncStatusBadge = (status: string) => {

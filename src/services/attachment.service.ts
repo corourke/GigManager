@@ -22,7 +22,7 @@ export async function uploadAttachment(
     const filePath = `${organizationId}/${fileName}`;
 
     // 1. Upload to Storage
-    const { data: storageData, error: storageError } = await supabase.storage
+    const { data: _storageData, error: storageError } = await supabase.storage
       .from(BUCKET_NAME)
       .upload(filePath, file);
 

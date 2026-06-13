@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render } from '@testing-library/react'
 import App from '../App'
 import { AuthProvider } from '../contexts/AuthContext'
-import * as userService from '../services/user.service'
+import * as _userService from '../services/user.service'
 
 // Mock user service functions
 vi.mock('../services/user.service', () => ({

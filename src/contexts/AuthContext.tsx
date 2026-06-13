@@ -17,7 +17,7 @@ interface AuthContextType {
   userRole: UserRole | undefined;
   login: (user: User, organizations: OrganizationMembership[]) => void;
   logout: () => Promise<void>;
-  selectOrganization: (org: Organization) => void;
+  selectOrganization: (org: Organization | null) => void;
   refreshProfile: () => Promise<void>;
   setOrganizations: (organizations: OrganizationMembership[]) => void;
   setUser: (user: User | null) => void;

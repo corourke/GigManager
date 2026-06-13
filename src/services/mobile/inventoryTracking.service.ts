@@ -262,7 +262,7 @@ export const inventoryTrackingService = {
         notes: previousNote,
         location: location ?? null,
       },
-      ...childAssetIds.map((childAssetId) => {
+      ...childAssetIds.map((childAssetId: string) => {
         const childNote = getLatestTrackingRecord(tracking, kitId, childAssetId)?.notes || null;
         return {
           organization_id: organizationId,

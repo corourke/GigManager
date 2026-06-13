@@ -8,7 +8,6 @@ import {
   Calendar as CalendarIcon,
   ChevronDown,
   ChevronRight,
-  ExternalLink,
   FileText,
   ArrowLeft,
   X,
@@ -22,7 +21,7 @@ import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Badge } from './ui/badge';
-import { Alert, AlertDescription } from './ui/alert';
+import {Alert } from './ui/alert';
 import { 
   Tabs, 
   TabsList, 
@@ -136,9 +135,9 @@ export default function FinancialsScreen({
       const data = await getPurchases(organization.id);
       setPurchases(data);
 
-      const headers = data.filter(p => p.row_type === 'header');
+      const headers = data.filter((p: DbPurchase) => p.row_type === 'header');
       const attMap = new Map<string, { filePath: string; fileName: string }>();
-      await Promise.all(headers.map(async (h) => {
+      await Promise.all(headers.map(async (h: DbPurchase) => {
         try {
           const atts = await getEntityAttachments('purchase', h.id);
           if (atts && atts.length > 0) {

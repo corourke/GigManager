@@ -19,7 +19,7 @@ import {
 } from '../ui/table';
 import { Skeleton } from '../ui/skeleton';
 import { cn } from '../ui/utils';
-import { GigStatus, Gig } from '../../utils/supabase/types';
+import {Gig } from '../../utils/supabase/types';
 import { GIG_STATUS_CONFIG, getTagColor } from '../../utils/supabase/constants';
 import { formatDateTimeDisplay } from '../../utils/dateUtils';
 

@@ -3,6 +3,7 @@ import { vi, describe, it, expect, beforeEach } from 'vitest';
 import GigAccountingTab from './GigAccountingTab';
 import * as gigService from '../../services/gig.service';
 import { GigAccountingSummary } from '../../utils/supabase/types';
+import { makeOrganization } from '../../test/factories';
 
 vi.mock('../../services/gig.service', () => ({
   getAllGigAccountingSummaries: vi.fn(),
@@ -13,13 +14,7 @@ vi.mock('./GigAccountingRowDetail', () => ({
   default: () => <tr><td>Detail</td></tr>,
 }));
 
-const makeOrg = (id = 'org-1') => ({
-  id,
-  name: 'Test Org',
-  roles: [] as any,
-  created_at: '2024-01-01T00:00:00Z',
-  updated_at: '2024-01-01T00:00:00Z',
-});
+const makeOrg = (id = 'org-1') => makeOrganization({ id, name: 'Test Org' });
 
 const now = new Date();
 const futureDate = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString();

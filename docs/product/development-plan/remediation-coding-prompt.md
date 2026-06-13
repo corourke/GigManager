@@ -155,9 +155,9 @@ Work through the phases in order. Do not start a phase until the previous phase'
 
 - [x] Phase 1 — Attachment storage policies scoped per-org (+ migration applied by user)
 - [x] Phase 2 — ai-scan locked down (+ deployed to dev by user)
-- [ ] Phase 3 — tsconfig (strict) + ESLint + 2 failing tests fixed
-- [ ] Phase 4 — GitHub Actions CI + deploy script gates
-- [ ] Phase 5 — Sentry (web + edge), DSNs configured by user
+- [x] Phase 3 — tsconfig (strict) + ESLint + 2 failing tests fixed
+- [x] Phase 4 — GitHub Actions CI + deploy script gates (+ deploy_dev.sh added)
+- [x] Phase 5 — Sentry (web + edge), DSNs configured by user
 - [ ] Phase 6 — Server function on Hono with auth middleware (+ endpoint inventory approved)
 - [ ] Phase 7 — Router + TanStack Query adopted; mega-components split
 - [ ] Phase 8 — Repo hygiene complete; stage-plot-app decision recorded

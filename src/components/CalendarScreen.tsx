@@ -2,7 +2,6 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Calendar, dateFnsLocalizer } from 'react-big-calendar';
 import { format, parse, startOfWeek, getDay, isWithinInterval, addDays } from 'date-fns';
 import { enUS } from 'date-fns/locale';
-import { toast } from 'sonner';
 import 'react-big-calendar/lib/css/react-big-calendar.css';
 
 import { Button } from './ui/button';
@@ -124,8 +123,8 @@ export default function CalendarScreen({
 
       // Staff filter - check if any staff assignment matches
       if (staffFilter !== 'all') {
-        const hasMatchingStaff = gig.staff_slots?.some(slot =>
-          slot.assignments?.some(assignment => assignment.user_id === staffFilter)
+        const hasMatchingStaff = gig.staff_slots?.some((slot) =>
+          slot.assignments?.some((assignment) => assignment.user_id === staffFilter)
         );
         if (!hasMatchingStaff) return false;
       }
@@ -225,7 +224,7 @@ export default function CalendarScreen({
 
   const EventComponent = ({ event }: { event: CalendarEvent }) => {
     const gig = event.resource;
-    const statusConfig = GIG_STATUS_CONFIG[gig.status];
+    const _statusConfig = GIG_STATUS_CONFIG[gig.status];
 
     return (
       <div className="p-1 cursor-pointer" onClick={() => onViewGig(gig.id)}>
@@ -311,9 +310,6 @@ export default function CalendarScreen({
           user={user}
           userRole={userRole}
           currentRoute="calendar"
-          onNavigateToDashboard={onNavigateToDashboard}
-          onNavigateToGigs={onNavigateToGigs}
-          onNavigateToAssets={onNavigateToAssets}
           onSwitchOrganization={onSwitchOrganization}
           onLogout={onLogout}
           onEditProfile={onEditProfile}
@@ -332,9 +328,6 @@ export default function CalendarScreen({
         user={user}
         userRole={userRole}
         currentRoute="calendar"
-        onNavigateToDashboard={onNavigateToDashboard}
-        onNavigateToGigs={onNavigateToGigs}
-        onNavigateToAssets={onNavigateToAssets}
         onSwitchOrganization={onSwitchOrganization}
         onLogout={onLogout}
         onEditProfile={onEditProfile}
@@ -403,7 +396,7 @@ export default function CalendarScreen({
               onView={setView}
               date={currentDate}
               onNavigate={setCurrentDate}
-              onSelectEvent={(event) => onViewGig(event.id)}
+              onSelectEvent={(event: { id: string }) => onViewGig(event.id)}
               eventPropGetter={eventStyleGetter}
               showMultiDayTimes
               toolbar={false}

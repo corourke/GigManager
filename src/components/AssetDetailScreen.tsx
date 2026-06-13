@@ -80,7 +80,7 @@ export default function AssetDetailScreen({
 
   const handleDuplicate = async () => {
     try {
-      const newAsset = await duplicateAsset(assetId);
+      const _newAsset = await duplicateAsset(assetId);
       toast.success('Asset duplicated successfully');
       onBack(); // Go back to list, where the new asset will appear
     } catch (error: any) {

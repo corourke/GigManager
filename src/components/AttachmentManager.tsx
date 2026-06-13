@@ -2,22 +2,18 @@ import { useState, useEffect } from 'react';
 import { 
   File, 
   Upload, 
-  Trash2, 
-  Link as LinkIcon, 
+  Link as _LinkIcon, 
   X, 
   Loader2, 
   FileText,
-  Download,
   Eye
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from './ui/button';
-import { Card } from './ui/card';
 import { 
   uploadAttachment, 
   linkAttachmentToEntity, 
   getEntityAttachments, 
-  deleteAttachment, 
   unlinkAttachmentFromEntity,
   getAttachmentUrl
 } from '../services/attachment.service';

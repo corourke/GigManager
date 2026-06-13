@@ -37,7 +37,7 @@ const participantsFormSchema = z.object({
 
 type ParticipantsFormData = z.infer<typeof participantsFormSchema>;
 
-interface ParticipantData {
+interface _ParticipantData {
   id: string;
   organization_id: string;
   organization_name: string;
@@ -71,7 +71,7 @@ export default function GigParticipantsSection({
   const [viewingOrganization, setViewingOrganization] = useState<Organization | null>(null);
   const [isUserAdmin, setIsUserAdmin] = useState(false);
 
-  const { control, handleSubmit, formState: { errors, isDirty }, watch, reset, setValue } = useForm<ParticipantsFormData>({
+  const { control, handleSubmit: _handleSubmit, formState: { errors, isDirty }, watch, reset, setValue } = useForm<ParticipantsFormData>({
     resolver: zodResolver(participantsFormSchema),
     mode: 'onChange',
     defaultValues: {
@@ -90,7 +90,7 @@ export default function GigParticipantsSection({
       .map(p => ({
         id: p.id.startsWith('temp-') || p.id === 'current-org' || !p.id.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i) ? undefined : p.id,
         organization_id: p.organization_id,
-        role: p.role,
+        role: p.role as OrganizationRole, // Select restricts values to ORG_ROLE_CONFIG keys
         notes: p.notes || null,
       }));
 

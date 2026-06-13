@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react';
 import { Building2, Mail, Lock, Loader2, AlertCircle } from 'lucide-react';
 import { createClient } from '../utils/supabase/client';
 import { convertPendingToActive } from '../services/organization.service';
-import { User, OrganizationMembership } from '../utils/supabase/types';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
@@ -147,7 +146,7 @@ export default function LoginScreen() {
 
     try {
       const supabase = createClient();
-      const { data, error: authError } = await supabase.auth.signInWithOAuth({
+      const { data: _data, error: authError } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
           redirectTo: window.location.origin,

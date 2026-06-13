@@ -2,6 +2,7 @@ import { createClient } from '../utils/supabase/client';
 import { handleApiError, handleFunctionsError } from '../utils/api-error-utils';
 import { requireAuth } from '../utils/supabase/auth-utils';
 import type { DbPurchase, PurchaseWithItems } from '../utils/supabase/types';
+import type { AssetRow } from '../utils/csvImport';
 
 const getSupabase = () => createClient();
 
@@ -162,7 +163,7 @@ export async function importPurchases(
   let errorCount = 0;
 
   try {
-    const { user } = await requireAuth();
+    const { user: _user } = await requireAuth();
 
     // 1. Group rows by Header (Source 0) or Date + Vendor (if no Header)
     interface PurchaseGroup {
@@ -322,6 +323,7 @@ export async function createPurchaseTransaction(
     if (assetsWithKits.length > 0) {
       const uniqueKitNames = Array.from(new Set(assetsWithKits.map(a => a.kit.trim())));
       const orgId = header.organization_id;
+      if (!orgId) throw new Error('organization_id is required to create a purchase');
 
       for (const kitName of uniqueKitNames) {
         const cacheKey = kitName.toLowerCase();
@@ -373,13 +375,16 @@ export async function createPurchaseTransaction(
     });
 
     if (error) throw error;
+    // The RPC returns Json; it resolves to the created purchase header
+    const result = data as { id: string } | null;
+    if (!result?.id) throw new Error('Purchase transaction returned no result');
     
     // 3. Handle Kit Membership (Post-RPC)
-    if (assetsWithKits.length > 0 && data?.id) {
+    if (assetsWithKits.length > 0) {
       const { data: createdAssets, error: fetchError } = await supabase
         .from('assets')
         .select('id, manufacturer_model, serial_number')
-        .eq('purchase_id', data.id);
+        .eq('purchase_id', result.id);
 
       if (!fetchError && createdAssets) {
         const kitMemberships = [];
@@ -411,7 +416,7 @@ export async function createPurchaseTransaction(
       }
     }
 
-    return data;
+    return result;
   } catch (err) {
     return handleApiError(err, 'create purchase transaction');
   }
@@ -468,7 +473,7 @@ function mapRowToPurchaseHeader(organizationId: string, data: any, invAmt: numbe
     payment_method: data.payment_method,
     description: data.manufacturer_model || data.description || '',
     category: data.category,
-    sub_category: data['sub-category'] || undefined,
+    sub_category: data.sub_category || undefined,
   };
 }
 
@@ -488,7 +493,7 @@ function mapRowToPurchaseItem(organizationId: string, data: any) {
     purchase_date: data.acquisition_date,
     vendor: data.vendor,
     category: data.category,
-    sub_category: data['sub-category'] || undefined,
+    sub_category: data.sub_category || undefined,
     description: desc,
     line_amount: parsedLineAmount,
     line_cost: parsedLineCost,
@@ -511,7 +516,7 @@ function mapRowToAsset(organizationId: string, data: any) {
   return {
     organization_id: organizationId,
     category: data.category,
-    sub_category: data['sub-category'] || undefined,
+    sub_category: data.sub_category || undefined,
     manufacturer_model: data.manufacturer_model,
     type: data.type || undefined,
     serial_number: data.serial_number || undefined,

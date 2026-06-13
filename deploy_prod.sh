@@ -5,12 +5,36 @@ PROD_REF="hqnnhtxcxedisasvtbqv"
 DEV_REF="qcrzwsazasaojqoqxwnr"
 TIMESTAMP=$(date +%Y%m%d-%H%M%S)
 
+# The trap is registered before anything else so that EVERY exit path —
+# including pre-flight gate failures — leaves the CLI linked to dev. Relinking
+# to dev when already on dev is a harmless no-op.
 cleanup() {
   echo "--- Ensuring we are linked back to dev ---"
   supabase link --project-ref "$DEV_REF" || echo "Warning: Failed to link back to dev. Please check manually."
 }
 
 trap cleanup EXIT
+
+# --- Pre-flight gates: never deploy a dirty tree, a side branch, or red checks ---
+
+if [ -n "$(git status --porcelain)" ]; then
+  echo "Error: working tree is dirty. Commit or stash all changes before deploying to prod."
+  git status --short
+  exit 1
+fi
+
+CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
+if [ "$CURRENT_BRANCH" != "main" ]; then
+  echo "Error: prod deploys must run from main (current branch: $CURRENT_BRANCH)."
+  exit 1
+fi
+
+echo "--- Running quality gates (typecheck, lint, tests) ---"
+npm run typecheck
+npm run lint
+npm run test:run
+
+echo "All gates green."
 
 echo "--- Targeting prod ---"
 supabase link --project-ref "$PROD_REF"

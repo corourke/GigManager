@@ -160,8 +160,8 @@ describe('form-utils', () => {
     });
 
     it('should handle null values correctly', () => {
-      const current = { name: 'Test', url: null };
-      const original = { name: 'Test', url: 'https://old.com' };
+      const current: { name: string; url: string | null } = { name: 'Test', url: null };
+      const original: { name: string; url: string | null } = { name: 'Test', url: 'https://old.com' };
       const result = createSubmissionPayload(current, original);
       expect(result).toEqual({ url: null });
     });

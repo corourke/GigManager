@@ -83,7 +83,7 @@ export default function QuickActionButtons({
 
   const defaultDate = gigStartDate ?? format(new Date(), 'yyyy-MM-dd');
 
-  const agreementForm = useForm<z.infer<typeof agreementSchema>>({
+  const agreementForm = useForm<z.input<typeof agreementSchema>, any, z.output<typeof agreementSchema>>({
     resolver: zodResolver(agreementSchema),
     defaultValues: {
       date: defaultDate,
@@ -94,7 +94,7 @@ export default function QuickActionButtons({
     }
   });
 
-  const paymentForm = useForm<z.infer<typeof paymentSchema>>({
+  const paymentForm = useForm<z.input<typeof paymentSchema>, any, z.output<typeof paymentSchema>>({
     resolver: zodResolver(paymentSchema),
     defaultValues: {
       date: defaultDate,
@@ -106,7 +106,7 @@ export default function QuickActionButtons({
     }
   });
 
-  const mileageForm = useForm<z.infer<typeof mileageSchema>>({
+  const mileageForm = useForm<z.input<typeof mileageSchema>, any, z.output<typeof mileageSchema>>({
     resolver: zodResolver(mileageSchema),
     defaultValues: {
       date: defaultDate,
@@ -117,7 +117,7 @@ export default function QuickActionButtons({
     }
   });
 
-  const expenseForm = useForm<z.infer<typeof expenseSchema>>({
+  const expenseForm = useForm<z.input<typeof expenseSchema>, any, z.output<typeof expenseSchema>>({
     resolver: zodResolver(expenseSchema),
     defaultValues: {
       date: defaultDate,

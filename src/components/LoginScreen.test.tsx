@@ -19,7 +19,7 @@ vi.mock('../services/organization.service', () => ({
   convertPendingToActive: vi.fn().mockResolvedValue(undefined),
 }))
 
-const mockOnLogin = vi.fn()
+const _mockOnLogin = vi.fn()
 
 describe('LoginScreen', () => {
   beforeEach(() => {

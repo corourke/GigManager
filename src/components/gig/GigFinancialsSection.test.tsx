@@ -57,8 +57,8 @@ describe('GigFinancialsSection', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.mocked(gigService.getGigFinancials).mockResolvedValue(mockFinancials);
-    vi.mocked(gigService.updateGigFinancials).mockResolvedValue(undefined);
+    vi.mocked(gigService.getGigFinancials).mockResolvedValue(mockFinancials as unknown as Awaited<ReturnType<typeof gigService.getGigFinancials>>);
+    vi.mocked(gigService.updateGigFinancials).mockResolvedValue({ success: true });
     vi.mocked(gigService.deleteGigFinancial).mockResolvedValue({ success: true });
     vi.mocked(gigService.getGigProfitabilitySummary).mockResolvedValue({
       contractAmount: 5000,
