@@ -122,3 +122,6 @@ uncommitted_changes.patch
 
 .claude
 .zencoder
+
+# stage-plot-app was extracted to its own repo; ignore any leftover working copy
+stage-plot-app/
