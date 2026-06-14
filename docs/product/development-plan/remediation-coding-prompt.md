@@ -158,7 +158,7 @@ Work through the phases in order. Do not start a phase until the previous phase'
 - [x] Phase 3 — tsconfig (strict) + ESLint + 2 failing tests fixed
 - [x] Phase 4 — GitHub Actions CI + deploy script gates (+ deploy_dev.sh added)
 - [x] Phase 5 — Sentry (web + edge), DSNs configured by user
-- [ ] Phase 6 — Server function on Hono with auth middleware (+ endpoint inventory approved)
+- [x] Phase 6 — Server function on Hono with auth middleware (+ endpoint inventory approved); deployed to dev & smoke-tested. Surfaced + fixed pre-existing data gaps (migration 20260613000000) and silent-delete UX bug. Frontend role-based UI gating deferred (docs/product/development-plan/role-based-ui-gating.md).
 - [ ] Phase 7 — Router + TanStack Query adopted; mega-components split
 - [ ] Phase 8 — Repo hygiene complete; stage-plot-app decision recorded
 
