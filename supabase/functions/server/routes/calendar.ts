@@ -25,7 +25,7 @@ export function registerCalendar(app: App) {
     const tokenData = await tokenResponse.json();
     if (!tokenResponse.ok) {
       console.error('Google token exchange error:', tokenData);
-      return c.json({ error: 'Token exchange failed', details: tokenData.error_description || tokenData.error }, 400);
+      return c.json({ error: 'Token exchange failed', details: tokenData.error_description || tokenData.error || 'Token exchange failed', code: tokenData.error }, 400);
     }
     return c.json({ access_token: tokenData.access_token, refresh_token: tokenData.refresh_token, expires_in: tokenData.expires_in });
   });
@@ -48,7 +48,7 @@ export function registerCalendar(app: App) {
     const tokenData = await tokenResponse.json();
     if (!tokenResponse.ok) {
       console.error('Google token refresh error:', tokenData);
-      return c.json({ error: 'Token refresh failed', details: tokenData.error_description || tokenData.error }, 400);
+      return c.json({ error: 'Token refresh failed', details: tokenData.error_description || tokenData.error || 'Token refresh failed', code: tokenData.error }, 400);
     }
     return c.json({ access_token: tokenData.access_token, expires_in: tokenData.expires_in });
   });
@@ -155,27 +155,23 @@ export function registerCalendar(app: App) {
 
           const startDate = new Date(gig.start);
           const endDate = gig.end ? new Date(gig.end) : null;
-          const isMidnight = (date: Date, timeZone: string) => {
-            try {
-              const formatter = new Intl.DateTimeFormat('en-US', { timeZone, hour: 'numeric', minute: 'numeric', second: 'numeric', hour12: false });
-              const parts = formatter.formatToParts(date);
-              const hour = parts.find((p) => p.type === 'hour')?.value;
-              const minute = parts.find((p) => p.type === 'minute')?.value;
-              const second = parts.find((p) => p.type === 'second')?.value;
-              return (hour === '00' || hour === '24') && minute === '00' && second === '00';
-            } catch {
-              return date.getUTCHours() === 0 && date.getUTCMinutes() === 0 && date.getUTCSeconds() === 0;
-            }
+          // All-day gigs are marked by a noon-UTC start (app convention).
+          const isNoonUTC = (dateStr: string): boolean => {
+            if (dateStr.endsWith('T12:00:00.000Z')) return true;
+            if (dateStr.endsWith(' 12:00:00+00')) return true;
+            const date = new Date(dateStr);
+            return date.toISOString().endsWith('T12:00:00.000Z');
           };
-          const isAllDay = endDate
-            ? (isMidnight(startDate, gig.timezone) && isMidnight(endDate, gig.timezone) && (endDate.getTime() - startDate.getTime() >= 86400000))
-            : isMidnight(startDate, gig.timezone);
+          const isAllDay = isNoonUTC(gig.start);
 
           let startProp: Record<string, string>;
           let endProp: Record<string, string>;
           if (isAllDay) {
-            startProp = { date: startDate.toISOString().split('T')[0] };
-            endProp = { date: endDate ? endDate.toISOString().split('T')[0] : new Date(startDate.getTime() + 86400000).toISOString().split('T')[0] };
+            const startStr = startDate.toISOString().split('T')[0];
+            const actualEndDate = endDate || startDate;
+            const endStr = new Date(actualEndDate.getTime() + 86400000).toISOString().split('T')[0];
+            startProp = { date: startStr };
+            endProp = { date: endStr };
           } else {
             startProp = { dateTime: startDate.toISOString(), timeZone: gig.timezone };
             const effectiveEnd = endDate && endDate.getTime() > startDate.getTime() ? endDate : new Date(startDate.getTime() + 3600000);

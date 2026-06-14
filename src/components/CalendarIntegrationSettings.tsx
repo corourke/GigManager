@@ -32,6 +32,7 @@ import {
   getSyncStatusSummary,
   updateUserGoogleCalendarSettings,
   syncAllGigsForUser,
+  bulkSyncAllGigsServerSide,
 } from '../services/googleCalendar.service';
 import { UserGoogleCalendarSettings, GigSyncStatus } from '../utils/supabase/types';
 
@@ -85,6 +86,9 @@ export default function CalendarIntegrationSettings({
   const [showAllLogs, setShowAllLogs] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [syncProgress, setSyncProgress] = useState<string | null>(null);
+  const [serverSyncing, setServerSyncing] = useState(false);
+  const [serverSyncProgress, setServerSyncProgress] = useState<string | null>(null);
+  const [reconnectRequired, setReconnectRequired] = useState(false);
 
   const loadSyncData = useCallback(async () => {
     try {
@@ -107,20 +111,33 @@ export default function CalendarIntegrationSettings({
   }, [userId]);
 
   const loadSettings = async () => {
+    setReconnectRequired(false);
+    
     try {
       setLoading(true);
       const userSettings = await getUserGoogleCalendarSettings(userId);
       setSettings(userSettings);
 
       if (userSettings?.access_token) {
-        await loadCalendars();
-        if (userSettings.is_enabled) {
-          await loadSyncData();
+        // Only load data from Google if we are enabled or if the token is not expired.
+        // If it is expired and disabled, we don't proactively try to refresh (to avoid errors),
+        // but we show the existing settings.
+        const isExpired = new Date(userSettings.token_expires_at) <= new Date();
+        
+        if (userSettings.is_enabled || !isExpired) {
+          await loadCalendars();
+          if (userSettings.is_enabled) {
+            await loadSyncData();
+          }
         }
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error loading calendar settings:', error);
-      toast.error('Failed to load calendar settings');
+      if (error.message?.includes('expired') || error.message?.includes('revoked') || error.message?.includes('invalid_grant')) {
+        setReconnectRequired(true);
+      } else {
+        toast.error('Failed to load calendar settings');
+      }
     } finally {
       setLoading(false);
     }
@@ -131,9 +148,13 @@ export default function CalendarIntegrationSettings({
       setLoadingCalendars(true);
       const calendars = await getUserCalendars(userId);
       setAvailableCalendars(calendars);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error loading calendars:', error);
-      toast.error('Failed to load available calendars');
+      if (error.message?.includes('expired') || error.message?.includes('revoked') || error.message?.includes('invalid_grant')) {
+        setReconnectRequired(true);
+      } else {
+        toast.error('Failed to load available calendars');
+      }
     } finally {
       setLoadingCalendars(false);
     }
@@ -142,6 +163,7 @@ export default function CalendarIntegrationSettings({
   const handleConnect = async () => {
     try {
       setConnecting(true);
+      setReconnectRequired(false);
       const authUrl = await getGoogleAuthUrl();
       window.location.href = authUrl;
     } catch (error) {
@@ -154,6 +176,7 @@ export default function CalendarIntegrationSettings({
   const handleDisconnect = async () => {
     try {
       setDisconnecting(true);
+      setReconnectRequired(false);
       await deleteUserGoogleCalendarSettings(userId);
       setSettings(null);
       setAvailableCalendars([]);
@@ -284,6 +307,32 @@ export default function CalendarIntegrationSettings({
     }
   };
 
+  const handleServerBulkSync = async () => {
+    try {
+      setServerSyncing(true);
+      setServerSyncProgress('Starting...');
+
+      const result = await bulkSyncAllGigsServerSide(
+        (done, total) => setServerSyncProgress(`${done} / ${total}`)
+      );
+
+      setServerSyncProgress(null);
+      await loadSyncData();
+
+      if (result.failed > 0) {
+        toast.warning(`Re-synced ${result.total - result.failed} gigs, ${result.failed} failed`);
+      } else {
+        toast.success(`Successfully re-synced all ${result.total} gigs server-side`);
+      }
+    } catch (error) {
+      console.error('Error server-side bulk syncing gigs:', error);
+      toast.error('Failed to bulk sync gigs server-side');
+    } finally {
+      setServerSyncing(false);
+      setServerSyncProgress(null);
+    }
+  };
+
   const getSyncFrequency = (): SyncFrequency => {
     return (filtersOf(settings).frequency as SyncFrequency) || 'realtime';
   };
@@ -335,6 +384,32 @@ export default function CalendarIntegrationSettings({
         </CardHeader>
 
         <CardContent className="space-y-6">
+          {reconnectRequired && (
+            <Alert variant="destructive">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription className="flex flex-col gap-3">
+                <p>
+                  Your Google Calendar connection has expired or been revoked.
+                  Please reconnect your account to continue syncing.
+                </p>
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={handleConnect}
+                  disabled={connecting}
+                  className="w-fit"
+                >
+                  {connecting ? (
+                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                  ) : (
+                    <RefreshCw className="h-4 w-4 mr-2" />
+                  )}
+                  Reconnect Now
+                </Button>
+              </AlertDescription>
+            </Alert>
+          )}
+
           {!isConnected ? (
             <div className="space-y-4">
               <Alert>
@@ -574,6 +649,45 @@ export default function CalendarIntegrationSettings({
                     Select a calendar first
                   </p>
                 )}
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-base text-amber-600 dark:text-amber-400">
+                <RefreshCw className="h-4 w-4 animate-pulse" />
+                System-Wide Bulk Re-sync (Repair)
+              </CardTitle>
+              <CardDescription>
+                Re-sync all existing gigs server-side to update all participants' Google Calendar events. Use this to repair incorrectly formatted events (such as all-day events displaying as 5 AM-6 AM).
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="flex flex-col gap-2">
+                <div>
+                  <Button
+                    onClick={handleServerBulkSync}
+                    disabled={serverSyncing}
+                    variant="outline"
+                    className="border-amber-500 text-amber-700 hover:bg-amber-50 hover:text-amber-800 dark:border-amber-600 dark:text-amber-400 dark:hover:bg-amber-950 dark:hover:text-amber-300"
+                  >
+                    {serverSyncing ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                        {serverSyncProgress || 'Re-syncing...'}
+                      </>
+                    ) : (
+                      <>
+                        <RefreshCw className="h-4 w-4 mr-2" />
+                        Bulk Re-sync All Gigs Server-Side
+                      </>
+                    )}
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  This iterates over every gig in the system and triggers the `sync-gig-all-users` Edge Function, updating calendar entries for all users.
+                </p>
               </div>
             </CardContent>
           </Card>

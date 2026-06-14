@@ -119,3 +119,6 @@ coverage/
 backups/
 supabase/.temp/
 uncommitted_changes.patch
+
+.claude
+.zencoder

@@ -36,7 +36,7 @@ export const handleApiError = (err: any, context: string) => {
  */
 export const handleFunctionsError = async (error: any, context: string) => {
   if (error && error.name === 'FunctionsHttpError' && error.context) {
-    let customError: Error | null = null;
+    let customError: any = null;
     try {
       // In some versions context is the Response, in others it's an object containing it
       // Be resilient: check if context itself looks like a Response
@@ -51,16 +51,28 @@ export const handleFunctionsError = async (error: any, context: string) => {
         let body;
         if (typeof response.json === 'function') {
           // Use clone() to avoid draining the stream
-          body = await response.clone().json().catch(() => null);
+          const cloned = response.clone();
+          try {
+            body = await cloned.json();
+          } catch (e) {
+            body = await cloned.text().catch(() => null);
+          }
         }
 
-        if (body && (body.error || body.message)) {
-          const errorMessage = body.error || body.message;
+        if (body) {
+          const errorMessage = typeof body === 'string' 
+            ? body 
+            : (body.error || body.message || 'Unknown function error');
+          
           customError = new Error(errorMessage);
-          (customError as any).status = response.status;
-          (customError as any).details = body.details;
-          (customError as any).hint = body.hint;
-          (customError as any).code = body.code;
+          customError.status = response.status;
+          
+          if (typeof body === 'object') {
+            customError.details = body.details || body.error;
+            customError.hint = body.hint;
+            customError.code = body.code;
+            customError.error_description = body.error_description;
+          }
         }
       }
     } catch (e) {

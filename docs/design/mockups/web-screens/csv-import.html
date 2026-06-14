@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="light">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -18,8 +18,19 @@
     --border: #e4e4e7;
     --destructive: #ef4444;
     --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-    --sidebar-w: 240px;
-    --header-h: 56px;
+    --sidebar-w: 220px;
+    --header-h: 64px;
+    --sky-bg: #f0f9ff;
+  }
+
+  html[data-theme="dark"] {
+    --background: #09090b;
+    --foreground: #f4f4f5;
+    --card: #18181b;
+    --muted: #27272a;
+    --muted-foreground: #a1a1aa;
+    --border: #3f3f46;
+    --sky-bg: #082f49;
   }
 
   html, body {
@@ -71,17 +82,35 @@
     gap: 10px;
   }
   .logo-mark {
-    width: 32px;
-    height: 32px;
+    width: 40px;
+    height: 40px;
     background: var(--foreground);
-    border-radius: 6px;
+    border-radius: 8px;
     display: flex;
     align-items: center;
     justify-content: center;
     flex-shrink: 0;
   }
   .org-name {
-    font-size: 14px;
+    font-size: 15px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    color: var(--foreground);
+  }
+  .badge-outline {
+    display: inline-flex;
+    align-items: center;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 1px 6px;
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--muted-foreground);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+  }
+  .page-title {
+    font-size: 20px;
     font-weight: 700;
     letter-spacing: -0.01em;
     color: var(--foreground);
@@ -100,17 +129,20 @@
     gap: 10px;
     padding: 8px 16px;
     font-size: 13px;
-    font-weight: 500;
+    font-weight: 400;
     color: var(--muted-foreground);
     cursor: pointer;
     text-decoration: none;
-    transition: all 0.1s;
+    border-left: 2px solid transparent;
+    transition: background 0.12s, color 0.12s;
     user-select: none;
   }
-  .nav-item:hover { color: var(--foreground); }
+  .nav-item:hover { background: #f4f4f5; color: var(--foreground); }
   .nav-item.active {
     color: var(--accent-sky);
-    font-weight: 600;
+    background: var(--sky-bg);
+    border-left-color: var(--accent-sky);
+    font-weight: 500;
   }
   .nav-item svg { flex-shrink: 0; width: 16px; height: 16px; }
 
@@ -398,6 +430,17 @@
     opacity: 0.5;
     cursor: not-allowed;
   }
+  .btn-ghost { background: transparent; border-color: transparent; color: var(--muted-foreground); }
+  .btn-ghost:hover { background: #f4f4f5; }
+  .icon-btn { padding: 6px; border-radius: 6px; }
+  .header-right { display: flex; align-items: center; gap: 8px; }
+  .avatar {
+    width: 34px; height: 34px; border-radius: 50%;
+    background: #e0f2fe; color: #0369a1;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 12px; font-weight: 600;
+  }
+  .chevron-icon { color: var(--muted-foreground); }
 
   /* ─── Step visibility ─── */
   .step-content { display: none; }
@@ -416,12 +459,18 @@
           <path d="M3 9h18v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V9Z"/><path d="M3 9V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v4"/><path d="M12 12v6"/><path d="M8 15h8"/>
         </svg>
       </div>
-      <div>
-        <div class="org-name">Main Stage Productions</div>
-      </div>
+      <span class="org-name">Main Stage Productions</span>
+      <span class="badge-outline">Admin</span>
     </div>
     <div class="header-right">
-      <button class="btn btn-outline" style="padding: 6px 12px; font-size: 12px;">Cancel Import</button>
+      <button class="btn btn-ghost icon-btn" title="Search">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+      </button>
+      <button class="btn btn-ghost icon-btn" title="Notifications">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
+      </button>
+      <div class="avatar">JD</div>
+      <svg class="chevron-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
     </div>
   </header>
 
@@ -445,9 +494,12 @@
   <main class="main">
     <div class="content-container">
       
-      <div>
-        <h1 class="page-title" style="font-size: 24px; font-weight: 800; letter-spacing: -0.02em;">Import Gigs</h1>
-        <p style="color: var(--muted-foreground); margin-top: 4px;">Upload a CSV file to bulk create or update gigs in your workspace.</p>
+      <div style="display: flex; align-items: flex-start; justify-content: space-between;">
+        <div>
+          <div class="page-title">Import Gigs</div>
+          <p style="color: var(--muted-foreground); margin-top: 4px;">Upload a CSV file to bulk create or update gigs in your workspace.</p>
+        </div>
+        <button class="btn btn-outline" style="padding: 6px 12px; font-size: 12px;">Cancel Import</button>
       </div>
 
       <!-- Stepper -->
@@ -745,6 +797,13 @@
 
   // Initialize
   updateUI();
+</script>
+<button id="gm-theme-toggle" onclick="(function(){var d=document.documentElement,i=d.getAttribute('data-theme')==='dark';d.setAttribute('data-theme',i?'light':'dark');localStorage.setItem('gm-theme',i?'light':'dark');document.getElementById('gm-theme-sun').style.display=i?'block':'none';document.getElementById('gm-theme-moon').style.display=i?'none':'block';})()" title="Toggle dark mode" style="position:fixed;bottom:20px;right:20px;width:40px;height:40px;background:var(--background,#fff);border:1px solid var(--border,#e4e4e7);border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;z-index:9999;box-shadow:0 2px 8px rgba(0,0,0,0.15);">
+  <svg id="gm-theme-sun" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M4.93 4.93l1.41 1.41m11.32 11.32 1.41 1.41M2 12h2m16 0h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg>
+  <svg id="gm-theme-moon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg>
+</button>
+<script>
+(function(){var t=localStorage.getItem('gm-theme');if(t==='dark'){document.documentElement.setAttribute('data-theme','dark');var s=document.getElementById('gm-theme-sun');var m=document.getElementById('gm-theme-moon');if(s)s.style.display='none';if(m)m.style.display='block';}})();
 </script>
 </body>
 </html>
