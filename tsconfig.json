@@ -23,5 +23,5 @@
     }
   },
   "include": ["src"],
-  "exclude": ["stage-plot-app", "supabase/functions", "build", "dev-dist", "node_modules"]
+  "exclude": ["supabase/functions", "build", "dev-dist", "node_modules"]
 }

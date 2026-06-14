@@ -7,7 +7,6 @@ export default tseslint.config(
     ignores: [
       'build/',
       'dev-dist/',
-      'stage-plot-app/',
       'supabase/functions/',
       'node_modules/',
       'public/',

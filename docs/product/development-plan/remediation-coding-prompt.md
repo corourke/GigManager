@@ -160,7 +160,7 @@ Work through the phases in order. Do not start a phase until the previous phase'
 - [x] Phase 5 — Sentry (web + edge), DSNs configured by user
 - [x] Phase 6 — Server function on Hono with auth middleware (+ endpoint inventory approved); deployed to dev & smoke-tested. Surfaced + fixed pre-existing data gaps (migration 20260613000000) and silent-delete UX bug. Frontend role-based UI gating deferred (docs/product/development-plan/role-based-ui-gating.md).
 - [ ] Phase 7 — Router + TanStack Query adopted; mega-components split
-- [ ] Phase 8 — Repo hygiene complete; stage-plot-app decision recorded
+- [x] Phase 8 — Repo hygiene complete; `dev-dist/` untracked+gitignored, `uncommitted_changes.patch`/`debug-schema.ts` removed. **stage-plot-app decision: extracted to its own repo** (June 2026) and removed from this monorepo.
 
 ## Global Constraints (apply to every phase)
 
