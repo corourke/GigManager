@@ -1,354 +1,2034 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="light">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>GigManager — Summer Festival 2024</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script>
-    tailwind.config = {
-      theme: {
-        extend: {
-          colors: {
-            sky: {
-              50: '#f0f9ff',
-              100: '#e0f2fe',
-              200: '#bae6fd',
-              300: '#7dd3fc',
-              400: '#38bdf8',
-              500: '#0ea5e9',
-              600: '#0284c7',
-              700: '#0369a1',
-              800: '#075985',
-              900: '#0c4a6e',
-            },
-          }
-        }
-      }
-    }
-  </script>
-  <style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
-    body { font-family: 'Inter', sans-serif; }
-    .metadata-label {
-      font-size: 10px;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 0.1em;
-    }
-    .tree-connector-v {
-      position: absolute; left: -16px; top: -12px; bottom: 20px;
-      width: 2px; background: #e5e7eb;
-    }
-    .tree-connector-h {
-      position: absolute; left: -16px; top: 20px;
-      width: 16px; height: 2px; background: #e5e7eb;
-    }
-    .tabular-nums { font-variant-numeric: tabular-nums; }
-  </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GigManager — Show: Main Stage</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --background: #ffffff;
+    --foreground: #030213;
+    --card: #ffffff;
+    --muted: #f4f4f5;
+    --muted-foreground: #71717a;
+    --accent-sky: #0ea5e9;
+    --accent-sky-foreground: #ffffff;
+    --border: #e4e4e7;
+    --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    --sidebar-w: 220px;
+    --header-h: 64px;
+    --sky-bg: #f0f9ff;
+    --success: #10b981;
+    --success-bg: #ecfdf5;
+    --success-border: #d1fae5;
+    --success-foreground: #065f46;
+    --warning: #f59e0b;
+    --warning-bg: #fffbeb;
+    --warning-border: #fef3c7;
+    --warning-foreground: #92400e;
+    --danger: #ef4444;
+    --danger-bg: #fef2f2;
+    --danger-border: #fee2e2;
+    --danger-foreground: #991b1b;
+  }
+
+  html[data-theme="dark"] {
+    --background: #09090b;
+    --foreground: #f4f4f5;
+    --card: #18181b;
+    --muted: #27272a;
+    --muted-foreground: #a1a1aa;
+    --border: #3f3f46;
+    --sky-bg: #082f49;
+    --success-bg: #064e3b;
+    --success-border: #047857;
+    --success-foreground: #a7f3d0;
+    --warning-bg: #451a03;
+    --warning-border: #78350f;
+    --warning-foreground: #fde047;
+    --danger-bg: #450a0a;
+    --danger-border: #7f1d1d;
+    --danger-foreground: #fca5a5;
+  }
+
+  html, body {
+    height: 100%;
+    font-family: var(--font);
+    background: var(--background);
+    color: var(--foreground);
+    font-size: 14px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+    overflow: hidden;
+  }
+
+  /* ─── Utilities ─── */
+  .tabular-nums { font-variant-numeric: tabular-nums; }
+  .metadata-label {
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--muted-foreground);
+  }
+
+  /* ─── Layout ─── */
+  .app {
+    display: grid;
+    grid-template-rows: var(--header-h) 1fr;
+    grid-template-columns: var(--sidebar-w) 1fr;
+    height: 100vh;
+    overflow: hidden;
+  }
+
+  /* ─── Header ─── */
+  .header {
+    grid-column: 1 / -1;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 20px;
+    background: var(--background);
+    border-bottom: 1px solid var(--border);
+    height: var(--header-h);
+    position: sticky;
+    top: 0;
+    z-index: 10;
+  }
+  .header-left {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .logo-mark {
+    width: 40px;
+    height: 40px;
+    background: var(--foreground);
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+  .org-name {
+    font-size: 15px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    color: var(--foreground);
+  }
+  .badge-outline {
+    display: inline-flex;
+    align-items: center;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 1px 6px;
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--muted-foreground);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+  }
+  .header-right { display: flex; align-items: center; gap: 8px; }
+  .avatar {
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    background: #e0f2fe;
+    color: #0369a1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    font-weight: 600;
+  }
+  .chevron-icon { color: var(--muted-foreground); }
+
+  /* ─── Sidebar ─── */
+  .sidebar {
+    background: var(--background);
+    border-right: 1px solid var(--border);
+    padding: 8px 0;
+    overflow-y: auto;
+  }
+  .nav-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 16px;
+    font-size: 13px;
+    font-weight: 400;
+    color: var(--muted-foreground);
+    cursor: pointer;
+    text-decoration: none;
+    border-left: 2px solid transparent;
+    transition: background 0.12s, color 0.12s;
+    user-select: none;
+  }
+  .nav-item:hover { background: var(--muted); color: var(--foreground); }
+  .nav-item.active {
+    color: var(--accent-sky);
+    background: var(--sky-bg);
+    border-left-color: var(--accent-sky);
+    font-weight: 500;
+  }
+  .nav-item svg { flex-shrink: 0; width: 16px; height: 16px; }
+
+  /* ─── Split Pane Layout ─── */
+  .main-two-pane {
+    grid-column: 2;
+    grid-row: 2;
+    display: flex;
+    height: 100%;
+    overflow: hidden;
+  }
+
+  /* Hierarchy Sidebar */
+  .hierarchy-sidebar {
+    width: 270px;
+    background: var(--background);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    flex-shrink: 0;
+    overflow-y: auto;
+  }
+  .hierarchy-header {
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--muted-foreground);
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--border);
+  }
+  .hierarchy-tree {
+    padding: 20px;
+  }
+  .tree-root-item {
+    display: flex;
+    flex-direction: column;
+  }
+  .tree-node {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    cursor: pointer;
+    text-decoration: none;
+    transition: background 0.12s, border-color 0.12s;
+  }
+  .tree-node:hover {
+    background: var(--muted);
+    border-color: var(--muted-foreground);
+  }
+  .tree-node.root-node {
+    border: 2px solid var(--accent-sky);
+  }
+  .tree-node.active {
+    background: var(--accent-sky);
+    color: var(--accent-sky-foreground);
+    border-color: var(--accent-sky);
+    cursor: default;
+  }
+  .tree-node.active .tree-node-title {
+    color: var(--accent-sky-foreground);
+  }
+  .tree-node.active .tree-node-subtitle {
+    color: rgba(255, 255, 255, 0.7);
+  }
+  .tree-node.active .tree-icon {
+    color: var(--accent-sky-foreground);
+  }
+  .tree-icon {
+    color: var(--muted-foreground);
+    flex-shrink: 0;
+  }
+  .tree-node-info {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  .tree-node-title {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--foreground);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .tree-node-subtitle {
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--muted-foreground);
+    margin-top: 2px;
+  }
+  .tree-children {
+    position: relative;
+    padding-left: 20px;
+    margin-top: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .tree-connector-line-v {
+    position: absolute;
+    left: 6px;
+    top: -12px;
+    bottom: 24px;
+    width: 1px;
+    border-left: 1px solid var(--border);
+  }
+  .tree-child-item {
+    position: relative;
+  }
+  .tree-connector-line-h {
+    position: absolute;
+    left: -14px;
+    top: 22px;
+    width: 14px;
+    height: 1px;
+    border-top: 1px solid var(--border);
+  }
+
+  /* Content Pane */
+  .content-pane {
+    flex: 1;
+    overflow-y: auto;
+    background: var(--background);
+    display: flex;
+    flex-direction: column;
+  }
+  .breadcrumbs {
+    padding: 16px 32px 0;
+    font-size: 12px;
+    color: var(--muted-foreground);
+  }
+  .breadcrumbs a {
+    color: var(--muted-foreground);
+    text-decoration: none;
+    transition: color 0.1s;
+  }
+  .breadcrumbs a:hover {
+    color: var(--foreground);
+  }
+  .breadcrumbs-sep {
+    margin: 0 8px;
+    color: var(--border);
+  }
+  .breadcrumbs-active {
+    font-weight: 600;
+    color: var(--foreground);
+  }
+
+  .page-title-section {
+    padding: 20px 32px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+  }
+  .title-area {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .title-badge-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .page-title {
+    font-size: 20px;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    color: var(--foreground);
+  }
+  .page-metadata {
+    font-size: 13px;
+    color: var(--muted-foreground);
+  }
+
+  /* ─── Tabs ─── */
+  .tab-bar {
+    display: flex;
+    gap: 24px;
+    padding: 0 32px;
+    border-bottom: 1px solid var(--border);
+    background: var(--background);
+  }
+  .tab-btn {
+    background: none;
+    border: none;
+    padding: 14px 0;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--muted-foreground);
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    transition: all 0.1s;
+    font-family: var(--font);
+    outline: none;
+  }
+  .tab-btn:hover {
+    color: var(--foreground);
+  }
+  .tab-btn.active {
+    color: var(--accent-sky);
+    border-bottom-color: var(--accent-sky);
+    font-weight: 600;
+  }
+
+  .tab-panel {
+    display: none;
+  }
+  .tab-panel.active {
+    display: block;
+  }
+
+  /* ─── Grid / Containers ─── */
+  .overview-grid {
+    display: grid;
+    grid-template-columns: 1.5fr 1fr;
+    gap: 24px;
+    padding: 32px;
+  }
+  .tab-panel-padded {
+    padding: 24px 32px;
+  }
+
+  /* ─── Cards ─── */
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+    margin-bottom: 16px;
+    position: relative;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
+  }
+  .card:last-child {
+    margin-bottom: 0;
+  }
+  .card-header-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12px;
+  }
+  .card-title-large {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--foreground);
+    margin-top: 4px;
+    margin-bottom: 8px;
+  }
+  .card-details-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-top: 12px;
+  }
+  .card-details-item {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .card-image {
+    height: 140px;
+    background-position: center;
+    background-size: cover;
+    background-repeat: no-repeat;
+    border-radius: 8px;
+    margin-bottom: 16px;
+    border: 1px solid var(--border);
+  }
+
+  /* Dark card */
+  .card-dark {
+    background: #09090b;
+    border-color: #27272a;
+    color: #ffffff;
+    padding: 24px;
+    border-radius: 16px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+  }
+  html[data-theme="dark"] .card-dark {
+    background: #18181b;
+  }
+  .card-dark .card-title-large {
+    color: #ffffff;
+  }
+  .card-dark .metadata-label {
+    color: #a1a1aa;
+  }
+
+  /* Time Grid Card */
+  .key-times-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin-top: 12px;
+  }
+  .key-time-box {
+    background: var(--muted);
+    padding: 12px;
+    border-radius: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .key-time-val {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--foreground);
+  }
+
+  /* Contact lists */
+  .contact-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-top: 12px;
+  }
+  .contact-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .contact-avatar {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: var(--muted);
+    border: 1px solid var(--border);
+    color: var(--foreground);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: 12px;
+    flex-shrink: 0;
+  }
+  .contact-info {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  .contact-name {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--foreground);
+  }
+  .contact-role {
+    font-size: 11px;
+    color: var(--muted-foreground);
+  }
+
+  /* Tags Row */
+  .tags-container {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 8px;
+  }
+  .tag-pill {
+    font-size: 11px;
+    font-weight: 500;
+    padding: 4px 10px;
+    border-radius: 9999px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    color: var(--muted-foreground);
+    transition: all 0.1s;
+  }
+  .tag-pill:hover {
+    border-color: var(--accent-sky);
+    color: var(--accent-sky);
+  }
+
+  /* Inheritance List */
+  .inheritance-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-top: 12px;
+  }
+  .inheritance-row {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 16px;
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    transition: border-color 0.1s;
+  }
+  .inheritance-row:hover {
+    border-color: var(--muted-foreground);
+  }
+  .inheritance-row.overridden {
+    border-left: 3px solid var(--accent-sky);
+    padding-left: 13px; /* Compensate for left border */
+  }
+  .inheritance-content-left {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .inheritance-title-badge {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .inheritance-text {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--foreground);
+  }
+
+  /* ─── Inline Stats Bar (Web style) ─── */
+  .stats-bar-inline {
+    display: flex;
+    gap: 32px;
+    padding: 16px 20px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    margin-bottom: 24px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.01);
+  }
+  .stats-bar-item {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .stats-bar-label {
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--muted-foreground);
+  }
+  .stats-bar-val {
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--foreground);
+  }
+
+  /* ─── Actions Row ─── */
+  .actions-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+  }
+  .actions-right {
+    display: flex;
+    gap: 8px;
+  }
+
+  /* ─── Smart Tables ─── */
+  .data-table-container {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.01);
+  }
+  .data-table {
+    width: 100%;
+    border-collapse: collapse;
+    text-align: left;
+  }
+  .data-table th {
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--muted-foreground);
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--border);
+    background: var(--muted);
+  }
+  .data-table td {
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--border);
+    font-size: 13px;
+    vertical-align: middle;
+    color: var(--foreground);
+  }
+  .data-table tr:last-child td {
+    border-bottom: none;
+  }
+  .data-table tr:hover td {
+    background: var(--sky-bg);
+  }
+  .data-table .subtotal-row td {
+    background: var(--muted);
+    font-weight: 700;
+    border-top: 1px solid var(--border);
+    font-size: 12px;
+  }
+
+  /* Expandable equipment sections */
+  .category-header {
+    background: var(--muted);
+    border: 1px solid var(--border);
+    padding: 12px 16px;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--foreground);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    cursor: pointer;
+    border-radius: 8px;
+    margin-top: 16px;
+    user-select: none;
+    transition: background 0.12s;
+  }
+  .category-header:hover {
+    background: var(--border);
+  }
+  .category-chevron {
+    transition: transform 0.15s;
+    color: var(--muted-foreground);
+  }
+  .category-content {
+    margin-top: 4px;
+    border-radius: 8px;
+    overflow: hidden;
+  }
+
+  /* Adjustments Section Empty State */
+  .empty-state {
+    display: flex;
+    flex-col: column;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 32px;
+    text-align: center;
+    border: 2px dashed var(--border);
+    border-radius: 12px;
+    background: rgba(0, 0, 0, 0.01);
+  }
+  .empty-state-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--foreground);
+    margin-bottom: 4px;
+  }
+  .empty-state-desc {
+    font-size: 12px;
+    color: var(--muted-foreground);
+    font-style: italic;
+  }
+
+  /* Settlement Highlight Bar */
+  .settlement-bar {
+    margin-top: 24px;
+    border-top: 1px solid var(--border);
+    padding: 20px;
+    background: var(--sky-bg);
+    border-radius: 12px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border: 1px solid var(--border);
+  }
+  .settlement-bar-text {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--foreground);
+  }
+
+  /* ─── Badges ─── */
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    border-radius: 4px;
+    padding: 2px 8px;
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    white-space: nowrap;
+  }
+  .badge-success { background: var(--success-bg); color: var(--success-foreground); border: 1px solid var(--success-border); }
+  .badge-warning { background: var(--warning-bg); color: var(--warning-foreground); border: 1px solid var(--warning-border); }
+  .badge-danger { background: var(--danger-bg); color: var(--danger-foreground); border: 1px solid var(--danger-border); }
+  .badge-info { background: var(--sky-bg); color: var(--accent-sky); border: 1px solid var(--border); }
+  .badge-muted { background: var(--muted); color: var(--muted-foreground); border: 1px solid var(--border); }
+
+  .status-pill {
+    display: inline-flex;
+    align-items: center;
+    border-radius: 9999px;
+    padding: 2px 8px;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    white-space: nowrap;
+  }
+  .status-pill-confirmed { background: #dcfce7; color: #15803d; border: 1px solid #bbf7d0; }
+  .status-pill-pending { background: #fef9c3; color: #854d0e; border: 1px solid #fef08a; }
+  html[data-theme="dark"] .status-pill-confirmed { background: #064e3b; color: #86efac; border: 1px solid #047857; }
+  html[data-theme="dark"] .status-pill-pending { background: #451a03; color: #fde047; border: 1px solid #78350f; }
+
+  /* ─── Buttons ─── */
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    border-radius: 8px;
+    font-size: 12px;
+    font-weight: 600;
+    padding: 8px 14px;
+    cursor: pointer;
+    transition: all 0.1s;
+    border: 1px solid transparent;
+    font-family: var(--font);
+    white-space: nowrap;
+    outline: none;
+    text-decoration: none;
+  }
+  .btn:focus-visible { box-shadow: 0 0 0 2px var(--background), 0 0 0 4px var(--accent-sky); }
+  .btn:active { transform: scale(0.98); }
+  .btn-primary {
+    background: var(--accent-sky);
+    color: var(--accent-sky-foreground);
+    box-shadow: 0 2px 4px rgba(14, 165, 233, 0.15);
+  }
+  .btn-primary:hover { background: #0284c7; }
+  .btn-outline {
+    border-color: var(--border);
+    background: var(--card);
+    color: var(--foreground);
+  }
+  .btn-outline:hover { background: var(--muted); border-color: var(--muted-foreground); }
+  .btn-ghost {
+    background: transparent;
+    color: var(--muted-foreground);
+  }
+  .btn-ghost:hover { background: var(--muted); color: var(--foreground); }
+  .icon-btn {
+    width: 32px;
+    height: 32px;
+    padding: 0;
+  }
+
+  /* Link buttons */
+  .link-btn {
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--accent-sky);
+    cursor: pointer;
+    border: none;
+    background: none;
+    transition: opacity 0.1s;
+  }
+  .link-btn:hover {
+    opacity: 0.8;
+    text-decoration: underline;
+  }
+  .link-btn-danger {
+    color: var(--danger-foreground);
+  }
+
+  /* Attachment link */
+  .attachment-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 12px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    margin-bottom: 8px;
+    transition: border-color 0.1s;
+  }
+  .attachment-item:last-child {
+    margin-bottom: 0;
+  }
+  .attachment-item:hover {
+    border-color: var(--accent-sky);
+  }
+  .attachment-info-left {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .attachment-name {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--foreground);
+  }
+  .attachment-meta {
+    font-size: 11px;
+    color: var(--muted-foreground);
+  }
+  .attachment-icon {
+    color: var(--muted-foreground);
+    flex-shrink: 0;
+  }
+
+  .text-right { text-align: right; }
+  .text-emerald { color: #10b981; }
+  .text-red { color: #ef4444; }
+  .text-amber { color: #f59e0b; }
+  .font-semibold { font-weight: 600; }
+  .font-bold { font-weight: 700; }
+  .line-through { text-decoration: line-through; }
+  .ml-2 { margin-left: 8px; }
+  .mr-1 { margin-right: 4px; }
+</style>
 </head>
-<body class="bg-white text-slate-900 antialiased overflow-hidden h-screen flex flex-col">
-  <!-- Top Header -->
-  <header class="h-16 border-b flex items-center justify-between px-6 shrink-0 bg-white z-20">
-    <div class="flex items-center gap-3">
-      <div class="w-10 h-10 bg-slate-900 rounded-lg flex items-center justify-center shrink-0">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9h18v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V9Z"/><path d="M3 9V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v4"/><path d="M12 12v6"/><path d="M8 15h8"/></svg>
+<body>
+<div class="app">
+
+  <!-- Header -->
+  <header class="header">
+    <div class="header-left">
+      <div class="logo-mark">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M3 9h18v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V9Z"/><path d="M3 9V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v4"/><path d="M12 12v6"/><path d="M8 15h8"/>
+        </svg>
       </div>
-      <span class="font-bold text-[15px] tracking-tight" style="letter-spacing:-0.02em;">Main Stage Productions</span>
-      <span class="px-1.5 py-0.5 border rounded text-[10px] font-semibold uppercase text-slate-500" style="letter-spacing:0.1em;">Admin</span>
+      <span class="org-name">Main Stage Productions</span>
+      <span class="badge-outline">Admin</span>
     </div>
-    <div class="flex items-center gap-2">
-      <button class="w-8 h-8 flex items-center justify-center rounded-md text-slate-400 hover:bg-slate-100 transition-colors" title="Search">
+    <div class="header-right">
+      <button class="btn btn-ghost icon-btn" title="Search">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
       </button>
-      <button class="w-8 h-8 flex items-center justify-center rounded-md text-slate-400 hover:bg-slate-100 transition-colors" title="Notifications">
+      <button class="btn btn-ghost icon-btn" title="Notifications">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
       </button>
-      <div class="rounded-full bg-sky-100 text-sky-700 flex items-center justify-center font-semibold" style="width:34px;height:34px;font-size:12px;">JD</div>
-      <svg class="w-3.5 h-3.5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <div class="avatar">JD</div>
+      <svg class="chevron-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
     </div>
   </header>
 
-  <div class="flex flex-1 overflow-hidden">
-    <!-- Main Sidebar -->
-    <nav class="w-14 md:w-56 border-r flex flex-col py-4 shrink-0 bg-white">
-      <a href="dashboard.html" class="flex items-center gap-3 px-4 py-2 text-slate-500 hover:bg-slate-50 hover:text-slate-900 transition-colors">
-        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.75" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"></path></svg>
-        <span class="text-sm font-medium hidden md:inline">Dashboard</span>
-      </a>
-      <a href="gig-detail.html" class="flex items-center gap-3 px-4 py-2 text-sky-600 bg-sky-50 border-l-2 border-sky-600 font-semibold">
-        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.75" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
-        <span class="text-sm hidden md:inline">Gigs</span>
-      </a>
-      <a href="#" class="flex items-center gap-3 px-4 py-2 text-slate-500 hover:bg-slate-50 hover:text-slate-900 transition-colors">
-        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.75" d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2m16-10a4 4 0 11-8 0 4 4 0 018 0zM12 7a4 4 0 11-8 0 4 4 0 018 0z"></path></svg>
-        <span class="text-sm font-medium hidden md:inline">Team</span>
-      </a>
-      <a href="financials.html" class="flex items-center gap-3 px-4 py-2 text-slate-500 hover:bg-slate-50 hover:text-slate-900 transition-colors">
-        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.75" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-        <span class="text-sm font-medium hidden md:inline">Financials</span>
-      </a>
-      <a href="equipment.html" class="flex items-center gap-3 px-4 py-2 text-slate-500 hover:bg-slate-50 hover:text-slate-900 transition-colors">
-        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.75" d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"></path></svg>
-        <span class="text-sm font-medium hidden md:inline">Equipment</span>
-      </a>
-    </nav>
+  <!-- Sidebar -->
+  <nav class="sidebar">
+    <a class="nav-item" href="dashboard.html">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/></svg>
+      Dashboard
+    </a>
+    <a class="nav-item active" href="gig-detail.html">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="4" rx="2" ry="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/></svg>
+      Gigs
+    </a>
+    <a class="nav-item" href="#">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="4" rx="2" ry="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/><path d="M8 14h.01"/><path d="M12 14h.01"/><path d="M16 14h.01"/><path d="M8 18h.01"/><path d="M12 18h.01"/><path d="M16 18h.01"/></svg>
+      Calendar
+    </a>
+    <a class="nav-item" href="#">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><line x1="12" x2="12" y1="2" y2="22"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+      Financials
+    </a>
+    <a class="nav-item" href="#">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+      Team
+    </a>
+    <a class="nav-item" href="#">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M16 16v1a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h2"/><rect width="13" height="8" x="9" y="2" rx="1.5"/><path d="M9 8h4"/><path d="M9 11h3"/></svg>
+      Inventory
+    </a>
+    <a class="nav-item" href="#">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
+      Equipment
+    </a>
+    <a class="nav-item" href="#">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
+      Settings
+    </a>
+  </nav>
 
-    <!-- Split Pane Container -->
-    <div class="flex flex-1 overflow-hidden">
-      <!-- Hierarchy Tree Sidebar -->
-      <aside class="w-72 border-r bg-slate-50/50 flex flex-col shrink-0 overflow-y-auto">
-        <div class="p-4 border-b bg-white/50">
-          <h2 class="metadata-label text-slate-500">Gig Hierarchy</h2>
-        </div>
-        <div class="p-6">
-          <div class="relative pl-5">
-            <!-- Parent -->
-            <div class="relative mb-6">
-              <div class="flex items-center gap-3 p-3 bg-white border rounded-xl shadow-sm cursor-pointer hover:border-sky-200 transition-all ring-2 ring-sky-500/20">
-                <div class="w-8 h-8 rounded-lg bg-sky-100 flex items-center justify-center text-sky-600">
-                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m4 0h1m-5 4h1m4 0h1m-5 4h1m4 0h1m-5 4h1m4 0h1"></path></svg>
-                </div>
-                <div class="flex-1">
-                  <div class="text-[13px] font-bold tracking-tight">Summer Festival 2024</div>
-                  <div class="metadata-label text-[9px] text-sky-600 mt-0.5">Project Root</div>
+  <!-- Split Pane Shell -->
+  <div class="main-two-pane">
+
+    <!-- Hierarchy Sidebar (270px) -->
+    <aside class="hierarchy-sidebar">
+      <div class="hierarchy-header">GIG HIERARCHY</div>
+      <div class="hierarchy-tree">
+        <div class="tree-root-item">
+          <!-- Root Node -->
+          <div class="tree-node root-node" onclick="location.href='#'">
+            <svg class="tree-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2 2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+            </svg>
+            <div class="tree-node-info">
+              <span class="tree-node-title">Summer Festival 2024</span>
+              <span class="tree-node-subtitle">Project Root</span>
+            </div>
+          </div>
+
+          <!-- Tree Children -->
+          <div class="tree-children">
+            <div class="tree-connector-line-v"></div>
+
+            <!-- Child 1 -->
+            <div class="tree-child-item">
+              <div class="tree-connector-line-h"></div>
+              <div class="tree-node" onclick="location.href='#'">
+                <svg class="tree-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <rect width="18" height="18" x="3" y="4" rx="2" ry="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/>
+                </svg>
+                <div class="tree-node-info">
+                  <span class="tree-node-title">Load-In / Setup</span>
+                  <span class="tree-node-subtitle">Sub-Event</span>
                 </div>
               </div>
             </div>
 
-            <!-- Children -->
-            <div class="relative ml-8">
-              <div class="tree-connector-v"></div>
-              
-              <!-- Sub-gig 1 -->
-              <div class="relative mb-4">
-                <div class="tree-connector-h"></div>
-                <div class="flex items-center gap-3 p-3 bg-white border rounded-xl hover:border-slate-300 transition-all cursor-pointer">
-                  <div class="w-7 h-7 rounded-lg bg-slate-100 flex items-center justify-center text-slate-500">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
-                  </div>
-                  <div class="flex-1">
-                    <div class="text-[12px] font-semibold">Load-In / Setup</div>
-                    <div class="metadata-label text-[8px] text-slate-400">Sub-Event</div>
-                  </div>
-                </div>
-              </div>
-
-              <!-- Sub-gig 2 (Selected) -->
-              <div class="relative mb-4">
-                <div class="tree-connector-h"></div>
-                <div class="flex items-center gap-3 p-3 bg-sky-50 border border-sky-200 rounded-xl ring-2 ring-sky-500/10 cursor-default">
-                  <div class="w-7 h-7 rounded-lg bg-sky-500 flex items-center justify-center text-white">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                  </div>
-                  <div class="flex-1">
-                    <div class="text-[12px] font-bold text-sky-900">Show: Main Stage</div>
-                    <div class="metadata-label text-[8px] text-sky-600">Active Node</div>
-                  </div>
-                </div>
-              </div>
-              
-              <!-- Sub-gig 3 -->
-              <div class="relative">
-                <div class="tree-connector-h"></div>
-                <div class="flex items-center gap-3 p-3 bg-white border rounded-xl hover:border-slate-300 transition-all cursor-pointer">
-                  <div class="w-7 h-7 rounded-lg bg-slate-100 flex items-center justify-center text-slate-500">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
-                  </div>
-                  <div class="flex-1">
-                    <div class="text-[12px] font-semibold">Load-Out</div>
-                    <div class="metadata-label text-[8px] text-slate-400">Sub-Event</div>
-                  </div>
+            <!-- Child 2 (Active/Selected) -->
+            <div class="tree-child-item">
+              <div class="tree-connector-line-h"></div>
+              <div class="tree-node active">
+                <svg class="tree-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <polygon points="6 3 20 12 6 21 6 3"/>
+                </svg>
+                <div class="tree-node-info">
+                  <span class="tree-node-title">Show: Main Stage</span>
+                  <span class="tree-node-subtitle">Active Detail Node</span>
                 </div>
               </div>
             </div>
+
+            <!-- Child 3 -->
+            <div class="tree-child-item">
+              <div class="tree-connector-line-h"></div>
+              <div class="tree-node" onclick="location.href='#'">
+                <svg class="tree-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <rect width="18" height="18" x="3" y="4" rx="2" ry="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/>
+                </svg>
+                <div class="tree-node-info">
+                  <span class="tree-node-title">Load-Out</span>
+                  <span class="tree-node-subtitle">Sub-Event</span>
+                </div>
+              </div>
+            </div>
+
           </div>
         </div>
-      </aside>
+      </div>
+    </aside>
 
-      <!-- Main Content Area -->
-      <main class="flex-1 overflow-y-auto bg-white">
-        <div class="p-8 max-w-5xl mx-auto">
-          <!-- Breadcrumbs -->
-          <nav class="flex items-center gap-2 mb-6">
-            <a href="gig-list.html" class="text-xs font-medium text-slate-500 hover:text-slate-900 transition-colors">Gigs</a>
-            <svg class="w-3 h-3 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
-            <a href="#" class="text-xs font-medium text-slate-500 hover:text-slate-900 transition-colors">Summer Festival 2024</a>
-            <svg class="w-3 h-3 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
-            <span class="text-xs font-bold text-slate-900">Show: Main Stage</span>
-          </nav>
+    <!-- Content Pane -->
+    <main class="content-pane">
+      <!-- Breadcrumbs -->
+      <nav class="breadcrumbs">
+        <a href="#">Gigs</a>
+        <span class="breadcrumbs-sep">&gt;</span>
+        <a href="#">Summer Festival 2024</a>
+        <span class="breadcrumbs-sep">&gt;</span>
+        <span class="breadcrumbs-active">Show: Main Stage</span>
+      </nav>
 
-          <!-- Gig Title & Actions -->
-          <div class="flex flex-col md:flex-row md:items-start justify-between gap-4 mb-8">
-            <div>
-              <div class="flex items-center gap-3 mb-2 flex-wrap">
-                <h1 class="text-xl font-bold tracking-tight text-slate-900" style="font-size:20px;letter-spacing:-0.01em;">Show: Main Stage</h1>
-                <span class="px-2.5 py-1 bg-sky-100 text-sky-700 text-[11px] font-bold uppercase tracking-wider rounded-md border border-sky-200">Confirmed</span>
-              </div>
-              <div class="flex flex-wrap items-center gap-y-2 gap-x-4 text-slate-500">
-                <div class="flex items-center gap-1.5">
-                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
-                  <span class="text-[13px] font-medium">Jun 15, 2024</span>
+      <!-- Title Area -->
+      <div class="page-title-section">
+        <div class="title-area">
+          <div class="title-badge-row">
+            <h1 class="page-title">Show: Main Stage</h1>
+            <span class="badge badge-info">CONFIRMED</span>
+          </div>
+          <p class="page-metadata">Jun 15, 2024 &nbsp;·&nbsp; Red Rocks Amphitheater &nbsp;·&nbsp; 8:00 PM – 11:30 PM</p>
+        </div>
+        <div class="actions-right">
+          <button class="btn btn-outline" onclick="alert('Editing Gig Details...')">Edit</button>
+          <button class="btn btn-primary" onclick="alert('Show action menu...')">Actions</button>
+        </div>
+      </div>
+
+      <!-- Tab Bar -->
+      <div class="tab-bar">
+        <button class="tab-btn active" onclick="showTab(1)">Overview</button>
+        <button class="tab-btn" onclick="showTab(2)">Staffing</button>
+        <button class="tab-btn" onclick="showTab(3)">Equipment</button>
+        <button class="tab-btn" onclick="showTab(4)">Financials</button>
+        <button class="tab-btn" onclick="showTab(5)">Settlement</button>
+      </div>
+
+      <!-- Tab Panel 1: Overview -->
+      <div id="tab-overview" class="tab-panel active">
+        <div class="overview-grid">
+          <!-- Left column -->
+          <div>
+            <!-- Venue Card -->
+            <div class="card">
+              <div class="card-image" style="background-image: url('assets/red-rocks.png')"></div>
+              <span class="metadata-label">VENUE</span>
+              <h2 class="card-title-large">Red Rocks Amphitheater</h2>
+              <div class="card-details-grid">
+                <div class="card-details-item">
+                  <span class="metadata-label">Address</span>
+                  <span class="font-semibold">18300 W Alameda Pkwy, Morrison, CO</span>
                 </div>
-                <div class="flex items-center gap-1.5">
-                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
-                  <span class="text-[13px] font-medium">Red Rocks Amphitheater</span>
+                <div class="card-details-item">
+                  <span class="metadata-label">Capacity</span>
+                  <span class="font-semibold tabular-nums">9,525 seated</span>
+                </div>
+                <div class="card-details-item">
+                  <span class="metadata-label">Load-In Location</span>
+                  <span class="font-semibold">Dock B, Gate 3</span>
+                </div>
+                <div class="card-details-item">
+                  <span class="metadata-label">Coordinator</span>
+                  <span class="font-semibold">Lisa Park · +1 303-555-0420</span>
                 </div>
               </div>
             </div>
-            <div class="flex items-center gap-2">
-              <button class="px-3 py-1.5 border rounded-lg text-sm font-semibold hover:bg-slate-50 transition-colors">Edit</button>
-              <button class="px-3 py-1.5 bg-sky-500 text-white rounded-lg text-sm font-semibold hover:bg-sky-600 shadow-sm shadow-sky-200 transition-colors">Actions</button>
+
+            <!-- Act Card -->
+            <div class="card">
+              <div class="card-image" style="background-image: url('assets/mountain-echo.png')"></div>
+              <span class="metadata-label">ACT</span>
+              <h2 class="card-title-large">The Mountain Echo</h2>
+              <div style="margin-bottom: 12px;">
+                <span class="metadata-label">Genre</span> &nbsp;
+                <span class="font-semibold">Indie Folk / Americana</span>
+              </div>
+              <div class="card-details-grid">
+                <div class="card-details-item" style="grid-column: 1 / -1;">
+                  <span class="metadata-label">Agent</span>
+                  <span class="font-semibold">Marcus Webb, CAA · marcus@caa.com</span>
+                </div>
+                <div class="card-details-item" style="grid-column: 1 / -1; margin-top: 4px;">
+                  <span class="metadata-label">Rider Policy</span>
+                  <span class="font-semibold" style="font-style: italic; color: var(--muted-foreground);">Standard hospitality rider: 4 hotel rooms, catering for 12, 2x towels per dressing room</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Notes Card -->
+            <div class="card">
+              <div class="card-header-row">
+                <span class="metadata-label">NOTES</span>
+                <button class="link-btn" onclick="alert('Editing Notes...')">Edit</button>
+              </div>
+              <p class="font-semibold" style="font-style: italic; color: var(--muted-foreground); font-size: 13px;">
+                "Pyrotechnics approved by venue for finale. Confirm with fire marshal on day. Stage manager to brief entire crew at 7:30am call. VIP area backstage requires wristbands - coordinate with venue."
+              </p>
+            </div>
+
+            <!-- Tags -->
+            <div style="margin-bottom: 24px;">
+              <span class="metadata-label">TAGS</span>
+              <div class="tags-container">
+                <span class="tag-pill">Main Stage</span>
+                <span class="tag-pill">Outdoor</span>
+                <span class="tag-pill">Festival</span>
+                <span class="tag-pill">VIP Access</span>
+                <span class="tag-pill">Pyrotechnics</span>
+              </div>
+            </div>
+
+            <!-- Attachments Card -->
+            <div class="card">
+              <div class="card-header-row">
+                <span class="metadata-label">ATTACHMENTS</span>
+                <button class="link-btn" onclick="alert('Uploading attachment...')">Upload</button>
+              </div>
+              <div class="attachment-list">
+                <!-- Row 1 -->
+                <div class="attachment-item">
+                  <div class="attachment-info-left">
+                    <svg class="attachment-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/>
+                    </svg>
+                    <span class="attachment-name">Stage-Plot-MainStage.pdf</span>
+                  </div>
+                  <span class="attachment-meta tabular-nums">2.4 MB · Jun 2</span>
+                </div>
+                <!-- Row 2 -->
+                <div class="attachment-item">
+                  <div class="attachment-info-left">
+                    <svg class="attachment-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/>
+                    </svg>
+                    <span class="attachment-name">Rider-TheEcho.xlsx</span>
+                  </div>
+                  <span class="attachment-meta tabular-nums">180 KB · Jun 3</span>
+                </div>
+                <!-- Row 3 -->
+                <div class="attachment-item">
+                  <div class="attachment-info-left">
+                    <svg class="attachment-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/>
+                    </svg>
+                    <span class="attachment-name">Venue-Map.png</span>
+                  </div>
+                  <span class="attachment-meta tabular-nums">1.1 MB · Jun 5</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Inheritance & Policies -->
+            <div class="card">
+              <span class="metadata-label">INHERITANCE & POLICIES</span>
+              <div class="inheritance-list">
+                <!-- Curfew Row -->
+                <div class="inheritance-row">
+                  <div class="inheritance-content-left">
+                    <div class="inheritance-title-badge">
+                      <span class="metadata-label">Venue Curfew</span>
+                      <span class="badge badge-info">INHERITED</span>
+                    </div>
+                    <p class="inheritance-text">11:45 PM MDT strictly enforced. $1k/min penalty.</p>
+                  </div>
+                  <button class="link-btn" onclick="alert('Overriding curfew value...')">Override</button>
+                </div>
+
+                <!-- Overridden Day Rate Row -->
+                <div class="inheritance-row overridden">
+                  <div class="inheritance-content-left">
+                    <div class="inheritance-title-badge">
+                      <span class="metadata-label">Day Rate Adjustment</span>
+                      <span class="badge badge-warning">OVERRIDDEN</span>
+                    </div>
+                    <p class="inheritance-text">
+                      <span class="font-bold">$1,850.00</span>
+                      <span class="line-through text-muted ml-2">$1,200.00</span>
+                    </p>
+                  </div>
+                  <button class="link-btn" onclick="alert('Reverting day rate to inherited value...')">Revert</button>
+                </div>
+              </div>
             </div>
           </div>
 
-          <!-- Tabs -->
-          <div class="border-b flex gap-8 mb-8 overflow-x-auto">
-            <button class="pb-3 border-b-2 border-sky-500 text-sky-600 font-bold text-sm whitespace-nowrap">Overview</button>
-            <button class="pb-3 border-b-2 border-transparent text-slate-500 hover:text-slate-900 font-medium text-sm transition-colors whitespace-nowrap">Staffing</button>
-            <button class="pb-3 border-b-2 border-transparent text-slate-500 hover:text-slate-900 font-medium text-sm transition-colors whitespace-nowrap">Equipment</button>
-            <button class="pb-3 border-b-2 border-transparent text-slate-500 hover:text-slate-900 font-medium text-sm transition-colors whitespace-nowrap">Financials</button>
-          </div>
-
-          <div class="grid grid-cols-1 md:grid-cols-12 gap-8">
-            <!-- Details Column -->
-            <div class="md:col-span-7 space-y-8">
-              <section>
-                <div class="flex items-center gap-2 mb-4">
-                  <h3 class="metadata-label text-slate-400">Inheritance & Policies</h3>
-                  <div class="h-px flex-1 bg-slate-100"></div>
+          <!-- Right column -->
+          <div>
+            <!-- Financial Summary (Dark card) -->
+            <div class="card-dark" style="margin-bottom: 16px;">
+              <span class="metadata-label">FINANCIAL SUMMARY</span>
+              <div style="margin-top: 16px; margin-bottom: 20px;">
+                <span class="metadata-label">Estimated Revenue</span>
+                <h1 style="font-size: 28px; font-weight: 800; margin-top: 4px;" class="tabular-nums">$28,000.00</h1>
+              </div>
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; border-top: 1px solid #27272a; padding-top: 16px;">
+                <div>
+                  <span class="metadata-label">Projected Costs</span>
+                  <p style="font-size: 16px; font-weight: 700; margin-top: 4px;" class="tabular-nums">$12,400.00</p>
                 </div>
-                <div class="space-y-4">
-                  <!-- Inherited Data Example -->
-                  <div class="group relative bg-white border border-slate-100 rounded-xl p-4 transition-all">
-                    <div class="flex items-start justify-between">
-                      <div class="space-y-1">
-                        <div class="flex items-center gap-2">
-                          <span class="metadata-label text-slate-500">Venue Curfew</span>
-                          <span class="text-[10px] font-bold uppercase tracking-wider bg-sky-100 text-sky-700 px-1.5 py-0.5 rounded-sm">Inherited</span>
-                        </div>
-                        <p class="text-sm font-medium text-slate-900">11:45 PM MDT strictly enforced. $1k/min penalty.</p>
-                      </div>
-                      <button class="text-[10px] font-bold uppercase text-sky-600 opacity-0 group-hover:opacity-100 transition-opacity">Override</button>
-                    </div>
-                  </div>
-
-                  <!-- Overridden Data Example -->
-                  <div class="relative bg-white border border-sky-200 border-l-[3px] border-l-sky-500 rounded-xl p-4 shadow-sm shadow-sky-50">
-                    <div class="flex items-start justify-between">
-                      <div class="space-y-1">
-                        <div class="flex items-center gap-2">
-                          <span class="metadata-label text-slate-500">Day Rate Adjustment</span>
-                          <span class="text-[10px] font-bold uppercase tracking-wider bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-sm">Overridden</span>
-                        </div>
-                        <p class="text-sm font-bold text-slate-900">$1,850.00 <span class="text-slate-400 font-normal line-through ml-2">$1,200.00</span></p>
-                      </div>
-                      <button class="text-[10px] font-bold uppercase text-sky-600 hover:underline transition-colors">Revert</button>
-                    </div>
-                  </div>
-
-                  <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div class="p-4 bg-slate-50 rounded-xl">
-                      <div class="metadata-label text-slate-500 mb-1">Load-in</div>
-                      <div class="text-[13px] font-semibold">08:00 AM</div>
-                    </div>
-                    <div class="p-4 bg-slate-50 rounded-xl">
-                      <div class="metadata-label text-slate-500 mb-1">Sound Check</div>
-                      <div class="text-[13px] font-semibold">02:00 PM</div>
-                    </div>
-                  </div>
+                <div>
+                  <span class="metadata-label">Net Margin</span>
+                  <p style="font-size: 16px; font-weight: 700; margin-top: 4px;" class="text-emerald tabular-nums">$15,600.00</p>
                 </div>
-              </section>
-
-              <!-- Resource Rollups -->
-              <section>
-                <div class="flex items-center gap-2 mb-4">
-                  <h3 class="metadata-label text-slate-400">Resource Rollups</h3>
-                  <div class="h-px flex-1 bg-slate-100"></div>
-                </div>
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <!-- Staff Rollup -->
-                  <div class="p-4 border rounded-xl bg-white shadow-sm hover:shadow-md transition-shadow">
-                    <div class="flex items-center justify-between mb-3">
-                      <div class="metadata-label text-slate-500">Staffing</div>
-                      <svg class="w-4 h-4 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"></path></svg>
-                    </div>
-                    <div class="flex items-baseline gap-1">
-                      <span class="text-2xl font-bold tracking-tight tabular-nums">12</span>
-                      <span class="metadata-label text-[10px] text-slate-400">Assigned</span>
-                    </div>
-                    <div class="mt-3 pt-3 border-t flex items-center justify-between text-[11px] font-medium">
-                      <span class="text-slate-500">Total Hours</span>
-                      <span class="text-slate-900 tabular-nums">96.5h</span>
-                    </div>
-                  </div>
-
-                  <!-- Equipment Rollup -->
-                  <div class="p-4 border rounded-xl bg-white shadow-sm hover:shadow-md transition-shadow">
-                    <div class="flex items-center justify-between mb-3">
-                      <div class="metadata-label text-slate-500">Equipment</div>
-                      <svg class="w-4 h-4 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"></path></svg>
-                    </div>
-                    <div class="flex items-baseline gap-1">
-                      <span class="text-2xl font-bold tracking-tight tabular-nums">42</span>
-                      <span class="metadata-label text-[10px] text-slate-400">Items</span>
-                    </div>
-                    <div class="mt-3 pt-3 border-t flex items-center justify-between text-[11px] font-medium">
-                      <span class="text-slate-500">Total Weight</span>
-                      <span class="text-slate-900 tabular-nums">1,240kg</span>
-                    </div>
-                  </div>
-                </div>
-              </section>
+              </div>
+              <button class="btn btn-outline" style="width: 100%; margin-top: 24px; border-color: #3f3f46; background: rgba(255,255,255,0.05); color: #ffffff;" onclick="showTab(4)">Details & Ledger →</button>
             </div>
 
-            <!-- Financials & Quick Info -->
-            <div class="md:col-span-5 space-y-6">
-              <div class="p-6 bg-slate-900 text-white rounded-2xl shadow-xl shadow-slate-200">
-                <div class="metadata-label text-slate-400 mb-4">Financial Summary</div>
-                <div class="space-y-6">
-                  <div>
-                    <div class="metadata-label text-slate-500 mb-1">Estimated Revenue</div>
-                    <div class="text-3xl font-extrabold tabular-nums">$28,000.00</div>
-                  </div>
-                  <div class="grid grid-cols-2 gap-4">
-                    <div>
-                      <div class="metadata-label text-slate-500 mb-1">Projected Costs</div>
-                      <div class="text-lg font-bold tabular-nums text-slate-200">$12,400.00</div>
-                    </div>
-                    <div>
-                      <div class="metadata-label text-slate-500 mb-1">Net Margin</div>
-                      <div class="text-lg font-bold tabular-nums text-emerald-400">$15,600.00</div>
-                    </div>
+            <!-- Key Times -->
+            <div class="card">
+              <span class="metadata-label">KEY TIMES</span>
+              <div class="key-times-grid">
+                <div class="key-time-box">
+                  <span class="metadata-label">Load-In</span>
+                  <span class="key-time-val tabular-nums">8:00 AM</span>
+                </div>
+                <div class="key-time-box">
+                  <span class="metadata-label">Doors</span>
+                  <span class="key-time-val tabular-nums">6:00 PM</span>
+                </div>
+                <div class="key-time-box">
+                  <span class="metadata-label">Showtime</span>
+                  <span class="key-time-val tabular-nums">8:00 PM</span>
+                </div>
+                <div class="key-time-box">
+                  <span class="metadata-label">Curfew</span>
+                  <span class="key-time-val tabular-nums">11:45 PM</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Primary Contacts -->
+            <div class="card">
+              <span class="metadata-label">PRIMARY CONTACTS</span>
+              <div class="contact-list">
+                <div class="contact-item">
+                  <div class="contact-avatar">SM</div>
+                  <div class="contact-info">
+                    <span class="contact-name">Sarah Miller</span>
+                    <span class="contact-role">Stage Manager &nbsp;·&nbsp; +1 303-555-0123</span>
                   </div>
                 </div>
-                <button class="w-full mt-8 py-3 bg-white/10 hover:bg-white/20 text-white rounded-xl text-sm font-bold transition-colors">Details & Ledger</button>
-              </div>
-
-              <div class="p-6 border border-slate-100 rounded-2xl bg-white shadow-sm">
-                <div class="metadata-label text-slate-500 mb-4">Primary Contacts</div>
-                <div class="space-y-4">
-                  <div class="flex items-center gap-3">
-                    <div class="w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center text-slate-600 font-bold text-xs shrink-0">SM</div>
-                    <div class="overflow-hidden">
-                      <div class="text-[13px] font-bold truncate">Sarah Miller</div>
-                      <div class="text-[11px] text-slate-500 font-medium truncate">Stage Manager · +1 303-555-0123</div>
-                    </div>
-                  </div>
-                  <div class="flex items-center gap-3">
-                    <div class="w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center text-slate-600 font-bold text-xs shrink-0">RK</div>
-                    <div class="overflow-hidden">
-                      <div class="text-[13px] font-bold truncate">Robert King</div>
-                      <div class="text-[11px] text-slate-500 font-medium truncate">Head Rigger · +1 303-555-0987</div>
-                    </div>
+                <div class="contact-item">
+                  <div class="contact-avatar">RK</div>
+                  <div class="contact-info">
+                    <span class="contact-name">Robert King</span>
+                    <span class="contact-role">Head Rigger &nbsp;·&nbsp; +1 303-555-0987</span>
                   </div>
                 </div>
               </div>
             </div>
           </div>
         </div>
-      </main>
-    </div>
+      </div>
+
+      <!-- Tab Panel 2: Staffing -->
+      <div id="tab-staffing" class="tab-panel tab-panel-padded">
+        <!-- Top Stats Bar -->
+        <div class="stats-bar-inline">
+          <div class="stats-bar-item">
+            <span class="stats-bar-label">Assigned</span>
+            <span class="stats-bar-val tabular-nums">12 Crew</span>
+          </div>
+          <div class="stats-bar-item">
+            <span class="stats-bar-label">Total Hours</span>
+            <span class="stats-bar-val tabular-nums">96.5 hrs</span>
+          </div>
+          <div class="stats-bar-item">
+            <span class="stats-bar-label">Est. Cost</span>
+            <span class="stats-bar-val tabular-nums">$14,250.00</span>
+          </div>
+          <div class="stats-bar-item">
+            <span class="stats-bar-label">Status</span>
+            <span class="stats-bar-val text-emerald">10 Confirmed</span>
+          </div>
+        </div>
+
+        <!-- Actions Row -->
+        <div class="actions-row">
+          <div><h3 class="metadata-label">CREW DEPLOYMENT LEDGER</h3></div>
+          <div class="actions-right">
+            <button class="btn btn-outline" onclick="alert('Exporting crew list as CSV...')">Export CSV</button>
+            <button class="btn btn-primary" onclick="alert('Adding staff member to roster...')">+ Add Staff Member</button>
+          </div>
+        </div>
+
+        <!-- High Density Table -->
+        <div class="data-table-container">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>NAME</th>
+                <th>ROLE</th>
+                <th>CALL TIME</th>
+                <th>WRAP</th>
+                <th class="text-right">HRS</th>
+                <th class="text-right">RATE</th>
+                <th class="text-right">TOTAL</th>
+                <th>STATUS</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td class="font-semibold">Sarah Miller</td>
+                <td>Stage Manager</td>
+                <td class="tabular-nums">7:00 AM</td>
+                <td class="tabular-nums">12:00 AM</td>
+                <td class="text-right tabular-nums">17.0h</td>
+                <td class="text-right tabular-nums">$85.00</td>
+                <td class="text-right font-semibold tabular-nums">$1,445.00</td>
+                <td><span class="status-pill status-pill-confirmed">Confirmed</span></td>
+              </tr>
+              <tr>
+                <td class="font-semibold">Robert King</td>
+                <td>Head Rigger</td>
+                <td class="tabular-nums">6:00 AM</td>
+                <td class="tabular-nums">8:00 PM</td>
+                <td class="text-right tabular-nums">14.0h</td>
+                <td class="text-right tabular-nums">$75.00</td>
+                <td class="text-right font-semibold tabular-nums">$1,050.00</td>
+                <td><span class="status-pill status-pill-confirmed">Confirmed</span></td>
+              </tr>
+              <tr>
+                <td class="font-semibold">James Osei</td>
+                <td>Audio Engineer</td>
+                <td class="tabular-nums">8:00 AM</td>
+                <td class="tabular-nums">11:30 PM</td>
+                <td class="text-right tabular-nums">15.5h</td>
+                <td class="text-right tabular-nums">$90.00</td>
+                <td class="text-right font-semibold tabular-nums">$1,395.00</td>
+                <td><span class="status-pill status-pill-confirmed">Confirmed</span></td>
+              </tr>
+              <tr>
+                <td class="font-semibold">Maria Chen</td>
+                <td>Lighting Director</td>
+                <td class="tabular-nums">9:00 AM</td>
+                <td class="tabular-nums">11:45 PM</td>
+                <td class="text-right tabular-nums">14.75h</td>
+                <td class="text-right tabular-nums">$80.00</td>
+                <td class="text-right font-semibold tabular-nums">$1,180.00</td>
+                <td><span class="status-pill status-pill-confirmed">Confirmed</span></td>
+              </tr>
+              <tr>
+                <td class="font-semibold">Tom Walsh</td>
+                <td>Stage Hand</td>
+                <td class="tabular-nums">6:00 AM</td>
+                <td class="tabular-nums">9:00 PM</td>
+                <td class="text-right tabular-nums">15.0h</td>
+                <td class="text-right tabular-nums">$35.00</td>
+                <td class="text-right font-semibold tabular-nums">$525.00</td>
+                <td><span class="status-pill status-pill-pending">Pending</span></td>
+              </tr>
+              <tr>
+                <td class="font-semibold">Alex Rivera</td>
+                <td>Stage Hand</td>
+                <td class="tabular-nums">6:00 AM</td>
+                <td class="tabular-nums">9:00 PM</td>
+                <td class="text-right tabular-nums">15.0h</td>
+                <td class="text-right tabular-nums">$35.00</td>
+                <td class="text-right font-semibold tabular-nums">$525.00</td>
+                <td><span class="status-pill status-pill-pending">Pending</span></td>
+              </tr>
+              <tr>
+                <td class="font-semibold">Donna Ford</td>
+                <td>Wardrobe</td>
+                <td class="tabular-nums">10:00 AM</td>
+                <td class="tabular-nums">11:00 PM</td>
+                <td class="text-right tabular-nums">13.0h</td>
+                <td class="text-right tabular-nums">$55.00</td>
+                <td class="text-right font-semibold tabular-nums">$715.00</td>
+                <td><span class="status-pill status-pill-confirmed">Confirmed</span></td>
+              </tr>
+              <tr>
+                <td class="font-semibold">Gary Boon</td>
+                <td>Security Lead</td>
+                <td class="tabular-nums">2:00 PM</td>
+                <td class="tabular-nums">12:00 AM</td>
+                <td class="text-right tabular-nums">10.0h</td>
+                <td class="text-right tabular-nums">$65.00</td>
+                <td class="text-right font-semibold tabular-nums">$650.00</td>
+                <td><span class="status-pill status-pill-confirmed">Confirmed</span></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Tab Panel 3: Equipment -->
+      <div id="tab-equipment" class="tab-panel tab-panel-padded">
+        <!-- Top Stats Bar -->
+        <div class="stats-bar-inline">
+          <div class="stats-bar-item">
+            <span class="stats-bar-label">Total Items</span>
+            <span class="stats-bar-val tabular-nums">42 Items</span>
+          </div>
+          <div class="stats-bar-item">
+            <span class="stats-bar-label">Categories</span>
+            <span class="stats-bar-val tabular-nums">3 Core Kits</span>
+          </div>
+          <div class="stats-bar-item">
+            <span class="stats-bar-label">Total Weight</span>
+            <span class="stats-bar-val tabular-nums">1,240 kg</span>
+          </div>
+          <div class="stats-bar-item">
+            <span class="stats-bar-label">Allocation</span>
+            <span class="stats-bar-val text-emerald">All Allocated</span>
+          </div>
+        </div>
+
+        <!-- Actions Row -->
+        <div class="actions-row">
+          <div><h3 class="metadata-label">EQUIPMENT ALLOCATION SHEETS</h3></div>
+          <div class="actions-right">
+            <button class="btn btn-outline" onclick="alert('Exporting equipment sheet...')">Export List</button>
+            <button class="btn btn-primary" onclick="alert('Adding equipment item...')">+ Add Item</button>
+          </div>
+        </div>
+
+        <!-- AUDIO Category (Expandable) -->
+        <div class="category-header" onclick="toggleCategory('audio')">
+          <span>AUDIO &nbsp;·&nbsp; 18 Items &nbsp;·&nbsp; 580 kg</span>
+          <svg id="chevron-audio" class="category-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="6 9 12 15 18 9"/>
+          </svg>
+        </div>
+        <div id="category-audio" class="category-content">
+          <div class="data-table-container">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>ITEM</th>
+                  <th class="text-right">QTY</th>
+                  <th>UNIT</th>
+                  <th>CASE #</th>
+                  <th class="text-right">WEIGHT</th>
+                  <th>STATUS</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td class="font-semibold">d&b J-Series Speaker</td>
+                  <td class="text-right tabular-nums">24</td>
+                  <td>ea</td>
+                  <td class="tabular-nums">AUDIO-01</td>
+                  <td class="text-right tabular-nums">28 kg ea</td>
+                  <td><span class="badge badge-success">Allocated</span></td>
+                </tr>
+                <tr>
+                  <td class="font-semibold">DiGiCo SD12 Console</td>
+                  <td class="text-right tabular-nums">2</td>
+                  <td>ea</td>
+                  <td class="tabular-nums">AUDIO-02</td>
+                  <td class="text-right tabular-nums">34 kg ea</td>
+                  <td><span class="badge badge-success">Allocated</span></td>
+                </tr>
+                <tr>
+                  <td class="font-semibold">Sennheiser IEM System</td>
+                  <td class="text-right tabular-nums">6</td>
+                  <td>sets</td>
+                  <td class="tabular-nums">AUDIO-03</td>
+                  <td class="text-right tabular-nums">8 kg set</td>
+                  <td><span class="badge badge-success">Allocated</span></td>
+                </tr>
+                <tr>
+                  <td class="font-semibold">BSS Signal Processor</td>
+                  <td class="text-right tabular-nums">4</td>
+                  <td>ea</td>
+                  <td class="tabular-nums">AUDIO-04</td>
+                  <td class="text-right tabular-nums">5 kg ea</td>
+                  <td><span class="badge badge-success">Allocated</span></td>
+                </tr>
+                <tr>
+                  <td class="font-semibold">Cabling & Accessories</td>
+                  <td class="text-right tabular-nums">1</td>
+                  <td>lot</td>
+                  <td class="tabular-nums">AUDIO-05</td>
+                  <td class="text-right tabular-nums">45 kg</td>
+                  <td><span class="badge badge-success">Allocated</span></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- LIGHTING Category (Expandable) -->
+        <div class="category-header" onclick="toggleCategory('lighting')">
+          <span>LIGHTING &nbsp;·&nbsp; 15 Items &nbsp;·&nbsp; 340 kg</span>
+          <svg id="chevron-lighting" class="category-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="6 9 12 15 18 9"/>
+          </svg>
+        </div>
+        <div id="category-lighting" class="category-content">
+          <div class="data-table-container">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>ITEM</th>
+                  <th class="text-right">QTY</th>
+                  <th>UNIT</th>
+                  <th>CASE #</th>
+                  <th class="text-right">WEIGHT</th>
+                  <th>STATUS</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td class="font-semibold">LD Systems Moving Head</td>
+                  <td class="text-right tabular-nums">12</td>
+                  <td>ea</td>
+                  <td class="tabular-nums">LIGHT-01</td>
+                  <td class="text-right tabular-nums">18 kg ea</td>
+                  <td><span class="badge badge-success">Allocated</span></td>
+                </tr>
+                <tr>
+                  <td class="font-semibold">Chauvet Strike 4</td>
+                  <td class="text-right tabular-nums">8</td>
+                  <td>ea</td>
+                  <td class="tabular-nums">LIGHT-02</td>
+                  <td class="text-right tabular-nums">6 kg ea</td>
+                  <td><span class="badge badge-success">Allocated</span></td>
+                </tr>
+                <tr>
+                  <td class="font-semibold">Dimmer Rack 24ch</td>
+                  <td class="text-right tabular-nums">2</td>
+                  <td>ea</td>
+                  <td class="tabular-nums">LIGHT-03</td>
+                  <td class="text-right tabular-nums">28 kg ea</td>
+                  <td><span class="badge badge-success">Allocated</span></td>
+                </tr>
+                <tr>
+                  <td class="font-semibold">Cable Truss 3m</td>
+                  <td class="text-right tabular-nums">12</td>
+                  <td>ea</td>
+                  <td class="tabular-nums">LIGHT-04</td>
+                  <td class="text-right tabular-nums">12 kg ea</td>
+                  <td><span class="badge badge-success">Allocated</span></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- STAGING Category (Expandable) -->
+        <div class="category-header" onclick="toggleCategory('staging')">
+          <span>STAGING &nbsp;·&nbsp; 9 Items &nbsp;·&nbsp; 320 kg</span>
+          <svg id="chevron-staging" class="category-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="6 9 12 15 18 9"/>
+          </svg>
+        </div>
+        <div id="category-staging" class="category-content">
+          <div class="data-table-container">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>ITEM</th>
+                  <th class="text-right">QTY</th>
+                  <th>UNIT</th>
+                  <th>CASE #</th>
+                  <th class="text-right">WEIGHT</th>
+                  <th>STATUS</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td class="font-semibold">4'×8' Stage Deck</td>
+                  <td class="text-right tabular-nums">20</td>
+                  <td>ea</td>
+                  <td class="tabular-nums">STAGE-01</td>
+                  <td class="text-right tabular-nums">14 kg ea</td>
+                  <td><span class="badge badge-warning">Pending</span></td>
+                </tr>
+                <tr>
+                  <td class="font-semibold">Stage Leg 24"</td>
+                  <td class="text-right tabular-nums">40</td>
+                  <td>ea</td>
+                  <td class="tabular-nums">STAGE-02</td>
+                  <td class="text-right tabular-nums">2.5 kg ea</td>
+                  <td><span class="badge badge-warning">Pending</span></td>
+                </tr>
+                <tr>
+                  <td class="font-semibold">Stair Unit</td>
+                  <td class="text-right tabular-nums">4</td>
+                  <td>ea</td>
+                  <td class="tabular-nums">STAGE-03</td>
+                  <td class="text-right tabular-nums">18 kg ea</td>
+                  <td><span class="badge badge-success">Allocated</span></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tab Panel 4: Financials -->
+      <div id="tab-financials" class="tab-panel tab-panel-padded">
+        <!-- Top Stats Bar -->
+        <div class="stats-bar-inline">
+          <div class="stats-bar-item">
+            <span class="stats-bar-label">Revenue</span>
+            <span class="stats-bar-val text-emerald tabular-nums">$28,000.00</span>
+          </div>
+          <div class="stats-bar-item" style="display: flex; justify-content: center; align-items: center; font-size: 16px; font-weight: 700;">
+            <span>−</span>
+          </div>
+          <div class="stats-bar-item">
+            <span class="stats-bar-label">Expenses</span>
+            <span class="stats-bar-val text-red tabular-nums">$12,240.00</span>
+          </div>
+          <div class="stats-bar-item" style="display: flex; justify-content: center; align-items: center; font-size: 16px; font-weight: 700;">
+            <span>=</span>
+          </div>
+          <div class="stats-bar-item">
+            <span class="stats-bar-label">Projected Net Margin</span>
+            <span class="stats-bar-val text-emerald tabular-nums" style="font-size: 22px;">$15,760.00</span>
+          </div>
+        </div>
+
+        <!-- Revenue Header -->
+        <div class="actions-row">
+          <div><h3 class="metadata-label">REVENUE LEDGER</h3></div>
+          <div class="actions-right">
+            <button class="btn btn-primary" onclick="alert('Record new revenue entry...')">+ Add Revenue Item</button>
+          </div>
+        </div>
+
+        <!-- Revenue Table -->
+        <div class="data-table-container" style="margin-bottom: 32px;">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>TYPE</th>
+                <th>DESCRIPTION</th>
+                <th class="text-right">AMOUNT</th>
+                <th>INVOICED</th>
+                <th>RECEIVED</th>
+                <th>STATUS</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td class="font-semibold">Performance Fee</td>
+                <td>Contracted show fee</td>
+                <td class="text-right font-semibold tabular-nums">$18,000.00</td>
+                <td><span class="badge badge-success">Yes</span></td>
+                <td><span class="badge badge-success">Yes</span></td>
+                <td><span class="badge badge-success">Paid</span></td>
+              </tr>
+              <tr>
+                <td class="font-semibold">Merchandise</td>
+                <td>20% gross merch sales</td>
+                <td class="text-right font-semibold tabular-nums">$3,200.00</td>
+                <td><span class="badge badge-success">Yes</span></td>
+                <td><span class="badge badge-warning">Pending</span></td>
+                <td><span class="badge badge-warning">Pending</span></td>
+              </tr>
+              <tr>
+                <td class="font-semibold">Sponsorship</td>
+                <td>Stage naming rights</td>
+                <td class="text-right font-semibold tabular-nums">$5,000.00</td>
+                <td><span class="badge badge-success">Yes</span></td>
+                <td><span class="badge badge-success">Yes</span></td>
+                <td><span class="badge badge-success">Paid</span></td>
+              </tr>
+              <tr>
+                <td class="font-semibold">Hospitality Rider</td>
+                <td>Venue covers rider costs</td>
+                <td class="text-right font-semibold tabular-nums">$1,800.00</td>
+                <td><span class="badge badge-danger">No</span></td>
+                <td><span class="badge badge-muted">—</span></td>
+                <td><span class="badge badge-muted">Not Invoiced</span></td>
+              </tr>
+              <tr class="subtotal-row">
+                <td colspan="2">TOTAL REVENUE</td>
+                <td class="text-right tabular-nums">$28,000.00</td>
+                <td colspan="2">TOTAL RECEIVED:</td>
+                <td class="font-bold text-emerald tabular-nums">$23,000.00</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Expense Header -->
+        <div class="actions-row">
+          <div><h3 class="metadata-label">EXPENSE LEDGER</h3></div>
+          <div class="actions-right">
+            <button class="btn btn-primary" onclick="alert('Record new expense entry...')">+ Add Expense Item</button>
+          </div>
+        </div>
+
+        <!-- Expense Table -->
+        <div class="data-table-container">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>CATEGORY</th>
+                <th>DESCRIPTION</th>
+                <th>VENDOR</th>
+                <th class="text-right">AMOUNT</th>
+                <th>RECEIPT FILE</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td class="font-semibold">Labor</td>
+                <td>Stage Manager</td>
+                <td>Sarah Miller</td>
+                <td class="text-right font-semibold tabular-nums">$1,445.00</td>
+                <td><span class="text-emerald font-bold">✓ Uploaded</span></td>
+              </tr>
+              <tr>
+                <td class="font-semibold">Labor</td>
+                <td>Head Rigger</td>
+                <td>Robert King</td>
+                <td class="text-right font-semibold tabular-nums">$1,050.00</td>
+                <td><span class="text-emerald font-bold">✓ Uploaded</span></td>
+              </tr>
+              <tr>
+                <td class="font-semibold">Labor</td>
+                <td>Audio Engineer</td>
+                <td>James Osei</td>
+                <td class="text-right font-semibold tabular-nums">$1,395.00</td>
+                <td><span class="text-emerald font-bold">✓ Uploaded</span></td>
+              </tr>
+              <tr>
+                <td class="font-semibold">Rental</td>
+                <td>PA System</td>
+                <td>SoundCo Inc.</td>
+                <td class="text-right font-semibold tabular-nums">$3,200.00</td>
+                <td><span class="text-emerald font-bold">✓ Uploaded</span></td>
+              </tr>
+              <tr>
+                <td class="font-semibold">Rental</td>
+                <td>Lighting Rig</td>
+                <td>LightPro</td>
+                <td class="text-right font-semibold text-red tabular-nums">$2,400.00</td>
+                <td><span class="badge badge-danger">⚠ Missing</span></td>
+              </tr>
+              <tr>
+                <td class="font-semibold">Transport</td>
+                <td>Truck Hire x3</td>
+                <td>FastFreight</td>
+                <td class="text-right font-semibold tabular-nums">$1,800.00</td>
+                <td><span class="text-emerald font-bold">✓ Uploaded</span></td>
+              </tr>
+              <tr>
+                <td class="font-semibold">Hospitality</td>
+                <td>Catering</td>
+                <td>Venue Catering</td>
+                <td class="text-right font-semibold tabular-nums">$950.00</td>
+                <td><span class="text-emerald font-bold">✓ Uploaded</span></td>
+              </tr>
+              <tr class="subtotal-row">
+                <td colspan="3">TOTAL EXPENSES</td>
+                <td class="text-right tabular-nums">$12,240.00</td>
+                <td><span class="badge badge-warning">1 Receipt Missing</span></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Tab Panel 5: Settlement -->
+      <div id="tab-settlement" class="tab-panel tab-panel-padded">
+        <!-- Top Status Bar -->
+        <div class="stats-bar-inline" style="justify-content: space-between; align-items: center;">
+          <div style="display: flex; gap: 32px;">
+            <div class="stats-bar-item">
+              <span class="stats-bar-label">Settlement Status</span>
+              <span class="stats-bar-val text-amber font-bold">SETTLEMENT PENDING</span>
+            </div>
+            <div class="stats-bar-item">
+              <span class="stats-bar-label">Settlement Date</span>
+              <span class="stats-bar-val" style="color: var(--muted-foreground)">— Not Settled</span>
+            </div>
+          </div>
+          <div>
+            <button class="btn btn-primary" onclick="alert('Settlement marked as completed!')">Mark as Settled</button>
+          </div>
+        </div>
+
+        <!-- Three-Column Reconciliation Cards -->
+        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 24px;">
+          <!-- Card 1 -->
+          <div class="card" style="margin-bottom: 0;">
+            <span class="metadata-label">REVENUE RECONCILIATION</span>
+            <h3 style="font-size: 20px; font-weight: 700; margin-top: 8px;" class="tabular-nums">$26,200.00</h3>
+            <p style="font-size: 11px; color: var(--muted-foreground); margin-top: 4px;">
+              $28,000.00 Contracted <br>
+              Variance: <span class="text-red font-bold">-$1,800.00 (Pending Merch)</span>
+            </p>
+          </div>
+          <!-- Card 2 -->
+          <div class="card" style="margin-bottom: 0;">
+            <span class="metadata-label">EXPENSE RECONCILIATION</span>
+            <h3 style="font-size: 20px; font-weight: 700; margin-top: 8px;" class="tabular-nums">$12,240.00</h3>
+            <p style="font-size: 11px; color: var(--muted-foreground); margin-top: 4px;">
+              $14,250.00 Estimated budget <br>
+              Variance: <span class="text-emerald font-bold">+$2,010.00 (Under Budget)</span>
+            </p>
+          </div>
+          <!-- Card 3 -->
+          <div class="card" style="margin-bottom: 0; border-color: var(--accent-sky);">
+            <span class="metadata-label">NET SETTLEMENT DUE</span>
+            <h3 style="font-size: 24px; font-weight: 800; margin-top: 8px; color: var(--accent-sky);" class="tabular-nums">$13,960.00</h3>
+            <p style="font-size: 11px; color: var(--muted-foreground); margin-top: 4px;">
+              Net payout calculation <br>
+              (Revenue Received - Actual Expenses)
+            </p>
+          </div>
+        </div>
+
+        <!-- Revenue Reconciliation Ledger -->
+        <h3 class="metadata-label" style="margin-bottom: 12px;">REVENUE RECONCILIATION DETAIL</h3>
+        <div class="data-table-container" style="margin-bottom: 24px;">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>ITEM</th>
+                <th class="text-right">CONTRACTED</th>
+                <th class="text-right">RECEIVED</th>
+                <th class="text-right">VARIANCE</th>
+                <th>STATUS</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td class="font-semibold">Performance Fee</td>
+                <td class="text-right tabular-nums">$18,000.00</td>
+                <td class="text-right tabular-nums">$18,000.00</td>
+                <td class="text-right tabular-nums">$0.00</td>
+                <td><span class="text-emerald font-bold">✓ Settled</span></td>
+              </tr>
+              <tr>
+                <td class="font-semibold">Merchandise</td>
+                <td class="text-right tabular-nums">$3,200.00</td>
+                <td class="text-right tabular-nums">$1,400.00</td>
+                <td class="text-right text-red tabular-nums">-$1,800.00</td>
+                <td><span class="badge badge-warning">Pending Receipt</span></td>
+              </tr>
+              <tr>
+                <td class="font-semibold">Sponsorship</td>
+                <td class="text-right tabular-nums">$5,000.00</td>
+                <td class="text-right tabular-nums">$5,000.00</td>
+                <td class="text-right tabular-nums">$0.00</td>
+                <td><span class="text-emerald font-bold">✓ Settled</span></td>
+              </tr>
+              <tr>
+                <td class="font-semibold">Hospitality Rider</td>
+                <td class="text-right tabular-nums">$1,800.00</td>
+                <td class="text-right tabular-nums">$1,800.00</td>
+                <td class="text-right tabular-nums">$0.00</td>
+                <td><span class="text-emerald font-bold">✓ Venue Credit</span></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Labor Reconciliation Ledger -->
+        <h3 class="metadata-label" style="margin-bottom: 12px;">LABOR RECONCILIATION DETAIL</h3>
+        <div class="data-table-container" style="margin-bottom: 24px;">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>STAFF MEMBER</th>
+                <th>ROLE</th>
+                <th class="text-right">EST. HRS</th>
+                <th class="text-right">ACT. HRS</th>
+                <th class="text-right">RATE</th>
+                <th class="text-right">TOTAL</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td class="font-semibold">Sarah Miller</td>
+                <td>Stage Manager</td>
+                <td class="text-right tabular-nums">18.0h</td>
+                <td class="text-right tabular-nums">17.0h</td>
+                <td class="text-right tabular-nums">$85.00</td>
+                <td class="text-right font-semibold tabular-nums">$1,445.00</td>
+              </tr>
+              <tr>
+                <td class="font-semibold">Robert King</td>
+                <td>Head Rigger</td>
+                <td class="text-right tabular-nums">15.0h</td>
+                <td class="text-right tabular-nums">14.0h</td>
+                <td class="text-right tabular-nums">$75.00</td>
+                <td class="text-right font-semibold tabular-nums">$1,050.00</td>
+              </tr>
+              <tr>
+                <td class="font-semibold">James Osei</td>
+                <td>Audio Engineer</td>
+                <td class="text-right tabular-nums">16.0h</td>
+                <td class="text-right tabular-nums">15.5h</td>
+                <td class="text-right tabular-nums">$90.00</td>
+                <td class="text-right font-semibold tabular-nums">$1,395.00</td>
+              </tr>
+              <tr class="subtotal-row">
+                <td colspan="2">CORE STAFF RECONCILIATION SUBTOTAL</td>
+                <td class="text-right tabular-nums">49.0h</td>
+                <td class="text-right tabular-nums">46.5h</td>
+                <td>RECONCILED</td>
+                <td class="text-right font-bold tabular-nums">$3,890.00</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Adjustments -->
+        <div class="actions-row">
+          <div><h3 class="metadata-label">ADJUSTMENTS</h3></div>
+          <div class="actions-right">
+            <button class="link-btn" onclick="alert('Adding settlement adjustment...')">+ Add Adjustment</button>
+          </div>
+        </div>
+        <div class="empty-state">
+          <svg class="empty-state-icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--muted-foreground); margin-bottom: 8px;">
+            <circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/>
+          </svg>
+          <div class="empty-state-title">No adjustments recorded</div>
+          <div class="empty-state-desc">Click <a href="#" onclick="alert('Adding settlement adjustment...')">+ add adjustment</a> to record venue penalty fee offsets or custom show bonuses.</div>
+        </div>
+
+        <!-- Bottom Settlement Action Bar -->
+        <div class="settlement-bar">
+          <div class="settlement-bar-text">
+            Revenue Received <span class="text-emerald font-bold tabular-nums">$26,200.00</span> 
+            − Total Expenses <span class="text-red font-bold tabular-nums">$12,240.00</span> 
+            = Net Payout Due <span class="text-emerald font-extrabold tabular-nums">$13,960.00</span>
+          </div>
+          <div class="actions-right">
+            <button class="btn btn-outline" onclick="alert('Downloading settlement sheet as PDF...')">Download PDF</button>
+            <button class="btn btn-primary" onclick="alert('Reconciliation finalized & locked!')">Mark as Settled</button>
+          </div>
+        </div>
+
+      </div>
+
+    </main>
   </div>
+</div>
+
+<!-- Floating Action Button for Theme Toggle -->
+<button id="gm-theme-toggle" onclick="(function(){var d=document.documentElement,i=d.getAttribute('data-theme')==='dark';d.setAttribute('data-theme',i?'light':'dark');localStorage.setItem('gm-theme',i?'light':'dark');document.getElementById('gm-theme-sun').style.display=i?'block':'none';document.getElementById('gm-theme-moon').style.display=i?'none':'block';})()" title="Toggle dark mode" style="position:fixed;bottom:20px;right:20px;width:40px;height:40px;background:var(--card,#fff);border:1px solid var(--border,#e4e4e7);border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;z-index:9999;box-shadow:0 2px 8px rgba(0,0,0,0.15);outline:none;">
+  <svg id="gm-theme-sun" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M4.93 4.93l1.41 1.41m11.32 11.32 1.41 1.41M2 12h2m16 0h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg>
+  <svg id="gm-theme-moon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg>
+</button>
+
+<script>
+  // Tab toggling logic
+  function showTab(tabIndex) {
+    // Hide all tab panels
+    document.querySelectorAll('.tab-panel').forEach(panel => {
+      panel.style.display = 'none';
+      panel.classList.remove('active');
+    });
+
+    // Show target tab panel
+    const tabs = ['overview', 'staffing', 'equipment', 'financials', 'settlement'];
+    const targetId = 'tab-' + tabs[tabIndex - 1];
+    const targetPanel = document.getElementById(targetId);
+    if (targetPanel) {
+      if (tabIndex === 1) {
+        targetPanel.style.display = 'grid'; // Tab 1 uses a 2-column grid layout
+      } else {
+        targetPanel.style.display = 'block'; // Others use block layout
+      }
+      targetPanel.classList.add('active');
+    }
+
+    // Update active tab buttons
+    document.querySelectorAll('.tab-btn').forEach((btn, index) => {
+      if (index === tabIndex - 1) {
+        btn.classList.add('active');
+      } else {
+        btn.classList.remove('active');
+      }
+    });
+  }
+
+  // Equipment category section toggling logic
+  function toggleCategory(catId) {
+    const content = document.getElementById('category-' + catId);
+    const chevron = document.getElementById('chevron-' + catId);
+    if (content.style.display === 'none') {
+      content.style.display = 'block';
+      chevron.style.transform = 'rotate(0deg)';
+    } else {
+      content.style.display = 'none';
+      chevron.style.transform = 'rotate(-90deg)';
+    }
+  }
+
+  // Persistent Dark Mode script
+  (function(){
+    var t = localStorage.getItem('gm-theme');
+    if (t === 'dark') {
+      document.documentElement.setAttribute('data-theme', 'dark');
+      var s = document.getElementById('gm-theme-sun');
+      var m = document.getElementById('gm-theme-moon');
+      if (s) s.style.display = 'none';
+      if (m) m.style.display = 'block';
+    }
+  })();
+</script>
 </body>
 </html>

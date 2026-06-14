@@ -1035,6 +1035,12 @@
   </div>
 
 </div><!-- /frames-container -->
-
+<button id="gm-theme-toggle" onclick="(function(){var d=document.documentElement,i=d.getAttribute('data-theme')==='dark';d.setAttribute('data-theme',i?'light':'dark');localStorage.setItem('gm-theme',i?'light':'dark');document.getElementById('gm-theme-sun').style.display=i?'block':'none';document.getElementById('gm-theme-moon').style.display=i?'none':'block';})()" title="Toggle dark mode" style="position:fixed;bottom:20px;right:20px;width:40px;height:40px;background:#fff;border:1px solid #e4e4e7;border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;z-index:9999;box-shadow:0 2px 8px rgba(0,0,0,0.15);">
+  <svg id="gm-theme-sun" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M4.93 4.93l1.41 1.41m11.32 11.32 1.41 1.41M2 12h2m16 0h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg>
+  <svg id="gm-theme-moon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg>
+</button>
+<script>
+(function(){var t=localStorage.getItem('gm-theme');if(t==='dark'){document.documentElement.setAttribute('data-theme','dark');var s=document.getElementById('gm-theme-sun');var m=document.getElementById('gm-theme-moon');if(s)s.style.display='none';if(m)m.style.display='block';}})();
+</script>
 </body>
 </html>
