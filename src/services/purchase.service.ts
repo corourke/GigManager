@@ -141,8 +141,12 @@ export async function updatePurchase(purchaseId: string, purchaseData: Partial<D
 export async function deletePurchase(purchaseId: string) {
   const supabase = getSupabase();
   try {
-    const { error } = await (supabase.from('purchases') as any).delete().eq('id', purchaseId);
+    // .select() to confirm a row was removed — RLS denies silently (0 rows, no error)
+    const { data, error } = await (supabase.from('purchases') as any).delete().eq('id', purchaseId).select();
     if (error) throw error;
+    if (!data || data.length === 0) {
+      throw new Error('Purchase not found, or you do not have permission to delete it.');
+    }
     return { success: true };
   } catch (err) {
     return handleApiError(err, 'delete purchase');

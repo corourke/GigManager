@@ -168,7 +168,8 @@ describe('gig.service', () => {
     it('deletes the gig from the database', async () => {
       // gig_sync_status returns empty → no calendar deletions needed
       const syncStatusChain = makeChain({ data: [], error: null });
-      const gigDeleteChain = makeChain({ data: null, error: null });
+      // .select() returns the deleted row → confirms a row was actually removed
+      const gigDeleteChain = makeChain({ data: [{ id: 'gig-1' }], error: null });
 
       mockSupabase.from.mockImplementation((table: string) => {
         if (table === 'gig_sync_status') return syncStatusChain;
@@ -191,6 +192,18 @@ describe('gig.service', () => {
       });
 
       await expect(deleteGig('gig-1')).rejects.toThrow('foreign key constraint');
+    });
+
+    it('throws when no row was deleted (RLS denied — e.g. a non-Admin)', async () => {
+      // Supabase does NOT error on an RLS-denied delete; it affects 0 rows.
+      // deleteGig must detect that and fail, not report false success.
+      mockSupabase.from.mockImplementation((table: string) => {
+        if (table === 'gig_sync_status') return makeChain({ data: [], error: null });
+        if (table === 'gigs') return makeChain({ data: [], error: null });
+        return makeChain({ data: [], error: null });
+      });
+
+      await expect(deleteGig('gig-1')).rejects.toThrow(/permission|not found/i);
     });
   });
 
@@ -232,7 +245,7 @@ describe('gig.service', () => {
 
   describe('deleteGigFinancial', () => {
     it('deletes the financial record by id', async () => {
-      const chain = makeChain({ data: null, error: null });
+      const chain = makeChain({ data: [{ id: 'fin-1' }], error: null });
       mockSupabase.from.mockReturnValue(chain);
 
       const result = await deleteGigFinancial('fin-1');
@@ -248,13 +261,18 @@ describe('gig.service', () => {
 
       await expect(deleteGigFinancial('fin-1')).rejects.toThrow('not found');
     });
+
+    it('throws when no row was deleted (RLS denied)', async () => {
+      mockSupabase.from.mockReturnValue(makeChain({ data: [], error: null }));
+      await expect(deleteGigFinancial('fin-1')).rejects.toThrow(/permission|not found/i);
+    });
   });
 
   // ─── removeKitFromGig ─────────────────────────────────────────────────────
 
   describe('removeKitFromGig', () => {
     it('deletes the kit assignment by id', async () => {
-      const chain = makeChain({ data: null, error: null });
+      const chain = makeChain({ data: [{ id: 'assignment-1' }], error: null });
       mockSupabase.from.mockReturnValue(chain);
 
       const result = await removeKitFromGig('assignment-1');
@@ -269,6 +287,11 @@ describe('gig.service', () => {
       mockSupabase.from.mockReturnValue(makeChain({ data: null, error: dbError }));
 
       await expect(removeKitFromGig('assignment-1')).rejects.toThrow('constraint violation');
+    });
+
+    it('throws when no row was deleted (RLS denied)', async () => {
+      mockSupabase.from.mockReturnValue(makeChain({ data: [], error: null }));
+      await expect(removeKitFromGig('assignment-1')).rejects.toThrow(/permission|not found/i);
     });
   });
 

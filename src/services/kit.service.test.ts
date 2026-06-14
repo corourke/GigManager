@@ -162,7 +162,7 @@ describe('kit.service', () => {
 
   describe('deleteKit', () => {
     it('deletes a kit by id and returns success', async () => {
-      const chain = makeChain({ data: null, error: null });
+      const chain = makeChain({ data: [{ id: 'kit-1' }], error: null });
       mockSupabase.from.mockReturnValue(chain);
 
       const result = await deleteKit('kit-1');
@@ -178,6 +178,11 @@ describe('kit.service', () => {
       mockSupabase.from.mockReturnValue(makeChain({ data: null, error: dbError }));
 
       await expect(deleteKit('kit-1')).rejects.toThrow('foreign key constraint violated');
+    });
+
+    it('throws when no row was deleted (RLS denied)', async () => {
+      mockSupabase.from.mockReturnValue(makeChain({ data: [], error: null }));
+      await expect(deleteKit('kit-1')).rejects.toThrow(/permission|not found/i);
     });
   });
 });

@@ -125,8 +125,11 @@ describe('attachment.service', () => {
   describe('deleteAttachment', () => {
     it('deletes the storage file and the database record', async () => {
       const filePath = `${orgId}/invoice.pdf`;
+      // Step 1 (fetch via .single()) returns the row; step 3 (delete .select())
+      // returns the deleted row(s).
+      mockSupabase.single.mockResolvedValue({ data: { id: 'att-1', file_path: filePath }, error: null });
       mockSupabase.then.mockImplementation((onFulfilled: any) =>
-        onFulfilled({ data: { id: 'att-1', file_path: filePath }, error: null })
+        onFulfilled({ data: [{ id: 'att-1' }], error: null })
       );
 
       const result = await deleteAttachment('att-1');
@@ -134,6 +137,15 @@ describe('attachment.service', () => {
       expect(mockStorageBucket.remove).toHaveBeenCalledWith([filePath]);
       expect(mockSupabase.delete).toHaveBeenCalled();
       expect(result).toEqual({ success: true });
+    });
+
+    it('throws when no row was deleted (RLS denied)', async () => {
+      mockSupabase.single.mockResolvedValue({ data: { id: 'att-1', file_path: `${orgId}/x.pdf` }, error: null });
+      mockSupabase.then.mockImplementation((onFulfilled: any) =>
+        onFulfilled({ data: [], error: null })
+      );
+
+      await expect(deleteAttachment('att-1')).rejects.toThrow(/permission|not found/i);
     });
   });
 });

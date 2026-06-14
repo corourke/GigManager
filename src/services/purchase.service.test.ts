@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { getPurchases, createPurchase, createPurchaseTransaction, scanInvoice, importPurchases, reclassifyExpenseAsAsset } from './purchase.service';
+import { getPurchases, createPurchase, createPurchaseTransaction, scanInvoice, importPurchases, reclassifyExpenseAsAsset, deletePurchase } from './purchase.service';
 import { createClient } from '../utils/supabase/client';
 import { requireAuth } from '../utils/supabase/auth-utils';
 
@@ -27,6 +27,7 @@ describe('purchase.service', () => {
       ilike: vi.fn().mockReturnThis(),
       order: vi.fn().mockReturnThis(),
       insert: vi.fn().mockReturnThis(),
+      delete: vi.fn().mockReturnThis(),
       single: vi.fn().mockReturnThis(),
       rpc: vi.fn(),
       functions: {
@@ -159,6 +160,19 @@ describe('purchase.service', () => {
       expect(mockSupabase.rpc).toHaveBeenCalledTimes(1);
       expect(result.successCount).toBe(3);
       expect(result.errors).toHaveLength(0);
+    });
+  });
+
+  describe('deletePurchase', () => {
+    it('deletes a purchase and returns success', async () => {
+      mockSupabase.then.mockImplementation((onFulfilled: any) => onFulfilled({ data: [{ id: 'p1' }], error: null }));
+      const result = await deletePurchase('p1');
+      expect(result).toEqual({ success: true });
+    });
+
+    it('throws when no row was deleted (RLS denied)', async () => {
+      mockSupabase.then.mockImplementation((onFulfilled: any) => onFulfilled({ data: [], error: null }));
+      await expect(deletePurchase('p1')).rejects.toThrow(/permission|not found/i);
     });
   });
 });

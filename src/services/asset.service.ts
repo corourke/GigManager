@@ -258,8 +258,12 @@ export async function updateAsset(assetId: string, assetData: Partial<DbAsset> &
 export async function deleteAsset(assetId: string) {
   const supabase = getSupabase();
   try {
-    const { error } = await (supabase.from('assets') as any).delete().eq('id', assetId);
+    // .select() to confirm a row was removed — RLS denies silently (0 rows, no error)
+    const { data, error } = await (supabase.from('assets') as any).delete().eq('id', assetId).select();
     if (error) throw error;
+    if (!data || data.length === 0) {
+      throw new Error('Asset not found, or you do not have permission to delete it.');
+    }
     return { success: true };
   } catch (err) {
     return handleApiError(err, 'delete asset');

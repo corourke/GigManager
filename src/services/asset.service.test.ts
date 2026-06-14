@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { getAssets, getDistinctAssetValues, getAsset, createAsset, updateAsset } from './asset.service';
+import { getAssets, getDistinctAssetValues, getAsset, createAsset, updateAsset, deleteAsset } from './asset.service';
 import { createClient } from '../utils/supabase/client';
 import { requireAuth } from '../utils/supabase/auth-utils';
 
@@ -224,6 +224,19 @@ describe('asset.service', () => {
       expect(chain.update).toHaveBeenCalledWith(expect.objectContaining(updates));
       expect(chain.eq).toHaveBeenCalledWith('id', 'a1');
       expect(result).toEqual(mockResult);
+    });
+  });
+
+  describe('deleteAsset', () => {
+    it('deletes an asset and returns success', async () => {
+      mockSupabase.from.mockReturnValue(makeChain({ data: [{ id: 'asset-1' }], error: null }));
+      const result = await deleteAsset('asset-1');
+      expect(result).toEqual({ success: true });
+    });
+
+    it('throws when no row was deleted (RLS denied)', async () => {
+      mockSupabase.from.mockReturnValue(makeChain({ data: [], error: null }));
+      await expect(deleteAsset('asset-1')).rejects.toThrow(/permission|not found/i);
     });
   });
 });

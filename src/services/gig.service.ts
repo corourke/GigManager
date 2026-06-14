@@ -423,8 +423,14 @@ export async function deleteGig(gigId: string) {
     // Delete from Google Calendar first (before deleting the gig)
     await deleteGigFromAllCalendars(gigId);
 
-    const { error } = await supabase.from('gigs').delete().eq('id', gigId);
+    // .select() so we can tell whether a row was actually removed. RLS denies
+    // silently (0 rows, no error), so without this a non-Admin's delete would
+    // report false success.
+    const { data, error } = await supabase.from('gigs').delete().eq('id', gigId).select();
     if (error) throw error;
+    if (!data || data.length === 0) {
+      throw new Error('Gig not found, or you do not have permission to delete it.');
+    }
     return { success: true };
   } catch (err) {
     return handleApiError(err, 'delete gig');
@@ -675,8 +681,12 @@ export async function assignKitToGig(gigId: string, kitId: string, organizationI
 export async function removeKitFromGig(assignmentId: string) {
   const supabase = getSupabase();
   try {
-    const { error } = await supabase.from('gig_kit_assignments').delete().eq('id', assignmentId);
+    // .select() to confirm a row was removed — RLS denies silently (0 rows, no error)
+    const { data, error } = await supabase.from('gig_kit_assignments').delete().eq('id', assignmentId).select();
     if (error) throw error;
+    if (!data || data.length === 0) {
+      throw new Error('Kit assignment not found, or you do not have permission to remove it.');
+    }
     return { success: true };
   } catch (err) {
     return handleApiError(err, 'remove kit from gig');
@@ -1056,8 +1066,12 @@ export async function updateGigBid(bidId: string, bidData: any) {
 export async function deleteGigFinancial(finId: string) {
   const supabase = getSupabase();
   try {
-    const { error } = await supabase.from('gig_financials').delete().eq('id', finId);
+    // .select() to confirm a row was removed — RLS denies silently (0 rows, no error)
+    const { data, error } = await supabase.from('gig_financials').delete().eq('id', finId).select();
     if (error) throw error;
+    if (!data || data.length === 0) {
+      throw new Error('Financial record not found, or you do not have permission to delete it.');
+    }
     return { success: true };
   } catch (err) {
     return handleApiError(err, 'delete gig financial');

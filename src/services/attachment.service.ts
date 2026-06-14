@@ -126,12 +126,17 @@ export async function deleteAttachment(attachmentId: string) {
       console.warn('Could not delete storage file, but continuing with DB deletion', storageError);
     }
 
-    // 3. Delete from database (cascades to entity_attachments)
-    const { error: dbError } = await (supabase.from('attachments') as any)
+    // 3. Delete from database (cascades to entity_attachments). .select() so we
+    // can detect an RLS-denied delete (0 rows, no error) and avoid false success.
+    const { data: deleted, error: dbError } = await (supabase.from('attachments') as any)
       .delete()
-      .eq('id', attachmentId);
+      .eq('id', attachmentId)
+      .select();
 
     if (dbError) throw dbError;
+    if (!deleted || deleted.length === 0) {
+      throw new Error('Attachment not found, or you do not have permission to delete it.');
+    }
 
     return { success: true };
   } catch (err) {
