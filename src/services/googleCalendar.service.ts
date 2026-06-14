@@ -726,7 +726,6 @@ export async function bulkSyncAllGigsServerSide(
   }
 
   let failed = 0;
-  let synced = 0;
 
   for (let i = 0; i < gigs.length; i++) {
     const gig = gigs[i];
@@ -743,7 +742,6 @@ export async function bulkSyncAllGigsServerSide(
       );
 
       if (invokeError) throw invokeError;
-      synced++;
     } catch (err) {
       const error = await handleFunctionsError(err, `invoke server sync for gig "${gig.title}" (${gig.id})`);
       console.error(error);

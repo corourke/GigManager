@@ -1,8 +1,10 @@
 import { createRoot } from "react-dom/client";
 import * as Sentry from "@sentry/react";
+import { QueryClientProvider } from "@tanstack/react-query";
 import App from "./App.tsx";
 import "./styles/globals.css";
 import { AuthProvider } from "./contexts/AuthContext";
+import { queryClient } from "./lib/queryClient";
 
 // Error monitoring — no-op unless VITE_SENTRY_DSN is set (dev/test unaffected)
 const sentryDsn = import.meta.env.VITE_SENTRY_DSN;
@@ -37,8 +39,10 @@ function ErrorFallback() {
 
 createRoot(document.getElementById("root")!).render(
   <Sentry.ErrorBoundary fallback={<ErrorFallback />}>
-    <AuthProvider>
-      <App />
-    </AuthProvider>
+    <QueryClientProvider client={queryClient}>
+      <AuthProvider>
+        <App />
+      </AuthProvider>
+    </QueryClientProvider>
   </Sentry.ErrorBoundary>
 );
