@@ -1,5 +1,7 @@
 import React from 'react';
 import { LayoutDashboard, Calendar, Users, Package, Banknote } from 'lucide-react';
+import type { UserRole } from '../utils/supabase/types';
+import { canManage } from '../utils/permissions';
 
 export type RouteType =
   | 'dashboard'
@@ -30,6 +32,7 @@ interface NavigationMenuItem {
 
 interface NavigationMenuProps {
   currentRoute: RouteType;
+  userRole?: UserRole;
   onNavigate: {
     dashboard?: () => void;
     gigs?: () => void;
@@ -41,16 +44,21 @@ interface NavigationMenuProps {
 
 const NavigationMenu = React.memo(function NavigationMenu({
   currentRoute,
+  userRole,
   onNavigate,
 }: NavigationMenuProps) {
+  // Financials is Admin/Manager only; the dashboard endpoint excludes Viewers.
+  const showFinancials = canManage(userRole);
+  const showDashboard = userRole !== 'Viewer';
+
   const menuItems: NavigationMenuItem[] = [
-    {
+    ...(showDashboard ? [{
       id: 'dashboard',
       label: 'Dashboard',
       icon: LayoutDashboard,
       onClick: onNavigate.dashboard,
-      isActive: (route) => route === 'dashboard',
-    },
+      isActive: (route: RouteType) => route === 'dashboard',
+    }] : []),
     {
       id: 'gigs',
       label: 'Gigs',
@@ -58,13 +66,13 @@ const NavigationMenu = React.memo(function NavigationMenu({
       onClick: onNavigate.gigs,
       isActive: (route) => ['gig-list', 'create-gig', 'edit-gig', 'gig-detail', 'calendar'].includes(route),
     },
-    {
+    ...(showFinancials ? [{
       id: 'financials',
       label: 'Financials',
       icon: Banknote,
       onClick: onNavigate.financials,
-      isActive: (route) => route === 'financials',
-    },
+      isActive: (route: RouteType) => route === 'financials',
+    }] : []),
     {
       id: 'team',
       label: 'Team',

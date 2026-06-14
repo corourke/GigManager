@@ -292,6 +292,13 @@ function App() {
     // Don't auto-navigate if we are in an invitation flow or dev-demo
     if (window.location.pathname === '/accept-invitation' || currentRoute === 'dev-demo') return;
 
+    // Viewers can't access the dashboard (the endpoint excludes them) — covers
+    // a persisted/reloaded 'dashboard' route. Send them to the gig list.
+    if (userRole === 'Viewer' && currentRoute === 'dashboard') {
+      setCurrentRoute(isMobile ? 'mobile-gig-list' : 'gig-list');
+      return;
+    }
+
     // Only auto-navigate to landing page if we are on a transitional route
     // This prevents kicking the user back to dashboard on every background profile refresh
     const transitionalRoutes: Route[] = ['login', 'profile-completion', 'org-selection', 'create-org'];

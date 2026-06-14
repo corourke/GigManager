@@ -10,6 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '.
 import AppHeader from './AppHeader';
 import AttachmentManager from './AttachmentManager';
 import { Organization, User, UserRole } from '../utils/supabase/types';
+import { canManage } from '../utils/permissions';
 import { getAsset, deleteAsset, duplicateAsset, getAssetStatusHistory, getAssetInventoryTracking } from '../services/asset.service';
 import type { DbAssetStatusHistory, DbInventoryTracking } from '../utils/supabase/types';
 import { ASSET_STATUS_CONFIG } from '../utils/supabase/constants';
@@ -165,20 +166,24 @@ export default function AssetDetailScreen({
             </div>
 
             <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                onClick={() => onEdit(assetId)}
-              >
-                <Edit2 className="w-4 h-4 mr-2" />
-                Edit
-              </Button>
-              <Button
-                variant="outline"
-                onClick={handleDuplicate}
-              >
-                <Copy className="w-4 h-4 mr-2" />
-                Duplicate
-              </Button>
+              {canManage(userRole) && (
+                <Button
+                  variant="outline"
+                  onClick={() => onEdit(assetId)}
+                >
+                  <Edit2 className="w-4 h-4 mr-2" />
+                  Edit
+                </Button>
+              )}
+              {canManage(userRole) && (
+                <Button
+                  variant="outline"
+                  onClick={handleDuplicate}
+                >
+                  <Copy className="w-4 h-4 mr-2" />
+                  Duplicate
+                </Button>
+              )}
               {userRole === 'Admin' && (
                 <Button
                   variant="outline"
@@ -256,6 +261,7 @@ export default function AssetDetailScreen({
                   entityType="asset"
                   entityId={assetId}
                   title="Asset Attachments"
+                  allowUpload={canManage(userRole)}
                 />
               </div>
             )}

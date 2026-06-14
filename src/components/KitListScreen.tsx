@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import AppHeader from './AppHeader';
 import EquipmentTabs from './EquipmentTabs';
 import { Organization, User, UserRole } from '../utils/supabase/types';
+import { canManage } from '../utils/permissions';
 import { SmartDataTable, ColumnDef, RowAction } from './tables/SmartDataTable';
 import { PageHeader } from './ui/PageHeader';
 import { TAG_CONFIG } from '../utils/supabase/constants';
@@ -241,26 +242,31 @@ export default function KitListScreen({
     },
   ], [categories, TAG_PILL_CONFIG, kitTrackingSummary]);
 
+  const canEdit = canManage(userRole);
+
   const rowActions = useMemo<RowAction<any>[]>(() => [
     {
       id: 'view',
       onClick: (row) => onViewKit(row.id),
     },
-    {
-      id: 'edit',
-      label: 'Edit Configuration',
-      onClick: (row) => onEditKit(row.id),
-    },
-    {
-      id: 'duplicate',
-      onClick: (row) => handleDuplicateKit(row.id, row.name),
-    },
-    {
-      id: 'delete',
-      disabled: () => userRole !== 'Admin',
-      onClick: (row) => handleDeleteKit(row.id, row.name),
-    }
-  ], [onViewKit, onEditKit, userRole]);
+    // Manage actions hidden from read-only roles (Staff/Viewer)
+    ...(canEdit ? ([
+      {
+        id: 'edit',
+        label: 'Edit Configuration',
+        onClick: (row: any) => onEditKit(row.id),
+      },
+      {
+        id: 'duplicate',
+        onClick: (row: any) => handleDuplicateKit(row.id, row.name),
+      },
+      {
+        id: 'delete',
+        disabled: () => userRole !== 'Admin',
+        onClick: (row: any) => handleDeleteKit(row.id, row.name),
+      },
+    ] satisfies RowAction<any>[]) : []),
+  ], [canEdit, onViewKit, onEditKit, userRole, handleDuplicateKit, handleDeleteKit]);
 
   const _formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-US', {
@@ -308,12 +314,12 @@ export default function KitListScreen({
           icon={Package}
           title="Equipment Kits"
           description="Manage reusable equipment collections"
-          actions={
+          actions={canEdit ? (
             <Button onClick={onCreateKit} className="bg-sky-500 hover:bg-sky-600 text-white">
               <Plus className="w-4 h-4 mr-2" />
               Create Kit
             </Button>
-          }
+          ) : null}
         />
 
         {/* Tracking Status Filter */}
@@ -350,12 +356,14 @@ export default function KitListScreen({
               <Package className="w-16 h-16 text-gray-300 mx-auto mb-4" />
               <h3 className="text-gray-900 mb-2">No kits found</h3>
               <p className="text-gray-600 mb-6">
-                Get started by creating your first equipment kit
+                {canEdit ? 'Get started by creating your first equipment kit' : 'No kits to display'}
               </p>
-              <Button onClick={onCreateKit} className="bg-sky-500 hover:bg-sky-600 text-white">
-                <Plus className="w-4 h-4 mr-2" />
-                Create Your First Kit
-              </Button>
+              {canEdit && (
+                <Button onClick={onCreateKit} className="bg-sky-500 hover:bg-sky-600 text-white">
+                  <Plus className="w-4 h-4 mr-2" />
+                  Create Your First Kit
+                </Button>
+              )}
             </div>
           ) : (
             <SmartDataTable

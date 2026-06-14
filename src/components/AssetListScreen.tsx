@@ -12,6 +12,7 @@ import AppHeader from './AppHeader';
 import EquipmentTabs from './EquipmentTabs';
 import { Organization, User, UserRole } from '../utils/supabase/types';
 import type { DbAsset } from '../utils/supabase/types';
+import { canManage } from '../utils/permissions';
 import { ASSET_STATUS_CONFIG } from '../utils/supabase/constants';
 import { SmartDataTable, ColumnDef, RowAction } from './tables/SmartDataTable';
 import { PageHeader } from './ui/PageHeader';
@@ -367,21 +368,26 @@ export default function AssetListScreen({
     },
   ], [categories, assetTrackingSummary]);
 
+  const canEdit = canManage(userRole);
+
   const rowActions = useMemo<RowAction<DbAsset>[]>(() => [
     {
       id: 'view',
       onClick: (row) => onViewAsset(row.id),
     },
-    {
-      id: 'duplicate',
-      onClick: (row) => handleDuplicateAsset(row.id),
-    },
-    {
-      id: 'delete',
-      disabled: () => userRole !== 'Admin',
-      onClick: (row) => handleDeleteAsset(row.id),
-    }
-  ], [onViewAsset, userRole]);
+    // Manage actions hidden from read-only roles (Staff/Viewer)
+    ...(canEdit ? ([
+      {
+        id: 'duplicate',
+        onClick: (row: DbAsset) => handleDuplicateAsset(row.id),
+      },
+      {
+        id: 'delete',
+        disabled: () => userRole !== 'Admin',
+        onClick: (row: DbAsset) => handleDeleteAsset(row.id),
+      },
+    ] satisfies RowAction<DbAsset>[]) : []),
+  ], [canEdit, onViewAsset, userRole, handleDuplicateAsset, handleDeleteAsset]);
 
   const formatCurrency = (amount?: number) => {
     if (!amount) return '$0';
@@ -417,7 +423,7 @@ export default function AssetListScreen({
           icon={Package}
           title="Assets"
           description="Manage your equipment inventory"
-          actions={
+          actions={canEdit ? (
             <>
               <div className="relative overflow-hidden">
                 <input
@@ -457,7 +463,7 @@ export default function AssetListScreen({
                 </Button>
               )}
             </>
-          }
+          ) : null}
         />
 
         {/* Filters */}
@@ -514,12 +520,14 @@ export default function AssetListScreen({
               <Package className="w-16 h-16 text-gray-300 mx-auto mb-4" />
               <h3 className="text-gray-900 mb-2">No assets found</h3>
               <p className="text-gray-600 mb-6">
-                Get started by adding your first asset
+                {canEdit ? 'Get started by adding your first asset' : 'No assets to display'}
               </p>
-              <Button onClick={onCreateAsset} className="bg-sky-500 hover:bg-sky-600 text-white">
-                <Plus className="w-4 h-4 mr-2" />
-                Add Your First Asset
-              </Button>
+              {canEdit && (
+                <Button onClick={onCreateAsset} className="bg-sky-500 hover:bg-sky-600 text-white">
+                  <Plus className="w-4 h-4 mr-2" />
+                  Add Your First Asset
+                </Button>
+              )}
             </div>
           ) : (
             <SmartDataTable

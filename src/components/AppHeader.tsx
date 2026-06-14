@@ -133,6 +133,7 @@ const AppHeader = React.memo(function AppHeader({
         {organization && navigation && (
           <NavigationMenu
             currentRoute={currentRoute}
+            userRole={userRole}
             onNavigate={{
               dashboard: navigation.onNavigateToDashboard,
               gigs: navigation.onNavigateToGigs,

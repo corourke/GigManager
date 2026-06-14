@@ -80,12 +80,14 @@ interface GigStaffSlotsSectionProps {
   gigId: string;
   currentOrganizationId: string;
   participantOrganizationIds: string[];
+  canEdit?: boolean;
 }
 
 export default function GigStaffSlotsSection({
   gigId,
   currentOrganizationId,
   participantOrganizationIds,
+  canEdit = true,
 }: GigStaffSlotsSectionProps) {
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadingRoles, setIsLoadingRoles] = useState(false);
@@ -458,29 +460,33 @@ export default function GigStaffSlotsSection({
               <SaveStateIndicator state={saveState} />
             </div>
             <div className="flex items-center gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={handleFinalizeAll}
-                disabled={isFinalizing}
-              >
-                {isFinalizing ? (
-                  <Loader2 className="w-4 h-4 mr-1 animate-spin" />
-                ) : (
-                  <CheckCircle2 className="w-4 h-4 mr-1" />
-                )}
-                Finalize All
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={handleAddStaffSlot}
-              >
-                <Plus className="w-4 h-4 mr-1" />
-                Add Staff Slot
-              </Button>
+              {canEdit && (
+                <>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={handleFinalizeAll}
+                    disabled={isFinalizing}
+                  >
+                    {isFinalizing ? (
+                      <Loader2 className="w-4 h-4 mr-1 animate-spin" />
+                    ) : (
+                      <CheckCircle2 className="w-4 h-4 mr-1" />
+                    )}
+                    Finalize All
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={handleAddStaffSlot}
+                  >
+                    <Plus className="w-4 h-4 mr-1" />
+                    Add Staff Slot
+                  </Button>
+                </>
+              )}
             </div>
           </div>
         </CardHeader>

@@ -30,6 +30,7 @@ import AttachmentManager from './AttachmentManager';
 import GigFinancialsSection from './gig/GigFinancialsSection';
 import GigStaffSlotsSection from './gig/GigStaffSlotsSection';
 import { Organization, User, UserRole, Gig } from '../utils/supabase/types';
+import { canManage } from '../utils/permissions';
 import { GIG_STATUS_CONFIG, ORG_ROLE_CONFIG } from '../utils/supabase/constants';
 import { getGig, deleteGig, duplicateGig } from '../services/gig.service';
 import { createClient } from '../utils/supabase/client';
@@ -150,6 +151,7 @@ export default function GigDetailScreen({
     return null;
   }
 
+  const canEdit = canManage(userRole);
   const canViewFinancials = gig.created_by === user.id || userRole === 'Admin' || userRole === 'Manager';
   const participantOrgIds = [organization.id, ...(gig.participants ?? []).map((p: any) => p.organization_id)];
 
@@ -187,20 +189,24 @@ export default function GigDetailScreen({
             </div>
 
             <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                onClick={() => onEdit(gigId)}
-              >
-                <Edit2 className="w-4 h-4 mr-2" />
-                Edit
-              </Button>
-              <Button
-                variant="outline"
-                onClick={handleDuplicate}
-              >
-                <Copy className="w-4 h-4 mr-2" />
-                Duplicate
-              </Button>
+              {canEdit && (
+                <Button
+                  variant="outline"
+                  onClick={() => onEdit(gigId)}
+                >
+                  <Edit2 className="w-4 h-4 mr-2" />
+                  Edit
+                </Button>
+              )}
+              {canEdit && (
+                <Button
+                  variant="outline"
+                  onClick={handleDuplicate}
+                >
+                  <Copy className="w-4 h-4 mr-2" />
+                  Duplicate
+                </Button>
+              )}
               {(userRole === 'Admin' || userRole === 'Manager') && (
                 <Button
                   variant="outline"
@@ -308,6 +314,7 @@ export default function GigDetailScreen({
               gigId={gigId}
               currentOrganizationId={organization.id}
               participantOrganizationIds={participantOrgIds}
+              canEdit={canEdit}
             />
 
             {/* Attachments Section */}
@@ -317,6 +324,7 @@ export default function GigDetailScreen({
                 entityType="gig"
                 entityId={gigId}
                 title="Gig Attachments"
+                allowUpload={canEdit}
               />
             </div>
 

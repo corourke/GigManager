@@ -34,6 +34,7 @@ import { toast } from 'sonner';
 import { Organization, User, UserRole, GigStatus, Gig } from '../utils/supabase/types';
 import { GIG_STATUS_CONFIG, TAG_CONFIG } from '../utils/supabase/constants';
 import { formatDateTimeDisplay, formatTimeDisplay, isNoonUTC } from '../utils/dateUtils';
+import { canManage } from '../utils/permissions';
 import { PageHeader } from './ui/PageHeader';
 import { checkAllConflictsForGigs, Conflict } from '../services/conflictDetection.service';
 
@@ -106,7 +107,7 @@ export default function GigListScreen({
 
   const [conflicts, setConflicts] = useState<Conflict[]>([]);
 
-  const canEdit = userRole === 'Admin' || userRole === 'Manager';
+  const canEdit = canManage(userRole);
 
   useEffect(() => {
     loadGigs();
@@ -308,22 +309,25 @@ export default function GigListScreen({
       label: 'View',
       onClick: (row) => onViewGig(row.id),
     },
-    {
-      id: 'edit',
-      label: 'Edit',
-      onClick: (row) => onEditGig(row.id),
-    },
-    {
-      id: 'duplicate',
-      label: 'Duplicate',
-      onClick: (row) => handleGigDuplicate(row.id),
-    },
-    {
-      id: 'delete',
-      label: 'Delete',
-      onClick: (row) => handleGigDelete(row.id),
-    },
-  ], [onViewGig, onEditGig, handleGigDuplicate, handleGigDelete]);
+    // Manage actions hidden from read-only roles (Staff/Viewer)
+    ...(canEdit ? ([
+      {
+        id: 'edit',
+        label: 'Edit',
+        onClick: (row: Gig) => onEditGig(row.id),
+      },
+      {
+        id: 'duplicate',
+        label: 'Duplicate',
+        onClick: (row: Gig) => handleGigDuplicate(row.id),
+      },
+      {
+        id: 'delete',
+        label: 'Delete',
+        onClick: (row: Gig) => handleGigDelete(row.id),
+      },
+    ] satisfies RowAction<Gig>[]) : []),
+  ], [canEdit, onViewGig, onEditGig, handleGigDuplicate, handleGigDelete]);
 
   const calendarEvents: CalendarEvent[] = useMemo(() => {
     return filteredGigs.map(gig => {
@@ -526,14 +530,16 @@ export default function GigListScreen({
           actions={
             <>
               {viewToggle}
-              <Button
-                onClick={onCreateGig}
-                className="bg-sky-500 hover:bg-sky-600 text-white"
-              >
-                <Plus className="w-4 h-4 mr-2" />
-                New Gig
-              </Button>
-              {onNavigateToImport && (
+              {canEdit && (
+                <Button
+                  onClick={onCreateGig}
+                  className="bg-sky-500 hover:bg-sky-600 text-white"
+                >
+                  <Plus className="w-4 h-4 mr-2" />
+                  New Gig
+                </Button>
+              )}
+              {canEdit && onNavigateToImport && (
                 <Button
                   onClick={onNavigateToImport}
                   variant="outline"

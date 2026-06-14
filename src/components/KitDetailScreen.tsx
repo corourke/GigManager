@@ -14,6 +14,7 @@ import {
 } from './ui/table';
 import AppHeader from './AppHeader';
 import { Organization, User, UserRole } from '../utils/supabase/types';
+import { canManage } from '../utils/permissions';
 import { getKit, deleteKit, duplicateKit } from '../services/kit.service';
 
 interface KitDetailScreenProps {
@@ -164,20 +165,24 @@ export default function KitDetailScreen({
             </div>
 
             <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                onClick={() => onEdit(kitId)}
-              >
-                <Edit2 className="w-4 h-4 mr-2" />
-                Edit
-              </Button>
-              <Button
-                variant="outline"
-                onClick={handleDuplicate}
-              >
-                <Copy className="w-4 h-4 mr-2" />
-                Duplicate
-              </Button>
+              {canManage(userRole) && (
+                <Button
+                  variant="outline"
+                  onClick={() => onEdit(kitId)}
+                >
+                  <Edit2 className="w-4 h-4 mr-2" />
+                  Edit
+                </Button>
+              )}
+              {canManage(userRole) && (
+                <Button
+                  variant="outline"
+                  onClick={handleDuplicate}
+                >
+                  <Copy className="w-4 h-4 mr-2" />
+                  Duplicate
+                </Button>
+              )}
               {userRole === 'Admin' && (
                 <Button
                   variant="outline"
