@@ -1,11 +1,19 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="light">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>GigManager Mobile — PWA</title>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html[data-theme="dark"] body {
+    background: #18181b;
+    color: #f4f4f5;
+  }
+  html[data-theme="dark"] .page-label {
+    color: #a1a1aa;
+  }
 
   body {
     background: #f0f0f0;

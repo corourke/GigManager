@@ -1077,6 +1077,118 @@ Row Actions: view, edit, duplicate, delete, notes icons with sky/red hover state
         </div>
       </div>
     </div>
+    <!-- 13. PAGE HEADER -->
+    <div class="section">
+      <div class="section-label">13 — Page Header (Canonical Pattern)</div>
+      <div class="section-box">
+
+        <div class="subsection">
+          <div class="subsection-label">Structure</div>
+          <p style="font-size:12px;color:#71717a;margin-bottom:16px;">
+            Every content page uses a <code style="background:#f4f4f5;padding:1px 4px;border-radius:3px;">.page-header</code> row directly inside
+            <code style="background:#f4f4f5;padding:1px 4px;border-radius:3px;">.main</code>. It holds the page title, an optional subtitle, and optional
+            right-aligned primary actions. The global app header (logo + org name + role badge + user avatar)
+            is always visible above and is NOT part of <code style="background:#f4f4f5;padding:1px 4px;border-radius:3px;">.page-header</code>.
+          </p>
+
+          <!-- Canonical page header example -->
+          <div style="border:1px solid #e4e4e7;border-radius:8px;overflow:hidden;margin-bottom:20px;">
+            <!-- Simulated app header bar -->
+            <div style="height:56px;background:#fff;border-bottom:1px solid #e4e4e7;display:flex;align-items:center;justify-content:space-between;padding:0 20px;">
+              <div style="display:flex;align-items:center;gap:10px;">
+                <div style="width:32px;height:32px;background:#030213;border-radius:6px;display:flex;align-items:center;justify-content:center;">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9h18v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V9Z"/><path d="M3 9V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v4"/></svg>
+                </div>
+                <span style="font-size:14px;font-weight:700;letter-spacing:-0.01em;">Main Stage Productions</span>
+                <span style="display:inline-flex;align-items:center;border:1px solid #e4e4e7;border-radius:4px;padding:1px 6px;font-size:10px;font-weight:600;color:#71717a;text-transform:uppercase;letter-spacing:0.1em;">Admin</span>
+              </div>
+              <div style="display:flex;align-items:center;gap:8px;">
+                <div style="width:28px;height:28px;border-radius:50%;background:#e0f2fe;color:#0369a1;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;">JD</div>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#71717a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+              </div>
+            </div>
+            <!-- Simulated page header inside main -->
+            <div style="background:#fff;padding:20px 24px 16px;border-bottom:1px solid #e4e4e7;display:flex;align-items:center;justify-content:space-between;">
+              <div>
+                <div style="font-size:20px;font-weight:700;letter-spacing:-0.01em;color:#030213;line-height:1.2;">Gigs</div>
+                <div style="font-size:13px;color:#71717a;margin-top:2px;">24 gigs · 3 active this week</div>
+              </div>
+              <div style="display:flex;gap:8px;">
+                <button style="display:inline-flex;align-items:center;gap:6px;border:1px solid #e4e4e7;background:#fff;border-radius:6px;padding:6px 12px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>
+                  Export
+                </button>
+                <button style="display:inline-flex;align-items:center;gap:6px;border:none;background:#0ea5e9;color:#fff;border-radius:6px;padding:6px 12px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg>
+                  New Gig
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div class="code-block">/* Canonical page header tokens */
+.page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px 24px 16px;
+  border-bottom: 1px solid var(--border);
+}
+.page-title {
+  font-size: 20px;          /* ALWAYS 20px — do not deviate */
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--foreground);
+  line-height: 1.2;
+}
+.page-subtitle {
+  font-size: 13px;
+  color: var(--muted-foreground);
+  margin-top: 2px;
+}</div>
+        </div>
+
+        <div class="subsection">
+          <div class="subsection-label">App Header — Org + Role Badge</div>
+          <p style="font-size:12px;color:#71717a;margin-bottom:12px;">
+            The role badge is <strong>always present</strong> in the app header, immediately after the org name.
+            It shows the current user's organisation role. Use <code style="background:#f4f4f5;padding:1px 4px;border-radius:3px;">.badge-outline</code>.
+          </p>
+          <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
+            <div style="display:flex;align-items:center;gap:8px;">
+              <span style="font-size:14px;font-weight:700;">Main Stage Productions</span>
+              <span style="display:inline-flex;align-items:center;border:1px solid #e4e4e7;border-radius:4px;padding:1px 6px;font-size:10px;font-weight:600;color:#71717a;text-transform:uppercase;letter-spacing:0.1em;">Admin</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;">
+              <span style="font-size:14px;font-weight:700;">Riverside Events</span>
+              <span style="display:inline-flex;align-items:center;border:1px solid #e4e4e7;border-radius:4px;padding:1px 6px;font-size:10px;font-weight:600;color:#71717a;text-transform:uppercase;letter-spacing:0.1em;">Manager</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;">
+              <span style="font-size:14px;font-weight:700;">Oakwood Audio</span>
+              <span style="display:inline-flex;align-items:center;border:1px solid #e4e4e7;border-radius:4px;padding:1px 6px;font-size:10px;font-weight:600;color:#71717a;text-transform:uppercase;letter-spacing:0.1em;">Viewer</span>
+            </div>
+          </div>
+          <div class="code-block" style="margin-top:12px;">/* App header org name */
+.org-name {
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--foreground);
+}
+/* Role badge — always present, always .badge-outline */
+.badge-outline {
+  display: inline-flex; align-items: center;
+  border: 1px solid var(--border); border-radius: 4px;
+  padding: 1px 6px; font-size: 10px; font-weight: 600;
+  color: var(--muted-foreground);
+  text-transform: uppercase; letter-spacing: 0.1em;
+}
+/* Possible values: Admin | Manager | Viewer */</div>
+        </div>
+
+      </div>
+    </div>
+
   </main>
 
   <script>
