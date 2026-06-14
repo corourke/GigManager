@@ -9,6 +9,7 @@ lerna-debug.log*
 # Production build
 dist/
 build/
+dev-dist/
 
 # Environment variables
 .env
