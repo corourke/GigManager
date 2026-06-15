@@ -2,39 +2,41 @@
 
 **Feature**: Change History / Recent Activity  
 **Status**: Draft  
-**Last Updated**: 2026-06-14
+**Last Updated**: 2026-06-15
 
 ---
 
 ## 1. Problem Statement
 
-GigManager needs a way to surface meaningful change history across core entities so that:
+GigManager needs a unified way to surface meaningful change history across all major entities — gigs, staffing, equipment, and kits — so that:
 
-1. Users can see a **"Recent Activity"** feed on the Dashboard and Calendar showing what has changed across gigs they participate in.
-2. AI agents can **query what transpired** on a particular gig, asset, or kit in a structured, machine-readable way.
-3. Teams collaborating across multiple organizations on the same gig can stay aware of each other's significant actions without being overwhelmed by noise.
+1. Users can see a **"Recent Activity"** feed on the Dashboard and Calendar showing what has changed across entities they manage or participate in.
+2. Users can **review contextual history** within any entity's detail view (e.g., a full change log when viewing a specific gig, asset, or kit).
+3. AI agents can **query what transpired** on a particular gig, asset, or kit in a structured, machine-readable way.
+4. Teams collaborating across multiple organizations on the same gig can stay aware of each other's significant actions without being overwhelmed by noise.
 
-The existing `gig_status_history` and `asset_status_history` tables solve a narrow sub-problem. This feature generalises the concept to cover the broader set of meaningful business events across gigs, staffing, participants, kit assignments, financial records, and equipment — but explicitly does NOT aim to be a full transaction log for record reconstruction.
+The existing `gig_status_history` and `asset_status_history` tables solve narrow sub-problems in isolation. This feature replaces them with a unified, coherent design that is non-redundant, forward-looking, and covers the full breadth of meaningful business events.
 
 ---
 
 ## 2. Goals
 
-- **Informative**: Capture events that carry real meaning to coordinators and collaborators — "staffing confirmed", "kit assigned", "bid submitted" — not low-level field mutations.
+- **Informative**: Capture events that carry real meaning to coordinators and collaborators — "staffing confirmed", "kit assigned to gig", "gig rescheduled" — not low-level field mutations.
 - **Collaborative**: Show activity from all participating organizations on a shared gig, giving a full picture of who did what.
 - **Machine-Readable**: Store enough structured metadata that an AI agent can answer questions like "What changed on the Summer Festival gig this week?" without requiring full-table reconstruction.
-- **Non-Redundant**: Where existing history tables (`gig_status_history`, `asset_status_history`, `inventory_tracking`) already capture an event well, the new system should reference or complement them rather than duplicate them.
-- **Low Noise**: Avoid recording events that would clutter the feed without adding decision-useful information (e.g., notes edits, internal bookkeeping fields, timezone adjustments).
+- **Non-Redundant**: Events already fully captured by a record's own existence or audit columns (`created_at`, `created_by`, `updated_at`) must not be re-recorded in the activity log. Existing `gig_status_history` and `asset_status_history` tables are replaced by the new unified log, not supplemented.
+- **Consolidated**: The result is a single, clean history table with no parallel redundant history tables (except `inventory_tracking`, which tracks physical movements and remains separate).
+- **Low Noise**: Avoid recording events that would clutter the feed without adding decision-useful information (e.g., notes edits, tags changes, timezone adjustments).
 
 ---
 
 ## 3. Out of Scope
 
 - Full audit trail suitable for legal compliance or record reconstruction (not required).
-- Per-field diff log showing old vs. new values for every field (explicitly excluded by design; only selected fields).
-- Inline "change highlight" indicators directly on gig forms or detail pages — only Dashboard and Calendar feeds are in scope for this feature.
+- Per-field diff log showing old vs. new values for every field (only selected, meaningful fields).
+- Inline "change highlight" indicators on forms or detail pages — only "recent changes" feeds in overview pages (such as Dashboard and Calendar) are in scope.
 - Push notifications or email digests based on activity (future feature).
-- Undo/rollback functionality.
+- Undo/rollback functionality (see §11 for forward-looking notes on preserving this option).
 
 ---
 
@@ -42,7 +44,7 @@ The existing `gig_status_history` and `asset_status_history` tables solve a narr
 
 ### Dashboard — Recent Activity Feed
 
-**US-001**: As a production manager, I want to see a chronological feed of significant recent changes across all my gigs on the Dashboard, so I can quickly identify what needs my attention without opening each gig individually.
+**US-001**: As a production manager, I want to see a feed of notable and recent changes across all my gigs on the Dashboard, so that important changes don't escape my notice.
 
 **US-002**: As a manager, I want each activity item to tell me who did it, what entity was affected, and when — even if that user belongs to a different organization participating in the same gig.
 
@@ -50,28 +52,36 @@ The existing `gig_status_history` and `asset_status_history` tables solve a narr
 
 **US-003**: As a calendar user, I want to see which gigs have recently had their dates or status changed, so I can visually identify what's moved or updated since I last looked.
 
+### In-Context History Views
+
+**US-004**: As a user viewing a gig's detail page, I want to see a complete chronological history of all significant changes made to that gig (including staffing, participants, kit assignments, and schedule changes), so I can understand what has happened without asking colleagues.
+
+**US-005**: As a user viewing an asset's detail page, I want to see its full status history and any kit membership changes, so I can understand the asset's lifecycle at a glance.
+
+**US-006**: As a user viewing a kit's detail page, I want to see a history of when assets were added or removed from the kit and when it was assigned to gigs, so I can understand how the kit has been used.
+
 ### AI Agent Queries
 
-**US-004**: As an AI agent querying the system, I want to retrieve a structured list of events for a specific gig (or asset/kit), including event type, actor, timestamp, and a brief machine-readable description of what changed, so I can summarise gig history in natural language.
+**US-007**: As an AI agent querying the system, I want to retrieve a structured list of events for a specific entity (gig, asset, kit), including event type, actor, timestamp, and a machine-readable description of what changed, so I can summarise history in natural language.
 
-**US-005**: As an AI agent, I want to filter activity by organization, entity type, event category, or time range.
+**US-008**: As an AI agent, I want to filter activity by entity type, event category, organization, or time range.
 
 ---
 
 ## 5. Covered Entities & Events
 
-The following table defines the specific events to capture. The goal is the "happy medium" — meaningful business events, not low-level field mutations.
+The following table defines the specific events to capture. Events already fully captured by the record's own `created_at`/`created_by` audit columns (where the record itself IS the event) are deliberately excluded.
 
 ### 5.1 Gig Events
 
 | Event | Description | Trigger |
 |-------|-------------|---------|
-| `gig.created` | A new gig was created | INSERT on `gigs` |
-| `gig.status_changed` | Gig status changed (e.g., DateHold → Booked) | Already tracked in `gig_status_history`; cross-reference only |
+| `gig.status_changed` | Gig status changed (e.g., DateHold → Booked) | UPDATE on `gigs` where `status` differs |
 | `gig.rescheduled` | Gig start or end date/time changed | UPDATE on `gigs` where `start` or `end` differs |
 | `gig.renamed` | Gig title changed | UPDATE on `gigs` where `title` differs |
 
-**Rationale**: Notes edits are excluded (too noisy, high frequency). Tags and timezone changes are minor housekeeping, also excluded.
+**Excluded**: `gig.created` — gigs have `created_at` + `created_by`; the record's existence already captures the creation event.  
+**Excluded**: Notes, tags, timezone changes — too noisy, no decision value in the feed.
 
 ### 5.2 Participant Events
 
@@ -79,6 +89,8 @@ The following table defines the specific events to capture. The goal is the "hap
 |-------|-------------|---------|
 | `participant.added` | An organization was added as a participant to a gig | INSERT on `gig_participants` |
 | `participant.removed` | An organization was removed from a gig | DELETE on `gig_participants` |
+
+**Note**: `gig_participants` has no `created_at`/`created_by` columns, so these events are not intrinsically captured elsewhere.
 
 ### 5.3 Staffing Events
 
@@ -90,6 +102,8 @@ The following table defines the specific events to capture. The goal is the "hap
 | `staffing.status_changed` | An assignment status changed (e.g., Requested → Confirmed / Declined) | UPDATE on `gig_staff_assignments` where `status` differs |
 | `staffing.unassigned` | A staff member was removed from a slot | DELETE on `gig_staff_assignments` |
 
+**Note**: `gig_staff_assignments` records who was assigned but not who did the assigning. The activity log fills this gap with `actor_id`.
+
 ### 5.4 Kit Assignment Events
 
 | Event | Description | Trigger |
@@ -99,41 +113,55 @@ The following table defines the specific events to capture. The goal is the "hap
 
 ### 5.5 Financial Events
 
-| Event | Description | Trigger |
-|-------|-------------|---------|
-| `financial.record_added` | A new financial record was added (bid, payment, invoice, etc.) | INSERT on `gig_financials` |
-| `financial.record_updated` | A financial record was updated (amount, status, or payment date changed) | UPDATE on `gig_financials` where `amount`, `type`, or `paid_at` differs |
-| `financial.record_deleted` | A financial record was deleted | DELETE on `gig_financials` |
-
-**Rationale**: Financial records represent significant business events. Notes-only edits on financial records are excluded.
+No activity log events. Each `gig_financials` record is itself the business event (a bid, a payment, a contract) and carries its own `created_at`, `created_by`, `updated_at`, `updated_by` columns. The record's existence and `type` field already tell the story. Field-level change tracking for financial records is not in scope.
 
 ### 5.6 Asset Events
 
 | Event | Description | Trigger |
 |-------|-------------|---------|
-| `asset.created` | A new asset was added to the inventory | INSERT on `assets` |
-| `asset.status_changed` | Asset status changed (Active → Retired, etc.) | Already tracked in `asset_status_history`; cross-reference only |
-| `asset.retired` | Asset was retired or disposed of | UPDATE on `assets` where `status` → 'Retired' (or equivalent) |
+| `asset.status_changed` | Asset status changed (e.g., Active → In Repair → Retired) | UPDATE on `assets` where `status` differs |
 
-**Rationale**: `asset_status_history` already captures status changes. This feature primarily records the creation event and links to the existing history.
+**Excluded**: `asset.created` — assets have `created_at` + `created_by`.  
+**Note**: `asset.status_changed` replaces the existing `asset_status_history` table (see §6).
 
 ### 5.7 Kit Events
 
 | Event | Description | Trigger |
 |-------|-------------|---------|
-| `kit.created` | A new kit was created | INSERT on `kits` |
 | `kit.asset_added` | An asset was added to a kit | INSERT on `kit_assets` |
 | `kit.asset_removed` | An asset was removed from a kit | DELETE on `kit_assets` |
 
-### 5.8 Equipment Usage Events
+**Excluded**: `kit.created` — kits have `created_at` + `created_by`.
 
-**Note**: Equipment check-in/check-out events are already captured in `inventory_tracking`. The activity log does NOT duplicate these records. Instead, summary-level events may be surfaced from `inventory_tracking` when queried.
+### 5.8 Equipment Usage / Inventory Movements
+
+`inventory_tracking` records physical equipment check-in/check-out movements at gigs. This table serves a distinct operational purpose and is **not merged** into the activity log. It remains a separate, independent table.
 
 ---
 
-## 6. Data Requirements
+## 6. Consolidation of Existing History Tables
 
-### 6.1 Event Record Structure
+### 6.1 gig_status_history → Replace
+
+`gig_status_history` is populated by an AFTER UPDATE trigger on `gigs` and records `from_status`, `to_status`, `changed_by`, and `changed_at`. The new `activity_log` captures `gig.status_changed` events with equivalent information plus the richer `context` JSONB and unified querying structure.
+
+**Migration approach**: On deployment, migrate existing `gig_status_history` rows into `activity_log` as `gig.status_changed` events, then drop the `gig_status_history` table and its trigger.
+
+### 6.2 asset_status_history → Replace
+
+`asset_status_history` is populated by a trigger on `assets` and records `from_status`, `to_status`, `changed_by`, and `changed_at`. The `activity_log` captures `asset.status_changed` events with equivalent data.
+
+**Migration approach**: Migrate existing `asset_status_history` rows into `activity_log` as `asset.status_changed` events, then drop the `asset_status_history` table and its trigger.
+
+### 6.3 inventory_tracking → Retain
+
+`inventory_tracking` records gig-scoped check-in/check-out scan events. This is an operational log of physical movements, not a record-change history. It stays separate and is not merged.
+
+---
+
+## 7. Data Requirements
+
+### 7.1 Event Record Structure
 
 Each activity log entry must carry:
 
@@ -143,26 +171,17 @@ Each activity log entry must carry:
 | `organization_id` | UUID | ✅ | The tenant whose user performed the action |
 | `actor_id` | UUID | ✅ | The user who performed the action |
 | `event_type` | TEXT | ✅ | Machine-readable dot-notation event code (e.g., `gig.rescheduled`) |
-| `entity_type` | TEXT | ✅ | Top-level entity type: `gig`, `asset`, `kit`, `financial`, `staffing`, `participant`, `kit_assignment` |
-| `entity_id` | UUID | ✅ | Primary key of the affected record |
-| `gig_id` | UUID | ❌ | Denormalized reference to the related gig (null for non-gig-scoped events like standalone asset changes) |
-| `context` | JSONB | ✅ | Machine-readable snapshot of key fields relevant to this event (see §6.2) |
+| `entity_type` | TEXT | ✅ | Top-level entity class: `gig`, `asset`, `kit`, `staffing`, `participant`, `kit_assignment` |
+| `entity_id` | UUID | ✅ | Primary key of the most directly affected record |
+| `gig_id` | UUID | ❌ | Denormalized reference to the related gig (null for non-gig-scoped events such as standalone asset/kit changes) |
+| `context` | JSONB | ✅ | Machine-readable snapshot of key fields; includes complete `from` values for any field that could be reverted (see §7.2) |
 | `occurred_at` | TIMESTAMPTZ | ✅ | When the event occurred (defaults to NOW()) |
 
-**Multi-tenant access**: The `organization_id` records WHO performed the action. Visibility follows the existing gig access pattern — any user who has access to the gig can see all activity on that gig, regardless of which organization's member performed it. For non-gig-scoped events (e.g., standalone kit/asset changes), visibility is restricted to members of the owning organization.
+**Multi-tenant access**: `organization_id` records which tenant's member performed the action. Visibility follows the existing gig access model — any user with access to a gig can see all activity on that gig regardless of which org performed it. For non-gig-scoped events (standalone asset/kit changes), visibility is restricted to members of the owning organization.
 
-### 6.2 Context JSONB Schema
+### 7.2 Context JSONB Schema
 
-The `context` field carries enough information for a human or AI to understand the event without additional joins. It must be kept minimal and focused. Examples:
-
-**`gig.rescheduled`**:
-```json
-{
-  "gig_title": "Summer Festival 2024",
-  "from": { "start": "2024-06-15T20:00:00Z", "end": "2024-06-15T23:30:00Z" },
-  "to": { "start": "2024-06-22T20:00:00Z", "end": "2024-06-22T23:30:00Z" }
-}
-```
+The `context` field carries enough information for a human or AI to understand the event without additional joins, and enough `from` state to support a future targeted revert. It must remain minimal and focused — not a full record snapshot.
 
 **`gig.status_changed`**:
 ```json
@@ -173,13 +192,48 @@ The `context` field carries enough information for a human or AI to understand t
 }
 ```
 
+**`gig.rescheduled`**:
+```json
+{
+  "gig_title": "Summer Festival 2024",
+  "from": { "start": "2024-06-15T20:00:00Z", "end": "2024-06-15T23:30:00Z" },
+  "to":   { "start": "2024-06-22T20:00:00Z", "end": "2024-06-22T23:30:00Z" }
+}
+```
+
+**`gig.renamed`**:
+```json
+{
+  "from_title": "Corporate Gala",
+  "to_title": "Annual Gala 2024"
+}
+```
+
+**`participant.added`**:
+```json
+{
+  "gig_title": "Summer Festival 2024",
+  "organization_name": "Bright Lights Co.",
+  "role": "Lighting"
+}
+```
+
+**`participant.removed`**:
+```json
+{
+  "gig_title": "Summer Festival 2024",
+  "organization_name": "Bright Lights Co.",
+  "role": "Lighting"
+}
+```
+
 **`staffing.assigned`**:
 ```json
 {
   "gig_title": "Summer Festival 2024",
   "user_name": "James Osei",
   "role": "Audio Engineer",
-  "status": "Requested"
+  "initial_status": "Requested"
 }
 ```
 
@@ -194,12 +248,12 @@ The `context` field carries enough information for a human or AI to understand t
 }
 ```
 
-**`participant.added`**:
+**`staffing.unassigned`**:
 ```json
 {
   "gig_title": "Summer Festival 2024",
-  "organization_name": "Bright Lights Co.",
-  "role": "Lighting"
+  "user_name": "James Osei",
+  "role": "Audio Engineer"
 }
 ```
 
@@ -211,22 +265,13 @@ The `context` field carries enough information for a human or AI to understand t
 }
 ```
 
-**`financial.record_added`**:
+**`asset.status_changed`**:
 ```json
 {
-  "gig_title": "Summer Festival 2024",
-  "type": "Contract Signed",
-  "amount": 18000.00,
-  "currency": "USD"
-}
-```
-
-**`asset.created`**:
-```json
-{
-  "manufacturer_model": "DiGiCo SD12 Console",
+  "asset_model": "DiGiCo SD12 Console",
   "category": "Audio",
-  "acquisition_date": "2024-06-01"
+  "from_status": "Active",
+  "to_status": "In Repair"
 }
 ```
 
@@ -239,61 +284,103 @@ The `context` field carries enough information for a human or AI to understand t
 }
 ```
 
-### 6.3 Retention Policy
+**`kit.asset_removed`**:
+```json
+{
+  "kit_name": "Small Lighting Setup",
+  "asset_model": "LD Systems Moving Head"
+}
+```
 
-Retain all activity log records indefinitely by default. The volume of meaningful business events (as defined in §5) is expected to be low relative to storage capacity. A pruning policy may be added in the future if needed.
+### 7.3 Retention Policy
+
+Retain all activity log records indefinitely by default. The volume of meaningful business events is expected to be low relative to storage capacity. A pruning policy may be added in the future if needed.
 
 ---
 
-## 7. User Interface Requirements
+## 8. User Interface Requirements
 
-### 7.1 Dashboard — Recent Activity Feed
+### 8.1 Dashboard — Recent Activity Feed
 
-- Display a chronological list of the most recent activity events across all gigs the current user has access to, filtered to the last 30 days or the last 50 events (whichever is smaller).
+- Display a chronological list of the most recent activity events across all gigs and entities the current user has access to, capped at the last 30 days or last 50 events (whichever is smaller).
 - Each entry shows:
   - **Who**: Actor's display name and their organization name (e.g., "James Osei · Bright Lights Co.")
-  - **What**: A human-readable summary derived from the event type and context (e.g., "confirmed as Audio Engineer on Summer Festival 2024")
-  - **When**: Relative timestamp (e.g., "2h ago"), with absolute timestamp on hover
-- Events are grouped by recency (Today, Yesterday, This Week, Older) if more than a few items are shown.
-- Clicking an activity item navigates to the relevant gig or entity page.
-- The feed includes gig status changes, schedule changes (reschedules), and participant additions as priority events; staffing confirmations and financial records are included but may be visually de-emphasised.
+  - **What**: A human-readable summary derived from `event_type` and `context` (e.g., "confirmed as Audio Engineer on Summer Festival 2024")
+  - **When**: Relative timestamp (e.g., "2h ago") with absolute timestamp on hover
+- Events may be grouped by recency (Today, Yesterday, This Week, Older) when the list is long enough to warrant it.
+- Clicking an activity item navigates to the relevant entity page.
+- Priority events (gig status changes, reschedules, participant additions) are shown prominently; staffing confirmations and kit assignments may be visually de-emphasised.
 
-### 7.2 Calendar View
+### 8.2 Calendar View
 
-- Gigs that have had a status change or date change in the last 7 days are visually marked with a subtle indicator (e.g., a dot or badge).
+- Gigs that have had a status change or date change within the last 7 days are marked with a subtle visual indicator (e.g., a dot or badge on the calendar event).
 - On hover or tap, a tooltip shows the most recent relevant change (e.g., "Rescheduled 2h ago by Jane Smith").
 
+### 8.3 Gig Detail Page — History Panel
+
+- The gig detail page includes a "History" tab or collapsible section showing all activity events associated with that gig (via `gig_id`).
+- Events are shown in reverse-chronological order.
+- Covers all event types scoped to the gig: status changes, reschedules, renames, participant changes, staffing changes, kit assignments.
+- Each row shows: timestamp, actor name + org, and a human-readable event description.
+
+### 8.4 Asset Detail Page — History Section
+
+- The asset detail page includes a history section showing all `asset.status_changed` events for that asset, replacing the prior `asset_status_history` display.
+- Shows: timestamp, actor, from_status → to_status.
+
+### 8.5 Kit Detail Page — History Section
+
+- The kit detail page includes a history section showing `kit.asset_added` and `kit.asset_removed` events, plus `kit_assignment.added/removed` events linking the kit to gigs.
+- Shows: timestamp, actor, and a human-readable description of the change.
+
 ---
 
-## 8. Non-Functional Requirements
+## 9. Non-Functional Requirements
 
-- **Performance**: Activity log queries must not add noticeable latency to page loads. The feed should be precomputed or efficiently queried with appropriate indexes.
-- **Write Efficiency**: Event capture must not meaningfully slow down the primary write operations (gig updates, assignment changes, etc.). Triggers or application-level writes should be used appropriately.
-- **Correctness**: Activity records must accurately reflect who performed an action (actor attribution) and when.
+- **Performance**: Activity log queries must not add noticeable latency to page loads. The feed and in-context history panels must be efficiently queried with appropriate indexes on `gig_id`, `entity_type`, `entity_id`, `actor_id`, and `occurred_at`.
+- **Write Efficiency**: Event capture must not meaningfully slow down primary write operations. Trigger-based capture and/or application-level writes within the same transaction are both acceptable.
+- **Correctness**: Activity records must accurately reflect who performed an action (`actor_id`) and when (`occurred_at`).
 - **Consistency**: Events must be recorded atomically with the operations that produce them (within the same database transaction where possible).
-- **Extensibility**: The design should make it straightforward to add new event types in the future without schema changes.
+- **Extensibility**: New event types can be added without schema changes — the dot-notation `event_type` text field and JSONB `context` field are designed to accommodate this.
 
 ---
 
-## 9. Success Criteria
+## 10. Success Criteria
 
-- The Dashboard Recent Activity feed is populated with real, meaningful events from the database.
-- An AI agent can fetch a structured JSON list of activity for a given gig and produce a coherent natural-language summary of what occurred.
-- Existing `gig_status_history` and `asset_status_history` data is either incorporated or clearly cross-referenced — no duplication.
+- The Dashboard Recent Activity feed is populated with real, meaningful events from the live database.
+- Gig, Asset, and Kit detail pages each display their history from the unified activity log.
+- An AI agent can fetch a structured list of activity for a given entity and produce a coherent natural-language summary.
+- `gig_status_history` and `asset_status_history` are replaced by the unified `activity_log` with no data loss (historical rows migrated in).
+- `inventory_tracking` is unchanged.
 - The implementation passes all existing tests and lint checks.
-- Users report that the feed shows useful, non-noisy information (qualitative acceptance criteria for future review).
 
 ---
 
-## 10. Design Decisions & Assumptions
+## 11. Forward-Looking Notes: Undo / Rollback
+
+Undo is not in scope for this feature, but the data design deliberately preserves the option for a future targeted revert capability:
+
+- **Simple reversions** (`gig.status_changed`, `gig.rescheduled`, `gig.renamed`, `staffing.status_changed`) are mechanically straightforward: the `context` JSONB stores complete `from` values needed to re-apply a prior state. A "Revert" action on these event types in the History panel would be low-effort to add later.
+- **Relationship reversions** (`participant.removed`, `staffing.unassigned`) require re-inserting a deleted record. The `context` JSONB stores the essential fields of the original row to make this possible, though revert logic would need care around uniqueness constraints and current state validation.
+- **Complex / cascading reversions** (e.g., reverting a participant removal that had downstream effects on staffing) are out of scope for the foreseeable future due to conflict detection and permission complexity.
+
+**Design implication**: Always store complete `from` values in `context` for any changed field. This is a low-cost constraint that preserves future optionality.
+
+---
+
+## 12. Design Decisions & Assumptions
 
 | Decision | Rationale |
 |----------|-----------|
-| Single unified `activity_log` table (not per-entity tables) | Simplifies querying for feeds; avoids UNION across many tables; consistent schema for AI consumption |
-| Dot-notation `event_type` text field (not enum) | Allows new event types to be added without migrations; still machine-readable and indexable |
-| `gig_id` denormalized on all records | Enables fast "all activity for gig X" queries without joins through junction tables |
-| `gig_status_history` is NOT replaced | It's already in place and working; the activity log will record the same events but reference the existing table as complementary, not redundant |
-| Notes field edits excluded | Notes are frequently edited for minor corrections; recording every edit would dominate the feed with low-value noise |
-| Retention: indefinite | Expected event volume is low for meaningful events; no business case for pruning at this stage |
-| Cross-org visibility on shared gigs | Users confirmed full collaborative visibility (all participating org actions visible); aligns with GigManager's collaborative multi-tenant model |
-| Calendar: date and status changes only | User confirmed calendar should surface date and status changes only (not staffing or financial events) |
+| Single unified `activity_log` table | Simplifies querying for feeds and in-context history; avoids UNION across tables; consistent schema for AI consumption |
+| Dot-notation `event_type` text field (not enum) | New event types added without migrations; still machine-readable and indexable |
+| `gig_id` denormalized on all records | Enables fast "all activity for gig X" queries without multi-join traversal |
+| `gig_status_history` and `asset_status_history` replaced | No value in maintaining parallel history tables; the unified log is strictly better |
+| `inventory_tracking` kept separate | Operational log of physical movements, not record-change history; different semantics and query patterns |
+| Financial events excluded | Each `gig_financials` row IS the business event; `created_at`/`created_by` already capture authorship; a separate activity entry would be pure duplication |
+| `*.created` events excluded for entities with `created_by` | `created_at` + `created_by` on the base record captures creation; redundant to log separately |
+| Notes / tags / timezone excluded | High edit frequency, low decision value; would dominate the feed with noise |
+| Cross-org visibility on shared gigs | Full collaborative history — all participating org actions visible to anyone with gig access |
+| Calendar: date and status changes only | Scoped to changes that affect scheduling awareness |
+| Retention: indefinite | Expected event volume is low; no current business case for pruning |
+| `context` always stores `from` values | Preserves future undo/revert capability at no additional cost |
