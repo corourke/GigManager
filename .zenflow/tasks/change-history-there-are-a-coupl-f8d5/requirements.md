@@ -36,7 +36,7 @@ The existing `gig_status_history` and `asset_status_history` tables solve narrow
 - Per-field diff log showing old vs. new values for every field (only selected, meaningful fields).
 - Inline "change highlight" indicators on forms or detail pages — only "recent changes" feeds in overview pages (such as Dashboard and Calendar) are in scope.
 - Push notifications or email digests based on activity (future feature).
-- Undo/rollback functionality (see §11 for forward-looking notes on preserving this option).
+- General undo/redo system. A targeted **"Revert this change"** action on specific field-change events is **in scope** (see §4 and §8.3); broad undo of relationship or cascading changes is not.
 
 ---
 
@@ -59,6 +59,10 @@ The existing `gig_status_history` and `asset_status_history` tables solve narrow
 **US-005**: As a user viewing an asset's detail page, I want to see its full status history and any kit membership changes, so I can understand the asset's lifecycle at a glance.
 
 **US-006**: As a user viewing a kit's detail page, I want to see a history of when assets were added or removed from the kit and when it was assigned to gigs, so I can understand how the kit has been used.
+
+### In-Context Revert
+
+**US-009**: As a manager reviewing the history of a gig, I want to be able to revert a specific field change (e.g., a reschedule or status change) directly from the History panel, so I can correct a mistake without having to manually re-edit the record.
 
 ### AI Agent Queries
 
@@ -172,8 +176,8 @@ Each activity log entry must carry:
 | `actor_id` | UUID | ✅ | The user who performed the action |
 | `event_type` | TEXT | ✅ | Machine-readable dot-notation event code (e.g., `gig.rescheduled`) |
 | `entity_type` | TEXT | ✅ | Top-level entity class: `gig`, `asset`, `kit`, `staffing`, `participant`, `kit_assignment` |
-| `entity_id` | UUID | ✅ | Primary key of the most directly affected record |
-| `gig_id` | UUID | ❌ | Denormalized reference to the related gig (null for non-gig-scoped events such as standalone asset/kit changes) |
+| `entity_id` | UUID | ✅ | Primary key of the most directly affected record (e.g., the `gig_staff_assignment.id` for a staffing event, the `gig_participant.id` for a participant event) |
+| `gig_id` | UUID | ❌ | The parent gig's UUID for any event that is scoped to a gig — regardless of `entity_type`. When `entity_type = 'gig'`, `gig_id` equals `entity_id`. For all other gig-scoped types (staffing, participant, kit_assignment), `entity_id` is the junction record while `gig_id` is the gig itself, enabling efficient "all activity for gig X" queries without joins. Null for non-gig-scoped events (standalone asset/kit changes). |
 | `context` | JSONB | ✅ | Machine-readable snapshot of key fields; includes complete `from` values for any field that could be reverted (see §7.2) |
 | `occurred_at` | TIMESTAMPTZ | ✅ | When the event occurred (defaults to NOW()) |
 
@@ -320,8 +324,10 @@ Retain all activity log records indefinitely by default. The volume of meaningfu
 
 - The gig detail page includes a "History" tab or collapsible section showing all activity events associated with that gig (via `gig_id`).
 - Events are shown in reverse-chronological order.
+- The panel opens with a synthetic pinned header showing "Created on [date] by [name]" sourced directly from `gigs.created_at` and `gigs.created_by` — not from the activity log (since `gig.created` is not logged).
 - Covers all event types scoped to the gig: status changes, reschedules, renames, participant changes, staffing changes, kit assignments.
 - Each row shows: timestamp, actor name + org, and a human-readable event description.
+- For revertible event types (`gig.status_changed`, `gig.rescheduled`, `gig.renamed`, `staffing.status_changed`), each row includes a **"Revert"** action that restores the `from` state stored in the event's `context`. Revert is only available to users who have edit permission on the gig (Admin or Manager role). The revert itself produces a new activity log entry so it is auditable.
 
 ### 8.4 Asset Detail Page — History Section
 
@@ -356,15 +362,31 @@ Retain all activity log records indefinitely by default. The volume of meaningfu
 
 ---
 
-## 11. Forward-Looking Notes: Undo / Rollback
+## 11. Revert Capability
 
-Undo is not in scope for this feature, but the data design deliberately preserves the option for a future targeted revert capability:
+A targeted **"Revert this change"** action is in scope for field-change events where the `from` state is stored in `context` and restoring it requires no complex cascade logic.
 
-- **Simple reversions** (`gig.status_changed`, `gig.rescheduled`, `gig.renamed`, `staffing.status_changed`) are mechanically straightforward: the `context` JSONB stores complete `from` values needed to re-apply a prior state. A "Revert" action on these event types in the History panel would be low-effort to add later.
-- **Relationship reversions** (`participant.removed`, `staffing.unassigned`) require re-inserting a deleted record. The `context` JSONB stores the essential fields of the original row to make this possible, though revert logic would need care around uniqueness constraints and current state validation.
-- **Complex / cascading reversions** (e.g., reverting a participant removal that had downstream effects on staffing) are out of scope for the foreseeable future due to conflict detection and permission complexity.
+### In-scope revertible events
 
-**Design implication**: Always store complete `from` values in `context` for any changed field. This is a low-cost constraint that preserves future optionality.
+| Event | Revert action |
+|-------|---------------|
+| `gig.status_changed` | Set `gigs.status` to `context.from_status` |
+| `gig.rescheduled` | Set `gigs.start` / `gigs.end` to `context.from.start` / `context.from.end` |
+| `gig.renamed` | Set `gigs.title` to `context.from_title` |
+| `staffing.status_changed` | Set `gig_staff_assignments.status` to `context.from_status` |
+
+### Out-of-scope revert cases
+
+- **Relationship deletions** (`participant.removed`, `staffing.unassigned`, `kit_assignment.removed`) — require re-inserting a deleted record, which involves uniqueness constraints and potential state conflicts. Not in scope for this feature.
+- **Cascading changes** — any revert that would need to undo side effects of the original change.
+
+### Revert behaviour
+
+- Reverting creates a new activity log entry (e.g., a new `gig.status_changed` event) so the revert itself is auditable.
+- Permission: Admin or Manager role on the gig only.
+- No time limit on when a revert can be performed, but the UI should surface a warning if significant subsequent changes have occurred.
+
+**Design implication**: Always store complete `from` values in `context` for any field that changes. This is a low-cost constraint that enables revert with no additional schema overhead.
 
 ---
 
@@ -374,11 +396,11 @@ Undo is not in scope for this feature, but the data design deliberately preserve
 |----------|-----------|
 | Single unified `activity_log` table | Simplifies querying for feeds and in-context history; avoids UNION across tables; consistent schema for AI consumption |
 | Dot-notation `event_type` text field (not enum) | New event types added without migrations; still machine-readable and indexable |
-| `gig_id` denormalized on all records | Enables fast "all activity for gig X" queries without multi-join traversal |
-| `gig_status_history` and `asset_status_history` replaced | No value in maintaining parallel history tables; the unified log is strictly better |
+| `gig_id` is not redundant with `entity_id` | When `entity_type = 'gig'` they are equal, but for all other gig-scoped types `entity_id` is the junction record (e.g., `gig_staff_assignment.id`) while `gig_id` is always the parent gig — enabling efficient cross-entity "all activity for gig X" queries without traversal |
+| `gig_status_history` and `asset_status_history` replaced | No value in maintaining parallel history tables; the unified log covers the same events with richer structure; existing rows are migrated on deploy |
 | `inventory_tracking` kept separate | Operational log of physical movements, not record-change history; different semantics and query patterns |
 | Financial events excluded | Each `gig_financials` row IS the business event; `created_at`/`created_by` already capture authorship; a separate activity entry would be pure duplication |
-| `*.created` events excluded for entities with `created_by` | `created_at` + `created_by` on the base record captures creation; redundant to log separately |
+| `*.created` events excluded for entities with `created_by` | `created_at` + `created_by` on the base record captures creation; redundant to log separately. History panels display a synthetic "Created by X on [date]" header sourced directly from the record, not the activity log |
 | Notes / tags / timezone excluded | High edit frequency, low decision value; would dominate the feed with noise |
 | Cross-org visibility on shared gigs | Full collaborative history — all participating org actions visible to anyone with gig access |
 | Calendar: date and status changes only | Scoped to changes that affect scheduling awareness |
