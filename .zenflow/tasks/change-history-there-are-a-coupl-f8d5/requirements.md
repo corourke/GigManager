@@ -151,6 +151,8 @@ No activity log events. Each `gig_financials` record is itself the business even
 
 **Migration approach**: On deployment, migrate existing `gig_status_history` rows into `activity_log` as `gig.status_changed` events, then drop the `gig_status_history` table and its trigger.
 
+**Historical `organization_id` resolution**: `gig_status_history` stores `changed_by` (user ID) but not `organization_id`. During migration, attempt to derive `organization_id` by intersecting the user's org memberships (`organization_members`) with the orgs participating in the gig (`gig_participants`). If the intersection yields exactly one org, use it. If the user belongs to multiple participating orgs (ambiguous) or no longer exists, set `organization_id = NULL`. Migrated rows with NULL `organization_id` are still fully queryable by `gig_id` and `actor_id`.
+
 ### 6.2 asset_status_history → Replace
 
 `asset_status_history` is populated by a trigger on `assets` and records `from_status`, `to_status`, `changed_by`, and `changed_at`. The `activity_log` captures `asset.status_changed` events with equivalent data.
@@ -172,24 +174,39 @@ Each activity log entry must carry:
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
 | `id` | UUID | ✅ | Primary key |
-| `organization_id` | UUID | ✅ | The tenant whose user performed the action |
+| `organization_id` | UUID | ✅ | The tenant whose user performed the action. May be NULL for rows migrated from legacy history tables where this cannot be reliably determined (see §6.1). |
 | `actor_id` | UUID | ✅ | The user who performed the action |
 | `event_type` | TEXT | ✅ | Machine-readable dot-notation event code (e.g., `gig.rescheduled`) |
 | `entity_type` | TEXT | ✅ | Top-level entity class: `gig`, `asset`, `kit`, `staffing`, `participant`, `kit_assignment` |
 | `entity_id` | UUID | ✅ | Primary key of the most directly affected record (e.g., the `gig_staff_assignment.id` for a staffing event, the `gig_participant.id` for a participant event) |
 | `gig_id` | UUID | ❌ | The parent gig's UUID for any event that is scoped to a gig — regardless of `entity_type`. When `entity_type = 'gig'`, `gig_id` equals `entity_id`. For all other gig-scoped types (staffing, participant, kit_assignment), `entity_id` is the junction record while `gig_id` is the gig itself, enabling efficient "all activity for gig X" queries without joins. Null for non-gig-scoped events (standalone asset/kit changes). |
-| `context` | JSONB | ✅ | Machine-readable snapshot of key fields; includes complete `from` values for any field that could be reverted (see §7.2) |
+| `context` | JSONB | ✅ | Machine-readable snapshot of key fields; always includes `actor_display_name` and `actor_org_name` snapshotted at write time (see §7.2); includes complete `from` values for any field that could be reverted |
 | `occurred_at` | TIMESTAMPTZ | ✅ | When the event occurred (defaults to NOW()) |
 
 **Multi-tenant access**: `organization_id` records which tenant's member performed the action. Visibility follows the existing gig access model — any user with access to a gig can see all activity on that gig regardless of which org performed it. For non-gig-scoped events (standalone asset/kit changes), visibility is restricted to members of the owning organization.
 
+**Actor name snapshotting**: Actor display name and organization name must be snapshotted into `context` at the moment the event is written. This ensures the history feed renders correctly even if a user's name is later changed or their account is deleted. Do not rely on joining to `users` or `organizations` at query time for display purposes.
+
 ### 7.2 Context JSONB Schema
 
-The `context` field carries enough information for a human or AI to understand the event without additional joins, and enough `from` state to support a future targeted revert. It must remain minimal and focused — not a full record snapshot.
+The `context` field carries enough information for a human or AI to understand the event without additional joins, and enough `from` state to support a targeted revert. It must remain minimal and focused — not a full record snapshot.
+
+Every `context` object must include the following standard fields, snapshotted at write time:
+
+```json
+{
+  "actor_display_name": "Jane Smith",
+  "actor_org_name": "Main Stage Productions"
+}
+```
+
+These allow the feed to render actor attribution without joining to `users` or `organizations`, protecting against deleted accounts and name changes. All examples below omit these fields for brevity but they are always required.
 
 **`gig.status_changed`**:
 ```json
 {
+  "actor_display_name": "Jane Smith",
+  "actor_org_name": "Main Stage Productions",
   "gig_title": "Corporate Gala",
   "from_status": "Proposed",
   "to_status": "Booked"
@@ -382,9 +399,11 @@ A targeted **"Revert this change"** action is in scope for field-change events w
 
 ### Revert behaviour
 
-- Reverting creates a new activity log entry (e.g., a new `gig.status_changed` event) so the revert itself is auditable.
-- Permission: Admin or Manager role on the gig only.
-- No time limit on when a revert can be performed, but the UI should surface a warning if significant subsequent changes have occurred.
+- Reverting creates a new activity log entry of the same `event_type` (e.g., a new `gig.status_changed` event), so the revert itself is fully auditable as a first-class history item.
+- The revert entry's `context` must include `"reverted_event_id": "<uuid>"` referencing the original event being reversed, so the chain of changes is traceable.
+- Permission: Admin or Manager role on the gig (via the existing `user_can_manage_gig` access model) only.
+- No hard time limit on when a revert can be performed, but the UI must show a warning when any activity log event on the same `gig_id` (for gig-scoped events) or `entity_id` (for entity-scoped events) was recorded after the event being reverted. This signals that subsequent changes may conflict with or depend on the state being restored.
+- Reverting `gig.rescheduled` must run the same scheduling conflict checks as a normal date update (equipment double-booking, staff conflicts). If conflicts are detected, the revert must be blocked or the user presented with an explicit confirmation of the conflict before proceeding.
 
 **Design implication**: Always store complete `from` values in `context` for any field that changes. This is a low-cost constraint that enables revert with no additional schema overhead.
 
