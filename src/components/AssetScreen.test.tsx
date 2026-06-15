@@ -1,13 +1,25 @@
+import type { ReactElement } from 'react'
 import { describe, it, expect, vi } from 'vitest'
-import { render } from '@testing-library/react'
+import { render as rtlRender } from '@testing-library/react'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import AssetScreen from './AssetScreen'
 import { makeUser, makeOrganization } from '../test/factories'
+
+// AssetScreen now uses TanStack Query — renders need a QueryClientProvider.
+function render(ui: ReactElement) {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  })
+  return rtlRender(<QueryClientProvider client={queryClient}>{ui}</QueryClientProvider>)
+}
 
 // Mock all dependencies
 vi.mock('../services/asset.service', () => ({
   getAsset: vi.fn().mockResolvedValue({}),
   createAsset: vi.fn(),
   updateAsset: vi.fn(),
+  getAssetStatusHistory: vi.fn().mockResolvedValue([]),
+  getAssetInventoryTracking: vi.fn().mockResolvedValue([]),
 }))
 
 vi.mock('../utils/hooks/useFormWithChanges', () => ({

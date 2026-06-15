@@ -159,7 +159,7 @@ Work through the phases in order. Do not start a phase until the previous phase'
 - [x] Phase 4 — GitHub Actions CI + deploy script gates (+ deploy_dev.sh added)
 - [x] Phase 5 — Sentry (web + edge), DSNs configured by user
 - [x] Phase 6 — Server function on Hono with auth middleware (+ endpoint inventory approved); deployed to dev & smoke-tested. Surfaced + fixed pre-existing data gaps (migration 20260613000000) and silent-delete UX bug. Frontend role-based UI gating deferred (docs/product/development-plan/role-based-ui-gating.md).
-- [ ] Phase 7 — Router + TanStack Query adopted; mega-components split
+- [x] Phase 7 — react-router v7 adopted (App.tsx 1036→135; deep-linkable, refresh/back-safe; role-gating + Viewer guard + mobile split preserved; browser-verified). TanStack Query foundation (`queryKeys`, provider) + reads migrated for TeamScreen (also split to <500), GigFinancialsSection, and AssetScreen (autosave/form behavior preserved). `gig.service.ts` split 1604→744 lines into gigKit/gigFinancial/gigParticipant/gigStaff services (re-export barrel keeps call sites unchanged). **Deferred follow-ups:** ImportScreen has no reads to migrate; the <500-line UI splits for GigFinancialsSection/ImportScreen/AssetScreen are tracked separately.
 - [x] Phase 8 — Repo hygiene complete; `dev-dist/` untracked+gitignored, `uncommitted_changes.patch`/`debug-schema.ts` removed. **stage-plot-app decision: extracted to its own repo** (June 2026) and removed from this monorepo.
 
 ## Global Constraints (apply to every phase)

@@ -13,7 +13,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '.
 import AppHeader from './AppHeader';
 import { PageHeader } from './ui/PageHeader';
 import { Organization, User, UserRole } from '../utils/supabase/types';
-import { getAsset, createAsset, updateAsset, getAssetStatusHistory, getAssetInventoryTracking } from '../services/asset.service';
+import { createAsset, updateAsset } from '../services/asset.service';
+import { useAssetData, useAssetMutations } from './asset/useAssetData';
 import type {DbAssetStatusHistory, DbInventoryTracking } from '../utils/supabase/types';
 import { ASSET_STATUS_CONFIG } from '../utils/supabase/constants';
 import { useSimpleFormChanges } from '../utils/hooks/useSimpleFormChanges';
@@ -73,13 +74,8 @@ export default function AssetScreen({
   onEditProfile,
   onLogout,
 }: AssetScreenProps) {
-  const [isLoading, setIsLoading] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [totalCost, setTotalCost] = useState<string>(''); // Helper field, not saved
-  const [statusHistory, setStatusHistory] = useState<DbAssetStatusHistory[]>([]);
-  const [inventoryTracking, setInventoryTracking] = useState<DbInventoryTracking[]>([]);
-  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
 
   // Form state with change detection
   const [formData, setFormData] = useState<FormData>({
@@ -143,66 +139,57 @@ export default function AssetScreen({
     enabled: true,
   });
 
+  // Server state (Phase 7): asset + read-only history/tracking via useQuery.
+  const { assetQuery, statusHistoryQuery, inventoryTrackingQuery } = useAssetData(assetId);
+  const assetMutations = useAssetMutations(organization.id);
+  const isLoading = assetQuery.isLoading;
+  const isSaving = assetMutations.createAsset.isPending || assetMutations.updateAsset.isPending;
+  const statusHistory = (statusHistoryQuery.data ?? []) as DbAssetStatusHistory[];
+  const inventoryTracking = (inventoryTrackingQuery.data ?? []) as DbInventoryTracking[];
+  const isLoadingHistory = statusHistoryQuery.isLoading || inventoryTrackingQuery.isLoading;
+
+  // Populate the form when the asset query first resolves (edit mode). The
+  // query is not invalidated by mutations, so this never clobbers edits.
   useEffect(() => {
-    if (assetId) {
-      loadAsset();
-    }
-  }, [assetId]);
+    const asset = assetQuery.data;
+    if (!asset) return;
+    const loadedData: FormData = {
+      category: asset.category || '',
+      manufacturer_model: asset.manufacturer_model || '',
+      serial_number: asset.serial_number || '',
+      acquisition_date: asset.acquisition_date || '',
+      vendor: asset.vendor || '',
+      item_price: asset.item_price?.toString() || '',
+      item_cost: asset.item_cost?.toString() || '',
+      replacement_value: asset.replacement_value?.toString() || '',
+      sub_category: asset.sub_category || '',
+      type: asset.type || '',
+      description: asset.description || '',
+      insurance_policy_added: asset.insurance_policy_added || false,
+      insurance_class: asset.insurance_class || '',
+      quantity: asset.quantity?.toString() || '',
+      tag_number: asset.tag_number || '',
+      status: asset.status || 'Active',
+      retired_on: asset.retired_on || '',
+      service_life: asset.service_life?.toString() || '',
+      dep_method: asset.dep_method || '',
+      liquidation_amt: asset.liquidation_amt?.toString() || '',
+      purchase_id: asset.purchase_id,
+    };
+    setFormData(loadedData);
+    changeDetection.loadInitialData(loadedData);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [assetQuery.data]);
 
-  const loadAsset = async () => {
-    if (!assetId) return;
-
-    setIsLoading(true);
-    try {
-      const asset = await getAsset(assetId);
-      const loadedData: FormData = {
-        category: asset.category || '',
-        manufacturer_model: asset.manufacturer_model || '',
-        serial_number: asset.serial_number || '',
-        acquisition_date: asset.acquisition_date || '',
-        vendor: asset.vendor || '',
-        item_price: asset.item_price?.toString() || '',
-        item_cost: asset.item_cost?.toString() || '',
-        replacement_value: asset.replacement_value?.toString() || '',
-        sub_category: asset.sub_category || '',
-        type: asset.type || '',
-        description: asset.description || '',
-        insurance_policy_added: asset.insurance_policy_added || false,
-        insurance_class: asset.insurance_class || '',
-        quantity: asset.quantity?.toString() || '',
-        tag_number: asset.tag_number || '',
-        status: asset.status || 'Active',
-        retired_on: asset.retired_on || '',
-        service_life: asset.service_life?.toString() || '',
-        dep_method: asset.dep_method || '',
-        liquidation_amt: asset.liquidation_amt?.toString() || '',
-        purchase_id: asset.purchase_id,
-      };
-      setFormData(loadedData);
-      changeDetection.loadInitialData(loadedData);
-
-      // Load read-only history tables (edit mode only)
-      setIsLoadingHistory(true);
-      try {
-        const [history, tracking] = await Promise.all([
-          getAssetStatusHistory(assetId),
-          getAssetInventoryTracking(assetId),
-        ]);
-        setStatusHistory(history);
-        setInventoryTracking(tracking);
-      } catch (err) {
-        console.error('Error loading asset history:', err);
-      } finally {
-        setIsLoadingHistory(false);
-      }
-    } catch (error: any) {
-      console.error('Error loading asset:', error);
-      toast.error(error.message || 'Failed to load asset');
-      onCancel();
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  // Surface a load failure the same way the old loader did: toast + cancel.
+  useEffect(() => {
+    if (!assetQuery.isError) return;
+    const error = assetQuery.error as any;
+    console.error('Error loading asset:', error);
+    toast.error(error?.message || 'Failed to load asset');
+    onCancel();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [assetQuery.isError]);
 
   const handleChange = (field: keyof FormData, value: string | boolean) => {
     setFormData((prev) => {
@@ -272,7 +259,6 @@ export default function AssetScreen({
       return;
     }
 
-    setIsSaving(true);
     try {
       // Normalize form data first
       const normalizedData = normalizeFormData(formData);
@@ -330,7 +316,10 @@ export default function AssetScreen({
         // The in-place normalization above converts string form fields to the
         // column types; the cast reflects that runtime conversion (refactor
         // tracked for the Phase 7 component split)
-        await updateAsset(assetId, updateData as Parameters<typeof updateAsset>[1]);
+        await assetMutations.updateAsset.mutateAsync({
+          id: assetId,
+          data: updateData as Parameters<typeof updateAsset>[1],
+        });
         changeDetection.markAsSaved(normalizedData);
         toast.success('Asset updated successfully');
         onAssetUpdated();
@@ -340,15 +329,15 @@ export default function AssetScreen({
           organization_id: organization.id,
           ...normalizedData,
         };
-        const newAsset = await createAsset(createData as unknown as Parameters<typeof createAsset>[0]);
+        const newAsset = await assetMutations.createAsset.mutateAsync(
+          createData as unknown as Parameters<typeof createAsset>[0],
+        );
         toast.success('Asset created successfully');
         onAssetCreated(newAsset.id);
       }
     } catch (error: any) {
       console.error('Error saving asset:', error);
       toast.error(error.message || 'Failed to save asset');
-    } finally {
-      setIsSaving(false);
     }
   };
 

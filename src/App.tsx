@@ -1,581 +1,70 @@
 import { useState, useEffect, useRef } from 'react';
-import LoginScreen from './components/LoginScreen';
-import UserProfileCompletionScreen from './components/UserProfileCompletionScreen';
-import AcceptInvitationScreen from './components/AcceptInvitationScreen';
-import ResetPasswordScreen from './components/ResetPasswordScreen';
-import OrganizationSelectionScreen from './components/OrganizationSelectionScreen';
-import OrganizationScreen from './components/OrganizationScreen';
-import AdminOrganizationsScreen from './components/AdminOrganizationsScreen';
-import Dashboard from './components/Dashboard';
-import GigListScreen from './components/GigListScreen';
-import GigScreen from './components/GigScreen';
-import GigDetailScreen from './components/GigDetailScreen';
-import TeamScreen from './components/TeamScreen';
-import AssetListScreen from './components/AssetListScreen';
-import AssetScreen from './components/AssetScreen';
-import AssetDetailScreen from './components/AssetDetailScreen';
-import KitListScreen from './components/KitListScreen';
-import KitScreen from './components/KitScreen';
-import KitDetailScreen from './components/KitDetailScreen';
-import InventoryTabScreen from './components/inventory/InventoryTabScreen';
-import TeamMemberDetailScreen from './components/TeamMemberDetailScreen';
-import ImportScreen from './components/ImportScreen';
-import FinancialsScreen from './components/FinancialsScreen';
-import EditUserProfileDialog from './components/EditUserProfileDialog';
-import InvitationErrorScreen from './components/InvitationErrorScreen';
-import CalendarAuthCallback from './components/CalendarAuthCallback';
-import SettingsScreen from './components/SettingsScreen';
+import { BrowserRouter, useNavigate } from 'react-router';
 import { Toaster } from './components/ui/sonner';
 import { NavigationProvider } from './contexts/NavigationContext';
 import { useAuth } from './contexts/AuthContext';
-import { 
-  User, 
-  Organization, 
-  OrganizationMembership, 
-} from './utils/supabase/types';
-
-import DevTableDemoScreen from './components/dev/DevTableDemoScreen';
-
-type Route =
-  | 'login'
-  | 'reset-password'
-  | 'profile-completion'
-  | 'accept-invitation'
-  | 'org-selection'
-  | 'create-org'
-  | 'edit-org'
-  | 'admin-orgs'
-  | 'dashboard'
-  | 'gig-list'
-  | 'create-gig'
-  | 'gig-detail'
-  | 'team'
-  | 'team-member-detail'
-  | 'asset-list'
-  | 'create-asset'
-  | 'asset-detail'
-  | 'kit-list'
-  | 'create-kit'
-  | 'kit-detail'
-  | 'inventory'
-  | 'calendar'
-  | 'calendar-auth-callback'
-  | 'settings'
-  | 'import'
-  | 'financials'
-  | 'dev-demo'
-  | 'mobile-gig-list'
-  | 'mobile-gig-detail'
-  | 'mobile-inventory'
-  | 'mobile-scanner'
-  | 'mobile-settings';
-
-import MobileLayout from './components/mobile/MobileLayout';
-import MobileGigList from './components/mobile/MobileGigList';
-import MobileGigDetail from './components/mobile/MobileGigDetail';
-import MobileInventoryMode from './components/mobile/MobileInventoryMode';
-import MobileSettings from './components/mobile/MobileSettings';
-import MobileLockScreen from './components/mobile/MobileLockScreen';
 import { useMobileLock } from './hooks/useMobileLock';
+import MobileLockScreen from './components/mobile/MobileLockScreen';
+import EditUserProfileDialog from './components/EditUserProfileDialog';
+import InvitationErrorScreen from './components/InvitationErrorScreen';
+import { AppShellProvider } from './routes/appShell';
+import { AppRoutes } from './routes/screens';
+import { useNav } from './routes/useNav';
 
-function App() {
+interface InvitationError {
+  error: string;
+  description?: string;
+}
+
+// Auth redirect errors arrive in the URL hash (e.g. expired invite link).
+function parseInvitationError(): InvitationError | null {
+  const hash = window.location.hash;
+  if (hash && hash.startsWith('#')) {
+    const params = new URLSearchParams(hash.substring(1));
+    const error = params.get('error');
+    if (error) {
+      return {
+        error,
+        description: params.get('error_description')?.replace(/\+/g, ' ') || undefined,
+      };
+    }
+  }
+  return null;
+}
+
+function AppContent() {
   const [isMobile, setIsMobile] = useState(() => window.innerWidth < 768);
-
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth < 768);
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  const { 
-    user, 
-    organizations, 
-    selectedOrganization, 
-    isLoading, 
-    userRole, 
-    logout, 
-    selectOrganization,
-    setOrganizations,
-    setUser
-  } = useAuth();
-
+  const { user, selectedOrganization, setUser } = useAuth();
   const { isLocked, lock, unlock } = useMobileLock(user?.email, isMobile);
+  const navigate = useNavigate();
+  const nav = useNav();
 
-  const [currentRoute, setCurrentRoute] = useState<Route>(() => {
-    // Check for a password-recovery link (implicit flow puts type in the hash)
-    if (window.location.pathname === '/reset-password' || window.location.hash.includes('type=recovery')) {
-      return 'reset-password';
-    }
-    // Check for invitation in URL
-    if (window.location.pathname === '/accept-invitation' || window.location.hash.includes('type=invite')) {
-      return 'accept-invitation';
-    }
-    // Check for Google Calendar auth callback
-    if (window.location.pathname === '/auth/google-calendar/callback' || window.location.search.includes('code=')) {
-      return 'calendar-auth-callback';
-    }
-    // Check for dev-demo in URL
-    if (window.location.pathname === '/dev-demo') {
-      return 'dev-demo';
-    }
-    return (localStorage.getItem('currentRoute') as Route) || 'login';
-  });
-  const [selectedGigId, setSelectedGigId] = useState<string | null>(() => {
-    return localStorage.getItem('selectedGigId');
-  });
-  const [selectedAssetId, setSelectedAssetId] = useState<string | null>(() => {
-    return localStorage.getItem('selectedAssetId');
-  });
-  const [selectedKitId, setSelectedKitId] = useState<string | null>(() => {
-    return localStorage.getItem('selectedKitId');
-  });
-  const [selectedMemberId, setSelectedMemberId] = useState<string | null>(() => {
-    return localStorage.getItem('selectedMemberId');
-  });
-  const [editingOrganization, setEditingOrganization] = useState<Organization | null>(null);
   const [showEditProfileDialog, setShowEditProfileDialog] = useState(false);
-  const [viewedFromCalendar, setViewedFromCalendar] = useState(false);
-  const [gigListKey, setGigListKey] = useState(0);
   const mobileGigListScrollTop = useRef(0);
+  const [invitationError, setInvitationError] = useState<InvitationError | null>(
+    parseInvitationError,
+  );
 
-  // Ensure route is appropriate for device mode
+  // Supabase's implicit flow encodes the entry type in the URL hash/query while
+  // the path may still be '/'. Redirect to the matching route once on mount so
+  // deep-linked recovery/invite/calendar-callback flows resolve.
   useEffect(() => {
-    if (import.meta.env.DEV) {
-      console.log('[TRACE] App: Render state', {
-        isMobile,
-        currentRoute,
-        hasUser: !!user,
-        hasOrg: !!selectedOrganization,
-        innerWidth: window.innerWidth,
-        isLoading
-      });
+    const { pathname, hash, search } = window.location;
+    if (hash.includes('type=recovery') && pathname !== '/reset-password') {
+      navigate('/reset-password', { replace: true });
+    } else if (hash.includes('type=invite') && pathname !== '/accept-invitation') {
+      navigate('/accept-invitation', { replace: true });
+    } else if (search.includes('code=') && pathname !== '/auth/google-calendar/callback') {
+      navigate('/auth/google-calendar/callback', { replace: true });
     }
-
-    if (isLoading || !user || !selectedOrganization) return;
-
-    if (isMobile) {
-      if (!currentRoute.startsWith('mobile-') && currentRoute !== 'login' && currentRoute !== 'profile-completion' && currentRoute !== 'org-selection') {
-        if (import.meta.env.DEV) console.log('[TRACE] App: Redirecting to mobile-dashboard from', currentRoute);
-        setCurrentRoute('mobile-gig-list');
-      }
-    } else {
-      if (currentRoute.startsWith('mobile-')) {
-        if (import.meta.env.DEV) console.log('[TRACE] App: Redirecting to dashboard from', currentRoute);
-        setCurrentRoute('dashboard');
-      }
-    }
-  }, [isMobile, isLoading, user?.id, selectedOrganization?.id]);
-
-  const [invitationError, setInvitationError] = useState<{ error: string, description?: string } | null>(() => {
-    const hash = window.location.hash;
-    if (hash && hash.startsWith('#')) {
-      const params = new URLSearchParams(hash.substring(1));
-      const error = params.get('error');
-      if (error) {
-        return {
-          error,
-          description: params.get('error_description')?.replace(/\+/g, ' ') || undefined
-        };
-      }
-    }
-    return null;
-  });
-
-  // Persist state to localStorage and update URL
-  useEffect(() => {
-    localStorage.setItem('currentRoute', currentRoute);
-    
-    // Update URL to match route for certain routes
-    if (currentRoute === 'dev-demo' && window.location.pathname !== '/dev-demo') {
-      window.history.pushState({}, '', '/dev-demo');
-    } else if (currentRoute !== 'dev-demo' && window.location.pathname === '/dev-demo') {
-      window.history.pushState({}, '', '/');
-    }
-  }, [currentRoute]);
-
-  // Handle browser back/forward buttons
-  useEffect(() => {
-    const handlePopState = () => {
-      if (window.location.pathname === '/dev-demo') {
-        setCurrentRoute('dev-demo');
-      } else if (currentRoute === 'dev-demo') {
-        setCurrentRoute('dashboard');
-      }
-    };
-
-    window.addEventListener('popstate', handlePopState);
-    return () => window.removeEventListener('popstate', handlePopState);
-  }, [currentRoute]);
-
-  useEffect(() => {
-    if (selectedGigId) localStorage.setItem('selectedGigId', selectedGigId);
-    else localStorage.removeItem('selectedGigId');
-  }, [selectedGigId]);
-
-  useEffect(() => {
-    if (selectedAssetId) localStorage.setItem('selectedAssetId', selectedAssetId);
-    else localStorage.removeItem('selectedAssetId');
-  }, [selectedAssetId]);
-
-  useEffect(() => {
-    if (selectedKitId) localStorage.setItem('selectedKitId', selectedKitId);
-    else localStorage.removeItem('selectedKitId');
-  }, [selectedKitId]);
-
-  useEffect(() => {
-    if (selectedMemberId) localStorage.setItem('selectedMemberId', selectedMemberId);
-    else localStorage.removeItem('selectedMemberId');
-  }, [selectedMemberId]);
-
-  // On the accept-invitation route, if no session establishes within a few
-  // seconds, surface a clear error instead of a blank screen.
-  const [inviteSessionTimedOut, setInviteSessionTimedOut] = useState(false);
-  useEffect(() => {
-    if (currentRoute !== 'accept-invitation' || user) {
-      setInviteSessionTimedOut(false);
-      return;
-    }
-    const timer = setTimeout(() => setInviteSessionTimedOut(true), 5000);
-    return () => clearTimeout(timer);
-  }, [currentRoute, user]);
-
-  // Send to login and profile completion if needed, otherwise, attempt to
-  // auto-select an organization if user belongs to only one.
-  useEffect(() => {
-    if (isLoading) return;
-
-    // Recovery flow owns its route until the user finishes (or cancels).
-    if (currentRoute === 'reset-password') return;
-
-    if (!user) {
-      // Don't redirect if we're on the dev-demo route
-      if (currentRoute === 'dev-demo') return;
-      
-      // Don't redirect to login if we're clearly in an invitation flow and waiting for the session
-      if (window.location.pathname === '/accept-invitation' || window.location.hash.includes('type=invite')) {
-        return;
-      }
-      setCurrentRoute('login');
-    } else if (window.location.pathname === '/accept-invitation' && currentRoute === 'accept-invitation' && user && (!user?.first_name?.trim() || !user?.last_name?.trim())) {
-      // If we just landed on the accept-invitation route and have a user with an incomplete profile, 
-      // force profile completion so they can set their password and name.
-      setCurrentRoute('profile-completion');
-    } else if (currentRoute !== 'accept-invitation' && (!user?.first_name?.trim() || !user?.last_name?.trim()) && user) {
-      setCurrentRoute('profile-completion'); // Fill out profile if incomplete
-    } else if (user && (organizations.length === 0 || !selectedOrganization)) {
-      // Don't redirect if we're on the dev-demo route
-      if (currentRoute === 'dev-demo') return;
-
-      // Don't redirect if we're already on an organization management route
-      const orgManagementRoutes: Route[] = ['org-selection', 'create-org', 'accept-invitation', 'calendar-auth-callback'];
-      if (orgManagementRoutes.includes(currentRoute)) {
-        return;
-      }
-
-      if (organizations.length === 0) {
-        setCurrentRoute('org-selection');
-      } else if (organizations.length === 1 && !selectedOrganization) {
-        const membership = organizations[0];
-        selectOrganization(membership.organization);
-      } else if (!selectedOrganization) {
-        // Don't override settings route — it will render once org is selected
-        if (currentRoute === 'settings') return;
-        setCurrentRoute('org-selection');
-      }
-    }
-  }, [user, selectedOrganization, organizations, isLoading, selectOrganization, currentRoute]);
-
-  // Set landing route based on role after an organization is selected
-  useEffect(() => {
-    if (isLoading || !user || !selectedOrganization || userRole === undefined) return;
-
-    // Don't auto-navigate if we are in an invitation flow or dev-demo
-    if (window.location.pathname === '/accept-invitation' || currentRoute === 'dev-demo') return;
-
-    // Viewers can't access the dashboard (the endpoint excludes them) — covers
-    // a persisted/reloaded 'dashboard' route. Send them to the gig list.
-    if (userRole === 'Viewer' && currentRoute === 'dashboard') {
-      setCurrentRoute(isMobile ? 'mobile-gig-list' : 'gig-list');
-      return;
-    }
-
-    // Only auto-navigate to landing page if we are on a transitional route
-    // This prevents kicking the user back to dashboard on every background profile refresh
-    const transitionalRoutes: Route[] = ['login', 'profile-completion', 'org-selection', 'create-org'];
-    if (transitionalRoutes.includes(currentRoute)) {
-      if (isMobile) {
-        setCurrentRoute('mobile-gig-list');
-      } else if (userRole === 'Viewer') {
-        setCurrentRoute('gig-list');
-      } else {
-        setCurrentRoute('dashboard');
-      }
-    }
-  }, [isLoading, user, selectedOrganization, userRole, currentRoute]);
-
-  const handleProfileCompleted = (updatedUser: User) => {
-    setUser(updatedUser);
-    
-    // If we were in an invitation flow, go back to the acceptance screen
-    if (window.location.pathname === '/accept-invitation') {
-      setCurrentRoute('accept-invitation');
-      return;
-    }
-
-    if (organizations.length === 1) {
-      const membership = organizations[0];
-      selectOrganization(membership.organization);
-    } else {
-      setCurrentRoute('org-selection');
-    }
-  };
-
-  const _handleSkipProfile = () => {
-    // If we were in an invitation flow, go back to the acceptance screen
-    if (window.location.pathname === '/accept-invitation') {
-      setCurrentRoute('accept-invitation');
-      return;
-    }
-    setCurrentRoute('org-selection');
-  };
-
-  const handleSelectOrganization = (org: Organization) => {
-    selectOrganization(org);
-    if (userRole === 'Viewer') {
-      setCurrentRoute('gig-list');
-    } else {
-      setCurrentRoute('dashboard');
-    }
-  };
-
-  const handleCreateOrganization = () => {
-    setCurrentRoute('create-org');
-  };
-
-  const handleOrganizationCreated = (org: Organization) => {
-    const newMembership: OrganizationMembership = {
-      organization: org,
-      role: 'Admin'
-    };
-    setOrganizations([...organizations, newMembership]);
-    selectOrganization(org);
-  };
-
-  const handleBackToSelection = () => {
-    selectOrganization(null);
-    setCurrentRoute('org-selection');
-  };
-
-  const handleLogout = async () => {
-    await logout();
-    setSelectedGigId(null);
-    setSelectedAssetId(null);
-    setSelectedKitId(null);
-    setSelectedMemberId(null);
-    setCurrentRoute('login');
-  };
-
-  const handleNavigateToGigs = () => {
-    setCurrentRoute('gig-list');
-  };
-
-  const handleNavigateToTeam = () => {
-    setCurrentRoute('team');
-  };
-
-  const handleCreateGig = () => {
-    setSelectedGigId(null); // Clear selected gig when creating new
-    setCurrentRoute('create-gig');
-  };
-
-  const handleViewGig = (gigId: string, fromCalendar?: boolean) => {
-    setSelectedGigId(gigId);
-    setViewedFromCalendar(!!fromCalendar);
-    setCurrentRoute('gig-detail');
-  };
-
-  const handleEditGig = (gigId: string) => {
-    setSelectedGigId(gigId);
-    setCurrentRoute('create-gig');
-  };
-
-  const handleGigCreated = (gigId: string) => {
-    setSelectedGigId(gigId);
-    // Stay on the same route, which will now render in Edit mode because gigId is set
-    setCurrentRoute('create-gig');
-  };
-
-  const _handleNavigate = (route: Route) => {
-    setCurrentRoute(route);
-  };
-
-  const handleBackToDashboard = () => {
-    if (isMobile) {
-      setCurrentRoute('mobile-gig-list');
-    } else {
-      setCurrentRoute('dashboard');
-    }
-  };
-
-  const handleNavigateToSettings = () => {
-    if (isMobile) {
-      setCurrentRoute('mobile-settings');
-    } else {
-      setCurrentRoute('settings');
-    }
-  };
-
-  const handleBackToGigList = () => {
-    setViewedFromCalendar(false);
-    setGigListKey(k => k + 1);
-    setCurrentRoute('gig-list');
-  };
-
-  const handleBackToCalendar = () => {
-    setGigListKey(k => k + 1);
-    setCurrentRoute('gig-list');
-  };
-
-  const handleNavigateToAssets = () => {
-    setCurrentRoute('asset-list');
-  };
-
-  const handleCreateAsset = () => {
-    setSelectedAssetId(null); // Clear selected asset when creating new
-    setCurrentRoute('create-asset');
-  };
-
-  const handleViewAsset = (assetId: string) => {
-    setSelectedAssetId(assetId);
-    setCurrentRoute('asset-detail');
-  };
-
-  const handleEditAsset = (assetId: string) => {
-    setSelectedAssetId(assetId);
-    setCurrentRoute('create-asset');
-  };
-
-  const handleAssetCreated = (assetId: string) => {
-    setSelectedAssetId(assetId);
-    setCurrentRoute('asset-list');
-  };
-
-  const handleBackToAssetList = () => {
-    setCurrentRoute('asset-list');
-  };
-
-  const handleViewTeamMember = (memberId: string) => {
-    setSelectedMemberId(memberId);
-    setCurrentRoute('team-member-detail');
-  };
-
-  const handleBackToTeam = () => {
-    setCurrentRoute('team');
-  };
-
-  const handleNavigateToKits = () => {
-    setCurrentRoute('kit-list');
-  };
-
-  const handleNavigateToInventory = () => {
-    setCurrentRoute('inventory');
-  };
-
-  const handleCreateKit = () => {
-    setSelectedKitId(null); // Clear selected kit when creating new
-    setCurrentRoute('create-kit');
-  };
-
-  const handleViewKit = (kitId: string) => {
-    setSelectedKitId(kitId);
-    setCurrentRoute('kit-detail'); // Use kit-detail route for viewing
-  };
-
-  const handleEditKit = (kitId: string) => {
-    setSelectedKitId(kitId);
-    setCurrentRoute('create-kit'); // Use create-kit route for editing
-  };
-
-  const handleKitCreated = (kitId: string) => {
-    setSelectedKitId(kitId);
-    setCurrentRoute('kit-list'); // Navigate back to kit list instead of kit detail
-  };
-
-  const handleBackToKitList = () => {
-    setCurrentRoute('kit-list');
-  };
-
-  const handleNavigateToAdminOrgs = () => {
-    setCurrentRoute('admin-orgs');
-  };
-
-  const handleAdminEditOrganization = (org: Organization) => {
-    setEditingOrganization(org);
-    setCurrentRoute('edit-org');
-  };
-
-  const handleOrganizationUpdated = (updatedOrg: Organization) => {
-    // Update the organization in the user's organizations list
-    const updatedOrgs = organizations.map(membership => 
-      membership.organization.id === updatedOrg.id
-        ? { ...membership, organization: updatedOrg }
-        : membership
-    );
-    setOrganizations(updatedOrgs);
-    
-    // If this is the currently selected organization, update it
-    if (selectedOrganization?.id === updatedOrg.id) {
-      selectOrganization(updatedOrg);
-    }
-    
-    // Navigate back to admin orgs list
-    setEditingOrganization(null);
-    setCurrentRoute('admin-orgs');
-  };
-
-  const handleCancelEditOrganization = () => {
-    setEditingOrganization(null);
-    setCurrentRoute('admin-orgs');
-  };
-
-  const handleBackFromAdmin = () => {
-    setCurrentRoute('org-selection');
-  };
-
-  const handleNavigateToImport = () => {
-    setCurrentRoute('import');
-  };
-
-  const [highlightPurchaseId, setHighlightPurchaseId] = useState<string | null>(null);
-  const [returnGigId, setReturnGigId] = useState<string | null>(null);
-
-  const handleNavigateToFinancials = () => {
-    setHighlightPurchaseId(null);
-    setReturnGigId(null);
-    setCurrentRoute('financials');
-  };
-
-  const handleNavigateToPurchase = (purchaseId: string, returnGigId?: string) => {
-    setHighlightPurchaseId(purchaseId);
-    setReturnGigId(returnGigId || null);
-    setCurrentRoute('financials');
-  };
-
-  const handleEditProfile = () => {
-    setShowEditProfileDialog(true);
-  };
-
-  const handleProfileUpdated = (updatedUser: User) => {
-    setUser(updatedUser);
-  };
-
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
-      </div>
-    );
-  }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   if (invitationError) {
     return (
@@ -585,452 +74,61 @@ function App() {
         onBackToLogin={() => {
           setInvitationError(null);
           window.location.hash = '';
-          setCurrentRoute('login');
+          navigate('/');
         }}
       />
     );
   }
 
   return (
-    <NavigationProvider
-      onNavigateToDashboard={handleBackToDashboard}
-      onNavigateToGigs={handleNavigateToGigs}
-      onNavigateToTeam={handleNavigateToTeam}
-      onNavigateToAssets={handleNavigateToAssets}
-      onNavigateToFinancials={handleNavigateToFinancials}
-      onNavigateToPurchase={handleNavigateToPurchase}
-      onNavigateToGigDetail={(gigId) => handleViewGig(gigId)}
-      onEditProfile={handleEditProfile}
-      onNavigateToSettings={handleNavigateToSettings}
+    <AppShellProvider
+      value={{
+        isMobile,
+        openEditProfile: () => setShowEditProfileDialog(true),
+        lockMobile: lock,
+        mobileGigListScrollTop,
+      }}
     >
-      {currentRoute === 'dev-demo' && (
-        <DevTableDemoScreen onBack={() => setCurrentRoute('dashboard')} />
-      )}
+      <NavigationProvider
+        onNavigateToDashboard={nav.toDashboard}
+        onNavigateToGigs={nav.toGigs}
+        onNavigateToTeam={nav.toTeam}
+        onNavigateToAssets={nav.toAssets}
+        onNavigateToFinancials={() => nav.toFinancials()}
+        onNavigateToPurchase={(purchaseId, returnGigId) =>
+          nav.toFinancials({ highlightPurchaseId: purchaseId, returnGigId })
+        }
+        onNavigateToGigDetail={(gigId) => nav.viewGig(gigId)}
+        onEditProfile={() => setShowEditProfileDialog(true)}
+        onNavigateToSettings={nav.toSettings}
+      >
+        <AppRoutes />
 
-      {currentRoute === 'login' && (
-        <LoginScreen />
-      )}
+        <Toaster />
 
-      {currentRoute === 'reset-password' && (
-        <ResetPasswordScreen
-          onComplete={() => {
-            window.history.replaceState({}, '', '/');
-            setCurrentRoute('login');
-          }}
-        />
-      )}
+        {isMobile && isLocked && user && selectedOrganization && (
+          <MobileLockScreen onUnlock={unlock} onLogout={nav.logoutAndHome} />
+        )}
 
-      {currentRoute === 'profile-completion' && user && (
-        <UserProfileCompletionScreen
-          user={user}
-          onProfileCompleted={handleProfileCompleted}
-        />
-      )}
+        {/* Edit Profile Dialog — available on all screens */}
+        {user && (
+          <EditUserProfileDialog
+            user={user}
+            open={showEditProfileDialog}
+            onOpenChange={setShowEditProfileDialog}
+            onProfileUpdated={setUser}
+          />
+        )}
+      </NavigationProvider>
+    </AppShellProvider>
+  );
+}
 
-      {currentRoute === 'accept-invitation' && user && (
-        <AcceptInvitationScreen
-          user={user}
-          organizations={organizations}
-          onContinue={handleBackToDashboard}
-        />
-      )}
-
-      {/* Invite link landed but no session could be established (expired link or
-          the app origin isn't allow-listed in Supabase Auth redirect URLs). */}
-      {currentRoute === 'accept-invitation' && !user && inviteSessionTimedOut && (
-        <InvitationErrorScreen
-          error="We couldn't verify your invitation"
-          errorDescription="The invite link may have expired, or this app's URL isn't allow-listed in the authentication settings. Ask an admin to resend the invitation."
-          onBackToLogin={() => {
-            window.history.replaceState({}, '', '/');
-            setCurrentRoute('login');
-          }}
-        />
-      )}
-      
-      {currentRoute === 'org-selection' && user && (
-        <OrganizationSelectionScreen
-          user={user}
-          organizations={organizations}
-          onSelectOrganization={handleSelectOrganization}
-          onCreateOrganization={handleCreateOrganization}
-          onAdminViewAll={handleNavigateToAdminOrgs}
-          onLogout={handleLogout}
-          onEditProfile={handleEditProfile}
-        />
-      )}
-      
-      {currentRoute === 'create-org' && user && (
-        <OrganizationScreen
-          onOrganizationCreated={handleOrganizationCreated}
-          onCancel={handleBackToSelection}
-          userId={user.id}
-         
-        />
-      )}
-      
-      {currentRoute === 'edit-org' && user && editingOrganization && (
-        <OrganizationScreen
-          organization={editingOrganization}
-          onOrganizationCreated={handleOrganizationCreated}
-          onOrganizationUpdated={handleOrganizationUpdated}
-          onCancel={handleCancelEditOrganization}
-        />
-      )}
-      
-      {currentRoute === 'calendar-auth-callback' && user && (
-        <CalendarAuthCallback
-          userId={user.id}
-          onAuthComplete={() => setCurrentRoute('settings')}
-          onBack={() => setCurrentRoute('settings')}
-        />
-      )}
-
-      {/* Org-specific screens */}
-      {selectedOrganization && user && (
-        isMobile ? (
-          <MobileLayout 
-            currentRoute={currentRoute} 
-            onNavigate={(route) => setCurrentRoute(route as Route)}
-            onSwitchOrganization={organizations.length > 1 ? handleBackToSelection : undefined}
-          >
-            {currentRoute === 'mobile-gig-list' && (
-              <MobileGigList
-                onViewGig={(gigId) => {
-                  setSelectedGigId(gigId);
-                  setCurrentRoute('mobile-gig-detail');
-                }}
-                initialScrollTop={mobileGigListScrollTop.current}
-                onScrollPositionChange={(pos) => { mobileGigListScrollTop.current = pos; }}
-              />
-            )}
-            {currentRoute === 'mobile-gig-detail' && selectedGigId && (
-              <MobileGigDetail
-                gigId={selectedGigId}
-                onBack={() => setCurrentRoute('mobile-gig-list')}
-                onViewPackingList={(gigId) => {
-                  setSelectedGigId(gigId);
-                  setCurrentRoute('mobile-inventory');
-                }}
-              />
-            )}
-            {currentRoute === 'mobile-inventory' && (
-              <MobileInventoryMode 
-                gigId={selectedGigId} 
-                onSelectGig={(id) => setSelectedGigId(id)} 
-              />
-            )}
-            {currentRoute === 'mobile-settings' && (
-              <MobileSettings onLogout={handleLogout} onLock={lock} />
-            )}
-            {/* Fallback to desktop views if needed, but wrapped in mobile layout */}
-            {currentRoute === 'dashboard' && (
-              <Dashboard
-                organization={selectedOrganization}
-                user={user}
-                userRole={userRole}
-                onBackToSelection={handleBackToSelection}
-                onLogout={handleLogout}
-                onNavigateToGigs={handleNavigateToGigs}
-                onNavigateToTeam={handleNavigateToTeam}
-                onNavigateToDashboard={handleBackToDashboard}
-                onNavigateToAssets={handleNavigateToAssets}
-                onNavigateToKits={handleNavigateToKits}
-                onEditProfile={handleEditProfile}
-                onNavigateToGigEdit={handleViewGig}
-              />
-            )}
-          </MobileLayout>
-        ) : (
-          <>
-            {currentRoute === 'dashboard' && (
-              <Dashboard
-                organization={selectedOrganization}
-                user={user}
-                userRole={userRole}
-                onBackToSelection={handleBackToSelection}
-                onLogout={handleLogout}
-                onNavigateToGigs={handleNavigateToGigs}
-                onNavigateToTeam={handleNavigateToTeam}
-                onNavigateToDashboard={handleBackToDashboard}
-                onNavigateToAssets={handleNavigateToAssets}
-                onNavigateToKits={handleNavigateToKits}
-                onEditProfile={handleEditProfile}
-                onNavigateToGigEdit={handleViewGig}
-              />
-            )}
-
-            {currentRoute === 'gig-list' && (
-              <GigListScreen
-                key={gigListKey}
-                organization={selectedOrganization}
-                user={user}
-                userRole={userRole}
-                initialViewMode={viewedFromCalendar ? 'calendar' : 'list'}
-                onBack={handleBackToDashboard}
-                onCreateGig={handleCreateGig}
-                onViewGig={handleViewGig}
-                onEditGig={handleEditGig}
-                onNavigateToDashboard={handleBackToDashboard}
-                onNavigateToGigs={handleBackToGigList}
-                onNavigateToAssets={handleNavigateToAssets}
-                onNavigateToImport={handleNavigateToImport}
-                onSwitchOrganization={handleBackToSelection}
-                onEditProfile={handleEditProfile}
-                onLogout={handleLogout}
-              />
-            )}
-
-            {currentRoute === 'create-gig' && (
-              <GigScreen
-                organization={selectedOrganization}
-                user={user}
-                userRole={userRole}
-                gigId={selectedGigId} // Pass gigId for edit mode
-                onCancel={handleBackToGigList}
-                onGigCreated={handleGigCreated}
-                onGigUpdated={handleBackToGigList} // After updating, go back to list
-                onGigDeleted={handleBackToGigList} // After deleting, go back to list
-                onSwitchOrganization={handleBackToSelection}
-                onEditProfile={handleEditProfile}
-                onLogout={handleLogout}
-                onEditOrganization={handleAdminEditOrganization}
-              />
-            )}
-
-            {currentRoute === 'gig-detail' && selectedGigId && (
-              <GigDetailScreen
-                gigId={selectedGigId}
-                organization={selectedOrganization}
-                user={user}
-                userRole={userRole}
-                onBack={viewedFromCalendar ? handleBackToCalendar : handleBackToGigList}
-                backLabel={viewedFromCalendar ? 'Back to Calendar' : 'Back to Gigs'}
-                onEdit={handleEditGig}
-                onSwitchOrganization={handleBackToSelection}
-                onLogout={handleLogout}
-                onEditOrganization={handleAdminEditOrganization}
-              />
-            )}
-            
-            {currentRoute === 'team' && (
-              <TeamScreen
-                organization={selectedOrganization}
-                user={user}
-                userRole={userRole}
-                onNavigateToDashboard={handleBackToDashboard}
-                onNavigateToGigs={handleBackToGigList}
-                onNavigateToTeam={handleNavigateToTeam}
-                onNavigateToAssets={handleNavigateToAssets}
-                onViewMember={handleViewTeamMember}
-                onSwitchOrganization={handleBackToSelection}
-                onEditProfile={handleEditProfile}
-                onLogout={handleLogout}
-              />
-            )}
-
-            {currentRoute === 'team-member-detail' && selectedMemberId && (
-              <TeamMemberDetailScreen
-                organization={selectedOrganization}
-                user={user}
-                userRole={userRole}
-                memberId={selectedMemberId}
-                onBack={handleBackToTeam}
-                onEdit={(member) => {
-                  handleBackToTeam();
-                }}
-                onSwitchOrganization={handleBackToSelection}
-                onLogout={handleLogout}
-              />
-            )}
-            
-            {currentRoute === 'asset-list' && (
-              <AssetListScreen
-                organization={selectedOrganization}
-                user={user}
-                userRole={userRole}
-                onBack={handleBackToDashboard}
-                onCreateAsset={handleCreateAsset}
-                onViewAsset={handleViewAsset}
-                onNavigateToDashboard={handleBackToDashboard}
-                onNavigateToGigs={handleBackToGigList}
-                onNavigateToAssets={handleNavigateToAssets}
-                onNavigateToKits={handleNavigateToKits}
-                onNavigateToInventory={handleNavigateToInventory}
-                onNavigateToImport={handleNavigateToImport}
-                onSwitchOrganization={handleBackToSelection}
-                onEditProfile={handleEditProfile}
-                onLogout={handleLogout}
-               
-              />
-            )}
-
-            {currentRoute === 'asset-detail' && selectedAssetId && (
-              <AssetDetailScreen
-                organization={selectedOrganization}
-                user={user}
-                userRole={userRole}
-                assetId={selectedAssetId}
-                onBack={handleBackToAssetList}
-                onEdit={handleEditAsset}
-                onSwitchOrganization={handleBackToSelection}
-                onEditProfile={handleEditProfile}
-                onLogout={handleLogout}
-                onNavigateToPurchases={(purchaseId) => {
-                  setHighlightPurchaseId(purchaseId || null);
-                  setCurrentRoute('financials');
-                }}
-              />
-            )}
-
-            {currentRoute === 'create-asset' && (
-              <AssetScreen
-                organization={selectedOrganization}
-                user={user}
-                userRole={userRole}
-                assetId={selectedAssetId} // Pass assetId for edit mode
-                onCancel={handleBackToAssetList}
-                onAssetCreated={handleAssetCreated}
-                onAssetUpdated={handleBackToAssetList} // After updating, go back to list
-                onNavigateToPurchases={(purchaseId) => {
-                  setHighlightPurchaseId(purchaseId || null);
-                  setCurrentRoute('financials');
-                }}
-                onSwitchOrganization={handleBackToSelection}
-                onEditProfile={handleEditProfile}
-                onLogout={handleLogout}
-              />
-            )}
-            
-            {currentRoute === 'kit-list' && (
-              <KitListScreen
-                organization={selectedOrganization}
-                user={user}
-                userRole={userRole}
-                onBack={handleBackToDashboard}
-                onCreateKit={handleCreateKit}
-                onViewKit={handleViewKit}
-                onEditKit={handleEditKit}
-                onNavigateToDashboard={handleBackToDashboard}
-                onNavigateToGigs={handleBackToGigList}
-                onNavigateToAssets={handleNavigateToAssets}
-                onNavigateToKits={handleNavigateToKits}
-                onNavigateToInventory={handleNavigateToInventory}
-                onSwitchOrganization={handleBackToSelection}
-                onLogout={handleLogout}
-              />
-            )}
-
-            {currentRoute === 'create-kit' && (
-              <KitScreen
-                organization={selectedOrganization}
-                user={user}
-                userRole={userRole}
-                kitId={selectedKitId} // Pass kitId for edit mode
-                onCancel={handleBackToKitList}
-                onKitCreated={handleKitCreated}
-                onKitUpdated={handleBackToKitList} // After updating, go back to list
-                onSwitchOrganization={handleBackToSelection}
-                onLogout={handleLogout}
-              />
-            )}
-            
-            {currentRoute === 'kit-detail' && selectedKitId && (
-              <KitDetailScreen
-                kitId={selectedKitId}
-                organization={selectedOrganization}
-                user={user}
-                userRole={userRole}
-                onBack={handleBackToKitList}
-                onEdit={handleEditKit}
-                onSwitchOrganization={handleBackToSelection}
-                onLogout={handleLogout}
-              />
-            )}
-
-            {currentRoute === 'inventory' && (
-              <InventoryTabScreen
-                organization={selectedOrganization}
-                user={user}
-                userRole={userRole}
-                onNavigateToAssets={handleNavigateToAssets}
-                onNavigateToKits={handleNavigateToKits}
-                onNavigateToInventory={handleNavigateToInventory}
-              />
-            )}
-
-            {currentRoute === 'settings' && (
-              <SettingsScreen
-                organization={selectedOrganization}
-                user={user}
-                userRole={userRole}
-                onBack={handleBackToDashboard}
-                onNavigateToDashboard={handleBackToDashboard}
-                onNavigateToGigs={handleNavigateToGigs}
-                onNavigateToAssets={handleNavigateToAssets}
-                onSwitchOrganization={handleBackToSelection}
-                onLogout={handleLogout}
-                onEditProfile={handleEditProfile}
-              />
-            )}
-
-            {currentRoute === 'import' && (
-              <ImportScreen
-                organization={selectedOrganization}
-                user={user}
-                userRole={userRole}
-                onCancel={handleBackToDashboard}
-                onNavigateToGigs={handleNavigateToGigs}
-                onSwitchOrganization={handleBackToSelection}
-                onLogout={handleLogout}
-              />
-            )}
-
-            {currentRoute === 'financials' && (
-              <FinancialsScreen
-                organization={selectedOrganization}
-                user={user}
-                userRole={userRole}
-                onSwitchOrganization={handleBackToSelection}
-                onLogout={handleLogout}
-                onNavigateToGigs={handleNavigateToGigs}
-                onNavigateToAssets={handleNavigateToAssets}
-                highlightPurchaseId={highlightPurchaseId}
-                returnGigId={returnGigId}
-                onNavigateToGigDetail={handleViewGig}
-              />
-            )}
-          </>
-        )
-      )}
-
-      {currentRoute === 'admin-orgs' && user && (
-        <AdminOrganizationsScreen
-          user={user}
-          onEditOrganization={handleAdminEditOrganization}
-          onCreateOrganization={handleCreateOrganization}
-          onBack={handleBackFromAdmin}
-          onLogout={handleLogout}
-          onEditProfile={handleEditProfile}
-        />
-      )}
-      
-      <Toaster />
-
-      {isMobile && isLocked && user && selectedOrganization && (
-        <MobileLockScreen onUnlock={unlock} onLogout={handleLogout} />
-      )}
-      
-      {/* Edit Profile Dialog - Available on all screens */}
-      {user && (
-        <EditUserProfileDialog
-          user={user}
-          open={showEditProfileDialog}
-          onOpenChange={setShowEditProfileDialog}
-          onProfileUpdated={handleProfileUpdated}
-        />
-      )}
-    </NavigationProvider>
+function App() {
+  return (
+    <BrowserRouter>
+      <AppContent />
+    </BrowserRouter>
   );
 }
 
