@@ -16,6 +16,8 @@ export const queryKeys = {
   // Assets
   assets: (orgId: string) => ['assets', orgId] as const,
   asset: (assetId: string) => ['asset', assetId] as const,
+  assetStatusHistory: (assetId: string) => ['assetStatusHistory', assetId] as const,
+  assetInventoryTracking: (assetId: string) => ['assetInventoryTracking', assetId] as const,
 
   // Kits
   kits: (orgId: string) => ['kits', orgId] as const,
