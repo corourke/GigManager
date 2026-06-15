@@ -445,6 +445,56 @@ export async function reclassifyExpenseAsAsset(purchaseItemId: string): Promise<
 }
 
 /**
+ * Assign a gig_id to all children of a purchase header that don't already have one.
+ * Uses Promise.allSettled so partial failures are surfaced.
+ */
+export async function assignGigToPurchaseChildren(
+  headerId: string,
+  gigId: string,
+  organizationId: string
+): Promise<{ updated: number; failed: number }> {
+  const supabase = getSupabase();
+  try {
+    const { data: children, error } = await (supabase.from('purchases') as any)
+      .select('id, gig_id')
+      .eq('parent_id', headerId);
+
+    if (error) throw error;
+    if (!children || children.length === 0) return { updated: 0, failed: 0 };
+
+    const unlinked = children.filter((c: any) => !c.gig_id);
+    if (unlinked.length === 0) return { updated: 0, failed: 0 };
+
+    const results = await Promise.allSettled(
+      unlinked.map((c: any) =>
+        updatePurchase(c.id, { gig_id: gigId })
+      )
+    );
+
+    const updated = results.filter(r => r.status === 'fulfilled').length;
+    const failed = results.filter(r => r.status === 'rejected').length;
+    return { updated, failed };
+  } catch (err) {
+    return handleApiError(err, 'assign gig to purchase children');
+  }
+}
+
+/**
+ * Predicate: should we prompt the user to create a gig financial ledger entry?
+ * Only fires for expense items (row_type === 'item') being assigned a gig for the first time.
+ */
+export function shouldPromptForLedgerEntry(
+  rowType: string,
+  previousGigId: string | null | undefined,
+  newGigId: string | null | undefined
+): boolean {
+  if (rowType !== 'item') return false;
+  if (!newGigId) return false;
+  if (previousGigId) return false;
+  return true;
+}
+
+/**
  * Scan an invoice or receipt PDF using AI
  */
 export async function scanInvoice(file: File, organizationId: string) {

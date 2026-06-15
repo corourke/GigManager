@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { getPurchases, createPurchase, createPurchaseTransaction, scanInvoice, importPurchases, reclassifyExpenseAsAsset, deletePurchase } from './purchase.service';
+import { getPurchases, createPurchase, createPurchaseTransaction, scanInvoice, importPurchases, reclassifyExpenseAsAsset, deletePurchase, shouldPromptForLedgerEntry } from './purchase.service';
 import { createClient } from '../utils/supabase/client';
 import { requireAuth } from '../utils/supabase/auth-utils';
 
@@ -173,6 +173,28 @@ describe('purchase.service', () => {
     it('throws when no row was deleted (RLS denied)', async () => {
       mockSupabase.then.mockImplementation((onFulfilled: any) => onFulfilled({ data: [], error: null }));
       await expect(deletePurchase('p1')).rejects.toThrow(/permission|not found/i);
+    });
+  });
+
+  describe('shouldPromptForLedgerEntry', () => {
+    it('returns true for expense item being assigned a gig for the first time', () => {
+      expect(shouldPromptForLedgerEntry('item', null, 'gig-1')).toBe(true);
+    });
+
+    it('returns false for asset lines', () => {
+      expect(shouldPromptForLedgerEntry('asset', null, 'gig-1')).toBe(false);
+    });
+
+    it('returns false for re-assignment (already had a gig)', () => {
+      expect(shouldPromptForLedgerEntry('item', 'gig-old', 'gig-new')).toBe(false);
+    });
+
+    it('returns false when clearing gig (newGigId is null)', () => {
+      expect(shouldPromptForLedgerEntry('item', null, null)).toBe(false);
+    });
+
+    it('returns false for header row type', () => {
+      expect(shouldPromptForLedgerEntry('header', null, 'gig-1')).toBe(false);
     });
   });
 });
