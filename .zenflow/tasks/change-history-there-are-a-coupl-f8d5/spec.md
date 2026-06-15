@@ -155,6 +155,164 @@ export interface ActivityLogEntry extends Omit<DbActivityLog, 'context'> {
 - `DbAssetStatusHistory` (table dropped)
 - `DbGigStatusHistory` (table dropped)
 
+### 3.3 New: `src/utils/activityLog.events.ts` — Event Registry
+
+This is the **single source of truth** for all captured event types. Adding a new event type means adding one entry here; removing means deleting one entry. TypeScript's `keyof typeof ACTIVITY_EVENTS` ensures that any use of an event type string is checked at compile time against this registry.
+
+```typescript
+import type { ActivityLogContext } from '../supabase/types';
+
+interface EventTypeConfig {
+  label: string;             // human-readable name for UI display
+  entityType: string;        // top-level entity: 'gig' | 'asset' | 'kit' | 'staffing' | 'participant' | 'kit_assignment'
+  revertible: boolean;       // whether a "Revert" action is offered in the UI
+  calendarIndicator: boolean; // whether this event triggers the calendar change dot
+  contextKeys: (keyof ActivityLogContext)[];  // required context fields (for documentation + dev tooling)
+  format: (ctx: ActivityLogContext) => string; // pure function → human-readable sentence
+}
+
+export const ACTIVITY_EVENTS = {
+  'gig.status_changed': {
+    label: 'Status Changed',
+    entityType: 'gig',
+    revertible: true,
+    calendarIndicator: true,
+    contextKeys: ['gig_title', 'from_status', 'to_status'],
+    format: (ctx) => `Status changed from ${ctx.from_status} to ${ctx.to_status}`,
+  },
+  'gig.rescheduled': {
+    label: 'Rescheduled',
+    entityType: 'gig',
+    revertible: true,
+    calendarIndicator: true,
+    contextKeys: ['gig_title', 'from', 'to'],
+    format: (ctx) => `Rescheduled from ${formatDate(ctx.from?.start)} to ${formatDate(ctx.to?.start)}`,
+  },
+  'gig.renamed': {
+    label: 'Renamed',
+    entityType: 'gig',
+    revertible: true,
+    calendarIndicator: false,
+    contextKeys: ['from_title', 'to_title'],
+    format: (ctx) => `Renamed from '${ctx.from_title}' to '${ctx.to_title}'`,
+  },
+  'participant.added': {
+    label: 'Participant Added',
+    entityType: 'participant',
+    revertible: false,
+    calendarIndicator: false,
+    contextKeys: ['gig_title', 'organization_name', 'role'],
+    format: (ctx) => `${ctx.organization_name} added as ${ctx.role} participant`,
+  },
+  'participant.removed': {
+    label: 'Participant Removed',
+    entityType: 'participant',
+    revertible: false,
+    calendarIndicator: false,
+    contextKeys: ['gig_title', 'organization_name', 'role'],
+    format: (ctx) => `${ctx.organization_name} removed as ${ctx.role} participant`,
+  },
+  'staffing.slot_added': {
+    label: 'Staff Slot Added',
+    entityType: 'staffing',
+    revertible: false,
+    calendarIndicator: false,
+    contextKeys: ['gig_title', 'role'],
+    format: (ctx) => `${ctx.role} slot added`,
+  },
+  'staffing.slot_removed': {
+    label: 'Staff Slot Removed',
+    entityType: 'staffing',
+    revertible: false,
+    calendarIndicator: false,
+    contextKeys: ['gig_title', 'role'],
+    format: (ctx) => `${ctx.role} slot removed`,
+  },
+  'staffing.assigned': {
+    label: 'Staff Assigned',
+    entityType: 'staffing',
+    revertible: false,
+    calendarIndicator: false,
+    contextKeys: ['gig_title', 'user_name', 'role', 'initial_status'],
+    format: (ctx) => `${ctx.user_name} assigned as ${ctx.role} (${ctx.initial_status})`,
+  },
+  'staffing.status_changed': {
+    label: 'Staffing Status Changed',
+    entityType: 'staffing',
+    revertible: true,
+    calendarIndicator: false,
+    contextKeys: ['gig_title', 'user_name', 'role', 'from_status', 'to_status'],
+    format: (ctx) => `${ctx.user_name}'s ${ctx.role} status changed from ${ctx.from_status} to ${ctx.to_status}`,
+  },
+  'staffing.unassigned': {
+    label: 'Staff Unassigned',
+    entityType: 'staffing',
+    revertible: false,
+    calendarIndicator: false,
+    contextKeys: ['gig_title', 'user_name', 'role'],
+    format: (ctx) => `${ctx.user_name} unassigned from ${ctx.role}`,
+  },
+  'kit_assignment.added': {
+    label: 'Kit Assigned',
+    entityType: 'kit_assignment',
+    revertible: false,
+    calendarIndicator: false,
+    contextKeys: ['gig_title', 'kit_name'],
+    format: (ctx) => `${ctx.kit_name} kit assigned`,
+  },
+  'kit_assignment.removed': {
+    label: 'Kit Removed',
+    entityType: 'kit_assignment',
+    revertible: false,
+    calendarIndicator: false,
+    contextKeys: ['gig_title', 'kit_name'],
+    format: (ctx) => `${ctx.kit_name} kit removed`,
+  },
+  'asset.status_changed': {
+    label: 'Asset Status Changed',
+    entityType: 'asset',
+    revertible: false,
+    calendarIndicator: false,
+    contextKeys: ['asset_model', 'category', 'from_status', 'to_status'],
+    format: (ctx) => `Status changed from ${ctx.from_status} to ${ctx.to_status}`,
+  },
+  'kit.asset_added': {
+    label: 'Asset Added to Kit',
+    entityType: 'kit',
+    revertible: false,
+    calendarIndicator: false,
+    contextKeys: ['kit_name', 'asset_model', 'quantity'],
+    format: (ctx) => `${ctx.quantity}× ${ctx.asset_model} added to kit`,
+  },
+  'kit.asset_removed': {
+    label: 'Asset Removed from Kit',
+    entityType: 'kit',
+    revertible: false,
+    calendarIndicator: false,
+    contextKeys: ['kit_name', 'asset_model'],
+    format: (ctx) => `${ctx.asset_model} removed from kit`,
+  },
+} as const satisfies Record<string, EventTypeConfig>;
+
+export type ActivityEventType = keyof typeof ACTIVITY_EVENTS;
+```
+
+**Derived helpers** (also exported from this file):
+
+```typescript
+export const REVERTIBLE_EVENT_TYPES = Object.entries(ACTIVITY_EVENTS)
+  .filter(([, cfg]) => cfg.revertible)
+  .map(([type]) => type as ActivityEventType);
+
+export const CALENDAR_INDICATOR_EVENT_TYPES = Object.entries(ACTIVITY_EVENTS)
+  .filter(([, cfg]) => cfg.calendarIndicator)
+  .map(([type]) => type as ActivityEventType);
+```
+
+**To add a new event type**: add one entry to `ACTIVITY_EVENTS`. TypeScript's exhaustiveness checking in the service layer (via `ActivityEventType`) will surface any missing cases at compile time.
+
+**To remove an event type**: delete its entry from `ACTIVITY_EVENTS`. The TypeScript compiler will flag any remaining usages of the deleted key.
+
 ---
 
 ## 4. Service Layer
@@ -166,7 +324,7 @@ Public API:
 ```typescript
 export async function logActivity(entry: {
   organization_id: string | null;
-  event_type: string;
+  event_type: ActivityEventType;
   entity_type: string;
   entity_id: string;
   gig_id?: string | null;
@@ -200,7 +358,7 @@ export async function revertActivityLogEvent(
 - Single query: `activity_log` ordered by `occurred_at DESC`, limited to 50, filtered `>= NOW() - INTERVAL '30 days'`. RLS handles visibility automatically via the two SELECT policies.
 
 **`revertActivityLogEvent` implementation notes**:
-1. Fetch the target event. Validate `event_type` is in `['gig.status_changed', 'gig.rescheduled', 'gig.renamed', 'staffing.status_changed']`.
+1. Fetch the target event. Validate `event_type` via `ACTIVITY_EVENTS[event_type]?.revertible === true` (derived from the registry — no hardcoded list).
 2. Check for subsequent changes: query `activity_log` for entries on the same `gig_id`/`entity_id` with `occurred_at > event.occurred_at`. If any and `options.force` is not set, return `{ warning: true, subsequentCount: N }`.
 3. For `gig.rescheduled`: call `checkAllConflicts` from `conflictDetection.service.ts` with the `context.from` dates. Throw if conflicts found.
 4. Apply inverse mutation via existing service functions (`updateGig`, `updateStaffAssignmentStatus`). Pass `reverted_event_id: event.id` in the context of the resulting log entry.
@@ -270,14 +428,23 @@ Uses existing UI primitives: `Card`, `Button`, `Badge`, `Loader2` from `./ui/*`.
 
 ### 5.2 New: `src/utils/activityLog.utils.ts`
 
+Thin wrappers that delegate entirely to `ACTIVITY_EVENTS` — no separate lists or switch statements to maintain:
+
 ```typescript
-export function formatActivityEvent(entry: ActivityLogEntry): string
-export function isRevertible(eventType: string): boolean
+import { ACTIVITY_EVENTS, type ActivityEventType } from './activityLog.events';
+import type { ActivityLogEntry } from '../supabase/types';
+
+export function formatActivityEvent(entry: ActivityLogEntry): string {
+  const cfg = ACTIVITY_EVENTS[entry.event_type as ActivityEventType];
+  return cfg ? cfg.format(entry.context) : entry.event_type;
+}
+
+export function isRevertible(eventType: string): boolean {
+  return ACTIVITY_EVENTS[eventType as ActivityEventType]?.revertible ?? false;
+}
 ```
 
-`formatActivityEvent` is a pure function (no DB calls, no React) that maps the 15 event types + context to English sentences. It is fully unit-testable.
-
-`isRevertible` returns `true` for `['gig.status_changed', 'gig.rescheduled', 'gig.renamed', 'staffing.status_changed']`.
+Both functions are pure (no DB calls, no React) and fully unit-testable. Because `format` is defined on each registry entry, **adding a new event type automatically adds its formatting** — there is no secondary switch statement to update.
 
 ### 5.3 Modified: `src/components/Dashboard.tsx`
 
@@ -289,7 +456,7 @@ export function isRevertible(eventType: string): boolean
 ### 5.4 Modified: `src/components/CalendarScreen.tsx`
 
 - Add `changedGigIds: Set<string>` state.
-- After gigs load, query `activity_log` for `gig_id` values with `event_type IN ('gig.status_changed', 'gig.rescheduled')` and `occurred_at >= NOW() - INTERVAL '7 days'`. Store as a `Set<string>`.
+- After gigs load, query `activity_log` for `gig_id` values with `event_type IN (CALENDAR_INDICATOR_EVENT_TYPES)` and `occurred_at >= NOW() - INTERVAL '7 days'`. Store as a `Set<string>`. The event type list is derived from the registry (`calendarIndicator: true` entries) — no hardcoded strings in the component.
 - Extend the calendar event renderer: if the event's `id` is in `changedGigIds`, append a small amber dot (e.g., `<span className="inline-block w-2 h-2 rounded-full bg-amber-400 ml-1" />`) after the event title.
 
 ### 5.5 Modified: `src/components/GigDetailScreen.tsx`
@@ -359,6 +526,7 @@ sequenceDiagram
 
 ### New files
 - `supabase/migrations/20260615000000_activity_log.sql`
+- `src/utils/activityLog.events.ts` — event type registry (add/remove event types here)
 - `src/services/activityLog.service.ts`
 - `src/utils/activityLog.utils.ts`
 - `src/components/ActivityFeed.tsx`
@@ -387,7 +555,8 @@ npm run build && npm run test:run
 
 | Module | Tests |
 |---|---|
-| `activityLog.utils.ts` | `formatActivityEvent` for all 15 event types; `isRevertible` for eligible/ineligible types |
+| `activityLog.events.ts` | Registry is complete (all 15 event types present); each entry has all required fields; `REVERTIBLE_EVENT_TYPES` and `CALENDAR_INDICATOR_EVENT_TYPES` contain the correct members |
+| `activityLog.utils.ts` | `formatActivityEvent` delegates to registry for all event types; returns raw `event_type` for unknown types; `isRevertible` matches registry `revertible` flag |
 | `activityLog.service.ts` | `logActivity` inserts correct shape; `revertActivityLogEvent` applies inverse + logs new entry; subsequent-changes warning path; conflict rejection for `gig.rescheduled` |
 | `gig.service.ts` | `updateGig` calls `logActivity` when status/dates/title change; does NOT call it when only notes/tags change |
 | `ActivityFeed.tsx` | Renders entries with correct text; shows revert button only for revertible types when `onRevert` provided; shows empty and loading states |
