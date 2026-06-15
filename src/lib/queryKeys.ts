@@ -29,5 +29,7 @@ export const queryKeys = {
 
   // Financials
   financials: (gigId: string) => ['financials', gigId] as const,
+  gigFinancialsSummary: (gigId: string) => ['gigFinancialsSummary', gigId] as const,
+  gigProjectedStaff: (gigId: string) => ['gigProjectedStaff', gigId] as const,
   purchases: (orgId: string) => ['purchases', orgId] as const,
 } as const;

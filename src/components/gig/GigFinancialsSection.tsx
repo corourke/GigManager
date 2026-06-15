@@ -4,7 +4,6 @@ import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
-import { createClient } from '../../utils/supabase/client';
 import {DollarSign, FileText, Loader2, Trash2, Edit, ExternalLink } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
@@ -15,12 +14,8 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Textarea } from '../ui/textarea';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table';
 import OrganizationSelector from '../OrganizationSelector';
-import { 
-  getGigFinancials, 
-  updateGigFinancials, 
-  deleteGigFinancial,
-  getGigProfitabilitySummary 
-} from '../../services/gig.service';
+import { updateGigFinancials } from '../../services/gig.service';
+import { useGigFinancialsData, useDeleteGigFinancial } from './useGigFinancialsData';
 import { scanInvoice } from '../../services/purchase.service';
 import ReviewScannedDataDialog from '../ReviewScannedDataDialog';
 import { useAutoSave } from '../../utils/hooks/useAutoSave';
@@ -123,10 +118,6 @@ export default function GigFinancialsSection({
   gigStartDate,
 }: GigFinancialsSectionProps) {
   const navigation = useNavigation();
-  const [isLoading, setIsLoading] = useState(true);
-  const [isSummaryLoading, setIsSummaryLoading] = useState(true);
-  const [summary, setSummary] = useState<any>(null);
-  const [projectedStaff, setProjectedStaff] = useState<any[]>([]);
   const [showFinancialModal, setShowFinancialModal] = useState(false);
   const [currentFinancialIndex, setCurrentFinancialIndex] = useState<number | null>(null);
   const [selectedCounterparty, setSelectedCounterparty] = useState<any>(null);
@@ -170,6 +161,18 @@ export default function GigFinancialsSection({
     name: 'financials',
   });
 
+  // Server state (Phase 7): reads via useQuery, delete via useMutation.
+  const { financialsQuery, summaryQuery, projectedStaffQuery } = useGigFinancialsData(
+    gigId,
+    currentOrganizationId,
+    isAdmin,
+  );
+  const deleteFinancial = useDeleteGigFinancial(gigId);
+  const summary = summaryQuery.data ?? null;
+  const projectedStaff = projectedStaffQuery.data ?? [];
+  const isLoading = financialsQuery.isLoading;
+  const isSummaryLoading = summaryQuery.isLoading;
+
   const handleSave = useCallback(async (data: FinancialsFormInput) => {
     // Only save financials that have a valid amount
     const validFinancials = data.financials.filter(f => {
@@ -199,7 +202,8 @@ export default function GigFinancialsSection({
       purchase_id: f.purchase_id || undefined,
       staff_assignment_id: f.staff_assignment_id || undefined,
     })));
-    loadSummaryData();
+    void summaryQuery.refetch();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [gigId, currentOrganizationId]);
 
   const handleSaveSuccess = useCallback((data: FinancialsFormInput) => {
@@ -230,100 +234,52 @@ export default function GigFinancialsSection({
     }
   }, [formValues, isDirty, triggerSave]);
 
+  // Sync the form from the financials query on initial load and explicit
+  // refetches. The query is never invalidated by mutations, so this cannot
+  // clobber in-progress edits / autosave.
   useEffect(() => {
-    if (isAdmin) {
-      loadFinancialsData();
-      loadSummaryData();
-      loadProjectedStaff();
-    }
-  }, [gigId, isAdmin]);
+    const data = financialsQuery.data;
+    if (!data) return;
+    const loadedFinancials = data.map((f: any) => ({
+      id: f.id,
+      date: f.date || format(new Date(), 'yyyy-MM-dd'),
+      amount: (f.amount !== null && f.amount !== undefined) ? f.amount.toString() : '',
+      type: f.type,
+      category: f.category,
+      description: f.description || '',
+      reference_number: f.reference_number || '',
+      counterparty_id: f.counterparty_id || '',
+      counterparty: f.counterparty || null,
+      external_entity_name: f.external_entity_name || '',
+      currency: f.currency || 'USD',
+      due_date: f.due_date || '',
+      paid_at: f.paid_at || '',
+      notes: f.notes || '',
+      purchase_id: f.purchase_id || '',
+      staff_assignment_id: f.staff_assignment_id || '',
+    }));
+    reset({ financials: loadedFinancials });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [financialsQuery.data]);
+
+  const refetchAll = useCallback(() => {
+    void financialsQuery.refetch();
+    void summaryQuery.refetch();
+    void projectedStaffQuery.refetch();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gigId]);
 
   // Listen for external updates (like staff finalization)
   useEffect(() => {
     const handleExternalUpdate = (event: any) => {
       if (event.detail?.gigId === gigId) {
-        loadFinancialsData();
-        loadSummaryData();
-        loadProjectedStaff();
+        refetchAll();
       }
     };
 
     window.addEventListener('gig-financials-updated', handleExternalUpdate);
     return () => window.removeEventListener('gig-financials-updated', handleExternalUpdate);
-  }, [gigId]);
-
-  const loadProjectedStaff = async () => {
-    try {
-      const supabase = createClient();
-      const { data, error } = await supabase
-        .from('gig_staff_assignments')
-        .select(`
-          id,
-          fee,
-          rate,
-          status,
-          user:user_id(id, first_name, last_name),
-          slot:gig_staff_slots!inner(gig_id, organization_id, role_info:staff_roles(name))
-        `)
-        .eq('slot.gig_id', gigId)
-        .eq('slot.organization_id', currentOrganizationId)
-        .is('completed_at', null)
-        .or('fee.gt.0,rate.gt.0');
-
-      if (error) throw error;
-      
-      // Filter for Confirmed/Requested only as per summary logic
-      const validProjected = (data || []).filter(a => a.status === 'Confirmed' || a.status === 'Requested');
-      setProjectedStaff(validProjected);
-    } catch (error) {
-      console.error('Error loading projected staff:', error);
-    }
-  };
-
-  const loadSummaryData = async () => {
-    setIsSummaryLoading(true);
-    try {
-      const data = await getGigProfitabilitySummary(gigId, currentOrganizationId);
-      setSummary(data);
-    } catch (error) {
-      console.error('Error loading summary:', error);
-    } finally {
-      setIsSummaryLoading(false);
-    }
-  };
-
-  const loadFinancialsData = async () => {
-    setIsLoading(true);
-    try {
-      const data = await getGigFinancials(gigId, currentOrganizationId);
-      
-      const loadedFinancials = data.map((f: any) => ({
-        id: f.id,
-        date: f.date || format(new Date(), 'yyyy-MM-dd'),
-        amount: (f.amount !== null && f.amount !== undefined) ? f.amount.toString() : '',
-        type: f.type,
-        category: f.category,
-        description: f.description || '',
-        reference_number: f.reference_number || '',
-        counterparty_id: f.counterparty_id || '',
-        counterparty: f.counterparty || null,
-        external_entity_name: f.external_entity_name || '',
-        currency: f.currency || 'USD',
-        due_date: f.due_date || '',
-        paid_at: f.paid_at || '',
-        notes: f.notes || '',
-        purchase_id: f.purchase_id || '',
-        staff_assignment_id: f.staff_assignment_id || '',
-      }));
-
-      reset({ financials: loadedFinancials });
-    } catch (error: any) {
-      console.error('Error loading financials:', error);
-      toast.error('Failed to load financials');
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  }, [gigId, refetchAll]);
 
   const handleAddFinancial = () => {
     setModalData({
@@ -386,9 +342,8 @@ export default function GigFinancialsSection({
     const financial = fields[index];
     if (financial.id && !financial.id.startsWith('temp-')) {
       try {
-        await deleteGigFinancial(financial.id);
+        await deleteFinancial.mutateAsync(financial.id);
         toast.success('Financial record deleted');
-        loadSummaryData();
       } catch (error: any) {
         console.error('Error deleting financial:', error);
         toast.error('Failed to delete financial record');
@@ -661,8 +616,7 @@ export default function GigFinancialsSection({
                 gigId={gigId}
                 organizationId={currentOrganizationId}
                 onSuccess={() => {
-                  loadFinancialsData();
-                  loadSummaryData();
+                  refetchAll();
                 }}
                 onOther={handleAddFinancial}
                 gigStartDate={gigStartDate}
@@ -1108,8 +1062,7 @@ export default function GigFinancialsSection({
         file={scannedFile}
         gigId={gigId}
         onSuccess={() => {
-          loadFinancialsData();
-          loadSummaryData();
+          refetchAll();
         }}
       />
     </>

@@ -1,7 +1,18 @@
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import type { ReactElement } from 'react';
+import { render as rtlRender, screen, fireEvent, waitFor } from '@testing-library/react';
 import { vi, describe, it, expect, beforeEach } from 'vitest';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import GigFinancialsSection from './GigFinancialsSection';
 import * as gigService from '../../services/gig.service';
+
+// The component now uses TanStack Query, so renders need a QueryClientProvider.
+// retry:false keeps tests deterministic and fast.
+function render(ui: ReactElement) {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  });
+  return rtlRender(<QueryClientProvider client={queryClient}>{ui}</QueryClientProvider>);
+}
 
 // Mock the gig service
 vi.mock('../../services/gig.service', () => ({
