@@ -7,7 +7,7 @@ import {
   SheetTitle,
 } from '../../ui/sheet';
 import { Button } from '../../ui/button';
-import AttachmentManager from '../../AttachmentManager';
+import DocumentDetailView from './DocumentDetailView';
 import AssetDetailView from './AssetDetailView';
 import GigDetailView from './GigDetailView';
 
@@ -109,7 +109,16 @@ export default function PurchaseDetailPanel({
 
   return (
     <Sheet open={isOpen} onOpenChange={(open) => { if (!open) onPanelChange({ mode: 'closed' }); }}>
-      <SheetContent side={isMobile ? 'bottom' : 'right'} className={isMobile ? 'h-[80vh]' : 'w-[420px] sm:max-w-[420px]'}>
+      <SheetContent
+        side={isMobile ? 'bottom' : 'right'}
+        className={
+          isMobile
+            ? 'h-[85vh]'
+            : panelState.mode === 'document'
+            ? 'w-[760px] max-w-[92vw] sm:max-w-[760px]'
+            : 'w-[420px] sm:max-w-[420px]'
+        }
+      >
         <SheetHeader className="pb-2 border-b border-gray-200">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
@@ -146,13 +155,7 @@ export default function PurchaseDetailPanel({
 
         <div className="flex-1 overflow-y-auto p-4">
           {panelState.mode === 'document' && (
-            <AttachmentManager
-              organizationId={organizationId}
-              entityType="purchase"
-              entityId={panelState.headerId}
-              allowUpload={false}
-              title="Attached Documents"
-            />
+            <DocumentDetailView headerId={panelState.headerId} />
           )}
 
           {panelState.mode === 'asset' && (
