@@ -16,10 +16,11 @@ interface FinancialsScreenProps {
   onSwitchOrganization: () => void;
   onLogout: () => void;
   onNavigateToGigs: () => void;
-  onNavigateToAssets: () => void;
   highlightPurchaseId?: string | null;
   returnGigId?: string | null;
   onNavigateToGigDetail?: (gigId: string) => void;
+  onNavigateToAssetDetail?: (assetId: string) => void;
+  onEditAsset?: (assetId: string) => void;
 }
 
 type FinancialTab = 'purchases' | 'gig-accounting' | 'reporting';
@@ -31,10 +32,11 @@ export default function FinancialsScreen({
   onSwitchOrganization,
   onLogout,
   onNavigateToGigs,
-  onNavigateToAssets,
   highlightPurchaseId,
   returnGigId,
-  onNavigateToGigDetail
+  onNavigateToGigDetail,
+  onNavigateToAssetDetail,
+  onEditAsset
 }: FinancialsScreenProps) {
   const [activeTab, setActiveTab] = useState<FinancialTab>('purchases');
 
@@ -95,7 +97,8 @@ export default function FinancialsScreen({
               highlightPurchaseId={highlightPurchaseId}
               returnGigId={returnGigId}
               onNavigateToGigDetail={onNavigateToGigDetail}
-              onNavigateToAssets={onNavigateToAssets}
+              onNavigateToAssetDetail={onNavigateToAssetDetail}
+              onEditAsset={onEditAsset}
             />
           </TabsContent>
 

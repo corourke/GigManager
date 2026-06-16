@@ -591,10 +591,11 @@ function FinancialsRoute() {
       onSwitchOrganization={nav.switchOrganization}
       onLogout={nav.logoutAndHome}
       onNavigateToGigs={nav.toGigs}
-      onNavigateToAssets={nav.toAssets}
       highlightPurchaseId={params.get('highlight')}
       returnGigId={params.get('returnGig')}
       onNavigateToGigDetail={(id) => nav.viewGig(id)}
+      onNavigateToAssetDetail={nav.viewAsset}
+      onEditAsset={nav.editAsset}
     />
   );
 }

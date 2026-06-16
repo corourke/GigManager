@@ -1,15 +1,16 @@
 import { useState, useEffect } from 'react';
-import { Loader2, ExternalLink } from 'lucide-react';
+import { Loader2, ExternalLink, Pencil } from 'lucide-react';
 import { Button } from '../../ui/button';
 import { DetailLine } from './DetailLine';
 import { getAsset } from '../../../services/asset.service';
 
 interface AssetDetailViewProps {
   assetId: string;
-  onNavigateToAssets?: () => void;
+  onViewAsset?: (assetId: string) => void;
+  onEditAsset?: (assetId: string) => void;
 }
 
-export default function AssetDetailView({ assetId, onNavigateToAssets }: AssetDetailViewProps) {
+export default function AssetDetailView({ assetId, onViewAsset, onEditAsset }: AssetDetailViewProps) {
   const [asset, setAsset] = useState<Record<string, any> | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -61,17 +62,30 @@ export default function AssetDetailView({ assetId, onNavigateToAssets }: AssetDe
       {asset.vendor && <DetailLine label="Vendor" value={asset.vendor} />}
       <DetailLine label="Status" value={asset.status || '—'} />
 
-      {onNavigateToAssets && (
-        <div className="pt-3 border-t border-gray-200">
-          <Button
-            variant="outline"
-            size="sm"
-            className="w-full"
-            onClick={onNavigateToAssets}
-          >
-            <ExternalLink className="w-3.5 h-3.5 mr-1.5" />
-            Open Asset
-          </Button>
+      {(onViewAsset || onEditAsset) && (
+        <div className="pt-3 border-t border-gray-200 flex gap-2">
+          {onEditAsset && (
+            <Button
+              variant="default"
+              size="sm"
+              className="flex-1"
+              onClick={() => onEditAsset(assetId)}
+            >
+              <Pencil className="w-3.5 h-3.5 mr-1.5" />
+              Edit Asset
+            </Button>
+          )}
+          {onViewAsset && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="flex-1"
+              onClick={() => onViewAsset(assetId)}
+            >
+              <ExternalLink className="w-3.5 h-3.5 mr-1.5" />
+              Open Asset
+            </Button>
+          )}
         </div>
       )}
     </div>

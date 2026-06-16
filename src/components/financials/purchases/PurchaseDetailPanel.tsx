@@ -21,7 +21,8 @@ interface PurchaseDetailPanelProps {
   panelState: PanelState;
   onPanelChange: (state: PanelState) => void;
   organizationId: string;
-  onNavigateToAssets?: () => void;
+  onViewAsset?: (assetId: string) => void;
+  onEditAsset?: (assetId: string) => void;
   onNavigateToGigDetail?: (gigId: string) => void;
   getAssetIdForItem?: (itemId: string) => string | null;
   getGigIdForItem?: (itemId: string) => string | null;
@@ -43,7 +44,8 @@ export default function PurchaseDetailPanel({
   panelState,
   onPanelChange,
   organizationId,
-  onNavigateToAssets,
+  onViewAsset,
+  onEditAsset,
   onNavigateToGigDetail,
   getAssetIdForItem,
   getGigIdForItem,
@@ -120,7 +122,7 @@ export default function PurchaseDetailPanel({
         }
       >
         <SheetHeader className="pb-2 border-b border-gray-200">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between pr-8">
             <div className="flex items-center gap-2">
               {modeIcon}
               <SheetTitle className="text-sm">{modeLabel}</SheetTitle>
@@ -161,7 +163,8 @@ export default function PurchaseDetailPanel({
           {panelState.mode === 'asset' && (
             <AssetDetailView
               assetId={panelState.assetId}
-              onNavigateToAssets={onNavigateToAssets}
+              onViewAsset={onViewAsset}
+              onEditAsset={onEditAsset}
             />
           )}
 

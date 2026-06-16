@@ -69,7 +69,8 @@ interface PurchasesTabProps {
   highlightPurchaseId?: string | null;
   returnGigId?: string | null;
   onNavigateToGigDetail?: (gigId: string) => void;
-  onNavigateToAssets?: () => void;
+  onNavigateToAssetDetail?: (assetId: string) => void;
+  onEditAsset?: (assetId: string) => void;
 }
 
 export default function PurchasesTab({
@@ -79,7 +80,8 @@ export default function PurchasesTab({
   highlightPurchaseId: initialHighlightId,
   returnGigId,
   onNavigateToGigDetail,
-  onNavigateToAssets,
+  onNavigateToAssetDetail,
+  onEditAsset,
 }: PurchasesTabProps) {
   const [purchases, setPurchases] = useState<DbPurchase[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -323,7 +325,11 @@ export default function PurchasesTab({
 
   const getSiblingItemIds = useCallback((headerId: string) => {
     const group = groupedPurchases.find(g => g.header.id === headerId);
-    return group ? group.children.map(c => c.id) : [];
+    if (!group) return [];
+    // Only line items that have something to show in the panel (a linked asset
+    // or gig) participate in Prev/Next stepping. Pure expense lines have no
+    // panel view, so they're skipped rather than stalling the stepper.
+    return group.children.filter(c => c.asset_id || c.gig_id).map(c => c.id);
   }, [groupedPurchases]);
 
   const getAssetIdForItem = useCallback((itemId: string) => {
@@ -842,7 +848,8 @@ export default function PurchasesTab({
         panelState={panelState}
         onPanelChange={setPanelState}
         organizationId={organization.id}
-        onNavigateToAssets={onNavigateToAssets}
+        onViewAsset={onNavigateToAssetDetail}
+        onEditAsset={onEditAsset}
         onNavigateToGigDetail={onNavigateToGigDetail}
         getAssetIdForItem={getAssetIdForItem}
         getGigIdForItem={getGigIdForItem}
