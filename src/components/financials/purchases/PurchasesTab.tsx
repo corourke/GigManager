@@ -598,6 +598,7 @@ export default function PurchasesTab({
                 return next;
               });
             }}
+            onViewDoc={handleViewDoc}
           />
         ) : (
           <div className="space-y-4">

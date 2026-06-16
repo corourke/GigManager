@@ -23,6 +23,7 @@ interface PurchaseSummaryViewProps {
   headerAttachments: Map<string, { filePath: string; fileName: string }>;
   gigNames: Map<string, string>;
   onSelectGroup: (headerId: string) => void;
+  onViewDoc: (headerId: string) => void;
 }
 
 type SortField = 'date' | 'vendor' | 'total';
@@ -33,6 +34,7 @@ export default function PurchaseSummaryView({
   headerAttachments,
   gigNames,
   onSelectGroup,
+  onViewDoc,
 }: PurchaseSummaryViewProps) {
   const [sortField, setSortField] = useState<SortField>('date');
   const [sortDir, setSortDir] = useState<SortDir>('desc');
@@ -139,7 +141,19 @@ export default function PurchaseSummaryView({
                   )}
                 </TableCell>
                 <TableCell className="py-1 px-3 text-center">
-                  {hasDoc && <FileText className="w-3.5 h-3.5 text-sky-500 inline" />}
+                  {hasDoc && (
+                    <button
+                      type="button"
+                      className="inline-flex items-center justify-center rounded p-0.5 hover:bg-sky-100"
+                      title={`View ${headerAttachments.get(group.header.id)?.fileName || 'document'}`}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onViewDoc(group.header.id);
+                      }}
+                    >
+                      <FileText className="w-3.5 h-3.5 text-sky-500" />
+                    </button>
+                  )}
                 </TableCell>
                 <TableCell className="py-1 px-3">
                   {gigName && (
