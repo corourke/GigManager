@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { getPurchases, createPurchase, createPurchaseTransaction, scanInvoice, importPurchases, reclassifyExpenseAsAsset, deletePurchase, shouldPromptForLedgerEntry } from './purchase.service';
+import { getPurchases, createPurchase, createPurchaseTransaction, scanInvoice, importPurchases, reclassifyExpenseAsAsset, deletePurchase, shouldPromptForLedgerEntry, computeAssetFieldChanges } from './purchase.service';
 import { createClient } from '../utils/supabase/client';
 import { requireAuth } from '../utils/supabase/auth-utils';
 
@@ -195,6 +195,54 @@ describe('purchase.service', () => {
 
     it('returns false for header row type', () => {
       expect(shouldPromptForLedgerEntry('header', null, 'gig-1')).toBe(false);
+    });
+  });
+
+  describe('computeAssetFieldChanges', () => {
+    const asset = {
+      manufacturer_model: 'SM58',
+      description: 'SM58',
+      category: 'Audio',
+      sub_category: 'Microphones',
+      quantity: 1,
+      item_price: 100,
+      item_cost: 105,
+      vendor: 'Sweetwater',
+      acquisition_date: '2024-01-01',
+    };
+
+    it('returns no changes when the line matches the asset', () => {
+      const changes = computeAssetFieldChanges(
+        { description: 'SM58', category: 'Audio', sub_category: 'Microphones', quantity: 1, item_price: 100, item_cost: 105, vendor: 'Sweetwater', purchase_date: '2024-01-01' },
+        asset
+      );
+      expect(changes).toEqual([]);
+    });
+
+    it('detects a quantity change (the bundle-of-2 case)', () => {
+      const changes = computeAssetFieldChanges({ quantity: 2 }, asset);
+      expect(changes).toEqual([{ field: 'quantity', label: 'Quantity', from: 1, to: 2 }]);
+    });
+
+    it('maps description to both manufacturer_model and description', () => {
+      const changes = computeAssetFieldChanges({ description: 'SM58 Beta' }, asset);
+      expect(changes.map(c => c.field)).toEqual(['manufacturer_model', 'description']);
+      expect(changes.every(c => c.to === 'SM58 Beta')).toBe(true);
+    });
+
+    it('maps purchase_date to acquisition_date', () => {
+      const changes = computeAssetFieldChanges({ purchase_date: '2024-06-01' }, asset);
+      expect(changes).toEqual([{ field: 'acquisition_date', label: 'Acquisition Date', from: '2024-01-01', to: '2024-06-01' }]);
+    });
+
+    it('treats empty string and null as equal (no spurious change)', () => {
+      const changes = computeAssetFieldChanges({ category: '' }, { ...asset, category: null });
+      expect(changes).toEqual([]);
+    });
+
+    it('ignores fields not present on the line snapshot', () => {
+      const changes = computeAssetFieldChanges({ item_price: 100 }, asset);
+      expect(changes).toEqual([]);
     });
   });
 });

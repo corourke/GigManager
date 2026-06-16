@@ -59,7 +59,6 @@ import { toast } from 'sonner';
 import { isSyntheticHeader } from './reconciliation';
 import PurchaseDetailPanel, { PanelState } from './PurchaseDetailPanel';
 import ReviewScannedDataDialog from '../../ReviewScannedDataDialog';
-import PurchaseEditDialog from './PurchaseEditDialog';
 import PurchaseSummaryView from './PurchaseSummaryView';
 
 interface PurchasesTabProps {
@@ -112,9 +111,7 @@ export default function PurchasesTab({
   const [scanFile, setScanFile] = useState<File | null>(null);
   const [isScanning, setIsScanning] = useState(false);
   const scanInputRef = useRef<HTMLInputElement>(null);
-  const [editDialogOpen, setEditDialogOpen] = useState(false);
-  const [editingHeader, setEditingHeader] = useState<DbPurchase | null>(null);
-  const [editingItems, setEditingItems] = useState<DbPurchase[]>([]);
+  const [editPurchaseId, setEditPurchaseId] = useState<string | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<{ type: 'header' | 'item'; purchase: DbPurchase; childCount?: number } | null>(null);
   const [viewMode, setViewMode] = useState<'detailed' | 'summary'>('detailed');
   const [gigNames, setGigNames] = useState<Map<string, string>>(new Map());
@@ -370,6 +367,7 @@ export default function PurchasesTab({
   const isAdmin = userRole === 'Admin' || userRole === 'Manager';
 
   const handleAddNew = () => {
+    setEditPurchaseId(null);
     setScannedData(null);
     setScanFile(null);
     setReviewDialogOpen(true);
@@ -387,6 +385,7 @@ export default function PurchasesTab({
     setIsScanning(true);
     try {
       const data = await scanInvoice(file, organization.id);
+      setEditPurchaseId(null);
       setScanFile(file);
       setScannedData(data);
       setReviewDialogOpen(true);
@@ -402,9 +401,11 @@ export default function PurchasesTab({
   };
 
   const handleEditHeader = (group: { header: DbPurchase; children: DbPurchase[] }) => {
-    setEditingHeader(group.header);
-    setEditingItems(group.children);
-    setEditDialogOpen(true);
+    // Reuse the same dialog as invoice import/create, in edit mode.
+    setScannedData(null);
+    setScanFile(null);
+    setEditPurchaseId(group.header.id);
+    setReviewDialogOpen(true);
   };
 
   const handleDeleteConfirmed = async () => {
@@ -854,17 +855,6 @@ export default function PurchasesTab({
         getAssetIdForItem={getAssetIdForItem}
         getGigIdForItem={getGigIdForItem}
       />
-      {editingHeader && (
-        <PurchaseEditDialog
-          open={editDialogOpen}
-          onOpenChange={setEditDialogOpen}
-          header={editingHeader}
-          items={editingItems}
-          organizationId={organization.id}
-          onSaved={loadPurchases}
-        />
-      )}
-
       <AlertDialog open={!!deleteConfirm} onOpenChange={(open) => { if (!open) setDeleteConfirm(null); }}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -903,11 +893,13 @@ export default function PurchasesTab({
 
       <ReviewScannedDataDialog
         open={reviewDialogOpen}
-        onOpenChange={setReviewDialogOpen}
+        onOpenChange={(o) => { setReviewDialogOpen(o); if (!o) setEditPurchaseId(null); }}
         organizationId={organization.id}
         scannedData={scannedData}
         file={scanFile}
+        editPurchaseId={editPurchaseId || undefined}
         onSuccess={handlePurchaseCreated}
+        onUpdated={handlePurchaseCreated}
       />
       <input
         type="file"

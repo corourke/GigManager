@@ -17,9 +17,18 @@ import {
 import { format } from 'date-fns';
 import { toast } from 'sonner';
 import { toFinCategory } from '../utils/supabase/constants';
-import { createPurchaseTransaction } from '../services/purchase.service';
-import { createGigFinancial } from '../services/gig.service';
-import { uploadAttachment, linkAttachmentToEntity } from '../services/attachment.service';
+import {
+  createPurchaseTransaction,
+  getPurchaseWithDetails,
+  updatePurchase,
+  createPurchase,
+  deletePurchase,
+  computeAssetFieldChanges,
+  type AssetFieldChange,
+} from '../services/purchase.service';
+import { createGigFinancial, getGigFinancials, updateGigFinancial } from '../services/gig.service';
+import { uploadAttachment, linkAttachmentToEntity, getAttachmentUrl } from '../services/attachment.service';
+import { updateAsset } from '../services/asset.service';
 
 function NumericInput({ value, onChange, placeholder = '0.00', className = '' }: {
   value: number;
@@ -72,6 +81,20 @@ interface ScannedItem {
   tag_number?: string;
   replacement_value?: number;
   show_extra?: boolean;
+  // Edit-mode tracking (present only when editing an existing purchase)
+  _purchaseId?: string;
+  _assetId?: string | null;
+  _gigId?: string | null;
+  _rowType?: string;
+}
+
+interface UpdatePlan {
+  headerData: Record<string, any>;
+  updatedItems: { id: string; data: Record<string, any> }[];
+  newItems: Record<string, any>[];
+  removedItemIds: string[];
+  assetChanges: { assetId: string; itemDescription: string; changes: AssetFieldChange[]; data: Record<string, any> }[];
+  gigChanges: { finId: string; label: string; from: number; to: number }[];
 }
 
 interface ScannedData {
@@ -94,6 +117,10 @@ interface ReviewScannedDataDialogProps {
   file: File | null;
   gigId?: string;
   onSuccess: (purchaseId: string) => void;
+  /** When set, the dialog edits this existing purchase instead of creating one. */
+  editPurchaseId?: string;
+  /** Called after a successful edit save. */
+  onUpdated?: (purchaseId: string) => void;
 }
 
 export default function ReviewScannedDataDialog({
@@ -104,9 +131,17 @@ export default function ReviewScannedDataDialog({
   file,
   gigId,
   onSuccess,
+  editPurchaseId,
+  onUpdated,
 }: ReviewScannedDataDialogProps) {
+  const isEditMode = !!editPurchaseId;
   const [formData, setFormData] = useState<ScannedData | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [assetsById, setAssetsById] = useState<Record<string, any>>({});
+  const [ledgerByPurchaseId, setLedgerByPurchaseId] = useState<Record<string, any>>({});
+  const [originalItemIds, setOriginalItemIds] = useState<string[]>([]);
+  const [existingDoc, setExistingDoc] = useState<{ url: string; kind: 'image' | 'pdf' | 'other'; name: string } | null>(null);
+  const [pendingPlan, setPendingPlan] = useState<UpdatePlan | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [showFullPreview, setShowFullPreview] = useState(false);
   const [pdfPageImages, setPdfPageImages] = useState<string[]>([]);
@@ -162,7 +197,7 @@ export default function ReviewScannedDataDialog({
           is_asset: item.is_asset ?? item.is_durable ?? false,
         }))
       }));
-    } else if (open) {
+    } else if (open && !editPurchaseId) {
       setFormData({
         vendor: '',
         purchase_date: format(new Date(), 'yyyy-MM-dd'),
@@ -171,7 +206,79 @@ export default function ReviewScannedDataDialog({
         items: []
       });
     }
-  }, [scannedData, open]);
+  }, [scannedData, open, editPurchaseId]);
+
+  // Edit mode: load the existing purchase, its linked assets, and gig ledger rows.
+  useEffect(() => {
+    if (!open || !editPurchaseId) return;
+    let cancelled = false;
+    setExistingDoc(null);
+    setPendingPlan(null);
+    (async () => {
+      try {
+        const details: any = await getPurchaseWithDetails(editPurchaseId);
+        if (cancelled) return;
+
+        const items: any[] = details.items || [];
+        const aById: Record<string, any> = {};
+        (details.assets || []).forEach((a: any) => { aById[a.id] = a; });
+        setAssetsById(aById);
+        setOriginalItemIds(items.map((it) => it.id));
+
+        setFormData(recalculateBurdenedCosts({
+          vendor: details.vendor || '',
+          purchase_date: details.purchase_date || format(new Date(), 'yyyy-MM-dd'),
+          total_inv_amount: details.total_inv_amount || 0,
+          payment_method: details.payment_method || undefined,
+          description: details.description || '',
+          category: details.category || undefined,
+          sub_category: details.sub_category || undefined,
+          items: items.map((it) => ({
+            description: it.description || '',
+            quantity: it.quantity || 1,
+            item_price: it.item_price || 0,
+            item_cost: it.item_cost || 0,
+            is_asset: it.row_type === 'asset',
+            category: it.category || '',
+            sub_category: it.sub_category || '',
+            _purchaseId: it.id,
+            _assetId: it.asset_id || null,
+            _gigId: it.gig_id || null,
+            _rowType: it.row_type,
+          })),
+        }));
+
+        // Gig ledger rows linked by purchase_id, across every distinct linked gig.
+        const gigIds = Array.from(new Set(
+          [details.gig_id, ...items.map((it) => it.gig_id)].filter(Boolean)
+        )) as string[];
+        const lByPid: Record<string, any> = {};
+        for (const gid of gigIds) {
+          try {
+            const rows: any[] = await getGigFinancials(gid, organizationId);
+            (rows || []).forEach((r) => { if (r.purchase_id) lByPid[r.purchase_id] = r; });
+          } catch { /* non-fatal */ }
+        }
+        if (!cancelled) setLedgerByPurchaseId(lByPid);
+
+        // Show the existing attached document in the preview pane.
+        const att: any = (details.attachments || [])[0];
+        if (att?.file_path) {
+          try {
+            const url = await getAttachmentUrl(att.file_path);
+            const ext = (att.file_name || '').split('.').pop()?.toLowerCase() || '';
+            const kind = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'svg'].includes(ext)
+              ? 'image' : ext === 'pdf' ? 'pdf' : 'other';
+            if (!cancelled) setExistingDoc({ url, kind, name: att.file_name });
+          } catch { /* non-fatal */ }
+        }
+      } catch (err: any) {
+        console.error('Error loading purchase for edit:', err);
+        toast.error('Failed to load purchase');
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [open, editPurchaseId, organizationId]);
 
   function recalculateBurdenedCosts(data: ScannedData): ScannedData {
     const totalLinePrice = data.items.reduce((sum, item) => sum + (item.item_price * item.quantity), 0);
@@ -350,6 +457,142 @@ export default function ReviewScannedDataDialog({
     }
   };
 
+  // Build the set of DB writes implied by the current edit, including proposed
+  // changes to linked assets and gig ledger entries (surfaced for confirmation).
+  const buildUpdatePlan = (fd: ScannedData): UpdatePlan => {
+    const headerData = {
+      vendor: fd.vendor,
+      purchase_date: fd.purchase_date,
+      description: fd.description,
+      total_inv_amount: fd.total_inv_amount,
+      payment_method: fd.payment_method,
+      category: fd.category,
+      sub_category: fd.sub_category,
+    };
+
+    const updatedItems: UpdatePlan['updatedItems'] = [];
+    const newItems: UpdatePlan['newItems'] = [];
+    const presentIds = new Set<string>();
+
+    for (const item of fd.items) {
+      const lineData = {
+        description: item.description,
+        quantity: item.quantity,
+        item_price: item.item_price,
+        item_cost: item.item_cost,
+        line_amount: Number((item.item_price * item.quantity).toFixed(4)),
+        line_cost: Number((item.item_cost * item.quantity).toFixed(4)),
+        category: item.category || fd.category,
+        sub_category: item.sub_category || fd.sub_category,
+      };
+      if (item._purchaseId) {
+        presentIds.add(item._purchaseId);
+        updatedItems.push({ id: item._purchaseId, data: lineData });
+      } else {
+        newItems.push({
+          organization_id: organizationId,
+          parent_id: editPurchaseId,
+          row_type: 'item',
+          vendor: fd.vendor,
+          ...lineData,
+        });
+      }
+    }
+
+    const removedItemIds = originalItemIds.filter(id => !presentIds.has(id));
+
+    // Asset changes — only for existing lines linked to an asset.
+    const assetChanges: UpdatePlan['assetChanges'] = [];
+    for (const item of fd.items) {
+      if (item._assetId && assetsById[item._assetId]) {
+        const changes = computeAssetFieldChanges(
+          {
+            description: item.description,
+            category: item.category || fd.category,
+            sub_category: item.sub_category || fd.sub_category,
+            quantity: item.quantity,
+            item_price: item.item_price,
+            item_cost: item.item_cost,
+            vendor: fd.vendor,
+            purchase_date: fd.purchase_date,
+          },
+          assetsById[item._assetId]
+        );
+        if (changes.length > 0) {
+          const data: Record<string, any> = {};
+          changes.forEach(c => { data[c.field] = c.to; });
+          assetChanges.push({ assetId: item._assetId, itemDescription: item.description || '(item)', changes, data });
+        }
+      }
+    }
+
+    // Gig ledger changes — header total and any per-line linked ledger amounts.
+    const gigChanges: UpdatePlan['gigChanges'] = [];
+    const headerLedger = editPurchaseId ? ledgerByPurchaseId[editPurchaseId] : null;
+    if (headerLedger && Number(headerLedger.amount) !== Number(fd.total_inv_amount)) {
+      gigChanges.push({ finId: headerLedger.id, label: 'Invoice total → gig ledger', from: Number(headerLedger.amount), to: Number(fd.total_inv_amount) });
+    }
+    for (const item of fd.items) {
+      if (!item._purchaseId) continue;
+      const led = ledgerByPurchaseId[item._purchaseId];
+      if (!led) continue;
+      const newAmt = Number((item.item_price * item.quantity).toFixed(2));
+      if (Number(led.amount) !== newAmt) {
+        gigChanges.push({ finId: led.id, label: `${item.description || 'Line item'} → gig ledger`, from: Number(led.amount), to: newAmt });
+      }
+    }
+
+    return { headerData, updatedItems, newItems, removedItemIds, assetChanges, gigChanges };
+  };
+
+  const commitUpdate = async (plan: UpdatePlan) => {
+    if (!editPurchaseId) return;
+    setIsSubmitting(true);
+    try {
+      await updatePurchase(editPurchaseId, plan.headerData);
+      for (const u of plan.updatedItems) await updatePurchase(u.id, u.data);
+      for (const n of plan.newItems) await createPurchase(n);
+      for (const id of plan.removedItemIds) await deletePurchase(id);
+      for (const a of plan.assetChanges) await updateAsset(a.assetId, a.data);
+      for (const g of plan.gigChanges) await updateGigFinancial(g.finId, { amount: g.to });
+
+      if (file) {
+        try {
+          const attachment = await uploadAttachment(organizationId, file);
+          if (attachment) await linkAttachmentToEntity(attachment.id, 'purchase', editPurchaseId);
+        } catch (uploadErr) {
+          console.error('Error uploading attachment:', uploadErr);
+          toast.error('Purchase updated, but failed to upload the new document');
+        }
+      }
+
+      if (plan.gigChanges.length > 0) {
+        window.dispatchEvent(new CustomEvent('gig-financials-updated', {}));
+      }
+      toast.success('Purchase updated successfully');
+      onUpdated?.(editPurchaseId);
+      onOpenChange(false);
+    } catch (err: any) {
+      console.error('Error updating purchase:', err);
+      toast.error(err.message || 'Failed to update purchase');
+    } finally {
+      setIsSubmitting(false);
+      setPendingPlan(null);
+    }
+  };
+
+  const handleUpdate = () => {
+    if (!formData) return;
+    const plan = buildUpdatePlan(formData);
+    if (plan.assetChanges.length > 0 || plan.gigChanges.length > 0) {
+      setPendingPlan(plan); // show confirmation first
+    } else {
+      commitUpdate(plan);
+    }
+  };
+
+  const fmtVal = (v: unknown) => (v === null || v === undefined || v === '' ? '—' : String(v));
+
   const calculatedTotalCost = formData.items.reduce((sum, item) => sum + ((item.item_cost ?? 0) * item.quantity), 0);
   const diff = Math.abs(calculatedTotalCost - formData.total_inv_amount);
   const hasMismatch = diff > 0.05;
@@ -377,9 +620,9 @@ export default function ReviewScannedDataDialog({
           >
             <div style={{ padding: '6px 16px', borderBottom: '1px solid #e5e7eb', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
               <div>
-                <h2 style={{ fontSize: 15, fontWeight: 600 }}>{scannedData ? 'Review Scanned Purchase' : 'Create Purchase Entry'}</h2>
+                <h2 style={{ fontSize: 15, fontWeight: 600 }}>{isEditMode ? 'Edit Purchase' : scannedData ? 'Review Scanned Purchase' : 'Create Purchase Entry'}</h2>
                 <p style={{ fontSize: 11, color: '#6b7280' }}>
-                  {scannedData ? 'Verify the extracted data below.' : 'Enter details manually using the document preview as reference.'}
+                  {isEditMode ? 'Update line items below. Changes to a linked asset or gig ledger are confirmed before saving.' : scannedData ? 'Verify the extracted data below.' : 'Enter details manually using the document preview as reference.'}
                 </p>
               </div>
               <DialogPrimitive.Close className="rounded-sm opacity-70 hover:opacity-100 p-1">
@@ -408,10 +651,23 @@ export default function ReviewScannedDataDialog({
                       <Loader2 className="w-5 h-5 mr-2 animate-spin" /> Rendering PDF...
                     </div>
                   )}
-                  {!previewUrl && (
+                  {/* Edit mode: render the already-attached document (no local file). */}
+                  {!previewUrl && existingDoc && existingDoc.kind === 'image' && (
+                    <img src={existingDoc.url} alt={existingDoc.name} style={{ maxWidth: '100%', display: 'block', borderRadius: 4 }} />
+                  )}
+                  {!previewUrl && existingDoc && existingDoc.kind === 'pdf' && (
+                    <iframe src={existingDoc.url} title={existingDoc.name} style={{ width: '100%', height: '100%', border: 0, borderRadius: 4 }} />
+                  )}
+                  {!previewUrl && existingDoc && existingDoc.kind === 'other' && (
+                    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: '#6b7280' }}>
+                      <FileIcon className="w-12 h-12 mb-2 opacity-30" />
+                      <a href={existingDoc.url} target="_blank" rel="noopener noreferrer" style={{ fontSize: 13, color: '#0284c7' }}>{existingDoc.name}</a>
+                    </div>
+                  )}
+                  {!previewUrl && !existingDoc && (
                     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: '#9ca3af' }}>
                       <FileIcon className="w-12 h-12 mb-2 opacity-20" />
-                      <p style={{ fontSize: 13 }}>No preview available</p>
+                      <p style={{ fontSize: 13 }}>{isEditMode ? 'No document attached' : 'No preview available'}</p>
                     </div>
                   )}
                 </div>
@@ -516,10 +772,11 @@ export default function ReviewScannedDataDialog({
                         {formData.items.map((item, index) => (
                           <div key={index} style={{ background: '#f9fafb', borderRadius: 4, border: '1px solid #f3f4f6', padding: '2px 2px' }}>
                             <div style={{ display: 'grid', gridTemplateColumns: '24px 1fr 72px 40px 72px 68px 18px', gap: '0 3px', alignItems: 'center' }}>
-                              <label style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', cursor: 'pointer', gap: 0 }} title={item.is_asset ? 'Asset (durable)' : 'Expense'}>
+                              <label style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', cursor: isEditMode ? 'not-allowed' : 'pointer', gap: 0 }} title={isEditMode ? (item.is_asset ? 'Asset — change type via Reclassify' : 'Expense — change type via Reclassify') : (item.is_asset ? 'Asset (durable)' : 'Expense')}>
                                 <input
                                   type="checkbox"
                                   checked={item.is_asset}
+                                  disabled={isEditMode}
                                   onChange={e => {
                                     handleItemChange(index, 'is_asset', e.target.checked);
                                     if (e.target.checked && !item.show_extra) {
@@ -573,13 +830,17 @@ export default function ReviewScannedDataDialog({
                               <span />
                               <div style={{ display: 'flex', gap: 3, alignItems: 'center' }}>
                                 {item.is_asset ? (
-                                  <button
-                                    onClick={() => handleItemChange(index, 'show_extra', !item.show_extra)}
-                                    style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', display: 'flex', alignItems: 'center', color: '#0284c7' }}
-                                  >
-                                    {item.show_extra ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
-                                    <span style={{ fontSize: 8, color: '#0284c7', whiteSpace: 'nowrap', fontWeight: 600, width: 40, textAlign: 'left', marginLeft: 1 }}>Asset</span>
-                                  </button>
+                                  isEditMode ? (
+                                    <span style={{ fontSize: 8, color: '#0284c7', whiteSpace: 'nowrap', fontWeight: 600, width: 40 + 12 }}>Asset</span>
+                                  ) : (
+                                    <button
+                                      onClick={() => handleItemChange(index, 'show_extra', !item.show_extra)}
+                                      style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', display: 'flex', alignItems: 'center', color: '#0284c7' }}
+                                    >
+                                      {item.show_extra ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
+                                      <span style={{ fontSize: 8, color: '#0284c7', whiteSpace: 'nowrap', fontWeight: 600, width: 40, textAlign: 'left', marginLeft: 1 }}>Asset</span>
+                                    </button>
+                                  )
                                 ) : (
                                   <span style={{ fontSize: 8, color: '#810606', whiteSpace: 'nowrap', fontWeight: 600, width: 40 + 12 }}>Expense</span>
                                 )}
@@ -601,15 +862,17 @@ export default function ReviewScannedDataDialog({
                                     className="bg-white border-gray-200 h-5 text-[10px] flex-1"
                                   />
                                 </div>
-                                <Input
-                                  value={item.equipment_type || ''}
-                                  onChange={e => handleItemChange(index, 'equipment_type', e.target.value)}
-                                  placeholder="Type"
-                                  className="bg-white border-gray-200 h-5 text-[10px] flex-1"
-                                />
+                                {!isEditMode && (
+                                  <Input
+                                    value={item.equipment_type || ''}
+                                    onChange={e => handleItemChange(index, 'equipment_type', e.target.value)}
+                                    placeholder="Type"
+                                    className="bg-white border-gray-200 h-5 text-[10px] flex-1"
+                                  />
+                                )}
                               </div>
                             </div>
-                            {item.is_asset && item.show_extra && (
+                            {!isEditMode && item.is_asset && item.show_extra && (
                               <div style={{ display: 'grid', gridTemplateColumns: '24px 1fr 1fr 1fr 72px', gap: '0 3px', marginTop: 2, paddingBottom: 2 }}>
                                 <span />
                                 <Input
@@ -672,18 +935,83 @@ export default function ReviewScannedDataDialog({
                     Cancel
                   </Button>
                   <button
-                    onClick={handleSubmit}
+                    onClick={isEditMode ? handleUpdate : handleSubmit}
                     disabled={isSubmitting || formData.items.length === 0 || !formData.vendor}
                     style={{ height: 28, padding: '0 20px', fontSize: 12, fontWeight: 600, borderRadius: 4, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#0284c7', color: 'white', border: 'none', cursor: 'pointer', opacity: (isSubmitting || formData.items.length === 0 || !formData.vendor) ? 0.5 : 1 }}
                   >
                     {isSubmitting && <Loader2 style={{ width: 14, height: 14, marginRight: 6 }} className="animate-spin" />}
-                    Save Purchase
+                    {isEditMode ? 'Save Changes' : 'Save Purchase'}
                   </button>
                 </div>
               </div>
             </div>
           </div>
         </div>
+
+        {pendingPlan && (pendingPlan.assetChanges.length > 0 || pendingPlan.gigChanges.length > 0) && (
+          <div style={{ position: 'fixed', inset: 0, zIndex: 150, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+            <div style={{ background: 'white', borderRadius: 8, boxShadow: '0 10px 40px rgba(0,0,0,0.3)', width: 540, maxWidth: '100%', maxHeight: '85vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+              <div style={{ padding: '12px 16px', borderBottom: '1px solid #e5e7eb' }}>
+                <h3 style={{ fontSize: 14, fontWeight: 700, color: '#111827' }}>Confirm linked record updates</h3>
+                <p style={{ fontSize: 11, color: '#6b7280', marginTop: 2 }}>Your edits also affect these linked records. Review and confirm before saving.</p>
+              </div>
+              <div style={{ padding: '12px 16px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 14 }}>
+                {pendingPlan.assetChanges.length > 0 && (
+                  <div>
+                    <h4 style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#0284c7', marginBottom: 6 }}>Asset updates</h4>
+                    {pendingPlan.assetChanges.map((a, ai) => (
+                      <div key={ai} style={{ marginBottom: 8, border: '1px solid #e5e7eb', borderRadius: 6, padding: '6px 8px' }}>
+                        <p style={{ fontSize: 11, fontWeight: 600, color: '#374151', marginBottom: 4 }}>{a.itemDescription}</p>
+                        <table style={{ width: '100%', fontSize: 11, borderCollapse: 'collapse' }}>
+                          <tbody>
+                            {a.changes.map((c, ci) => (
+                              <tr key={ci}>
+                                <td style={{ color: '#6b7280', padding: '1px 6px 1px 0', whiteSpace: 'nowrap' }}>{c.label}</td>
+                                <td style={{ color: '#9ca3af', padding: '1px 6px', textAlign: 'right' }}>{fmtVal(c.from)}</td>
+                                <td style={{ color: '#9ca3af', padding: '1px 4px' }}>→</td>
+                                <td style={{ color: '#065f46', fontWeight: 600, padding: '1px 0' }}>{fmtVal(c.to)}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {pendingPlan.gigChanges.length > 0 && (
+                  <div>
+                    <h4 style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#7c3aed', marginBottom: 6 }}>Gig ledger updates</h4>
+                    <table style={{ width: '100%', fontSize: 11, borderCollapse: 'collapse' }}>
+                      <tbody>
+                        {pendingPlan.gigChanges.map((g, gi) => (
+                          <tr key={gi}>
+                            <td style={{ color: '#6b7280', padding: '1px 6px 1px 0' }}>{g.label}</td>
+                            <td style={{ color: '#9ca3af', padding: '1px 6px', textAlign: 'right' }}>${g.from.toFixed(2)}</td>
+                            <td style={{ color: '#9ca3af', padding: '1px 4px' }}>→</td>
+                            <td style={{ color: '#065f46', fontWeight: 600, padding: '1px 0' }}>${g.to.toFixed(2)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+              <div style={{ padding: '10px 16px', borderTop: '1px solid #e5e7eb', background: '#f9fafb', display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
+                <Button variant="outline" onClick={() => setPendingPlan(null)} disabled={isSubmitting} className="h-7 px-4 text-xs">
+                  Cancel
+                </Button>
+                <button
+                  onClick={() => commitUpdate(pendingPlan)}
+                  disabled={isSubmitting}
+                  style={{ height: 28, padding: '0 16px', fontSize: 12, fontWeight: 600, borderRadius: 4, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#0284c7', color: 'white', border: 'none', cursor: 'pointer', opacity: isSubmitting ? 0.5 : 1 }}
+                >
+                  {isSubmitting && <Loader2 style={{ width: 14, height: 14, marginRight: 6 }} className="animate-spin" />}
+                  Confirm &amp; Save
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {magnifier.show && magnifier.src && (
           <div

@@ -495,6 +495,65 @@ export function shouldPromptForLedgerEntry(
 }
 
 /**
+ * A single proposed change to an asset field, derived from an edited purchase line.
+ */
+export interface AssetFieldChange {
+  field: string;
+  label: string;
+  from: unknown;
+  to: unknown;
+}
+
+/**
+ * The subset of an edited purchase line whose fields also live on the asset record.
+ */
+export interface EditableLineSnapshot {
+  description?: string | null;
+  category?: string | null;
+  sub_category?: string | null;
+  quantity?: number | null;
+  item_price?: number | null;
+  item_cost?: number | null;
+  vendor?: string | null;
+  purchase_date?: string | null;
+}
+
+const normValue = (v: unknown): unknown =>
+  v === undefined || v === null || v === '' ? null : v;
+
+/**
+ * Compute the asset field changes implied by an edited purchase line, comparing
+ * the edited line against the current asset record. Only fields that are part of
+ * the purchase record are considered (per product decision: editing a purchase
+ * line only ever proposes changes to the overlapping fields, never asset-only
+ * fields like serial/tag/replacement value). Returns an empty array when nothing
+ * relevant changed, so callers can skip the confirmation step.
+ */
+export function computeAssetFieldChanges(
+  line: EditableLineSnapshot,
+  asset: Record<string, any>
+): AssetFieldChange[] {
+  const changes: AssetFieldChange[] = [];
+  const push = (field: string, label: string, to: unknown) => {
+    const from = normValue(asset[field]);
+    const next = normValue(to);
+    if (from !== next) changes.push({ field, label, from, to: next });
+  };
+  if (line.description !== undefined) {
+    push('manufacturer_model', 'Name / Model', line.description);
+    push('description', 'Description', line.description);
+  }
+  if (line.category !== undefined) push('category', 'Category', line.category);
+  if (line.sub_category !== undefined) push('sub_category', 'Sub-category', line.sub_category);
+  if (line.quantity !== undefined) push('quantity', 'Quantity', line.quantity);
+  if (line.item_price !== undefined) push('item_price', 'Item Price', line.item_price);
+  if (line.item_cost !== undefined) push('item_cost', 'Item Cost', line.item_cost);
+  if (line.vendor !== undefined) push('vendor', 'Vendor', line.vendor);
+  if (line.purchase_date !== undefined) push('acquisition_date', 'Acquisition Date', line.purchase_date);
+  return changes;
+}
+
+/**
  * Scan an invoice or receipt PDF using AI
  */
 export async function scanInvoice(file: File, organizationId: string) {
