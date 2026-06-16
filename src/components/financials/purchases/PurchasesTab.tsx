@@ -52,14 +52,16 @@ import {
   AlertDialogTrigger,
 } from '../../ui/alert-dialog';
 import { Organization, User, UserRole, DbPurchase } from '../../../utils/supabase/types';
-import { getPurchases, reclassifyExpenseAsAsset, scanInvoice, deletePurchase } from '../../../services/purchase.service';
+import { getPurchases, reclassifyExpenseAsAsset, scanInvoice, deletePurchase, updatePurchase, shouldPromptForLedgerEntry } from '../../../services/purchase.service';
 import { getEntityAttachments, uploadAttachment, linkAttachmentToEntity } from '../../../services/attachment.service';
-import { getGigsForOrganization } from '../../../services/gig.service';
+import { getGigsForOrganization, createGigFinancial } from '../../../services/gig.service';
+import { toFinCategory } from '../../../utils/supabase/constants';
 import { toast } from 'sonner';
 import { isSyntheticHeader } from './reconciliation';
 import PurchaseDetailPanel, { PanelState } from './PurchaseDetailPanel';
 import ReviewScannedDataDialog from '../../ReviewScannedDataDialog';
 import PurchaseSummaryView from './PurchaseSummaryView';
+import GigCombobox from './GigCombobox';
 
 interface PurchasesTabProps {
   organization: Organization;
@@ -86,6 +88,9 @@ export default function PurchasesTab({
   const [isLoading, setIsLoading] = useState(true);
   const [expandedItemId, setExpandedItemId] = useState<string | null>(null);
   const [reclassifyingItemId, setReclassifyingItemId] = useState<string | null>(null);
+  const [assigningGigItemId, setAssigningGigItemId] = useState<string | null>(null);
+  const [ledgerPrompt, setLedgerPrompt] = useState<{ item: DbPurchase; gigId: string; gigTitle?: string } | null>(null);
+  const [creatingLedger, setCreatingLedger] = useState(false);
   const [isUploadingAttachment, setIsUploadingAttachment] = useState<string | null>(null);
   const [highlightPurchaseId, setHighlightPurchaseId] = useState<string | null>(initialHighlightId || null);
   const [showOnlyHighlighted, setShowOnlyHighlighted] = useState(!!initialHighlightId);
@@ -216,6 +221,53 @@ export default function PurchasesTab({
       toast.error(err.message || 'Failed to reclassify item');
     } finally {
       setReclassifyingItemId(null);
+    }
+  };
+
+  const handleAssignGig = async (item: DbPurchase, gigId: string | null, gigTitle?: string) => {
+    const previousGigId = item.gig_id || null;
+    if (gigId === previousGigId) return;
+    setAssigningGigItemId(item.id);
+    try {
+      await updatePurchase(item.id, { gig_id: gigId });
+      toast.success(gigId ? `Assigned to ${gigTitle || 'gig'}` : 'Gig association removed');
+      await loadPurchases();
+      // Offer to create a gig expense ledger entry when an expense line is first
+      // linked to a gig (mirrors the import flow's behavior).
+      if (gigId && shouldPromptForLedgerEntry(item.row_type, previousGigId, gigId)) {
+        setLedgerPrompt({ item, gigId, gigTitle });
+      }
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to assign gig');
+    } finally {
+      setAssigningGigItemId(null);
+    }
+  };
+
+  const handleCreateLedgerEntry = async () => {
+    if (!ledgerPrompt) return;
+    const { item, gigId } = ledgerPrompt;
+    setCreatingLedger(true);
+    try {
+      const amount = item.line_amount ?? (item.item_price ?? 0) * (item.quantity ?? 1);
+      await createGigFinancial({
+        gig_id: gigId,
+        organization_id: organization.id,
+        date: item.purchase_date || new Date().toISOString().slice(0, 10),
+        amount,
+        type: 'Expense Incurred',
+        category: toFinCategory(item.category) ?? 'Other expenses',
+        description: item.description || `Expense: ${item.vendor || ''}`.trim(),
+        purchase_id: item.id,
+        paid_at: new Date().toISOString(),
+      });
+      window.dispatchEvent(new CustomEvent('gig-financials-updated', { detail: { gigId } }));
+      toast.success('Gig expense ledger entry created');
+      setLedgerPrompt(null);
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to create ledger entry');
+    } finally {
+      setCreatingLedger(false);
     }
   };
 
@@ -801,6 +853,19 @@ export default function PurchasesTab({
                                 </Button>
                               )}
                             </div>
+                            {isAdmin && (
+                              <div className="mt-3 pt-3 border-t border-gray-200 flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                                <span className="text-xs text-gray-500 font-medium whitespace-nowrap">Assign Gig:</span>
+                                <div className="w-[360px] max-w-full">
+                                  <GigCombobox
+                                    organizationId={organization.id}
+                                    value={item.gig_id || null}
+                                    onChange={(gigId, gigTitle) => handleAssignGig(item, gigId, gigTitle)}
+                                    disabled={assigningGigItemId === item.id}
+                                  />
+                                </div>
+                              </div>
+                            )}
                             {item.row_type === 'item' && (userRole === 'Admin' || userRole === 'Manager') && (
                               <div className="mt-3 pt-3 border-t border-gray-200">
                                 <AlertDialog>
@@ -855,6 +920,28 @@ export default function PurchasesTab({
         getAssetIdForItem={getAssetIdForItem}
         getGigIdForItem={getGigIdForItem}
       />
+      <AlertDialog open={!!ledgerPrompt} onOpenChange={(open) => { if (!open) setLedgerPrompt(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Create gig expense record?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This expense line is now linked to {ledgerPrompt?.gigTitle ? `"${ledgerPrompt.gigTitle}"` : 'a gig'}. Would you
+              like to record it as an "Expense Incurred" entry in that gig's financials
+              {ledgerPrompt && (
+                <> for ${((ledgerPrompt.item.line_amount ?? (ledgerPrompt.item.item_price ?? 0) * (ledgerPrompt.item.quantity ?? 1))).toFixed(2)}</>
+              )}? You can skip this and the line will still be linked to the gig.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={creatingLedger}>Skip</AlertDialogCancel>
+            <AlertDialogAction onClick={(e) => { e.preventDefault(); handleCreateLedgerEntry(); }} disabled={creatingLedger}>
+              {creatingLedger && <RefreshCw className="w-3.5 h-3.5 mr-1.5 animate-spin" />}
+              Create record
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       <AlertDialog open={!!deleteConfirm} onOpenChange={(open) => { if (!open) setDeleteConfirm(null); }}>
         <AlertDialogContent>
           <AlertDialogHeader>
