@@ -157,7 +157,62 @@ Sprint 1 delivered PWA baseline, mobile gig browsing (MobileGigList, MobileGigDe
 
 ---
 
-## 6. Open Questions
+## 6. Relationship to Gig Hierarchy (Sprint 4)
+
+The roadmap places **Hierarchical Gig Structure** in Sprint 4 ([Hierarchy Foundations](../../../docs/product/development-plan/05_hierarchy-foundations.md), [Hierarchy UI](../../../docs/product/development-plan/06_hierarchy-ui.md)). This section clarifies how multi-act scheduling relates to it and documents the design decisions made here that affect that future work.
+
+### 6.1 Problem Space Comparison
+
+| | Multi-Act Scheduling (Sprint 2) | Gig Hierarchy (Sprint 4) |
+|---|---|---|
+| **Problem** | A single gig has a timeline of activities: load-in, soundcheck, multiple sets, intermissions, load-out. | A complex event (festival, multi-day tour) comprises multiple distinct gigs that share participants, equipment, and financials. |
+| **Granularity** | Time slots *within* one gig | Parent-child *relationships between* gigs |
+| **Example** | "Friday Night at The Venue" has: 6pm load-in, 7pm soundcheck (Opener), 7:30pm soundcheck (Headliner), 8pm Set (Opener), 9pm Set (Headliner), 11pm load-out | "Summer Festival" has sub-gigs "Main Stage Friday", "Main Stage Saturday", "Side Stage Friday" — each of which is its own gig with its own schedule, staff, and kit assignments |
+| **Data model** | `gig_schedule_entries` — child rows of a single gig | `gigs.parent_gig_id` — self-referential FK already in schema, plus recursive CTE functions (not yet deployed) |
+| **Inheritance** | None — entries belong to exactly one gig | Participants, equipment, and staff inherit down the tree; children can override |
+
+### 6.2 Overlap: Where They Touch
+
+**Acts appear in both features, but at different levels:**
+- In multi-act scheduling, an Act is a `gig_participant` with role "Act" — schedule entries link to it via `act_participant_id` to say "this time slot is for this act."
+- In gig hierarchy, a child gig might *be* a single act's performance, inheriting venue and production participants from the parent. The child gig would then have its own schedule entries for soundcheck, set, etc.
+
+**These features are complementary, not competing.** A flat gig (no parent) can have schedule entries. A hierarchical child gig can also have schedule entries. The schedule is always scoped to one gig; hierarchy is about relationships between gigs.
+
+**The realistic production company workflow with both features:**
+1. Create master gig "Summer Festival" (parent).
+2. Create child gigs "Main Stage Friday", "Main Stage Saturday" (children inherit venue, production crew).
+3. Each child gig gets its own `gig_schedule_entries` — load-in, soundcheck per act, sets, intermissions, load-out.
+
+### 6.3 Compatibility Assessment
+
+**Multi-act scheduling does NOT supplant gig hierarchy.** They solve different problems:
+- Scheduling handles the *intra-gig* timeline (what happens when during a single event).
+- Hierarchy handles the *inter-gig* structure (how events compose into larger events).
+
+**Multi-act scheduling does NOT defer gig hierarchy.** Nothing in Sprint 2 changes the gig hierarchy timeline. `parent_gig_id` and `hierarchy_depth` columns are already in the schema and remain untouched. The recursive CTE functions (`get_gig_hierarchy`, `get_effective_participants`, `get_effective_kits`) are still undeployed and can be added in Sprint 4 without conflict.
+
+**Multi-act scheduling IS compatible with gig hierarchy.** The `gig_schedule_entries` table is keyed on `gig_id` — it works identically whether that gig is a root, a child, or a standalone flat gig. No schema changes are needed in Sprint 4 to make scheduling work within hierarchical gigs.
+
+### 6.4 Design Decisions That Enable Future Hierarchy
+
+1. **`gig_schedule_entries` references `gig_id`, not a hierarchy-aware composite key.** Each gig owns its own schedule. When hierarchy lands, child gigs get their own independent schedules — there is no schedule inheritance to design around.
+
+2. **`act_participant_id` references `gig_participants(id)`, not `organizations.id`.** This keeps act linkage scoped to the specific gig. In a hierarchy, a child gig has its own `gig_participants` rows (possibly inherited via `get_effective_participants`), so schedule entries can reference the child's participant record directly. No ambiguity about which level of the hierarchy the act reference belongs to.
+
+3. **No `organization_id` on `gig_schedule_entries`.** RLS traverses through `gig_id` → `gig_participants` → `organization_members`. When hierarchy adds inherited participants, the RLS policy will naturally work because the participant join already covers both direct and (future) inherited participants.
+
+4. **Schedule duplication uses a participant ID map.** The `duplicateGigScheduleEntries` function remaps `act_participant_id` using a map from old to new IDs. This same pattern will work when creating child gigs from templates or copying schedules across a hierarchy.
+
+### 6.5 What Sprint 4 Will Need to Address (Not Sprint 2's Problem)
+
+- **Schedule inheritance**: Should a child gig inherit its parent's schedule entries? Recommendation: no — schedules are specific to each gig's time window. A parent "Festival" schedule (if any) would be a meta-schedule; each child "Stage Friday" has its own actual schedule. This can be revisited in Sprint 4.
+- **Cross-gig schedule conflict detection**: Are two child gigs' schedules conflicting if they share a resource (same act performing at overlapping times on different stages)? This requires hierarchy-aware conflict detection not present in Sprint 2's per-gig overlap check.
+- **Aggregate timeline view**: Showing a timeline across all child gigs (e.g., full festival timeline) requires a hierarchy-aware query. Sprint 2's `GigScheduleTimeline` component only renders entries for a single gig.
+
+---
+
+## 7. Open Questions
 
 1. **Bottom nav real estate**: Currently 3 tabs (Gigs, Scanning, Settings). Adding Dashboard makes 4. Should Staff see Dashboard + Scanning + Settings (hiding full Gigs tab), or should all 4 be visible? Recommend: role-conditional tabs — Staff sees Dashboard/Scanning/Settings, Admin/Manager sees Gigs/Scanning/Settings.
 2. **Activity type extensibility**: Should activity types be an enum in the database, or a text field with a suggested list in the UI? Enum is safer for consistency; text allows custom types. Recommend: database enum for v1, can be relaxed later.

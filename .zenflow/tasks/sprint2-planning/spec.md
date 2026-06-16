@@ -51,6 +51,12 @@ CREATE INDEX idx_schedule_entries_act ON gig_schedule_entries(act_participant_id
 - `schedule_activity_type` is a Postgres enum for consistency. The `Other` value plus the `label` field handles edge cases.
 - No `organization_id` column — RLS derives access through the parent `gig_id` → `gig_participants` → `organization_members` chain, matching the pattern used by `gig_staff_slots` and `gig_kit_assignments`.
 
+**Hierarchy compatibility notes** (see [PRD §6](./PRD.md#6-relationship-to-gig-hierarchy-sprint-4) for full analysis):
+- The table is keyed on `gig_id` with no hierarchy-awareness. Each gig — whether root, child, or flat — owns its own schedule independently. This is deliberate: schedule entries describe what happens *during* a specific gig, not what a parent event's structure looks like.
+- `act_participant_id` FK targets `gig_participants(id)`, not `organizations(id)`. In a hierarchy, a child gig's participants may be inherited (via the planned `get_effective_participants` RPC), but each child will have its own `gig_participants` rows to reference. The FK stays valid regardless of how the participant got there (direct or inherited).
+- The RLS policy joins through `gig_participants` → `organization_members`. When Sprint 4 adds inherited participants, the join chain still works because `gig_participants` will contain rows for both direct and inherited participants at query time (the `get_effective_participants` function materializes them). No RLS changes needed.
+- No recursive CTE or `parent_gig_id` join exists in this table's queries. Sprint 4's hierarchy features (tree traversal, inherited participants/equipment, aggregate financial rollups) operate on the `gigs` table and its existing children tables — `gig_schedule_entries` is just another child table that happens to work.
+
 ### 1.2 Row-Level Security
 
 Follows the same pattern as `gig_staff_slots`:
@@ -225,6 +231,40 @@ function detectScheduleConflicts(entries: GigScheduleEntry[]): ScheduleConflict[
 ```
 
 Logic: For entries sharing the same `act_participant_id` (non-null), check if time ranges overlap. O(n^2) is fine — a gig rarely has more than 20 schedule entries.
+
+### 1.11 Gig Hierarchy Interaction
+
+This section documents how Sprint 2 design decisions relate to the Sprint 4 Hierarchical Gig Structure ([05_hierarchy-foundations](../../../docs/product/development-plan/05_hierarchy-foundations.md), [06_hierarchy-ui](../../../docs/product/development-plan/06_hierarchy-ui.md)).
+
+#### Current state of hierarchy infrastructure
+
+The `gigs` table already has `parent_gig_id` (UUID FK to self, `ON DELETE CASCADE`) and `hierarchy_depth` (integer, default 0) in the initial schema. The `create_gig_complex` RPC passes these through. However:
+- No SQL functions are deployed (`get_gig_hierarchy`, `get_effective_participants`, `get_effective_kits` exist only in the spec doc, not in any migration).
+- No UI exposes parent gig selection or hierarchy tree navigation.
+- No service-layer code reads or writes `parent_gig_id` beyond passing it through `createGig`.
+
+#### What Sprint 2 does NOT touch
+
+- `parent_gig_id` and `hierarchy_depth` columns — left as-is.
+- No recursive CTE functions are created or invoked.
+- No hierarchy-aware UI is introduced.
+- The `GigScheduleTimeline` and `GigScheduleEditor` components only render entries for a single `gig_id` — they have no concept of parent or child gigs.
+
+#### Forward-compatibility constraints and decisions
+
+| Decision | Rationale | Sprint 4 implication |
+|---|---|---|
+| `gig_schedule_entries.gig_id` is a simple FK, not hierarchy-aware | Schedules are per-gig, not inherited down a tree | Sprint 4 does not need to add schedule inheritance. A child gig has its own schedule entries. |
+| `act_participant_id` → `gig_participants(id)` | Scoped to the specific gig's participant roster | When `get_effective_participants` materializes inherited participants as `gig_participants` rows, the FK works transparently. If inherited participants are instead returned only by the RPC (not persisted), the UI will need to resolve act names via the RPC rather than the FK join — this is a Sprint 4 design decision. |
+| `detectScheduleConflicts` is per-gig only | Single-gig overlap check; cross-gig conflicts are a hierarchy concern | Sprint 4 should add a `detectCrossGigScheduleConflicts(gigIds[])` function for same-act conflicts across sibling gigs (e.g., band double-booked on two stages). The per-gig function remains useful as-is. |
+| `GigScheduleTimeline` accepts `entries[]` with no gig context | Pure display component | Sprint 4 can reuse it inside an aggregate timeline view — pass merged entries from multiple child gigs with a `gig_title` annotation. The component itself doesn't need to know about hierarchy. |
+| Schedule duplication uses a `participantIdMap` | Required because duplicated gigs get new participant IDs | Sprint 4's "create child from template" pattern can reuse `duplicateGigScheduleEntries` with the same map approach. |
+
+#### What Sprint 4 will add (not Sprint 2's responsibility)
+
+1. **Aggregate timeline view**: A `GigHierarchyTimeline` that calls `get_gig_hierarchy(rootId)`, fetches schedule entries for all child gigs, and renders a merged multi-track timeline (one track per child gig or stage).
+2. **Cross-gig conflict detection**: Check if the same act org has overlapping schedule entries across sibling gigs in the same hierarchy branch.
+3. **Schedule template propagation**: Optionally copy a parent's schedule template to new child gigs (convenience, not inheritance — children can then diverge).
 
 ---
 
