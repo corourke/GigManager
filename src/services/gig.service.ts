@@ -43,6 +43,7 @@ export {
 
 // Participant / venue / act operations live in gigParticipant.service.ts.
 export {
+  getGigParticipants,
   updateGigParticipants,
   updateGigVenue,
   updateGigAct,

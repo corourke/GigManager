@@ -13,11 +13,17 @@ import { cn } from '../ui/utils';
 import { SCHEDULE_ACTIVITY_TYPES, SCHEDULE_ACTIVITY_CONFIG } from '../../utils/supabase/constants';
 import { detectScheduleConflicts } from '../../utils/scheduleConflicts';
 import { getGigScheduleEntries, updateGigScheduleEntries } from '../../services/gigSchedule.service';
+import { getGigParticipants } from '../../services/gig.service';
 import type { GigScheduleEntry, ScheduleActivityType } from '../../utils/supabase/types';
+
+interface ActParticipant {
+  id: string;
+  organization?: { id: string; name: string } | null;
+}
 
 interface GigScheduleEditorProps {
   gigId: string;
-  actParticipants: Array<{ id: string; organization?: { id: string; name: string } | null }>;
+  actParticipants?: ActParticipant[];
 }
 
 interface EditableEntry {
@@ -67,8 +73,9 @@ function makeEmptyEntry(): EditableEntry {
 
 const INPUT_CLASS = 'h-9 px-2 text-sm bg-background rounded-md border border-input focus:outline-none focus:ring-2 focus:ring-ring/30';
 
-export default function GigScheduleEditor({ gigId, actParticipants }: GigScheduleEditorProps) {
+export default function GigScheduleEditor({ gigId, actParticipants: actParticipantsProp }: GigScheduleEditorProps) {
   const [entries, setEntries] = useState<EditableEntry[]>([]);
+  const [acts, setActs] = useState<ActParticipant[]>(actParticipantsProp || []);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
@@ -76,8 +83,22 @@ export default function GigScheduleEditor({ gigId, actParticipants }: GigSchedul
 
   useEffect(() => {
     loadEntries();
+    loadActParticipants();
     return () => { if (saveTimerRef.current) clearTimeout(saveTimerRef.current); };
   }, [gigId]);
+
+  const loadActParticipants = async () => {
+    try {
+      const participants = await getGigParticipants(gigId);
+      setActs(
+        participants
+          .filter((p: any) => p.role === 'Act')
+          .map((p: any) => ({ id: p.id, organization: p.organization }))
+      );
+    } catch {
+      // fall back to prop
+    }
+  };
 
   const loadEntries = async () => {
     setLoading(true);
@@ -101,6 +122,10 @@ export default function GigScheduleEditor({ gigId, actParticipants }: GigSchedul
 
   const saveEntries = async (entriesToSave: EditableEntry[]) => {
     const valid = entriesToSave.filter(e => e.start_time && e.end_time);
+    const incomplete = entriesToSave.filter(e => !e.start_time || !e.end_time);
+    if (valid.length === 0 && incomplete.length > 0) {
+      return;
+    }
     setSaving(true);
     try {
       await updateGigScheduleEntries(
@@ -116,9 +141,8 @@ export default function GigScheduleEditor({ gigId, actParticipants }: GigSchedul
         })) as any
       );
       setDirty(false);
-      // Reload to get server-generated IDs for new entries
       const fresh = await getGigScheduleEntries(gigId);
-      setEntries(fresh.map(entryToEditable));
+      setEntries([...fresh.map(entryToEditable), ...incomplete]);
     } catch (err: any) {
       toast.error(err.message || 'Failed to save schedule');
     } finally {
@@ -277,7 +301,7 @@ export default function GigScheduleEditor({ gigId, actParticipants }: GigSchedul
                       onChange={e => updateEntry(i, 'act_participant_id', e.target.value)}
                     >
                       <option value="">None</option>
-                      {actParticipants.map(p => (
+                      {acts.map(p => (
                         <option key={p.id} value={p.id}>
                           {p.organization?.name || 'Unknown Act'}
                         </option>

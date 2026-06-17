@@ -83,6 +83,21 @@ export async function updateGigVenue(gigId: string, organizationId: string | nul
 /**
  * Update the act for a gig
  */
+export async function getGigParticipants(gigId: string) {
+  const supabase = getSupabase();
+  try {
+    const { data, error } = await supabase
+      .from('gig_participants')
+      .select('id, role, organization:organization_id(id, name)')
+      .eq('gig_id', gigId);
+
+    if (error) throw error;
+    return data || [];
+  } catch (err) {
+    return handleApiError(err, 'fetch gig participants') as never;
+  }
+}
+
 export async function updateGigAct(gigId: string, organizationId: string | null) {
   const supabase = getSupabase();
   try {
