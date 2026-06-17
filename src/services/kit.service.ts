@@ -2,6 +2,7 @@ import { createClient } from '../utils/supabase/client';
 import { handleApiError } from '../utils/api-error-utils';
 import { requireAuth } from '../utils/supabase/auth-utils';
 import { sanitizeLikeInput } from '../utils/validation-utils';
+import { logActivity } from './activityLog.service';
 
 const getSupabase = () => createClient();
 
@@ -191,13 +192,28 @@ export async function updateKit(kitId: string, kitData: {
     if (updateError) throw updateError;
 
     if (assets) {
-      const { data: existingAssets } = await supabase.from('kit_assets').select('id').eq('kit_id', kitId);
-      const existingIds = existingAssets?.map(a => a.id) || [];
+      const { data: existingAssets } = await (supabase.from('kit_assets') as any).select('id, asset_id').eq('kit_id', kitId);
+      const existingIds = existingAssets?.map((a: any) => a.id) || [];
       const incomingIds = assets.filter(a => a.id).map(a => a.id!);
 
-      const idsToDelete = existingIds.filter(id => !incomingIds.includes(id));
+      const idsToDelete = existingIds.filter((id: string) => !incomingIds.includes(id));
+
+      const actorDisplayName = `${(user as any).user_metadata?.first_name ?? ''} ${(user as any).user_metadata?.last_name ?? ''}`.trim() || user.email || '';
+      const { data: kitRow } = await (supabase.from('kits') as any).select('name, organization_id').eq('id', kitId).single();
+      const kitName = (kitRow as any)?.name ?? '';
+      const orgId = (kitRow as any)?.organization_id ?? null;
+      const { data: orgRow } = orgId ? await (supabase.from('organizations') as any).select('name').eq('id', orgId).single() : { data: null };
+      const actorOrgName = (orgRow as any)?.name ?? '';
+
       if (idsToDelete.length > 0) {
+        const removedAssetIds = (existingAssets ?? []).filter((a: any) => idsToDelete.includes(a.id)).map((a: any) => a.asset_id).filter(Boolean);
         await supabase.from('kit_assets').delete().in('id', idsToDelete);
+        for (const assetId of removedAssetIds) {
+          const { data: assetRow } = await (supabase.from('assets') as any).select('manufacturer_model').eq('id', assetId).single();
+          try {
+            await logActivity({ organization_id: orgId, event_type: 'kit.asset_removed', entity_type: 'kit', entity_id: kitId, gig_id: null, context: { context_version: 1, actor_display_name: actorDisplayName, actor_org_name: actorOrgName, kit_name: kitName, asset_model: (assetRow as any)?.manufacturer_model ?? '' } });
+          } catch (e) { console.error('Activity log failed:', e); }
+        }
       }
 
       for (const asset of assets) {
@@ -210,6 +226,10 @@ export async function updateKit(kitId: string, kitData: {
           await supabase.from('kit_assets').update(assetData).eq('id', asset.id);
         } else {
           await supabase.from('kit_assets').insert({ kit_id: kitId, ...assetData });
+          const { data: assetRow } = await (supabase.from('assets') as any).select('manufacturer_model').eq('id', asset.asset_id).single();
+          try {
+            await logActivity({ organization_id: orgId, event_type: 'kit.asset_added', entity_type: 'kit', entity_id: kitId, gig_id: null, context: { context_version: 1, actor_display_name: actorDisplayName, actor_org_name: actorOrgName, kit_name: kitName, asset_model: (assetRow as any)?.manufacturer_model ?? '', quantity: asset.quantity } });
+          } catch (e) { console.error('Activity log failed:', e); }
         }
       }
     }

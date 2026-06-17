@@ -6,6 +6,7 @@ import {
   GigAccountingSummary,
   PaymentHealth,
   OrganizationRole,
+  type StaffingChange,
 } from '../utils/supabase/types';
 import {FIN_TYPE_GROUPS } from '../utils/supabase/constants';
 import { handleApiError } from '../utils/api-error-utils';
@@ -13,6 +14,7 @@ import { requireAuth } from '../utils/supabase/auth-utils';
 import { UUID_REGEX } from '../utils/validation-utils';
 import { getKit } from './kit.service';
 import {deleteGigFromCalendar } from './googleCalendar.service';
+import { logActivity } from './activityLog.service';
 
 const getSupabase = () => createClient();
 
@@ -274,44 +276,64 @@ export async function createGig(gigData: any) {
 /**
  * Update gig participants
  */
-export async function updateGigParticipants(gigId: string, participants: Array<{
-  id?: string;
-  organization_id: string;
-  role: OrganizationRole;
-  notes?: string | null;
-}>) {
+export async function updateGigParticipants(
+  gigId: string,
+  participants: Array<{ id?: string; organization_id: string; role: OrganizationRole; notes?: string | null }>,
+  activityCtx?: { organization_id: string | null; actor_display_name: string; actor_org_name: string; gig_title: string }
+) {
   try {
     const { supabase } = await requireAuth();
 
     const { data: existingParticipants, error: fetchError } = await supabase
       .from('gig_participants')
-      .select('id')
+      .select('id, organization_id, role')
       .eq('gig_id', gigId);
 
     if (fetchError) throw fetchError;
 
-    const existingIds = existingParticipants?.map(p => p.id) || [];
+    const existingIds = (existingParticipants ?? []).map(p => p.id);
     const incomingIds = participants
       .filter(p => p.id && UUID_REGEX.test(p.id))
       .map(p => p.id!);
 
     const idsToDelete = existingIds.filter(id => !incomingIds.includes(id));
+
+    if (idsToDelete.length > 0 && activityCtx) {
+      const removedRows = (existingParticipants ?? []).filter(p => idsToDelete.includes(p.id));
+      const orgIds = removedRows.map(r => r.organization_id).filter(Boolean);
+      let orgNameMap: Map<string, string> = new Map();
+      if (orgIds.length > 0) {
+        const { data: orgs } = await (supabase.from('organizations') as any).select('id, name').in('id', orgIds);
+        orgNameMap = new Map((orgs ?? []).map((o: any) => [o.id, o.name]));
+      }
+      for (const row of removedRows) {
+        try {
+          await logActivity({ organization_id: activityCtx.organization_id, event_type: 'participant.removed', entity_type: 'participant', entity_id: row.id, gig_id: gigId, context: { context_version: 1, actor_display_name: activityCtx.actor_display_name, actor_org_name: activityCtx.actor_org_name, gig_title: activityCtx.gig_title, organization_name: orgNameMap.get(row.organization_id) ?? '', role: row.role } });
+        } catch (e) { console.error('Activity log failed:', e); }
+      }
+    }
+
     if (idsToDelete.length > 0) {
       await supabase.from('gig_participants').delete().in('id', idsToDelete);
     }
 
     for (const participant of participants) {
       const isDbId = participant.id && UUID_REGEX.test(participant.id);
-      const participantData = {
-        organization_id: participant.organization_id,
-        role: participant.role,
-        notes: participant.notes || null,
-      };
+      const participantData = { organization_id: participant.organization_id, role: participant.role, notes: participant.notes || null };
 
       if (isDbId && existingIds.includes(participant.id!)) {
         await supabase.from('gig_participants').update(participantData).eq('id', participant.id!);
       } else if (participant.organization_id && participant.role) {
-        await supabase.from('gig_participants').insert({ gig_id: gigId, ...participantData });
+        const { data: inserted } = await (supabase.from('gig_participants') as any)
+          .insert({ gig_id: gigId, ...participantData })
+          .select('id')
+          .single();
+        if (activityCtx && inserted?.id) {
+          const { data: orgRow } = await (supabase.from('organizations') as any).select('name').eq('id', participant.organization_id).single();
+          try {
+            await logActivity({ organization_id: activityCtx.organization_id, event_type: 'participant.added', entity_type: 'participant', entity_id: inserted.id, gig_id: gigId, context: { context_version: 1, actor_display_name: activityCtx.actor_display_name, actor_org_name: activityCtx.actor_org_name, gig_title: activityCtx.gig_title, organization_name: (orgRow as any)?.name ?? '', role: participant.role } });
+          } catch (e) { console.error('Activity log failed:', e); }
+        }
       }
     }
 
@@ -377,7 +399,22 @@ export async function updateGig(gigId: string, gigData: {
 
     const primary_organization_id = userMemberships.find(m => m.role === 'Admin' || m.role === 'Manager')?.organization_id || userMemberships[0]?.organization_id;
 
+    const { data: orgRow } = await supabase
+      .from('organizations')
+      .select('name')
+      .eq('id', primary_organization_id)
+      .single();
+    const actorOrgName: string = (orgRow as any)?.name ?? '';
+    const actorDisplayName = `${(user as any).user_metadata?.first_name ?? ''} ${(user as any).user_metadata?.last_name ?? ''}`.trim() || user.email || '';
+
     const { participants, staff_slots, ...restGigData } = gigData;
+
+    const { data: preGig, error: preFetchError } = await supabase
+      .from('gigs')
+      .select('status, start, end, title')
+      .eq('id', gigId)
+      .single();
+    if (preFetchError) throw preFetchError;
 
     const { data: updatedRows, error: updateError } = await supabase
       .from('gigs')
@@ -394,12 +431,32 @@ export async function updateGig(gigId: string, gigData: {
       throw new Error('Failed to save gig — you may not have permission to edit this gig.');
     }
 
+    const baseCtx = { context_version: 1 as const, actor_display_name: actorDisplayName, actor_org_name: actorOrgName, gig_title: (preGig as any)?.title ?? '' };
+
+    if (gigData.status && gigData.status !== (preGig as any)?.status) {
+      try {
+        await logActivity({ organization_id: primary_organization_id, event_type: 'gig.status_changed', entity_type: 'gig', entity_id: gigId, gig_id: gigId, context: { ...baseCtx, from_status: (preGig as any).status, to_status: gigData.status } });
+      } catch (e) { console.error('Activity log failed:', e); }
+    }
+
+    if ((gigData.start !== undefined || gigData.end !== undefined) && (gigData.start !== (preGig as any)?.start || gigData.end !== (preGig as any)?.end)) {
+      try {
+        await logActivity({ organization_id: primary_organization_id, event_type: 'gig.rescheduled', entity_type: 'gig', entity_id: gigId, gig_id: gigId, context: { ...baseCtx, from: { start: (preGig as any).start, end: (preGig as any).end }, to: { start: gigData.start ?? (preGig as any).start, end: gigData.end ?? (preGig as any).end } } });
+      } catch (e) { console.error('Activity log failed:', e); }
+    }
+
+    if (gigData.title !== undefined && gigData.title !== (preGig as any)?.title) {
+      try {
+        await logActivity({ organization_id: primary_organization_id, event_type: 'gig.renamed', entity_type: 'gig', entity_id: gigId, gig_id: gigId, context: { ...baseCtx, from_title: (preGig as any).title, to_title: gigData.title } });
+      } catch (e) { console.error('Activity log failed:', e); }
+    }
+
     if (participants !== undefined && Array.isArray(participants)) {
-      await updateGigParticipants(gigId, participants);
+      await updateGigParticipants(gigId, participants, { organization_id: primary_organization_id, actor_display_name: actorDisplayName, actor_org_name: actorOrgName, gig_title: (preGig as any)?.title ?? '' });
     }
 
     if (staff_slots !== undefined && Array.isArray(staff_slots)) {
-      await updateGigStaffSlots(gigId, staff_slots.map(s => ({...s, organization_id: primary_organization_id})));
+      await updateGigStaffSlots(gigId, staff_slots.map(s => ({...s, organization_id: primary_organization_id})), { organization_id: primary_organization_id, actor_display_name: actorDisplayName, actor_org_name: actorOrgName, gig_title: (preGig as any)?.title ?? '' });
     }
 
     const updatedGig = await getGig(gigId);
@@ -440,21 +497,18 @@ export async function deleteGig(gigId: string) {
 /**
  * Update staff slots for a gig
  */
-export async function updateGigStaffSlots(gigId: string, staff_slots: Array<{
-  id?: string;
-  organization_id: string;
-  role: string;
-  count?: number;
-  notes?: string | null;
-  assignments?: Array<{
+export async function updateGigStaffSlots(
+  gigId: string,
+  staff_slots: Array<{
     id?: string;
-    user_id: string;
-    status?: string;
-    rate?: number | null;
-    fee?: number | null;
+    organization_id: string;
+    role: string;
+    count?: number;
     notes?: string | null;
-  }>;
-}>) {
+    assignments?: Array<{ id?: string; user_id: string; status?: string; rate?: number | null; fee?: number | null; notes?: string | null }>;
+  }>,
+  activityCtx?: { organization_id: string | null; actor_display_name: string; actor_org_name: string; gig_title: string }
+) {
   try {
     const { supabase, user } = await requireAuth();
 
@@ -482,7 +536,16 @@ export async function updateGigStaffSlots(gigId: string, staff_slots: Array<{
     const incomingSlotIds = staff_slots.filter(s => s.id).map(s => s.id!);
 
     const slotIdsToDelete = existingSlotIds.filter(id => !incomingSlotIds.includes(id));
+
+    const staffingChanges: StaffingChange[] = [];
+
     if (slotIdsToDelete.length > 0) {
+      const { data: deletedSlots } = await (supabase.from('gig_staff_slots') as any)
+        .select('id, staff_roles(name)')
+        .in('id', slotIdsToDelete);
+      for (const ds of (deletedSlots ?? [])) {
+        staffingChanges.push({ type: 'slot_removed', role: (ds.staff_roles as any)?.name ?? ds.id });
+      }
       await supabase.from('gig_staff_slots').delete().in('id', slotIdsToDelete);
     }
 
@@ -517,18 +580,40 @@ export async function updateGigStaffSlots(gigId: string, staff_slots: Array<{
           notes: slot.notes || null,
         }).select('id').single();
         slotId = newSlot?.id;
+        staffingChanges.push({ type: 'slot_added', role: slot.role });
       }
 
       if (!slotId) continue;
 
       if (slot.assignments) {
-        const { data: existingAssignments } = await supabase.from('gig_staff_assignments').select('id').eq('slot_id', slotId);
+        const { data: existingAssignments } = await supabase.from('gig_staff_assignments').select('id, user_id').eq('slot_id', slotId);
         const existingAssignmentIds = existingAssignments?.map(a => a.id) || [];
         const incomingAssignmentIds = slot.assignments.filter(a => a.id).map(a => a.id!);
 
         const assignmentIdsToDelete = existingAssignmentIds.filter(id => !incomingAssignmentIds.includes(id));
+
         if (assignmentIdsToDelete.length > 0) {
+          const removedUserIds = (existingAssignments ?? [])
+            .filter(a => assignmentIdsToDelete.includes(a.id))
+            .map(a => a.user_id)
+            .filter(Boolean);
+          let userNameMap: Map<string, string> = new Map();
+          if (removedUserIds.length > 0) {
+            const { data: users } = await (supabase.from('users') as any).select('id, first_name, last_name').in('id', removedUserIds);
+            userNameMap = new Map((users ?? []).map((u: any) => [u.id, `${u.first_name} ${u.last_name}`.trim()]));
+          }
+          for (const aid of assignmentIdsToDelete) {
+            const aRow = (existingAssignments ?? []).find(a => a.id === aid);
+            if (aRow) staffingChanges.push({ type: 'unassigned', role: slot.role, user_name: userNameMap.get(aRow.user_id) ?? '' });
+          }
           await supabase.from('gig_staff_assignments').delete().in('id', assignmentIdsToDelete);
+        }
+
+        const newAssignmentUserIds = slot.assignments.filter(a => !a.id || !existingAssignmentIds.includes(a.id)).map(a => a.user_id).filter(Boolean);
+        let newUserNameMap: Map<string, string> = new Map();
+        if (newAssignmentUserIds.length > 0) {
+          const { data: users } = await (supabase.from('users') as any).select('id, first_name, last_name').in('id', newAssignmentUserIds);
+          newUserNameMap = new Map((users ?? []).map((u: any) => [u.id, `${u.first_name} ${u.last_name}`.trim()]));
         }
 
         for (const assignment of slot.assignments) {
@@ -546,9 +631,16 @@ export async function updateGigStaffSlots(gigId: string, staff_slots: Array<{
             await supabase.from('gig_staff_assignments').update(assignmentData).eq('id', assignment.id);
           } else if (assignment.user_id) {
             await supabase.from('gig_staff_assignments').insert({ slot_id: slotId, ...assignmentData });
+            staffingChanges.push({ type: 'assigned', role: slot.role, user_name: newUserNameMap.get(assignment.user_id) ?? '', initial_status: assignmentData.status });
           }
         }
       }
+    }
+
+    if (staffingChanges.length > 0 && activityCtx) {
+      try {
+        await logActivity({ organization_id: activityCtx.organization_id, event_type: 'staffing.updated', entity_type: 'staffing', entity_id: gigId, gig_id: gigId, context: { context_version: 1, actor_display_name: activityCtx.actor_display_name, actor_org_name: activityCtx.actor_org_name, gig_title: activityCtx.gig_title, changes: staffingChanges, change_count: staffingChanges.length } });
+      } catch (e) { console.error('Activity log failed:', e); }
     }
 
     return { success: true };
@@ -730,8 +822,31 @@ export async function updateGigKitAssignments(gigId: string, organizationId: str
     const incomingIds = assignments.filter(a => a.id && UUID_REGEX.test(a.id)).map(a => a.id!);
 
     const assignmentIdsToDelete = existingIds.filter(id => !incomingIds.includes(id));
+
+    let kitNameMap: Map<string, string> = new Map();
+    const allKitIds = [
+      ...(existingAssignments?.filter(a => assignmentIdsToDelete.includes(a.id)).map(a => a.kit_id) ?? []),
+      ...assignments.filter(a => !a.id || !UUID_REGEX.test(a.id)).map(a => a.kit_id),
+    ].filter(Boolean);
+    if (allKitIds.length > 0) {
+      const { data: kits } = await (supabase.from('kits') as any).select('id, name').in('id', allKitIds);
+      kitNameMap = new Map((kits ?? []).map((k: any) => [k.id, k.name]));
+    }
+
+    const actorDisplayName = `${(user as any).user_metadata?.first_name ?? ''} ${(user as any).user_metadata?.last_name ?? ''}`.trim() || user.email || '';
+    const { data: orgRow } = await (supabase.from('organizations') as any).select('name').eq('id', organizationId).single();
+    const actorOrgName = (orgRow as any)?.name ?? '';
+    const { data: gigRow } = await (supabase.from('gigs') as any).select('title').eq('id', gigId).single();
+    const gigTitle = (gigRow as any)?.title ?? '';
+
     if (assignmentIdsToDelete.length > 0) {
+      const removedKitIds = (existingAssignments ?? []).filter(a => assignmentIdsToDelete.includes(a.id)).map(a => a.kit_id);
       await supabase.from('gig_kit_assignments').delete().in('id', assignmentIdsToDelete);
+      for (const kitId of removedKitIds) {
+        try {
+          await logActivity({ organization_id: organizationId, event_type: 'kit_assignment.removed', entity_type: 'kit_assignment', entity_id: kitId, gig_id: gigId, context: { context_version: 1, actor_display_name: actorDisplayName, actor_org_name: actorOrgName, gig_title: gigTitle, kit_name: kitNameMap.get(kitId) ?? '' } });
+        } catch (e) { console.error('Activity log failed:', e); }
+      }
     }
 
     for (const assignment of assignments) {
@@ -747,6 +862,9 @@ export async function updateGigKitAssignments(gigId: string, organizationId: str
         await supabase.from('gig_kit_assignments').update(assignmentData).eq('id', assignment.id!);
       } else {
         await supabase.from('gig_kit_assignments').insert({ ...assignmentData, assigned_by: user.id });
+        try {
+          await logActivity({ organization_id: organizationId, event_type: 'kit_assignment.added', entity_type: 'kit_assignment', entity_id: assignment.kit_id, gig_id: gigId, context: { context_version: 1, actor_display_name: actorDisplayName, actor_org_name: actorOrgName, gig_title: gigTitle, kit_name: kitNameMap.get(assignment.kit_id) ?? '' } });
+        } catch (e) { console.error('Activity log failed:', e); }
       }
     }
 
@@ -1381,8 +1499,13 @@ export async function updateStaffAssignmentStatus(
   assignmentId: string,
   status: 'Confirmed' | 'Declined'
 ) {
-  const supabase = getSupabase();
   try {
+    const { supabase, user } = await requireAuth();
+    const { data: preAssignment } = await (supabase.from('gig_staff_assignments') as any)
+      .select('status, slot_id, gig_staff_slots(gig_id, organization_id, staff_roles(name)), users(first_name, last_name)')
+      .eq('id', assignmentId)
+      .single();
+
     const updateData: Record<string, any> = { status };
     if (status === 'Confirmed') {
       updateData.confirmed_at = new Date().toISOString();
@@ -1393,6 +1516,23 @@ export async function updateStaffAssignmentStatus(
       .eq('id', assignmentId);
 
     if (error) throw error;
+
+    if (preAssignment && preAssignment.status !== status) {
+      const slot = (preAssignment.gig_staff_slots as any);
+      const gigId: string | null = slot?.gig_id ?? null;
+      const orgId: string | null = slot?.organization_id ?? null;
+      const roleName: string = (slot?.staff_roles as any)?.name ?? '';
+      const assignedUser = (preAssignment.users as any);
+      const userName = assignedUser ? `${assignedUser.first_name} ${assignedUser.last_name}`.trim() : '';
+      const actorDisplayName = `${(user as any).user_metadata?.first_name ?? ''} ${(user as any).user_metadata?.last_name ?? ''}`.trim() || user.email || '';
+      const { data: orgRow } = orgId ? await (supabase.from('organizations') as any).select('name').eq('id', orgId).single() : { data: null };
+      const actorOrgName = (orgRow as any)?.name ?? '';
+      const { data: gigRow } = gigId ? await (supabase.from('gigs') as any).select('title').eq('id', gigId).single() : { data: null };
+      const gigTitle = (gigRow as any)?.title ?? '';
+      try {
+        await logActivity({ organization_id: orgId, event_type: 'staffing.status_changed', entity_type: 'staffing', entity_id: assignmentId, gig_id: gigId, context: { context_version: 1, actor_display_name: actorDisplayName, actor_org_name: actorOrgName, gig_title: gigTitle, user_name: userName, role: roleName, from_status: preAssignment.status, to_status: status } });
+      } catch (e) { console.error('Activity log failed:', e); }
+    }
   } catch (err) {
     return handleApiError(err, 'update staff assignment status');
   }

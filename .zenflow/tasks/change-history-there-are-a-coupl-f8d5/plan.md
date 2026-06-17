@@ -62,7 +62,7 @@ Save to `{@artifacts_path}/plan.md`.
 
 ## Implementation Steps
 
-### [ ] Step: Database Migration
+### [x] Step: Database Migration
 
 Write and apply the Supabase migration that creates the `activity_log` table, migrates legacy data, and removes the old history tables.
 
@@ -107,7 +107,7 @@ supabase gen types typescript --linked > src/utils/supabase/database.types.ts
 
 ---
 
-### [ ] Step: TypeScript Types, Event Registry & Utilities
+### [x] Step: TypeScript Types, Event Registry & Utilities
 
 Add the TypeScript type layer and create the event registry that is the single source of truth for all 12 event types.
 
@@ -153,7 +153,7 @@ Add the TypeScript type layer and create the event registry that is the single s
 
 ---
 
-### [ ] Step: Activity Log Service
+### [x] Step: Activity Log Service
 
 Create the service layer for writing and reading activity log entries.
 
@@ -189,7 +189,7 @@ getGigActivity(gigId: string): Promise<ActivityLogEntry[]>
 
 ---
 
-### [ ] Step: Instrument gig.service.ts
+### [x] Step: Instrument gig.service.ts
 
 Add activity logging to all mutating functions in `src/services/gig.service.ts`.
 
@@ -247,7 +247,7 @@ Add activity logging to all mutating functions in `src/services/gig.service.ts`.
 
 ---
 
-### [ ] Step: Instrument asset.service.ts and kit.service.ts
+### [x] Step: Instrument asset.service.ts and kit.service.ts
 
 Add activity logging to asset and kit mutations, and remove the now-deleted `getAssetStatusHistory` function.
 
@@ -280,7 +280,7 @@ Add activity logging to asset and kit mutations, and remove the now-deleted `get
 
 ---
 
-### [ ] Step: ActivityFeed Component
+### [x] Step: ActivityFeed Component
 
 Create the reusable `ActivityFeed` component and the `activityLog.utils.ts` formatDate helper needed by the event registry.
 
@@ -318,7 +318,7 @@ interface ActivityFeedProps {
 
 ---
 
-### [ ] Step: Dashboard and Calendar Screen Updates
+### [x] Step: Dashboard and Calendar Screen Updates
 
 Surface activity data in the Dashboard's Recent Activity feed and the Calendar's change indicators.
 
@@ -344,7 +344,7 @@ Surface activity data in the Dashboard's Recent Activity feed and the Calendar's
 
 ---
 
-### [ ] Step: Detail Page Updates (Gig, Asset, Kit)
+### [x] Step: Detail Page Updates (Gig, Asset, Kit)
 
 Add contextual history views to the three detail screens.
 
@@ -380,7 +380,7 @@ Add contextual history views to the three detail screens.
 
 ---
 
-### [ ] Step: Final Verification
+### [x] Step: Final Verification
 
 Run the full verification suite and confirm no regressions.
 
@@ -391,12 +391,12 @@ npm run build && npm run test:run
 - All existing tests pass (gig, asset, kit, purchase, organization, attachment, conflict, inventory, google calendar services)
 - All new tests pass (activityLog.events, activityLog.utils, activityLog.service, ActivityFeed)
 - Build produces no type errors
-- Record results here
+- **Results**: 563 tests pass, build succeeds (vite build ✓, tsc --noEmit ✓)
 
 **Checklist**:
-- [ ] Migration file exists at `supabase/migrations/20260615000000_activity_log.sql`
-- [ ] `database.types.ts` contains `activity_log`; does not contain `gig_status_history` or `asset_status_history`
-- [ ] `ACTIVITY_EVENTS` contains exactly 12 entries
-- [ ] `logActivity` is wrapped in try/catch at every call site (never re-throws)
-- [ ] `ActivityFeed` component renders correctly for loading, empty, and populated states
-- [ ] `AssetDetailScreen` no longer imports `DbAssetStatusHistory` or `getAssetStatusHistory`
+- [x] Migration file exists at `supabase/migrations/20260615000000_activity_log.sql`
+- [x] `database.types.ts` contains `activity_log`; does not contain `gig_status_history` or `asset_status_history`
+- [x] `ACTIVITY_EVENTS` contains exactly 12 entries
+- [x] `logActivity` is wrapped in try/catch at every call site (never re-throws) — 9 call sites in gig.service, all guarded
+- [x] `ActivityFeed` component renders correctly for loading, empty, and populated states
+- [x] `AssetDetailScreen` no longer imports `DbAssetStatusHistory` or `getAssetStatusHistory`

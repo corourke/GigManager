@@ -33,6 +33,10 @@ import { Organization, User, UserRole, Gig } from '../utils/supabase/types';
 import { canManage } from '../utils/permissions';
 import { GIG_STATUS_CONFIG, ORG_ROLE_CONFIG } from '../utils/supabase/constants';
 import { getGig, deleteGig, duplicateGig } from '../services/gig.service';
+import { getGigActivity } from '../services/activityLog.service';
+import type { ActivityLogEntry } from '../utils/supabase/types';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from './ui/tabs';
+import ActivityFeed from './ActivityFeed';
 import { createClient } from '../utils/supabase/client';
 import { checkAllConflicts, Conflict } from '../services/conflictDetection.service';
 import { ConflictWarning } from './ConflictWarning';
@@ -69,6 +73,8 @@ export default function GigDetailScreen({
   const [isLoading, setIsLoading] = useState(true);
   const [viewingOrganization, setViewingOrganization] = useState<Organization | null>(null);
   const [isUserAdmin, setIsUserAdmin] = useState(false);
+  const [gigActivity, setGigActivity] = useState<ActivityLogEntry[]>([]);
+  const [activityLoading, setActivityLoading] = useState(false);
 
   useEffect(() => {
     loadGig();
@@ -101,9 +107,14 @@ export default function GigDetailScreen({
 
       setGig(processedGig);
 
-      // Check for conflicts
-      const conflictResult = await checkAllConflicts(gigId, data.start, data.end);
-        setConflicts(conflictResult.conflicts);
+      // Check for conflicts and load history in parallel
+      setActivityLoading(true);
+      const [conflictResult, activityEntries] = await Promise.all([
+        checkAllConflicts(gigId, data.start, data.end),
+        getGigActivity(gigId).finally(() => setActivityLoading(false)),
+      ]);
+      setConflicts(conflictResult.conflicts);
+      setGigActivity(activityEntries);
     } catch (error: any) {
       console.error('Error loading gig:', error);
       toast.error(error.message || 'Failed to load gig');
@@ -230,6 +241,12 @@ export default function GigDetailScreen({
           </div>
         )}
 
+        <Tabs defaultValue="overview">
+          <TabsList className="mb-4">
+            <TabsTrigger value="overview">Overview</TabsTrigger>
+            <TabsTrigger value="history">History</TabsTrigger>
+          </TabsList>
+          <TabsContent value="overview">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
           {/* Main Info Columns */}
           <div className="lg:col-span-2 space-y-4">
@@ -427,6 +444,18 @@ export default function GigDetailScreen({
             </div>
           </div>
         </div>
+          </TabsContent>
+          <TabsContent value="history">
+            <Card className="p-6">
+              <div className="mb-4">
+                <p className="text-xs text-muted-foreground">
+                  Created: {gig.created_at ? new Intl.DateTimeFormat('en-US', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(gig.created_at)) : '—'}
+                </p>
+              </div>
+              <ActivityFeed entries={gigActivity} isLoading={activityLoading} />
+            </Card>
+          </TabsContent>
+        </Tabs>
       </div>
 
       <Dialog open={viewingOrganization !== null} onOpenChange={(open) => {

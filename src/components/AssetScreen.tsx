@@ -13,8 +13,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '.
 import AppHeader from './AppHeader';
 import { PageHeader } from './ui/PageHeader';
 import { Organization, User, UserRole } from '../utils/supabase/types';
-import { getAsset, createAsset, updateAsset, getAssetStatusHistory, getAssetInventoryTracking } from '../services/asset.service';
-import type {DbAssetStatusHistory, DbInventoryTracking } from '../utils/supabase/types';
+import { getAsset, createAsset, updateAsset, getAssetHistory, getAssetInventoryTracking } from '../services/asset.service';
+import type { DbInventoryTracking, ActivityLogEntry } from '../utils/supabase/types';
+import ActivityFeed from './ActivityFeed';
 import { ASSET_STATUS_CONFIG } from '../utils/supabase/constants';
 import { useSimpleFormChanges } from '../utils/hooks/useSimpleFormChanges';
 import { createSubmissionPayload, normalizeFormData } from '../utils/form-utils';
@@ -77,7 +78,7 @@ export default function AssetScreen({
   const [isSaving, setIsSaving] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [totalCost, setTotalCost] = useState<string>(''); // Helper field, not saved
-  const [statusHistory, setStatusHistory] = useState<DbAssetStatusHistory[]>([]);
+  const [assetActivity, setAssetActivity] = useState<ActivityLogEntry[]>([]);
   const [inventoryTracking, setInventoryTracking] = useState<DbInventoryTracking[]>([]);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
 
@@ -185,10 +186,10 @@ export default function AssetScreen({
       setIsLoadingHistory(true);
       try {
         const [history, tracking] = await Promise.all([
-          getAssetStatusHistory(assetId),
+          getAssetHistory(assetId),
           getAssetInventoryTracking(assetId),
         ]);
-        setStatusHistory(history);
+        setAssetActivity(history);
         setInventoryTracking(tracking);
       } catch (err) {
         console.error('Error loading asset history:', err);
@@ -876,55 +877,13 @@ export default function AssetScreen({
             {/* Read-only History Tables — Edit Mode Only */}
             {isEditMode && (
               <div className="space-y-4 pt-2 border-t border-gray-100">
-                {/* Asset Status History */}
+                {/* Asset Change History */}
                 <div>
                   <div className="flex items-center gap-2 mb-2">
                     <History className="w-4 h-4 text-gray-500" />
-                    <h3 className="text-gray-900">Status History</h3>
+                    <h3 className="text-gray-900">Change History</h3>
                   </div>
-                  {isLoadingHistory ? (
-                    <div className="flex items-center gap-2 text-sm text-gray-500 py-4">
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      Loading history...
-                    </div>
-                  ) : statusHistory.length === 0 ? (
-                    <p className="text-sm text-gray-400 py-2">No status changes recorded.</p>
-                  ) : (
-                    <div className="border rounded-md overflow-hidden">
-                      <Table>
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead>From</TableHead>
-                            <TableHead>To</TableHead>
-                            <TableHead>Changed By</TableHead>
-                            <TableHead>Date</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {statusHistory.map((row) => (
-                            <TableRow key={row.id}>
-                              <TableCell>
-                                <span className="text-gray-500">{row.from_status ?? '—'}</span>
-                              </TableCell>
-                              <TableCell>
-                                <span className={`inline-flex items-center rounded-md border px-2 py-0.5 text-xs font-medium ${ASSET_STATUS_CONFIG[row.to_status as keyof typeof ASSET_STATUS_CONFIG]?.color ?? 'bg-gray-100 text-gray-700 border-gray-300'}`}>
-                                  {row.to_status}
-                                </span>
-                              </TableCell>
-                              <TableCell>
-                                {row.changed_by_user
-                                  ? `${row.changed_by_user.first_name} ${row.changed_by_user.last_name}`.trim()
-                                  : '—'}
-                              </TableCell>
-                              <TableCell className="text-gray-500 text-xs">
-                                {format(new Date(row.changed_at), 'PPp')}
-                              </TableCell>
-                            </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
-                    </div>
-                  )}
+                  <ActivityFeed entries={assetActivity} isLoading={isLoadingHistory} />
                 </div>
 
                 {/* Inventory Tracking */}

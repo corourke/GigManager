@@ -28,7 +28,7 @@ export type DbGig = Tables['gigs']['Row'];
 
 export type DbStaffRole = Tables['staff_roles']['Row'];
 
-export type DbGigStatusHistory = Tables['gig_status_history']['Row'];
+export type DbActivityLog = Tables['activity_log']['Row'];
 
 export type DbGigParticipant = Tables['gig_participants']['Row'];
 
@@ -49,11 +49,6 @@ export type DbPurchase = Tables['purchases']['Row'];
 export type DbAttachment = Tables['attachments']['Row'];
 
 export type DbEntityAttachment = Tables['entity_attachments']['Row'];
-
-export type DbAssetStatusHistory = Tables['asset_status_history']['Row'] & {
-  // Enriched via join in asset.service (users relation)
-  changed_by_user?: Partial<DbUser> | null;
-};
 
 export type DbInventoryTracking = Tables['inventory_tracking']['Row'] & {
   // Enriched via joins in inventoryTracking.service
@@ -172,6 +167,40 @@ export interface GigAccountingSummary {
   margin: number;
 
   paymentHealth: PaymentHealth;
+}
+
+export interface StaffingChange {
+  type: 'slot_added' | 'slot_removed' | 'assigned' | 'unassigned';
+  role: string;
+  user_name?: string;
+  initial_status?: string;
+}
+
+export interface ActivityLogContext {
+  context_version: number;
+  actor_display_name: string;
+  actor_org_name: string;
+  gig_title?: string;
+  from_status?: string;
+  to_status?: string;
+  from?: { start?: string; end?: string };
+  to?: { start?: string; end?: string };
+  from_title?: string;
+  to_title?: string;
+  organization_name?: string;
+  role?: string;
+  user_name?: string;
+  initial_status?: string;
+  kit_name?: string;
+  asset_model?: string;
+  category?: string;
+  quantity?: number;
+  changes?: StaffingChange[];
+  change_count?: number;
+}
+
+export interface ActivityLogEntry extends Omit<DbActivityLog, 'context'> {
+  context: ActivityLogContext;
 }
 
 // The Supabase client's Database type is generated from the live schema —

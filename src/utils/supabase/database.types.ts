@@ -39,44 +39,60 @@ export type Database = {
   }
   public: {
     Tables: {
-      asset_status_history: {
+      activity_log: {
         Row: {
-          asset_id: string
-          changed_at: string
-          changed_by: string | null
-          from_status: string | null
+          actor_id: string | null
+          context: Json
+          entity_id: string
+          entity_type: string
+          event_type: string
+          gig_id: string | null
           id: string
-          to_status: string
+          occurred_at: string
+          organization_id: string | null
         }
         Insert: {
-          asset_id: string
-          changed_at?: string
-          changed_by?: string | null
-          from_status?: string | null
+          actor_id?: string | null
+          context?: Json
+          entity_id: string
+          entity_type: string
+          event_type: string
+          gig_id?: string | null
           id?: string
-          to_status: string
+          occurred_at?: string
+          organization_id?: string | null
         }
         Update: {
-          asset_id?: string
-          changed_at?: string
-          changed_by?: string | null
-          from_status?: string | null
+          actor_id?: string | null
+          context?: Json
+          entity_id?: string
+          entity_type?: string
+          event_type?: string
+          gig_id?: string | null
           id?: string
-          to_status?: string
+          occurred_at?: string
+          organization_id?: string | null
         }
         Relationships: [
           {
-            foreignKeyName: "asset_status_history_asset_id_fkey"
-            columns: ["asset_id"]
+            foreignKeyName: "activity_log_actor_id_fkey"
+            columns: ["actor_id"]
             isOneToOne: false
-            referencedRelation: "assets"
+            referencedRelation: "users"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "asset_status_history_changed_by_fkey"
-            columns: ["changed_by"]
+            foreignKeyName: "activity_log_gig_id_fkey"
+            columns: ["gig_id"]
             isOneToOne: false
-            referencedRelation: "users"
+            referencedRelation: "gigs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "activity_log_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
         ]
@@ -583,41 +599,6 @@ export type Database = {
             columns: ["staff_role_id"]
             isOneToOne: false
             referencedRelation: "staff_roles"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      gig_status_history: {
-        Row: {
-          changed_at: string
-          changed_by: string
-          from_status: Database["public"]["Enums"]["gig_status"] | null
-          gig_id: string
-          id: string
-          to_status: Database["public"]["Enums"]["gig_status"]
-        }
-        Insert: {
-          changed_at?: string
-          changed_by: string
-          from_status?: Database["public"]["Enums"]["gig_status"] | null
-          gig_id: string
-          id?: string
-          to_status: Database["public"]["Enums"]["gig_status"]
-        }
-        Update: {
-          changed_at?: string
-          changed_by?: string
-          from_status?: Database["public"]["Enums"]["gig_status"] | null
-          gig_id?: string
-          id?: string
-          to_status?: Database["public"]["Enums"]["gig_status"]
-        }
-        Relationships: [
-          {
-            foreignKeyName: "gig_status_history_gig_id_fkey"
-            columns: ["gig_id"]
-            isOneToOne: false
-            referencedRelation: "gigs"
             referencedColumns: ["id"]
           },
         ]
@@ -1369,6 +1350,17 @@ export type Database = {
       convert_pending_user_to_active: {
         Args: { p_auth_user_id: string; p_email: string }
         Returns: Json
+      }
+      log_activity: {
+        Args: {
+          p_organization_id: string | null
+          p_event_type: string
+          p_entity_type: string
+          p_entity_id: string
+          p_gig_id: string | null
+          p_context: Json
+        }
+        Returns: string
       }
       create_gig_complex: {
         Args: { p_gig_data: Json; p_participants?: Json; p_staff_slots?: Json }
