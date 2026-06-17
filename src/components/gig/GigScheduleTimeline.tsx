@@ -8,7 +8,7 @@ import {
   AlertTriangle,
 } from 'lucide-react';
 import { Badge } from '../ui/badge';
-import { Card } from '../ui/card';
+
 import { cn } from '../ui/utils';
 import { SCHEDULE_ACTIVITY_CONFIG } from '../../utils/supabase/constants';
 import type { GigScheduleEntry, ScheduleActivityType } from '../../utils/supabase/types';
@@ -83,7 +83,7 @@ export default function GigScheduleTimeline({ entries, conflicts = [] }: GigSche
                 )}
               </div>
               <p className="text-xs text-muted-foreground mt-0.5">
-                {formatTime(entry.start_time)} – {formatTime(entry.end_time)}
+                {formatTime(entry.start_time)}{entry.end_time ? ` – ${formatTime(entry.end_time)}` : ''}
               </p>
               {entry.notes && (
                 <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{entry.notes}</p>

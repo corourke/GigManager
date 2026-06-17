@@ -64,7 +64,7 @@ export async function updateGigScheduleEntries(
         activity_type: e.activity_type!,
         label: e.label || null,
         start_time: e.start_time!,
-        end_time: e.end_time!,
+        end_time: e.end_time || null,
         act_participant_id: e.act_participant_id || null,
         sort_order: entries.indexOf(e),
         notes: e.notes || null,
@@ -78,7 +78,7 @@ export async function updateGigScheduleEntries(
         activity_type: e.activity_type!,
         label: e.label || null,
         start_time: e.start_time!,
-        end_time: e.end_time!,
+        end_time: e.end_time || null,
         act_participant_id: e.act_participant_id || null,
         sort_order: entries.indexOf(e),
         notes: e.notes || null,
@@ -130,9 +130,11 @@ export async function duplicateGigScheduleEntries(
       start_time: dateOffsetMs
         ? new Date(new Date(entry.start_time).getTime() + dateOffsetMs).toISOString()
         : entry.start_time,
-      end_time: dateOffsetMs
-        ? new Date(new Date(entry.end_time).getTime() + dateOffsetMs).toISOString()
-        : entry.end_time,
+      end_time: entry.end_time
+        ? (dateOffsetMs
+            ? new Date(new Date(entry.end_time).getTime() + dateOffsetMs).toISOString()
+            : entry.end_time)
+        : null,
       act_participant_id: entry.act_participant_id
         ? participantIdMap.get(entry.act_participant_id) || null
         : null,

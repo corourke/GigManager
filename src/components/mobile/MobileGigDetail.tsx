@@ -843,11 +843,11 @@ export default function MobileGigDetail({ gigId, onBack, onViewPackingList }: Mo
                     const config = SCHEDULE_ACTIVITY_CONFIG[entry.activity_type as ScheduleActivityType];
                     const actName = entry.act_participant?.organization?.name;
                     const startStr = new Date(entry.start_time).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
-                    const endStr = new Date(entry.end_time).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+                    const endStr = entry.end_time ? new Date(entry.end_time).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : null;
                     return (
                       <div key={entry.id} className="py-1.5 first:pt-0 last:pb-0 flex items-center gap-2">
                         <span className="text-[10px] text-muted-foreground w-24 shrink-0 text-right tabular-nums">
-                          {startStr} – {endStr}
+                          {startStr}{endStr ? ` – ${endStr}` : ''}
                         </span>
                         <span className={cn('text-[10px] font-semibold px-1.5 py-0.5 rounded', config?.color || 'bg-gray-100 text-gray-700')}>
                           {entry.label || config?.label || entry.activity_type}

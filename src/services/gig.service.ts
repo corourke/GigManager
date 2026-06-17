@@ -370,7 +370,7 @@ export async function updateGig(gigId: string, gigData: {
     activity_type: string;
     label?: string | null;
     start_time: string;
-    end_time: string;
+    end_time?: string | null;
     act_participant_id?: string | null;
     notes?: string | null;
   }>;

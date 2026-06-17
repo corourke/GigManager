@@ -470,7 +470,7 @@ export type Database = {
           act_participant_id: string | null
           activity_type: Database["public"]["Enums"]["schedule_activity_type"]
           created_at: string
-          end_time: string
+          end_time: string | null
           gig_id: string
           id: string
           label: string | null
@@ -483,7 +483,7 @@ export type Database = {
           act_participant_id?: string | null
           activity_type: Database["public"]["Enums"]["schedule_activity_type"]
           created_at?: string
-          end_time: string
+          end_time?: string | null
           gig_id: string
           id?: string
           label?: string | null
@@ -496,7 +496,7 @@ export type Database = {
           act_participant_id?: string | null
           activity_type?: Database["public"]["Enums"]["schedule_activity_type"]
           created_at?: string
-          end_time?: string
+          end_time?: string | null
           gig_id?: string
           id?: string
           label?: string | null
