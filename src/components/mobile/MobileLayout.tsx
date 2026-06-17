@@ -1,5 +1,6 @@
 import React from 'react';
-import {Barcode, Settings, Building2, List } from 'lucide-react';
+import {Barcode, Settings, Building2, List, LayoutDashboard } from 'lucide-react';
+import type { UserRole } from '../../utils/supabase/types';
 import { useAuth } from '../../contexts/AuthContext';
 import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar';
 import {
@@ -17,6 +18,7 @@ interface MobileLayoutProps {
   currentRoute: string;
   onNavigate: (route: string) => void;
   onSwitchOrganization?: () => void;
+  userRole?: UserRole;
 }
 
 const getIsAppleStandalone = () => {
@@ -24,7 +26,7 @@ const getIsAppleStandalone = () => {
   return (window.navigator as any).standalone === true;
 };
 
-const MobileLayout: React.FC<MobileLayoutProps> = ({ children, currentRoute, onNavigate, onSwitchOrganization }) => {
+const MobileLayout: React.FC<MobileLayoutProps> = ({ children, currentRoute, onNavigate, onSwitchOrganization, userRole }) => {
   const { user, selectedOrganization, organizations } = useAuth();
 
   const [isApplePWA] = React.useState(getIsAppleStandalone);
@@ -51,11 +53,17 @@ const MobileLayout: React.FC<MobileLayoutProps> = ({ children, currentRoute, onN
     return `${f}${l}`.toUpperCase() || '?';
   };
 
-  const navItems = [
-    { id: 'mobile-gig-list', label: 'Gigs', icon: List },
-    { id: 'mobile-inventory', label: 'Scanning', icon: Barcode },
-    { id: 'mobile-settings', label: 'Settings', icon: Settings },
-  ];
+  const navItems = userRole === 'Staff'
+    ? [
+        { id: 'mobile-dashboard', label: 'Dashboard', icon: LayoutDashboard },
+        { id: 'mobile-inventory', label: 'Scanning', icon: Barcode },
+        { id: 'mobile-settings', label: 'Settings', icon: Settings },
+      ]
+    : [
+        { id: 'mobile-gig-list', label: 'Gigs', icon: List },
+        { id: 'mobile-inventory', label: 'Scanning', icon: Barcode },
+        { id: 'mobile-settings', label: 'Settings', icon: Settings },
+      ];
 
   return (
     <div
@@ -153,7 +161,8 @@ const MobileLayout: React.FC<MobileLayoutProps> = ({ children, currentRoute, onN
             const Icon = item.icon;
             const isActive = currentRoute === item.id ||
               (item.id === 'mobile-inventory' && (currentRoute === 'mobile-inventory' || currentRoute === 'mobile-scanner')) ||
-              (item.id === 'mobile-gig-list' && currentRoute === 'mobile-gig-detail');
+              (item.id === 'mobile-gig-list' && currentRoute === 'mobile-gig-detail') ||
+              (item.id === 'mobile-dashboard' && currentRoute === 'mobile-dashboard');
 
             return (
               <button

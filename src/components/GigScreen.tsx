@@ -17,6 +17,7 @@ import GigParticipantsSection from './gig/GigParticipantsSection';
 import GigStaffSlotsSection from './gig/GigStaffSlotsSection';
 import GigFinancialsSection from './gig/GigFinancialsSection';
 import GigKitAssignmentsSection from './gig/GigKitAssignmentsSection';
+import GigScheduleEditor from './gig/GigScheduleEditor';
 import AttachmentManager from './AttachmentManager';
 
 interface GigScreenProps {
@@ -204,6 +205,14 @@ export default function GigScreen({
                 currentOrganizationRoles={organization.roles}
                 onEditOrganization={onEditOrganization}
                 userRole={userRole}
+              />
+              <GigScheduleEditor
+                gigId={gigId}
+                actParticipants={
+                  (gig?.participants || [])
+                    .filter((p: any) => p.role === 'Act')
+                    .map((p: any) => ({ id: p.id, organization: p.organization }))
+                }
               />
               <GigStaffSlotsSection
                 gigId={gigId}

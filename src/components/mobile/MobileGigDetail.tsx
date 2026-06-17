@@ -22,7 +22,10 @@ import {
   Plus,
   Check,
   ChevronDown,
+  ChevronUp,
 } from 'lucide-react';
+import { SCHEDULE_ACTIVITY_CONFIG } from '../../utils/supabase/constants';
+import type { ScheduleActivityType } from '../../utils/supabase/types';
 import { format, parseISO } from 'date-fns';
 import { getGig, updateGig, updateGigParticipants } from '../../services/gig.service';
 import { updateStaffAssignmentStatus } from '../../services/gig.service';
@@ -82,6 +85,7 @@ export default function MobileGigDetail({ gigId, onBack, onViewPackingList }: Mo
   const [editNotes, setEditNotes] = useState('');
   const [editParticipants, setEditParticipants] = useState<EditParticipant[]>([]);
   const [isSaving, setIsSaving] = useState(false);
+  const [showSchedule, setShowSchedule] = useState(false);
   const [showAddParticipant, setShowAddParticipant] = useState(false);
   const [orgSearchQuery, setOrgSearchQuery] = useState('');
   const [orgSearchResults, setOrgSearchResults] = useState<any[]>([]);
@@ -815,6 +819,50 @@ export default function MobileGigDetail({ gigId, onBack, onViewPackingList }: Mo
             )}
           </CardContent>
         </Card>
+
+        {gig.schedule_entries && gig.schedule_entries.length > 0 && (
+          <Card style={{ gap: 0 }}>
+            <CardContent className="p-3" style={{ paddingBottom: '12px' }}>
+              <button
+                onClick={() => setShowSchedule(!showSchedule)}
+                className="w-full flex items-center justify-between"
+              >
+                <p className="text-[11px] font-semibold flex items-center gap-1.5 text-muted-foreground">
+                  <Clock className="w-3.5 h-3.5" />
+                  Schedule
+                  <span className="text-[10px] font-normal">({gig.schedule_entries.length})</span>
+                </p>
+                {showSchedule
+                  ? <ChevronUp className="w-3.5 h-3.5 text-muted-foreground" />
+                  : <ChevronDown className="w-3.5 h-3.5 text-muted-foreground" />
+                }
+              </button>
+              {showSchedule && (
+                <div className="mt-2 divide-y divide-border/50">
+                  {gig.schedule_entries.map((entry: any) => {
+                    const config = SCHEDULE_ACTIVITY_CONFIG[entry.activity_type as ScheduleActivityType];
+                    const actName = entry.act_participant?.organization?.name;
+                    const startStr = new Date(entry.start_time).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+                    const endStr = new Date(entry.end_time).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+                    return (
+                      <div key={entry.id} className="py-1.5 first:pt-0 last:pb-0 flex items-center gap-2">
+                        <span className="text-[10px] text-muted-foreground w-24 shrink-0 text-right tabular-nums">
+                          {startStr} – {endStr}
+                        </span>
+                        <span className={cn('text-[10px] font-semibold px-1.5 py-0.5 rounded', config?.color || 'bg-gray-100 text-gray-700')}>
+                          {entry.label || config?.label || entry.activity_type}
+                        </span>
+                        {actName && (
+                          <span className="text-xs text-muted-foreground truncate">{actName}</span>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
 
         {gig.staff_slots && gig.staff_slots.length > 0 && (
           <Card style={{ gap: 0 }}>

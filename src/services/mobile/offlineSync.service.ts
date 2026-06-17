@@ -129,6 +129,21 @@ registerSyncHandler('ASSET_STATUS_UPDATE', async (payload: any) => {
   }
 });
 
+registerSyncHandler('STAFF_ASSIGNMENT_UPDATE', async (payload: any) => {
+  const updateData: Record<string, any> = { status: payload.status };
+  if (payload.status === 'Confirmed') {
+    updateData.confirmed_at = new Date().toISOString();
+  }
+  const { error } = await supabase
+    .from('gig_staff_assignments')
+    .update(updateData)
+    .eq('id', payload.assignmentId);
+
+  if (error) {
+    throw error;
+  }
+});
+
 export const offlineSyncService = {
   async processOutbox() {
     const outbox = await idbStore.getOutbox();

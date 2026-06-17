@@ -29,7 +29,9 @@ import AppHeader from './AppHeader';
 import AttachmentManager from './AttachmentManager';
 import GigFinancialsSection from './gig/GigFinancialsSection';
 import GigStaffSlotsSection from './gig/GigStaffSlotsSection';
+import GigScheduleTimeline from './gig/GigScheduleTimeline';
 import { Organization, User, UserRole, Gig } from '../utils/supabase/types';
+import { detectScheduleConflicts } from '../utils/scheduleConflicts';
 import { canManage } from '../utils/permissions';
 import { GIG_STATUS_CONFIG, ORG_ROLE_CONFIG } from '../utils/supabase/constants';
 import { getGig, deleteGig, duplicateGig } from '../services/gig.service';
@@ -306,6 +308,23 @@ export default function GigDetailScreen({
                 <div className="prose prose-sm max-w-none text-gray-700 bg-gray-50 p-4 rounded-lg border border-gray-100">
                   <div className="whitespace-pre-wrap">{gig.notes}</div>
                 </div>
+              </Card>
+            )}
+
+            {/* Schedule Section */}
+            {gig.schedule_entries && gig.schedule_entries.length > 0 && (
+              <Card className="p-4">
+                <div className="flex items-center gap-2 mb-3">
+                  <Calendar className="w-5 h-5 text-gray-400" />
+                  <h3 className="text-sm font-semibold text-gray-900 uppercase tracking-wider">
+                    Schedule
+                    <span className="ml-1.5 text-xs font-normal text-gray-400">({gig.schedule_entries.length})</span>
+                  </h3>
+                </div>
+                <GigScheduleTimeline
+                  entries={gig.schedule_entries}
+                  conflicts={detectScheduleConflicts(gig.schedule_entries)}
+                />
               </Card>
             )}
 

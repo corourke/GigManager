@@ -1,8 +1,8 @@
-import { OrganizationRole, UserRole, GigStatus, FinType, FinCategory, AssetStatus, PurchaseRowType, EntityType } from './constants';
+import { OrganizationRole, UserRole, GigStatus, FinType, FinCategory, AssetStatus, PurchaseRowType, EntityType, ScheduleActivityType } from './constants';
 import type { Database } from './database.types';
 
 // Re-export constants types for convenience
-export type { OrganizationRole, UserRole, GigStatus, FinType, FinCategory, AssetStatus, PurchaseRowType, EntityType };
+export type { OrganizationRole, UserRole, GigStatus, FinType, FinCategory, AssetStatus, PurchaseRowType, EntityType, ScheduleActivityType };
 
 // Database types for Supabase tables
 
@@ -68,6 +68,8 @@ export type DbKitAsset = Tables['kit_assets']['Row'];
 
 export type DbGigKitAssignment = Tables['gig_kit_assignments']['Row'];
 
+export type DbGigScheduleEntry = Tables['gig_schedule_entries']['Row'];
+
 export type Asset = DbAsset;
 export type Purchase = DbPurchase;
 export type Attachment = DbAttachment;
@@ -83,6 +85,15 @@ export interface PurchaseWithItems extends DbPurchase {
 
 export interface AssetWithAttachments extends DbAsset {
   attachments?: (DbAttachment & { entity_attachment_id: string })[];
+}
+
+// Schedule entry with joined act participant data
+export interface GigScheduleEntry extends DbGigScheduleEntry {
+  act_participant?: {
+    id: string;
+    organization?: Partial<Organization>;
+    role: string;
+  };
 }
 
 // Staff slot as returned by getGig (joined + post-processed)
@@ -108,6 +119,7 @@ export interface Gig extends Partial<DbGig> {
   participants?: (DbGigParticipant & { organization?: Partial<Organization> })[];
   financials?: DbGigFinancial[];
   staff_slots?: GigStaffSlotView[];
+  schedule_entries?: GigScheduleEntry[];
 }
 
 export interface GigWithParticipants extends DbGig {

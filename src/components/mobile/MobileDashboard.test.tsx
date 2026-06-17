@@ -8,35 +8,47 @@ vi.mock('../../contexts/AuthContext', () => ({
 
 vi.mock('../../utils/idb/store', () => ({
   idbStore: {
-    getGigs: vi.fn(),
+    getStaffAssignments: vi.fn().mockResolvedValue([]),
+    putStaffAssignments: vi.fn().mockResolvedValue(undefined),
+    addToOutbox: vi.fn().mockResolvedValue(undefined),
   },
 }))
 
-vi.mock('../../services/mobile/packingList.service', () => ({
-  packingListService: {
-    fetchUpcomingGigs: vi.fn(),
-  },
+vi.mock('../../services/mobile/staffDashboard.service', () => ({
+  fetchMyUpcomingAssignments: vi.fn(),
+}))
+
+vi.mock('../../services/gig.service', () => ({
+  updateStaffAssignmentStatus: vi.fn(),
 }))
 
 import { idbStore } from '../../utils/idb/store'
-import { packingListService } from '../../services/mobile/packingList.service'
+import { fetchMyUpcomingAssignments } from '../../services/mobile/staffDashboard.service'
 
 describe('MobileDashboard', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    vi.mocked(idbStore.getGigs).mockResolvedValue([])
-    vi.mocked(packingListService.fetchUpcomingGigs).mockResolvedValue([])
+    vi.mocked(idbStore.getStaffAssignments).mockResolvedValue([])
+    vi.mocked(fetchMyUpcomingAssignments).mockResolvedValue([])
   })
 
   it('does not show hard error UI for AbortError during refresh', async () => {
-    vi.mocked(packingListService.fetchUpcomingGigs).mockRejectedValue(
+    vi.mocked(fetchMyUpcomingAssignments).mockRejectedValue(
       new DOMException('The operation was aborted.', 'AbortError')
     )
 
-    render(<MobileDashboard onViewGig={vi.fn()} onViewGigDetail={vi.fn()} onViewAllGigs={vi.fn()} />)
+    render(<MobileDashboard onViewGigDetail={vi.fn()} onViewAllGigs={vi.fn()} />)
 
     await waitFor(() => {
-      expect(screen.queryByText('Error loading gigs')).not.toBeInTheDocument()
+      expect(screen.queryByText('Error loading assignments')).not.toBeInTheDocument()
+    })
+  })
+
+  it('shows empty state when no assignments', async () => {
+    render(<MobileDashboard onViewGigDetail={vi.fn()} onViewAllGigs={vi.fn()} />)
+
+    await waitFor(() => {
+      expect(screen.getByText('No upcoming assignments')).toBeInTheDocument()
     })
   })
 })

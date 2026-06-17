@@ -79,6 +79,28 @@ export const ENTITY_TYPE = {
 
 export type EntityType = keyof typeof ENTITY_TYPE;
 
+export const SCHEDULE_ACTIVITY_TYPES = [
+  'Load-In',
+  'Soundcheck',
+  'Rehearsal',
+  'Set',
+  'Intermission',
+  'Load-Out',
+  'Other',
+] as const;
+
+export type ScheduleActivityType = (typeof SCHEDULE_ACTIVITY_TYPES)[number];
+
+export const SCHEDULE_ACTIVITY_CONFIG: Record<ScheduleActivityType, { label: string; icon: string; color: string }> = {
+  'Load-In':      { label: 'Load-In',      icon: 'Truck',           color: 'bg-orange-100 text-orange-700 border-orange-300' },
+  'Soundcheck':   { label: 'Soundcheck',   icon: 'Volume2',         color: 'bg-blue-100 text-blue-700 border-blue-300' },
+  'Rehearsal':    { label: 'Rehearsal',     icon: 'Music',           color: 'bg-purple-100 text-purple-700 border-purple-300' },
+  'Set':          { label: 'Set',           icon: 'Mic2',            color: 'bg-green-100 text-green-700 border-green-300' },
+  'Intermission': { label: 'Intermission',  icon: 'Coffee',          color: 'bg-amber-100 text-amber-700 border-amber-300' },
+  'Load-Out':     { label: 'Load-Out',      icon: 'Truck',           color: 'bg-orange-100 text-orange-700 border-orange-300' },
+  'Other':        { label: 'Other',         icon: 'MoreHorizontal',  color: 'bg-gray-100 text-gray-700 border-gray-300' },
+};
+
 export const FIN_TYPE_CONFIG = {
   'Informal Terms': { label: 'Informal Terms' },
   'Bid Submitted': { label: 'Bid Submitted' },

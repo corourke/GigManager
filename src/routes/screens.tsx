@@ -48,6 +48,7 @@ import DevTableDemoScreen from '../components/dev/DevTableDemoScreen';
 import MobileLayout from '../components/mobile/MobileLayout';
 import MobileGigList from '../components/mobile/MobileGigList';
 import MobileGigDetail from '../components/mobile/MobileGigDetail';
+import MobileDashboard from '../components/mobile/MobileDashboard';
 import MobileInventoryMode from '../components/mobile/MobileInventoryMode';
 import MobileSettings from '../components/mobile/MobileSettings';
 
@@ -59,11 +60,12 @@ function useOrgScope() {
 
 /** Mobile chrome (header + bottom nav) wrapping the active mobile screen. */
 function MobileShell({ active, children }: { active: string; children: ReactNode }) {
-  const { organizations } = useAuth();
+  const { organizations, userRole } = useAuth();
   const nav = useNav();
   const navigate = useNavigate();
   const onNavigate = (route: string) => {
-    if (route === 'mobile-gig-list') navigate('/gigs');
+    if (route === 'mobile-dashboard') navigate('/dashboard');
+    else if (route === 'mobile-gig-list') navigate('/gigs');
     else if (route === 'mobile-inventory') navigate('/inventory');
     else if (route === 'mobile-settings') navigate('/settings');
   };
@@ -72,6 +74,7 @@ function MobileShell({ active, children }: { active: string; children: ReactNode
       currentRoute={active}
       onNavigate={onNavigate}
       onSwitchOrganization={organizations.length > 1 ? nav.switchOrganization : undefined}
+      userRole={userRole}
     >
       {children}
     </MobileLayout>
@@ -179,9 +182,17 @@ function DashboardRoute() {
   const { isMobile, openEditProfile } = useAppShell();
   const nav = useNav();
   if (!user || !organization) return <LoadingSpinner />;
-  if (isMobile) return <Navigate to="/gigs" replace />;
-  // Viewers can't access the dashboard (endpoint excludes them) — send to gigs.
   if (userRole === 'Viewer') return <Navigate to="/gigs" replace />;
+  if (isMobile) {
+    return (
+      <MobileShell active="mobile-dashboard">
+        <MobileDashboard
+          onViewGigDetail={(id: string) => nav.viewGig(id)}
+          onViewAllGigs={() => nav.navigate('/gigs')}
+        />
+      </MobileShell>
+    );
+  }
   return (
     <Dashboard
       organization={organization}

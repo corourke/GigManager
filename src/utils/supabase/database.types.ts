@@ -465,6 +465,63 @@ export type Database = {
           },
         ]
       }
+      gig_schedule_entries: {
+        Row: {
+          act_participant_id: string | null
+          activity_type: Database["public"]["Enums"]["schedule_activity_type"]
+          created_at: string
+          end_time: string
+          gig_id: string
+          id: string
+          label: string | null
+          notes: string | null
+          sort_order: number
+          start_time: string
+          updated_at: string
+        }
+        Insert: {
+          act_participant_id?: string | null
+          activity_type: Database["public"]["Enums"]["schedule_activity_type"]
+          created_at?: string
+          end_time: string
+          gig_id: string
+          id?: string
+          label?: string | null
+          notes?: string | null
+          sort_order?: number
+          start_time: string
+          updated_at?: string
+        }
+        Update: {
+          act_participant_id?: string | null
+          activity_type?: Database["public"]["Enums"]["schedule_activity_type"]
+          created_at?: string
+          end_time?: string
+          gig_id?: string
+          id?: string
+          label?: string | null
+          notes?: string | null
+          sort_order?: number
+          start_time?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "gig_schedule_entries_gig_id_fkey"
+            columns: ["gig_id"]
+            isOneToOne: false
+            referencedRelation: "gigs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "gig_schedule_entries_act_participant_id_fkey"
+            columns: ["act_participant_id"]
+            isOneToOne: false
+            referencedRelation: "gig_participants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       gig_staff_assignments: {
         Row: {
           assigned_at: string
@@ -1581,6 +1638,14 @@ export type Database = {
         | "Venue"
         | "Act"
         | "Agency"
+      schedule_activity_type:
+        | "Load-In"
+        | "Soundcheck"
+        | "Rehearsal"
+        | "Set"
+        | "Intermission"
+        | "Load-Out"
+        | "Other"
       sync_status: "pending" | "synced" | "failed" | "updated" | "removed"
       user_role: "Admin" | "Manager" | "Staff" | "Viewer"
     }

@@ -57,6 +57,14 @@ export {
   updateStaffAssignmentStatus,
 } from './gigStaff.service';
 
+// Schedule-entry operations live in gigSchedule.service.ts.
+import { updateGigScheduleEntries, duplicateGigScheduleEntries } from './gigSchedule.service';
+export {
+  getGigScheduleEntries,
+  updateGigScheduleEntries,
+  duplicateGigScheduleEntries,
+} from './gigSchedule.service';
+
 const SYNC_DEBOUNCE_MS = 30_000;
 const pendingSyncTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
@@ -203,6 +211,14 @@ export async function getGig(gigId: string) {
           *,
           organization:organization_id(*)
         ),
+        schedule_entries:gig_schedule_entries(
+          *,
+          act_participant:act_participant_id(
+            id,
+            role,
+            organization:organization_id(id, name)
+          )
+        ),
         staff_slots:gig_staff_slots(
           *,
           role_info:staff_roles(name),
@@ -231,10 +247,15 @@ export async function getGig(gigId: string) {
       }))
     }));
 
+    const sortedScheduleEntries = ((gig as any).schedule_entries || []).sort(
+      (a: any, b: any) => a.sort_order - b.sort_order || new Date(a.start_time).getTime() - new Date(b.start_time).getTime()
+    );
+
     return {
       ...gig,
       tags: gig.tags ?? [],
       staff_slots: processedSlots,
+      schedule_entries: sortedScheduleEntries,
     };
   } catch (err) {
     return handleApiError(err, 'fetch gig details');
@@ -323,11 +344,11 @@ export async function updateGig(gigId: string, gigData: {
   status?: GigStatus;
   tags?: string[];
   notes?: string | null;
-  participants?: Array<{ 
+  participants?: Array<{
     id?: string;
-    organization_id: string; 
-    role: OrganizationRole; 
-    notes?: string | null 
+    organization_id: string;
+    role: OrganizationRole;
+    notes?: string | null
   }>;
   staff_slots?: Array<{
     id?: string;
@@ -342,6 +363,15 @@ export async function updateGig(gigId: string, gigData: {
       fee?: number | null;
       notes?: string | null;
     }>;
+  }>;
+  schedule_entries?: Array<{
+    id?: string;
+    activity_type: string;
+    label?: string | null;
+    start_time: string;
+    end_time: string;
+    act_participant_id?: string | null;
+    notes?: string | null;
   }>;
 }) {
   try {
@@ -368,7 +398,7 @@ export async function updateGig(gigId: string, gigData: {
 
     const primary_organization_id = userMemberships.find(m => m.role === 'Admin' || m.role === 'Manager')?.organization_id || userMemberships[0]?.organization_id;
 
-    const { participants, staff_slots, ...restGigData } = gigData;
+    const { participants, staff_slots, schedule_entries, ...restGigData } = gigData;
 
     const { data: updatedRows, error: updateError } = await supabase
       .from('gigs')
@@ -391,6 +421,10 @@ export async function updateGig(gigId: string, gigData: {
 
     if (staff_slots !== undefined && Array.isArray(staff_slots)) {
       await updateGigStaffSlots(gigId, staff_slots.map(s => ({...s, organization_id: primary_organization_id})));
+    }
+
+    if (schedule_entries !== undefined && Array.isArray(schedule_entries)) {
+      await updateGigScheduleEntries(gigId, schedule_entries as any);
     }
 
     const updatedGig = await getGig(gigId);
@@ -512,6 +546,26 @@ export async function duplicateGig(gigId: string, newTitle?: string) {
         assigned_by: user.id,
       }));
       await supabase.from('gig_kit_assignments').insert(kitAssignments);
+    }
+
+    // Duplicate schedule entries with remapped act participant IDs
+    if (originalGig.schedule_entries && originalGig.schedule_entries.length > 0) {
+      const { data: newParticipants } = await supabase
+        .from('gig_participants')
+        .select('id, organization_id, role')
+        .eq('gig_id', newGigId);
+
+      const participantIdMap = new Map<string, string>();
+      for (const oldP of (originalGig.participants || [])) {
+        const newP = (newParticipants || []).find(
+          (np: any) => np.organization_id === oldP.organization_id && np.role === oldP.role
+        );
+        if (newP && oldP.id) {
+          participantIdMap.set(oldP.id, newP.id);
+        }
+      }
+
+      await duplicateGigScheduleEntries(gigId, newGigId, participantIdMap);
     }
 
     return await getGig(newGigId);

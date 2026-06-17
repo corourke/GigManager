@@ -71,7 +71,10 @@ export function RequireOrg() {
 export function LandingRedirect() {
   const { isMobile } = useAppShell();
   const { userRole } = useAuth();
-  if (isMobile) return <Navigate to="/gigs" replace />;
+  if (isMobile) {
+    if (userRole === 'Staff') return <Navigate to="/dashboard" replace />;
+    return <Navigate to="/gigs" replace />;
+  }
   if (userRole === 'Viewer') return <Navigate to="/gigs" replace />;
   return <Navigate to="/dashboard" replace />;
 }

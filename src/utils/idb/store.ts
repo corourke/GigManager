@@ -2,7 +2,7 @@ import { openDB, DBSchema, IDBPDatabase } from 'idb';
 
 export interface OutboxItem {
   id?: number;
-  type: 'INVENTORY_SCAN' | 'INVENTORY_CLEAR' | 'INVENTORY_NOTE_UPDATE' | 'ASSET_STATUS_UPDATE' | 'BIO_ENROLL';
+  type: 'INVENTORY_SCAN' | 'INVENTORY_CLEAR' | 'INVENTORY_NOTE_UPDATE' | 'ASSET_STATUS_UPDATE' | 'BIO_ENROLL' | 'STAFF_ASSIGNMENT_UPDATE';
   payload: any;
   timestamp: number;
   attempts: number;
@@ -23,10 +23,14 @@ interface GigWranglerDB extends DBSchema {
     value: OutboxItem;
     indexes: { 'by-timestamp': number };
   };
+  staff_assignments: {
+    key: string;
+    value: any;
+  };
 }
 
 const DB_NAME = 'gig-manager-mobile';
-const DB_VERSION = 2;
+const DB_VERSION = 3;
 
 let dbPromise: Promise<IDBPDatabase<GigWranglerDB>>;
 
@@ -44,7 +48,7 @@ export const getDB = () => {
           });
           outboxStore.createIndex('by-timestamp', 'timestamp');
         }
-        if (oldVersion === 1 && transaction) {
+        if (oldVersion < 2 && transaction) {
           const hasGigStore = Array.from(transaction.objectStoreNames).includes('gigs');
           if (hasGigStore) {
             const gigStore = transaction.objectStore('gigs');
@@ -53,6 +57,9 @@ export const getDB = () => {
             }
             gigStore.createIndex('by-date', 'start');
           }
+        }
+        if (oldVersion < 3) {
+          db.createObjectStore('staff_assignments', { keyPath: 'assignment.id' });
         }
       },
     });
@@ -107,5 +114,20 @@ export const idbStore = {
   async updateOutboxItem(item: OutboxItem) {
     const db = await getDB();
     return db.put('outbox', item);
-  }
+  },
+
+  async putStaffAssignments(assignments: any[]) {
+    const db = await getDB();
+    const tx = db.transaction('staff_assignments', 'readwrite');
+    await tx.store.clear();
+    await Promise.all([...assignments.map(a => tx.store.put(a)), tx.done]);
+  },
+  async getStaffAssignments() {
+    const db = await getDB();
+    return db.getAll('staff_assignments');
+  },
+  async clearStaffAssignments() {
+    const db = await getDB();
+    return db.clear('staff_assignments');
+  },
 };
