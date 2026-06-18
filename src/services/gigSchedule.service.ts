@@ -56,6 +56,9 @@ export async function updateGigScheduleEntries(
     }
 
     const now = new Date().toISOString();
+    const defaultEndTime = (start: string, end: string | null | undefined) =>
+      end || new Date(new Date(start).getTime() + 60 * 60 * 1000).toISOString();
+
     const toUpsert = entries
       .filter(e => e.id && existingIds.includes(e.id))
       .map(e => ({
@@ -64,7 +67,7 @@ export async function updateGigScheduleEntries(
         activity_type: e.activity_type!,
         label: e.label || null,
         start_time: e.start_time!,
-        end_time: e.end_time || null,
+        end_time: defaultEndTime(e.start_time!, e.end_time),
         act_participant_id: e.act_participant_id || null,
         sort_order: entries.indexOf(e),
         notes: e.notes || null,
@@ -78,7 +81,7 @@ export async function updateGigScheduleEntries(
         activity_type: e.activity_type!,
         label: e.label || null,
         start_time: e.start_time!,
-        end_time: e.end_time || null,
+        end_time: defaultEndTime(e.start_time!, e.end_time),
         act_participant_id: e.act_participant_id || null,
         sort_order: entries.indexOf(e),
         notes: e.notes || null,
@@ -123,24 +126,26 @@ export async function duplicateGigScheduleEntries(
     if (error) throw error;
     if (!entries || entries.length === 0) return;
 
-    const newEntries = entries.map(entry => ({
+    const newEntries = entries.map(entry => {
+      const newStart = dateOffsetMs
+        ? new Date(new Date(entry.start_time).getTime() + dateOffsetMs).toISOString()
+        : entry.start_time;
+      return {
       gig_id: targetGigId,
       activity_type: entry.activity_type,
       label: entry.label,
-      start_time: dateOffsetMs
-        ? new Date(new Date(entry.start_time).getTime() + dateOffsetMs).toISOString()
-        : entry.start_time,
+      start_time: newStart,
       end_time: entry.end_time
         ? (dateOffsetMs
             ? new Date(new Date(entry.end_time).getTime() + dateOffsetMs).toISOString()
             : entry.end_time)
-        : null,
+        : new Date(new Date(newStart).getTime() + 60 * 60 * 1000).toISOString(),
       act_participant_id: entry.act_participant_id
         ? participantIdMap.get(entry.act_participant_id) || null
         : null,
       sort_order: entry.sort_order,
       notes: entry.notes,
-    }));
+    };});
 
     const { error: insertError } = await supabase
       .from('gig_schedule_entries')

@@ -32,7 +32,7 @@ interface EditableEntry {
   id?: string;
   activity_type: ScheduleActivityType;
   label: string;
-  start_time: string;
+  start_time: string; // local datetime string: YYYY-MM-DDTHH:MM
   end_time: string;
   act_participant_id: string;
   notes: string;
@@ -64,9 +64,19 @@ function fromLocalDatetimeValue(local: string): string {
 }
 
 function combineDateTime(date: string, time: string): string {
-  if (!time) return '';
-  if (!date) return '';
+  if (!time || !date) return '';
   return `${date}T${time}`;
+}
+
+function formatTimeAmPm(localDatetime: string): string {
+  if (!localDatetime) return '';
+  const [, timePart] = localDatetime.split('T');
+  if (!timePart) return '';
+  const [hStr, mStr] = timePart.split(':');
+  let h = parseInt(hStr, 10);
+  const ampm = h >= 12 ? 'PM' : 'AM';
+  h = h % 12 || 12;
+  return `${h}:${mStr} ${ampm}`;
 }
 
 function entryToEditable(entry: GigScheduleEntry): EditableEntry {
@@ -206,7 +216,7 @@ export default function GigScheduleEditor({ gigId, actParticipants: actParticipa
     });
   };
 
-  // Build conflict set for highlighting — use the same temp ID scheme as the render loop
+  // Build conflict set for highlighting
   const conflictEntries = entries
     .filter(e => e.start_time && e.end_time)
     .map((e, i) => ({
@@ -264,9 +274,11 @@ export default function GigScheduleEditor({ gigId, actParticipants: actParticipa
             const config = SCHEDULE_ACTIVITY_CONFIG[entry.activity_type];
             const startDate = entry.start_time ? toLocalDateValue(entry.start_time) : '';
             const startTime = entry.start_time ? toLocalTimeValue(entry.start_time) : '';
+            const endDate = entry.end_time ? toLocalDateValue(entry.end_time) : '';
             const endTime = entry.end_time ? toLocalTimeValue(entry.end_time) : '';
             const useCustomLabel = isCustomLabel(entry);
             const selectValue = useCustomLabel ? CUSTOM_TYPE : entry.activity_type;
+            const startAmPm = formatTimeAmPm(entry.start_time);
 
             return (
               <div
@@ -283,9 +295,29 @@ export default function GigScheduleEditor({ gigId, actParticipants: actParticipa
                   </div>
                 )}
 
-                {/* Primary row: grip · type/label · time · act · delete */}
+                {/* Primary row: grip · time · type/label · act · expand · delete */}
                 <div className="flex items-center gap-1.5">
                   <GripVertical className="w-3.5 h-3.5 text-muted-foreground/40 shrink-0 cursor-grab" />
+
+                  {/* Start time (required) — shows AM/PM */}
+                  <div className="relative shrink-0 w-[5.5rem]">
+                    <input
+                      type="time"
+                      className={cn(INPUT_CLASS, 'w-full h-7 text-xs opacity-0 absolute inset-0 cursor-pointer')}
+                      value={startTime}
+                      onChange={e => {
+                        const date = startDate || new Date().toISOString().slice(0, 10);
+                        updateEntry(i, 'start_time', combineDateTime(date, e.target.value));
+                      }}
+                    />
+                    <div className={cn(
+                      INPUT_CLASS,
+                      'w-full h-7 text-xs flex items-center pointer-events-none tabular-nums',
+                      !startAmPm && 'text-muted-foreground/50',
+                    )}>
+                      {startAmPm || '— : — —'}
+                    </div>
+                  </div>
 
                   {/* Type/Label combo */}
                   <div className="relative min-w-0 w-36 shrink-0">
@@ -331,34 +363,6 @@ export default function GigScheduleEditor({ gigId, actParticipants: actParticipa
                     )}
                   </div>
 
-                  {/* Start time (required) */}
-                  <input
-                    type="time"
-                    className={cn(INPUT_CLASS, 'w-[5.5rem] h-7 text-xs shrink-0')}
-                    value={startTime}
-                    onChange={e => {
-                      const date = startDate || new Date().toISOString().slice(0, 10);
-                      updateEntry(i, 'start_time', combineDateTime(date, e.target.value));
-                    }}
-                  />
-
-                  {/* End time (optional) */}
-                  <span className="text-muted-foreground text-xs shrink-0">–</span>
-                  <input
-                    type="time"
-                    className={cn(INPUT_CLASS, 'w-[5.5rem] h-7 text-xs shrink-0', !endTime && 'text-muted-foreground/50')}
-                    value={endTime}
-                    placeholder="--:--"
-                    onChange={e => {
-                      if (!e.target.value) {
-                        updateEntry(i, 'end_time', '');
-                        return;
-                      }
-                      const date = startDate || new Date().toISOString().slice(0, 10);
-                      updateEntry(i, 'end_time', combineDateTime(date, e.target.value));
-                    }}
-                  />
-
                   {/* Act (if any exist) */}
                   {acts.length > 0 && (
                     <select
@@ -375,13 +379,13 @@ export default function GigScheduleEditor({ gigId, actParticipants: actParticipa
                     </select>
                   )}
 
-                  {/* Expand / Notes toggle */}
+                  {/* Expand toggle */}
                   <button
                     className={cn(
                       'shrink-0 p-1 rounded hover:bg-muted/50 text-muted-foreground',
                       entry._showMore && 'text-foreground',
                     )}
-                    title="Date, notes"
+                    title="End time, date, notes"
                     onClick={() => updateEntry(i, '_showMore', !entry._showMore)}
                   >
                     <ChevronDown className={cn('w-3.5 h-3.5 transition-transform', entry._showMore && 'rotate-180')} />
@@ -396,30 +400,67 @@ export default function GigScheduleEditor({ gigId, actParticipants: actParticipa
                   </button>
                 </div>
 
-                {/* Expanded row: date override + notes */}
+                {/* Expanded section: end time, date, notes */}
                 {entry._showMore && (
-                  <div className="flex items-center gap-2 mt-1.5 pl-5">
-                    <label className="text-[10px] text-muted-foreground shrink-0">Date</label>
-                    <input
-                      type="date"
-                      className={cn(INPUT_CLASS, 'h-7 text-xs w-36')}
-                      value={startDate}
-                      onChange={e => {
-                        const time = startTime || '00:00';
-                        updateEntry(i, 'start_time', combineDateTime(e.target.value, time));
-                        if (endTime) {
-                          updateEntry(i, 'end_time', combineDateTime(e.target.value, endTime));
-                        }
-                      }}
-                    />
-                    <label className="text-[10px] text-muted-foreground shrink-0">Notes</label>
-                    <input
-                      type="text"
-                      className={cn(INPUT_CLASS, 'h-7 text-xs flex-1')}
-                      placeholder="Optional"
-                      value={entry.notes}
-                      onChange={e => updateEntry(i, 'notes', e.target.value)}
-                    />
+                  <div className="mt-1.5 pl-5 space-y-1.5">
+                    <div className="flex items-center gap-2">
+                      <label className="text-[10px] text-muted-foreground w-10 shrink-0">End</label>
+                      <div className="relative shrink-0 w-[5.5rem]">
+                        <input
+                          type="time"
+                          className={cn(INPUT_CLASS, 'w-full h-7 text-xs opacity-0 absolute inset-0 cursor-pointer')}
+                          value={endTime}
+                          onChange={e => {
+                            if (!e.target.value) {
+                              updateEntry(i, 'end_time', '');
+                              return;
+                            }
+                            const date = endDate || startDate || new Date().toISOString().slice(0, 10);
+                            updateEntry(i, 'end_time', combineDateTime(date, e.target.value));
+                          }}
+                        />
+                        <div className={cn(
+                          INPUT_CLASS,
+                          'w-full h-7 text-xs flex items-center pointer-events-none tabular-nums',
+                          !endTime && 'text-muted-foreground/50',
+                        )}>
+                          {formatTimeAmPm(entry.end_time) || 'Optional'}
+                        </div>
+                      </div>
+                      {endTime && (
+                        <button
+                          className="text-[10px] text-muted-foreground hover:text-foreground"
+                          onClick={() => updateEntry(i, 'end_time', '')}
+                        >
+                          Clear
+                        </button>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <label className="text-[10px] text-muted-foreground w-10 shrink-0">Date</label>
+                      <input
+                        type="date"
+                        className={cn(INPUT_CLASS, 'h-7 text-xs w-36')}
+                        value={startDate}
+                        onChange={e => {
+                          const time = startTime || '00:00';
+                          updateEntry(i, 'start_time', combineDateTime(e.target.value, time));
+                          if (endTime) {
+                            updateEntry(i, 'end_time', combineDateTime(e.target.value, endTime));
+                          }
+                        }}
+                      />
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <label className="text-[10px] text-muted-foreground w-10 shrink-0">Notes</label>
+                      <input
+                        type="text"
+                        className={cn(INPUT_CLASS, 'h-7 text-xs flex-1')}
+                        placeholder="Optional"
+                        value={entry.notes}
+                        onChange={e => updateEntry(i, 'notes', e.target.value)}
+                      />
+                    </div>
                   </div>
                 )}
               </div>
