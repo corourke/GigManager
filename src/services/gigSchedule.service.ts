@@ -56,8 +56,6 @@ export async function updateGigScheduleEntries(
     }
 
     const now = new Date().toISOString();
-    const defaultEndTime = (start: string, end: string | null | undefined) =>
-      end || new Date(new Date(start).getTime() + 60 * 60 * 1000).toISOString();
 
     const toUpsert = entries
       .filter(e => e.id && existingIds.includes(e.id))
@@ -67,7 +65,7 @@ export async function updateGigScheduleEntries(
         activity_type: e.activity_type!,
         label: e.label || null,
         start_time: e.start_time!,
-        end_time: defaultEndTime(e.start_time!, e.end_time),
+        end_time: e.end_time || null,
         act_participant_id: e.act_participant_id || null,
         sort_order: entries.indexOf(e),
         notes: e.notes || null,
@@ -81,7 +79,7 @@ export async function updateGigScheduleEntries(
         activity_type: e.activity_type!,
         label: e.label || null,
         start_time: e.start_time!,
-        end_time: defaultEndTime(e.start_time!, e.end_time),
+        end_time: e.end_time || null,
         act_participant_id: e.act_participant_id || null,
         sort_order: entries.indexOf(e),
         notes: e.notes || null,
@@ -131,21 +129,22 @@ export async function duplicateGigScheduleEntries(
         ? new Date(new Date(entry.start_time).getTime() + dateOffsetMs).toISOString()
         : entry.start_time;
       return {
-      gig_id: targetGigId,
-      activity_type: entry.activity_type,
-      label: entry.label,
-      start_time: newStart,
-      end_time: entry.end_time
-        ? (dateOffsetMs
-            ? new Date(new Date(entry.end_time).getTime() + dateOffsetMs).toISOString()
-            : entry.end_time)
-        : new Date(new Date(newStart).getTime() + 60 * 60 * 1000).toISOString(),
-      act_participant_id: entry.act_participant_id
-        ? participantIdMap.get(entry.act_participant_id) || null
-        : null,
-      sort_order: entry.sort_order,
-      notes: entry.notes,
-    };});
+        gig_id: targetGigId,
+        activity_type: entry.activity_type,
+        label: entry.label,
+        start_time: newStart,
+        end_time: entry.end_time
+          ? (dateOffsetMs
+              ? new Date(new Date(entry.end_time).getTime() + dateOffsetMs).toISOString()
+              : entry.end_time)
+          : null,
+        act_participant_id: entry.act_participant_id
+          ? participantIdMap.get(entry.act_participant_id) || null
+          : null,
+        sort_order: entry.sort_order,
+        notes: entry.notes,
+      };
+    });
 
     const { error: insertError } = await supabase
       .from('gig_schedule_entries')

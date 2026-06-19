@@ -5,7 +5,6 @@ import {
   AlertTriangle,
   Loader2,
   Clock,
-  GripVertical,
   ChevronDown,
 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -25,40 +24,46 @@ interface ActParticipant {
 
 interface GigScheduleEditorProps {
   gigId: string;
+  gigStart?: string | null;
   actParticipants?: ActParticipant[];
 }
 
 interface EditableEntry {
+  _key: string; // stable client key; never persisted
   id?: string;
   activity_type: ScheduleActivityType;
   label: string;
-  start_time: string; // local datetime string: YYYY-MM-DDTHH:MM
+  start_time: string; // local datetime string: YYYY-MM-DDTHH:MM (or '' if unset)
   end_time: string;
   act_participant_id: string;
   notes: string;
   _showMore?: boolean;
 }
 
-function toLocalTimeValue(iso: string): string {
+const makeKey = () => (crypto.randomUUID ? crypto.randomUUID() : `k-${Math.random().toString(36).slice(2)}`);
+
+function pad(n: number): string {
+  return String(n).padStart(2, '0');
+}
+
+function toLocalTimeValue(local: string): string {
+  if (!local) return '';
+  const [, time] = local.split('T');
+  return time ? time.slice(0, 5) : '';
+}
+
+function toLocalDateValue(local: string): string {
+  if (!local) return '';
+  return local.split('T')[0] || '';
+}
+
+function isoToLocalDatetime(iso: string): string {
   if (!iso) return '';
   const d = new Date(iso);
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
-function toLocalDateValue(iso: string): string {
-  if (!iso) return '';
-  const d = new Date(iso);
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-}
-
-function toLocalDatetimeValue(iso: string): string {
-  if (!iso) return '';
-  return `${toLocalDateValue(iso)}T${toLocalTimeValue(iso)}`;
-}
-
-function fromLocalDatetimeValue(local: string): string {
+function localDatetimeToIso(local: string): string {
   if (!local) return '';
   return new Date(local).toISOString();
 }
@@ -68,24 +73,20 @@ function combineDateTime(date: string, time: string): string {
   return `${date}T${time}`;
 }
 
-function formatTimeAmPm(localDatetime: string): string {
-  if (!localDatetime) return '';
-  const [, timePart] = localDatetime.split('T');
-  if (!timePart) return '';
-  const [hStr, mStr] = timePart.split(':');
-  let h = parseInt(hStr, 10);
-  const ampm = h >= 12 ? 'PM' : 'AM';
-  h = h % 12 || 12;
-  return `${h}:${mStr} ${ampm}`;
+function formatDateHeader(dateKey: string): string {
+  if (!dateKey) return 'No time set';
+  const [y, m, d] = dateKey.split('-').map(Number);
+  return new Date(y, m - 1, d).toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' });
 }
 
 function entryToEditable(entry: GigScheduleEntry): EditableEntry {
   return {
+    _key: makeKey(),
     id: entry.id,
     activity_type: entry.activity_type as ScheduleActivityType,
     label: entry.label || '',
-    start_time: toLocalDatetimeValue(entry.start_time),
-    end_time: entry.end_time ? toLocalDatetimeValue(entry.end_time) : '',
+    start_time: isoToLocalDatetime(entry.start_time),
+    end_time: entry.end_time ? isoToLocalDatetime(entry.end_time) : '',
     act_participant_id: entry.act_participant_id || '',
     notes: entry.notes || '',
   };
@@ -93,6 +94,7 @@ function entryToEditable(entry: GigScheduleEntry): EditableEntry {
 
 function makeEmptyEntry(): EditableEntry {
   return {
+    _key: makeKey(),
     activity_type: 'Set',
     label: '',
     start_time: '',
@@ -114,15 +116,18 @@ function isCustomLabel(entry: EditableEntry): boolean {
   return !!entry.label && entry.label !== config?.label;
 }
 
-const INPUT_CLASS = 'h-8 px-2 text-sm bg-background rounded-md border border-input focus:outline-none focus:ring-2 focus:ring-ring/30';
+const INPUT_CLASS = 'h-7 px-2 text-xs bg-background rounded-md border border-input focus:outline-none focus:ring-2 focus:ring-ring/30';
 
-export default function GigScheduleEditor({ gigId, actParticipants: actParticipantsProp }: GigScheduleEditorProps) {
+export default function GigScheduleEditor({ gigId, gigStart, actParticipants: actParticipantsProp }: GigScheduleEditorProps) {
   const [entries, setEntries] = useState<EditableEntry[]>([]);
   const [acts, setActs] = useState<ActParticipant[]>(actParticipantsProp || []);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const gigDateKey = gigStart ? toLocalDateValue(isoToLocalDatetime(gigStart)) : '';
+  const defaultDate = () => gigDateKey || new Date().toISOString().slice(0, 10);
 
   useEffect(() => {
     loadEntries();
@@ -160,32 +165,44 @@ export default function GigScheduleEditor({ gigId, actParticipants: actParticipa
     setDirty(true);
     saveTimerRef.current = setTimeout(() => {
       saveEntries(updatedEntries);
-    }, 1500);
+    }, 1200);
   }, [gigId]);
 
   const saveEntries = async (entriesToSave: EditableEntry[]) => {
     const valid = entriesToSave.filter(e => e.start_time);
-    const incomplete = entriesToSave.filter(e => !e.start_time);
-    if (valid.length === 0 && incomplete.length > 0) {
+    if (valid.length === 0) {
+      // Nothing persistable yet; clear the spinner but keep local edits.
+      setDirty(false);
       return;
     }
+    const sortedValid = [...valid].sort((a, b) => a.start_time.localeCompare(b.start_time));
     setSaving(true);
     try {
       await updateGigScheduleEntries(
         gigId,
-        valid.map(e => ({
+        sortedValid.map(e => ({
           id: e.id,
           activity_type: e.activity_type,
           label: e.label || null,
-          start_time: fromLocalDatetimeValue(e.start_time),
-          end_time: e.end_time ? fromLocalDatetimeValue(e.end_time) : null,
+          start_time: localDatetimeToIso(e.start_time),
+          end_time: e.end_time ? localDatetimeToIso(e.end_time) : null,
           act_participant_id: e.act_participant_id || null,
           notes: e.notes || null,
         })) as any
       );
-      setDirty(false);
       const fresh = await getGigScheduleEntries(gigId);
-      setEntries([...fresh.map(entryToEditable), ...incomplete]);
+      setDirty(false);
+      // Merge: fresh rows align chronologically with sortedValid; carry over the
+      // stable _key and expansion flag so the open row doesn't collapse on save.
+      setEntries(prev => {
+        const incomplete = prev.filter(e => !e.start_time);
+        const merged = fresh.map((f, idx) => ({
+          ...entryToEditable(f),
+          _key: sortedValid[idx]?._key ?? makeKey(),
+          _showMore: sortedValid[idx]?._showMore ?? false,
+        }));
+        return [...merged, ...incomplete];
+      });
     } catch (err: any) {
       toast.error(err.message || 'Failed to save schedule');
     } finally {
@@ -193,13 +210,10 @@ export default function GigScheduleEditor({ gigId, actParticipants: actParticipa
     }
   };
 
-  const updateEntry = (index: number, field: keyof EditableEntry, value: string | boolean) => {
+  const updateEntry = (key: string, changes: Partial<EditableEntry>, persist = true) => {
     setEntries(prev => {
-      const updated = [...prev];
-      updated[index] = { ...updated[index], [field]: value };
-      if (field !== '_showMore') {
-        debouncedSave(updated);
-      }
+      const updated = prev.map(e => (e._key === key ? { ...e, ...changes } : e));
+      if (persist) debouncedSave(updated);
       return updated;
     });
   };
@@ -208,23 +222,22 @@ export default function GigScheduleEditor({ gigId, actParticipants: actParticipa
     setEntries(prev => [...prev, makeEmptyEntry()]);
   };
 
-  const removeEntry = (index: number) => {
+  const removeEntry = (key: string) => {
     setEntries(prev => {
-      const updated = prev.filter((_, i) => i !== index);
+      const updated = prev.filter(e => e._key !== key);
       debouncedSave(updated);
       return updated;
     });
   };
 
-  // Build conflict set for highlighting
-  const conflictEntries = entries
+  // Conflict highlighting (keyed by _key so unsaved rows match too).
+  const conflictSource = entries
     .filter(e => e.start_time && e.end_time)
-    .map((e, i) => ({
-      ...e,
-      id: e.id || `new-${i}`,
+    .map(e => ({
+      id: e._key,
       gig_id: gigId,
-      start_time: fromLocalDatetimeValue(e.start_time),
-      end_time: fromLocalDatetimeValue(e.end_time),
+      start_time: localDatetimeToIso(e.start_time),
+      end_time: localDatetimeToIso(e.end_time),
       act_participant_id: e.act_participant_id || null,
       activity_type: e.activity_type,
       label: e.label || null,
@@ -233,8 +246,24 @@ export default function GigScheduleEditor({ gigId, actParticipants: actParticipa
       created_at: '',
       updated_at: '',
     })) as GigScheduleEntry[];
-  const conflicts = detectScheduleConflicts(conflictEntries);
-  const conflictIds = new Set(conflicts.flatMap(c => [c.entryA.id, c.entryB.id]));
+  const conflicts = detectScheduleConflicts(conflictSource);
+  const conflictKeys = new Set(conflicts.flatMap(c => [c.entryA.id, c.entryB.id]));
+
+  // Group by date for the compact display. Dated entries grouped by their date;
+  // entries without a start time fall into a trailing untimed group.
+  const dated = entries.filter(e => e.start_time);
+  const untimed = entries.filter(e => !e.start_time);
+  const groupOrder: string[] = [];
+  const groupMap = new Map<string, EditableEntry[]>();
+  for (const e of dated) {
+    const key = toLocalDateValue(e.start_time);
+    if (!groupMap.has(key)) { groupMap.set(key, []); groupOrder.push(key); }
+    groupMap.get(key)!.push(e);
+  }
+  groupOrder.sort((a, b) => a.localeCompare(b));
+  const distinctDates = groupOrder;
+  const showDateHeaders =
+    distinctDates.length > 1 || (distinctDates.length === 1 && distinctDates[0] !== gigDateKey);
 
   if (loading) {
     return (
@@ -246,6 +275,177 @@ export default function GigScheduleEditor({ gigId, actParticipants: actParticipa
       </Card>
     );
   }
+
+  const renderRow = (entry: EditableEntry) => {
+    const hasConflict = conflictKeys.has(entry._key);
+    const config = SCHEDULE_ACTIVITY_CONFIG[entry.activity_type];
+    const startDate = entry.start_time ? toLocalDateValue(entry.start_time) : '';
+    const startTime = entry.start_time ? toLocalTimeValue(entry.start_time) : '';
+    const endTime = entry.end_time ? toLocalTimeValue(entry.end_time) : '';
+    const useCustomLabel = isCustomLabel(entry);
+    const selectValue = useCustomLabel ? CUSTOM_TYPE : entry.activity_type;
+
+    return (
+      <div
+        key={entry._key}
+        className={cn(
+          'rounded-md border px-2 py-1.5',
+          hasConflict ? 'border-orange-300 bg-orange-50/50' : 'border-border',
+        )}
+      >
+        {hasConflict && (
+          <div className="flex items-center gap-1 text-orange-600 text-[10px] font-medium mb-1">
+            <AlertTriangle className="w-3 h-3" />
+            Conflict
+          </div>
+        )}
+
+        {/* Primary row: start time · type/label · act · expand · delete */}
+        <div className="flex items-center gap-1.5">
+          <input
+            type="time"
+            className={cn(INPUT_CLASS, 'w-[6.5rem] shrink-0 tabular-nums')}
+            value={startTime}
+            onChange={e => {
+              const date = startDate || defaultDate();
+              updateEntry(entry._key, { start_time: combineDateTime(date, e.target.value) });
+            }}
+          />
+
+          {/* Type/Label combo */}
+          <div className="relative min-w-0 flex-1">
+            {useCustomLabel ? (
+              <div className="flex items-center gap-1">
+                <span className={cn('w-2 h-2 rounded-full shrink-0', config?.color?.split(' ')[0] || 'bg-gray-400')} />
+                <input
+                  type="text"
+                  className={cn(INPUT_CLASS, 'w-full')}
+                  value={entry.label}
+                  placeholder="Custom label"
+                  onChange={e => updateEntry(entry._key, { label: e.target.value })}
+                />
+                <button
+                  className="text-muted-foreground hover:text-foreground p-0.5 shrink-0"
+                  title="Use a preset"
+                  onClick={() => updateEntry(entry._key, { label: '' })}
+                >
+                  <ChevronDown className="w-3 h-3" />
+                </button>
+              </div>
+            ) : (
+              <select
+                className={cn(INPUT_CLASS, 'w-full pr-6 appearance-none')}
+                value={selectValue}
+                onChange={e => {
+                  const val = e.target.value;
+                  if (val === CUSTOM_TYPE) {
+                    updateEntry(entry._key, { label: getDisplayLabel(entry) });
+                  } else {
+                    updateEntry(entry._key, { activity_type: val as ScheduleActivityType, label: '' });
+                  }
+                }}
+              >
+                {SCHEDULE_ACTIVITY_TYPES.map(t => (
+                  <option key={t} value={t}>{SCHEDULE_ACTIVITY_CONFIG[t].label}</option>
+                ))}
+                <option value={CUSTOM_TYPE}>Custom...</option>
+              </select>
+            )}
+          </div>
+
+          {acts.length > 0 && (
+            <select
+              className={cn(INPUT_CLASS, 'min-w-0 w-28')}
+              value={entry.act_participant_id}
+              onChange={e => updateEntry(entry._key, { act_participant_id: e.target.value })}
+            >
+              <option value="">—</option>
+              {acts.map(p => (
+                <option key={p.id} value={p.id}>{p.organization?.name || 'Act'}</option>
+              ))}
+            </select>
+          )}
+
+          <button
+            className={cn(
+              'shrink-0 p-1 rounded hover:bg-muted/50 text-muted-foreground',
+              entry._showMore && 'text-foreground',
+            )}
+            title="End time, date, notes"
+            onClick={() => updateEntry(entry._key, { _showMore: !entry._showMore }, false)}
+          >
+            <ChevronDown className={cn('w-3.5 h-3.5 transition-transform', entry._showMore && 'rotate-180')} />
+          </button>
+
+          <button
+            className="shrink-0 p-1 rounded text-destructive/60 hover:text-destructive hover:bg-destructive/10"
+            onClick={() => removeEntry(entry._key)}
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+          </button>
+        </div>
+
+        {/* Expanded: end time (optional), date override, notes */}
+        {entry._showMore && (
+          <div className="mt-1.5 pl-1 space-y-1.5">
+            <div className="flex items-center gap-2">
+              <label className="text-[10px] text-muted-foreground w-10 shrink-0">End</label>
+              <input
+                type="time"
+                className={cn(INPUT_CLASS, 'w-[6.5rem] tabular-nums')}
+                value={endTime}
+                onChange={e => {
+                  if (!e.target.value) {
+                    updateEntry(entry._key, { end_time: '' });
+                    return;
+                  }
+                  const date = (entry.end_time && toLocalDateValue(entry.end_time)) || startDate || defaultDate();
+                  updateEntry(entry._key, { end_time: combineDateTime(date, e.target.value) });
+                }}
+              />
+              {endTime
+                ? (
+                  <button
+                    className="text-[10px] text-muted-foreground hover:text-foreground"
+                    onClick={() => updateEntry(entry._key, { end_time: '' })}
+                  >
+                    Clear
+                  </button>
+                )
+                : <span className="text-[10px] text-muted-foreground/60">optional</span>}
+            </div>
+            <div className="flex items-center gap-2">
+              <label className="text-[10px] text-muted-foreground w-10 shrink-0">Date</label>
+              <input
+                type="date"
+                className={cn(INPUT_CLASS, 'w-36')}
+                value={startDate || gigDateKey}
+                disabled={!startTime}
+                title={!startTime ? 'Set a start time first' : undefined}
+                onChange={e => {
+                  if (!startTime) return;
+                  updateEntry(entry._key, {
+                    start_time: combineDateTime(e.target.value, startTime),
+                    ...(endTime ? { end_time: combineDateTime(e.target.value, endTime) } : {}),
+                  });
+                }}
+              />
+            </div>
+            <div className="flex items-center gap-2">
+              <label className="text-[10px] text-muted-foreground w-10 shrink-0">Notes</label>
+              <input
+                type="text"
+                className={cn(INPUT_CLASS, 'flex-1')}
+                placeholder="Optional"
+                value={entry.notes}
+                onChange={e => updateEntry(entry._key, { notes: e.target.value })}
+              />
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
 
   return (
     <Card className="p-4">
@@ -263,209 +463,29 @@ export default function GigScheduleEditor({ gigId, actParticipants: actParticipa
       </div>
 
       {entries.length === 0 ? (
-        <p className="text-sm text-gray-400 italic py-4 text-center">
-          No schedule entries yet.
-        </p>
+        <p className="text-sm text-gray-400 italic py-4 text-center">No schedule entries yet.</p>
       ) : (
-        <div className="space-y-1">
-          {entries.map((entry, i) => {
-            const tempId = entry.id || `new-${i}`;
-            const hasConflict = conflictIds.has(tempId);
-            const config = SCHEDULE_ACTIVITY_CONFIG[entry.activity_type];
-            const startDate = entry.start_time ? toLocalDateValue(entry.start_time) : '';
-            const startTime = entry.start_time ? toLocalTimeValue(entry.start_time) : '';
-            const endDate = entry.end_time ? toLocalDateValue(entry.end_time) : '';
-            const endTime = entry.end_time ? toLocalTimeValue(entry.end_time) : '';
-            const useCustomLabel = isCustomLabel(entry);
-            const selectValue = useCustomLabel ? CUSTOM_TYPE : entry.activity_type;
-            const startAmPm = formatTimeAmPm(entry.start_time);
-
-            return (
-              <div
-                key={tempId}
-                className={cn(
-                  'rounded-md border px-2 py-1.5',
-                  hasConflict ? 'border-orange-300 bg-orange-50/50' : 'border-border',
-                )}
-              >
-                {hasConflict && (
-                  <div className="flex items-center gap-1 text-orange-600 text-[10px] font-medium mb-1">
-                    <AlertTriangle className="w-3 h-3" />
-                    Conflict
-                  </div>
-                )}
-
-                {/* Primary row: grip · time · type/label · act · expand · delete */}
-                <div className="flex items-center gap-1.5">
-                  <GripVertical className="w-3.5 h-3.5 text-muted-foreground/40 shrink-0 cursor-grab" />
-
-                  {/* Start time (required) — shows AM/PM */}
-                  <div className="relative shrink-0 w-[5.5rem]">
-                    <input
-                      type="time"
-                      className={cn(INPUT_CLASS, 'w-full h-7 text-xs opacity-0 absolute inset-0 cursor-pointer')}
-                      value={startTime}
-                      onChange={e => {
-                        const date = startDate || new Date().toISOString().slice(0, 10);
-                        updateEntry(i, 'start_time', combineDateTime(date, e.target.value));
-                      }}
-                    />
-                    <div className={cn(
-                      INPUT_CLASS,
-                      'w-full h-7 text-xs flex items-center pointer-events-none tabular-nums',
-                      !startAmPm && 'text-muted-foreground/50',
-                    )}>
-                      {startAmPm || '— : — —'}
-                    </div>
-                  </div>
-
-                  {/* Type/Label combo */}
-                  <div className="relative min-w-0 w-36 shrink-0">
-                    {useCustomLabel ? (
-                      <div className="flex items-center gap-0.5">
-                        <span
-                          className={cn('w-2 h-2 rounded-full shrink-0', config?.color?.split(' ')[0] || 'bg-gray-400')}
-                        />
-                        <input
-                          type="text"
-                          className={cn(INPUT_CLASS, 'w-full h-7 text-xs')}
-                          value={entry.label}
-                          placeholder="Custom label"
-                          onChange={e => updateEntry(i, 'label', e.target.value)}
-                        />
-                        <button
-                          className="text-muted-foreground hover:text-foreground p-0.5"
-                          title="Switch to preset"
-                          onClick={() => updateEntry(i, 'label', '')}
-                        >
-                          <ChevronDown className="w-3 h-3" />
-                        </button>
-                      </div>
-                    ) : (
-                      <select
-                        className={cn(INPUT_CLASS, 'w-full h-7 text-xs pr-6 appearance-none')}
-                        value={selectValue}
-                        onChange={e => {
-                          const val = e.target.value;
-                          if (val === CUSTOM_TYPE) {
-                            updateEntry(i, 'label', getDisplayLabel(entry));
-                          } else {
-                            updateEntry(i, 'activity_type', val);
-                            updateEntry(i, 'label', '');
-                          }
-                        }}
-                      >
-                        {SCHEDULE_ACTIVITY_TYPES.map(t => (
-                          <option key={t} value={t}>{SCHEDULE_ACTIVITY_CONFIG[t].label}</option>
-                        ))}
-                        <option value={CUSTOM_TYPE}>Custom...</option>
-                      </select>
-                    )}
-                  </div>
-
-                  {/* Act (if any exist) */}
-                  {acts.length > 0 && (
-                    <select
-                      className={cn(INPUT_CLASS, 'h-7 text-xs min-w-0 flex-1')}
-                      value={entry.act_participant_id}
-                      onChange={e => updateEntry(i, 'act_participant_id', e.target.value)}
-                    >
-                      <option value="">—</option>
-                      {acts.map(p => (
-                        <option key={p.id} value={p.id}>
-                          {p.organization?.name || 'Act'}
-                        </option>
-                      ))}
-                    </select>
-                  )}
-
-                  {/* Expand toggle */}
-                  <button
-                    className={cn(
-                      'shrink-0 p-1 rounded hover:bg-muted/50 text-muted-foreground',
-                      entry._showMore && 'text-foreground',
-                    )}
-                    title="End time, date, notes"
-                    onClick={() => updateEntry(i, '_showMore', !entry._showMore)}
-                  >
-                    <ChevronDown className={cn('w-3.5 h-3.5 transition-transform', entry._showMore && 'rotate-180')} />
-                  </button>
-
-                  {/* Delete */}
-                  <button
-                    className="shrink-0 p-1 rounded text-destructive/60 hover:text-destructive hover:bg-destructive/10"
-                    onClick={() => removeEntry(i)}
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-
-                {/* Expanded section: end time, date, notes */}
-                {entry._showMore && (
-                  <div className="mt-1.5 pl-5 space-y-1.5">
-                    <div className="flex items-center gap-2">
-                      <label className="text-[10px] text-muted-foreground w-10 shrink-0">End</label>
-                      <div className="relative shrink-0 w-[5.5rem]">
-                        <input
-                          type="time"
-                          className={cn(INPUT_CLASS, 'w-full h-7 text-xs opacity-0 absolute inset-0 cursor-pointer')}
-                          value={endTime}
-                          onChange={e => {
-                            if (!e.target.value) {
-                              updateEntry(i, 'end_time', '');
-                              return;
-                            }
-                            const date = endDate || startDate || new Date().toISOString().slice(0, 10);
-                            updateEntry(i, 'end_time', combineDateTime(date, e.target.value));
-                          }}
-                        />
-                        <div className={cn(
-                          INPUT_CLASS,
-                          'w-full h-7 text-xs flex items-center pointer-events-none tabular-nums',
-                          !endTime && 'text-muted-foreground/50',
-                        )}>
-                          {formatTimeAmPm(entry.end_time) || 'Optional'}
-                        </div>
-                      </div>
-                      {endTime && (
-                        <button
-                          className="text-[10px] text-muted-foreground hover:text-foreground"
-                          onClick={() => updateEntry(i, 'end_time', '')}
-                        >
-                          Clear
-                        </button>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <label className="text-[10px] text-muted-foreground w-10 shrink-0">Date</label>
-                      <input
-                        type="date"
-                        className={cn(INPUT_CLASS, 'h-7 text-xs w-36')}
-                        value={startDate}
-                        onChange={e => {
-                          const time = startTime || '00:00';
-                          updateEntry(i, 'start_time', combineDateTime(e.target.value, time));
-                          if (endTime) {
-                            updateEntry(i, 'end_time', combineDateTime(e.target.value, endTime));
-                          }
-                        }}
-                      />
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <label className="text-[10px] text-muted-foreground w-10 shrink-0">Notes</label>
-                      <input
-                        type="text"
-                        className={cn(INPUT_CLASS, 'h-7 text-xs flex-1')}
-                        placeholder="Optional"
-                        value={entry.notes}
-                        onChange={e => updateEntry(i, 'notes', e.target.value)}
-                      />
-                    </div>
-                  </div>
-                )}
-              </div>
-            );
-          })}
+        <div className="space-y-2">
+          {distinctDates.map(dateKey => (
+            <div key={dateKey} className="space-y-1">
+              {showDateHeaders && (
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-400 px-1">
+                  {formatDateHeader(dateKey)}
+                </p>
+              )}
+              {groupMap.get(dateKey)!.map(renderRow)}
+            </div>
+          ))}
+          {untimed.length > 0 && (
+            <div className="space-y-1">
+              {(showDateHeaders || distinctDates.length > 0) && (
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-400 px-1">
+                  No time set
+                </p>
+              )}
+              {untimed.map(renderRow)}
+            </div>
+          )}
         </div>
       )}
     </Card>

@@ -311,23 +311,6 @@ export default function GigDetailScreen({
               </Card>
             )}
 
-            {/* Schedule Section */}
-            {gig.schedule_entries && gig.schedule_entries.length > 0 && (
-              <Card className="p-4">
-                <div className="flex items-center gap-2 mb-3">
-                  <Calendar className="w-5 h-5 text-gray-400" />
-                  <h3 className="text-sm font-semibold text-gray-900 uppercase tracking-wider">
-                    Schedule
-                    <span className="ml-1.5 text-xs font-normal text-gray-400">({gig.schedule_entries.length})</span>
-                  </h3>
-                </div>
-                <GigScheduleTimeline
-                  entries={gig.schedule_entries}
-                  conflicts={detectScheduleConflicts(gig.schedule_entries)}
-                />
-              </Card>
-            )}
-
             {/* Staff Section */}
             <GigStaffSlotsSection
               gigId={gigId}
@@ -360,6 +343,24 @@ export default function GigDetailScreen({
 
           {/* Sidebar Columns */}
           <div className="space-y-4">
+            {/* Schedule Card */}
+            {gig.schedule_entries && gig.schedule_entries.length > 0 && (
+              <Card className="p-4">
+                <div className="flex items-center gap-2 mb-3">
+                  <Calendar className="w-5 h-5 text-gray-400" />
+                  <h3 className="text-sm font-semibold text-gray-900 uppercase tracking-wider">
+                    Schedule
+                    <span className="ml-1.5 text-xs font-normal text-gray-400">({gig.schedule_entries.length})</span>
+                  </h3>
+                </div>
+                <GigScheduleTimeline
+                  entries={gig.schedule_entries}
+                  conflicts={detectScheduleConflicts(gig.schedule_entries)}
+                  gigDate={gig.start}
+                />
+              </Card>
+            )}
+
             {/* Participants Card */}
             <Card className="p-4">
               <div className="flex items-center gap-2 mb-3">

@@ -208,6 +208,7 @@ export default function GigScreen({
               />
               <GigScheduleEditor
                 gigId={gigId}
+                gigStart={gig?.start}
                 actParticipants={
                   (gig?.participants || [])
                     .filter((p: any) => p.role === 'Act')
