@@ -91,18 +91,18 @@ Support complex event hierarchies (e.g., Festivals > Stages > Sets) with recursi
 
 ## 4. Delivery Phases
 
-### Phase 1: Mobile PWA + Gig Browsing + CSV Import (Sprint 1)
+### Phase 1: Mobile PWA + Gig Browsing + CSV Import (Sprint 1) ✅ Complete
 - PWA baseline: manifest, service worker, touch-optimized layout.
 - Mobile gig list, detail view, quick-create form.
 - Enhanced Asset CSV import (flexible mapping, bulk updates).
 
-### Phase 2: Multi-Act Scheduling + Warehouse Mobile (Sprint 2)
+### Phase 2: Multi-Act Scheduling + Warehouse Mobile (Sprint 2) ✅ Complete
 - `gig_schedule_entries` schema and service layer.
 - Schedule/timeline UI within gig detail.
 - Barcode scanning integration and warehouse check-in/out views.
 - Staff dashboard mobile view.
 
-### Phase 3: Financial Management (Sprint 3)
+### Phase 3: Financial Management (Sprint 3) 🔄 In Progress — Planning
 - Flat gig financials: settlement views, vendor bid management.
 - Act-specific settlement screens.
 - Push notifications for staff assignments and gig updates.

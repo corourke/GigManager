@@ -6,7 +6,7 @@ This document serves as the overview and index for the GigManager development pl
 
 For functional requirements and business rules, see [Product Requirements](../requirements.md).
 
-**Last Updated**: 2026-03-11
+**Last Updated**: 2026-06-20
 
 ---
 
@@ -71,22 +71,22 @@ Based on the persona analysis and [competitive analysis](02_competitive-analysis
 
 ## 4. Development Roadmap
 
-### Sprint 1: Mobile Gig Browsing + CSV Import
+### Sprint 1: Mobile Gig Browsing + CSV Import ✅ Complete
 *Detail: [Technical Spec §Phase 1](03_technical-spec.md), [Mobile Development](04_mobile-development.md)*
 
-- [ ] PWA baseline (manifest, service worker, touch-optimized layout)
-- [ ] Mobile gig list (card-based), simplified gig detail view, quick-create gig form
-- [ ] Enhanced Asset CSV import (flexible mapping, bulk updates)
+- [x] PWA baseline (manifest, service worker, touch-optimized layout)
+- [x] Mobile gig list (card-based), simplified gig detail view, quick-create gig form
+- [x] Enhanced Asset CSV import (flexible mapping, bulk updates)
 
-### Sprint 2: Multi-Act Scheduling + Warehouse Mobile
+### Sprint 2: Multi-Act Scheduling + Warehouse Mobile ✅ Complete
 *Detail: [Technical Spec §Phase 2](03_technical-spec.md), [Mobile Development](04_mobile-development.md)*
 
-- [ ] Implement `gig_schedule_entries` model (act time slots, activity types)
-- [ ] Schedule/timeline UI within gig detail
-- [ ] Mobile barcode scanning for equipment check-in/out
-- [ ] Staff dashboard mobile view
+- [x] Implement `gig_schedule_entries` model (act time slots, activity types)
+- [x] Schedule/timeline UI within gig detail
+- [x] Mobile barcode scanning for equipment check-in/out
+- [x] Staff dashboard mobile view
 
-### Sprint 3: Financial Management (Flat Gigs)
+### Sprint 3: Financial Management (Flat Gigs) 🔄 In Progress — Planning
 *Detail: [Technical Spec §Phase 3](03_technical-spec.md), [Gig Financials Workflow](07_gig-financials-workflow.md)*
 
 - [ ] Flat gig financials: settlement views and vendor bid management
