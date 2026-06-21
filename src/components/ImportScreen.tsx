@@ -263,7 +263,7 @@ export default function ImportScreen({
               amount: gigData.amount ? parseFloat(gigData.amount) : undefined,
               primary_organization_id: organization.id,
               participants: participants,
-            });
+            }, { skipActivityLog: true });
 
             // Mark as success
             row.importStatus = 'success';

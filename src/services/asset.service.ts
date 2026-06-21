@@ -2,10 +2,30 @@ import { createClient } from '../utils/supabase/client';
 import { handleApiError } from '../utils/api-error-utils';
 import { requireAuth } from '../utils/supabase/auth-utils';
 import { sanitizeLikeInput } from '../utils/validation-utils';
-import type { DbAsset, DbInventoryTracking, ActivityLogEntry } from '../utils/supabase/types';
+import type { DbAsset, DbInventoryTracking, ActivityLogEntry, FieldChange } from '../utils/supabase/types';
 import { logActivity, getEntityActivity } from './activityLog.service';
 
 const getSupabase = () => createClient();
+
+const ASSET_TRACKED_FIELDS = [
+  'manufacturer_model', 'serial_number', 'category', 'sub_category', 'type',
+  'description', 'vendor', 'item_price', 'item_cost', 'replacement_value',
+  'acquisition_date', 'retired_on', 'tag_number',
+] as const;
+
+function computeFieldChanges<T extends Record<string, any>>(
+  preValues: Partial<T>,
+  newValues: Partial<T>,
+  trackedFields: readonly (keyof T)[]
+): FieldChange[] {
+  return trackedFields
+    .filter(f => f in newValues && newValues[f] !== preValues[f])
+    .map(f => ({
+      field: f as string,
+      from: preValues[f],
+      to: newValues[f]
+    }));
+}
 
 /**
  * Fetch assets for an organization
@@ -176,6 +196,30 @@ export async function createAsset(assetData: Partial<DbAsset> & { cost?: number 
       .single();
 
     if (error) throw error;
+
+    try {
+      const actorDisplayName = `${(user as any).user_metadata?.first_name ?? ''} ${(user as any).user_metadata?.last_name ?? ''}`.trim() || user.email || '';
+      const { data: orgRow } = await (supabase.from('organizations') as any).select('name').eq('id', data.organization_id).single();
+      const actorOrgName = (orgRow as any)?.name ?? '';
+
+      await logActivity({
+        organization_id: data.organization_id,
+        event_type: 'asset.created',
+        entity_type: 'asset',
+        entity_id: data.id,
+        gig_id: null,
+        context: {
+          context_version: 1,
+          actor_display_name: actorDisplayName,
+          actor_org_name: actorOrgName,
+          asset_model: data.manufacturer_model ?? '',
+          category: data.category ?? ''
+        }
+      });
+    } catch (e) {
+      console.error('Activity log failed:', e);
+    }
+
     return data;
   } catch (err) {
     return handleApiError(err, 'create asset');
@@ -189,20 +233,42 @@ export async function updateAsset(assetId: string, assetData: Partial<DbAsset> &
   try {
     const { supabase, user } = await requireAuth();
 
+    // 1. Pre-fetch for diffing and actor info
+    const { data: assetRow } = await (supabase.from('assets') as any)
+      .select('*, organization:organizations(name)')
+      .eq('id', assetId)
+      .single();
+    
+    if (!assetRow) throw new Error('Asset not found');
+
+    const actorDisplayName = `${(user as any).user_metadata?.first_name ?? ''} ${(user as any).user_metadata?.last_name ?? ''}`.trim() || user.email || '';
+    const actorOrgName = (assetRow as any).organization?.name ?? '';
+    const organizationId = assetRow.organization_id;
+
     if (assetData.status) {
-      const { data: preAsset } = await (supabase.from('assets') as any).select('status, organization_id').eq('id', assetId).single();
       const { error: rpcError } = await supabase.rpc('update_asset_status', {
         p_asset_id: assetId,
         p_status: assetData.status
       });
       if (rpcError) throw rpcError;
-      if (preAsset && preAsset.status !== assetData.status) {
-        const actorDisplayName = `${(user as any).user_metadata?.first_name ?? ''} ${(user as any).user_metadata?.last_name ?? ''}`.trim() || user.email || '';
-        const { data: orgRow } = await (supabase.from('organizations') as any).select('name').eq('id', preAsset.organization_id).single();
-        const actorOrgName = (orgRow as any)?.name ?? '';
-        const { data: assetRow } = await (supabase.from('assets') as any).select('manufacturer_model, category').eq('id', assetId).single();
+      if (assetRow.status !== assetData.status) {
         try {
-          await logActivity({ organization_id: preAsset.organization_id, event_type: 'asset.status_changed', entity_type: 'asset', entity_id: assetId, gig_id: null, context: { context_version: 1, actor_display_name: actorDisplayName, actor_org_name: actorOrgName, asset_model: (assetRow as any)?.manufacturer_model ?? '', category: (assetRow as any)?.category ?? '', from_status: preAsset.status, to_status: assetData.status } });
+          await logActivity({
+            organization_id: organizationId,
+            event_type: 'asset.status_changed',
+            entity_type: 'asset',
+            entity_id: assetId,
+            gig_id: null,
+            context: {
+              context_version: 1,
+              actor_display_name: actorDisplayName,
+              actor_org_name: actorOrgName,
+              asset_model: assetRow.manufacturer_model ?? '',
+              category: assetRow.category ?? '',
+              from_status: assetRow.status,
+              to_status: assetData.status
+            }
+          });
         } catch (e) { console.error('Activity log failed:', e); }
       }
     }
@@ -219,6 +285,8 @@ export async function updateAsset(assetId: string, assetData: Partial<DbAsset> &
     delete updatePayload.status; // Already handled by RPC if present
 
     if (Object.keys(updatePayload).length > 0) {
+      const field_changes = computeFieldChanges(assetRow, updatePayload, ASSET_TRACKED_FIELDS);
+
       const { data, error } = await (supabase.from('assets') as any)
         .update({
           ...updatePayload,
@@ -230,6 +298,27 @@ export async function updateAsset(assetId: string, assetData: Partial<DbAsset> &
         .single();
 
       if (error) throw error;
+
+      if (field_changes.length > 0) {
+        try {
+          await logActivity({
+            organization_id: organizationId,
+            event_type: 'asset.updated',
+            entity_type: 'asset',
+            entity_id: assetId,
+            gig_id: null,
+            context: {
+              context_version: 1,
+              actor_display_name: actorDisplayName,
+              actor_org_name: actorOrgName,
+              asset_model: assetRow.manufacturer_model ?? '',
+              category: assetRow.category ?? '',
+              field_changes
+            }
+          });
+        } catch (e) { console.error('Activity log failed:', e); }
+      }
+
       return data;
     }
 
@@ -288,6 +377,30 @@ export async function duplicateAsset(assetId: string) {
       .single();
 
     if (error) throw error;
+
+    try {
+      const actorDisplayName = `${(user as any).user_metadata?.first_name ?? ''} ${(user as any).user_metadata?.last_name ?? ''}`.trim() || user.email || '';
+      const { data: orgRow } = await (supabase.from('organizations') as any).select('name').eq('id', data.organization_id).single();
+      const actorOrgName = (orgRow as any)?.name ?? '';
+
+      await logActivity({
+        organization_id: data.organization_id,
+        event_type: 'asset.created',
+        entity_type: 'asset',
+        entity_id: data.id,
+        gig_id: null,
+        context: {
+          context_version: 1,
+          actor_display_name: actorDisplayName,
+          actor_org_name: actorOrgName,
+          asset_model: data.manufacturer_model ?? '',
+          category: data.category ?? ''
+        }
+      });
+    } catch (e) {
+      console.error('Activity log failed:', e);
+    }
+
     return data;
   } catch (err) {
     return handleApiError(err, 'duplicate asset');

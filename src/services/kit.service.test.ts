@@ -1,10 +1,21 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { getKits, getKit, getDistinctKitValues, deleteKit } from './kit.service';
+import { getKits, getKit, getDistinctKitValues, deleteKit, createKit, updateKit, duplicateKit } from './kit.service';
 import { createClient } from '../utils/supabase/client';
+import { requireAuth } from '../utils/supabase/auth-utils';
 
 vi.mock('../utils/supabase/client', () => ({
   createClient: vi.fn(),
 }));
+
+vi.mock('../utils/supabase/auth-utils', () => ({
+  requireAuth: vi.fn(),
+}));
+
+vi.mock('./activityLog.service', () => ({
+  logActivity: vi.fn().mockResolvedValue({ success: true }),
+}));
+
+import { logActivity } from './activityLog.service';
 
 function makeChain(result: { data: any; error: any }) {
   const chain: any = {};
@@ -183,6 +194,102 @@ describe('kit.service', () => {
     it('throws when no row was deleted (RLS denied)', async () => {
       mockSupabase.from.mockReturnValue(makeChain({ data: [], error: null }));
       await expect(deleteKit('kit-1')).rejects.toThrow(/permission|not found/i);
+    });
+  });
+
+  describe('createKit', () => {
+    it('inserts a new kit and logs activity', async () => {
+      const kitData = { name: 'New Kit', organization_id: 'org-1', assets: [] };
+      const mockKit = { id: 'k1', name: 'New Kit', organization_id: 'org-1' };
+      
+      mockSupabase.from.mockImplementation((table: string) => {
+        if (table === 'kits') return makeChain({ data: mockKit, error: null });
+        if (table === 'organizations') return makeChain({ data: { name: 'Acme' }, error: null });
+        return makeChain({ data: {}, error: null });
+      });
+      (requireAuth as any).mockResolvedValue({ supabase: mockSupabase, user: { id: 'u1', email: 'a@b.com' } });
+
+      const result = await createKit(kitData);
+
+      expect(result).toEqual(mockKit);
+      expect(logActivity).toHaveBeenCalledWith(expect.objectContaining({
+        event_type: 'kit.created',
+        entity_id: 'k1'
+      }));
+    });
+  });
+
+  describe('updateKit', () => {
+    it('updates kit metadata and logs field changes', async () => {
+      const kitId = 'k1';
+      const updates = { name: 'Updated Kit' };
+      const preKit = { id: 'k1', name: 'Old Kit', organization_id: 'org-1', organization: { name: 'Acme' } };
+      
+      mockSupabase.from.mockImplementation((table: string) => {
+        if (table === 'kits') {
+          const chain = makeChain({ data: preKit, error: null });
+          chain.update = vi.fn().mockReturnValue(makeChain({ data: null, error: null }));
+          return chain;
+        }
+        return makeChain({ data: {}, error: null });
+      });
+      (requireAuth as any).mockResolvedValue({ supabase: mockSupabase, user: { id: 'u1' } });
+
+      await updateKit(kitId, updates);
+
+      expect(logActivity).toHaveBeenCalledWith(expect.objectContaining({
+        event_type: 'kit.updated',
+        context: expect.objectContaining({
+          field_changes: [{ field: 'name', from: 'Old Kit', to: 'Updated Kit' }]
+        })
+      }));
+    });
+
+    it('does NOT log kit.updated when tracked fields are unchanged', async () => {
+      const kitId = 'k1';
+      const updates = { name: 'Old Kit' };
+      const preKit = { id: 'k1', name: 'Old Kit', organization_id: 'org-1' };
+      
+      mockSupabase.from.mockImplementation((table: string) => {
+        if (table === 'kits') return makeChain({ data: preKit, error: null });
+        return makeChain({ data: {}, error: null });
+      });
+      (requireAuth as any).mockResolvedValue({ supabase: mockSupabase, user: { id: 'u1' } });
+
+      await updateKit(kitId, updates);
+
+      expect(logActivity).not.toHaveBeenCalledWith(expect.objectContaining({
+        event_type: 'kit.updated'
+      }));
+    });
+  });
+
+  describe('duplicateKit', () => {
+    it('logs kit.created for duplicated kit', async () => {
+      const kitId = 'k1';
+      const originalKit = { id: 'k1', name: 'Original', organization_id: 'org-1', kit_assets: [] };
+      const mockResult = { id: 'k2', name: 'Original (Copy)', organization_id: 'org-1' };
+
+      mockSupabase.from.mockImplementation((table: string) => {
+        if (table === 'kits') {
+          const chain = makeChain({ data: originalKit, error: null });
+          chain.insert = vi.fn().mockReturnValue(makeChain({ data: mockResult, error: null }));
+          return chain;
+        }
+        if (table === 'organizations') return makeChain({ data: { name: 'Acme' }, error: null });
+        return makeChain({ data: {}, error: null });
+      });
+      (requireAuth as any).mockResolvedValue({ supabase: mockSupabase, user: { id: 'u1' } });
+
+      await duplicateKit(kitId);
+
+      expect(logActivity).toHaveBeenCalledWith(expect.objectContaining({
+        event_type: 'kit.created',
+        entity_id: 'k2',
+        context: expect.objectContaining({
+          kit_name: 'Original (Copy)'
+        })
+      }));
     });
   });
 });

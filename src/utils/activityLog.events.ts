@@ -18,7 +18,47 @@ function formatDate(dateStr: string | undefined): string {
   }
 }
 
+const ASSET_FIELD_LABELS: Record<string, string> = {
+  manufacturer_model: 'Model',
+  serial_number: 'Serial Number',
+  category: 'Category',
+  sub_category: 'Sub-category',
+  type: 'Type',
+  description: 'Description',
+  vendor: 'Vendor',
+  item_price: 'Item Price',
+  item_cost: 'Item Cost',
+  replacement_value: 'Replacement Value',
+  acquisition_date: 'Acquisition Date',
+  retired_on: 'Retired On',
+  tag_number: 'Tag Number',
+};
+
+const KIT_FIELD_LABELS: Record<string, string> = {
+  name: 'Name',
+  category: 'Category',
+  description: 'Description',
+  tags: 'Tags',
+  rental_value: 'Rental Value',
+  tag_number: 'Tag Number',
+  is_container: 'Container',
+};
+
 export const ACTIVITY_EVENTS = {
+  'gig.created': {
+    label: 'Gig Created',
+    entityType: 'gig',
+    calendarIndicator: false,
+    contextKeys: ['gig_title'],
+    format: () => 'Gig created',
+  },
+  'gig.notes_updated': {
+    label: 'Notes Updated',
+    entityType: 'gig',
+    calendarIndicator: false,
+    contextKeys: ['gig_title', 'notes_changed'],
+    format: () => 'Gig notes updated',
+  },
   'gig.status_changed': {
     label: 'Status Changed',
     entityType: 'gig',
@@ -96,12 +136,52 @@ export const ACTIVITY_EVENTS = {
     contextKeys: ['gig_title', 'kit_name'],
     format: (ctx) => `${ctx.kit_name} kit removed`,
   },
+  'asset.created': {
+    label: 'Asset Created',
+    entityType: 'asset',
+    calendarIndicator: false,
+    contextKeys: ['asset_model', 'category'],
+    format: () => 'Asset created',
+  },
+  'asset.updated': {
+    label: 'Asset Updated',
+    entityType: 'asset',
+    calendarIndicator: false,
+    contextKeys: ['asset_model', 'category', 'field_changes'],
+    format: (ctx) => {
+      if (!ctx.field_changes?.length) return 'Asset updated';
+      const labels = ctx.field_changes
+        .map((c) => ASSET_FIELD_LABELS[c.field] ?? c.field)
+        .join(', ');
+      return `Asset updated: ${labels}`;
+    },
+  },
   'asset.status_changed': {
     label: 'Asset Status Changed',
     entityType: 'asset',
     calendarIndicator: false,
     contextKeys: ['asset_model', 'category', 'from_status', 'to_status'],
     format: (ctx) => `Status changed from ${ctx.from_status} to ${ctx.to_status}`,
+  },
+  'kit.created': {
+    label: 'Kit Created',
+    entityType: 'kit',
+    calendarIndicator: false,
+    contextKeys: ['kit_name'],
+    format: () => 'Kit created',
+  },
+  'kit.updated': {
+    label: 'Kit Updated',
+    entityType: 'kit',
+    calendarIndicator: false,
+    contextKeys: ['kit_name', 'field_changes'],
+    format: (ctx) => {
+      if (!ctx.field_changes?.length) return 'Kit updated';
+      const labels = ctx.field_changes
+        .map((c) => KIT_FIELD_LABELS[c.field] ?? c.field)
+        .join(', ');
+      return `Kit updated: ${labels}`;
+    },
   },
   'kit.asset_added': {
     label: 'Asset Added to Kit',

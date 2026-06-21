@@ -2,6 +2,8 @@ import { describe, it, expect } from 'vitest';
 import { ACTIVITY_EVENTS, CALENDAR_INDICATOR_EVENT_TYPES, type ActivityEventType } from './activityLog.events';
 
 const EXPECTED_EVENT_TYPES: ActivityEventType[] = [
+  'gig.created',
+  'gig.notes_updated',
   'gig.status_changed',
   'gig.rescheduled',
   'gig.renamed',
@@ -11,14 +13,18 @@ const EXPECTED_EVENT_TYPES: ActivityEventType[] = [
   'staffing.status_changed',
   'kit_assignment.added',
   'kit_assignment.removed',
+  'asset.created',
+  'asset.updated',
   'asset.status_changed',
+  'kit.created',
+  'kit.updated',
   'kit.asset_added',
   'kit.asset_removed',
 ];
 
 describe('ACTIVITY_EVENTS', () => {
-  it('contains exactly 12 event types', () => {
-    expect(Object.keys(ACTIVITY_EVENTS)).toHaveLength(12);
+  it('contains exactly 18 event types', () => {
+    expect(Object.keys(ACTIVITY_EVENTS)).toHaveLength(18);
   });
 
   it('contains all expected event type keys', () => {
@@ -72,6 +78,64 @@ describe('ACTIVITY_EVENTS', () => {
     });
     expect(result).toContain('Proposed');
     expect(result).toContain('Booked');
+  });
+
+  it('gig.created format returns "Gig created"', () => {
+    const cfg = ACTIVITY_EVENTS['gig.created'];
+    expect(cfg.format({ context_version: 1, actor_display_name: '', actor_org_name: '' })).toBe('Gig created');
+  });
+
+  it('gig.notes_updated format returns "Gig notes updated"', () => {
+    const cfg = ACTIVITY_EVENTS['gig.notes_updated'];
+    expect(cfg.format({ context_version: 1, actor_display_name: '', actor_org_name: '' })).toBe('Gig notes updated');
+  });
+
+  it('asset.created format returns "Asset created"', () => {
+    const cfg = ACTIVITY_EVENTS['asset.created'];
+    expect(cfg.format({ context_version: 1, actor_display_name: '', actor_org_name: '' })).toBe('Asset created');
+  });
+
+  it('asset.updated format with field_changes renders human-readable fields', () => {
+    const cfg = ACTIVITY_EVENTS['asset.updated'];
+    const result = cfg.format({
+      context_version: 1,
+      actor_display_name: '',
+      actor_org_name: '',
+      field_changes: [
+        { field: 'manufacturer_model', from: 'A', to: 'B' },
+        { field: 'category', from: 'C', to: 'D' },
+      ],
+    });
+    expect(result).toBe('Asset updated: Model, Category');
+  });
+
+  it('asset.updated format with empty field_changes returns fallback', () => {
+    const cfg = ACTIVITY_EVENTS['asset.updated'];
+    expect(cfg.format({ context_version: 1, actor_display_name: '', actor_org_name: '' })).toBe('Asset updated');
+  });
+
+  it('kit.created format returns "Kit created"', () => {
+    const cfg = ACTIVITY_EVENTS['kit.created'];
+    expect(cfg.format({ context_version: 1, actor_display_name: '', actor_org_name: '' })).toBe('Kit created');
+  });
+
+  it('kit.updated format with field_changes renders human-readable fields', () => {
+    const cfg = ACTIVITY_EVENTS['kit.updated'];
+    const result = cfg.format({
+      context_version: 1,
+      actor_display_name: '',
+      actor_org_name: '',
+      field_changes: [
+        { field: 'name', from: 'A', to: 'B' },
+        { field: 'rental_value', from: 0, to: 100 },
+      ],
+    });
+    expect(result).toBe('Kit updated: Name, Rental Value');
+  });
+
+  it('kit.updated format with empty field_changes returns fallback', () => {
+    const cfg = ACTIVITY_EVENTS['kit.updated'];
+    expect(cfg.format({ context_version: 1, actor_display_name: '', actor_org_name: '' })).toBe('Kit updated');
   });
 });
 

@@ -3,8 +3,27 @@ import { handleApiError } from '../utils/api-error-utils';
 import { requireAuth } from '../utils/supabase/auth-utils';
 import { sanitizeLikeInput } from '../utils/validation-utils';
 import { logActivity } from './activityLog.service';
+import type { FieldChange } from '../utils/supabase/types';
 
 const getSupabase = () => createClient();
+
+const KIT_TRACKED_FIELDS = [
+  'name', 'category', 'description', 'tags', 'rental_value', 'tag_number', 'is_container',
+] as const;
+
+function computeFieldChanges<T extends Record<string, any>>(
+  preValues: Partial<T>,
+  newValues: Partial<T>,
+  trackedFields: readonly (keyof T)[]
+): FieldChange[] {
+  return trackedFields
+    .filter(f => f in newValues && JSON.stringify(newValues[f]) !== JSON.stringify(preValues[f]))
+    .map(f => ({
+      field: f as string,
+      from: preValues[f],
+      to: newValues[f]
+    }));
+}
 
 /**
  * Fetch kits for an organization
@@ -135,6 +154,28 @@ export async function createKit(kitData: {
 
     if (kitError) throw kitError;
 
+    try {
+      const actorDisplayName = `${(user as any).user_metadata?.first_name ?? ''} ${(user as any).user_metadata?.last_name ?? ''}`.trim() || user.email || '';
+      const { data: orgRow } = await (supabase.from('organizations') as any).select('name').eq('id', restKitData.organization_id).single();
+      const actorOrgName = (orgRow as any)?.name ?? '';
+
+      await logActivity({
+        organization_id: restKitData.organization_id,
+        event_type: 'kit.created',
+        entity_type: 'kit',
+        entity_id: kit.id,
+        gig_id: null,
+        context: {
+          context_version: 1,
+          actor_display_name: actorDisplayName,
+          actor_org_name: actorOrgName,
+          kit_name: kit.name
+        }
+      });
+    } catch (e) {
+      console.error('Activity log failed:', e);
+    }
+
     if (assets && assets.length > 0) {
       const kitAssets = assets.map(a => ({
         kit_id: kit.id,
@@ -178,18 +219,54 @@ export async function updateKit(kitId: string, kitData: {
   try {
     const { supabase, user } = await requireAuth();
 
+    // 1. Pre-fetch for diffing and actor info
+    const { data: kitRow } = await (supabase.from('kits') as any)
+      .select('*, organization:organizations(name)')
+      .eq('id', kitId)
+      .single();
+
+    if (!kitRow) throw new Error('Kit not found');
+
+    const actorDisplayName = `${(user as any).user_metadata?.first_name ?? ''} ${(user as any).user_metadata?.last_name ?? ''}`.trim() || user.email || '';
+    const actorOrgName = (kitRow as any).organization?.name ?? '';
+    const organizationId = kitRow.organization_id;
+    const kitName = kitRow.name;
+
     const { assets, organization_id: _orgId, ...restKitData } = kitData;
 
-    const { error: updateError } = await supabase
-      .from('kits')
-      .update({
-        ...restKitData,
-        updated_by: user.id,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', kitId);
+    if (Object.keys(restKitData).length > 0) {
+      const field_changes = computeFieldChanges(kitRow, restKitData, KIT_TRACKED_FIELDS);
 
-    if (updateError) throw updateError;
+      const { error: updateError } = await supabase
+        .from('kits')
+        .update({
+          ...restKitData,
+          updated_by: user.id,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', kitId);
+
+      if (updateError) throw updateError;
+
+      if (field_changes.length > 0) {
+        try {
+          await logActivity({
+            organization_id: organizationId,
+            event_type: 'kit.updated',
+            entity_type: 'kit',
+            entity_id: kitId,
+            gig_id: null,
+            context: {
+              context_version: 1,
+              actor_display_name: actorDisplayName,
+              actor_org_name: actorOrgName,
+              kit_name: kitName,
+              field_changes
+            }
+          });
+        } catch (e) { console.error('Activity log failed:', e); }
+      }
+    }
 
     if (assets) {
       const { data: existingAssets } = await (supabase.from('kit_assets') as any).select('id, asset_id').eq('kit_id', kitId);
@@ -198,20 +275,13 @@ export async function updateKit(kitId: string, kitData: {
 
       const idsToDelete = existingIds.filter((id: string) => !incomingIds.includes(id));
 
-      const actorDisplayName = `${(user as any).user_metadata?.first_name ?? ''} ${(user as any).user_metadata?.last_name ?? ''}`.trim() || user.email || '';
-      const { data: kitRow } = await (supabase.from('kits') as any).select('name, organization_id').eq('id', kitId).single();
-      const kitName = (kitRow as any)?.name ?? '';
-      const orgId = (kitRow as any)?.organization_id ?? null;
-      const { data: orgRow } = orgId ? await (supabase.from('organizations') as any).select('name').eq('id', orgId).single() : { data: null };
-      const actorOrgName = (orgRow as any)?.name ?? '';
-
       if (idsToDelete.length > 0) {
         const removedAssetIds = (existingAssets ?? []).filter((a: any) => idsToDelete.includes(a.id)).map((a: any) => a.asset_id).filter(Boolean);
         await supabase.from('kit_assets').delete().in('id', idsToDelete);
         for (const assetId of removedAssetIds) {
           const { data: assetRow } = await (supabase.from('assets') as any).select('manufacturer_model').eq('id', assetId).single();
           try {
-            await logActivity({ organization_id: orgId, event_type: 'kit.asset_removed', entity_type: 'kit', entity_id: kitId, gig_id: null, context: { context_version: 1, actor_display_name: actorDisplayName, actor_org_name: actorOrgName, kit_name: kitName, asset_model: (assetRow as any)?.manufacturer_model ?? '' } });
+            await logActivity({ organization_id: organizationId, event_type: 'kit.asset_removed', entity_type: 'kit', entity_id: kitId, gig_id: null, context: { context_version: 1, actor_display_name: actorDisplayName, actor_org_name: actorOrgName, kit_name: kitName, asset_model: (assetRow as any)?.manufacturer_model ?? '' } });
           } catch (e) { console.error('Activity log failed:', e); }
         }
       }
@@ -228,7 +298,7 @@ export async function updateKit(kitId: string, kitData: {
           await supabase.from('kit_assets').insert({ kit_id: kitId, ...assetData });
           const { data: assetRow } = await (supabase.from('assets') as any).select('manufacturer_model').eq('id', asset.asset_id).single();
           try {
-            await logActivity({ organization_id: orgId, event_type: 'kit.asset_added', entity_type: 'kit', entity_id: kitId, gig_id: null, context: { context_version: 1, actor_display_name: actorDisplayName, actor_org_name: actorOrgName, kit_name: kitName, asset_model: (assetRow as any)?.manufacturer_model ?? '', quantity: asset.quantity } });
+            await logActivity({ organization_id: organizationId, event_type: 'kit.asset_added', entity_type: 'kit', entity_id: kitId, gig_id: null, context: { context_version: 1, actor_display_name: actorDisplayName, actor_org_name: actorOrgName, kit_name: kitName, asset_model: (assetRow as any)?.manufacturer_model ?? '', quantity: asset.quantity } });
           } catch (e) { console.error('Activity log failed:', e); }
         }
       }
@@ -282,6 +352,28 @@ export async function duplicateKit(kitId: string, newName?: string) {
       .single();
 
     if (kitError) throw kitError;
+
+    try {
+      const actorDisplayName = `${(user as any).user_metadata?.first_name ?? ''} ${(user as any).user_metadata?.last_name ?? ''}`.trim() || user.email || '';
+      const { data: orgRow } = await (supabase.from('organizations') as any).select('name').eq('id', originalKit.organization_id).single();
+      const actorOrgName = (orgRow as any)?.name ?? '';
+
+      await logActivity({
+        organization_id: originalKit.organization_id,
+        event_type: 'kit.created',
+        entity_type: 'kit',
+        entity_id: newKit.id,
+        gig_id: null,
+        context: {
+          context_version: 1,
+          actor_display_name: actorDisplayName,
+          actor_org_name: actorOrgName,
+          kit_name: newKit.name
+        }
+      });
+    } catch (e) {
+      console.error('Activity log failed:', e);
+    }
 
     if (originalKit.kit_assets && originalKit.kit_assets.length > 0) {
       const kitAssets = originalKit.kit_assets.map((ka: any) => ({

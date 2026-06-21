@@ -9,6 +9,9 @@ import {
   getGigKits,
   getAllGigAccountingSummaries,
   completeStaffAssignment,
+  createGig,
+  updateGig,
+  duplicateGig,
 } from './gig.service';
 import { createClient } from '../utils/supabase/client';
 import { requireAuth } from '../utils/supabase/auth-utils';
@@ -26,6 +29,7 @@ vi.mock('../utils/supabase/auth-utils', () => ({
 vi.mock('./googleCalendar.service', () => ({
   syncGigToCalendar: vi.fn().mockResolvedValue(undefined),
   deleteGigFromCalendar: vi.fn().mockResolvedValue(undefined),
+  debouncedSyncGigToAllCalendars: vi.fn(),
 }));
 
 // Helper: build a chainable Supabase query builder that resolves to `result`
@@ -43,6 +47,13 @@ function makeChain(result: { data: any; error: any }) {
   chain.then = (resolve: any, reject: any) => Promise.resolve(result).then(resolve, reject);
   return chain;
 }
+
+// activityLog.service is used for tracking changes
+vi.mock('./activityLog.service', () => ({
+  logActivity: vi.fn().mockResolvedValue({ success: true }),
+}));
+
+import { logActivity } from './activityLog.service';
 
 describe('gig.service', () => {
   let mockSupabase: any;
@@ -573,6 +584,132 @@ describe('gig.service', () => {
       const inserted = financialsChain.insert.mock.calls[0][0];
       // The database enum rejects anything outside FIN_CATEGORY_CONFIG
       expect(Object.keys(FIN_CATEGORY_CONFIG)).toContain(inserted.category);
+    });
+  });
+
+  // ─── createGig ──────────────────────────────────────────────────────────────
+
+  describe('createGig', () => {
+    it('logs gig.created after successful RPC', async () => {
+      const gigData = { title: 'New Gig', primary_organization_id: 'org-1' };
+      mockSupabase.rpc = vi.fn().mockResolvedValue({ data: [{ id: 'new-gig-1' }], error: null });
+      mockSupabase.from.mockReturnValue(makeChain({ data: { name: 'Acme' }, error: null }));
+      (requireAuth as any).mockResolvedValue({ supabase: mockSupabase, user: { id: 'user-1', email: 'a@b.com', user_metadata: { first_name: 'Jane', last_name: 'Doe' } } });
+
+      await createGig(gigData);
+
+      expect(logActivity).toHaveBeenCalledWith(expect.objectContaining({
+        event_type: 'gig.created',
+        entity_id: 'new-gig-1',
+        context: expect.objectContaining({
+          actor_display_name: 'Jane Doe',
+          gig_title: 'New Gig'
+        })
+      }));
+    });
+
+    it('skips logging when skipActivityLog is true', async () => {
+      const gigData = { title: 'New Gig', primary_organization_id: 'org-1' };
+      mockSupabase.rpc = vi.fn().mockResolvedValue({ data: [{ id: 'new-gig-1' }], error: null });
+      // Mock for getGig
+      mockSupabase.from.mockReturnValue(makeChain({ data: { id: 'new-gig-1', title: 'New Gig', staff_slots: [], participants: [] }, error: null }));
+      (requireAuth as any).mockResolvedValue({ supabase: mockSupabase, user: { id: 'user-1' } });
+
+      await createGig(gigData, { skipActivityLog: true });
+
+      expect(logActivity).not.toHaveBeenCalledWith(expect.objectContaining({
+        event_type: 'gig.created'
+      }));
+    });
+  });
+
+  // ─── updateGig ──────────────────────────────────────────────────────────────
+
+  describe('updateGig', () => {
+    it('logs gig.notes_updated when notes change', async () => {
+      const gigId = 'gig-1';
+      const gigData = { notes: 'Updated notes' };
+      const preGig = { id: 'gig-1', title: 'Test Gig', notes: 'Old notes' };
+
+      (requireAuth as any).mockResolvedValue({ supabase: mockSupabase, user: { id: 'user-1' } });
+      
+      // Mock participants and memberships for permission check
+      mockSupabase.from.mockImplementation((table: string) => {
+        if (table === 'gig_participants') return makeChain({ data: [{ organization_id: 'org-1' }], error: null });
+        if (table === 'organization_members') return makeChain({ data: [{ organization_id: 'org-1', role: 'Admin' }], error: null });
+        if (table === 'organizations') return makeChain({ data: { name: 'Acme' }, error: null });
+        if (table === 'gigs') return makeChain({ data: preGig, error: null });
+        return makeChain({ data: [], error: null });
+      });
+
+      await updateGig(gigId, gigData);
+
+      expect(logActivity).toHaveBeenCalledWith(expect.objectContaining({
+        event_type: 'gig.notes_updated',
+        context: expect.objectContaining({
+          notes_changed: true
+        })
+      }));
+    });
+
+    it('does NOT log gig.notes_updated when notes are unchanged', async () => {
+      const gigId = 'gig-1';
+      const gigData = { notes: 'Old notes' };
+      const preGig = { id: 'gig-1', title: 'Test Gig', notes: 'Old notes' };
+
+      (requireAuth as any).mockResolvedValue({ supabase: mockSupabase, user: { id: 'user-1' } });
+      
+      mockSupabase.from.mockImplementation((table: string) => {
+        if (table === 'gig_participants') return makeChain({ data: [{ organization_id: 'org-1' }], error: null });
+        if (table === 'organization_members') return makeChain({ data: [{ organization_id: 'org-1', role: 'Admin' }], error: null });
+        if (table === 'organizations') return makeChain({ data: { name: 'Acme' }, error: null });
+        if (table === 'gigs') return makeChain({ data: preGig, error: null });
+        return makeChain({ data: [], error: null });
+      });
+
+      await updateGig(gigId, gigData);
+
+      expect(logActivity).not.toHaveBeenCalledWith(expect.objectContaining({
+        event_type: 'gig.notes_updated'
+      }));
+    });
+  });
+
+  // ─── duplicateGig ───────────────────────────────────────────────────────────
+
+  describe('duplicateGig', () => {
+    it('logs gig.created for duplicated gig', async () => {
+      const gigId = 'original-gig-id';
+      const originalGig = { 
+        id: gigId, 
+        title: 'Original', 
+        primary_organization_id: 'org-1', 
+        participants: [], 
+        staff_slots: [],
+        start: '2026-03-15T20:00:00.000Z',
+        end: '2026-03-16T01:00:00.000Z',
+        timezone: 'UTC'
+      };
+      const newGigId = 'new-gig-id';
+
+      (requireAuth as any).mockResolvedValue({ supabase: mockSupabase, user: { id: 'user-1', user_metadata: { first_name: 'Jane', last_name: 'Doe' } } });
+      
+      mockSupabase.from.mockImplementation((table: string) => {
+        if (table === 'gigs') return makeChain({ data: originalGig, error: null });
+        if (table === 'organizations') return makeChain({ data: { name: 'Acme' }, error: null });
+        return makeChain({ data: [], error: null });
+      });
+      mockSupabase.rpc = vi.fn().mockResolvedValue({ data: [{ id: newGigId }], error: null });
+
+      await duplicateGig(gigId);
+
+      expect(logActivity).toHaveBeenCalledWith(expect.objectContaining({
+        event_type: 'gig.created',
+        entity_id: newGigId,
+        context: expect.objectContaining({
+          gig_title: 'Original (Copy)'
+        })
+      }));
     });
   });
 });

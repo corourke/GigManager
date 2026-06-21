@@ -72,7 +72,7 @@ describe('Security Policies (RLS Simulation)', () => {
         }
       });
 
-      const gigs = await gigService.getGigs('org-1');
+      const gigs = await gigService.getGigsForOrganization('org-1');
       expect(gigs.map(g => g.id)).toContain(mockGig.id);
       expect(gigs[0].venue.id).toBe('org-1');
     });
@@ -83,7 +83,7 @@ describe('Security Policies (RLS Simulation)', () => {
         Promise.resolve({ data: [], error: null }).then(resolve)
       );
 
-      const gigs = await gigService.getGigs('other-org');
+      const gigs = await gigService.getGigsForOrganization('other-org');
       expect(gigs).toHaveLength(0);
     });
 
@@ -112,7 +112,7 @@ describe('Security Policies (RLS Simulation)', () => {
         }
       });
 
-      const gigs = await gigService.getGigs('org-1');
+      const gigs = await gigService.getGigsForOrganization('org-1');
       expect(gigs.map(g => g.id)).toContain(sharedGig.id);
       expect(gigs[0].act.id).toBe('org-1');
     });

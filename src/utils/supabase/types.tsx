@@ -188,6 +188,12 @@ export interface StaffingChange {
   initial_status?: string;
 }
 
+export interface FieldChange {
+  field: string;
+  from: unknown;
+  to: unknown;
+}
+
 export interface ActivityLogContext {
   context_version: number;
   actor_display_name: string;
@@ -209,6 +215,9 @@ export interface ActivityLogContext {
   quantity?: number;
   changes?: StaffingChange[];
   change_count?: number;
+  field_changes?: FieldChange[];
+  notes_changed?: boolean;
+  asset_name?: string;
 }
 
 export interface ActivityLogEntry extends Omit<DbActivityLog, 'context'> {

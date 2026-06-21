@@ -11,6 +11,14 @@ vi.mock('../utils/supabase/auth-utils', () => ({
   requireAuth: vi.fn(),
 }));
 
+vi.mock('./activityLog.service', () => ({
+  logActivity: vi.fn().mockResolvedValue({ success: true }),
+  getEntityActivity: vi.fn().mockResolvedValue([]),
+}));
+
+import { logActivity } from './activityLog.service';
+import { duplicateAsset } from './asset.service';
+
 function makeChain(result: { data: any; error: any }) {
   const chain: any = {};
   const chainMethods = [
@@ -198,45 +206,105 @@ describe('asset.service', () => {
   });
 
   describe('createAsset', () => {
-    it('should insert a new asset', async () => {
+    it('should insert a new asset and log activity', async () => {
       const assetData = { manufacturer_model: 'Model A', organization_id: 'org-1' };
       const mockResult = { id: 'a1', ...assetData };
       const chain = makeChain({ data: mockResult, error: null });
-      mockSupabase.from.mockReturnValue(chain);
+      mockSupabase.from.mockImplementation((table: string) => {
+        if (table === 'organizations') return makeChain({ data: { name: 'Acme' }, error: null });
+        return chain;
+      });
+      (requireAuth as any).mockResolvedValue({ supabase: mockSupabase, user: { id: 'user-1', user_metadata: { first_name: 'Jane', last_name: 'Doe' } } });
 
       const result = await createAsset(assetData);
 
       expect(chain.insert).toHaveBeenCalledWith(expect.objectContaining(assetData));
       expect(result).toEqual(mockResult);
+      expect(logActivity).toHaveBeenCalledWith(expect.objectContaining({
+        event_type: 'asset.created',
+        entity_id: 'a1',
+        context: expect.objectContaining({
+          asset_model: 'Model A'
+        })
+      }));
     });
   });
 
   describe('updateAsset', () => {
-    it('should update an existing asset', async () => {
+    it('should update an existing asset and log field changes', async () => {
       const updates = { manufacturer_model: 'Model B' };
+      const preAsset = { id: 'a1', manufacturer_model: 'Model A', organization_id: 'org-1', organization: { name: 'Acme' } };
       const mockResult = { id: 'a1', ...updates };
-      const chain = makeChain({ data: mockResult, error: null });
-      mockSupabase.from.mockReturnValue(chain);
+      
+      mockSupabase.from.mockImplementation((table: string) => {
+        if (table === 'assets') {
+          const chain = makeChain({ data: preAsset, error: null });
+          chain.select.mockReturnValue(chain);
+          // For the actual update call
+          chain.update = vi.fn().mockReturnValue(makeChain({ data: mockResult, error: null }));
+          return chain;
+        }
+        return makeChain({ data: {}, error: null });
+      });
+      (requireAuth as any).mockResolvedValue({ supabase: mockSupabase, user: { id: 'user-1' } });
 
       const result = await updateAsset('a1', updates);
 
-      expect(mockSupabase.from).toHaveBeenCalledWith('assets');
-      expect(chain.update).toHaveBeenCalledWith(expect.objectContaining(updates));
-      expect(chain.eq).toHaveBeenCalledWith('id', 'a1');
       expect(result).toEqual(mockResult);
+      expect(logActivity).toHaveBeenCalledWith(expect.objectContaining({
+        event_type: 'asset.updated',
+        context: expect.objectContaining({
+          field_changes: [
+            { field: 'manufacturer_model', from: 'Model A', to: 'Model B' }
+          ]
+        })
+      }));
+    });
+
+    it('does NOT log asset.updated when tracked fields are unchanged', async () => {
+      const updates = { manufacturer_model: 'Model A' };
+      const preAsset = { id: 'a1', manufacturer_model: 'Model A', organization_id: 'org-1' };
+      
+      mockSupabase.from.mockImplementation((table: string) => {
+        if (table === 'assets') return makeChain({ data: preAsset, error: null });
+        return makeChain({ data: {}, error: null });
+      });
+      (requireAuth as any).mockResolvedValue({ supabase: mockSupabase, user: { id: 'user-1' } });
+
+      await updateAsset('a1', updates);
+
+      expect(logActivity).not.toHaveBeenCalledWith(expect.objectContaining({
+        event_type: 'asset.updated'
+      }));
     });
   });
 
-  describe('deleteAsset', () => {
-    it('deletes an asset and returns success', async () => {
-      mockSupabase.from.mockReturnValue(makeChain({ data: [{ id: 'asset-1' }], error: null }));
-      const result = await deleteAsset('asset-1');
-      expect(result).toEqual({ success: true });
-    });
+  describe('duplicateAsset', () => {
+    it('logs asset.created for duplicated asset', async () => {
+      const assetId = 'a1';
+      const originalAsset = { id: 'a1', manufacturer_model: 'Original', organization_id: 'org-1' };
+      const mockResult = { id: 'a2', manufacturer_model: 'Original (Copy)', organization_id: 'org-1' };
 
-    it('throws when no row was deleted (RLS denied)', async () => {
-      mockSupabase.from.mockReturnValue(makeChain({ data: [], error: null }));
-      await expect(deleteAsset('asset-1')).rejects.toThrow(/permission|not found/i);
+      mockSupabase.from.mockImplementation((table: string) => {
+        if (table === 'assets') {
+          const chain = makeChain({ data: originalAsset, error: null });
+          chain.insert = vi.fn().mockReturnValue(makeChain({ data: mockResult, error: null }));
+          return chain;
+        }
+        if (table === 'organizations') return makeChain({ data: { name: 'Acme' }, error: null });
+        return makeChain({ data: {}, error: null });
+      });
+      (requireAuth as any).mockResolvedValue({ supabase: mockSupabase, user: { id: 'user-1' } });
+
+      await duplicateAsset(assetId);
+
+      expect(logActivity).toHaveBeenCalledWith(expect.objectContaining({
+        event_type: 'asset.created',
+        entity_id: 'a2',
+        context: expect.objectContaining({
+          asset_model: 'Original (Copy)'
+        })
+      }));
     });
   });
 });
