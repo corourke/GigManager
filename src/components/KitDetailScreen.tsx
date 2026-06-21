@@ -13,9 +13,12 @@ import {
   TableRow,
 } from './ui/table';
 import AppHeader from './AppHeader';
-import { Organization, User, UserRole } from '../utils/supabase/types';
+import { Organization, User, UserRole, ActivityLogEntry } from '../utils/supabase/types';
 import { canManage } from '../utils/permissions';
 import { getKit, deleteKit, duplicateKit } from '../services/kit.service';
+import { getEntityActivity } from '../services/activityLog.service';
+import ActivityFeed from './ActivityFeed';
+import { History } from 'lucide-react';
 
 interface KitDetailScreenProps {
   organization: Organization;
@@ -40,6 +43,8 @@ export default function KitDetailScreen({
 }: KitDetailScreenProps) {
   const [kit, setKit] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [kitActivity, setKitActivity] = useState<ActivityLogEntry[]>([]);
+  const [activityLoading, setActivityLoading] = useState(false);
 
   useEffect(() => {
     loadKit();
@@ -50,6 +55,11 @@ export default function KitDetailScreen({
     try {
       const data = await getKit(kitId);
       setKit(data);
+      setActivityLoading(true);
+      getEntityActivity('kit', kitId)
+        .then(setKitActivity)
+        .catch(() => {})
+        .finally(() => setActivityLoading(false));
     } catch (error: any) {
       console.error('Error loading kit:', error);
       toast.error(error.message || 'Failed to load kit');
@@ -307,6 +317,15 @@ export default function KitDetailScreen({
 
         {/* TODO: Gig Assignments Section */}
         {/* This would show which gigs this kit is currently assigned to */}
+
+        {/* Kit Change History */}
+        <Card className="p-4 mt-4">
+          <div className="flex items-center gap-2 mb-3">
+            <History className="w-5 h-5 text-gray-400" />
+            <h3 className="text-lg font-semibold text-gray-900">Change History</h3>
+          </div>
+          <ActivityFeed entries={kitActivity} isLoading={activityLoading} />
+        </Card>
       </div>
     </div>
   );

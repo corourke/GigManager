@@ -9,12 +9,14 @@ import {
   Package,
   Loader2,
 } from 'lucide-react';
-import { Organization, User, UserRole } from '../utils/supabase/types';
+import { Organization, User, UserRole, ActivityLogEntry } from '../utils/supabase/types';
 import {GIG_STATUS_CONFIG } from '../utils/supabase/constants';
 import { createClient } from '../utils/supabase/client';
 import { handleFunctionsError } from '../utils/api-error-utils';
 import GigTable from './tables/GigTable';
 import { PageHeader } from './ui/PageHeader';
+import { getRecentActivity } from '../services/activityLog.service';
+import ActivityFeed from './ActivityFeed';
 
 interface DashboardProps {
   organization: Organization;
@@ -87,10 +89,20 @@ export default function Dashboard({
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [recentActivity, setRecentActivity] = useState<ActivityLogEntry[]>([]);
+  const [activityLoading, setActivityLoading] = useState(false);
 
   useEffect(() => {
     fetchDashboardStats();
   }, [organization.id]);
+
+  useEffect(() => {
+    setActivityLoading(true);
+    getRecentActivity({ eventTypes: ['gig.status_changed', 'gig.rescheduled', 'gig.renamed', 'participant.added', 'participant.removed'] })
+      .then(setRecentActivity)
+      .catch(() => {})
+      .finally(() => setActivityLoading(false));
+  }, []);
 
   const fetchDashboardStats = async () => {
     try {
@@ -299,6 +311,12 @@ export default function Dashboard({
                 )}
               </Card>
             </div>
+
+            {/* Recent Activity */}
+            <Card className="p-6 mt-6">
+              <h3 className="text-foreground mb-4">Recent Activity</h3>
+              <ActivityFeed entries={recentActivity} isLoading={activityLoading} />
+            </Card>
           </>
         ) : null}
       </div>

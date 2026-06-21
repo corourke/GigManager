@@ -4,16 +4,19 @@ import {
   GigAccountingSummary,
   PaymentHealth,
   OrganizationRole,
+  type StaffingChange,
 } from '../utils/supabase/types';
 import { handleApiError } from '../utils/api-error-utils';
 import { requireAuth } from '../utils/supabase/auth-utils';
-import {deleteGigFromCalendar } from './googleCalendar.service';
+import { deleteGigFromCalendar } from './googleCalendar.service';
 // createGig calls createGigFinancial internally (financial record on import).
 import { createGigFinancial } from './gigFinancial.service';
 // updateGig calls updateGigParticipants internally.
 import { updateGigParticipants } from './gigParticipant.service';
 // updateGig calls updateGigStaffSlots internally.
 import { updateGigStaffSlots } from './gigStaff.service';
+import { logActivity } from './activityLog.service';
+import { UUID_REGEX } from '../utils/validation-utils';
 
 // Kit-assignment operations live in gigKit.service.ts (Step 4 split); re-export
 // them here so existing `services/gig.service` imports keep working.
@@ -399,7 +402,22 @@ export async function updateGig(gigId: string, gigData: {
 
     const primary_organization_id = userMemberships.find(m => m.role === 'Admin' || m.role === 'Manager')?.organization_id || userMemberships[0]?.organization_id;
 
+    const { data: orgRow } = await supabase
+      .from('organizations')
+      .select('name')
+      .eq('id', primary_organization_id)
+      .single();
+    const actorOrgName: string = (orgRow as any)?.name ?? '';
+    const actorDisplayName = `${(user as any).user_metadata?.first_name ?? ''} ${(user as any).user_metadata?.last_name ?? ''}`.trim() || user.email || '';
+
     const { participants, staff_slots, schedule_entries, ...restGigData } = gigData;
+
+    const { data: preGig, error: preFetchError } = await supabase
+      .from('gigs')
+      .select('status, start, end, title')
+      .eq('id', gigId)
+      .single();
+    if (preFetchError) throw preFetchError;
 
     const { data: updatedRows, error: updateError } = await supabase
       .from('gigs')
@@ -416,12 +434,32 @@ export async function updateGig(gigId: string, gigData: {
       throw new Error('Failed to save gig — you may not have permission to edit this gig.');
     }
 
+    const baseCtx = { context_version: 1 as const, actor_display_name: actorDisplayName, actor_org_name: actorOrgName, gig_title: (preGig as any)?.title ?? '' };
+
+    if (gigData.status && gigData.status !== (preGig as any)?.status) {
+      try {
+        await logActivity({ organization_id: primary_organization_id, event_type: 'gig.status_changed', entity_type: 'gig', entity_id: gigId, gig_id: gigId, context: { ...baseCtx, from_status: (preGig as any).status, to_status: gigData.status } });
+      } catch (e) { console.error('Activity log failed:', e); }
+    }
+
+    if ((gigData.start !== undefined || gigData.end !== undefined) && (gigData.start !== (preGig as any)?.start || gigData.end !== (preGig as any)?.end)) {
+      try {
+        await logActivity({ organization_id: primary_organization_id, event_type: 'gig.rescheduled', entity_type: 'gig', entity_id: gigId, gig_id: gigId, context: { ...baseCtx, from: { start: (preGig as any).start, end: (preGig as any).end }, to: { start: gigData.start ?? (preGig as any).start, end: gigData.end ?? (preGig as any).end } } });
+      } catch (e) { console.error('Activity log failed:', e); }
+    }
+
+    if (gigData.title !== undefined && gigData.title !== (preGig as any)?.title) {
+      try {
+        await logActivity({ organization_id: primary_organization_id, event_type: 'gig.renamed', entity_type: 'gig', entity_id: gigId, gig_id: gigId, context: { ...baseCtx, from_title: (preGig as any).title, to_title: gigData.title } });
+      } catch (e) { console.error('Activity log failed:', e); }
+    }
+
     if (participants !== undefined && Array.isArray(participants)) {
-      await updateGigParticipants(gigId, participants);
+      await updateGigParticipants(gigId, participants, { organization_id: primary_organization_id, actor_display_name: actorDisplayName, actor_org_name: actorOrgName, gig_title: (preGig as any)?.title ?? '' });
     }
 
     if (staff_slots !== undefined && Array.isArray(staff_slots)) {
-      await updateGigStaffSlots(gigId, staff_slots.map(s => ({...s, organization_id: primary_organization_id})));
+      await updateGigStaffSlots(gigId, staff_slots.map(s => ({...s, organization_id: primary_organization_id})), { organization_id: primary_organization_id, actor_display_name: actorDisplayName, actor_org_name: actorOrgName, gig_title: (preGig as any)?.title ?? '' });
     }
 
     if (schedule_entries !== undefined && Array.isArray(schedule_entries)) {
@@ -575,6 +613,600 @@ export async function duplicateGig(gigId: string, newTitle?: string) {
   }
 }
 
+<<<<<<< HEAD
+=======
+/**
+ * Assign a kit to a gig
+ */
+export async function assignKitToGig(gigId: string, kitId: string, organizationId: string, notes?: string) {
+  try {
+    const { supabase, user } = await requireAuth();
+
+    const { data, error } = await supabase
+      .from('gig_kit_assignments')
+      .insert({
+        gig_id: gigId,
+        kit_id: kitId,
+        organization_id: organizationId,
+        notes: notes || null,
+        assigned_by: user.id,
+      })
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data;
+  } catch (err) {
+    return handleApiError(err, 'assign kit to gig');
+  }
+}
+
+/**
+ * Remove a kit from a gig
+ */
+export async function removeKitFromGig(assignmentId: string) {
+  const supabase = getSupabase();
+  try {
+    // .select() to confirm a row was removed — RLS denies silently (0 rows, no error)
+    const { data, error } = await supabase.from('gig_kit_assignments').delete().eq('id', assignmentId).select();
+    if (error) throw error;
+    if (!data || data.length === 0) {
+      throw new Error('Kit assignment not found, or you do not have permission to remove it.');
+    }
+    return { success: true };
+  } catch (err) {
+    return handleApiError(err, 'remove kit from gig');
+  }
+}
+
+/**
+ * Update a kit assignment for a gig
+ */
+export async function updateGigKitAssignment(assignmentId: string, updates: { notes?: string }) {
+  const supabase = getSupabase();
+  try {
+    const { data, error } = await supabase.from('gig_kit_assignments').update(updates).eq('id', assignmentId).select().single();
+    if (error) throw error;
+    return data;
+  } catch (err) {
+    return handleApiError(err, 'update kit assignment');
+  }
+}
+
+/**
+ * Update all kit assignments for a gig
+ */
+export async function updateGigKitAssignments(gigId: string, organizationId: string, assignments: Array<{
+  id?: string;
+  kit_id: string;
+  notes?: string | null;
+}>) {
+  try {
+    const { supabase, user } = await requireAuth();
+
+    const { data: existingAssignments, error: fetchError } = await supabase
+      .from('gig_kit_assignments')
+      .select('id, kit_id')
+      .eq('gig_id', gigId)
+      .eq('organization_id', organizationId);
+
+    if (fetchError) throw fetchError;
+
+    const existingIds = existingAssignments?.map(a => a.id) || [];
+    const incomingIds = assignments.filter(a => a.id && UUID_REGEX.test(a.id)).map(a => a.id!);
+
+    const assignmentIdsToDelete = existingIds.filter(id => !incomingIds.includes(id));
+
+    let kitNameMap: Map<string, string> = new Map();
+    const allKitIds = [
+      ...(existingAssignments?.filter(a => assignmentIdsToDelete.includes(a.id)).map(a => a.kit_id) ?? []),
+      ...assignments.filter(a => !a.id || !UUID_REGEX.test(a.id)).map(a => a.kit_id),
+    ].filter(Boolean);
+    if (allKitIds.length > 0) {
+      const { data: kits } = await (supabase.from('kits') as any).select('id, name').in('id', allKitIds);
+      kitNameMap = new Map((kits ?? []).map((k: any) => [k.id, k.name]));
+    }
+
+    const actorDisplayName = `${(user as any).user_metadata?.first_name ?? ''} ${(user as any).user_metadata?.last_name ?? ''}`.trim() || user.email || '';
+    const { data: orgRow } = await (supabase.from('organizations') as any).select('name').eq('id', organizationId).single();
+    const actorOrgName = (orgRow as any)?.name ?? '';
+    const { data: gigRow } = await (supabase.from('gigs') as any).select('title').eq('id', gigId).single();
+    const gigTitle = (gigRow as any)?.title ?? '';
+
+    if (assignmentIdsToDelete.length > 0) {
+      const removedKitIds = (existingAssignments ?? []).filter(a => assignmentIdsToDelete.includes(a.id)).map(a => a.kit_id);
+      await supabase.from('gig_kit_assignments').delete().in('id', assignmentIdsToDelete);
+      for (const kitId of removedKitIds) {
+        try {
+          await logActivity({ organization_id: organizationId, event_type: 'kit_assignment.removed', entity_type: 'kit_assignment', entity_id: kitId, gig_id: gigId, context: { context_version: 1, actor_display_name: actorDisplayName, actor_org_name: actorOrgName, gig_title: gigTitle, kit_name: kitNameMap.get(kitId) ?? '' } });
+        } catch (e) { console.error('Activity log failed:', e); }
+      }
+    }
+
+    for (const assignment of assignments) {
+      const isDbId = assignment.id && UUID_REGEX.test(assignment.id);
+      const assignmentData = {
+        gig_id: gigId,
+        kit_id: assignment.kit_id,
+        organization_id: organizationId,
+        notes: assignment.notes || null,
+      };
+
+      if (isDbId) {
+        await supabase.from('gig_kit_assignments').update(assignmentData).eq('id', assignment.id!);
+      } else {
+        await supabase.from('gig_kit_assignments').insert({ ...assignmentData, assigned_by: user.id });
+        try {
+          await logActivity({ organization_id: organizationId, event_type: 'kit_assignment.added', entity_type: 'kit_assignment', entity_id: assignment.kit_id, gig_id: gigId, context: { context_version: 1, actor_display_name: actorDisplayName, actor_org_name: actorOrgName, gig_title: gigTitle, kit_name: kitNameMap.get(assignment.kit_id) ?? '' } });
+        } catch (e) { console.error('Activity log failed:', e); }
+      }
+    }
+
+    return { success: true };
+  } catch (err) {
+    return handleApiError(err, 'update gig kit assignments');
+  }
+}
+
+/**
+ * Fetch kits assigned to a gig
+ */
+export async function getGigKits(gigId: string, organizationId?: string) {
+  const supabase = getSupabase();
+  try {
+    let query = supabase
+      .from('gig_kit_assignments')
+      .select(`
+        *,
+        kit:kits(
+          id,
+          name,
+          category,
+          tag_number,
+          rental_value,
+          organization_id,
+          kit_assets(
+            quantity,
+            notes,
+            asset:assets(*)
+          )
+        )
+      `)
+      .eq('gig_id', gigId);
+
+    if (organizationId) query = query.eq('organization_id', organizationId);
+
+    const { data, error } = await query.order('assigned_at', { ascending: false });
+    if (error) throw error;
+    return data || [];
+  } catch (err) {
+    return handleApiError(err, 'fetch gig kits');
+  }
+}
+
+/**
+ * Check for kit availability conflicts
+ */
+export async function checkKitConflicts(kitId: string, gigId: string, startTime: string, endTime: string) {
+  const supabase = getSupabase();
+  try {
+    const kit = await getKit(kitId);
+    if (!kit.kit_assets || kit.kit_assets.length === 0) return { conflicts: [] };
+
+    const assetIds = kit.kit_assets.map((ka: any) => ka.asset.id);
+
+    const { data: overlappingGigs, error } = await supabase
+      .from('gigs')
+      .select(`
+        id,
+        title,
+        start,
+        end,
+        gig_kit_assignments!inner(
+          kit:kits!inner(
+            kit_assets!inner(
+              asset_id
+            )
+          )
+        )
+      `)
+      .neq('id', gigId)
+      .lte('start', endTime)
+      .gte('end', startTime);
+
+    if (error) throw error;
+
+    const conflicts: any[] = [];
+    for (const gig of overlappingGigs || []) {
+      const gigAssetIds = new Set<string>();
+      for (const assignment of gig.gig_kit_assignments || []) {
+        for (const kitAsset of assignment.kit?.kit_assets || []) {
+          gigAssetIds.add(kitAsset.asset_id);
+        }
+      }
+
+      const conflictingAssetIds = assetIds.filter(id => gigAssetIds.has(id));
+      if (conflictingAssetIds.length > 0) {
+        conflicts.push({
+          gig_id: gig.id,
+          gig_title: gig.title,
+          start: gig.start,
+          end: gig.end,
+          conflicting_assets: conflictingAssetIds,
+        });
+      }
+    }
+
+    return { conflicts };
+  } catch (err) {
+    return handleApiError(err, 'check kit conflicts');
+  }
+}
+
+/**
+ * Fetch financials for a gig
+ */
+export async function getGigFinancials(gigId: string, organizationId?: string) {
+  const supabase = getSupabase();
+  try {
+    let query = supabase
+      .from('gig_financials')
+      .select('*, counterparty:organizations!counterparty_id(*)')
+      .eq('gig_id', gigId)
+      .order('date', { ascending: false });
+    if (organizationId) query = query.eq('organization_id', organizationId);
+    const { data, error } = await query;
+    if (error) throw error;
+    return data || [];
+  } catch (err) {
+    return handleApiError(err, 'fetch gig financials');
+  }
+}
+
+/**
+ * Fetch a summary of gig profitability
+ */
+export async function getGigProfitabilitySummary(gigId: string, organizationId: string) {
+  const supabase = getSupabase();
+  try {
+    // 1. Fetch all financial records for this gig
+    const { data: financials, error: finError } = await supabase
+      .from('gig_financials')
+      .select('type, amount')
+      .eq('gig_id', gigId)
+      .eq('organization_id', organizationId);
+
+    if (finError) throw finError;
+
+    // 2. Fetch all uncompleted staff assignments for projected costs
+    // Sourced from gig_staff_assignments where completed_at IS NULL
+    // Join with gig_staff_slots to ensure they belong to this gig and organization
+    const { data: assignments, error: staffError } = await supabase
+      .from('gig_staff_assignments')
+      .select(`
+        fee,
+        rate,
+        status,
+        completed_at,
+        slot:gig_staff_slots!inner(gig_id, organization_id)
+      `)
+      .eq('slot.gig_id', gigId)
+      .eq('slot.organization_id', organizationId)
+      .is('completed_at', null);
+
+    if (staffError) throw staffError;
+
+    // 3. Calculate metrics
+    let received = 0;
+    let actualCosts = 0;
+    let contractSignedTotal = 0;
+    let bidAcceptedTotal = 0;
+    let informalTermsTotal = 0;
+
+    const costTypes = FIN_TYPE_GROUPS.cost as readonly string[];
+
+    (financials || []).forEach(f => {
+      const amount = Number(f.amount) || 0;
+
+      if (f.type === 'Contract Signed') {
+        contractSignedTotal += amount;
+      } else if (f.type === 'Bid Accepted') {
+        bidAcceptedTotal += amount;
+      } else if (f.type === 'Informal Terms') {
+        informalTermsTotal += amount;
+      }
+
+      if (f.type === 'Deposit Received' || f.type === 'Payment Received') {
+        received += amount;
+      }
+
+      if (costTypes.includes(f.type)) {
+        actualCosts += amount;
+      }
+    });
+
+    const formalContractAmount = contractSignedTotal > 0
+      ? contractSignedTotal
+      : bidAcceptedTotal > 0
+        ? bidAcceptedTotal
+        : informalTermsTotal;
+
+    const contractAmount = Math.max(formalContractAmount, received);
+
+    let projectedStaffCosts = 0;
+    (assignments || []).forEach(a => {
+      // Only include Confirmed or Requested assignments in projected costs
+      if (a.status === 'Confirmed' || a.status === 'Requested') {
+        // Use fee if available, otherwise rate (assume 1 unit for projection)
+        const amount = a.fee !== null ? Number(a.fee) : (a.rate !== null ? Number(a.rate) : 0);
+        projectedStaffCosts += amount;
+      }
+    });
+
+    const outstandingRevenue = Math.max(0, contractAmount - received);
+    const totalCosts = actualCosts + projectedStaffCosts;
+    const profit = contractAmount - totalCosts;
+    const margin = contractAmount > 0 ? (profit / contractAmount) * 100 : 0;
+
+    return {
+      contractAmount,
+      received,
+      outstandingRevenue,
+      actualCosts,
+      projectedStaffCosts,
+      totalCosts,
+      profit,
+      margin
+    };
+  } catch (err) {
+    return handleApiError(err, 'calculate gig profitability summary');
+  }
+}
+
+/**
+ * Legacy alias for getGigFinancials
+ */
+export const getGigBids = getGigFinancials;
+
+/**
+ * Create a new financial record for a gig
+ */
+export async function createGigFinancial(finData: {
+  gig_id: string;
+  organization_id: string;
+  amount: number;
+  date: string;
+  type: FinType;
+  category?: FinCategory;
+  reference_number?: string;
+  counterparty_id?: string;
+  external_entity_name?: string;
+  currency?: string;
+  description?: string;
+  notes?: string;
+  due_date?: string;
+  paid_at?: string;
+  purchase_id?: string;
+  staff_assignment_id?: string;
+  mileage?: number;
+}) {
+  try {
+    const { supabase, user } = await requireAuth();
+
+    const { data, error } = await supabase.from('gig_financials').insert({ ...finData, created_by: user.id }).select().single();
+    if (error) throw error;
+    return data;
+  } catch (err) {
+    return handleApiError(err, 'create gig financial');
+  }
+}
+
+/**
+ * Legacy alias for createGigFinancial
+ */
+export async function createGigBid(bidData: any) {
+  return createGigFinancial({
+    ...bidData,
+    date: bidData.date_given,
+    type: 'Bid Submitted',
+  });
+}
+
+/**
+ * Update an existing financial record
+ */
+export async function updateGigFinancial(finId: string, finData: {
+  amount?: number;
+  date?: string;
+  type?: FinType;
+  category?: FinCategory;
+  reference_number?: string;
+  counterparty_id?: string;
+  external_entity_name?: string;
+  currency?: string;
+  description?: string;
+  notes?: string;
+  due_date?: string;
+  paid_at?: string;
+  purchase_id?: string;
+  staff_assignment_id?: string;
+}) {
+  const supabase = getSupabase();
+  try {
+    const { data, error } = await supabase.from('gig_financials').update(finData).eq('id', finId).select().single();
+    if (error) throw error;
+    return data;
+  } catch (err) {
+    return handleApiError(err, 'update gig financial');
+  }
+}
+
+/**
+ * Legacy alias for updateGigFinancial
+ */
+export async function updateGigBid(bidId: string, bidData: any) {
+  const mappedData: any = { ...bidData };
+  if (bidData.date_given) mappedData.date = bidData.date_given;
+  delete mappedData.date_given;
+  delete mappedData.result; // Dropped column
+  return updateGigFinancial(bidId, mappedData);
+}
+
+/**
+ * Delete a financial record
+ */
+export async function deleteGigFinancial(finId: string) {
+  const supabase = getSupabase();
+  try {
+    // .select() to confirm a row was removed — RLS denies silently (0 rows, no error)
+    const { data, error } = await supabase.from('gig_financials').delete().eq('id', finId).select();
+    if (error) throw error;
+    if (!data || data.length === 0) {
+      throw new Error('Financial record not found, or you do not have permission to delete it.');
+    }
+    return { success: true };
+  } catch (err) {
+    return handleApiError(err, 'delete gig financial');
+  }
+}
+
+/**
+ * Legacy alias for deleteGigFinancial
+ */
+export const deleteGigBid = deleteGigFinancial;
+
+/**
+ * Update all financials for a gig
+ */
+export async function updateGigFinancials(gigId: string, organizationId: string, financials: Array<{
+  id?: string;
+  amount: number;
+  date: string;
+  type: FinType;
+  category?: FinCategory;
+  reference_number?: string;
+  counterparty_id?: string;
+  external_entity_name?: string;
+  currency?: string;
+  description?: string;
+  notes?: string;
+  due_date?: string;
+  paid_at?: string;
+  purchase_id?: string;
+  staff_assignment_id?: string;
+}>) {
+  try {
+    const { supabase, user } = await requireAuth();
+
+    const { data: existingFins, error: fetchError } = await supabase.from('gig_financials').select('id').eq('gig_id', gigId).eq('organization_id', organizationId);
+    if (fetchError) throw fetchError;
+
+    const existingIds = existingFins?.map(f => f.id) || [];
+    const incomingIds = financials.filter(f => f.id && UUID_REGEX.test(f.id)).map(f => f.id!);
+
+    const idsToDelete = existingIds.filter(id => !incomingIds.includes(id));
+    if (idsToDelete.length > 0) {
+      await supabase.from('gig_financials').delete().in('id', idsToDelete);
+    }
+
+    for (const fin of financials) {
+      // Strip out any non-database fields like 'counterparty' object
+      const { id, counterparty, ...restFin } = fin as any;
+      
+      // Clean and sanitize data: convert empty strings to null for UUID and Date fields
+      // This prevents Supabase 400 Bad Request errors for invalid formats
+      const cleanFin: any = { ...restFin };
+      
+      const uuidFields = ['counterparty_id', 'purchase_id', 'staff_assignment_id'];
+      const dateFields = ['date', 'due_date', 'paid_at'];
+      
+      uuidFields.forEach(field => {
+        if (cleanFin[field] === '' || cleanFin[field] === undefined) {
+          delete cleanFin[field];
+        }
+      });
+      
+      dateFields.forEach(field => {
+        if (cleanFin[field] === '' || cleanFin[field] === undefined) {
+          delete cleanFin[field];
+        }
+      });
+
+      const finData = {
+        ...cleanFin,
+        gig_id: gigId,
+        organization_id: organizationId,
+      };
+
+      if (id && existingIds.includes(id)) {
+        const { error: updateErr } = await supabase.from('gig_financials').update(finData).eq('id', id);
+        if (updateErr) throw updateErr;
+      } else {
+        const { error: insertErr } = await supabase.from('gig_financials').insert({ ...finData, created_by: user.id });
+        if (insertErr) throw insertErr;
+      }
+    }
+    return { success: true };
+  } catch (err) {
+    return handleApiError(err, 'update gig financials');
+  }
+}
+
+/**
+ * Legacy alias for updateGigFinancials
+ */
+export async function updateGigBids(gigId: string, organizationId: string, bids: any[]) {
+  return updateGigFinancials(gigId, organizationId, bids.map(bid => ({
+    ...bid,
+    date: bid.date_given,
+    type: 'Bid Submitted',
+    category: 'Other'
+  })));
+}
+
+/**
+ * Update the venue for a gig
+ */
+export async function updateGigVenue(gigId: string, organizationId: string | null) {
+  const supabase = getSupabase();
+  try {
+    if (organizationId) {
+      const { data: existing } = await supabase.from('gig_participants').select('id').eq('gig_id', gigId).eq('role', 'Venue').maybeSingle();
+      if (existing) {
+        await supabase.from('gig_participants').update({ organization_id: organizationId }).eq('id', existing.id);
+      } else {
+        await supabase.from('gig_participants').insert({ gig_id: gigId, organization_id: organizationId, role: 'Venue' });
+      }
+    } else {
+      await supabase.from('gig_participants').delete().eq('gig_id', gigId).eq('role', 'Venue');
+    }
+  } catch (err) {
+    return handleApiError(err, 'update gig venue');
+  }
+}
+
+/**
+ * Update the act for a gig
+ */
+export async function updateGigAct(gigId: string, organizationId: string | null) {
+  const supabase = getSupabase();
+  try {
+    if (organizationId) {
+      const { data: existing } = await supabase.from('gig_participants').select('id').eq('gig_id', gigId).eq('role', 'Act').maybeSingle();
+      if (existing) {
+        await supabase.from('gig_participants').update({ organization_id: organizationId }).eq('id', existing.id);
+      } else {
+        await supabase.from('gig_participants').insert({ gig_id: gigId, organization_id: organizationId, role: 'Act' });
+      }
+    } else {
+      await supabase.from('gig_participants').delete().eq('gig_id', gigId).eq('role', 'Act');
+    }
+  } catch (err) {
+    return handleApiError(err, 'update gig act');
+  }
+}
+
+>>>>>>> change-history-f8d5
 // Re-export conflict detection functions for convenience
 export {
   checkStaffConflicts,
@@ -593,6 +1225,197 @@ export async function getGigs(organizationId: string) {
   return getGigsForOrganization(organizationId);
 }
 
+<<<<<<< HEAD
+=======
+/**
+ * Complete a staff assignment and create a corresponding financial record
+ */
+export async function completeStaffAssignment(assignmentId: string, unitsCompleted?: number) {
+  try {
+    const { supabase, user } = await requireAuth();
+
+    // 1. Get assignment details
+    const { data: assignment, error: fetchError } = await supabase
+      .from('gig_staff_assignments')
+      .select('*, slot:gig_staff_slots(gig_id, organization_id, role_info:staff_roles(name))')
+      .eq('id', assignmentId)
+      .single();
+
+    if (fetchError) throw fetchError;
+    if (!assignment) throw new Error('Assignment not found');
+
+    const amount = assignment.fee || (assignment.rate ? (assignment.rate * (unitsCompleted || 1)) : 0);
+    const gigId = assignment.slot.gig_id;
+    const organizationId = assignment.slot.organization_id;
+    const roleName = assignment.slot.role_info?.name || 'Staff';
+
+    // 2. Create gig_financials record
+    const { data: financial, error: finError } = await supabase
+      .from('gig_financials')
+      .insert({
+        gig_id: gigId,
+        organization_id: organizationId,
+        amount: amount,
+        date: new Date().toISOString().split('T')[0],
+        type: 'Expense Incurred',
+        category: 'Contract labor',
+        description: `Labor: ${roleName}`,
+        staff_assignment_id: assignmentId,
+        created_by: user.id,
+      })
+      .select()
+      .single();
+
+    if (finError) throw finError;
+
+    // 3. Update assignment with completed_at, units_completed, and gig_financial_id
+    const { error: updateError } = await supabase
+      .from('gig_staff_assignments')
+      .update({
+        completed_at: new Date().toISOString(),
+        units_completed: unitsCompleted || null,
+        gig_financial_id: financial.id,
+      })
+      .eq('id', assignmentId);
+
+    if (updateError) throw updateError;
+
+    return { success: true, financialId: financial.id };
+  } catch (err) {
+    return handleApiError(err, 'complete staff assignment');
+  }
+}
+
+/**
+ * Un-finalize a staff assignment by deleting the linked financial record
+ */
+export async function unfinalizeStaffAssignment(assignmentId: string) {
+  try {
+    const { supabase } = await requireAuth();
+
+    // 1. Get assignment details
+    const { data: assignment, error: fetchError } = await supabase
+      .from('gig_staff_assignments')
+      .select('gig_financial_id')
+      .eq('id', assignmentId)
+      .single();
+
+    if (fetchError) throw fetchError;
+    if (!assignment) throw new Error('Assignment not found');
+
+    // 2. Delete the financial record if it exists
+    if (assignment.gig_financial_id) {
+      const { error: deleteError } = await supabase
+        .from('gig_financials')
+        .delete()
+        .eq('id', assignment.gig_financial_id);
+      
+      if (deleteError) throw deleteError;
+    }
+
+    // 3. Reset assignment completion fields
+    const { error: updateError } = await supabase
+      .from('gig_staff_assignments')
+      .update({
+        completed_at: null,
+        units_completed: null,
+        gig_financial_id: null,
+      })
+      .eq('id', assignmentId);
+
+    if (updateError) throw updateError;
+
+    return { success: true };
+  } catch (err) {
+    return handleApiError(err, 'un-finalize staff assignment');
+  }
+}
+
+/**
+ * Bulk completion for all confirmed fee-based assignments that haven't been completed yet
+ */
+export async function completeAllStaffAssignments(gigId: string, organizationId: string) {
+  try {
+    const { supabase } = await requireAuth();
+
+    // 1. Get all confirmed fee-based assignments for this gig/org that aren't completed
+    const { data: validAssignments, error: joinError } = await supabase
+      .from('gig_staff_assignments')
+      .select(`
+        id, 
+        fee,
+        slot:gig_staff_slots!inner(gig_id, organization_id)
+      `)
+      .eq('slot.gig_id', gigId)
+      .eq('slot.organization_id', organizationId)
+      .eq('status', 'Confirmed')
+      .is('completed_at', null)
+      .not('fee', 'is', null);
+
+    if (joinError) throw joinError;
+
+    if (!validAssignments || validAssignments.length === 0) {
+      return { success: true, count: 0 };
+    }
+
+    // 2. Complete each assignment
+    const results = await Promise.all(
+      validAssignments.map(a => completeStaffAssignment(a.id))
+    );
+
+    return { 
+      success: true, 
+      count: results.filter(r => (r as any).success).length 
+    };
+  } catch (err) {
+    return handleApiError(err, 'complete all staff assignments');
+  }
+}
+
+export async function updateStaffAssignmentStatus(
+  assignmentId: string,
+  status: 'Confirmed' | 'Declined'
+) {
+  try {
+    const { supabase, user } = await requireAuth();
+    const { data: preAssignment } = await (supabase.from('gig_staff_assignments') as any)
+      .select('status, slot_id, gig_staff_slots(gig_id, organization_id, staff_roles(name)), users(first_name, last_name)')
+      .eq('id', assignmentId)
+      .single();
+
+    const updateData: Record<string, any> = { status };
+    if (status === 'Confirmed') {
+      updateData.confirmed_at = new Date().toISOString();
+    }
+    const { error } = await supabase
+      .from('gig_staff_assignments')
+      .update(updateData)
+      .eq('id', assignmentId);
+
+    if (error) throw error;
+
+    if (preAssignment && preAssignment.status !== status) {
+      const slot = (preAssignment.gig_staff_slots as any);
+      const gigId: string | null = slot?.gig_id ?? null;
+      const orgId: string | null = slot?.organization_id ?? null;
+      const roleName: string = (slot?.staff_roles as any)?.name ?? '';
+      const assignedUser = (preAssignment.users as any);
+      const userName = assignedUser ? `${assignedUser.first_name} ${assignedUser.last_name}`.trim() : '';
+      const actorDisplayName = `${(user as any).user_metadata?.first_name ?? ''} ${(user as any).user_metadata?.last_name ?? ''}`.trim() || user.email || '';
+      const { data: orgRow } = orgId ? await (supabase.from('organizations') as any).select('name').eq('id', orgId).single() : { data: null };
+      const actorOrgName = (orgRow as any)?.name ?? '';
+      const { data: gigRow } = gigId ? await (supabase.from('gigs') as any).select('title').eq('id', gigId).single() : { data: null };
+      const gigTitle = (gigRow as any)?.title ?? '';
+      try {
+        await logActivity({ organization_id: orgId, event_type: 'staffing.status_changed', entity_type: 'staffing', entity_id: assignmentId, gig_id: gigId, context: { context_version: 1, actor_display_name: actorDisplayName, actor_org_name: actorOrgName, gig_title: gigTitle, user_name: userName, role: roleName, from_status: preAssignment.status, to_status: status } });
+      } catch (e) { console.error('Activity log failed:', e); }
+    }
+  } catch (err) {
+    return handleApiError(err, 'update staff assignment status');
+  }
+}
+
+>>>>>>> change-history-f8d5
 export async function getAllGigAccountingSummaries(
   organizationId: string
 ): Promise<GigAccountingSummary[]> {

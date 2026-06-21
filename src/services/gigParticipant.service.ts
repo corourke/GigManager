@@ -3,6 +3,7 @@ import { handleApiError } from '../utils/api-error-utils';
 import { requireAuth } from '../utils/supabase/auth-utils';
 import { UUID_REGEX } from '../utils/validation-utils';
 import { getSupabase } from './gigService.shared';
+import { logActivity } from './activityLog.service';
 
 /**
  * Gig participant / venue / act operations (Phase 7, Step 4 — extracted from
@@ -12,28 +13,67 @@ import { getSupabase } from './gigService.shared';
 /**
  * Update gig participants
  */
-export async function updateGigParticipants(gigId: string, participants: Array<{
-  id?: string;
-  organization_id: string;
-  role: OrganizationRole;
-  notes?: string | null;
-}>) {
+export async function updateGigParticipants(
+  gigId: string,
+  participants: Array<{
+    id?: string;
+    organization_id: string;
+    role: OrganizationRole;
+    notes?: string | null;
+  }>,
+  activityCtx?: {
+    organization_id: string | null;
+    actor_display_name: string;
+    actor_org_name: string;
+    gig_title: string;
+  }
+) {
   try {
     const { supabase } = await requireAuth();
 
     const { data: existingParticipants, error: fetchError } = await supabase
       .from('gig_participants')
-      .select('id')
+      .select('id, organization_id, role')
       .eq('gig_id', gigId);
 
     if (fetchError) throw fetchError;
 
-    const existingIds = existingParticipants?.map(p => p.id) || [];
+    const existingIds = (existingParticipants ?? []).map(p => p.id);
     const incomingIds = participants
       .filter(p => p.id && UUID_REGEX.test(p.id))
       .map(p => p.id!);
 
     const idsToDelete = existingIds.filter(id => !incomingIds.includes(id));
+
+    if (idsToDelete.length > 0 && activityCtx) {
+      const removedRows = (existingParticipants ?? []).filter(p => idsToDelete.includes(p.id));
+      const orgIds = removedRows.map(r => r.organization_id).filter(Boolean);
+      let orgNameMap: Map<string, string> = new Map();
+      if (orgIds.length > 0) {
+        const { data: orgs } = await (supabase.from('organizations') as any).select('id, name').in('id', orgIds);
+        orgNameMap = new Map((orgs ?? []).map((o: any) => [o.id, o.name]));
+      }
+      for (const row of removedRows) {
+        try {
+          await logActivity({
+            organization_id: activityCtx.organization_id,
+            event_type: 'participant.removed',
+            entity_type: 'participant',
+            entity_id: row.id,
+            gig_id: gigId,
+            context: {
+              context_version: 1,
+              actor_display_name: activityCtx.actor_display_name,
+              actor_org_name: activityCtx.actor_org_name,
+              gig_title: activityCtx.gig_title,
+              organization_name: orgNameMap.get(row.organization_id) ?? '',
+              role: row.role
+            }
+          });
+        } catch (e) { console.error('Activity log failed:', e); }
+      }
+    }
+
     if (idsToDelete.length > 0) {
       await supabase.from('gig_participants').delete().in('id', idsToDelete);
     }
@@ -43,13 +83,36 @@ export async function updateGigParticipants(gigId: string, participants: Array<{
       const participantData = {
         organization_id: participant.organization_id,
         role: participant.role,
-        notes: participant.notes || null,
+        notes: participant.notes || null
       };
 
       if (isDbId && existingIds.includes(participant.id!)) {
         await supabase.from('gig_participants').update(participantData).eq('id', participant.id!);
       } else if (participant.organization_id && participant.role) {
-        await supabase.from('gig_participants').insert({ gig_id: gigId, ...participantData });
+        const { data: inserted } = await (supabase.from('gig_participants') as any)
+          .insert({ gig_id: gigId, ...participantData })
+          .select('id')
+          .single();
+        if (activityCtx && inserted?.id) {
+          const { data: orgRow } = await (supabase.from('organizations') as any).select('name').eq('id', participant.organization_id).single();
+          try {
+            await logActivity({
+              organization_id: activityCtx.organization_id,
+              event_type: 'participant.added',
+              entity_type: 'participant',
+              entity_id: inserted.id,
+              gig_id: gigId,
+              context: {
+                context_version: 1,
+                actor_display_name: activityCtx.actor_display_name,
+                actor_org_name: activityCtx.actor_org_name,
+                gig_title: activityCtx.gig_title,
+                organization_name: (orgRow as any)?.name ?? '',
+                role: participant.role
+              }
+            });
+          } catch (e) { console.error('Activity log failed:', e); }
+        }
       }
     }
 

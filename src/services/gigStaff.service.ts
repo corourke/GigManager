@@ -1,6 +1,8 @@
 import { handleApiError } from '../utils/api-error-utils';
 import { requireAuth } from '../utils/supabase/auth-utils';
 import { getSupabase } from './gigService.shared';
+import { logActivity } from './activityLog.service';
+import { StaffingChange } from '../utils/supabase/types';
 
 /**
  * Gig staff-slot / assignment operations (Phase 7, Step 4 — extracted from
@@ -10,21 +12,30 @@ import { getSupabase } from './gigService.shared';
 /**
  * Update staff slots for a gig
  */
-export async function updateGigStaffSlots(gigId: string, staff_slots: Array<{
-  id?: string;
-  organization_id: string;
-  role: string;
-  count?: number;
-  notes?: string | null;
-  assignments?: Array<{
+export async function updateGigStaffSlots(
+  gigId: string,
+  staff_slots: Array<{
     id?: string;
-    user_id: string;
-    status?: string;
-    rate?: number | null;
-    fee?: number | null;
+    organization_id: string;
+    role: string;
+    count?: number;
     notes?: string | null;
-  }>;
-}>) {
+    assignments?: Array<{
+      id?: string;
+      user_id: string;
+      status?: string;
+      rate?: number | null;
+      fee?: number | null;
+      notes?: string | null;
+    }>;
+  }>,
+  activityCtx?: {
+    organization_id: string | null;
+    actor_display_name: string;
+    actor_org_name: string;
+    gig_title: string;
+  }
+) {
   try {
     const { supabase, user } = await requireAuth();
 
@@ -52,7 +63,16 @@ export async function updateGigStaffSlots(gigId: string, staff_slots: Array<{
     const incomingSlotIds = staff_slots.filter(s => s.id).map(s => s.id!);
 
     const slotIdsToDelete = existingSlotIds.filter(id => !incomingSlotIds.includes(id));
+
+    const staffingChanges: StaffingChange[] = [];
+
     if (slotIdsToDelete.length > 0) {
+      const { data: deletedSlots } = await (supabase.from('gig_staff_slots') as any)
+        .select('id, staff_roles(name)')
+        .in('id', slotIdsToDelete);
+      for (const ds of (deletedSlots ?? [])) {
+        staffingChanges.push({ type: 'slot_removed', role: (ds.staff_roles as any)?.name ?? ds.id });
+      }
       await supabase.from('gig_staff_slots').delete().in('id', slotIdsToDelete);
     }
 
@@ -87,18 +107,40 @@ export async function updateGigStaffSlots(gigId: string, staff_slots: Array<{
           notes: slot.notes || null,
         }).select('id').single();
         slotId = newSlot?.id;
+        staffingChanges.push({ type: 'slot_added', role: slot.role });
       }
 
       if (!slotId) continue;
 
       if (slot.assignments) {
-        const { data: existingAssignments } = await supabase.from('gig_staff_assignments').select('id').eq('slot_id', slotId);
+        const { data: existingAssignments } = await supabase.from('gig_staff_assignments').select('id, user_id').eq('slot_id', slotId);
         const existingAssignmentIds = existingAssignments?.map(a => a.id) || [];
         const incomingAssignmentIds = slot.assignments.filter(a => a.id).map(a => a.id!);
 
         const assignmentIdsToDelete = existingAssignmentIds.filter(id => !incomingAssignmentIds.includes(id));
+
         if (assignmentIdsToDelete.length > 0) {
+          const removedUserIds = (existingAssignments ?? [])
+            .filter(a => assignmentIdsToDelete.includes(a.id))
+            .map(a => a.user_id)
+            .filter(Boolean);
+          let userNameMap: Map<string, string> = new Map();
+          if (removedUserIds.length > 0) {
+            const { data: users } = await (supabase.from('users') as any).select('id, first_name, last_name').in('id', removedUserIds);
+            userNameMap = new Map((users ?? []).map((u: any) => [u.id, `${u.first_name} ${u.last_name}`.trim()]));
+          }
+          for (const aid of assignmentIdsToDelete) {
+            const aRow = (existingAssignments ?? []).find(a => a.id === aid);
+            if (aRow) staffingChanges.push({ type: 'unassigned', role: slot.role, user_name: userNameMap.get(aRow.user_id) ?? '' });
+          }
           await supabase.from('gig_staff_assignments').delete().in('id', assignmentIdsToDelete);
+        }
+
+        const newAssignmentUserIds = slot.assignments.filter(a => !a.id || !existingAssignmentIds.includes(a.id)).map(a => a.user_id).filter(Boolean);
+        let newUserNameMap: Map<string, string> = new Map();
+        if (newAssignmentUserIds.length > 0) {
+          const { data: users } = await (supabase.from('users') as any).select('id, first_name, last_name').in('id', newAssignmentUserIds);
+          newUserNameMap = new Map((users ?? []).map((u: any) => [u.id, `${u.first_name} ${u.last_name}`.trim()]));
         }
 
         for (const assignment of slot.assignments) {
@@ -116,9 +158,30 @@ export async function updateGigStaffSlots(gigId: string, staff_slots: Array<{
             await supabase.from('gig_staff_assignments').update(assignmentData).eq('id', assignment.id);
           } else if (assignment.user_id) {
             await supabase.from('gig_staff_assignments').insert({ slot_id: slotId, ...assignmentData });
+            staffingChanges.push({ type: 'assigned', role: slot.role, user_name: newUserNameMap.get(assignment.user_id) ?? '', initial_status: assignmentData.status });
           }
         }
       }
+    }
+
+    if (staffingChanges.length > 0 && activityCtx) {
+      try {
+        await logActivity({
+          organization_id: activityCtx.organization_id,
+          event_type: 'staffing.updated',
+          entity_type: 'staffing',
+          entity_id: gigId,
+          gig_id: gigId,
+          context: {
+            context_version: 1,
+            actor_display_name: activityCtx.actor_display_name,
+            actor_org_name: activityCtx.actor_org_name,
+            gig_title: activityCtx.gig_title,
+            changes: staffingChanges,
+            change_count: staffingChanges.length
+          }
+        });
+      } catch (e) { console.error('Activity log failed:', e); }
     }
 
     return { success: true };

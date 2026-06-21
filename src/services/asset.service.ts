@@ -2,7 +2,8 @@ import { createClient } from '../utils/supabase/client';
 import { handleApiError } from '../utils/api-error-utils';
 import { requireAuth } from '../utils/supabase/auth-utils';
 import { sanitizeLikeInput } from '../utils/validation-utils';
-import type { DbAsset, DbAssetStatusHistory, DbInventoryTracking } from '../utils/supabase/types';
+import type { DbAsset, DbInventoryTracking, ActivityLogEntry } from '../utils/supabase/types';
+import { logActivity, getEntityActivity } from './activityLog.service';
 
 const getSupabase = () => createClient();
 
@@ -107,37 +108,16 @@ export async function getAsset(assetId: string) {
 }
 
 /**
- * Fetch status history for an asset, with changer's name joined
+ * Fetch change history for an asset from the unified activity_log
  */
-export async function getAssetStatusHistory(assetId: string): Promise<DbAssetStatusHistory[]> {
-  const supabase = getSupabase();
-  try {
-    const { data, error } = await (supabase.from('asset_status_history') as any)
-      .select('*')
-      .eq('asset_id', assetId)
-      .order('changed_at', { ascending: false });
-
-    if (error) throw error;
-
-    const rows = data || [];
-    const changerIds = Array.from(new Set(rows.map((r: any) => r.changed_by).filter(Boolean)));
-
-    let userMap = new Map<string, { first_name: string; last_name: string }>();
-    if (changerIds.length > 0) {
-      const { data: users } = await (supabase.from('users') as any)
-        .select('id, first_name, last_name')
-        .in('id', changerIds);
-      userMap = new Map((users || []).map((u: any) => [u.id, u]));
-    }
-
-    return rows.map((r: any) => ({
-      ...r,
-      changed_by_user: r.changed_by ? (userMap.get(r.changed_by) ?? null) : null,
-    })) as DbAssetStatusHistory[];
-  } catch (err) {
-    return handleApiError(err, 'fetch asset status history');
-  }
+export async function getAssetHistory(assetId: string): Promise<ActivityLogEntry[]> {
+  return getEntityActivity('asset', assetId);
 }
+
+/**
+ * @deprecated use getAssetHistory instead
+ */
+export const getAssetStatusHistory = getAssetHistory;
 
 /**
  * Fetch inventory tracking records for an asset, with scanner name and gig/kit info joined
@@ -209,14 +189,22 @@ export async function updateAsset(assetId: string, assetData: Partial<DbAsset> &
   try {
     const { supabase, user } = await requireAuth();
 
-    // If status is being updated, use the specialized RPC to ensure history is tracked
-    // regardless of RLS on the history table (though the policy is still good to have)
     if (assetData.status) {
+      const { data: preAsset } = await (supabase.from('assets') as any).select('status, organization_id').eq('id', assetId).single();
       const { error: rpcError } = await supabase.rpc('update_asset_status', {
         p_asset_id: assetId,
         p_status: assetData.status
       });
       if (rpcError) throw rpcError;
+      if (preAsset && preAsset.status !== assetData.status) {
+        const actorDisplayName = `${(user as any).user_metadata?.first_name ?? ''} ${(user as any).user_metadata?.last_name ?? ''}`.trim() || user.email || '';
+        const { data: orgRow } = await (supabase.from('organizations') as any).select('name').eq('id', preAsset.organization_id).single();
+        const actorOrgName = (orgRow as any)?.name ?? '';
+        const { data: assetRow } = await (supabase.from('assets') as any).select('manufacturer_model, category').eq('id', assetId).single();
+        try {
+          await logActivity({ organization_id: preAsset.organization_id, event_type: 'asset.status_changed', entity_type: 'asset', entity_id: assetId, gig_id: null, context: { context_version: 1, actor_display_name: actorDisplayName, actor_org_name: actorOrgName, asset_model: (assetRow as any)?.manufacturer_model ?? '', category: (assetRow as any)?.category ?? '', from_status: preAsset.status, to_status: assetData.status } });
+        } catch (e) { console.error('Activity log failed:', e); }
+      }
     }
 
     // Handle legacy 'cost' field mapping

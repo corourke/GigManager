@@ -17,6 +17,8 @@ import { ConflictWarning } from './ConflictWarning';
 import {
   getGigsForOrganization,
 } from '../services/gig.service';
+import { getRecentActivity } from '../services/activityLog.service';
+import { CALENDAR_INDICATOR_EVENT_TYPES } from '../utils/activityLog.events';
 import { checkAllConflictsForGigs, Conflict } from '../services/conflictDetection.service';
 import { Organization, User, UserRole, GigStatus, Gig } from '../utils/supabase/types';
 import { GIG_STATUS_CONFIG } from '../utils/supabase/constants';
@@ -78,6 +80,7 @@ export default function CalendarScreen({
   const [gigs, setGigs] = useState<Gig[]>([]);
   const [conflicts, setConflicts] = useState<Conflict[]>([]);
   const [loading, setLoading] = useState(true);
+  const [changedGigIds, setChangedGigIds] = useState<Set<string>>(new Set());
   const [currentDate, setCurrentDate] = useState(new Date());
   const [view, setView] = useState<ViewType>('month');
 
@@ -109,6 +112,15 @@ export default function CalendarScreen({
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    getRecentActivity({ eventTypes: CALENDAR_INDICATOR_EVENT_TYPES, daysCutoff: 7, limit: 200 })
+      .then((entries) => {
+        const ids = new Set(entries.map(e => e.gig_id).filter(Boolean) as string[]);
+        setChangedGigIds(ids);
+      })
+      .catch(() => {});
+  }, []);
 
   const filteredGigs = useMemo(() => {
     return gigs.filter(gig => {
@@ -225,10 +237,14 @@ export default function CalendarScreen({
   const EventComponent = ({ event }: { event: CalendarEvent }) => {
     const gig = event.resource;
     const _statusConfig = GIG_STATUS_CONFIG[gig.status];
+    const hasRecentChange = changedGigIds.has(gig.id);
 
     return (
       <div className="p-1 cursor-pointer" onClick={() => onViewGig(gig.id)}>
-        <div className="font-medium text-sm truncate">{gig.title}</div>
+        <div className="font-medium text-sm truncate flex items-center gap-1">
+          {gig.title}
+          {hasRecentChange && <span className="inline-block w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" title="Recently changed" />}
+        </div>
         <div className="text-xs opacity-90">
           {formatDateTimeDisplay(gig.start, gig.end, gig.timezone)}
         </div>

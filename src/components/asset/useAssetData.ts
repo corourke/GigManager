@@ -2,7 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '../../lib/queryKeys';
 import {
   getAsset,
-  getAssetStatusHistory,
+  getAssetHistory,
   getAssetInventoryTracking,
   createAsset,
   updateAsset,
@@ -37,7 +37,13 @@ export function useAssetData(assetId: string | null | undefined) {
     enabled,
   });
 
-  return { assetQuery, statusHistoryQuery, inventoryTrackingQuery };
+  const activityQuery = useQuery({
+    queryKey: ['asset-activity', assetId],
+    queryFn: () => getAssetHistory(assetId as string),
+    enabled,
+  });
+
+  return { assetQuery, statusHistoryQuery, inventoryTrackingQuery, activityQuery };
 }
 
 /** Create/update mutations; invalidate the org's asset list on success. */
