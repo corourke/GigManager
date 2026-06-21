@@ -114,7 +114,7 @@ INSERT INTO "public"."activity_log" (
 )
 SELECT
     (
-        SELECT CASE WHEN COUNT(DISTINCT om.organization_id) = 1 THEN MIN(om.organization_id) ELSE NULL END
+        SELECT CASE WHEN COUNT(DISTINCT om.organization_id) = 1 THEN MIN(om.organization_id::text)::UUID ELSE NULL END
         FROM "public"."organization_members" om
         INNER JOIN "public"."gig_participants" gp
             ON gp.organization_id = om.organization_id AND gp.gig_id = h.gig_id
