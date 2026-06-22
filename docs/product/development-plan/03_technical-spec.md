@@ -1,4 +1,4 @@
-# Technical Specification: GigManager Evolution
+# Technical Specification: GigWrangler Evolution
 
 ## 1. Technical Context
 - **Frontend**: React 18.3.1, TypeScript, Tailwind CSS 4.0, Vite 6.

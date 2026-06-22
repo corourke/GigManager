@@ -1,6 +1,6 @@
 # Database Specification
 
-**Purpose**: This document provides the complete database schema, Supabase integration details, and data access patterns for the GigManager application.
+**Purpose**: This document provides the complete database schema, Supabase integration details, and data access patterns for the GigWrangler application.
 
 **Last Updated**: 2026-03-16
 

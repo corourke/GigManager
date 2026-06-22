@@ -1,6 +1,6 @@
 # Technical Detail: Scale & Performance Roadmap
 
-This document outlines the strategy for ensuring GigManager remains performant, reliable, and responsive under high-volume data loads.
+This document outlines the strategy for ensuring GigWrangler remains performant, reliable, and responsive under high-volume data loads.
 
 For offline sync, push notifications, and mobile-specific performance concerns, see [Mobile Development](04_mobile-development.md).
 

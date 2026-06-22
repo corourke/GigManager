@@ -1,4 +1,4 @@
-# Security Scheme Analysis - GigManager
+# Security Scheme Analysis - GigWrangler
 
 ## 1. Core Principles
 - **Multi-Tenancy**: Data is isolated between organizations.

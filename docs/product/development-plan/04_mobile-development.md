@@ -1,6 +1,6 @@
 # Technical Detail: Mobile Development
 
-This document is the single authoritative mobile development plan for GigManager. It covers all mobile workflows, PWA configuration, offline sync, and push notifications.
+This document is the single authoritative mobile development plan for GigWrangler. It covers all mobile workflows, PWA configuration, offline sync, and push notifications.
 
 ---
 
@@ -16,7 +16,7 @@ Mobile development is organized by priority:
 
 ## 2. PWA Configuration & Caching Strategy
 
-GigManager will be an offline-first PWA to support staff in the field (venues, warehouses).
+GigWrangler will be an offline-first PWA to support staff in the field (venues, warehouses).
 
 ### 2.1 PWA Manifest & Icons
 - **`manifest.json` Configuration**:
@@ -159,7 +159,7 @@ To allow field staff to quickly unlock the app without typing passwords on small
 
 ## 9. Offline Sync & Conflict Resolution
 
-GigManager will utilize `idb` (IndexedDB) and a Service Worker-based synchronization strategy to support mobile use in low-connectivity environments.
+GigWrangler will utilize `idb` (IndexedDB) and a Service Worker-based synchronization strategy to support mobile use in low-connectivity environments.
 
 ### 9.1 Local Storage Strategy (IndexedDB)
 - **Object Stores**:

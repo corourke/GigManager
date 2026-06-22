@@ -1,6 +1,6 @@
 # Technical Detail: Hierarchy UI
 
-This document specifies the UI/UX designs for the hierarchical gig structure in GigManager.
+This document specifies the UI/UX designs for the hierarchical gig structure in GigWrangler.
 
 ## 1. GigHierarchyTree Design
 

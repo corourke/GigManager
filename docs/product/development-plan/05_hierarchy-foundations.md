@@ -1,6 +1,6 @@
 # Technical Detail: Hierarchy Foundations
 
-This document details the technical implementation strategy for the Hierarchical Gig Structure and the Flexible CSV Mapping Architecture in GigManager.
+This document details the technical implementation strategy for the Hierarchical Gig Structure and the Flexible CSV Mapping Architecture in GigWrangler.
 
 ## 1. SQL Recursive CTEs & Schema Strategy
 

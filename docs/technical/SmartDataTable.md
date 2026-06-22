@@ -1,6 +1,6 @@
 # SmartDataTable Technical Documentation
 
-The `SmartDataTable` is a powerful, generic, and type-safe React component designed for handling complex data grids within the GigManager platform. It integrates features like sorting, filtering, inline editing, and keyboard navigation while maintaining a consistent design language using **Shadcn/ui** and **Tailwind CSS**.
+The `SmartDataTable` is a powerful, generic, and type-safe React component designed for handling complex data grids within the GigWrangler platform. It integrates features like sorting, filtering, inline editing, and keyboard navigation while maintaining a consistent design language using **Shadcn/ui** and **Tailwind CSS**.
 
 ## Features
 

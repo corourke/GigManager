@@ -1,6 +1,6 @@
 # Setup Guide
 
-**Purpose**: This document provides step-by-step instructions for setting up the GigManager application for both local development and production environments using Supabase.
+**Purpose**: This document provides step-by-step instructions for setting up the GigWrangler application for both local development and production environments using Supabase.
 
 **Last Updated**: 2026-02-09
 
@@ -31,7 +31,7 @@
 
 ## Local Development Setup
 
-GigManager uses the Supabase CLI to provide a complete local development environment, including PostgreSQL, Auth, and Edge Functions.
+GigWrangler uses the Supabase CLI to provide a complete local development environment, including PostgreSQL, Auth, and Edge Functions.
 
 ### 1. Project Initialization
 The project is already initialized with Supabase configuration in `supabase/config.toml`. If you are starting fresh:
@@ -215,7 +215,7 @@ The web app tags events with `environment` (Vite mode) and `release` (`gigwrangl
 
 ## Edge Functions & External Integrations
 
-GigManager uses Supabase Edge Functions for complex server-side logic and external integrations, such as Google Places and AI-powered invoice scanning.
+GigWrangler uses Supabase Edge Functions for complex server-side logic and external integrations, such as Google Places and AI-powered invoice scanning.
 
 ### 1. Google Places API Configuration
 The `server` edge function requires a `GOOGLE_PLACES_API_KEY` to perform place searches. This should be a Google Cloud API key with the "Places API (New)" enabled.
