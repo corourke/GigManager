@@ -1,10 +1,10 @@
-# GigManager Product Requirements
+# GigWrangler Product Requirements
 
-**Purpose**: This document defines the functional requirements, business rules, and high-level features of the GigManager application. It focuses on WHAT the system should do and WHY, not HOW it should be implemented.
+**Purpose**: This document defines the functional requirements, business rules, and high-level features of the GigWrangler application. It focuses on WHAT the system should do and WHY, not HOW it should be implemented.
 
-**Last Updated**: 2026-01-18
+**Last Updated**: 2026-06-21
 
-**Gig Manager** is a production and event management platform used by:
+**GigWrangler** (gigwrangler.com) is a production and event management platform used by:
 
 - Production companies managing events and performances;
 - Sound and lighting companies tracking equipment and staff;
@@ -15,8 +15,10 @@
 ## Table of Contents
 
 1. [Overview](#overview)
-2. [Core Features](#core-features) (incl. Multi-Act Scheduling)
-3. [Major Functionality Enhancements](#major-functionality-enhancements) (incl. Mobile Version, CSV Import, Hierarchical Gigs, Data Tables)
+2. [Core Features](#core-features) — Authentication, Organizations, Gig Management (incl. Multi-Act Scheduling, Financials), Equipment, Dashboard, Import/Export, Notifications, Calendar
+3. [Major Functionality Enhancements](#major-functionality-enhancements) — Attachments, Mobile, Receipt Import, CSV Import, Hierarchical Gigs, Data Tables, Expense Management
+
+**Status Key**: ✅ Implemented | 🔄 In Progress | 📋 Planned
 
 ---
 
@@ -91,7 +93,7 @@ This app streamlines the management of gigs (where an act performs at a venue) f
 
 ## Core Features
 
-### 1. Authentication & User Management
+### 1. Authentication & User Management ✅
 
 #### Authentication & SSO
 
@@ -153,7 +155,7 @@ This app streamlines the management of gigs (where an act performs at a venue) f
 
 ---
 
-### 2. Organization Management
+### 2. Organization Management ✅
 
 #### Organization Data
 
@@ -177,7 +179,7 @@ This app streamlines the management of gigs (where an act performs at a venue) f
 
 ---
 
-### 3. Gig Management
+### 3. Gig Management ✅
 
 #### Gig Data Model
 
@@ -256,7 +258,7 @@ Many gigs involve multiple acts performing at scheduled times, plus logistical a
 
 ---
 
-### 4. Equipment Management
+### 4. Equipment Management ✅
 
 #### Assets
 
@@ -324,7 +326,7 @@ Equipment moves through a multi-step lifecycle during gig operations. The workfl
 
 ---
 
-### 5. Dashboard, Reporting & Analytics
+### 5. Dashboard, Reporting & Analytics 📋
 
 #### Gig Reports
 
@@ -349,7 +351,7 @@ Equipment moves through a multi-step lifecycle during gig operations. The workfl
 
 ---
 
-### 6. Data Import/Export
+### 6. Data Import/Export ✅
 
 #### CSV Import
 
@@ -366,7 +368,7 @@ Equipment moves through a multi-step lifecycle during gig operations. The workfl
 
 ---
 
-### 7. Notifications & Reminders
+### 7. Notifications & Reminders 🔄
 
 #### Email Notifications
 
@@ -389,7 +391,7 @@ Equipment moves through a multi-step lifecycle during gig operations. The workfl
 
 ---
 
-### 8. Calendar Integration & Scheduling
+### 8. Calendar Integration & Scheduling ✅
 
 #### Calendar View
 
@@ -424,7 +426,7 @@ Two levels of conflict detection are implemented:
 ---
 ## Major Functionality Enhancements
 
-### Attachments and File Management
+### Attachments and File Management ✅
 
 There must be a uniform file attachment facility that is used in multiple places. 
 
@@ -441,26 +443,26 @@ There must be a uniform file attachment facility that is used in multiple places
 
 ---
 
-### Mobile Version
+### Mobile Version 🔄
 
 Mobile features are organized by priority. For full implementation detail, see [Mobile Development Plan](./development-plan/04_mobile-development.md).
 
-#### Priority 1: Gig Browsing & Quick Booking
+#### Priority 1: Gig Browsing & Quick Booking ✅
 
-The most urgent mobile need — a compact interface for managing gigs on the go.
+A compact interface for managing gigs on the go.
 
 - **Mobile Gig List**: Card-based list of upcoming gigs showing title, date/time, status badge, venue, and act(s). Filterable by date range, status, venue, and act. Searchable by title, venue, and act name.
 - **Simplified Gig Detail**: Read-only view showing only essentials — basic information (title, dates, timezone, status, notes, tags) plus venue and act participants. Excludes staff assignments, financials, and equipment details.
 - **Quick-Create Gig**: Streamlined form for capturing new bookings with just: title, start/end dates, timezone, status (defaults to Date Hold), venue (dropdown), act (dropdown), and notes. Full details can be added later from the desktop app.
 - **Booking Status Confirmation**: Tap to update gig status directly from the gig list or detail view. Quick swipe actions for common status transitions (e.g., Date Hold → Booked).
 
-#### Priority 2: Staff Dashboard
+#### Priority 2: Staff Dashboard ✅
 
 - **Upcoming Gigs**: Card-based list of assigned gigs for the next 48 hours
 - **Quick Links**: Venue map/directions (native maps integration), stage plot viewer, one-tap contact list for gig organizers
 - **Time Tracking**: Location-aware check-in button (active within venue radius)
 
-#### Priority 3: Inventory & Warehouse Workflows
+#### Priority 3: Inventory & Warehouse Workflows 📋
 
 - **Inventory Mode**: Specialized one-handed interface for equipment logistics with barcode scanning
 - **Pack-Out/Load/Unload/Return Flows**: Multi-step asset tracking through the full gig lifecycle
@@ -499,9 +501,7 @@ The most urgent mobile need — a compact interface for managing gigs on the go.
 
 ---
 
-### Receipt and Invoice Import
-
-**Status: Planned / In Progress**
+### Receipt and Invoice Import ✅
 
 #### Overview
 In addition to CSV import, the system must support importing assets by uploading PDF or image-based receipts and invoices. This process uses AI (LLM) to extract structured data and automatically creates both `purchases` and `assets` records.
@@ -524,9 +524,7 @@ In addition to CSV import, the system must support importing assets by uploading
 
 ---
 
-### CSV Import Feature
-
-**Status: Implemented**
+### CSV Import Feature ✅
 
 #### Overview
 
@@ -699,27 +697,16 @@ CSV import functionality for gigs and assets with client-side validation, immedi
 11. System shows success/error summary
 12. After successful import, user is redirected to list view
 
-#### Technical Implementation Notes
-
-- **Parser Library**: Use `papaparse` for CSV parsing
-- **Organization Lookup**: Case-insensitive search on organizations.name
-- **Auto-Create Organizations**: If act/venue not found, create with type 'Act' or 'Venue'
-- **Batch API Calls**: Import rows in batches to avoid overwhelming server
-- **UUID Generation**: Auto-generated by database (no duplicate detection)
-- **No Duplicate Detection**: Each import creates new records
-
 #### Future Enhancements
 
 - **Bulk Edit**: Edit multiple rows at once
-- **CSV Export**: Export existing data to CSV format
 - **Preview Changes**: Preview before importing
 - **Undo/Rollback**: Rollback imports
-- **Import Progress**: Cancel in-progress imports
 - **Update Existing**: Match by ID or unique fields and update
 
 ---
 
-### Complex Events: Hierarchical Gig Structure
+### Complex Events: Hierarchical Gig Structure 📋
 
 **Prioritization Note**: Hierarchical gigs are an advanced feature for complex multi-venue or multi-stage events. Most gigs operate as flat (non-hierarchical) events with multi-act scheduling (see Gig Management above). All core features — mobile, financials, scheduling, inventory — must work fully for flat gigs first. Hierarchy extends these capabilities but is not a prerequisite for them. For implementation detail, see [Hierarchy Foundations](./development-plan/05_hierarchy-foundations.md) and [Hierarchy UI](./development-plan/06_hierarchy-ui.md).
 
@@ -748,55 +735,18 @@ The hierarchical gig structure enables complex events (festivals, multi-venue ev
 - **No Explicit Overrides**: No need for override flags - just define values on child gigs
 - **Optional Hierarchy**: Most gigs remain flat (no parent) for simple use cases
 
-#### Schema Design
+#### Constraints
 
-##### Core Schema Changes
-
-```sql
--- Add parent relationship
-ALTER TABLE gigs ADD COLUMN parent_gig_id UUID REFERENCES gigs(id);
-
--- Add depth for performance and validation
-ALTER TABLE gigs ADD COLUMN hierarchy_depth INTEGER DEFAULT 0;
-```
-
-##### Constraints
-
-- **No Cycles**: Prevent A→B→A relationships through database triggers
+- **No Cycles**: Circular parent-child relationships are prevented
 - **Date Validation**: Child gig dates must fall within parent date range
-- **Max Depth**: Limit hierarchy depth (recommended: 3 levels)
+- **Max Depth**: Hierarchy limited to 3 levels
 
 #### Inheritance Behavior
-
-##### Value Precedence Rules
 
 - **Participants**: Child participants are added to inherited parent participants
 - **Staff Slots**: Child staff slots override parent slots with same role
 - **Equipment**: Child equipment assignments override parent assignments for same assets
-- **Bids**: All bids from hierarchy are considered (no override logic)
-
-##### Recursive Query Pattern
-
-All inherited data is resolved using recursive CTEs that walk up the hierarchy tree:
-
-```sql
-WITH RECURSIVE gig_hierarchy AS (
-  SELECT id, parent_gig_id, 0 as depth
-  FROM gigs
-  WHERE id = $target_gig_id
-
-  UNION ALL
-
-  SELECT g.id, g.parent_gig_id, gh.depth + 1
-  FROM gigs g
-  JOIN gig_hierarchy gh ON g.id = gh.parent_gig_id
-  WHERE g.parent_gig_id IS NOT NULL
-)
-SELECT ...
-FROM related_table rt
-JOIN gig_hierarchy gh ON rt.gig_id = gh.id
-ORDER BY gh.depth ASC  -- Parent values first
-```
+- **Financials**: All financial records from the hierarchy are considered (no override logic)
 
 #### Business Rules
 
@@ -841,29 +791,29 @@ ORDER BY gh.depth ASC  -- Parent values first
 ##### Example 1: Multi-Day Music Festival
 
 ```
-Summer Music Festival (parent_gig_id = null)
-├── Main Stage Setup (parent_gig_id = festival.id)
+Summer Music Festival
+├── Main Stage Setup
 │   ├── Equipment: Full PA system, lighting rig
-│   ├── Staff Slots: Stage Manager, Lighting Tech
+│   ├── Staff: Stage Manager, Lighting Tech
 │   ├── Participants: Venue, Production Company
-│   └── Friday Night Concert (parent_gig_id = main_stage.id)
+│   └── Friday Night Concert
 │       ├── Act: Headliner Band
-│       └── Staff Assignments: Specific lighting tech for this show
-├── Side Stage Setup (parent_gig_id = festival.id)
+│       └── Staff: Specific lighting tech for this show
+├── Side Stage Setup
 │   └── [inherits equipment/staff from festival, overrides with smaller setup]
-└── VIP Lounge (parent_gig_id = festival.id)
+└── VIP Lounge
     └── [inherits equipment/staff from festival, overrides with lounge setup]
 ```
 
 ##### Example 2: Wedding with Ceremony + Reception
 
 ```
-Sarah & John Wedding (parent_gig_id = null)
-├── Ceremony at Church (parent_gig_id = wedding.id)
+Sarah & John Wedding
+├── Ceremony at Church
 │   ├── Equipment: Basic sound system
 │   ├── Staff: sound engineer, musicians
 │   └── Participants: sound company, band
-└── Reception at Hotel (parent_gig_id = wedding.id)
+└── Reception at Hotel
     ├── Equipment: Full DJ/sound system, DJ lighting
     ├── Staff: DJ, sound engineer, lighting engineer
     └── Participants: Hotel (venue), DJ company, sound company, lighting company
@@ -924,89 +874,14 @@ Sarah & John Wedding (parent_gig_id = null)
 - Color-coded hierarchy indicators
 - Quick status changes with cascade options
 
-#### Implementation Phases
-
-##### Phase 1: Core Schema (Database Migration)
-
-1. Add `parent_gig_id` and `hierarchy_depth` to gigs table
-2. Create database constraints (no cycles via triggers)
-3. Add indexes on `parent_gig_id` for performance
-
-##### Phase 2: Inheritance Logic (Backend)
-
-1. Implement recursive query functions for each entity type
-2. Update application data access layer to use effective values
-3. Add hierarchy-aware RLS policies
-4. Create database views for common hierarchy queries
-
-##### Phase 3: Application Updates (Frontend)
-
-1. Update gig creation/edit forms to support parent selection
-2. Modify queries to use inheritance-aware logic
-3. Add validation for hierarchy constraints
-4. Update permission checks for hierarchical access
-
-##### Phase 4: Advanced Features (Future)
-
-1. Bulk operations across hierarchies
-2. Status cascade options
-3. Hierarchy templates and presets
-4. Advanced reporting across hierarchies
-
-#### Performance Optimization
-
-**Query Optimization**:
-- Use recursive CTEs efficiently with proper indexing
-- Cache frequently accessed hierarchy data
-- Implement pagination for large hierarchies
-- Consider materialized views for complex aggregations
-
-**Database Indexes**:
-- Index on `parent_gig_id` for fast hierarchy traversal
-- Composite indexes on `(gig_id, related_entity)` for related tables
-- Partial indexes for active hierarchies only
-
-**Caching Strategy**:
-- Cache hierarchy structures for frequently accessed gigs
-- Invalidate cache when hierarchy changes
-- Use Redis/application cache for complex inheritance results
-
-#### Testing Requirements
-
-**Unit Tests**:
-- Recursive query correctness
-- Inheritance resolution logic
-- Constraint validation
-- Permission inheritance
-
-**Integration Tests**:
-- Full hierarchy CRUD operations
-- Complex event creation workflows
-- Performance under load
-- Data consistency across operations
-
-**Edge Cases**:
-- Deep hierarchies (3+ levels)
-- Circular reference prevention
-- Concurrent modifications
-- Partial hierarchy access
-
-#### Benefits
-
-- **Backward Compatible**: Existing gigs work unchanged (parent_gig_id is nullable)
-- **Simple to Implement**: Minimal schema changes
-- **Powerful**: Supports complex nested events
-- **Flexible**: Easy to extend with more features later
-- **Scalable**: Recursive queries with proper indexing perform well
+For implementation detail (schema, recursive queries, phasing), see [Hierarchy Foundations](./development-plan/05_hierarchy-foundations.md).
 
 ---
 
-### Robust Data Tables Feature
-
-**Status: Implemented**
+### Robust Data Tables Feature ✅
 
 #### 1. Overview
-The goal is to implement a robust, highly-functional, and consistent table system across the GigManager application. The new system will provide advanced sorting, filtering, and column management, along with a seamless in-place editing experience inspired by tools like Coda and Notion.
+The goal is to implement a robust, highly-functional, and consistent table system across the GigWrangler application. The new system will provide advanced sorting, filtering, and column management, along with a seamless in-place editing experience inspired by tools like Coda and Notion.
 
 #### 2. Goals
 - Provide a unified table component that can be used throughout the application.
@@ -1055,12 +930,6 @@ The goal is to implement a robust, highly-functional, and consistent table syste
 - Intuitive sorting and filtering UI (e.g., icons in headers).
 - Persistent state should feel seamless to the user.
 
-#### 5. Technical Constraints
-- Must integrate with existing **Shadcn/ui** and **Tailwind CSS**.
-- State persistence using **LocalStorage**.
-- Must handle both top-level list screens and nested tables (e.g., inside Gig or Kit edit forms).
-- Use **Zod** for any necessary validation during editing.
-
 ---
 
 ### 6. Attachments and File Management
@@ -1085,45 +954,31 @@ The application provides a centralized system for managing file attachments (PDF
 `gig_financials` is the single source of truth for all gig financial data. Every financial event — revenue, expense, staff labor cost — is a ledger entry. Source documents (`purchases` for receipts, `gig_staff_assignments` for labor) feed into the ledger but are not queried separately for profitability.
 
 #### Single-Ledger Architecture
-- **`gig_financials`** is the ledger. Manual expenses, receipt-sourced expenses, and completed staff labor all become rows here. Profitability = Revenue entries minus Cost entries.
-- **`purchases`** is the receipt archive. When a scanned receipt is a gig expense, the system creates BOTH a purchase record (with `gig_id` for tracking) AND a `gig_financials` record (the financial effect) linked via `purchase_id`. Two-way linking: `gig_financials.purchase_id` → purchases, `purchases.gig_id` → gigs.
-- **`gig_staff_assignments`** holds projected labor costs. When an assignment is marked complete, a `gig_financials` record is created (type = `Expense Incurred`, category = `Labor`) with two-way linking: `gig_financials.staff_assignment_id` → assignment, `gig_staff_assignments.gig_financial_id` → gig_financials. Before completion, fees are projected costs only.
-- **Capital asset purchases** (where items create `assets` records) do NOT create gig_financials entries. They are inventory acquisitions, not gig expenses.
+- A single financial ledger is the source of truth for all gig financial data. Every financial event — revenue, expense, staff labor cost — is a ledger entry. Profitability = Revenue entries minus Cost entries.
+- When a scanned receipt is a gig expense, the system creates both a purchase record (the archive) and a ledger entry (the financial effect), linked together for traceability.
+- Staff assignment fees are projected costs until the assignment is marked complete, at which point they become actual costs in the ledger.
+- Capital asset purchases (equipment acquisitions) are inventory, not gig expenses, and do not appear in gig profitability.
 
-#### Entity Relationships
-
-Two-way linking pattern across the financial data model:
-
-```mermaid
-erDiagram
-    gig_financials ||--o| purchases : "purchase_id ↔ gig_id"
-    gig_financials ||--o| gig_staff_assignments : "staff_assignment_id ↔ gig_financial_id"
-    purchases ||--o| assets : "asset_id"
-    purchases ||--o| gigs : "gig_id"
-    gigs ||--o{ gig_financials : "gig_id"
-    gigs ||--o{ gig_staff_slots : "gig_id"
-    gig_staff_slots ||--o{ gig_staff_assignments : "staff_slot_id"
-```
+For the technical data model, ER diagram, and two-way linking pattern, see [Gig Financials Technical Reference](../technical/gig-financials.md).
 
 #### Staff Cost Lifecycle
-- **Before gig**: Staff assigned with fee/rate → shows as projected cost in profitability view (from assignments table)
-- **After gig**: Assignment marked complete → `gig_financials` record created → becomes actual cost in ledger
-- **Payment**: `Payment Sent` record added → clear visibility into "expense incurred but not yet paid"
-- **Completion fields**: `completed_at` (timestamp), `units_completed` (numeric, for rate-based: actual hours/days), `gig_financial_id` (back-link to created ledger entry)
-- **Bulk finalization**: "Finalize All" action completes all confirmed fee-based assignments in one click when gig moves to Completed
+- **Before gig**: Staff assigned with fee/rate → shows as projected cost in profitability view
+- **After gig**: Assignment marked complete → becomes actual cost in ledger
+- **Payment**: Payment recorded → clear visibility into "incurred but not yet paid"
+- **Bulk finalization**: "Finalize All" completes all confirmed fee-based assignments in one click when gig moves to Completed
 
 #### Gig Profitability
-- **Revenue**: Sum of `Contract Signed` + `Bid Accepted` records from gig_financials
-- **Received**: Sum of `Deposit Received` + `Payment Recieved` from gig_financials
-- **Actual Costs**: Sum of `Expense Incurred` + `Payment Sent` from gig_financials (includes completed staff, manual expenses, receipt-sourced expenses)
-- **Projected Staff**: Sum of fees from uncompleted assignments (goes to zero as staff are finalized)
+- **Revenue**: Total contract value (Contract Signed + Bid Accepted amounts)
+- **Received**: Deposits and payments received to date
+- **Actual Costs**: Expenses incurred and payments sent (includes completed staff labor, manual expenses, receipt-sourced expenses)
+- **Projected Staff**: Fees from staff not yet finalized (goes to zero as staff are completed)
 - **Profit**: Revenue minus (Actual Costs + Projected Staff), with margin percentage
-- **Outstanding tracking**: Unpaid revenue (contract minus received) and unpaid costs (expenses with due_date but no paid_at)
+- **Outstanding**: Unpaid revenue (contract minus received) and unpaid costs (expenses with a due date but no payment recorded)
 
 #### Requirements
-- **Manual Expense Entry**: Quick entry via Financials section — type, amount, category, description. Creates a `gig_financials` record directly.
-- **AI-Powered Receipt Entry**: Upload receipt via "Upload Receipt" button in Financials section; AI extracts data; system creates both `purchases` record (archive, with `gig_id`) and `gig_financials` record (ledger entry, with `purchase_id`) automatically.
-- **General Business Expenses**: Purchases without a linked gig_financials record are general business receipts.
+- **Manual Expense Entry**: Quick entry via Financials section — type, amount, category, description.
+- **AI-Powered Receipt Entry**: Upload receipt via "Upload Receipt" button; AI extracts line items; system creates both a purchase record (archive) and a ledger entry (financial effect) automatically.
+- **General Business Expenses**: Purchases without a gig association are tracked as general business receipts.
 - **Categorization**: Eight categories: Labor, Equipment, Transportation, Venue, Production, Insurance, Rebillable, Other.
 - **Profitability Summary**: Three-card display: Contract (received/outstanding), Total Costs (actual + projected staff), Profit (with margin).
 - **Source Indicators**: Each expense row shows its source: Manual, Receipt (linked to purchase), Staff (linked to assignment).
@@ -1133,11 +988,10 @@ erDiagram
 
 ## Related Documentation
 
-- [Development Roadmap](./development-plan/01_roadmap.md) - Strategic context, persona analysis, sprint plan, and index to technical detail documents
-- [Feature Catalog](./feature-catalog.md) - Implementation status of all features
-- [AI Coding Guide](../development/coding-guide.md) - Implementation patterns
-- [Database Documentation](../technical/database.md) - Schema and RLS policies
-- [Gig Financials Technical Reference](../technical/gig-financials.md) - Financial architecture, data boundaries, ER diagram
-- [Tech Stack](../technical/tech-stack.md) - Technology overview
-- [UI Workflows](./workflows/) - User interface specifications
+- [Development Roadmap](./development-plan/01_roadmap.md) — Product roadmap with completed work, what's next, and strategic priorities
+- [Competitive Analysis](./development-plan/02_competitive-analysis.md) — Market positioning vs. Rentman, Current RMS, LASSO, BackOpsLive, gig-manager.app
+- [Database Documentation](../technical/database.md) — Schema and RLS policies
+- [Gig Financials Technical Reference](../technical/gig-financials.md) — Financial architecture, data boundaries, ER diagram
+- [Tech Stack](../technical/tech-stack.md) — Technology overview
+- [Security Scheme](../technical/security-scheme.md) — Authentication, authorization, and storage security
 
