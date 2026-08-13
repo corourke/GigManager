@@ -18,10 +18,10 @@ export function registerWebauthn(app: App) {
     const options = await WebAuthnServer.generateRegistrationOptions({
       rpName: RP_NAME,
       rpID: RP_ID,
-      userID: user.id,
+      userID: new TextEncoder().encode(user.id),
       userName: user.email,
       attestationType: 'none',
-      excludeCredentials: devices?.map((d: any) => ({ id: d.credential_id, type: 'public-key' })),
+      excludeCredentials: devices?.map((d: any) => ({ id: d.credential_id })),
       authenticatorSelection: { residentKey: 'preferred', userVerification: 'preferred' },
     });
 
@@ -57,9 +57,10 @@ export function registerWebauthn(app: App) {
       return c.json({ error: 'Verification failed' }, 400);
     }
 
-    const { credentialID, credentialPublicKey } = registrationInfo;
-    const publicKeyBase64url = base64urlEncode(new Uint8Array(credentialPublicKey));
-    const credentialIDBase64url = base64urlEncode(new Uint8Array(credentialID));
+    // v13: registrationInfo.credential.id is already a base64url string; publicKey is raw bytes.
+    const { credential } = registrationInfo;
+    const publicKeyBase64url = base64urlEncode(credential.publicKey);
+    const credentialIDBase64url = credential.id;
 
     const { error: dbError } = await supabaseAdmin.from('user_devices').insert({
       user_id: user.id,
@@ -97,7 +98,7 @@ export function registerWebauthn(app: App) {
 
     const options = await WebAuthnServer.generateAuthenticationOptions({
       rpID: RP_ID,
-      allowCredentials: devices.map((d: any) => ({ id: d.credential_id, type: 'public-key' })),
+      allowCredentials: devices.map((d: any) => ({ id: d.credential_id })),
       userVerification: 'preferred',
     });
 
@@ -132,15 +133,18 @@ export function registerWebauthn(app: App) {
 
     let verification;
     try {
-      const publicKeyBuffer = base64urlDecode(device.public_key);
-      const credentialIDBuffer = base64urlDecode(device.credential_id);
       verification = await WebAuthnServer.verifyAuthenticationResponse({
         response: authenticationResponse,
         expectedChallenge: stored.challenge,
         expectedOrigin: ORIGIN,
         expectedRPID: RP_ID,
         requireUserVerification: false,
-        authenticator: { credentialID: credentialIDBuffer, credentialPublicKey: publicKeyBuffer, counter: 0 },
+        // v13: `authenticator` was renamed to `credential`; id is base64url, publicKey is raw bytes.
+        credential: {
+          id: device.credential_id,
+          publicKey: base64urlDecode(device.public_key),
+          counter: 0,
+        },
       });
     } catch (error) {
       console.error('Authentication verification failed:', error);

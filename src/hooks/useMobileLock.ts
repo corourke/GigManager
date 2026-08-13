@@ -3,20 +3,24 @@ import { createClient } from '../utils/supabase/client';
 import { startAuthentication } from '@simplewebauthn/browser';
 import { toast } from 'sonner';
 
-const INACTIVITY_TIMEOUT_MS = 15 * 60 * 1000; // 15 minutes background inactivity
+const INACTIVITY_TIMEOUT_MS = 60 * 60 * 1000; // 1 hour background inactivity
 const SESSION_EXPIRY_MS = 60 * 60 * 1000; // 1 hour session expiry
 
 export function useMobileLock(userEmail: string | undefined, isMobile: boolean) {
   const [isLocked, setIsLocked] = useState(false);
   const [lastActiveTime, setLastActiveTime] = useState(() => Date.now());
+  // The lock can only be cleared by biometric unlock, which requires an enrolled
+  // device. Arming the lock without one traps the user on a screen they can never
+  // pass (authenticate/options 400s with "No registered devices found").
+  const [hasEnrolledDevice, setHasEnrolledDevice] = useState(false);
   const supabase = createClient();
 
   const lock = useCallback(() => {
-    if (isMobile) {
+    if (isMobile && hasEnrolledDevice) {
       setIsLocked(true);
       localStorage.setItem('mobile_locked', 'true');
     }
-  }, [isMobile]);
+  }, [isMobile, hasEnrolledDevice]);
 
   const unlock = useCallback(async () => {
     if (!userEmail) return false;
@@ -75,9 +79,27 @@ export function useMobileLock(userEmail: string | undefined, isMobile: boolean) 
     localStorage.removeItem('mobile_locked');
   }, [isMobile]);
 
+  // Only arm the lock once we've confirmed the user has at least one enrolled
+  // device to unlock with.
+  useEffect(() => {
+    if (!isMobile || !userEmail) {
+      setHasEnrolledDevice(false);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      const { data, error } = await supabase
+        .from('user_devices')
+        .select('id')
+        .limit(1);
+      if (!cancelled) setHasEnrolledDevice(!error && (data?.length ?? 0) > 0);
+    })();
+    return () => { cancelled = true; };
+  }, [isMobile, userEmail, supabase]);
+
   // Inactivity tracking
   useEffect(() => {
-    if (!isMobile || isLocked || !userEmail) return;
+    if (!isMobile || isLocked || !userEmail || !hasEnrolledDevice) return;
 
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
@@ -96,11 +118,11 @@ export function useMobileLock(userEmail: string | undefined, isMobile: boolean) 
 
     document.addEventListener('visibilitychange', handleVisibilityChange);
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
-  }, [isMobile, isLocked, lastActiveTime, lock, userEmail]);
+  }, [isMobile, isLocked, lastActiveTime, lock, userEmail, hasEnrolledDevice]);
 
   // Session expiry interval
   useEffect(() => {
-    if (!isMobile || isLocked || !userEmail) return;
+    if (!isMobile || isLocked || !userEmail || !hasEnrolledDevice) return;
 
     const interval = setInterval(() => {
       const now = Date.now();
@@ -111,7 +133,7 @@ export function useMobileLock(userEmail: string | undefined, isMobile: boolean) 
     }, 60000); // Check every minute
 
     return () => clearInterval(interval);
-  }, [isMobile, isLocked, lastActiveTime, lock, userEmail]);
+  }, [isMobile, isLocked, lastActiveTime, lock, userEmail, hasEnrolledDevice]);
 
   return { isLocked, lock, unlock };
 }
