@@ -25,12 +25,6 @@ export function useAssetData(assetId: string | null | undefined) {
     enabled,
   });
 
-  const statusHistoryQuery = useQuery({
-    queryKey: queryKeys.assetStatusHistory(assetId ?? 'new'),
-    queryFn: () => getAssetStatusHistory(assetId as string),
-    enabled,
-  });
-
   const inventoryTrackingQuery = useQuery({
     queryKey: queryKeys.assetInventoryTracking(assetId ?? 'new'),
     queryFn: () => getAssetInventoryTracking(assetId as string),
@@ -43,7 +37,7 @@ export function useAssetData(assetId: string | null | undefined) {
     enabled,
   });
 
-  return { assetQuery, statusHistoryQuery, inventoryTrackingQuery, activityQuery };
+  return { assetQuery, inventoryTrackingQuery, activityQuery };
 }
 
 /** Create/update mutations; invalidate the org's asset list on success. */

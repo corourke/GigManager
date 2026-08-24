@@ -81,17 +81,17 @@ describe('ACTIVITY_EVENTS', () => {
   });
 
   it('gig.created format returns "Gig created"', () => {
-    const cfg = ACTIVITY_EVENTS['gig.created'];
+    const cfg = ACTIVITY_EVENTS['gig.created' as ActivityEventType];
     expect(cfg.format({ context_version: 1, actor_display_name: '', actor_org_name: '' })).toBe('Gig created');
   });
 
   it('gig.notes_updated format returns "Gig notes updated"', () => {
-    const cfg = ACTIVITY_EVENTS['gig.notes_updated'];
+    const cfg = ACTIVITY_EVENTS['gig.notes_updated' as ActivityEventType];
     expect(cfg.format({ context_version: 1, actor_display_name: '', actor_org_name: '' })).toBe('Gig notes updated');
   });
 
   it('asset.created format returns "Asset created"', () => {
-    const cfg = ACTIVITY_EVENTS['asset.created'];
+    const cfg = ACTIVITY_EVENTS['asset.created' as ActivityEventType];
     expect(cfg.format({ context_version: 1, actor_display_name: '', actor_org_name: '' })).toBe('Asset created');
   });
 
@@ -115,7 +115,7 @@ describe('ACTIVITY_EVENTS', () => {
   });
 
   it('kit.created format returns "Kit created"', () => {
-    const cfg = ACTIVITY_EVENTS['kit.created'];
+    const cfg = ACTIVITY_EVENTS['kit.created' as ActivityEventType];
     expect(cfg.format({ context_version: 1, actor_display_name: '', actor_org_name: '' })).toBe('Kit created');
   });
 

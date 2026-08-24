@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { getAssets, getDistinctAssetValues, getAsset, createAsset, updateAsset, deleteAsset } from './asset.service';
+import { getAssets, getDistinctAssetValues, getAsset, createAsset, updateAsset } from './asset.service';
 import { createClient } from '../utils/supabase/client';
 import { requireAuth } from '../utils/supabase/auth-utils';
 

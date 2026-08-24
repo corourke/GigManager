@@ -4,7 +4,6 @@ import {
   GigAccountingSummary,
   PaymentHealth,
   OrganizationRole,
-  type StaffingChange,
 } from '../utils/supabase/types';
 import { handleApiError } from '../utils/api-error-utils';
 import { requireAuth } from '../utils/supabase/auth-utils';
@@ -16,7 +15,6 @@ import { updateGigParticipants } from './gigParticipant.service';
 // updateGig calls updateGigStaffSlots internally.
 import { updateGigStaffSlots } from './gigStaff.service';
 import { logActivity } from './activityLog.service';
-import { UUID_REGEX } from '../utils/validation-utils';
 
 // Kit-assignment operations live in gigKit.service.ts (Step 4 split); re-export
 // them here so existing `services/gig.service` imports keep working.

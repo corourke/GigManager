@@ -13,9 +13,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '.
 import AppHeader from './AppHeader';
 import { PageHeader } from './ui/PageHeader';
 import { Organization, User, UserRole } from '../utils/supabase/types';
-import { getAsset, createAsset, updateAsset, getAssetHistory, getAssetInventoryTracking } from '../services/asset.service';
+import { createAsset, updateAsset } from '../services/asset.service';
 import { useAssetData, useAssetMutations } from './asset/useAssetData';
-import type { DbAssetStatusHistory, DbInventoryTracking, ActivityLogEntry } from '../utils/supabase/types';
+import type { DbInventoryTracking, ActivityLogEntry } from '../utils/supabase/types';
 import ActivityFeed from './ActivityFeed';
 import { ASSET_STATUS_CONFIG } from '../utils/supabase/constants';
 import { useSimpleFormChanges } from '../utils/hooks/useSimpleFormChanges';
@@ -141,14 +141,13 @@ export default function AssetScreen({
   });
 
   // Server state (Phase 7): asset + read-only history/tracking via useQuery.
-  const { assetQuery, statusHistoryQuery, inventoryTrackingQuery, activityQuery } = useAssetData(assetId);
+  const { assetQuery, inventoryTrackingQuery, activityQuery } = useAssetData(assetId);
   const assetMutations = useAssetMutations(organization.id);
   const isLoading = assetQuery.isLoading;
   const isSaving = assetMutations.createAsset.isPending || assetMutations.updateAsset.isPending;
-  const statusHistory = (statusHistoryQuery.data ?? []) as DbAssetStatusHistory[];
   const inventoryTracking = (inventoryTrackingQuery.data ?? []) as DbInventoryTracking[];
   const assetActivity = (activityQuery.data ?? []) as ActivityLogEntry[];
-  const isLoadingHistory = statusHistoryQuery.isLoading || inventoryTrackingQuery.isLoading || activityQuery.isLoading;
+  const isLoadingHistory = inventoryTrackingQuery.isLoading || activityQuery.isLoading;
 
   // Populate the form when the asset query first resolves (edit mode). The
   // query is not invalidated by mutations, so this never clobbers edits.
