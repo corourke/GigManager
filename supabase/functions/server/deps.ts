@@ -5,4 +5,5 @@ export { Hono } from 'npm:hono@4';
 export type { Context, MiddlewareHandler } from 'npm:hono@4';
 export { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.8';
 export type { SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2.39.8';
-export * as WebAuthnServer from 'https://esm.sh/@simplewebauthn/server@9.0.3';
+// Kept in lockstep with the client's @simplewebauthn/browser major (see package.json).
+export * as WebAuthnServer from 'https://esm.sh/@simplewebauthn/server@13.2.2';
