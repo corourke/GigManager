@@ -26,7 +26,6 @@ import GigProfitabilitySummary from './GigProfitabilitySummary';
 import QuickActionButtons from './QuickActionButtons';
 import { Badge } from '../ui/badge';
 import { useNavigation } from '../../contexts/NavigationContext';
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '../ui/collapsible';
 import {ChevronDown, Receipt, Users, MousePointer2 } from 'lucide-react';
 
 const CURRENCY_OPTIONS = [
@@ -34,6 +33,16 @@ const CURRENCY_OPTIONS = [
   { code: 'CAD', symbol: 'C$', name: 'Canadian Dollar' },
   { code: 'EUR', symbol: '€', name: 'Euro' },
   { code: 'GBP', symbol: '£', name: 'British Pound' },
+];
+
+const COMMON_FIN_TYPES: FinType[] = [
+  'Contract Signed',
+  'Bid Accepted',
+  'Informal Terms',
+  'Deposit Received',
+  'Payment Received',
+  'Expense Incurred',
+  'Payment Sent',
 ];
 
 const financialSchema = z.object({
@@ -129,6 +138,7 @@ export default function GigFinancialsSection({
   const [scannedData, setScannedData] = useState<any>(null);
   const [scannedFile, setScannedFile] = useState<File | null>(null);
   const [showReviewDialog, setShowReviewDialog] = useState(false);
+  const [showAllFinTypes, setShowAllFinTypes] = useState(false);
 
   const [modalData, setModalData] = useState<FinancialModalData>({
     date: format(new Date(), 'yyyy-MM-dd'),
@@ -869,45 +879,31 @@ export default function GigFinancialsSection({
                   </SelectTrigger>
                   <SelectContent className="max-h-[300px]">
                     <div className="px-2 py-1.5 text-xs font-semibold text-gray-500 bg-gray-50/50">Common Types</div>
-                    {[
-                      'Contract Signed',
-                      'Bid Accepted',
-                      'Informal Terms',
-                      'Deposit Received',
-                      'Payment Received',
-                      'Expense Incurred',
-                      'Payment Sent'
-                    ].map((type) => (
+                    {COMMON_FIN_TYPES.map((type) => (
                       <SelectItem key={type} value={type}>
-                        {FIN_TYPE_CONFIG[type as FinType].label}
+                        {FIN_TYPE_CONFIG[type].label}
                       </SelectItem>
                     ))}
-                    
-                    <Collapsible className="w-full">
-                      <CollapsibleTrigger asChild>
-                        <Button variant="ghost" size="sm" className="w-full justify-between px-2 py-1.5 h-8 text-xs font-medium text-sky-600 hover:text-sky-700 hover:bg-sky-50">
-                          <span>All Types</span>
-                          <ChevronDown className="h-3 w-3" />
-                        </Button>
-                      </CollapsibleTrigger>
-                      <CollapsibleContent>
-                        {Object.entries(FIN_TYPE_CONFIG)
-                          .filter(([type]) => ![
-                            'Contract Signed',
-                            'Bid Accepted',
-                            'Informal Terms',
-                            'Deposit Received',
-                            'Payment Received',
-                            'Expense Incurred',
-                            'Payment Sent'
-                          ].includes(type))
-                          .map(([value, config]) => (
-                            <SelectItem key={value} value={value} className="pl-4">
-                              {config.label}
-                            </SelectItem>
-                          ))}
-                      </CollapsibleContent>
-                    </Collapsible>
+
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setShowAllFinTypes((prev) => !prev)}
+                      className="w-full justify-between px-2 py-1.5 h-8 text-xs font-medium text-sky-600 hover:text-sky-700 hover:bg-sky-50"
+                    >
+                      <span>All Types</span>
+                      <ChevronDown className={`h-3 w-3 transition-transform ${showAllFinTypes || !COMMON_FIN_TYPES.includes(modalData.type) ? 'rotate-180' : ''}`} />
+                    </Button>
+                    <div className={showAllFinTypes || !COMMON_FIN_TYPES.includes(modalData.type) ? '' : 'hidden'}>
+                      {Object.entries(FIN_TYPE_CONFIG)
+                        .filter(([type]) => !COMMON_FIN_TYPES.includes(type as FinType))
+                        .map(([value, config]) => (
+                          <SelectItem key={value} value={value} className="pl-4">
+                            {config.label}
+                          </SelectItem>
+                        ))}
+                    </div>
                   </SelectContent>
                 </Select>
               </div>
