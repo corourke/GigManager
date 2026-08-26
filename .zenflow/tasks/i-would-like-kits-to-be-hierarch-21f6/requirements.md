@@ -4,7 +4,7 @@
 
 ## 1. Overview
 
-GigWrangler's "Kits" are currently flat collections of "Assets" — a kit can hold multiple assets, but a kit cannot contain another kit. In practice, equipment is built up in layers (a "Mic Kit" and a "Cable Kit" combine into a "Stage Rack"; several racks combine into a full production package), and today that reuse is impossible: building a larger kit means manually re-adding every individual asset from each smaller kit, with no link back to the smaller kit if its contents ever change. This has made kit management largely unusable for real equipment workflows. This document specifies hierarchical kits: kits that can contain other kits, to any of a bounded number of levels, with a kit reusable across multiple parent kits at once.
+GigWrangler's "Kits" are currently flat collections of "Assets" — a kit can hold multiple assets, but a kit cannot contain another kit. In practice, equipment is built up in layers (a "Mic Kit" and a "Cable Kit" combine into a "Audio Kit"; several kits combine into a full production package), and today that reuse is impossible: building a larger kit means manually re-adding every individual asset from each smaller kit, with no link back to the smaller kit if its contents ever change. This has made kit management largely unusable for real equipment workflows. This document specifies hierarchical kits: kits that can contain other kits, ~~to any of a bounded number of levels,~~ with a kit reusable across multiple parent kits at once.
 
 ## 2. Goals
 
@@ -27,7 +27,7 @@ GigWrangler's "Kits" are currently flat collections of "Assets" — a kit can ho
 - **Quantity**: Each sub-kit component records how many of that sub-kit are included in the parent (e.g., 2× "Mic Kit A").
 - **Reuse across parents**: A kit can be a sub-kit of more than one parent kit simultaneously. Editing a shared sub-kit's contents is reflected in every parent that includes it.
 - **Circular reference prevention**: A kit can never be nested — directly or through any chain of sub-kits — inside itself. This must be checked as a full reachability test (is the kit being added anywhere in the *descendant* tree of the kit it's being added to?), not just a check against the immediate parent, because a kit can be reached through more than one path.
-- **Depth limit**: Nesting is capped at **4 levels**. Because kits can have multiple parents, a kit's depth is not a fixed property of the kit itself — it depends on the path taken to reach it. The cap applies to every path: adding kit X as a sub-kit of kit Y must be rejected if it would put any existing descendant of X more than 4 levels below any ancestor of Y, including paths that don't yet exist for X or Y individually but would be created by other shared kits elsewhere in the structure. In practice this means depth is validated by a graph walk at write time, not read from a stored column.
+- **Depth is unbounded, with a soft warning.** There is no hard limit on nesting depth — cycle prevention alone keeps the structure safe. If adding a sub-kit would put any resulting path unusually deep (e.g., past 5-6 levels), the UI shows a non-blocking notice ("this kit is nested N levels deep — is that intentional?") but never refuses to save. This exists purely as a sanity check for likely mistakes, not as data-integrity enforcement.
 
 ### 4.2 Visualization
 
@@ -48,12 +48,13 @@ GigWrangler's "Kits" are currently flat collections of "Assets" — a kit can ho
 ## 5. Non-Functional Requirements
 
 - **Performance**: Recursive resolution (flattening, cycle/depth checks) must be efficient enough not to visibly slow down kit editing or gig assignment. Recursive CTEs are the expected approach; caching a flattened view is acceptable if read performance requires it.
-- **Data integrity**: The system must never allow a saved state that contains a cycle or exceeds the depth cap — these are enforced at write time, not just checked in the UI.
+- **Data integrity**: The system must never allow a saved state that contains a cycle — this is enforced at write time, not just checked in the UI.
+- **Graceful degradation**: Because depth is unbounded, recursive resolution (flattening, the depth-warning check) must degrade gracefully — bounded query time, no failure — even if a structure turns out to be unusually deep or wide.
 
 ## 6. Open Questions & Assumptions
 
 - **Assumption**: Rental value rolls up additively — a kit's total rental value is its own value plus the value of every asset and sub-kit nested inside it, at whatever quantities are configured.
-- **Assumption**: The depth cap (4 levels) is a hard limit enforced by the system, not a soft warning. If this turns out to be too restrictive in practice, it can be raised later — raising it is a much smaller change than removing it entirely would be.
+- **Assumption**: No hard depth cap — only cycle prevention is enforced. Depth gets a non-blocking UI warning past ~5-6 levels, as a sanity check rather than a rule. *(This is my interpretation of the edit removing the hard cap — flagging it explicitly since a stricter reading of the edit could mean dropping the depth concept entirely, with no warning at all. Confirm if that's what you meant instead.)*
 - **Question**: When a shared sub-kit is edited, should parent kits that include it show a visual indicator that "this kit was recently changed," or is silently reflecting the update sufficient? Leaning toward silent (matches how asset edits already propagate to kits today), but worth confirming.
 - **Question, deferred to spec**: Exact UI for adding an existing kit as a sub-kit (a picker alongside the existing asset-picker, most likely) — this is an implementation decision, not a requirements one, but flagging it here so the Technical Specification addresses it explicitly.
 
@@ -62,7 +63,7 @@ GigWrangler's "Kits" are currently flat collections of "Assets" — a kit can ho
 Given the urgency (existing kit functionality is a real blocker in day-to-day use) and the decision to support true many-to-many reuse (more complex than a single-parent tree, but necessary for the reuse this is meant to solve), Phase 1 is scoped around **correctness**, not polish:
 
 **Phase 1 — ships the fix**
-- Data model for kit-to-kit containment with quantity, full cycle prevention, and the 4-level depth cap enforced on every write
+- Data model for kit-to-kit containment with quantity and full cycle prevention enforced on every write; a non-blocking depth-warning notice in the UI
 - Basic UI to add/remove existing kits as components of a kit, alongside the existing asset picker (functional, not necessarily a rich drag-and-drop tree)
 - Recursive flattened view (§4.2a) — this is what makes packing lists and warehouse scanning trustworthy
 - Gig assignment, manifests, and conflict detection correctly account for nested kits (§4.3)
