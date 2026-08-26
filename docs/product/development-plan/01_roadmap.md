@@ -144,3 +144,5 @@ See [Competitive Analysis §6](02_competitive-analysis.md) for full gap prioriti
 | [Scale & Performance](08_scale-performance-roadmap.md) | Load testing, indexing, virtualization strategy |
 | [Code & Product Review](../code-and-product-review-202606.md) | June 2026 review findings and remediation (completed) |
 | [The Reporting Gap](../reporting-gap-202608.md) | Aug 2026 gap analysis: financial reporting is a placeholder; two doc status markers were wrong; June review follow-up |
+| [Hierarchical Kits Requirements](../../.zenflow/tasks/i-would-like-kits-to-be-hierarch-21f6/requirements.md) | Kits can contain other kits, many-to-many, no hard depth cap — existing flat kit model is unusable for real equipment layering |
+| [Hierarchical Kits Technical Spec](../../.zenflow/tasks/i-would-like-kits-to-be-hierarch-21f6/spec.md) | Unified `kit_components` table, cycle-prevention trigger, write-time-maintained flattened-contents cache |
