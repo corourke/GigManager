@@ -7,30 +7,10 @@ export type Json =
   | Json[]
 
 export type Database = {
-  graphql_public: {
-    Tables: {
-      [_ in never]: never
-    }
-    Views: {
-      [_ in never]: never
-    }
-    Functions: {
-      graphql: {
-        Args: {
-          extensions?: Json
-          operationName?: string
-          query?: string
-          variables?: Json
-        }
-        Returns: Json
-      }
-    }
-    Enums: {
-      [_ in never]: never
-    }
-    CompositeTypes: {
-      [_ in never]: never
-    }
+  // Allows to automatically instantiate createClient with right options
+  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
+  __InternalSupabase: {
+    PostgrestVersion: "13.0.5"
   }
   public: {
     Tables: {
@@ -934,9 +914,10 @@ export type Database = {
           },
         ]
       }
-      kit_assets: {
+      kit_components: {
         Row: {
-          asset_id: string
+          asset_id: string | null
+          child_kit_id: string | null
           created_at: string
           id: string
           kit_id: string
@@ -944,7 +925,8 @@ export type Database = {
           quantity: number
         }
         Insert: {
-          asset_id: string
+          asset_id?: string | null
+          child_kit_id?: string | null
           created_at?: string
           id?: string
           kit_id: string
@@ -952,7 +934,8 @@ export type Database = {
           quantity?: number
         }
         Update: {
-          asset_id?: string
+          asset_id?: string | null
+          child_kit_id?: string | null
           created_at?: string
           id?: string
           kit_id?: string
@@ -969,6 +952,49 @@ export type Database = {
           },
           {
             foreignKeyName: "kit_assets_kit_id_fkey"
+            columns: ["kit_id"]
+            isOneToOne: false
+            referencedRelation: "kits"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "kit_components_child_kit_id_fkey"
+            columns: ["child_kit_id"]
+            isOneToOne: false
+            referencedRelation: "kits"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      kit_flattened_cache: {
+        Row: {
+          asset_id: string
+          kit_id: string
+          total_quantity: number
+          updated_at: string
+        }
+        Insert: {
+          asset_id: string
+          kit_id: string
+          total_quantity: number
+          updated_at?: string
+        }
+        Update: {
+          asset_id?: string
+          kit_id?: string
+          total_quantity?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "kit_flattened_cache_asset_id_fkey"
+            columns: ["asset_id"]
+            isOneToOne: false
+            referencedRelation: "assets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "kit_flattened_cache_kit_id_fkey"
             columns: ["kit_id"]
             isOneToOne: false
             referencedRelation: "kits"
@@ -1457,6 +1483,15 @@ export type Database = {
         Returns: Json
       }
       get_complete_user_data: { Args: { user_uuid: string }; Returns: Json }
+      get_kit_hierarchy_tree: {
+        Args: { p_kit_id: string }
+        Returns: {
+          child_kit_id: string
+          depth: number
+          parent_kit_id: string
+          quantity: number
+        }[]
+      }
       get_user_email: { Args: { user_uuid: string }; Returns: string }
       get_user_ids_in_same_orgs: {
         Args: { user_uuid: string }
@@ -1528,6 +1563,10 @@ export type Database = {
             }
             Returns: Json
           }
+      kit_would_create_cycle: {
+        Args: { p_child_kit_id: string; p_parent_kit_id: string }
+        Returns: boolean
+      }
       log_activity: {
         Args: {
           p_context: Json
@@ -1542,6 +1581,14 @@ export type Database = {
       reclassify_expense_as_asset: {
         Args: { p_purchase_item_id: string }
         Returns: Json
+      }
+      refresh_kit_flattened_cache: {
+        Args: { p_kit_id: string }
+        Returns: undefined
+      }
+      refresh_kit_flattened_cache_cascade: {
+        Args: { p_kit_id: string }
+        Returns: undefined
       }
       remove_organization_contact: {
         Args: { p_actor_id?: string; p_member_id: string }
@@ -1831,9 +1878,6 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
-  graphql_public: {
-    Enums: {},
-  },
   public: {
     Enums: {
       fin_category: [
@@ -1914,4 +1958,3 @@ export const Constants = {
     },
   },
 } as const
-
