@@ -834,7 +834,10 @@ export default function KitScreen({
                       className="p-4 hover:bg-gray-50 cursor-pointer flex items-start gap-3"
                       onClick={() => toggleSelected(c)}
                     >
-                      <Checkbox checked={selected} className="mt-0.5" onCheckedChange={() => toggleSelected(c)} />
+                      {/* Selection is handled by the row's onClick — this checkbox is
+                          purely a controlled visual indicator, no handler of its own,
+                          so a click on it doesn't double-fire via event bubbling. */}
+                      <Checkbox checked={selected} className="mt-0.5 pointer-events-none" />
                       <div className="flex-1">
                         <div className="flex items-center gap-2">
                           <div className="text-sm text-gray-900">{c.name}</div>
