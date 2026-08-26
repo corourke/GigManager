@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { Package, ArrowLeft, Edit2, Trash2, Copy, Loader2 } from 'lucide-react';
+import { useState, useEffect, ReactNode } from 'react';
+import { Package, ArrowLeft, Edit2, Trash2, Copy, Loader2, Layers } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from './ui/button';
 import { Card } from './ui/card';
@@ -15,7 +15,7 @@ import {
 import AppHeader from './AppHeader';
 import { Organization, User, UserRole, ActivityLogEntry } from '../utils/supabase/types';
 import { canManage } from '../utils/permissions';
-import { getKit, deleteKit, duplicateKit } from '../services/kit.service';
+import { getKit, deleteKit, duplicateKit, getKitFlattenedContents, getKitHierarchyTree } from '../services/kit.service';
 import { getEntityActivity } from '../services/activityLog.service';
 import ActivityFeed from './ActivityFeed';
 import { History } from 'lucide-react';
@@ -31,6 +31,48 @@ interface KitDetailScreenProps {
   onLogout: () => void;
 }
 
+interface FlattenedAssetRow {
+  asset_id: string;
+  total_quantity: number;
+  asset: any;
+}
+
+interface HierarchyEdge {
+  parent_kit_id: string;
+  child_kit_id: string;
+  child_kit_name: string;
+  quantity: number;
+  depth: number;
+}
+
+const DEPTH_WARNING_THRESHOLD = 6;
+
+/** Recursively renders the nested sub-kit structure from flat depth-tagged edges. */
+function HierarchyTree({ rootId, edges }: { rootId: string; edges: HierarchyEdge[] }) {
+  const childrenOf = (parentId: string) => edges.filter((e) => e.parent_kit_id === parentId);
+
+  const renderNode = (parentId: string, level: number): ReactNode => {
+    const children = childrenOf(parentId);
+    if (children.length === 0) return null;
+    return (
+      <ul className={level === 0 ? '' : 'ml-6 border-l border-gray-200 pl-4'}>
+        {children.map((edge) => (
+          <li key={`${edge.parent_kit_id}-${edge.child_kit_id}`} className="py-1">
+            <div className="flex items-center gap-2 text-sm">
+              <Layers className="w-3.5 h-3.5 text-gray-400" />
+              <span className="text-gray-900">{edge.child_kit_name}</span>
+              <span className="text-gray-500">× {edge.quantity}</span>
+            </div>
+            {renderNode(edge.child_kit_id, level + 1)}
+          </li>
+        ))}
+      </ul>
+    );
+  };
+
+  return <>{renderNode(rootId, 0)}</>;
+}
+
 export default function KitDetailScreen({
   organization,
   user,
@@ -42,6 +84,8 @@ export default function KitDetailScreen({
   onLogout,
 }: KitDetailScreenProps) {
   const [kit, setKit] = useState<any>(null);
+  const [flattenedAssets, setFlattenedAssets] = useState<FlattenedAssetRow[]>([]);
+  const [hierarchyEdges, setHierarchyEdges] = useState<HierarchyEdge[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [kitActivity, setKitActivity] = useState<ActivityLogEntry[]>([]);
   const [activityLoading, setActivityLoading] = useState(false);
@@ -53,8 +97,20 @@ export default function KitDetailScreen({
   const loadKit = async () => {
     setIsLoading(true);
     try {
-      const data = await getKit(kitId);
+      const [data, flattened, tree] = await Promise.all([
+        getKit(kitId),
+        getKitFlattenedContents(kitId),
+        getKitHierarchyTree(kitId),
+      ]);
       setKit(data);
+      setFlattenedAssets(flattened as FlattenedAssetRow[]);
+      setHierarchyEdges(tree as HierarchyEdge[]);
+
+      const maxDepth = (tree as HierarchyEdge[]).reduce((max, e) => Math.max(max, e.depth), 0);
+      if (maxDepth > DEPTH_WARNING_THRESHOLD) {
+        toast.warning(`This kit is nested ${maxDepth} levels deep — is that intentional?`);
+      }
+
       setActivityLoading(true);
       getEntityActivity('kit', kitId)
         .then(setKitActivity)
@@ -102,15 +158,13 @@ export default function KitDetailScreen({
   };
 
   const getTotalValue = () => {
-    if (!kit?.kit_assets) return 0;
-    return kit.kit_assets.reduce((total: number, ka: any) => {
-      return total + (ka.asset?.replacement_value || 0) * ka.quantity;
+    return flattenedAssets.reduce((total, row) => {
+      return total + (row.asset?.replacement_value || 0) * row.total_quantity;
     }, 0);
   };
 
   const getTotalItems = () => {
-    if (!kit?.kit_assets) return 0;
-    return kit.kit_assets.reduce((total: number, ka: any) => total + ka.quantity, 0);
+    return flattenedAssets.reduce((total, row) => total + row.total_quantity, 0);
   };
 
   if (isLoading) {
@@ -211,7 +265,7 @@ export default function KitDetailScreen({
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
           <Card className="p-6">
             <p className="text-sm text-gray-600 mb-1">Total Assets</p>
-            <p className="text-3xl text-gray-900">{kit.kit_assets?.length || 0}</p>
+            <p className="text-3xl text-gray-900">{flattenedAssets.length}</p>
           </Card>
           <Card className="p-6">
             <p className="text-sm text-gray-600 mb-1">Total Items</p>
@@ -227,10 +281,13 @@ export default function KitDetailScreen({
           </Card>
         </div>
 
-        {/* Assets Table */}
+        {/* Flattened Assets Table */}
         <Card className="p-6">
-          <h3 className="text-gray-900 mb-4">Assets in Kit</h3>
-          {!kit.kit_assets || kit.kit_assets.length === 0 ? (
+          <h3 className="text-gray-900 mb-1">Assets in Kit</h3>
+          <p className="text-xs text-gray-500 mb-4">
+            Aggregated across this kit and everything nested inside it
+          </p>
+          {flattenedAssets.length === 0 ? (
             <div className="text-center py-12">
               <Package className="w-16 h-16 text-gray-300 mx-auto mb-4" />
               <p className="text-gray-600">No assets in this kit</p>
@@ -246,49 +303,40 @@ export default function KitDetailScreen({
                     <TableHead>Quantity</TableHead>
                     <TableHead>Unit Value</TableHead>
                     <TableHead>Total Value</TableHead>
-                    <TableHead>Notes</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {kit.kit_assets.map((ka: any) => (
-                    <TableRow key={ka.id}>
+                  {flattenedAssets.map((row) => (
+                    <TableRow key={row.asset_id}>
                       <TableCell>
                         <div className="text-sm text-gray-900">
-                          {ka.asset?.manufacturer_model}
+                          {row.asset?.manufacturer_model}
                         </div>
-                        {ka.asset?.type && (
-                          <div className="text-xs text-gray-500">{ka.asset.type}</div>
-                        )}
                       </TableCell>
                       <TableCell>
-                        <div className="text-sm text-gray-700">{ka.asset?.category}</div>
-                        {ka.asset?.sub_category && (
+                        <div className="text-sm text-gray-700">{row.asset?.category}</div>
+                        {row.asset?.sub_category && (
                           <div className="text-xs text-gray-500">
-                            {ka.asset.sub_category}
+                            {row.asset.sub_category}
                           </div>
                         )}
                       </TableCell>
                       <TableCell>
                         <div className="text-sm text-gray-700 font-mono">
-                          {ka.asset?.serial_number || '—'}
+                          {row.asset?.serial_number || '—'}
                         </div>
                       </TableCell>
                       <TableCell>
-                        <div className="text-sm text-gray-900">{ka.quantity}</div>
+                        <div className="text-sm text-gray-900">{row.total_quantity}</div>
                       </TableCell>
                       <TableCell>
                         <div className="text-sm text-gray-900">
-                          {formatCurrency(ka.asset?.replacement_value || 0)}
+                          {formatCurrency(row.asset?.replacement_value || 0)}
                         </div>
                       </TableCell>
                       <TableCell>
                         <div className="text-sm text-gray-900">
-                          {formatCurrency((ka.asset?.replacement_value || 0) * ka.quantity)}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="text-sm text-gray-600">
-                          {ka.notes || '—'}
+                          {formatCurrency((row.asset?.replacement_value || 0) * row.total_quantity)}
                         </div>
                       </TableCell>
                     </TableRow>
@@ -314,6 +362,15 @@ export default function KitDetailScreen({
             </div>
           )}
         </Card>
+
+        {/* Hierarchy Structure */}
+        {hierarchyEdges.length > 0 && (
+          <Card className="p-6 mt-4">
+            <h3 className="text-gray-900 mb-1">Nested Structure</h3>
+            <p className="text-xs text-gray-500 mb-4">Sub-kits contained in this kit, at every level</p>
+            <HierarchyTree rootId={kitId} edges={hierarchyEdges} />
+          </Card>
+        )}
 
         {/* TODO: Gig Assignments Section */}
         {/* This would show which gigs this kit is currently assigned to */}

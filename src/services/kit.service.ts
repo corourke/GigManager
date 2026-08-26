@@ -434,10 +434,15 @@ export async function getKitFlattenedContents(kitId: string) {
   }
 }
 
-/** The nested sub-kit structure (edges + depth) for the hierarchy display. */
+/**
+ * The nested sub-kit structure (edges + depth) for the hierarchy display,
+ * enriched with each child kit's name — the RPC only returns IDs, so this
+ * does one follow-up batch fetch rather than a second DB round-trip per edge.
+ */
 export async function getKitHierarchyTree(kitId: string): Promise<{
   parent_kit_id: string;
   child_kit_id: string;
+  child_kit_name: string;
   quantity: number;
   depth: number;
 }[]> {
@@ -445,7 +450,18 @@ export async function getKitHierarchyTree(kitId: string): Promise<{
   try {
     const { data, error } = await supabase.rpc('get_kit_hierarchy_tree', { p_kit_id: kitId });
     if (error) throw error;
-    return data || [];
+    const edges = data || [];
+    if (edges.length === 0) return [];
+
+    const childKitIds = Array.from(new Set(edges.map((e: any) => e.child_kit_id)));
+    const { data: childKits, error: kitsError } = await supabase
+      .from('kits')
+      .select('id, name')
+      .in('id', childKitIds);
+    if (kitsError) throw kitsError;
+
+    const nameById = new Map((childKits || []).map((k: any) => [k.id, k.name]));
+    return edges.map((e: any) => ({ ...e, child_kit_name: nameById.get(e.child_kit_id) ?? 'Unknown Kit' }));
   } catch (err) {
     return handleApiError(err, 'fetch kit hierarchy tree');
   }
