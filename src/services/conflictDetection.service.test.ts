@@ -192,10 +192,11 @@ describe('conflictDetection.service', () => {
           data: [{
             id: 'gig-2', title: 'Other Gig',
             start: '2026-03-01T19:00:00Z', end: '2026-03-01T23:00:00Z',
-            kit_assignments: [{ kit: { id: 'kit-1', name: 'PA System', kit_assets: [] } }]
+            kit_assignments: [{ kit_id: 'kit-1', kit: { id: 'kit-1', name: 'PA System' } }]
           }],
           error: null,
         },
+        kit_flattened_cache: { data: [{ kit_id: 'kit-1', asset_id: 'asset-1' }], error: null },
       };
       mockSupabase = {
         from: vi.fn().mockImplementation((table: string) =>
@@ -209,6 +210,73 @@ describe('conflictDetection.service', () => {
       expect(result.conflicts.length).toBe(1);
       expect(result.conflicts[0].type).toBe('equipment');
       expect(result.conflicts[0].details.conflicting_kits[0].kit_name).toBe('PA System');
+    });
+
+    it('regression: detects a conflict when two DIFFERENT kits share the same physical asset', async () => {
+      // This is the gap that existed before hierarchical kits: comparing kit
+      // IDs instead of resolving to assets meant two different kits sharing
+      // an asset produced zero conflict warning.
+      const tableResponses: Record<string, any> = {
+        gig_kit_assignments: { data: [{ kit_id: 'kit-mine' }], error: null },
+        gigs: {
+          data: [{
+            id: 'gig-2', title: 'Other Gig',
+            start: '2026-03-01T19:00:00Z', end: '2026-03-01T23:00:00Z',
+            kit_assignments: [{ kit_id: 'kit-theirs', kit: { id: 'kit-theirs', name: 'Different Kit' } }]
+          }],
+          error: null,
+        },
+        // Both kits are different rows but both flatten to the same asset.
+        kit_flattened_cache: {
+          data: [
+            { kit_id: 'kit-mine', asset_id: 'shared-asset' },
+            { kit_id: 'kit-theirs', asset_id: 'shared-asset' },
+          ],
+          error: null,
+        },
+      };
+      mockSupabase = {
+        from: vi.fn().mockImplementation((table: string) =>
+          createQueryBuilder(tableResponses[table] || { data: [], error: null })
+        ),
+      };
+      (createClient as any).mockReturnValue(mockSupabase);
+      const { checkEquipmentConflicts } = await import('./conflictDetection.service');
+
+      const result = await checkEquipmentConflicts('gig-1', '2026-03-01T18:00:00Z', '2026-03-01T22:00:00Z');
+      expect(result.conflicts.length).toBe(1);
+      expect(result.conflicts[0].details.conflicting_kits[0].kit_name).toBe('Different Kit');
+    });
+
+    it('should NOT conflict when two different kits share no assets', async () => {
+      const tableResponses: Record<string, any> = {
+        gig_kit_assignments: { data: [{ kit_id: 'kit-mine' }], error: null },
+        gigs: {
+          data: [{
+            id: 'gig-2', title: 'Other Gig',
+            start: '2026-03-01T19:00:00Z', end: '2026-03-01T23:00:00Z',
+            kit_assignments: [{ kit_id: 'kit-theirs', kit: { id: 'kit-theirs', name: 'Different Kit' } }]
+          }],
+          error: null,
+        },
+        kit_flattened_cache: {
+          data: [
+            { kit_id: 'kit-mine', asset_id: 'asset-a' },
+            { kit_id: 'kit-theirs', asset_id: 'asset-b' },
+          ],
+          error: null,
+        },
+      };
+      mockSupabase = {
+        from: vi.fn().mockImplementation((table: string) =>
+          createQueryBuilder(tableResponses[table] || { data: [], error: null })
+        ),
+      };
+      (createClient as any).mockReturnValue(mockSupabase);
+      const { checkEquipmentConflicts } = await import('./conflictDetection.service');
+
+      const result = await checkEquipmentConflicts('gig-1', '2026-03-01T18:00:00Z', '2026-03-01T22:00:00Z');
+      expect(result.conflicts.length).toBe(0);
     });
   });
 
@@ -300,6 +368,10 @@ describe('conflictDetection.service', () => {
             error: null,
           },
         },
+        {
+          table: 'kit_flattened_cache',
+          response: { data: [{ kit_id: 'kit-1', asset_id: 'asset-1' }], error: null },
+        },
       ]);
       (createClient as any).mockReturnValue(mockSupabase);
       const { checkAllConflictsForGigs } = await import('./conflictDetection.service');
@@ -307,7 +379,46 @@ describe('conflictDetection.service', () => {
       const result = await checkAllConflictsForGigs(gigs);
       const equipConflicts = result.filter(c => c.type === 'equipment');
       expect(equipConflicts.length).toBe(2);
-      expect(equipConflicts[0].details.conflicting_kit_ids).toContain('kit-1');
+      expect(equipConflicts[0].details.conflicting_asset_ids).toContain('asset-1');
+    });
+
+    it('regression (batch): detects a conflict when two different kits share an asset', async () => {
+      const gigs = [
+        { id: 'gig-1', title: 'Gig A', start: '2026-03-01T18:00:00Z', end: '2026-03-01T22:00:00Z' },
+        { id: 'gig-2', title: 'Gig B', start: '2026-03-01T20:00:00Z', end: '2026-03-02T00:00:00Z' },
+      ];
+
+      mockSupabase = createBatchMock([
+        { table: 'gig_staff_slots', response: { data: [], error: null } },
+        { table: 'gig_participants', response: { data: [], error: null } },
+        {
+          table: 'gig_kit_assignments',
+          response: {
+            data: [
+              { gig_id: 'gig-1', kit_id: 'kit-mine' },
+              { gig_id: 'gig-2', kit_id: 'kit-theirs' },
+            ],
+            error: null,
+          },
+        },
+        {
+          table: 'kit_flattened_cache',
+          response: {
+            data: [
+              { kit_id: 'kit-mine', asset_id: 'shared-asset' },
+              { kit_id: 'kit-theirs', asset_id: 'shared-asset' },
+            ],
+            error: null,
+          },
+        },
+      ]);
+      (createClient as any).mockReturnValue(mockSupabase);
+      const { checkAllConflictsForGigs } = await import('./conflictDetection.service');
+
+      const result = await checkAllConflictsForGigs(gigs);
+      const equipConflicts = result.filter(c => c.type === 'equipment');
+      expect(equipConflicts.length).toBe(2);
+      expect(equipConflicts[0].details.conflicting_asset_ids).toContain('shared-asset');
     });
 
     it('should NOT detect conflicts for non-overlapping gigs', async () => {
@@ -456,6 +567,10 @@ describe('conflictDetection.service', () => {
             ],
             error: null,
           },
+        },
+        {
+          table: 'kit_flattened_cache',
+          response: { data: [{ kit_id: 'kit-1', asset_id: 'asset-1' }], error: null },
         },
       ]);
       (createClient as any).mockReturnValue(mockSupabase);
