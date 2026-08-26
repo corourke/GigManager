@@ -7,11 +7,6 @@ export type Json =
   | Json[]
 
 export type Database = {
-  // Allows to automatically instantiate createClient with right options
-  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
-  __InternalSupabase: {
-    PostgrestVersion: "13.0.5"
-  }
   graphql_public: {
     Tables: {
       [_ in never]: never
@@ -96,6 +91,27 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      ai_scan_usage: {
+        Row: {
+          created_at: string
+          id: string
+          organization_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          organization_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          organization_id?: string
+          user_id?: string
+        }
+        Relationships: []
       }
       assets: {
         Row: {
@@ -446,6 +462,7 @@ export type Database = {
         Row: {
           gig_id: string
           id: string
+          is_client: boolean
           notes: string | null
           organization_id: string
           role: Database["public"]["Enums"]["organization_role"]
@@ -453,6 +470,7 @@ export type Database = {
         Insert: {
           gig_id: string
           id?: string
+          is_client?: boolean
           notes?: string | null
           organization_id: string
           role: Database["public"]["Enums"]["organization_role"]
@@ -460,6 +478,7 @@ export type Database = {
         Update: {
           gig_id?: string
           id?: string
+          is_client?: boolean
           notes?: string | null
           organization_id?: string
           role?: Database["public"]["Enums"]["organization_role"]
@@ -523,17 +542,17 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "gig_schedule_entries_gig_id_fkey"
-            columns: ["gig_id"]
-            isOneToOne: false
-            referencedRelation: "gigs"
-            referencedColumns: ["id"]
-          },
-          {
             foreignKeyName: "gig_schedule_entries_act_participant_id_fkey"
             columns: ["act_participant_id"]
             isOneToOne: false
             referencedRelation: "gig_participants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "gig_schedule_entries_gig_id_fkey"
+            columns: ["gig_id"]
+            isOneToOne: false
+            referencedRelation: "gigs"
             referencedColumns: ["id"]
           },
         ]
@@ -1030,25 +1049,31 @@ export type Database = {
       }
       organization_members: {
         Row: {
+          contact_title: string | null
           created_at: string
           default_staff_role_id: string | null
           id: string
+          is_primary_contact: boolean
           organization_id: string
           role: Database["public"]["Enums"]["user_role"]
           user_id: string
         }
         Insert: {
+          contact_title?: string | null
           created_at?: string
           default_staff_role_id?: string | null
           id?: string
+          is_primary_contact?: boolean
           organization_id: string
           role: Database["public"]["Enums"]["user_role"]
           user_id: string
         }
         Update: {
+          contact_title?: string | null
           created_at?: string
           default_staff_role_id?: string | null
           id?: string
+          is_primary_contact?: boolean
           organization_id?: string
           role?: Database["public"]["Enums"]["user_role"]
           user_id?: string
@@ -1404,20 +1429,22 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      add_organization_contact: {
+        Args: {
+          p_actor_id?: string
+          p_email: string
+          p_first_name: string
+          p_is_primary?: boolean
+          p_last_name: string
+          p_organization_id: string
+          p_phone?: string
+          p_title?: string
+        }
+        Returns: Json
+      }
       convert_pending_user_to_active: {
         Args: { p_auth_user_id: string; p_email: string }
         Returns: Json
-      }
-      log_activity: {
-        Args: {
-          p_organization_id: string | null
-          p_event_type: string
-          p_entity_type: string
-          p_entity_id: string
-          p_gig_id: string | null
-          p_context: Json
-        }
-        Returns: string
       }
       create_gig_complex: {
         Args: { p_gig_data: Json; p_participants?: Json; p_staff_slots?: Json }
@@ -1501,9 +1528,24 @@ export type Database = {
             }
             Returns: Json
           }
+      log_activity: {
+        Args: {
+          p_context: Json
+          p_entity_id: string
+          p_entity_type: string
+          p_event_type: string
+          p_gig_id: string
+          p_organization_id: string
+        }
+        Returns: string
+      }
       reclassify_expense_as_asset: {
         Args: { p_purchase_item_id: string }
         Returns: Json
+      }
+      remove_organization_contact: {
+        Args: { p_actor_id?: string; p_member_id: string }
+        Returns: undefined
       }
       search_users_secure: {
         Args: { search_text: string }
@@ -1533,12 +1575,35 @@ export type Database = {
           isSetofReturn: true
         }
       }
+      set_organization_primary_contact: {
+        Args: { p_actor_id?: string; p_member_id: string }
+        Returns: undefined
+      }
+      unset_organization_primary_contact: {
+        Args: { p_actor_id?: string; p_member_id: string }
+        Returns: undefined
+      }
       update_asset_status: {
         Args: { p_asset_id: string; p_status: string }
         Returns: undefined
       }
+      update_organization_contact: {
+        Args: {
+          p_actor_id?: string
+          p_first_name: string
+          p_last_name: string
+          p_member_id: string
+          p_phone: string
+          p_title: string
+        }
+        Returns: undefined
+      }
       user_can_manage_gig: {
         Args: { gig_id: string; user_uuid: string }
+        Returns: boolean
+      }
+      user_can_manage_org_contacts: {
+        Args: { p_organization_id: string; p_user_id: string }
         Returns: boolean
       }
       user_has_access_to_gig: {
@@ -1558,6 +1623,7 @@ export type Database = {
         Args: { org_id: string; user_uuid: string }
         Returns: boolean
       }
+      user_is_contact_status: { Args: { p_user_id: string }; Returns: boolean }
       user_is_member_of_org: {
         Args: { org_id: string; user_uuid: string }
         Returns: boolean
@@ -1834,8 +1900,18 @@ export const Constants = {
         "Act",
         "Agency",
       ],
+      schedule_activity_type: [
+        "Load-In",
+        "Soundcheck",
+        "Rehearsal",
+        "Set",
+        "Intermission",
+        "Load-Out",
+        "Other",
+      ],
       sync_status: ["pending", "synced", "failed", "updated", "removed"],
       user_role: ["Admin", "Manager", "Staff", "Viewer"],
     },
   },
 } as const
+

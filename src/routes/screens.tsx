@@ -144,7 +144,7 @@ function AdminOrgsRoute() {
 function EditOrgRoute() {
   const { orgId } = useParams();
   const location = useLocation();
-  const { organizations, selectedOrganization, setOrganizations, selectOrganization } = useAuth();
+  const { user, organizations, selectedOrganization, setOrganizations, selectOrganization } = useAuth();
   const nav = useNav();
 
   // Prefer the org passed via router state (covers admins editing orgs they
@@ -155,11 +155,18 @@ function EditOrgRoute() {
 
   if (!editingOrganization) return <Navigate to="/admin/orgs" replace />;
 
+  // Return to wherever this edit was opened from (a gig's Participants
+  // section, the admin org list, etc.) rather than always landing on the
+  // admin org list — editOrg() pushes this route onto whatever screen was
+  // showing, so history has that screen right underneath it.
+  const goBack = () => nav.navigate(-1);
+
   return (
     <OrganizationScreen
       organization={editingOrganization}
-      onCancel={nav.toAdminOrgs}
-      onOrganizationCreated={nav.toAdminOrgs}
+      userId={user?.id}
+      onCancel={goBack}
+      onOrganizationCreated={goBack}
       onOrganizationUpdated={(updatedOrg: Organization) => {
         setOrganizations(
           organizations.map((m) =>
@@ -167,7 +174,7 @@ function EditOrgRoute() {
           ),
         );
         if (selectedOrganization?.id === updatedOrg.id) selectOrganization(updatedOrg);
-        nav.toAdminOrgs();
+        goBack();
       }}
     />
   );

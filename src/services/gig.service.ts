@@ -378,7 +378,8 @@ export async function updateGig(gigId: string, gigData: {
     id?: string;
     organization_id: string;
     role: OrganizationRole;
-    notes?: string | null
+    notes?: string | null;
+    is_client?: boolean;
   }>;
   staff_slots?: Array<{
     id?: string;

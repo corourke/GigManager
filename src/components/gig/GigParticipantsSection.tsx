@@ -3,20 +3,21 @@ import { useForm, useFieldArray, Controller } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { toast } from 'sonner';
-import { Building2, FileText, Loader2, Plus, Trash2, AlertCircle, Eye, Pencil } from 'lucide-react';
+import { Building2, FileText, Loader2, Plus, Trash2, AlertCircle, Eye, Pencil, Star, MoreVertical, UserPlus } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '../ui/dialog';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '../ui/dropdown-menu';
 import { Textarea } from '../ui/textarea';
 import OrganizationSelector from '../OrganizationSelector';
+import GigParticipantContactsList from './GigParticipantContactsList';
 import { getGig, updateGigParticipants } from '../../services/gig.service';
 import { createClient } from '../../utils/supabase/client';
-import { 
-  Organization, 
-  OrganizationRole 
+import {
+  Organization,
+  OrganizationRole
 } from '../../utils/supabase/types';
 import { ORG_ROLE_CONFIG } from '../../utils/supabase/constants';
 import { useAutoSave } from '../../utils/hooks/useAutoSave';
@@ -28,6 +29,7 @@ const participantSchema = z.object({
   organization_name: z.string(),
   role: z.string().min(1, 'Role is required'),
   notes: z.string().optional(),
+  is_client: z.boolean().optional(),
   organization: z.any().optional(), // For the selector
 });
 
@@ -44,6 +46,7 @@ interface _ParticipantData {
   organization?: Organization | null;
   role: string;
   notes: string;
+  is_client: boolean;
 }
 
 interface GigParticipantsSectionProps {
@@ -68,7 +71,8 @@ export default function GigParticipantsSection({
   const [isLoading, setIsLoading] = useState(true);
   const [showParticipantNotes, setShowParticipantNotes] = useState<number | null>(null);
   const [currentParticipantNotes, setCurrentParticipantNotes] = useState('');
-  const [viewingOrganization, setViewingOrganization] = useState<Organization | null>(null);
+  const [viewingParticipant, setViewingParticipant] = useState<{ organization: Organization; notes: string } | null>(null);
+  const [addContactForIndex, setAddContactForIndex] = useState<number | null>(null);
   const [isUserAdmin, setIsUserAdmin] = useState(false);
 
   const { control, handleSubmit: _handleSubmit, formState: { errors, isDirty }, watch, reset, setValue } = useForm<ParticipantsFormData>({
@@ -92,6 +96,7 @@ export default function GigParticipantsSection({
         organization_id: p.organization_id,
         role: p.role as OrganizationRole, // Select restricts values to ORG_ROLE_CONFIG keys
         notes: p.notes || null,
+        is_client: p.is_client ?? false,
       }));
 
     await updateGigParticipants(gigId, participantsData);
@@ -138,20 +143,25 @@ export default function GigParticipantsSection({
     setIsLoading(true);
     try {
       const gig = await getGig(gigId);
-      
+
       const loadedParticipants = (gig.participants || []).map((p: any) => ({
         id: p.id,
         organization_id: p.organization_id,
-        organization_name: p.organization_name,
+        // gig_participants has no organization_name column — it only ever
+        // gets set client-side when a new org is picked this session. For
+        // rows loaded from the DB, the real name lives on the joined
+        // `organization` record.
+        organization_name: p.organization_name || p.organization?.name || '',
         role: p.role,
         notes: p.notes || '',
+        is_client: p.is_client ?? false,
         organization: p.organization || (p.organization_id && p.organization_name ? {
           id: p.organization_id,
           name: p.organization_name,
           roles: [p.role] as OrganizationRole[],
         } : null)
       }));
-      
+
       const allCurrentOrgRoles = currentOrganizationRoles && currentOrganizationRoles.length > 0
         ? currentOrganizationRoles
         : [currentOrganizationRole];
@@ -165,6 +175,7 @@ export default function GigParticipantsSection({
             organization_name: currentOrganizationName,
             role: currentOrganizationRole,
             notes: '',
+            is_client: false,
             organization: {
               id: currentOrganizationId,
               name: currentOrganizationName,
@@ -174,7 +185,7 @@ export default function GigParticipantsSection({
           ...initialParticipants,
         ];
       }
-      
+
       reset({ participants: initialParticipants });
     } catch (error: any) {
       console.error('Error loading participants:', error);
@@ -190,6 +201,7 @@ export default function GigParticipantsSection({
             organization_name: currentOrganizationName,
             role: currentOrganizationRole,
             notes: '',
+            is_client: false,
             organization: {
               id: currentOrganizationId,
               name: currentOrganizationName,
@@ -211,6 +223,7 @@ export default function GigParticipantsSection({
       organization: null,
       role: '',
       notes: '',
+      is_client: false,
     });
   };
 
@@ -272,141 +285,160 @@ export default function GigParticipantsSection({
         </div>
       </CardHeader>
       <CardContent>
-        <div className="space-y-4">
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-[150px]">Role</TableHead>
-                  <TableHead>Organization</TableHead>
-                  <TableHead className="w-[140px]">Actions</TableHead>
-                  <TableHead className="w-[60px]"></TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {fields.map((field, index) => (
-                  <TableRow key={field.id}>
-                    <TableCell>
-                      <Controller
-                        name={`participants.${index}.role`}
-                        control={control}
-                        render={({ field: selectField }) => (
-                          <Select
-                            value={selectField.value}
-                            onValueChange={selectField.onChange}
-                            disabled={field.id === 'current-org'}
-                          >
-                            <SelectTrigger className={errors.participants?.[index]?.role ? 'border-red-500' : ''}>
-                              <SelectValue placeholder="Select role" />
-                            </SelectTrigger>
-                            <SelectContent>
-  {Object.keys(ORG_ROLE_CONFIG).map((type) => (
-    <SelectItem key={type} value={type}>
-      {type}
-    </SelectItem>
-  ))}
-</SelectContent>
-                          </Select>
-                        )}
+        <div className="divide-y divide-gray-100">
+          {fields.map((field, index) => (
+            <div key={field.id} className="py-2 first:pt-0 last:pb-0">
+              <div className="flex items-center gap-2">
+                <Controller
+                  name={`participants.${index}.role`}
+                  control={control}
+                  render={({ field: selectField }) => (
+                    <Select
+                      value={selectField.value}
+                      onValueChange={selectField.onChange}
+                      disabled={field.id === 'current-org'}
+                    >
+                      <SelectTrigger className={`w-[130px] h-8 shrink-0 ${errors.participants?.[index]?.role ? 'border-red-500' : ''}`}>
+                        <SelectValue placeholder="Role" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {Object.keys(ORG_ROLE_CONFIG).map((type) => (
+                          <SelectItem key={type} value={type}>
+                            {type}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                />
+
+                <div className="flex-1 min-w-0">
+                  {field.id === 'current-org' ? (
+                    <div className="flex items-center gap-1.5">
+                      {(() => {
+                        const RoleIcon = field.role && ORG_ROLE_CONFIG[field.role as OrganizationRole]
+                          ? ORG_ROLE_CONFIG[field.role as OrganizationRole].icon
+                          : Building2;
+                        return <RoleIcon className="w-3.5 h-3.5 text-gray-500 shrink-0" />;
+                      })()}
+                      <span className="text-sm truncate">{field.organization_name}</span>
+                      {(field.organization?.city || field.organization?.state) && (
+                        <span className="text-xs text-gray-400 truncate shrink-0 max-w-[35%]">
+                          · {[field.organization.city, field.organization.state].filter(Boolean).join(', ')}
+                        </span>
+                      )}
+                    </div>
+                  ) : (
+                    <Controller
+                      name={`participants.${index}.organization`}
+                      control={control}
+                      render={({ field: orgField }) => (
+                        <OrganizationSelector
+                          compact
+                          onSelect={(org) => {
+                            orgField.onChange(org);
+                            if (org) {
+                              setValue(`participants.${index}.organization_id`, org.id, { shouldDirty: true });
+                              setValue(`participants.${index}.organization_name`, org.name, { shouldDirty: true });
+                            } else {
+                              setValue(`participants.${index}.organization_id`, '', { shouldDirty: true });
+                              setValue(`participants.${index}.organization_name`, '', { shouldDirty: true });
+                            }
+                          }}
+                          selectedOrganization={orgField.value || null}
+                          organizationRole={watch(`participants.${index}.role`) as OrganizationRole || undefined}
+                          placeholder="Search organizations..."
+                          className={errors.participants?.[index]?.organization_id ? 'border-red-500' : ''}
+                        />
+                      )}
+                    />
+                  )}
+                </div>
+
+                <Controller
+                  name={`participants.${index}.is_client`}
+                  control={control}
+                  render={({ field: clientField }) => (
+                    <button
+                      type="button"
+                      onClick={() => clientField.onChange(!clientField.value)}
+                      title={clientField.value ? 'Client — click to unmark' : 'Mark as client'}
+                      className="p-1 shrink-0"
+                    >
+                      <Star
+                        className={`w-4 h-4 ${
+                          clientField.value ? 'fill-amber-400 text-amber-500' : 'text-gray-300'
+                        }`}
                       />
-                      {errors.participants?.[index]?.role && (
-                        <p className="text-[10px] text-red-600 mt-1 flex items-center gap-1">
-                          <AlertCircle className="w-3 h-3" />
-                          {errors.participants[index]?.role?.message}
-                        </p>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      {field.id === 'current-org' ? (
-                        <div className="text-sm text-gray-900 py-2">
-                          {field.organization_name}
-                        </div>
-                      ) : (
-                        <div className="space-y-1">
-                          <Controller
-                            name={`participants.${index}.organization`}
-                            control={control}
-                            render={({ field: orgField }) => (
-                              <OrganizationSelector
-                                onSelect={(org) => {
-                                  orgField.onChange(org);
-                                  if (org) {
-                                    setValue(`participants.${index}.organization_id`, org.id, { shouldDirty: true });
-                                    setValue(`participants.${index}.organization_name`, org.name, { shouldDirty: true });
-                                  } else {
-                                    setValue(`participants.${index}.organization_id`, '', { shouldDirty: true });
-                                    setValue(`participants.${index}.organization_name`, '', { shouldDirty: true });
-                                  }
-                                }}
-                                selectedOrganization={orgField.value || null}
-                                organizationRole={watch(`participants.${index}.role`) as OrganizationRole || undefined}
-                                placeholder="Search organizations..."
-                                className={errors.participants?.[index]?.organization_id ? 'border-red-500' : ''}
-                              />
-                            )}
-                          />
-                          {errors.participants?.[index]?.organization_id && (
-                            <p className="text-[10px] text-red-600 flex items-center gap-1">
-                              <AlertCircle className="w-3 h-3" />
-                              {errors.participants[index]?.organization_id?.message}
-                            </p>
-                          )}
-                        </div>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-1">
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleOpenParticipantNotes(index)}
-                          title="Notes"
-                        >
-                          <FileText className="w-4 h-4" />
-                        </Button>
-                        {field.organization && (
-                          <>
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="sm"
-                              onClick={() => setViewingOrganization(field.organization as Organization)}
-                              title="View Organization"
-                            >
-                              <Eye className="w-4 h-4" />
-                            </Button>
-                            {isUserAdmin && onEditOrganization && (
-                              <Button
-                                type="button"
-                                variant="outline"
-                                size="sm"
-                                onClick={() => onEditOrganization!(field.organization as Organization)}
-                                title="Edit Organization"
-                              >
-                                <Pencil className="w-4 h-4" />
-                              </Button>
-                            )}
-                          </>
-                        )}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleRemoveParticipant(index)}
-                        disabled={field.id === 'current-org'}
-                      >
-                        <Trash2 className="w-4 h-4" />
+                    </button>
+                  )}
+                />
+
+                {field.organization && (
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button type="button" variant="ghost" size="sm" className="h-8 w-8 p-0 shrink-0" title="More actions">
+                        <MoreVertical className="w-4 h-4" />
                       </Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem onClick={() => setAddContactForIndex(index)}>
+                        <UserPlus className="w-4 h-4 mr-2" />
+                        Add Contact
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => handleOpenParticipantNotes(index)}>
+                        <FileText className="w-4 h-4 mr-2" />
+                        Notes
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => setViewingParticipant({ organization: field.organization as Organization, notes: watch(`participants.${index}.notes`) || '' })}>
+                        <Eye className="w-4 h-4 mr-2" />
+                        View Organization
+                      </DropdownMenuItem>
+                      {isUserAdmin && onEditOrganization && (
+                        <DropdownMenuItem onClick={() => onEditOrganization!(field.organization as Organization)}>
+                          <Pencil className="w-4 h-4 mr-2" />
+                          Edit Organization
+                        </DropdownMenuItem>
+                      )}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                )}
+
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 w-8 p-0 shrink-0"
+                  onClick={() => handleRemoveParticipant(index)}
+                  disabled={field.id === 'current-org'}
+                  title="Remove participant"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </Button>
+              </div>
+              {errors.participants?.[index]?.role && (
+                <p className="text-[10px] text-red-600 mt-0.5 ml-1 flex items-center gap-1">
+                  <AlertCircle className="w-3 h-3" />
+                  {errors.participants[index]?.role?.message}
+                </p>
+              )}
+              {errors.participants?.[index]?.organization_id && (
+                <p className="text-[10px] text-red-600 mt-0.5 ml-1 flex items-center gap-1">
+                  <AlertCircle className="w-3 h-3" />
+                  {errors.participants[index]?.organization_id?.message}
+                </p>
+              )}
+
+              {field.organization_id && (
+                <GigParticipantContactsList
+                  organizationId={field.organization_id}
+                  organizationName={field.organization_name || 'this organization'}
+                  addDialogOpen={addContactForIndex === index}
+                  onAddDialogOpenChange={(open) => setAddContactForIndex(open ? index : null)}
+                />
+              )}
+            </div>
+          ))}
         </div>
       </CardContent>
     </Card>
@@ -448,24 +480,24 @@ export default function GigParticipantsSection({
         </DialogContent>
       </Dialog>
 
-      <Dialog open={viewingOrganization !== null} onOpenChange={(open) => {
-        if (!open) setViewingOrganization(null);
+      <Dialog open={viewingParticipant !== null} onOpenChange={(open) => {
+        if (!open) setViewingParticipant(null);
       }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Organization Details</DialogTitle>
           </DialogHeader>
-          {viewingOrganization && (
+          {viewingParticipant && (
             <div className="space-y-4">
               <div>
                 <p className="text-xs font-medium text-gray-500 uppercase">Name</p>
-                <p className="text-sm text-gray-900">{viewingOrganization.name}</p>
+                <p className="text-sm text-gray-900">{viewingParticipant.organization.name}</p>
               </div>
-              {viewingOrganization.roles && viewingOrganization.roles.length > 0 && (
+              {viewingParticipant.organization.roles && viewingParticipant.organization.roles.length > 0 && (
                 <div>
                   <p className="text-xs font-medium text-gray-500 uppercase">Roles</p>
                   <div className="flex flex-wrap gap-1 mt-1">
-                    {viewingOrganization.roles.map(role => (
+                    {viewingParticipant.organization.roles.map(role => (
                       <Badge key={role} variant="outline" className="text-[10px]">
                         {role}
                       </Badge>
@@ -473,52 +505,58 @@ export default function GigParticipantsSection({
                   </div>
                 </div>
               )}
-              {viewingOrganization.phone_number && (
+              {viewingParticipant.organization.phone_number && (
                 <div>
                   <p className="text-xs font-medium text-gray-500 uppercase">Phone</p>
-                  <p className="text-sm text-gray-900">{viewingOrganization.phone_number}</p>
+                  <p className="text-sm text-gray-900">{viewingParticipant.organization.phone_number}</p>
                 </div>
               )}
-              {viewingOrganization.address_line1 && (
+              {viewingParticipant.organization.address_line1 && (
                 <div>
                   <p className="text-xs font-medium text-gray-500 uppercase">Address</p>
                   <p className="text-sm text-gray-900">
                     {[
-                      viewingOrganization.address_line1,
-                      viewingOrganization.address_line2,
-                      viewingOrganization.city,
-                      viewingOrganization.state,
-                      viewingOrganization.postal_code,
+                      viewingParticipant.organization.address_line1,
+                      viewingParticipant.organization.address_line2,
+                      viewingParticipant.organization.city,
+                      viewingParticipant.organization.state,
+                      viewingParticipant.organization.postal_code,
                     ].filter(Boolean).join(', ')}
                   </p>
                 </div>
               )}
-              {!viewingOrganization.address_line1 && (viewingOrganization.city || viewingOrganization.state) && (
+              {!viewingParticipant.organization.address_line1 && (viewingParticipant.organization.city || viewingParticipant.organization.state) && (
                 <div>
                   <p className="text-xs font-medium text-gray-500 uppercase">Location</p>
                   <p className="text-sm text-gray-900">
-                    {[viewingOrganization.city, viewingOrganization.state].filter(Boolean).join(', ')}
+                    {[viewingParticipant.organization.city, viewingParticipant.organization.state].filter(Boolean).join(', ')}
                   </p>
                 </div>
               )}
-              {viewingOrganization.url && (
+              {viewingParticipant.organization.url && (
                 <div>
                   <p className="text-xs font-medium text-gray-500 uppercase">Website</p>
-                  <a href={viewingOrganization.url} target="_blank" rel="noopener noreferrer" className="text-sm text-sky-600 hover:underline">
-                    {viewingOrganization.url}
+                  <a href={viewingParticipant.organization.url} target="_blank" rel="noopener noreferrer" className="text-sm text-sky-600 hover:underline">
+                    {viewingParticipant.organization.url}
                   </a>
                 </div>
               )}
-              {viewingOrganization.description && (
+              {viewingParticipant.organization.description && (
                 <div>
                   <p className="text-xs font-medium text-gray-500 uppercase">Description</p>
-                  <p className="text-sm text-gray-900 whitespace-pre-wrap">{viewingOrganization.description}</p>
+                  <p className="text-sm text-gray-900 whitespace-pre-wrap">{viewingParticipant.organization.description}</p>
+                </div>
+              )}
+              {viewingParticipant.notes && (
+                <div>
+                  <p className="text-xs font-medium text-gray-500 uppercase">Notes for this gig</p>
+                  <p className="text-sm text-gray-900 whitespace-pre-wrap">{viewingParticipant.notes}</p>
                 </div>
               )}
             </div>
           )}
           <DialogFooter>
-            <Button onClick={() => setViewingOrganization(null)}>
+            <Button onClick={() => setViewingParticipant(null)}>
               Close
             </Button>
           </DialogFooter>

@@ -20,6 +20,7 @@ export async function updateGigParticipants(
     organization_id: string;
     role: OrganizationRole;
     notes?: string | null;
+    is_client?: boolean;
   }>,
   activityCtx?: {
     organization_id: string | null;
@@ -83,7 +84,8 @@ export async function updateGigParticipants(
       const participantData = {
         organization_id: participant.organization_id,
         role: participant.role,
-        notes: participant.notes || null
+        notes: participant.notes || null,
+        is_client: participant.is_client ?? false,
       };
 
       if (isDbId && existingIds.includes(participant.id!)) {

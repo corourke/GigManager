@@ -1,6 +1,18 @@
+import type { ReactElement } from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render as rtlRender, screen, waitFor } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import GigParticipantsSection from './GigParticipantsSection';
+
+// GigParticipantContactsList (rendered per participant row) uses TanStack
+// Query, so renders need a QueryClientProvider. retry:false keeps tests
+// deterministic and fast.
+function render(ui: ReactElement) {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  });
+  return rtlRender(<QueryClientProvider client={queryClient}>{ui}</QueryClientProvider>);
+}
 
 vi.mock('../../services/gig.service', () => ({
   getGig: vi.fn().mockResolvedValue({
@@ -11,10 +23,15 @@ vi.mock('../../services/gig.service', () => ({
         organization_name: 'Test Org',
         role: 'Production',
         notes: 'Test notes',
+        is_client: false,
       },
     ],
   }),
   updateGigParticipants: vi.fn().mockResolvedValue({}),
+}));
+
+vi.mock('../../services/organization.service', () => ({
+  getOrganizationContacts: vi.fn().mockResolvedValue([]),
 }));
 
 describe('GigParticipantsSection', () => {

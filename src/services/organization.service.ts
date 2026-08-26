@@ -406,3 +406,159 @@ export async function removeMember(organizationId: string, memberId: string) {
   }
 }
 
+/**
+ * Fetch contacts for an organization — org members who are either a
+ * login-less rolodex entry (user_status = 'contact') or the org's flagged
+ * primary contact (a real team member can also be the point of contact).
+ */
+export async function getOrganizationContacts(organizationId: string) {
+  const supabase = getSupabase();
+  try {
+    const { data, error } = await supabase
+      .from('organization_members')
+      .select(`
+        id,
+        organization_id,
+        user_id,
+        role,
+        contact_title,
+        is_primary_contact,
+        created_at,
+        user:users(
+          id,
+          first_name,
+          last_name,
+          email,
+          phone,
+          user_status
+        )
+      `)
+      .eq('organization_id', organizationId)
+      .order('is_primary_contact', { ascending: false })
+      .order('created_at', { ascending: true });
+
+    if (error) throw error;
+    return (data || []).filter(
+      (m: any) => m.user?.user_status === 'contact' || m.is_primary_contact
+    );
+  } catch (err) {
+    return handleApiError(err, 'fetch organization contacts');
+  }
+}
+
+/**
+ * Add a new contact to an organization — links an existing person by email,
+ * or creates a new login-less (user_status = 'contact') person.
+ */
+export async function addOrganizationContact(
+  organizationId: string,
+  contact: {
+    email: string;
+    firstName: string;
+    lastName: string;
+    phone?: string;
+    title?: string;
+    isPrimary?: boolean;
+  }
+) {
+  const supabase = getSupabase();
+  try {
+    const { data, error } = await supabase.rpc('add_organization_contact', {
+      p_organization_id: organizationId,
+      p_email: contact.email,
+      p_first_name: contact.firstName,
+      p_last_name: contact.lastName,
+      p_phone: contact.phone || undefined,
+      p_title: contact.title || undefined,
+      p_is_primary: contact.isPrimary ?? false,
+    });
+
+    if (error) throw error;
+    return data;
+  } catch (err) {
+    return handleApiError(err, 'add organization contact');
+  }
+}
+
+/**
+ * Update a contact's title/name/phone. Routed through a SECURITY DEFINER RPC
+ * rather than direct table writes — the `users` table only allows a row's
+ * own owner to UPDATE it, so an org Admin editing a fellow member's name or
+ * phone has no RLS policy to write under otherwise. Does not touch
+ * is_primary_contact — use setOrganizationPrimaryContact for that (it has to
+ * clear the previous primary atomically).
+ */
+export async function updateOrganizationContact(
+  memberId: string,
+  updates: { title?: string; firstName: string; lastName: string; phone?: string }
+) {
+  const supabase = getSupabase();
+  try {
+    const { error } = await supabase.rpc('update_organization_contact', {
+      p_member_id: memberId,
+      p_first_name: updates.firstName,
+      p_last_name: updates.lastName,
+      p_phone: updates.phone || null,
+      p_title: updates.title || null,
+    } as any);
+    if (error) throw error;
+    return { success: true };
+  } catch (err) {
+    return handleApiError(err, 'update organization contact');
+  }
+}
+
+/**
+ * Flag a member as the organization's primary contact, atomically clearing
+ * any previous primary contact for that org.
+ */
+export async function setOrganizationPrimaryContact(memberId: string) {
+  const supabase = getSupabase();
+  try {
+    const { error } = await supabase.rpc('set_organization_primary_contact', {
+      p_member_id: memberId,
+    });
+    if (error) throw error;
+    return { success: true };
+  } catch (err) {
+    return handleApiError(err, 'set organization primary contact');
+  }
+}
+
+/**
+ * Clear a member's primary-contact flag, leaving the org with no primary
+ * contact (as opposed to setOrganizationPrimaryContact, which always
+ * promotes a replacement).
+ */
+export async function unsetOrganizationPrimaryContact(memberId: string) {
+  const supabase = getSupabase();
+  try {
+    const { error } = await supabase.rpc('unset_organization_primary_contact', {
+      p_member_id: memberId,
+    });
+    if (error) throw error;
+    return { success: true };
+  } catch (err) {
+    return handleApiError(err, 'unset organization primary contact');
+  }
+}
+
+/**
+ * Remove a contact from an organization. Uses its own RPC rather than
+ * removeMember/the Edge Function — that path is guarded against being an
+ * Admin/Manager of the target org specifically, which would block removing
+ * a contact from e.g. a venue you don't belong to but share a gig with.
+ */
+export async function removeOrganizationContact(memberId: string) {
+  const supabase = getSupabase();
+  try {
+    const { error } = await supabase.rpc('remove_organization_contact', {
+      p_member_id: memberId,
+    });
+    if (error) throw error;
+    return { success: true };
+  } catch (err) {
+    return handleApiError(err, 'remove organization contact');
+  }
+}
+

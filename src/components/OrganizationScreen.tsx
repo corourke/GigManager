@@ -30,6 +30,7 @@ import {
 } from './ui/select';
 import { PageHeader } from './ui/PageHeader';
 import MarkdownEditor from './MarkdownEditor';
+import OrganizationContactsSection from './organization/OrganizationContactsSection';
 
 interface OrganizationScreenProps {
   organization?: Organization; // If provided, we're in edit mode
@@ -970,6 +971,14 @@ export default function OrganizationScreen({
               </div>
             </form>
           </Card>
+        )}
+
+        {isEditMode && organization && (
+          <OrganizationContactsSection
+            organizationId={organization.id}
+            organizationName={organization.name}
+            canManage={isOrgAdmin || isGlobalAdmin}
+          />
         )}
       </div>
     </div>

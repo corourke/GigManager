@@ -20,7 +20,7 @@ export async function logActivity(entry: {
     p_entity_id: entry.entity_id,
     p_gig_id: entry.gig_id ?? null,
     p_context: entry.context as any,
-  });
+  } as any);
   if (error) throw error;
 }
 
