@@ -190,7 +190,10 @@ export async function createKit(kitData: {
         kit_id: kit.id,
         asset_id: c.asset_id ?? null,
         child_kit_id: c.child_kit_id ?? null,
-        quantity: c.quantity,
+        // A kit is a singular entity — it's either nested in the parent or
+        // not, never nested "N times" as one row. Enforced here too, not
+        // just in the picker, since this is the actual write path.
+        quantity: c.child_kit_id ? 1 : c.quantity,
         notes: c.notes || null,
       }));
 
@@ -302,7 +305,8 @@ export async function updateKit(kitId: string, kitData: {
         const componentData = {
           asset_id: component.asset_id ?? null,
           child_kit_id: component.child_kit_id ?? null,
-          quantity: component.quantity,
+          // See createKit — a kit component is always exactly one instance.
+          quantity: component.child_kit_id ? 1 : component.quantity,
           notes: component.notes || null,
         };
         if (component.id && existingIds.includes(component.id)) {
@@ -439,17 +443,20 @@ export interface KitFlattenedSummary {
   totalValue: number;
   /** Sum of each flattened asset's quantity — the true item count, recursing through nested kits. */
   totalItems: number;
+  /** Every distinct asset reachable inside this kit, at any depth — used to detect the same physical asset entering a kit twice (once directly, once via a nested sub-kit, or via two different sub-kits). */
+  assetIds: Set<string>;
 }
 
 /**
- * Flattened item count and replacement value for each of the given kits —
- * one batched query against the recursive cache, so callers never need to
- * walk `kit_components` (whose child-kit rows carry no `asset`/quantity of
- * their own and would otherwise silently read as zero — see the Kits list
- * "Total Value"/"Items" columns and a kit's own contents table for two
- * places that bug showed up in practice). A sub-kit's own rental_value isn't
- * relevant to either total (see requirements: the parent's rental value is
- * what the user sets, informed by replacement cost).
+ * Flattened item count, replacement value, and asset-id set for each of the
+ * given kits — one batched query against the recursive cache, so callers
+ * never need to walk `kit_components` (whose child-kit rows carry no
+ * `asset`/quantity of their own and would otherwise silently read as zero —
+ * see the Kits list "Total Value"/"Items" columns and a kit's own contents
+ * table for two places that bug showed up in practice). A sub-kit's own
+ * rental_value isn't relevant to either total (see requirements: the
+ * parent's rental value is what the user sets, informed by replacement
+ * cost).
  */
 export async function getKitsFlattenedSummary(kitIds: string[]): Promise<Map<string, KitFlattenedSummary>> {
   const result = new Map<string, KitFlattenedSummary>();
@@ -459,14 +466,15 @@ export async function getKitsFlattenedSummary(kitIds: string[]): Promise<Map<str
   try {
     const { data, error } = await supabase
       .from('kit_flattened_cache')
-      .select('kit_id, total_quantity, asset:assets(replacement_value)')
+      .select('kit_id, asset_id, total_quantity, asset:assets(replacement_value)')
       .in('kit_id', kitIds);
 
     if (error) throw error;
     for (const row of (data || []) as any[]) {
-      const existing = result.get(row.kit_id) || { totalValue: 0, totalItems: 0 };
+      const existing = result.get(row.kit_id) || { totalValue: 0, totalItems: 0, assetIds: new Set<string>() };
       existing.totalValue += (row.asset?.replacement_value || 0) * row.total_quantity;
       existing.totalItems += row.total_quantity;
+      existing.assetIds.add(row.asset_id);
       result.set(row.kit_id, existing);
     }
     return result;

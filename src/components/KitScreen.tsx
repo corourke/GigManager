@@ -28,7 +28,7 @@ import {
 import AppHeader from './AppHeader';
 import { PageHeader } from './ui/PageHeader';
 import { Organization, User, UserRole } from '../utils/supabase/types';
-import { getKit, createKit, updateKit, getKits, getKitsFlattenedSummary } from '../services/kit.service';
+import { getKit, createKit, updateKit, getKits, getKitsFlattenedSummary, KitFlattenedSummary } from '../services/kit.service';
 import { getAssets } from '../services/asset.service';
 import type { DbAsset } from '../utils/supabase/types';
 import { useAutocompleteSuggestions } from '../utils/hooks/useAutocompleteSuggestions';
@@ -103,9 +103,10 @@ export default function KitScreen({
   const [isContainer, setIsContainer] = useState(false);
   const [kitComponents, setKitComponents] = useState<KitComponentRow[]>([]);
   const [errors, setErrors] = useState<Record<string, string>>({});
-  // Sub-kits' true equipment value (flattened replacement value), keyed by
-  // child_kit_id — not their own rental_value, which isn't relevant here.
-  const [childKitValues, setChildKitValues] = useState<Map<string, number>>(new Map());
+  // Sub-kits' flattened contents (true equipment value, item count, and the
+  // set of asset ids they reach), keyed by child_kit_id — not their own
+  // rental_value, which isn't relevant here.
+  const [childKitSummaries, setChildKitSummaries] = useState<Map<string, KitFlattenedSummary>>(new Map());
 
   // Unified component picker dialog
   const [showPicker, setShowPicker] = useState(false);
@@ -161,17 +162,19 @@ export default function KitScreen({
   // the kit and ones just added via the picker.
   useEffect(() => {
     const childKitIds = Array.from(new Set(kitComponents.filter(c => c.child_kit_id).map(c => c.child_kit_id!)));
-    const missing = childKitIds.filter((id) => !childKitValues.has(id));
+    const missing = childKitIds.filter((id) => !childKitSummaries.has(id));
     if (missing.length === 0) return;
 
     getKitsFlattenedSummary(missing).then((summaries) => {
-      setChildKitValues((prev) => {
+      setChildKitSummaries((prev) => {
         const next = new Map(prev);
-        for (const id of missing) next.set(id, summaries.get(id)?.totalValue ?? 0);
+        for (const id of missing) {
+          next.set(id, summaries.get(id) ?? { totalValue: 0, totalItems: 0, assetIds: new Set() });
+        }
         return next;
       });
     });
-  }, [kitComponents, childKitValues]);
+  }, [kitComponents, childKitSummaries]);
 
   const loadKit = async () => {
     if (!kitId) return;
@@ -224,14 +227,31 @@ export default function KitScreen({
         pickerFilter === 'assets' ? Promise.resolve([]) : getKits(organization.id, { search: pickerSearchQuery || undefined }),
       ]);
 
-      // Exclude assets already added as a direct component — adding the same
-      // asset again would either collide with the DB's unique constraint or,
-      // for a still-unsaved row, produce two rows with no way to tell them
-      // apart. Increasing how many of an asset are in the kit happens by
-      // editing that row's quantity, not by re-adding it.
-      const alreadyDirectAssetIds = new Set(kitComponents.filter(c => c.asset_id).map(c => c.asset_id));
+      // Exclude assets already added as a direct component, and kits already
+      // added (or the kit being edited itself) — adding the same asset/kit
+      // again would either collide with the DB's unique constraint or, for a
+      // still-unsaved row, produce two rows with no way to tell them apart.
+      const alreadyDirectAssetIds = new Set(kitComponents.filter(c => c.asset_id).map(c => c.asset_id as string));
+      const alreadyDirectKitIds = new Set(kitComponents.filter(c => c.child_kit_id).map(c => c.child_kit_id as string));
+
+      const kitCandidateSource = (kits || []).filter((k: any) => k.id !== kitId && !alreadyDirectKitIds.has(k.id));
+      const candidateKitIds = kitCandidateSource.map((k: any) => k.id as string);
+
+      // Flattened contents for both the sub-kits already in this draft (to know
+      // which assets they already cover) and every kit candidate on screen (to
+      // know which assets picking it would introduce) — one batched query.
+      const summaries = await getKitsFlattenedSummary([...alreadyDirectKitIds, ...candidateKitIds]);
+
+      // Every asset already represented in this kit, directly or through an
+      // already-added sub-kit's flattened contents — the same physical asset
+      // can't enter a kit twice, however it gets there.
+      const existingFlattenedAssetIds = new Set<string>(alreadyDirectAssetIds);
+      for (const childKitId of alreadyDirectKitIds) {
+        summaries.get(childKitId)?.assetIds.forEach((id) => existingFlattenedAssetIds.add(id));
+      }
+
       const assetCandidates: PickerCandidate[] = (assets || [])
-        .filter((a: DbAsset) => !alreadyDirectAssetIds.has(a.id))
+        .filter((a: DbAsset) => !existingFlattenedAssetIds.has(a.id))
         .map((a: DbAsset) => ({
           type: 'asset',
           id: a.id,
@@ -241,11 +261,18 @@ export default function KitScreen({
           quantityAvailable: a.quantity ?? null,
         }));
 
-      // Exclude the kit being edited itself, and kits already added as a direct
-      // component — a UX nicety, not the security boundary (the DB trigger is).
-      const alreadyDirectKitIds = new Set(kitComponents.filter(c => c.child_kit_id).map(c => c.child_kit_id));
-      const kitCandidates: PickerCandidate[] = (kits || [])
-        .filter((k: any) => k.id !== kitId && !alreadyDirectKitIds.has(k.id))
+      // A kit candidate is excluded if any asset it flattens to is already
+      // covered above — same rule, the other direction: adding this kit
+      // would put an asset already in the parent into it a second time.
+      const kitCandidates: PickerCandidate[] = kitCandidateSource
+        .filter((k: any) => {
+          const assetIds = summaries.get(k.id)?.assetIds;
+          if (!assetIds) return true;
+          for (const assetId of assetIds) {
+            if (existingFlattenedAssetIds.has(assetId)) return false;
+          }
+          return true;
+        })
         .map((k: any) => ({
           type: 'kit' as const,
           id: k.id,
@@ -310,15 +337,18 @@ export default function KitScreen({
     for (const c of pickerCandidates) {
       const key = candidateKey(c);
       if (!selectedKeys.has(key)) continue;
-      const quantity = addQuantities.get(key) ?? 1;
       if (c.type === 'asset') {
+        const requested = addQuantities.get(key) ?? 1;
+        const quantity = Math.min(requested, c.quantityAvailable ?? Infinity);
         toAdd.push({ clientKey: crypto.randomUUID(), asset_id: c.id, asset: c.asset, quantity });
       } else {
+        // A kit is a singular entity — always exactly one instance, never a
+        // quantity of its own (the picker doesn't even offer a stepper for it).
         toAdd.push({
           clientKey: crypto.randomUUID(),
           child_kit_id: c.id,
           childKit: { id: c.id, name: c.name, category: c.subtitle || null },
-          quantity,
+          quantity: 1,
         });
       }
     }
@@ -333,9 +363,14 @@ export default function KitScreen({
 
   const handleUpdateQuantity = (clientKey: string, quantity: number) => {
     setKitComponents((prev) =>
-      prev.map((row) =>
-        row.clientKey === clientKey ? { ...row, quantity: Math.max(1, quantity) } : row
-      )
+      prev.map((row) => {
+        if (row.clientKey !== clientKey) return row;
+        // A kit component can't exceed how many of that asset are in
+        // inventory; a sub-kit component is always exactly 1 (its input
+        // isn't editable, but clamp defensively all the same).
+        const max = row.child_kit_id ? 1 : (row.asset?.quantity ?? Infinity);
+        return { ...row, quantity: Math.min(Math.max(1, quantity), max) };
+      })
     );
   };
 
@@ -451,7 +486,7 @@ export default function KitScreen({
   // contents are worth), not its own rental_value — the parent kit's rental
   // value is what the user sets, informed by this total.
   const componentUnitValue = (row: KitComponentRow) =>
-    row.asset?.replacement_value ?? (row.child_kit_id ? childKitValues.get(row.child_kit_id) : undefined) ?? 0;
+    row.asset?.replacement_value ?? (row.child_kit_id ? childKitSummaries.get(row.child_kit_id)?.totalValue : undefined) ?? 0;
 
   const getTotalValue = () => {
     return kitComponents.reduce((total, row) => total + componentUnitValue(row) * row.quantity, 0);
@@ -700,15 +735,22 @@ export default function KitScreen({
                               </Badge>
                             </TableCell>
                             <TableCell className="text-right">
-                              <Input
-                                type="number"
-                                min="1"
-                                value={row.quantity}
-                                onChange={(e) =>
-                                  handleUpdateQuantity(rowId, parseInt(e.target.value) || 1)
-                                }
-                                className="w-20 ml-auto"
-                              />
+                              {isKit ? (
+                                // A kit is a singular entity — it's either in the
+                                // parent kit or it isn't, never "N of" itself.
+                                <span className="text-sm text-gray-500 pr-3">1</span>
+                              ) : (
+                                <Input
+                                  type="number"
+                                  min="1"
+                                  max={row.asset?.quantity ?? undefined}
+                                  value={row.quantity}
+                                  onChange={(e) =>
+                                    handleUpdateQuantity(rowId, parseInt(e.target.value) || 1)
+                                  }
+                                  className="w-20 ml-auto"
+                                />
+                              )}
                             </TableCell>
                             <TableCell className="text-right">
                               {unitValue ? formatCurrency(unitValue) : '-'}
@@ -910,19 +952,28 @@ export default function KitScreen({
                           {c.type === 'kit' && ` • ${c.componentCount} component${c.componentCount === 1 ? '' : 's'}`}
                         </div>
                       </div>
-                      <div onClick={(e) => e.stopPropagation()} className="flex items-center gap-1.5">
-                        <Label htmlFor={`qty-${key}`} className="text-xs text-gray-500">
-                          Qty
-                        </Label>
-                        <Input
-                          id={`qty-${key}`}
-                          type="number"
-                          min="1"
-                          value={quantityToAdd}
-                          onChange={(e) => setAddQuantity(key, parseInt(e.target.value) || 1)}
-                          className="w-16 h-8 text-sm"
-                        />
-                      </div>
+                      {/* A kit is a singular entity — no quantity to set, it's
+                          always exactly one instance (enforced when adding and
+                          again on save). */}
+                      {c.type === 'asset' && (
+                        <div onClick={(e) => e.stopPropagation()} className="flex items-center gap-1.5">
+                          <Label htmlFor={`qty-${key}`} className="text-xs text-gray-500">
+                            Qty
+                          </Label>
+                          <Input
+                            id={`qty-${key}`}
+                            type="number"
+                            min="1"
+                            max={c.quantityAvailable ?? undefined}
+                            value={quantityToAdd}
+                            onChange={(e) => {
+                              const requested = parseInt(e.target.value) || 1;
+                              setAddQuantity(key, Math.min(requested, c.quantityAvailable ?? Infinity));
+                            }}
+                            className="w-16 h-8 text-sm"
+                          />
+                        </div>
+                      )}
                     </div>
                   );
                 })
