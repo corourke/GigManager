@@ -32,7 +32,7 @@ vi.mock('../services/kit.service', () => ({
     name: 'Test Kit',
     category: 'Audio',
     is_container: true,
-    kit_assets: [],
+    kit_components: [],
   }]),
   deleteKit: vi.fn().mockResolvedValue({ success: true }),
   duplicateKit: vi.fn().mockResolvedValue({ id: 'new-kit-id' }),

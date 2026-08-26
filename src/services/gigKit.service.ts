@@ -132,7 +132,7 @@ export async function getGigKits(gigId: string, organizationId?: string) {
           tag_number,
           rental_value,
           organization_id,
-          kit_assets(
+          kit_components!kit_assets_kit_id_fkey(
             quantity,
             notes,
             asset:assets(*)

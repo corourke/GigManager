@@ -91,12 +91,12 @@ INSERT INTO staff_roles (id, name, description, created_at, updated_at) VALUES (
 
 
 --
--- Data for Name: kit_assets; Type: TABLE DATA; Schema: public; Owner: postgres
+-- Data for Name: kit_components; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
-INSERT INTO kit_assets (id, kit_id, asset_id, quantity, notes, created_at) VALUES ('e6b56d95-9584-4d1c-8f95-0c347e920ee5', '4bd24cfb-9987-46d0-81c6-aa3f228cde5d', '10d36935-c6e6-4072-8906-c755d5cbd9d9', '4', NULL, '2026-01-31 06:48:25.940818+00');
-INSERT INTO kit_assets (id, kit_id, asset_id, quantity, notes, created_at) VALUES ('c4e75592-2e85-41ba-89f0-6a2551331b90', '03f2ff8e-9ebf-421d-bd6c-d5b597fa44be', '800e1842-ce2c-454b-a6ea-b458a564f8ba', '2', NULL, '2026-01-31 16:53:09.056263+00');
-INSERT INTO kit_assets (id, kit_id, asset_id, quantity, notes, created_at) VALUES ('8bbad1aa-ec5e-4498-bd2d-1daf8155dca4', '03f2ff8e-9ebf-421d-bd6c-d5b597fa44be', 'ecd5f7b2-c1c2-40fe-91eb-9820eefcfa00', '2', NULL, '2026-01-31 16:53:09.056263+00');
+INSERT INTO kit_components (id, kit_id, asset_id, quantity, notes, created_at) VALUES ('e6b56d95-9584-4d1c-8f95-0c347e920ee5', '4bd24cfb-9987-46d0-81c6-aa3f228cde5d', '10d36935-c6e6-4072-8906-c755d5cbd9d9', '4', NULL, '2026-01-31 06:48:25.940818+00');
+INSERT INTO kit_components (id, kit_id, asset_id, quantity, notes, created_at) VALUES ('c4e75592-2e85-41ba-89f0-6a2551331b90', '03f2ff8e-9ebf-421d-bd6c-d5b597fa44be', '800e1842-ce2c-454b-a6ea-b458a564f8ba', '2', NULL, '2026-01-31 16:53:09.056263+00');
+INSERT INTO kit_components (id, kit_id, asset_id, quantity, notes, created_at) VALUES ('8bbad1aa-ec5e-4498-bd2d-1daf8155dca4', '03f2ff8e-9ebf-421d-bd6c-d5b597fa44be', 'ecd5f7b2-c1c2-40fe-91eb-9820eefcfa00', '2', NULL, '2026-01-31 16:53:09.056263+00');
 
 
 

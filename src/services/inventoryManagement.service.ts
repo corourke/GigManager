@@ -178,7 +178,7 @@ export async function getActiveGigsWithTracking(organizationId: string): Promise
           name,
           is_container,
           tag_number,
-          assets:kit_assets(
+          assets:kit_components!kit_assets_kit_id_fkey(
             asset_id,
             asset:assets(id, manufacturer_model, tag_number, status)
           )
@@ -442,7 +442,7 @@ export async function getPackingListReport(organizationId: string, gigId: string
           is_container,
           tag_number,
           organization_id,
-          assets:kit_assets(
+          assets:kit_components!kit_assets_kit_id_fkey(
             asset_id,
             asset:assets(id, manufacturer_model, tag_number)
           )
@@ -521,7 +521,7 @@ export async function getMaintenanceQueueReport(organizationId: string): Promise
   try {
     const { data: assets, error: assetsError } = await supabase
       .from('assets')
-      .select('id, manufacturer_model, tag_number, kit_assets(kit_id, kit:kits(id, name))')
+      .select('id, manufacturer_model, tag_number, kit_components(kit_id, kit:kits(id, name))')
       .eq('organization_id', organizationId)
       .eq('status', 'Maintenance');
 
@@ -547,7 +547,7 @@ export async function getMaintenanceQueueReport(organizationId: string): Promise
     }
 
     return (assets ?? []).map((asset: any): MaintenanceRow => {
-      const kitAsset = asset.kit_assets?.[0];
+      const kitAsset = asset.kit_components?.[0];
       const kit = kitAsset?.kit;
       const latestRecord = latestByAsset.get(asset.id);
       return {
@@ -604,7 +604,7 @@ export async function getKitTrackingSummary(
   try {
     const { data: kits, error: kitsError } = await supabase
       .from('kits')
-      .select('id, is_container, kit_assets(asset_id)')
+      .select('id, is_container, kit_components!kit_assets_kit_id_fkey(asset_id)')
       .eq('organization_id', organizationId);
 
     if (kitsError) throw kitsError;
@@ -634,7 +634,7 @@ export async function getKitTrackingSummary(
     for (const kit of kits ?? []) {
       const kitId = (kit as any).id;
       const isContainer = (kit as any).is_container;
-      const assetIds: string[] = ((kit as any).kit_assets ?? []).map((ka: any) => ka.asset_id).filter(Boolean);
+      const assetIds: string[] = ((kit as any).kit_components ?? []).map((kc: any) => kc.asset_id).filter(Boolean);
 
       const kitRecords = trackingByKit.get(kitId) ?? [];
       const kitRecord = kitRecords.find((r) => !r.asset_id);

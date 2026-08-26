@@ -164,7 +164,7 @@ export default function KitListScreen({
     {
       id: 'items_count',
       header: 'Items',
-      accessor: (row) => (row.kit_assets || []).reduce((sum: number, ka: any) => sum + (ka.quantity || 1), 0),
+      accessor: (row) => (row.kit_components || []).reduce((sum: number, kc: any) => sum + (kc.quantity || 1), 0),
       sortable: true,
       readOnly: true,
       type: 'number',
@@ -172,8 +172,8 @@ export default function KitListScreen({
     {
       id: 'total_value',
       header: 'Total Value',
-      accessor: (row) => (row.kit_assets || []).reduce((total: number, ka: any) => {
-        return total + (ka.asset?.replacement_value || 0) * ka.quantity;
+      accessor: (row) => (row.kit_components || []).reduce((total: number, kc: any) => {
+        return total + (kc.asset?.replacement_value || 0) * kc.quantity;
       }, 0),
       sortable: true,
       readOnly: true,
@@ -273,17 +273,6 @@ export default function KitListScreen({
       style: 'currency',
       currency: 'USD',
     }).format(amount);
-  };
-
-  const _getKitAssetCount = (kit: any) => {
-    if (!kit.kit_assets || kit.kit_assets.length === 0) return 0;
-    return kit.kit_assets.reduce((sum: number, ka: any) => sum + (ka.quantity || 1), 0);
-  };
-
-  const _getKitTotalValue = (kit: any) => {
-    return (kit.kit_assets || []).reduce((total: number, ka: any) => {
-      return total + (ka.asset?.replacement_value || 0) * ka.quantity;
-    }, 0);
   };
 
   // Get unique categories for filter
