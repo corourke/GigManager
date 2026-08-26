@@ -1,6 +1,6 @@
 # Organizations, Contacts & Clients — Product & Engineering Spec
 
-Status: Proposed, not yet built. Decisions below were confirmed with the product owner (Cameron) on 2026-08-25.
+Status: **Phase 1 shipped** (2026-08-25 — see §4/§5, built as described with minor deviations noted inline). **Phase 2 scope revised** (2026-08-26) after using Phase 1 on real gigs — see §6 onward, which supersedes the original Phase 2 design. The original Phase 2 draft is preserved in git history if the dropped "unified add-person" direction (§6.3/§6.4 in the original) is ever revisited.
 
 ## 1. Problem
 
@@ -17,10 +17,10 @@ Net effect: you can't answer "who do I call at the venue" or "who's actually pay
 
 1. **No new `contacts` table.** A Contact is a `public.users` row with `user_status = 'contact'` — same table that already holds `'active' | 'pending' | 'inactive'` rows, and already supports rows with no matching `auth.users` account (that's exactly what `'pending'` invites are today — see §5.1). A contact is simply a person who will never log in.
 2. **Client is a flag, not a role.** `gig_participants.role` stays an `organization_role` (Venue/Agency/Production/...) describing *what the org does*. A new `gig_participants.is_client boolean` is orthogonal and describes *who's paying* — an org can be both e.g. `Venue` and the client. Shown as a ★ in the Participants table. No uniqueness enforced — a gig can have more than one org flagged client (split-billing, co-promotion) unless a later spec asks to lock it to one.
-3. **Primary contact has two levels, both flagged with a ★:**
+3. **Primary contact has two levels, both flagged with a ★.** *(Revised 2026-08-26 — see §6 for the shipped-design version of this.)*
    - **Org-level default** — `organization_members.is_primary_contact`. "Who do we generally talk to at this org."
-   - **Per-gig override** — set when adding a person (contact or staffer) to a specific gig. "Who's the point of contact at this org *for this booking*," which may differ from the org default (a stagehand company's on-site lead varies by show).
-4. **Contacts and staff need one unified add-flow**, and financial (staff) and non-financial (contact) attachments to a gig must stay in separate tables — not a shared table with nullable `rate`/`fee` — so a contact can never accidentally accrue cost. See §6.
+   - **Per-gig override** — a *selection* among that org's existing contacts, not a new contact record. "Who's the point of contact at this org *for this booking*" — e.g. the same production company sends a different producer to different gigs. Falls back to the org-level default when nothing's been chosen for a given gig.
+4. ~~Contacts and staff need one unified add-flow~~ — **dropped 2026-08-26.** Financial (staff) and non-financial (contact) attachments still stay in separate tables/flows (a contact must never be able to accrue cost), but there's no plan to merge how they're added. Staff Assignments keeps its own add flow; Participants keeps its own. See §6.
 
 ## 3. Recommended phasing
 
@@ -29,9 +29,9 @@ This is a two-phase build. Phase 1 is materially lower risk (doesn't touch the f
 | | Value | Cost/Risk | Touches financial code? |
 |---|---|---|---|
 | **Phase 1** — Org quick-create, Contacts on Organizations, org-level primary contact, `is_client` flag on Participants | High — directly answers "who's the client" and "who do I call," the two things asked for first | Low-Medium — one new SECURITY DEFINER fn, two new nullable columns, one new UI section | No |
-| **Phase 2** — Unified add-person-to-gig flow, per-gig contact/staff list grouped by org, per-assignment org affiliation | Medium-High — fixes the "which company is this stagehand from today" gap and finishes the ★-primary-contact-per-gig requirement | Medium-High — new table, new column on `gig_staff_assignments`, restructures two existing gig sections | Yes (additive only — no changes to `gig_financials`, `completeStaffAssignment`, or cost math) |
+| **Phase 2** *(revised 2026-08-26 — see §6)* — per-gig contact selection (fallback to org default), per-assignment org affiliation on Staff Assignments | High — both are named, recurring pain points from real gig use, not speculative | Low-Medium — one nullable column reusing the existing Participants save path, one nullable column + UI on Staff Assignments. No new tables. | Assignment org affiliation touches `gig_staff_assignments` (additive column only — no changes to `gig_financials`, `completeStaffAssignment`, or cost math) |
 
-Ship Phase 1 first, get it in front of real gigs, then start Phase 2.
+Ship Phase 1 first, get it in front of real gigs, then start Phase 2. *(Done — Phase 1 shipped 2026-08-25, this table reflects what was learned from it.)*
 
 ## 4. Phase 1 — Functional design
 
@@ -186,103 +186,90 @@ Edited:
 - New migration applies cleanly (`supabase db reset` locally); `add_organization_contact` covers: brand-new email, existing-active-user email, existing-contact email re-added to a second org, duplicate-membership rejection, primary-contact auto-demotion.
 - UI: create an org inline from Participants without leaving the gig; add two contacts to an org, mark one primary, confirm the other's star clears; mark a participant as client and confirm the star renders and survives reload; confirm Staff Assignments is untouched.
 
+### 5.8 What actually shipped differently from this draft
+Worth knowing before touching this code again:
+- **Permission model is broader than §5.2's draft.** `user_can_manage_org_contacts(org_id, user_id)` allows: Admin/Manager of the org itself, OR Admin/Manager of any org sharing a gig with it, OR (the one this draft didn't anticipate) anyone who's Admin of *any* org — matching the pre-existing, more permissive convention `GigParticipantsSection`'s "Edit Organization" already used (`user_is_admin`, despite the name, just means "Admin of ≥1 org"). Real usage hit a "Permission denied" under the narrower draft version; broadening to match the existing convention fixed it. Three migrations landed this incrementally: `20260825180000`, `20260825210000`, `20260825235338`.
+- **Editing a contact's name/phone needed its own RPC** (`update_organization_contact`) — §5.2's assumption that a direct `UPDATE` on `users` would work under existing RLS was wrong; `users` only allows a row's own owner to update it. Same for removal (`remove_organization_contact`) — the Edge Function path assumed in §5.2 has the same "admin of the target org specifically" gap the broadened permission model exists to fix.
+- **The primary-contact star is a real toggle**, not set-only — clicking an already-primary contact clears it (`unset_organization_primary_contact`), and the Edit Contact dialog has a checkbox for it too.
+- **§4.3's "Contact" popover shipped as an always-visible inline list instead** (name, title, phone as `tel:`, email as `mailto:`), with add/edit/remove/star all reachable without leaving the gig — "Add Contact" lives in the participant row's "⋯ More actions" menu rather than its own button, to keep rows compact.
+- Participant rows also picked up small fixes along the way: per-role icons (via `ORG_ROLE_CONFIG`) instead of one generic building icon, city/state shown next to the org name, and "View Organization" now includes this gig's participant notes alongside the org's phone/address/description.
+
 ---
 
-## 6. Phase 2 — Functional design (unified People UI)
+## 6. Phase 2 (revised 2026-08-26) — Two independent items
 
-### 6.1 The real gap this closes
-`gig_staff_slots.organization_id` is set to the *viewing* org on every save (`GigStaffSlotsSection.tsx:147`, `227`) — it's tenant-scoping ("only show/manage slots I own"), not a record of who the assigned *person* is representing. Since `organization_members` already allows one `users` row to belong to multiple orgs (`UNIQUE(organization_id, user_id)`, not `UNIQUE(user_id)`), today's data model genuinely cannot say "Jane is filling this Stagehand slot for Acme Crew Co. today, and for Beta Staging on the next gig" — there's nowhere to put that fact. This is the concrete fix for the stage-hand example in the original ask.
+Using Phase 1 on real gigs surfaced two specific, concrete gaps — not the broader "unify how people get added to a gig" direction the original §6/§7 sketched. That direction is dropped: Participants and Staff Assignments keep their own separate add-flows. What's left is smaller and lower-risk than the original draft:
 
-### 6.2 Data shape
-Two attachment types per gig, kept in **separate tables** on purpose (see decision #4 — a contact must be structurally incapable of carrying cost):
+1. **§6.1 — Per-gig contact selection.** A gig needs to be able to say "for *this* booking, Acme Production Co.'s contact is Jane, not their usual Bob" — the same org can send a different producer to different gigs. No unified add-flow involved; this only touches Participants/contacts.
+2. **§6.2 — Per-assignment org affiliation on Staff Assignments.** The original motivating example (a stagehand who's on the roster of two different companies, varying by gig) — still completely unaddressed, independent of item 1.
 
-- **`gig_staff_assignments`** (existing, financial) — gains `organization_id` (which of the assigned person's orgs applies to *this* booking) and `is_gig_primary_contact`.
-- **`gig_contacts`** (new, non-financial) — `gig_id`, `organization_id`, `user_id`, `title` (defaults to the org's `contact_title` but overridable per gig), `is_gig_primary_contact`, `notes`.
+### 6.1 Per-gig contact selection
 
-### 6.3 UI: unified "Add Person" flow
-One dialog, opened from either section (or a new combined section — see §6.4), used everywhere a person gets attached to a gig:
+**Model: a selection, not a new contact.** A contact still only ever lives on the organization (Phase 1, unchanged) — a production company's producers, once added as contacts, are reusable across every gig that company works. What's missing is a per-*gig* pointer to which of those existing contacts is the one for this booking.
 
-1. Pick the organization (already selected if opened from that org's row).
-2. `UserSelector`, scoped to that org's roster (`organization_members` for that org — includes both real team members and contacts).
-3. Toggle: **"Paid role"** on/off.
-   - On → staff role `<Select>`, comp type (rate/fee), amount, status. Writes a `gig_staff_assignments` row.
-   - Off → optional title (prefilled from the org's `contact_title`). Writes a `gig_contacts` row.
-4. Optional checkbox: **"★ Point of contact for [Org] on this gig"** — defaults to whatever the org's global primary contact is, but changeable per gig. Setting it clears any other ★ for that `(gig_id, organization_id)` pair across *both* tables (service-layer responsibility — a cross-table DB constraint isn't worth the complexity here).
+- Add one nullable column: `gig_participants.primary_contact_member_id`, referencing `organization_members(id)`.
+- **Fallback rule:** if a `gig_participants` row has no `primary_contact_member_id` set, the *effective* contact for that gig is whichever of the org's contacts has `is_primary_contact = true` (the Phase 1 org-level default). If the org has no default either, there's simply no contact shown — same as today.
+- **Validation:** the referenced `organization_members` row must belong to the *same* `organization_id` as the `gig_participants` row it's set on (can't point a Venue participant's contact-pick at a Contact who belongs to a different org). Enforced in the service layer (see §6.1 Engineering below), not a DB constraint — this field is written through the same single code path as `role`/`notes`/`is_client` already are, so one validation point is enough.
+- **Org-level star is untouched by this.** Toggling a contact's star from *within a gig* only ever writes `gig_participants.primary_contact_member_id` — it must not change `organization_members.is_primary_contact` (that's the org's own screen's job, via the existing Phase 1 `setOrganizationPrimaryContact`/`unsetOrganizationPrimaryContact`). Conflating the two would mean picking a gig-specific producer silently changes the org's global default, which is exactly the bug this feature exists to prevent.
 
-### 6.4 Where this lives visually
-Keep the two existing sections rather than forcing a single org-grouped tree: Staff Assignments is fundamentally headcount-planning ("we need 3 Stagehands," independent of which org fills them), while Participants is fundamentally org-centric. Collapsing them into one nested structure would make the "how many open Stagehand slots do we have" question harder to answer at a glance, for no real gain.
+**Toggle semantics** (what clicking a contact's star inside a gig does):
+- Click a contact who is *not* currently effective → sets `primary_contact_member_id` to that contact, for this gig only.
+- Click the contact who *is* currently effective **because they were explicitly chosen** for this gig → clears `primary_contact_member_id` back to `null` (reverts to following the org default, whatever it is now or becomes later).
+- Click the contact who is currently effective **only because they're the org default** (no explicit pick made yet) → this is the useful "pin it" case: it sets `primary_contact_member_id` to that same contact, converting an implicit/dynamic fallback into an explicit, sticky choice that won't change if the org's default is later reassigned to someone else.
 
-Instead:
-- **Participants** rows expand to show a compact "People" list per org (contacts ★-flagged, staff shown with role + status but no $ amount, to keep the client-facing/org view clean) with an "+ Add Person" button per org that opens the flow in §6.3 pre-scoped to that org.
-- **Staff Assignments** rows gain an org badge per assignment (from the new `gig_staff_assignments.organization_id`), defaulting to the slot's org but changeable inline if the picked person belongs to more than one org.
-- Both sections' "add" actions open the *same* dialog component — that's the "unified way to add," without forcing a single visual layout that fights either use case.
+These last two cases look identical in the moment (the same person's star was already lit, and stays lit) but leave different state — one gig now tracks its own contact independent of the org, the other still floats with the org default. Worth a subtle visual cue (e.g. a small "(org default)" hint on hover for the fallback case) so it's not a total surprise later when the org's default contact changes and some gigs move with it and others don't.
 
-This is a judgment call worth revisiting once Phase 1 ships and it's clearer from real usage whether people actually want a single merged list. Flagging it here rather than deciding it unilaterally now.
+#### Engineering
+- **Schema** (new migration): `ALTER TABLE public.gig_participants ADD COLUMN primary_contact_member_id uuid REFERENCES public.organization_members(id) ON DELETE SET NULL;` — `ON DELETE SET NULL` means removing a contact from an org automatically falls every gig that had them explicitly pinned back to the org default (or to nothing), which is the correct behavior with zero extra code.
+- **RLS:** none needed. This column is governed by the same `"Admins and Managers can manage gig participants"` policy (`user_can_manage_gig`) already covering `role`/`notes`/`is_client` on this table.
+- **Service layer:** extend the existing `updateGigParticipants` payload/upsert in `src/services/gigParticipant.service.ts` with `primary_contact_member_id`, exactly parallel to how `is_client` was added in Phase 1. Validate there that the chosen member's `organization_id` matches the participant's `organization_id` before writing (fetch the member row, or pass the org's already-loaded contact list through and check client-side *and* re-check server-side — client-side alone isn't sufficient since RLS doesn't enforce it).
+- **Types:** regenerate `database.types.ts`; add `primary_contact_member_id` to the participant shape in `types.tsx`.
+- **Components:**
+  - `GigParticipantsSection.tsx` — add `primary_contact_member_id` to the participant zod schema/form defaults/load-save, same mechanical pattern as `is_client`.
+  - `GigParticipantContactsList.tsx` — needs the participant's `primaryContactMemberId` passed down as a prop (and an `onChange` callback wired to the parent's `setValue`, reusing the existing autosave — **not** a new mutation/RPC). Replace the current star handler (which calls the org-level `setPrimary`/`unsetPrimary` mutations) with the three-case toggle logic above. Compute "effective" per contact as `primary_contact_member_id === contact.id`, or (`primary_contact_member_id` is null AND `contact.is_primary_contact`).
+- **Verification:**
+  - Two gigs, same org, different explicit contact picks — each gig shows its own, org's own Contacts screen unaffected.
+  - No pick on either gig → both show the org default; changing the org default moves both.
+  - Pick one, then change the org default → the picked gig keeps its pick, the unpicked one follows the new default.
+  - Remove a contact who was explicitly picked on a gig → that gig falls back to the (possibly different) org default without any explicit fix-up.
+  - Confirm toggling a gig-level star never changes `organization_members.is_primary_contact`.
 
-## 7. Phase 2 — Engineering spec
+### 6.2 Per-assignment org affiliation on Staff Assignments
 
-### 7.1 Schema
+Unchanged from the original analysis — `gig_staff_slots.organization_id` is set to the *viewing* org on every save (`GigStaffSlotsSection.tsx:147`, `227`) — it's tenant-scoping ("only show/manage slots I own"), not a record of who the assigned *person* is representing. Since `organization_members` already allows one `users` row to belong to multiple orgs, today's data model genuinely cannot say "Jane is filling this Stagehand slot for Acme Crew Co. today, and for Beta Staging on the next gig" — there's nowhere to put that fact.
 
-```sql
-ALTER TABLE public.gig_staff_assignments ADD COLUMN organization_id uuid REFERENCES public.organizations(id);
-ALTER TABLE public.gig_staff_assignments ADD COLUMN is_gig_primary_contact boolean NOT NULL DEFAULT false;
+This item is purely about roster/cost-attribution clarity and stays independent of §6.1 — no point-of-contact star, no interaction with Participants or contacts. (The original draft's `is_gig_primary_contact` on `gig_staff_assignments` was part of the now-dropped unification and is not part of this revision; if "a paid stage manager can also be the on-site contact" turns out to matter later, treat that as a fresh, separate ask.)
 
--- Backfill existing rows from their slot's org — the only data available, even though it conflates
--- "who owns this slot" with "who the assignee represents." Flag this caveat to whoever reviews the backfill.
-UPDATE public.gig_staff_assignments a
-SET organization_id = s.organization_id
-FROM public.gig_staff_slots s
-WHERE a.slot_id = s.id AND a.organization_id IS NULL;
+#### Functional design
+- New nullable `gig_staff_assignments.organization_id`, defaulting to null on new rows.
+- When adding/editing an assignment: if the picked person belongs to more than one organization (`organization_members` rows for that `user_id`), show a small org `<Select>` next to them, defaulting to the slot's `organization_id`. If they belong to exactly one org, just show it as a static badge — no picker needed.
+- Existing slot-level `organization_id` stays exactly as-is (still the default org for *new* assignments added to that slot) — it's just no longer treated as authoritative for display once an assignment has its own value.
 
-CREATE TABLE public.gig_contacts (
-  id uuid DEFAULT extensions.uuid_generate_v4() PRIMARY KEY,
-  gig_id uuid NOT NULL REFERENCES public.gigs(id) ON DELETE CASCADE,
-  organization_id uuid NOT NULL REFERENCES public.organizations(id),
-  user_id uuid NOT NULL REFERENCES public.users(id),
-  title text,
-  is_gig_primary_contact boolean NOT NULL DEFAULT false,
-  notes text,
-  created_at timestamptz NOT NULL DEFAULT now(),
-  updated_at timestamptz NOT NULL DEFAULT now(),
-  UNIQUE (gig_id, organization_id, user_id)
-);
+#### Engineering
+- **Schema** (new migration):
+  ```sql
+  ALTER TABLE public.gig_staff_assignments ADD COLUMN organization_id uuid REFERENCES public.organizations(id);
 
-CREATE INDEX idx_gig_contacts_gig_id ON public.gig_contacts (gig_id);
-CREATE INDEX idx_gig_contacts_org_id ON public.gig_contacts (organization_id);
+  -- Backfill from the slot's org — the only data available, even though it conflates
+  -- "who owns this slot" with "who the assignee represents." Every existing assignment
+  -- gets its slot's org as a reasonable starting point; nothing here is authoritative
+  -- until someone actually edits the assignment going forward.
+  UPDATE public.gig_staff_assignments a
+  SET organization_id = s.organization_id
+  FROM public.gig_staff_slots s
+  WHERE a.slot_id = s.id AND a.organization_id IS NULL;
+  ```
+- **RLS:** none needed — governed by the same `"Admins and Managers can manage all assignments for accessible g..."` policy already on `gig_staff_assignments`.
+- **Types:** regenerate `database.types.ts`.
+- **Service layer:** `src/services/gigStaff.service.ts` — `updateGigStaffSlots` payload gains `organization_id` per assignment (parallel to how it already threads `rate`/`fee`/`status`).
+- **Components:** `src/components/gig/GigStaffSlotsSection.tsx` — per-assignment org badge/selector next to the person, populated from that person's `organization_members`.
+- **Verification:**
+  - Two people from two different orgs assigned to the same multi-count slot, each showing their correct org.
+  - A person who belongs to two orgs gets an org picker when added to a slot; a single-org person doesn't.
+  - `gig_financials`/`completeStaffAssignment`/cost totals unaffected — additive column only, run existing financial tests to confirm.
 
-ALTER TABLE public.gig_contacts ENABLE ROW LEVEL SECURITY;
-
--- Mirror the exact pattern already used for gig_participants / gig_staff_slots.
-CREATE POLICY "Admins and Managers can manage gig contacts" ON public.gig_contacts
-  USING (public.user_can_manage_gig(gig_id, auth.uid()));
-CREATE POLICY "Users can view contacts for accessible gigs" ON public.gig_contacts
-  FOR SELECT USING (public.user_has_access_to_gig(gig_id, auth.uid()));
-
-CREATE TRIGGER update_gig_contacts_updated_at BEFORE UPDATE ON public.gig_contacts
-  FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
-```
-
-### 7.2 Service layer
-- New `src/services/gigContact.service.ts`: `getGigContacts(gigId)`, `updateGigContacts(gigId, contacts[])` (diff/upsert/delete, same autosave pattern as `updateGigParticipants`).
-- `src/services/gigStaff.service.ts` — `updateGigStaffSlots` payload gains `organization_id` and `is_gig_primary_contact` per assignment; when a slot is saved, stop hard-coding `organization_id: currentOrganizationId` on the slot itself only where per-assignment org is now authoritative for display (keep slot-level org as the *default* for new assignments in that slot, not the source of truth for existing ones).
-- Add a small shared helper (e.g. `clearGigPrimaryContact(gigId, organizationId, excludeTable, excludeId)`) used by both `updateGigStaffSlots` and `updateGigContacts` to enforce the single-★-per-org-per-gig rule across the two tables.
-
-### 7.3 Components
-New:
-- `src/components/gig/AddGigPersonDialog.tsx` — the unified flow from §6.3, used by both sections.
-
-Edited:
-- `src/components/gig/GigParticipantsSection.tsx` — nested "People" list per org row.
-- `src/components/gig/GigStaffSlotsSection.tsx` — per-assignment org badge/selector, ★ toggle.
-
-### 7.4 Verification
-- Two people from two different orgs assigned to the same multi-count slot, each showing their correct org badge.
-- A person who belongs to two orgs gets an org picker when added to a slot; a single-org person doesn't.
-- Setting ★ on a contact clears any existing ★ on a staffer for the same org+gig, and vice versa.
-- `gig_financials` / `completeStaffAssignment` / cost totals unaffected — run existing financial tests, confirm `gig_contacts` never appears in any cost calculation.
-- Full regression of Phase 1 flows (client flag, org contacts) still works after the Staff Assignments changes.
-
-## 8. Open questions for a future pass (not blocking either phase)
+## 7. Open questions for a future pass (not blocking either item)
 - Should `is_client` ever be constrained to one org per gig? Ship permissive; revisit if it causes confusion in practice.
 - `users.role_hint` is an existing, entirely unused column (no reads/writes anywhere in `src/` or `supabase/functions/`) — worth a separate dead-code cleanup, unrelated to this feature.
-- Should a `'contact'` user ever be promotable to a real invited team member without losing their gig history? (Straightforward: flip `user_status` to `'pending'` and run the existing invite flow — same `users.id`, so `gig_contacts`/`gig_staff_assignments` FKs stay intact. Worth a one-line note in the contact-editing UI, not a schema change.)
+- Should a `'contact'` user ever be promotable to a real invited team member without losing their gig history? (Straightforward: flip `user_status` to `'pending'` and run the existing invite flow — same `users.id`, so FKs like `gig_participants.primary_contact_member_id` stay intact. Worth a one-line note in the contact-editing UI, not a schema change.)
+- If "who's the on-site contact" ever needs to cover a *paid* person too (not just org-level contacts), that's a deliberate, separate extension of §6.1 — not something to bolt on silently.
