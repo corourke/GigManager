@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from 'vitest'
 import { render, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import KitScreen from './KitScreen'
 import { makeUser, makeOrganization } from '../test/factories'
-import { getKit, getKits, getKitsFlattenedSummary } from '../services/kit.service'
+import { getKit, getKits, getKitsFlattenedSummary, getKitsThatWouldCycle } from '../services/kit.service'
 import { getAssets } from '../services/asset.service'
 
 // Mock all dependencies
@@ -10,6 +10,7 @@ vi.mock('../services/kit.service', () => ({
   getKit: vi.fn().mockResolvedValue({}),
   getKits: vi.fn().mockResolvedValue([]),
   getKitsFlattenedSummary: vi.fn().mockResolvedValue(new Map()),
+  getKitsThatWouldCycle: vi.fn().mockResolvedValue(new Set()),
   createKit: vi.fn(),
   updateKit: vi.fn(),
 }))
@@ -193,5 +194,85 @@ describe('KitScreen', () => {
     })
     expect(screen.queryByText('SM58 Mic')).not.toBeInTheDocument()
     expect(screen.queryByText('Lighting Kit')).not.toBeInTheDocument()
+  })
+
+  // A kit candidate that would create a circular reference is still shown
+  // (unlike an already-added/duplicate-asset candidate) but flagged inline
+  // on its own row, and can't be selected — surfaced before save, not just
+  // from the kit_components_prevent_cycle trigger's rejection afterward.
+  it('flags a kit candidate that would create a circular reference, inline on its row, and blocks selecting it', async () => {
+    vi.mocked(getKit).mockResolvedValue({
+      id: 'kit-1',
+      name: 'Full Rack',
+      kit_components: [],
+    } as any)
+
+    vi.mocked(getKits).mockResolvedValue([
+      { id: 'kit-parent', name: 'Grand Rack', category: null, kit_components: [] }, // already contains Full Rack — cyclic
+      { id: 'kit-other', name: 'Spare Case', category: null, kit_components: [] }, // unrelated — fine
+    ] as any)
+
+    vi.mocked(getKitsThatWouldCycle).mockImplementation(async (parentKitId: string, candidateKitIds: string[]) => {
+      expect(parentKitId).toBe('kit-1')
+      expect(candidateKitIds.sort()).toEqual(['kit-other', 'kit-parent'])
+      return new Set(['kit-parent'])
+    })
+
+    render(<KitScreen {...mockProps} kitId="kit-1" />)
+    fireEvent.click(await screen.findByText('Add Components'))
+
+    await waitFor(() => {
+      expect(screen.getByText('Grand Rack')).toBeInTheDocument()
+    })
+    expect(screen.getByText(/Would create a circular reference/)).toBeInTheDocument()
+    expect(screen.getByText('Spare Case')).toBeInTheDocument()
+
+    // Clicking the flagged row doesn't select it.
+    fireEvent.click(screen.getByText('Grand Rack'))
+    expect(screen.getByText('0 selected')).toBeInTheDocument()
+
+    // The unaffected candidate remains selectable.
+    fireEvent.click(screen.getByText('Spare Case'))
+    expect(screen.getByText('1 selected')).toBeInTheDocument()
+  })
+
+  // Regression: a cyclic candidate's flattened assets always overlap the
+  // kit being edited too (nesting X into Y when X already contains Y means
+  // X's flattened set already has everything Y has) — the duplicate-asset
+  // rule must not silently exclude it ahead of the cycle check, or the
+  // circular-reference warning above would never actually be reachable.
+  it('flags a candidate as cyclic even when its flattened assets also overlap — the cycle check takes priority over the duplicate-asset rule', async () => {
+    vi.mocked(getKit).mockResolvedValue({
+      id: 'kit-1',
+      name: 'Full Rack',
+      kit_components: [
+        { id: 'kc-1', asset_id: 'asset-1', quantity: 1, asset: { id: 'asset-1', manufacturer_model: 'DI Box' } },
+      ],
+    } as any)
+
+    vi.mocked(getKits).mockResolvedValue([
+      { id: 'kit-parent', name: 'Grand Rack', category: null, kit_components: [] },
+    ] as any)
+
+    vi.mocked(getKitsFlattenedSummary).mockImplementation(async (ids: string[]) => {
+      // Grand Rack already contains Full Rack, so its flattened set already
+      // includes Full Rack's own DI Box — a genuine duplicate overlap too.
+      const all = new Map([
+        ['kit-parent', { totalValue: 50, totalItems: 1, assetIds: new Set(['asset-1']) }],
+      ])
+      const result = new Map()
+      for (const id of ids) if (all.has(id)) result.set(id, all.get(id))
+      return result
+    })
+
+    vi.mocked(getKitsThatWouldCycle).mockResolvedValue(new Set(['kit-parent']))
+
+    render(<KitScreen {...mockProps} kitId="kit-1" />)
+    fireEvent.click(await screen.findByText('Add Components'))
+
+    await waitFor(() => {
+      expect(screen.getByText('Grand Rack')).toBeInTheDocument()
+    })
+    expect(screen.getByText(/Would create a circular reference/)).toBeInTheDocument()
   })
 })

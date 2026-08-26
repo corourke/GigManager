@@ -516,6 +516,32 @@ export async function getKitHierarchyTree(kitId: string): Promise<{
   }
 }
 
+/**
+ * Which of the given candidate kits would create a circular reference if
+ * nested into `parentKitId` — lets the picker flag a candidate inline,
+ * right on its row, instead of only finding out from the
+ * kit_components_prevent_cycle trigger's rejection at save time. One
+ * batched RPC call wrapping the same kit_would_create_cycle() the trigger
+ * itself uses, so the two can never disagree.
+ */
+export async function getKitsThatWouldCycle(parentKitId: string, candidateKitIds: string[]): Promise<Set<string>> {
+  const result = new Set<string>();
+  if (candidateKitIds.length === 0) return result;
+
+  const supabase = getSupabase();
+  try {
+    const { data, error } = await supabase.rpc('kits_that_would_cycle', {
+      p_parent_kit_id: parentKitId,
+      p_candidate_kit_ids: candidateKitIds,
+    });
+    if (error) throw error;
+    for (const row of (data || []) as any[]) result.add(row.kit_id);
+    return result;
+  } catch (err) {
+    return handleApiError(err, 'check kit cycle candidates');
+  }
+}
+
 export interface KitComponentTreeNode {
   clientKey: string;
   type: 'asset' | 'kit';

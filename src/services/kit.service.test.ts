@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { getKits, getKit, getDistinctKitValues, deleteKit, createKit, updateKit, duplicateKit, countInventoryItems, maxTreeDepth, KitComponentTreeNode } from './kit.service';
+import { getKits, getKit, getDistinctKitValues, deleteKit, createKit, updateKit, duplicateKit, countInventoryItems, maxTreeDepth, getKitsThatWouldCycle, KitComponentTreeNode } from './kit.service';
 import { createClient } from '../utils/supabase/client';
 import { requireAuth } from '../utils/supabase/auth-utils';
 
@@ -124,6 +124,41 @@ describe('kit.service', () => {
       mockSupabase.from.mockReturnValue(makeChain({ data: null, error: dbError }));
 
       await expect(getKit('missing-id')).rejects.toMatchObject({ message: 'Row not found' });
+    });
+  });
+
+  // ─── getKitsThatWouldCycle ────────────────────────────────────────────────
+
+  describe('getKitsThatWouldCycle', () => {
+    it('returns the set of candidate kit ids the RPC flags as cyclic', async () => {
+      mockSupabase.rpc = vi.fn().mockResolvedValue({
+        data: [{ kit_id: 'kit-b' }, { kit_id: 'kit-c' }],
+        error: null,
+      });
+
+      const result = await getKitsThatWouldCycle('kit-a', ['kit-b', 'kit-c', 'kit-d']);
+
+      expect(mockSupabase.rpc).toHaveBeenCalledWith('kits_that_would_cycle', {
+        p_parent_kit_id: 'kit-a',
+        p_candidate_kit_ids: ['kit-b', 'kit-c', 'kit-d'],
+      });
+      expect(result).toEqual(new Set(['kit-b', 'kit-c']));
+      expect(result.has('kit-d')).toBe(false);
+    });
+
+    it('returns an empty set without calling the RPC when there are no candidates', async () => {
+      mockSupabase.rpc = vi.fn();
+
+      const result = await getKitsThatWouldCycle('kit-a', []);
+
+      expect(result.size).toBe(0);
+      expect(mockSupabase.rpc).not.toHaveBeenCalled();
+    });
+
+    it('propagates Supabase errors', async () => {
+      mockSupabase.rpc = vi.fn().mockResolvedValue({ data: null, error: { message: 'RPC failed' } });
+
+      await expect(getKitsThatWouldCycle('kit-a', ['kit-b'])).rejects.toMatchObject({ message: 'RPC failed' });
     });
   });
 

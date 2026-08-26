@@ -178,16 +178,50 @@ export async function getActiveGigsWithTracking(organizationId: string): Promise
           id,
           name,
           is_container,
-          tag_number,
-          assets:kit_components!kit_assets_kit_id_fkey(
-            asset_id,
-            asset:assets(id, manufacturer_model, tag_number, status)
-          )
+          tag_number
         )
       `)
       .in('gig_id', activeGigIds);
 
     if (assignError) throw assignError;
+
+    // Every non-container kit's assets, fully flattened — a kit_components
+    // row alone can't answer "what assets does this kit have," since a
+    // sub-kit component has no asset of its own (that's what crashed here:
+    // the old query embedded kit_components -> assets directly, and every
+    // sub-kit row resolved to a null asset). Reads the same
+    // write-time-maintained cache used elsewhere (kit.service.ts), so
+    // nested sub-kits' assets are included too, consistent with how
+    // scanning already cascades through the whole hierarchy.
+    const nonContainerKitIds = Array.from(new Set(
+      (assignments ?? [])
+        .filter((a: any) => !a.kit?.is_container)
+        .map((a: any) => a.kit_id)
+    ));
+
+    const assetsByKit = new Map<string, AssetInKit[]>();
+    if (nonContainerKitIds.length > 0) {
+      const { data: flattened, error: flattenedError } = await supabase
+        .from('kit_flattened_cache')
+        .select('kit_id, asset_id, asset:assets(id, manufacturer_model, tag_number, status)')
+        .in('kit_id', nonContainerKitIds);
+
+      if (flattenedError) throw flattenedError;
+
+      for (const row of (flattened ?? []) as any[]) {
+        const list = assetsByKit.get(row.kit_id) ?? [];
+        list.push({
+          asset_id: row.asset_id,
+          asset: {
+            id: row.asset?.id,
+            manufacturer_model: row.asset?.manufacturer_model ?? null,
+            tag_number: row.asset?.tag_number ?? null,
+            status: row.asset?.status ?? null,
+          },
+        });
+        assetsByKit.set(row.kit_id, list);
+      }
+    }
 
     const { data: trackingRecords, error: trackingError } = await supabase
       .from('inventory_tracking')
@@ -222,15 +256,7 @@ export async function getActiveGigsWithTracking(organizationId: string): Promise
             name: a.kit.name,
             is_container: a.kit.is_container,
             tag_number: a.kit.tag_number ?? null,
-            assets: (a.kit.assets ?? []).map((ka: any) => ({
-              asset_id: ka.asset_id,
-              asset: {
-                id: ka.asset.id,
-                manufacturer_model: ka.asset.manufacturer_model ?? null,
-                tag_number: ka.asset.tag_number ?? null,
-                status: ka.asset.status ?? null,
-              },
-            })),
+            assets: assetsByKit.get(a.kit_id) ?? [],
           },
           tracking_records: trackingByGigAndKit.get(`${gig.id}:${a.kit_id}`) ?? [],
         })),

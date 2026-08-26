@@ -28,7 +28,7 @@ import {
 import AppHeader from './AppHeader';
 import { PageHeader } from './ui/PageHeader';
 import { Organization, User, UserRole } from '../utils/supabase/types';
-import { getKit, createKit, updateKit, getKits, getKitsFlattenedSummary, KitFlattenedSummary } from '../services/kit.service';
+import { getKit, createKit, updateKit, getKits, getKitsFlattenedSummary, getKitsThatWouldCycle, KitFlattenedSummary } from '../services/kit.service';
 import { getAssets } from '../services/asset.service';
 import type { DbAsset } from '../utils/supabase/types';
 import { useAutocompleteSuggestions } from '../utils/hooks/useAutocompleteSuggestions';
@@ -76,7 +76,7 @@ interface KitComponentRow {
 /** A searchable candidate in the unified picker — an asset or an existing kit. */
 type PickerCandidate =
   | { type: 'asset'; id: string; name: string; subtitle: string; asset: DbAsset; quantityAvailable: number | null }
-  | { type: 'kit'; id: string; name: string; subtitle: string; componentCount: number };
+  | { type: 'kit'; id: string; name: string; subtitle: string; componentCount: number; wouldCycle: boolean };
 
 export default function KitScreen({
   organization,
@@ -261,25 +261,42 @@ export default function KitScreen({
           quantityAvailable: a.quantity ?? null,
         }));
 
-      // A kit candidate is excluded if any asset it flattens to is already
-      // covered above — same rule, the other direction: adding this kit
-      // would put an asset already in the parent into it a second time.
-      const kitCandidates: PickerCandidate[] = kitCandidateSource
-        .filter((k: any) => {
-          const assetIds = summaries.get(k.id)?.assetIds;
-          if (!assetIds) return true;
-          for (const assetId of assetIds) {
-            if (existingFlattenedAssetIds.has(assetId)) return false;
-          }
-          return true;
-        })
-        .map((k: any) => ({
-          type: 'kit' as const,
-          id: k.id,
-          name: k.name,
-          subtitle: k.category || '',
-          componentCount: k.kit_components?.length ?? 0,
-        }));
+      // Check for circular references across every candidate BEFORE
+      // filtering out duplicate assets — a cycle candidate is, by
+      // construction, always also a duplicate-asset candidate (nesting X
+      // into Y when X already contains Y means X's flattened set already
+      // has everything Y has), so checking duplicates first would silently
+      // exclude every cycle case behind the generic "already in this kit"
+      // rule. The cycle is the more specific, more useful diagnosis, so it
+      // takes priority: flagged inline on its row instead of hidden. A
+      // brand-new, unsaved kit has no id yet and can't be anyone's
+      // ancestor, so this only applies in edit mode.
+      const cyclicKitIds = kitId
+        ? await getKitsThatWouldCycle(kitId, kitCandidateSource.map((k: any) => k.id))
+        : new Set<string>();
+
+      // A non-cyclic kit candidate is excluded if any asset it flattens to
+      // is already covered above — same rule as assets, the other
+      // direction: adding this kit would put an asset already in the
+      // parent into it a second time.
+      const visibleKitCandidates = kitCandidateSource.filter((k: any) => {
+        if (cyclicKitIds.has(k.id)) return true;
+        const assetIds = summaries.get(k.id)?.assetIds;
+        if (!assetIds) return true;
+        for (const assetId of assetIds) {
+          if (existingFlattenedAssetIds.has(assetId)) return false;
+        }
+        return true;
+      });
+
+      const kitCandidates: PickerCandidate[] = visibleKitCandidates.map((k: any) => ({
+        type: 'kit' as const,
+        id: k.id,
+        name: k.name,
+        subtitle: k.category || '',
+        componentCount: k.kit_components?.length ?? 0,
+        wouldCycle: cyclicKitIds.has(k.id),
+      }));
 
       setPickerCandidates([...assetCandidates, ...kitCandidates]);
     } catch (error: any) {
@@ -319,6 +336,7 @@ export default function KitScreen({
   const candidateKey = (c: PickerCandidate) => `${c.type}:${c.id}`;
 
   const toggleSelected = (c: PickerCandidate) => {
+    if (c.type === 'kit' && c.wouldCycle) return;
     const key = candidateKey(c);
     setSelectedKeys((prev) => {
       const next = new Set(prev);
@@ -926,31 +944,41 @@ export default function KitScreen({
                   const key = candidateKey(c);
                   const selected = selectedKeys.has(key);
                   const quantityToAdd = addQuantities.get(key) ?? 1;
+                  const disabled = c.type === 'kit' && c.wouldCycle;
                   return (
                     <div
                       key={key}
-                      className="p-4 hover:bg-gray-50 cursor-pointer flex items-start gap-3"
+                      className={`p-4 flex items-start gap-3 ${
+                        disabled ? 'cursor-not-allowed bg-gray-50/60' : 'hover:bg-gray-50 cursor-pointer'
+                      }`}
                       onClick={() => toggleSelected(c)}
                     >
                       {/* Selection is handled by the row's onClick — this checkbox is
                           purely a controlled visual indicator, no handler of its own,
                           so a click on it doesn't double-fire via event bubbling. */}
-                      <Checkbox checked={selected} className="mt-0.5 pointer-events-none" />
+                      <Checkbox checked={selected} disabled={disabled} className="mt-0.5 pointer-events-none" />
                       <div className="flex-1">
                         <div className="flex items-center gap-2">
-                          <div className="text-sm text-gray-900">{c.name}</div>
+                          <div className={`text-sm ${disabled ? 'text-gray-400' : 'text-gray-900'}`}>{c.name}</div>
                           <Badge variant="outline" className="gap-1 text-[10px]">
                             {c.type === 'kit' ? <Layers className="w-3 h-3" /> : <Package className="w-3 h-3" />}
                             {c.type === 'kit' ? 'Kit' : 'Asset'}
                           </Badge>
                         </div>
-                        <div className="text-xs text-gray-500">
-                          {c.subtitle}
-                          {c.type === 'asset' && c.quantityAvailable != null && (
-                            <span> • {c.quantityAvailable} in stock</span>
-                          )}
-                          {c.type === 'kit' && ` • ${c.componentCount} component${c.componentCount === 1 ? '' : 's'}`}
-                        </div>
+                        {disabled ? (
+                          <div className="text-xs text-amber-600 flex items-center gap-1 mt-0.5">
+                            <AlertCircle className="w-3 h-3" />
+                            Would create a circular reference — this kit is already nested inside {c.name}
+                          </div>
+                        ) : (
+                          <div className="text-xs text-gray-500">
+                            {c.subtitle}
+                            {c.type === 'asset' && c.quantityAvailable != null && (
+                              <span> • {c.quantityAvailable} in stock</span>
+                            )}
+                            {c.type === 'kit' && ` • ${c.componentCount} component${c.componentCount === 1 ? '' : 's'}`}
+                          </div>
+                        )}
                       </div>
                       {/* A kit is a singular entity — no quantity to set, it's
                           always exactly one instance (enforced when adding and

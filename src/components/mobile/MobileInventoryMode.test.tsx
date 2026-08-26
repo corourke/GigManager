@@ -171,6 +171,66 @@ describe('MobileInventoryMode', () => {
     expect(locationInput).toHaveValue(secondMode.locationLabel)
   })
 
+  it('renders a nested sub-kit as its own row instead of a flat sibling card, without duplicating its assets into the parent', async () => {
+    // Full Rack (not a container) directly contains Cable Snake and also
+    // nests Mic Case (a container), which contains its own SM58.
+    vi.mocked(idbStore.getPackingList).mockImplementation(async () => ({
+      gig_id: 'gig-1',
+      gig_title: 'Warehouse Check-In',
+      top_level_kit_ids: ['kit-1'],
+      hierarchy_edges: [{ parent_kit_id: 'kit-1', child_kit_id: 'kit-2' }],
+      kits: [
+        {
+          kit_id: 'kit-1',
+          kit: {
+            id: 'kit-1',
+            name: 'Full Rack',
+            tag_number: 'KIT-001',
+            is_container: false,
+            direct_assets: [
+              { asset_id: 'asset-snake', quantity: 1, asset: { id: 'asset-snake', manufacturer_model: 'Cable Snake', tag_number: 'SNAKE-1' } },
+            ],
+            assets: [
+              { asset_id: 'asset-snake', quantity: 1, asset: { id: 'asset-snake', manufacturer_model: 'Cable Snake', tag_number: 'SNAKE-1' } },
+              { asset_id: 'asset-mic', quantity: 1, asset: { id: 'asset-mic', manufacturer_model: 'SM58', tag_number: 'MIC-1' } },
+            ],
+          },
+        },
+        {
+          kit_id: 'kit-2',
+          kit: {
+            id: 'kit-2',
+            name: 'Mic Case',
+            tag_number: 'KIT-002',
+            is_container: true,
+            direct_assets: [
+              { asset_id: 'asset-mic', quantity: 1, asset: { id: 'asset-mic', manufacturer_model: 'SM58', tag_number: 'MIC-1' } },
+            ],
+            assets: [
+              { asset_id: 'asset-mic', quantity: 1, asset: { id: 'asset-mic', manufacturer_model: 'SM58', tag_number: 'MIC-1' } },
+            ],
+          },
+        },
+      ],
+      tracking: [],
+    }))
+
+    render(<MobileInventoryMode gigId="gig-1" onSelectGig={vi.fn()} />)
+
+    expect(await screen.findByText('Full Rack')).toBeInTheDocument()
+    expect(await screen.findByText('Mic Case')).toBeInTheDocument()
+
+    // Full Rack (non-container) defaults to expanded — its own direct
+    // asset shows, but Mic Case's SM58 doesn't show here (it belongs to
+    // Mic Case's own row, not folded into Full Rack's list).
+    expect(await screen.findByText('Cable Snake')).toBeInTheDocument()
+    expect(screen.queryByText('SM58')).not.toBeInTheDocument()
+
+    // Mic Case is a container, so it defaults to collapsed and doesn't get
+    // descended into any further — but it's still there as its own kit row.
+    expect(screen.getByText('Mic Case').closest('div')).toBeTruthy()
+  })
+
   it('preserves customized location when switching modes', async () => {
     const user = userEvent.setup()
 

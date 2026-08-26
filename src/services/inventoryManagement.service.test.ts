@@ -259,6 +259,73 @@ describe('inventoryManagement.service', () => {
     });
   });
 
+  describe('getActiveGigsWithTracking', () => {
+    // Regression: a kit's kit_components rows can be a mix of asset_id rows
+    // and child_kit_id (sub-kit) rows. The old query embedded assets
+    // directly off kit_components, and a sub-kit row resolves to a null
+    // asset — reading `.id` off it threw, which handleApiError's
+    // isNetworkError misclassified as a network error and silently broke
+    // this function for any kit with a nested sub-kit.
+    it('does not crash for a non-container kit with a mix of direct assets and nested sub-kits, and flattens its assets via the cache', async () => {
+      const { getActiveGigsWithTracking } = await import('./inventoryManagement.service');
+
+      mockSupabase.from.mockImplementation((table: string) => {
+        if (table === 'gig_participants') {
+          return makeQueryChain({ data: [{ gig_id: 'gig-1' }], error: null });
+        }
+        if (table === 'gigs') {
+          return makeQueryChain({
+            data: [{ id: 'gig-1', title: 'Test Gig', start: '2026-09-01T00:00:00Z', end: '2026-09-01T04:00:00Z', status: 'Booked' }],
+            error: null,
+          });
+        }
+        if (table === 'gig_kit_assignments') {
+          return makeQueryChain({
+            data: [
+              { gig_id: 'gig-1', kit_id: 'kit-1', kit: { id: 'kit-1', name: 'Full Rack', is_container: false, tag_number: null } },
+              { gig_id: 'gig-1', kit_id: 'kit-2', kit: { id: 'kit-2', name: 'Road Case', is_container: true, tag_number: null } },
+            ],
+            error: null,
+          });
+        }
+        if (table === 'kit_flattened_cache') {
+          // Only kit-1 (non-container) should ever be queried — kit-2 is a container.
+          return makeQueryChain({
+            data: [
+              { kit_id: 'kit-1', asset_id: 'asset-1', asset: { id: 'asset-1', manufacturer_model: 'DI Box', tag_number: null, status: 'Active' } },
+              { kit_id: 'kit-1', asset_id: 'asset-2', asset: { id: 'asset-2', manufacturer_model: 'LED Par', tag_number: null, status: 'Active' } },
+            ],
+            error: null,
+          });
+        }
+        if (table === 'inventory_tracking') {
+          return makeQueryChain({ data: [], error: null });
+        }
+        return makeQueryChain({ data: [], error: null });
+      });
+
+      const result = await getActiveGigsWithTracking('org-1');
+
+      expect(result).toHaveLength(1);
+      const kitAssignments = result[0].kit_assignments;
+      const fullRack = kitAssignments.find((a) => a.kit_id === 'kit-1')!;
+      const roadCase = kitAssignments.find((a) => a.kit_id === 'kit-2')!;
+
+      expect(fullRack.kit.assets.map((a) => a.asset_id).sort()).toEqual(['asset-1', 'asset-2']);
+      expect(fullRack.kit.assets.find((a) => a.asset_id === 'asset-1')?.asset.manufacturer_model).toBe('DI Box');
+      // Container kits aren't flattened here — they're tracked as one sealed unit.
+      expect(roadCase.kit.assets).toEqual([]);
+    });
+
+    it('returns an empty array when the org has no gig participants', async () => {
+      const { getActiveGigsWithTracking } = await import('./inventoryManagement.service');
+      mockSupabase.from.mockReturnValue(makeQueryChain({ data: [], error: null }));
+
+      const result = await getActiveGigsWithTracking('org-1');
+      expect(result).toEqual([]);
+    });
+  });
+
   describe('getInventoryConflictFlags', () => {
     it('returns empty set when there are no gig assignments', async () => {
       const { getInventoryConflictFlags } = await import('./inventoryManagement.service');
