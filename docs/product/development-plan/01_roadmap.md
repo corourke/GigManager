@@ -143,3 +143,4 @@ See [Competitive Analysis §6](02_competitive-analysis.md) for full gap prioriti
 | [Gig Financials Workflow](07_gig-financials-workflow.md) | Single-ledger design, profitability model, staff lifecycle |
 | [Scale & Performance](08_scale-performance-roadmap.md) | Load testing, indexing, virtualization strategy |
 | [Code & Product Review](../code-and-product-review-202606.md) | June 2026 review findings and remediation (completed) |
+| [The Reporting Gap](../reporting-gap-202608.md) | Aug 2026 gap analysis: financial reporting is a placeholder; two doc status markers were wrong; June review follow-up |
