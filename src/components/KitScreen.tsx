@@ -28,9 +28,8 @@ import {
 import AppHeader from './AppHeader';
 import { PageHeader } from './ui/PageHeader';
 import { Organization, User, UserRole } from '../utils/supabase/types';
-import { getKit, createKit, updateKit } from '../services/kit.service';
+import { getKit, createKit, updateKit, getKits, getKitsFlattenedSummary } from '../services/kit.service';
 import { getAssets } from '../services/asset.service';
-import { getKits } from '../services/kit.service';
 import type { DbAsset } from '../utils/supabase/types';
 import { useAutocompleteSuggestions } from '../utils/hooks/useAutocompleteSuggestions';
 
@@ -55,19 +54,28 @@ interface FormData {
   rental_value: string;
 }
 
-/** A row in the kit's contents — exactly one of asset/childKit is set. */
+/**
+ * A row in the kit's contents — exactly one of asset/childKit is set.
+ * clientKey is the row's stable local identity: the DB id when loaded from an
+ * existing kit, or a generated id for a row just added in this session. It's
+ * never derived from asset_id/child_kit_id, which aren't unique — two rows
+ * can't reference the same asset (the DB enforces that), but during editing,
+ * deriving identity from a foreign key meant removing one row removed every
+ * row sharing that key.
+ */
 interface KitComponentRow {
+  clientKey: string;
   id?: string;
   asset_id?: string;
   child_kit_id?: string;
   asset?: DbAsset;
-  childKit?: { id: string; name: string; is_container?: boolean; category?: string | null; rental_value?: number | null };
+  childKit?: { id: string; name: string; is_container?: boolean; category?: string | null };
   quantity: number;
 }
 
 /** A searchable candidate in the unified picker — an asset or an existing kit. */
 type PickerCandidate =
-  | { type: 'asset'; id: string; name: string; subtitle: string; asset: DbAsset }
+  | { type: 'asset'; id: string; name: string; subtitle: string; asset: DbAsset; quantityAvailable: number | null }
   | { type: 'kit'; id: string; name: string; subtitle: string; componentCount: number };
 
 export default function KitScreen({
@@ -95,6 +103,9 @@ export default function KitScreen({
   const [isContainer, setIsContainer] = useState(false);
   const [kitComponents, setKitComponents] = useState<KitComponentRow[]>([]);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  // Sub-kits' true equipment value (flattened replacement value), keyed by
+  // child_kit_id — not their own rental_value, which isn't relevant here.
+  const [childKitValues, setChildKitValues] = useState<Map<string, number>>(new Map());
 
   // Unified component picker dialog
   const [showPicker, setShowPicker] = useState(false);
@@ -102,6 +113,7 @@ export default function KitScreen({
   const [pickerCandidates, setPickerCandidates] = useState<PickerCandidate[]>([]);
   const [pickerSearchQuery, setPickerSearchQuery] = useState('');
   const [selectedKeys, setSelectedKeys] = useState<Set<string>>(new Set());
+  const [addQuantities, setAddQuantities] = useState<Map<string, number>>(new Map());
   const [tagInput, setTagInput] = useState('');
 
   const isEditMode = !!kitId;
@@ -144,6 +156,23 @@ export default function KitScreen({
     }
   }, [kitId]);
 
+  // Fetch (and cache) each referenced sub-kit's flattened replacement value
+  // whenever a new one shows up in the draft — covers both kits loaded with
+  // the kit and ones just added via the picker.
+  useEffect(() => {
+    const childKitIds = Array.from(new Set(kitComponents.filter(c => c.child_kit_id).map(c => c.child_kit_id!)));
+    const missing = childKitIds.filter((id) => !childKitValues.has(id));
+    if (missing.length === 0) return;
+
+    getKitsFlattenedSummary(missing).then((summaries) => {
+      setChildKitValues((prev) => {
+        const next = new Map(prev);
+        for (const id of missing) next.set(id, summaries.get(id)?.totalValue ?? 0);
+        return next;
+      });
+    });
+  }, [kitComponents, childKitValues]);
+
   const loadKit = async () => {
     if (!kitId) return;
 
@@ -163,6 +192,7 @@ export default function KitScreen({
       setIsContainer(kit.is_container ?? false);
 
       const mappedComponents: KitComponentRow[] = (kit.kit_components || []).map((kc: any) => ({
+        clientKey: kc.id,
         id: kc.id,
         asset_id: kc.asset_id ?? undefined,
         child_kit_id: kc.child_kit_id ?? undefined,
@@ -194,13 +224,22 @@ export default function KitScreen({
         pickerFilter === 'assets' ? Promise.resolve([]) : getKits(organization.id, { search: pickerSearchQuery || undefined }),
       ]);
 
-      const assetCandidates: PickerCandidate[] = (assets || []).map((a: DbAsset) => ({
-        type: 'asset',
-        id: a.id,
-        name: a.manufacturer_model || 'Unknown Asset',
-        subtitle: [a.category, a.serial_number ? `SN: ${a.serial_number}` : null].filter(Boolean).join(' • '),
-        asset: a,
-      }));
+      // Exclude assets already added as a direct component — adding the same
+      // asset again would either collide with the DB's unique constraint or,
+      // for a still-unsaved row, produce two rows with no way to tell them
+      // apart. Increasing how many of an asset are in the kit happens by
+      // editing that row's quantity, not by re-adding it.
+      const alreadyDirectAssetIds = new Set(kitComponents.filter(c => c.asset_id).map(c => c.asset_id));
+      const assetCandidates: PickerCandidate[] = (assets || [])
+        .filter((a: DbAsset) => !alreadyDirectAssetIds.has(a.id))
+        .map((a: DbAsset) => ({
+          type: 'asset',
+          id: a.id,
+          name: a.manufacturer_model || 'Unknown Asset',
+          subtitle: [a.category, a.serial_number ? `SN: ${a.serial_number}` : null].filter(Boolean).join(' • '),
+          asset: a,
+          quantityAvailable: a.quantity ?? null,
+        }));
 
       // Exclude the kit being edited itself, and kits already added as a direct
       // component — a UX nicety, not the security boundary (the DB trigger is).
@@ -262,17 +301,24 @@ export default function KitScreen({
     });
   };
 
+  const setAddQuantity = (key: string, quantity: number) => {
+    setAddQuantities((prev) => new Map(prev).set(key, Math.max(1, quantity)));
+  };
+
   const handleAddSelected = () => {
     const toAdd: KitComponentRow[] = [];
     for (const c of pickerCandidates) {
-      if (!selectedKeys.has(candidateKey(c))) continue;
+      const key = candidateKey(c);
+      if (!selectedKeys.has(key)) continue;
+      const quantity = addQuantities.get(key) ?? 1;
       if (c.type === 'asset') {
-        toAdd.push({ asset_id: c.id, asset: c.asset, quantity: 1 });
+        toAdd.push({ clientKey: crypto.randomUUID(), asset_id: c.id, asset: c.asset, quantity });
       } else {
         toAdd.push({
+          clientKey: crypto.randomUUID(),
           child_kit_id: c.id,
           childKit: { id: c.id, name: c.name, category: c.subtitle || null },
-          quantity: 1,
+          quantity,
         });
       }
     }
@@ -282,20 +328,19 @@ export default function KitScreen({
     setShowPicker(false);
     setPickerSearchQuery('');
     setSelectedKeys(new Set());
+    setAddQuantities(new Map());
   };
 
-  const componentRowId = (row: KitComponentRow) => row.asset_id ?? row.child_kit_id ?? '';
-
-  const handleUpdateQuantity = (rowId: string, quantity: number) => {
+  const handleUpdateQuantity = (clientKey: string, quantity: number) => {
     setKitComponents((prev) =>
       prev.map((row) =>
-        componentRowId(row) === rowId ? { ...row, quantity: Math.max(1, quantity) } : row
+        row.clientKey === clientKey ? { ...row, quantity: Math.max(1, quantity) } : row
       )
     );
   };
 
-  const handleRemoveComponent = (rowId: string) => {
-    setKitComponents((prev) => prev.filter((row) => componentRowId(row) !== rowId));
+  const handleRemoveComponent = (clientKey: string) => {
+    setKitComponents((prev) => prev.filter((row) => row.clientKey !== clientKey));
   };
 
   const validate = (): boolean => {
@@ -387,19 +432,29 @@ export default function KitScreen({
       }
     } catch (error: any) {
       console.error('Error saving kit:', error);
-      // The DB trigger's message is already user-facing ("Adding this kit
-      // would create a circular reference") — no special-casing needed here.
-      toast.error(error.message || 'Failed to save kit');
+      if (error.code === '23505') {
+        // Postgres unique_violation on kit_components — the raw message
+        // ("duplicate key value violates unique constraint ...") isn't
+        // user-facing on its own, so lead with plain context.
+        toast.error(`An inventory asset or kit can not be added more than once. ${error.message || ''}`.trim());
+      } else {
+        // The circular-reference trigger's message is already user-facing —
+        // no special-casing needed for that one.
+        toast.error(error.message || 'Failed to save kit');
+      }
     } finally {
       setIsSaving(false);
     }
   };
 
+  // A sub-kit's "value" here is its flattened replacement value (what its
+  // contents are worth), not its own rental_value — the parent kit's rental
+  // value is what the user sets, informed by this total.
+  const componentUnitValue = (row: KitComponentRow) =>
+    row.asset?.replacement_value ?? (row.child_kit_id ? childKitValues.get(row.child_kit_id) : undefined) ?? 0;
+
   const getTotalValue = () => {
-    return kitComponents.reduce((total, row) => {
-      const unitValue = row.asset?.replacement_value ?? row.childKit?.rental_value ?? 0;
-      return total + unitValue * row.quantity;
-    }, 0);
+    return kitComponents.reduce((total, row) => total + componentUnitValue(row) * row.quantity, 0);
   };
 
   const formatCurrency = (amount: number) => {
@@ -618,9 +673,9 @@ export default function KitScreen({
                     </TableHeader>
                     <TableBody>
                       {kitComponents.map((row) => {
-                        const rowId = componentRowId(row);
+                        const rowId = row.clientKey;
                         const isKit = !!row.child_kit_id;
-                        const unitValue = row.asset?.replacement_value ?? row.childKit?.rental_value ?? 0;
+                        const unitValue = componentUnitValue(row);
                         return (
                           <TableRow key={rowId}>
                             <TableCell>
@@ -828,6 +883,7 @@ export default function KitScreen({
                 pickerCandidates.map((c) => {
                   const key = candidateKey(c);
                   const selected = selectedKeys.has(key);
+                  const quantityToAdd = addQuantities.get(key) ?? 1;
                   return (
                     <div
                       key={key}
@@ -848,8 +904,24 @@ export default function KitScreen({
                         </div>
                         <div className="text-xs text-gray-500">
                           {c.subtitle}
+                          {c.type === 'asset' && c.quantityAvailable != null && (
+                            <span> • {c.quantityAvailable} in stock</span>
+                          )}
                           {c.type === 'kit' && ` • ${c.componentCount} component${c.componentCount === 1 ? '' : 's'}`}
                         </div>
+                      </div>
+                      <div onClick={(e) => e.stopPropagation()} className="flex items-center gap-1.5">
+                        <Label htmlFor={`qty-${key}`} className="text-xs text-gray-500">
+                          Qty
+                        </Label>
+                        <Input
+                          id={`qty-${key}`}
+                          type="number"
+                          min="1"
+                          value={quantityToAdd}
+                          onChange={(e) => setAddQuantity(key, parseInt(e.target.value) || 1)}
+                          className="w-16 h-8 text-sm"
+                        />
                       </div>
                     </div>
                   );

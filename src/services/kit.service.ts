@@ -434,6 +434,47 @@ export async function getKitFlattenedContents(kitId: string) {
   }
 }
 
+export interface KitFlattenedSummary {
+  /** Sum of each flattened asset's replacement_value × quantity. */
+  totalValue: number;
+  /** Sum of each flattened asset's quantity — the true item count, recursing through nested kits. */
+  totalItems: number;
+}
+
+/**
+ * Flattened item count and replacement value for each of the given kits —
+ * one batched query against the recursive cache, so callers never need to
+ * walk `kit_components` (whose child-kit rows carry no `asset`/quantity of
+ * their own and would otherwise silently read as zero — see the Kits list
+ * "Total Value"/"Items" columns and a kit's own contents table for two
+ * places that bug showed up in practice). A sub-kit's own rental_value isn't
+ * relevant to either total (see requirements: the parent's rental value is
+ * what the user sets, informed by replacement cost).
+ */
+export async function getKitsFlattenedSummary(kitIds: string[]): Promise<Map<string, KitFlattenedSummary>> {
+  const result = new Map<string, KitFlattenedSummary>();
+  if (kitIds.length === 0) return result;
+
+  const supabase = getSupabase();
+  try {
+    const { data, error } = await supabase
+      .from('kit_flattened_cache')
+      .select('kit_id, total_quantity, asset:assets(replacement_value)')
+      .in('kit_id', kitIds);
+
+    if (error) throw error;
+    for (const row of (data || []) as any[]) {
+      const existing = result.get(row.kit_id) || { totalValue: 0, totalItems: 0 };
+      existing.totalValue += (row.asset?.replacement_value || 0) * row.total_quantity;
+      existing.totalItems += row.total_quantity;
+      result.set(row.kit_id, existing);
+    }
+    return result;
+  } catch (err) {
+    return handleApiError(err, 'fetch kits flattened summary');
+  }
+}
+
 /**
  * The nested sub-kit structure (edges + depth) for the hierarchy display,
  * enriched with each child kit's name — the RPC only returns IDs, so this

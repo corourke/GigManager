@@ -2,6 +2,7 @@ import {describe, it, expect, vi } from 'vitest'
 import {render } from '@testing-library/react'
 import KitListScreen from './KitListScreen'
 import { makeUser, makeOrganization } from '../test/factories'
+import { getKits, getKitsFlattenedSummary } from '../services/kit.service'
 
 // Mock localStorage
 const localStorageMock = (() => {
@@ -37,6 +38,7 @@ vi.mock('../services/kit.service', () => ({
   deleteKit: vi.fn().mockResolvedValue({ success: true }),
   duplicateKit: vi.fn().mockResolvedValue({ id: 'new-kit-id' }),
   updateKit: vi.fn().mockResolvedValue({}),
+  getKitsFlattenedSummary: vi.fn().mockResolvedValue(new Map()),
 }))
 
 vi.mock('../services/inventoryManagement.service', () => ({
@@ -94,6 +96,29 @@ describe('KitListScreen', () => {
   it('renders tracking status filter dropdown', async () => {
     const { findAllByText } = render(<KitListScreen {...mockProps} />)
     expect((await findAllByText('Tracking Status:')).length).toBeGreaterThan(0)
+  })
+
+  // Regression: a kit's kit_components rows for nested sub-kits carry no
+  // asset/quantity of their own, so summing row.kit_components directly (the
+  // old behavior) silently dropped every nested kit's value/items. The
+  // flattened summary (from kit_flattened_cache) is the source of truth now.
+  it('shows the flattened total value/items, not a naive sum of direct kit_components rows', async () => {
+    vi.mocked(getKits).mockResolvedValue([{
+      id: 'kit-parent',
+      organization_id: 'org-1',
+      name: 'Full Rack',
+      category: 'Audio',
+      is_container: false,
+      // Only a nested sub-kit row directly — no asset, so the old reduce read $0/0 items.
+      kit_components: [{ id: 'kc-1', child_kit_id: 'kit-child', quantity: 1 }],
+    }] as any)
+    vi.mocked(getKitsFlattenedSummary).mockResolvedValue(new Map([
+      ['kit-parent', { totalValue: 350, totalItems: 5 }],
+    ]))
+
+    const { findByText } = render(<KitListScreen {...mockProps} />)
+    expect(await findByText('$350.00')).toBeInTheDocument()
+    expect(await findByText('5')).toBeInTheDocument()
   })
 })
 
