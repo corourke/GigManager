@@ -84,7 +84,7 @@ export default function InventoryTabScreen({
           </TabsContent>
 
           <TabsContent value="explorer">
-            <LocationExplorer organizationId={organization.id} />
+            <LocationExplorer organizationId={organization.id} userId={user.id} userRole={userRole} />
           </TabsContent>
 
           <TabsContent value="reports">

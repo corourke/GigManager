@@ -1,6 +1,6 @@
 import { createClient } from '../utils/supabase/client';
 import { handleApiError } from '../utils/api-error-utils';
-import { SCANNING_MODES } from '../config/inventoryWorkflow';
+import { SCANNING_MODES, RETURNED_STATUS } from '../config/inventoryWorkflow';
 import type { DbInventoryTracking } from '../utils/supabase/types';
 
 const getSupabase = () => createClient();
@@ -52,6 +52,7 @@ export interface KitTrackingSummary {
 export interface LocationItem {
   kit_id: string;
   kit_name?: string | null;
+  is_container: boolean;
   asset_id?: string | null;
   asset_name?: string | null;
   tag_number?: string | null;
@@ -276,7 +277,7 @@ export async function getItemsByLocation(
 
     let query = supabase
       .from('inventory_tracking')
-      .select('id, gig_id, kit_id, asset_id, status, location, scanned_at, scanned_by, notes, created_at, scanned_by_user:users!scanned_by(first_name, last_name, email), kit:kit_id(name), gig:gig_id(title)')
+      .select('id, gig_id, kit_id, asset_id, status, location, scanned_at, scanned_by, notes, created_at, scanned_by_user:users!scanned_by(first_name, last_name, email), kit:kit_id(name, is_container), gig:gig_id(title)')
       .eq('organization_id', organizationId);
 
     if (filters.location) {
@@ -314,6 +315,7 @@ export async function getItemsByLocation(
       return {
         kit_id: record.kit_id ?? '',
         kit_name: rawRecord?.kit?.name ?? null,
+        is_container: !!rawRecord?.kit?.is_container,
         asset_id: record.asset_id ?? null,
         asset_name: asset?.manufacturer_model ?? null,
         tag_number: asset?.tag_number ?? null,
@@ -584,10 +586,14 @@ export async function getAssetTrackingSummary(
     const map = new Map<string, { status: string; location?: string | null; gigTitle?: string | null }>();
     for (const record of (data ?? []) as any[]) {
       if (record.asset_id && !map.has(record.asset_id)) {
+        // Once returned, the asset isn't actively checked out to the gig
+        // that last scanned it — even though the record itself still
+        // points at that gig (rows are always gig-scoped).
+        const isReturned = record.status === RETURNED_STATUS;
         map.set(record.asset_id, {
           status: record.status,
           location: record.location ?? null,
-          gigTitle: record.gig?.title ?? null,
+          gigTitle: isReturned ? null : (record.gig?.title ?? null),
         });
       }
     }
@@ -642,6 +648,11 @@ export async function getKitTrackingSummary(
 
       const representativeRecord = kitRecord ?? assetRecords[0];
       const rawRecord = representativeRecord as any;
+      const status = kitRecord?.status ?? assetRecords[0]?.status ?? null;
+      // Once returned, the kit isn't actively checked out to the gig that
+      // last scanned it — even though the record itself still points at
+      // that gig (rows are always gig-scoped).
+      const isReturned = status === RETURNED_STATUS;
 
       const statusCounts: Record<string, number> = {};
       for (const ar of assetRecords) {
@@ -651,10 +662,10 @@ export async function getKitTrackingSummary(
       map.set(kitId, {
         kitId,
         isContainer,
-        status: kitRecord?.status ?? assetRecords[0]?.status ?? null,
+        status,
         location: representativeRecord?.location ?? null,
-        gigTitle: rawRecord?.gig?.title ?? null,
-        gigId: representativeRecord?.gig_id ?? null,
+        gigTitle: isReturned ? null : (rawRecord?.gig?.title ?? null),
+        gigId: isReturned ? null : (representativeRecord?.gig_id ?? null),
         lastScannedAt: representativeRecord?.scanned_at ?? null,
         totalAssets: assetIds.length,
         scannedAssets: assetRecords.length,

@@ -13,6 +13,7 @@ vi.mock('../config/inventoryWorkflow', () => ({
     { id: 'load-out', label: 'Load-Out', resultingStatus: 'In Transit', description: '', locationLabel: 'Truck' },
     { id: 'unload', label: 'Unload', resultingStatus: 'In Warehouse', description: '', locationLabel: 'Warehouse' },
   ],
+  RETURNED_STATUS: 'In Warehouse',
 }));
 
 function makeQueryChain(result: { data: any; error: any }) {
@@ -179,6 +180,82 @@ describe('inventoryManagement.service', () => {
       expect(chain.insert).toHaveBeenCalledWith(
         expect.objectContaining({ asset_id: 'asset-1' })
       );
+    });
+  });
+
+  describe('getAssetTrackingSummary', () => {
+    it('clears the gig title once the asset\'s latest record is returned to the warehouse', async () => {
+      const { getAssetTrackingSummary } = await import('./inventoryManagement.service');
+
+      const chain = makeQueryChain({
+        data: [
+          // Latest record for asset-1 (order by scanned_at desc means this row comes first).
+          { asset_id: 'asset-1', gig_id: 'gig-1', status: 'In Warehouse', location: 'Warehouse', scanned_at: '2026-01-02T00:00:00Z', gig: { title: 'Test Gig' } },
+          { asset_id: 'asset-1', gig_id: 'gig-1', status: 'Checked Out', location: 'Staging Area', scanned_at: '2026-01-01T00:00:00Z', gig: { title: 'Test Gig' } },
+          // asset-2 is still actively out — its gig title should stay.
+          { asset_id: 'asset-2', gig_id: 'gig-1', status: 'On Site', location: 'Venue Area', scanned_at: '2026-01-01T00:00:00Z', gig: { title: 'Test Gig' } },
+        ],
+        error: null,
+      });
+      mockSupabase.from.mockReturnValue(chain);
+
+      const result = await getAssetTrackingSummary('org-1');
+
+      expect(result.get('asset-1')).toEqual({ status: 'In Warehouse', location: 'Warehouse', gigTitle: null });
+      expect(result.get('asset-2')).toEqual({ status: 'On Site', location: 'Venue Area', gigTitle: 'Test Gig' });
+    });
+  });
+
+  describe('getKitTrackingSummary', () => {
+    it('clears the gig title/id once the kit\'s latest record is returned to the warehouse', async () => {
+      const { getKitTrackingSummary } = await import('./inventoryManagement.service');
+
+      mockSupabase.from.mockImplementation((table: string) => {
+        if (table === 'kits') {
+          return makeQueryChain({
+            data: [{ id: 'kit-1', is_container: true, kit_components: [] }],
+            error: null,
+          });
+        }
+        return makeQueryChain({
+          data: [
+            { kit_id: 'kit-1', asset_id: null, gig_id: 'gig-1', status: 'In Warehouse', location: 'Warehouse', scanned_at: '2026-01-02T00:00:00Z', gig: { title: 'Test Gig' } },
+          ],
+          error: null,
+        });
+      });
+
+      const result = await getKitTrackingSummary('org-1');
+
+      const summary = result.get('kit-1');
+      expect(summary?.status).toBe('In Warehouse');
+      expect(summary?.gigTitle).toBeNull();
+      expect(summary?.gigId).toBeNull();
+    });
+
+    it('keeps the gig title/id for a kit still actively checked out', async () => {
+      const { getKitTrackingSummary } = await import('./inventoryManagement.service');
+
+      mockSupabase.from.mockImplementation((table: string) => {
+        if (table === 'kits') {
+          return makeQueryChain({
+            data: [{ id: 'kit-1', is_container: true, kit_components: [] }],
+            error: null,
+          });
+        }
+        return makeQueryChain({
+          data: [
+            { kit_id: 'kit-1', asset_id: null, gig_id: 'gig-1', status: 'On Site', location: 'Venue Area', scanned_at: '2026-01-02T00:00:00Z', gig: { title: 'Test Gig' } },
+          ],
+          error: null,
+        });
+      });
+
+      const result = await getKitTrackingSummary('org-1');
+
+      const summary = result.get('kit-1');
+      expect(summary?.gigTitle).toBe('Test Gig');
+      expect(summary?.gigId).toBe('gig-1');
     });
   });
 

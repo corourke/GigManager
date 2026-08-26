@@ -20,7 +20,10 @@ interface TrackingTabProps {
 export default function TrackingTab({ organizationId }: TrackingTabProps) {
   const [gigs, setGigs] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [selectedGigId, setSelectedGigId] = useState<string | null>(null);
+  // '' means "no gig selected" — Select must stay controlled for its whole
+  // lifetime (a `value` of `undefined` on first render, then a real string
+  // once picked, trips React's uncontrolled->controlled warning).
+  const [selectedGigId, setSelectedGigId] = useState('');
 
   useEffect(() => {
     let cancelled = false;
@@ -44,7 +47,7 @@ export default function TrackingTab({ organizationId }: TrackingTabProps) {
     <div className="space-y-4">
       <Card className="p-4">
         <label className="text-sm text-gray-600 mb-2 block">Gig</label>
-        <Select value={selectedGigId ?? undefined} onValueChange={setSelectedGigId}>
+        <Select value={selectedGigId} onValueChange={setSelectedGigId}>
           <SelectTrigger className="w-full max-w-md">
             {isLoading ? (
               <span className="flex items-center gap-2 text-gray-500">
