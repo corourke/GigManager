@@ -1,11 +1,12 @@
 import { describe, it, expect, vi } from 'vitest'
-import { render } from '@testing-library/react'
+import { render, fireEvent, screen } from '@testing-library/react'
 import KitScreen from './KitScreen'
 import { makeUser, makeOrganization } from '../test/factories'
 
 // Mock all dependencies
 vi.mock('../services/kit.service', () => ({
   getKit: vi.fn().mockResolvedValue({}),
+  getKits: vi.fn().mockResolvedValue([]),
   createKit: vi.fn(),
   updateKit: vi.fn(),
 }))
@@ -63,5 +64,13 @@ describe('KitScreen', () => {
     expect(() => {
       render(<KitScreen {...mockProps} kitId="test-id" />)
     }).not.toThrow()
+  })
+
+  it('opens the unified component picker with All/Assets/Kits filters', () => {
+    render(<KitScreen {...mockProps} />)
+    fireEvent.click(screen.getByText('Add Components'))
+    expect(screen.getByText('all')).toBeInTheDocument()
+    expect(screen.getByText('assets')).toBeInTheDocument()
+    expect(screen.getByText('kits')).toBeInTheDocument()
   })
 })

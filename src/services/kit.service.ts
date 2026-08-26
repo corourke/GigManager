@@ -81,7 +81,7 @@ export async function getKit(kitId: string) {
           asset_id,
           child_kit_id,
           asset:assets(*),
-          child_kit:kits!kit_components_child_kit_id_fkey(id, name, is_container, category)
+          child_kit:kits!kit_components_child_kit_id_fkey(id, name, is_container, category, rental_value)
         )
       `)
       .eq('id', kitId)
