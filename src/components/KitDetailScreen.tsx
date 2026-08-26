@@ -1,9 +1,10 @@
-import { useState, useEffect, ReactNode } from 'react';
-import { Package, ArrowLeft, Edit2, Trash2, Copy, Loader2, Layers } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Package, ArrowLeft, Edit2, Trash2, Copy, Loader2, Layers, Boxes, Container } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from './ui/button';
 import { Card } from './ui/card';
 import { Badge } from './ui/badge';
+import { Checkbox } from './ui/checkbox';
 import {
   Table,
   TableBody,
@@ -15,7 +16,16 @@ import {
 import AppHeader from './AppHeader';
 import { Organization, User, UserRole, ActivityLogEntry } from '../utils/supabase/types';
 import { canManage } from '../utils/permissions';
-import { getKit, deleteKit, duplicateKit, getKitFlattenedContents, getKitHierarchyTree } from '../services/kit.service';
+import {
+  getKit,
+  deleteKit,
+  duplicateKit,
+  getKitFlattenedContents,
+  getKitComponentTree,
+  countInventoryItems,
+  maxTreeDepth,
+  KitComponentTreeNode,
+} from '../services/kit.service';
 import { getEntityActivity } from '../services/activityLog.service';
 import ActivityFeed from './ActivityFeed';
 import { History } from 'lucide-react';
@@ -37,40 +47,52 @@ interface FlattenedAssetRow {
   asset: any;
 }
 
-interface HierarchyEdge {
-  parent_kit_id: string;
-  child_kit_id: string;
-  child_kit_name: string;
-  quantity: number;
-  depth: number;
-}
-
 const DEPTH_WARNING_THRESHOLD = 6;
 
-/** Recursively renders the nested sub-kit structure from flat depth-tagged edges. */
-function HierarchyTree({ rootId, edges }: { rootId: string; edges: HierarchyEdge[] }) {
-  const childrenOf = (parentId: string) => edges.filter((e) => e.parent_kit_id === parentId);
+/**
+ * Recursively renders the combined tree of every asset and sub-kit nested
+ * inside this kit, at every level. A container sub-kit is labeled as such;
+ * when `showContainerContents` is off, its own nested contents are hidden
+ * (it's shown as a single sealed unit) — the data is still fetched either
+ * way, this is purely a display choice.
+ */
+function ComponentTree({ nodes, showContainerContents, level = 0 }: { nodes: KitComponentTreeNode[]; showContainerContents: boolean; level?: number }) {
+  return (
+    <ul className={level === 0 ? '' : 'ml-6 border-l border-gray-200 pl-4'}>
+      {nodes.map((node) => {
+        if (node.type === 'asset') {
+          return (
+            <li key={node.clientKey} className="py-1">
+              <div className="flex items-center gap-2 text-sm">
+                <Package className="w-3.5 h-3.5 text-gray-400" />
+                <span className="text-gray-900">{node.asset?.manufacturer_model || 'Unknown Asset'}</span>
+                <span className="text-gray-500">× {node.quantity}</span>
+              </div>
+            </li>
+          );
+        }
 
-  const renderNode = (parentId: string, level: number): ReactNode => {
-    const children = childrenOf(parentId);
-    if (children.length === 0) return null;
-    return (
-      <ul className={level === 0 ? '' : 'ml-6 border-l border-gray-200 pl-4'}>
-        {children.map((edge) => (
-          <li key={`${edge.parent_kit_id}-${edge.child_kit_id}`} className="py-1">
+        const isContainer = !!node.kit?.is_container;
+        const hideChildren = isContainer && !showContainerContents;
+
+        return (
+          <li key={node.clientKey} className="py-1">
             <div className="flex items-center gap-2 text-sm">
               <Layers className="w-3.5 h-3.5 text-gray-400" />
-              <span className="text-gray-900">{edge.child_kit_name}</span>
-              <span className="text-gray-500">× {edge.quantity}</span>
+              <span className="text-gray-900">{node.kit?.name}</span>
+              <span className="text-gray-500">× {node.quantity}</span>
+              <Badge variant={isContainer ? 'default' : 'outline'} className="text-[10px]">
+                {isContainer ? 'Container' : 'Items'}
+              </Badge>
             </div>
-            {renderNode(edge.child_kit_id, level + 1)}
+            {!hideChildren && node.children.length > 0 && (
+              <ComponentTree nodes={node.children} showContainerContents={showContainerContents} level={level + 1} />
+            )}
           </li>
-        ))}
-      </ul>
-    );
-  };
-
-  return <>{renderNode(rootId, 0)}</>;
+        );
+      })}
+    </ul>
+  );
 }
 
 export default function KitDetailScreen({
@@ -85,7 +107,8 @@ export default function KitDetailScreen({
 }: KitDetailScreenProps) {
   const [kit, setKit] = useState<any>(null);
   const [flattenedAssets, setFlattenedAssets] = useState<FlattenedAssetRow[]>([]);
-  const [hierarchyEdges, setHierarchyEdges] = useState<HierarchyEdge[]>([]);
+  const [componentTree, setComponentTree] = useState<KitComponentTreeNode[]>([]);
+  const [showContainerContents, setShowContainerContents] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [kitActivity, setKitActivity] = useState<ActivityLogEntry[]>([]);
   const [activityLoading, setActivityLoading] = useState(false);
@@ -100,15 +123,15 @@ export default function KitDetailScreen({
       const [data, flattened, tree] = await Promise.all([
         getKit(kitId),
         getKitFlattenedContents(kitId),
-        getKitHierarchyTree(kitId),
+        getKitComponentTree(kitId),
       ]);
       setKit(data);
       setFlattenedAssets(flattened as FlattenedAssetRow[]);
-      setHierarchyEdges(tree as HierarchyEdge[]);
+      setComponentTree(tree);
 
-      const maxDepth = (tree as HierarchyEdge[]).reduce((max, e) => Math.max(max, e.depth), 0);
-      if (maxDepth > DEPTH_WARNING_THRESHOLD) {
-        toast.warning(`This kit is nested ${maxDepth} levels deep — is that intentional?`);
+      const depth = maxTreeDepth(tree);
+      if (depth > DEPTH_WARNING_THRESHOLD) {
+        toast.warning(`This kit is nested ${depth} levels deep — is that intentional?`);
       }
 
       setActivityLoading(true);
@@ -167,6 +190,10 @@ export default function KitDetailScreen({
     return flattenedAssets.reduce((total, row) => total + row.total_quantity, 0);
   };
 
+  // Containers count as one, un-drilled — contrast with getTotalItems above,
+  // which is fully flattened and ignores container boundaries entirely.
+  const getInventoryItems = () => countInventoryItems(componentTree);
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -204,11 +231,13 @@ export default function KitDetailScreen({
                 <Package className="w-8 h-8 text-sky-500" />
                 <h1 className="text-gray-900">{kit.name}</h1>
               </div>
-              {kit.category && (
-                <Badge variant="outline" className="mb-2">
-                  {kit.category}
+              <div className="flex flex-wrap items-center gap-2 mb-2">
+                {kit.category && <Badge variant="outline">{kit.category}</Badge>}
+                <Badge variant={kit.is_container ? 'default' : 'outline'} className="gap-1">
+                  {kit.is_container ? <Container className="w-3 h-3" /> : <Boxes className="w-3 h-3" />}
+                  {kit.is_container ? 'Container' : 'Items'}
                 </Badge>
-              )}
+              </div>
               {kit.tag_number && (
                 <div className="text-sm text-gray-600 mt-2">
                   <span className="font-medium">Tag Number:</span> {kit.tag_number}
@@ -262,7 +291,7 @@ export default function KitDetailScreen({
         </div>
 
         {/* Summary Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-6 mb-8">
           <Card className="p-6">
             <p className="text-sm text-gray-600 mb-1">Total Assets</p>
             <p className="text-3xl text-gray-900">{flattenedAssets.length}</p>
@@ -270,6 +299,11 @@ export default function KitDetailScreen({
           <Card className="p-6">
             <p className="text-sm text-gray-600 mb-1">Total Items</p>
             <p className="text-3xl text-gray-900">{getTotalItems()}</p>
+          </Card>
+          <Card className="p-6">
+            <p className="text-sm text-gray-600 mb-1">Inventory Items</p>
+            <p className="text-3xl text-gray-900">{getInventoryItems()}</p>
+            <p className="text-xs text-gray-500 mt-1">Containers count as one</p>
           </Card>
           <Card className="p-6">
             <p className="text-sm text-gray-600 mb-1">Total Value</p>
@@ -363,14 +397,27 @@ export default function KitDetailScreen({
           )}
         </Card>
 
-        {/* Hierarchy Structure */}
-        {hierarchyEdges.length > 0 && (
-          <Card className="p-6 mt-4">
-            <h3 className="text-gray-900 mb-1">Nested Structure</h3>
-            <p className="text-xs text-gray-500 mb-4">Sub-kits contained in this kit, at every level</p>
-            <HierarchyTree rootId={kitId} edges={hierarchyEdges} />
-          </Card>
-        )}
+        {/* Kit Structure — every asset and sub-kit nested inside, combined */}
+        <Card className="p-6 mt-4">
+          <div className="flex items-start justify-between gap-4 mb-1">
+            <h3 className="text-gray-900">Kit Structure</h3>
+            <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer whitespace-nowrap">
+              <Checkbox
+                checked={showContainerContents}
+                onCheckedChange={(checked) => setShowContainerContents(checked === true)}
+              />
+              Show container contents
+            </label>
+          </div>
+          <p className="text-xs text-gray-500 mb-4">
+            Every asset and sub-kit nested in this kit, at every level. A Container is scanned and tracked as one sealed unit — its own contents are hidden by default.
+          </p>
+          {componentTree.length === 0 ? (
+            <p className="text-sm text-gray-500">This kit has no components yet.</p>
+          ) : (
+            <ComponentTree nodes={componentTree} showContainerContents={showContainerContents} />
+          )}
+        </Card>
 
         {/* TODO: Gig Assignments Section */}
         {/* This would show which gigs this kit is currently assigned to */}

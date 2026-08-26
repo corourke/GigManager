@@ -515,3 +515,109 @@ export async function getKitHierarchyTree(kitId: string): Promise<{
     return handleApiError(err, 'fetch kit hierarchy tree');
   }
 }
+
+export interface KitComponentTreeNode {
+  clientKey: string;
+  type: 'asset' | 'kit';
+  quantity: number;
+  asset?: any;
+  kit?: { id: string; name: string; category: string | null; is_container: boolean };
+  /** Populated (possibly empty) for kit-type nodes only. */
+  children: KitComponentTreeNode[];
+}
+
+/**
+ * The full nested tree of this kit's contents — assets and sub-kits kept
+ * per level, unlike kit_flattened_cache which aggregates everything into
+ * one flat per-asset total — so the UI can render true nesting and label
+ * each sub-kit as a container or individual items. Every level is
+ * included, even inside containers; it's up to the caller (see
+ * `countInventoryItems`, and the "show container contents" toggle in
+ * KitDetailScreen) whether to drill into a container's own contents.
+ *
+ * Reuses the existing get_kit_hierarchy_tree RPC for the set of descendant
+ * kit ids, then does two batched follow-up queries (every involved kit's
+ * own name/category/is_container, and every involved kit's own direct
+ * components) rather than one query per level.
+ */
+export async function getKitComponentTree(kitId: string): Promise<KitComponentTreeNode[]> {
+  const supabase = getSupabase();
+  try {
+    const { data: edgeRows, error: edgeError } = await supabase.rpc('get_kit_hierarchy_tree', { p_kit_id: kitId });
+    if (edgeError) throw edgeError;
+    const edges = (edgeRows || []) as { parent_kit_id: string; child_kit_id: string; quantity: number; depth: number }[];
+
+    const allKitIds = Array.from(new Set([kitId, ...edges.map((e) => e.child_kit_id)]));
+
+    const [{ data: kitsData, error: kitsError }, { data: componentRows, error: componentsError }] = await Promise.all([
+      supabase.from('kits').select('id, name, category, is_container').in('id', allKitIds),
+      supabase.from('kit_components').select('kit_id, asset_id, child_kit_id, quantity, asset:assets(*)').in('kit_id', allKitIds),
+    ]);
+    if (kitsError) throw kitsError;
+    if (componentsError) throw componentsError;
+
+    const kitsById = new Map((kitsData || []).map((k: any) => [k.id, k]));
+    const componentsByKit = new Map<string, any[]>();
+    for (const row of (componentRows || []) as any[]) {
+      const list = componentsByKit.get(row.kit_id) || [];
+      list.push(row);
+      componentsByKit.set(row.kit_id, list);
+    }
+
+    const buildChildren = (parentKitId: string): KitComponentTreeNode[] =>
+      (componentsByKit.get(parentKitId) || []).map((row) => {
+        if (row.asset_id) {
+          return {
+            clientKey: `asset-${row.asset_id}`,
+            type: 'asset' as const,
+            quantity: row.quantity,
+            asset: row.asset,
+            children: [],
+          };
+        }
+        const childKit = kitsById.get(row.child_kit_id);
+        return {
+          clientKey: `kit-${row.child_kit_id}`,
+          type: 'kit' as const,
+          quantity: row.quantity,
+          kit: {
+            id: row.child_kit_id,
+            name: childKit?.name ?? 'Unknown Kit',
+            category: childKit?.category ?? null,
+            is_container: !!childKit?.is_container,
+          },
+          children: buildChildren(row.child_kit_id),
+        };
+      });
+
+    return buildChildren(kitId);
+  } catch (err) {
+    return handleApiError(err, 'fetch kit component tree');
+  }
+}
+
+/**
+ * "Inventory items" per the kit-hierarchy tracking model: a physical asset
+ * counts individually, but a container sub-kit counts as exactly one item
+ * and its own contents aren't drilled into further — day to day it's a
+ * sealed unit, not a bag of loose parts. A non-container sub-kit is
+ * transparent: it isn't itself counted, it just contributes whatever its
+ * own contents count to (recursively, until hitting a container or a leaf
+ * asset). Contrast with the fully-flattened "Total Items" count, which
+ * ignores container boundaries entirely.
+ */
+export function countInventoryItems(nodes: KitComponentTreeNode[]): number {
+  return nodes.reduce((total, node) => {
+    if (node.type === 'asset') return total + node.quantity;
+    if (node.kit?.is_container) return total + node.quantity;
+    return total + countInventoryItems(node.children);
+  }, 0);
+}
+
+/** Deepest sub-kit nesting level reached anywhere in the tree (a direct sub-kit is depth 1). */
+export function maxTreeDepth(nodes: KitComponentTreeNode[]): number {
+  return nodes.reduce((max, node) => {
+    if (node.type !== 'kit') return max;
+    return Math.max(max, 1 + maxTreeDepth(node.children));
+  }, 0);
+}

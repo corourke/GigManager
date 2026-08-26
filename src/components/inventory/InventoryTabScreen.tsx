@@ -7,6 +7,7 @@ import { PageHeader } from '../ui/PageHeader';
 import { InventorySummaryDashboard } from './InventorySummaryDashboard';
 import { LocationExplorer } from './LocationExplorer';
 import { InventoryReports } from './InventoryReports';
+import TrackingTab from './TrackingTab';
 import { Organization, User, UserRole } from '../../utils/supabase/types';
 
 interface InventoryTabScreenProps {
@@ -32,7 +33,7 @@ export default function InventoryTabScreen({
   onLogout,
   onEditProfile,
 }: InventoryTabScreenProps) {
-  const [subTab, setSubTab] = useState<'summary' | 'explorer' | 'reports'>('summary');
+  const [subTab, setSubTab] = useState<'summary' | 'explorer' | 'reports' | 'tracking'>('summary');
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -71,6 +72,7 @@ export default function InventoryTabScreen({
             <TabsTrigger value="summary">Summary</TabsTrigger>
             <TabsTrigger value="explorer">Location Explorer</TabsTrigger>
             <TabsTrigger value="reports">Reports</TabsTrigger>
+            <TabsTrigger value="tracking">Tracking</TabsTrigger>
           </TabsList>
 
           <TabsContent value="summary">
@@ -90,6 +92,10 @@ export default function InventoryTabScreen({
               organizationId={organization.id}
               organizationName={organization.name}
             />
+          </TabsContent>
+
+          <TabsContent value="tracking">
+            <TrackingTab organizationId={organization.id} />
           </TabsContent>
         </Tabs>
       </div>

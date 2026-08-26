@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { getKits, getKit, getDistinctKitValues, deleteKit, createKit, updateKit, duplicateKit } from './kit.service';
+import { getKits, getKit, getDistinctKitValues, deleteKit, createKit, updateKit, duplicateKit, countInventoryItems, maxTreeDepth, KitComponentTreeNode } from './kit.service';
 import { createClient } from '../utils/supabase/client';
 import { requireAuth } from '../utils/supabase/auth-utils';
 
@@ -362,5 +362,66 @@ describe('kit.service', () => {
         })
       }));
     });
+  });
+});
+
+describe('countInventoryItems / maxTreeDepth', () => {
+  const asset = (quantity: number): KitComponentTreeNode => ({
+    clientKey: `asset-${Math.random()}`,
+    type: 'asset',
+    quantity,
+    asset: {},
+    children: [],
+  });
+
+  const kit = (name: string, isContainer: boolean, quantity: number, children: KitComponentTreeNode[]): KitComponentTreeNode => ({
+    clientKey: `kit-${name}`,
+    type: 'kit',
+    quantity,
+    kit: { id: name, name, category: null, is_container: isContainer },
+    children,
+  });
+
+  // Direct: one loose asset (×4), a non-container "Lighting Kit" (transparent —
+  // its own asset plus a container "Mic Case" nested inside it), and a
+  // container "Road Case" (counts as one, no drilling — even though it has
+  // its own nested non-container kit with more assets underneath).
+  const tree: KitComponentTreeNode[] = [
+    asset(4),
+    kit('Lighting Kit', false, 1, [
+      asset(2),
+      kit('Mic Case', true, 1, [asset(3)]),
+    ]),
+    kit('Road Case', true, 1, [
+      asset(5),
+      kit('Inner Frame', false, 1, [asset(2)]),
+    ]),
+  ];
+
+  it('counts a container sub-kit as one item and does not drill into it, while a non-container sub-kit is transparent', () => {
+    // 4 (loose asset) + [2 (Lighting Kit's own asset) + 1 (Mic Case, a
+    // container, counts as one)] + [1 (Road Case, a container, counts as
+    // one — its own nested kit/assets are not drilled into)] = 8
+    expect(countInventoryItems(tree)).toBe(8);
+  });
+
+  it('counts fully-flattened total quantity ignoring container boundaries entirely, for comparison', () => {
+    const totalFlattened = (nodes: KitComponentTreeNode[]): number =>
+      nodes.reduce((sum, n) => sum + (n.type === 'asset' ? n.quantity : totalFlattened(n.children)), 0);
+    // 4 + (2 + 3) + (5 + 2) = 16 — everything drilled into, no container ever stops recursion.
+    expect(totalFlattened(tree)).toBe(16);
+  });
+
+  it('finds the deepest sub-kit nesting level, regardless of container status', () => {
+    // Lighting Kit (depth 1) -> Mic Case (depth 2); Road Case (depth 1) -> Inner Frame (depth 2).
+    expect(maxTreeDepth(tree)).toBe(2);
+  });
+
+  it('returns 0 for a flat kit with no nested sub-kits', () => {
+    expect(maxTreeDepth([asset(1), asset(2)])).toBe(0);
+  });
+
+  it('returns 0 items for an empty tree', () => {
+    expect(countInventoryItems([])).toBe(0);
   });
 });
