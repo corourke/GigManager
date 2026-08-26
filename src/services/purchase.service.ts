@@ -415,7 +415,7 @@ export async function createPurchaseTransaction(
         }
 
         if (kitMemberships.length > 0) {
-          await supabase.from('kit_assets').insert(kitMemberships);
+          await supabase.from('kit_components').insert(kitMemberships);
         }
       }
     }

@@ -59,7 +59,7 @@ export type DbInventoryTracking = Tables['inventory_tracking']['Row'] & {
 
 export type DbKit = Tables['kits']['Row'];
 
-export type DbKitAsset = Tables['kit_assets']['Row'];
+export type DbKitComponent = Tables['kit_components']['Row'];
 
 export type DbGigKitAssignment = Tables['gig_kit_assignments']['Row'];
 
@@ -210,6 +210,7 @@ export interface ActivityLogContext {
   user_name?: string;
   initial_status?: string;
   kit_name?: string;
+  subkit_name?: string;
   asset_model?: string;
   category?: string;
   quantity?: number;

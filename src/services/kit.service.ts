@@ -38,7 +38,7 @@ export async function getKits(organizationId: string, filters?: {
       .from('kits')
       .select(`
         *,
-        kit_assets!inner(
+        kit_components!kit_assets_kit_id_fkey!inner(
           quantity,
           asset:assets(*)
         )
@@ -64,7 +64,8 @@ export async function getKits(organizationId: string, filters?: {
 }
 
 /**
- * Fetch a single kit with its assets
+ * Fetch a single kit with its direct components (assets and/or sub-kits, one
+ * level — not the recursive flattened view, see getKitFlattenedContents).
  */
 export async function getKit(kitId: string) {
   const supabase = getSupabase();
@@ -73,11 +74,14 @@ export async function getKit(kitId: string) {
       .from('kits')
       .select(`
         *,
-        kit_assets(
+        kit_components!kit_assets_kit_id_fkey(
           id,
           quantity,
           notes,
-          asset:assets(*)
+          asset_id,
+          child_kit_id,
+          asset:assets(*),
+          child_kit:kits!kit_components_child_kit_id_fkey(id, name, is_container, category)
         )
       `)
       .eq('id', kitId)
@@ -121,8 +125,17 @@ export async function getDistinctKitValues(
   }
 }
 
+/** A row in a kit's component list — exactly one of asset_id/child_kit_id is set. */
+export type KitComponentInput = {
+  id?: string;
+  asset_id?: string;
+  child_kit_id?: string;
+  quantity: number;
+  notes?: string;
+};
+
 /**
- * Create a new kit with assets
+ * Create a new kit with its components (assets and/or sub-kits)
  */
 export async function createKit(kitData: {
   organization_id: string;
@@ -131,16 +144,12 @@ export async function createKit(kitData: {
   description?: string;
   tags?: string[];
   is_container?: boolean;
-  assets: Array<{
-    asset_id: string;
-    quantity: number;
-    notes?: string;
-  }>;
+  components: KitComponentInput[];
 }) {
   try {
     const { supabase, user } = await requireAuth();
 
-    const { assets, ...restKitData } = kitData;
+    const { components, ...restKitData } = kitData;
 
     const { data: kit, error: kitError } = await supabase
       .from('kits')
@@ -176,18 +185,19 @@ export async function createKit(kitData: {
       console.error('Activity log failed:', e);
     }
 
-    if (assets && assets.length > 0) {
-      const kitAssets = assets.map(a => ({
+    if (components && components.length > 0) {
+      const kitComponents = components.map(c => ({
         kit_id: kit.id,
-        asset_id: a.asset_id,
-        quantity: a.quantity,
-        notes: a.notes || null,
+        asset_id: c.asset_id ?? null,
+        child_kit_id: c.child_kit_id ?? null,
+        quantity: c.quantity,
+        notes: c.notes || null,
       }));
 
-      const { error: assetsError } = await supabase.from('kit_assets').insert(kitAssets);
-      if (assetsError) {
+      const { error: componentsError } = await supabase.from('kit_components').insert(kitComponents);
+      if (componentsError) {
         await supabase.from('kits').delete().eq('id', kit.id);
-        throw assetsError;
+        throw componentsError;
       }
     }
 
@@ -198,7 +208,7 @@ export async function createKit(kitData: {
 }
 
 /**
- * Update an existing kit and its assets
+ * Update an existing kit and its components (assets and/or sub-kits)
  */
 export async function updateKit(kitId: string, kitData: {
   name?: string;
@@ -209,12 +219,7 @@ export async function updateKit(kitId: string, kitData: {
   rental_value?: number | null;
   is_container?: boolean;
   organization_id?: string;
-  assets?: Array<{
-    id?: string;
-    asset_id: string;
-    quantity: number;
-    notes?: string;
-  }>;
+  components?: KitComponentInput[];
 }) {
   try {
     const { supabase, user } = await requireAuth();
@@ -232,7 +237,7 @@ export async function updateKit(kitId: string, kitData: {
     const organizationId = kitRow.organization_id;
     const kitName = kitRow.name;
 
-    const { assets, organization_id: _orgId, ...restKitData } = kitData;
+    const { components, organization_id: _orgId, ...restKitData } = kitData;
 
     if (Object.keys(restKitData).length > 0) {
       const field_changes = computeFieldChanges(kitRow, restKitData, KIT_TRACKED_FIELDS);
@@ -268,37 +273,51 @@ export async function updateKit(kitId: string, kitData: {
       }
     }
 
-    if (assets) {
-      const { data: existingAssets } = await (supabase.from('kit_assets') as any).select('id, asset_id').eq('kit_id', kitId);
-      const existingIds = existingAssets?.map((a: any) => a.id) || [];
-      const incomingIds = assets.filter(a => a.id).map(a => a.id!);
+    if (components) {
+      const { data: existingComponents } = await (supabase.from('kit_components') as any)
+        .select('id, asset_id, child_kit_id')
+        .eq('kit_id', kitId);
+      const existingIds = existingComponents?.map((c: any) => c.id) || [];
+      const incomingIds = components.filter(c => c.id).map(c => c.id!);
 
       const idsToDelete = existingIds.filter((id: string) => !incomingIds.includes(id));
 
       if (idsToDelete.length > 0) {
-        const removedAssetIds = (existingAssets ?? []).filter((a: any) => idsToDelete.includes(a.id)).map((a: any) => a.asset_id).filter(Boolean);
-        await supabase.from('kit_assets').delete().in('id', idsToDelete);
-        for (const assetId of removedAssetIds) {
-          const { data: assetRow } = await (supabase.from('assets') as any).select('manufacturer_model').eq('id', assetId).single();
+        const removed = (existingComponents ?? []).filter((c: any) => idsToDelete.includes(c.id));
+        await supabase.from('kit_components').delete().in('id', idsToDelete);
+        for (const c of removed) {
           try {
-            await logActivity({ organization_id: organizationId, event_type: 'kit.asset_removed', entity_type: 'kit', entity_id: kitId, gig_id: null, context: { context_version: 1, actor_display_name: actorDisplayName, actor_org_name: actorOrgName, kit_name: kitName, asset_model: (assetRow as any)?.manufacturer_model ?? '' } });
+            if (c.asset_id) {
+              const { data: assetRow } = await (supabase.from('assets') as any).select('manufacturer_model').eq('id', c.asset_id).single();
+              await logActivity({ organization_id: organizationId, event_type: 'kit.asset_removed', entity_type: 'kit', entity_id: kitId, gig_id: null, context: { context_version: 1, actor_display_name: actorDisplayName, actor_org_name: actorOrgName, kit_name: kitName, asset_model: (assetRow as any)?.manufacturer_model ?? '' } });
+            } else if (c.child_kit_id) {
+              const { data: subKitRow } = await (supabase.from('kits') as any).select('name').eq('id', c.child_kit_id).single();
+              await logActivity({ organization_id: organizationId, event_type: 'kit.subkit_removed', entity_type: 'kit', entity_id: kitId, gig_id: null, context: { context_version: 1, actor_display_name: actorDisplayName, actor_org_name: actorOrgName, kit_name: kitName, subkit_name: (subKitRow as any)?.name ?? '' } });
+            }
           } catch (e) { console.error('Activity log failed:', e); }
         }
       }
 
-      for (const asset of assets) {
-        const assetData = {
-          asset_id: asset.asset_id,
-          quantity: asset.quantity,
-          notes: asset.notes || null,
+      for (const component of components) {
+        const componentData = {
+          asset_id: component.asset_id ?? null,
+          child_kit_id: component.child_kit_id ?? null,
+          quantity: component.quantity,
+          notes: component.notes || null,
         };
-        if (asset.id && existingIds.includes(asset.id)) {
-          await supabase.from('kit_assets').update(assetData).eq('id', asset.id);
+        if (component.id && existingIds.includes(component.id)) {
+          await supabase.from('kit_components').update(componentData).eq('id', component.id);
         } else {
-          await supabase.from('kit_assets').insert({ kit_id: kitId, ...assetData });
-          const { data: assetRow } = await (supabase.from('assets') as any).select('manufacturer_model').eq('id', asset.asset_id).single();
+          const { error: insertError } = await supabase.from('kit_components').insert({ kit_id: kitId, ...componentData });
+          if (insertError) throw insertError;
           try {
-            await logActivity({ organization_id: organizationId, event_type: 'kit.asset_added', entity_type: 'kit', entity_id: kitId, gig_id: null, context: { context_version: 1, actor_display_name: actorDisplayName, actor_org_name: actorOrgName, kit_name: kitName, asset_model: (assetRow as any)?.manufacturer_model ?? '', quantity: asset.quantity } });
+            if (component.asset_id) {
+              const { data: assetRow } = await (supabase.from('assets') as any).select('manufacturer_model').eq('id', component.asset_id).single();
+              await logActivity({ organization_id: organizationId, event_type: 'kit.asset_added', entity_type: 'kit', entity_id: kitId, gig_id: null, context: { context_version: 1, actor_display_name: actorDisplayName, actor_org_name: actorOrgName, kit_name: kitName, asset_model: (assetRow as any)?.manufacturer_model ?? '', quantity: component.quantity } });
+            } else if (component.child_kit_id) {
+              const { data: subKitRow } = await (supabase.from('kits') as any).select('name').eq('id', component.child_kit_id).single();
+              await logActivity({ organization_id: organizationId, event_type: 'kit.subkit_added', entity_type: 'kit', entity_id: kitId, gig_id: null, context: { context_version: 1, actor_display_name: actorDisplayName, actor_org_name: actorOrgName, kit_name: kitName, subkit_name: (subKitRow as any)?.name ?? '', quantity: component.quantity } });
+            }
           } catch (e) { console.error('Activity log failed:', e); }
         }
       }
@@ -329,7 +348,8 @@ export async function deleteKit(kitId: string) {
 }
 
 /**
- * Duplicate an existing kit
+ * Duplicate an existing kit, including its is_container/rental_value flags
+ * and all direct components (assets and sub-kits).
  */
 export async function duplicateKit(kitId: string, newName?: string) {
   try {
@@ -345,6 +365,8 @@ export async function duplicateKit(kitId: string, newName?: string) {
         category: originalKit.category,
         description: originalKit.description,
         tags: originalKit.tags || [],
+        is_container: originalKit.is_container,
+        rental_value: originalKit.rental_value,
         created_by: user.id,
         updated_by: user.id,
       })
@@ -375,18 +397,56 @@ export async function duplicateKit(kitId: string, newName?: string) {
       console.error('Activity log failed:', e);
     }
 
-    if (originalKit.kit_assets && originalKit.kit_assets.length > 0) {
-      const kitAssets = originalKit.kit_assets.map((ka: any) => ({
+    if (originalKit.kit_components && originalKit.kit_components.length > 0) {
+      const kitComponents = originalKit.kit_components.map((c: any) => ({
         kit_id: newKit.id,
-        asset_id: ka.asset.id,
-        quantity: ka.quantity,
-        notes: ka.notes,
+        asset_id: c.asset_id,
+        child_kit_id: c.child_kit_id,
+        quantity: c.quantity,
+        notes: c.notes,
       }));
-      await supabase.from('kit_assets').insert(kitAssets);
+      await supabase.from('kit_components').insert(kitComponents);
     }
 
     return newKit;
   } catch (err) {
     return handleApiError(err, 'duplicate kit');
+  }
+}
+
+/**
+ * The fully-flattened (recursive) asset contents of a kit — reads the
+ * write-time-maintained cache, not a live recursive query. Includes asset
+ * display data for rendering.
+ */
+export async function getKitFlattenedContents(kitId: string) {
+  const supabase = getSupabase();
+  try {
+    const { data, error } = await supabase
+      .from('kit_flattened_cache')
+      .select('asset_id, total_quantity, asset:assets(*)')
+      .eq('kit_id', kitId);
+
+    if (error) throw error;
+    return data || [];
+  } catch (err) {
+    return handleApiError(err, 'fetch kit flattened contents');
+  }
+}
+
+/** The nested sub-kit structure (edges + depth) for the hierarchy display. */
+export async function getKitHierarchyTree(kitId: string): Promise<{
+  parent_kit_id: string;
+  child_kit_id: string;
+  quantity: number;
+  depth: number;
+}[]> {
+  const supabase = getSupabase();
+  try {
+    const { data, error } = await supabase.rpc('get_kit_hierarchy_tree', { p_kit_id: kitId });
+    if (error) throw error;
+    return data || [];
+  } catch (err) {
+    return handleApiError(err, 'fetch kit hierarchy tree');
   }
 }

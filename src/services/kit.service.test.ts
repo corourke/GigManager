@@ -106,7 +106,7 @@ describe('kit.service', () => {
       const mockKit = {
         id: 'kit-1',
         name: 'PA System',
-        kit_assets: [{ id: 'ka-1', quantity: 2, asset: { id: 'asset-1' } }],
+        kit_components: [{ id: 'kc-1', quantity: 2, asset_id: 'asset-1', child_kit_id: null, asset: { id: 'asset-1' } }],
       };
       const chain = makeChain({ data: mockKit, error: null });
       mockSupabase.from.mockReturnValue(chain);
@@ -114,7 +114,7 @@ describe('kit.service', () => {
       const result = await getKit('kit-1');
 
       expect(result.id).toBe('kit-1');
-      expect(result.kit_assets).toHaveLength(1);
+      expect(result.kit_components).toHaveLength(1);
       expect(chain.eq).toHaveBeenCalledWith('id', 'kit-1');
       expect(chain.single).toHaveBeenCalled();
     });
@@ -199,7 +199,7 @@ describe('kit.service', () => {
 
   describe('createKit', () => {
     it('inserts a new kit and logs activity', async () => {
-      const kitData = { name: 'New Kit', organization_id: 'org-1', assets: [] };
+      const kitData = { name: 'New Kit', organization_id: 'org-1', components: [] };
       const mockKit = { id: 'k1', name: 'New Kit', organization_id: 'org-1' };
       
       mockSupabase.from.mockImplementation((table: string) => {
@@ -245,6 +245,77 @@ describe('kit.service', () => {
       }));
     });
 
+    it('adds a mixed asset + sub-kit component in one update, logging both event types', async () => {
+      const kitId = 'k1';
+      const preKit = { id: 'k1', name: 'Rack', organization_id: 'org-1', organization: { name: 'Acme' } };
+      let kitsCallCount = 0;
+
+      mockSupabase.from.mockImplementation((table: string) => {
+        if (table === 'kits') {
+          kitsCallCount += 1;
+          // 1st call: pre-fetch for diffing/actor info. Later calls: sub-kit name lookups.
+          if (kitsCallCount === 1) return makeChain({ data: preKit, error: null });
+          return makeChain({ data: { name: 'Mic Kit' }, error: null });
+        }
+        if (table === 'kit_components') {
+          const chain = makeChain({ data: [], error: null }); // no existing components
+          chain.insert = vi.fn().mockReturnValue(makeChain({ data: null, error: null }));
+          return chain;
+        }
+        if (table === 'assets') return makeChain({ data: { manufacturer_model: 'LED Par' }, error: null });
+        return makeChain({ data: {}, error: null });
+      });
+      (requireAuth as any).mockResolvedValue({ supabase: mockSupabase, user: { id: 'u1' } });
+
+      await updateKit(kitId, {
+        components: [
+          { asset_id: 'asset-1', quantity: 2 },
+          { child_kit_id: 'subkit-1', quantity: 3 },
+        ],
+      });
+
+      expect(logActivity).toHaveBeenCalledWith(expect.objectContaining({
+        event_type: 'kit.asset_added',
+        context: expect.objectContaining({ asset_model: 'LED Par', quantity: 2 }),
+      }));
+      expect(logActivity).toHaveBeenCalledWith(expect.objectContaining({
+        event_type: 'kit.subkit_added',
+        context: expect.objectContaining({ subkit_name: 'Mic Kit', quantity: 3 }),
+      }));
+    });
+
+    it('removes a sub-kit component and logs kit.subkit_removed', async () => {
+      const kitId = 'k1';
+      const preKit = { id: 'k1', name: 'Rack', organization_id: 'org-1', organization: { name: 'Acme' } };
+      let kitsCallCount = 0;
+
+      mockSupabase.from.mockImplementation((table: string) => {
+        if (table === 'kits') {
+          kitsCallCount += 1;
+          if (kitsCallCount === 1) return makeChain({ data: preKit, error: null });
+          return makeChain({ data: { name: 'Mic Kit' }, error: null });
+        }
+        if (table === 'kit_components') {
+          const chain = makeChain({
+            data: [{ id: 'kc-1', asset_id: null, child_kit_id: 'subkit-1' }],
+            error: null,
+          });
+          chain.delete = vi.fn().mockReturnValue(makeChain({ data: null, error: null }));
+          return chain;
+        }
+        return makeChain({ data: {}, error: null });
+      });
+      (requireAuth as any).mockResolvedValue({ supabase: mockSupabase, user: { id: 'u1' } });
+
+      // Empty incoming components list — the one existing sub-kit component gets removed.
+      await updateKit(kitId, { components: [] });
+
+      expect(logActivity).toHaveBeenCalledWith(expect.objectContaining({
+        event_type: 'kit.subkit_removed',
+        context: expect.objectContaining({ subkit_name: 'Mic Kit' }),
+      }));
+    });
+
     it('does NOT log kit.updated when tracked fields are unchanged', async () => {
       const kitId = 'k1';
       const updates = { name: 'Old Kit' };
@@ -267,7 +338,7 @@ describe('kit.service', () => {
   describe('duplicateKit', () => {
     it('logs kit.created for duplicated kit', async () => {
       const kitId = 'k1';
-      const originalKit = { id: 'k1', name: 'Original', organization_id: 'org-1', kit_assets: [] };
+      const originalKit = { id: 'k1', name: 'Original', organization_id: 'org-1', kit_components: [] };
       const mockResult = { id: 'k2', name: 'Original (Copy)', organization_id: 'org-1' };
 
       mockSupabase.from.mockImplementation((table: string) => {
