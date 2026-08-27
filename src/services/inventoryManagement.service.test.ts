@@ -410,4 +410,206 @@ describe('inventoryManagement.service', () => {
       expect(result.size).toBe(0);
     });
   });
+
+  describe('getGigsForReportPicker', () => {
+    it('returns all gigs the org participates in, unfiltered by status or date', async () => {
+      const { getGigsForReportPicker } = await import('./inventoryManagement.service');
+
+      mockSupabase.from.mockImplementation((table: string) => {
+        if (table === 'gig_participants') {
+          return makeQueryChain({ data: [{ gig_id: 'gig-1' }, { gig_id: 'gig-2' }], error: null });
+        }
+        if (table === 'gigs') {
+          return makeQueryChain({
+            data: [
+              { id: 'gig-1', title: 'Electric Festival' },
+              { id: 'gig-2', title: 'Old Completed Gig' },
+            ],
+            error: null,
+          });
+        }
+        return makeQueryChain({ data: [], error: null });
+      });
+
+      const result = await getGigsForReportPicker('org-1');
+
+      expect(result).toEqual([
+        { id: 'gig-1', title: 'Electric Festival' },
+        { id: 'gig-2', title: 'Old Completed Gig' },
+      ]);
+    });
+
+    it('returns an empty array when the org has no gig participants', async () => {
+      const { getGigsForReportPicker } = await import('./inventoryManagement.service');
+      mockSupabase.from.mockReturnValue(makeQueryChain({ data: [], error: null }));
+
+      const result = await getGigsForReportPicker('org-1');
+      expect(result).toEqual([]);
+    });
+  });
+
+  describe('getManifestReport', () => {
+    // Regression: the query never fetched assets, so asset_name/tag_number
+    // were hardcoded null on every row. The UI falls back to showing the
+    // kit's name when asset_name is null, so every asset in a kit rendered
+    // as an identical-looking "duplicate" row bearing the kit's name.
+    it('resolves each row\'s own asset name instead of leaving it null', async () => {
+      const { getManifestReport } = await import('./inventoryManagement.service');
+
+      mockSupabase.from.mockImplementation((table: string) => {
+        if (table === 'inventory_tracking') {
+          return makeQueryChain({
+            data: [
+              {
+                id: 'rec-1', gig_id: 'gig-1', kit_id: 'kit-1', asset_id: 'asset-1',
+                status: 'In Transit', location: 'Truck 1', scanned_at: '2026-08-26T21:41:00Z',
+                scanned_by: 'user-1', notes: null, created_at: '2026-08-26T21:41:00Z',
+                scanned_by_user: { first_name: 'Cameron', last_name: "O'Rourke" },
+                kit: { name: 'Small Gig Pack' }, gig: { title: 'Electric Festival' },
+              },
+              {
+                id: 'rec-2', gig_id: 'gig-1', kit_id: 'kit-1', asset_id: 'asset-2',
+                status: 'In Transit', location: 'Truck 1', scanned_at: '2026-08-26T21:42:00Z',
+                scanned_by: 'user-1', notes: null, created_at: '2026-08-26T21:42:00Z',
+                scanned_by_user: { first_name: 'Cameron', last_name: "O'Rourke" },
+                kit: { name: 'Small Gig Pack' }, gig: { title: 'Electric Festival' },
+              },
+            ],
+            error: null,
+          });
+        }
+        if (table === 'assets') {
+          return makeQueryChain({
+            data: [
+              { id: 'asset-1', manufacturer_model: 'Mic Stand', tag_number: 'MS-1' },
+              { id: 'asset-2', manufacturer_model: 'XLR Cable', tag_number: 'XLR-1' },
+            ],
+            error: null,
+          });
+        }
+        if (table === 'gig_participants') {
+          return makeQueryChain({ data: [], error: null });
+        }
+        return makeQueryChain({ data: [], error: null });
+      });
+
+      const result = await getManifestReport('org-1', { location: 'Truck 1' });
+
+      expect(result).toHaveLength(2);
+      expect(result.find((r) => r.asset_id === 'asset-1')?.asset_name).toBe('Mic Stand');
+      expect(result.find((r) => r.asset_id === 'asset-2')?.asset_name).toBe('XLR Cable');
+      // The two rows are genuinely distinct assets, not duplicates of one kit.
+      expect(new Set(result.map((r) => r.asset_name)).size).toBe(2);
+    });
+  });
+
+  describe('getPackingListReport', () => {
+    // Regression: the old query embedded kit_components -> assets directly
+    // off gig_kit_assignments, so a nested sub-kit component (no asset_id
+    // of its own) produced a bogus row with every field null instead of
+    // being expanded. This mirrors the getActiveGigsWithTracking fix.
+    it('does not produce a bogus null-asset row for a non-container kit with a nested sub-kit, and flattens its assets via the cache', async () => {
+      const { getPackingListReport } = await import('./inventoryManagement.service');
+
+      mockSupabase.from.mockImplementation((table: string) => {
+        if (table === 'gig_kit_assignments') {
+          return makeQueryChain({
+            data: [
+              { kit_id: 'kit-1', kit: { id: 'kit-1', name: 'Full Rack', is_container: false, tag_number: null, organization_id: 'org-1' } },
+            ],
+            error: null,
+          });
+        }
+        if (table === 'kit_flattened_cache') {
+          return makeQueryChain({
+            data: [
+              { kit_id: 'kit-1', asset_id: 'asset-1', asset: { id: 'asset-1', manufacturer_model: 'DI Box', tag_number: null } },
+              { kit_id: 'kit-1', asset_id: 'asset-2', asset: { id: 'asset-2', manufacturer_model: 'SM58', tag_number: null } },
+            ],
+            error: null,
+          });
+        }
+        if (table === 'inventory_tracking') {
+          return makeQueryChain({ data: [], error: null });
+        }
+        if (table === 'gig_participants') {
+          return makeQueryChain({ data: [], error: null });
+        }
+        return makeQueryChain({ data: [], error: null });
+      });
+
+      const result = await getPackingListReport('org-1', 'gig-1');
+
+      expect(result).toHaveLength(2);
+      expect(result.every((r) => r.asset_id !== null)).toBe(true);
+      expect(result.map((r) => r.asset_name).sort()).toEqual(['DI Box', 'SM58']);
+    });
+
+    it('does not query kit_flattened_cache for container kits', async () => {
+      const { getPackingListReport } = await import('./inventoryManagement.service');
+      const flattenedCacheCalls: string[] = [];
+
+      mockSupabase.from.mockImplementation((table: string) => {
+        flattenedCacheCalls.push(table);
+        if (table === 'gig_kit_assignments') {
+          return makeQueryChain({
+            data: [
+              { kit_id: 'kit-2', kit: { id: 'kit-2', name: 'Road Case', is_container: true, tag_number: 'RC-1', organization_id: 'org-1' } },
+            ],
+            error: null,
+          });
+        }
+        return makeQueryChain({ data: [], error: null });
+      });
+
+      const result = await getPackingListReport('org-1', 'gig-1');
+
+      expect(flattenedCacheCalls).not.toContain('kit_flattened_cache');
+      expect(result).toEqual([
+        expect.objectContaining({ kit_id: 'kit-2', is_container: true, asset_id: null }),
+      ]);
+    });
+  });
+
+  describe('getMaintenanceQueueReport', () => {
+    // Regression: kit_components has two FKs to kits (kit_id and
+    // child_kit_id) — an unhinted nested embed of kits through
+    // kit_components is ambiguous and PostgREST rejects it with PGRST201.
+    it('disambiguates the kit_components -> kits embed with an FK hint', async () => {
+      const { getMaintenanceQueueReport } = await import('./inventoryManagement.service');
+      let assetsSelectArg = '';
+
+      mockSupabase.from.mockImplementation((table: string) => {
+        if (table === 'assets') {
+          const chain = makeQueryChain({
+            data: [
+              {
+                id: 'asset-1',
+                manufacturer_model: 'DI Box',
+                tag_number: 'TAG-1',
+                kit_components: [{ kit_id: 'kit-1', kit: { id: 'kit-1', name: 'Full Rack' } }],
+              },
+            ],
+            error: null,
+          });
+          chain.select = vi.fn((arg: string) => {
+            assetsSelectArg = arg;
+            return chain;
+          });
+          return chain;
+        }
+        if (table === 'inventory_tracking') {
+          return makeQueryChain({ data: [], error: null });
+        }
+        return makeQueryChain({ data: [], error: null });
+      });
+
+      const result = await getMaintenanceQueueReport('org-1');
+
+      expect(assetsSelectArg).toContain('kits!kit_assets_kit_id_fkey');
+      expect(result).toEqual([
+        expect.objectContaining({ asset_id: 'asset-1', kit_id: 'kit-1', kit_name: 'Full Rack' }),
+      ]);
+    });
+  });
 });

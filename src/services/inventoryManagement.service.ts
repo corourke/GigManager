@@ -269,6 +269,43 @@ export async function getActiveGigsWithTracking(organizationId: string): Promise
   }
 }
 
+export interface GigOption {
+  id: string;
+  title: string;
+}
+
+// All gigs the organization participates in, unfiltered by status or date —
+// for report gig-pickers (Manifest, Packing List). getActiveGigsWithTracking
+// narrows to "what's happening this week" for the dashboard, which made
+// past/future/non-Booked gigs unselectable in reports that need to reach
+// any gig's history.
+export async function getGigsForReportPicker(organizationId: string): Promise<GigOption[]> {
+  const supabase = getSupabase();
+  try {
+    const { data: participatingGigIds, error: participantError } = await supabase
+      .from('gig_participants')
+      .select('gig_id')
+      .eq('organization_id', organizationId);
+
+    if (participantError) throw participantError;
+
+    const gigIds = (participatingGigIds ?? []).map((r: any) => r.gig_id);
+    if (gigIds.length === 0) return [];
+
+    const { data: gigs, error: gigsError } = await supabase
+      .from('gigs')
+      .select('id, title')
+      .in('id', gigIds)
+      .order('start', { ascending: false });
+
+    if (gigsError) throw gigsError;
+
+    return (gigs ?? []) as GigOption[];
+  } catch (err) {
+    return handleApiError(err, 'get gigs for report picker');
+  }
+}
+
 export async function getLocationSuggestions(organizationId: string): Promise<string[]> {
   const supabase = getSupabase();
   try {
@@ -432,16 +469,29 @@ export async function getManifestReport(
     const records = (data ?? []) as any[];
     const latest = getLatestByKey(records as DbInventoryTracking[]);
 
+    // Without this, every asset-level row rendered its kit's name instead of
+    // its own (the UI falls back to kit_name when asset_name is null) — a
+    // kit with 8 distinct assets showed up as 8 identical-looking rows.
+    const { data: assets, error: assetsError } = await supabase
+      .from('assets')
+      .select('id, manufacturer_model, tag_number')
+      .in('id', latest.filter((r) => r.asset_id).map((r) => r.asset_id as string));
+
+    if (assetsError) throw assetsError;
+
+    const assetMap = new Map((assets ?? []).map((a: any) => [a.id, a]));
+
     const conflictFlags = await getInventoryConflictFlags(organizationId);
 
     return latest.map((record): ManifestRow => {
       const rawRecord = records.find((r) => r.id === record.id) as any;
+      const asset = record.asset_id ? assetMap.get(record.asset_id) : null;
       return {
         kit_id: record.kit_id ?? '',
         kit_name: rawRecord?.kit?.name ?? null,
         asset_id: record.asset_id ?? null,
-        asset_name: null,
-        tag_number: null,
+        asset_name: asset?.manufacturer_model ?? null,
+        tag_number: asset?.tag_number ?? null,
         status: record.status,
         location: record.location ?? null,
         gig_id: record.gig_id,
@@ -469,17 +519,51 @@ export async function getPackingListReport(organizationId: string, gigId: string
           name,
           is_container,
           tag_number,
-          organization_id,
-          assets:kit_components!kit_assets_kit_id_fkey(
-            asset_id,
-            asset:assets(id, manufacturer_model, tag_number)
-          )
+          organization_id
         )
       `)
       .eq('gig_id', gigId)
       .eq('kit.organization_id', organizationId);
 
     if (assignError) throw assignError;
+
+    // Every non-container kit's assets, fully flattened — a kit_components
+    // row alone can't answer "what assets does this kit have," since a
+    // sub-kit component has no asset of its own (the old embed above
+    // resolved those to a null asset, producing a bogus blank row per
+    // nested sub-kit instead of expanding it). Reads the same
+    // write-time-maintained cache used elsewhere (kit.service.ts,
+    // getActiveGigsWithTracking), so nested sub-kits' assets are included
+    // too, consistent with how scanning already cascades through the whole
+    // hierarchy.
+    const nonContainerKitIds = Array.from(new Set(
+      (assignments ?? [])
+        .filter((a: any) => !a.kit?.is_container)
+        .map((a: any) => a.kit_id)
+    ));
+
+    const assetsByKit = new Map<string, AssetInKit[]>();
+    if (nonContainerKitIds.length > 0) {
+      const { data: flattened, error: flattenedError } = await supabase
+        .from('kit_flattened_cache')
+        .select('kit_id, asset_id, asset:assets(id, manufacturer_model, tag_number)')
+        .in('kit_id', nonContainerKitIds);
+
+      if (flattenedError) throw flattenedError;
+
+      for (const row of (flattened ?? []) as any[]) {
+        const list = assetsByKit.get(row.kit_id) ?? [];
+        list.push({
+          asset_id: row.asset_id,
+          asset: {
+            id: row.asset?.id,
+            manufacturer_model: row.asset?.manufacturer_model ?? null,
+            tag_number: row.asset?.tag_number ?? null,
+          },
+        });
+        assetsByKit.set(row.kit_id, list);
+      }
+    }
 
     const { data: trackingData, error: trackingError } = await supabase
       .from('inventory_tracking')
@@ -516,7 +600,7 @@ export async function getPackingListReport(organizationId: string, gigId: string
           has_conflict: hasConflict,
         });
       } else {
-        for (const ka of kit.assets ?? []) {
+        for (const ka of assetsByKit.get(kitId) ?? []) {
           const assetId = ka.asset_id;
           const asset = ka.asset;
           const assetRecord = latest.find((r) => r.kit_id === kitId && r.asset_id === assetId);
@@ -549,7 +633,10 @@ export async function getMaintenanceQueueReport(organizationId: string): Promise
   try {
     const { data: assets, error: assetsError } = await supabase
       .from('assets')
-      .select('id, manufacturer_model, tag_number, kit_components(kit_id, kit:kits(id, name))')
+      // kit_components has two FKs to kits (kit_id and child_kit_id) — the
+      // hint picks the direct-parent-kit relationship, or PostgREST throws
+      // PGRST201 for an ambiguous embed.
+      .select('id, manufacturer_model, tag_number, kit_components(kit_id, kit:kits!kit_assets_kit_id_fkey(id, name))')
       .eq('organization_id', organizationId)
       .eq('status', 'Maintenance');
 

@@ -29,14 +29,14 @@ import { Label } from '../ui/label';
 import { LocationCombobox } from './LocationCombobox';
 import { TrackingStatusBadge } from './TrackingStatusBadge';
 import {
-  getActiveGigsWithTracking,
+  getGigsForReportPicker,
   getManifestReport,
   getPackingListReport,
   getMaintenanceQueueReport,
   getInventoryConflictFlags,
 } from '../../services/inventoryManagement.service';
 import type {
-  GigWithTracking,
+  GigOption,
   ManifestRow,
   PackingListRow,
   MaintenanceRow,
@@ -127,7 +127,7 @@ function ManifestTab({
 }: {
   organizationId: string;
   organizationName: string;
-  gigs: GigWithTracking[];
+  gigs: GigOption[];
   conflictFlags: Set<string>;
 }) {
   const [location, setLocation] = useState('');
@@ -362,7 +362,7 @@ function PackingListTab({
 }: {
   organizationId: string;
   organizationName: string;
-  gigs: GigWithTracking[];
+  gigs: GigOption[];
   conflictFlags: Set<string>;
 }) {
   const [gigId, setGigId] = useState('');
@@ -676,12 +676,12 @@ function MaintenanceQueueTab({
 }
 
 export function InventoryReports({ organizationId, organizationName }: InventoryReportsProps) {
-  const [gigs, setGigs] = useState<GigWithTracking[]>([]);
+  const [gigs, setGigs] = useState<GigOption[]>([]);
   const [conflictFlags, setConflictFlags] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     Promise.all([
-      getActiveGigsWithTracking(organizationId),
+      getGigsForReportPicker(organizationId),
       getInventoryConflictFlags(organizationId),
     ])
       .then(([gigsData, flags]) => {
