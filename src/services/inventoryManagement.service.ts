@@ -133,6 +133,32 @@ function getLatestByKey(records: DbInventoryTracking[]): DbInventoryTracking[] {
   return Array.from(map.values());
 }
 
+// Like getLatestByKey, but for the Manifest report specifically. A kit scan
+// cascades to every asset in that kit's flattened subtree, and each kit
+// level in a hierarchy (top-level and every nested sub-kit) can
+// independently be scanned — so the same physical asset can end up with
+// tracking rows under more than one kit_id. Deduping by kit_id+asset_id
+// (getLatestByKey's key) would show that asset once per kit level instead
+// of once overall, which is what a manifest is for: confirming every
+// physical item is at this location, exactly once. This drops kit_id from
+// the key for asset-level rows so only the single most-recently-scanned
+// row survives, whichever kit level it was scanned through; kit-level rows
+// (asset_id null, the kit itself as a sealed unit) keep kit_id in the key,
+// since those are genuinely distinct physical units.
+function getLatestManifestRecords(records: DbInventoryTracking[]): DbInventoryTracking[] {
+  const map = new Map<string, DbInventoryTracking>();
+  for (const record of records) {
+    const key = record.asset_id
+      ? `${record.gig_id}:${record.asset_id}`
+      : `${record.gig_id}:${record.kit_id ?? ''}`;
+    const existing = map.get(key);
+    if (!existing || record.scanned_at > existing.scanned_at) {
+      map.set(key, record);
+    }
+  }
+  return Array.from(map.values());
+}
+
 function formatUserName(user: { first_name?: string; last_name?: string; email?: string } | null | undefined): string | null {
   if (!user) return null;
   const full = [user.first_name, user.last_name].filter(Boolean).join(' ').trim();
@@ -467,7 +493,7 @@ export async function getManifestReport(
     if (error) throw error;
 
     const records = (data ?? []) as any[];
-    const latest = getLatestByKey(records as DbInventoryTracking[]);
+    const latest = getLatestManifestRecords(records as DbInventoryTracking[]);
 
     // Without this, every asset-level row rendered its kit's name instead of
     // its own (the UI falls back to kit_name when asset_name is null) — a

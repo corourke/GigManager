@@ -501,6 +501,53 @@ describe('inventoryManagement.service', () => {
       // The two rows are genuinely distinct assets, not duplicates of one kit.
       expect(new Set(result.map((r) => r.asset_name)).size).toBe(2);
     });
+
+    // Regression: scanning a top-level kit cascades a tracking row for
+    // every asset in its flattened subtree, and a nested sub-kit can also
+    // independently be scanned — so the same physical asset can end up
+    // with tracking rows under two different kit_ids (e.g. "Full Rack"
+    // and its nested "Mic Case"). The old kit_id-inclusive dedup key kept
+    // both, showing the same asset once per kit section on the manifest.
+    it('shows an asset only once even when it has tracking rows under two different kit levels', async () => {
+      const { getManifestReport } = await import('./inventoryManagement.service');
+
+      mockSupabase.from.mockImplementation((table: string) => {
+        if (table === 'inventory_tracking') {
+          return makeQueryChain({
+            data: [
+              {
+                id: 'rec-top', gig_id: 'gig-1', kit_id: 'kit-full-rack', asset_id: 'asset-mic',
+                status: 'In Transit', location: 'Truck 1', scanned_at: '2026-08-26T21:41:00Z',
+                scanned_by: 'user-1', notes: null, created_at: '2026-08-26T21:41:00Z',
+                scanned_by_user: { first_name: 'Cameron', last_name: "O'Rourke" },
+                kit: { name: 'Full Rack' }, gig: { title: 'Electric Festival' },
+              },
+              {
+                id: 'rec-sub', gig_id: 'gig-1', kit_id: 'kit-mic-case', asset_id: 'asset-mic',
+                status: 'In Transit', location: 'Truck 1', scanned_at: '2026-08-26T21:44:00Z',
+                scanned_by: 'user-1', notes: null, created_at: '2026-08-26T21:44:00Z',
+                scanned_by_user: { first_name: 'Cameron', last_name: "O'Rourke" },
+                kit: { name: 'Mic Case' }, gig: { title: 'Electric Festival' },
+              },
+            ],
+            error: null,
+          });
+        }
+        if (table === 'assets') {
+          return makeQueryChain({
+            data: [{ id: 'asset-mic', manufacturer_model: 'SM58', tag_number: 'MIC-1' }],
+            error: null,
+          });
+        }
+        return makeQueryChain({ data: [], error: null });
+      });
+
+      const result = await getManifestReport('org-1', { location: 'Truck 1' });
+
+      expect(result).toHaveLength(1);
+      // The later scan (through Mic Case, the nested sub-kit) wins.
+      expect(result[0]).toMatchObject({ kit_id: 'kit-mic-case', kit_name: 'Mic Case', asset_id: 'asset-mic' });
+    });
   });
 
   describe('getPackingListReport', () => {
