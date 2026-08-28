@@ -547,7 +547,7 @@ export interface KitComponentTreeNode {
   type: 'asset' | 'kit';
   quantity: number;
   asset?: any;
-  kit?: { id: string; name: string; category: string | null; is_container: boolean };
+  kit?: { id: string; name: string; category: string | null; is_container: boolean; tag_number?: string | null };
   /** Populated (possibly empty) for kit-type nodes only. */
   children: KitComponentTreeNode[];
 }
@@ -576,7 +576,7 @@ export async function getKitComponentTree(kitId: string): Promise<KitComponentTr
     const allKitIds = Array.from(new Set([kitId, ...edges.map((e) => e.child_kit_id)]));
 
     const [{ data: kitsData, error: kitsError }, { data: componentRows, error: componentsError }] = await Promise.all([
-      supabase.from('kits').select('id, name, category, is_container').in('id', allKitIds),
+      supabase.from('kits').select('id, name, category, is_container, tag_number').in('id', allKitIds),
       supabase.from('kit_components').select('kit_id, asset_id, child_kit_id, quantity, asset:assets(*)').in('kit_id', allKitIds),
     ]);
     if (kitsError) throw kitsError;
@@ -611,6 +611,7 @@ export async function getKitComponentTree(kitId: string): Promise<KitComponentTr
             name: childKit?.name ?? 'Unknown Kit',
             category: childKit?.category ?? null,
             is_container: !!childKit?.is_container,
+            tag_number: childKit?.tag_number ?? null,
           },
           children: buildChildren(row.child_kit_id),
         };
@@ -629,15 +630,67 @@ export async function getKitComponentTree(kitId: string): Promise<KitComponentTr
  * sealed unit, not a bag of loose parts. A non-container sub-kit is
  * transparent: it isn't itself counted, it just contributes whatever its
  * own contents count to (recursively, until hitting a container or a leaf
- * asset). Contrast with the fully-flattened "Total Items" count, which
- * ignores container boundaries entirely.
+ * asset) — multiplied by its own quantity, same as a container or an asset
+ * (2 copies of a non-container sub-kit means 2x everything inside it).
+ * Contrast with the fully-flattened "Total Items" count, which ignores
+ * container boundaries entirely.
  */
 export function countInventoryItems(nodes: KitComponentTreeNode[]): number {
   return nodes.reduce((total, node) => {
     if (node.type === 'asset') return total + node.quantity;
     if (node.kit?.is_container) return total + node.quantity;
-    return total + countInventoryItems(node.children);
+    return total + node.quantity * countInventoryItems(node.children);
   }, 0);
+}
+
+export interface ScanUnit {
+  /** Which kit this unit is tracked/grouped under — the container's own id
+   * for a container unit, or the top (owning) kit's id for a loose asset. */
+  kit_id: string;
+  kit_name: string | null;
+  is_container: boolean;
+  asset_id: string | null;
+  asset_name: string | null;
+  tag_number: string | null;
+}
+
+/**
+ * Every physically scannable unit in a kit's tree, respecting container
+ * boundaries at *every* level, not just the top one — the traversal
+ * `kit_flattened_cache` can't do, since it flattens straight through every
+ * container. A container sub-kit becomes its own single unit, however
+ * deeply nested, and is never drilled into further; a non-container
+ * sub-kit is transparent, contributing whatever its own contents resolve
+ * to. Loose assets (not sealed inside any container) are attributed to
+ * `owningKit` — the top kit whose tree this is, matching how
+ * gig_kit_assignments only ever assigns top-level kits.
+ */
+export function flattenToScanUnits(nodes: KitComponentTreeNode[], owningKit: { id: string; name: string }): ScanUnit[] {
+  const units: ScanUnit[] = [];
+  for (const node of nodes) {
+    if (node.type === 'asset') {
+      units.push({
+        kit_id: owningKit.id,
+        kit_name: owningKit.name,
+        is_container: false,
+        asset_id: node.asset?.id ?? null,
+        asset_name: node.asset?.manufacturer_model ?? null,
+        tag_number: node.asset?.tag_number ?? null,
+      });
+    } else if (node.kit?.is_container) {
+      units.push({
+        kit_id: node.kit.id,
+        kit_name: node.kit.name,
+        is_container: true,
+        asset_id: null,
+        asset_name: null,
+        tag_number: node.kit.tag_number ?? null,
+      });
+    } else {
+      units.push(...flattenToScanUnits(node.children, owningKit));
+    }
+  }
+  return units;
 }
 
 /** Deepest sub-kit nesting level reached anywhere in the tree (a direct sub-kit is depth 1). */

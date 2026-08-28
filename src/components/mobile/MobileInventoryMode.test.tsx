@@ -11,6 +11,44 @@ function getLatestTrackingRecord(tracking: any[] = [], kitId: string, assetId?: 
     .sort((left, right) => new Date(right.scanned_at).getTime() - new Date(left.scanned_at).getTime())[0] || null
 }
 
+// Faithful reimplementation of inventoryTracking.service.ts's cascade logic
+// for the mock below — a container is one sealed unit (itself plus its
+// fully-flattened contents, under its own id); a non-container kit gets no
+// record of its own, just its contents, recursing through non-container
+// children and stopping at the next container boundary.
+function getKitAssignment(packingList: any, kitId: string) {
+  return packingList?.kits?.find((assignment: any) => assignment.kit?.id === kitId) || null
+}
+function getKitAssetIds(packingList: any, kitId: string) {
+  return (getKitAssignment(packingList, kitId)?.kit?.assets || [])
+    .map((a: any) => a.asset_id || a.asset?.id || a.id)
+    .filter(Boolean)
+}
+function getDirectAssetIds(kit: any) {
+  return (kit?.direct_assets ?? kit?.assets ?? [])
+    .map((a: any) => a.asset_id || a.asset?.id || a.id)
+    .filter(Boolean)
+}
+function getChildKitIds(packingList: any, kitId: string) {
+  return (packingList?.hierarchy_edges || [])
+    .filter((edge: any) => edge.parent_kit_id === kitId)
+    .map((edge: any) => edge.child_kit_id)
+}
+function getCascadeTargets(packingList: any, kitId: string, owningKitId: string = kitId): { kit_id: string; asset_id: string | null }[] {
+  const kit = getKitAssignment(packingList, kitId)?.kit
+  if (kit?.is_container) {
+    return [
+      { kit_id: kitId, asset_id: null },
+      ...getKitAssetIds(packingList, kitId).map((assetId: string) => ({ kit_id: kitId, asset_id: assetId })),
+    ]
+  }
+  const targets = getDirectAssetIds(kit).map((assetId: string) => ({ kit_id: owningKitId, asset_id: assetId }))
+  for (const childKitId of getChildKitIds(packingList, kitId)) {
+    targets.push(...getCascadeTargets(packingList, childKitId, owningKitId))
+  }
+  return targets
+}
+
 vi.mock('../../contexts/AuthContext', () => ({
   useAuth: () => ({
     user: { id: 'user-1' },
@@ -35,6 +73,7 @@ vi.mock('../../services/mobile/packingList.service', () => ({
 vi.mock('../../services/mobile/inventoryTracking.service', () => ({
   inventoryTrackingService: {
     getLatestTrackingRecord,
+    getCascadeTargets,
     matchTag: vi.fn(),
     submitScan: vi.fn(),
     clearTracking: vi.fn(),

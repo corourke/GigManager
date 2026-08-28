@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { getKits, getKit, getDistinctKitValues, deleteKit, createKit, updateKit, duplicateKit, countInventoryItems, maxTreeDepth, getKitsThatWouldCycle, KitComponentTreeNode } from './kit.service';
+import { getKits, getKit, getDistinctKitValues, deleteKit, createKit, updateKit, duplicateKit, countInventoryItems, maxTreeDepth, getKitsThatWouldCycle, getKitComponentTree, KitComponentTreeNode } from './kit.service';
 import { createClient } from '../utils/supabase/client';
 import { requireAuth } from '../utils/supabase/auth-utils';
 
@@ -398,6 +398,49 @@ describe('kit.service', () => {
       }));
     });
   });
+
+  // ─── getKitComponentTree ─────────────────────────────────────────────────
+
+  describe('getKitComponentTree', () => {
+    // Regression coverage for the DB-assembly path itself, not just
+    // countInventoryItems's pure logic (which was previously only ever
+    // exercised against hand-built trees) — a non-container sub-kit with
+    // its own 2 assets, plus 2 assets added directly to the parent, is 4
+    // real physical items to scan; the sub-kit itself isn't one of them.
+    it('assembles a tree from kit_components rows that countInventoryItems totals correctly', async () => {
+      mockSupabase.rpc = vi.fn().mockResolvedValue({
+        data: [{ parent_kit_id: 'kit-top', child_kit_id: 'kit-sub', quantity: 1, depth: 1 }],
+        error: null,
+      });
+      mockSupabase.from.mockImplementation((table: string) => {
+        if (table === 'kits') {
+          return makeChain({
+            data: [
+              { id: 'kit-top', name: 'Test Rack', category: null, is_container: false },
+              { id: 'kit-sub', name: 'Sub Kit', category: null, is_container: false },
+            ],
+            error: null,
+          });
+        }
+        if (table === 'kit_components') {
+          return makeChain({
+            data: [
+              { kit_id: 'kit-top', asset_id: 'asset-1', child_kit_id: null, quantity: 1, asset: { id: 'asset-1', manufacturer_model: 'Asset 1' } },
+              { kit_id: 'kit-top', asset_id: 'asset-2', child_kit_id: null, quantity: 1, asset: { id: 'asset-2', manufacturer_model: 'Asset 2' } },
+              { kit_id: 'kit-top', asset_id: null, child_kit_id: 'kit-sub', quantity: 1, asset: null },
+              { kit_id: 'kit-sub', asset_id: 'asset-3', child_kit_id: null, quantity: 1, asset: { id: 'asset-3', manufacturer_model: 'Asset 3' } },
+              { kit_id: 'kit-sub', asset_id: 'asset-4', child_kit_id: null, quantity: 1, asset: { id: 'asset-4', manufacturer_model: 'Asset 4' } },
+            ],
+            error: null,
+          });
+        }
+        return makeChain({ data: [], error: null });
+      });
+
+      const tree = await getKitComponentTree('kit-top');
+      expect(countInventoryItems(tree)).toBe(4);
+    });
+  });
 });
 
 describe('countInventoryItems / maxTreeDepth', () => {
@@ -458,5 +501,13 @@ describe('countInventoryItems / maxTreeDepth', () => {
 
   it('returns 0 items for an empty tree', () => {
     expect(countInventoryItems([])).toBe(0);
+  });
+
+  // Regression: a non-container sub-kit's own quantity was being dropped —
+  // 2 copies of "Duo Pack" (itself transparent, containing 3 loose assets)
+  // must count as 6 items, not 3.
+  it('multiplies a non-container sub-kit\'s own contents by its quantity', () => {
+    const nested = [kit('Duo Pack', false, 2, [asset(3)])];
+    expect(countInventoryItems(nested)).toBe(6);
   });
 });

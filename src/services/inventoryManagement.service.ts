@@ -1,6 +1,7 @@
 import { createClient } from '../utils/supabase/client';
 import { handleApiError } from '../utils/api-error-utils';
 import { SCANNING_MODES, RETURNED_STATUS } from '../config/inventoryWorkflow';
+import { getKitComponentTree, flattenToScanUnits } from './kit.service';
 import type { DbInventoryTracking } from '../utils/supabase/types';
 
 const getSupabase = () => createClient();
@@ -553,42 +554,19 @@ export async function getPackingListReport(organizationId: string, gigId: string
 
     if (assignError) throw assignError;
 
-    // Every non-container kit's assets, fully flattened — a kit_components
-    // row alone can't answer "what assets does this kit have," since a
-    // sub-kit component has no asset of its own (the old embed above
-    // resolved those to a null asset, producing a bogus blank row per
-    // nested sub-kit instead of expanding it). Reads the same
-    // write-time-maintained cache used elsewhere (kit.service.ts,
-    // getActiveGigsWithTracking), so nested sub-kits' assets are included
-    // too, consistent with how scanning already cascades through the whole
-    // hierarchy.
-    const nonContainerKitIds = Array.from(new Set(
-      (assignments ?? [])
-        .filter((a: any) => !a.kit?.is_container)
-        .map((a: any) => a.kit_id)
-    ));
-
-    const assetsByKit = new Map<string, AssetInKit[]>();
-    if (nonContainerKitIds.length > 0) {
-      const { data: flattened, error: flattenedError } = await supabase
-        .from('kit_flattened_cache')
-        .select('kit_id, asset_id, asset:assets(id, manufacturer_model, tag_number)')
-        .in('kit_id', nonContainerKitIds);
-
-      if (flattenedError) throw flattenedError;
-
-      for (const row of (flattened ?? []) as any[]) {
-        const list = assetsByKit.get(row.kit_id) ?? [];
-        list.push({
-          asset_id: row.asset_id,
-          asset: {
-            id: row.asset?.id,
-            manufacturer_model: row.asset?.manufacturer_model ?? null,
-            tag_number: row.asset?.tag_number ?? null,
-          },
-        });
-        assetsByKit.set(row.kit_id, list);
-      }
+    // Every non-container kit's scannable units, respecting container
+    // boundaries at every level, not just the top one — kit_flattened_cache
+    // can't do this, since it flattens straight through every container
+    // (a nested container's contents would leak out as individual rows
+    // instead of one row for the sealed unit). getKitComponentTree walks
+    // the real kit_components tree; flattenToScanUnits stops the moment a
+    // container is reached, wherever it sits in the hierarchy.
+    const nonContainerAssignments = (assignments ?? []).filter((a: any) => !a.kit?.is_container);
+    const scanUnitsByKit = new Map<string, ReturnType<typeof flattenToScanUnits>>();
+    for (const assignment of nonContainerAssignments) {
+      const kit = (assignment as any).kit;
+      const tree = await getKitComponentTree(assignment.kit_id);
+      scanUnitsByKit.set(assignment.kit_id, flattenToScanUnits(tree, { id: assignment.kit_id, name: kit.name }));
     }
 
     const { data: trackingData, error: trackingError } = await supabase
@@ -626,23 +604,22 @@ export async function getPackingListReport(organizationId: string, gigId: string
           has_conflict: hasConflict,
         });
       } else {
-        for (const ka of assetsByKit.get(kitId) ?? []) {
-          const assetId = ka.asset_id;
-          const asset = ka.asset;
-          const assetRecord = latest.find((r) => r.kit_id === kitId && r.asset_id === assetId);
+        for (const unit of scanUnitsByKit.get(kitId) ?? []) {
+          const unitConflict = conflictFlags.has(unit.kit_id);
+          const unitRecord = latest.find((r) => r.kit_id === unit.kit_id && (r.asset_id ?? null) === unit.asset_id);
           rows.push({
-            kit_id: kitId,
-            kit_name: kit.name,
-            is_container: false,
-            asset_id: assetId,
-            asset_name: asset?.manufacturer_model ?? null,
-            tag_number: asset?.tag_number ?? null,
-            status: assetRecord?.status ?? null,
-            location: assetRecord?.location ?? null,
-            scanned_at: assetRecord?.scanned_at ?? null,
-            scanned_by_name: assetRecord ? formatUserName((assetRecord as any).scanned_by_user) : null,
-            notes: assetRecord?.notes ?? null,
-            has_conflict: hasConflict,
+            kit_id: unit.kit_id,
+            kit_name: unit.kit_name,
+            is_container: unit.is_container,
+            asset_id: unit.asset_id,
+            asset_name: unit.asset_name,
+            tag_number: unit.tag_number,
+            status: unitRecord?.status ?? null,
+            location: unitRecord?.location ?? null,
+            scanned_at: unitRecord?.scanned_at ?? null,
+            scanned_by_name: unitRecord ? formatUserName((unitRecord as any).scanned_by_user) : null,
+            notes: unitRecord?.notes ?? null,
+            has_conflict: unitConflict,
           });
         }
       }

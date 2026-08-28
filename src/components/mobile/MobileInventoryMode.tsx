@@ -82,6 +82,21 @@ const getDisplayedTrackingRecord = (tracking: TrackingRecord[] = [], kitId: stri
   return getLatestTrackingRecordForItem(tracking, kitId, assetId) || getLatestTrackingRecordForItem(tracking, kitId);
 };
 
+// A non-container kit never gets its own tracking record (nothing physical
+// to scan) — so "is this kit's row checked" means "are all of its
+// scannable units currently in this status," not a single record lookup.
+// A container still has its own record to check directly.
+const isKitFullyScanned = (tracking: TrackingRecord[], packingList: any, kit: any, targetStatus: string): boolean => {
+  if (kit.is_container) {
+    return getDisplayedTrackingRecord(tracking, kit.id)?.status === targetStatus;
+  }
+  const targets = inventoryTrackingService.getCascadeTargets(packingList, kit.id);
+  if (targets.length === 0) return false;
+  return targets.every((target: { kit_id: string; asset_id: string | null }) =>
+    getDisplayedTrackingRecord(tracking, target.kit_id, target.asset_id ?? undefined)?.status === targetStatus
+  );
+};
+
 const formatScannedBy = (trackingRecord?: TrackingRecord | null) => {
   if (!trackingRecord) {
     return '—';
@@ -239,8 +254,16 @@ export default function MobileInventoryMode({ gigId }: MobileInventoryModeProps)
       return;
     }
 
-    const trackingRecord = getDisplayedTrackingRecord(packingList.tracking || [], kitId, assetId);
-    const isCheckedInCurrentMode = trackingRecord?.status === selectedMode.resultingStatus;
+    let isCheckedInCurrentMode: boolean;
+    if (assetId) {
+      const trackingRecord = getDisplayedTrackingRecord(packingList.tracking || [], kitId, assetId);
+      isCheckedInCurrentMode = trackingRecord?.status === selectedMode.resultingStatus;
+    } else {
+      const kit = packingList.kits?.find((assignment: any) => assignment.kit?.id === kitId)?.kit;
+      isCheckedInCurrentMode = kit
+        ? isKitFullyScanned(packingList.tracking || [], packingList, kit, selectedMode.resultingStatus)
+        : false;
+    }
 
     if (isCheckedInCurrentMode) {
       await inventoryTrackingService.clearTracking({ gigId, kitId, assetId });
@@ -386,9 +409,14 @@ export default function MobileInventoryMode({ gigId }: MobileInventoryModeProps)
         return;
       }
 
-      total += 1;
-      if (getDisplayedTrackingRecord(packingList.tracking || [], kit.id)?.status === selectedMode.resultingStatus) {
-        scanned += 1;
+      // A non-container kit never gets its own tracking record (nothing
+      // physical to scan) — only count it as its own checkable unit when
+      // it's a container.
+      if (kit.is_container) {
+        total += 1;
+        if (getDisplayedTrackingRecord(packingList.tracking || [], kit.id)?.status === selectedMode.resultingStatus) {
+          scanned += 1;
+        }
       }
 
       (kit.assets || []).forEach((assetAssignment: any) => {
@@ -595,16 +623,21 @@ export default function MobileInventoryMode({ gigId }: MobileInventoryModeProps)
                 const expandedAssets = assetsSource === 'direct' ? (kit.direct_assets ?? kit.assets ?? []) : (kit.assets ?? []);
 
                 const kitTracking = getDisplayedTrackingRecord(packingList?.tracking || [], kit.id);
-                const isKitChecked = kitTracking?.status === selectedMode.resultingStatus;
+                const isKitChecked = packingList ? isKitFullyScanned(packingList.tracking || [], packingList, kit, selectedMode.resultingStatus) : false;
                 const isExpanded = expandedKits.has(kit.id);
-                const hasNoTag = !kit.tag_number;
+                // Only a container is expected to have a physical tag — a
+                // non-container kit is organizational, so a missing tag
+                // there isn't an anomaly worth flagging.
+                const hasNoTag = kit.is_container && !kit.tag_number;
                 const isLogicalKit = kit.is_container === false;
-                const kitAssets = kit.assets || [];
-                const logicalKitScanned = isLogicalKit ? kitAssets.filter((assetAssignment: any) => {
-                  const asset = assetAssignment.asset || {};
-                  const assetId = assetAssignment.asset_id || asset.id || assetAssignment.id;
-                  return getDisplayedTrackingRecord(packingList?.tracking || [], kit.id, assetId)?.status === selectedMode.resultingStatus;
-                }).length : 0;
+                // Scannable units under this kit, respecting nested
+                // container boundaries — not the raw flattened asset list,
+                // which would count a nested container's contents as this
+                // kit's own even though scanning it doesn't touch them.
+                const cascadeTargets = isLogicalKit && packingList ? inventoryTrackingService.getCascadeTargets(packingList, kit.id) : [];
+                const logicalKitScanned = cascadeTargets.filter((target: { kit_id: string; asset_id: string | null }) =>
+                  getDisplayedTrackingRecord(packingList?.tracking || [], target.kit_id, target.asset_id ?? undefined)?.status === selectedMode.resultingStatus
+                ).length;
 
                 return (
                   <div
@@ -640,8 +673,8 @@ export default function MobileInventoryMode({ gigId }: MobileInventoryModeProps)
                             {kitTracking?.notes ? (
                               <p className="mt-1 text-[11px] text-muted-foreground leading-snug truncate">Note: {kitTracking.notes}</p>
                             ) : null}
-                            {isLogicalKit && kitAssets.length > 0 ? (
-                              <p className="mt-1 text-[10px] text-muted-foreground">{logicalKitScanned} / {kitAssets.length} items {selectedMode.resultingStatus}</p>
+                            {isLogicalKit && cascadeTargets.length > 0 ? (
+                              <p className="mt-1 text-[10px] text-muted-foreground">{logicalKitScanned} / {cascadeTargets.length} items {selectedMode.resultingStatus}</p>
                             ) : null}
                           </div>
                           <div className="flex items-stretch shrink-0 border-l border-border/50">

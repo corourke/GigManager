@@ -555,9 +555,10 @@ describe('inventoryManagement.service', () => {
     // off gig_kit_assignments, so a nested sub-kit component (no asset_id
     // of its own) produced a bogus row with every field null instead of
     // being expanded. This mirrors the getActiveGigsWithTracking fix.
-    it('does not produce a bogus null-asset row for a non-container kit with a nested sub-kit, and flattens its assets via the cache', async () => {
+    it('does not produce a bogus null-asset row for a non-container kit with two direct assets', async () => {
       const { getPackingListReport } = await import('./inventoryManagement.service');
 
+      mockSupabase.rpc = vi.fn().mockResolvedValue({ data: [], error: null });
       mockSupabase.from.mockImplementation((table: string) => {
         if (table === 'gig_kit_assignments') {
           return makeQueryChain({
@@ -567,11 +568,17 @@ describe('inventoryManagement.service', () => {
             error: null,
           });
         }
-        if (table === 'kit_flattened_cache') {
+        if (table === 'kits') {
+          return makeQueryChain({
+            data: [{ id: 'kit-1', name: 'Full Rack', category: null, is_container: false, tag_number: null }],
+            error: null,
+          });
+        }
+        if (table === 'kit_components') {
           return makeQueryChain({
             data: [
-              { kit_id: 'kit-1', asset_id: 'asset-1', asset: { id: 'asset-1', manufacturer_model: 'DI Box', tag_number: null } },
-              { kit_id: 'kit-1', asset_id: 'asset-2', asset: { id: 'asset-2', manufacturer_model: 'SM58', tag_number: null } },
+              { kit_id: 'kit-1', asset_id: 'asset-1', child_kit_id: null, quantity: 1, asset: { id: 'asset-1', manufacturer_model: 'DI Box', tag_number: null } },
+              { kit_id: 'kit-1', asset_id: 'asset-2', child_kit_id: null, quantity: 1, asset: { id: 'asset-2', manufacturer_model: 'SM58', tag_number: null } },
             ],
             error: null,
           });
@@ -590,6 +597,65 @@ describe('inventoryManagement.service', () => {
       expect(result).toHaveLength(2);
       expect(result.every((r) => r.asset_id !== null)).toBe(true);
       expect(result.map((r) => r.asset_name).sort()).toEqual(['DI Box', 'SM58']);
+    });
+
+    // The actual bug reported live: a container nested inside a
+    // non-container top-level kit was exploded into its individual assets
+    // instead of showing as one row for the sealed unit.
+    it('gives a nested container its own single row instead of exploding it into individual assets', async () => {
+      const { getPackingListReport } = await import('./inventoryManagement.service');
+
+      mockSupabase.rpc = vi.fn().mockResolvedValue({
+        data: [{ parent_kit_id: 'kit-full-rack', child_kit_id: 'kit-mic-case', quantity: 1, depth: 1 }],
+        error: null,
+      });
+      mockSupabase.from.mockImplementation((table: string) => {
+        if (table === 'gig_kit_assignments') {
+          return makeQueryChain({
+            data: [
+              { kit_id: 'kit-full-rack', kit: { id: 'kit-full-rack', name: 'Full Rack', is_container: false, tag_number: null, organization_id: 'org-1' } },
+            ],
+            error: null,
+          });
+        }
+        if (table === 'kits') {
+          return makeQueryChain({
+            data: [
+              { id: 'kit-full-rack', name: 'Full Rack', category: null, is_container: false, tag_number: null },
+              { id: 'kit-mic-case', name: 'Mic Case', category: null, is_container: true, tag_number: 'MIC-CASE-1' },
+            ],
+            error: null,
+          });
+        }
+        if (table === 'kit_components') {
+          return makeQueryChain({
+            data: [
+              { kit_id: 'kit-full-rack', asset_id: 'asset-snake', child_kit_id: null, quantity: 1, asset: { id: 'asset-snake', manufacturer_model: 'Cable Snake', tag_number: null } },
+              { kit_id: 'kit-full-rack', asset_id: null, child_kit_id: 'kit-mic-case', quantity: 1, asset: null },
+              { kit_id: 'kit-mic-case', asset_id: 'asset-mic', child_kit_id: null, quantity: 1, asset: { id: 'asset-mic', manufacturer_model: 'SM58', tag_number: null } },
+            ],
+            error: null,
+          });
+        }
+        if (table === 'inventory_tracking') {
+          return makeQueryChain({ data: [], error: null });
+        }
+        if (table === 'gig_participants') {
+          return makeQueryChain({ data: [], error: null });
+        }
+        return makeQueryChain({ data: [], error: null });
+      });
+
+      const result = await getPackingListReport('org-1', 'gig-1');
+
+      expect(result).toHaveLength(2);
+      const snakeRow = result.find((r) => r.asset_name === 'Cable Snake');
+      expect(snakeRow).toMatchObject({ kit_id: 'kit-full-rack', is_container: false, asset_id: 'asset-snake' });
+
+      const micCaseRow = result.find((r) => r.kit_id === 'kit-mic-case');
+      expect(micCaseRow).toMatchObject({ is_container: true, asset_id: null, kit_name: 'Mic Case', tag_number: 'MIC-CASE-1' });
+      // The mic itself never gets its own row — it's sealed inside Mic Case.
+      expect(result.some((r) => r.asset_name === 'SM58')).toBe(false);
     });
 
     it('does not query kit_flattened_cache for container kits', async () => {

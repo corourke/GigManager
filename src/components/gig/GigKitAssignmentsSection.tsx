@@ -3,17 +3,53 @@ import { useForm, useFieldArray } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { toast } from 'sonner';
-import { Package, Trash2, Info, Loader2 } from 'lucide-react';
+import { Package, Trash2, Info, Loader2, AlertTriangle } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '../ui/dialog';
 import { Textarea } from '../ui/textarea';
+import { Alert, AlertTitle, AlertDescription } from '../ui/alert';
+import { Tooltip, TooltipContent, TooltipTrigger } from '../ui/tooltip';
 import { getGigKits, updateGigKitAssignments } from '../../services/gig.service';
-import { getKits } from '../../services/kit.service';
+import { getKits, getKitsFlattenedSummary } from '../../services/kit.service';
+import { checkEquipmentConflicts, Conflict } from '../../services/conflictDetection.service';
+import { ConflictWarning } from '../ConflictWarning';
 import { useAutoSave } from '../../utils/hooks/useAutoSave';
 import SaveStateIndicator from './SaveStateIndicator';
+
+/**
+ * Which currently-assigned kits share a physical asset with another kit
+ * also assigned to this same gig — e.g. "Mic Case" and "Vocal Rig" both
+ * directly or indirectly contain the same SM58. Distinct from cross-gig
+ * equipment conflicts (checkEquipmentConflicts): this never touches the
+ * DB beyond the flattened-asset lookup, so it's usable client-side as
+ * assignments change, before anything is even saved.
+ */
+function findSameGigOverlaps(
+  kitIds: string[],
+  summaries: Map<string, { assetIds: Set<string> }>
+): Map<string, Set<string>> {
+  const overlaps = new Map<string, Set<string>>();
+  for (let i = 0; i < kitIds.length; i++) {
+    for (let j = i + 1; j < kitIds.length; j++) {
+      const a = kitIds[i];
+      const b = kitIds[j];
+      const assetsA = summaries.get(a)?.assetIds;
+      const assetsB = summaries.get(b)?.assetIds;
+      if (!assetsA || !assetsB) continue;
+      const shares = [...assetsA].some((assetId) => assetsB.has(assetId));
+      if (shares) {
+        if (!overlaps.has(a)) overlaps.set(a, new Set());
+        if (!overlaps.has(b)) overlaps.set(b, new Set());
+        overlaps.get(a)!.add(b);
+        overlaps.get(b)!.add(a);
+      }
+    }
+  }
+  return overlaps;
+}
 
 const kitAssignmentSchema = z.object({
   id: z.string(),
@@ -44,16 +80,24 @@ interface Kit {
 interface GigKitAssignmentsSectionProps {
   gigId: string;
   currentOrganizationId: string;
+  gigStart?: string;
+  gigEnd?: string;
+  gigTimezone?: string;
 }
 
 export default function GigKitAssignmentsSection({
   gigId,
   currentOrganizationId,
+  gigStart,
+  gigEnd,
+  gigTimezone,
 }: GigKitAssignmentsSectionProps) {
   const [isLoading, setIsLoading] = useState(true);
   const [availableKits, setAvailableKits] = useState<Kit[]>([]);
   const [showNotesDialog, setShowNotesDialog] = useState<number | null>(null);
   const [currentNotes, setCurrentNotes] = useState('');
+  const [sameGigOverlaps, setSameGigOverlaps] = useState<Map<string, Set<string>>>(new Map());
+  const [crossGigConflicts, setCrossGigConflicts] = useState<Conflict[]>([]);
 
   const { control, reset, watch, setValue, formState: { isDirty, errors } } = useForm<KitFormData>({
     resolver: zodResolver(kitFormSchema),
@@ -80,9 +124,20 @@ export default function GigKitAssignmentsSection({
     );
   }, [gigId, currentOrganizationId]);
 
+  const checkCrossGigConflicts = useCallback(async () => {
+    if (!gigStart || !gigEnd) return;
+    try {
+      const result = await checkEquipmentConflicts(gigId, gigStart, gigEnd, gigTimezone);
+      setCrossGigConflicts([...result.conflicts, ...result.warnings]);
+    } catch {
+      // Non-critical — leave whatever conflicts were already shown.
+    }
+  }, [gigId, gigStart, gigEnd, gigTimezone]);
+
   const handleSaveSuccess = useCallback((data: KitFormData) => {
     reset(data, { keepDirty: false, keepValues: true });
-  }, [reset]);
+    checkCrossGigConflicts();
+  }, [reset, checkCrossGigConflicts]);
 
   const { saveState, triggerSave } = useAutoSave<KitFormData>({
     gigId,
@@ -104,7 +159,24 @@ export default function GigKitAssignmentsSection({
 
   useEffect(() => {
     loadData();
+    checkCrossGigConflicts();
   }, [gigId]);
+
+  // Same-gig overlap check — no DB write required, so it reacts to the
+  // assignment list as it's edited, not just after an autosave lands.
+  const assignedKitIds = (formValues.assignments || []).map((a) => a.kit_id).filter(Boolean);
+  useEffect(() => {
+    if (assignedKitIds.length < 2) {
+      setSameGigOverlaps(new Map());
+      return;
+    }
+    let cancelled = false;
+    getKitsFlattenedSummary(assignedKitIds).then((summaries) => {
+      if (!cancelled) setSameGigOverlaps(findSameGigOverlaps(assignedKitIds, summaries));
+    });
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [assignedKitIds.join(',')]);
 
   const loadData = async () => {
     setIsLoading(true);
@@ -214,6 +286,19 @@ export default function GigKitAssignmentsSection({
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
+            {crossGigConflicts.length > 0 && (
+              <ConflictWarning conflicts={crossGigConflicts} />
+            )}
+            {sameGigOverlaps.size > 0 && (
+              <Alert className="border-amber-200 bg-amber-50 text-amber-900">
+                <AlertTriangle className="h-4 w-4 text-amber-600" />
+                <AlertTitle>Overlapping equipment</AlertTitle>
+                <AlertDescription>
+                  {sameGigOverlaps.size} of the kits assigned to this gig share a physical asset with
+                  another kit also assigned here — see the flagged rows below.
+                </AlertDescription>
+              </Alert>
+            )}
             {fields.length > 0 ? (
               <div className="border rounded-lg overflow-hidden">
                 <Table>
@@ -227,9 +312,28 @@ export default function GigKitAssignmentsSection({
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {fields.map((field, index) => (
+                    {fields.map((field, index) => {
+                      const overlapWith = sameGigOverlaps.get(field.kit_id);
+                      const overlapNames = overlapWith
+                        ? fields.filter((f) => overlapWith.has(f.kit_id)).map((f) => f.kit?.name || 'Unknown Kit')
+                        : [];
+                      return (
                       <TableRow key={field.id}>
-                        <TableCell>{field.kit?.name || 'Unknown Kit'}</TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-1.5">
+                            {field.kit?.name || 'Unknown Kit'}
+                            {overlapNames.length > 0 && (
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <AlertTriangle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  Shares equipment with {overlapNames.join(', ')} — also assigned to this gig
+                                </TooltipContent>
+                              </Tooltip>
+                            )}
+                          </div>
+                        </TableCell>
                         <TableCell>{field.kit?.tag_number || '-'}</TableCell>
                         <TableCell>{field.kit?.category || '-'}</TableCell>
                         <TableCell className="text-right">
@@ -261,7 +365,8 @@ export default function GigKitAssignmentsSection({
                           </div>
                         </TableCell>
                       </TableRow>
-                    ))}
+                      );
+                    })}
                   </TableBody>
                 </Table>
               </div>

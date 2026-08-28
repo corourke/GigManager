@@ -229,6 +229,9 @@ export default function GigScreen({
               <GigKitAssignmentsSection
                 gigId={gigId}
                 currentOrganizationId={organization.id}
+                gigStart={gig?.start}
+                gigEnd={gig?.end}
+                gigTimezone={gig?.timezone}
               />
 
               <div className="pt-6 border-t border-gray-100">
