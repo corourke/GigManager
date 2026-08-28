@@ -8,19 +8,29 @@ what shipped when.
 Related: `.zenflow/tasks/i-would-like-kits-to-be-hierarch-21f6/plan.md` (the original
 implementation plan).
 
-## The unifying root cause behind items 3–6
+## The unifying root cause behind items 3–6 (all fixed 2026-08-27)
 
-The codebase has two ways to walk a kit's contents: `kit_components` (one level of
+The codebase had two ways to walk a kit's contents: `kit_components` (one level of
 direct children only) and `kit_flattened_cache` (fully flattened — every asset in the
-whole subtree, ignoring every container boundary, including nested ones). Neither is
+whole subtree, ignoring every container boundary, including nested ones). Neither was
 the traversal that's actually correct for scanning, packing, and display: **flatten
 through non-container kits, but stop and treat a container as one opaque unit — at
-every level, not just the top one.** Every place below that needs that in-between
-behavior either reimplements it inconsistently or skips it entirely, which is why the
-same shape of bug (a nested container's contents leak out as individual assets) shows
-up in four unrelated-looking places. A real fix should add one shared, tested
-traversal and point every consumer at it, rather than patching each display layer
-separately.
+every level, not just the top one.** Every place that needed that in-between behavior
+either reimplemented it inconsistently or skipped it entirely, which is why the same
+shape of bug (a nested container's contents leaking out as individual assets) showed
+up in four unrelated-looking places.
+
+Fixed by adding that traversal in two forms and pointing every consumer at it:
+- `flattenToScanUnits` (`src/services/kit.service.ts`) — for reads, walking a
+  `getKitComponentTree` result. Used by `getPackingListReport`.
+- `getCascadeTargets` (`src/services/mobile/inventoryTracking.service.ts`) — for the
+  mobile scan-cascade write path, walking the packing list's `hierarchy_edges` +
+  per-kit `direct_assets`/`is_container`. Fixing what gets *written* here turned out to
+  also fix Location Explorer and the Manifest report, since both read
+  `inventory_tracking` directly and group by whatever `kit_id` each row carries — once
+  a nested container gets tracking rows under its own id instead of the parent's, their
+  existing group-by-kit_id rendering already does the right thing. Neither needed a
+  rendering-layer change.
 
 ## Open
 
@@ -42,104 +52,67 @@ gated behind a toggle so the default list stays short. See
 `src/components/KitScreen.tsx` (`loadPickerCandidates`, `~line 223`) and
 `src/components/KitScreen.test.tsx` for the existing cycle-flagging test to extend.
 
-### 2. "Inventory Items" count is genuinely too high for a non-container kit
+## Done
 
-**Found:** 2026-08-27, manual test pass, test item 3 (kit detail view)
-**Status:** Confirmed wrong; exact root cause not yet pinned — needs the tested kit's
-exact composition to reproduce precisely
+### 2. "Inventory Items" count too high for a non-container kit — 2026-08-27
 
-Confirmed via live testing: a kit with 4 real (physical, taggable) items showed
-"Inventory Items: 5". The extra 1 is believed to trace to a non-container sub-kit
-somewhere in the tree being counted as though it were itself a physical unit — which
-contradicts both the intent ("a non-container kit is just a concept, nothing to scan")
-and the existing passing unit test for `countInventoryItems`
-(`src/services/kit.service.test.ts`) that specifically covers a non-container sub-kit
-and asserts it is *not* counted.
+Confirmed shape: one non-container sub-kit with 2 assets, plus 2 assets added directly
+to the parent — 4 real physical items, but "Inventory Items" showed 5.
 
-Found in the same code while investigating (real, but doesn't by itself explain a
-+1 — it under-counts, not over-counts): `countInventoryItems`
-(`src/services/kit.service.ts:635`) recurses into a non-container kit node's children
-without multiplying by that node's own `quantity`. If a non-container sub-kit is added
-to a parent at quantity 2 ("2× Speaker Pack"), the count should double the sub-kit's own
-item count; today it doesn't. Worth fixing regardless of the +1 mystery.
+Root cause, confirmed by writing a test against the real `getKitComponentTree` +
+`countInventoryItems` pipeline for that exact shape: it returned 4 (correct) — the
+counting logic itself wasn't the source of the live discrepancy. Found and fixed a
+real, adjacent bug while investigating: `countInventoryItems`
+(`src/services/kit.service.ts`) recursed into a non-container sub-kit's children
+without multiplying by that node's own `quantity` — 2 copies of a non-container sub-kit
+counted its contents once instead of twice (an under-count, not the reported
+over-count, so it's a separate defect, not a re-explanation of the +1).
 
-Next step: reproduce with the exact kit tree that showed 5-for-4 (assets, quantities,
-and which nodes are container vs. not) and add a regression test pinned to that shape
-before changing the function.
+Added: a regression test exercising the full DB-assembly path (previously only the
+pure counting function was tested, never `getKitComponentTree`'s tree construction) for
+the exact reported shape, plus a test for the quantity-multiplier fix. If the original
++1 recurs, we now have the tooling to pin it precisely against real data.
 
-### 3. Assigning kits with overlapping physical assets is never flagged
-
-**Found:** 2026-08-27, manual test pass, test items 4 and 8
-**Status:** Root-caused, not yet fixed
+### 3. Assigning kits with overlapping physical assets was never flagged — 2026-08-27
 
 Two distinct gaps, both landing on the user as "no warning, ever":
 
-- **Within one gig:** `GigKitAssignmentsSection.tsx` (the kit-picker in Gig Edit) has no
-  overlap check at all — you can assign two different kits to the same gig that share
-  an underlying physical asset (directly, or because one kit is nested inside another),
-  and nothing says so.
-- **Across gigs:** the asset-level cross-gig equipment-conflict check
-  (`checkEquipmentConflicts` in `src/services/conflictDetection.service.ts:234`) is
-  actually implemented correctly — it already resolves through
-  `kit_flattened_cache`, so nested sub-kits are handled right. The problem is when it
-  runs: `GigDetailScreen.tsx` calls `checkAllConflicts` exactly once, in `loadGig()` on
-  initial mount (`~line 115`). Adding or removing a kit assignment afterward never
-  re-triggers it — only a full page reload does, which is why re-adding kits during a
-  test session showed nothing.
+- **Within one gig:** `GigKitAssignmentsSection.tsx` (the kit picker in Gig Edit) had no
+  overlap check at all. Fixed: a client-side check (`getKitsFlattenedSummary`, the same
+  approach `KitScreen.tsx`'s own component picker already uses) flags any two assigned
+  kits that share a physical asset — a summary banner plus a warning icon on each
+  affected row, with a tooltip naming the other kit.
+- **Across gigs:** `checkEquipmentConflicts` was already correct (properly resolves
+  through `kit_flattened_cache`, so nested sub-kits were handled right) — the problem
+  was it only ever ran on `GigDetailScreen.tsx`, a separate read-only screen, once on
+  mount. It was never called from `GigScreen.tsx`/`GigKitAssignmentsSection.tsx`, where
+  kits are actually assigned, at all. Fixed: wired up in
+  `GigKitAssignmentsSection.tsx`, re-running after every kit-assignment add/remove
+  (reusing the existing `ConflictWarning` component for display).
 
-Fix direction: re-run `checkAllConflicts` (or at least `checkEquipmentConflicts`) after
-every kit-assignment add/remove, not just on mount. Separately, add a same-gig
-kit-vs-kit asset-overlap check to the picker in `GigKitAssignmentsSection.tsx` (there's
-no existing function for this — closest precedent is the flattened-asset-overlap logic
-already in `KitScreen.tsx`'s component picker, which solves the analogous problem for
-kit-authoring rather than gig-assignment).
+### 4. Packing List exploded a nested container into individual assets — 2026-08-27
 
-### 4. Packing List explodes a nested container into individual assets
+`getPackingListReport` pulled a non-container kit's contents from
+`kit_flattened_cache`, which flattens through every container boundary in the subtree,
+not just the ones the top-level kit itself doesn't have. Fixed: now walks
+`getKitComponentTree` + the new `flattenToScanUnits` helper, so a nested container
+shows as one row ("Mic Case — Container") instead of its assets leaking out as loose
+rows.
 
-**Found:** 2026-08-27, manual test pass, test item 5
-**Status:** Root-caused, not yet fixed
+### 5. Location Explorer: non-container kits rendered flat and overlapping, plus a
+   mystery "Whole kit" row — 2026-08-27
 
-`getPackingListReport` (`src/services/inventoryManagement.service.ts`) pulls a
-non-container top-level kit's contents from `kit_flattened_cache`, which flattens
-through *every* container boundary in the subtree, not just the ones the top-level kit
-itself doesn't have. A container nested a couple of levels down should show as one row
-("Mic Case — Container"); instead its individual assets show up as loose rows,
-indistinguishable from the kit's other real loose items. See "unifying root cause"
-above — this needs the tree-aware traversal, not a flatter cache read.
+Root cause was entirely at write time, not in `LocationExplorer.tsx`'s rendering (which
+needed no changes). Mobile's scan cascade (`submitScan`) unconditionally wrote a
+`(kit_id, null)` tracking record for any kit-level scan, container or not, and cascaded
+through every asset in the kit's fully-flattened subtree regardless of container
+boundaries. Fixed: a non-container kit now gets no record of its own when its row is
+scanned (no more "Whole kit" row), and cascading now stops at every container
+boundary — a nested container gets its own single sealed-unit record under its own id,
+so it naturally becomes its own collapsible row wherever it's found, exactly like a
+top-level container already did.
 
-### 5. Location Explorer: non-container kits render flat and overlapping, plus a
-   mystery "Whole kit" row
+### 6. Manifest report had the same rendering issue as Location Explorer — 2026-08-27
 
-**Found:** 2026-08-27, manual test pass, test item 4
-**Status:** Root-caused, not yet fixed — two separate causes
-
-- **Flat, overlapping rendering:** `LocationExplorer.tsx`'s `groupByKit` (`~line 70`)
-  and its render logic only understand two shapes — "container: one collapsible row" or
-  "non-container: header + every asset flat beneath it" — with no concept of a nested
-  container *inside* a non-container kit. Same root cause as item 4.
-- **The "Whole kit" row:** this is real data, not a rendering artifact. Mobile's scan
-  cascade (`submitScan` in `src/services/mobile/inventoryTracking.service.ts:244`)
-  unconditionally writes a `(kit_id, null)` tracking record for *any* kit-level scan,
-  container or not — there's no branch on `is_container`. For a container that's
-  correct (the container itself is the physical, taggable thing). For a non-container
-  kit it produces a tracking row for something that, per the product model, was never
-  supposed to have its own physical identity — which is exactly the phantom row
-  `LocationExplorer.tsx:400-423` is rendering as "Whole kit."
-
-  Real fix is at write time, not display time: `submitScan`'s cascade should stop
-  writing a standalone `(kit_id, null)` record for a non-container kit and only cascade
-  into its children (recursively, respecting *their* container status too). This is
-  the same "flatten through non-containers, stop at containers" traversal called out
-  above, just on the write path instead of a read path — the biggest, most central
-  piece of the four inter-related issues here.
-
-### 6. Manifest report has the same rendering issue as Location Explorer
-
-**Found:** 2026-08-27, manual test pass, test item 6
-**Status:** Same root cause as item 5 — will very likely be resolved once the
-`submitScan` cascade (item 5) and the shared traversal (see top of this doc) exist.
-Every other Manifest behavior tested clean.
-
-## Done
-
-_(none yet)_
+Same root cause and same fix as item 5 (both read `inventory_tracking` directly) — no
+separate change needed once the scan cascade was fixed.
