@@ -658,6 +658,63 @@ describe('inventoryManagement.service', () => {
       expect(result.some((r) => r.asset_name === 'SM58')).toBe(false);
     });
 
+    // Regression: a kit assigned directly to the gig AND nested inside
+    // another assigned kit's tree (e.g. a container both stands alone and
+    // sits inside a larger "gig pack") produced one row from each path —
+    // the same physical container listed twice.
+    it('dedupes a kit reachable both directly and nested inside another assigned kit', async () => {
+      const { getPackingListReport } = await import('./inventoryManagement.service');
+
+      mockSupabase.rpc = vi.fn().mockResolvedValue({
+        data: [{ parent_kit_id: 'kit-full-rack', child_kit_id: 'kit-mic-case', quantity: 1, depth: 1 }],
+        error: null,
+      });
+      mockSupabase.from.mockImplementation((table: string) => {
+        if (table === 'gig_kit_assignments') {
+          return makeQueryChain({
+            data: [
+              { kit_id: 'kit-full-rack', kit: { id: 'kit-full-rack', name: 'Full Rack', is_container: false, tag_number: null, organization_id: 'org-1' } },
+              { kit_id: 'kit-mic-case', kit: { id: 'kit-mic-case', name: 'Mic Case', is_container: true, tag_number: 'MIC-CASE-1', organization_id: 'org-1' } },
+            ],
+            error: null,
+          });
+        }
+        if (table === 'kits') {
+          return makeQueryChain({
+            data: [
+              { id: 'kit-full-rack', name: 'Full Rack', category: null, is_container: false, tag_number: null },
+              { id: 'kit-mic-case', name: 'Mic Case', category: null, is_container: true, tag_number: 'MIC-CASE-1' },
+            ],
+            error: null,
+          });
+        }
+        if (table === 'kit_components') {
+          return makeQueryChain({
+            data: [
+              { kit_id: 'kit-full-rack', asset_id: 'asset-snake', child_kit_id: null, quantity: 1, asset: { id: 'asset-snake', manufacturer_model: 'Cable Snake', tag_number: null } },
+              { kit_id: 'kit-full-rack', asset_id: null, child_kit_id: 'kit-mic-case', quantity: 1, asset: null },
+              { kit_id: 'kit-mic-case', asset_id: 'asset-mic', child_kit_id: null, quantity: 1, asset: { id: 'asset-mic', manufacturer_model: 'SM58', tag_number: null } },
+            ],
+            error: null,
+          });
+        }
+        if (table === 'inventory_tracking') {
+          return makeQueryChain({ data: [], error: null });
+        }
+        if (table === 'gig_participants') {
+          return makeQueryChain({ data: [], error: null });
+        }
+        return makeQueryChain({ data: [], error: null });
+      });
+
+      const result = await getPackingListReport('org-1', 'gig-1');
+
+      // One row for Full Rack's own loose asset, one row for Mic Case as a
+      // sealed unit — not two Mic Case rows for its two assignment paths.
+      expect(result).toHaveLength(2);
+      expect(result.filter((r) => r.kit_id === 'kit-mic-case')).toHaveLength(1);
+    });
+
     it('does not query kit_flattened_cache for container kits', async () => {
       const { getPackingListReport } = await import('./inventoryManagement.service');
       const flattenedCacheCalls: string[] = [];

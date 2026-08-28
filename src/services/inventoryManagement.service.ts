@@ -625,7 +625,19 @@ export async function getPackingListReport(organizationId: string, gigId: string
       }
     }
 
-    return rows;
+    // A kit reachable both directly (its own gig_kit_assignments row) and
+    // transitively (nested inside another assigned kit's tree) would
+    // otherwise produce one row from each path — same physical unit shown
+    // twice. (kit_id, asset_id) uniquely identifies a row either way.
+    const seen = new Set<string>();
+    const dedupedRows = rows.filter((row) => {
+      const key = `${row.kit_id}:${row.asset_id ?? ''}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+
+    return dedupedRows;
   } catch (err) {
     return handleApiError(err, 'get packing list report');
   }
