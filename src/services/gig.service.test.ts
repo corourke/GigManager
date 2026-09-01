@@ -268,12 +268,12 @@ describe('gig.service', () => {
         table === 'entity_attachments' ? attachChain : finChain
       );
 
-      const result = await getGigFinancials('gig-1');
+      const result = (await getGigFinancials('gig-1')) as any[];
 
       expect(attachChain.eq).toHaveBeenCalledWith('entity_type', 'gig_financial');
       expect(attachChain.in).toHaveBeenCalledWith('entity_id', ['fin-1', 'fin-2']);
-      expect(result.find((r: any) => r.id === 'fin-1').attachment_count).toBe(2);
-      expect(result.find((r: any) => r.id === 'fin-2').attachment_count).toBe(0);
+      expect(result.find((r) => r.id === 'fin-1')?.attachment_count).toBe(2);
+      expect(result.find((r) => r.id === 'fin-2')?.attachment_count).toBe(0);
     });
 
     it('leaves attachment_count at 0 when the attachment lookup fails', async () => {
@@ -283,7 +283,7 @@ describe('gig.service', () => {
         table === 'entity_attachments' ? attachChain : finChain
       );
 
-      const result = await getGigFinancials('gig-1');
+      const result = (await getGigFinancials('gig-1')) as any[];
       expect(result[0].attachment_count).toBe(0);
     });
   });

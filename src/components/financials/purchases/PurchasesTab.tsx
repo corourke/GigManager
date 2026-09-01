@@ -62,9 +62,10 @@ import {
   createLedgerEntryForPurchaseLine,
   removeLedgerEntriesForPurchaseLine,
   purchaseLineLedgerAmount,
+  assignGigToPurchaseChildren,
 } from '../../../services/purchase.service';
 import { getEntityAttachments, uploadAttachment, linkAttachmentToEntity } from '../../../services/attachment.service';
-import { getGigsForOrganization, getGigFinancialsByPurchaseId } from '../../../services/gig.service';
+import { getGigsForOrganization, getGigFinancialsByPurchaseId, getPurchaseIdsWithLedgerEntry } from '../../../services/gig.service';
 import { toast } from 'sonner';
 import { isSyntheticHeader } from './reconciliation';
 import PurchaseDetailPanel, { PanelState } from './PurchaseDetailPanel';
@@ -105,6 +106,10 @@ export default function PurchasesTab({
     { item: DbPurchase; financialIds: string[]; fromGigId: string; amount: number } | null
   >(null);
   const [clearingLedger, setClearingLedger] = useState(false);
+  // Offer to create ledger entries for the lines a header-level gig assignment just linked.
+  const [headerLedgerPrompt, setHeaderLedgerPrompt] = useState<
+    { itemIds: string[]; gigId: string; gigTitle?: string } | null
+  >(null);
   const [isUploadingAttachment, setIsUploadingAttachment] = useState<string | null>(null);
   const [highlightPurchaseId, setHighlightPurchaseId] = useState<string | null>(initialHighlightId || null);
   const [showOnlyHighlighted, setShowOnlyHighlighted] = useState(!!initialHighlightId);
@@ -159,12 +164,20 @@ export default function PurchasesTab({
   }, [organization.id]);
 
   const [headerAttachments, setHeaderAttachments] = useState<Map<string, { filePath: string; fileName: string }>>(new Map());
+  // Expense-line ids that are linked to a gig but have no ledger entry yet — drives
+  // the persistent "Add to gig ledger" affordance in the line detail.
+  const [linesWithLedger, setLinesWithLedger] = useState<Set<string>>(new Set());
 
   async function loadPurchases() {
     setIsLoading(true);
     try {
       const data = await getPurchases(organization.id);
       setPurchases(data);
+
+      const gigLinkedItemIds = data
+        .filter((p: DbPurchase) => p.row_type === 'item' && p.gig_id)
+        .map((p: DbPurchase) => p.id);
+      setLinesWithLedger(await getPurchaseIdsWithLedgerEntry(gigLinkedItemIds));
 
       const headers = data.filter((p: DbPurchase) => p.row_type === 'header');
       const attMap = new Map<string, { filePath: string; fileName: string }>();
@@ -288,6 +301,68 @@ export default function PurchasesTab({
       await loadPurchases();
     } finally {
       setAssigningGigItemId(null);
+    }
+  };
+
+  // Assign a whole receipt (header) to a gig, cascading to its unlinked lines.
+  const handleAssignHeaderGig = async (header: DbPurchase, gigId: string | null, gigTitle?: string) => {
+    if (!gigId || gigId === (header.gig_id || null)) return;
+    setAssigningGigItemId(header.id);
+    try {
+      const res = await assignGigToPurchaseChildren(header.id, gigId, organization.id);
+      toast.success(
+        res.failed > 0
+          ? `Assigned receipt to ${gigTitle || 'gig'} (${res.failed} line(s) failed)`
+          : `Assigned receipt and its lines to ${gigTitle || 'gig'}`
+      );
+      await loadPurchases();
+      if (res.newlyLinkedItemIds.length > 0) {
+        setHeaderLedgerPrompt({ itemIds: res.newlyLinkedItemIds, gigId, gigTitle });
+      }
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to assign receipt to gig');
+      await loadPurchases();
+    } finally {
+      setAssigningGigItemId(null);
+    }
+  };
+
+  // Persistent affordance: create the ledger entry for a line that is linked to a
+  // gig but has none (e.g. the user skipped the prompt, or it came from import).
+  const handleAddLineToLedger = async (item: DbPurchase) => {
+    if (!item.gig_id) return;
+    setAssigningGigItemId(item.id);
+    try {
+      const { created } = await createLedgerEntryForPurchaseLine(item, item.gig_id, organization.id);
+      window.dispatchEvent(new CustomEvent('gig-financials-updated', { detail: { gigId: item.gig_id } }));
+      toast.success(created ? 'Added to the gig ledger' : 'This line is already in the gig ledger');
+      await loadPurchases();
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to add to gig ledger');
+    } finally {
+      setAssigningGigItemId(null);
+    }
+  };
+
+  const handleCreateLedgerEntriesForHeader = async () => {
+    if (!headerLedgerPrompt) return;
+    const { itemIds, gigId } = headerLedgerPrompt;
+    setCreatingLedger(true);
+    try {
+      const items = purchases.filter((p) => itemIds.includes(p.id) && p.row_type === 'item');
+      let created = 0;
+      for (const it of items) {
+        const res = await createLedgerEntryForPurchaseLine(it, gigId, organization.id);
+        if (res.created) created += 1;
+      }
+      window.dispatchEvent(new CustomEvent('gig-financials-updated', { detail: { gigId } }));
+      toast.success(`Added ${created} expense line(s) to the gig ledger`);
+      setHeaderLedgerPrompt(null);
+      await loadPurchases();
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to add lines to the gig ledger');
+    } finally {
+      setCreatingLedger(false);
     }
   };
 
@@ -739,6 +814,18 @@ export default function PurchasesTab({
                     )}
                   </div>
                   <div className="flex items-center gap-3">
+                    {isAdmin && !isSyntheticHeader(group.header.id) && (
+                      <div className="w-[220px]" onClick={(e) => e.stopPropagation()}>
+                        <GigCombobox
+                          organizationId={organization.id}
+                          value={group.header.gig_id || null}
+                          placeholder="Assign receipt to gig…"
+                          hideClear
+                          onChange={(gigId, gigTitle) => { if (gigId) handleAssignHeaderGig(group.header, gigId, gigTitle); }}
+                          disabled={assigningGigItemId === group.header.id}
+                        />
+                      </div>
+                    )}
                     {group.header.gig_id && !isSyntheticHeader(group.header.id) && (
                       <Button
                         variant="ghost"
@@ -909,7 +996,7 @@ export default function PurchasesTab({
                               )}
                             </div>
                             {isAdmin && (
-                              <div className="mt-3 pt-3 border-t border-gray-200 flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                              <div className="mt-3 pt-3 border-t border-gray-200 flex items-center gap-2 flex-wrap" onClick={(e) => e.stopPropagation()}>
                                 <span className="text-xs text-gray-500 font-medium whitespace-nowrap">Assign Gig:</span>
                                 <div className="w-[360px] max-w-full">
                                   <GigCombobox
@@ -919,6 +1006,21 @@ export default function PurchasesTab({
                                     disabled={assigningGigItemId === item.id}
                                   />
                                 </div>
+                                {item.row_type === 'item' && item.gig_id && !linesWithLedger.has(item.id) && (
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="h-8 px-3 text-xs text-emerald-700 border-emerald-200 hover:bg-emerald-50"
+                                    onClick={() => handleAddLineToLedger(item)}
+                                    disabled={assigningGigItemId === item.id}
+                                    title="This line is linked to a gig but has no expense entry in that gig's ledger"
+                                  >
+                                    {assigningGigItemId === item.id
+                                      ? <RefreshCw className="w-3 h-3 mr-1.5 animate-spin" />
+                                      : <Plus className="w-3 h-3 mr-1.5" />}
+                                    Add to gig ledger
+                                  </Button>
+                                )}
                               </div>
                             )}
                             {item.row_type === 'item' && (userRole === 'Admin' || userRole === 'Manager') && (
@@ -1013,6 +1115,27 @@ export default function PurchasesTab({
             <AlertDialogAction onClick={(e) => { e.preventDefault(); handleConfirmClearLedger(); }} disabled={clearingLedger}>
               {clearingLedger && <RefreshCw className="w-3.5 h-3.5 mr-1.5 animate-spin" />}
               Unlink and delete entry
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={!!headerLedgerPrompt} onOpenChange={(open) => { if (!open && !creatingLedger) setHeaderLedgerPrompt(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Add these expenses to the gig ledger?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {headerLedgerPrompt?.itemIds.length} expense line(s) from this receipt were linked to{' '}
+              {headerLedgerPrompt?.gigTitle ? `"${headerLedgerPrompt.gigTitle}"` : 'the gig'}. Record
+              each as an "Expense Incurred" entry in that gig's financials? You can also do this later
+              from each line.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={creatingLedger}>Later</AlertDialogCancel>
+            <AlertDialogAction onClick={(e) => { e.preventDefault(); handleCreateLedgerEntriesForHeader(); }} disabled={creatingLedger}>
+              {creatingLedger && <RefreshCw className="w-3.5 h-3.5 mr-1.5 animate-spin" />}
+              Add all
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

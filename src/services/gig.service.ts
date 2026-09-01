@@ -30,6 +30,7 @@ export {
 export {
   getGigFinancials,
   getGigFinancialsByPurchaseId,
+  getPurchaseIdsWithLedgerEntry,
   getGigProfitabilitySummary,
   getGigBids,
   createGigFinancial,

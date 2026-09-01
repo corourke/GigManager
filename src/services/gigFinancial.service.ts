@@ -174,6 +174,28 @@ export async function getGigFinancialsByPurchaseId(purchaseId: string): Promise<
 }
 
 /**
+ * Bulk variant of {@link getGigFinancialsByPurchaseId}: returns the set of
+ * purchase ids (out of those given) that already have at least one linked
+ * gig_financials row. Used to show a persistent "add to gig ledger" affordance
+ * only on purchase lines that are linked to a gig but have no ledger entry yet.
+ */
+export async function getPurchaseIdsWithLedgerEntry(purchaseIds: string[]): Promise<Set<string>> {
+  if (purchaseIds.length === 0) return new Set();
+  const supabase = getSupabase();
+  try {
+    const { data, error } = await supabase
+      .from('gig_financials')
+      .select('purchase_id')
+      .in('purchase_id', purchaseIds);
+    if (error) throw error;
+    return new Set((data || []).map((r: any) => r.purchase_id).filter(Boolean));
+  } catch (err) {
+    handleApiError(err, 'fetch purchase ids with ledger entry');
+    return new Set();
+  }
+}
+
+/**
  * Create a new financial record for a gig
  */
 export async function createGigFinancial(finData: {

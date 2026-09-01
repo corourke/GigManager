@@ -452,35 +452,38 @@ export async function reclassifyExpenseAsAsset(purchaseItemId: string): Promise<
 }
 
 /**
- * Assign a gig_id to all children of a purchase header that don't already have one.
- * Uses Promise.allSettled so partial failures are surfaced.
+ * Assign a whole receipt to a gig: set the header's `gig_id` and cascade it to
+ * every child line that isn't already pointed at a different gig. Lines already
+ * on the target gig are left alone; lines on a *different* gig are not stolen
+ * (they must be reassigned individually so their ledger entry can be moved).
+ *
+ * Returns the ids of the expense `item` lines that were newly linked, so the
+ * caller can offer to create their gig ledger entries.
  */
 export async function assignGigToPurchaseChildren(
   headerId: string,
   gigId: string,
-  organizationId: string
-): Promise<{ updated: number; failed: number }> {
+  _organizationId: string
+): Promise<{ updated: number; failed: number; newlyLinkedItemIds: string[] }> {
   const supabase = getSupabase();
   try {
     const { data: children, error } = await (supabase.from('purchases') as any)
-      .select('id, gig_id')
+      .select('id, gig_id, row_type')
       .eq('parent_id', headerId);
-
     if (error) throw error;
-    if (!children || children.length === 0) return { updated: 0, failed: 0 };
 
-    const unlinked = children.filter((c: any) => !c.gig_id);
-    if (unlinked.length === 0) return { updated: 0, failed: 0 };
+    const rows: any[] = children || [];
+    const toLink = rows.filter((c) => !c.gig_id);
+    const newlyLinkedItemIds = toLink.filter((c) => c.row_type === 'item').map((c) => c.id);
 
-    const results = await Promise.allSettled(
-      unlinked.map((c: any) =>
-        updatePurchase(c.id, { gig_id: gigId })
-      )
-    );
+    const results = await Promise.allSettled([
+      updatePurchase(headerId, { gig_id: gigId }),
+      ...toLink.map((c) => updatePurchase(c.id, { gig_id: gigId })),
+    ]);
 
-    const updated = results.filter(r => r.status === 'fulfilled').length;
-    const failed = results.filter(r => r.status === 'rejected').length;
-    return { updated, failed };
+    const failed = results.filter((r) => r.status === 'rejected').length;
+    const updated = results.filter((r) => r.status === 'fulfilled').length;
+    return { updated, failed, newlyLinkedItemIds };
   } catch (err) {
     return handleApiError(err, 'assign gig to purchase children');
   }

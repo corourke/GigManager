@@ -14,6 +14,7 @@ import {
   createLedgerEntryForPurchaseLine,
   reconcileLedgerForLineGigChange,
   removeLedgerEntriesForPurchaseLine,
+  assignGigToPurchaseChildren,
 } from './purchase.service';
 import { createClient } from '../utils/supabase/client';
 import { requireAuth } from '../utils/supabase/auth-utils';
@@ -452,5 +453,53 @@ describe('purchase → gig ledger lifecycle', () => {
       expect(mockedDelete).toHaveBeenNthCalledWith(2, 'fin-2');
       expect(res).toEqual({ removed: 2 });
     });
+  });
+});
+
+describe('assignGigToPurchaseChildren (header → gig cascade)', () => {
+  let mockSupabase: any;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockSupabase = {
+      from: vi.fn().mockReturnThis(),
+      select: vi.fn().mockReturnThis(),
+      update: vi.fn().mockReturnThis(),
+      eq: vi.fn().mockReturnThis(),
+      single: vi.fn().mockReturnThis(),
+      then: vi.fn(),
+    };
+    (createClient as any).mockReturnValue(mockSupabase);
+    (requireAuth as any).mockResolvedValue({ supabase: mockSupabase, user: { id: 'u1' } });
+  });
+
+  it('sets the header gig, cascades to unlinked lines, and skips lines already on another gig', async () => {
+    const children = [
+      { id: 'c1', gig_id: null, row_type: 'item' },
+      { id: 'c2', gig_id: null, row_type: 'asset' },
+      { id: 'c3', gig_id: 'gig-OTHER', row_type: 'item' }, // must not be stolen
+    ];
+    // first await → children query; subsequent awaits → updatePurchase results
+    mockSupabase.then.mockImplementation((onFulfilled: any) => onFulfilled({ data: children, error: null }));
+
+    const res = await assignGigToPurchaseChildren('header-1', 'gig-1', 'org-1');
+
+    // header + c1 + c2 updated; c3 left alone
+    expect(res.updated).toBe(3);
+    expect(res.failed).toBe(0);
+    expect(res.newlyLinkedItemIds).toEqual(['c1']); // only row_type 'item' among the newly linked
+  });
+
+  it('reports failures without throwing', async () => {
+    const children = [{ id: 'c1', gig_id: null, row_type: 'item' }];
+    let call = 0;
+    mockSupabase.then.mockImplementation((onFulfilled: any, onRejected: any) => {
+      call += 1;
+      if (call === 1) return onFulfilled({ data: children, error: null }); // children query
+      return Promise.reject(new Error('RLS')).catch(onRejected); // both updatePurchase calls fail
+    });
+
+    const res = await assignGigToPurchaseChildren('header-1', 'gig-1', 'org-1');
+    expect(res.failed).toBeGreaterThan(0);
   });
 });
