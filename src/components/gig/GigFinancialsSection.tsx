@@ -172,6 +172,11 @@ export default function GigFinancialsSection({
   const { fields, append, remove } = useFieldArray({
     control,
     name: 'financials',
+    // Keep RHF's synthetic row key OUT of `id`. The default keyName is "id", which
+    // makes useFieldArray overwrite each row's real gig_financials id with a random
+    // UUID — breaking anything that reads `field.id` expecting the DB id (delete,
+    // per-row attachments, edit round-trip). Use `_key` for React keys instead.
+    keyName: '_key',
   });
 
   // Server state (Phase 7): reads via useQuery, delete via useMutation.
@@ -715,7 +720,7 @@ export default function GigFinancialsSection({
                         <TableBody>
                           {groupedFinancials.revenue.map((field: any) => {
                             const index = fields.findIndex(f => f.id === field.id);
-                            return <FinancialRow key={field.id} field={field} index={index} />;
+                            return <FinancialRow key={field._key} field={field} index={index} />;
                           })}
                         </TableBody>
                       </Table>
@@ -748,7 +753,7 @@ export default function GigFinancialsSection({
                         <TableBody>
                           {groupedFinancials.cost.map((field: any) => {
                             const index = fields.findIndex(f => f.id === field.id);
-                            return <FinancialRow key={field.id} field={field} index={index} />;
+                            return <FinancialRow key={field._key} field={field} index={index} />;
                           })}
                         </TableBody>
                       </Table>
@@ -823,7 +828,7 @@ export default function GigFinancialsSection({
                         <TableBody>
                           {groupedFinancials.other.map((field: any) => {
                             const index = fields.findIndex(f => f.id === field.id);
-                            return <FinancialRow key={field.id} field={field} index={index} />;
+                            return <FinancialRow key={field._key} field={field} index={index} />;
                           })}
                         </TableBody>
                       </Table>

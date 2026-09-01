@@ -36,6 +36,20 @@ vi.mock('./SaveStateIndicator', () => ({
   default: ({ state }: { state: string }) => <span data-testid="save-indicator">{state}</span>,
 }));
 
+// Mock AttachmentManager so the per-row receipts modal doesn't hit the network;
+// echo back the entityId it was mounted with so tests can assert it's the real
+// gig_financials id (not a react-hook-form synthetic key).
+vi.mock('../AttachmentManager', () => ({
+  default: ({ entityType, entityId, allowUpload }: { entityType: string; entityId: string; allowUpload?: boolean }) => (
+    <div
+      data-testid="attachment-manager"
+      data-entity-type={entityType}
+      data-entity-id={entityId}
+      data-allow-upload={String(!!allowUpload)}
+    />
+  ),
+}));
+
 describe('GigFinancialsSection', () => {
   const defaultProps = {
     gigId: 'test-gig-id',
@@ -205,15 +219,39 @@ describe('GigFinancialsSection', () => {
       expect(screen.getByTestId('delete-financial-0')).toBeInTheDocument();
     });
 
-    const deleteButton = screen.getByTestId('delete-financial-0');
-    
-    if (deleteButton) {
-      fireEvent.click(deleteButton);
-      
-      await waitFor(() => {
-        expect(gigService.deleteGigFinancial).toHaveBeenCalled();
-      });
-    }
+    fireEvent.click(screen.getByTestId('delete-financial-0'));
+
+    await waitFor(() => {
+      expect(gigService.deleteGigFinancial).toHaveBeenCalled();
+    });
+    // Regression: must be the real gig_financials id, not a react-hook-form
+    // synthetic row key (keyName). A wrong id here -> silent "0 rows" -> the
+    // "Failed to delete financial record" toast.
+    expect(gigService.deleteGigFinancial).toHaveBeenCalledWith('fin-1');
+  });
+
+  it('mounts the per-row attachments manager with the real gig_financials id', async () => {
+    render(<GigFinancialsSection {...defaultProps} />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Camera rental')).toBeInTheDocument();
+    });
+
+    // The paperclip button carries the row's title in its accessible name via title attr;
+    // grab the first row's attach button by its title text.
+    const attachButtons = screen.getAllByTitle(/attach a receipt or document|attachment\(s\)/i);
+    fireEvent.click(attachButtons[0]);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('attachment-manager')).toBeInTheDocument();
+    });
+    const mgr = screen.getByTestId('attachment-manager');
+    expect(mgr).toHaveAttribute('data-entity-type', 'gig_financial');
+    // Regression: real id, not an RHF key — otherwise uploads link to a phantom
+    // entity and the count badge never appears.
+    expect(['fin-1', 'fin-2']).toContain(mgr.getAttribute('data-entity-id'));
+    // Upload allowed for an Admin without entering edit mode.
+    expect(mgr).toHaveAttribute('data-allow-upload', 'true');
   });
 
   it('loads financials on mount for admin users', async () => {
