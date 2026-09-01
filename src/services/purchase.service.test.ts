@@ -1,7 +1,28 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { getPurchases, createPurchase, createPurchaseTransaction, scanInvoice, importPurchases, reclassifyExpenseAsAsset, deletePurchase, shouldPromptForLedgerEntry, computeAssetFieldChanges } from './purchase.service';
+import {
+  getPurchases,
+  createPurchase,
+  createPurchaseTransaction,
+  scanInvoice,
+  importPurchases,
+  reclassifyExpenseAsAsset,
+  deletePurchase,
+  shouldPromptForLedgerEntry,
+  computeAssetFieldChanges,
+  purchaseLineLedgerAmount,
+  buildPurchaseLineLedgerPayload,
+  createLedgerEntryForPurchaseLine,
+  reconcileLedgerForLineGigChange,
+  removeLedgerEntriesForPurchaseLine,
+} from './purchase.service';
 import { createClient } from '../utils/supabase/client';
 import { requireAuth } from '../utils/supabase/auth-utils';
+import {
+  getGigFinancialsByPurchaseId,
+  createGigFinancial,
+  updateGigFinancial,
+  deleteGigFinancial,
+} from './gigFinancial.service';
 
 // Mock Supabase client
 vi.mock('../utils/supabase/client', () => ({
@@ -11,6 +32,14 @@ vi.mock('../utils/supabase/client', () => ({
 // Mock Auth utils
 vi.mock('../utils/supabase/auth-utils', () => ({
   requireAuth: vi.fn(),
+}));
+
+// Mock the gig-financial primitives the ledger-lifecycle helpers delegate to.
+vi.mock('./gigFinancial.service', () => ({
+  getGigFinancialsByPurchaseId: vi.fn(),
+  createGigFinancial: vi.fn(),
+  updateGigFinancial: vi.fn(),
+  deleteGigFinancial: vi.fn(),
 }));
 
 describe('purchase.service', () => {
@@ -243,6 +272,185 @@ describe('purchase.service', () => {
     it('ignores fields not present on the line snapshot', () => {
       const changes = computeAssetFieldChanges({ item_price: 100 }, asset);
       expect(changes).toEqual([]);
+    });
+  });
+});
+
+describe('purchase → gig ledger lifecycle', () => {
+  const mockedGetByPurchase = getGigFinancialsByPurchaseId as unknown as ReturnType<typeof vi.fn>;
+  const mockedCreate = createGigFinancial as unknown as ReturnType<typeof vi.fn>;
+  const mockedUpdate = updateGigFinancial as unknown as ReturnType<typeof vi.fn>;
+  const mockedDelete = deleteGigFinancial as unknown as ReturnType<typeof vi.fn>;
+
+  const line = (over: Partial<any> = {}) => ({
+    id: 'line-1',
+    row_type: 'item',
+    line_amount: 200,
+    item_price: null,
+    quantity: null,
+    purchase_date: '2026-02-01',
+    description: 'Van rental',
+    vendor: 'U-Haul',
+    category: 'Travel',
+    ...over,
+  });
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  describe('purchaseLineLedgerAmount', () => {
+    it('uses line_amount when present', () => {
+      expect(purchaseLineLedgerAmount({ line_amount: 200, item_price: 5, quantity: 3 })).toBe(200);
+    });
+    it('falls back to item_price × quantity', () => {
+      expect(purchaseLineLedgerAmount({ line_amount: null, item_price: 5, quantity: 3 })).toBe(15);
+    });
+    it('treats a missing quantity as 1', () => {
+      expect(purchaseLineLedgerAmount({ line_amount: null, item_price: 7, quantity: null })).toBe(7);
+    });
+  });
+
+  describe('buildPurchaseLineLedgerPayload', () => {
+    it('builds an Expense Incurred payload linked to the purchase line', () => {
+      const payload = buildPurchaseLineLedgerPayload(line(), 'gig-1', 'org-1');
+      expect(payload).toMatchObject({
+        gig_id: 'gig-1',
+        organization_id: 'org-1',
+        date: '2026-02-01',
+        amount: 200,
+        type: 'Expense Incurred',
+        description: 'Van rental',
+        purchase_id: 'line-1',
+      });
+      expect(payload.paid_at).toBeTruthy();
+    });
+  });
+
+  describe('createLedgerEntryForPurchaseLine — dedup guard', () => {
+    it('creates a ledger row when the line has none', async () => {
+      mockedGetByPurchase.mockResolvedValue([]);
+      mockedCreate.mockResolvedValue({ id: 'fin-1', gig_id: 'gig-1', purchase_id: 'line-1', amount: 200 });
+
+      const res = await createLedgerEntryForPurchaseLine(line(), 'gig-1', 'org-1');
+
+      expect(mockedCreate).toHaveBeenCalledTimes(1);
+      expect(res).toEqual({ created: true, financial: { id: 'fin-1', gig_id: 'gig-1', purchase_id: 'line-1', amount: 200 } });
+    });
+
+    it('does NOT create a second row when one already exists (double-count guard)', async () => {
+      mockedGetByPurchase.mockResolvedValue([{ id: 'fin-1', gig_id: 'gig-1', purchase_id: 'line-1', amount: 200 }]);
+
+      const res = await createLedgerEntryForPurchaseLine(line(), 'gig-1', 'org-1');
+
+      expect(mockedCreate).not.toHaveBeenCalled();
+      expect(res.created).toBe(false);
+      expect(res.financial.id).toBe('fin-1');
+    });
+
+    it('realigns an existing row that sits on a different gig instead of creating a new one', async () => {
+      mockedGetByPurchase.mockResolvedValue([{ id: 'fin-1', gig_id: 'gig-OLD', purchase_id: 'line-1', amount: 200 }]);
+      mockedUpdate.mockResolvedValue({ id: 'fin-1', gig_id: 'gig-1', purchase_id: 'line-1', amount: 200 });
+
+      const res = await createLedgerEntryForPurchaseLine(line(), 'gig-1', 'org-1');
+
+      expect(mockedCreate).not.toHaveBeenCalled();
+      expect(mockedUpdate).toHaveBeenCalledWith('fin-1', { gig_id: 'gig-1' });
+      expect(res.created).toBe(false);
+      expect(res.financial.gig_id).toBe('gig-1');
+    });
+  });
+
+  describe('reconcileLedgerForLineGigChange', () => {
+    it('is a noop for non-item rows', async () => {
+      const res = await reconcileLedgerForLineGigChange({
+        item: line({ row_type: 'asset' }), previousGigId: null, newGigId: 'gig-1', organizationId: 'org-1',
+      });
+      expect(res).toEqual({ action: 'noop' });
+      expect(mockedGetByPurchase).not.toHaveBeenCalled();
+    });
+
+    it('reports needs-entry when a first gig link has no ledger row yet', async () => {
+      mockedGetByPurchase.mockResolvedValue([]);
+      const res = await reconcileLedgerForLineGigChange({
+        item: line(), previousGigId: null, newGigId: 'gig-1', organizationId: 'org-1',
+      });
+      expect(res).toEqual({ action: 'needs-entry', gigId: 'gig-1' });
+    });
+
+    it('reports exists (no duplicate) when a ledger row already covers the target gig', async () => {
+      mockedGetByPurchase.mockResolvedValue([{ id: 'fin-1', gig_id: 'gig-1', amount: 200 }]);
+      const res = await reconcileLedgerForLineGigChange({
+        item: line(), previousGigId: null, newGigId: 'gig-1', organizationId: 'org-1',
+      });
+      expect(res).toEqual({ action: 'exists', financialIds: ['fin-1'] });
+      expect(mockedCreate).not.toHaveBeenCalled();
+    });
+
+    it('MOVES the stranded ledger row when a line is reassigned from gig A to gig B', async () => {
+      mockedGetByPurchase.mockResolvedValue([{ id: 'fin-1', gig_id: 'gig-A', amount: 200 }]);
+      mockedUpdate.mockResolvedValue({ id: 'fin-1', gig_id: 'gig-B' });
+
+      const res = await reconcileLedgerForLineGigChange({
+        item: line(), previousGigId: 'gig-A', newGigId: 'gig-B', organizationId: 'org-1',
+      });
+
+      expect(mockedUpdate).toHaveBeenCalledWith('fin-1', { gig_id: 'gig-B' });
+      expect(res).toEqual({ action: 'moved', financialIds: ['fin-1'], toGigId: 'gig-B' });
+    });
+
+    it('moves every stranded row when the historical double-count bug left more than one', async () => {
+      mockedGetByPurchase.mockResolvedValue([
+        { id: 'fin-1', gig_id: 'gig-A', amount: 200 },
+        { id: 'fin-2', gig_id: 'gig-A', amount: 200 },
+      ]);
+      mockedUpdate.mockResolvedValue({});
+
+      const res = await reconcileLedgerForLineGigChange({
+        item: line(), previousGigId: 'gig-A', newGigId: 'gig-B', organizationId: 'org-1',
+      });
+
+      expect(mockedUpdate).toHaveBeenCalledTimes(2);
+      expect(res).toMatchObject({ action: 'moved', toGigId: 'gig-B' });
+      expect((res as any).financialIds).toEqual(['fin-1', 'fin-2']);
+    });
+
+    it('asks the caller to confirm removal when a line is cleared of its gig', async () => {
+      mockedGetByPurchase.mockResolvedValue([
+        { id: 'fin-1', gig_id: 'gig-A', amount: 120 },
+        { id: 'fin-2', gig_id: 'gig-A', amount: 80 },
+      ]);
+
+      const res = await reconcileLedgerForLineGigChange({
+        item: line(), previousGigId: 'gig-A', newGigId: null, organizationId: 'org-1',
+      });
+
+      expect(res).toEqual({
+        action: 'confirm-remove',
+        financialIds: ['fin-1', 'fin-2'],
+        fromGigId: 'gig-A',
+        amount: 200,
+      });
+      expect(mockedDelete).not.toHaveBeenCalled();
+    });
+
+    it('is a noop when clearing a line that never had a ledger row', async () => {
+      mockedGetByPurchase.mockResolvedValue([]);
+      const res = await reconcileLedgerForLineGigChange({
+        item: line(), previousGigId: 'gig-A', newGigId: null, organizationId: 'org-1',
+      });
+      expect(res).toEqual({ action: 'noop' });
+    });
+  });
+
+  describe('removeLedgerEntriesForPurchaseLine', () => {
+    it('deletes each linked ledger entry', async () => {
+      mockedDelete.mockResolvedValue({ success: true });
+      const res = await removeLedgerEntriesForPurchaseLine(['fin-1', 'fin-2']);
+      expect(mockedDelete).toHaveBeenCalledTimes(2);
+      expect(mockedDelete).toHaveBeenNthCalledWith(1, 'fin-1');
+      expect(mockedDelete).toHaveBeenNthCalledWith(2, 'fin-2');
+      expect(res).toEqual({ removed: 2 });
     });
   });
 });

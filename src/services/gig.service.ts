@@ -29,6 +29,7 @@ export {
 // Financial / bid operations live in gigFinancial.service.ts (Step 4 split).
 export {
   getGigFinancials,
+  getGigFinancialsByPurchaseId,
   getGigProfitabilitySummary,
   getGigBids,
   createGigFinancial,

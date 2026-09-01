@@ -1,4 +1,4 @@
-import { FinType, FinCategory } from '../utils/supabase/types';
+import { FinType, FinCategory, DbGigFinancial } from '../utils/supabase/types';
 import { FIN_TYPE_GROUPS } from '../utils/supabase/constants';
 import { handleApiError } from '../utils/api-error-utils';
 import { requireAuth } from '../utils/supabase/auth-utils';
@@ -136,6 +136,26 @@ export async function getGigProfitabilitySummary(gigId: string, organizationId: 
 export const getGigBids = getGigFinancials;
 
 /**
+ * Fetch the gig_financials rows that reference a given purchase (line or header)
+ * via `purchase_id`. Used to keep the auto-created "Expense Incurred" ledger
+ * entry in sync when a purchase line is assigned to / moved between / cleared of
+ * a gig, and as a dedup guard so a line never gets two ledger entries.
+ */
+export async function getGigFinancialsByPurchaseId(purchaseId: string): Promise<DbGigFinancial[]> {
+  const supabase = getSupabase();
+  try {
+    const { data, error } = await supabase
+      .from('gig_financials')
+      .select('*')
+      .eq('purchase_id', purchaseId);
+    if (error) throw error;
+    return (data as DbGigFinancial[]) || [];
+  } catch (err) {
+    return handleApiError(err, 'fetch gig financials by purchase');
+  }
+}
+
+/**
  * Create a new financial record for a gig
  */
 export async function createGigFinancial(finData: {
@@ -195,6 +215,7 @@ export async function updateGigFinancial(finId: string, finData: {
   notes?: string;
   due_date?: string;
   paid_at?: string;
+  gig_id?: string;
   purchase_id?: string;
   staff_assignment_id?: string;
 }) {

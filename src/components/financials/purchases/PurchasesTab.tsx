@@ -52,10 +52,19 @@ import {
   AlertDialogTrigger,
 } from '../../ui/alert-dialog';
 import { Organization, User, UserRole, DbPurchase } from '../../../utils/supabase/types';
-import { getPurchases, reclassifyExpenseAsAsset, scanInvoice, deletePurchase, updatePurchase, shouldPromptForLedgerEntry } from '../../../services/purchase.service';
+import {
+  getPurchases,
+  reclassifyExpenseAsAsset,
+  scanInvoice,
+  deletePurchase,
+  updatePurchase,
+  reconcileLedgerForLineGigChange,
+  createLedgerEntryForPurchaseLine,
+  removeLedgerEntriesForPurchaseLine,
+  purchaseLineLedgerAmount,
+} from '../../../services/purchase.service';
 import { getEntityAttachments, uploadAttachment, linkAttachmentToEntity } from '../../../services/attachment.service';
-import { getGigsForOrganization, createGigFinancial } from '../../../services/gig.service';
-import { toFinCategory } from '../../../utils/supabase/constants';
+import { getGigsForOrganization, getGigFinancialsByPurchaseId } from '../../../services/gig.service';
 import { toast } from 'sonner';
 import { isSyntheticHeader } from './reconciliation';
 import PurchaseDetailPanel, { PanelState } from './PurchaseDetailPanel';
@@ -91,6 +100,11 @@ export default function PurchasesTab({
   const [assigningGigItemId, setAssigningGigItemId] = useState<string | null>(null);
   const [ledgerPrompt, setLedgerPrompt] = useState<{ item: DbPurchase; gigId: string; gigTitle?: string } | null>(null);
   const [creatingLedger, setCreatingLedger] = useState(false);
+  // Confirm dialog shown when clearing a line's gig would strand its ledger entry.
+  const [clearLedgerConfirm, setClearLedgerConfirm] = useState<
+    { item: DbPurchase; financialIds: string[]; fromGigId: string; amount: number } | null
+  >(null);
+  const [clearingLedger, setClearingLedger] = useState(false);
   const [isUploadingAttachment, setIsUploadingAttachment] = useState<string | null>(null);
   const [highlightPurchaseId, setHighlightPurchaseId] = useState<string | null>(initialHighlightId || null);
   const [showOnlyHighlighted, setShowOnlyHighlighted] = useState(!!initialHighlightId);
@@ -227,20 +241,71 @@ export default function PurchasesTab({
   const handleAssignGig = async (item: DbPurchase, gigId: string | null, gigTitle?: string) => {
     const previousGigId = item.gig_id || null;
     if (gigId === previousGigId) return;
+
+    // Clearing a line's gig: if a ledger entry was auto-created for it, deleting
+    // it is destructive, so confirm first and only touch the purchase row once
+    // the user has decided. Aborting the confirm leaves both in place.
+    if (!gigId) {
+      const linked = await getGigFinancialsByPurchaseId(item.id);
+      if (linked.length > 0) {
+        setClearLedgerConfirm({
+          item,
+          financialIds: linked.map((f) => f.id),
+          fromGigId: linked[0].gig_id,
+          amount: linked.reduce((sum, f) => sum + (Number(f.amount) || 0), 0),
+        });
+        return;
+      }
+    }
+
     setAssigningGigItemId(item.id);
     try {
       await updatePurchase(item.id, { gig_id: gigId });
-      toast.success(gigId ? `Assigned to ${gigTitle || 'gig'}` : 'Gig association removed');
-      await loadPurchases();
-      // Offer to create a gig expense ledger entry when an expense line is first
-      // linked to a gig (mirrors the import flow's behavior).
-      if (gigId && shouldPromptForLedgerEntry(item.row_type, previousGigId, gigId)) {
-        setLedgerPrompt({ item, gigId, gigTitle });
+
+      if (gigId) {
+        const res = await reconcileLedgerForLineGigChange({
+          item,
+          previousGigId,
+          newGigId: gigId,
+          organizationId: organization.id,
+        });
+        if (res.action === 'needs-entry') {
+          toast.success(`Assigned to ${gigTitle || 'gig'}`);
+          setLedgerPrompt({ item, gigId, gigTitle });
+        } else if (res.action === 'moved') {
+          window.dispatchEvent(new CustomEvent('gig-financials-updated', {}));
+          toast.success(`Moved to ${gigTitle || 'gig'} — its ledger entry moved too`);
+        } else {
+          toast.success(`Assigned to ${gigTitle || 'gig'} — already in the ledger`);
+        }
+      } else {
+        toast.success('Gig association removed');
       }
+
+      await loadPurchases();
     } catch (err: any) {
       toast.error(err.message || 'Failed to assign gig');
+      await loadPurchases();
     } finally {
       setAssigningGigItemId(null);
+    }
+  };
+
+  const handleConfirmClearLedger = async () => {
+    if (!clearLedgerConfirm) return;
+    const { item, financialIds, fromGigId } = clearLedgerConfirm;
+    setClearingLedger(true);
+    try {
+      await updatePurchase(item.id, { gig_id: null });
+      await removeLedgerEntriesForPurchaseLine(financialIds);
+      window.dispatchEvent(new CustomEvent('gig-financials-updated', { detail: { gigId: fromGigId } }));
+      toast.success('Gig association and its ledger entry removed');
+      setClearLedgerConfirm(null);
+      await loadPurchases();
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to remove gig association');
+    } finally {
+      setClearingLedger(false);
     }
   };
 
@@ -249,21 +314,11 @@ export default function PurchasesTab({
     const { item, gigId } = ledgerPrompt;
     setCreatingLedger(true);
     try {
-      const amount = item.line_amount ?? (item.item_price ?? 0) * (item.quantity ?? 1);
-      await createGigFinancial({
-        gig_id: gigId,
-        organization_id: organization.id,
-        date: item.purchase_date || new Date().toISOString().slice(0, 10),
-        amount,
-        type: 'Expense Incurred',
-        category: toFinCategory(item.category) ?? 'Other expenses',
-        description: item.description || `Expense: ${item.vendor || ''}`.trim(),
-        purchase_id: item.id,
-        paid_at: new Date().toISOString(),
-      });
+      const { created } = await createLedgerEntryForPurchaseLine(item, gigId, organization.id);
       window.dispatchEvent(new CustomEvent('gig-financials-updated', { detail: { gigId } }));
-      toast.success('Gig expense ledger entry created');
+      toast.success(created ? 'Gig expense ledger entry created' : 'This line is already in the gig ledger');
       setLedgerPrompt(null);
+      await loadPurchases();
     } catch (err: any) {
       toast.error(err.message || 'Failed to create ledger entry');
     } finally {
@@ -928,7 +983,7 @@ export default function PurchasesTab({
               This expense line is now linked to {ledgerPrompt?.gigTitle ? `"${ledgerPrompt.gigTitle}"` : 'a gig'}. Would you
               like to record it as an "Expense Incurred" entry in that gig's financials
               {ledgerPrompt && (
-                <> for ${((ledgerPrompt.item.line_amount ?? (ledgerPrompt.item.item_price ?? 0) * (ledgerPrompt.item.quantity ?? 1))).toFixed(2)}</>
+                <> for ${purchaseLineLedgerAmount(ledgerPrompt.item).toFixed(2)}</>
               )}? You can skip this and the line will still be linked to the gig.
             </AlertDialogDescription>
           </AlertDialogHeader>
@@ -937,6 +992,27 @@ export default function PurchasesTab({
             <AlertDialogAction onClick={(e) => { e.preventDefault(); handleCreateLedgerEntry(); }} disabled={creatingLedger}>
               {creatingLedger && <RefreshCw className="w-3.5 h-3.5 mr-1.5 animate-spin" />}
               Create record
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={!!clearLedgerConfirm} onOpenChange={(open) => { if (!open && !clearingLedger) setClearLedgerConfirm(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remove gig association and its ledger entry?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This line has a linked "Expense Incurred" entry
+              {clearLedgerConfirm && <> for ${clearLedgerConfirm.amount.toFixed(2)}</>} in the gig's
+              financials. Unlinking the line will also delete that ledger entry so the gig's costs stay
+              correct. This cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={clearingLedger}>Keep linked</AlertDialogCancel>
+            <AlertDialogAction onClick={(e) => { e.preventDefault(); handleConfirmClearLedger(); }} disabled={clearingLedger}>
+              {clearingLedger && <RefreshCw className="w-3.5 h-3.5 mr-1.5 animate-spin" />}
+              Unlink and delete entry
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
