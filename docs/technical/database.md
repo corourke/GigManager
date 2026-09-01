@@ -2,7 +2,7 @@
 
 **Purpose**: This document provides the complete database schema, Supabase integration details, and data access patterns for the GigWrangler application.
 
-**Last Updated**: 2026-03-16
+**Last Updated**: 2026-08-31
 
 ---
 
@@ -507,12 +507,17 @@ erDiagram
         fin_category category
         decimal amount
         date date
+        uuid purchase_id FK "NULLABLE"
+        uuid staff_assignment_id FK "NULLABLE"
     }
 
     GIGS ||--o{ GIG_FINANCIALS : has
     ORGANIZATIONS ||--o{ GIG_FINANCIALS : owns
     ORGANIZATIONS ||--o{ GIG_FINANCIALS : counterparty
 ```
+
+For how `purchase_id` / `staff_assignment_id` feed the single ledger, and the
+full ER diagram, see [gig-financials.md](gig-financials.md).
 
 ### gig_financials
 
@@ -524,8 +529,9 @@ Centralized tracking for bids, payments, expenses, and invoices.
 | gig_id | UUID | Reference to gigs.id (NOT NULL) |
 | organization_id | UUID | Reference to organizations.id (the owning organization) (nullable) |
 | type | fin_type | Type of financial record (e.g., 'Bid Submitted', 'Payment Recieved', 'Expense Incurred') (NOT NULL, default 'Bid Submitted') |
-| category | fin_category | Category for reporting (e.g., 'Labor', 'Equipment') (NOT NULL, default 'Other') |
+| category | fin_category | Category for reporting — IRS Schedule C categories, see below (**nullable**, no default) |
 | amount | DECIMAL(10,2) | Monetary amount (NOT NULL) |
+| mileage | NUMERIC(10,2) | Miles travelled to/from the gig, for mileage-based expense rows (nullable; migration 20260601000000) |
 | currency | TEXT | Currency code (default 'USD') (NOT NULL) |
 | date | DATE | Transaction or record date (NOT NULL) |
 | due_date | DATE | Payment due date (nullable) |
@@ -533,6 +539,8 @@ Centralized tracking for bids, payments, expenses, and invoices.
 | reference_number| TEXT | Invoice, PO, or check number (nullable) |
 | counterparty_id | UUID | Reference to organizations.id for the other party in transaction (nullable) |
 | external_entity_name | TEXT | Name of counterparty if not in organizations table (nullable) |
+| purchase_id | UUID | Reference to purchases.id — the source receipt/invoice this ledger row records (nullable, ON DELETE SET NULL; migration 20260319213000) |
+| staff_assignment_id | UUID | Reference to gig_staff_assignments.id — the completed assignment this labor cost came from (nullable, ON DELETE SET NULL; migration 20260319213000) |
 | description | TEXT | Detailed description or notes (nullable, Markdown-formatted) |
 | notes | TEXT | Internal notes (nullable) |
 | created_by | UUID | Reference to users.id (informational, NOT NULL) |
@@ -543,7 +551,10 @@ Centralized tracking for bids, payments, expenses, and invoices.
 **Notes:**
 - `gig_financials` replaces the legacy `gig_bids` table and `gigs.amount_paid` column.
 - `Payment Recieved` is spelled with 'ie' to match database enum definition.
-- RLS is **ENABLED** on this table. Access is restricted to Admins of the owning organization.
+- `purchase_id` / `staff_assignment_id` are the two-way links to the source documents that feed the ledger — see [gig-financials.md](gig-financials.md) §1.
+- **`fin_category`** was reworked (migrations 20260328000001 / 20260512000000) from the original `Labor / Equipment / Transportation / Venue / Production / Insurance / Rebillable / Other` set to IRS Schedule C names: `Advertising`, `Car and truck expenses`, `Commissions and fees`, `Contract labor`, `Depreciation`, `Insurance`, `Legal and professional services`, `Office expense`, `Rent or lease`, `Repairs and maintenance`, `Supplies`, `Taxes and licenses`, `Travel`, `Meals`, `Utilities`, `Wages`, `Other expenses`. It was also made nullable and lost its default (migrations 20260513000000 / 20260520000000). The authoritative list is `FIN_CATEGORY_CONFIG` in `src/utils/supabase/constants.ts`.
+- RLS is **ENABLED**. Insert/update/delete resolve to Admin **or Manager** of a participating org (via `user_can_manage_gig`); the narrower "Admins can …" policies are redundant duplicates layered on top.
+- Deleting a row fires `trg_cleanup_attachments`, which removes its `entity_attachments` links and any solely-owned `attachments` rows (migration 20260831000100).
 - `organization_id` represents the tenant who "owns" or is responsible for this financial record.
 - `counterparty_id` or `external_entity_name` tracks who the money is coming from or going to.
 
@@ -560,7 +571,7 @@ erDiagram
         uuid organization_id FK
         uuid gig_id FK "NULLABLE"
         uuid parent_id FK "NULLABLE"
-        text row_type "header or item"
+        text row_type "header | item | asset"
         uuid asset_id FK "NULLABLE"
     }
     ASSETS {
@@ -604,7 +615,7 @@ Handles acquisition headers and expense line items. Uses a self-referencing `par
 | gig_id | UUID | Reference to gigs.id — links expenses to a gig (nullable) |
 | parent_id | UUID | Self-reference to purchases.id — links items to their header (nullable) |
 | asset_id | UUID | Reference to assets.id — links audit item rows to the asset they represent (nullable) |
-| row_type | TEXT | Discriminator: `'header'` or `'item'` (NOT NULL, CHECK constraint) |
+| row_type | TEXT | Discriminator: `'header'`, `'item'`, or `'asset'` (NOT NULL, CHECK constraint). `'asset'` was added in migration 20260316000001 — an `'asset'` line is an item row that also produced an `assets` record (linked via `asset_id`). |
 | purchase_date | DATE | Date of purchase (nullable) |
 | vendor | TEXT | Vendor name (nullable) |
 | total_inv_amount | NUMERIC(10,2) | Total invoice amount — header only (nullable) |
@@ -624,10 +635,12 @@ Handles acquisition headers and expense line items. Uses a self-referencing `par
 
 **Notes:**
 - A **header** row (`row_type = 'header'`) represents an overall purchase transaction (vendor, date, total, payment method).
-- **Item** rows (`row_type = 'item'`) represent individual line items and reference their header via `parent_id`.
-- When assets are imported, the `create_purchase_transaction_v1` function creates audit item rows with `asset_id` linking back to the created asset.
-- `gig_id` links gig-specific expenses to the relevant gig, displayed alongside `gig_financials`.
+- **Item** / **asset** rows represent individual line items and reference their header via `parent_id`; an `'asset'` row also has `asset_id` set.
+- When assets are imported, the `create_purchase_transaction_v1` function creates `'asset'` line rows with `asset_id` linking back to the created asset. `reclassify_expense_as_asset` flips an existing `'item'` row to `'asset'` after the fact.
+- `gig_id` links gig-specific expenses to the relevant gig, displayed alongside `gig_financials`. It can be set at creation, edited per line, or assigned for a whole receipt from the Purchases tab — see [gig-financials.md](gig-financials.md) §2.
+- A gig-linked purchase does **not** automatically get a `gig_financials` ledger row: the on-gig receipt scan creates one, but CSV import and post-hoc line assignment only prompt/offer to. Without that ledger row the expense is invisible to gig profitability.
 - Assets acquired in a purchase reference the header row via `assets.purchase_id`.
+- Deleting a row fires `trg_cleanup_attachments` (migration 20260831000100), removing its `entity_attachments` links and any solely-owned `attachments` rows.
 - RLS is **ENABLED** on this table. Users can view purchases for organizations they belong to; Admins/Managers can manage.
 
 ---
@@ -661,15 +674,15 @@ Polymorphic junction table linking attachments to any entity type.
 |-------|------|-------------|
 | id | UUID | Primary key |
 | attachment_id | UUID | Reference to attachments.id (NOT NULL) |
-| entity_type | TEXT | Discriminator: `'asset'`, `'purchase'`, or `'gig'` (NOT NULL, CHECK constraint) |
+| entity_type | TEXT | Discriminator: `'asset'`, `'purchase'`, `'gig'`, or `'gig_financial'` (NOT NULL, CHECK constraint). `'gig_financial'` added in migration 20260831000000. |
 | entity_id | UUID | ID of the target entity record (NOT NULL) |
 | created_by | UUID | Reference to users.id (default auth.uid(), nullable) |
 | created_at | TIMESTAMPTZ | Record creation timestamp (NOT NULL) |
 
 **Notes:**
 - Enables one attachment to be linked to multiple entities (e.g., a receipt linked to both a purchase and an asset).
-- `entity_type` + `entity_id` form the polymorphic reference — there is no database-level FK constraint on `entity_id`.
-- RLS is **ENABLED** on this table. Access controlled via the parent attachment's organization.
+- `entity_type` + `entity_id` form the polymorphic reference — there is no database-level FK constraint on `entity_id`. Instead, each host table (`assets`, `gigs`, `purchases`, `gig_financials`) has a `trg_cleanup_attachments` BEFORE DELETE trigger that removes the dangling join rows and any solely-owned `attachments` rows (migration 20260831000100). The underlying storage object is removed best-effort by the app on `deleteGigFinancial`; other delete paths rely on a storage lifecycle sweep.
+- RLS is **ENABLED** on this table. Access controlled via the parent attachment's organization — Admin/Manager to manage, org member to view; the check is independent of `entity_type`.
 
 ---
 

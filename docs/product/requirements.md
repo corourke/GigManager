@@ -426,20 +426,18 @@ Two levels of conflict detection are implemented:
 ---
 ## Major Functionality Enhancements
 
-### Attachments and File Management ✅
+### Attachments and File Management ✅ (partial)
 
-There must be a uniform file attachment facility that is used in multiple places. 
+There must be a uniform file attachment facility that is used in multiple places.
 
-- **Organization Attachments**: Upload contracts, insurance certificates, W-9s, vendor agreements
-- **Gig Attachments**: Upload stage plots, input lists, contracts, riders, production schedules
-- **Asset Attachments**: Upload purchase receipts, manuals, warranty documents, calibration certificates
-- **Kit Attachments**: Upload packing lists, setup diagrams, transport manifests
-- **Supported File Types**: PDFs, images (JPG, PNG), documents (DOC, XLSX), CAD files (DWG, DXF)
-- **File Organization**: Tag and categorize attachments for easy retrieval
-- **Version Control**: Track document versions and revision history
-- **Private Documents**: Organization-specific docs on shared entities
-- **Tagging System**: Categorize docs for easy filtering
-- **Search**: Full-text search across all attachments
+**Built** — a generic polymorphic system (`attachments` + `entity_attachments`, `{org_id}/{filename}` in the private `attachments` bucket, Admin/Manager to write, org member to view) mounted on:
+- **Gig Attachments**: stage plots, input lists, contracts, riders, production schedules
+- **Asset Attachments**: purchase receipts, manuals, warranty documents, calibration certificates
+- **Purchase Attachments**: the scanned receipt/invoice on a `purchases` header
+- **Expense (gig_financials) Attachments**: a receipt/invoice/document on an individual expense row — web and mobile (added 2026-08, `entity_type = 'gig_financial'`)
+- Upload accepts PDF and image types in practice (`.pdf,image/*` on the receipt path; the generic `AttachmentManager` sets no client filter). No enforced size cap in the client today.
+
+**Not built** (still aspirational): Organization- and Kit-level attachments, per-file tagging/categorization, version history, and full-text search across attachments.
 
 ---
 
@@ -978,8 +976,9 @@ For the technical data model, ER diagram, and two-way linking pattern, see [Gig 
 #### Requirements
 - **Manual Expense Entry**: Quick entry via Financials section — type, amount, category, description.
 - **AI-Powered Receipt Entry**: Upload receipt via "Upload Receipt" button; AI extracts line items; system creates both a purchase record (archive) and a ledger entry (financial effect) automatically.
-- **General Business Expenses**: Purchases without a gig association are tracked as general business receipts.
-- **Categorization**: Eight categories: Labor, Equipment, Transportation, Venue, Production, Insurance, Rebillable, Other.
+- **Receipt on any expense**: Any expense row (manual, mileage, imported, receipt-sourced) can carry attached receipts/documents directly, via the paperclip on the row (web) or the transaction detail sheet (mobile).
+- **General Business Expenses**: Purchases without a gig association are tracked as general business receipts. Such a purchase (or an individual line) can be assigned to a gig after the fact from the Purchases tab, which then offers to create the matching ledger entry.
+- **Categorization**: `fin_category` uses IRS Schedule C categories (Advertising, Car and truck expenses, Contract labor, Office expense, Rent or lease, Supplies, Travel, Meals, Utilities, Wages, Other expenses, …). Authoritative list: `FIN_CATEGORY_CONFIG` in `src/utils/supabase/constants.ts`. `category` is nullable.
 - **Profitability Summary**: Three-card display: Contract (received/outstanding), Total Costs (actual + projected staff), Profit (with margin).
 - **Source Indicators**: Each expense row shows its source: Manual, Receipt (linked to purchase), Staff (linked to assignment).
 - **Paid/Unpaid Visibility**: All revenue and expense records show payment status.
