@@ -2,9 +2,15 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { vi, describe, it, expect, beforeEach } from 'vitest';
 import QuickActionButtons from './QuickActionButtons';
 import * as gigService from '../../services/gig.service';
+import * as attachmentService from '../../services/attachment.service';
 
 vi.mock('../../services/gig.service', () => ({
   createGigFinancial: vi.fn(),
+}));
+
+vi.mock('../../services/attachment.service', () => ({
+  uploadAttachment: vi.fn(),
+  linkAttachmentToEntity: vi.fn(),
 }));
 
 describe('QuickActionButtons', () => {
@@ -108,5 +114,59 @@ describe('QuickActionButtons', () => {
         amount: 33.75,
       }));
     });
+  });
+
+  async function openSimpleExpense() {
+    fireEvent.click(screen.getByText('Expense / Mileage'));
+    fireEvent.click(await screen.findByText('Simple Expense'));
+    await screen.findByText('Record Simple Expense');
+    fireEvent.change(screen.getByLabelText('Amount'), { target: { value: '40' } });
+    fireEvent.change(screen.getByLabelText('Description'), { target: { value: 'Van rental' } });
+  }
+
+  it('records a simple expense as paid when "Already paid" is toggled on', async () => {
+    vi.mocked(gigService.createGigFinancial).mockResolvedValue({ id: 'fin-new' } as any);
+    render(<QuickActionButtons {...defaultProps} />);
+
+    await openSimpleExpense();
+    fireEvent.click(screen.getByLabelText('Already paid'));
+    fireEvent.click(screen.getByText('Save Expense'));
+
+    await waitFor(() => {
+      expect(gigService.createGigFinancial).toHaveBeenCalledWith(
+        expect.objectContaining({ type: 'Expense Incurred', amount: 40, paid_at: expect.any(String) }),
+      );
+    });
+    expect(attachmentService.uploadAttachment).not.toHaveBeenCalled();
+  });
+
+  it('leaves paid_at unset when "Already paid" is off', async () => {
+    vi.mocked(gigService.createGigFinancial).mockResolvedValue({ id: 'fin-new' } as any);
+    render(<QuickActionButtons {...defaultProps} />);
+
+    await openSimpleExpense();
+    fireEvent.click(screen.getByText('Save Expense'));
+
+    await waitFor(() => {
+      expect(gigService.createGigFinancial).toHaveBeenCalledWith(
+        expect.objectContaining({ amount: 40, paid_at: undefined }),
+      );
+    });
+  });
+
+  it('uploads and links the receipt to the new expense row', async () => {
+    vi.mocked(gigService.createGigFinancial).mockResolvedValue({ id: 'fin-new' } as any);
+    vi.mocked(attachmentService.uploadAttachment).mockResolvedValue({ id: 'att-1' } as any);
+    render(<QuickActionButtons {...defaultProps} />);
+
+    await openSimpleExpense();
+    const file = new File(['x'], 'receipt.pdf', { type: 'application/pdf' });
+    fireEvent.change(screen.getByLabelText('Receipt (optional)'), { target: { files: [file] } });
+    fireEvent.click(screen.getByText('Save Expense'));
+
+    await waitFor(() => {
+      expect(attachmentService.uploadAttachment).toHaveBeenCalledWith('test-org-id', file);
+    });
+    expect(attachmentService.linkAttachmentToEntity).toHaveBeenCalledWith('att-1', 'gig_financial', 'fin-new');
   });
 });

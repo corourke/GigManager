@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { getKits, getKit, getDistinctKitValues, deleteKit, createKit, updateKit, duplicateKit } from './kit.service';
+import { getKits, getKit, getDistinctKitValues, deleteKit, createKit, updateKit, duplicateKit, countInventoryItems, maxTreeDepth, getKitsThatWouldCycle, getKitComponentTree, KitComponentTreeNode } from './kit.service';
 import { createClient } from '../utils/supabase/client';
 import { requireAuth } from '../utils/supabase/auth-utils';
 
@@ -106,7 +106,7 @@ describe('kit.service', () => {
       const mockKit = {
         id: 'kit-1',
         name: 'PA System',
-        kit_assets: [{ id: 'ka-1', quantity: 2, asset: { id: 'asset-1' } }],
+        kit_components: [{ id: 'kc-1', quantity: 2, asset_id: 'asset-1', child_kit_id: null, asset: { id: 'asset-1' } }],
       };
       const chain = makeChain({ data: mockKit, error: null });
       mockSupabase.from.mockReturnValue(chain);
@@ -114,7 +114,7 @@ describe('kit.service', () => {
       const result = await getKit('kit-1');
 
       expect(result.id).toBe('kit-1');
-      expect(result.kit_assets).toHaveLength(1);
+      expect(result.kit_components).toHaveLength(1);
       expect(chain.eq).toHaveBeenCalledWith('id', 'kit-1');
       expect(chain.single).toHaveBeenCalled();
     });
@@ -124,6 +124,41 @@ describe('kit.service', () => {
       mockSupabase.from.mockReturnValue(makeChain({ data: null, error: dbError }));
 
       await expect(getKit('missing-id')).rejects.toMatchObject({ message: 'Row not found' });
+    });
+  });
+
+  // ─── getKitsThatWouldCycle ────────────────────────────────────────────────
+
+  describe('getKitsThatWouldCycle', () => {
+    it('returns the set of candidate kit ids the RPC flags as cyclic', async () => {
+      mockSupabase.rpc = vi.fn().mockResolvedValue({
+        data: [{ kit_id: 'kit-b' }, { kit_id: 'kit-c' }],
+        error: null,
+      });
+
+      const result = await getKitsThatWouldCycle('kit-a', ['kit-b', 'kit-c', 'kit-d']);
+
+      expect(mockSupabase.rpc).toHaveBeenCalledWith('kits_that_would_cycle', {
+        p_parent_kit_id: 'kit-a',
+        p_candidate_kit_ids: ['kit-b', 'kit-c', 'kit-d'],
+      });
+      expect(result).toEqual(new Set(['kit-b', 'kit-c']));
+      expect(result.has('kit-d')).toBe(false);
+    });
+
+    it('returns an empty set without calling the RPC when there are no candidates', async () => {
+      mockSupabase.rpc = vi.fn();
+
+      const result = await getKitsThatWouldCycle('kit-a', []);
+
+      expect(result.size).toBe(0);
+      expect(mockSupabase.rpc).not.toHaveBeenCalled();
+    });
+
+    it('propagates Supabase errors', async () => {
+      mockSupabase.rpc = vi.fn().mockResolvedValue({ data: null, error: { message: 'RPC failed' } });
+
+      await expect(getKitsThatWouldCycle('kit-a', ['kit-b'])).rejects.toMatchObject({ message: 'RPC failed' });
     });
   });
 
@@ -199,7 +234,7 @@ describe('kit.service', () => {
 
   describe('createKit', () => {
     it('inserts a new kit and logs activity', async () => {
-      const kitData = { name: 'New Kit', organization_id: 'org-1', assets: [] };
+      const kitData = { name: 'New Kit', organization_id: 'org-1', components: [] };
       const mockKit = { id: 'k1', name: 'New Kit', organization_id: 'org-1' };
       
       mockSupabase.from.mockImplementation((table: string) => {
@@ -245,6 +280,77 @@ describe('kit.service', () => {
       }));
     });
 
+    it('adds a mixed asset + sub-kit component in one update, logging both event types', async () => {
+      const kitId = 'k1';
+      const preKit = { id: 'k1', name: 'Rack', organization_id: 'org-1', organization: { name: 'Acme' } };
+      let kitsCallCount = 0;
+
+      mockSupabase.from.mockImplementation((table: string) => {
+        if (table === 'kits') {
+          kitsCallCount += 1;
+          // 1st call: pre-fetch for diffing/actor info. Later calls: sub-kit name lookups.
+          if (kitsCallCount === 1) return makeChain({ data: preKit, error: null });
+          return makeChain({ data: { name: 'Mic Kit' }, error: null });
+        }
+        if (table === 'kit_components') {
+          const chain = makeChain({ data: [], error: null }); // no existing components
+          chain.insert = vi.fn().mockReturnValue(makeChain({ data: null, error: null }));
+          return chain;
+        }
+        if (table === 'assets') return makeChain({ data: { manufacturer_model: 'LED Par' }, error: null });
+        return makeChain({ data: {}, error: null });
+      });
+      (requireAuth as any).mockResolvedValue({ supabase: mockSupabase, user: { id: 'u1' } });
+
+      await updateKit(kitId, {
+        components: [
+          { asset_id: 'asset-1', quantity: 2 },
+          { child_kit_id: 'subkit-1', quantity: 3 },
+        ],
+      });
+
+      expect(logActivity).toHaveBeenCalledWith(expect.objectContaining({
+        event_type: 'kit.asset_added',
+        context: expect.objectContaining({ asset_model: 'LED Par', quantity: 2 }),
+      }));
+      expect(logActivity).toHaveBeenCalledWith(expect.objectContaining({
+        event_type: 'kit.subkit_added',
+        context: expect.objectContaining({ subkit_name: 'Mic Kit', quantity: 3 }),
+      }));
+    });
+
+    it('removes a sub-kit component and logs kit.subkit_removed', async () => {
+      const kitId = 'k1';
+      const preKit = { id: 'k1', name: 'Rack', organization_id: 'org-1', organization: { name: 'Acme' } };
+      let kitsCallCount = 0;
+
+      mockSupabase.from.mockImplementation((table: string) => {
+        if (table === 'kits') {
+          kitsCallCount += 1;
+          if (kitsCallCount === 1) return makeChain({ data: preKit, error: null });
+          return makeChain({ data: { name: 'Mic Kit' }, error: null });
+        }
+        if (table === 'kit_components') {
+          const chain = makeChain({
+            data: [{ id: 'kc-1', asset_id: null, child_kit_id: 'subkit-1' }],
+            error: null,
+          });
+          chain.delete = vi.fn().mockReturnValue(makeChain({ data: null, error: null }));
+          return chain;
+        }
+        return makeChain({ data: {}, error: null });
+      });
+      (requireAuth as any).mockResolvedValue({ supabase: mockSupabase, user: { id: 'u1' } });
+
+      // Empty incoming components list — the one existing sub-kit component gets removed.
+      await updateKit(kitId, { components: [] });
+
+      expect(logActivity).toHaveBeenCalledWith(expect.objectContaining({
+        event_type: 'kit.subkit_removed',
+        context: expect.objectContaining({ subkit_name: 'Mic Kit' }),
+      }));
+    });
+
     it('does NOT log kit.updated when tracked fields are unchanged', async () => {
       const kitId = 'k1';
       const updates = { name: 'Old Kit' };
@@ -267,7 +373,7 @@ describe('kit.service', () => {
   describe('duplicateKit', () => {
     it('logs kit.created for duplicated kit', async () => {
       const kitId = 'k1';
-      const originalKit = { id: 'k1', name: 'Original', organization_id: 'org-1', kit_assets: [] };
+      const originalKit = { id: 'k1', name: 'Original', organization_id: 'org-1', kit_components: [] };
       const mockResult = { id: 'k2', name: 'Original (Copy)', organization_id: 'org-1' };
 
       mockSupabase.from.mockImplementation((table: string) => {
@@ -291,5 +397,117 @@ describe('kit.service', () => {
         })
       }));
     });
+  });
+
+  // ─── getKitComponentTree ─────────────────────────────────────────────────
+
+  describe('getKitComponentTree', () => {
+    // Regression coverage for the DB-assembly path itself, not just
+    // countInventoryItems's pure logic (which was previously only ever
+    // exercised against hand-built trees) — a non-container sub-kit with
+    // its own 2 assets, plus 2 assets added directly to the parent, is 4
+    // real physical items to scan; the sub-kit itself isn't one of them.
+    it('assembles a tree from kit_components rows that countInventoryItems totals correctly', async () => {
+      mockSupabase.rpc = vi.fn().mockResolvedValue({
+        data: [{ parent_kit_id: 'kit-top', child_kit_id: 'kit-sub', quantity: 1, depth: 1 }],
+        error: null,
+      });
+      mockSupabase.from.mockImplementation((table: string) => {
+        if (table === 'kits') {
+          return makeChain({
+            data: [
+              { id: 'kit-top', name: 'Test Rack', category: null, is_container: false },
+              { id: 'kit-sub', name: 'Sub Kit', category: null, is_container: false },
+            ],
+            error: null,
+          });
+        }
+        if (table === 'kit_components') {
+          return makeChain({
+            data: [
+              { kit_id: 'kit-top', asset_id: 'asset-1', child_kit_id: null, quantity: 1, asset: { id: 'asset-1', manufacturer_model: 'Asset 1' } },
+              { kit_id: 'kit-top', asset_id: 'asset-2', child_kit_id: null, quantity: 1, asset: { id: 'asset-2', manufacturer_model: 'Asset 2' } },
+              { kit_id: 'kit-top', asset_id: null, child_kit_id: 'kit-sub', quantity: 1, asset: null },
+              { kit_id: 'kit-sub', asset_id: 'asset-3', child_kit_id: null, quantity: 1, asset: { id: 'asset-3', manufacturer_model: 'Asset 3' } },
+              { kit_id: 'kit-sub', asset_id: 'asset-4', child_kit_id: null, quantity: 1, asset: { id: 'asset-4', manufacturer_model: 'Asset 4' } },
+            ],
+            error: null,
+          });
+        }
+        return makeChain({ data: [], error: null });
+      });
+
+      const tree = await getKitComponentTree('kit-top');
+      expect(countInventoryItems(tree)).toBe(4);
+    });
+  });
+});
+
+describe('countInventoryItems / maxTreeDepth', () => {
+  const asset = (quantity: number): KitComponentTreeNode => ({
+    clientKey: `asset-${Math.random()}`,
+    type: 'asset',
+    quantity,
+    asset: {},
+    children: [],
+  });
+
+  const kit = (name: string, isContainer: boolean, quantity: number, children: KitComponentTreeNode[]): KitComponentTreeNode => ({
+    clientKey: `kit-${name}`,
+    type: 'kit',
+    quantity,
+    kit: { id: name, name, category: null, is_container: isContainer },
+    children,
+  });
+
+  // Direct: one loose asset (×4), a non-container "Lighting Kit" (transparent —
+  // its own asset plus a container "Mic Case" nested inside it), and a
+  // container "Road Case" (counts as one, no drilling — even though it has
+  // its own nested non-container kit with more assets underneath).
+  const tree: KitComponentTreeNode[] = [
+    asset(4),
+    kit('Lighting Kit', false, 1, [
+      asset(2),
+      kit('Mic Case', true, 1, [asset(3)]),
+    ]),
+    kit('Road Case', true, 1, [
+      asset(5),
+      kit('Inner Frame', false, 1, [asset(2)]),
+    ]),
+  ];
+
+  it('counts a container sub-kit as one item and does not drill into it, while a non-container sub-kit is transparent', () => {
+    // 4 (loose asset) + [2 (Lighting Kit's own asset) + 1 (Mic Case, a
+    // container, counts as one)] + [1 (Road Case, a container, counts as
+    // one — its own nested kit/assets are not drilled into)] = 8
+    expect(countInventoryItems(tree)).toBe(8);
+  });
+
+  it('counts fully-flattened total quantity ignoring container boundaries entirely, for comparison', () => {
+    const totalFlattened = (nodes: KitComponentTreeNode[]): number =>
+      nodes.reduce((sum, n) => sum + (n.type === 'asset' ? n.quantity : totalFlattened(n.children)), 0);
+    // 4 + (2 + 3) + (5 + 2) = 16 — everything drilled into, no container ever stops recursion.
+    expect(totalFlattened(tree)).toBe(16);
+  });
+
+  it('finds the deepest sub-kit nesting level, regardless of container status', () => {
+    // Lighting Kit (depth 1) -> Mic Case (depth 2); Road Case (depth 1) -> Inner Frame (depth 2).
+    expect(maxTreeDepth(tree)).toBe(2);
+  });
+
+  it('returns 0 for a flat kit with no nested sub-kits', () => {
+    expect(maxTreeDepth([asset(1), asset(2)])).toBe(0);
+  });
+
+  it('returns 0 items for an empty tree', () => {
+    expect(countInventoryItems([])).toBe(0);
+  });
+
+  // Regression: a non-container sub-kit's own quantity was being dropped —
+  // 2 copies of "Duo Pack" (itself transparent, containing 3 loose assets)
+  // must count as 6 items, not 3.
+  it('multiplies a non-container sub-kit\'s own contents by its quantity', () => {
+    const nested = [kit('Duo Pack', false, 2, [asset(3)])];
+    expect(countInventoryItems(nested)).toBe(6);
   });
 });

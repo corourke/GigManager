@@ -1,7 +1,6 @@
 import { handleApiError } from '../utils/api-error-utils';
 import { requireAuth } from '../utils/supabase/auth-utils';
 import { UUID_REGEX } from '../utils/validation-utils';
-import { getKit } from './kit.service';
 import { getSupabase } from './gigService.shared';
 
 /**
@@ -133,7 +132,7 @@ export async function getGigKits(gigId: string, organizationId?: string) {
           tag_number,
           rental_value,
           organization_id,
-          kit_assets(
+          kit_components!kit_assets_kit_id_fkey(
             quantity,
             notes,
             asset:assets(*)
@@ -152,61 +151,3 @@ export async function getGigKits(gigId: string, organizationId?: string) {
   }
 }
 
-/**
- * Check for kit availability conflicts
- */
-export async function checkKitConflicts(kitId: string, gigId: string, startTime: string, endTime: string) {
-  const supabase = getSupabase();
-  try {
-    const kit = await getKit(kitId);
-    if (!kit.kit_assets || kit.kit_assets.length === 0) return { conflicts: [] };
-
-    const assetIds = kit.kit_assets.map((ka: any) => ka.asset.id);
-
-    const { data: overlappingGigs, error } = await supabase
-      .from('gigs')
-      .select(`
-        id,
-        title,
-        start,
-        end,
-        gig_kit_assignments!inner(
-          kit:kits!inner(
-            kit_assets!inner(
-              asset_id
-            )
-          )
-        )
-      `)
-      .neq('id', gigId)
-      .lte('start', endTime)
-      .gte('end', startTime);
-
-    if (error) throw error;
-
-    const conflicts: any[] = [];
-    for (const gig of overlappingGigs || []) {
-      const gigAssetIds = new Set<string>();
-      for (const assignment of gig.gig_kit_assignments || []) {
-        for (const kitAsset of assignment.kit?.kit_assets || []) {
-          gigAssetIds.add(kitAsset.asset_id);
-        }
-      }
-
-      const conflictingAssetIds = assetIds.filter(id => gigAssetIds.has(id));
-      if (conflictingAssetIds.length > 0) {
-        conflicts.push({
-          gig_id: gig.id,
-          gig_title: gig.title,
-          start: gig.start,
-          end: gig.end,
-          conflicting_assets: conflictingAssetIds,
-        });
-      }
-    }
-
-    return { conflicts };
-  } catch (err) {
-    return handleApiError(err, 'check kit conflicts');
-  }
-}

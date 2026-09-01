@@ -29,14 +29,14 @@ import { Label } from '../ui/label';
 import { LocationCombobox } from './LocationCombobox';
 import { TrackingStatusBadge } from './TrackingStatusBadge';
 import {
-  getActiveGigsWithTracking,
+  getGigsForReportPicker,
   getManifestReport,
   getPackingListReport,
   getMaintenanceQueueReport,
   getInventoryConflictFlags,
 } from '../../services/inventoryManagement.service';
 import type {
-  GigWithTracking,
+  GigOption,
   ManifestRow,
   PackingListRow,
   MaintenanceRow,
@@ -127,7 +127,7 @@ function ManifestTab({
 }: {
   organizationId: string;
   organizationName: string;
-  gigs: GigWithTracking[];
+  gigs: GigOption[];
   conflictFlags: Set<string>;
 }) {
   const [location, setLocation] = useState('');
@@ -137,6 +137,18 @@ function ManifestTab({
   const [visibleColumns, setVisibleColumns] = useState<Set<ManifestColumn>>(
     new Set(['status', 'gig', 'scanned_at', 'scanned_by', 'notes'])
   );
+  // Lets a worker physically verify items as they walk the location — tap
+  // to check off, tap again to undo. Not persisted: it's a scratchpad for
+  // one verification pass, cleared whenever the underlying report changes.
+  const [checkedRows, setCheckedRows] = useState<Set<string>>(new Set());
+  const toggleChecked = (rowKey: string) => {
+    setCheckedRows((prev) => {
+      const next = new Set(prev);
+      if (next.has(rowKey)) next.delete(rowKey);
+      else next.add(rowKey);
+      return next;
+    });
+  };
 
   const toggleColumn = (col: ManifestColumn) => {
     setVisibleColumns((prev) => {
@@ -159,6 +171,7 @@ function ManifestTab({
         gigId: gigFilter !== 'all' ? gigFilter : undefined,
       });
       setRows(data);
+      setCheckedRows(new Set());
     } catch {
       setRows([]);
     } finally {
@@ -285,10 +298,10 @@ function ManifestTab({
                     <span className="font-medium text-sm">{kitName}</span>
                     {hasConflict && <ConflictBadge />}
                   </div>
-                  <Table>
+                  <Table className="[&_th]:border [&_td]:border">
                     <TableHeader>
                       <TableRow>
-                        <TableHead className="print-cell hidden w-8 text-center">✓</TableHead>
+                        <TableHead className="w-8 text-center">✓</TableHead>
                         <TableHead>Asset / Kit</TableHead>
                         <TableHead>Tag #</TableHead>
                         {show('status') && <TableHead>Status</TableHead>}
@@ -299,12 +312,19 @@ function ManifestTab({
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {kitRows.map((row, i) => (
-                        <TableRow key={`${row.kit_id}-${row.asset_id ?? 'kit'}-${i}`}>
-                          <TableCell className="print-cell hidden text-center">
-                            <span className="inline-block w-4 h-4 border border-gray-400 rounded-sm" />
+                      {kitRows.map((row, i) => {
+                        const rowKey = `${row.kit_id}-${row.asset_id ?? 'kit'}-${i}`;
+                        const isChecked = checkedRows.has(rowKey);
+                        return (
+                        <TableRow key={rowKey}>
+                          <TableCell className="text-center">
+                            <Checkbox
+                              aria-label={`Verified: ${row.asset_name ?? row.kit_name ?? 'item'}`}
+                              checked={isChecked}
+                              onCheckedChange={() => toggleChecked(rowKey)}
+                            />
                           </TableCell>
-                          <TableCell className="font-medium">
+                          <TableCell className={`font-medium ${isChecked ? 'line-through text-muted-foreground' : ''}`}>
                             {row.asset_name ?? row.kit_name ?? '—'}
                           </TableCell>
                           <TableCell>{row.tag_number ?? '—'}</TableCell>
@@ -332,7 +352,8 @@ function ManifestTab({
                             </TableCell>
                           )}
                         </TableRow>
-                      ))}
+                        );
+                      })}
                     </TableBody>
                   </Table>
                 </div>
@@ -362,7 +383,7 @@ function PackingListTab({
 }: {
   organizationId: string;
   organizationName: string;
-  gigs: GigWithTracking[];
+  gigs: GigOption[];
   conflictFlags: Set<string>;
 }) {
   const [gigId, setGigId] = useState('');
@@ -371,6 +392,18 @@ function PackingListTab({
   const [visibleColumns, setVisibleColumns] = useState<Set<PackingColumn>>(
     new Set(['status', 'scanned_at', 'location', 'scanned_by', 'notes'])
   );
+  // Lets a worker physically verify items as they pack, tap to check off
+  // and tap again to undo. Not persisted: a scratchpad for one pass,
+  // cleared whenever the underlying report changes.
+  const [checkedRows, setCheckedRows] = useState<Set<string>>(new Set());
+  const toggleChecked = (rowKey: string) => {
+    setCheckedRows((prev) => {
+      const next = new Set(prev);
+      if (next.has(rowKey)) next.delete(rowKey);
+      else next.add(rowKey);
+      return next;
+    });
+  };
 
   const toggleColumn = (col: PackingColumn) => {
     setVisibleColumns((prev) => {
@@ -390,6 +423,7 @@ function PackingListTab({
     try {
       const data = await getPackingListReport(organizationId, gigId);
       setRows(data);
+      setCheckedRows(new Set());
     } catch {
       setRows([]);
     } finally {
@@ -506,10 +540,10 @@ function PackingListTab({
                     <KitTypeBadge isContainer={isContainer} />
                     {hasConflict && <ConflictBadge />}
                   </div>
-                  <Table>
+                  <Table className="[&_th]:border [&_td]:border">
                     <TableHeader>
                       <TableRow>
-                        <TableHead className="print-cell hidden w-8 text-center">✓</TableHead>
+                        <TableHead className="w-8 text-center">✓</TableHead>
                         <TableHead>Name</TableHead>
                         <TableHead>Tag #</TableHead>
                         {show('status') && <TableHead>Status</TableHead>}
@@ -520,12 +554,19 @@ function PackingListTab({
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {kitRows.map((row, i) => (
-                        <TableRow key={`${row.kit_id}-${row.asset_id ?? 'kit'}-${i}`}>
-                          <TableCell className="print-cell hidden text-center">
-                            <span className="inline-block w-4 h-4 border border-gray-400 rounded-sm" />
+                      {kitRows.map((row, i) => {
+                        const rowKey = `${row.kit_id}-${row.asset_id ?? 'kit'}-${i}`;
+                        const isChecked = checkedRows.has(rowKey);
+                        return (
+                        <TableRow key={rowKey}>
+                          <TableCell className="text-center">
+                            <Checkbox
+                              aria-label={`Verified: ${row.asset_name ?? row.kit_name ?? 'item'}`}
+                              checked={isChecked}
+                              onCheckedChange={() => toggleChecked(rowKey)}
+                            />
                           </TableCell>
-                          <TableCell className="font-medium">
+                          <TableCell className={`font-medium ${isChecked ? 'line-through text-muted-foreground' : ''}`}>
                             {row.asset_name ?? row.kit_name ?? '—'}
                           </TableCell>
                           <TableCell>{row.tag_number ?? '—'}</TableCell>
@@ -559,7 +600,8 @@ function PackingListTab({
                             </TableCell>
                           )}
                         </TableRow>
-                      ))}
+                        );
+                      })}
                     </TableBody>
                   </Table>
                 </div>
@@ -676,12 +718,12 @@ function MaintenanceQueueTab({
 }
 
 export function InventoryReports({ organizationId, organizationName }: InventoryReportsProps) {
-  const [gigs, setGigs] = useState<GigWithTracking[]>([]);
+  const [gigs, setGigs] = useState<GigOption[]>([]);
   const [conflictFlags, setConflictFlags] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     Promise.all([
-      getActiveGigsWithTracking(organizationId),
+      getGigsForReportPicker(organizationId),
       getInventoryConflictFlags(organizationId),
     ])
       .then(([gigsData, flags]) => {

@@ -2,7 +2,7 @@
 
 Technical documentation for the gig financial management system. For the design analysis and implementation plan, see [07_gig-financials-workflow.md](../product/development-plan/07_gig-financials-workflow.md).
 
-**Last Updated**: 2026-03-19
+**Last Updated**: 2026-08-31
 
 ---
 
@@ -123,9 +123,21 @@ erDiagram
 
 **When a receipt is scanned outside a gig context** (general business receipt), only the `purchases` record is created. No ledger entry.
 
+**CSV-imported purchases never create a ledger entry** — not even when the imported rows carry a `gig_id`. `create_purchase_transaction_v1` only writes `purchases` (+ `assets`). Such an expense stays invisible to gig profitability until a ledger row is created for it (see "Assigning an expense to a gig after the fact" below).
+
 **Capital asset purchases** (where items create `assets` records) do NOT create `gig_financials` entries. Asset purchases are inventory acquisitions, not gig expenses.
 
 **Edit propagation**: If a purchase record is edited after the linked `gig_financials` record was created, the amounts may diverge. The `gig_financials` record is the financial truth; the purchase is the receipt archive. A future enhancement could flag discrepancies for reconciliation.
+
+### Assigning an expense to a gig after the fact
+
+An expense that entered the system without a gig — a receipt scanned off a gig page, or a CSV import — can be linked to one later, from the **Purchases** tab (web, Admin/Manager):
+
+- **Per line**: expand a purchase line and use the "Assign Gig" picker. Assigning, reassigning, or clearing a line's gig keeps its auto-created ledger entry in sync — a first assignment offers to create the "Expense Incurred" entry; a reassignment **moves** the existing entry to the new gig; clearing the gig prompts before deleting the entry. Creation is dedup-guarded, so a line can never end up with two ledger entries.
+- **Per receipt**: the header row has an "Assign receipt to gig" picker that sets the header's `gig_id` and cascades to every unlinked child line, then offers to create ledger entries for the expense lines in one step. Lines already on a *different* gig are left alone (reassign them individually so their ledger entry can follow).
+- **Recovering a skipped prompt**: any expense line that is linked to a gig but has no ledger entry (prompt dismissed, or CSV import) shows a persistent "Add to gig ledger" button in its line detail.
+
+These operations only touch `gig_financials` rows that were auto-created from a purchase link (identified by `purchase_id`); a manually-entered ledger row is never moved or deleted by them.
 
 ### `gig_financials` vs. `gig_staff_assignments`
 
@@ -159,7 +171,7 @@ The `fin_type` enum has 24 values to support future multi-tenant workflows. For 
 
 **Advanced** (bid/contract workflow — future use): All `Bid *`, `Contract *`, and `Sub-Contract *` types
 
-Each `gig_financials` record also has a `category` (`fin_category` enum): Labor, Equipment, Transportation, Venue, Production, Insurance, Rebillable, Other. The `type` describes *what happened*; the `category` describes *what it's for*.
+Each `gig_financials` record also has a `category` (`fin_category` enum). The `type` describes *what happened*; the `category` describes *what it's for*. The original set (Labor, Equipment, Transportation, …) was replaced (migrations 20260328000001 / 20260512000000) with IRS Schedule C categories — Advertising, Car and truck expenses, Contract labor, Office expense, Rent or lease, Supplies, Travel, Meals, Utilities, Wages, Other expenses, and more. `category` is now **nullable with no default**. The authoritative list is `FIN_CATEGORY_CONFIG` in `src/utils/supabase/constants.ts`.
 
 ---
 
@@ -224,4 +236,9 @@ All settled/actual financials come from `gig_financials`. Projected staff costs 
 
 ## 5. Attachments
 
-`gig_financials` supports file attachments via the existing `entity_attachments` polymorphic attachment system. Receipts, invoices, and supporting documents can be attached directly to financial records, independent of any linked `purchases` record.
+`gig_financials` supports file attachments via the `entity_attachments` polymorphic system (`entity_type = 'gig_financial'`, added in migration 20260831000000). Receipts, invoices, and supporting documents attach directly to a financial record, independent of any linked `purchases` record — so a manually-entered expense or mileage row can carry its own receipt.
+
+- **Web**: a paperclip button with a count badge on each expense row in `GigFinancialsSection` opens a per-row modal (`AttachmentManager`). View is always available; upload requires edit mode + Admin/Manager.
+- **Mobile**: the transaction detail sheet in `MobileGigFinancials` mounts the same `AttachmentManager`; list rows show a paperclip when attachments exist.
+- Not wired into the Simple Expense / Mileage **entry** modals — attach after the row exists.
+- Storage, RLS, and the `{org_id}/{filename}` path convention are shared with all other attachments. Deleting a `gig_financials` row triggers `trg_cleanup_attachments` (metadata) and a best-effort storage-blob removal in `deleteGigFinancial`.

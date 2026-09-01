@@ -1,11 +1,16 @@
 import { describe, it, expect, vi } from 'vitest'
-import { render } from '@testing-library/react'
+import { render, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import KitScreen from './KitScreen'
 import { makeUser, makeOrganization } from '../test/factories'
+import { getKit, getKits, getKitsFlattenedSummary, getKitsThatWouldCycle } from '../services/kit.service'
+import { getAssets } from '../services/asset.service'
 
 // Mock all dependencies
 vi.mock('../services/kit.service', () => ({
   getKit: vi.fn().mockResolvedValue({}),
+  getKits: vi.fn().mockResolvedValue([]),
+  getKitsFlattenedSummary: vi.fn().mockResolvedValue(new Map()),
+  getKitsThatWouldCycle: vi.fn().mockResolvedValue(new Set()),
   createKit: vi.fn(),
   updateKit: vi.fn(),
 }))
@@ -63,5 +68,211 @@ describe('KitScreen', () => {
     expect(() => {
       render(<KitScreen {...mockProps} kitId="test-id" />)
     }).not.toThrow()
+  })
+
+  it('opens the unified component picker with All/Assets/Kits filters', () => {
+    render(<KitScreen {...mockProps} />)
+    fireEvent.click(screen.getByText('Add Components'))
+    expect(screen.getByText('all')).toBeInTheDocument()
+    expect(screen.getByText('assets')).toBeInTheDocument()
+    expect(screen.getByText('kits')).toBeInTheDocument()
+  })
+
+  // Regression: two rows referencing the same asset_id (only reachable today
+  // via legacy data, since the picker now excludes already-added assets) used
+  // to share a derived identity, so removing one removed both. Rows are now
+  // keyed by their own clientKey (the DB id, here), not the shared asset_id.
+  it('removes only the specific row clicked, even when two rows reference the same asset', async () => {
+    vi.mocked(getKit).mockResolvedValue({
+      id: 'kit-1',
+      name: 'Cable Bag',
+      kit_components: [
+        { id: 'kc-1', asset_id: 'asset-1', quantity: 3, asset: { id: 'asset-1', manufacturer_model: 'DMX Cable' } },
+        { id: 'kc-2', asset_id: 'asset-1', quantity: 7, asset: { id: 'asset-1', manufacturer_model: 'DMX Cable' } },
+      ],
+    } as any)
+
+    render(<KitScreen {...mockProps} kitId="kit-1" />)
+
+    const quantityInputs = await waitFor(() => {
+      const inputs = screen.getAllByDisplayValue(/^(3|7)$/)
+      expect(inputs).toHaveLength(2)
+      return inputs
+    })
+
+    // Remove the row showing quantity 3 — find its table row and click its own remove button.
+    const rowToRemove = quantityInputs.find((el) => (el as HTMLInputElement).value === '3')!.closest('tr')!
+    fireEvent.click(within(rowToRemove).getByRole('button'))
+
+    await waitFor(() => {
+      expect(screen.queryByDisplayValue('3')).not.toBeInTheDocument()
+    })
+    // The other row survives untouched — this is the actual regression check.
+    expect(screen.getByDisplayValue('7')).toBeInTheDocument()
+  })
+
+  // A kit is a singular entity — its row in the contents table shows a fixed
+  // quantity of 1, not an editable input.
+  it('shows a fixed quantity of 1 for sub-kit rows, not an editable input', async () => {
+    vi.mocked(getKit).mockResolvedValue({
+      id: 'kit-1',
+      name: 'Full Rack',
+      kit_components: [
+        { id: 'kc-1', child_kit_id: 'kit-sub', quantity: 1, child_kit: { id: 'kit-sub', name: 'Audio Kit' } },
+      ],
+    } as any)
+
+    render(<KitScreen {...mockProps} kitId="kit-1" />)
+
+    const row = await waitFor(() => screen.getByText('Audio Kit').closest('tr')!)
+    expect(within(row).queryByRole('spinbutton')).not.toBeInTheDocument()
+    expect(within(row).getByText('1')).toBeInTheDocument()
+  })
+
+  // "It also allows me to add more asset components to a kit than we have
+  // in inventory" — the picker's quantity stepper must not exceed stock.
+  it('clamps the quantity added for an asset to what is in stock', async () => {
+    vi.mocked(getAssets).mockResolvedValue([
+      { id: 'asset-1', manufacturer_model: 'DMX Cable', quantity: 5 },
+    ] as any)
+
+    render(<KitScreen {...mockProps} />)
+    fireEvent.click(screen.getByText('Add Components'))
+
+    await waitFor(() => screen.getByText('DMX Cable'))
+
+    const qtyInput = screen.getByLabelText('Qty') as HTMLInputElement
+    fireEvent.change(qtyInput, { target: { value: '10' } })
+    expect(qtyInput.value).toBe('5')
+
+    fireEvent.click(screen.getByText('DMX Cable'))
+    fireEvent.click(screen.getByRole('button', { name: /Add 1 Selected/ }))
+
+    await waitFor(() => {
+      expect(screen.getByDisplayValue('5')).toBeInTheDocument()
+    })
+  })
+
+  // "It also allows me to add an asset, and then also add a kit containing
+  // that asset" (and the reverse) — the same physical asset can't enter a
+  // kit twice, however it gets there.
+  it('excludes picker candidates whose flattened assets overlap what the kit already contains', async () => {
+    vi.mocked(getKit).mockResolvedValue({
+      id: 'kit-1',
+      name: 'Full Rack',
+      kit_components: [
+        { id: 'kc-1', asset_id: 'asset-1', quantity: 1, asset: { id: 'asset-1', manufacturer_model: 'DI Box' } },
+        { id: 'kc-2', child_kit_id: 'kit-audio', quantity: 1, child_kit: { id: 'kit-audio', name: 'Audio Kit' } },
+      ],
+    } as any)
+
+    vi.mocked(getAssets).mockResolvedValue([
+      { id: 'asset-1', manufacturer_model: 'DI Box', quantity: 1 },
+      { id: 'asset-2', manufacturer_model: 'SM58 Mic', quantity: 1 }, // already reachable via Audio Kit
+      { id: 'asset-3', manufacturer_model: 'XLR Cable', quantity: 10 }, // unrelated
+    ] as any)
+
+    vi.mocked(getKits).mockResolvedValue([
+      { id: 'kit-lighting', name: 'Lighting Kit', category: 'Lighting', kit_components: [] }, // already contains DI Box
+    ] as any)
+
+    vi.mocked(getKitsFlattenedSummary).mockImplementation(async (ids: string[]) => {
+      const all = new Map([
+        ['kit-audio', { totalValue: 50, totalItems: 1, assetIds: new Set(['asset-2']) }],
+        ['kit-lighting', { totalValue: 150, totalItems: 1, assetIds: new Set(['asset-1']) }],
+      ])
+      const result = new Map()
+      for (const id of ids) if (all.has(id)) result.set(id, all.get(id))
+      return result
+    })
+
+    render(<KitScreen {...mockProps} kitId="kit-1" />)
+    fireEvent.click(await screen.findByText('Add Components'))
+
+    await waitFor(() => {
+      expect(screen.getByText('XLR Cable')).toBeInTheDocument()
+    })
+    expect(screen.queryByText('SM58 Mic')).not.toBeInTheDocument()
+    expect(screen.queryByText('Lighting Kit')).not.toBeInTheDocument()
+  })
+
+  // A kit candidate that would create a circular reference is still shown
+  // (unlike an already-added/duplicate-asset candidate) but flagged inline
+  // on its own row, and can't be selected — surfaced before save, not just
+  // from the kit_components_prevent_cycle trigger's rejection afterward.
+  it('flags a kit candidate that would create a circular reference, inline on its row, and blocks selecting it', async () => {
+    vi.mocked(getKit).mockResolvedValue({
+      id: 'kit-1',
+      name: 'Full Rack',
+      kit_components: [],
+    } as any)
+
+    vi.mocked(getKits).mockResolvedValue([
+      { id: 'kit-parent', name: 'Grand Rack', category: null, kit_components: [] }, // already contains Full Rack — cyclic
+      { id: 'kit-other', name: 'Spare Case', category: null, kit_components: [] }, // unrelated — fine
+    ] as any)
+
+    vi.mocked(getKitsThatWouldCycle).mockImplementation(async (parentKitId: string, candidateKitIds: string[]) => {
+      expect(parentKitId).toBe('kit-1')
+      expect(candidateKitIds.sort()).toEqual(['kit-other', 'kit-parent'])
+      return new Set(['kit-parent'])
+    })
+
+    render(<KitScreen {...mockProps} kitId="kit-1" />)
+    fireEvent.click(await screen.findByText('Add Components'))
+
+    await waitFor(() => {
+      expect(screen.getByText('Grand Rack')).toBeInTheDocument()
+    })
+    expect(screen.getByText(/Would create a circular reference/)).toBeInTheDocument()
+    expect(screen.getByText('Spare Case')).toBeInTheDocument()
+
+    // Clicking the flagged row doesn't select it.
+    fireEvent.click(screen.getByText('Grand Rack'))
+    expect(screen.getByText('0 selected')).toBeInTheDocument()
+
+    // The unaffected candidate remains selectable.
+    fireEvent.click(screen.getByText('Spare Case'))
+    expect(screen.getByText('1 selected')).toBeInTheDocument()
+  })
+
+  // Regression: a cyclic candidate's flattened assets always overlap the
+  // kit being edited too (nesting X into Y when X already contains Y means
+  // X's flattened set already has everything Y has) — the duplicate-asset
+  // rule must not silently exclude it ahead of the cycle check, or the
+  // circular-reference warning above would never actually be reachable.
+  it('flags a candidate as cyclic even when its flattened assets also overlap — the cycle check takes priority over the duplicate-asset rule', async () => {
+    vi.mocked(getKit).mockResolvedValue({
+      id: 'kit-1',
+      name: 'Full Rack',
+      kit_components: [
+        { id: 'kc-1', asset_id: 'asset-1', quantity: 1, asset: { id: 'asset-1', manufacturer_model: 'DI Box' } },
+      ],
+    } as any)
+
+    vi.mocked(getKits).mockResolvedValue([
+      { id: 'kit-parent', name: 'Grand Rack', category: null, kit_components: [] },
+    ] as any)
+
+    vi.mocked(getKitsFlattenedSummary).mockImplementation(async (ids: string[]) => {
+      // Grand Rack already contains Full Rack, so its flattened set already
+      // includes Full Rack's own DI Box — a genuine duplicate overlap too.
+      const all = new Map([
+        ['kit-parent', { totalValue: 50, totalItems: 1, assetIds: new Set(['asset-1']) }],
+      ])
+      const result = new Map()
+      for (const id of ids) if (all.has(id)) result.set(id, all.get(id))
+      return result
+    })
+
+    vi.mocked(getKitsThatWouldCycle).mockResolvedValue(new Set(['kit-parent']))
+
+    render(<KitScreen {...mockProps} kitId="kit-1" />)
+    fireEvent.click(await screen.findByText('Add Components'))
+
+    await waitFor(() => {
+      expect(screen.getByText('Grand Rack')).toBeInTheDocument()
+    })
+    expect(screen.getByText(/Would create a circular reference/)).toBeInTheDocument()
   })
 })

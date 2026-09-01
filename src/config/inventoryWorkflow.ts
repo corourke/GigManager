@@ -43,3 +43,12 @@ export const SCANNING_MODES: ScanningMode[] = [
     locationLabel: 'Warehouse',
   },
 ];
+
+/**
+ * The terminal status meaning an item has been returned and is no longer
+ * actively checked out to whichever gig last scanned it — an item's
+ * "Active Gig" should read as none once its latest tracking record reaches
+ * this status, even though the record itself still points at that gig
+ * (inventory_tracking rows are always gig-scoped; there's no "no gig" row).
+ */
+export const RETURNED_STATUS = SCANNING_MODES.find((m) => m.id === 'unload')!.resultingStatus;

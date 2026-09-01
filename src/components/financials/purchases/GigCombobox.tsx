@@ -29,9 +29,12 @@ interface GigComboboxProps {
   value: string | null;
   onChange: (gigId: string | null, gigTitle?: string) => void;
   disabled?: boolean;
+  placeholder?: string;
+  /** Hide the inline "clear" (X) button — for callers that don't support unassigning here. */
+  hideClear?: boolean;
 }
 
-export default function GigCombobox({ organizationId, value, onChange, disabled }: GigComboboxProps) {
+export default function GigCombobox({ organizationId, value, onChange, disabled, placeholder = 'Select gig...', hideClear }: GigComboboxProps) {
   const [open, setOpen] = useState(false);
   const [gigs, setGigs] = useState<GigOption[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -75,7 +78,7 @@ export default function GigCombobox({ organizationId, value, onChange, disabled 
             className="h-8 text-xs justify-between flex-1 font-normal"
           >
             <span className="truncate">
-              {selectedGig ? formatLabel(selectedGig) : 'Select gig...'}
+              {selectedGig ? formatLabel(selectedGig) : placeholder}
             </span>
             <ChevronsUpDown className="ml-2 h-3 w-3 shrink-0 opacity-50" />
           </Button>
@@ -105,7 +108,7 @@ export default function GigCombobox({ organizationId, value, onChange, disabled 
           </Command>
         </PopoverContent>
       </Popover>
-      {value && (
+      {value && !hideClear && (
         <Button
           variant="ghost"
           size="sm"

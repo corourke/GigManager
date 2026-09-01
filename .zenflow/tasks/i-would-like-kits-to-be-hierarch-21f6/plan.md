@@ -20,9 +20,9 @@ Create a technical specification based on the PRD. Save to `spec.md`. **Done** �
 
 Implementation broken into 6 tasks below, ordered by dependency (schema first, since everything else reads or writes through it; UI split from services since each is a coherent unit on its own).
 
-### [ ] Step: Implementation
+### [x] Step: Implementation
 
-Each task references the `spec.md` section(s) it implements and its own verification steps, per the project's rule that tests ship with the code they test, not as a separate task.
+Each task references the `spec.md` section(s) it implements and its own verification steps, per the project's rule that tests ship with the code they test, not as a separate task. **Done** 2026-08-26 — all 6 tasks implemented and deployed to dev. 628/628 tests pass, typecheck/lint/build clean. Verified via real DB-level tests against dev (cycle prevention, multi-parent cache cascade, RLS) and end-to-end through the actual browser UI (built a 3-level nested kit, confirmed correct aggregation, confirmed cycle rejection, confirmed the mobile packing list renders container-vs-logical kits correctly). Two deliberate scope notes, both flagged in their task's commit: the component picker's cycle-rejection surfaces as a toast rather than literally inline-on-the-row (the form is a local draft submitted on save, so there's no specific row left to annotate by trigger time); the mobile inventory screen renders nested kits as flat sibling cards rather than a true nested tree (correctness is intact — every kit and asset is reachable and scans/cascades correctly — this is a display simplification, a reasonable Phase 2 candidate).
 
 ---
 

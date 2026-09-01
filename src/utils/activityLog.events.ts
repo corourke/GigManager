@@ -197,6 +197,20 @@ export const ACTIVITY_EVENTS = {
     contextKeys: ['kit_name', 'asset_model'],
     format: (ctx) => `${ctx.asset_model} removed from kit`,
   },
+  'kit.subkit_added': {
+    label: 'Sub-kit Added to Kit',
+    entityType: 'kit',
+    calendarIndicator: false,
+    contextKeys: ['kit_name', 'subkit_name', 'quantity'],
+    format: (ctx) => `${ctx.quantity}× ${ctx.subkit_name} added to kit`,
+  },
+  'kit.subkit_removed': {
+    label: 'Sub-kit Removed from Kit',
+    entityType: 'kit',
+    calendarIndicator: false,
+    contextKeys: ['kit_name', 'subkit_name'],
+    format: (ctx) => `${ctx.subkit_name} removed from kit`,
+  },
 } as const satisfies Record<string, EventTypeConfig>;
 
 export type ActivityEventType = keyof typeof ACTIVITY_EVENTS;

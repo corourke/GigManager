@@ -1254,7 +1254,7 @@ CREATE TABLE IF NOT EXISTS "public"."entity_attachments" (
     "entity_id" "uuid" NOT NULL,
     "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
     "created_by" "uuid" DEFAULT "auth"."uid"(),
-    CONSTRAINT "entity_attachments_entity_type_check" CHECK (("entity_type" = ANY (ARRAY['asset'::"text", 'gig'::"text", 'purchase'::"text"])))
+    CONSTRAINT "entity_attachments_entity_type_check" CHECK (("entity_type" = ANY (ARRAY['asset'::"text", 'gig'::"text", 'purchase'::"text", 'gig_financial'::"text"])))
 );
 
 

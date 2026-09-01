@@ -1,4 +1,4 @@
-import { FinType, FinCategory } from '../utils/supabase/types';
+import { FinType, FinCategory, DbGigFinancial } from '../utils/supabase/types';
 import { FIN_TYPE_GROUPS } from '../utils/supabase/constants';
 import { handleApiError } from '../utils/api-error-utils';
 import { requireAuth } from '../utils/supabase/auth-utils';
@@ -24,7 +24,25 @@ export async function getGigFinancials(gigId: string, organizationId?: string) {
     if (organizationId) query = query.eq('organization_id', organizationId);
     const { data, error } = await query;
     if (error) throw error;
-    return data || [];
+
+    const rows = data || [];
+    // Attach a receipt/document count per row in one round-trip (entity_attachments
+    // is polymorphic with no FK, so it can't be embedded via PostgREST). Non-fatal:
+    // a failure here just leaves attachment_count at 0.
+    if (rows.length > 0) {
+      const ids = rows.map((r: any) => r.id);
+      const { data: links } = await supabase
+        .from('entity_attachments')
+        .select('entity_id')
+        .eq('entity_type', 'gig_financial')
+        .in('entity_id', ids);
+      const counts = new Map<string, number>();
+      for (const l of links || []) {
+        counts.set((l as any).entity_id, (counts.get((l as any).entity_id) || 0) + 1);
+      }
+      for (const r of rows as any[]) r.attachment_count = counts.get(r.id) || 0;
+    }
+    return rows;
   } catch (err) {
     return handleApiError(err, 'fetch gig financials');
   }
@@ -136,6 +154,48 @@ export async function getGigProfitabilitySummary(gigId: string, organizationId: 
 export const getGigBids = getGigFinancials;
 
 /**
+ * Fetch the gig_financials rows that reference a given purchase (line or header)
+ * via `purchase_id`. Used to keep the auto-created "Expense Incurred" ledger
+ * entry in sync when a purchase line is assigned to / moved between / cleared of
+ * a gig, and as a dedup guard so a line never gets two ledger entries.
+ */
+export async function getGigFinancialsByPurchaseId(purchaseId: string): Promise<DbGigFinancial[]> {
+  const supabase = getSupabase();
+  try {
+    const { data, error } = await supabase
+      .from('gig_financials')
+      .select('*')
+      .eq('purchase_id', purchaseId);
+    if (error) throw error;
+    return (data as DbGigFinancial[]) || [];
+  } catch (err) {
+    return handleApiError(err, 'fetch gig financials by purchase');
+  }
+}
+
+/**
+ * Bulk variant of {@link getGigFinancialsByPurchaseId}: returns the set of
+ * purchase ids (out of those given) that already have at least one linked
+ * gig_financials row. Used to show a persistent "add to gig ledger" affordance
+ * only on purchase lines that are linked to a gig but have no ledger entry yet.
+ */
+export async function getPurchaseIdsWithLedgerEntry(purchaseIds: string[]): Promise<Set<string>> {
+  if (purchaseIds.length === 0) return new Set();
+  const supabase = getSupabase();
+  try {
+    const { data, error } = await supabase
+      .from('gig_financials')
+      .select('purchase_id')
+      .in('purchase_id', purchaseIds);
+    if (error) throw error;
+    return new Set((data || []).map((r: any) => r.purchase_id).filter(Boolean));
+  } catch (err) {
+    handleApiError(err, 'fetch purchase ids with ledger entry');
+    return new Set();
+  }
+}
+
+/**
  * Create a new financial record for a gig
  */
 export async function createGigFinancial(finData: {
@@ -195,6 +255,7 @@ export async function updateGigFinancial(finId: string, finData: {
   notes?: string;
   due_date?: string;
   paid_at?: string;
+  gig_id?: string;
   purchase_id?: string;
   staff_assignment_id?: string;
 }) {
@@ -220,11 +281,45 @@ export async function updateGigBid(bidId: string, bidData: any) {
 }
 
 /**
+ * Best-effort removal of storage blobs for attachments that belong ONLY to this
+ * financial record. DB metadata (entity_attachments / attachments rows) is swept
+ * by the trg_cleanup_attachments trigger on delete; the storage backend can only
+ * be written through the Storage API, so that part is done here. Never throws.
+ */
+async function purgeSoleAttachmentBlobsForGigFinancial(finId: string): Promise<void> {
+  try {
+    const supabase = getSupabase();
+    const { data: links } = await supabase
+      .from('entity_attachments')
+      .select('attachment_id, attachment:attachment_id(file_path)')
+      .eq('entity_type', 'gig_financial')
+      .eq('entity_id', finId);
+    if (!links || links.length === 0) return;
+
+    const soleOwnedPaths: string[] = [];
+    for (const l of links as any[]) {
+      const { count } = await supabase
+        .from('entity_attachments')
+        .select('id', { count: 'exact', head: true })
+        .eq('attachment_id', l.attachment_id);
+      // 1 => only this financial's link references the attachment
+      if ((count ?? 0) <= 1 && l.attachment?.file_path) soleOwnedPaths.push(l.attachment.file_path);
+    }
+    if (soleOwnedPaths.length > 0) {
+      await supabase.storage.from('attachments').remove(soleOwnedPaths);
+    }
+  } catch (err) {
+    console.warn('purgeSoleAttachmentBlobsForGigFinancial: non-fatal', err);
+  }
+}
+
+/**
  * Delete a financial record
  */
 export async function deleteGigFinancial(finId: string) {
   const supabase = getSupabase();
   try {
+    await purgeSoleAttachmentBlobsForGigFinancial(finId);
     // .select() to confirm a row was removed — RLS denies silently (0 rows, no error)
     const { data, error } = await supabase.from('gig_financials').delete().eq('id', finId).select();
     if (error) throw error;

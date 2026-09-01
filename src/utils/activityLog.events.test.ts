@@ -23,8 +23,8 @@ const EXPECTED_EVENT_TYPES: ActivityEventType[] = [
 ];
 
 describe('ACTIVITY_EVENTS', () => {
-  it('contains exactly 18 event types', () => {
-    expect(Object.keys(ACTIVITY_EVENTS)).toHaveLength(18);
+  it('contains exactly 20 event types', () => {
+    expect(Object.keys(ACTIVITY_EVENTS)).toHaveLength(20);
   });
 
   it('contains all expected event type keys', () => {

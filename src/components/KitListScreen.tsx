@@ -1,7 +1,7 @@
 import {useState, useEffect, useMemo } from 'react';
 import {Package, Plus, AlertCircle } from 'lucide-react';
 import { toast } from 'sonner';
-import { getKits, deleteKit, duplicateKit, updateKit } from '../services/kit.service';
+import { getKits, deleteKit, duplicateKit, updateKit, getKitsFlattenedSummary, KitFlattenedSummary } from '../services/kit.service';
 import { getKitTrackingSummary, KitTrackingSummary } from '../services/inventoryManagement.service';
 import { Button } from './ui/button';
 import { Card } from './ui/card';
@@ -54,6 +54,7 @@ export default function KitListScreen({
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [kitTrackingSummary, setKitTrackingSummary] = useState<Map<string, KitTrackingSummary>>(new Map());
+  const [kitFlattenedSummary, setKitFlattenedSummary] = useState<Map<string, KitFlattenedSummary>>(new Map());
   const [trackingStatusFilter, setTrackingStatusFilter] = useState<string>('All');
 
   const refresh = async () => {
@@ -66,6 +67,11 @@ export default function KitListScreen({
       ]);
       setAllKits(kits);
       setKitTrackingSummary(trackingSummary);
+      // Items/Total Value must reflect each kit's fully-flattened contents,
+      // not just its direct kit_components rows — a sub-kit row carries no
+      // asset/quantity of its own, so summing those directly silently drops
+      // every nested kit's contribution (see getKitsFlattenedSummary).
+      setKitFlattenedSummary(await getKitsFlattenedSummary(kits.map((k: any) => k.id)));
     } catch (err: any) {
       setError(err.message || 'Failed to load kits');
     } finally {
@@ -164,7 +170,7 @@ export default function KitListScreen({
     {
       id: 'items_count',
       header: 'Items',
-      accessor: (row) => (row.kit_assets || []).reduce((sum: number, ka: any) => sum + (ka.quantity || 1), 0),
+      accessor: (row) => kitFlattenedSummary.get(row.id)?.totalItems ?? 0,
       sortable: true,
       readOnly: true,
       type: 'number',
@@ -172,9 +178,7 @@ export default function KitListScreen({
     {
       id: 'total_value',
       header: 'Total Value',
-      accessor: (row) => (row.kit_assets || []).reduce((total: number, ka: any) => {
-        return total + (ka.asset?.replacement_value || 0) * ka.quantity;
-      }, 0),
+      accessor: (row) => kitFlattenedSummary.get(row.id)?.totalValue ?? 0,
       sortable: true,
       readOnly: true,
       type: 'currency',
@@ -240,7 +244,7 @@ export default function KitListScreen({
       type: 'text',
       render: (value) => value ? <span className="text-xs">{value}</span> : <span className="text-xs text-muted-foreground">—</span>,
     },
-  ], [categories, TAG_PILL_CONFIG, kitTrackingSummary]);
+  ], [categories, TAG_PILL_CONFIG, kitTrackingSummary, kitFlattenedSummary]);
 
   const canEdit = canManage(userRole);
 
@@ -273,17 +277,6 @@ export default function KitListScreen({
       style: 'currency',
       currency: 'USD',
     }).format(amount);
-  };
-
-  const _getKitAssetCount = (kit: any) => {
-    if (!kit.kit_assets || kit.kit_assets.length === 0) return 0;
-    return kit.kit_assets.reduce((sum: number, ka: any) => sum + (ka.quantity || 1), 0);
-  };
-
-  const _getKitTotalValue = (kit: any) => {
-    return (kit.kit_assets || []).reduce((total: number, ka: any) => {
-      return total + (ka.asset?.replacement_value || 0) * ka.quantity;
-    }, 0);
   };
 
   // Get unique categories for filter

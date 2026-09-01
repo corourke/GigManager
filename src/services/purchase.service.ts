@@ -1,8 +1,15 @@
 import { createClient } from '../utils/supabase/client';
 import { handleApiError, handleFunctionsError } from '../utils/api-error-utils';
 import { requireAuth } from '../utils/supabase/auth-utils';
-import type { DbPurchase, PurchaseWithItems } from '../utils/supabase/types';
+import type { DbPurchase, PurchaseWithItems, DbGigFinancial } from '../utils/supabase/types';
 import type { AssetRow } from '../utils/csvImport';
+import { toFinCategory } from '../utils/supabase/constants';
+import {
+  createGigFinancial,
+  updateGigFinancial,
+  deleteGigFinancial,
+  getGigFinancialsByPurchaseId,
+} from './gigFinancial.service';
 
 const getSupabase = () => createClient();
 
@@ -415,7 +422,7 @@ export async function createPurchaseTransaction(
         }
 
         if (kitMemberships.length > 0) {
-          await supabase.from('kit_assets').insert(kitMemberships);
+          await supabase.from('kit_components').insert(kitMemberships);
         }
       }
     }
@@ -445,35 +452,38 @@ export async function reclassifyExpenseAsAsset(purchaseItemId: string): Promise<
 }
 
 /**
- * Assign a gig_id to all children of a purchase header that don't already have one.
- * Uses Promise.allSettled so partial failures are surfaced.
+ * Assign a whole receipt to a gig: set the header's `gig_id` and cascade it to
+ * every child line that isn't already pointed at a different gig. Lines already
+ * on the target gig are left alone; lines on a *different* gig are not stolen
+ * (they must be reassigned individually so their ledger entry can be moved).
+ *
+ * Returns the ids of the expense `item` lines that were newly linked, so the
+ * caller can offer to create their gig ledger entries.
  */
 export async function assignGigToPurchaseChildren(
   headerId: string,
   gigId: string,
-  organizationId: string
-): Promise<{ updated: number; failed: number }> {
+  _organizationId: string
+): Promise<{ updated: number; failed: number; newlyLinkedItemIds: string[] }> {
   const supabase = getSupabase();
   try {
     const { data: children, error } = await (supabase.from('purchases') as any)
-      .select('id, gig_id')
+      .select('id, gig_id, row_type')
       .eq('parent_id', headerId);
-
     if (error) throw error;
-    if (!children || children.length === 0) return { updated: 0, failed: 0 };
 
-    const unlinked = children.filter((c: any) => !c.gig_id);
-    if (unlinked.length === 0) return { updated: 0, failed: 0 };
+    const rows: any[] = children || [];
+    const toLink = rows.filter((c) => !c.gig_id);
+    const newlyLinkedItemIds = toLink.filter((c) => c.row_type === 'item').map((c) => c.id);
 
-    const results = await Promise.allSettled(
-      unlinked.map((c: any) =>
-        updatePurchase(c.id, { gig_id: gigId })
-      )
-    );
+    const results = await Promise.allSettled([
+      updatePurchase(headerId, { gig_id: gigId }),
+      ...toLink.map((c) => updatePurchase(c.id, { gig_id: gigId })),
+    ]);
 
-    const updated = results.filter(r => r.status === 'fulfilled').length;
-    const failed = results.filter(r => r.status === 'rejected').length;
-    return { updated, failed };
+    const failed = results.filter((r) => r.status === 'rejected').length;
+    const updated = results.filter((r) => r.status === 'fulfilled').length;
+    return { updated, failed, newlyLinkedItemIds };
   } catch (err) {
     return handleApiError(err, 'assign gig to purchase children');
   }
@@ -482,6 +492,10 @@ export async function assignGigToPurchaseChildren(
 /**
  * Predicate: should we prompt the user to create a gig financial ledger entry?
  * Only fires for expense items (row_type === 'item') being assigned a gig for the first time.
+ *
+ * NOTE: prefer `reconcileLedgerForLineGigChange` in new code — it also handles
+ * reassignment and clearing, and checks for an already-existing ledger entry so
+ * the prompt is not shown when one is already linked.
  */
 export function shouldPromptForLedgerEntry(
   rowType: string,
@@ -492,6 +506,138 @@ export function shouldPromptForLedgerEntry(
   if (!newGigId) return false;
   if (previousGigId) return false;
   return true;
+}
+
+/** The subset of a purchase line needed to build/refresh its ledger entry. */
+export type LedgerLineSource = Pick<
+  DbPurchase,
+  'id' | 'row_type' | 'line_amount' | 'item_price' | 'quantity' | 'purchase_date' | 'description' | 'vendor' | 'category'
+>;
+
+/** Amount a purchase line contributes to a gig ledger: explicit line total, else price × qty. */
+export function purchaseLineLedgerAmount(item: Pick<DbPurchase, 'line_amount' | 'item_price' | 'quantity'>): number {
+  return item.line_amount ?? (item.item_price ?? 0) * (item.quantity ?? 1);
+}
+
+/** Build the `createGigFinancial` payload for a purchase line linked to a gig. */
+export function buildPurchaseLineLedgerPayload(item: LedgerLineSource, gigId: string, organizationId: string) {
+  return {
+    gig_id: gigId,
+    organization_id: organizationId,
+    date: item.purchase_date || new Date().toISOString().slice(0, 10),
+    amount: purchaseLineLedgerAmount(item),
+    type: 'Expense Incurred' as const,
+    category: toFinCategory(item.category) ?? ('Other expenses' as const),
+    description: item.description || `Expense: ${item.vendor || ''}`.trim(),
+    purchase_id: item.id,
+    paid_at: new Date().toISOString(),
+  };
+}
+
+/**
+ * Create the "Expense Incurred" ledger entry for a purchase line linked to a gig.
+ *
+ * Dedup guard (correctness): if a `gig_financials` row already references this
+ * purchase line, no new row is inserted — the existing one is returned. This
+ * prevents the double-count that an unassign/reassign cycle used to produce.
+ */
+export async function createLedgerEntryForPurchaseLine(
+  item: LedgerLineSource,
+  gigId: string,
+  organizationId: string
+): Promise<{ created: boolean; financial: DbGigFinancial }> {
+  try {
+    const existing = await getGigFinancialsByPurchaseId(item.id);
+    if (existing.length > 0) {
+      // Already linked. If it somehow sits on a different gig, realign it rather
+      // than creating a competing row.
+      const primary = existing[0];
+      if (primary.gig_id !== gigId) {
+        const moved = await updateGigFinancial(primary.id, { gig_id: gigId });
+        return { created: false, financial: (moved as DbGigFinancial) ?? primary };
+      }
+      return { created: false, financial: primary };
+    }
+    const financial = await createGigFinancial(buildPurchaseLineLedgerPayload(item, gigId, organizationId));
+    return { created: true, financial: financial as DbGigFinancial };
+  } catch (err) {
+    return handleApiError(err, 'create ledger entry for purchase line');
+  }
+}
+
+/** Outcome of reconciling a purchase line's ledger entry after its gig changed. */
+export type LedgerReconcileResult =
+  | { action: 'noop' }
+  /** No ledger entry exists yet — caller should offer to create one for `gigId`. */
+  | { action: 'needs-entry'; gigId: string }
+  /** A ledger entry already covers this line on the target gig — nothing to do. */
+  | { action: 'exists'; financialIds: string[] }
+  /** Existing ledger entries were moved to follow the line's new gig. */
+  | { action: 'moved'; financialIds: string[]; toGigId: string }
+  /** The line was cleared of its gig — caller must confirm removing these entries. */
+  | { action: 'confirm-remove'; financialIds: string[]; fromGigId: string; amount: number };
+
+/**
+ * Keep a purchase line's auto-created gig ledger entry in sync after its
+ * `gig_id` changed. Non-destructive operations (moving an entry to follow a
+ * reassigned line) are applied here; destructive ones (removing an entry when a
+ * line is unlinked from every gig) are returned for the caller to confirm.
+ *
+ * Only `row_type === 'item'` lines ever carry a ledger entry.
+ */
+export async function reconcileLedgerForLineGigChange(params: {
+  item: LedgerLineSource;
+  previousGigId: string | null | undefined;
+  newGigId: string | null | undefined;
+  organizationId: string;
+}): Promise<LedgerReconcileResult> {
+  const { item, newGigId } = params;
+  try {
+    if (item.row_type !== 'item') return { action: 'noop' };
+
+    const existing = await getGigFinancialsByPurchaseId(item.id);
+
+    if (newGigId) {
+      if (existing.length === 0) return { action: 'needs-entry', gigId: newGigId };
+
+      const misplaced = existing.filter((f) => f.gig_id !== newGigId);
+      if (misplaced.length === 0) {
+        return { action: 'exists', financialIds: existing.map((f) => f.id) };
+      }
+      for (const f of misplaced) {
+        await updateGigFinancial(f.id, { gig_id: newGigId });
+      }
+      return { action: 'moved', financialIds: misplaced.map((f) => f.id), toGigId: newGigId };
+    }
+
+    // Clearing the gig.
+    if (existing.length === 0) return { action: 'noop' };
+    return {
+      action: 'confirm-remove',
+      financialIds: existing.map((f) => f.id),
+      fromGigId: existing[0].gig_id,
+      amount: existing.reduce((sum, f) => sum + (Number(f.amount) || 0), 0),
+    };
+  } catch (err) {
+    return handleApiError(err, 'reconcile ledger for purchase line');
+  }
+}
+
+/**
+ * Delete the given gig ledger entries. Used when the user confirms unlinking a
+ * purchase line from its gig (see `reconcileLedgerForLineGigChange`).
+ */
+export async function removeLedgerEntriesForPurchaseLine(financialIds: string[]): Promise<{ removed: number }> {
+  try {
+    let removed = 0;
+    for (const id of financialIds) {
+      await deleteGigFinancial(id);
+      removed += 1;
+    }
+    return { removed };
+  } catch (err) {
+    return handleApiError(err, 'remove ledger entries for purchase line');
+  }
 }
 
 /**

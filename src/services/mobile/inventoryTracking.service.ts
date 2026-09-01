@@ -97,6 +97,51 @@ const getKitAssetIds = (packingList: any, kitId: string) => {
     .filter(Boolean);
 };
 
+/** One physical thing a kit-level scan/toggle cascades to. */
+type CascadeTarget = { kit_id: string; asset_id: string | null };
+
+const getDirectAssetIds = (kit: any): string[] =>
+  (kit?.direct_assets ?? kit?.assets ?? [])
+    .map((a: any) => a.asset_id || a.asset?.id || a.id)
+    .filter(Boolean);
+
+const getChildKitIds = (packingList: any, kitId: string): string[] =>
+  (packingList?.hierarchy_edges || [])
+    .filter((edge: any) => edge.parent_kit_id === kitId)
+    .map((edge: any) => edge.child_kit_id);
+
+/**
+ * Every tracking record that toggling `kitId` as a whole writes.
+ *
+ * A container is one sealed physical unit: its own (kit_id, null) record,
+ * plus every asset in its fully-flattened subtree tracked under its *own*
+ * id — however deeply nested those assets are, since opening the container
+ * to distinguish them isn't something scanning its one tag tells you. A
+ * non-container kit is purely organizational and never gets a record of
+ * its own — only its contents do: its own direct assets (owned by
+ * `owningKitId`, the top kit whose row was actually toggled — matching how
+ * gig_kit_assignments only ever assigns top-level kits), plus the same
+ * rule applied recursively to every child, so a nested container still
+ * gets its own sealed-unit treatment instead of leaking its contents out
+ * under the top kit's id.
+ */
+const getCascadeTargets = (packingList: any, kitId: string, owningKitId: string = kitId): CascadeTarget[] => {
+  const kit = getKitAssignment(packingList, kitId)?.kit;
+
+  if (kit?.is_container) {
+    return [
+      { kit_id: kitId, asset_id: null },
+      ...getKitAssetIds(packingList, kitId).map((assetId: string) => ({ kit_id: kitId, asset_id: assetId })),
+    ];
+  }
+
+  const targets: CascadeTarget[] = getDirectAssetIds(kit).map((assetId) => ({ kit_id: owningKitId, asset_id: assetId }));
+  for (const childKitId of getChildKitIds(packingList, kitId)) {
+    targets.push(...getCascadeTargets(packingList, childKitId, owningKitId));
+  }
+  return targets;
+};
+
 const appendTrackingEntries = (packingList: any, entries: TrackingRecord[]) => {
   if (!packingList) {
     return packingList;
@@ -185,13 +230,13 @@ const updateAssetStatusInPackingList = (packingList: any, assetId: string, statu
   };
 };
 
-const getInheritedChildClearRecords = (tracking: TrackingRecord[] = [], kitId: string, kitLatest: TrackingRecord | null, assetIds: string[]) => {
+const getInheritedChildClearRecords = (tracking: TrackingRecord[] = [], kitLatest: TrackingRecord | null, targets: CascadeTarget[]) => {
   if (!kitLatest) {
     return [];
   }
 
-  return assetIds
-    .map((assetId) => getLatestTrackingRecord(tracking, kitId, assetId))
+  return targets
+    .map((target) => getLatestTrackingRecord(tracking, target.kit_id, target.asset_id ?? undefined))
     .filter((record): record is TrackingRecord => {
       return Boolean(
         record &&
@@ -214,6 +259,7 @@ const syncIfOnline = async () => {
 
 export const inventoryTrackingService = {
   getLatestTrackingRecord,
+  getCascadeTargets,
 
   async matchTag(tagNumber: string) {
     const trimmed = tagNumber.trim();
@@ -246,37 +292,25 @@ export const inventoryTrackingService = {
     const timestamp = scannedAt || new Date().toISOString();
     const packingList = await idbStore.getPackingList(gigId);
     const tracking = packingList?.tracking || [];
-    const childAssetIds = assetId ? [] : getKitAssetIds(packingList, kitId);
 
-    const previousNote = getLatestTrackingRecord(tracking, kitId, assetId)?.notes || null;
+    const buildEntry = (targetKitId: string, targetAssetId: string | null): TrackingRecord => ({
+      organization_id: organizationId,
+      gig_id: gigId,
+      kit_id: targetKitId,
+      asset_id: targetAssetId,
+      status,
+      scanned_at: timestamp,
+      scanned_by: scannedBy,
+      notes: getLatestTrackingRecord(tracking, targetKitId, targetAssetId ?? undefined)?.notes || null,
+      location: location ?? null,
+    });
 
-    const entries: TrackingRecord[] = [
-      {
-        organization_id: organizationId,
-        gig_id: gigId,
-        kit_id: kitId,
-        asset_id: assetId || null,
-        status,
-        scanned_at: timestamp,
-        scanned_by: scannedBy,
-        notes: previousNote,
-        location: location ?? null,
-      },
-      ...childAssetIds.map((childAssetId: string) => {
-        const childNote = getLatestTrackingRecord(tracking, kitId, childAssetId)?.notes || null;
-        return {
-          organization_id: organizationId,
-          gig_id: gigId,
-          kit_id: kitId,
-          asset_id: childAssetId,
-          status,
-          scanned_at: timestamp,
-          scanned_by: scannedBy,
-          notes: childNote,
-          location: location ?? null,
-        };
-      }),
-    ];
+    // Scanning a specific asset directly never cascades. Scanning a kit's
+    // own row cascades to every scannable unit inside it, respecting
+    // container boundaries at every level — see getCascadeTargets.
+    const entries: TrackingRecord[] = assetId
+      ? [buildEntry(kitId, assetId)]
+      : getCascadeTargets(packingList, kitId).map((target) => buildEntry(target.kit_id, target.asset_id));
 
     if (packingList) {
       await idbStore.putPackingList(gigId, appendTrackingEntries(packingList, entries));
@@ -355,17 +389,35 @@ export const inventoryTrackingService = {
     const { gigId, kitId, assetId } = params;
     const packingList = await idbStore.getPackingList(gigId);
     const tracking = packingList?.tracking || [];
-    const latestRecord = getLatestTrackingRecord(tracking, kitId, assetId);
 
-    if (!latestRecord) {
-      return;
+    let recordsToRemove: TrackingRecord[];
+
+    if (assetId) {
+      const latestRecord = getLatestTrackingRecord(tracking, kitId, assetId);
+      if (!latestRecord) return;
+      recordsToRemove = [latestRecord];
+    } else {
+      const kit = getKitAssignment(packingList, kitId)?.kit;
+      if (kit?.is_container) {
+        // A container has its own record to anchor on — only clear
+        // children that were set in the same batch as it, same as before.
+        const latestRecord = getLatestTrackingRecord(tracking, kitId, undefined);
+        if (!latestRecord) return;
+        const childTargets = getCascadeTargets(packingList, kitId)
+          .filter((target) => !(target.kit_id === kitId && target.asset_id === null));
+        recordsToRemove = [latestRecord, ...getInheritedChildClearRecords(tracking, latestRecord, childTargets)];
+      } else {
+        // Non-container: no record of its own to anchor on — clear
+        // whatever the latest record currently is for each of its
+        // scannable units directly.
+        recordsToRemove = getCascadeTargets(packingList, kitId)
+          .map((target) => getLatestTrackingRecord(tracking, target.kit_id, target.asset_id ?? undefined))
+          .filter((record): record is TrackingRecord => Boolean(record));
+      }
     }
 
-    const recordsToRemove: TrackingRecord[] = [latestRecord];
-
-    if (!assetId) {
-      const childRecords = getInheritedChildClearRecords(tracking, kitId, latestRecord, getKitAssetIds(packingList, kitId));
-      recordsToRemove.push(...childRecords);
+    if (recordsToRemove.length === 0) {
+      return;
     }
 
     if (packingList) {

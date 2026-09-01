@@ -82,6 +82,21 @@ const getDisplayedTrackingRecord = (tracking: TrackingRecord[] = [], kitId: stri
   return getLatestTrackingRecordForItem(tracking, kitId, assetId) || getLatestTrackingRecordForItem(tracking, kitId);
 };
 
+// A non-container kit never gets its own tracking record (nothing physical
+// to scan) — so "is this kit's row checked" means "are all of its
+// scannable units currently in this status," not a single record lookup.
+// A container still has its own record to check directly.
+const isKitFullyScanned = (tracking: TrackingRecord[], packingList: any, kit: any, targetStatus: string): boolean => {
+  if (kit.is_container) {
+    return getDisplayedTrackingRecord(tracking, kit.id)?.status === targetStatus;
+  }
+  const targets = inventoryTrackingService.getCascadeTargets(packingList, kit.id);
+  if (targets.length === 0) return false;
+  return targets.every((target: { kit_id: string; asset_id: string | null }) =>
+    getDisplayedTrackingRecord(tracking, target.kit_id, target.asset_id ?? undefined)?.status === targetStatus
+  );
+};
+
 const formatScannedBy = (trackingRecord?: TrackingRecord | null) => {
   if (!trackingRecord) {
     return '—';
@@ -239,8 +254,16 @@ export default function MobileInventoryMode({ gigId }: MobileInventoryModeProps)
       return;
     }
 
-    const trackingRecord = getDisplayedTrackingRecord(packingList.tracking || [], kitId, assetId);
-    const isCheckedInCurrentMode = trackingRecord?.status === selectedMode.resultingStatus;
+    let isCheckedInCurrentMode: boolean;
+    if (assetId) {
+      const trackingRecord = getDisplayedTrackingRecord(packingList.tracking || [], kitId, assetId);
+      isCheckedInCurrentMode = trackingRecord?.status === selectedMode.resultingStatus;
+    } else {
+      const kit = packingList.kits?.find((assignment: any) => assignment.kit?.id === kitId)?.kit;
+      isCheckedInCurrentMode = kit
+        ? isKitFullyScanned(packingList.tracking || [], packingList, kit, selectedMode.resultingStatus)
+        : false;
+    }
 
     if (isCheckedInCurrentMode) {
       await inventoryTrackingService.clearTracking({ gigId, kitId, assetId });
@@ -386,9 +409,14 @@ export default function MobileInventoryMode({ gigId }: MobileInventoryModeProps)
         return;
       }
 
-      total += 1;
-      if (getDisplayedTrackingRecord(packingList.tracking || [], kit.id)?.status === selectedMode.resultingStatus) {
-        scanned += 1;
+      // A non-container kit never gets its own tracking record (nothing
+      // physical to scan) — only count it as its own checkable unit when
+      // it's a container.
+      if (kit.is_container) {
+        total += 1;
+        if (getDisplayedTrackingRecord(packingList.tracking || [], kit.id)?.status === selectedMode.resultingStatus) {
+          scanned += 1;
+        }
       }
 
       (kit.assets || []).forEach((assetAssignment: any) => {
@@ -434,6 +462,59 @@ export default function MobileInventoryMode({ gigId }: MobileInventoryModeProps)
       });
     });
   }, [packingList, searchQuery]);
+
+  // The real nested structure to render: each kit assignment paired with its
+  // depth in the tree, in parent-then-children order. A container's own
+  // children are never descended into — scanning it is a single action for
+  // everything inside, so nothing beneath it gets its own row. Collapsed
+  // kits simply aren't descended into. Search results stay a flat list
+  // (depth 0) — a nested tree isn't more useful than flat matches when
+  // you're hunting for one specific item, and it sidesteps ancestor kits
+  // that don't themselves match needing to be synthesized into the results.
+  const treeRows = useMemo(() => {
+    if (!packingList?.kits) {
+      return [] as { assignment: any; depth: number; assetsSource: 'direct' | 'flattened' }[];
+    }
+    if (searchQuery.trim()) {
+      // Flattened, not direct — the search filter above matches against
+      // every nested asset too, so the expanded list needs to be able to
+      // show a match that lives inside a nested sub-kit that didn't itself
+      // match by name/tag.
+      return filteredKits.map((assignment: any) => ({ assignment, depth: 0, assetsSource: 'flattened' as const }));
+    }
+
+    const byId = new Map<string, any>(packingList.kits.map((a: any) => [a.kit_id, a]));
+    const childrenOf = new Map<string, string[]>();
+    for (const edge of packingList.hierarchy_edges || []) {
+      const parentAssignment = byId.get(edge.parent_kit_id);
+      if (!parentAssignment?.kit || parentAssignment.kit.is_container) continue;
+      const list = childrenOf.get(edge.parent_kit_id) ?? [];
+      list.push(edge.child_kit_id);
+      childrenOf.set(edge.parent_kit_id, list);
+    }
+
+    // Fall back to every kit as its own root for a packing list cached
+    // before this field existed — same flat-but-correct behavior as before.
+    const rootIds: string[] = packingList.top_level_kit_ids?.length
+      ? packingList.top_level_kit_ids
+      : packingList.kits.map((a: any) => a.kit_id);
+
+    const rows: { assignment: any; depth: number; assetsSource: 'direct' | 'flattened' }[] = [];
+    const visited = new Set<string>();
+    const visit = (kitId: string, depth: number) => {
+      if (visited.has(kitId)) return;
+      visited.add(kitId);
+      const assignment = byId.get(kitId);
+      if (!assignment?.kit) return;
+      // Direct assets only — a nested sub-kit gets its own row below (when
+      // expanded), so folding its assets in here too would show them twice.
+      rows.push({ assignment, depth, assetsSource: 'direct' });
+      if (!expandedKits.has(kitId)) return;
+      for (const childId of childrenOf.get(kitId) ?? []) visit(childId, depth + 1);
+    };
+    for (const rootId of rootIds) visit(rootId, 0);
+    return rows;
+  }, [packingList, expandedKits, searchQuery, filteredKits]);
 
   if (!gigId) {
     return (
@@ -526,7 +607,7 @@ export default function MobileInventoryMode({ gigId }: MobileInventoryModeProps)
                 <div key={value} className="h-24 bg-muted animate-pulse rounded-xl" />
               ))}
             </div>
-          ) : filteredKits.length === 0 ? (
+          ) : treeRows.length === 0 ? (
             <Card className="p-8 text-center bg-muted/20 border-dashed">
               <p className="text-muted-foreground">
                 {searchQuery ? 'No matching items found.' : 'No items on this packing list.'}
@@ -534,26 +615,36 @@ export default function MobileInventoryMode({ gigId }: MobileInventoryModeProps)
             </Card>
           ) : (
             <div className="space-y-3">
-              {filteredKits.map((assignment: any) => {
+              {treeRows.map(({ assignment, depth, assetsSource }: { assignment: any; depth: number; assetsSource: 'direct' | 'flattened' }) => {
                 const kit = assignment.kit;
                 if (!kit) {
                   return null;
                 }
+                const expandedAssets = assetsSource === 'direct' ? (kit.direct_assets ?? kit.assets ?? []) : (kit.assets ?? []);
 
                 const kitTracking = getDisplayedTrackingRecord(packingList?.tracking || [], kit.id);
-                const isKitChecked = kitTracking?.status === selectedMode.resultingStatus;
+                const isKitChecked = packingList ? isKitFullyScanned(packingList.tracking || [], packingList, kit, selectedMode.resultingStatus) : false;
                 const isExpanded = expandedKits.has(kit.id);
-                const hasNoTag = !kit.tag_number;
+                // Only a container is expected to have a physical tag — a
+                // non-container kit is organizational, so a missing tag
+                // there isn't an anomaly worth flagging.
+                const hasNoTag = kit.is_container && !kit.tag_number;
                 const isLogicalKit = kit.is_container === false;
-                const kitAssets = kit.assets || [];
-                const logicalKitScanned = isLogicalKit ? kitAssets.filter((assetAssignment: any) => {
-                  const asset = assetAssignment.asset || {};
-                  const assetId = assetAssignment.asset_id || asset.id || assetAssignment.id;
-                  return getDisplayedTrackingRecord(packingList?.tracking || [], kit.id, assetId)?.status === selectedMode.resultingStatus;
-                }).length : 0;
+                // Scannable units under this kit, respecting nested
+                // container boundaries — not the raw flattened asset list,
+                // which would count a nested container's contents as this
+                // kit's own even though scanning it doesn't touch them.
+                const cascadeTargets = isLogicalKit && packingList ? inventoryTrackingService.getCascadeTargets(packingList, kit.id) : [];
+                const logicalKitScanned = cascadeTargets.filter((target: { kit_id: string; asset_id: string | null }) =>
+                  getDisplayedTrackingRecord(packingList?.tracking || [], target.kit_id, target.asset_id ?? undefined)?.status === selectedMode.resultingStatus
+                ).length;
 
                 return (
-                  <div key={kit.id} className="space-y-1">
+                  <div
+                    key={kit.id}
+                    className={cn('space-y-1', depth > 0 && 'border-l-2 border-border/60 pl-2')}
+                    style={depth > 0 ? { marginLeft: depth * 16 } : undefined}
+                  >
                     <Card className={cn('transition-all active:scale-[0.98]', isKitChecked ? 'border-emerald-200 bg-emerald-50/30' : 'border-border')}>
                       <CardContent className="p-0 [&:last-child]:pb-0">
                         <div className="flex items-stretch min-h-[64px]">
@@ -582,8 +673,8 @@ export default function MobileInventoryMode({ gigId }: MobileInventoryModeProps)
                             {kitTracking?.notes ? (
                               <p className="mt-1 text-[11px] text-muted-foreground leading-snug truncate">Note: {kitTracking.notes}</p>
                             ) : null}
-                            {isLogicalKit && kitAssets.length > 0 ? (
-                              <p className="mt-1 text-[10px] text-muted-foreground">{logicalKitScanned} / {kitAssets.length} items {selectedMode.resultingStatus}</p>
+                            {isLogicalKit && cascadeTargets.length > 0 ? (
+                              <p className="mt-1 text-[10px] text-muted-foreground">{logicalKitScanned} / {cascadeTargets.length} items {selectedMode.resultingStatus}</p>
                             ) : null}
                           </div>
                           <div className="flex items-stretch shrink-0 border-l border-border/50">
@@ -614,7 +705,7 @@ export default function MobileInventoryMode({ gigId }: MobileInventoryModeProps)
 
                     {isExpanded ? (
                       <div className="ml-10 pl-4 pt-1 space-y-1.5">
-                        {(kit.assets || []).map((assetAssignment: any) => {
+                        {expandedAssets.map((assetAssignment: any) => {
                           const asset = assetAssignment.asset || {};
                           const assetId = assetAssignment.asset_id || asset.id || assetAssignment.id;
                           const assetName = asset.manufacturer_model || asset.name || asset.description || asset.category || assetAssignment.notes || 'Unnamed Asset';

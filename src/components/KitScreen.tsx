@@ -1,5 +1,5 @@
 import {useState, useEffect, useMemo } from 'react';
-import { Package, ArrowLeft, Save, Loader2, AlertCircle, Plus, X, Search, CheckCircle2, Boxes, Container } from 'lucide-react';
+import { Package, ArrowLeft, Save, Loader2, AlertCircle, Plus, X, Search, CheckCircle2, Boxes, Container, Layers } from 'lucide-react';
 import { useSimpleFormChanges } from '../utils/hooks/useSimpleFormChanges';
 import { createSubmissionPayload, normalizeFormData } from '../utils/form-utils';
 import { toast } from 'sonner';
@@ -9,6 +9,7 @@ import { Label } from './ui/label';
 import { Card } from './ui/card';
 import { Textarea } from './ui/textarea';
 import { Badge } from './ui/badge';
+import { Checkbox } from './ui/checkbox';
 import {
   Table,
   TableBody,
@@ -27,7 +28,7 @@ import {
 import AppHeader from './AppHeader';
 import { PageHeader } from './ui/PageHeader';
 import { Organization, User, UserRole } from '../utils/supabase/types';
-import { getKit, createKit, updateKit } from '../services/kit.service';
+import { getKit, createKit, updateKit, getKits, getKitsFlattenedSummary, getKitsThatWouldCycle, KitFlattenedSummary } from '../services/kit.service';
 import { getAssets } from '../services/asset.service';
 import type { DbAsset } from '../utils/supabase/types';
 import { useAutocompleteSuggestions } from '../utils/hooks/useAutocompleteSuggestions';
@@ -53,12 +54,29 @@ interface FormData {
   rental_value: string;
 }
 
-interface KitAsset {
+/**
+ * A row in the kit's contents — exactly one of asset/childKit is set.
+ * clientKey is the row's stable local identity: the DB id when loaded from an
+ * existing kit, or a generated id for a row just added in this session. It's
+ * never derived from asset_id/child_kit_id, which aren't unique — two rows
+ * can't reference the same asset (the DB enforces that), but during editing,
+ * deriving identity from a foreign key meant removing one row removed every
+ * row sharing that key.
+ */
+interface KitComponentRow {
+  clientKey: string;
   id?: string;
-  asset_id: string;
+  asset_id?: string;
+  child_kit_id?: string;
   asset?: DbAsset;
+  childKit?: { id: string; name: string; is_container?: boolean; category?: string | null };
   quantity: number;
 }
+
+/** A searchable candidate in the unified picker — an asset or an existing kit. */
+type PickerCandidate =
+  | { type: 'asset'; id: string; name: string; subtitle: string; asset: DbAsset; quantityAvailable: number | null }
+  | { type: 'kit'; id: string; name: string; subtitle: string; componentCount: number; wouldCycle: boolean };
 
 export default function KitScreen({
   organization,
@@ -83,13 +101,20 @@ export default function KitScreen({
   });
 
   const [isContainer, setIsContainer] = useState(false);
-  const [kitAssets, setKitAssets] = useState<KitAsset[]>([]);
+  const [kitComponents, setKitComponents] = useState<KitComponentRow[]>([]);
   const [errors, setErrors] = useState<Record<string, string>>({});
-  
-  // Asset picker dialog
-  const [showAssetPicker, setShowAssetPicker] = useState(false);
-  const [availableAssets, setAvailableAssets] = useState<DbAsset[]>([]);
-  const [assetSearchQuery, setAssetSearchQuery] = useState('');
+  // Sub-kits' flattened contents (true equipment value, item count, and the
+  // set of asset ids they reach), keyed by child_kit_id — not their own
+  // rental_value, which isn't relevant here.
+  const [childKitSummaries, setChildKitSummaries] = useState<Map<string, KitFlattenedSummary>>(new Map());
+
+  // Unified component picker dialog
+  const [showPicker, setShowPicker] = useState(false);
+  const [pickerFilter, setPickerFilter] = useState<'all' | 'assets' | 'kits'>('all');
+  const [pickerCandidates, setPickerCandidates] = useState<PickerCandidate[]>([]);
+  const [pickerSearchQuery, setPickerSearchQuery] = useState('');
+  const [selectedKeys, setSelectedKeys] = useState<Set<string>>(new Set());
+  const [addQuantities, setAddQuantities] = useState<Map<string, number>>(new Map());
   const [tagInput, setTagInput] = useState('');
 
   const isEditMode = !!kitId;
@@ -105,9 +130,9 @@ export default function KitScreen({
   // Create currentData that includes form values + nested data for change detection
   const currentData = useMemo(() => ({
     ...formData,
-    kitAssets: kitAssets,
+    kitComponents: kitComponents,
     isContainer: isContainer,
-  }), [formData, kitAssets, isContainer]);
+  }), [formData, kitComponents, isContainer]);
 
   // Change detection for efficient updates
   const changeDetection = useSimpleFormChanges({
@@ -118,7 +143,7 @@ export default function KitScreen({
       tags: [],
       tag_number: '',
       rental_value: '',
-      kitAssets: [],
+      kitComponents: [],
       isContainer: false,
     },
     currentData: currentData, // Pass the memoized currentData
@@ -130,8 +155,26 @@ export default function KitScreen({
     if (kitId) {
       loadKit();
     }
-    loadAvailableAssets();
   }, [kitId]);
+
+  // Fetch (and cache) each referenced sub-kit's flattened replacement value
+  // whenever a new one shows up in the draft — covers both kits loaded with
+  // the kit and ones just added via the picker.
+  useEffect(() => {
+    const childKitIds = Array.from(new Set(kitComponents.filter(c => c.child_kit_id).map(c => c.child_kit_id!)));
+    const missing = childKitIds.filter((id) => !childKitSummaries.has(id));
+    if (missing.length === 0) return;
+
+    getKitsFlattenedSummary(missing).then((summaries) => {
+      setChildKitSummaries((prev) => {
+        const next = new Map(prev);
+        for (const id of missing) {
+          next.set(id, summaries.get(id) ?? { totalValue: 0, totalItems: 0, assetIds: new Set() });
+        }
+        return next;
+      });
+    });
+  }, [kitComponents, childKitSummaries]);
 
   const loadKit = async () => {
     if (!kitId) return;
@@ -151,20 +194,21 @@ export default function KitScreen({
       setFormData(loadedData);
       setIsContainer(kit.is_container ?? false);
 
-      let loadedKitAssets: KitAsset[] = [];
-      const mappedAssets = (kit.kit_assets || []).map((ka: any) => ({
-        id: ka.id,
-        asset_id: ka.asset.id,
-        asset: ka.asset,
-        quantity: ka.quantity,
+      const mappedComponents: KitComponentRow[] = (kit.kit_components || []).map((kc: any) => ({
+        clientKey: kc.id,
+        id: kc.id,
+        asset_id: kc.asset_id ?? undefined,
+        child_kit_id: kc.child_kit_id ?? undefined,
+        asset: kc.asset ?? undefined,
+        childKit: kc.child_kit ?? undefined,
+        quantity: kc.quantity,
       }));
-      setKitAssets(mappedAssets);
-      loadedKitAssets = mappedAssets;
+      setKitComponents(mappedComponents);
 
-      // Load initial data for change detection (including kit assets and tracking type)
+      // Load initial data for change detection (including kit components and tracking type)
       changeDetection.loadInitialData({
         ...loadedData,
-        kitAssets: loadedKitAssets || [],
+        kitComponents: mappedComponents,
         isContainer: kit.is_container ?? false,
       });
     } catch (error: any) {
@@ -176,22 +220,95 @@ export default function KitScreen({
     }
   };
 
-  const loadAvailableAssets = async () => {
+  const loadPickerCandidates = async () => {
     try {
-      const assets = await getAssets(organization.id, {
-        search: assetSearchQuery || undefined,
+      const [assets, kits] = await Promise.all([
+        pickerFilter === 'kits' ? Promise.resolve([]) : getAssets(organization.id, { search: pickerSearchQuery || undefined }),
+        pickerFilter === 'assets' ? Promise.resolve([]) : getKits(organization.id, { search: pickerSearchQuery || undefined }),
+      ]);
+
+      // Exclude assets already added as a direct component, and kits already
+      // added (or the kit being edited itself) — adding the same asset/kit
+      // again would either collide with the DB's unique constraint or, for a
+      // still-unsaved row, produce two rows with no way to tell them apart.
+      const alreadyDirectAssetIds = new Set(kitComponents.filter(c => c.asset_id).map(c => c.asset_id as string));
+      const alreadyDirectKitIds = new Set(kitComponents.filter(c => c.child_kit_id).map(c => c.child_kit_id as string));
+
+      const kitCandidateSource = (kits || []).filter((k: any) => k.id !== kitId && !alreadyDirectKitIds.has(k.id));
+      const candidateKitIds = kitCandidateSource.map((k: any) => k.id as string);
+
+      // Flattened contents for both the sub-kits already in this draft (to know
+      // which assets they already cover) and every kit candidate on screen (to
+      // know which assets picking it would introduce) — one batched query.
+      const summaries = await getKitsFlattenedSummary([...alreadyDirectKitIds, ...candidateKitIds]);
+
+      // Every asset already represented in this kit, directly or through an
+      // already-added sub-kit's flattened contents — the same physical asset
+      // can't enter a kit twice, however it gets there.
+      const existingFlattenedAssetIds = new Set<string>(alreadyDirectAssetIds);
+      for (const childKitId of alreadyDirectKitIds) {
+        summaries.get(childKitId)?.assetIds.forEach((id) => existingFlattenedAssetIds.add(id));
+      }
+
+      const assetCandidates: PickerCandidate[] = (assets || [])
+        .filter((a: DbAsset) => !existingFlattenedAssetIds.has(a.id))
+        .map((a: DbAsset) => ({
+          type: 'asset',
+          id: a.id,
+          name: a.manufacturer_model || 'Unknown Asset',
+          subtitle: [a.category, a.serial_number ? `SN: ${a.serial_number}` : null].filter(Boolean).join(' • '),
+          asset: a,
+          quantityAvailable: a.quantity ?? null,
+        }));
+
+      // Check for circular references across every candidate BEFORE
+      // filtering out duplicate assets — a cycle candidate is, by
+      // construction, always also a duplicate-asset candidate (nesting X
+      // into Y when X already contains Y means X's flattened set already
+      // has everything Y has), so checking duplicates first would silently
+      // exclude every cycle case behind the generic "already in this kit"
+      // rule. The cycle is the more specific, more useful diagnosis, so it
+      // takes priority: flagged inline on its row instead of hidden. A
+      // brand-new, unsaved kit has no id yet and can't be anyone's
+      // ancestor, so this only applies in edit mode.
+      const cyclicKitIds = kitId
+        ? await getKitsThatWouldCycle(kitId, kitCandidateSource.map((k: any) => k.id))
+        : new Set<string>();
+
+      // A non-cyclic kit candidate is excluded if any asset it flattens to
+      // is already covered above — same rule as assets, the other
+      // direction: adding this kit would put an asset already in the
+      // parent into it a second time.
+      const visibleKitCandidates = kitCandidateSource.filter((k: any) => {
+        if (cyclicKitIds.has(k.id)) return true;
+        const assetIds = summaries.get(k.id)?.assetIds;
+        if (!assetIds) return true;
+        for (const assetId of assetIds) {
+          if (existingFlattenedAssetIds.has(assetId)) return false;
+        }
+        return true;
       });
-      setAvailableAssets(assets);
+
+      const kitCandidates: PickerCandidate[] = visibleKitCandidates.map((k: any) => ({
+        type: 'kit' as const,
+        id: k.id,
+        name: k.name,
+        subtitle: k.category || '',
+        componentCount: k.kit_components?.length ?? 0,
+        wouldCycle: cyclicKitIds.has(k.id),
+      }));
+
+      setPickerCandidates([...assetCandidates, ...kitCandidates]);
     } catch (error: any) {
-      console.error('Error loading assets:', error);
+      console.error('Error loading picker candidates:', error);
     }
   };
 
   useEffect(() => {
-    if (showAssetPicker) {
-      loadAvailableAssets();
+    if (showPicker) {
+      loadPickerCandidates();
     }
-  }, [assetSearchQuery, showAssetPicker]);
+  }, [pickerSearchQuery, pickerFilter, showPicker]);
 
   const handleChange = (field: keyof FormData, value: string | string[]) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
@@ -216,37 +333,67 @@ export default function KitScreen({
     handleChange('tags', formData.tags.filter((t) => t !== tag));
   };
 
-  const handleAddAsset = (asset: DbAsset) => {
-    // Check if asset already in kit
-    const existing = kitAssets.find((ka) => ka.asset_id === asset.id);
-    if (existing) {
-      toast.error('Asset already in kit');
-      return;
-    }
+  const candidateKey = (c: PickerCandidate) => `${c.type}:${c.id}`;
 
-    setKitAssets((prev) => [
-      ...prev,
-      {
-        asset_id: asset.id,
-        asset,
-        quantity: 1,
-      },
-    ]);
-    setShowAssetPicker(false);
-    setAssetSearchQuery('');
+  const toggleSelected = (c: PickerCandidate) => {
+    if (c.type === 'kit' && c.wouldCycle) return;
+    const key = candidateKey(c);
+    setSelectedKeys((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
   };
 
-  const handleUpdateAssetQuantity = (assetId: string, quantity: number) => {
-    setKitAssets((prev) =>
-      prev.map((ka) =>
-        ka.asset_id === assetId ? { ...ka, quantity: Math.max(1, quantity) } : ka
-      )
+  const setAddQuantity = (key: string, quantity: number) => {
+    setAddQuantities((prev) => new Map(prev).set(key, Math.max(1, quantity)));
+  };
+
+  const handleAddSelected = () => {
+    const toAdd: KitComponentRow[] = [];
+    for (const c of pickerCandidates) {
+      const key = candidateKey(c);
+      if (!selectedKeys.has(key)) continue;
+      if (c.type === 'asset') {
+        const requested = addQuantities.get(key) ?? 1;
+        const quantity = Math.min(requested, c.quantityAvailable ?? Infinity);
+        toAdd.push({ clientKey: crypto.randomUUID(), asset_id: c.id, asset: c.asset, quantity });
+      } else {
+        // A kit is a singular entity — always exactly one instance, never a
+        // quantity of its own (the picker doesn't even offer a stepper for it).
+        toAdd.push({
+          clientKey: crypto.randomUUID(),
+          child_kit_id: c.id,
+          childKit: { id: c.id, name: c.name, category: c.subtitle || null },
+          quantity: 1,
+        });
+      }
+    }
+    if (toAdd.length === 0) return;
+
+    setKitComponents((prev) => [...prev, ...toAdd]);
+    setShowPicker(false);
+    setPickerSearchQuery('');
+    setSelectedKeys(new Set());
+    setAddQuantities(new Map());
+  };
+
+  const handleUpdateQuantity = (clientKey: string, quantity: number) => {
+    setKitComponents((prev) =>
+      prev.map((row) => {
+        if (row.clientKey !== clientKey) return row;
+        // A kit component can't exceed how many of that asset are in
+        // inventory; a sub-kit component is always exactly 1 (its input
+        // isn't editable, but clamp defensively all the same).
+        const max = row.child_kit_id ? 1 : (row.asset?.quantity ?? Infinity);
+        return { ...row, quantity: Math.min(Math.max(1, quantity), max) };
+      })
     );
   };
 
-
-  const handleRemoveAsset = (assetId: string) => {
-    setKitAssets((prev) => prev.filter((ka) => ka.asset_id !== assetId));
+  const handleRemoveComponent = (clientKey: string) => {
+    setKitComponents((prev) => prev.filter((row) => row.clientKey !== clientKey));
   };
 
   const validate = (): boolean => {
@@ -256,8 +403,8 @@ export default function KitScreen({
       newErrors.name = 'Kit name is required';
     }
 
-    if (kitAssets.length === 0) {
-      newErrors.assets = 'At least one asset must be added to the kit';
+    if (kitComponents.length === 0) {
+      newErrors.components = 'At least one asset or sub-kit must be added to the kit';
     }
 
     setErrors(newErrors);
@@ -284,7 +431,7 @@ export default function KitScreen({
 
       // Normalize and get only changed fields for basic kit data
       const normalizedData = normalizeFormData(normalizedFormData);
-      
+
       // Transform originalData to match normalized structure (rental_value is number | null in normalized, string in original)
       const originalDataForComparison = isEditMode && changeDetection.originalData ? {
         name: changeDetection.originalData.name || '',
@@ -299,18 +446,19 @@ export default function KitScreen({
         ? createSubmissionPayload(normalizedData, originalDataForComparison)
         : normalizedData;
 
-      // Prepare kit data - combine basic fields with nested assets
+      // Prepare kit data - combine basic fields with nested components
       const kitData: any = {
         organization_id: organization.id,
         ...basicKitData,
         is_container: isContainer,
       };
 
-      // Always send assets (complex nested data)
-      kitData.assets = kitAssets.map((ka) => ({
-        id: ka.id,
-        asset_id: ka.asset_id,
-        quantity: ka.quantity,
+      // Always send components (complex nested data)
+      kitData.components = kitComponents.map((row) => ({
+        id: row.id,
+        asset_id: row.asset_id,
+        child_kit_id: row.child_kit_id,
+        quantity: row.quantity,
       }));
 
       if (isEditMode && kitId) {
@@ -325,7 +473,7 @@ export default function KitScreen({
           tags: formData.tags,
           tag_number: formData.tag_number.trim(),
           rental_value: formData.rental_value,
-          kitAssets: kitAssets,
+          kitComponents: kitComponents,
           isContainer: isContainer,
         });
 
@@ -337,16 +485,29 @@ export default function KitScreen({
       }
     } catch (error: any) {
       console.error('Error saving kit:', error);
-      toast.error(error.message || 'Failed to save kit');
+      if (error.code === '23505') {
+        // Postgres unique_violation on kit_components — the raw message
+        // ("duplicate key value violates unique constraint ...") isn't
+        // user-facing on its own, so lead with plain context.
+        toast.error(`An inventory asset or kit can not be added more than once. ${error.message || ''}`.trim());
+      } else {
+        // The circular-reference trigger's message is already user-facing —
+        // no special-casing needed for that one.
+        toast.error(error.message || 'Failed to save kit');
+      }
     } finally {
       setIsSaving(false);
     }
   };
 
+  // A sub-kit's "value" here is its flattened replacement value (what its
+  // contents are worth), not its own rental_value — the parent kit's rental
+  // value is what the user sets, informed by this total.
+  const componentUnitValue = (row: KitComponentRow) =>
+    row.asset?.replacement_value ?? (row.child_kit_id ? childKitSummaries.get(row.child_kit_id)?.totalValue : undefined) ?? 0;
+
   const getTotalValue = () => {
-    return kitAssets.reduce((total, ka) => {
-      return total + (ka.asset?.replacement_value || 0) * ka.quantity;
-    }, 0);
+    return kitComponents.reduce((total, row) => total + componentUnitValue(row) * row.quantity, 0);
   };
 
   const formatCurrency = (amount: number) => {
@@ -385,7 +546,7 @@ export default function KitScreen({
           <PageHeader
             icon={Package}
             title={isEditMode ? 'Edit Kit' : 'Create New Kit'}
-            description={isEditMode ? 'Update kit information and assets' : 'Create a reusable equipment collection'}
+            description={isEditMode ? 'Update kit information and contents' : 'Create a reusable equipment collection'}
           />
         </div>
 
@@ -515,39 +676,39 @@ export default function KitScreen({
               </div>
             </Card>
 
-            {/* Assets */}
+            {/* Components */}
             <Card className="p-6">
               <div className="flex items-center justify-between mb-4">
                 <div>
-                  <h3 className="text-gray-900">Assets in Kit</h3>
-                  {errors.assets && (
+                  <h3 className="text-gray-900">Kit Contents</h3>
+                  {errors.components && (
                     <p className="text-sm text-red-600 flex items-center gap-1 mt-1">
                       <AlertCircle className="w-4 h-4" />
-                      {errors.assets}
+                      {errors.components}
                     </p>
                   )}
                 </div>
                 <Button
                   type="button"
-                  onClick={() => setShowAssetPicker(true)}
+                  onClick={() => setShowPicker(true)}
                   variant="outline"
                 >
                   <Plus className="w-4 h-4 mr-2" />
-                  Add Asset
+                  Add Components
                 </Button>
               </div>
 
-              {kitAssets.length === 0 ? (
+              {kitComponents.length === 0 ? (
                 <div className="text-center py-8 border-2 border-dashed border-gray-200 rounded-lg">
                   <Package className="w-12 h-12 text-gray-300 mx-auto mb-2" />
-                  <p className="text-gray-600 mb-4">No assets added yet</p>
+                  <p className="text-gray-600 mb-4">No assets or kits added yet</p>
                   <Button
                     type="button"
-                    onClick={() => setShowAssetPicker(true)}
+                    onClick={() => setShowPicker(true)}
                     variant="outline"
                   >
                     <Plus className="w-4 h-4 mr-2" />
-                    Add Your First Asset
+                    Add Your First Component
                   </Button>
                 </div>
               ) : (
@@ -555,8 +716,8 @@ export default function KitScreen({
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead>Asset</TableHead>
-                        <TableHead>Category</TableHead>
+                        <TableHead>Component</TableHead>
+                        <TableHead>Type</TableHead>
                         <TableHead className="text-right">Quantity</TableHead>
                         <TableHead className="text-right">Unit Value</TableHead>
                         <TableHead className="text-right">Total Value</TableHead>
@@ -564,56 +725,71 @@ export default function KitScreen({
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {kitAssets.map((ka) => (
-                        <TableRow key={ka.asset_id}>
-                          <TableCell>
-                            <div>
-                              <div className="text-sm text-gray-900">
-                                {ka.asset?.manufacturer_model || 'Unknown Asset'}
-                              </div>
-                              {ka.asset?.serial_number && (
-                                <div className="text-xs text-gray-500">
-                                  SN: {ka.asset.serial_number}
+                      {kitComponents.map((row) => {
+                        const rowId = row.clientKey;
+                        const isKit = !!row.child_kit_id;
+                        const unitValue = componentUnitValue(row);
+                        return (
+                          <TableRow key={rowId}>
+                            <TableCell>
+                              <div>
+                                <div className="text-sm text-gray-900">
+                                  {isKit ? (row.childKit?.name || 'Unknown Kit') : (row.asset?.manufacturer_model || 'Unknown Asset')}
                                 </div>
+                                {!isKit && row.asset?.serial_number && (
+                                  <div className="text-xs text-gray-500">
+                                    SN: {row.asset.serial_number}
+                                  </div>
+                                )}
+                                {isKit && row.childKit?.category && (
+                                  <div className="text-xs text-gray-500">{row.childKit.category}</div>
+                                )}
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant="outline" className="gap-1">
+                                {isKit ? <Layers className="w-3 h-3" /> : <Package className="w-3 h-3" />}
+                                {isKit ? 'Kit' : 'Asset'}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="text-right">
+                              {isKit ? (
+                                // A kit is a singular entity — it's either in the
+                                // parent kit or it isn't, never "N of" itself.
+                                <span className="text-sm text-gray-500 pr-3">1</span>
+                              ) : (
+                                <Input
+                                  type="number"
+                                  min="1"
+                                  max={row.asset?.quantity ?? undefined}
+                                  value={row.quantity}
+                                  onChange={(e) =>
+                                    handleUpdateQuantity(rowId, parseInt(e.target.value) || 1)
+                                  }
+                                  className="w-20 ml-auto"
+                                />
                               )}
-                            </div>
-                          </TableCell>
-                          <TableCell>{ka.asset?.category || '-'}</TableCell>
-                          <TableCell className="text-right">
-                            <Input
-                              type="number"
-                              min="1"
-                              value={ka.quantity}
-                              onChange={(e) =>
-                                handleUpdateAssetQuantity(
-                                  ka.asset_id,
-                                  parseInt(e.target.value) || 1
-                                )
-                              }
-                              className="w-20 ml-auto"
-                            />
-                          </TableCell>
-                          <TableCell className="text-right">
-                            {ka.asset?.replacement_value
-                              ? formatCurrency(ka.asset.replacement_value)
-                              : '-'}
-                          </TableCell>
-                          <TableCell className="text-right">
-                            {formatCurrency((ka.asset?.replacement_value || 0) * ka.quantity)}
-                          </TableCell>
-                          <TableCell className="text-right">
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleRemoveAsset(ka.asset_id)}
-                              className="text-red-600 hover:text-red-700"
-                            >
-                              <X className="w-4 h-4" />
-                            </Button>
-                          </TableCell>
-                        </TableRow>
-                      ))}
+                            </TableCell>
+                            <TableCell className="text-right">
+                              {unitValue ? formatCurrency(unitValue) : '-'}
+                            </TableCell>
+                            <TableCell className="text-right">
+                              {formatCurrency(unitValue * row.quantity)}
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleRemoveComponent(rowId)}
+                                className="text-red-600 hover:text-red-700"
+                              >
+                                <X className="w-4 h-4" />
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
                     </TableBody>
                   </Table>
                 </div>
@@ -643,7 +819,7 @@ export default function KitScreen({
                     Items
                   </span>
                   <span className="text-xs text-gray-500 leading-snug">
-                    Each asset is scanned individually
+                    Each component is scanned individually
                   </span>
                 </button>
                 <button
@@ -663,7 +839,7 @@ export default function KitScreen({
                     Container
                   </span>
                   <span className="text-xs text-gray-500 leading-snug">
-                    Whole kit scanned as one unit
+                    Whole kit — and everything nested inside it — scanned as one unit
                   </span>
                 </button>
               </div>
@@ -673,13 +849,13 @@ export default function KitScreen({
               <h3 className="text-gray-900 mb-4">Kit Summary</h3>
               <div className="space-y-4">
                 <div>
-                  <p className="text-sm text-gray-600">Total Assets</p>
-                  <p className="text-2xl text-gray-900">{kitAssets.length}</p>
+                  <p className="text-sm text-gray-600">Total Components</p>
+                  <p className="text-2xl text-gray-900">{kitComponents.length}</p>
                 </div>
                 <div>
                   <p className="text-sm text-gray-600">Total Items</p>
                   <p className="text-2xl text-gray-900">
-                    {kitAssets.reduce((sum, ka) => sum + ka.quantity, 0)}
+                    {kitComponents.reduce((sum, row) => sum + row.quantity, 0)}
                   </p>
                 </div>
                 <div>
@@ -723,13 +899,13 @@ export default function KitScreen({
         </div>
       </div>
 
-      {/* Asset Picker Dialog */}
-      <Dialog open={showAssetPicker} onOpenChange={setShowAssetPicker}>
+      {/* Unified Component Picker Dialog */}
+      <Dialog open={showPicker} onOpenChange={(open) => { setShowPicker(open); if (!open) setSelectedKeys(new Set()); }}>
         <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Add Asset to Kit</DialogTitle>
+            <DialogTitle>Add Components</DialogTitle>
             <DialogDescription>
-              Select an asset from your inventory to add to this kit
+              Select assets or existing kits to add to this kit. Adding a kit nests everything inside it.
             </DialogDescription>
           </DialogHeader>
 
@@ -738,49 +914,107 @@ export default function KitScreen({
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
               <Input
                 type="text"
-                placeholder="Search assets..."
-                value={assetSearchQuery}
-                onChange={(e) => setAssetSearchQuery(e.target.value)}
+                placeholder="Search assets and kits..."
+                value={pickerSearchQuery}
+                onChange={(e) => setPickerSearchQuery(e.target.value)}
                 className="pl-10"
               />
             </div>
 
+            <div className="flex gap-2">
+              {(['all', 'assets', 'kits'] as const).map((f) => (
+                <Badge
+                  key={f}
+                  variant={pickerFilter === f ? 'default' : 'outline'}
+                  className="cursor-pointer capitalize"
+                  onClick={() => setPickerFilter(f)}
+                >
+                  {f}
+                </Badge>
+              ))}
+            </div>
+
             <div className="border border-gray-200 rounded-lg divide-y divide-gray-200 max-h-96 overflow-y-auto">
-              {availableAssets.length === 0 ? (
+              {pickerCandidates.length === 0 ? (
                 <div className="p-8 text-center text-gray-500">
-                  No assets found
+                  No assets or kits found
                 </div>
               ) : (
-                availableAssets.map((asset) => {
-                  const alreadyAdded = kitAssets.some((ka) => ka.asset_id === asset.id);
+                pickerCandidates.map((c) => {
+                  const key = candidateKey(c);
+                  const selected = selectedKeys.has(key);
+                  const quantityToAdd = addQuantities.get(key) ?? 1;
+                  const disabled = c.type === 'kit' && c.wouldCycle;
                   return (
                     <div
-                      key={asset.id}
-                      className={`p-4 hover:bg-gray-50 ${
-                        alreadyAdded ? 'opacity-50' : 'cursor-pointer'
+                      key={key}
+                      className={`p-4 flex items-start gap-3 ${
+                        disabled ? 'cursor-not-allowed bg-gray-50/60' : 'hover:bg-gray-50 cursor-pointer'
                       }`}
-                      onClick={() => !alreadyAdded && handleAddAsset(asset)}
+                      onClick={() => toggleSelected(c)}
                     >
-                      <div className="flex items-start justify-between">
-                        <div className="flex-1">
-                          <div className="text-sm text-gray-900">
-                            {asset.manufacturer_model}
-                          </div>
-                          <div className="text-xs text-gray-500">
-                            {asset.category}
-                            {asset.serial_number && ` • SN: ${asset.serial_number}`}
-                          </div>
-                        </div>
-                        {alreadyAdded && (
-                          <Badge variant="outline" className="ml-2">
-                            Added
+                      {/* Selection is handled by the row's onClick — this checkbox is
+                          purely a controlled visual indicator, no handler of its own,
+                          so a click on it doesn't double-fire via event bubbling. */}
+                      <Checkbox checked={selected} disabled={disabled} className="mt-0.5 pointer-events-none" />
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2">
+                          <div className={`text-sm ${disabled ? 'text-gray-400' : 'text-gray-900'}`}>{c.name}</div>
+                          <Badge variant="outline" className="gap-1 text-[10px]">
+                            {c.type === 'kit' ? <Layers className="w-3 h-3" /> : <Package className="w-3 h-3" />}
+                            {c.type === 'kit' ? 'Kit' : 'Asset'}
                           </Badge>
+                        </div>
+                        {disabled ? (
+                          <div className="text-xs text-amber-600 flex items-center gap-1 mt-0.5">
+                            <AlertCircle className="w-3 h-3" />
+                            Would create a circular reference — this kit is already nested inside {c.name}
+                          </div>
+                        ) : (
+                          <div className="text-xs text-gray-500">
+                            {c.subtitle}
+                            {c.type === 'asset' && c.quantityAvailable != null && (
+                              <span> • {c.quantityAvailable} in stock</span>
+                            )}
+                            {c.type === 'kit' && ` • ${c.componentCount} component${c.componentCount === 1 ? '' : 's'}`}
+                          </div>
                         )}
                       </div>
+                      {/* A kit is a singular entity — no quantity to set, it's
+                          always exactly one instance (enforced when adding and
+                          again on save). */}
+                      {c.type === 'asset' && (
+                        <div onClick={(e) => e.stopPropagation()} className="flex items-center gap-1.5">
+                          <Label htmlFor={`qty-${key}`} className="text-xs text-gray-500">
+                            Qty
+                          </Label>
+                          <Input
+                            id={`qty-${key}`}
+                            type="number"
+                            min="1"
+                            max={c.quantityAvailable ?? undefined}
+                            value={quantityToAdd}
+                            onChange={(e) => {
+                              const requested = parseInt(e.target.value) || 1;
+                              setAddQuantity(key, Math.min(requested, c.quantityAvailable ?? Infinity));
+                            }}
+                            className="w-16 h-8 text-sm"
+                          />
+                        </div>
+                      )}
                     </div>
                   );
                 })
               )}
+            </div>
+
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-gray-500">
+                {selectedKeys.size} selected
+              </span>
+              <Button type="button" onClick={handleAddSelected} disabled={selectedKeys.size === 0}>
+                Add {selectedKeys.size > 0 ? selectedKeys.size : ''} Selected
+              </Button>
             </div>
           </div>
         </DialogContent>

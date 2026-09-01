@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
-import { Package, ArrowLeft, Edit2, Trash2, Copy, Loader2 } from 'lucide-react';
+import { Package, ArrowLeft, Edit2, Trash2, Copy, Loader2, Layers, Boxes, Container } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from './ui/button';
 import { Card } from './ui/card';
 import { Badge } from './ui/badge';
+import { Checkbox } from './ui/checkbox';
 import {
   Table,
   TableBody,
@@ -15,7 +16,16 @@ import {
 import AppHeader from './AppHeader';
 import { Organization, User, UserRole, ActivityLogEntry } from '../utils/supabase/types';
 import { canManage } from '../utils/permissions';
-import { getKit, deleteKit, duplicateKit } from '../services/kit.service';
+import {
+  getKit,
+  deleteKit,
+  duplicateKit,
+  getKitFlattenedContents,
+  getKitComponentTree,
+  countInventoryItems,
+  maxTreeDepth,
+  KitComponentTreeNode,
+} from '../services/kit.service';
 import { getEntityActivity } from '../services/activityLog.service';
 import ActivityFeed from './ActivityFeed';
 import { History } from 'lucide-react';
@@ -31,6 +41,60 @@ interface KitDetailScreenProps {
   onLogout: () => void;
 }
 
+interface FlattenedAssetRow {
+  asset_id: string;
+  total_quantity: number;
+  asset: any;
+}
+
+const DEPTH_WARNING_THRESHOLD = 6;
+
+/**
+ * Recursively renders the combined tree of every asset and sub-kit nested
+ * inside this kit, at every level. A container sub-kit is labeled as such;
+ * when `showContainerContents` is off, its own nested contents are hidden
+ * (it's shown as a single sealed unit) — the data is still fetched either
+ * way, this is purely a display choice.
+ */
+function ComponentTree({ nodes, showContainerContents, level = 0 }: { nodes: KitComponentTreeNode[]; showContainerContents: boolean; level?: number }) {
+  return (
+    <ul className={level === 0 ? '' : 'ml-6 border-l border-gray-200 pl-4'}>
+      {nodes.map((node) => {
+        if (node.type === 'asset') {
+          return (
+            <li key={node.clientKey} className="py-1">
+              <div className="flex items-center gap-2 text-sm">
+                <Package className="w-3.5 h-3.5 text-gray-400" />
+                <span className="text-gray-900">{node.asset?.manufacturer_model || 'Unknown Asset'}</span>
+                <span className="text-gray-500">× {node.quantity}</span>
+              </div>
+            </li>
+          );
+        }
+
+        const isContainer = !!node.kit?.is_container;
+        const hideChildren = isContainer && !showContainerContents;
+
+        return (
+          <li key={node.clientKey} className="py-1">
+            <div className="flex items-center gap-2 text-sm">
+              <Layers className="w-3.5 h-3.5 text-gray-400" />
+              <span className="text-gray-900">{node.kit?.name}</span>
+              <span className="text-gray-500">× {node.quantity}</span>
+              <Badge variant={isContainer ? 'default' : 'outline'} className="text-[10px]">
+                {isContainer ? 'Container' : 'Items'}
+              </Badge>
+            </div>
+            {!hideChildren && node.children.length > 0 && (
+              <ComponentTree nodes={node.children} showContainerContents={showContainerContents} level={level + 1} />
+            )}
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
 export default function KitDetailScreen({
   organization,
   user,
@@ -42,6 +106,9 @@ export default function KitDetailScreen({
   onLogout,
 }: KitDetailScreenProps) {
   const [kit, setKit] = useState<any>(null);
+  const [flattenedAssets, setFlattenedAssets] = useState<FlattenedAssetRow[]>([]);
+  const [componentTree, setComponentTree] = useState<KitComponentTreeNode[]>([]);
+  const [showContainerContents, setShowContainerContents] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [kitActivity, setKitActivity] = useState<ActivityLogEntry[]>([]);
   const [activityLoading, setActivityLoading] = useState(false);
@@ -53,8 +120,20 @@ export default function KitDetailScreen({
   const loadKit = async () => {
     setIsLoading(true);
     try {
-      const data = await getKit(kitId);
+      const [data, flattened, tree] = await Promise.all([
+        getKit(kitId),
+        getKitFlattenedContents(kitId),
+        getKitComponentTree(kitId),
+      ]);
       setKit(data);
+      setFlattenedAssets(flattened as FlattenedAssetRow[]);
+      setComponentTree(tree);
+
+      const depth = maxTreeDepth(tree);
+      if (depth > DEPTH_WARNING_THRESHOLD) {
+        toast.warning(`This kit is nested ${depth} levels deep — is that intentional?`);
+      }
+
       setActivityLoading(true);
       getEntityActivity('kit', kitId)
         .then(setKitActivity)
@@ -102,16 +181,18 @@ export default function KitDetailScreen({
   };
 
   const getTotalValue = () => {
-    if (!kit?.kit_assets) return 0;
-    return kit.kit_assets.reduce((total: number, ka: any) => {
-      return total + (ka.asset?.replacement_value || 0) * ka.quantity;
+    return flattenedAssets.reduce((total, row) => {
+      return total + (row.asset?.replacement_value || 0) * row.total_quantity;
     }, 0);
   };
 
   const getTotalItems = () => {
-    if (!kit?.kit_assets) return 0;
-    return kit.kit_assets.reduce((total: number, ka: any) => total + ka.quantity, 0);
+    return flattenedAssets.reduce((total, row) => total + row.total_quantity, 0);
   };
+
+  // Containers count as one, un-drilled — contrast with getTotalItems above,
+  // which is fully flattened and ignores container boundaries entirely.
+  const getInventoryItems = () => countInventoryItems(componentTree);
 
   if (isLoading) {
     return (
@@ -150,11 +231,13 @@ export default function KitDetailScreen({
                 <Package className="w-8 h-8 text-sky-500" />
                 <h1 className="text-gray-900">{kit.name}</h1>
               </div>
-              {kit.category && (
-                <Badge variant="outline" className="mb-2">
-                  {kit.category}
+              <div className="flex flex-wrap items-center gap-2 mb-2">
+                {kit.category && <Badge variant="outline">{kit.category}</Badge>}
+                <Badge variant={kit.is_container ? 'default' : 'outline'} className="gap-1">
+                  {kit.is_container ? <Container className="w-3 h-3" /> : <Boxes className="w-3 h-3" />}
+                  {kit.is_container ? 'Container' : 'Items'}
                 </Badge>
-              )}
+              </div>
               {kit.tag_number && (
                 <div className="text-sm text-gray-600 mt-2">
                   <span className="font-medium">Tag Number:</span> {kit.tag_number}
@@ -208,14 +291,19 @@ export default function KitDetailScreen({
         </div>
 
         {/* Summary Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-6 mb-8">
           <Card className="p-6">
             <p className="text-sm text-gray-600 mb-1">Total Assets</p>
-            <p className="text-3xl text-gray-900">{kit.kit_assets?.length || 0}</p>
+            <p className="text-3xl text-gray-900">{flattenedAssets.length}</p>
           </Card>
           <Card className="p-6">
             <p className="text-sm text-gray-600 mb-1">Total Items</p>
             <p className="text-3xl text-gray-900">{getTotalItems()}</p>
+          </Card>
+          <Card className="p-6">
+            <p className="text-sm text-gray-600 mb-1">Inventory Items</p>
+            <p className="text-3xl text-gray-900">{getInventoryItems()}</p>
+            <p className="text-xs text-gray-500 mt-1">Containers count as one</p>
           </Card>
           <Card className="p-6">
             <p className="text-sm text-gray-600 mb-1">Total Value</p>
@@ -227,10 +315,13 @@ export default function KitDetailScreen({
           </Card>
         </div>
 
-        {/* Assets Table */}
+        {/* Flattened Assets Table */}
         <Card className="p-6">
-          <h3 className="text-gray-900 mb-4">Assets in Kit</h3>
-          {!kit.kit_assets || kit.kit_assets.length === 0 ? (
+          <h3 className="text-gray-900 mb-1">Assets in Kit</h3>
+          <p className="text-xs text-gray-500 mb-4">
+            Aggregated across this kit and everything nested inside it
+          </p>
+          {flattenedAssets.length === 0 ? (
             <div className="text-center py-12">
               <Package className="w-16 h-16 text-gray-300 mx-auto mb-4" />
               <p className="text-gray-600">No assets in this kit</p>
@@ -246,49 +337,40 @@ export default function KitDetailScreen({
                     <TableHead>Quantity</TableHead>
                     <TableHead>Unit Value</TableHead>
                     <TableHead>Total Value</TableHead>
-                    <TableHead>Notes</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {kit.kit_assets.map((ka: any) => (
-                    <TableRow key={ka.id}>
+                  {flattenedAssets.map((row) => (
+                    <TableRow key={row.asset_id}>
                       <TableCell>
                         <div className="text-sm text-gray-900">
-                          {ka.asset?.manufacturer_model}
+                          {row.asset?.manufacturer_model}
                         </div>
-                        {ka.asset?.type && (
-                          <div className="text-xs text-gray-500">{ka.asset.type}</div>
-                        )}
                       </TableCell>
                       <TableCell>
-                        <div className="text-sm text-gray-700">{ka.asset?.category}</div>
-                        {ka.asset?.sub_category && (
+                        <div className="text-sm text-gray-700">{row.asset?.category}</div>
+                        {row.asset?.sub_category && (
                           <div className="text-xs text-gray-500">
-                            {ka.asset.sub_category}
+                            {row.asset.sub_category}
                           </div>
                         )}
                       </TableCell>
                       <TableCell>
                         <div className="text-sm text-gray-700 font-mono">
-                          {ka.asset?.serial_number || '—'}
+                          {row.asset?.serial_number || '—'}
                         </div>
                       </TableCell>
                       <TableCell>
-                        <div className="text-sm text-gray-900">{ka.quantity}</div>
+                        <div className="text-sm text-gray-900">{row.total_quantity}</div>
                       </TableCell>
                       <TableCell>
                         <div className="text-sm text-gray-900">
-                          {formatCurrency(ka.asset?.replacement_value || 0)}
+                          {formatCurrency(row.asset?.replacement_value || 0)}
                         </div>
                       </TableCell>
                       <TableCell>
                         <div className="text-sm text-gray-900">
-                          {formatCurrency((ka.asset?.replacement_value || 0) * ka.quantity)}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="text-sm text-gray-600">
-                          {ka.notes || '—'}
+                          {formatCurrency((row.asset?.replacement_value || 0) * row.total_quantity)}
                         </div>
                       </TableCell>
                     </TableRow>
@@ -312,6 +394,28 @@ export default function KitDetailScreen({
                 </div>
               </div>
             </div>
+          )}
+        </Card>
+
+        {/* Kit Structure — every asset and sub-kit nested inside, combined */}
+        <Card className="p-6 mt-4">
+          <div className="flex items-start justify-between gap-4 mb-1">
+            <h3 className="text-gray-900">Kit Structure</h3>
+            <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer whitespace-nowrap">
+              <Checkbox
+                checked={showContainerContents}
+                onCheckedChange={(checked) => setShowContainerContents(checked === true)}
+              />
+              Show container contents
+            </label>
+          </div>
+          <p className="text-xs text-gray-500 mb-4">
+            Every asset and sub-kit nested in this kit, at every level. A Container is scanned and tracked as one sealed unit — its own contents are hidden by default.
+          </p>
+          {componentTree.length === 0 ? (
+            <p className="text-sm text-gray-500">This kit has no components yet.</p>
+          ) : (
+            <ComponentTree nodes={componentTree} showContainerContents={showContainerContents} />
           )}
         </Card>
 

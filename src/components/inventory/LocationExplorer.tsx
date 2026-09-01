@@ -1,6 +1,6 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { Fragment, useState, useEffect, useCallback, useMemo } from 'react';
 import { format } from 'date-fns';
-import { MapPin, Filter } from 'lucide-react';
+import { MapPin, Filter, ChevronRight, ChevronDown, Layers, Package, Pencil } from 'lucide-react';
 import { LocationCombobox } from './LocationCombobox';
 import {
   Select,
@@ -18,17 +18,43 @@ import {
   TableRow,
 } from '../ui/table';
 import { Label } from '../ui/label';
+import { Badge } from '../ui/badge';
+import { Button } from '../ui/button';
 import { cn } from '../ui/utils';
 import {
   getItemsByLocation,
   getActiveGigsWithTracking,
 } from '../../services/inventoryManagement.service';
 import type { LocationItem, GigWithTracking } from '../../services/inventoryManagement.service';
+import { ManualTrackingOverrideDialog } from './ManualTrackingOverrideDialog';
 import { SCANNING_MODES } from '../../config/inventoryWorkflow';
 import { TRACKING_STATUS_CONFIG } from '../../utils/supabase/constants';
+import type { UserRole } from '../../utils/supabase/types';
 
 interface LocationExplorerProps {
   organizationId: string;
+  userId?: string;
+  userRole?: UserRole;
+}
+
+interface OverrideTarget {
+  gigId: string;
+  gigTitle: string;
+  kitId: string;
+  assetId?: string;
+  isContainerKit?: boolean;
+  label: string;
+}
+
+/** One kit's items within a single (status, location) bucket — the kit's own
+ * whole-kit scan record (if any) kept separate from its individual assets,
+ * so the two can be rendered as a parent row and indented children. */
+interface KitGroup {
+  kitId: string;
+  kitName: string;
+  isContainer: boolean;
+  kitLevelItem?: LocationItem;
+  assetItems: LocationItem[];
 }
 
 const UNIQUE_STATUSES = Array.from(new Set(SCANNING_MODES.map(m => m.resultingStatus)));
@@ -41,7 +67,24 @@ function formatLastScanned(isoString: string): string {
   }
 }
 
-export function LocationExplorer({ organizationId }: LocationExplorerProps) {
+function groupByKit(items: LocationItem[]): KitGroup[] {
+  const map = new Map<string, KitGroup>();
+  for (const item of items) {
+    let group = map.get(item.kit_id);
+    if (!group) {
+      group = { kitId: item.kit_id, kitName: item.kit_name ?? 'Unknown Kit', isContainer: item.is_container, assetItems: [] };
+      map.set(item.kit_id, group);
+    }
+    if (item.asset_id) {
+      group.assetItems.push(item);
+    } else {
+      group.kitLevelItem = item;
+    }
+  }
+  return Array.from(map.values());
+}
+
+export function LocationExplorer({ organizationId, userId, userRole }: LocationExplorerProps) {
   const [locationFilter, setLocationFilter] = useState('');
   const [selectedStatuses, setSelectedStatuses] = useState<string[]>(UNIQUE_STATUSES);
   const [gigFilter, setGigFilter] = useState('all');
@@ -49,6 +92,10 @@ export function LocationExplorer({ organizationId }: LocationExplorerProps) {
   const [gigs, setGigs] = useState<GigWithTracking[]>([]);
   const [loading, setLoading] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
+  const [expandedContainers, setExpandedContainers] = useState<Set<string>>(new Set());
+  const [overrideTarget, setOverrideTarget] = useState<OverrideTarget | null>(null);
+
+  const canOverride = !!userId && (userRole === 'Admin' || userRole === 'Manager');
 
   useEffect(() => {
     getActiveGigsWithTracking(organizationId)
@@ -57,11 +104,20 @@ export function LocationExplorer({ organizationId }: LocationExplorerProps) {
   }, [organizationId]);
 
   const toggleStatus = (status: string) => {
-    setSelectedStatuses(prev => 
-      prev.includes(status) 
-        ? prev.filter(s => s !== status) 
+    setSelectedStatuses(prev =>
+      prev.includes(status)
+        ? prev.filter(s => s !== status)
         : [...prev, status]
     );
+  };
+
+  const toggleExpanded = (key: string) => {
+    setExpandedContainers((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
   };
 
   const hasFilters = !!(locationFilter || selectedStatuses.length > 0 || gigFilter !== 'all');
@@ -94,19 +150,21 @@ export function LocationExplorer({ organizationId }: LocationExplorerProps) {
 
   const groupedItems = useMemo(() => {
     const groups: Record<string, Record<string, LocationItem[]>> = {};
-    
+
     for (const item of items) {
       const status = item.status;
       const location = item.location || 'Unknown Location';
-      
+
       if (!groups[status]) groups[status] = {};
       if (!groups[status][location]) groups[status][location] = [];
-      
+
       groups[status][location].push(item);
     }
-    
+
     return groups;
   }, [items]);
+
+  const gigOptions = useMemo(() => gigs.map((g) => ({ id: g.id, title: g.title })), [gigs]);
 
   return (
     <div className="flex flex-col gap-6">
@@ -115,7 +173,7 @@ export function LocationExplorer({ organizationId }: LocationExplorerProps) {
           <Filter className="h-4 w-4" />
           Location Explorer Filters
         </div>
-        
+
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           <div className="flex flex-col gap-2">
             <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Location</Label>
@@ -196,49 +254,208 @@ export function LocationExplorer({ organizationId }: LocationExplorerProps) {
                   <h2 className="text-lg font-bold text-gray-900">{status}</h2>
                   <div className="h-px flex-1 bg-gray-200" />
                 </div>
-                
-                {Object.entries(locations).sort().map(([location, locationItems]) => (
-                  <div key={location} className="flex flex-col gap-2 pl-4 border-l-2 border-primary/20">
-                    <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground mb-1">
-                      <MapPin className="h-3.5 w-3.5" />
-                      {location}
-                      <span className="text-xs bg-muted px-2 py-0.5 rounded-full ml-1">
-                        {locationItems.length} items
-                      </span>
-                    </div>
 
-                    <div className="rounded-md border bg-white overflow-hidden shadow-sm">
-                      <Table>
-                        <TableHeader>
-                          <TableRow className="bg-muted/30">
-                            <TableHead className="w-[200px]">Kit Name</TableHead>
-                            <TableHead>Asset Name</TableHead>
-                            <TableHead className="w-[120px]">Tag #</TableHead>
-                            <TableHead className="w-[200px]">Gig</TableHead>
-                            <TableHead className="w-[160px]">Last Scanned</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {locationItems.map((item, index) => (
-                            <TableRow key={`${item.kit_id}-${item.asset_id ?? 'kit'}-${index}`}>
-                              <TableCell className="font-medium">{item.kit_name ?? '—'}</TableCell>
-                              <TableCell>{item.asset_name ?? '—'}</TableCell>
-                              <TableCell className="font-mono text-xs">{item.tag_number ?? '—'}</TableCell>
-                              <TableCell className="text-sm">{item.gig_title ?? '—'}</TableCell>
-                              <TableCell className="text-muted-foreground text-xs">
-                                {formatLastScanned(item.scanned_at)}
-                              </TableCell>
+                {Object.entries(locations).sort().map(([location, locationItems]) => {
+                  const kitGroups = groupByKit(locationItems);
+                  return (
+                    <div key={location} className="flex flex-col gap-2 pl-4 border-l-2 border-primary/20">
+                      <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground mb-1">
+                        <MapPin className="h-3.5 w-3.5" />
+                        {location}
+                        <span className="text-xs bg-muted px-2 py-0.5 rounded-full ml-1">
+                          {locationItems.length} items
+                        </span>
+                      </div>
+
+                      <div className="rounded-md border bg-white overflow-hidden shadow-sm">
+                        <Table>
+                          <TableHeader>
+                            <TableRow className="bg-muted/30">
+                              <TableHead>Item</TableHead>
+                              <TableHead className="w-[120px]">Tag #</TableHead>
+                              <TableHead className="w-[200px]">Gig</TableHead>
+                              <TableHead className="w-[160px]">Last Scanned</TableHead>
+                              {canOverride && <TableHead className="w-[60px]" />}
                             </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
+                          </TableHeader>
+                          <TableBody>
+                            {kitGroups.map((group) => {
+                              const expandKey = `${status}:${location}:${group.kitId}`;
+                              const expanded = expandedContainers.has(expandKey);
+
+                              if (group.isContainer) {
+                                const representative = group.kitLevelItem ?? group.assetItems[0];
+                                const hiddenChildren = group.kitLevelItem ? group.assetItems : group.assetItems.slice(1);
+                                return (
+                                  <Fragment key={group.kitId}>
+                                    <TableRow>
+                                      <TableCell className="font-medium">
+                                        <div className="flex items-center gap-1.5">
+                                          {hiddenChildren.length > 0 && (
+                                            <button
+                                              type="button"
+                                              onClick={() => toggleExpanded(expandKey)}
+                                              className="text-muted-foreground hover:text-foreground"
+                                              aria-label={expanded ? 'Collapse container contents' : 'Expand container contents'}
+                                            >
+                                              {expanded ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+                                            </button>
+                                          )}
+                                          <Layers className="h-3.5 w-3.5 text-muted-foreground" />
+                                          {group.kitName}
+                                          <Badge className="text-[10px]">Container</Badge>
+                                        </div>
+                                      </TableCell>
+                                      <TableCell className="font-mono text-xs">—</TableCell>
+                                      <TableCell className="text-sm">{representative?.gig_title ?? '—'}</TableCell>
+                                      <TableCell className="text-muted-foreground text-xs">
+                                        {representative ? formatLastScanned(representative.scanned_at) : '—'}
+                                      </TableCell>
+                                      {canOverride && (
+                                        <TableCell>
+                                          {representative && (
+                                            <Button
+                                              size="sm"
+                                              variant="ghost"
+                                              onClick={() => setOverrideTarget({
+                                                gigId: representative.gig_id,
+                                                gigTitle: representative.gig_title ?? '',
+                                                kitId: group.kitId,
+                                                isContainerKit: true,
+                                                label: group.kitName,
+                                              })}
+                                            >
+                                              <Pencil className="h-3.5 w-3.5" />
+                                            </Button>
+                                          )}
+                                        </TableCell>
+                                      )}
+                                    </TableRow>
+                                    {expanded && hiddenChildren.map((child) => (
+                                      <TableRow key={`${group.kitId}-${child.asset_id}`}>
+                                        <TableCell className="pl-8 text-sm text-muted-foreground">{child.asset_name ?? '—'}</TableCell>
+                                        <TableCell className="font-mono text-xs">{child.tag_number ?? '—'}</TableCell>
+                                        <TableCell className="text-sm">{child.gig_title ?? '—'}</TableCell>
+                                        <TableCell className="text-muted-foreground text-xs">{formatLastScanned(child.scanned_at)}</TableCell>
+                                        {canOverride && (
+                                          <TableCell>
+                                            <Button
+                                              size="sm"
+                                              variant="ghost"
+                                              onClick={() => setOverrideTarget({
+                                                gigId: child.gig_id,
+                                                gigTitle: child.gig_title ?? '',
+                                                kitId: group.kitId,
+                                                assetId: child.asset_id ?? undefined,
+                                                label: `${group.kitName} — ${child.asset_name ?? 'Item'}`,
+                                              })}
+                                            >
+                                              <Pencil className="h-3.5 w-3.5" />
+                                            </Button>
+                                          </TableCell>
+                                        )}
+                                      </TableRow>
+                                    ))}
+                                  </Fragment>
+                                );
+                              }
+
+                              // Non-container kit: its own header row, then every scanned asset indented beneath.
+                              return (
+                                <Fragment key={group.kitId}>
+                                  <TableRow className="bg-muted/10">
+                                    <TableCell colSpan={canOverride ? 5 : 4} className="font-medium">
+                                      <div className="flex items-center gap-1.5">
+                                        <Package className="h-3.5 w-3.5 text-muted-foreground" />
+                                        {group.kitName}
+                                        <Badge variant="outline" className="text-[10px]">Items</Badge>
+                                      </div>
+                                    </TableCell>
+                                  </TableRow>
+                                  {group.assetItems.map((child) => (
+                                    <TableRow key={`${group.kitId}-${child.asset_id}`}>
+                                      <TableCell className="pl-8 text-sm">{child.asset_name ?? '—'}</TableCell>
+                                      <TableCell className="font-mono text-xs">{child.tag_number ?? '—'}</TableCell>
+                                      <TableCell className="text-sm">{child.gig_title ?? '—'}</TableCell>
+                                      <TableCell className="text-muted-foreground text-xs">{formatLastScanned(child.scanned_at)}</TableCell>
+                                      {canOverride && (
+                                        <TableCell>
+                                          <Button
+                                            size="sm"
+                                            variant="ghost"
+                                            onClick={() => setOverrideTarget({
+                                              gigId: child.gig_id,
+                                              gigTitle: child.gig_title ?? '',
+                                              kitId: group.kitId,
+                                              assetId: child.asset_id ?? undefined,
+                                              label: `${group.kitName} — ${child.asset_name ?? 'Item'}`,
+                                            })}
+                                          >
+                                            <Pencil className="h-3.5 w-3.5" />
+                                          </Button>
+                                        </TableCell>
+                                      )}
+                                    </TableRow>
+                                  ))}
+                                  {group.kitLevelItem && (
+                                    <TableRow key={`${group.kitId}-whole`}>
+                                      <TableCell className="pl-8 text-sm italic text-muted-foreground">Whole kit</TableCell>
+                                      <TableCell className="font-mono text-xs">—</TableCell>
+                                      <TableCell className="text-sm">{group.kitLevelItem.gig_title ?? '—'}</TableCell>
+                                      <TableCell className="text-muted-foreground text-xs">{formatLastScanned(group.kitLevelItem.scanned_at)}</TableCell>
+                                      {canOverride && (
+                                        <TableCell>
+                                          <Button
+                                            size="sm"
+                                            variant="ghost"
+                                            onClick={() => setOverrideTarget({
+                                              gigId: group.kitLevelItem!.gig_id,
+                                              gigTitle: group.kitLevelItem!.gig_title ?? '',
+                                              kitId: group.kitId,
+                                              label: `${group.kitName} (whole kit)`,
+                                            })}
+                                          >
+                                            <Pencil className="h-3.5 w-3.5" />
+                                          </Button>
+                                        </TableCell>
+                                      )}
+                                    </TableRow>
+                                  )}
+                                </Fragment>
+                              );
+                            })}
+                          </TableBody>
+                        </Table>
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             ))
           )}
         </div>
+      )}
+
+      {overrideTarget && userId && (
+        <ManualTrackingOverrideDialog
+          open={true}
+          onOpenChange={(open) => { if (!open) setOverrideTarget(null); }}
+          organizationId={organizationId}
+          gigId={overrideTarget.gigId}
+          // The item's own current gig might not be in the "active gigs"
+          // list (e.g. a wrapped-up gig outside that window) — make sure
+          // it's always a selectable (and pre-selected) option regardless.
+          gigs={gigOptions.some((g) => g.id === overrideTarget.gigId)
+            ? gigOptions
+            : [...gigOptions, { id: overrideTarget.gigId, title: overrideTarget.gigTitle || 'Current gig' }]}
+          kitId={overrideTarget.kitId}
+          assetId={overrideTarget.assetId}
+          isContainerKit={overrideTarget.isContainerKit}
+          userId={userId}
+          userRole={userRole}
+          targetLabel={overrideTarget.label}
+          onSuccess={() => { setOverrideTarget(null); fetchItems(); }}
+        />
       )}
     </div>
   );

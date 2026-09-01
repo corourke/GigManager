@@ -38,7 +38,7 @@ export async function getKits(organizationId: string, filters?: {
       .from('kits')
       .select(`
         *,
-        kit_assets!inner(
+        kit_components!kit_assets_kit_id_fkey!inner(
           quantity,
           asset:assets(*)
         )
@@ -64,7 +64,8 @@ export async function getKits(organizationId: string, filters?: {
 }
 
 /**
- * Fetch a single kit with its assets
+ * Fetch a single kit with its direct components (assets and/or sub-kits, one
+ * level — not the recursive flattened view, see getKitFlattenedContents).
  */
 export async function getKit(kitId: string) {
   const supabase = getSupabase();
@@ -73,11 +74,14 @@ export async function getKit(kitId: string) {
       .from('kits')
       .select(`
         *,
-        kit_assets(
+        kit_components!kit_assets_kit_id_fkey(
           id,
           quantity,
           notes,
-          asset:assets(*)
+          asset_id,
+          child_kit_id,
+          asset:assets(*),
+          child_kit:kits!kit_components_child_kit_id_fkey(id, name, is_container, category, rental_value)
         )
       `)
       .eq('id', kitId)
@@ -121,8 +125,17 @@ export async function getDistinctKitValues(
   }
 }
 
+/** A row in a kit's component list — exactly one of asset_id/child_kit_id is set. */
+export type KitComponentInput = {
+  id?: string;
+  asset_id?: string;
+  child_kit_id?: string;
+  quantity: number;
+  notes?: string;
+};
+
 /**
- * Create a new kit with assets
+ * Create a new kit with its components (assets and/or sub-kits)
  */
 export async function createKit(kitData: {
   organization_id: string;
@@ -131,16 +144,12 @@ export async function createKit(kitData: {
   description?: string;
   tags?: string[];
   is_container?: boolean;
-  assets: Array<{
-    asset_id: string;
-    quantity: number;
-    notes?: string;
-  }>;
+  components: KitComponentInput[];
 }) {
   try {
     const { supabase, user } = await requireAuth();
 
-    const { assets, ...restKitData } = kitData;
+    const { components, ...restKitData } = kitData;
 
     const { data: kit, error: kitError } = await supabase
       .from('kits')
@@ -176,18 +185,22 @@ export async function createKit(kitData: {
       console.error('Activity log failed:', e);
     }
 
-    if (assets && assets.length > 0) {
-      const kitAssets = assets.map(a => ({
+    if (components && components.length > 0) {
+      const kitComponents = components.map(c => ({
         kit_id: kit.id,
-        asset_id: a.asset_id,
-        quantity: a.quantity,
-        notes: a.notes || null,
+        asset_id: c.asset_id ?? null,
+        child_kit_id: c.child_kit_id ?? null,
+        // A kit is a singular entity — it's either nested in the parent or
+        // not, never nested "N times" as one row. Enforced here too, not
+        // just in the picker, since this is the actual write path.
+        quantity: c.child_kit_id ? 1 : c.quantity,
+        notes: c.notes || null,
       }));
 
-      const { error: assetsError } = await supabase.from('kit_assets').insert(kitAssets);
-      if (assetsError) {
+      const { error: componentsError } = await supabase.from('kit_components').insert(kitComponents);
+      if (componentsError) {
         await supabase.from('kits').delete().eq('id', kit.id);
-        throw assetsError;
+        throw componentsError;
       }
     }
 
@@ -198,7 +211,7 @@ export async function createKit(kitData: {
 }
 
 /**
- * Update an existing kit and its assets
+ * Update an existing kit and its components (assets and/or sub-kits)
  */
 export async function updateKit(kitId: string, kitData: {
   name?: string;
@@ -209,12 +222,7 @@ export async function updateKit(kitId: string, kitData: {
   rental_value?: number | null;
   is_container?: boolean;
   organization_id?: string;
-  assets?: Array<{
-    id?: string;
-    asset_id: string;
-    quantity: number;
-    notes?: string;
-  }>;
+  components?: KitComponentInput[];
 }) {
   try {
     const { supabase, user } = await requireAuth();
@@ -232,7 +240,7 @@ export async function updateKit(kitId: string, kitData: {
     const organizationId = kitRow.organization_id;
     const kitName = kitRow.name;
 
-    const { assets, organization_id: _orgId, ...restKitData } = kitData;
+    const { components, organization_id: _orgId, ...restKitData } = kitData;
 
     if (Object.keys(restKitData).length > 0) {
       const field_changes = computeFieldChanges(kitRow, restKitData, KIT_TRACKED_FIELDS);
@@ -268,37 +276,52 @@ export async function updateKit(kitId: string, kitData: {
       }
     }
 
-    if (assets) {
-      const { data: existingAssets } = await (supabase.from('kit_assets') as any).select('id, asset_id').eq('kit_id', kitId);
-      const existingIds = existingAssets?.map((a: any) => a.id) || [];
-      const incomingIds = assets.filter(a => a.id).map(a => a.id!);
+    if (components) {
+      const { data: existingComponents } = await (supabase.from('kit_components') as any)
+        .select('id, asset_id, child_kit_id')
+        .eq('kit_id', kitId);
+      const existingIds = existingComponents?.map((c: any) => c.id) || [];
+      const incomingIds = components.filter(c => c.id).map(c => c.id!);
 
       const idsToDelete = existingIds.filter((id: string) => !incomingIds.includes(id));
 
       if (idsToDelete.length > 0) {
-        const removedAssetIds = (existingAssets ?? []).filter((a: any) => idsToDelete.includes(a.id)).map((a: any) => a.asset_id).filter(Boolean);
-        await supabase.from('kit_assets').delete().in('id', idsToDelete);
-        for (const assetId of removedAssetIds) {
-          const { data: assetRow } = await (supabase.from('assets') as any).select('manufacturer_model').eq('id', assetId).single();
+        const removed = (existingComponents ?? []).filter((c: any) => idsToDelete.includes(c.id));
+        await supabase.from('kit_components').delete().in('id', idsToDelete);
+        for (const c of removed) {
           try {
-            await logActivity({ organization_id: organizationId, event_type: 'kit.asset_removed', entity_type: 'kit', entity_id: kitId, gig_id: null, context: { context_version: 1, actor_display_name: actorDisplayName, actor_org_name: actorOrgName, kit_name: kitName, asset_model: (assetRow as any)?.manufacturer_model ?? '' } });
+            if (c.asset_id) {
+              const { data: assetRow } = await (supabase.from('assets') as any).select('manufacturer_model').eq('id', c.asset_id).single();
+              await logActivity({ organization_id: organizationId, event_type: 'kit.asset_removed', entity_type: 'kit', entity_id: kitId, gig_id: null, context: { context_version: 1, actor_display_name: actorDisplayName, actor_org_name: actorOrgName, kit_name: kitName, asset_model: (assetRow as any)?.manufacturer_model ?? '' } });
+            } else if (c.child_kit_id) {
+              const { data: subKitRow } = await (supabase.from('kits') as any).select('name').eq('id', c.child_kit_id).single();
+              await logActivity({ organization_id: organizationId, event_type: 'kit.subkit_removed', entity_type: 'kit', entity_id: kitId, gig_id: null, context: { context_version: 1, actor_display_name: actorDisplayName, actor_org_name: actorOrgName, kit_name: kitName, subkit_name: (subKitRow as any)?.name ?? '' } });
+            }
           } catch (e) { console.error('Activity log failed:', e); }
         }
       }
 
-      for (const asset of assets) {
-        const assetData = {
-          asset_id: asset.asset_id,
-          quantity: asset.quantity,
-          notes: asset.notes || null,
+      for (const component of components) {
+        const componentData = {
+          asset_id: component.asset_id ?? null,
+          child_kit_id: component.child_kit_id ?? null,
+          // See createKit — a kit component is always exactly one instance.
+          quantity: component.child_kit_id ? 1 : component.quantity,
+          notes: component.notes || null,
         };
-        if (asset.id && existingIds.includes(asset.id)) {
-          await supabase.from('kit_assets').update(assetData).eq('id', asset.id);
+        if (component.id && existingIds.includes(component.id)) {
+          await supabase.from('kit_components').update(componentData).eq('id', component.id);
         } else {
-          await supabase.from('kit_assets').insert({ kit_id: kitId, ...assetData });
-          const { data: assetRow } = await (supabase.from('assets') as any).select('manufacturer_model').eq('id', asset.asset_id).single();
+          const { error: insertError } = await supabase.from('kit_components').insert({ kit_id: kitId, ...componentData });
+          if (insertError) throw insertError;
           try {
-            await logActivity({ organization_id: organizationId, event_type: 'kit.asset_added', entity_type: 'kit', entity_id: kitId, gig_id: null, context: { context_version: 1, actor_display_name: actorDisplayName, actor_org_name: actorOrgName, kit_name: kitName, asset_model: (assetRow as any)?.manufacturer_model ?? '', quantity: asset.quantity } });
+            if (component.asset_id) {
+              const { data: assetRow } = await (supabase.from('assets') as any).select('manufacturer_model').eq('id', component.asset_id).single();
+              await logActivity({ organization_id: organizationId, event_type: 'kit.asset_added', entity_type: 'kit', entity_id: kitId, gig_id: null, context: { context_version: 1, actor_display_name: actorDisplayName, actor_org_name: actorOrgName, kit_name: kitName, asset_model: (assetRow as any)?.manufacturer_model ?? '', quantity: component.quantity } });
+            } else if (component.child_kit_id) {
+              const { data: subKitRow } = await (supabase.from('kits') as any).select('name').eq('id', component.child_kit_id).single();
+              await logActivity({ organization_id: organizationId, event_type: 'kit.subkit_added', entity_type: 'kit', entity_id: kitId, gig_id: null, context: { context_version: 1, actor_display_name: actorDisplayName, actor_org_name: actorOrgName, kit_name: kitName, subkit_name: (subKitRow as any)?.name ?? '', quantity: component.quantity } });
+            }
           } catch (e) { console.error('Activity log failed:', e); }
         }
       }
@@ -329,7 +352,8 @@ export async function deleteKit(kitId: string) {
 }
 
 /**
- * Duplicate an existing kit
+ * Duplicate an existing kit, including its is_container/rental_value flags
+ * and all direct components (assets and sub-kits).
  */
 export async function duplicateKit(kitId: string, newName?: string) {
   try {
@@ -345,6 +369,8 @@ export async function duplicateKit(kitId: string, newName?: string) {
         category: originalKit.category,
         description: originalKit.description,
         tags: originalKit.tags || [],
+        is_container: originalKit.is_container,
+        rental_value: originalKit.rental_value,
         created_by: user.id,
         updated_by: user.id,
       })
@@ -375,18 +401,302 @@ export async function duplicateKit(kitId: string, newName?: string) {
       console.error('Activity log failed:', e);
     }
 
-    if (originalKit.kit_assets && originalKit.kit_assets.length > 0) {
-      const kitAssets = originalKit.kit_assets.map((ka: any) => ({
+    if (originalKit.kit_components && originalKit.kit_components.length > 0) {
+      const kitComponents = originalKit.kit_components.map((c: any) => ({
         kit_id: newKit.id,
-        asset_id: ka.asset.id,
-        quantity: ka.quantity,
-        notes: ka.notes,
+        asset_id: c.asset_id,
+        child_kit_id: c.child_kit_id,
+        quantity: c.quantity,
+        notes: c.notes,
       }));
-      await supabase.from('kit_assets').insert(kitAssets);
+      await supabase.from('kit_components').insert(kitComponents);
     }
 
     return newKit;
   } catch (err) {
     return handleApiError(err, 'duplicate kit');
   }
+}
+
+/**
+ * The fully-flattened (recursive) asset contents of a kit — reads the
+ * write-time-maintained cache, not a live recursive query. Includes asset
+ * display data for rendering.
+ */
+export async function getKitFlattenedContents(kitId: string) {
+  const supabase = getSupabase();
+  try {
+    const { data, error } = await supabase
+      .from('kit_flattened_cache')
+      .select('asset_id, total_quantity, asset:assets(*)')
+      .eq('kit_id', kitId);
+
+    if (error) throw error;
+    return data || [];
+  } catch (err) {
+    return handleApiError(err, 'fetch kit flattened contents');
+  }
+}
+
+export interface KitFlattenedSummary {
+  /** Sum of each flattened asset's replacement_value × quantity. */
+  totalValue: number;
+  /** Sum of each flattened asset's quantity — the true item count, recursing through nested kits. */
+  totalItems: number;
+  /** Every distinct asset reachable inside this kit, at any depth — used to detect the same physical asset entering a kit twice (once directly, once via a nested sub-kit, or via two different sub-kits). */
+  assetIds: Set<string>;
+}
+
+/**
+ * Flattened item count, replacement value, and asset-id set for each of the
+ * given kits — one batched query against the recursive cache, so callers
+ * never need to walk `kit_components` (whose child-kit rows carry no
+ * `asset`/quantity of their own and would otherwise silently read as zero —
+ * see the Kits list "Total Value"/"Items" columns and a kit's own contents
+ * table for two places that bug showed up in practice). A sub-kit's own
+ * rental_value isn't relevant to either total (see requirements: the
+ * parent's rental value is what the user sets, informed by replacement
+ * cost).
+ */
+export async function getKitsFlattenedSummary(kitIds: string[]): Promise<Map<string, KitFlattenedSummary>> {
+  const result = new Map<string, KitFlattenedSummary>();
+  if (kitIds.length === 0) return result;
+
+  const supabase = getSupabase();
+  try {
+    const { data, error } = await supabase
+      .from('kit_flattened_cache')
+      .select('kit_id, asset_id, total_quantity, asset:assets(replacement_value)')
+      .in('kit_id', kitIds);
+
+    if (error) throw error;
+    for (const row of (data || []) as any[]) {
+      const existing = result.get(row.kit_id) || { totalValue: 0, totalItems: 0, assetIds: new Set<string>() };
+      existing.totalValue += (row.asset?.replacement_value || 0) * row.total_quantity;
+      existing.totalItems += row.total_quantity;
+      existing.assetIds.add(row.asset_id);
+      result.set(row.kit_id, existing);
+    }
+    return result;
+  } catch (err) {
+    return handleApiError(err, 'fetch kits flattened summary');
+  }
+}
+
+/**
+ * The nested sub-kit structure (edges + depth) for the hierarchy display,
+ * enriched with each child kit's name — the RPC only returns IDs, so this
+ * does one follow-up batch fetch rather than a second DB round-trip per edge.
+ */
+export async function getKitHierarchyTree(kitId: string): Promise<{
+  parent_kit_id: string;
+  child_kit_id: string;
+  child_kit_name: string;
+  quantity: number;
+  depth: number;
+}[]> {
+  const supabase = getSupabase();
+  try {
+    const { data, error } = await supabase.rpc('get_kit_hierarchy_tree', { p_kit_id: kitId });
+    if (error) throw error;
+    const edges = data || [];
+    if (edges.length === 0) return [];
+
+    const childKitIds = Array.from(new Set(edges.map((e: any) => e.child_kit_id)));
+    const { data: childKits, error: kitsError } = await supabase
+      .from('kits')
+      .select('id, name')
+      .in('id', childKitIds);
+    if (kitsError) throw kitsError;
+
+    const nameById = new Map((childKits || []).map((k: any) => [k.id, k.name]));
+    return edges.map((e: any) => ({ ...e, child_kit_name: nameById.get(e.child_kit_id) ?? 'Unknown Kit' }));
+  } catch (err) {
+    return handleApiError(err, 'fetch kit hierarchy tree');
+  }
+}
+
+/**
+ * Which of the given candidate kits would create a circular reference if
+ * nested into `parentKitId` — lets the picker flag a candidate inline,
+ * right on its row, instead of only finding out from the
+ * kit_components_prevent_cycle trigger's rejection at save time. One
+ * batched RPC call wrapping the same kit_would_create_cycle() the trigger
+ * itself uses, so the two can never disagree.
+ */
+export async function getKitsThatWouldCycle(parentKitId: string, candidateKitIds: string[]): Promise<Set<string>> {
+  const result = new Set<string>();
+  if (candidateKitIds.length === 0) return result;
+
+  const supabase = getSupabase();
+  try {
+    const { data, error } = await supabase.rpc('kits_that_would_cycle', {
+      p_parent_kit_id: parentKitId,
+      p_candidate_kit_ids: candidateKitIds,
+    });
+    if (error) throw error;
+    for (const row of (data || []) as any[]) result.add(row.kit_id);
+    return result;
+  } catch (err) {
+    return handleApiError(err, 'check kit cycle candidates');
+  }
+}
+
+export interface KitComponentTreeNode {
+  clientKey: string;
+  type: 'asset' | 'kit';
+  quantity: number;
+  asset?: any;
+  kit?: { id: string; name: string; category: string | null; is_container: boolean; tag_number?: string | null };
+  /** Populated (possibly empty) for kit-type nodes only. */
+  children: KitComponentTreeNode[];
+}
+
+/**
+ * The full nested tree of this kit's contents — assets and sub-kits kept
+ * per level, unlike kit_flattened_cache which aggregates everything into
+ * one flat per-asset total — so the UI can render true nesting and label
+ * each sub-kit as a container or individual items. Every level is
+ * included, even inside containers; it's up to the caller (see
+ * `countInventoryItems`, and the "show container contents" toggle in
+ * KitDetailScreen) whether to drill into a container's own contents.
+ *
+ * Reuses the existing get_kit_hierarchy_tree RPC for the set of descendant
+ * kit ids, then does two batched follow-up queries (every involved kit's
+ * own name/category/is_container, and every involved kit's own direct
+ * components) rather than one query per level.
+ */
+export async function getKitComponentTree(kitId: string): Promise<KitComponentTreeNode[]> {
+  const supabase = getSupabase();
+  try {
+    const { data: edgeRows, error: edgeError } = await supabase.rpc('get_kit_hierarchy_tree', { p_kit_id: kitId });
+    if (edgeError) throw edgeError;
+    const edges = (edgeRows || []) as { parent_kit_id: string; child_kit_id: string; quantity: number; depth: number }[];
+
+    const allKitIds = Array.from(new Set([kitId, ...edges.map((e) => e.child_kit_id)]));
+
+    const [{ data: kitsData, error: kitsError }, { data: componentRows, error: componentsError }] = await Promise.all([
+      supabase.from('kits').select('id, name, category, is_container, tag_number').in('id', allKitIds),
+      supabase.from('kit_components').select('kit_id, asset_id, child_kit_id, quantity, asset:assets(*)').in('kit_id', allKitIds),
+    ]);
+    if (kitsError) throw kitsError;
+    if (componentsError) throw componentsError;
+
+    const kitsById = new Map((kitsData || []).map((k: any) => [k.id, k]));
+    const componentsByKit = new Map<string, any[]>();
+    for (const row of (componentRows || []) as any[]) {
+      const list = componentsByKit.get(row.kit_id) || [];
+      list.push(row);
+      componentsByKit.set(row.kit_id, list);
+    }
+
+    const buildChildren = (parentKitId: string): KitComponentTreeNode[] =>
+      (componentsByKit.get(parentKitId) || []).map((row) => {
+        if (row.asset_id) {
+          return {
+            clientKey: `asset-${row.asset_id}`,
+            type: 'asset' as const,
+            quantity: row.quantity,
+            asset: row.asset,
+            children: [],
+          };
+        }
+        const childKit = kitsById.get(row.child_kit_id);
+        return {
+          clientKey: `kit-${row.child_kit_id}`,
+          type: 'kit' as const,
+          quantity: row.quantity,
+          kit: {
+            id: row.child_kit_id,
+            name: childKit?.name ?? 'Unknown Kit',
+            category: childKit?.category ?? null,
+            is_container: !!childKit?.is_container,
+            tag_number: childKit?.tag_number ?? null,
+          },
+          children: buildChildren(row.child_kit_id),
+        };
+      });
+
+    return buildChildren(kitId);
+  } catch (err) {
+    return handleApiError(err, 'fetch kit component tree');
+  }
+}
+
+/**
+ * "Inventory items" per the kit-hierarchy tracking model: a physical asset
+ * counts individually, but a container sub-kit counts as exactly one item
+ * and its own contents aren't drilled into further — day to day it's a
+ * sealed unit, not a bag of loose parts. A non-container sub-kit is
+ * transparent: it isn't itself counted, it just contributes whatever its
+ * own contents count to (recursively, until hitting a container or a leaf
+ * asset) — multiplied by its own quantity, same as a container or an asset
+ * (2 copies of a non-container sub-kit means 2x everything inside it).
+ * Contrast with the fully-flattened "Total Items" count, which ignores
+ * container boundaries entirely.
+ */
+export function countInventoryItems(nodes: KitComponentTreeNode[]): number {
+  return nodes.reduce((total, node) => {
+    if (node.type === 'asset') return total + node.quantity;
+    if (node.kit?.is_container) return total + node.quantity;
+    return total + node.quantity * countInventoryItems(node.children);
+  }, 0);
+}
+
+export interface ScanUnit {
+  /** Which kit this unit is tracked/grouped under — the container's own id
+   * for a container unit, or the top (owning) kit's id for a loose asset. */
+  kit_id: string;
+  kit_name: string | null;
+  is_container: boolean;
+  asset_id: string | null;
+  asset_name: string | null;
+  tag_number: string | null;
+}
+
+/**
+ * Every physically scannable unit in a kit's tree, respecting container
+ * boundaries at *every* level, not just the top one — the traversal
+ * `kit_flattened_cache` can't do, since it flattens straight through every
+ * container. A container sub-kit becomes its own single unit, however
+ * deeply nested, and is never drilled into further; a non-container
+ * sub-kit is transparent, contributing whatever its own contents resolve
+ * to. Loose assets (not sealed inside any container) are attributed to
+ * `owningKit` — the top kit whose tree this is, matching how
+ * gig_kit_assignments only ever assigns top-level kits.
+ */
+export function flattenToScanUnits(nodes: KitComponentTreeNode[], owningKit: { id: string; name: string }): ScanUnit[] {
+  const units: ScanUnit[] = [];
+  for (const node of nodes) {
+    if (node.type === 'asset') {
+      units.push({
+        kit_id: owningKit.id,
+        kit_name: owningKit.name,
+        is_container: false,
+        asset_id: node.asset?.id ?? null,
+        asset_name: node.asset?.manufacturer_model ?? null,
+        tag_number: node.asset?.tag_number ?? null,
+      });
+    } else if (node.kit?.is_container) {
+      units.push({
+        kit_id: node.kit.id,
+        kit_name: node.kit.name,
+        is_container: true,
+        asset_id: null,
+        asset_name: null,
+        tag_number: node.kit.tag_number ?? null,
+      });
+    } else {
+      units.push(...flattenToScanUnits(node.children, owningKit));
+    }
+  }
+  return units;
+}
+
+/** Deepest sub-kit nesting level reached anywhere in the tree (a direct sub-kit is depth 1). */
+export function maxTreeDepth(nodes: KitComponentTreeNode[]): number {
+  return nodes.reduce((max, node) => {
+    if (node.type !== 'kit') return max;
+    return Math.max(max, 1 + maxTreeDepth(node.children));
+  }, 0);
 }

@@ -9,8 +9,9 @@ import { FIN_TYPE_GROUPS } from '../../utils/supabase/constants';
 import { Card, CardContent } from '../ui/card';
 import { Button } from '../ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '../ui/dialog';
-import { Loader2, DollarSign, Receipt, FileText, ChevronRight, History } from 'lucide-react';
+import { Loader2, DollarSign, Receipt, FileText, ChevronRight, History, Paperclip } from 'lucide-react';
 import QuickActionButtons from '../gig/QuickActionButtons';
+import AttachmentManager from '../AttachmentManager';
 import { cn } from '../ui/utils';
 
 interface MobileGigFinancialsProps {
@@ -209,6 +210,19 @@ export default function MobileGigFinancials({
                       <p className="text-[11px] whitespace-pre-wrap">{selectedTransaction.notes}</p>
                     </div>
                   )}
+                  <div className="pt-2 border-t">
+                    <p className="text-[11px] text-muted-foreground mb-1 flex items-center gap-1">
+                      <Paperclip className="w-3 h-3" /> Receipts &amp; Documents
+                    </p>
+                    <AttachmentManager
+                      organizationId={organizationId}
+                      entityType="gig_financial"
+                      entityId={selectedTransaction.id}
+                      title=""
+                      allowUpload={isAdmin}
+                      onAttachmentsChange={loadData}
+                    />
+                  </div>
                 </div>
               </div>
             ) : (
@@ -237,6 +251,9 @@ export default function MobileGigFinancials({
                         </div>
                       </div>
                       <div className="flex items-center gap-1 shrink-0 ml-2">
+                        {fin.attachment_count > 0 && (
+                          <Paperclip className="w-3 h-3 text-muted-foreground" />
+                        )}
                         <span className={cn(
                           "text-[11px] font-bold",
                           isRevenue ? "text-green-600" : isCost ? "text-amber-600" : ""

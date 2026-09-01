@@ -75,6 +75,7 @@ export const ENTITY_TYPE = {
   asset: 'asset',
   gig: 'gig',
   purchase: 'purchase',
+  gig_financial: 'gig_financial',
 } as const;
 
 export type EntityType = keyof typeof ENTITY_TYPE;

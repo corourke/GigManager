@@ -11,6 +11,44 @@ function getLatestTrackingRecord(tracking: any[] = [], kitId: string, assetId?: 
     .sort((left, right) => new Date(right.scanned_at).getTime() - new Date(left.scanned_at).getTime())[0] || null
 }
 
+// Faithful reimplementation of inventoryTracking.service.ts's cascade logic
+// for the mock below — a container is one sealed unit (itself plus its
+// fully-flattened contents, under its own id); a non-container kit gets no
+// record of its own, just its contents, recursing through non-container
+// children and stopping at the next container boundary.
+function getKitAssignment(packingList: any, kitId: string) {
+  return packingList?.kits?.find((assignment: any) => assignment.kit?.id === kitId) || null
+}
+function getKitAssetIds(packingList: any, kitId: string) {
+  return (getKitAssignment(packingList, kitId)?.kit?.assets || [])
+    .map((a: any) => a.asset_id || a.asset?.id || a.id)
+    .filter(Boolean)
+}
+function getDirectAssetIds(kit: any) {
+  return (kit?.direct_assets ?? kit?.assets ?? [])
+    .map((a: any) => a.asset_id || a.asset?.id || a.id)
+    .filter(Boolean)
+}
+function getChildKitIds(packingList: any, kitId: string) {
+  return (packingList?.hierarchy_edges || [])
+    .filter((edge: any) => edge.parent_kit_id === kitId)
+    .map((edge: any) => edge.child_kit_id)
+}
+function getCascadeTargets(packingList: any, kitId: string, owningKitId: string = kitId): { kit_id: string; asset_id: string | null }[] {
+  const kit = getKitAssignment(packingList, kitId)?.kit
+  if (kit?.is_container) {
+    return [
+      { kit_id: kitId, asset_id: null },
+      ...getKitAssetIds(packingList, kitId).map((assetId: string) => ({ kit_id: kitId, asset_id: assetId })),
+    ]
+  }
+  const targets = getDirectAssetIds(kit).map((assetId: string) => ({ kit_id: owningKitId, asset_id: assetId }))
+  for (const childKitId of getChildKitIds(packingList, kitId)) {
+    targets.push(...getCascadeTargets(packingList, childKitId, owningKitId))
+  }
+  return targets
+}
+
 vi.mock('../../contexts/AuthContext', () => ({
   useAuth: () => ({
     user: { id: 'user-1' },
@@ -35,6 +73,7 @@ vi.mock('../../services/mobile/packingList.service', () => ({
 vi.mock('../../services/mobile/inventoryTracking.service', () => ({
   inventoryTrackingService: {
     getLatestTrackingRecord,
+    getCascadeTargets,
     matchTag: vi.fn(),
     submitScan: vi.fn(),
     clearTracking: vi.fn(),
@@ -169,6 +208,66 @@ describe('MobileInventoryMode', () => {
     await user.click(screen.getByRole('button', { name: secondMode.label }))
 
     expect(locationInput).toHaveValue(secondMode.locationLabel)
+  })
+
+  it('renders a nested sub-kit as its own row instead of a flat sibling card, without duplicating its assets into the parent', async () => {
+    // Full Rack (not a container) directly contains Cable Snake and also
+    // nests Mic Case (a container), which contains its own SM58.
+    vi.mocked(idbStore.getPackingList).mockImplementation(async () => ({
+      gig_id: 'gig-1',
+      gig_title: 'Warehouse Check-In',
+      top_level_kit_ids: ['kit-1'],
+      hierarchy_edges: [{ parent_kit_id: 'kit-1', child_kit_id: 'kit-2' }],
+      kits: [
+        {
+          kit_id: 'kit-1',
+          kit: {
+            id: 'kit-1',
+            name: 'Full Rack',
+            tag_number: 'KIT-001',
+            is_container: false,
+            direct_assets: [
+              { asset_id: 'asset-snake', quantity: 1, asset: { id: 'asset-snake', manufacturer_model: 'Cable Snake', tag_number: 'SNAKE-1' } },
+            ],
+            assets: [
+              { asset_id: 'asset-snake', quantity: 1, asset: { id: 'asset-snake', manufacturer_model: 'Cable Snake', tag_number: 'SNAKE-1' } },
+              { asset_id: 'asset-mic', quantity: 1, asset: { id: 'asset-mic', manufacturer_model: 'SM58', tag_number: 'MIC-1' } },
+            ],
+          },
+        },
+        {
+          kit_id: 'kit-2',
+          kit: {
+            id: 'kit-2',
+            name: 'Mic Case',
+            tag_number: 'KIT-002',
+            is_container: true,
+            direct_assets: [
+              { asset_id: 'asset-mic', quantity: 1, asset: { id: 'asset-mic', manufacturer_model: 'SM58', tag_number: 'MIC-1' } },
+            ],
+            assets: [
+              { asset_id: 'asset-mic', quantity: 1, asset: { id: 'asset-mic', manufacturer_model: 'SM58', tag_number: 'MIC-1' } },
+            ],
+          },
+        },
+      ],
+      tracking: [],
+    }))
+
+    render(<MobileInventoryMode gigId="gig-1" onSelectGig={vi.fn()} />)
+
+    expect(await screen.findByText('Full Rack')).toBeInTheDocument()
+    expect(await screen.findByText('Mic Case')).toBeInTheDocument()
+
+    // Full Rack (non-container) defaults to expanded — its own direct
+    // asset shows, but Mic Case's SM58 doesn't show here (it belongs to
+    // Mic Case's own row, not folded into Full Rack's list).
+    expect(await screen.findByText('Cable Snake')).toBeInTheDocument()
+    expect(screen.queryByText('SM58')).not.toBeInTheDocument()
+
+    // Mic Case is a container, so it defaults to collapsed and doesn't get
+    // descended into any further — but it's still there as its own kit row.
+    expect(screen.getByText('Mic Case').closest('div')).toBeTruthy()
   })
 
   it('preserves customized location when switching modes', async () => {
