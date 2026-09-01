@@ -236,6 +236,114 @@ describe('KitScreen', () => {
     expect(screen.getByText('1 selected')).toBeInTheDocument()
   })
 
+  // Unlike the cycle case, an already-in-kit candidate isn't shown by
+  // default — the "excludes..." test above covers that. This test covers
+  // the reveal path: a toggle brings it back into view, grayed out with a
+  // reason, same visual treatment as a cyclic candidate, and the reason
+  // names the specific sub-kit when that's how the overlap happened.
+  it('reveals already-in-kit candidates with a reason when the "show items already in this kit" toggle is enabled', async () => {
+    vi.mocked(getKit).mockResolvedValue({
+      id: 'kit-1',
+      name: 'Full Rack',
+      kit_components: [
+        { id: 'kc-1', asset_id: 'asset-1', quantity: 1, asset: { id: 'asset-1', manufacturer_model: 'DI Box' } },
+        { id: 'kc-2', child_kit_id: 'kit-audio', quantity: 1, child_kit: { id: 'kit-audio', name: 'Audio Kit' } },
+      ],
+    } as any)
+
+    vi.mocked(getAssets).mockResolvedValue([
+      { id: 'asset-1', manufacturer_model: 'DI Box', quantity: 1 }, // added directly
+      { id: 'asset-2', manufacturer_model: 'SM58 Mic', quantity: 1 }, // already reachable via Audio Kit
+      { id: 'asset-3', manufacturer_model: 'XLR Cable', quantity: 10 }, // unrelated
+    ] as any)
+
+    vi.mocked(getKits).mockResolvedValue([
+      { id: 'kit-lighting', name: 'Lighting Kit', category: 'Lighting', kit_components: [] }, // already contains DI Box
+    ] as any)
+
+    vi.mocked(getKitsFlattenedSummary).mockImplementation(async (ids: string[]) => {
+      const all = new Map([
+        ['kit-audio', { totalValue: 50, totalItems: 1, assetIds: new Set(['asset-2']) }],
+        ['kit-lighting', { totalValue: 150, totalItems: 1, assetIds: new Set(['asset-1']) }],
+      ])
+      const result = new Map()
+      for (const id of ids) if (all.has(id)) result.set(id, all.get(id))
+      return result
+    })
+
+    // Neither candidate here is cyclic — reset any custom implementation a
+    // preceding test left behind, since this file doesn't clear mocks
+    // between tests.
+    vi.mocked(getKitsThatWouldCycle).mockResolvedValue(new Set())
+
+    render(<KitScreen {...mockProps} kitId="kit-1" />)
+    fireEvent.click(await screen.findByText('Add Components'))
+    const dialog = await waitFor(() => screen.getByRole('dialog'))
+
+    await waitFor(() => {
+      expect(within(dialog).getByText('XLR Cable')).toBeInTheDocument()
+    })
+    // Off by default — same list as before the toggle existed.
+    expect(within(dialog).queryByText('SM58 Mic')).not.toBeInTheDocument()
+    expect(within(dialog).queryByText('Lighting Kit')).not.toBeInTheDocument()
+
+    fireEvent.click(within(dialog).getByText('Show items already in this kit'))
+
+    await waitFor(() => {
+      expect(within(dialog).getByText('SM58 Mic')).toBeInTheDocument()
+    })
+    // Reachable via Audio Kit's flattened contents, not added directly — the
+    // reason names that sub-kit.
+    expect(within(dialog).getByText('Already in this kit via Audio Kit')).toBeInTheDocument()
+    // A kit candidate's reason doesn't pinpoint which asset overlaps.
+    expect(within(dialog).getByText('Lighting Kit')).toBeInTheDocument()
+    expect(within(dialog).getByText('Contains assets already in this kit')).toBeInTheDocument()
+    // Added directly to this kit, not via a sub-kit — no "via" clause.
+    expect(within(dialog).getByText('Already in this kit')).toBeInTheDocument()
+  })
+
+  // Revealing an already-in-kit candidate makes it visible, not selectable —
+  // same rule as a cyclic candidate.
+  it('does not allow selecting an already-in-kit candidate even after the toggle reveals it', async () => {
+    vi.mocked(getKit).mockResolvedValue({
+      id: 'kit-1',
+      name: 'Full Rack',
+      kit_components: [
+        { id: 'kc-1', child_kit_id: 'kit-audio', quantity: 1, child_kit: { id: 'kit-audio', name: 'Audio Kit' } },
+      ],
+    } as any)
+
+    vi.mocked(getAssets).mockResolvedValue([
+      { id: 'asset-2', manufacturer_model: 'SM58 Mic', quantity: 1 }, // already reachable via Audio Kit
+    ] as any)
+
+    // No kit candidates in this scenario — only the sub-kit already in the draft.
+    vi.mocked(getKits).mockResolvedValue([])
+
+    vi.mocked(getKitsFlattenedSummary).mockImplementation(async (ids: string[]) => {
+      const all = new Map([
+        ['kit-audio', { totalValue: 50, totalItems: 1, assetIds: new Set(['asset-2']) }],
+      ])
+      const result = new Map()
+      for (const id of ids) if (all.has(id)) result.set(id, all.get(id))
+      return result
+    })
+
+    vi.mocked(getKitsThatWouldCycle).mockResolvedValue(new Set())
+
+    render(<KitScreen {...mockProps} kitId="kit-1" />)
+    fireEvent.click(await screen.findByText('Add Components'))
+    const dialog = await waitFor(() => screen.getByRole('dialog'))
+
+    fireEvent.click(within(dialog).getByText('Show items already in this kit'))
+    await waitFor(() => {
+      expect(within(dialog).getByText('SM58 Mic')).toBeInTheDocument()
+    })
+
+    fireEvent.click(within(dialog).getByText('SM58 Mic'))
+    expect(within(dialog).getByText('0 selected')).toBeInTheDocument()
+  })
+
   // Regression: a cyclic candidate's flattened assets always overlap the
   // kit being edited too (nesting X into Y when X already contains Y means
   // X's flattened set already has everything Y has) — the duplicate-asset

@@ -75,8 +75,8 @@ interface KitComponentRow {
 
 /** A searchable candidate in the unified picker — an asset or an existing kit. */
 type PickerCandidate =
-  | { type: 'asset'; id: string; name: string; subtitle: string; asset: DbAsset; quantityAvailable: number | null }
-  | { type: 'kit'; id: string; name: string; subtitle: string; componentCount: number; wouldCycle: boolean };
+  | { type: 'asset'; id: string; name: string; subtitle: string; asset: DbAsset; quantityAvailable: number | null; excludedReason: string | null }
+  | { type: 'kit'; id: string; name: string; subtitle: string; componentCount: number; wouldCycle: boolean; excludedReason: string | null };
 
 export default function KitScreen({
   organization,
@@ -113,6 +113,7 @@ export default function KitScreen({
   const [pickerFilter, setPickerFilter] = useState<'all' | 'assets' | 'kits'>('all');
   const [pickerCandidates, setPickerCandidates] = useState<PickerCandidate[]>([]);
   const [pickerSearchQuery, setPickerSearchQuery] = useState('');
+  const [showAlreadyInKit, setShowAlreadyInKit] = useState(false);
   const [selectedKeys, setSelectedKeys] = useState<Set<string>>(new Set());
   const [addQuantities, setAddQuantities] = useState<Map<string, number>>(new Map());
   const [tagInput, setTagInput] = useState('');
@@ -244,22 +245,48 @@ export default function KitScreen({
 
       // Every asset already represented in this kit, directly or through an
       // already-added sub-kit's flattened contents — the same physical asset
-      // can't enter a kit twice, however it gets there.
+      // can't enter a kit twice, however it gets there. Also remember which
+      // already-added sub-kit contributed each such asset, so the picker can
+      // name it in the exclusion reason instead of just saying "already in
+      // this kit" (an asset added directly has no such kit).
+      const childKitNames = new Map<string, string>();
+      for (const row of kitComponents) {
+        if (row.child_kit_id && row.childKit?.name) childKitNames.set(row.child_kit_id, row.childKit.name);
+      }
       const existingFlattenedAssetIds = new Set<string>(alreadyDirectAssetIds);
+      const assetIdToViaKitName = new Map<string, string>();
       for (const childKitId of alreadyDirectKitIds) {
-        summaries.get(childKitId)?.assetIds.forEach((id) => existingFlattenedAssetIds.add(id));
+        const kitAssetIds = summaries.get(childKitId)?.assetIds;
+        if (!kitAssetIds) continue;
+        const kitName = childKitNames.get(childKitId);
+        for (const assetId of kitAssetIds) {
+          existingFlattenedAssetIds.add(assetId);
+          if (kitName && !assetIdToViaKitName.has(assetId)) assetIdToViaKitName.set(assetId, kitName);
+        }
       }
 
-      const assetCandidates: PickerCandidate[] = (assets || [])
-        .filter((a: DbAsset) => !existingFlattenedAssetIds.has(a.id))
-        .map((a: DbAsset) => ({
+      // Candidates already covered elsewhere in the kit's tree stay in the
+      // list (not filtered out) so the picker can show them grayed out with
+      // a reason, same treatment as the circular-reference case below —
+      // gated behind the "show already in this kit" toggle at render time.
+      const assetCandidates: PickerCandidate[] = (assets || []).map((a: DbAsset) => {
+        let excludedReason: string | null = null;
+        if (alreadyDirectAssetIds.has(a.id)) {
+          excludedReason = 'Already in this kit';
+        } else if (existingFlattenedAssetIds.has(a.id)) {
+          const viaKitName = assetIdToViaKitName.get(a.id);
+          excludedReason = viaKitName ? `Already in this kit via ${viaKitName}` : 'Already in this kit';
+        }
+        return {
           type: 'asset',
           id: a.id,
           name: a.manufacturer_model || 'Unknown Asset',
           subtitle: [a.category, a.serial_number ? `SN: ${a.serial_number}` : null].filter(Boolean).join(' • '),
           asset: a,
           quantityAvailable: a.quantity ?? null,
-        }));
+          excludedReason,
+        };
+      });
 
       // Check for circular references across every candidate BEFORE
       // filtering out duplicate assets — a cycle candidate is, by
@@ -275,28 +302,36 @@ export default function KitScreen({
         ? await getKitsThatWouldCycle(kitId, kitCandidateSource.map((k: any) => k.id))
         : new Set<string>();
 
-      // A non-cyclic kit candidate is excluded if any asset it flattens to
-      // is already covered above — same rule as assets, the other
-      // direction: adding this kit would put an asset already in the
-      // parent into it a second time.
-      const visibleKitCandidates = kitCandidateSource.filter((k: any) => {
-        if (cyclicKitIds.has(k.id)) return true;
-        const assetIds = summaries.get(k.id)?.assetIds;
-        if (!assetIds) return true;
-        for (const assetId of assetIds) {
-          if (existingFlattenedAssetIds.has(assetId)) return false;
+      // A non-cyclic kit candidate is flagged (not filtered out) if any
+      // asset it flattens to is already covered above — same rule as
+      // assets, the other direction: adding this kit would put an asset
+      // already in the parent into it a second time. The cycle check still
+      // takes priority: a cyclic candidate's excludedReason stays null,
+      // since wouldCycle already carries its own, more specific reason.
+      const kitCandidates: PickerCandidate[] = kitCandidateSource.map((k: any) => {
+        const wouldCycle = cyclicKitIds.has(k.id);
+        let excludedReason: string | null = null;
+        if (!wouldCycle) {
+          const assetIds = summaries.get(k.id)?.assetIds;
+          if (assetIds) {
+            for (const assetId of assetIds) {
+              if (existingFlattenedAssetIds.has(assetId)) {
+                excludedReason = 'Contains assets already in this kit';
+                break;
+              }
+            }
+          }
         }
-        return true;
+        return {
+          type: 'kit' as const,
+          id: k.id,
+          name: k.name,
+          subtitle: k.category || '',
+          componentCount: k.kit_components?.length ?? 0,
+          wouldCycle,
+          excludedReason,
+        };
       });
-
-      const kitCandidates: PickerCandidate[] = visibleKitCandidates.map((k: any) => ({
-        type: 'kit' as const,
-        id: k.id,
-        name: k.name,
-        subtitle: k.category || '',
-        componentCount: k.kit_components?.length ?? 0,
-        wouldCycle: cyclicKitIds.has(k.id),
-      }));
 
       setPickerCandidates([...assetCandidates, ...kitCandidates]);
     } catch (error: any) {
@@ -309,6 +344,14 @@ export default function KitScreen({
       loadPickerCandidates();
     }
   }, [pickerSearchQuery, pickerFilter, showPicker]);
+
+  // Candidates already covered elsewhere in the kit's tree stay out of the
+  // list by default — the toggle above the list reveals them, grayed out
+  // with their reason, same as an always-visible circular-reference candidate.
+  const visibleCandidates = useMemo(
+    () => pickerCandidates.filter((c) => showAlreadyInKit || !c.excludedReason),
+    [pickerCandidates, showAlreadyInKit]
+  );
 
   const handleChange = (field: keyof FormData, value: string | string[]) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
@@ -337,6 +380,7 @@ export default function KitScreen({
 
   const toggleSelected = (c: PickerCandidate) => {
     if (c.type === 'kit' && c.wouldCycle) return;
+    if (c.excludedReason) return;
     const key = candidateKey(c);
     setSelectedKeys((prev) => {
       const next = new Set(prev);
@@ -921,30 +965,43 @@ export default function KitScreen({
               />
             </div>
 
-            <div className="flex gap-2">
-              {(['all', 'assets', 'kits'] as const).map((f) => (
-                <Badge
-                  key={f}
-                  variant={pickerFilter === f ? 'default' : 'outline'}
-                  className="cursor-pointer capitalize"
-                  onClick={() => setPickerFilter(f)}
-                >
-                  {f}
-                </Badge>
-              ))}
+            <div className="flex items-center justify-between gap-4">
+              <div className="flex gap-2">
+                {(['all', 'assets', 'kits'] as const).map((f) => (
+                  <Badge
+                    key={f}
+                    variant={pickerFilter === f ? 'default' : 'outline'}
+                    className="cursor-pointer capitalize"
+                    onClick={() => setPickerFilter(f)}
+                  >
+                    {f}
+                  </Badge>
+                ))}
+              </div>
+              <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer whitespace-nowrap">
+                <Checkbox
+                  checked={showAlreadyInKit}
+                  onCheckedChange={(checked) => setShowAlreadyInKit(checked === true)}
+                />
+                Show items already in this kit
+              </label>
             </div>
 
             <div className="border border-gray-200 rounded-lg divide-y divide-gray-200 max-h-96 overflow-y-auto">
-              {pickerCandidates.length === 0 ? (
+              {visibleCandidates.length === 0 ? (
                 <div className="p-8 text-center text-gray-500">
                   No assets or kits found
                 </div>
               ) : (
-                pickerCandidates.map((c) => {
+                visibleCandidates.map((c) => {
                   const key = candidateKey(c);
                   const selected = selectedKeys.has(key);
                   const quantityToAdd = addQuantities.get(key) ?? 1;
-                  const disabled = c.type === 'kit' && c.wouldCycle;
+                  const disabledReason =
+                    c.type === 'kit' && c.wouldCycle
+                      ? `Would create a circular reference — this kit is already nested inside ${c.name}`
+                      : c.excludedReason;
+                  const disabled = !!disabledReason;
                   return (
                     <div
                       key={key}
@@ -965,10 +1022,10 @@ export default function KitScreen({
                             {c.type === 'kit' ? 'Kit' : 'Asset'}
                           </Badge>
                         </div>
-                        {disabled ? (
+                        {disabledReason ? (
                           <div className="text-xs text-amber-600 flex items-center gap-1 mt-0.5">
                             <AlertCircle className="w-3 h-3" />
-                            Would create a circular reference — this kit is already nested inside {c.name}
+                            {disabledReason}
                           </div>
                         ) : (
                           <div className="text-xs text-gray-500">
