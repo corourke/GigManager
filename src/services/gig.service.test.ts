@@ -334,6 +334,40 @@ describe('gig.service', () => {
       mockSupabase.from.mockReturnValue(makeChain({ data: [], error: null }));
       await expect(deleteGigFinancial('fin-1')).rejects.toThrow(/permission|not found/i);
     });
+
+    it('removes the storage blob only for attachments this record solely owns', async () => {
+      const remove = vi.fn().mockResolvedValue({ data: [], error: null });
+      mockSupabase.storage = { from: vi.fn().mockReturnValue({ remove }) };
+
+      // att-sole is referenced once (only by this record), att-shared twice.
+      const refCounts: Record<string, number> = { 'att-sole': 1, 'att-shared': 2 };
+
+      mockSupabase.from.mockImplementation((table: string) => {
+        if (table === 'gig_financials') return makeChain({ data: [{ id: 'fin-1' }], error: null });
+        if (table === 'entity_attachments') {
+          const chain: any = makeChain({
+            data: [
+              { attachment_id: 'att-sole', attachment: { file_path: 'org/sole.pdf' } },
+              { attachment_id: 'att-shared', attachment: { file_path: 'org/shared.pdf' } },
+            ],
+            error: null,
+          });
+          chain.select = vi.fn((_cols: string, opts?: any) =>
+            opts?.head
+              ? { eq: (_c: string, v: string) => Promise.resolve({ data: null, error: null, count: refCounts[v] ?? 1 }) }
+              : chain
+          );
+          return chain;
+        }
+        return makeChain({ data: [], error: null });
+      });
+
+      const result = await deleteGigFinancial('fin-1');
+
+      expect(result).toEqual({ success: true });
+      expect(remove).toHaveBeenCalledWith(['org/sole.pdf']);
+      expect(remove).not.toHaveBeenCalledWith(expect.arrayContaining(['org/shared.pdf']));
+    });
   });
 
   // ─── removeKitFromGig ─────────────────────────────────────────────────────

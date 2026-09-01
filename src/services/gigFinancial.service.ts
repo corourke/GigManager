@@ -281,11 +281,45 @@ export async function updateGigBid(bidId: string, bidData: any) {
 }
 
 /**
+ * Best-effort removal of storage blobs for attachments that belong ONLY to this
+ * financial record. DB metadata (entity_attachments / attachments rows) is swept
+ * by the trg_cleanup_attachments trigger on delete; the storage backend can only
+ * be written through the Storage API, so that part is done here. Never throws.
+ */
+async function purgeSoleAttachmentBlobsForGigFinancial(finId: string): Promise<void> {
+  try {
+    const supabase = getSupabase();
+    const { data: links } = await supabase
+      .from('entity_attachments')
+      .select('attachment_id, attachment:attachment_id(file_path)')
+      .eq('entity_type', 'gig_financial')
+      .eq('entity_id', finId);
+    if (!links || links.length === 0) return;
+
+    const soleOwnedPaths: string[] = [];
+    for (const l of links as any[]) {
+      const { count } = await supabase
+        .from('entity_attachments')
+        .select('id', { count: 'exact', head: true })
+        .eq('attachment_id', l.attachment_id);
+      // 1 => only this financial's link references the attachment
+      if ((count ?? 0) <= 1 && l.attachment?.file_path) soleOwnedPaths.push(l.attachment.file_path);
+    }
+    if (soleOwnedPaths.length > 0) {
+      await supabase.storage.from('attachments').remove(soleOwnedPaths);
+    }
+  } catch (err) {
+    console.warn('purgeSoleAttachmentBlobsForGigFinancial: non-fatal', err);
+  }
+}
+
+/**
  * Delete a financial record
  */
 export async function deleteGigFinancial(finId: string) {
   const supabase = getSupabase();
   try {
+    await purgeSoleAttachmentBlobsForGigFinancial(finId);
     // .select() to confirm a row was removed — RLS denies silently (0 rows, no error)
     const { data, error } = await supabase.from('gig_financials').delete().eq('id', finId).select();
     if (error) throw error;
