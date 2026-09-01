@@ -101,10 +101,27 @@ export default function AttachmentManager({
   };
 
   const handleDownload = async (attachment: DbAttachment) => {
+    // Open the tab synchronously, inside the click's user-activation window, so
+    // the browser doesn't block it or fall back to a same-tab navigation once
+    // the async signed-URL call resolves.
+    const newTab = window.open('about:blank', '_blank', 'noopener,noreferrer');
     try {
       const url = await getAttachmentUrl(attachment.file_path);
-      window.open(url, '_blank');
+      if (newTab) {
+        newTab.opener = null;
+        newTab.location.replace(url);
+      } else {
+        // Popup was blocked before the await — retry with a transient anchor.
+        const a = document.createElement('a');
+        a.href = url;
+        a.target = '_blank';
+        a.rel = 'noopener noreferrer';
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+      }
     } catch (err: any) {
+      newTab?.close();
       console.error('Error getting attachment URL:', err);
       toast.error('Failed to open attachment');
     }
@@ -131,7 +148,7 @@ export default function AttachmentManager({
               onChange={handleFileUpload}
               disabled={isUploading}
             />
-            <Button variant="outline" size="sm" disabled={isUploading}>
+            <Button type="button" variant="outline" size="sm" disabled={isUploading}>
               {isUploading ? (
                 <Loader2 className="w-4 h-4 mr-2 animate-spin" />
               ) : (
@@ -168,6 +185,7 @@ export default function AttachmentManager({
               </div>
               <div className="flex items-center gap-1">
                 <Button
+                  type="button"
                   variant="ghost"
                   size="icon"
                   className="h-8 w-8 text-gray-400 hover:text-sky-600"
@@ -178,6 +196,7 @@ export default function AttachmentManager({
                 </Button>
                 {allowUpload && (
                   <Button
+                    type="button"
                     variant="ghost"
                     size="icon"
                     className="h-8 w-8 text-gray-400 hover:text-red-600"
