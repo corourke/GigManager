@@ -133,20 +133,20 @@ reading the right number.
 
 ## Part 2 — Attach a receipt to a gig expense, on web (✨ NEW FEATURE)
 
-- [ ] Open **SMOKE — Gig A** → Financials. Find the `Van rental` expense row. It has a
+- [x] Open **SMOKE — Gig A** → Financials. Find the `Van rental` expense row. It has a
       **paperclip** icon button in the row's action area (visible whether or not the section is
       in edit mode).
-- [ ] Click the paperclip. A **"Receipts & Documents"** dialog opens showing "No attachments
+- [x] Click the paperclip. A **"Receipts & Documents"** dialog opens showing "No attachments
       found" and an **Upload** button. (Any Admin/Manager can attach — you do **not** need to
       click "Edit Financials" first. A Staff/Viewer never reaches this screen at all.)
-- [ ] Upload your PDF (Step 0.7). It appears in the list with its filename and today's date.
-- [ ] Close the dialog (**Done**). The paperclip button on the `Van rental` row now shows a
+- [x] Upload your PDF (Step 0.7). It appears in the list with its filename and today's date.
+- [x] Close the dialog (**Done**). The paperclip button on the `Van rental` row now shows a
       small **"1"** count next to it.
-- [ ] Re-open the paperclip dialog, click the **eye / view** icon on the file — the PDF opens
+- [x] Re-open the paperclip dialog, click the **eye / view** icon on the file — the PDF opens
       in a new tab.
-- [ ] In the dialog, remove the attachment (**✕ / remove**, confirm the prompt). The row's
+- [x] In the dialog, remove the attachment (**✕ / remove**, confirm the prompt). The row's
       paperclip count goes back to no number.
-- [ ] Re-attach the PDF (you'll want it there for Part 6). Count shows **1** again.
+- [x] Re-attach the PDF (you'll want it there for Part 6). Count shows **1** again.
 
 ### 2b — Paid toggle + receipt in the Simple Expense form (web) (✨ NEW FEATURE)
 
