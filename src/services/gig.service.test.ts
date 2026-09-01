@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import {
   getGig,
   getGigsForOrganization,
+  getGigOptionsForOrganization,
   deleteGig,
   getGigFinancials,
   getGigFinancialsByPurchaseId,
@@ -171,6 +172,65 @@ describe('gig.service', () => {
       mockSupabase.from.mockReturnValue(makeChain({ data: null, error: dbError }));
 
       await expect(getGigsForOrganization('org-1')).rejects.toThrow('connection refused');
+    });
+  });
+
+  // ─── getGigOptionsForOrganization ─────────────────────────────────────────
+
+  describe('getGigOptionsForOrganization', () => {
+    const setup = (gigRows: any[]) => {
+      const participantChain = makeChain({ data: [{ gig_id: 'gig-1' }], error: null });
+      const gigChain = makeChain({ data: gigRows, error: null });
+      mockSupabase.from.mockImplementation((table: string) => {
+        if (table === 'gig_participants') return participantChain;
+        if (table === 'gigs') return gigChain;
+        return makeChain({ data: [], error: null });
+      });
+      return { participantChain, gigChain };
+    };
+
+    it('returns [] when the org participates in no gigs', async () => {
+      mockSupabase.from.mockReturnValue(makeChain({ data: [], error: null }));
+      expect(await getGigOptionsForOrganization('org-1')).toEqual([]);
+    });
+
+    it('maps venue/act names and does not filter by date when no aroundDate is given', async () => {
+      const { gigChain } = setup([
+        {
+          id: 'gig-1',
+          title: 'Festival',
+          start: '2026-06-01T18:00:00Z',
+          participants: [
+            { role: 'Venue', organization: { name: 'The Venue' } },
+            { role: 'Act', organization: { name: 'The Band' } },
+          ],
+        },
+      ]);
+
+      const result = await getGigOptionsForOrganization('org-1');
+
+      expect(gigChain.or).not.toHaveBeenCalled();
+      expect(result).toEqual([
+        { id: 'gig-1', title: 'Festival', start: '2026-06-01T18:00:00Z', venue: { name: 'The Venue' }, act: { name: 'The Band' } },
+      ]);
+    });
+
+    it('scopes to a ±window around aroundDate and always keeps the linked gig', async () => {
+      const { gigChain } = setup([]);
+
+      await getGigOptionsForOrganization('org-1', { aroundDate: '2025-12-19', windowDays: 21, ensureGigId: 'gig-far' });
+
+      expect(gigChain.or).toHaveBeenCalledTimes(1);
+      const orArg = (gigChain.or as any).mock.calls[0][0] as string;
+      expect(orArg).toContain('start.gte.2025-11-28T00:00:00.000Z');
+      expect(orArg).toContain('start.lte.2026-01-09T23:59:59.999Z');
+      expect(orArg).toContain('id.eq.gig-far');
+    });
+
+    it('ignores an unparseable aroundDate rather than filtering everything out', async () => {
+      const { gigChain } = setup([]);
+      await getGigOptionsForOrganization('org-1', { aroundDate: 'not-a-date' });
+      expect(gigChain.or).not.toHaveBeenCalled();
     });
   });
 

@@ -65,7 +65,7 @@ import {
   assignGigToPurchaseChildren,
 } from '../../../services/purchase.service';
 import { getEntityAttachments, uploadAttachment, linkAttachmentToEntity } from '../../../services/attachment.service';
-import { getGigsForOrganization, getGigFinancialsByPurchaseId, getPurchaseIdsWithLedgerEntry } from '../../../services/gig.service';
+import { getGigOptionsForOrganization, getGigFinancialsByPurchaseId, getPurchaseIdsWithLedgerEntry } from '../../../services/gig.service';
 import { toast } from 'sonner';
 import { isSyntheticHeader } from './reconciliation';
 import PurchaseDetailPanel, { PanelState } from './PurchaseDetailPanel';
@@ -154,8 +154,8 @@ export default function PurchasesTab({
   }, [organization.id]);
 
   useEffect(() => {
-    getGigsForOrganization(organization.id)
-      .then((gigs: any[]) => {
+    getGigOptionsForOrganization(organization.id)
+      .then((gigs) => {
         const map = new Map<string, string>();
         gigs.forEach(g => map.set(g.id, g.title));
         setGigNames(map);
@@ -819,6 +819,7 @@ export default function PurchasesTab({
                         <GigCombobox
                           organizationId={organization.id}
                           value={group.header.gig_id || null}
+                          aroundDate={group.header.purchase_date}
                           placeholder="Assign receipt to gig…"
                           hideClear
                           onChange={(gigId, gigTitle) => { if (gigId) handleAssignHeaderGig(group.header, gigId, gigTitle); }}
@@ -1002,6 +1003,7 @@ export default function PurchasesTab({
                                   <GigCombobox
                                     organizationId={organization.id}
                                     value={item.gig_id || null}
+                                    aroundDate={item.purchase_date}
                                     onChange={(gigId, gigTitle) => handleAssignGig(item, gigId, gigTitle)}
                                     disabled={assigningGigItemId === item.id}
                                   />

@@ -511,12 +511,30 @@ export function shouldPromptForLedgerEntry(
 /** The subset of a purchase line needed to build/refresh its ledger entry. */
 export type LedgerLineSource = Pick<
   DbPurchase,
-  'id' | 'row_type' | 'line_amount' | 'item_price' | 'quantity' | 'purchase_date' | 'description' | 'vendor' | 'category'
+  | 'id' | 'row_type' | 'line_cost' | 'item_cost' | 'line_amount' | 'item_price'
+  | 'quantity' | 'purchase_date' | 'description' | 'vendor' | 'category'
 >;
 
-/** Amount a purchase line contributes to a gig ledger: explicit line total, else price × qty. */
-export function purchaseLineLedgerAmount(item: Pick<DbPurchase, 'line_amount' | 'item_price' | 'quantity'>): number {
-  return item.line_amount ?? (item.item_price ?? 0) * (item.quantity ?? 1);
+/**
+ * Amount a purchase line contributes to a gig ledger.
+ *
+ * `line_cost` is the burdened line total that cost allocation reconciles to the
+ * invoice (see `applyCostAllocation`), so it's the authoritative figure for an
+ * "Expense Incurred" entry. "Cost" rows (imported/scanned expenses) only carry
+ * `line_cost`/`item_cost` — `line_amount`/`item_price` are null for them, which
+ * is why the old `line_amount`-first logic recorded $0. Fall back to the pre-fee
+ * price only when no cost is stored.
+ */
+export function purchaseLineLedgerAmount(
+  item: Pick<DbPurchase, 'line_cost' | 'item_cost' | 'line_amount' | 'item_price' | 'quantity'>
+): number {
+  const qty = item.quantity ?? 1;
+  return (
+    item.line_cost ??
+    (item.item_cost != null ? item.item_cost * qty : null) ??
+    item.line_amount ??
+    (item.item_price ?? 0) * qty
+  );
 }
 
 /** Build the `createGigFinancial` payload for a purchase line linked to a gig. */
