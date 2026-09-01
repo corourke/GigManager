@@ -34,25 +34,30 @@ Fixed by adding that traversal in two forms and pointing every consumer at it:
 
 ## Open
 
-### 1. Add Components picker silently hides items already elsewhere in the kit's tree
+## Done
 
-**Found:** 2026-08-27, manual test pass, test item 2 (cycle rejection)
-**Status:** In progress — spun off to a background session (task `task_2d12ff4c`)
+### 1. Add Components picker silently hid items already elsewhere in the kit's tree — 2026-09-01
 
-The picker already handles one exclusion case well: a kit that would create a circular
+The picker already handled one exclusion case well: a kit that would create a circular
 reference isn't hidden, it's shown grayed out with an inline reason ("Would create a
 circular reference"). A different exclusion path — assets/kits already covered elsewhere
 in the kit's tree (added directly, or reachable through an already-added sub-kit's
-flattened contents) — doesn't get the same treatment. Those candidates are just removed
-from the list with no trace, which reads as "why isn't this here?" to a user who doesn't
-already know the exclusion rule.
+flattened contents) — didn't get the same treatment; those candidates were just removed
+from the list with no trace.
 
-Fix direction: same visual treatment as the cycle case (show + gray out + reason),
-gated behind a toggle so the default list stays short. See
-`src/components/KitScreen.tsx` (`loadPickerCandidates`, `~line 223`) and
-`src/components/KitScreen.test.tsx` for the existing cycle-flagging test to extend.
+Fixed by giving every candidate an `excludedReason` instead of dropping it:
+`loadPickerCandidates` (`src/components/KitScreen.tsx`) computes it from the same
+`existingFlattenedAssetIds`/`getKitsFlattenedSummary` data it already had — for assets,
+"Already in this kit" (or "Already in this kit via &lt;Sub-Kit Name&gt;" when it's only
+reachable through an already-added sub-kit's flattened contents, not added directly);
+for kits, "Contains assets already in this kit" (no attempt to pinpoint which asset). A
+"Show items already in this kit" toggle (default off, so the default list is unchanged)
+reveals them at render time with the same grayed-out/disabled treatment the
+circular-reference case already had.
 
-## Done
+Added two tests extending the existing cycle-flagging coverage in
+`KitScreen.test.tsx`: one confirming the reveal and per-type reason text, one confirming
+a revealed candidate still can't be selected.
 
 ### 2. "Inventory Items" count too high for a non-container kit — 2026-08-27
 
