@@ -1,6 +1,8 @@
 // Shared Sentry setup for edge functions. No-ops entirely when SENTRY_DSN is
 // not set (local dev / functions serve), so it is always safe to import.
-import * as Sentry from 'https://deno.land/x/sentry/index.mjs';
+// Version pinned so `supabase functions deploy` is reproducible (an unpinned
+// URL silently tracks whatever "latest" resolves to at deploy time).
+import * as Sentry from 'https://deno.land/x/sentry@8.55.0/index.mjs';
 
 const dsn = Deno.env.get('SENTRY_DSN');
 
