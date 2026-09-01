@@ -1103,7 +1103,7 @@ export default function GigFinancialsSection({
               entityType="gig_financial"
               entityId={attachmentModal.id}
               title="Attachments"
-              allowUpload={isEditMode && isAdmin}
+              allowUpload={isAdmin}
             />
           )}
           <DialogFooter>
