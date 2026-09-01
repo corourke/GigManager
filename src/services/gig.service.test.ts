@@ -4,6 +4,7 @@ import {
   getGigsForOrganization,
   deleteGig,
   getGigFinancials,
+  getGigFinancialsByPurchaseId,
   deleteGigFinancial,
   removeKitFromGig,
   getGigKits,
@@ -248,6 +249,62 @@ describe('gig.service', () => {
     it('returns empty array when there are no financials', async () => {
       mockSupabase.from.mockReturnValue(makeChain({ data: null, error: null }));
       const result = await getGigFinancials('gig-1');
+      expect(result).toEqual([]);
+    });
+
+    it('enriches each row with attachment_count from entity_attachments in one extra query', async () => {
+      const finChain = makeChain({
+        data: [
+          { id: 'fin-1', amount: 500, gig_id: 'gig-1' },
+          { id: 'fin-2', amount: 250, gig_id: 'gig-1' },
+        ],
+        error: null,
+      });
+      const attachChain = makeChain({
+        data: [{ entity_id: 'fin-1' }, { entity_id: 'fin-1' }],
+        error: null,
+      });
+      mockSupabase.from.mockImplementation((table: string) =>
+        table === 'entity_attachments' ? attachChain : finChain
+      );
+
+      const result = await getGigFinancials('gig-1');
+
+      expect(attachChain.eq).toHaveBeenCalledWith('entity_type', 'gig_financial');
+      expect(attachChain.in).toHaveBeenCalledWith('entity_id', ['fin-1', 'fin-2']);
+      expect(result.find((r: any) => r.id === 'fin-1').attachment_count).toBe(2);
+      expect(result.find((r: any) => r.id === 'fin-2').attachment_count).toBe(0);
+    });
+
+    it('leaves attachment_count at 0 when the attachment lookup fails', async () => {
+      const finChain = makeChain({ data: [{ id: 'fin-1', amount: 10, gig_id: 'gig-1' }], error: null });
+      const attachChain = makeChain({ data: null, error: { message: 'boom' } });
+      mockSupabase.from.mockImplementation((table: string) =>
+        table === 'entity_attachments' ? attachChain : finChain
+      );
+
+      const result = await getGigFinancials('gig-1');
+      expect(result[0].attachment_count).toBe(0);
+    });
+  });
+
+  // ─── getGigFinancialsByPurchaseId ─────────────────────────────────────────
+
+  describe('getGigFinancialsByPurchaseId', () => {
+    it('queries gig_financials by purchase_id', async () => {
+      const chain = makeChain({ data: [{ id: 'fin-1', purchase_id: 'line-1', gig_id: 'gig-1' }], error: null });
+      mockSupabase.from.mockReturnValue(chain);
+
+      const result = await getGigFinancialsByPurchaseId('line-1');
+
+      expect(mockSupabase.from).toHaveBeenCalledWith('gig_financials');
+      expect(chain.eq).toHaveBeenCalledWith('purchase_id', 'line-1');
+      expect(result).toHaveLength(1);
+    });
+
+    it('returns [] when nothing is linked', async () => {
+      mockSupabase.from.mockReturnValue(makeChain({ data: null, error: null }));
+      const result = await getGigFinancialsByPurchaseId('line-x');
       expect(result).toEqual([]);
     });
   });

@@ -1,10 +1,10 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import {useForm, useFieldArray } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
-import {DollarSign, FileText, Loader2, Trash2, Edit, ExternalLink } from 'lucide-react';
+import {DollarSign, FileText, Loader2, Trash2, Edit, ExternalLink, Paperclip } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
@@ -24,6 +24,7 @@ import { UserRole, FinType, FinCategory } from '../../utils/supabase/types';
 import { FIN_TYPE_CONFIG, FIN_CATEGORY_CONFIG, FIN_TYPE_GROUPS } from '../../utils/supabase/constants';
 import GigProfitabilitySummary from './GigProfitabilitySummary';
 import QuickActionButtons from './QuickActionButtons';
+import AttachmentManager from '../AttachmentManager';
 import { Badge } from '../ui/badge';
 import { useNavigation } from '../../contexts/NavigationContext';
 import {ChevronDown, Receipt, Users, MousePointer2 } from 'lucide-react';
@@ -132,6 +133,8 @@ export default function GigFinancialsSection({
   const [selectedCounterparty, setSelectedCounterparty] = useState<any>(null);
   const [showNotesModal, setShowNotesModal] = useState<number | null>(null);
   const [currentNotes, setCurrentNotes] = useState('');
+  // Per-row receipt/document attachments modal.
+  const [attachmentModal, setAttachmentModal] = useState<{ id: string; label: string } | null>(null);
   
   // Scanning states
   const [isScanning, setIsScanning] = useState(false);
@@ -228,6 +231,14 @@ export default function GigFinancialsSection({
   });
 
   const formValues = watch();
+
+  // Receipt/document counts per financial row, kept out of RHF form state so they
+  // never mark the form dirty. Sourced from getGigFinancials (single round-trip).
+  const attachmentCounts = useMemo(() => {
+    const m = new Map<string, number>();
+    (financialsQuery.data || []).forEach((f: any) => m.set(f.id, f.attachment_count || 0));
+    return m;
+  }, [financialsQuery.data]);
 
   const groupedFinancials = {
     revenue: fields.filter((f: any) => (FIN_TYPE_GROUPS.revenue as readonly string[]).includes(f.type)),
@@ -462,6 +473,7 @@ export default function GigFinancialsSection({
   const FinancialRow = ({ field, index }: { field: any; index: number }) => {
     const isPaid = !!field.paid_at;
     const source = field.purchase_id ? 'Receipt' : field.staff_assignment_id ? 'Staff' : 'Manual';
+    const attachmentCount = attachmentCounts.get(field.id) || 0;
     
     return (
       <TableRow key={field.id}>
@@ -528,6 +540,24 @@ export default function GigFinancialsSection({
                 title="View Receipt Details"
               >
                 <ExternalLink className="w-4 h-4" />
+              </Button>
+            )}
+            {field.id && !String(field.id).startsWith('temp-') && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => setAttachmentModal({
+                  id: field.id,
+                  label: field.description || FIN_TYPE_CONFIG[field.type as FinType]?.label || field.type,
+                })}
+                className="h-8 px-1.5 relative"
+                title={attachmentCount ? `${attachmentCount} attachment(s)` : 'Attach a receipt or document'}
+              >
+                <Paperclip className="w-4 h-4" />
+                {attachmentCount > 0 && (
+                  <span className="ml-0.5 text-[10px] font-semibold text-muted-foreground">{attachmentCount}</span>
+                )}
               </Button>
             )}
             {isEditMode && (
@@ -1045,6 +1075,46 @@ export default function GigFinancialsSection({
             </Button>
             <Button onClick={handleSaveNotes}>
               Save Notes
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={attachmentModal !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setAttachmentModal(null);
+            refetchAll();
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Receipts &amp; Documents</DialogTitle>
+            <DialogDescription>
+              Files attached to “{attachmentModal?.label}”. Attach a receipt, invoice, or supporting
+              document directly to this expense.
+            </DialogDescription>
+          </DialogHeader>
+          {attachmentModal && (
+            <AttachmentManager
+              organizationId={currentOrganizationId}
+              entityType="gig_financial"
+              entityId={attachmentModal.id}
+              title="Attachments"
+              allowUpload={isEditMode && isAdmin}
+            />
+          )}
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setAttachmentModal(null);
+                refetchAll();
+              }}
+            >
+              Done
             </Button>
           </DialogFooter>
         </DialogContent>

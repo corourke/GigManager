@@ -121,7 +121,7 @@ export default function AttachmentManager({
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h3 className="text-sm font-medium text-gray-900">{title}</h3>
+        {title ? <h3 className="text-sm font-medium text-gray-900">{title}</h3> : <span />}
         {allowUpload && (
           <div className="relative">
             <input

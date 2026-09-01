@@ -24,7 +24,25 @@ export async function getGigFinancials(gigId: string, organizationId?: string) {
     if (organizationId) query = query.eq('organization_id', organizationId);
     const { data, error } = await query;
     if (error) throw error;
-    return data || [];
+
+    const rows = data || [];
+    // Attach a receipt/document count per row in one round-trip (entity_attachments
+    // is polymorphic with no FK, so it can't be embedded via PostgREST). Non-fatal:
+    // a failure here just leaves attachment_count at 0.
+    if (rows.length > 0) {
+      const ids = rows.map((r: any) => r.id);
+      const { data: links } = await supabase
+        .from('entity_attachments')
+        .select('entity_id')
+        .eq('entity_type', 'gig_financial')
+        .in('entity_id', ids);
+      const counts = new Map<string, number>();
+      for (const l of links || []) {
+        counts.set((l as any).entity_id, (counts.get((l as any).entity_id) || 0) + 1);
+      }
+      for (const r of rows as any[]) r.attachment_count = counts.get(r.id) || 0;
+    }
+    return rows;
   } catch (err) {
     return handleApiError(err, 'fetch gig financials');
   }
