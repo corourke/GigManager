@@ -21,6 +21,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Textarea } from '../ui/textarea';
 import { Switch } from '../ui/switch';
 import { createGigFinancial } from '../../services/gig.service';
+import { uploadAttachment, linkAttachmentToEntity } from '../../services/attachment.service';
 import { FinType, FinCategory, UserRole } from '../../utils/supabase/types';
 import { calculateMileageAmount, formatMileageNotes, getMileageRateForYear } from '../../utils/financials.utils';
 
@@ -59,6 +60,7 @@ const expenseSchema = z.object({
   ...commonSchema,
   amount: z.string().refine((val) => !isNaN(parseFloat(val)) && parseFloat(val) >= 0, 'Amount must be positive'),
   category: z.string().min(1, 'Category is required'),
+  paid: z.boolean().optional().default(false),
 });
 
 interface QuickActionButtonsProps {
@@ -124,8 +126,10 @@ export default function QuickActionButtons({
       amount: '',
       category: 'Other expenses',
       description: '',
+      paid: false,
     }
   });
+  const [receiptFile, setReceiptFile] = useState<File | null>(null);
 
   const milDistance = useWatch({ control: mileageForm.control, name: 'distance' });
   const milStart = useWatch({ control: mileageForm.control, name: 'start_odometer' });
@@ -152,6 +156,7 @@ export default function QuickActionButtons({
     paymentForm.reset({ ...paymentForm.formState.defaultValues, date: defaultDate, paid_at: defaultDate });
     mileageForm.reset({ ...mileageForm.formState.defaultValues, date: defaultDate });
     expenseForm.reset({ ...expenseForm.formState.defaultValues, date: defaultDate });
+    setReceiptFile(null);
   };
 
   const openModal = (modal: 'agreement' | 'payment' | 'expense' | 'mileage' | 'simple_expense') => {
@@ -255,7 +260,7 @@ export default function QuickActionButtons({
   const onExpenseSubmit = async (data: z.infer<typeof expenseSchema>) => {
     setIsSubmitting(true);
     try {
-      await createGigFinancial({
+      const created = await createGigFinancial({
         gig_id: gigId,
         organization_id: organizationId,
         type: 'Expense Incurred',
@@ -266,7 +271,21 @@ export default function QuickActionButtons({
         notes: data.notes,
         counterparty_id: data.counterparty_id || undefined,
         external_entity_name: data.external_entity_name,
+        paid_at: data.paid ? new Date().toISOString() : undefined,
       });
+
+      if (receiptFile && (created as any)?.id) {
+        try {
+          const attachment = await uploadAttachment(organizationId, receiptFile);
+          if (attachment) {
+            await linkAttachmentToEntity(attachment.id, 'gig_financial', (created as any).id);
+          }
+        } catch (uploadErr) {
+          console.error('Error uploading expense receipt:', uploadErr);
+          toast.error('Expense saved, but the receipt upload failed — attach it from the expense row.');
+        }
+      }
+
       toast.success('Expense recorded');
       onSuccess();
       handleClose();
@@ -623,6 +642,29 @@ export default function QuickActionButtons({
             <div className="space-y-2">
               <Label htmlFor="exp-description">Description</Label>
               <Input id="exp-description" placeholder="What was this expense for?" {...expenseForm.register('description')} />
+            </div>
+
+            <div className="flex items-center space-x-2">
+              <Switch
+                id="exp-paid"
+                checked={!!expenseForm.watch('paid')}
+                onCheckedChange={(v) => expenseForm.setValue('paid', v)}
+                className="data-[state=unchecked]:bg-input/60 data-[state=unchecked]:border-input"
+              />
+              <Label htmlFor="exp-paid" className="text-sm">Already paid</Label>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="exp-receipt">Receipt (optional)</Label>
+              <Input
+                id="exp-receipt"
+                type="file"
+                accept=".pdf,image/*"
+                onChange={(e) => setReceiptFile(e.target.files?.[0] ?? null)}
+              />
+              {receiptFile && (
+                <p className="text-xs text-muted-foreground truncate">{receiptFile.name}</p>
+              )}
             </div>
 
             <div className="flex items-center space-x-2 pt-2">
