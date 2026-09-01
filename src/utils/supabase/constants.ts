@@ -217,7 +217,12 @@ export function getOrgRoleLabel(role: OrganizationRole) {
 export const TIMEZONES = (() => {
   try {
     // Get all supported timezones from Intl API
-    return Intl.supportedValuesOf('timeZone').sort();
+    const zones = Intl.supportedValuesOf('timeZone');
+    // Some engines (e.g. Node 20's V8, older browsers) omit 'UTC' from
+    // supportedValuesOf even though Intl and the IANA db accept it. It's a
+    // valid selectable timezone and getDefaultTimezone() falls back to it, so
+    // make sure it's always present.
+    return (zones.includes('UTC') ? [...zones] : [...zones, 'UTC']).sort();
   } catch {
     // Fallback for environments that don't support Intl.supportedValuesOf
     return [

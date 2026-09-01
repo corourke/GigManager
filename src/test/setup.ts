@@ -1,4 +1,5 @@
 import '@testing-library/jest-dom/vitest'
+import { afterEach, vi } from 'vitest'
 
 if (typeof globalThis.ResizeObserver === 'undefined') {
   globalThis.ResizeObserver = class ResizeObserver {
@@ -8,8 +9,16 @@ if (typeof globalThis.ResizeObserver === 'undefined') {
   } as any;
 }
 
+// Reset persisted web storage between tests so filter/table state written by
+// one test (e.g. useGigListFilters) can't leak into the next. Whether
+// localStorage is backed by a real implementation depends on the JS engine /
+// jsdom version, so guard every access.
+afterEach(() => {
+  try { globalThis.localStorage?.clear(); } catch { /* no-op */ }
+  try { globalThis.sessionStorage?.clear(); } catch { /* no-op */ }
+});
+
 // Mock Supabase client
-import { vi } from 'vitest'
 
 // Mock the createClient function
 vi.mock('../utils/supabase/client', () => ({
