@@ -147,9 +147,20 @@ reading the right number.
 - [ ] In the dialog, remove the attachment (**✕ / remove**, confirm the prompt). The row's
       paperclip count goes back to no number.
 - [ ] Re-attach the PDF (you'll want it there for Part 6). Count shows **1** again.
-- [ ] **Also confirm the entry-form is unchanged:** click **Add Record** / the pencil to edit
-      the `Van rental` row — the edit dialog has **no** file field (attachments are only via the
-      paperclip). Cancel out.
+
+### 2b — Paid toggle + receipt in the Simple Expense form (web) (✨ NEW FEATURE)
+
+- [ ] On **SMOKE — Gig A** → Financials, click **Edit Financials**, then **Expense / Mileage**
+      → **Simple Expense**.
+- [ ] The "Record Simple Expense" form now has an **"Already paid"** switch and a
+      **"Receipt (optional)"** file picker, above "Show advanced fields".
+- [ ] Fill Amount `25`, Description `Batteries`, toggle **Already paid** on, and choose your PDF
+      in **Receipt**. The chosen filename shows under the picker. Click **Save Expense**.
+- [ ] The new `Batteries` row appears with a **green "Paid"** badge (not "Unpaid"), a
+      **Receipt/Manual** source badge, and a paperclip showing **"1"**.
+- [ ] **Costs** rose by **$25.00**. Open the paperclip → your PDF is listed.
+- [ ] Delete the `Batteries` row again (trash icon) so it doesn't interfere with later parts —
+      **Costs** drops back by $25.00, no error toast.
 
 ---
 
@@ -168,8 +179,19 @@ Use a phone, or your browser's device-emulation mode, and sign in as Admin/Manag
 - [ ] Tap **Upload** and add the PDF a second time (any file). It appears in the list; back on
       the transaction list the paperclip is still shown.
 - [ ] Remove that second copy so the entry is back to one attachment.
-- [ ] *(Note: creating a brand-new expense on mobile still needs the pencil / Edit control on
-      the gig; attaching to an existing transaction, as above, does not.)*
+- [ ] *(Note: attaching to an existing transaction, as above, does not require edit mode;
+      creating a brand-new expense does — next step.)*
+
+### 3b — Paid toggle + receipt in the Simple Expense form (mobile) (✨ NEW FEATURE)
+
+- [ ] On the gig, tap the **pencil / Edit** control, then the **Expense / Mileage** →
+      **Simple Expense** quick action.
+- [ ] Same as 2b: the form has **"Already paid"** and **"Receipt (optional)"**. Enter an
+      amount, toggle paid on, pick a file, **Save Expense**.
+- [ ] Back in **View N Transactions**, the new row shows a **paperclip**; opening it shows the
+      **Paid** state and the attached file.
+- [ ] Delete that test row (from the web Financials section, edit mode → trash) to keep the
+      data clean.
 
 ---
 
@@ -255,10 +277,12 @@ icons (pencil + trash) only appear **while the section is in edit mode**.
       **"Done Editing"** (this is what reveals the per-row action icons; it resets every time
       you re-open the gig, so re-click it if you navigated away).
 - [ ] Each expense row now shows, at the right, a **pencil** and a **red trash** icon (plus the
-      paperclip and, for receipt-sourced rows, an external-link icon). If you clicked "Edit
-      Financials"/"Done Editing" and still see no trash icon on the rows, stop and report that.
+      paperclip and, for receipt-sourced rows, an external-link icon).
 - [ ] Click the **trash** icon on the `Van rental` row. Confirm.
-- [ ] **Costs** drops by **$200.00**; the `Van rental` row is gone. No error toast.
+- [ ] 🐛 **The toast reads "Financial record deleted" — NOT "Failed to delete financial
+      record".** (An earlier build always failed here because the row was passing a synthetic
+      key instead of the real record id.)
+- [ ] **Costs** drops by **$200.00**; the `Van rental` row is gone.
 - [ ] Go to **Financials → Purchases**, expand the original `SMOKE Vendor` → `Van rental` line.
       It should still exist as a purchase line (deleting the *ledger entry* does not delete the
       *receipt*), and it should now be **unlinked from the gig** (no "Gig Details" button), with
@@ -304,6 +328,7 @@ icons (pencil + trash) only appear **while the section is in edit mode**.
 | 1.2  | Reassigning a line A→B moves its ledger entry — old gig returns to baseline, new gig rises; totals never double |
 | 1.3  | Clearing a line's gig confirms first; cancelling changes nothing; confirming removes the entry and returns the gig to baseline |
 | 1.4  | A full assign/reassign/clear/reassign cycle still leaves exactly one entry and the correct total — never $400 |
-| 6.1  | Deleting an expense removes its ledger amount from the gig and unlinks the source purchase line, no error |
+| 2    | After attaching, the row's paperclip shows a count; re-opening the gig still shows it (the row uses the real record id, not a form key) |
+| 6.1  | The trash icon deletes the expense — toast says "deleted", not "Failed" — removes its ledger amount from the gig and unlinks the source purchase line |
 | 6.2  | Deleting one expense does not delete a receipt file that another record still uses |
 | 6.3  | Deleting a gig doesn't leave broken links or errors in the Purchases tab |
