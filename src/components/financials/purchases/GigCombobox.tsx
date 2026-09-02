@@ -14,7 +14,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '../../ui/popover';
-import { getGigsForOrganization } from '../../../services/gig.service';
+import { getGigOptionsForOrganization } from '../../../services/gig.service';
 
 interface GigOption {
   id: string;
@@ -32,18 +32,26 @@ interface GigComboboxProps {
   placeholder?: string;
   /** Hide the inline "clear" (X) button — for callers that don't support unassigning here. */
   hideClear?: boolean;
+  /**
+   * Reference date (e.g. the expense's purchase date). When set, the list is
+   * scoped to gigs starting within a few weeks of it instead of loading the
+   * org's entire gig history — the currently linked gig is always kept.
+   */
+  aroundDate?: string | null;
 }
 
-export default function GigCombobox({ organizationId, value, onChange, disabled, placeholder = 'Select gig...', hideClear }: GigComboboxProps) {
+export default function GigCombobox({ organizationId, value, onChange, disabled, placeholder = 'Select gig...', hideClear, aroundDate }: GigComboboxProps) {
   const [open, setOpen] = useState(false);
   const [gigs, setGigs] = useState<GigOption[]>([]);
   const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
     if (!organizationId) return;
+    let cancelled = false;
     setIsLoading(true);
-    getGigsForOrganization(organizationId)
-      .then((data: any[]) => {
+    getGigOptionsForOrganization(organizationId, { aroundDate, ensureGigId: value })
+      .then((data) => {
+        if (cancelled) return;
         setGigs(data.map(g => ({
           id: g.id,
           title: g.title,
@@ -53,8 +61,9 @@ export default function GigCombobox({ organizationId, value, onChange, disabled,
         })));
       })
       .catch(() => {})
-      .finally(() => setIsLoading(false));
-  }, [organizationId]);
+      .finally(() => { if (!cancelled) setIsLoading(false); });
+    return () => { cancelled = true; };
+  }, [organizationId, aroundDate, value]);
 
   const selectedGig = gigs.find(g => g.id === value);
 
@@ -67,7 +76,7 @@ export default function GigCombobox({ organizationId, value, onChange, disabled,
   };
 
   return (
-    <div className="flex items-center gap-1">
+    <div className="flex items-center gap-1 min-w-0">
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild>
           <Button
@@ -75,7 +84,7 @@ export default function GigCombobox({ organizationId, value, onChange, disabled,
             role="combobox"
             aria-expanded={open}
             disabled={disabled}
-            className="h-8 text-xs justify-between flex-1 font-normal"
+            className="h-8 text-xs justify-between flex-1 min-w-0 shrink font-normal"
           >
             <span className="truncate">
               {selectedGig ? formatLabel(selectedGig) : placeholder}
@@ -104,6 +113,11 @@ export default function GigCombobox({ organizationId, value, onChange, disabled,
                   </CommandItem>
                 ))}
               </CommandGroup>
+              {aroundDate && !isLoading && (
+                <p className="px-2 py-1.5 text-[10px] text-gray-400 border-t">
+                  Showing gigs near {new Date(aroundDate).toLocaleDateString()}
+                </p>
+              )}
             </CommandList>
           </Command>
         </PopoverContent>
@@ -112,7 +126,7 @@ export default function GigCombobox({ organizationId, value, onChange, disabled,
         <Button
           variant="ghost"
           size="sm"
-          className="h-8 w-8 p-0 text-gray-400 hover:text-red-500"
+          className="h-8 w-8 p-0 shrink-0 text-gray-400 hover:text-red-500"
           onClick={() => onChange(null)}
           disabled={disabled}
           title="Clear gig"

@@ -129,6 +129,34 @@ reading the right number.
       Gig A show **$400**, and Gig A + Gig B costs never summed to more than **$200**.
 - [x] Leave `Van rental` assigned to **Gig A** with its ledger entry — Part 6 uses it.
 
+### 1.5 — 🐛 Scanned / cost-only expense records its real amount, not $0
+
+*Regression: `Van rental` above is entered with a **price**, so `line_amount` is set. Scanned
+invoices and CSV "cost" rows populate only `line_cost` / `item_cost` — `line_amount` and
+`item_price` are null. The ledger amount used to read `line_amount` first and so recorded **$0**
+for every scanned expense.*
+
+- [ ] **Upload Invoice** (or Add New) a receipt whose expense line has a **Cost** but no unit
+      **Price** — e.g. a one-line `Van Rental` at **$66.73**. In the expanded line detail the
+      **Line Cost** shows `$66.73` while **Item Price** / **Line Amt** show `-`.
+- [ ] Expand the line → **Assign Gig** → pick a gig. The **"Create gig expense record?"** prompt
+      names **$66.73** (not **$0.00**). Click **Create record**.
+- [ ] That gig's Financials **Costs** rises by **$66.73**, and the new `Van Rental` expense row
+      reads **$66.73**.
+- [ ] Same check via the persistent path: **Skip** the prompt, then click **Add to gig ledger**
+      on the line — the created entry is **$66.73**, not $0.
+
+### 1.6 — Assign Gig picker is scoped to gigs near the expense date
+
+*The picker now loads only gigs starting within ~3 weeks of the line's purchase date (plus the
+currently-linked gig), instead of the org's whole gig history — this is what fixed the ~45s
+dropdown stall.*
+
+- [ ] Expand a line and open **Assign Gig**. The list contains gigs near the receipt date; a
+      footer reads **"Showing gigs near <date>"**. A gig months away is **not** listed.
+- [ ] Assign the line to a gig, reload Purchases, expand it again: the linked gig still shows its
+      full label in the picker even if it's outside the date window.
+
 ---
 
 ## Part 2 — Attach a receipt to a gig expense, on web (✨ NEW FEATURE)

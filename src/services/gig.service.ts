@@ -200,6 +200,79 @@ export async function getGigsForOrganization(organizationId: string) {
   }
 }
 
+export interface GigOption {
+  id: string;
+  title: string;
+  start: string;
+  venue?: { name?: string } | null;
+  act?: { name?: string } | null;
+}
+
+/** Default half-width of the date window used to scope gig pickers, in days. */
+export const GIG_PICKER_WINDOW_DAYS = 21;
+
+/**
+ * Lightweight gig list for pickers (comboboxes, summary name maps).
+ *
+ * Two things make this cheaper than `getGigsForOrganization`:
+ *  - it selects only the columns a picker renders (`id`, `title`, `start`) plus
+ *    the venue/act name, not `gigs.*` and full participant/organization rows;
+ *  - when `aroundDate` is given it only returns gigs whose `start` falls within
+ *    ±`windowDays` of that date, so linking an expense doesn't pull the org's
+ *    entire gig history (the source of the ~45s dropdown stall).
+ *
+ * `ensureGigId`, when supplied, is always included even if it's outside the
+ * window, so an already-linked gig still renders its label.
+ */
+export async function getGigOptionsForOrganization(
+  organizationId: string,
+  opts: { aroundDate?: string | null; windowDays?: number; ensureGigId?: string | null } = {}
+): Promise<GigOption[]> {
+  const supabase = getSupabase();
+  try {
+    const { data: participatingGigs, error: participantError } = await supabase
+      .from('gig_participants')
+      .select('gig_id')
+      .eq('organization_id', organizationId);
+
+    if (participantError) throw participantError;
+    if (!participatingGigs?.length) return [];
+
+    const gigIds = participatingGigs.map((pg: any) => pg.gig_id);
+
+    let query = supabase
+      .from('gigs')
+      .select('id, title, start, participants:gig_participants(role, organization:organization_id(name))')
+      .in('id', gigIds);
+
+    const { aroundDate, windowDays = GIG_PICKER_WINDOW_DAYS, ensureGigId } = opts;
+    const center = aroundDate ? new Date(aroundDate) : null;
+    if (center && !Number.isNaN(center.getTime())) {
+      const lo = new Date(center);
+      lo.setUTCDate(lo.getUTCDate() - windowDays);
+      lo.setUTCHours(0, 0, 0, 0);
+      const hi = new Date(center);
+      hi.setUTCDate(hi.getUTCDate() + windowDays);
+      hi.setUTCHours(23, 59, 59, 999);
+      const inWindow = `and(start.gte.${lo.toISOString()},start.lte.${hi.toISOString()})`;
+      query = query.or(ensureGigId ? `${inWindow},id.eq.${ensureGigId}` : inWindow);
+    }
+
+    const { data: gigs, error } = await query.order('start', { ascending: false });
+    if (error) throw error;
+
+    return (gigs || []).map((gig: any) => ({
+      id: gig.id,
+      title: gig.title,
+      start: gig.start,
+      venue: gig.participants?.find((p: any) => p.role === 'Venue')?.organization ?? null,
+      act: gig.participants?.find((p: any) => p.role === 'Act')?.organization ?? null,
+    }));
+  } catch (err) {
+    return handleApiError(err, 'fetch gig options for organization');
+  }
+}
+
 /**
  * Fetch a single gig with all its details (participants, staff slots, assignments, kits, bids)
  */

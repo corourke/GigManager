@@ -286,7 +286,9 @@ describe('purchase → gig ledger lifecycle', () => {
   const line = (over: Partial<any> = {}) => ({
     id: 'line-1',
     row_type: 'item',
-    line_amount: 200,
+    line_cost: 200,
+    item_cost: null,
+    line_amount: null,
     item_price: null,
     quantity: null,
     purchase_date: '2026-02-01',
@@ -301,14 +303,40 @@ describe('purchase → gig ledger lifecycle', () => {
   });
 
   describe('purchaseLineLedgerAmount', () => {
-    it('uses line_amount when present', () => {
-      expect(purchaseLineLedgerAmount({ line_amount: 200, item_price: 5, quantity: 3 })).toBe(200);
+    it('uses line_cost (burdened total) first — even when a price is also present', () => {
+      expect(purchaseLineLedgerAmount({
+        line_cost: 66.73, item_cost: 66.73, line_amount: 60, item_price: 60, quantity: 1,
+      })).toBe(66.73);
     });
-    it('falls back to item_price × quantity', () => {
-      expect(purchaseLineLedgerAmount({ line_amount: null, item_price: 5, quantity: 3 })).toBe(15);
+    it('falls back to item_cost × quantity when line_cost is null', () => {
+      expect(purchaseLineLedgerAmount({
+        line_cost: null, item_cost: 25, line_amount: null, item_price: null, quantity: 4,
+      })).toBe(100);
+    });
+    it('records the pre-fee price only when no cost is stored', () => {
+      expect(purchaseLineLedgerAmount({
+        line_cost: null, item_cost: null, line_amount: 200, item_price: 5, quantity: 3,
+      })).toBe(200);
+      expect(purchaseLineLedgerAmount({
+        line_cost: null, item_cost: null, line_amount: null, item_price: 5, quantity: 3,
+      })).toBe(15);
+    });
+    it('does not return $0 for a scanned "cost" expense line (regression)', () => {
+      // line_amount / item_price are null on imported/scanned expenses; the value
+      // lives in line_cost. The old logic recorded $0 here.
+      expect(purchaseLineLedgerAmount({
+        line_cost: 66.73, item_cost: null, line_amount: null, item_price: null, quantity: 1,
+      })).toBe(66.73);
     });
     it('treats a missing quantity as 1', () => {
-      expect(purchaseLineLedgerAmount({ line_amount: null, item_price: 7, quantity: null })).toBe(7);
+      expect(purchaseLineLedgerAmount({
+        line_cost: null, item_cost: null, line_amount: null, item_price: 7, quantity: null,
+      })).toBe(7);
+    });
+    it('is 0-safe when the line carries no amount at all', () => {
+      expect(purchaseLineLedgerAmount({
+        line_cost: null, item_cost: null, line_amount: null, item_price: null, quantity: null,
+      })).toBe(0);
     });
   });
 
