@@ -134,7 +134,7 @@ export type FinType = keyof typeof FIN_TYPE_CONFIG;
 
 export const FIN_TYPE_GROUPS = {
   revenue: ['Contract Signed', 'Bid Accepted', 'Informal Terms', 'Deposit Received', 'Payment Received'],
-  cost: ['Expense Incurred', 'Payment Sent', 'Deposit Sent'],
+  cost: ['Expense Incurred', 'Payment Sent', 'Deposit Sent', 'Sub-Contract Submitted', 'Sub-Contract Signed', 'Sub-Contract Settled'],
   tracking: ['Invoice Issued', 'Invoice Settled'],
 } as const;
 

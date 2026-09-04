@@ -2,7 +2,7 @@
 
 Technical documentation for the gig financial management system. For the design analysis and implementation plan, see [07_gig-financials-workflow.md](../product/development-plan/07_gig-financials-workflow.md).
 
-**Last Updated**: 2026-08-31
+**Last Updated**: 2026-09-04
 
 ---
 
@@ -165,11 +165,11 @@ The `fin_type` enum has 24 values to support future multi-tenant workflows. For 
 
 **Revenue** (money coming in): `Informal Terms`, `Contract Signed`, `Bid Accepted`, `Deposit Received`, `Payment Recieved`
 
-**Cost** (money going out): `Expense Incurred`, `Payment Sent`, `Deposit Sent`
+**Cost** (money going out): `Expense Incurred`, `Payment Sent`, `Deposit Sent`, `Sub-Contract Submitted`, `Sub-Contract Signed`, `Sub-Contract Settled`
 
 **Tracking** (informational): `Invoice Issued`, `Invoice Settled`
 
-**Advanced** (bid/contract workflow — future use): All `Bid *`, `Contract *`, and `Sub-Contract *` types
+**Advanced** (bid/contract workflow — future use): All `Bid *` and `Contract *` types, plus the remaining `Sub-Contract *` types (`Revised`, `Rejected`, `Cancelled`)
 
 Each `gig_financials` record also has a `category` (`fin_category` enum). The `type` describes *what happened*; the `category` describes *what it's for*. The original set (Labor, Equipment, Transportation, …) was replaced (migrations 20260328000001 / 20260512000000) with IRS Schedule C categories — Advertising, Car and truck expenses, Contract labor, Office expense, Rent or lease, Supplies, Travel, Meals, Utilities, Wages, Other expenses, and more. `category` is now **nullable with no default**. The authoritative list is `FIN_CATEGORY_CONFIG` in `src/utils/supabase/constants.ts`.
 
@@ -203,16 +203,20 @@ OUTSTANDING REV  = MAX(0, REVENUE - RECEIVED)
 ### Costs
 
 ```
-ACTUAL COSTS     = SUM(amount) WHERE type IN (Expense Incurred, Payment Sent, Deposit Sent)
+ACTUAL COSTS     = SUM(amount) WHERE type IN (Expense Incurred, Payment Sent, Deposit Sent, Sub-Contract Settled)
 
 PROJECTED STAFF  = SUM(gig_staff_assignments.fee) WHERE completed_at IS NULL
                    AND status IN (Confirmed, Requested)
                    [rate used as proxy for fee when fee is null]
 
-TOTAL COSTS      = ACTUAL COSTS + PROJECTED STAFF
+EXPECTED SUB-CONTRACT COSTS = SUM(amount) WHERE type IN (Sub-Contract Submitted, Sub-Contract Signed)
+                   [a settled sub-contract moves from "expected" to "actual" —
+                   Sub-Contract Rejected / Cancelled never contribute]
+
+TOTAL COSTS      = ACTUAL COSTS + PROJECTED STAFF + EXPECTED SUB-CONTRACT COSTS
 ```
 
-Projected staff costs disappear as assignments are completed: each completion creates a ledger entry (`Expense Incurred / Labor`) and removes the assignment from the projection.
+Projected staff costs disappear as assignments are completed: each completion creates a ledger entry (`Expense Incurred / Labor`) and removes the assignment from the projection. Sub-contractor costs follow the same actual/expected split as staff costs — a signed or submitted sub-contract is a real (if not yet paid) expense to the gig, matching `getAllGigAccountingSummaries` (used by the org-wide Gig Accounting tab), which has always treated sub-contracts this way.
 
 ### Profit
 

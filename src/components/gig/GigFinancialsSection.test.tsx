@@ -91,6 +91,7 @@ describe('GigFinancialsSection', () => {
       outstandingRevenue: 0,
       actualCosts: 1200,
       projectedStaffCosts: 0,
+      expectedSubContractCosts: 0,
       totalCosts: 1200,
       profit: 3800,
       margin: 76
@@ -149,6 +150,7 @@ describe('GigFinancialsSection', () => {
       outstandingRevenue: 0,
       actualCosts: 0,
       projectedStaffCosts: 0,
+      expectedSubContractCosts: 0,
       totalCosts: 0,
       profit: 0,
       margin: 0

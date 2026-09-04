@@ -1,5 +1,4 @@
 import { FinType, FinCategory, DbGigFinancial } from '../utils/supabase/types';
-import { FIN_TYPE_GROUPS } from '../utils/supabase/constants';
 import { handleApiError } from '../utils/api-error-utils';
 import { requireAuth } from '../utils/supabase/auth-utils';
 import { UUID_REGEX } from '../utils/validation-utils';
@@ -84,11 +83,10 @@ export async function getGigProfitabilitySummary(gigId: string, organizationId: 
     // 3. Calculate metrics
     let received = 0;
     let actualCosts = 0;
+    let expectedSubContractCosts = 0;
     let contractSignedTotal = 0;
     let bidAcceptedTotal = 0;
     let informalTermsTotal = 0;
-
-    const costTypes = FIN_TYPE_GROUPS.cost as readonly string[];
 
     (financials || []).forEach(f => {
       const amount = Number(f.amount) || 0;
@@ -105,8 +103,17 @@ export async function getGigProfitabilitySummary(gigId: string, organizationId: 
         received += amount;
       }
 
-      if (costTypes.includes(f.type)) {
+      if (
+        f.type === 'Expense Incurred' ||
+        f.type === 'Payment Sent' ||
+        f.type === 'Deposit Sent' ||
+        f.type === 'Sub-Contract Settled'
+      ) {
         actualCosts += amount;
+      }
+
+      if (f.type === 'Sub-Contract Submitted' || f.type === 'Sub-Contract Signed') {
+        expectedSubContractCosts += amount;
       }
     });
 
@@ -129,7 +136,7 @@ export async function getGigProfitabilitySummary(gigId: string, organizationId: 
     });
 
     const outstandingRevenue = Math.max(0, contractAmount - received);
-    const totalCosts = actualCosts + projectedStaffCosts;
+    const totalCosts = actualCosts + projectedStaffCosts + expectedSubContractCosts;
     const profit = contractAmount - totalCosts;
     const margin = contractAmount > 0 ? (profit / contractAmount) * 100 : 0;
 
@@ -139,6 +146,7 @@ export async function getGigProfitabilitySummary(gigId: string, organizationId: 
       outstandingRevenue,
       actualCosts,
       projectedStaffCosts,
+      expectedSubContractCosts,
       totalCosts,
       profit,
       margin

@@ -8,6 +8,7 @@ interface GigProfitabilitySummaryProps {
     outstandingRevenue: number;
     actualCosts: number;
     projectedStaffCosts: number;
+    expectedSubContractCosts?: number;
     totalCosts: number;
     profit: number;
     margin: number;
@@ -69,6 +70,7 @@ const GigProfitabilitySummary: React.FC<GigProfitabilitySummaryProps> = ({ summa
     outstandingRevenue,
     actualCosts,
     projectedStaffCosts,
+    expectedSubContractCosts = 0,
     totalCosts,
     profit,
     margin,
@@ -95,6 +97,12 @@ const GigProfitabilitySummary: React.FC<GigProfitabilitySummaryProps> = ({ summa
           Actual <span className="font-medium">{formatCurrency(actualCosts)}</span>
           {' · '}
           Staff <span className="font-medium">{formatCurrency(projectedStaffCosts)}</span>
+          {expectedSubContractCosts > 0 && (
+            <>
+              {' · '}
+              Sub <span className="font-medium">{formatCurrency(expectedSubContractCosts)}</span>
+            </>
+          )}
         </p>
       </div>
 
