@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import {useForm, useFieldArray } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -16,6 +17,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '.
 import OrganizationSelector from '../OrganizationSelector';
 import { updateGigFinancials } from '../../services/gig.service';
 import { useGigFinancialsData, useDeleteGigFinancial } from './useGigFinancialsData';
+import { queryKeys } from '../../lib/queryKeys';
 import { scanInvoice } from '../../services/purchase.service';
 import ReviewScannedDataDialog from '../ReviewScannedDataDialog';
 import { useAutoSave } from '../../utils/hooks/useAutoSave';
@@ -128,6 +130,7 @@ export default function GigFinancialsSection({
   gigStartDate,
 }: GigFinancialsSectionProps) {
   const navigation = useNavigation();
+  const queryClient = useQueryClient();
   const [showFinancialModal, setShowFinancialModal] = useState(false);
   const [currentFinancialIndex, setCurrentFinancialIndex] = useState<number | null>(null);
   const [selectedCounterparty, setSelectedCounterparty] = useState<any>(null);
@@ -220,12 +223,23 @@ export default function GigFinancialsSection({
       purchase_id: f.purchase_id || undefined,
       staff_assignment_id: f.staff_assignment_id || undefined,
     })));
+    // Refresh the financials query cache so other mounted instances of this
+    // section (or a later remount, e.g. switching Gig View tabs) pick up the
+    // saved data instead of serving it from the pre-edit cache (issue #8).
+    // This mounted instance's own display is resynced directly in
+    // handleSaveSuccess below, so this doesn't need to be awaited.
+    void queryClient.invalidateQueries({ queryKey: queryKeys.financials(gigId) });
     void summaryQuery.refetch();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [gigId, currentOrganizationId]);
+  }, [gigId, currentOrganizationId, queryClient]);
 
   const handleSaveSuccess = useCallback((data: FinancialsFormInput) => {
-    reset(data, { keepDirty: false, keepValues: true });
+    // A plain reset (no `keepValues`) is required here: useFieldArray's `fields`
+    // (what the table renders from) only resyncs to current values on a full
+    // reset, not on a per-field setValue — so `keepValues: true` was silently
+    // leaving the displayed rows on their pre-edit values until an unrelated
+    // full reset happened to fire (e.g. a query refetch).
+    reset(data, { keepDirty: false });
   }, [reset]);
 
   const { saveState, triggerSave } = useAutoSave<FinancialsFormInput>({
@@ -260,10 +274,13 @@ export default function GigFinancialsSection({
     }
   }, [formValues, isDirty, triggerSave]);
 
-  // Sync the form from the financials query on initial load and explicit
-  // refetches. The query is never invalidated by mutations, so this cannot
-  // clobber in-progress edits / autosave.
+  // Sync the form from the financials query on initial load and whenever it
+  // refetches (including the invalidation this component's own save now
+  // triggers, and external refetches like the 'gig-financials-updated'
+  // event). Skip while the form is dirty so a save still in flight elsewhere,
+  // or another concurrent edit, can't clobber an in-progress local edit.
   useEffect(() => {
+    if (isDirty) return;
     const data = financialsQuery.data;
     if (!data) return;
     const loadedFinancials = data.map((f: any) => ({
@@ -286,7 +303,7 @@ export default function GigFinancialsSection({
     }));
     reset({ financials: loadedFinancials });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [financialsQuery.data]);
+  }, [financialsQuery.data, isDirty]);
 
   const refetchAll = useCallback(() => {
     void financialsQuery.refetch();
