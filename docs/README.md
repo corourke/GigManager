@@ -60,6 +60,7 @@ Located in [`./technical/`](./technical/)
 - **[SmartDataTable.md](./technical/SmartDataTable.md)** - SmartDataTable component documentation
 - **[conflict-detection.md](./technical/conflict-detection.md)** - Equipment scheduling conflict detection
 - **[security-scheme.md](./technical/security-scheme.md)** - Security and authorization scheme
+- **[tenant-isolation-architecture.md](./technical/tenant-isolation-architecture.md)** - Options analysis for verifiable operator-exclusion (can't-read-your-data guarantees), per-tenant isolation, and cross-org federation (draft)
 
 ---
 
