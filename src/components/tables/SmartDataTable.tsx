@@ -119,7 +119,7 @@ export function SmartDataTable<T extends { id: string }>({
     toggleSorting,
     setFilter,
     removeFilter,
-    toggleColumnVisibility,
+    setColumnVisibility,
     setColumnWidth,
   } = useTableState(tableId);
 
@@ -187,13 +187,20 @@ export function SmartDataTable<T extends { id: string }>({
     }
   }, [processedData, onFilteredDataChange]);
 
-  const visibleColumns = useMemo(() => {
-    return columns.filter((col) => {
-      if (col.required) return true;
-      if (columnVisibility[col.id] === false) return false;
-      return !col.optional || columnVisibility[col.id] === true;
-    });
-  }, [columns, columnVisibility]);
+  // Effective visibility of a column, resolving the tri-state stored value
+  // (undefined = column default) against `optional`. Used both to build the
+  // rendered columns and to drive the Columns-menu checkmark, so the two can't
+  // drift out of sync.
+  const isColumnVisible = useCallback((col: ColumnDef<T>) => {
+    if (col.required) return true;
+    if (columnVisibility[col.id] === false) return false;
+    return !col.optional || columnVisibility[col.id] === true;
+  }, [columnVisibility]);
+
+  const visibleColumns = useMemo(
+    () => columns.filter(isColumnVisible),
+    [columns, isColumnVisible],
+  );
 
   // Notify parent of visible-column changes (toggled via the Columns menu below).
   React.useEffect(() => {
@@ -503,12 +510,18 @@ export function SmartDataTable<T extends { id: string }>({
             {columns
               .filter((col) => !col.required)
               .map((column) => {
+                const checked = isColumnVisible(column);
                 return (
                   <DropdownMenuCheckboxItem
                     key={column.id}
                     className="capitalize"
-                    checked={columnVisibility[column.id] !== false && (!column.optional || columnVisibility[column.id] === true)}
-                    onCheckedChange={() => toggleColumnVisibility(column.id)}
+                    checked={checked}
+                    // Set the explicit opposite of what's shown now — one click
+                    // always flips it, regardless of whether the stored value
+                    // was undefined (never toggled), false, or true.
+                    onCheckedChange={() =>
+                      setColumnVisibility({ ...columnVisibility, [column.id]: !checked })
+                    }
                   >
                     {column.header}
                   </DropdownMenuCheckboxItem>

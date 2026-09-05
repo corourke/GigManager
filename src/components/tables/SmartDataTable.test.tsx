@@ -15,6 +15,7 @@ vi.mock('../../utils/hooks/useTableState', () => ({
     setFilter: vi.fn(),
     removeFilter: vi.fn(),
     toggleColumnVisibility: vi.fn(),
+    setColumnVisibility: vi.fn(),
     setColumnWidth: vi.fn(),
   })),
 }));
@@ -201,14 +202,16 @@ describe('SmartDataTable', () => {
     expect(onFilteredDataChange).toHaveBeenCalledWith(data);
   });
 
-  it('toggles column visibility via dropdown', async () => {
+  it('shows a hidden optional column in a single click (no double-toggle)', async () => {
     const user = userEvent.setup();
-    
+
     const { useTableState } = await import('../../utils/hooks/useTableState');
     const mockUseTableState = vi.mocked(useTableState);
-    const toggleColumnVisibility = vi.fn();
-    
-    // For this test, make Age optional so it appears in the dropdown
+    const setColumnVisibility = vi.fn();
+
+    // Age is optional and has never been toggled (columnVisibility: {}), so it
+    // starts hidden. One click on its menu item must make it visible — the old
+    // toggle logic went undefined -> false here (still hidden), needing 2 clicks.
     const optionalColumns: ColumnDef<TestData>[] = [
       ...columns.slice(0, 1),
       { ...columns[1], optional: true },
@@ -223,7 +226,8 @@ describe('SmartDataTable', () => {
       toggleSorting: vi.fn(),
       setFilter: vi.fn(),
       removeFilter: vi.fn(),
-      toggleColumnVisibility,
+      toggleColumnVisibility: vi.fn(),
+      setColumnVisibility,
       setColumnWidth: vi.fn(),
     } as any);
 
@@ -237,12 +241,44 @@ describe('SmartDataTable', () => {
 
     const columnsButton = screen.getByRole('button', { name: /columns/i });
     await user.click(columnsButton);
+    await user.click(screen.getByRole('menuitemcheckbox', { name: /age/i }));
 
-    // Find the Age menu item
-    const ageMenuItem = screen.getByText('Age');
-    await user.click(ageMenuItem);
+    expect(setColumnVisibility).toHaveBeenCalledWith({ age: true });
+  });
 
-    expect(toggleColumnVisibility).toHaveBeenCalledWith('age');
+  it('hides a visible column in a single click', async () => {
+    const user = userEvent.setup();
+
+    const { useTableState } = await import('../../utils/hooks/useTableState');
+    const mockUseTableState = vi.mocked(useTableState);
+    const setColumnVisibility = vi.fn();
+
+    // Status is non-optional (shown by default) and untouched.
+    mockUseTableState.mockReturnValue({
+      sorting: null,
+      filters: {},
+      columnVisibility: {},
+      columnWidths: {},
+      toggleSorting: vi.fn(),
+      setFilter: vi.fn(),
+      removeFilter: vi.fn(),
+      toggleColumnVisibility: vi.fn(),
+      setColumnVisibility,
+      setColumnWidth: vi.fn(),
+    } as any);
+
+    render(
+      <SmartDataTable
+        tableId="test-table"
+        data={data}
+        columns={columns}
+      />
+    );
+
+    await user.click(screen.getByRole('button', { name: /columns/i }));
+    await user.click(screen.getByRole('menuitemcheckbox', { name: /status/i }));
+
+    expect(setColumnVisibility).toHaveBeenCalledWith({ status: false });
   });
 
   it('calls setFilter when typing in filter input', async () => {
