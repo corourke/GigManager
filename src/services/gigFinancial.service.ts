@@ -1,4 +1,5 @@
 import { FinType, FinCategory, DbGigFinancial } from '../utils/supabase/types';
+import { FIN_TYPE_GROUPS } from '../utils/supabase/constants';
 import { handleApiError } from '../utils/api-error-utils';
 import { requireAuth } from '../utils/supabase/auth-utils';
 import { UUID_REGEX } from '../utils/validation-utils';
@@ -160,6 +161,154 @@ export async function getGigProfitabilitySummary(gigId: string, organizationId: 
  * Legacy alias for getGigFinancials
  */
 export const getGigBids = getGigFinancials;
+
+/**
+ * Per-gig financial aggregates for the Gigs List CSV export.
+ *
+ * Each field is defined independently so the export columns reconcile as
+ * `profit = revenue - costOfStaff - expenses`:
+ *  - `revenue`      booked/contract amount (same precedence as
+ *                   getAllGigAccountingSummaries: Contract Signed, else Bid
+ *                   Accepted, else Informal Terms; floored at payments received).
+ *  - `costOfStaff`  sum of every staff assignment's fee (or rate) on the gig,
+ *                   regardless of status.
+ *  - `expenses`     non-staff logged costs only — FIN_TYPE_GROUPS.cost rows whose
+ *                   `staff_assignment_id` is null (a completed staff assignment
+ *                   auto-creates an "Expense Incurred" row tagged with its id;
+ *                   that spend is already counted in `costOfStaff`). This
+ *                   includes sub-contractor costs (Submitted/Signed/Settled are
+ *                   all in FIN_TYPE_GROUPS.cost) regardless of whether they're
+ *                   paid yet — consistent with `costOfStaff` also summing every
+ *                   assignment regardless of status.
+ *  - `staffCount`   number of staff assignments on the gig, all roles/statuses.
+ */
+export interface GigExportAggregates {
+  revenue: number;
+  costOfStaff: number;
+  expenses: number;
+  staffCount: number;
+}
+
+/**
+ * Compute {@link GigExportAggregates} for every gig the organization
+ * participates in, in three queries (mirrors getAllGigAccountingSummaries).
+ * Gigs with no financials and no staff are simply absent from the map; callers
+ * treat a miss as all-zero.
+ */
+export async function getGigExportAggregates(
+  organizationId: string,
+): Promise<Map<string, GigExportAggregates>> {
+  const supabase = getSupabase();
+  try {
+    const { data: participants, error: partError } = await supabase
+      .from('gig_participants')
+      .select('gig_id')
+      .eq('organization_id', organizationId);
+
+    if (partError) throw partError;
+    if (!participants || participants.length === 0) return new Map();
+
+    const gigIds = participants.map((p: { gig_id: string }) => p.gig_id);
+
+    const { data: financials, error: finError } = await supabase
+      .from('gig_financials')
+      .select('gig_id, type, amount, staff_assignment_id')
+      .in('gig_id', gigIds)
+      .eq('organization_id', organizationId);
+
+    if (finError) throw finError;
+
+    const { data: assignments, error: staffError } = await supabase
+      .from('gig_staff_assignments')
+      .select('fee, rate, slot:gig_staff_slots!inner(gig_id, organization_id)')
+      .in('slot.gig_id', gigIds)
+      .eq('slot.organization_id', organizationId);
+
+    if (staffError) throw staffError;
+
+    type RawFinancial = {
+      gig_id: string;
+      type: string;
+      amount: number | null;
+      staff_assignment_id: string | null;
+    };
+    type RawAssignment = {
+      fee: number | null;
+      rate: number | null;
+      slot: { gig_id: string; organization_id: string } | { gig_id: string; organization_id: string }[];
+    };
+
+    const costTypes = FIN_TYPE_GROUPS.cost as readonly string[];
+
+    type Acc = {
+      contractSigned: number;
+      bidAccepted: number;
+      informalTerms: number;
+      received: number;
+      expenses: number;
+      costOfStaff: number;
+      staffCount: number;
+    };
+    const acc = new Map<string, Acc>();
+    const bucket = (gigId: string): Acc => {
+      let a = acc.get(gigId);
+      if (!a) {
+        a = {
+          contractSigned: 0,
+          bidAccepted: 0,
+          informalTerms: 0,
+          received: 0,
+          expenses: 0,
+          costOfStaff: 0,
+          staffCount: 0,
+        };
+        acc.set(gigId, a);
+      }
+      return a;
+    };
+
+    for (const f of (financials || []) as RawFinancial[]) {
+      const a = bucket(f.gig_id);
+      const amount = Number(f.amount) || 0;
+
+      if (f.type === 'Contract Signed') a.contractSigned += amount;
+      else if (f.type === 'Bid Accepted') a.bidAccepted += amount;
+      else if (f.type === 'Informal Terms') a.informalTerms += amount;
+
+      if (f.type === 'Deposit Received' || f.type === 'Payment Received') {
+        a.received += amount;
+      }
+
+      if (costTypes.includes(f.type) && f.staff_assignment_id == null) {
+        a.expenses += amount;
+      }
+    }
+
+    for (const s of (assignments || []) as RawAssignment[]) {
+      const slot = Array.isArray(s.slot) ? s.slot[0] : s.slot;
+      if (!slot) continue;
+      const a = bucket(slot.gig_id);
+      const amount = s.fee !== null ? Number(s.fee) : s.rate !== null ? Number(s.rate) : 0;
+      a.costOfStaff += Number.isFinite(amount) ? amount : 0;
+      a.staffCount += 1;
+    }
+
+    const result = new Map<string, GigExportAggregates>();
+    for (const [gigId, a] of acc) {
+      const formalContract =
+        a.contractSigned > 0 ? a.contractSigned : a.bidAccepted > 0 ? a.bidAccepted : a.informalTerms;
+      result.set(gigId, {
+        revenue: Math.max(formalContract, a.received),
+        costOfStaff: a.costOfStaff,
+        expenses: a.expenses,
+        staffCount: a.staffCount,
+      });
+    }
+    return result;
+  } catch (err) {
+    return handleApiError(err, 'get gig export aggregates') as never;
+  }
+}
 
 /**
  * Fetch the gig_financials rows that reference a given purchase (line or header)

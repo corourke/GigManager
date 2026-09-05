@@ -11,11 +11,32 @@ import { Calendar as DatePicker } from './ui/calendar';
 import { Tabs, TabsList, TabsTrigger } from './ui/tabs';
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from './ui/alert-dialog';
+import {
   getGigsForOrganization,
   updateGig,
   duplicateGig,
   deleteGig,
+  getGigExportAggregates,
+  GigExportAggregates,
 } from '../services/gig.service';
+import {
+  buildExportRows,
+  gigsToCsv,
+  downloadGigCsv,
+  gigExportFilename,
+  formatExportDate,
+  roundMoney,
+  ZERO_GIG_EXPORT_AGGREGATES,
+} from '../utils/gigExport';
 import AppHeader from './AppHeader';
 import { SmartDataTable, ColumnDef, RowAction } from './tables/SmartDataTable';
 import { GigListEmptyState } from './gigs/GigListEmptyState';
@@ -25,6 +46,7 @@ import { GigStatusFilterDropdown } from './gigs/GigStatusFilterDropdown';
 import {
   Plus,
   Upload,
+  Download,
   Calendar as CalendarIcon,
   List,
   ChevronLeft,
@@ -100,6 +122,19 @@ export default function GigListScreen({
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>(initialViewMode);
+  const [showExportConfirm, setShowExportConfirm] = useState(false);
+  // Rows the list table is actually showing (date/status filters + per-column
+  // filters + sort applied). Fed by SmartDataTable's onFilteredDataChange; drives
+  // the CSV export so it matches what's on screen.
+  const [exportRows, setExportRows] = useState<Gig[]>([]);
+  // Column ids the table is currently showing, in display order (Columns menu
+  // toggles this). Fed by SmartDataTable's onVisibleColumnsChange; also drives
+  // the export so exported columns match what's on screen.
+  const [visibleColumnIds, setVisibleColumnIds] = useState<string[]>([]);
+  // Per-gig financial rollups (revenue/cost of staff/expenses/staff count) for
+  // the optional financial columns and the export. Loaded alongside the gig
+  // list so toggling those columns on is instant.
+  const [financialsByGigId, setFinancialsByGigId] = useState<Map<string, GigExportAggregates>>(new Map());
   const { futureDateFilter, setFutureDateFilter, pastDateFilter, setPastDateFilter, activeStatuses, setActiveStatuses } = useGigListFilters();
 
   const [calendarDate, setCalendarDate] = useState(new Date());
@@ -117,7 +152,17 @@ export default function GigListScreen({
     setIsLoading(true);
     setError(null);
     try {
-      const data = await getGigsForOrganization(organization.id);
+      const [data] = await Promise.all([
+        getGigsForOrganization(organization.id),
+        // Non-fatal: if this fails, the optional financial columns / export
+        // just show zeros rather than blocking the whole gig list.
+        getGigExportAggregates(organization.id)
+          .then(setFinancialsByGigId)
+          .catch((err) => {
+            console.error('Error loading gig financial aggregates:', err);
+            setFinancialsByGigId(new Map());
+          }),
+      ]);
       setGigs(data || []);
 
       if (data && data.length > 0) {
@@ -196,6 +241,11 @@ export default function GigListScreen({
     }
   }, [gigs]);
 
+  const getGigFinancials = useCallback(
+    (gigId: string) => financialsByGigId.get(gigId) ?? ZERO_GIG_EXPORT_AGGREGATES,
+    [financialsByGigId],
+  );
+
   const gigColumns = useMemo<ColumnDef<Gig>[]>(() => [
     {
       id: 'title',
@@ -228,6 +278,8 @@ export default function GigListScreen({
           {formatDateTimeDisplay(row.start, row.end, row.timezone)}
         </span>
       ),
+      // Displayed as a combined start–end range on screen; export gets a plain start date.
+      exportValue: (row) => formatExportDate(row.start, row.timezone),
     },
     {
       id: 'end',
@@ -238,6 +290,7 @@ export default function GigListScreen({
       editable: canEdit,
       type: 'datetime',
       timezone: (row) => row.timezone,
+      exportValue: (row) => formatExportDate(row.end, row.timezone),
     },
     {
       id: 'status',
@@ -250,6 +303,7 @@ export default function GigListScreen({
       type: 'pill',
       pillConfig: statusPillConfig,
       className: 'w-[12%]',
+      exportValue: (row) => GIG_STATUS_CONFIG[row.status]?.label ?? row.status ?? '',
     },
     {
       id: 'venue',
@@ -301,7 +355,78 @@ export default function GigListScreen({
         <span className="text-sm text-gray-600 line-clamp-2">{val || '—'}</span>
       ),
     },
-  ], [canEdit]);
+    // Financial rollups — hidden by default (toggle on via the Columns button).
+    // Read-only: computed from gig_financials / gig_staff_assignments, not gig columns.
+    {
+      id: 'staffCount',
+      header: 'Number of Staff',
+      accessor: (row) => getGigFinancials(row.id).staffCount,
+      sortable: true,
+      optional: true,
+      readOnly: true,
+      type: 'number',
+    },
+    {
+      id: 'costOfStaff',
+      header: 'Cost of Staff',
+      accessor: (row) => roundMoney(getGigFinancials(row.id).costOfStaff),
+      sortable: true,
+      optional: true,
+      readOnly: true,
+      type: 'currency',
+    },
+    {
+      id: 'revenue',
+      header: 'Revenue',
+      accessor: (row) => roundMoney(getGigFinancials(row.id).revenue),
+      sortable: true,
+      optional: true,
+      readOnly: true,
+      type: 'currency',
+    },
+    {
+      id: 'expenses',
+      header: 'Expenses',
+      accessor: (row) => roundMoney(getGigFinancials(row.id).expenses),
+      sortable: true,
+      optional: true,
+      readOnly: true,
+      type: 'currency',
+    },
+    {
+      id: 'profit',
+      header: 'Profit',
+      accessor: (row) => {
+        const f = getGigFinancials(row.id);
+        return roundMoney(f.revenue - f.costOfStaff - f.expenses);
+      },
+      sortable: true,
+      optional: true,
+      readOnly: true,
+      type: 'currency',
+    },
+  ], [canEdit, getGigFinancials]);
+
+  // Fallback for the (rare) case Export is clicked before SmartDataTable's
+  // mount effect has reported which columns are visible: mirrors its own
+  // default-visibility rule (required, or not marked optional).
+  const defaultVisibleColumnIds = useMemo(
+    () => gigColumns.filter((c) => c.required || !c.optional).map((c) => c.id),
+    [gigColumns],
+  );
+
+  const handleExport = useCallback(() => {
+    const rows = exportRows.length > 0 ? exportRows : filteredGigs;
+    if (rows.length === 0) return;
+    const shownIds = visibleColumnIds.length > 0 ? visibleColumnIds : defaultVisibleColumnIds;
+    const columnsToExport = gigColumns.filter((c) => shownIds.includes(c.id));
+    const csv = gigsToCsv(
+      buildExportRows(columnsToExport, rows),
+      columnsToExport.map((c) => c.header),
+    );
+    downloadGigCsv(csv, gigExportFilename());
+    toast.success(`Exported ${rows.length} gig${rows.length === 1 ? '' : 's'}`);
+  }, [exportRows, filteredGigs, gigColumns, visibleColumnIds, defaultVisibleColumnIds]);
 
   const rowActions = useMemo<RowAction<Gig>[]>(() => [
     {
@@ -549,6 +674,17 @@ export default function GigListScreen({
                   Import
                 </Button>
               )}
+              {viewMode === 'list' && (
+                <Button
+                  onClick={() => setShowExportConfirm(true)}
+                  variant="outline"
+                  disabled={filteredGigs.length === 0}
+                  className="border-sky-500 text-sky-600 hover:bg-sky-50"
+                >
+                  <Download className="w-4 h-4 mr-2" />
+                  Export
+                </Button>
+              )}
             </>
           }
         />
@@ -588,6 +724,8 @@ export default function GigListScreen({
                   rowActions={rowActions}
                   onRowUpdate={canEdit ? handleRowUpdate : undefined}
                   onAddRowClick={canEdit ? onCreateGig : undefined}
+                  onFilteredDataChange={setExportRows}
+                  onVisibleColumnsChange={setVisibleColumnIds}
                   isLoading={isLoading}
                   emptyMessage="No gigs found"
                   toolbarLeft={dateFilterControl}
@@ -641,6 +779,24 @@ export default function GigListScreen({
           )}
         </div>
       </div>
+
+      <AlertDialog open={showExportConfirm} onOpenChange={setShowExportConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Export gigs as shown?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This exports exactly what the list is currently showing — the Date and Status filters,
+              any column search filters, sort order, and the columns you've chosen to display (via the
+              Columns button) all carry over to the CSV. Adjust filters or columns first if you want a
+              different export.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleExport}>Continue</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

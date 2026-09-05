@@ -66,6 +66,13 @@ export interface ColumnDef<T> {
   timezone?: string | ((row: T) => string);
   className?: string;
   render?: (value: any, row: T) => React.ReactNode;
+  /**
+   * Plain-value formatter for CSV/data export (e.g. `gigExport.ts`'s
+   * `buildExportRows`). Falls back to `accessor` when omitted — set this when
+   * the on-screen value needs different shaping for export (e.g. a raw ISO
+   * timestamp accessor formatted to a plain export date).
+   */
+  exportValue?: (row: T) => string | number | null | undefined;
 }
 
 interface SmartDataTableProps<T extends { id: string }> {
@@ -76,6 +83,8 @@ interface SmartDataTableProps<T extends { id: string }> {
   onAddRow?: () => Promise<T>;
   onAddRowClick?: () => void;
   onFilteredDataChange?: (data: T[]) => void;
+  /** Fires with the ids of the currently-visible columns, in display order, whenever column visibility changes. */
+  onVisibleColumnsChange?: (columnIds: string[]) => void;
   actions?: (row: T) => React.ReactNode;
   rowActions?: RowAction<T>[];
   isLoading?: boolean;
@@ -93,6 +102,7 @@ export function SmartDataTable<T extends { id: string }>({
   onAddRow,
   onAddRowClick,
   onFilteredDataChange,
+  onVisibleColumnsChange,
   actions,
   rowActions,
   isLoading = false,
@@ -184,6 +194,13 @@ export function SmartDataTable<T extends { id: string }>({
       return !col.optional || columnVisibility[col.id] === true;
     });
   }, [columns, columnVisibility]);
+
+  // Notify parent of visible-column changes (toggled via the Columns menu below).
+  React.useEffect(() => {
+    if (onVisibleColumnsChange) {
+      onVisibleColumnsChange(visibleColumns.map((c) => c.id));
+    }
+  }, [visibleColumns, onVisibleColumnsChange]);
 
   // Selected cell state for blue outline
   const [selectedCell, setSelectedCell] = useState<{ rowId: string; colId: string } | null>(null);

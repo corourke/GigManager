@@ -27,11 +27,13 @@ export {
 } from './gigKit.service';
 
 // Financial / bid operations live in gigFinancial.service.ts (Step 4 split).
+export type { GigExportAggregates } from './gigFinancial.service';
 export {
   getGigFinancials,
   getGigFinancialsByPurchaseId,
   getPurchaseIdsWithLedgerEntry,
   getGigProfitabilitySummary,
+  getGigExportAggregates,
   getGigBids,
   createGigFinancial,
   createGigBid,
