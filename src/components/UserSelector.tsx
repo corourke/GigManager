@@ -2,9 +2,10 @@ import { useState, useRef, useEffect } from 'react';
 import { Input } from './ui/input';
 import { Command, CommandEmpty, CommandGroup, CommandItem, CommandList } from './ui/command';
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
-import { Search, User as UserIcon, Loader2 } from 'lucide-react';
+import { Search, User as UserIcon, Loader2, UserPlus } from 'lucide-react';
 import { User } from '../utils/supabase/types';
 import { searchUsers } from '../services/user.service';
+import QuickAddPersonDialog from './organization/QuickAddPersonDialog';
 
 interface UserSelectorProps {
   onSelect: (user: User) => void;
@@ -12,6 +13,9 @@ interface UserSelectorProps {
   disabled?: boolean;
   value?: string;
   organizationIds?: string[]; // Optional: search within specific organizations
+  /** When set, shows a "+ Add new person" affordance that quick-adds a login-less person to this org. */
+  quickAddOrganizationId?: string;
+  quickAddOrganizationName?: string;
 }
 
 export default function UserSelector({
@@ -20,11 +24,14 @@ export default function UserSelector({
   disabled = false,
   value = '',
   organizationIds,
+  quickAddOrganizationId,
+  quickAddOrganizationName,
 }: UserSelectorProps) {
   const [inputValue, setInputValue] = useState(value);
   const [isOpen, setIsOpen] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
   const [searchResults, setSearchResults] = useState<User[]>([]);
+  const [showQuickAdd, setShowQuickAdd] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   // Update input value when prop changes
@@ -139,7 +146,35 @@ export default function UserSelector({
             )}
           </CommandList>
         </Command>
+        {quickAddOrganizationId && (
+          <button
+            type="button"
+            onMouseDown={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              setIsOpen(false);
+              setShowQuickAdd(true);
+            }}
+            className="w-full flex items-center gap-2 px-3 py-2.5 text-sm text-sky-600 hover:bg-sky-50 border-t"
+          >
+            <UserPlus className="w-4 h-4" />
+            Add new person
+          </button>
+        )}
       </PopoverContent>
+      {quickAddOrganizationId && (
+        <QuickAddPersonDialog
+          open={showQuickAdd}
+          onOpenChange={setShowQuickAdd}
+          organizationId={quickAddOrganizationId}
+          organizationName={quickAddOrganizationName}
+          onDone={(person) => {
+            const fullName = `${person.first_name} ${person.last_name}`.trim();
+            handleSelectUser({ ...person, email: '' } as User);
+            setInputValue(fullName);
+          }}
+        />
+      )}
     </Popover>
   );
 }

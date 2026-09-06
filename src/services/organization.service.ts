@@ -447,36 +447,111 @@ export async function getOrganizationContacts(organizationId: string) {
 }
 
 /**
- * Add a new contact to an organization — links an existing person by email,
- * or creates a new login-less (user_status = 'contact') person.
+ * Create a new login-less person (user_status = 'contact') on an
+ * organization. Email and phone are both optional — search for likely
+ * duplicates first with findOrganizationPersonMatches and let the user pick
+ * an existing person via linkExistingPersonToOrganization instead, since
+ * this always creates a brand-new person.
  */
 export async function addOrganizationContact(
   organizationId: string,
   contact: {
-    email: string;
     firstName: string;
     lastName: string;
+    email?: string;
     phone?: string;
     title?: string;
     isPrimary?: boolean;
+    role?: UserRole;
   }
 ) {
   const supabase = getSupabase();
   try {
     const { data, error } = await supabase.rpc('add_organization_contact', {
       p_organization_id: organizationId,
-      p_email: contact.email,
+      p_email: contact.email || undefined,
       p_first_name: contact.firstName,
       p_last_name: contact.lastName,
       p_phone: contact.phone || undefined,
       p_title: contact.title || undefined,
       p_is_primary: contact.isPrimary ?? false,
+      p_role: contact.role || undefined,
+    });
+
+    if (error) throw error;
+    return data as { user_id: string; member: Record<string, unknown> };
+  } catch (err) {
+    return handleApiError(err, 'add organization contact');
+  }
+}
+
+export interface OrganizationPersonMatch {
+  member_id: string;
+  user_id: string;
+  first_name: string;
+  last_name: string;
+  email: string | null;
+  phone: string | null;
+  role: UserRole;
+  contact_title: string | null;
+  user_status: string;
+}
+
+/**
+ * Search one organization's existing members/contacts by name, email, or
+ * phone — used to offer an existing match before creating a new person
+ * (avoiding an accidental duplicate), and to let a user pick an existing
+ * member of a Participating Organization instead of always creating a new
+ * one there. Returns [] if no search term is given — this is a search, not
+ * a roster listing.
+ */
+export async function findOrganizationPersonMatches(
+  organizationId: string,
+  query: { search?: string; email?: string; phone?: string }
+): Promise<OrganizationPersonMatch[]> {
+  const supabase = getSupabase();
+  try {
+    const { data, error } = await supabase.rpc('find_organization_person_matches', {
+      p_organization_id: organizationId,
+      p_search: query.search || undefined,
+      p_email: query.email || undefined,
+      p_phone: query.phone || undefined,
+    });
+
+    if (error) throw error;
+    return (data as OrganizationPersonMatch[] | null) || [];
+  } catch (err) {
+    return handleApiError(err, 'search organization members');
+  }
+}
+
+/**
+ * Link an EXISTING person (from findOrganizationPersonMatches) to an
+ * organization — the counterpart to addOrganizationContact's "create new".
+ * Uses a dedicated RPC rather than addExistingUserToOrganization's Edge
+ * Function, because that route only allows an actor who is already a member
+ * of the TARGET organization — it 403s for the cross-org case this is for
+ * (e.g. adding a contact to a Participating Organization you don't
+ * personally belong to).
+ */
+export async function linkExistingPersonToOrganization(
+  organizationId: string,
+  vars: { userId: string; role?: UserRole; title?: string; isPrimary?: boolean }
+) {
+  const supabase = getSupabase();
+  try {
+    const { data, error } = await supabase.rpc('link_existing_person_to_organization', {
+      p_organization_id: organizationId,
+      p_user_id: vars.userId,
+      p_role: vars.role || undefined,
+      p_title: vars.title || undefined,
+      p_is_primary: vars.isPrimary ?? false,
     });
 
     if (error) throw error;
     return data;
   } catch (err) {
-    return handleApiError(err, 'add organization contact');
+    return handleApiError(err, 'add existing person to organization');
   }
 }
 

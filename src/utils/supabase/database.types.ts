@@ -1483,12 +1483,13 @@ export type Database = {
       add_organization_contact: {
         Args: {
           p_actor_id?: string
-          p_email: string
-          p_first_name: string
+          p_email?: string
+          p_first_name?: string
           p_is_primary?: boolean
-          p_last_name: string
+          p_last_name?: string
           p_organization_id: string
           p_phone?: string
+          p_role?: Database["public"]["Enums"]["user_role"]
           p_title?: string
         }
         Returns: Json
@@ -1505,6 +1506,16 @@ export type Database = {
       }
       create_purchase_transaction_v1: {
         Args: { p_assets: Json[]; p_header: Json; p_items: Json[] }
+        Returns: Json
+      }
+      find_organization_person_matches: {
+        Args: {
+          p_actor_id?: string
+          p_email?: string
+          p_organization_id: string
+          p_phone?: string
+          p_search?: string
+        }
         Returns: Json
       }
       get_complete_user_data: { Args: { user_uuid: string }; Returns: Json }
@@ -1597,6 +1608,17 @@ export type Database = {
         Returns: {
           kit_id: string
         }[]
+      }
+      link_existing_person_to_organization: {
+        Args: {
+          p_actor_id?: string
+          p_is_primary?: boolean
+          p_organization_id: string
+          p_role?: Database["public"]["Enums"]["user_role"]
+          p_title?: string
+          p_user_id: string
+        }
+        Returns: Json
       }
       log_activity: {
         Args: {

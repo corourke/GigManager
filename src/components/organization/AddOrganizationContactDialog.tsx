@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { Loader2, Mail } from 'lucide-react';
 import { Button } from '../ui/button';
@@ -14,6 +14,9 @@ import {
   DialogTitle,
 } from '../ui/dialog';
 import { useOrganizationContactMutations } from './useOrganizationContacts';
+import { usePersonMatches } from './usePersonMatches';
+import PersonMatchResults from './PersonMatchResults';
+import type { OrganizationPersonMatch } from '../../services/organization.service';
 
 interface AddOrganizationContactDialogProps {
   open: boolean;
@@ -32,25 +35,54 @@ export default function AddOrganizationContactDialog({
   organizationName,
   hasPrimaryContact,
 }: AddOrganizationContactDialogProps) {
-  const { addContact } = useOrganizationContactMutations(orgId);
+  const { addContact, linkExisting } = useOrganizationContactMutations(orgId);
   const [form, setForm] = useState(EMPTY);
   const [isPrimary, setIsPrimary] = useState(!hasPrimaryContact);
+  const [debouncedQuery, setDebouncedQuery] = useState({ search: '', email: '', phone: '' });
+
+  const isPending = addContact.isPending || linkExisting.isPending;
 
   const reset = () => {
     setForm(EMPTY);
     setIsPrimary(!hasPrimaryContact);
+    setDebouncedQuery({ search: '', email: '', phone: '' });
+  };
+
+  // Debounce the duplicate/existing-member check against name, email, and
+  // phone as the form is filled in — cheap enough to run live rather than
+  // waiting for save, so the user can pick an existing person before typing
+  // out a whole new-person form for someone already on this org.
+  useEffect(() => {
+    const search = `${form.firstName.trim()} ${form.lastName.trim()}`.trim();
+    const timer = setTimeout(() => {
+      setDebouncedQuery({ search: search.length >= 2 ? search : '', email: form.email.trim(), phone: form.phone.trim() });
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [form.firstName, form.lastName, form.email, form.phone]);
+
+  const { data: matches = [], isFetching: isSearching, hasQuery } = usePersonMatches(orgId, debouncedQuery);
+
+  const handleUseExisting = async (match: OrganizationPersonMatch) => {
+    try {
+      await linkExisting.mutateAsync({ userId: match.user_id, title: form.title.trim() || undefined, isPrimary });
+      onOpenChange(false);
+      reset();
+      toast.success(`${match.first_name} ${match.last_name} added as a contact`);
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to add contact');
+    }
   };
 
   const handleSubmit = async () => {
-    if (!form.firstName.trim() || !form.lastName.trim() || !form.email.trim()) {
-      toast.error('First name, last name, and email are required');
+    if (!form.firstName.trim() || !form.lastName.trim()) {
+      toast.error('First and last name are required');
       return;
     }
     try {
       await addContact.mutateAsync({
-        email: form.email.trim(),
         firstName: form.firstName.trim(),
         lastName: form.lastName.trim(),
+        email: form.email.trim() || undefined,
         phone: form.phone.trim() || undefined,
         title: form.title.trim() || undefined,
         isPrimary,
@@ -82,7 +114,7 @@ export default function AddOrganizationContactDialog({
                 id="contact_first_name"
                 value={form.firstName}
                 onChange={(e) => setForm({ ...form, firstName: e.target.value })}
-                disabled={addContact.isPending}
+                disabled={isPending}
               />
             </div>
             <div className="space-y-2">
@@ -91,13 +123,13 @@ export default function AddOrganizationContactDialog({
                 id="contact_last_name"
                 value={form.lastName}
                 onChange={(e) => setForm({ ...form, lastName: e.target.value })}
-                disabled={addContact.isPending}
+                disabled={isPending}
               />
             </div>
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="contact_email">Email *</Label>
+            <Label htmlFor="contact_email">Email</Label>
             <div className="relative">
               <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
               <Input
@@ -106,7 +138,7 @@ export default function AddOrganizationContactDialog({
                 placeholder="jane@venue.com"
                 value={form.email}
                 onChange={(e) => setForm({ ...form, email: e.target.value })}
-                disabled={addContact.isPending}
+                disabled={isPending}
                 className="pl-10"
               />
             </div>
@@ -119,7 +151,7 @@ export default function AddOrganizationContactDialog({
                 id="contact_phone"
                 value={form.phone}
                 onChange={(e) => setForm({ ...form, phone: e.target.value })}
-                disabled={addContact.isPending}
+                disabled={isPending}
               />
             </div>
             <div className="space-y-2">
@@ -129,16 +161,24 @@ export default function AddOrganizationContactDialog({
                 placeholder="Venue Manager"
                 value={form.title}
                 onChange={(e) => setForm({ ...form, title: e.target.value })}
-                disabled={addContact.isPending}
+                disabled={isPending}
               />
             </div>
           </div>
+
+          <PersonMatchResults
+            matches={matches}
+            isLoading={isSearching}
+            hasQuery={hasQuery}
+            onSelect={handleUseExisting}
+            emptyHint="No existing match on this organization — this will create a new contact."
+          />
 
           <label className="flex items-center gap-2 text-sm cursor-pointer">
             <Checkbox
               checked={isPrimary}
               onCheckedChange={(checked) => setIsPrimary(checked === true)}
-              disabled={addContact.isPending}
+              disabled={isPending}
             />
             Set as primary contact
             {hasPrimaryContact && isPrimary && (
@@ -148,12 +188,12 @@ export default function AddOrganizationContactDialog({
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={addContact.isPending}>
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isPending}>
             Cancel
           </Button>
           <Button
             onClick={handleSubmit}
-            disabled={addContact.isPending}
+            disabled={isPending}
             className="bg-sky-500 hover:bg-sky-600 text-white"
           >
             {addContact.isPending ? (
@@ -162,7 +202,7 @@ export default function AddOrganizationContactDialog({
                 Adding...
               </>
             ) : (
-              'Add Contact'
+              'Add New Contact'
             )}
           </Button>
         </DialogFooter>

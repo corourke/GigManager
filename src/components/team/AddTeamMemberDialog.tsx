@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { toast } from 'sonner';
-import { Loader2, Mail, Shield, Crown, User as UserIcon, Search, UserPlus, Send } from 'lucide-react';
+import { Loader2, Mail, Shield, Crown, User as UserIcon, Search, UserPlus, Send, UserCog } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
@@ -17,6 +17,10 @@ import {
 } from '../ui/dialog';
 import type { User, UserRole } from '../../utils/supabase/types';
 import { useUserSearch, useTeamMutations } from './useTeamData';
+import { useOrganizationContactMutations } from '../organization/useOrganizationContacts';
+import { usePersonMatches } from '../organization/usePersonMatches';
+import PersonMatchResults from '../organization/PersonMatchResults';
+import type { OrganizationPersonMatch } from '../../services/organization.service';
 
 interface AddTeamMemberDialogProps {
   open: boolean;
@@ -35,6 +39,7 @@ export default function AddTeamMemberDialog({
   excludeUserIds,
 }: AddTeamMemberDialogProps) {
   const { addExistingUser, inviteUser } = useTeamMutations(orgId);
+  const { addContact: addQuickAddPerson, linkExisting: linkQuickAddPerson } = useOrganizationContactMutations(orgId);
 
   // Existing-user search
   const [userSearchQuery, setUserSearchQuery] = useState('');
@@ -48,15 +53,31 @@ export default function AddTeamMemberDialog({
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviteRole, setInviteRole] = useState<UserRole>('Staff');
 
+  // Quick-add without an account (no login, user_status = 'contact')
+  const [quickAddForm, setQuickAddForm] = useState({ firstName: '', lastName: '', phone: '' });
+  const [quickAddRole, setQuickAddRole] = useState<UserRole>('Staff');
+  const [quickAddDebounced, setQuickAddDebounced] = useState({ search: '', phone: '' });
+
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedQuery(userSearchQuery), 300);
     return () => clearTimeout(timer);
   }, [userSearchQuery]);
 
+  useEffect(() => {
+    const search = `${quickAddForm.firstName.trim()} ${quickAddForm.lastName.trim()}`.trim();
+    const timer = setTimeout(() => {
+      setQuickAddDebounced({ search: search.length >= 2 ? search : '', phone: quickAddForm.phone.trim() });
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [quickAddForm.firstName, quickAddForm.lastName, quickAddForm.phone]);
+
   const { data: searchResults = [], isFetching: isSearching } = useUserSearch(
     debouncedQuery,
     excludeUserIds,
   );
+
+  const { data: quickAddMatches = [], isFetching: isQuickAddSearching, hasQuery: hasQuickAddQuery } =
+    usePersonMatches(orgId, quickAddDebounced);
 
   const resetExisting = () => {
     setSelectedUser(null);
@@ -69,6 +90,11 @@ export default function AddTeamMemberDialog({
     setInviteLastName('');
     setInviteEmail('');
     setInviteRole('Staff');
+  };
+  const resetQuickAdd = () => {
+    setQuickAddForm({ firstName: '', lastName: '', phone: '' });
+    setQuickAddRole('Staff');
+    setQuickAddDebounced({ search: '', phone: '' });
   };
 
   const handleAddExistingUser = async () => {
@@ -120,18 +146,50 @@ export default function AddTeamMemberDialog({
     }
   };
 
+  const handleUseExistingQuickAdd = async (match: OrganizationPersonMatch) => {
+    try {
+      await linkQuickAddPerson.mutateAsync({ userId: match.user_id, role: quickAddRole });
+      onOpenChange(false);
+      resetQuickAdd();
+      toast.success(`${match.first_name} ${match.last_name} added to the team`);
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to add person');
+    }
+  };
+
+  const handleQuickAdd = async () => {
+    if (!quickAddForm.firstName.trim() || !quickAddForm.lastName.trim()) {
+      toast.error('First and last name are required');
+      return;
+    }
+    try {
+      await addQuickAddPerson.mutateAsync({
+        firstName: quickAddForm.firstName.trim(),
+        lastName: quickAddForm.lastName.trim(),
+        phone: quickAddForm.phone.trim() || undefined,
+        role: quickAddRole,
+      });
+      onOpenChange(false);
+      resetQuickAdd();
+      toast.success('Person added to the team');
+    } catch (error: any) {
+      console.error('Error quick-adding person:', error);
+      toast.error(error.message || 'Failed to add person');
+    }
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl">
         <DialogHeader>
           <DialogTitle>Add Team Member</DialogTitle>
           <DialogDescription>
-            Add an existing user or invite someone new to {organizationName}.
+            Add an existing user, invite someone new, or add someone without a login to {organizationName}.
           </DialogDescription>
         </DialogHeader>
 
         <Tabs defaultValue="existing" className="w-full">
-          <TabsList className="grid w-full grid-cols-2">
+          <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="existing">
               <UserPlus className="w-4 h-4 mr-2" />
               Add Existing User
@@ -139,6 +197,10 @@ export default function AddTeamMemberDialog({
             <TabsTrigger value="invite">
               <Send className="w-4 h-4 mr-2" />
               Invite New User
+            </TabsTrigger>
+            <TabsTrigger value="quick-add">
+              <UserCog className="w-4 h-4 mr-2" />
+              Add Without an Account
             </TabsTrigger>
           </TabsList>
 
@@ -362,6 +424,103 @@ export default function AddTeamMemberDialog({
                     <Send className="mr-2 h-4 w-4" />
                     Send Invitation
                   </>
+                )}
+              </Button>
+            </DialogFooter>
+          </TabsContent>
+
+          <TabsContent value="quick-add" className="space-y-4 pt-4">
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+              <p className="text-sm text-blue-800">
+                <strong>Note:</strong> For staff who don't need their own GigWrangler login — they get
+                added to the roster and can be assigned to gigs, but won't be invited by email.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="quick_add_first_name">First Name *</Label>
+                <Input
+                  id="quick_add_first_name"
+                  placeholder="John"
+                  value={quickAddForm.firstName}
+                  onChange={(e) => setQuickAddForm({ ...quickAddForm, firstName: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="quick_add_last_name">Last Name *</Label>
+                <Input
+                  id="quick_add_last_name"
+                  placeholder="Doe"
+                  value={quickAddForm.lastName}
+                  onChange={(e) => setQuickAddForm({ ...quickAddForm, lastName: e.target.value })}
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="quick_add_phone">Phone</Label>
+              <Input
+                id="quick_add_phone"
+                placeholder="Optional"
+                value={quickAddForm.phone}
+                onChange={(e) => setQuickAddForm({ ...quickAddForm, phone: e.target.value })}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="quick_add_role">Role</Label>
+              <Select value={quickAddRole} onValueChange={(value) => setQuickAddRole(value as UserRole)}>
+                <SelectTrigger id="quick_add_role">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Staff">
+                    <div className="flex items-center gap-2">
+                      <UserIcon className="w-4 h-4 text-gray-600" />
+                      Staff - Can be assigned to gigs
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="Viewer">
+                    <div className="flex items-center gap-2">
+                      <UserIcon className="w-4 h-4 text-gray-500" />
+                      Viewer - Read-only access
+                    </div>
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <PersonMatchResults
+              matches={quickAddMatches}
+              isLoading={isQuickAddSearching}
+              hasQuery={hasQuickAddQuery}
+              onSelect={handleUseExistingQuickAdd}
+              emptyHint="No existing match on this organization — this will add a new person."
+            />
+
+            <DialogFooter>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  onOpenChange(false);
+                  resetQuickAdd();
+                }}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleQuickAdd}
+                disabled={addQuickAddPerson.isPending || linkQuickAddPerson.isPending}
+                className="bg-sky-500 hover:bg-sky-600 text-white"
+              >
+                {addQuickAddPerson.isPending ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Adding...
+                  </>
+                ) : (
+                  'Add to Team'
                 )}
               </Button>
             </DialogFooter>

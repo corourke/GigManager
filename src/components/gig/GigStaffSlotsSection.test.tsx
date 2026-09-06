@@ -1,6 +1,19 @@
+import type { ReactElement } from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render as rtlRender, screen, waitFor } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import GigStaffSlotsSection from './GigStaffSlotsSection';
+
+// UserSelector's quick-add affordance mounts a QuickAddPersonDialog (closed by
+// default) which uses react-query hooks regardless of its open state, so this
+// needs a QueryClientProvider ancestor now, matching the app's real wiring
+// (a single app-wide provider in src/main.tsx).
+function render(ui: ReactElement) {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  });
+  return rtlRender(<QueryClientProvider client={queryClient}>{ui}</QueryClientProvider>);
+}
 
 vi.mock('../../services/gig.service', () => ({
   getGig: vi.fn().mockResolvedValue({
