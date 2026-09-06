@@ -3,7 +3,6 @@ import {
   inviteUserToOrganization,
   createOrganization,
   addOrganizationContact,
-  findOrganizationPersonMatches,
   linkExistingPersonToOrganization,
 } from './organization.service';
 import { createClient } from '../utils/supabase/client';
@@ -195,33 +194,6 @@ describe('organization.service', () => {
       await expect(
         addOrganizationContact('org-1', { firstName: 'Jane', lastName: 'Doe', email: 'jane@example.com' }),
       ).rejects.toThrow(/already exists/);
-    });
-  });
-
-  describe('findOrganizationPersonMatches', () => {
-    it('searches by name, email, and phone', async () => {
-      const mockMatches = [
-        { member_id: 'm1', user_id: 'u1', first_name: 'Jane', last_name: 'Doe', email: 'jane@example.com', phone: null, role: 'Viewer', contact_title: null, user_status: 'contact' },
-      ];
-      mockSupabase.rpc.mockResolvedValue({ data: mockMatches, error: null });
-
-      const result = await findOrganizationPersonMatches('org-1', { search: 'Jane' });
-
-      expect(mockSupabase.rpc).toHaveBeenCalledWith('find_organization_person_matches', {
-        p_organization_id: 'org-1',
-        p_search: 'Jane',
-        p_email: undefined,
-        p_phone: undefined,
-      });
-      expect(result).toEqual(mockMatches);
-    });
-
-    it('returns an empty array when the RPC returns null', async () => {
-      mockSupabase.rpc.mockResolvedValue({ data: null, error: null });
-
-      const result = await findOrganizationPersonMatches('org-1', { search: 'Jane' });
-
-      expect(result).toEqual([]);
     });
   });
 

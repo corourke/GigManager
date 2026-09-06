@@ -5,7 +5,7 @@ import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
 import { Search, User as UserIcon, Loader2, UserPlus } from 'lucide-react';
 import { User } from '../utils/supabase/types';
 import { searchUsers } from '../services/user.service';
-import QuickAddPersonDialog from './organization/QuickAddPersonDialog';
+import AddPersonDialog from './organization/AddPersonDialog';
 
 interface UserSelectorProps {
   onSelect: (user: User) => void;
@@ -163,11 +163,12 @@ export default function UserSelector({
         )}
       </PopoverContent>
       {quickAddOrganizationId && (
-        <QuickAddPersonDialog
+        <AddPersonDialog
           open={showQuickAdd}
           onOpenChange={setShowQuickAdd}
           organizationId={quickAddOrganizationId}
           organizationName={quickAddOrganizationName}
+          defaultRole="Staff"
           onDone={(person) => {
             const fullName = `${person.first_name} ${person.last_name}`.trim();
             handleSelectUser({ ...person, email: '' } as User);

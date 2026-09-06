@@ -20,7 +20,6 @@ import { useUserSearch, useTeamMutations } from './useTeamData';
 import { useOrganizationContactMutations } from '../organization/useOrganizationContacts';
 import { usePersonMatches } from '../organization/usePersonMatches';
 import PersonMatchResults from '../organization/PersonMatchResults';
-import type { OrganizationPersonMatch } from '../../services/organization.service';
 
 interface AddTeamMemberDialogProps {
   open: boolean;
@@ -54,9 +53,9 @@ export default function AddTeamMemberDialog({
   const [inviteRole, setInviteRole] = useState<UserRole>('Staff');
 
   // Quick-add without an account (no login, user_status = 'contact')
-  const [quickAddForm, setQuickAddForm] = useState({ firstName: '', lastName: '', phone: '' });
+  const [quickAddForm, setQuickAddForm] = useState({ firstName: '', lastName: '', email: '', phone: '' });
   const [quickAddRole, setQuickAddRole] = useState<UserRole>('Staff');
-  const [quickAddDebounced, setQuickAddDebounced] = useState({ search: '', phone: '' });
+  const [quickAddDebouncedSearch, setQuickAddDebouncedSearch] = useState('');
 
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedQuery(userSearchQuery), 300);
@@ -64,12 +63,15 @@ export default function AddTeamMemberDialog({
   }, [userSearchQuery]);
 
   useEffect(() => {
-    const search = `${quickAddForm.firstName.trim()} ${quickAddForm.lastName.trim()}`.trim();
-    const timer = setTimeout(() => {
-      setQuickAddDebounced({ search: search.length >= 2 ? search : '', phone: quickAddForm.phone.trim() });
-    }, 300);
+    // Search-as-you-type against name, falling back to email once it looks
+    // real — system-wide (usePersonMatches), same as the Existing User tab,
+    // so someone who's only a member of a different org still turns up.
+    const emailQuery = quickAddForm.email.trim();
+    const nameQuery = `${quickAddForm.firstName.trim()} ${quickAddForm.lastName.trim()}`.trim();
+    const search = emailQuery.length >= 3 ? emailQuery : nameQuery;
+    const timer = setTimeout(() => setQuickAddDebouncedSearch(search), 300);
     return () => clearTimeout(timer);
-  }, [quickAddForm.firstName, quickAddForm.lastName, quickAddForm.phone]);
+  }, [quickAddForm.firstName, quickAddForm.lastName, quickAddForm.email]);
 
   const { data: searchResults = [], isFetching: isSearching } = useUserSearch(
     debouncedQuery,
@@ -77,7 +79,7 @@ export default function AddTeamMemberDialog({
   );
 
   const { data: quickAddMatches = [], isFetching: isQuickAddSearching, isError: quickAddMatchesErrored, hasQuery: hasQuickAddQuery } =
-    usePersonMatches(orgId, quickAddDebounced);
+    usePersonMatches(quickAddDebouncedSearch);
 
   const resetExisting = () => {
     setSelectedUser(null);
@@ -92,9 +94,9 @@ export default function AddTeamMemberDialog({
     setInviteRole('Staff');
   };
   const resetQuickAdd = () => {
-    setQuickAddForm({ firstName: '', lastName: '', phone: '' });
+    setQuickAddForm({ firstName: '', lastName: '', email: '', phone: '' });
     setQuickAddRole('Staff');
-    setQuickAddDebounced({ search: '', phone: '' });
+    setQuickAddDebouncedSearch('');
   };
 
   const handleAddExistingUser = async () => {
@@ -146,9 +148,9 @@ export default function AddTeamMemberDialog({
     }
   };
 
-  const handleUseExistingQuickAdd = async (match: OrganizationPersonMatch) => {
+  const handleUseExistingQuickAdd = async (match: User) => {
     try {
-      await linkQuickAddPerson.mutateAsync({ userId: match.user_id, role: quickAddRole });
+      await linkQuickAddPerson.mutateAsync({ userId: match.id, role: quickAddRole });
       onOpenChange(false);
       resetQuickAdd();
       toast.success(`${match.first_name} ${match.last_name} added to the team`);
@@ -166,6 +168,7 @@ export default function AddTeamMemberDialog({
       await addQuickAddPerson.mutateAsync({
         firstName: quickAddForm.firstName.trim(),
         lastName: quickAddForm.lastName.trim(),
+        email: quickAddForm.email.trim() || undefined,
         phone: quickAddForm.phone.trim() || undefined,
         role: quickAddRole,
       });
@@ -458,14 +461,26 @@ export default function AddTeamMemberDialog({
               </div>
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="quick_add_phone">Phone</Label>
-              <Input
-                id="quick_add_phone"
-                placeholder="Optional"
-                value={quickAddForm.phone}
-                onChange={(e) => setQuickAddForm({ ...quickAddForm, phone: e.target.value })}
-              />
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="quick_add_email">Email</Label>
+                <Input
+                  id="quick_add_email"
+                  type="email"
+                  placeholder="Optional"
+                  value={quickAddForm.email}
+                  onChange={(e) => setQuickAddForm({ ...quickAddForm, email: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="quick_add_phone">Phone</Label>
+                <Input
+                  id="quick_add_phone"
+                  placeholder="Optional"
+                  value={quickAddForm.phone}
+                  onChange={(e) => setQuickAddForm({ ...quickAddForm, phone: e.target.value })}
+                />
+              </div>
             </div>
 
             <div className="space-y-2">

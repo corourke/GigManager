@@ -12,7 +12,7 @@ import {
   AlertDialogTitle,
 } from '../ui/alert-dialog';
 import { useOrganizationContacts, useOrganizationContactMutations, type OrganizationContact } from '../organization/useOrganizationContacts';
-import AddOrganizationContactDialog from '../organization/AddOrganizationContactDialog';
+import AddPersonDialog from '../organization/AddPersonDialog';
 import EditOrganizationContactDialog from '../organization/EditOrganizationContactDialog';
 
 interface GigParticipantContactsListProps {
@@ -131,12 +131,13 @@ export default function GigParticipantContactsList({
         </div>
       )}
 
-      <AddOrganizationContactDialog
+      <AddPersonDialog
         open={addDialogOpen}
         onOpenChange={onAddDialogOpenChange}
-        orgId={organizationId}
+        organizationId={organizationId}
         organizationName={organizationName}
         hasPrimaryContact={hasPrimaryContact}
+        defaultRole="Viewer"
       />
 
       <EditOrganizationContactDialog

@@ -1508,16 +1508,6 @@ export type Database = {
         Args: { p_assets: Json[]; p_header: Json; p_items: Json[] }
         Returns: Json
       }
-      find_organization_person_matches: {
-        Args: {
-          p_actor_id?: string
-          p_email?: string
-          p_organization_id: string
-          p_phone?: string
-          p_search?: string
-        }
-        Returns: Json
-      }
       get_complete_user_data: { Args: { user_uuid: string }; Returns: Json }
       get_kit_hierarchy_tree: {
         Args: { p_kit_id: string }

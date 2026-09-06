@@ -1,32 +1,31 @@
 import { useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { findOrganizationPersonMatches, type OrganizationPersonMatch } from '../../services/organization.service';
+import { searchAllUsers } from '../../services/user.service';
+import type { User } from '../../utils/supabase/types';
 
 /**
- * Debounced search for an existing person on an organization by name, email,
- * or phone — the caller is responsible for debouncing the raw input (see
- * AddTeamMemberDialog's userSearchQuery/debouncedQuery pattern) before
- * passing it in here. Disabled entirely when no search term is present, to
- * avoid firing a query on every keystroke of an unrelated field.
+ * Debounced, system-wide search for an existing person by name or email —
+ * the same search_users_secure path the Team screen's "Add Existing User"
+ * tab already uses. Deliberately NOT scoped to one organization's members:
+ * the point is to avoid creating duplicate people anywhere in the system,
+ * so someone who's only a member of a different organization must still
+ * turn up here (they then get linked into the current org instead of
+ * re-created). The caller debounces the raw input before passing it in.
  *
- * A failed search (permission denied, RPC not found because a migration
- * hasn't been applied yet, network error, etc.) must never look like "no
- * match found" — that's indistinguishable from an actual duplicate check
- * that passed, and would let someone create a real duplicate believing
- * they'd already checked. So this surfaces failures via a toast and the
- * returned isError/error, instead of letting callers default data to []
- * and quietly treat a failure as a clean search.
+ * A failed search (network error, etc.) must never look like "no match
+ * found" — that's indistinguishable from an actual duplicate check that
+ * passed, and would let someone create a real duplicate believing they'd
+ * already checked. So this surfaces failures via a toast and the returned
+ * isError/error, instead of letting callers default data to [] and quietly
+ * treat a failure as a clean search.
  */
-export function usePersonMatches(
-  organizationId: string,
-  params: { search?: string; email?: string; phone?: string },
-) {
-  const hasQuery = !!(params.search?.trim() || params.email?.trim() || params.phone?.trim());
-  const query = useQuery<OrganizationPersonMatch[]>({
-    queryKey: ['orgPersonMatches', organizationId, params.search, params.email, params.phone],
-    queryFn: () => findOrganizationPersonMatches(organizationId, params),
-    enabled: hasQuery && !!organizationId,
+export function usePersonMatches(search: string) {
+  const hasQuery = search.trim().length >= 2;
+  const query = useQuery<User[]>({
+    queryKey: ['personSearch', search],
+    queryFn: () => searchAllUsers(search),
+    enabled: hasQuery,
     retry: false,
   });
 

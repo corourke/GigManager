@@ -16,7 +16,7 @@ import {
   AlertDialogTitle,
 } from '../ui/alert-dialog';
 import { useOrganizationContacts, useOrganizationContactMutations, type OrganizationContact } from './useOrganizationContacts';
-import AddOrganizationContactDialog from './AddOrganizationContactDialog';
+import AddPersonDialog from './AddPersonDialog';
 import EditOrganizationContactDialog from './EditOrganizationContactDialog';
 
 interface OrganizationContactsSectionProps {
@@ -182,12 +182,13 @@ export default function OrganizationContactsSection({
         </CardContent>
       </Card>
 
-      <AddOrganizationContactDialog
+      <AddPersonDialog
         open={showAddDialog}
         onOpenChange={setShowAddDialog}
-        orgId={organizationId}
+        organizationId={organizationId}
         organizationName={organizationName}
         hasPrimaryContact={hasPrimaryContact}
+        defaultRole="Viewer"
       />
 
       <EditOrganizationContactDialog

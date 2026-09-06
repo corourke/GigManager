@@ -485,54 +485,19 @@ export async function addOrganizationContact(
   }
 }
 
-export interface OrganizationPersonMatch {
-  member_id: string;
-  user_id: string;
-  first_name: string;
-  last_name: string;
-  email: string | null;
-  phone: string | null;
-  role: UserRole;
-  contact_title: string | null;
-  user_status: string;
-}
-
 /**
- * Search one organization's existing members/contacts by name, email, or
- * phone — used to offer an existing match before creating a new person
- * (avoiding an accidental duplicate), and to let a user pick an existing
- * member of a Participating Organization instead of always creating a new
- * one there. Returns [] if no search term is given — this is a search, not
- * a roster listing.
- */
-export async function findOrganizationPersonMatches(
-  organizationId: string,
-  query: { search?: string; email?: string; phone?: string }
-): Promise<OrganizationPersonMatch[]> {
-  const supabase = getSupabase();
-  try {
-    const { data, error } = await supabase.rpc('find_organization_person_matches', {
-      p_organization_id: organizationId,
-      p_search: query.search || undefined,
-      p_email: query.email || undefined,
-      p_phone: query.phone || undefined,
-    });
-
-    if (error) throw error;
-    return (data as OrganizationPersonMatch[] | null) || [];
-  } catch (err) {
-    return handleApiError(err, 'search organization members');
-  }
-}
-
-/**
- * Link an EXISTING person (from findOrganizationPersonMatches) to an
- * organization — the counterpart to addOrganizationContact's "create new".
+ * Link an EXISTING person — found via a global search (see
+ * user.service.ts's searchAllUsers, the same one the Team screen's "Add
+ * Existing User" tab already uses) — to an organization, as the counterpart
+ * to addOrganizationContact's "create new". This is what prevents duplicate
+ * people: search first, and if they already exist anywhere in the system,
+ * link them here instead of creating a new person.
+ *
  * Uses a dedicated RPC rather than addExistingUserToOrganization's Edge
  * Function, because that route only allows an actor who is already a member
  * of the TARGET organization — it 403s for the cross-org case this is for
- * (e.g. adding a contact to a Participating Organization you don't
- * personally belong to).
+ * (e.g. adding a contact to a Participating Organization, or a staff member
+ * who's currently only a member of a different organization).
  */
 export async function linkExistingPersonToOrganization(
   organizationId: string,

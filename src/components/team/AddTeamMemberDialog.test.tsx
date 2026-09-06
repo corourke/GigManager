@@ -36,7 +36,6 @@ vi.mock('../../services/organization.service', () => ({
   // Exercised by the new "No Account" tab.
   addOrganizationContact: vi.fn(),
   linkExistingPersonToOrganization: vi.fn(),
-  findOrganizationPersonMatches: vi.fn(),
 }));
 
 const defaultProps = {
@@ -50,7 +49,6 @@ const defaultProps = {
 describe('AddTeamMemberDialog', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.mocked(organizationService.findOrganizationPersonMatches).mockResolvedValue([]);
     vi.mocked(userService.searchAllUsers).mockResolvedValue([]);
   });
 
@@ -73,6 +71,7 @@ describe('AddTeamMemberDialog', () => {
     await waitFor(() => expect(organizationService.addOrganizationContact).toHaveBeenCalledWith('org-1', {
       firstName: 'Sam',
       lastName: 'Roadie',
+      email: undefined,
       phone: undefined,
       role: 'Staff',
     }));
@@ -88,26 +87,21 @@ describe('AddTeamMemberDialog', () => {
     expect(organizationService.addOrganizationContact).not.toHaveBeenCalled();
   });
 
-  it('offers an existing match and links them instead of creating a duplicate', async () => {
-    vi.mocked(organizationService.findOrganizationPersonMatches).mockResolvedValue([{
-      member_id: 'm1',
-      user_id: 'existing-1',
-      first_name: 'Sam',
-      last_name: 'Roadie',
-      email: null,
-      phone: null,
-      role: 'Staff',
-      contact_title: null,
-      user_status: 'contact',
-    }]);
+  it('searches system-wide (not scoped to this org) so a match on another org still surfaces', async () => {
+    // Regression: this used to call a per-organization RPC that missed people who
+    // are only members of a DIFFERENT organization — the same searchAllUsers path
+    // the Existing User tab already uses must find them too.
+    vi.mocked(userService.searchAllUsers).mockResolvedValue([
+      { id: 'existing-1', first_name: 'Cameron', last_name: 'Orourke', email: 'cam@example.com', phone: null } as any,
+    ]);
     vi.mocked(organizationService.linkExistingPersonToOrganization).mockResolvedValue({ user_id: 'existing-1', member: {} } as any);
 
     render(<AddTeamMemberDialog {...defaultProps} />);
 
     fireEvent.mouseDown(screen.getByText('No Account'));
-    fireEvent.change(screen.getByLabelText('First Name *'), { target: { value: 'Sam' } });
-    fireEvent.change(screen.getByLabelText('Last Name *'), { target: { value: 'Roadie' } });
+    fireEvent.change(screen.getByLabelText('First Name *'), { target: { value: 'Cam' } });
 
+    await waitFor(() => expect(userService.searchAllUsers).toHaveBeenCalledWith('Cam'));
     await waitFor(() => expect(screen.getByText(/Found a possible match/)).toBeInTheDocument());
     fireEvent.click(screen.getByText('Use this person'));
 
