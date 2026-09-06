@@ -407,9 +407,11 @@ export async function removeMember(organizationId: string, memberId: string) {
 }
 
 /**
- * Fetch contacts for an organization — org members who are either a
- * login-less rolodex entry (user_status = 'contact') or the org's flagged
- * primary contact (a real team member can also be the point of contact).
+ * Fetch every member of an organization, for the Organization Edit screen's
+ * Contacts section — all organization_members ARE contacts there (someone
+ * to call/email at this org); user_status = 'contact' only distinguishes
+ * "has no login" from "has an account", it isn't a separate category of
+ * person. The caller groups by that status rather than filtering it out.
  */
 export async function getOrganizationContacts(organizationId: string) {
   const supabase = getSupabase();
@@ -438,9 +440,7 @@ export async function getOrganizationContacts(organizationId: string) {
       .order('created_at', { ascending: true });
 
     if (error) throw error;
-    return (data || []).filter(
-      (m: any) => m.user?.user_status === 'contact' || m.is_primary_contact
-    );
+    return data || [];
   } catch (err) {
     return handleApiError(err, 'fetch organization contacts');
   }

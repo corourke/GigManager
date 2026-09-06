@@ -4,6 +4,7 @@ import {
   createOrganization,
   addOrganizationContact,
   linkExistingPersonToOrganization,
+  getOrganizationContacts,
 } from './organization.service';
 import { createClient } from '../utils/supabase/client';
 import { OrganizationRole } from '../utils/supabase/types';
@@ -24,6 +25,7 @@ describe('organization.service', () => {
         invoke: vi.fn(),
       },
       rpc: vi.fn(),
+      from: vi.fn(),
     };
 
     (createClient as any).mockReturnValue(mockSupabase);
@@ -194,6 +196,28 @@ describe('organization.service', () => {
       await expect(
         addOrganizationContact('org-1', { firstName: 'Jane', lastName: 'Doe', email: 'jane@example.com' }),
       ).rejects.toThrow(/already exists/);
+    });
+  });
+
+  describe('getOrganizationContacts', () => {
+    it('returns every organization member, not just user_status=contact or the primary (regression)', async () => {
+      // A real, active-status team member with no special flag used to be
+      // filtered out entirely -- every member is a "contact" for this screen.
+      const mockRows = [
+        { id: 'm1', role: 'Viewer', is_primary_contact: false, user: { id: 'u1', user_status: 'contact' } },
+        { id: 'm2', role: 'Staff', is_primary_contact: false, user: { id: 'u2', user_status: 'active' } },
+        { id: 'm3', role: 'Admin', is_primary_contact: true, user: { id: 'u3', user_status: 'active' } },
+      ];
+      const order2 = vi.fn().mockResolvedValue({ data: mockRows, error: null });
+      const order1 = vi.fn().mockReturnValue({ order: order2 });
+      const eq = vi.fn().mockReturnValue({ order: order1 });
+      const select = vi.fn().mockReturnValue({ eq });
+      mockSupabase.from.mockReturnValue({ select });
+
+      const result = await getOrganizationContacts('org-1');
+
+      expect(result).toEqual(mockRows);
+      expect(result).toHaveLength(3);
     });
   });
 

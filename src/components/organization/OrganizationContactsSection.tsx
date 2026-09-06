@@ -25,6 +25,107 @@ interface OrganizationContactsSectionProps {
   canManage: boolean;
 }
 
+interface ContactsGroupProps {
+  heading: string;
+  hint: string;
+  contacts: OrganizationContact[];
+  canManage: boolean;
+  onTogglePrimary: (contact: OrganizationContact) => void;
+  onEdit: (contact: OrganizationContact) => void;
+  onRemove: (contact: OrganizationContact) => void;
+  isTogglingPrimary: boolean;
+}
+
+/**
+ * Every organization_members row is a "contact" here (someone to call/email
+ * at this org) — user_status = 'contact' only means "no login", not a
+ * separate kind of person, so both groups share the same table shape and
+ * actions. Renders nothing when the group is empty, rather than an empty
+ * table shell.
+ */
+function ContactsGroup({ heading, hint, contacts, canManage, onTogglePrimary, onEdit, onRemove, isTogglingPrimary }: ContactsGroupProps) {
+  if (contacts.length === 0) return null;
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center gap-2">
+        <h3 className="text-sm font-semibold text-gray-700">{heading}</h3>
+        <Badge variant="outline" className="h-5 px-1.5 text-[10px]">{contacts.length}</Badge>
+        <span className="text-xs text-gray-400">{hint}</span>
+      </div>
+      <div className="overflow-x-auto border rounded-lg">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead className="w-[40px]"></TableHead>
+              <TableHead>Name</TableHead>
+              <TableHead>Title</TableHead>
+              <TableHead>Email</TableHead>
+              <TableHead>Phone</TableHead>
+              {canManage && <TableHead className="w-[100px]">Actions</TableHead>}
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {contacts.map((contact) => (
+              <TableRow key={contact.id}>
+                <TableCell>
+                  <button
+                    type="button"
+                    onClick={() => canManage && onTogglePrimary(contact)}
+                    disabled={!canManage || isTogglingPrimary}
+                    title={!canManage ? undefined : contact.is_primary_contact ? 'Click to unset primary contact' : 'Set as primary contact'}
+                    className={canManage ? 'cursor-pointer' : 'cursor-default'}
+                  >
+                    <Star
+                      className={`w-4 h-4 ${
+                        contact.is_primary_contact ? 'fill-amber-400 text-amber-500' : 'text-gray-300'
+                      }`}
+                    />
+                  </button>
+                </TableCell>
+                <TableCell>
+                  <span className="text-sm text-gray-900">
+                    {contact.user.first_name} {contact.user.last_name}
+                  </span>
+                </TableCell>
+                <TableCell className="text-sm text-gray-600">{contact.contact_title || '—'}</TableCell>
+                <TableCell className="text-sm text-gray-600">
+                  {contact.user.email ? (
+                    <a href={`mailto:${contact.user.email}`} className="flex items-center gap-1 hover:text-sky-600">
+                      <Mail className="w-3 h-3" />
+                      {contact.user.email}
+                    </a>
+                  ) : '—'}
+                </TableCell>
+                <TableCell className="text-sm text-gray-600">
+                  {contact.user.phone ? (
+                    <a href={`tel:${contact.user.phone}`} className="flex items-center gap-1 hover:text-sky-600">
+                      <Phone className="w-3 h-3" />
+                      {contact.user.phone}
+                    </a>
+                  ) : '—'}
+                </TableCell>
+                {canManage && (
+                  <TableCell>
+                    <div className="flex items-center gap-1">
+                      <Button type="button" variant="outline" size="sm" onClick={() => onEdit(contact)} title="Edit">
+                        <Pencil className="w-4 h-4" />
+                      </Button>
+                      <Button type="button" variant="ghost" size="sm" onClick={() => onRemove(contact)} title="Remove">
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  </TableCell>
+                )}
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
+    </div>
+  );
+}
+
 export default function OrganizationContactsSection({
   organizationId,
   organizationName,
@@ -38,6 +139,8 @@ export default function OrganizationContactsSection({
   const [removingContact, setRemovingContact] = useState<OrganizationContact | null>(null);
 
   const hasPrimaryContact = contacts.some((c) => c.is_primary_contact);
+  const teamMembers = contacts.filter((c) => c.user.user_status !== 'contact');
+  const loginlessContacts = contacts.filter((c) => c.user.user_status === 'contact');
 
   const handleTogglePrimary = async (contact: OrganizationContact) => {
     try {
@@ -90,93 +193,27 @@ export default function OrganizationContactsSection({
               No contacts yet. Add someone to call or email at this organization.
             </p>
           ) : (
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="w-[40px]"></TableHead>
-                    <TableHead>Name</TableHead>
-                    <TableHead>Title</TableHead>
-                    <TableHead>Email</TableHead>
-                    <TableHead>Phone</TableHead>
-                    {canManage && <TableHead className="w-[100px]">Actions</TableHead>}
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {contacts.map((contact) => (
-                    <TableRow key={contact.id}>
-                      <TableCell>
-                        <button
-                          type="button"
-                          onClick={() => canManage && handleTogglePrimary(contact)}
-                          disabled={!canManage || setPrimary.isPending || unsetPrimary.isPending}
-                          title={!canManage ? undefined : contact.is_primary_contact ? 'Click to unset primary contact' : 'Set as primary contact'}
-                          className={canManage ? 'cursor-pointer' : 'cursor-default'}
-                        >
-                          <Star
-                            className={`w-4 h-4 ${
-                              contact.is_primary_contact
-                                ? 'fill-amber-400 text-amber-500'
-                                : 'text-gray-300'
-                            }`}
-                          />
-                        </button>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          <span className="text-sm text-gray-900">
-                            {contact.user.first_name} {contact.user.last_name}
-                          </span>
-                          {contact.user.user_status !== 'contact' && (
-                            <Badge variant="outline" className="text-[10px]">Team member</Badge>
-                          )}
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-sm text-gray-600">{contact.contact_title || '—'}</TableCell>
-                      <TableCell className="text-sm text-gray-600">
-                        {contact.user.email ? (
-                          <a href={`mailto:${contact.user.email}`} className="flex items-center gap-1 hover:text-sky-600">
-                            <Mail className="w-3 h-3" />
-                            {contact.user.email}
-                          </a>
-                        ) : '—'}
-                      </TableCell>
-                      <TableCell className="text-sm text-gray-600">
-                        {contact.user.phone ? (
-                          <a href={`tel:${contact.user.phone}`} className="flex items-center gap-1 hover:text-sky-600">
-                            <Phone className="w-3 h-3" />
-                            {contact.user.phone}
-                          </a>
-                        ) : '—'}
-                      </TableCell>
-                      {canManage && (
-                        <TableCell>
-                          <div className="flex items-center gap-1">
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="sm"
-                              onClick={() => setEditingContact(contact)}
-                              title="Edit"
-                            >
-                              <Pencil className="w-4 h-4" />
-                            </Button>
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => setRemovingContact(contact)}
-                              title="Remove"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </Button>
-                          </div>
-                        </TableCell>
-                      )}
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+            <div className="space-y-6">
+              <ContactsGroup
+                heading="Team Members"
+                hint="Has a GigWrangler login"
+                contacts={teamMembers}
+                canManage={canManage}
+                onTogglePrimary={handleTogglePrimary}
+                onEdit={setEditingContact}
+                onRemove={setRemovingContact}
+                isTogglingPrimary={setPrimary.isPending || unsetPrimary.isPending}
+              />
+              <ContactsGroup
+                heading="Contacts"
+                hint="No login — rolodex only"
+                contacts={loginlessContacts}
+                canManage={canManage}
+                onTogglePrimary={handleTogglePrimary}
+                onEdit={setEditingContact}
+                onRemove={setRemovingContact}
+                isTogglingPrimary={setPrimary.isPending || unsetPrimary.isPending}
+              />
             </div>
           )}
         </CardContent>
