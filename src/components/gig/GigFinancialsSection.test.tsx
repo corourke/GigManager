@@ -4,6 +4,7 @@ import { vi, describe, it, expect, beforeEach } from 'vitest';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import GigFinancialsSection from './GigFinancialsSection';
 import * as gigService from '../../services/gig.service';
+import { useAutoSave } from '../../utils/hooks/useAutoSave';
 
 // The component now uses TanStack Query, so renders need a QueryClientProvider.
 // retry:false keeps tests deterministic and fast.
@@ -23,12 +24,13 @@ vi.mock('../../services/gig.service', () => ({
   getGigProfitabilitySummary: vi.fn(),
 }));
 
-// Mock the useAutoSave hook
+// Mock the useAutoSave hook. Default behavior is a no-op triggerSave, matching
+// the pre-existing tests below (which don't exercise the real save path).
+// Individual regression tests override this with mockImplementation to drive
+// the component's real onSave/onSuccess callbacks deterministically, without
+// depending on the hook's internal debounce timer.
 vi.mock('../../utils/hooks/useAutoSave', () => ({
-  useAutoSave: () => ({
-    saveState: 'saved',
-    triggerSave: vi.fn(),
-  }),
+  useAutoSave: vi.fn(),
 }));
 
 // Mock the SaveStateIndicator component
@@ -82,6 +84,13 @@ describe('GigFinancialsSection', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(useAutoSave).mockReturnValue({
+      saveState: 'saved',
+      error: null,
+      triggerSave: vi.fn(),
+      flush: vi.fn(),
+      flushAsync: vi.fn(),
+    });
     vi.mocked(gigService.getGigFinancials).mockResolvedValue(mockFinancials as unknown as Awaited<ReturnType<typeof gigService.getGigFinancials>>);
     vi.mocked(gigService.updateGigFinancials).mockResolvedValue({ success: true });
     vi.mocked(gigService.deleteGigFinancial).mockResolvedValue({ success: true });
@@ -279,10 +288,126 @@ describe('GigFinancialsSection', () => {
 
   it('shows save state indicator', async () => {
     render(<GigFinancialsSection {...defaultProps} />);
-    
+
     await waitFor(() => {
       expect(screen.getByTestId('save-indicator')).toBeInTheDocument();
       expect(screen.getByTestId('save-indicator')).toHaveTextContent('saved');
+    });
+  });
+
+  describe('gig view refresh after editing a financial record (issue #8)', () => {
+    // Mirrors the app's real QueryClient config (src/lib/queryClient.ts):
+    // a 30s staleTime is exactly what let a remounted view keep serving
+    // pre-edit data when the mutation only refetched the summary query.
+    function makeProdLikeQueryClient() {
+      return new QueryClient({
+        defaultOptions: {
+          queries: { retry: false, staleTime: 30_000, refetchOnWindowFocus: false },
+          mutations: { retry: false },
+        },
+      });
+    }
+
+    function renderWithClient(queryClient: QueryClient) {
+      return rtlRender(
+        <QueryClientProvider client={queryClient}>
+          <GigFinancialsSection {...defaultProps} />
+        </QueryClientProvider>
+      );
+    }
+
+    it('shows the edited amount after the section remounts (e.g. a tab switch)', async () => {
+      // Drive the component's real onSave/onSuccess synchronously, bypassing
+      // the debounce timer, so the test exercises the actual save path
+      // instead of the no-op default mock.
+      vi.mocked(useAutoSave).mockImplementation(({ onSave, onSuccess }: any) => ({
+        saveState: 'saved',
+        error: null,
+        triggerSave: (data: any) => {
+          void onSave(data).then(() => onSuccess?.(data));
+        },
+        flush: vi.fn(),
+        flushAsync: vi.fn(),
+      }));
+
+      const updatedFinancials = [
+        { ...mockFinancials[0], amount: 9999 },
+        mockFinancials[1],
+      ];
+      vi.mocked(gigService.getGigFinancials)
+        .mockResolvedValueOnce(mockFinancials as any)
+        .mockResolvedValue(updatedFinancials as any);
+
+      const queryClient = makeProdLikeQueryClient();
+
+      // "Initial payment" (fin-1's description) is unique text, unlike the amount which
+      // also appears in the summary panel — use it to scope assertions to the actual row.
+      const getRow = () => screen.getByText('Initial payment').closest('tr') as HTMLElement;
+
+      const first = renderWithClient(queryClient);
+      await waitFor(() => expect(getRow()).toHaveTextContent('$5,000.00'));
+
+      fireEvent.click(screen.getByText('Edit Financials'));
+      await waitFor(() => expect(screen.getByTestId('edit-financial-0')).toBeInTheDocument());
+      fireEvent.click(screen.getByTestId('edit-financial-0'));
+      await waitFor(() => expect(screen.getByText('Edit Financial Record')).toBeInTheDocument());
+
+      fireEvent.change(screen.getByLabelText('Amount'), { target: { value: '9999' } });
+      fireEvent.click(screen.getByText('Update Financial Record'));
+
+      await waitFor(() => expect(gigService.updateGigFinancials).toHaveBeenCalled());
+      // Regression: useFieldArray's `fields` (what the table renders from) only resyncs on a
+      // plain reset, which the pre-fix handleSaveSuccess skipped via `keepValues: true` — so
+      // even this same mounted instance kept showing the pre-edit amount until something else
+      // (e.g. a remount) forced a real reset.
+      await waitFor(() => expect(getRow()).toHaveTextContent('$9,999.00'));
+
+      // Simulate leaving and returning to the Gig View (e.g. a tab switch unmounts this section).
+      first.unmount();
+      renderWithClient(queryClient);
+
+      // Regression: without invalidating the financials query cache on save, this remount
+      // would serve the stale pre-edit $5,000.00 from the still-fresh (staleTime: 30s) cache.
+      await waitFor(() => expect(getRow()).toHaveTextContent('$9,999.00'));
+      expect(getRow()).not.toHaveTextContent('$5,000.00');
+    });
+
+    it('does not let a concurrent background refresh clobber an in-progress dirty edit', async () => {
+      // Default no-op triggerSave (from beforeEach): the edit becomes dirty (isDirty: true)
+      // but autosave never fires, simulating a pending edit still within its debounce window
+      // (or blocked on a slow save elsewhere) when a concurrent, unrelated change lands.
+      const queryClient = makeProdLikeQueryClient();
+
+      const externallyUpdatedFinancials = [
+        { ...mockFinancials[0], amount: 7777 },
+        mockFinancials[1],
+      ];
+      vi.mocked(gigService.getGigFinancials)
+        .mockResolvedValueOnce(mockFinancials as any)
+        .mockResolvedValue(externallyUpdatedFinancials as any);
+
+      const getRow = () => screen.getByText('Initial payment').closest('tr') as HTMLElement;
+
+      renderWithClient(queryClient);
+      await waitFor(() => expect(getRow()).toHaveTextContent('$5,000.00'));
+
+      fireEvent.click(screen.getByText('Edit Financials'));
+      await waitFor(() => expect(screen.getByTestId('edit-financial-0')).toBeInTheDocument());
+      fireEvent.click(screen.getByTestId('edit-financial-0'));
+      await waitFor(() => expect(screen.getByText('Edit Financial Record')).toBeInTheDocument());
+
+      fireEvent.change(screen.getByLabelText('Amount'), { target: { value: '9999' } });
+      fireEvent.click(screen.getByText('Update Financial Record'));
+
+      // A background event (e.g. another user editing the same gig, or staff finalization
+      // elsewhere) refetches the financials query while this row is a dirty, unsaved edit.
+      window.dispatchEvent(new CustomEvent('gig-financials-updated', { detail: { gigId: 'test-gig-id' } }));
+      await waitFor(() => expect(gigService.getGigFinancials).toHaveBeenCalledTimes(2));
+
+      // Regression: without the isDirty guard, the sync effect would apply the freshly
+      // refetched external data ($7,777) over the in-progress local edit, discarding it.
+      expect(getRow()).not.toHaveTextContent('$7,777.00');
+      expect(getRow()).toHaveTextContent('$5,000.00');
     });
   });
 });
