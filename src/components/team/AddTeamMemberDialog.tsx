@@ -76,7 +76,7 @@ export default function AddTeamMemberDialog({
     excludeUserIds,
   );
 
-  const { data: quickAddMatches = [], isFetching: isQuickAddSearching, hasQuery: hasQuickAddQuery } =
+  const { data: quickAddMatches = [], isFetching: isQuickAddSearching, isError: quickAddMatchesErrored, hasQuery: hasQuickAddQuery } =
     usePersonMatches(orgId, quickAddDebounced);
 
   const resetExisting = () => {
@@ -180,7 +180,7 @@ export default function AddTeamMemberDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl">
+      <DialogContent className="max-w-3xl">
         <DialogHeader>
           <DialogTitle>Add Team Member</DialogTitle>
           <DialogDescription>
@@ -190,17 +190,17 @@ export default function AddTeamMemberDialog({
 
         <Tabs defaultValue="existing" className="w-full">
           <TabsList className="grid w-full grid-cols-3">
-            <TabsTrigger value="existing">
-              <UserPlus className="w-4 h-4 mr-2" />
-              Add Existing User
+            <TabsTrigger value="existing" className="gap-1.5">
+              <UserPlus className="w-4 h-4 shrink-0" />
+              <span className="truncate">Existing User</span>
             </TabsTrigger>
-            <TabsTrigger value="invite">
-              <Send className="w-4 h-4 mr-2" />
-              Invite New User
+            <TabsTrigger value="invite" className="gap-1.5">
+              <Send className="w-4 h-4 shrink-0" />
+              <span className="truncate">Invite New</span>
             </TabsTrigger>
-            <TabsTrigger value="quick-add">
-              <UserCog className="w-4 h-4 mr-2" />
-              Add Without an Account
+            <TabsTrigger value="quick-add" className="gap-1.5">
+              <UserCog className="w-4 h-4 shrink-0" />
+              <span className="truncate">No Account</span>
             </TabsTrigger>
           </TabsList>
 
@@ -494,6 +494,7 @@ export default function AddTeamMemberDialog({
             <PersonMatchResults
               matches={quickAddMatches}
               isLoading={isQuickAddSearching}
+              isError={quickAddMatchesErrored}
               hasQuery={hasQuickAddQuery}
               onSelect={handleUseExistingQuickAdd}
               emptyHint="No existing match on this organization — this will add a new person."

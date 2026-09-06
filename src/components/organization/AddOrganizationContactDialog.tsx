@@ -60,7 +60,7 @@ export default function AddOrganizationContactDialog({
     return () => clearTimeout(timer);
   }, [form.firstName, form.lastName, form.email, form.phone]);
 
-  const { data: matches = [], isFetching: isSearching, hasQuery } = usePersonMatches(orgId, debouncedQuery);
+  const { data: matches = [], isFetching: isSearching, isError: matchesErrored, hasQuery } = usePersonMatches(orgId, debouncedQuery);
 
   const handleUseExisting = async (match: OrganizationPersonMatch) => {
     try {
@@ -169,6 +169,7 @@ export default function AddOrganizationContactDialog({
           <PersonMatchResults
             matches={matches}
             isLoading={isSearching}
+            isError={matchesErrored}
             hasQuery={hasQuery}
             onSelect={handleUseExisting}
             emptyHint="No existing match on this organization — this will create a new contact."

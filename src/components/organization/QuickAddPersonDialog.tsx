@@ -66,7 +66,7 @@ export default function QuickAddPersonDialog({
     return () => clearTimeout(timer);
   }, [open, form.firstName, form.lastName, form.phone]);
 
-  const { data: matches = [], isFetching: isSearching, hasQuery } = usePersonMatches(organizationId, debouncedQuery);
+  const { data: matches = [], isFetching: isSearching, isError: matchesErrored, hasQuery } = usePersonMatches(organizationId, debouncedQuery);
 
   const handleUseExisting = async (match: OrganizationPersonMatch) => {
     try {
@@ -159,6 +159,7 @@ export default function QuickAddPersonDialog({
           <PersonMatchResults
             matches={matches}
             isLoading={isSearching}
+            isError={matchesErrored}
             hasQuery={hasQuery}
             onSelect={handleUseExisting}
             emptyHint="No existing match — this will add a new person."

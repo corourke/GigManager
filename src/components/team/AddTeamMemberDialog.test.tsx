@@ -33,7 +33,7 @@ vi.mock('../../services/organization.service', () => ({
   updateMemberDetails: vi.fn(),
   removeMember: vi.fn(),
   cancelInvitation: vi.fn(),
-  // Exercised by the new "Add Without an Account" tab.
+  // Exercised by the new "No Account" tab.
   addOrganizationContact: vi.fn(),
   linkExistingPersonToOrganization: vi.fn(),
   findOrganizationPersonMatches: vi.fn(),
@@ -56,16 +56,16 @@ describe('AddTeamMemberDialog', () => {
 
   it('renders all three tabs, including the new quick-add tab', () => {
     render(<AddTeamMemberDialog {...defaultProps} />);
-    expect(screen.getByText('Add Existing User')).toBeInTheDocument();
-    expect(screen.getByText('Invite New User')).toBeInTheDocument();
-    expect(screen.getByText('Add Without an Account')).toBeInTheDocument();
+    expect(screen.getByText('Existing User')).toBeInTheDocument();
+    expect(screen.getByText('Invite New')).toBeInTheDocument();
+    expect(screen.getByText('No Account')).toBeInTheDocument();
   });
 
   it('quick-adds a person without an account and without requiring email (issue #5)', async () => {
     vi.mocked(organizationService.addOrganizationContact).mockResolvedValue({ user_id: 'u1', member: {} } as any);
     render(<AddTeamMemberDialog {...defaultProps} />);
 
-    fireEvent.mouseDown(screen.getByText('Add Without an Account'));
+    fireEvent.mouseDown(screen.getByText('No Account'));
     fireEvent.change(screen.getByLabelText('First Name *'), { target: { value: 'Sam' } });
     fireEvent.change(screen.getByLabelText('Last Name *'), { target: { value: 'Roadie' } });
     fireEvent.click(screen.getByText('Add to Team'));
@@ -81,7 +81,7 @@ describe('AddTeamMemberDialog', () => {
   it('requires a name before quick-adding', async () => {
     render(<AddTeamMemberDialog {...defaultProps} />);
 
-    fireEvent.mouseDown(screen.getByText('Add Without an Account'));
+    fireEvent.mouseDown(screen.getByText('No Account'));
     fireEvent.click(screen.getByText('Add to Team'));
 
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith('First and last name are required'));
@@ -104,7 +104,7 @@ describe('AddTeamMemberDialog', () => {
 
     render(<AddTeamMemberDialog {...defaultProps} />);
 
-    fireEvent.mouseDown(screen.getByText('Add Without an Account'));
+    fireEvent.mouseDown(screen.getByText('No Account'));
     fireEvent.change(screen.getByLabelText('First Name *'), { target: { value: 'Sam' } });
     fireEvent.change(screen.getByLabelText('Last Name *'), { target: { value: 'Roadie' } });
 

@@ -1,4 +1,4 @@
-import { Loader2, User as UserIcon } from 'lucide-react';
+import { AlertTriangle, Loader2, User as UserIcon } from 'lucide-react';
 import type { OrganizationPersonMatch } from '../../services/organization.service';
 
 interface PersonMatchResultsProps {
@@ -7,6 +7,8 @@ interface PersonMatchResultsProps {
   hasQuery: boolean;
   onSelect: (match: OrganizationPersonMatch) => void;
   emptyHint?: string;
+  /** True when the search itself failed — must render distinctly from "no matches found", since those mean very different things. */
+  isError?: boolean;
 }
 
 /**
@@ -21,6 +23,7 @@ export default function PersonMatchResults({
   hasQuery,
   onSelect,
   emptyHint = "No existing match — you'll create a new person.",
+  isError = false,
 }: PersonMatchResultsProps) {
   if (!hasQuery) return null;
 
@@ -29,6 +32,17 @@ export default function PersonMatchResults({
       <div className="flex items-center gap-2 py-2 text-xs text-gray-500">
         <Loader2 className="w-3.5 h-3.5 animate-spin" />
         Checking for an existing match...
+      </div>
+    );
+  }
+
+  // Deliberately distinct from the "no matches" state below — a failed check
+  // is not the same as a clean one, and must never be mistaken for it.
+  if (isError) {
+    return (
+      <div className="flex items-center gap-2 py-2 text-xs text-red-700">
+        <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+        Couldn't check for existing matches — double-check this isn't a duplicate before adding.
       </div>
     );
   }
