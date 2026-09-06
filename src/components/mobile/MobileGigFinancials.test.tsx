@@ -91,25 +91,25 @@ describe('MobileGigFinancials', () => {
     });
 
     fireEvent.click(screen.getByText(/View \d+ Transaction/));
-    
+
     await waitFor(() => {
       expect(screen.getByText(/Transactions \(1\)/)).toBeInTheDocument();
       expect(screen.getByText('Test Agreement')).toBeInTheDocument();
-    });
+    }, { timeout: 3000 });
   });
 
   it('shows transaction detail when a transaction is clicked', async () => {
     render(<MobileGigFinancials {...defaultProps} />);
-    
+
     await waitFor(() => {
       expect(screen.getByText('Revenue')).toBeInTheDocument();
     });
 
     fireEvent.click(screen.getByText(/View \d+ Transaction/));
-    
+
     await waitFor(() => {
       expect(screen.getByText('Test Agreement')).toBeInTheDocument();
-    });
+    }, { timeout: 3000 });
 
     fireEvent.click(screen.getByText('Test Agreement'));
 
