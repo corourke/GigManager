@@ -407,9 +407,11 @@ export async function removeMember(organizationId: string, memberId: string) {
 }
 
 /**
- * Fetch contacts for an organization — org members who are either a
- * login-less rolodex entry (user_status = 'contact') or the org's flagged
- * primary contact (a real team member can also be the point of contact).
+ * Fetch every member of an organization, for the Organization Edit screen's
+ * Contacts section — all organization_members ARE contacts there (someone
+ * to call/email at this org); user_status = 'contact' only distinguishes
+ * "has no login" from "has an account", it isn't a separate category of
+ * person. The caller groups by that status rather than filtering it out.
  */
 export async function getOrganizationContacts(organizationId: string) {
   const supabase = getSupabase();
@@ -438,45 +440,83 @@ export async function getOrganizationContacts(organizationId: string) {
       .order('created_at', { ascending: true });
 
     if (error) throw error;
-    return (data || []).filter(
-      (m: any) => m.user?.user_status === 'contact' || m.is_primary_contact
-    );
+    return data || [];
   } catch (err) {
     return handleApiError(err, 'fetch organization contacts');
   }
 }
 
 /**
- * Add a new contact to an organization — links an existing person by email,
- * or creates a new login-less (user_status = 'contact') person.
+ * Create a new login-less person (user_status = 'contact') on an
+ * organization. Email and phone are both optional — search for likely
+ * duplicates first (see usePersonMatches, a system-wide search) and let the
+ * user pick an existing person via linkExistingPersonToOrganization instead,
+ * since this always creates a brand-new person.
  */
 export async function addOrganizationContact(
   organizationId: string,
   contact: {
-    email: string;
     firstName: string;
     lastName: string;
+    email?: string;
     phone?: string;
     title?: string;
     isPrimary?: boolean;
+    role?: UserRole;
   }
 ) {
   const supabase = getSupabase();
   try {
     const { data, error } = await supabase.rpc('add_organization_contact', {
       p_organization_id: organizationId,
-      p_email: contact.email,
+      p_email: contact.email || undefined,
       p_first_name: contact.firstName,
       p_last_name: contact.lastName,
       p_phone: contact.phone || undefined,
       p_title: contact.title || undefined,
       p_is_primary: contact.isPrimary ?? false,
+      p_role: contact.role || undefined,
+    });
+
+    if (error) throw error;
+    return data as { user_id: string; member: Record<string, unknown> };
+  } catch (err) {
+    return handleApiError(err, 'add organization contact');
+  }
+}
+
+/**
+ * Link an EXISTING person — found via a global search (see
+ * user.service.ts's searchAllUsers, the same one the Team screen's "Add
+ * Existing User" tab already uses) — to an organization, as the counterpart
+ * to addOrganizationContact's "create new". This is what prevents duplicate
+ * people: search first, and if they already exist anywhere in the system,
+ * link them here instead of creating a new person.
+ *
+ * Uses a dedicated RPC rather than addExistingUserToOrganization's Edge
+ * Function, because that route only allows an actor who is already a member
+ * of the TARGET organization — it 403s for the cross-org case this is for
+ * (e.g. adding a contact to a Participating Organization, or a staff member
+ * who's currently only a member of a different organization).
+ */
+export async function linkExistingPersonToOrganization(
+  organizationId: string,
+  vars: { userId: string; role?: UserRole; title?: string; isPrimary?: boolean }
+) {
+  const supabase = getSupabase();
+  try {
+    const { data, error } = await supabase.rpc('link_existing_person_to_organization', {
+      p_organization_id: organizationId,
+      p_user_id: vars.userId,
+      p_role: vars.role || undefined,
+      p_title: vars.title || undefined,
+      p_is_primary: vars.isPrimary ?? false,
     });
 
     if (error) throw error;
     return data;
   } catch (err) {
-    return handleApiError(err, 'add organization contact');
+    return handleApiError(err, 'add existing person to organization');
   }
 }
 

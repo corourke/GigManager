@@ -594,6 +594,7 @@ export default function GigStaffSlotsSection({
                                   placeholder="Search for user..."
                                   value={nameField.value}
                                   organizationIds={participantOrganizationIds}
+                                  quickAddOrganizationId={currentOrganizationId}
                                   disabled={isCompleted}
                                 />
                               )}

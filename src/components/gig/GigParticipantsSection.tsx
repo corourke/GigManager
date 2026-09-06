@@ -431,6 +431,7 @@ export default function GigParticipantsSection({
 
               {field.organization_id && (
                 <GigParticipantContactsList
+                  gigId={gigId}
                   organizationId={field.organization_id}
                   organizationName={field.organization_name || 'this organization'}
                   addDialogOpen={addContactForIndex === index}

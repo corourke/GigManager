@@ -3,12 +3,13 @@ import { queryKeys } from '../../lib/queryKeys';
 import {
   getOrganizationContacts,
   addOrganizationContact,
+  linkExistingPersonToOrganization,
   updateOrganizationContact,
   setOrganizationPrimaryContact,
   unsetOrganizationPrimaryContact,
   removeOrganizationContact,
 } from '../../services/organization.service';
-import type { User } from '../../utils/supabase/types';
+import type { User, UserRole } from '../../utils/supabase/types';
 
 export interface OrganizationContact {
   id: string;
@@ -29,21 +30,34 @@ export function useOrganizationContacts(orgId: string) {
 }
 
 export interface AddContactVars {
-  email: string;
   firstName: string;
   lastName: string;
+  email?: string;
   phone?: string;
+  title?: string;
+  isPrimary?: boolean;
+  role?: UserRole;
+}
+
+export interface LinkExistingVars {
+  userId: string;
+  role?: UserRole;
   title?: string;
   isPrimary?: boolean;
 }
 
-/** Mutations for the Contacts section on OrganizationScreen. */
+/** Mutations for the Contacts section on OrganizationScreen (and reused anywhere else that adds a contact/member to an org). */
 export function useOrganizationContactMutations(orgId: string) {
   const queryClient = useQueryClient();
   const invalidate = () => queryClient.invalidateQueries({ queryKey: queryKeys.orgContacts(orgId) });
 
   const addContact = useMutation({
     mutationFn: (vars: AddContactVars) => addOrganizationContact(orgId, vars),
+    onSuccess: invalidate,
+  });
+
+  const linkExisting = useMutation({
+    mutationFn: (vars: LinkExistingVars) => linkExistingPersonToOrganization(orgId, vars),
     onSuccess: invalidate,
   });
 
@@ -70,5 +84,5 @@ export function useOrganizationContactMutations(orgId: string) {
     onSuccess: invalidate,
   });
 
-  return { addContact, updateContact, setPrimary, unsetPrimary, removeContact };
+  return { addContact, linkExisting, updateContact, setPrimary, unsetPrimary, removeContact };
 }

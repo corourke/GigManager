@@ -1,5 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { inviteUserToOrganization, createOrganization } from './organization.service';
+import {
+  inviteUserToOrganization,
+  createOrganization,
+  addOrganizationContact,
+  linkExistingPersonToOrganization,
+  getOrganizationContacts,
+} from './organization.service';
 import { createClient } from '../utils/supabase/client';
 import { OrganizationRole } from '../utils/supabase/types';
 
@@ -13,11 +19,13 @@ describe('organization.service', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    
+
     mockSupabase = {
       functions: {
         invoke: vi.fn(),
       },
+      rpc: vi.fn(),
+      from: vi.fn(),
     };
 
     (createClient as any).mockReturnValue(mockSupabase);
@@ -138,6 +146,94 @@ describe('organization.service', () => {
       } catch (error: any) {
         expect(error).toBeDefined();
       }
+    });
+  });
+
+  describe('addOrganizationContact', () => {
+    it('creates a contact without requiring email or phone (issue #5)', async () => {
+      const mockResult = { user_id: 'user-1', member: { id: 'member-1', role: 'Viewer' } };
+      mockSupabase.rpc.mockResolvedValue({ data: mockResult, error: null });
+
+      const result = await addOrganizationContact('org-1', {
+        firstName: 'Jane',
+        lastName: 'Doe',
+      });
+
+      expect(mockSupabase.rpc).toHaveBeenCalledWith('add_organization_contact', {
+        p_organization_id: 'org-1',
+        p_email: undefined,
+        p_first_name: 'Jane',
+        p_last_name: 'Doe',
+        p_phone: undefined,
+        p_title: undefined,
+        p_is_primary: false,
+        p_role: undefined,
+      });
+      expect(result).toEqual(mockResult);
+    });
+
+    it('passes an explicit role through for quick-add staff (not just Viewer contacts)', async () => {
+      mockSupabase.rpc.mockResolvedValue({ data: { user_id: 'user-2', member: {} }, error: null });
+
+      await addOrganizationContact('org-1', {
+        firstName: 'Sam',
+        lastName: 'Roadie',
+        role: 'Staff',
+      });
+
+      expect(mockSupabase.rpc).toHaveBeenCalledWith(
+        'add_organization_contact',
+        expect.objectContaining({ p_role: 'Staff' }),
+      );
+    });
+
+    it('surfaces the friendly duplicate-email error from the RPC', async () => {
+      mockSupabase.rpc.mockResolvedValue({
+        data: null,
+        error: { message: 'A person with this email already exists -- search for them and add them as an existing member instead of creating a new one.' },
+      });
+
+      await expect(
+        addOrganizationContact('org-1', { firstName: 'Jane', lastName: 'Doe', email: 'jane@example.com' }),
+      ).rejects.toThrow(/already exists/);
+    });
+  });
+
+  describe('getOrganizationContacts', () => {
+    it('returns every organization member, not just user_status=contact or the primary (regression)', async () => {
+      // A real, active-status team member with no special flag used to be
+      // filtered out entirely -- every member is a "contact" for this screen.
+      const mockRows = [
+        { id: 'm1', role: 'Viewer', is_primary_contact: false, user: { id: 'u1', user_status: 'contact' } },
+        { id: 'm2', role: 'Staff', is_primary_contact: false, user: { id: 'u2', user_status: 'active' } },
+        { id: 'm3', role: 'Admin', is_primary_contact: true, user: { id: 'u3', user_status: 'active' } },
+      ];
+      const order2 = vi.fn().mockResolvedValue({ data: mockRows, error: null });
+      const order1 = vi.fn().mockReturnValue({ order: order2 });
+      const eq = vi.fn().mockReturnValue({ order: order1 });
+      const select = vi.fn().mockReturnValue({ eq });
+      mockSupabase.from.mockReturnValue({ select });
+
+      const result = await getOrganizationContacts('org-1');
+
+      expect(result).toEqual(mockRows);
+      expect(result).toHaveLength(3);
+    });
+  });
+
+  describe('linkExistingPersonToOrganization', () => {
+    it('links an existing person by user id instead of creating a new one', async () => {
+      mockSupabase.rpc.mockResolvedValue({ data: { user_id: 'u1', member: { id: 'm1' } }, error: null });
+
+      await linkExistingPersonToOrganization('org-1', { userId: 'u1', role: 'Staff' });
+
+      expect(mockSupabase.rpc).toHaveBeenCalledWith('link_existing_person_to_organization', {
+        p_organization_id: 'org-1',
+        p_user_id: 'u1',
+        p_role: 'Staff',
+        p_title: undefined,
+        p_is_primary: false,
+      });
     });
   });
 });

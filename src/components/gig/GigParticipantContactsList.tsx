@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { toast } from 'sonner';
-import { Loader2, Mail, Pencil, Phone, Star, Trash2 } from 'lucide-react';
+import { Loader2, Mail, Phone, Star, Trash2 } from 'lucide-react';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -11,11 +11,11 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '../ui/alert-dialog';
-import { useOrganizationContacts, useOrganizationContactMutations, type OrganizationContact } from '../organization/useOrganizationContacts';
-import AddOrganizationContactDialog from '../organization/AddOrganizationContactDialog';
-import EditOrganizationContactDialog from '../organization/EditOrganizationContactDialog';
+import { useGigParticipantContacts, useGigParticipantContactMutations, type GigParticipantContact } from './useGigParticipantContacts';
+import AddPersonDialog from '../organization/AddPersonDialog';
 
 interface GigParticipantContactsListProps {
+  gigId: string;
   organizationId: string;
   organizationName: string;
   addDialogOpen: boolean;
@@ -24,33 +24,33 @@ interface GigParticipantContactsListProps {
 
 /**
  * Contacts for one gig participant, always visible under its row (no click
- * required) — edit/remove/set-primary right here, so managing a venue or
- * client's contacts never requires leaving the gig. The "add" dialog is
- * rendered here (it needs hasPrimaryContact from this component's own
- * query) but its open state is controlled by the parent's "More actions"
- * menu rather than an inline button, to keep each row compact.
+ * required) — set-primary/remove right here, so managing a venue or
+ * client's contacts never requires leaving the gig. Scoped to
+ * gig_participant_contacts (per-gig, independent of organization_members —
+ * see supabase/migrations/20260906200000_gig_participant_contacts.sql), so a
+ * person shown here need not be a member of that organization at all. The
+ * "add" dialog is rendered here (it needs hasPrimaryContact from this
+ * component's own query) but its open state is controlled by the parent's
+ * "More actions" menu rather than an inline button, to keep each row
+ * compact.
  */
 export default function GigParticipantContactsList({
+  gigId,
   organizationId,
   organizationName,
   addDialogOpen,
   onAddDialogOpenChange,
 }: GigParticipantContactsListProps) {
-  const { data: contacts = [], isLoading } = useOrganizationContacts(organizationId);
-  const { setPrimary, unsetPrimary, removeContact } = useOrganizationContactMutations(organizationId);
+  const { data: contacts = [], isLoading } = useGigParticipantContacts(gigId, organizationId);
+  const { setPrimary, removeContact } = useGigParticipantContactMutations(gigId, organizationId);
 
-  const [editingContact, setEditingContact] = useState<OrganizationContact | null>(null);
-  const [removingContact, setRemovingContact] = useState<OrganizationContact | null>(null);
+  const [removingContact, setRemovingContact] = useState<GigParticipantContact | null>(null);
 
   const hasPrimaryContact = contacts.some((c) => c.is_primary_contact);
 
-  const handleTogglePrimary = async (contact: OrganizationContact) => {
+  const handleTogglePrimary = async (contact: GigParticipantContact) => {
     try {
-      if (contact.is_primary_contact) {
-        await unsetPrimary.mutateAsync(contact.id);
-      } else {
-        await setPrimary.mutateAsync(contact.id);
-      }
+      await setPrimary.mutateAsync({ userId: contact.user_id, isPrimary: !contact.is_primary_contact });
     } catch (error: any) {
       toast.error(error.message || 'Failed to update primary contact');
     }
@@ -59,7 +59,7 @@ export default function GigParticipantContactsList({
   const handleRemove = async () => {
     if (!removingContact) return;
     try {
-      await removeContact.mutateAsync(removingContact.id);
+      await removeContact.mutateAsync(removingContact.user_id);
       toast.success('Contact removed');
       setRemovingContact(null);
     } catch (error: any) {
@@ -85,8 +85,8 @@ export default function GigParticipantContactsList({
                 <button
                   type="button"
                   onClick={() => handleTogglePrimary(contact)}
-                  disabled={setPrimary.isPending || unsetPrimary.isPending}
-                  title={contact.is_primary_contact ? 'Click to unset primary contact' : 'Set as primary contact'}
+                  disabled={setPrimary.isPending}
+                  title={contact.is_primary_contact ? 'Click to unset primary contact for this gig' : 'Set as primary contact for this gig'}
                   className="shrink-0 cursor-pointer"
                 >
                   <Star
@@ -97,7 +97,7 @@ export default function GigParticipantContactsList({
                 </button>
                 <span className="text-gray-600">
                   {contact.user.first_name} {contact.user.last_name}
-                  {contact.contact_title && <span className="text-gray-400"> — {contact.contact_title}</span>}
+                  {contact.title && <span className="text-gray-400"> — {contact.title}</span>}
                 </span>
                 {contact.user.phone && (
                   <a
@@ -119,9 +119,6 @@ export default function GigParticipantContactsList({
                 )}
               </div>
               <div className="hidden group-hover:flex items-center gap-1 shrink-0">
-                <button type="button" onClick={() => setEditingContact(contact)} title="Edit contact">
-                  <Pencil className="w-3 h-3 text-gray-400 hover:text-gray-700" />
-                </button>
                 <button type="button" onClick={() => setRemovingContact(contact)} title="Remove contact">
                   <Trash2 className="w-3 h-3 text-gray-400 hover:text-red-600" />
                 </button>
@@ -131,19 +128,13 @@ export default function GigParticipantContactsList({
         </div>
       )}
 
-      <AddOrganizationContactDialog
+      <AddPersonDialog
         open={addDialogOpen}
         onOpenChange={onAddDialogOpenChange}
-        orgId={organizationId}
+        gigId={gigId}
+        organizationId={organizationId}
         organizationName={organizationName}
         hasPrimaryContact={hasPrimaryContact}
-      />
-
-      <EditOrganizationContactDialog
-        open={editingContact !== null}
-        onOpenChange={(open) => { if (!open) setEditingContact(null); }}
-        orgId={organizationId}
-        contact={editingContact}
       />
 
       <AlertDialog open={removingContact !== null} onOpenChange={(open) => { if (!open) setRemovingContact(null); }}>
@@ -151,7 +142,7 @@ export default function GigParticipantContactsList({
           <AlertDialogHeader>
             <AlertDialogTitle>Remove contact?</AlertDialogTitle>
             <AlertDialogDescription>
-              {removingContact && `${removingContact.user.first_name} ${removingContact.user.last_name} will no longer be listed as a contact for ${organizationName}.`}
+              {removingContact && `${removingContact.user.first_name} ${removingContact.user.last_name} will no longer be listed as a contact for ${organizationName} on this gig. This does not affect their organization membership, if any.`}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
