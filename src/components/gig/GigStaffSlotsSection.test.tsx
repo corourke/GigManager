@@ -4,7 +4,7 @@ import { render as rtlRender, screen, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import GigStaffSlotsSection from './GigStaffSlotsSection';
 
-// UserSelector's quick-add affordance mounts a QuickAddPersonDialog (closed by
+// UserSelector's quick-add affordance mounts an AddPersonDialog (closed by
 // default) which uses react-query hooks regardless of its open state, so this
 // needs a QueryClientProvider ancestor now, matching the app's real wiring
 // (a single app-wide provider in src/main.tsx).

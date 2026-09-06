@@ -449,9 +449,9 @@ export async function getOrganizationContacts(organizationId: string) {
 /**
  * Create a new login-less person (user_status = 'contact') on an
  * organization. Email and phone are both optional — search for likely
- * duplicates first with findOrganizationPersonMatches and let the user pick
- * an existing person via linkExistingPersonToOrganization instead, since
- * this always creates a brand-new person.
+ * duplicates first (see usePersonMatches, a system-wide search) and let the
+ * user pick an existing person via linkExistingPersonToOrganization instead,
+ * since this always creates a brand-new person.
  */
 export async function addOrganizationContact(
   organizationId: string,
