@@ -122,6 +122,7 @@ export default function GigListScreen({
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>(initialViewMode);
+  const [gigTimeframe, setGigTimeframe] = useState<'upcoming' | 'past'>('upcoming');
   const [showExportConfirm, setShowExportConfirm] = useState(false);
   // Rows the list table is actually showing (date/status filters + per-column
   // filters + sort applied). Fed by SmartDataTable's onFilteredDataChange; drives
@@ -184,6 +185,20 @@ export default function GigListScreen({
     }
     return result;
   }, [gigs, futureDateFilter, pastDateFilter, activeStatuses]);
+
+  // Mirrors the mobile gig list's Upcoming/Past split (see MobileGigList.tsx)
+  // so the web list separates future and past gigs the same way.
+  const { upcomingGigs, pastGigs } = useMemo(() => {
+    const now = new Date();
+    const upcoming: Gig[] = [];
+    const past: Gig[] = [];
+    for (const gig of filteredGigs) {
+      (new Date(gig.start) >= now ? upcoming : past).push(gig);
+    }
+    return { upcomingGigs: upcoming, pastGigs: past };
+  }, [filteredGigs]);
+
+  const timeframeGigs = gigTimeframe === 'upcoming' ? upcomingGigs : pastGigs;
 
   const handleGigDuplicate = useCallback(async (gigId: string) => {
     try {
@@ -580,6 +595,12 @@ export default function GigListScreen({
 
   const dateFilterControl = (
     <div className="flex items-center gap-2">
+      <Tabs value={gigTimeframe} onValueChange={(v) => setGigTimeframe(v as 'upcoming' | 'past')}>
+        <TabsList>
+          <TabsTrigger value="upcoming">Upcoming ({upcomingGigs.length})</TabsTrigger>
+          <TabsTrigger value="past">Past ({pastGigs.length})</TabsTrigger>
+        </TabsList>
+      </Tabs>
       <GigDateFilterDropdown
         futureDateFilter={futureDateFilter}
         pastDateFilter={pastDateFilter}
@@ -719,7 +740,7 @@ export default function GigListScreen({
                 )}
                 <SmartDataTable
                   tableId="gig-list"
-                  data={filteredGigs}
+                  data={timeframeGigs}
                   columns={gigColumns}
                   rowActions={rowActions}
                   onRowUpdate={canEdit ? handleRowUpdate : undefined}
@@ -727,7 +748,7 @@ export default function GigListScreen({
                   onFilteredDataChange={setExportRows}
                   onVisibleColumnsChange={setVisibleColumnIds}
                   isLoading={isLoading}
-                  emptyMessage="No gigs found"
+                  emptyMessage={gigTimeframe === 'upcoming' ? 'No upcoming gigs found' : 'No past gigs found'}
                   toolbarLeft={dateFilterControl}
                 />
               </>

@@ -586,16 +586,18 @@ export function SmartDataTable<T extends { id: string }>({
                     {column.filterable && (
                       <Popover>
                         <PopoverTrigger asChild>
-                          <Button 
-                            variant="ghost" 
-                            size="sm" 
+                          <Button
+                            variant="ghost"
+                            size="sm"
                             aria-label={`Filter ${column.header}`}
                             className={cn(
-                              "h-5 w-5 p-0 shrink-0", 
-                              filters[column.id] && "text-primary"
+                              "h-5 w-5 p-0 shrink-0 rounded-full",
+                              filters[column.id]
+                                ? "bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground"
+                                : "text-muted-foreground"
                             )}
                           >
-                            <Filter className="h-3 w-3" />
+                            <Filter className="h-3 w-3" fill={filters[column.id] ? "currentColor" : "none"} />
                           </Button>
                         </PopoverTrigger>
                         <PopoverContent className="w-60 p-2" align="start">

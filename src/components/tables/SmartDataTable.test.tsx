@@ -320,6 +320,66 @@ describe('SmartDataTable', () => {
     expect(setFilter).toHaveBeenCalledWith('name', 'i');
   });
 
+  it('gives the filter icon a filled "on" state when a column filter is active', async () => {
+    const { useTableState } = await import('../../utils/hooks/useTableState');
+    const mockUseTableState = vi.mocked(useTableState);
+
+    mockUseTableState.mockReturnValue({
+      sorting: null,
+      filters: { name: 'Ali' },
+      columnVisibility: {},
+      columnWidths: {},
+      toggleSorting: vi.fn(),
+      setFilter: vi.fn(),
+      removeFilter: vi.fn(),
+      toggleColumnVisibility: vi.fn(),
+      setColumnWidth: vi.fn(),
+    } as any);
+
+    render(
+      <SmartDataTable
+        tableId="test-table"
+        data={data}
+        columns={columns}
+      />
+    );
+
+    const filterButton = screen.getByLabelText('Filter Name');
+    expect(filterButton.className).toContain('bg-primary');
+    const filterIcon = filterButton.querySelector('svg');
+    expect(filterIcon).toHaveAttribute('fill', 'currentColor');
+  });
+
+  it('leaves the filter icon unfilled when no column filter is active', async () => {
+    const { useTableState } = await import('../../utils/hooks/useTableState');
+    const mockUseTableState = vi.mocked(useTableState);
+
+    mockUseTableState.mockReturnValue({
+      sorting: null,
+      filters: {},
+      columnVisibility: {},
+      columnWidths: {},
+      toggleSorting: vi.fn(),
+      setFilter: vi.fn(),
+      removeFilter: vi.fn(),
+      toggleColumnVisibility: vi.fn(),
+      setColumnWidth: vi.fn(),
+    } as any);
+
+    render(
+      <SmartDataTable
+        tableId="test-table"
+        data={data}
+        columns={columns}
+      />
+    );
+
+    const filterButton = screen.getByLabelText('Filter Name');
+    expect(filterButton.className).not.toContain('bg-primary');
+    const filterIcon = filterButton.querySelector('svg');
+    expect(filterIcon).toHaveAttribute('fill', 'none');
+  });
+
   it('calls toggleSorting when clicking a sortable column header', async () => {
     const user = userEvent.setup();
     const { useTableState } = await import('../../utils/hooks/useTableState');
