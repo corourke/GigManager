@@ -15,6 +15,7 @@ import {
   DialogTitle,
 } from '../ui/dialog';
 import { useOrganizationContactMutations } from './useOrganizationContacts';
+import { useGigParticipantContactMutations } from '../gig/useGigParticipantContacts';
 import { usePersonMatches } from './usePersonMatches';
 import PersonMatchResults from './PersonMatchResults';
 import type { User, UserRole } from '../../utils/supabase/types';
@@ -24,7 +25,15 @@ interface AddPersonDialogProps {
   onOpenChange: (open: boolean) => void;
   organizationId: string;
   organizationName?: string;
-  /** Omit to hide the "set as primary contact" option entirely (e.g. staffing contexts, where it doesn't apply). */
+  /**
+   * When set, this adds/links a GIG-scoped contact (gig_participant_contacts)
+   * instead of an organization member — the person need not belong to
+   * organizationId at all. Used by the Participants section. Hides the Role
+   * selector (gig contacts have no role) and always shows the primary-contact
+   * option, since "primary for this gig" is always a meaningful choice there.
+   */
+  gigId?: string;
+  /** Omit (in org-member mode) to hide the "set as primary contact" option entirely (e.g. staffing contexts, where it doesn't apply). Ignored in gig-contact mode, which always shows it. */
   hasPrimaryContact?: boolean;
   defaultRole?: UserRole;
   /** Called with the newly-created-or-linked person once the dialog succeeds — used when the caller (e.g. a picker) needs the result, not just a refreshed list. */
@@ -35,34 +44,40 @@ const EMPTY = { firstName: '', lastName: '', email: '', phone: '', title: '' };
 
 /**
  * One shared "add a person" dialog used everywhere GigManager creates a new
- * login-less contact/staff member or links an existing one to an
- * organization: the Organization Contacts tab, the Participants section
- * (via GigParticipantContactsList), the Team screen's "No Account" tab, and
- * the gig staffing picker (via UserSelector). Search is system-wide (the
- * same search_users_secure path the "Add Existing User" tab already uses) —
- * the whole point is to avoid creating a duplicate person who already
- * exists in a different organization, not just this one.
+ * login-less contact/staff member or links an existing one: the
+ * Organization Contacts tab, the Participants section (gig-scoped, via
+ * GigParticipantContactsList), the Team screen's "No Account" tab, and the
+ * gig staffing picker (via UserSelector). Search is system-wide (the same
+ * search_users_secure path the "Add Existing User" tab already uses) — the
+ * whole point is to avoid creating a duplicate person who already exists
+ * somewhere else, not just this one organization.
  */
 export default function AddPersonDialog({
   open,
   onOpenChange,
   organizationId,
   organizationName,
+  gigId,
   hasPrimaryContact,
   defaultRole = 'Viewer',
   onDone,
 }: AddPersonDialogProps) {
-  const { addContact, linkExisting } = useOrganizationContactMutations(organizationId);
+  const isGigContact = !!gigId;
+  const orgMutations = useOrganizationContactMutations(organizationId);
+  const gigMutations = useGigParticipantContactMutations(gigId || '', organizationId);
+
   const [form, setForm] = useState(EMPTY);
   const [role, setRole] = useState<UserRole>(defaultRole);
-  // Only meaningful when hasPrimaryContact is actually passed (the checkbox
-  // is hidden otherwise) — default to "yes" only when there's no existing
-  // primary contact to replace.
-  const defaultIsPrimary = hasPrimaryContact === undefined ? false : !hasPrimaryContact;
+  // In gig-contact mode "primary" is always offered; in org-member mode only
+  // when the caller passes hasPrimaryContact. Default to "yes" only when
+  // there's no existing primary to replace.
+  const defaultIsPrimary = !isGigContact && hasPrimaryContact === undefined ? false : !hasPrimaryContact;
   const [isPrimary, setIsPrimary] = useState(defaultIsPrimary);
   const [debouncedSearch, setDebouncedSearch] = useState('');
 
-  const isPending = addContact.isPending || linkExisting.isPending;
+  const isPending = isGigContact
+    ? gigMutations.addContact.isPending || gigMutations.createAndAddContact.isPending
+    : orgMutations.addContact.isPending || orgMutations.linkExisting.isPending;
 
   const reset = () => {
     setForm(EMPTY);
@@ -88,7 +103,11 @@ export default function AddPersonDialog({
 
   const handleUseExisting = async (match: User) => {
     try {
-      await linkExisting.mutateAsync({ userId: match.id, role, title: form.title.trim() || undefined, isPrimary });
+      if (isGigContact) {
+        await gigMutations.addContact.mutateAsync({ userId: match.id, isPrimary, title: form.title.trim() || undefined });
+      } else {
+        await orgMutations.linkExisting.mutateAsync({ userId: match.id, role, title: form.title.trim() || undefined, isPrimary });
+      }
       onDone?.({ id: match.id, first_name: match.first_name, last_name: match.last_name });
       onOpenChange(false);
       reset();
@@ -104,16 +123,30 @@ export default function AddPersonDialog({
       return;
     }
     try {
-      const result = await addContact.mutateAsync({
-        firstName: form.firstName.trim(),
-        lastName: form.lastName.trim(),
-        email: form.email.trim() || undefined,
-        phone: form.phone.trim() || undefined,
-        title: form.title.trim() || undefined,
-        isPrimary,
-        role,
-      });
-      onDone?.({ id: result.user_id, first_name: form.firstName.trim(), last_name: form.lastName.trim() });
+      let newUserId: string;
+      if (isGigContact) {
+        const result = await gigMutations.createAndAddContact.mutateAsync({
+          firstName: form.firstName.trim(),
+          lastName: form.lastName.trim(),
+          email: form.email.trim() || undefined,
+          phone: form.phone.trim() || undefined,
+          title: form.title.trim() || undefined,
+          isPrimary,
+        });
+        newUserId = (result as any).user_id;
+      } else {
+        const result = await orgMutations.addContact.mutateAsync({
+          firstName: form.firstName.trim(),
+          lastName: form.lastName.trim(),
+          email: form.email.trim() || undefined,
+          phone: form.phone.trim() || undefined,
+          title: form.title.trim() || undefined,
+          isPrimary,
+          role,
+        });
+        newUserId = result.user_id;
+      }
+      onDone?.({ id: newUserId, first_name: form.firstName.trim(), last_name: form.lastName.trim() });
       onOpenChange(false);
       reset();
       toast.success('Person added');
@@ -194,18 +227,20 @@ export default function AddPersonDialog({
             </div>
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="addperson_role">Role</Label>
-            <Select value={role} onValueChange={(value) => setRole(value as UserRole)}>
-              <SelectTrigger id="addperson_role">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="Staff">Staff — can be assigned to gigs</SelectItem>
-                <SelectItem value="Viewer">Viewer — read-only access</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+          {!isGigContact && (
+            <div className="space-y-2">
+              <Label htmlFor="addperson_role">Role</Label>
+              <Select value={role} onValueChange={(value) => setRole(value as UserRole)}>
+                <SelectTrigger id="addperson_role">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Staff">Staff — can be assigned to gigs</SelectItem>
+                  <SelectItem value="Viewer">Viewer — read-only access</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          )}
 
           <PersonMatchResults
             matches={matches}
@@ -216,14 +251,14 @@ export default function AddPersonDialog({
             emptyHint="No existing match — this will add a new person."
           />
 
-          {hasPrimaryContact !== undefined && (
+          {(isGigContact || hasPrimaryContact !== undefined) && (
             <label className="flex items-center gap-2 text-sm cursor-pointer">
               <Checkbox
                 checked={isPrimary}
                 onCheckedChange={(checked) => setIsPrimary(checked === true)}
                 disabled={isPending}
               />
-              Set as primary contact
+              Set as primary contact{isGigContact ? ' for this gig' : ''}
               {hasPrimaryContact && isPrimary && (
                 <span className="text-xs text-gray-500">(replaces the current primary contact)</span>
               )}
@@ -236,7 +271,7 @@ export default function AddPersonDialog({
             Cancel
           </Button>
           <Button onClick={handleCreate} disabled={isPending} className="bg-sky-500 hover:bg-sky-600 text-white">
-            {addContact.isPending ? (
+            {isPending ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 Adding...

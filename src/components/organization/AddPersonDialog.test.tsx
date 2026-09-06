@@ -6,6 +6,7 @@ import { toast } from 'sonner';
 import AddPersonDialog from './AddPersonDialog';
 import * as organizationService from '../../services/organization.service';
 import * as userService from '../../services/user.service';
+import * as gigParticipantContactsService from '../../services/gigParticipantContacts.service';
 
 function render(ui: ReactElement) {
   const queryClient = new QueryClient({
@@ -28,6 +29,11 @@ vi.mock('../../services/user.service', () => ({
 vi.mock('../../services/organization.service', () => ({
   addOrganizationContact: vi.fn(),
   linkExistingPersonToOrganization: vi.fn(),
+}));
+
+vi.mock('../../services/gigParticipantContacts.service', () => ({
+  addGigParticipantContact: vi.fn(),
+  createContactPerson: vi.fn(),
 }));
 
 const defaultProps = {
@@ -123,5 +129,58 @@ describe('AddPersonDialog', () => {
   it('shows "set as primary contact" when hasPrimaryContact is provided (org-contact contexts)', () => {
     render(<AddPersonDialog {...defaultProps} hasPrimaryContact={false} />);
     expect(screen.getByText('Set as primary contact')).toBeInTheDocument();
+  });
+
+  describe('gig-contact mode (gigId provided)', () => {
+    const gigProps = { ...defaultProps, gigId: 'gig-1', hasPrimaryContact: true };
+
+    it('always shows the primary-contact option and hides Role, regardless of hasPrimaryContact', () => {
+      render(<AddPersonDialog {...gigProps} />);
+      expect(screen.getByText('Set as primary contact for this gig')).toBeInTheDocument();
+      expect(screen.queryByLabelText('Role')).not.toBeInTheDocument();
+    });
+
+    it('creates a new person via createContactPerson + addGigParticipantContact, not org-membership calls', async () => {
+      vi.mocked(gigParticipantContactsService.createContactPerson).mockResolvedValue('new-user-1');
+      vi.mocked(gigParticipantContactsService.addGigParticipantContact).mockResolvedValue({ id: 'gpc-1', user_id: 'new-user-1' } as any);
+
+      render(<AddPersonDialog {...gigProps} />);
+
+      fireEvent.change(screen.getByLabelText('First Name *'), { target: { value: 'Jane' } });
+      fireEvent.change(screen.getByLabelText('Last Name *'), { target: { value: 'Doe' } });
+      fireEvent.click(screen.getByText('Add New Person'));
+
+      await waitFor(() => expect(gigParticipantContactsService.createContactPerson).toHaveBeenCalledWith({
+        firstName: 'Jane',
+        lastName: 'Doe',
+        email: undefined,
+        phone: undefined,
+      }));
+      expect(gigParticipantContactsService.addGigParticipantContact).toHaveBeenCalledWith('gig-1', 'org-1', expect.objectContaining({ userId: 'new-user-1' }));
+      expect(organizationService.addOrganizationContact).not.toHaveBeenCalled();
+    });
+
+    it('links an existing match via addGigParticipantContact, not addOrganizationContact/linkExistingPersonToOrganization', async () => {
+      vi.mocked(userService.searchAllUsers).mockResolvedValue([
+        { id: 'existing-user-1', first_name: 'Jane', last_name: 'Doe', email: 'jane@example.com', phone: null } as any,
+      ]);
+      vi.mocked(gigParticipantContactsService.addGigParticipantContact).mockResolvedValue({ id: 'gpc-1', user_id: 'existing-user-1' } as any);
+
+      render(<AddPersonDialog {...gigProps} />);
+
+      fireEvent.change(screen.getByLabelText('First Name *'), { target: { value: 'Jane' } });
+      fireEvent.change(screen.getByLabelText('Last Name *'), { target: { value: 'Doe' } });
+
+      await waitFor(() => expect(screen.getByText(/Found a possible match/)).toBeInTheDocument());
+      fireEvent.click(screen.getByText('Use this person'));
+
+      await waitFor(() => expect(gigParticipantContactsService.addGigParticipantContact).toHaveBeenCalledWith('gig-1', 'org-1', {
+        userId: 'existing-user-1',
+        isPrimary: false,
+        title: undefined,
+      }));
+      expect(organizationService.addOrganizationContact).not.toHaveBeenCalled();
+      expect(organizationService.linkExistingPersonToOrganization).not.toHaveBeenCalled();
+    });
   });
 });

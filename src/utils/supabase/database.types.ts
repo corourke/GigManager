@@ -463,6 +463,58 @@ export type Database = {
           },
         ]
       }
+      gig_participant_contacts: {
+        Row: {
+          created_at: string
+          gig_id: string
+          id: string
+          is_primary_contact: boolean
+          organization_id: string
+          title: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          gig_id: string
+          id?: string
+          is_primary_contact?: boolean
+          organization_id: string
+          title?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          gig_id?: string
+          id?: string
+          is_primary_contact?: boolean
+          organization_id?: string
+          title?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "gig_participant_contacts_gig_id_fkey"
+            columns: ["gig_id"]
+            isOneToOne: false
+            referencedRelation: "gigs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "gig_participant_contacts_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "gig_participant_contacts_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       gig_participants: {
         Row: {
           gig_id: string
@@ -1480,6 +1532,17 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      add_gig_participant_contact: {
+        Args: {
+          p_actor_id?: string
+          p_gig_id: string
+          p_is_primary?: boolean
+          p_organization_id: string
+          p_title?: string
+          p_user_id: string
+        }
+        Returns: Json
+      }
       add_organization_contact: {
         Args: {
           p_actor_id?: string
@@ -1497,6 +1560,16 @@ export type Database = {
       convert_pending_user_to_active: {
         Args: { p_auth_user_id: string; p_email: string }
         Returns: Json
+      }
+      create_contact_person: {
+        Args: {
+          p_actor_id?: string
+          p_email?: string
+          p_first_name: string
+          p_last_name: string
+          p_phone?: string
+        }
+        Returns: string
       }
       create_gig_complex: {
         Args: { p_gig_data: Json; p_participants?: Json; p_staff_slots?: Json }
@@ -1633,6 +1706,15 @@ export type Database = {
         Args: { p_kit_id: string }
         Returns: undefined
       }
+      remove_gig_participant_contact: {
+        Args: {
+          p_actor_id?: string
+          p_gig_id: string
+          p_organization_id: string
+          p_user_id: string
+        }
+        Returns: undefined
+      }
       remove_organization_contact: {
         Args: { p_actor_id?: string; p_member_id: string }
         Returns: undefined
@@ -1664,6 +1746,16 @@ export type Database = {
           isOneToOne: false
           isSetofReturn: true
         }
+      }
+      set_gig_participant_contact_primary: {
+        Args: {
+          p_actor_id?: string
+          p_gig_id: string
+          p_is_primary: boolean
+          p_organization_id: string
+          p_user_id: string
+        }
+        Returns: undefined
       }
       set_organization_primary_contact: {
         Args: { p_actor_id?: string; p_member_id: string }
