@@ -199,7 +199,7 @@ export default function MobileGigDetail({ gigId, onBack, onViewPackingList }: Mo
           : undefined;
       }
 
-      if (end && new Date(end) <= new Date(start)) {
+      if (!editAllDay && end && new Date(end) <= new Date(start)) {
         toast.error('End date/time must be after start date/time');
         setIsSaving(false);
         return;

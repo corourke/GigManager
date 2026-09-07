@@ -404,6 +404,42 @@ describe('MobileGigDetail', () => {
       expect(screen.getByText('Cancel')).toBeInTheDocument()
     })
 
+    it('saves a single-day all-day gig without the end<=start error (regression for #10)', async () => {
+      vi.mocked(getGig).mockResolvedValue({
+        ...mockGig,
+        start: '2026-07-15T12:00:00.000Z',
+        end: '2026-07-15T12:00:00.000Z',
+      } as unknown as Awaited<ReturnType<typeof getGig>>)
+      mockUseAuth.mockReturnValue({
+        user: { id: 'user-1' },
+        userRole: 'Admin',
+        selectedOrganization: { id: 'org-1' },
+      })
+      render(<MobileGigDetail gigId="gig-1" onBack={vi.fn()} onViewPackingList={vi.fn()} />)
+
+      await waitFor(() => {
+        expect(screen.getByText('Summer Festival')).toBeInTheDocument()
+      })
+
+      fireEvent.click(screen.getByRole('button', { name: /edit gig/i }))
+
+      await waitFor(() => {
+        expect(screen.getByText('Save')).toBeInTheDocument()
+      })
+
+      await act(async () => {
+        fireEvent.click(screen.getByText('Save'))
+      })
+
+      await waitFor(() => {
+        expect(updateGig).toHaveBeenCalledWith('gig-1', expect.objectContaining({
+          title: 'Summer Festival',
+        }))
+      })
+
+      expect(toast.error).not.toHaveBeenCalledWith('End date/time must be after start date/time')
+    })
+
     it('participant X button removes participant from edit list', async () => {
       mockUseAuth.mockReturnValue({
         user: { id: 'user-1' },
