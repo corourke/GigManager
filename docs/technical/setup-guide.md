@@ -318,6 +318,25 @@ supabase secrets set GOOGLE_CLIENT_ID=your-google-client-id
 supabase secrets set GOOGLE_CLIENT_SECRET=your-google-client-secret
 ```
 
+#### Per-user calendar write access (not an app config step, but a common support issue)
+OAuth scope and calendar sharing are two separate permission layers in Google Calendar, and users
+routinely trip over this: the app already requests the full `https://www.googleapis.com/auth/calendar`
+scope, which lets a connected account attempt writes on *any* calendar it can see — but each individual
+calendar also has its own sharing/ACL role, and Google enforces that independently of scope. A user can
+be "Connected" and have a calendar selected while only holding **read** access on it (e.g. "See all event
+details"), and every sync will then fail with a `403 Forbidden` / `"You need to have writer access to this
+calendar."` error from Google's API (see issue #9).
+
+If a user reports Google Calendar sync failing for every gig, check first whether they have write access
+to the calendar they selected:
+- Simplest fix: connect using the Google account that **owns** the target calendar.
+- Or: in Google Calendar's settings for that calendar → **Share with specific people** → give the
+  connected account **"Make changes to events"** access (or higher).
+
+The app's calendar picker only offers calendars where Google reports `accessRole` as `writer` or `owner`,
+and shows a warning if a previously-selected calendar's access has since been downgraded — but it can't
+detect or fix a sharing permission that was never granted in the first place.
+
 ### 4. Secrets Management
 - **List Secrets**: `supabase secrets list`
 - **Set Secret**: `supabase secrets set NAME=VALUE`
