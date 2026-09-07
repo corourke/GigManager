@@ -76,3 +76,8 @@ vi.mock('../utils/supabase/info', () => ({
 vi.mock('../components/NotificationBell', () => ({
   default: () => null,
 }))
+
+// Same reasoning as NotificationBell above.
+vi.mock('../components/ModeratorQueueMenuItem', () => ({
+  default: () => null,
+}))

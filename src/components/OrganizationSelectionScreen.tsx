@@ -24,8 +24,7 @@ import {
   AlertCircle,
   ChevronRight,
   Loader2,
-  UserPlus,
-  ShieldCheck
+  UserPlus
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { searchOrganizations, joinOrganization } from '../services/organization.service';
@@ -47,7 +46,6 @@ interface OrganizationSelectionScreenProps {
   onSelectOrganization: (org: Organization) => void;
   onCreateOrganization: () => void;
   onAdminViewAll?: () => void;
-  onModeratorQueue?: () => void;
   onLogout: () => void;
   onEditProfile: () => void;
 }
@@ -60,7 +58,6 @@ export default function OrganizationSelectionScreen({
   onSelectOrganization,
   onCreateOrganization,
   onAdminViewAll,
-  onModeratorQueue,
   onLogout,
   onEditProfile
 }: OrganizationSelectionScreenProps) {
@@ -404,28 +401,16 @@ export default function OrganizationSelectionScreen({
         )}
 
         {/* Admin Section */}
-        {(onAdminViewAll || (user.platform_moderator && onModeratorQueue)) && (
-          <div className="mt-12 pt-8 border-t border-gray-200 flex flex-wrap gap-2">
-            {onAdminViewAll && (
-              <Button
-                onClick={onAdminViewAll}
-                variant="outline"
-                className="w-full sm:w-auto"
-              >
-                <Building2 className="w-4 h-4 mr-2" />
-                Browse All Organizations
-              </Button>
-            )}
-            {user.platform_moderator && onModeratorQueue && (
-              <Button
-                onClick={onModeratorQueue}
-                variant="outline"
-                className="w-full sm:w-auto"
-              >
-                <ShieldCheck className="w-4 h-4 mr-2" />
-                Access Requests
-              </Button>
-            )}
+        {onAdminViewAll && (
+          <div className="mt-12 pt-8 border-t border-gray-200">
+            <Button
+              onClick={onAdminViewAll}
+              variant="outline"
+              className="w-full sm:w-auto"
+            >
+              <Building2 className="w-4 h-4 mr-2" />
+              Browse All Organizations
+            </Button>
           </div>
         )}
       </div>

@@ -102,7 +102,6 @@ function OrgSelectionRoute() {
       }}
       onCreateOrganization={nav.toCreateOrg}
       onAdminViewAll={nav.toAdminOrgs}
-      onModeratorQueue={nav.toModeratorQueue}
       onLogout={nav.logoutAndHome}
       onEditProfile={openEditProfile}
     />
