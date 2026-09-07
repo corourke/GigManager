@@ -171,6 +171,91 @@ describe('googleCalendar.service', () => {
     });
   });
 
+  describe('sync error diagnostics (issue #9 regression)', () => {
+    const mockSettings = {
+      id: 'settings-1',
+      user_id: 'user-123',
+      calendar_id: 'cal-123',
+      calendar_name: 'Act4Audio',
+      access_token: 'token-abc',
+      refresh_token: 'refresh-xyz',
+      token_expires_at: new Date(Date.now() + 3600000).toISOString(),
+      is_enabled: true,
+      sync_filters: {},
+    };
+
+    function makeFunctionsHttpError(body: any, status: number) {
+      const mockResponse = {
+        json: () => Promise.resolve(body),
+        clone: () => ({ json: () => Promise.resolve(body) }),
+        status,
+      };
+      return { name: 'FunctionsHttpError', context: { response: mockResponse } };
+    }
+
+    it('persists Google\'s real permission error, not the generic Supabase wrapper text, when a sync fails', async () => {
+      const service = await import('./googleCalendar.service');
+
+      mockSupabase.maybeSingle
+        .mockResolvedValueOnce({ data: mockSettings, error: null }) // settings lookup
+        .mockResolvedValueOnce({ data: null, error: null })          // no existing sync
+        .mockResolvedValueOnce({                                     // updateGigSyncStatus's own upsert result
+          data: { id: 'sync-status-1', gig_id: 'gig-123', user_id: 'user-123', sync_status: 'failed' },
+          error: null,
+        });
+
+      const functionsErr = makeFunctionsHttpError(
+        { error: 'Failed to create/update event', details: 'You need to have writer access to this calendar.' },
+        403
+      );
+      mockSupabase.functions.invoke.mockResolvedValue({ data: null, error: functionsErr });
+
+      const gigData = {
+        title: 'St. Raymond Festival',
+        start: '2026-10-03T20:00:00.000Z',
+        end: '2026-10-03T23:00:00.000Z',
+        timezone: 'America/Los_Angeles',
+      };
+
+      await expect(service.syncGigToCalendar('user-123', 'gig-123', gigData)).rejects.toThrow(
+        'You need to have writer access to this calendar.'
+      );
+
+      const failedUpsertCall = mockSupabase.upsert.mock.calls.find(
+        (call: any[]) => call[0]?.sync_status === 'failed'
+      );
+      expect(failedUpsertCall).toBeDefined();
+      expect(failedUpsertCall![0].sync_error).toBe('You need to have writer access to this calendar.');
+      expect(failedUpsertCall![0].sync_error).not.toContain('non-2xx');
+    });
+
+    it('still treats an already-deleted (404) calendar event as successfully removed after unwrapping the error', async () => {
+      const service = await import('./googleCalendar.service');
+
+      mockSupabase.maybeSingle
+        .mockResolvedValueOnce({ data: { google_event_id: 'stale-event-1' }, error: null }) // existing sync status
+        .mockResolvedValueOnce({ data: mockSettings, error: null })                          // settings lookup
+        .mockResolvedValueOnce({                                                             // updateGigSyncStatus's own upsert result
+          data: { id: 'sync-status-1', gig_id: 'gig-123', user_id: 'user-123', sync_status: 'removed' },
+          error: null,
+        });
+
+      const functionsErr = makeFunctionsHttpError(
+        { error: 'Failed to delete event', details: 'Not Found (404)' },
+        404
+      );
+      mockSupabase.functions.invoke.mockResolvedValue({ data: null, error: functionsErr });
+
+      await service.deleteGigFromCalendar('user-123', 'gig-123');
+
+      const removedUpsertCall = mockSupabase.upsert.mock.calls.find(
+        (call: any[]) => call[0]?.sync_status === 'removed'
+      );
+      expect(removedUpsertCall).toBeDefined();
+      expect(removedUpsertCall![0].sync_error).toBeNull();
+    });
+  });
+
   describe('bulkSyncAllGigsServerSide', () => {
     it('successfully queries all gigs and invokes sync-gig-all-users for each', async () => {
       const service = await import('./googleCalendar.service');

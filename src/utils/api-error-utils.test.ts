@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { isNetworkError, handleApiError, handleFunctionsError } from './api-error-utils';
+import { isNetworkError, handleApiError, handleFunctionsError, unwrapFunctionsError } from './api-error-utils';
 
 describe('isNetworkError', () => {
   it('detects "Failed to fetch" message', () => {
@@ -75,7 +75,15 @@ describe('handleFunctionsError', () => {
     await expect(handleFunctionsError(err, 'call function')).rejects.toThrow('Generic error');
   });
 
-  it('parses error message from a FunctionsHttpError with a JSON body (via context.response)', async () => {
+  it('prefers the specific "details" field over the generic "error" label from a FunctionsHttpError body', async () => {
+    // Edge function routes in this app consistently return a generic `error`
+    // label plus a specific `details` (e.g. Google's own error message) —
+    // `details` must win so the user sees the actionable reason, not the
+    // generic route-level label. This is what made the Google Calendar sync
+    // failures in issue #9 undiagnosable from the UI: every failure showed
+    // "Failed to create/update event" (or worse, Supabase's own generic
+    // "Edge Function returned a non-2xx status code") instead of Google's
+    // real reason ("You need to have writer access to this calendar.").
     const body = { error: 'Permission denied', details: 'insufficient role' };
     const mockResponse = {
       // The code checks `typeof response.json === 'function'` before calling clone().json()
@@ -95,8 +103,28 @@ describe('handleFunctionsError', () => {
       caught = e;
     }
     expect(caught).toBeDefined();
-    expect(caught!.message).toBe('Permission denied');
+    expect(caught!.message).toBe('insufficient role');
     expect((caught as any).status).toBe(403);
+  });
+
+  it('surfaces the real Google Calendar permission error instead of a generic label (issue #9 regression)', async () => {
+    const body = {
+      error: 'Failed to create/update event',
+      details: 'You need to have writer access to this calendar.',
+    };
+    const mockResponse = {
+      json: () => Promise.resolve(body),
+      clone: () => ({ json: () => Promise.resolve(body) }),
+      status: 403,
+    };
+    const functionsErr = {
+      name: 'FunctionsHttpError',
+      context: { response: mockResponse },
+    };
+
+    await expect(handleFunctionsError(functionsErr, 'sync gig to calendar')).rejects.toThrow(
+      'You need to have writer access to this calendar.'
+    );
   });
 
   it('parses "message" field when "error" field is absent', async () => {
@@ -137,5 +165,45 @@ describe('handleFunctionsError', () => {
     };
 
     await expect(handleFunctionsError(functionsErr, 'call edge fn')).rejects.toBeDefined();
+  });
+});
+
+describe('unwrapFunctionsError', () => {
+  it('returns the original error unchanged instead of throwing', async () => {
+    const err = new Error('Generic error');
+    const result = await unwrapFunctionsError(err);
+    expect(result).toBe(err);
+  });
+
+  it('unwraps a FunctionsHttpError body into an Error carrying the real message', async () => {
+    const body = { error: 'Failed to create/update event', details: 'Forbidden' };
+    const mockResponse = {
+      json: () => Promise.resolve(body),
+      clone: () => ({ json: () => Promise.resolve(body) }),
+      status: 403,
+    };
+    const functionsErr = {
+      name: 'FunctionsHttpError',
+      context: { response: mockResponse },
+    };
+
+    const result = await unwrapFunctionsError(functionsErr);
+    expect(result).toBeInstanceOf(Error);
+    expect(result.message).toBe('Forbidden');
+    expect(result.status).toBe(403);
+  });
+
+  it('returns the original error when the body has no error/details/message', async () => {
+    const mockResponse = {
+      clone: () => ({ json: () => Promise.resolve(null) }),
+      status: 500,
+    };
+    const functionsErr = {
+      name: 'FunctionsHttpError',
+      context: { response: mockResponse },
+    };
+
+    const result = await unwrapFunctionsError(functionsErr);
+    expect(result).toBe(functionsErr);
   });
 });

@@ -59,6 +59,11 @@ This plan outlines the structure and content for comprehensive user-facing docum
 - **Google Calendar Integration**:
     - Connecting your account.
     - Syncing Gigs to your personal or organization-wide calendar.
+    - **Choosing a calendar you can actually write to**: only calendars you own or have "Make changes to
+      events" access on are shown in the picker — if you want to sync to a shared/team calendar you don't
+      own, its owner needs to grant that access first, or connect using the owner's Google account instead.
+      A calendar that loses write access after being selected shows a warning here and blocks "Sync All
+      Gigs" until it's resolved (see issue #9).
 - **Conflict Detection**: How the system warns about overlapping schedules.
 
 ### 8. Mobile App & Field Operations

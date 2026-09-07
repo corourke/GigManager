@@ -228,6 +228,39 @@ describe('CalendarIntegrationSettings', () => {
     expect(screen.getByText('No sync activity yet')).toBeInTheDocument();
   });
 
+  it('warns when the selected calendar is read-only and disables Sync All Gigs (issue #9)', async () => {
+    (calService.getUserGoogleCalendarSettings as ReturnType<typeof vi.fn>).mockResolvedValue(mockSettings);
+    (calService.getUserCalendars as ReturnType<typeof vi.fn>).mockResolvedValue([
+      { id: 'cal-1', name: 'My Calendar', primary: true, accessRole: 'reader' },
+    ]);
+    (calService.getSyncLogs as ReturnType<typeof vi.fn>).mockResolvedValue(mockSyncLogs);
+    (calService.getSyncStatusSummary as ReturnType<typeof vi.fn>).mockResolvedValue(mockSyncSummary);
+
+    render(<CalendarIntegrationSettings userId="user-1" organizationId="org-1" />);
+
+    await waitFor(() => {
+      expect(screen.getByText(/you only have read access to/i)).toBeInTheDocument();
+    });
+
+    expect(screen.getByRole('button', { name: /^sync all gigs$/i })).toBeDisabled();
+  });
+
+  it('does not warn when the selected calendar is writable', async () => {
+    (calService.getUserGoogleCalendarSettings as ReturnType<typeof vi.fn>).mockResolvedValue(mockSettings);
+    (calService.getUserCalendars as ReturnType<typeof vi.fn>).mockResolvedValue(mockCalendars);
+    (calService.getSyncLogs as ReturnType<typeof vi.fn>).mockResolvedValue(mockSyncLogs);
+    (calService.getSyncStatusSummary as ReturnType<typeof vi.fn>).mockResolvedValue(mockSyncSummary);
+
+    render(<CalendarIntegrationSettings userId="user-1" organizationId="org-1" />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Connected to Google Calendar')).toBeInTheDocument();
+    });
+
+    expect(screen.queryByText(/you only have read access to/i)).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^sync all gigs$/i })).not.toBeDisabled();
+  });
+
   it('does not render sync sections when disconnected', async () => {
     (calService.getUserGoogleCalendarSettings as ReturnType<typeof vi.fn>).mockResolvedValue(null);
 

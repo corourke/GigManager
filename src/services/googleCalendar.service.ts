@@ -1,7 +1,7 @@
 import { createClient } from '../utils/supabase/client';
 import type { Json } from '../utils/supabase/database.types';
 import { UserGoogleCalendarSettings, GigSyncStatus } from '../utils/supabase/types';
-import { handleApiError, handleFunctionsError } from '../utils/api-error-utils';
+import { handleApiError, handleFunctionsError, unwrapFunctionsError } from '../utils/api-error-utils';
 import { isNoonUTC } from '../utils/dateUtils';
 
 const getSupabase = () => createClient();
@@ -356,7 +356,15 @@ export async function deleteGigFromCalendar(userId: string, gigId: string): Prom
       sync_error: null,
     });
   } catch (error) {
-    if (error instanceof Error && (error.message.includes('404') || error.message.includes('410'))) {
+    // Unwrap the real reason (e.g. Google's own error message) before it's
+    // persisted or branched on — the raw FunctionsHttpError's `.message` is
+    // always the generic "Edge Function returned a non-2xx status code",
+    // which would make the 404/410 check below never match and would hide
+    // the actual cause from the Sync Log.
+    const unwrapped = await unwrapFunctionsError(error);
+    const message = typeof unwrapped?.message === 'string' ? unwrapped.message : 'Unknown error';
+
+    if (message.includes('404') || message.includes('410')) {
       await updateGigSyncStatus(gigId, userId, {
         google_event_id: null,
         sync_status: 'removed',
@@ -366,10 +374,10 @@ export async function deleteGigFromCalendar(userId: string, gigId: string): Prom
     } else {
       await updateGigSyncStatus(gigId, userId, {
         sync_status: 'failed',
-        sync_error: error instanceof Error ? error.message : 'Unknown error',
+        sync_error: message,
         last_synced_at: new Date().toISOString(),
       });
-      throw await handleFunctionsError(error, 'delete gig from calendar');
+      return handleApiError(unwrapped, 'delete gig from calendar');
     }
   }
 }
@@ -664,12 +672,20 @@ async function syncGigToCalendarWithToken(
 
     return { eventId, syncedAt: new Date() };
   } catch (error) {
+    // Unwrap before persisting, not after — otherwise every failure gets
+    // saved with Supabase's generic "Edge Function returned a non-2xx status
+    // code" instead of the real reason (e.g. Google's own error message),
+    // which is exactly what made every row in the Sync Log look identical
+    // during the issue #9 outage.
+    const unwrapped = await unwrapFunctionsError(error);
+    const message = typeof unwrapped?.message === 'string' ? unwrapped.message : 'Unknown error';
+
     await updateGigSyncStatus(gigId, userId, {
       sync_status: 'failed',
-      sync_error: error instanceof Error ? error.message : 'Unknown error',
+      sync_error: message,
       last_synced_at: new Date().toISOString(),
     });
-    throw await handleFunctionsError(error, 'sync gig to calendar');
+    return handleApiError(unwrapped, 'sync gig to calendar');
   }
 }
 

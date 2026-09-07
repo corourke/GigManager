@@ -90,7 +90,10 @@ export function registerCalendar(app: App) {
     const eventResult = await eventResponse.json();
     if (!eventResponse.ok) {
       console.error('Google Calendar event error:', eventResult);
-      return c.json({ error: 'Failed to create/update event', details: eventResult.error?.message }, eventResponse.status as any);
+      const details = eventResponse.status === 403
+        ? `You don't have permission to write to this Google Calendar. Ask the calendar owner to share it with "Make changes to events" access, or connect using an account that owns it. (${eventResult.error?.message || 'Forbidden'})`
+        : eventResult.error?.message;
+      return c.json({ error: 'Failed to create/update event', details }, eventResponse.status as any);
     }
     return c.json({ event_id: eventResult.id });
   });
@@ -105,7 +108,10 @@ export function registerCalendar(app: App) {
     if (!deleteResponse.ok && deleteResponse.status !== 410) {
       const errorData = await deleteResponse.json().catch(() => ({}));
       console.error('Google Calendar delete error:', errorData);
-      return c.json({ error: 'Failed to delete event', details: (errorData as any).error?.message }, deleteResponse.status as any);
+      const details = deleteResponse.status === 403
+        ? `You don't have permission to modify this Google Calendar. Ask the calendar owner to share it with "Make changes to events" access, or connect using an account that owns it. (${(errorData as any).error?.message || 'Forbidden'})`
+        : (errorData as any).error?.message;
+      return c.json({ error: 'Failed to delete event', details }, deleteResponse.status as any);
     }
     return c.json({ success: true });
   });

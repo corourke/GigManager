@@ -61,6 +61,12 @@ interface SyncSummary {
 
 type SyncFrequency = 'realtime' | 'manual';
 
+// Google's calendar sharing model grants each calendar its own access role,
+// independent of OAuth scope — a calendar shared as "See all event details"
+// (reader) will 403 on every write even with full calendar-write scope
+// granted. Only these roles can actually create/update/delete events.
+const WRITABLE_ACCESS_ROLES = new Set(['writer', 'owner']);
+
 export default function CalendarIntegrationSettings({
   userId,
   organizationId,
@@ -369,6 +375,9 @@ export default function CalendarIntegrationSettings({
 
   const isConnected = !!(settings?.access_token);
   const displayedLogs = showAllLogs ? syncLogs : syncLogs.slice(0, 5);
+  const writableCalendars = availableCalendars.filter((cal) => WRITABLE_ACCESS_ROLES.has(cal.accessRole));
+  const selectedCalendar = availableCalendars.find((cal) => cal.id === settings?.calendar_id);
+  const selectedCalendarNotWritable = !!selectedCalendar && !WRITABLE_ACCESS_ROLES.has(selectedCalendar.accessRole);
 
   return (
     <div className="space-y-6">
@@ -494,7 +503,7 @@ export default function CalendarIntegrationSettings({
                       <SelectValue placeholder="Select a calendar" />
                     </SelectTrigger>
                     <SelectContent>
-                      {availableCalendars.map((calendar) => (
+                      {writableCalendars.map((calendar) => (
                         <SelectItem key={calendar.id} value={calendar.id}>
                           <div className="flex items-center gap-2">
                             {calendar.name}
@@ -514,7 +523,24 @@ export default function CalendarIntegrationSettings({
                       Loading calendars...
                     </p>
                   )}
+                  {!loadingCalendars && availableCalendars.length > 0 && writableCalendars.length === 0 && (
+                    <p className="text-sm text-muted-foreground">
+                      None of your Google calendars can be written to. Ask a calendar owner to share one with
+                      "Make changes to events" access, or connect using an account that owns a calendar.
+                    </p>
+                  )}
                 </div>
+
+                {selectedCalendarNotWritable && (
+                  <Alert variant="destructive">
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertDescription>
+                      You only have read access to "{selectedCalendar?.name || settings.calendar_name}" — gigs can't
+                      be synced to it. Ask its owner to share it with "Make changes to events" access, connect using
+                      the calendar owner's Google account, or pick a different calendar you own.
+                    </AlertDescription>
+                  </Alert>
+                )}
 
                 <Alert>
                   <Settings className="h-4 w-4" />
@@ -630,7 +656,7 @@ export default function CalendarIntegrationSettings({
               <div className="flex items-center gap-4">
                 <Button
                   onClick={handleSyncNow}
-                  disabled={syncing || !settings?.calendar_id || !organizationId}
+                  disabled={syncing || !settings?.calendar_id || !organizationId || selectedCalendarNotWritable}
                 >
                   {syncing ? (
                     <>
@@ -647,6 +673,11 @@ export default function CalendarIntegrationSettings({
                 {!settings?.calendar_id && (
                   <p className="text-sm text-muted-foreground">
                     Select a calendar first
+                  </p>
+                )}
+                {settings?.calendar_id && selectedCalendarNotWritable && (
+                  <p className="text-sm text-destructive">
+                    Fix calendar access above before syncing
                   </p>
                 )}
               </div>
