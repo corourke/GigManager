@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useForm, useWatch } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { format } from 'date-fns';
+import { format, parseISO } from 'date-fns';
 import { toast } from 'sonner';
 import { 
   FileText, 
@@ -145,7 +145,7 @@ export default function QuickActionButtons({
     return 0;
   })();
 
-  const computedYear = milDate ? new Date(milDate).getFullYear() : new Date().getFullYear();
+  const computedYear = milDate ? parseISO(milDate).getFullYear() : new Date().getFullYear();
   const computedRate = getMileageRateForYear(computedYear);
   const computedAmount = computedDistance > 0 ? calculateMileageAmount(computedDistance, computedYear) : 0;
 
@@ -227,7 +227,7 @@ export default function QuickActionButtons({
         return;
       }
 
-      const year = new Date(data.date).getFullYear();
+      const year = parseISO(data.date).getFullYear();
       const amount = calculateMileageAmount(distance, year);
       const rate = getMileageRateForYear(year);
       const autoNotes = formatMileageNotes(distance, rate);

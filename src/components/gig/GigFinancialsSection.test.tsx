@@ -151,6 +151,28 @@ describe('GigFinancialsSection', () => {
     expect(screen.getByText('Camera rental')).toBeInTheDocument();
   });
 
+  it('displays the stored calendar date, not a day earlier, in timezones behind UTC', async () => {
+    // Regression test for #25: a date-only value like "2024-01-15" was being
+    // parsed as UTC midnight and then rendered in the browser's local
+    // timezone, rolling the display back a day west of UTC.
+    const originalTZ = process.env.TZ;
+    process.env.TZ = 'America/Los_Angeles';
+    try {
+      render(<GigFinancialsSection {...defaultProps} />);
+
+      await waitFor(() => {
+        expect(screen.getByText('Financials')).toBeInTheDocument();
+      });
+
+      expect(screen.getAllByText('Jan 15, 2024').length).toBeGreaterThan(0);
+      expect(screen.getAllByText('Jan 20, 2024').length).toBeGreaterThan(0);
+      expect(screen.queryByText('Jan 14, 2024')).not.toBeInTheDocument();
+      expect(screen.queryByText('Jan 19, 2024')).not.toBeInTheDocument();
+    } finally {
+      process.env.TZ = originalTZ;
+    }
+  });
+
   it('shows empty state when no financials exist', async () => {
     vi.mocked(gigService.getGigFinancials).mockResolvedValue([]);
     vi.mocked(gigService.getGigProfitabilitySummary).mockResolvedValue({

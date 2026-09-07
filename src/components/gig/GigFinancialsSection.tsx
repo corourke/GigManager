@@ -3,7 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import {useForm, useFieldArray } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { format } from 'date-fns';
+import { format, parseISO } from 'date-fns';
 import { toast } from 'sonner';
 import {DollarSign, FileText, Loader2, Trash2, Edit, ExternalLink, Paperclip } from 'lucide-react';
 import { Button } from '../ui/button';
@@ -486,7 +486,10 @@ export default function GigFinancialsSection({
   const formatDate = (dateStr: string) => {
     if (!dateStr) return '';
     try {
-      return format(new Date(dateStr), 'MMM dd, yyyy');
+      // dateStr is a plain date-only string (e.g. "2026-09-06"); parseISO treats
+      // it as local midnight, unlike `new Date()` which treats it as UTC and can
+      // roll the display back a day in timezones behind UTC.
+      return format(parseISO(dateStr), 'MMM dd, yyyy');
     } catch {
       return dateStr;
     }
