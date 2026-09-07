@@ -89,6 +89,42 @@ describe('QuickActionButtons', () => {
     });
   });
 
+  it('uses the mileage rate for the entered calendar year, not a day earlier in timezones behind UTC', async () => {
+    // Regression test for #25: the mileage rate year was computed with
+    // `new Date(dateOnlyString).getFullYear()`, which parses the date as
+    // UTC midnight. West of UTC that rolls the date (and year, at a
+    // year boundary) back by one day, picking the wrong IRS rate.
+    const originalTZ = process.env.TZ;
+    process.env.TZ = 'America/Los_Angeles';
+    try {
+      render(<QuickActionButtons {...defaultProps} gigStartDate="2025-01-01" />);
+
+      fireEvent.click(screen.getByText('Expense / Mileage'));
+
+      await waitFor(() => {
+        expect(screen.getByText('Mileage', { selector: 'div.font-semibold' })).toBeInTheDocument();
+      });
+      fireEvent.click(screen.getByText('Mileage', { selector: 'div.font-semibold' }));
+
+      await waitFor(() => {
+        expect(screen.getByLabelText(/Miles Driven/)).toBeInTheDocument();
+      });
+      fireEvent.change(screen.getByLabelText(/Miles Driven/), { target: { value: '100' } });
+      fireEvent.change(screen.getByLabelText('Description'), { target: { value: 'Test travel' } });
+
+      fireEvent.click(screen.getByText('Save Mileage'));
+
+      await waitFor(() => {
+        expect(gigService.createGigFinancial).toHaveBeenCalledWith(expect.objectContaining({
+          mileage: 100,
+          amount: 67.5, // 2025 rate (0.675/mi). The pre-fix bug computed year 2024 (0.67/mi -> 67).
+        }));
+      });
+    } finally {
+      process.env.TZ = originalTZ;
+    }
+  });
+
   it('calculates mileage correctly from odometer readings', async () => {
     render(<QuickActionButtons {...defaultProps} />);
     
