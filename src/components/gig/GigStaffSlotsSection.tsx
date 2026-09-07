@@ -286,7 +286,23 @@ export default function GigStaffSlotsSection({
       role: '',
       count: 1,
       notes: '',
-      assignments: [],
+      // Pad with one 'Open' assignment row to match count: 1, matching the
+      // padding loadStaffSlotsData applies on load — otherwise the slot's
+      // assignment row doesn't render until count is bumped or the page
+      // is reloaded.
+      assignments: [
+        {
+          id: `temp-${Math.random().toString(36).substr(2, 9)}`,
+          user_id: '',
+          user_name: '',
+          status: 'Open',
+          compensation_type: 'rate',
+          amount: '',
+          notes: '',
+          completed_at: null,
+          units_completed: null,
+        },
+      ],
     });
   };
 
