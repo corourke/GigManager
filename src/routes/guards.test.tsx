@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, waitFor } from '@testing-library/react';
 import { MemoryRouter, Routes, Route } from 'react-router';
 import { LandingRedirect, LogoutRoute } from './guards';
@@ -95,52 +95,48 @@ describe('LandingRedirect', () => {
 });
 
 describe('LogoutRoute (#18)', () => {
+  const originalLocation = window.location;
+
   beforeEach(() => {
     vi.clearAllMocks();
+    // A real browser navigation, not a client-side route change — see the
+    // comment on LogoutRoute for why. Stub window.location so we can assert
+    // on it without jsdom attempting (and failing) a real navigation.
+    // @ts-expect-error - deliberately reassigning window.location for the test
+    delete window.location;
+    (window as any).location = { ...originalLocation, href: '' };
   });
 
-  it('signs the user out and redirects to / — a working /logout URL', async () => {
+  afterEach(() => {
+    (window as any).location = originalLocation;
+  });
+
+  function renderLogoutRoute() {
+    render(
+      <MemoryRouter initialEntries={['/logout']}>
+        <Routes>
+          <Route path="/logout" element={<LogoutRoute />} />
+        </Routes>
+      </MemoryRouter>
+    );
+  }
+
+  it('signs the user out and hard-navigates to / — a working /logout URL', async () => {
     const logout = vi.fn().mockResolvedValue(undefined);
     mockUseAuth.mockReturnValue({ logout });
 
-    let navigatedTo = '';
-    function Capture({ path }: { path: string }) {
-      navigatedTo = path;
-      return <div data-testid="at-home" />;
-    }
-
-    render(
-      <MemoryRouter initialEntries={['/logout']}>
-        <Routes>
-          <Route path="/logout" element={<LogoutRoute />} />
-          <Route path="/" element={<Capture path="/" />} />
-        </Routes>
-      </MemoryRouter>
-    );
+    renderLogoutRoute();
 
     await waitFor(() => expect(logout).toHaveBeenCalledTimes(1));
-    await waitFor(() => expect(navigatedTo).toBe('/'));
+    await waitFor(() => expect(window.location.href).toBe('/'));
   });
 
-  it('still redirects to / if logout() rejects, so a broken session is never a dead end', async () => {
+  it('still hard-navigates to / if logout() rejects, so a broken session is never a dead end', async () => {
     const logout = vi.fn().mockRejectedValue(new Error('network error'));
     mockUseAuth.mockReturnValue({ logout });
 
-    let navigatedTo = '';
-    function Capture({ path }: { path: string }) {
-      navigatedTo = path;
-      return <div data-testid="at-home" />;
-    }
+    renderLogoutRoute();
 
-    render(
-      <MemoryRouter initialEntries={['/logout']}>
-        <Routes>
-          <Route path="/logout" element={<LogoutRoute />} />
-          <Route path="/" element={<Capture path="/" />} />
-        </Routes>
-      </MemoryRouter>
-    );
-
-    await waitFor(() => expect(navigatedTo).toBe('/'));
+    await waitFor(() => expect(window.location.href).toBe('/'));
   });
 });

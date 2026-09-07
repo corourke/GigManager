@@ -86,7 +86,6 @@ export function LandingRedirect() {
  */
 export function LogoutRoute() {
   const { logout } = useAuth();
-  const navigate = useNavigate();
   const [ranOnce, setRanOnce] = useState(false);
 
   useEffect(() => {
@@ -94,12 +93,23 @@ export function LogoutRoute() {
     setRanOnce(true);
     logout()
       .catch(() => {
-        // Still navigate home even if the sign-out call itself failed —
+        // Still recover home even if the sign-out call itself failed —
         // this route exists specifically to get an unresponsive session
         // out of wherever it's stuck.
       })
-      .finally(() => navigate('/', { replace: true }));
-  }, [ranOnce, logout, navigate]);
+      .finally(() => {
+        // A hard reload, not a client-side navigate: on a direct visit to
+        // /logout, AuthProvider mounts fresh and immediately re-checks for
+        // a persisted session at the same time this logout() call is tearing
+        // it down. A client-side navigate() lets that race resolve either
+        // way — if the stale session check wins, RequireAuth/RequireOrg/
+        // LandingRedirect route the "logged out" user right back into the
+        // app (observed: landing on /dashboard with a now-invalid session).
+        // Reloading fully guarantees AuthProvider only ever boots after
+        // signOut() has actually finished.
+        window.location.href = '/';
+      });
+  }, [ranOnce, logout]);
 
   return <LoadingSpinner />;
 }
