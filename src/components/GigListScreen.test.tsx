@@ -3,6 +3,31 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import GigListScreen from './GigListScreen';
 
+// Mock localStorage. Whether jsdom / the JS engine backs localStorage with a
+// real implementation varies (it is absent under the CI runner), so provide a
+// deterministic stand-in the way the other list-screen tests do.
+const localStorageMock = (() => {
+  let store: Record<string, string> = {};
+  return {
+    getItem: vi.fn((key: string) => store[key] || null),
+    setItem: vi.fn((key: string, value: string) => {
+      store[key] = value.toString();
+    }),
+    clear: vi.fn(() => {
+      store = {};
+    }),
+    removeItem: vi.fn((key: string) => {
+      delete store[key];
+    }),
+    length: 0,
+    key: vi.fn((_index: number) => null),
+  };
+})();
+
+Object.defineProperty(window, 'localStorage', {
+  value: localStorageMock,
+});
+
 const now = Date.now();
 const futureGig = {
   id: 'gig-future',
