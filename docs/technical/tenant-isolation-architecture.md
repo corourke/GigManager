@@ -3,7 +3,7 @@
 **Purpose**: Evaluate realistic architectures for giving each organization a *credible, verifiable guarantee that the operator (Cameron) cannot read its data*, while preserving a narrow cross‑org sharing layer (shared gig core + busy/free availability). Architecture exploration to inform a direction decision. **No implementation.**
 
 **Status**: Draft for discussion
-**Last Updated**: 2026-09-04
+**Last Updated**: 2026-09-06
 **Related**: [security-scheme.md](./security-scheme.md), [database.md](./database.md), [tech-stack.md](./tech-stack.md), [server-endpoint-inventory.md](./server-endpoint-inventory.md), and the 2026‑09‑02 schema‑verification report (scratchpad).
 
 ---
@@ -33,9 +33,11 @@
 - **Tier 3 (only if operator‑exclusion becomes the product):** confidential‑computing enclaves or trimmed client‑only E2EE. Defer.
 - **Federation across all tiers:** hub‑and‑spoke; the hub holds only the minimized cleartext shared core + opt‑in busy/free projection; private data never crosses.
 
+**Option H — locally‑installable app (§11), evaluated separately.** It solves the trust problem completely and for free (data never touches Cameron's infra; a skeptic verifies with a packet capture), but it changes the *product*: pure local‑install gives up multi‑user‑without‑setup, first‑class mobile field use, and backups the customer can't lose, and it needs a quarter‑plus of Supabase‑teardown work (data layer, auth, storage, realtime, the edge functions — keep Postgres + PostgREST so the 232 data‑layer calls survive). In‑org RBAC (Admin/Manager/Staff/Viewer) currently lives in RLS + the edge function; with no server it's either advisory or a local privileged process. Multi‑user, federation between sometimes‑asleep laptops, and backups all push a small always‑on relay back into the picture — a shrunk Option‑G hub that reintroduces a *bounded* trust surface (participant graph + busy/free, never financials). **Verdict:** a viable direction for a *smaller* product (solo operators), or as **H‑a** (local‑first + optional encrypted sync, à la Actual Budget — depends on a sync engine; PowerSync is the least‑risky 2026 bet) / **H‑c** (hybrid, two stacks forever). Not a drop‑in substitute for the tiers: Tier 1 reaches "we can't read your books" without giving up the hosted product's core value.
+
 **The honest bottom line:** nothing here is free. Verifiable operator‑exclusion costs either features (Tier 1), onboarding friction and ops (Tier 2), or a disproportionate engineering investment (Tier 3). Tier 1 is the smallest thing that gives a target org a guarantee it would believe while keeping the product shippable.
 
-**The questions that would most change the recommendation:** (1) Are server‑side financial aggregation and the AI receipt scan non‑negotiable? (2) Will target orgs connect their own cloud account / KMS? (3) Is the bar "better than the other cloud SaaS" or "provably can't see it, like a password manager"? (4) How many orgs, what size? (5) Is "Cameron cannot read it" truly hard, or is "not commingled, revocable, portable on exit" enough? See §10 for the full list.
+**The questions that would most change the recommendation:** (1) Are server‑side financial aggregation and the AI receipt scan non‑negotiable? (2) Will target orgs connect their own cloud account / KMS? (3) Is the bar "better than the other cloud SaaS" or "provably can't see it, like a password manager"? (4) How many orgs, what size? (5) Is "Cameron cannot read it" truly hard, or is "not commingled, revocable, portable on exit" enough? (6) Are orgs *teams* with core mobile field use, or mostly solo‑at‑a‑desk? — the last decides whether Option H is even a candidate. See §10 for the full list.
 
 ---
 
@@ -324,6 +326,22 @@ Not a fourth isolation point — **the federation backbone that makes B/C/D/E/F 
 - **Failure:** hub down → no new shared gigs, stale availability, logins may fail if hub brokers auth (mitigate: cached tokens / long TTL) — **every spoke's private data keeps working.** Spoke down → that org dark; its shared gigs stale for others. No single breach exposes private data (hub never holds it).
 - **Verdict:** the architecture that takes the requirements seriously — "shared" and "private" are different systems with different owners; size the shared one to the smallest thing that works. **Recommended target**, spoke model chosen per‑org.
 
+### H — Locally‑installable / local‑first application
+
+Desktop app (Tauri/Electron) with an on‑device database and optional AI hooks; data never touches Cameron's infrastructure. Not a tenancy model — "no tenancy, because there's no shared system." Full analysis in **§11**; scorecard here for parallelism.
+
+- **Isolation:** maximal — the data is on the user's disk.
+- **Operator‑read guarantee:** **level 3, and free** — nothing to verify because there is no server, no cloud DB, no operator access path. This is the entire appeal.
+- **Skeptic's verification:** trivial — packet‑capture the app (nothing leaves except opt‑in federation + opt‑in AI) or run it air‑gapped; reproducible build makes "optional really is optional" checkable.
+- **Shared core / availability:** the hard part — every peer is a laptop asleep half the time. Either a small always‑on relay (a shrunk Option‑G hub that reintroduces a *bounded* trust surface — §11.4) or P2P sync between intermittently‑connected clients. Neither is free.
+- **Cost to Cameron:** ~$0 infra per tenant; **high engineering** to sever Supabase (§11.1) + build packaging/signing/update/telemetry; support with no access to the customer's DB or logs.
+- **Org burden:** low for one user; **rises sharply with multiple users per org (§11.3) and mobile field use**, and the org now owns backups (§11.5).
+- **Upgrades:** you ship builds; users run them whenever — schema skew is unbounded (§11.2).
+- **Auth:** no server → no Supabase Auth; local password / OS keychain / device WebAuthn. Multi‑user and federation still need an identity anchor.
+- **Failure:** dead laptop + no backup = total loss. Contained blast radius, catastrophic per‑incident severity.
+- **Supabase coupling:** must be fully severed — the largest teardown of any option (§11.1).
+- **Verdict:** solves the trust problem completely and for free, but trades away multi‑user‑without‑setup, first‑class mobile, painless updates, and backup‑by‑default. **Viable as a product; questionable as *this* product** without a sync tier that pulls most of that back. See §11.
+
 ---
 
 ## 6. Automatic provisioning — how real is it
@@ -401,6 +419,9 @@ SOC 2 Type II + DPA + least‑privilege prod access with break‑glass + **immut
 ### Tier 3 — only if operator‑exclusion becomes *the* product
 **Confidential‑computing enclaves (§3.4)** for the decrypt/query path, or **client‑only E2EE (§3.1)** with the feature set trimmed to match. Defer until the market clearly demands level 3 *and* Tier 1 is proven insufficient. Disproportionate to the current stage.
 
+### Option H (local‑first) — off the tier ladder, not a substitute
+The locally‑installable app (§11) delivers a **level‑3 guarantee for free with nothing to verify** — but it changes the *product*, not just the isolation mechanism, so it doesn't slot into the tiers. It trades away multi‑user‑without‑setup, first‑class mobile, and backups‑you‑can't‑lose, and it needs a quarter‑plus of Supabase‑teardown work. Pursue it only as (a) a **separate smaller product** for solo operators, or (b) **H‑a / H‑c** (local‑first with an optional encrypted sync tier / hybrid) — both large, both dependent on a sync engine (PowerSync is the least‑risky 2026 bet). For the security‑motivated orgs this document is about, **Tier 1 gets to "we can't read your books" without giving up the hosted product's core value**; H only wins when the bar is literally "nothing on anyone's server, and I'll verify with a packet capture" — and federation still forces a small relay back in.
+
 ### Federation, held constant across all tiers
 **Hub‑and‑spoke (Option G).** The hub holds only the minimized cleartext shared core + opt‑in busy/free projection; private data (encrypted per Tier 1, or isolated per Tier 2) never crosses. Design the hub API + free/busy feed now (lean on RFC 7953 / Exchange‑federation prior art) — it's buildable and valuable even while every tenant is still one row in one database.
 
@@ -431,3 +452,118 @@ SOC 2 Type II + DPA + least‑privilege prod access with break‑glass + **immut
 6. **Long‑term shared surface — ever more than {dates, status, participants, explicitly‑shared attachments/notes, busy/free}?** Stable and small → thin hub, F5 carries it. Roadmap toward richer cross‑org collaboration (shared schedules/docs/messaging/joint settlements) → the hub grows toward a real shared database and the calculus shifts back toward a well‑isolated *shared* store with private extensions.
 
 Secondary: must identity be one login per person across orgs (if not, Tier 2 / Option D get easier)? What staleness is acceptable for the shared gig core — seconds (F2/F5) or immediate (F1/F4)?
+
+7. **Is GigWrangler used by *teams* within an org, and is mobile field use core?** If a typical org is one person at a desk → Option H (local‑first, §11) is genuinely viable. If it's an owner + managers + field staff who expect live shared state and on‑site mobile → H needs an always‑on sync/relay component that pulls it back toward Option F/G, and the "purely local, nothing on a server" pitch weakens.
+
+---
+
+## 11. Deep dive: the locally‑installable option (Option H)
+
+Cameron's question: *"What if we make this a locally installable application with a local database and optional AI hooks?"* It's attractive because it solves the trust problem completely and for free — data never touches Cameron's infrastructure, so there is nothing to verify. The question is whether what it trades away is survivable.
+
+### 11.1 What severing Supabase actually costs
+
+| Layer (today) | Local equivalent | Rewrite size |
+|---|---|---|
+| **Data API** — Supabase PostgREST over hosted Postgres; **232 `.from()` + 22 `.rpc()` call sites**, ~20 of the RPC targets are `plpgsql`/`SECURITY DEFINER` functions (`create_gig_complex`, `search_users_secure`, contact mgmt, kit‑cycle checks, `reclassify_expense_as_asset`, `log_activity`) | (a) **bundle real Postgres** (embedded‑postgres binaries, production‑grade, ~30–50 MB/platform, child process) + run PostgREST locally; or (b) **PGlite** (in‑process WASM Postgres — keeps SQL/plpgsql/enums/`tsvector`, but **alpha, single‑connection, no durability warranty**, <100 MB comfort zone; maintainer Electric just joined Databricks → direction risk) + a PostgREST‑dialect shim; or (c) **SQLite** + rewrite the data layer and port/drop every plpgsql function | (a)/(b) **medium** and the 232 calls survive unchanged; (c) **large** — query‑layer rewrite + function port + loss of Postgres‑only features. **If H is pursued, keep Postgres + PostgREST.** |
+| **RLS (61 policies) + `server` middleware** — the *authoritative* RBAC + tenancy layer. `src/utils/permissions.ts` is explicitly advisory ("mirrors the backend … at the UI layer") | Single‑org local install: **tenancy disappears** (one org per DB). **In‑org RBAC (Admin/Manager/Staff/Viewer) still needs enforcing**, and with a local DB the user can open in any SQL tool, *client‑side checks are not enforcement*. Options: **(i)** accept RBAC is advisory within one org on machines the org controls (threat model is "hide the delete button," not "Staff with a hex editor") — probably fine, but a documented posture change; **(ii)** the Tauri/Electron **main process is the only writer**, exposing an IPC API that checks roles — this is the `server` middleware ported to a local service; **(iii)** local Postgres with a real DB role per user + locally‑minted JWT — heavy | (i) free, posture change; (ii) **medium**, mostly a port of existing `server` code |
+| **Auth** — Supabase Auth, 42 sites, `AuthContext.tsx`, Google OAuth + magic link + WebAuthn (mobile lock) | OS keychain + local password, or device‑bound WebAuthn (already in the codebase). Google OAuth needs a loopback/native‑app flow or is dropped. Multi‑user + federation still need an identity anchor (§11.3/11.4) | **medium** — rework `AuthProvider`, which §8 already recommends extracting regardless |
+| **Storage** — `attachments` bucket, `{org_id}/{file}`, signed URLs, 3 sites | App data dir (`~/Library/Application Support/GigWrangler/attachments/…`), no signed URLs | **small** — an `AttachmentStore` interface + filesystem impl |
+| **Realtime** — 2 `postgres_changes` subs (user row, org members) | Single process: in‑app event bus / Postgres `LISTEN`‑`NOTIFY` / query‑invalidation tick. Multi‑user: folds into the sync layer | **small–medium** |
+| **Edge functions** — `server` (Hono, 6 route groups) + `ai-scan` | `places.ts` (Google Places, hides an API key) and `calendar.ts` (Google OAuth secret + Calendar sync) genuinely need a secret‑holding server **or the org's own keys entered locally**. Other `server` logic moves in‑process (option (ii) above). `ai-scan` → §11.6 | **medium**; Places autocomplete + Google Calendar degrade to BYO‑key or off |
+| **Build/deploy** — Vite → Cloudflare Pages | Desktop packaging + signing + notarization + auto‑update (§11.7). The existing `vite-plugin-pwa` config is a partial asset | **medium**, ~2 focused weeks for the signing/notarization pipeline alone |
+
+**Rough total: a quarter‑plus of focused platform work before feature parity**, concentrated in the data/auth/sync layer, competing directly with product roadmap.
+
+### 11.2 Migrations on the user's machine
+
+Today: 46 linear migrations, `supabase db push`, one target, expand‑only for one release. Local:
+
+- The migration runner **ships inside the app**; on launch it opens the local DB, reads its schema version, applies pending migrations forward. `src/utils/idb/store.ts` already does exactly this (`DB_VERSION`, `upgrade()` steps) for the IndexedDB cache — the pattern exists, just for a trivial store.
+- **Skipped versions:** a user who ran v20 in January opens v46 in December and applies 26 migrations on first launch. Fine *only if every migration is still runnable years later* — no dependency on a since‑removed function, no "backfill from an API" step. A stricter forever‑constraint than today's.
+- **Old build, new data:** if two users on one org sync, a user on v40 must not receive rows shaped for v46. The sync protocol gates on schema version, or the app **refuses to sync across a version gap and forces an update** — which makes reliable auto‑update load‑bearing (§11.7).
+- **Corruption / half‑applied migration:** no ops team to fix a customer laptop. Every migration transactional, leaves the DB on the prior version on failure, plus a "restore from last backup" path (§11.5).
+- **No global cutover, ever again.** Analytics, support ("what version are you on?"), and bug repro all get harder.
+
+### 11.3 Hard problem — multi‑user within one org (the one most likely to sink it)
+
+A production company is an owner + a couple of managers + field staff who today share one database with live updates. Local‑install options:
+
+1. **One machine is the server.** The owner's desktop runs the app + DB; others connect over LAN / Tailscale. This is **Option E in a desktop costume** — someone keeps that machine on, reachable, and backed up; no help for remote/field staff. Realistic only for a co‑located team with IT comfort.
+2. **Each user a full replica + sync engine.** Real bidirectional sync with conflict resolution over a relational schema *with money in it* (§11.8 maturity). Transport is P2P (hard, §11.4) or a relay (trust surface, §11.4). The **Actual Budget** model — and Actual's whole engineering identity is that sync engine, for a *simpler, mostly single‑user* schema.
+3. **Thin multi‑user: one always‑on instance, desktop app is a cache of it.** That's **Option F / self‑host** again; "local app" is now just a client.
+4. **Accept single‑user.** GigWrangler becomes a tool for solo operators and the smallest shops — legitimate, but a different, smaller market.
+
+**No local path gives "multiple users, no setup, works remotely, live updates"** — which the hosted product gives today for free. Every local path adds an always‑on component or a hard sync engine, or narrows the market.
+
+### 11.4 Hard problem — federation between laptops
+
+Shared gig core + busy/free must still cross org boundaries; each org is now one or more laptops asleep half the time.
+
+- **Pure P2P:** NAT traversal, both parties online at once, a discovery/identity root. "Invite org B to a gig" can't complete until B's laptop wakes; a busy/free lookup may return *"unknown — their machine is asleep."* Poor scheduling UX.
+- **Small always‑on relay (recommended if H is pursued):** a minimal service that store‑and‑forwards shared‑core changes + handshakes, holds the **opt‑in busy/free projection** so it's queryable when the source is offline, and is the identity/discovery root. This is **Option G's hub, shrunk** — and it **reintroduces the trust question for exactly §5‑G's "minimum hub dataset"**: participant graph, dated engagements, busy/free calendar. Private data (financials, staffing, kits) still never leaves the laptops, so the reintroduced trust surface is *bounded and far smaller than today* — but not zero, and "nothing on anyone's server" stops being literally true. Mitigations = §5‑G: minimize (opaque ids, identity‑optional availability, client‑encrypted shared blobs) and/or neutral governance.
+- **Honest framing:** local‑install kills the trust problem for *private* data outright and shrinks it for *shared* data to a small relay — it doesn't eliminate the shared‑data relay unless the market accepts "federation only works when both parties are online."
+
+### 11.5 Hard problem — backup and data loss
+
+Today Cameron can't lose the org's data (Supabase PITR + daily backups). Locally, a dead laptop = total loss, and small production companies do not run backups. Responsible design is **all** of:
+
+- **Automatic rolling local snapshots** in the app's data dir — covers "I broke something," not "laptop stolen."
+- **One‑click encrypted backup to a location the org controls** — their iCloud/Dropbox/Drive folder or an S3 bucket they own, client‑encrypted so the destination can't read it. Prompted on first run, nagged when stale.
+- **If any sync tier exists (§11.8), it doubles as off‑machine backup** — a strong argument for *always* shipping at least an optional relay/replica.
+- **Portable export** — the repo's CSV export is a start; a full JSON/SQLite dump is better.
+- Accept that some users still lose data, and say so in onboarding. A reputational risk the hosted product doesn't carry.
+
+### 11.6 Hard problem — the AI hooks
+
+Receipt scan must send an image somewhere. Three honest options:
+
+1. **Org supplies its own API key**; the desktop client calls Anthropic/OpenAI/Gemini directly. Zero Cameron involvement, no server, today's frontier‑VLM quality, billing is the org's. **Best fit for "optional hooks."** Receipts still leave the machine to a third‑party AI — fine if disclosed and opt‑in, no worse than today.
+2. **Local model.** A 7B‑class VLM (Qwen2.5‑VL‑7B, MiniCPM‑V) or a specialist (GLM‑OCR, PaddleOCR‑VL) on the user's machine. 2026 reality: competitive on *raw OCR benchmarks*, but for **crumpled phone photos with structured field extraction (vendor, date, line items, tax, total) and low hallucination** they lag the cloud frontier — more misreads, more manual correction ([LLM OCR vs traditional OCR, 2026 benchmark](https://parsli.co/blog/llm-ocr-vs-traditional-ocr), [best OCR models 2026](https://ofox.ai/blog/best-ai-model-for-ocr-2026/)). Practical cost: multi‑GB model download or a separate Ollama install, 4–8 GB RAM while running, slow without a GPU, plus a "which model, keep it current" burden. A "works offline, lower accuracy" fallback, not the primary path.
+3. **Off.** Manual entry, always available.
+
+Ship (1) as default + (3) always; treat (2) as a later offline‑mode nicety.
+
+### 11.7 Hard problem — distribution and support
+
+- **Packaging:** **Electron** (bundles Chromium, ~100 MB+, but electron‑builder/electron‑updater give differential updates, staged rollouts, and macOS notarization + Windows signing workflows that "just work") vs **Tauri v2** (OS WebView, ~10 MB bundles, the 2026 default for *new* apps, but younger release engineering; full‑binary updates). For a React app with a heavy data/sync layer where **reliable auto‑update is load‑bearing** (§11.2), Electron's maturity is the lower‑risk pick despite size. ([Tauri v2 vs Electron 2026](https://www.pkgpulse.com/guides/electron-vs-tauri-2026))
+- **Cost:** ~2 focused weeks for the notarization + signing pipeline; Apple Developer account $99/yr; Windows code‑signing cert ~$100–400/yr (or Azure Trusted Signing).
+- **Auto‑update** must be reliable — it's also what prevents schema skew (§11.2) and enforces sync‑compatible versions (§11.3). Staged rollout + kill switch for a bad release.
+- **Support without the database:** no server logs, no querying the customer's data, no "log in as them." You need opt‑in diagnostic log export, an "export my database and send it to support" flow (with scrubbing), reproducible builds, and desktop crash reporting (Sentry). Every ticket is higher‑touch.
+- **Telemetry:** you lose aggregate feature usage / error rates / adoption unless you add opt‑in analytics — which cuts against the privacy pitch, so most local‑first products fly partially blind.
+
+### 11.8 Middle grounds (not all‑or‑nothing)
+
+| Variant | Shape | Trust guarantee | Cost |
+|---|---|---|---|
+| **H‑a — Local‑first + optional encrypted sync** (Linear / Obsidian / Actual model) | Local DB is source of truth; an **optional** sync service (Cameron‑hosted or self‑hosted) replicates client‑encrypted changes between a user's devices and teammates | Level 3 for private data if sync payloads are client‑encrypted and Cameron holds no keys (relay sees ciphertext + timing); federation relay per §11.4 | The sync engine *is* the ballgame (maturity below). Backup comes nearly free. Mobile becomes possible as a thin client to the sync service |
+| **H‑b — Self‑hosted server the org runs** (= Option E, packaged) | One binary/container on the org's box or cloud; desktop + mobile are thin clients | Level 3 by ownership; identical to §5‑E | Org needs IT to run + back up a server; Cameron supports N snowflakes |
+| **H‑c — Hybrid: local default, cloud opt‑in per org** | Ship the desktop app; orgs wanting zero setup / mobile / multi‑user flip on a hosted backend (Tier 0/1/2) | Ranges from level 3 (stay local) to level 1–2.5 (opt into hosted) | Build + maintain **both** stacks, schemas and behavior in lockstep — highest total surface area, but each org self‑selects |
+
+**Sync‑engine maturity, 2026 (load‑bearing for H‑a and any multi‑user H):**
+
+- **PowerSync** — most mature / battle‑tested; SOC 2 + HIPAA (Jan 2026); one‑way Postgres→SQLite replication + write‑back path; assumes an upstream Postgres + the PowerSync service. Least‑risky bet, still a major build. ([sync‑engine comparison](https://stribog.com/blog/electricsql-powersync-automerge-local-first-sync-engine-sovereign))
+- **ElectricSQL** — 1.0 GA March 2025, full active‑active ambition; practitioners still say "6–12 months" for production confidence; **Electric joined Databricks (Aug 2026)** → roadmap risk. ([local‑first architecture 2026](https://www.smashingmagazine.com/2026/05/architecture-local-first-web-development/))
+- **Zero (Rocicorp)** — promising, very active, **still beta**, API instability. ([TanStack DB vs Electric vs Zero](https://kanopylabs.com/blog/tanstack-db-vs-electricsql-vs-zero-sync))
+- **PGlite** — in‑process WASM Postgres; **alpha, single‑connection, no durability warranty**, <100 MB comfort zone; v0.4 (Mar 2026) added connection multiplexing + PostGIS. Usable as the local DB *with* real backups; don't bet unattended durability on it. ([PGlite about](https://pglite.dev/docs/about))
+- **CRDTs (Yjs / Automerge)** — mature for documents/text; for a **relational schema with money**, last‑write‑wins per field + explicit domain rules (never auto‑merge a ledger) beats a general CRDT. Server‑authority conflict resolution is simpler and is what most business apps still pick. ([Ink & Switch local‑first](https://www.inkandswitch.com/essay/local-first/))
+- **In the wild: Actual Budget** — local‑first, own CRDT sync engine, optional self‑hosted sync server, client‑side E2E encryption with a user key, official desktop + mobile. Proof the model works — but mostly single‑user, far simpler schema, and the sync engine *is* the product. ([Actual sync docs](https://actualbudget.org/docs/getting-started/sync/))
+
+### 11.9 Feasibility verdict
+
+- **As a direction for GigWrangler as it exists today — no, not on its own.** The hosted product's core value includes multi‑user‑with‑zero‑setup, first‑class mobile field use, and backups you can't lose. Pure local‑install trades away all three, and the Supabase teardown is a quarter‑plus of platform work to buy a guarantee that **Tier 1 / Tier 2 already deliver at lower cost without losing features**.
+- **As a viable direction for a *smaller* product — yes.** A single‑operator / very‑small‑shop edition (solo production manager, one laptop, CSV export, AI scan via their own key) is a real, shippable product with a genuine "your data never leaves your machine" story. A different market segment, not a replacement.
+- **As `H‑a` (local‑first + optional encrypted sync) or `H‑c` (hybrid) — the only genuinely interesting versions, and both are large.** `H‑a` lives or dies on a sync engine (PowerSync the least‑risky 2026 bet, still a major build and a hard dependency). `H‑c` means maintaining two full stacks forever.
+- **The trap:** treating "just make it a local app" as a *simplification*. It removes a trust problem and a hosting bill and replaces them with a distribution problem, a sync problem, a backup problem, a support‑without‑logs problem, and a multi‑user problem — several harder than the Tier 1 encryption work.
+
+**Versus the tiered recommendation:** Option H sits *off* the tier ladder because it changes the product, not just the isolation mechanism. Tier 1 (searchable field encryption, org‑held keys) gives a "we can't read your books" guarantee **while keeping one codebase, hosted multi‑user, mobile, and backups**. Tier 2 (auto‑provisioned DB in the org's own cloud) gives "your infrastructure, your keys" **without shipping a desktop app**. Option H only wins outright when the requirement is literally *"nothing on anyone's server, ever, and I'll verify with a packet capture"* — and even then, federation forces a small relay back in.
+
+**What going local‑first gives up:**
+- Multi‑user within an org without the org standing up a server or accepting a sync service.
+- Mobile as it works today (responsive PWA on the same backend) → "thin online‑only client" or "wait for sync."
+- Backups the customer cannot lose.
+- Server‑side features and changing them without shipping a client build: cross‑org search, turnkey Places/Calendar, any future server‑side reporting.
+- Visibility: usage analytics, aggregate error rates, looking at a row to answer a ticket.
+- One codebase and one deploy — `deploy_prod.sh` becomes a signing + notarization + staged‑rollout pipeline, and schema changes are forever‑compatible or they strand users.
+
+**What it gains:** the trust problem for private data disappears with nothing to verify, the hosting bill goes to ~zero, and "your financials never touch our servers" becomes literally true — a real differentiator for exactly the security‑motivated orgs that prompted this document.
