@@ -682,13 +682,22 @@ export default function OrganizationScreen({
         {/* Form - Show only when place is selected or manual entry is chosen */}
         {(selectedPlace || showManualEntry) && (
           <Card className="p-6 sm:p-8">
-            {isEditMode && hasMembers && !isOrgAdmin && isGlobalAdmin && (
-              <Alert className="mb-6 bg-amber-50 border-amber-200 text-amber-900 shadow-sm">
-                <AlertCircle className="h-4 w-4 text-amber-600" />
-                <AlertDescription className="font-semibold text-amber-900">
-                  You are making changes to another organization's information, you may wish to contact the admin of this organization instead.
-                </AlertDescription>
-              </Alert>
+            {isEditMode && hasMembers && !isOrgAdmin && (
+              organization?.claimed ? (
+                <Alert variant="destructive" className="mb-6">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription>
+                    This organization already has its own Admin — only that Admin can edit its details. Contact an Admin of this organization if changes are needed.
+                  </AlertDescription>
+                </Alert>
+              ) : isGlobalAdmin && (
+                <Alert className="mb-6 bg-amber-50 border-amber-200 text-amber-900 shadow-sm">
+                  <AlertCircle className="h-4 w-4 text-amber-600" />
+                  <AlertDescription className="font-semibold text-amber-900">
+                    This organization hasn't been claimed yet, so any organization's Admin — including you — can edit it. Once it's claimed, only its own Admin will be able to.
+                  </AlertDescription>
+                </Alert>
+              )
             )}
             <form onSubmit={handleSubmit}>
               {/* General Error */}
@@ -969,6 +978,11 @@ export default function OrganizationScreen({
                   </div>
                 )}
               </div>
+              {!isEditMode && (
+                <p className="text-sm text-gray-500 mt-2 sm:text-right">
+                  Use <strong>Create without Joining</strong> to register a partner org (a venue or vendor) you collaborate with but don't belong to — it stays unclaimed until someone at that organization claims it. Otherwise, use <strong>Create and Join</strong> to become its Admin right away.
+                </p>
+              )}
             </form>
           </Card>
         )}

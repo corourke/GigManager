@@ -4,6 +4,7 @@ import { corsHeaders } from '../_shared/cors.ts';
 import { captureException } from '../_shared/sentry.ts';
 import { registerUsers } from './routes/users.ts';
 import { registerOrganizations } from './routes/organizations.ts';
+import { registerAccessRequests } from './routes/accessRequests.ts';
 import { registerGigs } from './routes/gigs.ts';
 import { registerCalendar } from './routes/calendar.ts';
 import { registerPlaces } from './routes/places.ts';
@@ -32,6 +33,7 @@ app.get('/health', (c) => c.json({ status: 'ok' }));
 
 registerUsers(app);
 registerOrganizations(app);
+registerAccessRequests(app);
 registerGigs(app);
 registerCalendar(app);
 registerPlaces(app);

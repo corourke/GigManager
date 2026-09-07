@@ -40,6 +40,14 @@ export interface OrgRoleOptions {
   getOrgId?: OrgIdSource;
   /** When true, a global admin (user_is_admin RPC) bypasses the membership check. */
   allowGlobalAdmin?: boolean;
+  /**
+   * When true, a global admin (user_is_admin RPC — "Admin of at least one
+   * org") bypasses the membership check only while the target org is
+   * unclaimed. Once an org has its own Admin, only that org's own Admin (via
+   * the normal membership check below) may act. Mirrors the "Admins can
+   * update per claimed status" RLS policy on organizations.
+   */
+  allowGlobalAdminIfUnclaimed?: boolean;
 }
 
 /**
@@ -64,6 +72,19 @@ export function requireOrgRole(options: OrgRoleOptions = {}): MiddlewareHandler 
         c.set('orgId', orgId);
         await next();
         return;
+      }
+    }
+
+    if (options.allowGlobalAdminIfUnclaimed) {
+      const { data: org } = await supabaseAdmin
+        .from('organizations').select('claimed').eq('id', orgId).maybeSingle();
+      if (org?.claimed === false) {
+        const { data: isAdmin } = await supabaseAdmin.rpc('user_is_admin', { user_uuid: user.id });
+        if (isAdmin) {
+          c.set('orgId', orgId);
+          await next();
+          return;
+        }
       }
     }
 

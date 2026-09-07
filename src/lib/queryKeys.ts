@@ -37,4 +37,9 @@ export const queryKeys = {
 
   // Gig participants
   gigParticipantContacts: (gigId: string, orgId: string) => ['gigParticipantContacts', gigId, orgId] as const,
+
+  // Access requests (issue #33 cluster)
+  orgAccessRequests: (orgId: string) => ['orgAccessRequests', orgId] as const,
+  moderatorAccessRequests: () => ['moderatorAccessRequests'] as const,
+  myAccessRequests: () => ['myAccessRequests'] as const,
 } as const;

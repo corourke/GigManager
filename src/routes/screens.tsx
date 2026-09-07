@@ -43,6 +43,7 @@ import FinancialsScreen from '../components/FinancialsScreen';
 import OrganizationSelectionScreen from '../components/OrganizationSelectionScreen';
 import OrganizationScreen from '../components/OrganizationScreen';
 import AdminOrganizationsScreen from '../components/AdminOrganizationsScreen';
+import ModeratorAccessRequestsScreen from '../components/ModeratorAccessRequestsScreen';
 import DevTableDemoScreen from '../components/dev/DevTableDemoScreen';
 
 // Mobile screens
@@ -101,6 +102,7 @@ function OrgSelectionRoute() {
       }}
       onCreateOrganization={nav.toCreateOrg}
       onAdminViewAll={nav.toAdminOrgs}
+      onModeratorQueue={nav.toModeratorQueue}
       onLogout={nav.logoutAndHome}
       onEditProfile={openEditProfile}
     />
@@ -126,15 +128,32 @@ function CreateOrgRoute() {
 }
 
 function AdminOrgsRoute() {
-  const { user } = useAuth();
+  const { user, organizations } = useAuth();
   const nav = useNav();
   const { openEditProfile } = useAppShell();
   if (!user) return <LoadingSpinner />;
   return (
     <AdminOrganizationsScreen
       user={user}
+      organizations={organizations}
       onEditOrganization={nav.editOrg}
       onCreateOrganization={nav.toCreateOrg}
+      onBack={nav.toOrgSelection}
+      onLogout={nav.logoutAndHome}
+      onEditProfile={openEditProfile}
+    />
+  );
+}
+
+function ModeratorAccessRequestsRoute() {
+  const { user } = useAuth();
+  const nav = useNav();
+  const { openEditProfile } = useAppShell();
+  if (!user) return <LoadingSpinner />;
+  if (!user.platform_moderator) return <Navigate to="/org-selection" replace />;
+  return (
+    <ModeratorAccessRequestsScreen
+      user={user}
       onBack={nav.toOrgSelection}
       onLogout={nav.logoutAndHome}
       onEditProfile={openEditProfile}
@@ -630,6 +649,7 @@ export function AppRoutes() {
         <Route path="/create-org" element={<CreateOrgRoute />} />
         <Route path="/admin/orgs" element={<AdminOrgsRoute />} />
         <Route path="/admin/orgs/:orgId/edit" element={<EditOrgRoute />} />
+        <Route path="/admin/access-requests" element={<ModeratorAccessRequestsRoute />} />
 
         {/* Org-scoped app */}
         <Route element={<RequireOrg />}>

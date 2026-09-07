@@ -3,7 +3,7 @@ import { Crown, Shield, User as UserIcon, Mail, Clock } from 'lucide-react';
 import { format } from 'date-fns';
 import { Badge } from '../ui/badge';
 import { ColumnDef } from '../tables/SmartDataTable';
-import type { UserRole } from '../../utils/supabase/types';
+import type { UserRole, AccessRequestWithRelations } from '../../utils/supabase/types';
 import type { OrganizationMember, Invitation } from './useTeamData';
 
 export function getRoleIcon(role: UserRole) {
@@ -189,6 +189,50 @@ export function useInvitationColumns(): ColumnDef<Invitation>[] {
       id: 'expires_at',
       header: 'Expires',
       accessor: 'expires_at',
+      sortable: true,
+      render: (val) => (
+        <div className="flex items-center gap-2 text-sm text-gray-600">
+          <Clock className="w-4 h-4" />
+          {format(new Date(val), 'MMM d, yyyy')}
+        </div>
+      ),
+    },
+  ], []);
+}
+
+export function useAccessRequestColumns(): ColumnDef<AccessRequestWithRelations>[] {
+  return useMemo<ColumnDef<AccessRequestWithRelations>[]>(() => [
+    {
+      id: 'requester',
+      header: 'Requester',
+      accessor: (row) => `${row.requester.first_name} ${row.requester.last_name}`,
+      sortable: true,
+      filterable: true,
+      render: (val, row) => (
+        <div>
+          <div className="font-medium text-gray-900">{val}</div>
+          <div className="text-sm text-gray-500">{row.requester.email}</div>
+        </div>
+      ),
+    },
+    {
+      id: 'requested_role',
+      header: 'Requested Role',
+      accessor: 'requested_role',
+      sortable: true,
+      filterable: true,
+      render: (val) => <Badge className={getRoleBadgeColor(val as UserRole)}>{val}</Badge>,
+    },
+    {
+      id: 'message',
+      header: 'Message',
+      accessor: 'message',
+      render: (val) => <span className="text-sm text-gray-600">{val || '—'}</span>,
+    },
+    {
+      id: 'created_at',
+      header: 'Requested',
+      accessor: 'created_at',
       sortable: true,
       render: (val) => (
         <div className="flex items-center gap-2 text-sm text-gray-600">

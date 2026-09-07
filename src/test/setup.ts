@@ -67,3 +67,12 @@ vi.mock('../utils/supabase/info', () => ({
   projectId: 'test-project',
   publicAnonKey: 'test-key',
 }))
+
+// NotificationBell (rendered inside AppHeader, which nearly every screen
+// renders) reaches into AuthContext, react-router, and react-query directly.
+// Most screen tests render AppHeader without any of those providers, so
+// default it to a no-op here — NotificationBell.test.tsx explicitly
+// vi.unmock()s this to exercise the real component.
+vi.mock('../components/NotificationBell', () => ({
+  default: () => null,
+}))

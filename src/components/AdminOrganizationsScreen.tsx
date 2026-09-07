@@ -1,10 +1,12 @@
 import { useState, useEffect } from 'react';
 import { Edit2, Trash2, Users, Loader2, AlertCircle, Plus, Shield, Building2 } from 'lucide-react';
 import { toast } from 'sonner';
-import { 
-  Organization, 
+import {
+  Organization,
+  OrganizationMembership,
   User,
 } from '../utils/supabase/types';
+import { canEditOrganization } from '../utils/permissions';
 import { 
   ORG_ROLE_CONFIG, 
   getOrgRoleColor 
@@ -42,6 +44,7 @@ interface OrganizationWithMembers extends Organization {
 
 interface AdminOrganizationsScreenProps {
   user: User;
+  organizations: OrganizationMembership[];
   onEditOrganization: (org: Organization) => void;
   onCreateOrganization: () => void;
   onBack: () => void;
@@ -51,12 +54,15 @@ interface AdminOrganizationsScreenProps {
 
 export default function AdminOrganizationsScreen({
   user,
+  organizations: userMemberships,
   onEditOrganization,
   onCreateOrganization,
   onBack,
   onLogout,
   onEditProfile,
 }: AdminOrganizationsScreenProps) {
+  const isAdminOfAnyOrg = userMemberships.some((m) => m.role === 'Admin');
+  const adminOrgIds = new Set(userMemberships.filter((m) => m.role === 'Admin').map((m) => m.organization.id));
   const [organizations, setOrganizations] = useState<OrganizationWithMembers[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -243,6 +249,11 @@ export default function AdminOrganizationsScreen({
                             <TypeIcon className="w-4 h-4" />
                           </div>
                           <p className="text-gray-900">{org.name}</p>
+                          {!org.claimed && (
+                            <Badge variant="outline" className="text-amber-700 border-amber-300 bg-amber-50">
+                              Unclaimed
+                            </Badge>
+                          )}
                         </div>
                       </TableCell>
                       <TableCell>
@@ -279,25 +290,29 @@ export default function AdminOrganizationsScreen({
                         )}
                       </TableCell>
                       <TableCell className="text-right">
-                        <div className="flex items-center justify-end gap-2">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => onEditOrganization(org)}
-                            title="Edit Organization"
-                          >
-                            <Edit2 className="w-4 h-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => setDeleteOrgId(org.id)}
-                            className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                            title="Delete Organization"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </Button>
-                        </div>
+                        {canEditOrganization(org, adminOrgIds.has(org.id), isAdminOfAnyOrg) ? (
+                          <div className="flex items-center justify-end gap-2">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => onEditOrganization(org)}
+                              title="Edit Organization"
+                            >
+                              <Edit2 className="w-4 h-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => setDeleteOrgId(org.id)}
+                              className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                              title="Delete Organization"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </div>
+                        ) : (
+                          <span className="text-gray-400 text-sm">—</span>
+                        )}
                       </TableCell>
                     </TableRow>
                   );
