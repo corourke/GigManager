@@ -35,6 +35,8 @@
 
 **Option H — locally‑installable app (§11), evaluated separately.** It solves the trust problem completely and for free (data never touches Cameron's infra; a skeptic verifies with a packet capture), but it changes the *product*: pure local‑install gives up multi‑user‑without‑setup, first‑class mobile field use, and backups the customer can't lose, and it needs a quarter‑plus of Supabase‑teardown work (data layer, auth, storage, realtime, the edge functions — keep Postgres + PostgREST so the 232 data‑layer calls survive). In‑org RBAC (Admin/Manager/Staff/Viewer) currently lives in RLS + the edge function; with no server it's either advisory or a local privileged process. Multi‑user, federation between sometimes‑asleep laptops, and backups all push a small always‑on relay back into the picture — a shrunk Option‑G hub that reintroduces a *bounded* trust surface (participant graph + busy/free, never financials). **Verdict:** a viable direction for a *smaller* product (solo operators), or as **H‑a** (local‑first + optional encrypted sync, à la Actual Budget — depends on a sync engine; PowerSync is the least‑risky 2026 bet) / **H‑c** (hybrid, two stacks forever). Not a drop‑in substitute for the tiers: Tier 1 reaches "we can't read your books" without giving up the hosted product's core value.
 
+**Option I — self‑serve self‑hosting (§12): the strongest operator‑exclusion option for a team‑based product, and it appears to beat both Tier 1 and Option H.** The org creates and owns its own Supabase project (their account, billing, credentials); GigWrangler installs against it via a wizard; Cameron never has access. A separate **opt‑in** relay carries only a thin scheduling/busy‑free signal. The whole stack stays intact — RLS, Supabase Auth, Storage, Realtime, the 2 edge functions, the PWA, multi‑user‑within‑an‑org, server‑side reporting — because it all runs in the org's project. **Level‑3 guarantee by ownership, nothing to verify beyond the (source‑available) code, and no feature sacrifice.** The costs are real but bounded: (1) **onboarding friction** — the org must become a Supabase customer (account, card, Pro plan or the project pauses); a one‑click provisioning wizard + a Cameron‑hosted frontend (the anon‑key + RLS model means hosting the static frontend leaks nothing) get this close to a hosted signup. (2) **Cameron loses the single deploy** — 46 migrations must self‑apply across N unseen installs forever; every migration skip‑safe, a bounded‑skew policy like Home Assistant / OneUptime, an in‑app migration runner + compat gate. This is the biggest permanent tax. (3) **Support with zero access** — needs shipped diagnostics, redacted support bundles, preflight health checks, a docs site + forum. (4) **Revenue is indirect** — commercial license (BSL 1.1 or FSL — source visible for verifiability, competing hosted service blocked for a few years) + paid federation tier + the hosted convenience product. **Verdict:** make Option I the "self‑hosted tier" beside hosted Tier 0/1; it **subsumes Tier 2** (it *is* Tier 2 with the org owning the account outright). It dominates Option H for a multi‑user product — H only wins on "no internet at all." Realistic v1: **~5–7 months** solo, front‑loadable into a ~3‑month "self‑host without federation" milestone + a ~3‑month federation milestone — comparable to Tier 1's cost, with a strictly better guarantee and no lost features.
+
 **The honest bottom line:** nothing here is free. Verifiable operator‑exclusion costs either features (Tier 1), onboarding friction and ops (Tier 2), or a disproportionate engineering investment (Tier 3). Tier 1 is the smallest thing that gives a target org a guarantee it would believe while keeping the product shippable.
 
 **The questions that would most change the recommendation:** (1) Are server‑side financial aggregation and the AI receipt scan non‑negotiable? (2) Will target orgs connect their own cloud account / KMS? (3) Is the bar "better than the other cloud SaaS" or "provably can't see it, like a password manager"? (4) How many orgs, what size? (5) Is "Cameron cannot read it" truly hard, or is "not commingled, revocable, portable on exit" enough? (6) Are orgs *teams* with core mobile field use, or mostly solo‑at‑a‑desk? — the last decides whether Option H is even a candidate. See §10 for the full list.
@@ -342,6 +344,23 @@ Desktop app (Tauri/Electron) with an on‑device database and optional AI hooks;
 - **Supabase coupling:** must be fully severed — the largest teardown of any option (§11.1).
 - **Verdict:** solves the trust problem completely and for free, but trades away multi‑user‑without‑setup, first‑class mobile, painless updates, and backup‑by‑default. **Viable as a product; questionable as *this* product** without a sync tier that pulls most of that back. See §11.
 
+### I — Self‑serve self‑hosting (the org owns its Supabase project)
+
+The org creates and owns a Supabase project (their account, billing, credentials), installs GigWrangler against it via a wizard; Cameron never has access. Separately, an **opt‑in** federation relay carries only the thin scheduling/availability signal. Full analysis in **§12**.
+
+- **Isolation:** maximal, by ownership — same as E, but the substrate is *managed Supabase in the org's account* rather than a Docker stack the org runs.
+- **Operator‑read guarantee:** **level 3, nothing to verify** beyond the visible source. Cameron holds no credentials and no access path.
+- **Skeptic's verification:** read the (source‑available) code, reproducible build, watch the network — the app talks only to *their* Supabase and the opt‑in relay.
+- **Stack intact:** RLS, Supabase Auth, Storage, Realtime, the 2 edge functions, the PWA, multi‑user‑within‑an‑org, server‑side reporting — **all keep working**, because the whole stack runs in the org's project. No encryption tax, no local‑first rewrite, no sync engine. This is the key advantage over H.
+- **Shared core / availability:** the opt‑in relay (§12.5) — a shrunk Option‑G hub holding blinded handles, participant graph, busy/free; per‑gig opt‑in; minimal retention.
+- **Cost to Cameron:** ~$0 infra per org; **build + permanent tax** on: a provisioning wizard, an in‑app migration runner + compat gate (§12.3), zero‑access support tooling (§12.4), the relay, docs/forum.
+- **Org burden:** must become a Supabase customer (account, card, **Pro plan or the project pauses**), run the wizard, keep the app updated. The wizard + a Cameron‑hosted frontend (§12.2) get this close to a hosted signup, but not to zero.
+- **Upgrades:** Cameron controls neither schema nor deploy — 46 migrations self‑apply across N unseen installs; every migration skip‑safe forever; bounded‑skew policy like Home Assistant / OneUptime (§12.3). **The single biggest ongoing cost.**
+- **Auth:** the org's own Supabase Auth. Google OAuth needs a manual Google Cloud client (no API to automate) → self‑host defaults to magic‑link/password; multi‑org identity needs the relay or two logins.
+- **Failure:** the org's project down = that org down; others unaffected. Relay down = no new shared gigs / stale availability; private data unaffected. Backups are managed Supabase's job (Pro+ PITR).
+- **Supabase coupling:** **kept, deliberately** — coupling is fine when it's the *org's* Supabase.
+- **Verdict:** the strongest operator‑exclusion option for a team‑based product — level‑3 guarantee with the feature set intact. Costs onboarding friction, the single deploy, and higher‑touch support. **If self‑hosting is the direction, this is how, not Option H.** See §12.
+
 ---
 
 ## 6. Automatic provisioning — how real is it
@@ -413,32 +432,37 @@ SOC 2 Type II + DPA + least‑privilege prod access with break‑glass + **immut
   - **The guarantee is "operator can't read the DB and can only decrypt transiently in‑request with your audited key"** — much stronger than a promise, not as absolute as an enclave or client‑only E2EE. A security team will note plaintext exists in Cameron's process memory at decrypt time. Say so up front.
 - **Verification:** the org's KMS logs every decrypt; the encryption client is open‑source and inspectable.
 
-### Tier 2 — for orgs that won't accept shared infrastructure at all
-**Automated provisioning of a per‑tenant Neon (or Supabase) project in the org's own account** (§6 path 1), Cameron's app connecting via org‑issued, revocable credentials. This is **Option F, automated** — BYO‑database without the manual setup. Guarantee: their cloud, their keys, their logs, revoke anytime — an org will believe it. Costs: more onboarding friction (connect a cloud account), roughly linear ops, and the fleet‑migration machinery from §6 is mandatory. Price it as the premium tier.
+### Tier 2 — for orgs that won't accept shared infrastructure at all — *superseded by Option I*
+The original Tier 2 was **automated provisioning of a per‑tenant Neon/Supabase project in the org's own account**, Cameron connecting via org‑issued revocable credentials (Option F, automated). **Option I (§12) is the better form of this same idea**: the org drives the provisioning and owns the account and credentials outright, so Cameron connects to *nothing* — a strictly stronger guarantee (level 3 vs level 2) for similar onboarding friction. Treat Option I as the self‑hosted tier; keep "Cameron provisions and operates it in the org's account" only as a **managed‑convenience** sub‑option, explicitly positioned as *not* zero‑knowledge.
 
 ### Tier 3 — only if operator‑exclusion becomes *the* product
-**Confidential‑computing enclaves (§3.4)** for the decrypt/query path, or **client‑only E2EE (§3.1)** with the feature set trimmed to match. Defer until the market clearly demands level 3 *and* Tier 1 is proven insufficient. Disproportionate to the current stage.
+**Confidential‑computing enclaves (§3.4)** for the decrypt/query path, or **client‑only E2EE (§3.1)** with the feature set trimmed to match. Defer until the market clearly demands level 3 *and* Tier 1 + Option I are both proven insufficient. Disproportionate to the current stage.
+
+### Option I — self‑serve self‑hosting (§12): the self‑hosted tier
+**The org owns its Supabase project; Cameron never has access; the whole stack stays intact.** Level‑3 guarantee by ownership, verifiable by reading the source, **with no feature sacrifice** — unlike Tier 1 (encryption tax, level 2.5) and Option H (feature loss, big rewrite). Costs: onboarding friction (the org becomes a Supabase customer — a provisioning wizard + Cameron‑hosted static frontend narrow this), the loss of Cameron's single deploy (46 migrations self‑apply across N unseen installs — a permanent migration/compat tax), higher‑touch zero‑access support, and indirect revenue (commercial license under BSL/FSL + paid federation tier + the hosted product). **Recommended shape of the product line: hosted Tier 0/1 for the ~94% who want convenience + Option I as the self‑hosted tier for the security‑motivated minority** (who would otherwise be non‑customers). Same codebase and schema; the hosted product is Cameron running the Option‑I path. Realistic v1 ≈ Tier 1's cost (~5–7 months, front‑loadable to a ~3‑month no‑federation milestone).
 
 ### Option H (local‑first) — off the tier ladder, not a substitute
 The locally‑installable app (§11) delivers a **level‑3 guarantee for free with nothing to verify** — but it changes the *product*, not just the isolation mechanism, so it doesn't slot into the tiers. It trades away multi‑user‑without‑setup, first‑class mobile, and backups‑you‑can't‑lose, and it needs a quarter‑plus of Supabase‑teardown work. Pursue it only as (a) a **separate smaller product** for solo operators, or (b) **H‑a / H‑c** (local‑first with an optional encrypted sync tier / hybrid) — both large, both dependent on a sync engine (PowerSync is the least‑risky 2026 bet). For the security‑motivated orgs this document is about, **Tier 1 gets to "we can't read your books" without giving up the hosted product's core value**; H only wins when the bar is literally "nothing on anyone's server, and I'll verify with a packet capture" — and federation still forces a small relay back in.
 
 ### Federation, held constant across all tiers
-**Hub‑and‑spoke (Option G).** The hub holds only the minimized cleartext shared core + opt‑in busy/free projection; private data (encrypted per Tier 1, or isolated per Tier 2) never crosses. Design the hub API + free/busy feed now (lean on RFC 7953 / Exchange‑federation prior art) — it's buildable and valuable even while every tenant is still one row in one database.
+**Hub‑and‑spoke (Option G).** The hub/relay holds only the minimized shared core + opt‑in busy/free projection with blinded handles; private data (encrypted per Tier 1, or wholly org‑owned per Option I) never crosses. Design the relay API + free/busy feed now (lean on RFC 7953 / Exchange‑federation prior art) — one design serves both Tier‑1 federation and Option I, and it's buildable and valuable even while every tenant is still one row in one database.
 
 ### Sequencing
-1. **Tier 0** (SOC 2 groundwork, operator‑access audit logging) — start now.
-2. **Extract `AuthProvider`; stand up a central IdP** — on the path for every tier past status quo.
-3. **Design the hub** (API, free/busy feed, minimum dataset, minimization choices) — independent of tier.
-4. **Prototype Tier 1** (searchable field encryption on `gig_financials` + `purchases` sensitive columns, org‑KMS key) — the make‑or‑break question is whether the reporting + scan tradeoffs are acceptable.
-5. **Build the fleet migration runner** before onboarding the second Tier‑2 tenant.
-6. Skip the prior report's in‑place Phase‑1 RLS fixes unless a split is > ~2 quarters out.
+1. **Tier 0** (SOC 2 groundwork, operator‑access audit logging) — start now; it also underpins the hosted half of an "offer both" line.
+2. **Extract `AuthProvider`; decide magic‑link vs Google for self‑host** — on the path for Option I and every tier past status quo.
+3. **Design the relay/hub** (API, free/busy feed, blinded handles, minimum dataset, per‑gig opt‑in) — independent of tier; the same design serves Tier‑1 federation and Option I.
+4. **Decide the fork in the road:** Option I (self‑hosted tier, §12) vs Tier 1 (searchable field encryption). They cost about the same for v1; Option I gives the stronger guarantee with no feature loss but moves the deploy out of Cameron's hands. The deciding inputs are §10 Q2 (will orgs become Supabase customers?) and Q7 (team vs solo, mobile‑critical?).
+5. **If Option I:** build Milestone 1 (provisioning wizard + hosted‑frontend split + in‑app migration runner/compat gate + zero‑access support tooling + BSL/FSL licensing) → ship to the security‑motivated segment → then Milestone 2 (federation relay + client). Make all 46 existing migrations skip‑safe and add a v1→vN replay test *before* the first external install.
+6. **If Tier 1:** prototype searchable field encryption on `gig_financials` + `purchases` sensitive columns with an org‑KMS key; the make‑or‑break is whether the server‑side reporting + AI‑scan tradeoffs are acceptable.
+7. Skip the prior report's in‑place Phase‑1 RLS fixes unless neither Option I nor a split lands within ~2 quarters.
 
 ### Where the honest answer is a tradeoff, not a solution
-- Tier 1 removes operator DB read access but not operator process memory access at decrypt time. Level 2.5, not level 3.
-- Tier 1 costs current‑form server‑side financial reporting and the server‑side AI scan.
-- Tier 2 gives a stronger guarantee but reintroduces per‑tenant ops cost, migration complexity, and harder support.
-- The hub still sees the collaboration graph + busy/free calendar under every tier. Minimization (opaque ids, identity‑optional availability) reduces but doesn't eliminate that; a truly zero‑knowledge hub is a research‑grade build.
-- Nothing here is free. "Verifiable operator exclusion" costs either features (Tier 1), onboarding friction + ops (Tier 2), or a disproportionate engineering investment (Tier 3).
+- Tier 1 removes operator DB read access but not operator process‑memory access at decrypt time. Level 2.5, not level 3. Costs current‑form server‑side financial reporting and the server‑side AI scan.
+- **Option I gives the cleanest level‑3 guarantee and keeps every feature, but Cameron gives up the single deploy** — every schema change becomes a permanent fleet‑compatibility exercise across installs he can't see — and support becomes partly blind. Onboarding asks the org to become a Supabase customer.
+- Option I's revenue is indirect (license + federation tier + hosted product); any model that needs to meter the org's usage from outside doesn't work.
+- Option H trades away multi‑user‑without‑setup, first‑class mobile, and unlosable backups, and needs a Supabase teardown + sync‑engine bet. Option I dominates it for a team product.
+- The relay still sees the collaboration graph + busy/free under every option that federates. Blinded handles + per‑gig opt‑in + minimal retention reduce it; a truly zero‑knowledge relay, or an org‑run/federated one, is the only full close.
+- Nothing here is free. "Verifiable operator exclusion" costs features (Tier 1), the single deploy + higher‑touch support (Option I), a rewrite + feature loss (Option H), or a disproportionate engineering investment (Tier 3).
 
 ---
 
@@ -449,11 +473,12 @@ The locally‑installable app (§11) delivers a **level‑3 guarantee for free w
 3. **Is the bar "better than the other cloud SaaS" or "provably can't see it, like a password manager"?** The former is Tier 0 (+ maybe Tier 1); the latter is Tier 3 / client‑only E2EE. Different products, different roadmaps.
 4. **How many orgs, and of what size?** ~20–50 mostly‑small → Tier 0 + Tier 1 is plenty and the hub stays minimal. Hundreds including large security‑driven orgs that will pay for isolation → Tier 2 fleet machinery (and maybe Tier 3) is justified. Changes the budget by an order of magnitude.
 5. **Is "Cameron cannot read it" hard, or is "not commingled with competitors, revocable, portable on exit" enough?** The former eventually forces Tier 3; the latter is met by Tier 1 or Tier 2 at far lower cost and support load. Product/positioning decision, not technical.
-6. **Long‑term shared surface — ever more than {dates, status, participants, explicitly‑shared attachments/notes, busy/free}?** Stable and small → thin hub, F5 carries it. Roadmap toward richer cross‑org collaboration (shared schedules/docs/messaging/joint settlements) → the hub grows toward a real shared database and the calculus shifts back toward a well‑isolated *shared* store with private extensions.
+6. **Long‑term shared surface — ever more than {dates, status, participants, explicitly‑shared attachments/notes, busy/free}?** Stable and small → thin relay, F5 carries it. Roadmap toward richer cross‑org collaboration (shared schedules/docs/messaging/joint settlements) → the relay grows toward a real shared database and the calculus shifts back toward a well‑isolated *shared* store with private extensions.
+7. **Is GigWrangler used by *teams* within an org, and is mobile field use core?** If a typical org is one person at a desk → Option H (local‑first, §11) is genuinely viable. If it's an owner + managers + field staff who expect live shared state and on‑site mobile → H needs an always‑on sync/relay component that pulls it back toward Option F/G/I, and the "purely local, nothing on a server" pitch weakens. **This same answer decides whether Option I's federation relay is worth building at all.**
+8. **Will the target org become a Supabase customer** — create an account, put a card on file, pay for the Pro plan, run a provisioning wizard? Yes → **Option I (§12)** is the strongest path and may replace Tier 2 entirely. No, they want email‑signup and nothing else → you're back to hosted Tier 0/1 with platform‑managed encryption, and the strong guarantee is off the table for them. This is *the* gating question for Option I.
+9. **Can Cameron give up the single deploy?** Option I means 46 (and counting) migrations self‑applying across installs Cameron can't see, forever — a permanent expand‑only‑self‑contained constraint on every schema change plus a bounded‑skew upgrade policy. If the schema is still changing fast, that tax is heavy; if it's stabilizing, it's tolerable.
 
-Secondary: must identity be one login per person across orgs (if not, Tier 2 / Option D get easier)? What staleness is acceptable for the shared gig core — seconds (F2/F5) or immediate (F1/F4)?
-
-7. **Is GigWrangler used by *teams* within an org, and is mobile field use core?** If a typical org is one person at a desk → Option H (local‑first, §11) is genuinely viable. If it's an owner + managers + field staff who expect live shared state and on‑site mobile → H needs an always‑on sync/relay component that pulls it back toward Option F/G, and the "purely local, nothing on a server" pitch weakens.
+Secondary: must identity be one login per person across orgs (if not, Option I / Option D get easier)? What staleness is acceptable for the shared gig core — seconds (F2/F5) or immediate (F1/F4)? Does the trust claim need *visible source* (likely yes for the security‑motivated segment) → which forces a license decision (BSL/FSL recommended) and accepts a low fork risk?
 
 ---
 
@@ -567,3 +592,214 @@ Ship (1) as default + (3) always; treat (2) as a later offline‑mode nicety.
 - One codebase and one deploy — `deploy_prod.sh` becomes a signing + notarization + staged‑rollout pipeline, and schema changes are forever‑compatible or they strand users.
 
 **What it gains:** the trust problem for private data disappears with nothing to verify, the hosting bill goes to ~zero, and "your financials never touch our servers" becomes literally true — a real differentiator for exactly the security‑motivated orgs that prompted this document.
+
+---
+
+## 12. Deep dive: self‑serve self‑hosting (Option I)
+
+Cameron's framing: the org creates and owns its own Supabase project (their account, billing, credentials), installs GigWrangler against it, and Cameron never has access to anything. Separately, an **opt‑in** federation service carries only a thin scheduling/availability signal between orgs that choose to participate.
+
+### 12.1 Does the "stack stays intact" claim hold? (mostly yes)
+
+| Claim | Holds? | Why |
+|---|---|---|
+| RLS still works | **Yes** | The org's own Postgres; the 61 policies apply unchanged. In‑org RBAC (Admin/Manager/Staff/Viewer) is exactly what RLS + the `server` edge function enforce, and **both run in the org's project**. This is the decisive difference from Option H, which removes the server and RLS entirely. |
+| No encryption tax | **Yes** | No field encryption, no searchable‑encryption proxy, no aggregate breakage. Financial totals, P&L, sort/filter, full‑text all run server‑side — because there *is* a server side, it's just the org's. |
+| Mobile PWA still works | **Yes** | The PWA hits the org's Supabase URL with the same code. A managed Supabase project is internet‑reachable, so field use is unchanged. |
+| Multi‑user within an org still works | **Yes** | One shared Postgres + Realtime, exactly like today, in the org's account. No sync engine. |
+| Backups become Supabase's problem | **Mostly** | True on Pro+ (PITR, daily backups). On the free tier backups are minimal and **the project pauses after 7 days idle** — fatal for a weekly‑use app. The wizard must push Pro, or ship a scheduled `pg_dump` to the org's storage. |
+| Level‑3 trust guarantee | **Yes, by ownership** | Cameron has no credentials, no access path. Verification = read the visible source. Same guarantee class as Option E / H‑b. |
+
+**So the claim largely holds.** Option I ≈ Option E, with the specific choice that the substrate is *managed Supabase in the org's account* rather than a self‑run Docker stack — which is what dodges §5‑E's brutal self‑hosted‑Supabase upgrade story and hands backups/uptime to Supabase.
+
+**What Cameron may be missing:**
+
+1. **The upgrade problem doesn't vanish — it moves to the worst place.** Cameron controls neither the schema nor the deploy; 46 migrations must self‑apply, in order, across N projects Cameron can't see, some on year‑old builds (§12.3). This is the real cost.
+2. **Support with zero access** is a genuine ongoing cost, not a footnote (§12.4).
+3. **The org becomes a Supabase customer** — plan choice, project pausing, region, billing, and Supabase outages are now the org's problem and the org's ticket *to Supabase*. Onboarding must steer this.
+4. **Auth config is the least automatable part** — Google OAuth client creation has no API; SMTP for real transactional email needs a provider (§12.2).
+5. **The federation relay still needs someone to run it**, and it holds the participant graph + busy/free — bounded but nonzero (§12.5).
+6. **Fleet version skew makes the federation protocol a compatibility problem** (§12.5).
+7. **Revenue must come from somewhere the license can protect** (§12.6).
+
+### 12.2 Onboarding — what "set up Supabase and install this" really involves
+
+Manual path today, per org (from `setup-guide.md` + the deploy scripts):
+
+1. Create a Supabase account + project; pick region; **pick Pro (~$25/mo) or the project pauses and has no PITR**.
+2. Install Supabase CLI + Docker (for the `db push` shadow DB) — or use the dashboard SQL editor.
+3. `supabase link` to the project.
+4. `supabase db push` — applies 46 migrations; **creates the `attachments` storage bucket + policies** (they live in migrations — a real plus).
+5. `supabase functions deploy` — deploys `server` + `ai-scan` (needs CLI + Deno).
+6. `supabase secrets set` — up to 8 secrets, but only the auto‑injected `SUPABASE_*` are mandatory; `GOOGLE_*`, `ANTHROPIC_API_KEY`, `SENTRY_*` are optional‑integration secrets a minimal install skips.
+7. Configure Auth: site URL, redirect URLs; for Google sign‑in, a Google Cloud OAuth client (ID + secret); SMTP provider (or accept Supabase's rate‑limited built‑in email — fine for 5 users, not 50).
+8. Build the frontend with `VITE_SUPABASE_URL` + `VITE_SUPABASE_ANON_KEY` (+ optional `VITE_GOOGLE_CLIENT_ID`, `VITE_SENTRY_DSN`); host it.
+9. Add the frontend origin to the project's allowed redirect URLs.
+
+**Realistic floor for a non‑technical production‑company owner doing this unaided: they can't.** Steps 2–6 assume a terminal, a package manager, Docker, and `supabase link` comfort — a developer's afternoon, not an owner's.
+
+**What collapses into a wizard:**
+
+- **One‑click Supabase provision.** Precedents exist: DigitalOcean ships a native Supabase template; database.build has one‑click deploy‑to‑Supabase; the community [`supafork`](https://github.com/chroxify/supafork) clones a project in one click. A GigWrangler installer can: OAuth the user into Supabase → create a project via the **Management API in the user's org** → apply the 46 migrations via the Management API query endpoint (no local Docker/CLI) → deploy the 2 functions via the API → set secrets → return URL + anon key. Removes steps 2–6 and 9.
+- **Auth config** — site/redirect URLs push via `supabase config push` or the Management API. **Google OAuth client creation cannot be automated** (Google's console has no API for it) → self‑host defaults to **email/password + magic link**, which the wizard *can* fully configure; "Sign in with Google" becomes a documented optional manual step.
+- **SMTP** — walk the user through pasting a Resend/SendGrid API key, or Cameron operates a transactional‑email relay (email addresses transit Cameron — minor, disclosable) or skip it (magic links via Supabase's default, accepting the rate limit).
+- **Frontend** — the hosted‑frontend split (below).
+
+**Hosted frontend + their database — does it leak anything? Essentially no.**
+The frontend is a static bundle that talks to Supabase with the **anon key, which is public by design**; RLS is the only enforcement boundary. If Cameron hosts one frontend for all tenants and it's pointed per‑session at the org's `VITE_SUPABASE_URL` + anon key (pasted once at first run / embedded in a wizard deep link / resolved from a tiny per‑org config), the **browser talks straight to the org's Supabase and Cameron's servers never see org data**. The only thing Cameron could see is what the frontend phones home — Sentry errors, analytics — all opt‑in and strippable. The org adds `app.gigwrangler.com` to its allowed URLs (one wizard step). **The anon‑key + RLS model already treats the frontend as an untrusted client, so hosting it changes nothing about what Cameron can read.** Strongly recommended: it cuts onboarding from "build and host a frontend" to "paste your project URL and key."
+
+**Best‑case onboarding with all of the above:** OAuth into Supabase → click "create my GigWrangler backend" → wait ~3–5 min (provision + migrate + deploy functions) → optionally paste a Resend key → open the Cameron‑hosted app via a deep link that carries the project URL + anon key. **Close to a hosted signup in effort.** The residual the owner can't skip: having/creating a Supabase account with a card, and paying for Pro.
+
+### 12.3 Upgrades across instances Cameron doesn't control — the hardest part
+
+46 migrations, N installs, users who skip versions or never update.
+
+**Mechanism:** ship the migration bundle *inside* the app; on launch/schedule it compares its bundled version against the project's `supabase_migrations.schema_migrations` and applies pending migrations forward (via the Management API or a direct connection). The same forward‑only runner every self‑hosted product builds — the pattern already exists in this repo for the IndexedDB cache (`src/utils/idb/store.ts`, `DB_VERSION` + `upgrade()`).
+
+**Permanent constraints it forces:**
+
+- **Every migration stays runnable indefinitely.** No dependency on a table/function a later migration removes (or the ordering must keep the v10→v46 skip path valid); no migration calls an external service. Stricter than the repo's current "expand‑only for one release" (`deploy_prod.sh`) — it becomes *expand‑only, self‑contained, forever*.
+- **Frontend ↔ schema compatibility window.** A year‑old frontend must not run against a v46 schema. With a Cameron‑hosted single frontend (§12.2), the clean answer: the frontend supports schema vN..vN‑k, and refuses + self‑updates outside that range.
+- **No rollback on a customer project.** Every migration transactional, leaves the DB on the prior version on failure, surfaces "migration 43 failed — you're safely on 42, here's the log." Managed Supabase PITR (Pro+) is the backstop.
+- **Bounded, enforced skew.** Publish "upgrade from any version in the last N months; older installs step through vX first," and keep + test those stepping stones.
+
+**How the comparables actually do it:**
+
+- **[Home Assistant](https://www.home-assistant.io/more-info/unsupported/home_assistant_core_version/)** — auto‑migrates on update; explicit rule to update in increments of **≤6 releases**; deprecation/migration shims kept ~6 months.
+- **Discourse** — `./launcher rebuild` runs `rake db:migrate` every rebuild; formal safe‑migration policy, background + batched migrations for big data changes, strong "rebuild often" norm. Works because the app is one opinionated Docker image.
+- **[Ghost](https://blog.laurahargreaves.com/ghost-v6/)** — `ghost update` runs migrations; major versions (v5→v6) need care and sometimes a stepping stone; Docker self‑hosters hit breakage on big jumps.
+- **Plausible** — docker‑compose; migrations run on container start; majors have documented manual steps.
+- **OneUptime** — documented "one major version at a time."
+- **Actual Budget** — app carries its own migration list, applies on open; feasible because the schema is small and fully controlled.
+- **Common thread:** an opinionated bundled updater + a documented max‑skew + tested stepping‑stone releases + transactional migrations + "back up first." Nobody solved it *elegantly*; everybody made it *routine* through discipline and tooling. ([release‑engineering guide](https://tech-champion.com/database/safe-database-migrations-for-self-hosted-applications-a-practical-release-engineering-guide/))
+
+**Bottom line:** solved‑in‑practice, but a permanent tax on every schema change plus a body of updater/compat tooling to build and maintain — the single biggest ongoing cost of Option I.
+
+### 12.4 Support with zero access
+
+No logs, no DB query, no repro, no "log in as them." For solo‑sustainable support, ship:
+
+- **Self‑service diagnostics screen** — schema version, migration history + last failure, per‑table row counts, project health (API/storage/auth reachable), frontend build version, browser/OS. One "Copy diagnostics" button.
+- **Redacted support bundle** — schema‑only dump + migration log + last N app errors (PII scrubbed) + config with secrets masked. One "Download" button; the user emails it.
+- **Preflight health checks** — on launch and on demand: project reachable? migrations current? storage bucket present? auth configured? plan about to pause? Catches the ~80% of tickets that are config/plan/connectivity, not code.
+- **Opt‑in error reporting** — the Sentry DSN is already wired; point it at Cameron's Sentry (aggregate error visibility — a real asset) with clear scoping, or at an org‑run collector.
+- **Reproducible builds + published checksums** so "which build / tampered?" is answerable.
+- **Public docs + a community forum** (Discourse‑style) — a solo founder cannot do 1:1 support at scale.
+
+A few weeks of product work plus an ongoing docs/forum commitment. It's the line between sustainable and a treadmill.
+
+### 12.5 The federation layer
+
+**Minimum data the relay holds** (same as §5‑G's hub, for the "instances Cameron can't see" case):
+
+- **Instance registry** — instance ID, display name, public key, reachable endpoint (or "relay‑only").
+- **Shared gig core, per federated gig** — a *random shared* gig ID (not the origin instance's PK), status, start/end/timezone, tags, hierarchy link. Title stays instance‑side; relay holds an opaque handle if title confidentiality matters.
+- **Participants** — {shared gig ID → instance/org handle, role, is_client}. The irreducible disclosure: *who works with whom, and when*.
+- **Availability projection** — {subject handle, busy range, org handle (optional)}. Derived and pushed by each instance; never gig details.
+- **Handshakes** — invite / accept / decline / revoke.
+- **Nothing else** — no financials, staffing names/rates, kits, purchasing; shared attachments only if a participant opts in, ideally client‑encrypted to the participant set.
+
+**Authentication — to the relay and between instances:**
+
+- Each instance generates a keypair at install; registers its public key with the relay under its instance ID (verified by a domain/email challenge or a Cameron‑issued invite code).
+- Instance→relay calls are signed (instance‑key JWT or mTLS).
+- Instance→instance (if direct): mutual key check against the registry; the relay is the discovery + key‑distribution root. This is the **Exchange federation trust / RFC 7953** model — independently owned servers, a federation root, redacted free/busy.
+- A user spanning two orgs' instances: each instance has its own auth; a single identity needs the relay (or a separate IdP) to broker, or the user keeps two logins — tolerable for a busy/free‑only federation.
+
+**Does Cameron have to run it?**
+
+- **Cameron‑run relay** — simplest, most reliable, Cameron controls the protocol version; holds the bounded dataset above.
+- **Peer‑to‑peer, no relay** — works for direct instance↔instance, but loses store‑and‑forward (an invite can't land while the peer is asleep) and still needs *a* discovery/key root; availability lookups fail when the source is unreachable.
+- **Org‑hosted / federation‑of‑relays** — a customer consortium or association runs it; Cameron ships the relay open source. Removes Cameron from the trust question; adds governance overhead.
+
+**Does Cameron holding the relay reintroduce the trust problem? Defensibly no, for this use case:**
+
+- The relay never sees private operational data — only the participant graph, dated engagements, and busy/free. **Categorically less** than today's shared DB, and less than a competitor SaaS learns.
+- Design choices that make "no" defensible: **blinded identifiers** (relay stores random handles; only participating instances hold the mapping — relay sees "handle A busy 2026‑11‑04", not a name); **opt‑in per gig** (nothing federates unless a manager shares that gig; default fully private); **busy/free only by default** (org identity on an availability record is opt‑in); **minimal retention** (availability records expire when the busy range passes; handshakes kept only while the gig is active); **client‑side encryption past busy/free** (shared notes/attachments encrypted to the participant set; relay stores ciphertext); **open‑source relay + published data schema** so an org can verify exactly what it holds.
+- **Honest residual:** even fully blinded, the relay operator observes *that* two handles collaborate and *when* they're busy; long‑run traffic analysis can re‑identify (a handle busy on exactly the dates a known festival runs). Low‑stakes for a busy/free signal among production companies; if "who works with whom" is itself the sensitive thing, only an org‑run or federated relay fully closes it.
+
+### 12.6 Business model
+
+If the org pays Supabase directly, Cameron's revenue must come from something the deployment model and license allow:
+
+| Model | Compatible with self‑hosting? | Notes |
+|---|---|---|
+| **Per‑seat / per‑org license** (paid key gating the app, or gating updates/support) | Yes | Enforceable via an in‑app license check; honesty‑based for pure OSS. The core commercial lever (Ghost, Sentry, GitLab pattern). |
+| **Paid federation tier** | Yes — the natural one | The relay is Cameron‑run; charge per federated org or per active federated gig. Cost (Cameron runs infra) aligns with price; doesn't undermine self‑hosting because the private stack stays free/licensed. |
+| **Paid support / SLA** | Yes | Classic OSS model; price high, expect low volume (solo founder). |
+| **Hosted convenience option** (Cameron runs the whole thing = the hosted Tier 0/1/2 product) | Yes — this is "offer both" | The revenue workhorse for the ~94% who pick hosted. |
+| **Managed self‑hosting** (Cameron provisions + operates the org's project in the org's account) | Yes | Blurs into Tier 2; Cameron has operational access unless tightly scoped, which dilutes the guarantee — position as "convenience, not zero‑knowledge." |
+| **Open‑core paid modules** (advanced reporting, integrations) | Yes | Keep the trust‑critical core visible; gate peripheral value. |
+| **Usage/volume fees on the app itself** | **No — quietly incompatible** | You can't meter an app in infrastructure you can't see. Anything needing an external count of gigs/users/storage must be self‑reported or license‑tier‑based. |
+| **Ads / data monetization** | **No** | Destroys the trust pitch. |
+
+**Clean combination:** source‑available core under a license that permits self‑hosting but forbids a competing hosted service → sell (1) a commercial license / support subscription, (2) the paid federation tier, (3) the hosted convenience product. Three revenue lines, all compatible.
+
+### 12.7 License choice and the visibility question
+
+**Is visible source required for the trust claim?** Largely yes. "Cameron can't read your data" rests on (a) *no credentials* — structural, true regardless — and (b) *the software does what it says and doesn't exfiltrate*. Claim (b) is only **verifiable** with visible source + reproducible builds. For the security‑motivated segment that prompts Option I, source‑available + reproducible builds is close to mandatory; a signed closed binary asks them to trust Cameron's word about the binary (weaker, though still far stronger than SaaS — no credentials).
+
+| License | Effect | Fit |
+|---|---|---|
+| **AGPL‑3.0** | Copyleft incl. over‑a‑network; anyone may host but must publish modifications. OSI‑approved. | Good trust optics; **does not stop a competitor hosting it**. Fine if the moat is the federation network + brand, not the code. |
+| **BSL 1.1** | Source‑visible; free to self‑host within a granted use ("internal production management, not a competing SaaS"); each release converts to an OSI license after ~4 years. | **Strong fit** — org reads every line and self‑hosts; Cameron reserves the hosted market per release for ~4 years. Used by Sentry, CockroachDB, HashiCorp (pre‑relicense). |
+| **Elastic License v2** | Source‑visible; forbids offering the software "as a hosted or managed service" to third parties; no copyleft; no change‑date bookkeeping. | **Strong fit**, simpler than BSL. |
+| **Functional Source License (FSL)** | Source‑available; anti‑competition for 2 years, then converts to MIT/Apache. | Fit; younger, designed for exactly this; less legal precedent. |
+| **SSPL** | AGPL + must open‑source your entire service stack to offer it as a service. | Overkill, toxic optics, not OSI‑approved. Avoid. |
+| **MIT / Apache‑2.0** | Permissive; anyone can run a closed competing service. | Only if Cameron doesn't care about a hosted competitor and wants max adoption. |
+
+**Recommendation: BSL 1.1 or FSL** — source fully visible (satisfies verifiability), self‑hosting explicitly allowed, competing hosted service blocked for a few years, auto‑converts to true open source later. Elastic License v2 if BSL's change‑date bookkeeping feels heavy. ([source‑available licensing trends](https://www.goodwinlaw.com/en/insights/publications/2024/09/insights-practices-moving-away-from-open-source-trends-in-licensing))
+
+**Fork / competition risk with visible source:**
+
+- A **license‑stripping hard fork** is a copyright violation — the risk is enforcement/jurisdiction, not licensing. Real but low for a niche vertical tool.
+- A **compliant fork** (self‑host, modify) is the point, not a threat.
+- The **genuine risk**: a well‑resourced competitor rebuilds the federation relay and runs a compatible hosted network. BSL/ELv2/FSL block the *hosted* part for the protected window; the federation network effect + brand are the durable moat. For a market this size, ~zero serious forks is the likely outcome.
+- **Upside of visible source:** trust, customer security audits, community integrations, and a differentiator vs closed competitors.
+
+### 12.8 Who this is actually for
+
+- **Cloud adoption is ~94%; roughly 6% of businesses deliberately self‑host** ([cloud vs self‑hosting](https://www.circadianrisk.com/resources/blog/cloud-vs-self-hosting-which-should-you-choose)), usually for regulation or a hard trust requirement. Option I targets that slice of GigWrangler's market, plus some who choose it on principle.
+- **Can the target customer do it?** With the §12.2 wizard (one‑click provision + hosted frontend + magic‑link auth): a moderately capable owner can, *if* they'll create a Supabase account with a card. Unaided: no.
+- **Drop‑off vs hosted signup:** every added step (Supabase account, card, plan choice, provisioning wait, paste a key) sheds users; expect a large majority to pick "hosted" when both exist. The self‑host path converts the minority who would otherwise be **zero** — and that minority is exactly the security‑motivated segment.
+- **Offer both.** Hosted (Tier 0/1) for the ~94%; self‑hosted (Option I) for the don't‑trust‑it segment. **Same codebase, same schema** — the hosted product is just Cameron running the Option‑I path. The added cost is the wizard + updater/compat tooling (§12.3) + zero‑access support tooling (§12.4) + docs/forum, not a second application.
+
+### 12.9 Verdict vs the tiered recommendation and Option H
+
+**Option I is the strongest operator‑exclusion option in this document for a team‑based product**, and Cameron's read is largely correct: it keeps RLS, auth, storage, realtime, mobile, multi‑user, and server‑side features because it keeps the whole stack — it just runs in infrastructure the org owns. It delivers a **level‑3 guarantee by ownership** without the encryption tax (Tier 1), the Cameron‑operated fleet (Tier 2), the enclave complexity (Tier 3), or the local‑first rewrite / sync bet / multi‑user regression (Option H).
+
+Where it's worse than the hosted tiers:
+
+- **Onboarding friction** — the org must become a Supabase customer; the wizard narrows but doesn't close the gap to email‑signup.
+- **Cameron loses the single deploy** — every schema change becomes a permanent fleet‑compatibility exercise (§12.3).
+- **Support is higher‑touch and partly blind** (§12.4).
+- **Revenue is indirect** — license/support/federation, not a clean per‑seat SaaS bill (§12.6).
+
+**Vs Option H:** Option I dominates on nearly every axis for a multi‑user product. H wins only on "works with no internet at all" and "not even a Supabase project exists." I keeps the PWA, keeps multi‑user without a sync engine, keeps managed backups, and is a much smaller build (no Supabase teardown, no CRDT/sync bet, no desktop packaging + signing). **If self‑hosting is the direction, Option I is the way, not Option H.**
+
+**Positioning:** Option I becomes the **"self‑hosted" tier** beside the hosted tiers — same code, org owns the Supabase project, opt‑in Cameron‑run (or federated) relay for scheduling. Hosted Tier 0/1 stays the default. **Tier 2 (auto‑provisioned DB in the org's cloud) is largely *subsumed by* Option I** — I is Tier 2 where the org drives provisioning and owns the account outright, which is cleaner and a stronger guarantee. A plausible final product line: **hosted Tier 0/1 + self‑hosted Option I**, with Tier 2 folded into I and Tier 3 reserved for a hypothetical future.
+
+### 12.10 Realistic build estimate — first shippable version
+
+Assumes the hosted product already exists. "Shippable v1" = a security‑motivated org can self‑onboard and run it, with basic federation.
+
+| Work item | Rough size |
+|---|---|
+| **Provisioning wizard** — OAuth into Supabase, create project via Management API, apply 46 migrations via API, deploy 2 functions, set secrets, configure auth (site/redirect URLs, magic link), return URL + anon key | 3–5 weeks |
+| **Hosted‑frontend multi‑backend support** — one deployed frontend that accepts an org's project URL + anon key (first‑run or deep link), validates, stores, handles per‑org Google client ID / Sentry opt‑in | 1–2 weeks |
+| **In‑app migration runner + compat gate** — bundled migrations, version check vs the project, forward‑apply, transactional failure handling, "schema out of supported range" block + self‑update prompt; make all 46 migrations skip‑safe; add a v1→vN replay test | 3–4 weeks + a permanent tax |
+| **Auth without Cameron's server** — decide: magic‑link‑only for self‑host vs documented manual Google client; keep the `server` edge function as‑is (it deploys fine to the org's project — **cheapest**) | 1–3 weeks |
+| **Zero‑access support tooling** — diagnostics screen, redacted support‑bundle export, preflight health checks, opt‑in error reporting, reproducible‑build setup | 2–4 weeks |
+| **Federation relay v1** — instance registry + keypair enrolment, signed instance→relay API, shared‑gig‑core push/pull, busy/free push + query, invite/accept handshake, blinded handles, per‑gig opt‑in, retention expiry | 6–10 weeks |
+| **Federation client in the app** — "share gig", "invite an org", availability lookup UI, background sync of shared‑core changes, conflict handling for the shared row | 4–6 weeks |
+| **Licensing + packaging** — pick BSL/FSL, license headers, license‑key check if commercial, docs site, install + upgrade guides, support forum | 2–3 weeks + ongoing |
+| **Billing** (Stripe) for the federation tier / license | 1–2 weeks |
+
+**Credible v1: ~5–7 months of focused solo work**, and front‑loadable:
+
+- **Milestone 1 — "self‑host without federation"** (wizard + hosted‑frontend split + migration runner + support tooling + licensing): **~3 months**. Already shippable to the security‑motivated segment.
+- **Milestone 2 — federation** (relay + client): **~3 months** more.
+
+The migration/compat tax and the docs/support commitment are permanent, not one‑time.
+
+**Comparison:** **Tier 1** (searchable field encryption) is a similar ~4–6 month build but adds a permanent query‑layer constraint and still leaves Cameron holding decryptable‑in‑memory data (level 2.5). **Option H** is ~6–9 months and gives up features. **Option I's v1 costs about the same as Tier 1, gives a strictly better guarantee, keeps every feature, and is worse only on onboarding friction and the loss of the single deploy.**
