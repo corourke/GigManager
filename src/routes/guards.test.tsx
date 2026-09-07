@@ -1,7 +1,7 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render } from '@testing-library/react';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { render, waitFor } from '@testing-library/react';
 import { MemoryRouter, Routes, Route } from 'react-router';
-import { LandingRedirect } from './guards';
+import { LandingRedirect, LogoutRoute } from './guards';
 
 const mockUseAppShell = vi.fn();
 const mockUseAuth = vi.fn();
@@ -91,5 +91,52 @@ describe('LandingRedirect', () => {
     mockUseAuth.mockReturnValue({ userRole: 'Viewer' });
     const result = renderWithRouter();
     expect(result).toBe('/gigs');
+  });
+});
+
+describe('LogoutRoute (#18)', () => {
+  const originalLocation = window.location;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    // A real browser navigation, not a client-side route change — see the
+    // comment on LogoutRoute for why. Stub window.location so we can assert
+    // on it without jsdom attempting (and failing) a real navigation.
+    // @ts-expect-error - deliberately reassigning window.location for the test
+    delete window.location;
+    (window as any).location = { ...originalLocation, href: '' };
+  });
+
+  afterEach(() => {
+    (window as any).location = originalLocation;
+  });
+
+  function renderLogoutRoute() {
+    render(
+      <MemoryRouter initialEntries={['/logout']}>
+        <Routes>
+          <Route path="/logout" element={<LogoutRoute />} />
+        </Routes>
+      </MemoryRouter>
+    );
+  }
+
+  it('signs the user out and hard-navigates to / — a working /logout URL', async () => {
+    const logout = vi.fn().mockResolvedValue(undefined);
+    mockUseAuth.mockReturnValue({ logout });
+
+    renderLogoutRoute();
+
+    await waitFor(() => expect(logout).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(window.location.href).toBe('/'));
+  });
+
+  it('still hard-navigates to / if logout() rejects, so a broken session is never a dead end', async () => {
+    const logout = vi.fn().mockRejectedValue(new Error('network error'));
+    mockUseAuth.mockReturnValue({ logout });
+
+    renderLogoutRoute();
+
+    await waitFor(() => expect(window.location.href).toBe('/'));
   });
 });

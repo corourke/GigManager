@@ -25,11 +25,28 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+// Persisted across reloads so a deep link doesn't bounce a multi-org user to
+// the org picker just because in-memory state reset (see issue #26).
+const SELECTED_ORG_STORAGE_KEY = 'selectedOrganizationId';
+
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [organizations, setOrganizations] = useState<OrganizationMembership[]>([]);
-  const [selectedOrganization, selectOrganization] = useState<Organization | null>(null);
+  const [selectedOrganization, setSelectedOrganizationState] = useState<Organization | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+
+  const selectOrganization = useCallback((org: Organization | null) => {
+    setSelectedOrganizationState(org);
+    try {
+      if (org) {
+        localStorage.setItem(SELECTED_ORG_STORAGE_KEY, org.id);
+      } else {
+        localStorage.removeItem(SELECTED_ORG_STORAGE_KEY);
+      }
+    } catch {
+      // localStorage unavailable (private browsing, etc.) - selection still works in-memory
+    }
+  }, []);
 
   const userRole = React.useMemo(() => {
     if (!selectedOrganization) return undefined;
@@ -81,9 +98,27 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           setOrganizations(orgs);
           
           // Auto-select organization if appropriate
-          if (!selectedOrganization && orgs.length === 1) {
-            selectOrganization(orgs[0].organization);
-          } else if (selectedOrganization) {
+          if (!selectedOrganization) {
+            if (orgs.length === 1) {
+              selectOrganization(orgs[0].organization);
+            } else {
+              // Restore the last-selected org (e.g. after a hard refresh or
+              // direct URL load) so RequireOrg doesn't bounce the user to
+              // the picker while this state is still resetting.
+              let storedOrgId: string | null = null;
+              try {
+                storedOrgId = localStorage.getItem(SELECTED_ORG_STORAGE_KEY);
+              } catch {
+                // ignore - fall through to no restoration
+              }
+              const restored = storedOrgId
+                ? orgs.find(m => m.organization.id === storedOrgId)
+                : undefined;
+              if (restored) {
+                selectOrganization(restored.organization);
+              }
+            }
+          } else {
             const stillMember = orgs.find(m => m.organization.id === selectedOrganization.id);
             if (!stillMember) {
               selectOrganization(orgs.length === 1 ? orgs[0].organization : null);

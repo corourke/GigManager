@@ -18,6 +18,7 @@ import {
   ResetPasswordRoute,
   AcceptInvitationRoute,
   CalendarCallbackRoute,
+  LogoutRoute,
   LoadingSpinner,
 } from './guards';
 import type { Organization, OrganizationMembership } from '../utils/supabase/types';
@@ -620,6 +621,7 @@ export function AppRoutes() {
       <Route path="/reset-password" element={<ResetPasswordRoute />} />
       <Route path="/accept-invitation" element={<AcceptInvitationRoute />} />
       <Route path="/auth/google-calendar/callback" element={<CalendarCallbackRoute />} />
+      <Route path="/logout" element={<LogoutRoute />} />
       {import.meta.env.DEV && <Route path="/dev-demo" element={<DevDemoRoute />} />}
 
       {/* Authenticated area */}
