@@ -3,6 +3,7 @@ import { requireUser } from '../lib/auth.ts';
 import { requireOrgRole } from '../lib/orgRole.ts';
 import { supabaseAdmin } from '../lib/supabaseAdmin.ts';
 import { canDecideAccessRequest, shouldClaimOrgOnApproval } from '../lib/pure/authz.ts';
+import { sendEmail } from '../lib/email.ts';
 
 const REQUESTABLE_ROLES = ['Manager', 'Admin'];
 
@@ -158,8 +159,26 @@ export function registerAccessRequests(app: App) {
       return c.json({ error: updateError.message }, 400);
     }
 
-    // TODO(#47): also email request.requester.email once an email provider is wired up.
-    // The in-app outcome notice (requester_seen_at / GET /me/access-requests) already works.
+    // Best-effort — a failed send must never fail the decision itself. The
+    // in-app outcome notice (requester_seen_at / GET /me/access-requests) is
+    // authoritative regardless of whether this succeeds.
+    const requesterEmail = updatedRequest?.requester?.email;
+    if (requesterEmail) {
+      const orgName = updatedRequest.organization?.name || 'the organization';
+      const verb = decision === 'approved' ? 'approved' : 'rejected';
+      const emailResult = await sendEmail({
+        to: requesterEmail,
+        subject: `Your ${request.requested_role} request for ${orgName} was ${verb}`,
+        html: `
+          <p>Hi ${updatedRequest.requester.first_name || ''},</p>
+          <p>Your request for <strong>${request.requested_role}</strong> access on <strong>${orgName}</strong> was <strong>${verb}</strong>.</p>
+          ${response_message ? `<p>${response_message}</p>` : ''}
+        `.trim(),
+      });
+      if (!emailResult.sent) {
+        console.warn('Access-request outcome email not sent:', emailResult.error);
+      }
+    }
 
     return c.json(updatedRequest);
   });
