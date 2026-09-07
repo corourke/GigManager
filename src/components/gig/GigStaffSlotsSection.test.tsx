@@ -1,6 +1,6 @@
 import type { ReactElement } from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render as rtlRender, screen, waitFor } from '@testing-library/react';
+import { render as rtlRender, screen, waitFor, fireEvent } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import GigStaffSlotsSection from './GigStaffSlotsSection';
 
@@ -90,9 +90,30 @@ describe('GigStaffSlotsSection', () => {
 
   it('does not render manual save button', async () => {
     render(<GigStaffSlotsSection {...mockProps} />);
-    
+
     await waitFor(() => {
       expect(screen.queryByRole('button', { name: /save/i })).not.toBeInTheDocument();
+    });
+  });
+
+  it('shows an assignment row for a newly added staff slot without reloading (regression for #16)', async () => {
+    render(<GigStaffSlotsSection {...mockProps} />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Add Staff Slot')).toBeInTheDocument();
+    });
+
+    // The pre-existing slot from getGig() has one assignment, giving one
+    // "Search for user..." field already on screen.
+    const before = screen.getAllByPlaceholderText('Search for user...').length;
+
+    fireEvent.click(screen.getByText('Add Staff Slot'));
+
+    // A freshly-added slot defaults to Required: 1, so it should render
+    // exactly one more assignment row right away — not zero, only fixed by
+    // bumping Required or reloading.
+    await waitFor(() => {
+      expect(screen.getAllByPlaceholderText('Search for user...')).toHaveLength(before + 1);
     });
   });
 });

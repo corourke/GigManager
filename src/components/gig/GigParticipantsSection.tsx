@@ -286,7 +286,16 @@ export default function GigParticipantsSection({
       </CardHeader>
       <CardContent>
         <div className="divide-y divide-gray-100">
-          {fields.map((field, index) => (
+          {fields.map((field, index) => {
+            // useFieldArray's `fields` snapshot only updates on append/remove/
+            // etc. — it does NOT pick up plain setValue() calls, which is how
+            // OrganizationSelector reports a pick (see below). Read the
+            // organization fields from the live, reactive `formValues` (from
+            // watch()) instead, so a freshly-picked organization's "More
+            // actions" menu and contact list render immediately instead of
+            // only after a reload/reset().
+            const participant = formValues.participants?.[index] ?? field;
+            return (
             <div key={field.id} className="py-2 first:pt-0 last:pb-0">
               <div className="flex items-center gap-2">
                 <Controller
@@ -374,7 +383,7 @@ export default function GigParticipantsSection({
                   )}
                 />
 
-                {field.organization && (
+                {participant.organization && (
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                       <Button type="button" variant="ghost" size="sm" className="h-8 w-8 p-0 shrink-0" title="More actions">
@@ -390,12 +399,12 @@ export default function GigParticipantsSection({
                         <FileText className="w-4 h-4 mr-2" />
                         Notes
                       </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => setViewingParticipant({ organization: field.organization as Organization, notes: watch(`participants.${index}.notes`) || '' })}>
+                      <DropdownMenuItem onClick={() => setViewingParticipant({ organization: participant.organization as Organization, notes: watch(`participants.${index}.notes`) || '' })}>
                         <Eye className="w-4 h-4 mr-2" />
                         View Organization
                       </DropdownMenuItem>
                       {isUserAdmin && onEditOrganization && (
-                        <DropdownMenuItem onClick={() => onEditOrganization!(field.organization as Organization)}>
+                        <DropdownMenuItem onClick={() => onEditOrganization!(participant.organization as Organization)}>
                           <Pencil className="w-4 h-4 mr-2" />
                           Edit Organization
                         </DropdownMenuItem>
@@ -429,17 +438,18 @@ export default function GigParticipantsSection({
                 </p>
               )}
 
-              {field.organization_id && (
+              {participant.organization_id && (
                 <GigParticipantContactsList
                   gigId={gigId}
-                  organizationId={field.organization_id}
-                  organizationName={field.organization_name || 'this organization'}
+                  organizationId={participant.organization_id}
+                  organizationName={participant.organization_name || 'this organization'}
                   addDialogOpen={addContactForIndex === index}
                   onAddDialogOpenChange={(open) => setAddContactForIndex(open ? index : null)}
                 />
               )}
             </div>
-          ))}
+            );
+          })}
         </div>
       </CardContent>
     </Card>
