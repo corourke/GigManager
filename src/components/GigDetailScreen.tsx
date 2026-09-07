@@ -18,12 +18,13 @@ import { toast } from 'sonner';
 import { Button } from './ui/button';
 import { Card } from './ui/card';
 import { Badge } from './ui/badge';
-import { 
-  Dialog, 
-  DialogContent, 
-  DialogFooter, 
-  DialogHeader, 
-  DialogTitle 
+import { Alert, AlertDescription } from './ui/alert';
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle
 } from './ui/dialog';
 import AppHeader from './AppHeader';
 import AttachmentManager from './AttachmentManager';
@@ -73,6 +74,7 @@ export default function GigDetailScreen({
   const [gig, setGig] = useState<Gig | null>(null);
   const [conflicts, setConflicts] = useState<Conflict[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [viewingOrganization, setViewingOrganization] = useState<Organization | null>(null);
   const [isUserAdmin, setIsUserAdmin] = useState(false);
   const [gigActivity, setGigActivity] = useState<ActivityLogEntry[]>([]);
@@ -95,6 +97,7 @@ export default function GigDetailScreen({
 
   const loadGig = async () => {
     setIsLoading(true);
+    setLoadError(null);
     try {
       const data = await getGig(gigId);
       // Process venue and act from participants
@@ -119,8 +122,7 @@ export default function GigDetailScreen({
       setGigActivity(activityEntries);
     } catch (error: any) {
       console.error('Error loading gig:', error);
-      toast.error(error.message || 'Failed to load gig');
-      onBack();
+      setLoadError(error.message || 'Failed to load this gig.');
     } finally {
       setIsLoading(false);
     }
@@ -160,8 +162,31 @@ export default function GigDetailScreen({
     );
   }
 
-  if (!gig) {
-    return null;
+  if (loadError || !gig) {
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <AppHeader
+          organization={organization}
+          user={user}
+          userRole={userRole}
+          currentRoute="gig-detail"
+          onSwitchOrganization={onSwitchOrganization}
+          onLogout={onLogout}
+        />
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+          <Button variant="ghost" onClick={onBack} className="mb-4 -ml-2">
+            <ArrowLeft className="w-4 h-4 mr-2" />
+            {backLabel}
+          </Button>
+          <Alert variant="destructive">
+            <AlertDescription>{loadError || 'Gig not found.'}</AlertDescription>
+          </Alert>
+          <Button variant="outline" onClick={loadGig} className="mt-4">
+            Retry
+          </Button>
+        </div>
+      </div>
+    );
   }
 
   const canEdit = canManage(userRole);

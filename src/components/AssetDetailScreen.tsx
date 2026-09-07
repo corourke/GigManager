@@ -6,6 +6,7 @@ import { format } from 'date-fns';
 import { Button } from './ui/button';
 import { Card } from './ui/card';
 import { Badge } from './ui/badge';
+import { Alert, AlertDescription } from './ui/alert';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './ui/table';
 import AppHeader from './AppHeader';
 import AttachmentManager from './AttachmentManager';
@@ -43,6 +44,7 @@ export default function AssetDetailScreen({
 }: AssetDetailScreenProps) {
   const [asset, setAsset] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [assetActivity, setAssetActivity] = useState<ActivityLogEntry[]>([]);
   const [inventoryTracking, setInventoryTracking] = useState<DbInventoryTracking[]>([]);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
@@ -53,6 +55,7 @@ export default function AssetDetailScreen({
 
   const loadAsset = async () => {
     setIsLoading(true);
+    setLoadError(null);
     try {
       const data = await getAsset(assetId);
       setAsset(data);
@@ -73,8 +76,7 @@ export default function AssetDetailScreen({
       }
     } catch (error: any) {
       console.error('Error loading asset:', error);
-      toast.error(error.message || 'Failed to load asset');
-      onBack();
+      setLoadError(error.message || 'Failed to load this asset.');
     } finally {
       setIsLoading(false);
     }
@@ -112,8 +114,32 @@ export default function AssetDetailScreen({
     );
   }
 
-  if (!asset) {
-    return null;
+  if (loadError || !asset) {
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <AppHeader
+          organization={organization}
+          user={user}
+          userRole={userRole}
+          currentRoute="asset-list"
+          onSwitchOrganization={onSwitchOrganization}
+          onEditProfile={onEditProfile}
+          onLogout={onLogout}
+        />
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+          <Button variant="ghost" onClick={onBack} className="mb-4 -ml-2">
+            <ArrowLeft className="w-4 h-4 mr-2" />
+            Back to Assets
+          </Button>
+          <Alert variant="destructive">
+            <AlertDescription>{loadError || 'Asset not found.'}</AlertDescription>
+          </Alert>
+          <Button variant="outline" onClick={loadAsset} className="mt-4">
+            Retry
+          </Button>
+        </div>
+      </div>
+    );
   }
 
   return (

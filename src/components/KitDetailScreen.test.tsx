@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen, waitFor, fireEvent } from '@testing-library/react'
 import KitDetailScreen from './KitDetailScreen'
+import { getKit } from '../services/kit.service'
 import { makeUser, makeOrganization } from '../test/factories'
 
 // countInventoryItems/maxTreeDepth are plain, pure functions — keep the real
@@ -125,5 +126,19 @@ describe('KitDetailScreen', () => {
     await waitFor(() => {
       expect(screen.getAllByText('Cable Snake')).toHaveLength(2)
     })
+  })
+
+  it('shows an inline error and retry option, without bouncing back, when the kit fails to load', async () => {
+    mockProps.onBack.mockClear()
+    vi.mocked(getKit).mockRejectedValueOnce(new Error('Network error'))
+    render(<KitDetailScreen {...mockProps} />)
+
+    await waitFor(() => expect(screen.getByText('Network error')).toBeInTheDocument())
+    // A transient load failure must not silently navigate the user away —
+    // that's what made a bookmarked/deep-linked kit URL look "broken" (#26).
+    expect(mockProps.onBack).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByText('Retry'))
+    await waitFor(() => expect(screen.getByText('Full Rack')).toBeInTheDocument())
   })
 })

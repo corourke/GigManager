@@ -5,6 +5,7 @@ import { Button } from './ui/button';
 import { Card } from './ui/card';
 import { Badge } from './ui/badge';
 import { Checkbox } from './ui/checkbox';
+import { Alert, AlertDescription } from './ui/alert';
 import {
   Table,
   TableBody,
@@ -110,6 +111,7 @@ export default function KitDetailScreen({
   const [componentTree, setComponentTree] = useState<KitComponentTreeNode[]>([]);
   const [showContainerContents, setShowContainerContents] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [kitActivity, setKitActivity] = useState<ActivityLogEntry[]>([]);
   const [activityLoading, setActivityLoading] = useState(false);
 
@@ -119,6 +121,7 @@ export default function KitDetailScreen({
 
   const loadKit = async () => {
     setIsLoading(true);
+    setLoadError(null);
     try {
       const [data, flattened, tree] = await Promise.all([
         getKit(kitId),
@@ -141,8 +144,7 @@ export default function KitDetailScreen({
         .finally(() => setActivityLoading(false));
     } catch (error: any) {
       console.error('Error loading kit:', error);
-      toast.error(error.message || 'Failed to load kit');
-      onBack();
+      setLoadError(error.message || 'Failed to load this kit.');
     } finally {
       setIsLoading(false);
     }
@@ -202,8 +204,31 @@ export default function KitDetailScreen({
     );
   }
 
-  if (!kit) {
-    return null;
+  if (loadError || !kit) {
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <AppHeader
+          organization={organization}
+          user={user}
+          userRole={userRole}
+          currentRoute="kit-detail"
+          onSwitchOrganization={onSwitchOrganization}
+          onLogout={onLogout}
+        />
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          <Button variant="ghost" onClick={onBack} className="mb-4 -ml-2">
+            <ArrowLeft className="w-4 h-4 mr-2" />
+            Back to Kits
+          </Button>
+          <Alert variant="destructive">
+            <AlertDescription>{loadError || 'Kit not found.'}</AlertDescription>
+          </Alert>
+          <Button variant="outline" onClick={loadKit} className="mt-4">
+            Retry
+          </Button>
+        </div>
+      </div>
+    );
   }
 
   return (

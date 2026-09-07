@@ -47,11 +47,16 @@
         workbox: {
           skipWaiting: true,
           clientsClaim: true,
+          // Explicit allowlist so every client-side (react-router) route falls
+          // back to index.html instead of being silently rejected by the SW's
+          // navigation-fallback route — only exclude actual API/asset requests.
+          navigateFallbackAllowlist: [/^(?!\/api\/).*/],
         },
         devOptions: {
           enabled: true,
           type: 'module',
           navigateFallback: 'index.html',
+          navigateFallbackAllowlist: [/^(?!\/api\/).*/],
         }
       })
     ],

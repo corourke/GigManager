@@ -22,11 +22,13 @@ describe('AuthContext Hang Reproduction', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    localStorage.clear();
 
     mockSupabase = {
       auth: {
         getSession: vi.fn().mockResolvedValue({ data: { session: null }, error: null }),
         getUser: vi.fn().mockResolvedValue({ data: { user: null }, error: null }),
+        signOut: vi.fn().mockResolvedValue({ error: null }),
         onAuthStateChange: vi.fn().mockReturnValue({ data: { subscription: { unsubscribe: vi.fn() } } }),
       },
       channel: vi.fn().mockReturnValue({
@@ -98,5 +100,88 @@ describe('AuthContext Hang Reproduction', () => {
 
     expect(result.current.user).toEqual(mockData.profile);
     expect(result.current.organizations).toEqual([]);
+  });
+
+  it('restores the previously selected organization from localStorage for a multi-org user (#26)', async () => {
+    const org1 = { id: 'org-1', name: 'Org One' };
+    const org2 = { id: 'org-2', name: 'Org Two' };
+    localStorage.setItem('selectedOrganizationId', 'org-2');
+
+    const mockData = {
+      profile: { id: 'user-1', email: 'test@example.com' },
+      organizations: [
+        { organization: org1, role: 'Admin' },
+        { organization: org2, role: 'Viewer' },
+      ],
+    };
+    (userService.getCompleteUserData as any).mockResolvedValue(mockData);
+
+    let authChangeHandler: any;
+    mockSupabase.auth.onAuthStateChange.mockImplementation((handler: any) => {
+      authChangeHandler = handler;
+      return { data: { subscription: { unsubscribe: vi.fn() } } };
+    });
+
+    const { result } = renderHook(() => useAuth(), { wrapper });
+
+    await act(async () => {
+      // Simulates the org selection resetting on a hard refresh: the fetched
+      // membership list has 2+ orgs, so without localStorage restoration this
+      // would leave selectedOrganization null and bounce to the org picker.
+      authChangeHandler('SIGNED_IN', { user: { id: 'user-1' } });
+    });
+
+    await vi.waitFor(() => {
+      expect(result.current.isLoading).toBe(false);
+    }, { timeout: 1000 });
+
+    expect(result.current.selectedOrganization?.id).toBe('org-2');
+  });
+
+  it('does not restore a stored organization id the user is no longer a member of', async () => {
+    const org1 = { id: 'org-1', name: 'Org One' };
+    const org2 = { id: 'org-2', name: 'Org Two' };
+    localStorage.setItem('selectedOrganizationId', 'org-stale');
+
+    const mockData = {
+      profile: { id: 'user-1', email: 'test@example.com' },
+      organizations: [
+        { organization: org1, role: 'Admin' },
+        { organization: org2, role: 'Viewer' },
+      ],
+    };
+    (userService.getCompleteUserData as any).mockResolvedValue(mockData);
+
+    let authChangeHandler: any;
+    mockSupabase.auth.onAuthStateChange.mockImplementation((handler: any) => {
+      authChangeHandler = handler;
+      return { data: { subscription: { unsubscribe: vi.fn() } } };
+    });
+
+    const { result } = renderHook(() => useAuth(), { wrapper });
+
+    await act(async () => {
+      authChangeHandler('SIGNED_IN', { user: { id: 'user-1' } });
+    });
+
+    await vi.waitFor(() => {
+      expect(result.current.isLoading).toBe(false);
+    }, { timeout: 1000 });
+
+    expect(result.current.selectedOrganization).toBeNull();
+  });
+
+  it('persists the selection when selectOrganization is called, and clears it on logout', async () => {
+    const { result } = renderHook(() => useAuth(), { wrapper });
+
+    await act(async () => {
+      result.current.selectOrganization({ id: 'org-9', name: 'Org Nine' } as any);
+    });
+    expect(localStorage.getItem('selectedOrganizationId')).toBe('org-9');
+
+    await act(async () => {
+      await result.current.logout();
+    });
+    expect(localStorage.getItem('selectedOrganizationId')).toBeNull();
   });
 });

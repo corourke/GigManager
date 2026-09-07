@@ -79,6 +79,31 @@ export function LandingRedirect() {
   return <Navigate to="/dashboard" replace />;
 }
 
+/**
+ * Signs the user out and returns to `/`. Registered outside `RequireAuth` so
+ * it works even when the app is otherwise stuck (invalid session, a route
+ * guard bounce loop, etc.) — the one URL guaranteed to always recover.
+ */
+export function LogoutRoute() {
+  const { logout } = useAuth();
+  const navigate = useNavigate();
+  const [ranOnce, setRanOnce] = useState(false);
+
+  useEffect(() => {
+    if (ranOnce) return;
+    setRanOnce(true);
+    logout()
+      .catch(() => {
+        // Still navigate home even if the sign-out call itself failed —
+        // this route exists specifically to get an unresponsive session
+        // out of wherever it's stuck.
+      })
+      .finally(() => navigate('/', { replace: true }));
+  }, [ranOnce, logout, navigate]);
+
+  return <LoadingSpinner />;
+}
+
 export function ResetPasswordRoute() {
   const navigate = useNavigate();
   return (
