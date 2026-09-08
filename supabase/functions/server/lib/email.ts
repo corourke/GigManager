@@ -3,7 +3,7 @@
 // APIs (see routes/places.ts's Google Places call). Best-effort: callers
 // should never let an email failure fail the request that triggered it.
 const RESEND_API_URL = 'https://api.resend.com/emails';
-const DEFAULT_FROM = 'GigManager <onboarding@resend.dev>';
+const DEFAULT_FROM = 'GigWrangler <onboarding@resend.dev>';
 
 export interface SendEmailResult {
   sent: boolean;
@@ -17,10 +17,11 @@ export async function sendEmail(params: { to: string; subject: string; html: str
     return { sent: false, error: 'RESEND_API_KEY not configured' };
   }
 
-  // onboarding@resend.dev works without domain verification but (per
-  // Resend's own sandbox restrictions) can only deliver to the account
-  // owner's verified address until a real sending domain is verified —
-  // set RESEND_FROM_EMAIL once one is, no code change needed.
+  // RESEND_FROM_EMAIL is set in both dev and prod, so DEFAULT_FROM is a
+  // safety net rather than the live path. The fallback is Resend's sandbox
+  // sender, which (per Resend's own restrictions) only delivers to the
+  // account owner's verified address — an unset secret therefore degrades
+  // delivery silently rather than erroring. Keep it set.
   const from = Deno.env.get('RESEND_FROM_EMAIL') || DEFAULT_FROM;
 
   try {
