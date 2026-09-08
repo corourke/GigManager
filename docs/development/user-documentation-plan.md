@@ -1,10 +1,12 @@
 # GigWrangler User Documentation Plan
 
-**Last Updated**: 2026-09-06
-**Status**: No user-facing documentation written yet. This is a planning document. The
-structure below (§ "Proposed Documentation Structure") predates ~6 months of shipped
-work; the "Recently Shipped" section tracks features that now exist and need to be
-documented, cross-referenced to the sections they belong in.
+**Last Updated**: 2026-09-08
+**Status**: No user-facing docs written yet — but the core new-user path is now coherent
+end to end (see "Status & Next Steps"). Docs will be authored as **Markdown** and published
+from `website/` via a static-site generator (**Astro + Starlight** recommended; not yet
+stood up). The 2026-09-06 dry run
+([`dry-run-findings-2026-09-06.md`](dry-run-findings-2026-09-06.md)) drove issues #22–#33;
+most are now fixed.
 
 > The product was renamed **GigManager → GigWrangler** (gigwrangler.com) in May 2026.
 > The git repository is still named `GigManager`. Use "GigWrangler" in all user-facing copy.
@@ -14,13 +16,50 @@ This plan outlines the structure and content for comprehensive user-facing docum
 
 ---
 
+## Status & Next Steps
+
+**Ready to draft.** As of 2026-09-08 the *register → create/claim org → gig → staffing →
+expense → calendar* path works without the blockers the 2026-09-06 dry run found.
+
+- ✅ **Fixed since the dry run:** deep links (#26), logout (#18), post-registration URL
+  (#17), gig-edit rows rendering without a reload (#16, #28), expense date off-by-one
+  (#25), Google Calendar sync (#9), mobile all-day gigs (#10), and the org-ownership
+  dead-end — now a full **claim / access-request** flow (#33 → PR #48).
+- ⛔ **One doc-blocker remains — #22:** Google Places business/venue search is down on the
+  backend (expired API key; needs a manual renewal). Manual address entry works, so docs
+  can proceed and mark venue search "temporarily unavailable".
+- 〰️ **Cosmetic, won't block docs:** #23 (tag entry needs Enter), #27 (list row opens via
+  the ⋮ menu only), #29 (search-error copy), #31 (toast dismissal), #32 (signup password).
+
+**Next actions:**
+1. This refresh. *(done)*
+2. Stand up the `website/` docs site (Astro + Starlight): port `index.html`, wire the
+   sidebar to the section structure below, deploy to Cloudflare Pages.
+3. **Second walkthrough pass** covering what the first one missed — schedule entries,
+   calendar, change history, equipment/kits — plus the two newest, least-tested flows:
+   **org claiming (#48)** and **participant → contact (PR #14)**.
+4. Write **"Getting Started"** (§1–§3) against the now-working flow.
+
+---
+
 ## Recently Shipped — Documentation Backlog
 
 Features that have landed since this plan was first written (2026-03) and are not yet
 reflected in the structure below. Grouped by the documentation section they belong in.
 References: `commit`, GitHub PR `#n`, GitHub issue `#n` (repo `corourke/GigManager`).
 
-### Latest sprint (2026-08-24 → 2026-09-06)
+### Latest sprint (2026-09-07 → 2026-09-08): onboarding de-block + org claiming
+
+| Area | What shipped | Doc task | Refs |
+|---|---|---|---|
+| §1 / §11 | **Organization claiming & access requests** — browse organizations, then **Claim** an unclaimed org or **Request access** to a claimed one; a **platform moderator** approves/rejects from a queue; the requester gets an email (Resend) + an in-app notification-bell update. `organizations.claimed` gates who may edit/delete an org. | New §11 "Organization Access & Claiming" — the claim vs. request vs. invite paths, what a moderator does, what approval grants. | PR #48; issues #33 #42 #43 #44 #45 #46 #47; checklist `access-request-system-manual-test-checklist.md` |
+| §1 Onboarding | **Deep links, logout, and the post-registration URL are fixed** — gig/detail URLs are now shareable and bookmarkable; `/logout` works; new users land on a valid page. | Safe to document shareable URLs and sign-out. | PR #38; issues #17 #18 #26 |
+| §3 Gig Management | **New gig-edit rows render immediately** (staff slots, participants) — no reload needed to see the assignment / contact controls. | Drop the "reload first" caveat from the §3 staffing/participants drafts. | PR #35; issues #16 #28 |
+| §5 Financials | **Expense / mileage dates fixed** (were a day early); mileage-rate year off-by-one fixed. | — | PR #34; issue #25 |
+| §7 Calendar | **Google Calendar sync** connect/permission failures diagnosed & fixed; the picker only offers calendars you can write to and warns when write access is later lost. | §7 text is updated below — verify against the shipped UI in the next walkthrough. | PR #19; issue #9 |
+| §8 Mobile | **Single-day all-day gigs** save correctly after an edit. | — | PR #21; issue #10 |
+
+### Earlier sprint (2026-08-24 → 2026-09-06)
 
 | Area | What shipped | Doc task | Refs |
 |---|---|---|---|
@@ -46,19 +85,26 @@ References: `commit`, GitHub PR `#n`, GitHub issue `#n` (repo `corourke/GigManag
 | Area | What shipped | Doc task |
 |---|---|---|
 | New §9 | **Change history / audit trail** for gigs, assets, and kits, with actor snapshotting and an in-context history UI. | Add a new top-level section (see §9 below). |
-| §7 Calendar | **Google Calendar one-way sync** + **conflict detection** (staff, equipment, venue) across month/week views. *Note: issue #9 reports Google Calendar sync currently not working — confirm before documenting the connect flow.* | Flesh out §7 with the real connect/sync flow and conflict-warning behavior. |
+| §7 Calendar | **Google Calendar one-way sync** + **conflict detection** (staff, equipment, venue) across month/week views. Connect/permission failures fixed in PR #19 (#9). | Flesh out §7 with the real connect/sync flow, the writable-calendar picker, and conflict-warning behavior. |
 | §3 Gig Management | **Multi-act scheduling + schedule editor**: schedule entries (load-in, soundcheck, sets…) within a gig, compact rows, optional end time, native date/time pickers, date grouping. | Add §3 "Schedule / Run of Day" topic. |
 | §8 Mobile | **Staff mobile dashboard**: upcoming assigned gigs with venue/contact quick links; gigs are editable in the mobile UI. | Expand §8 "Mobile Dashboard". |
 | §2 / all | **Role-based UI gating**: `canManage` hides create/edit/delete affordances from Staff/Viewer. Financials reads and gig creation restricted to Admin/Manager. Multi-org membership with per-org roles. | Update §2 "Team Roles" with the real capability matrix per role. |
 | §2 Auth | **Password reset flow** + invite-acceptance hardening. | Add to §1 "Onboarding". |
 | §5 Financials | **Financials Improvements** (`fin-improvements-913f`, in testing): dedicated Purchases tab, purchase detail panel, edit purchases via the import-dialog UI, per-line gig assignment, inline document/asset panels. | Hold until merged; then fold into §5. |
-| Platform | **June 2026 engineering remediation**: Hono edge-function middleware, react-router v7 (deep-linkable URLs), TanStack Query, CI, Sentry, org-scoped attachment storage, RLS hardening. Mostly invisible to users, but deep-linkable URLs are worth a mention. | Minor: note shareable/bookmarkable URLs where relevant. |
+| Platform | **June 2026 engineering remediation**: Hono edge-function middleware, react-router v7 (deep-linkable URLs — now verified working, #26), TanStack Query, CI, Sentry, org-scoped attachment storage, RLS hardening. Mostly invisible to users, but shareable URLs are worth a mention. | Minor: note shareable/bookmarkable URLs where relevant. |
 
-### Known open issues that will affect documentation
+### Known open issues that affect documentation (as of 2026-09-08)
 
-Do not document these flows until resolved: #9 (Google Calendar integration not working),
-#17 (bad URL after new-user registration), #18 (no logout URL), #10 (mobile all-day events
-can't be saved after edit), #16, #12.
+- **#22 — Google Places business/venue search is down** (expired backend API key; manual
+  address entry still works). Document manual venue/address entry; hold any screenshot of
+  the search dropdown until the key is renewed.
+- **#27 — a gig opens only from the list's row ⋮ menu** (clicking the row edits a cell).
+  Tell readers "use the row ⋮ menu → View / Edit" until this changes.
+- **#12 — Gig Edit may be reorganized into tabs** (deferred, no owner). The §3 "anatomy of
+  a gig" layout could still shift; keep that section lightly structured.
+- Minor, safe to ignore for now: #23, #29, #31, #32.
+
+Resolved since the last revision — no longer blockers: **#9, #10, #16, #17, #18, #25, #26, #28**.
 
 ---
 
@@ -66,26 +112,29 @@ can't be saved after edit), #16, #12.
 
 ### 1. Getting Started
 - **What is GigWrangler?**: High-level overview of the platform's purpose.
-- **Onboarding**: Setting up your profile, joining an organization, accepting an invite, password reset. *(shipped)*
+- **Onboarding**: Sign up, set up your profile, sign in and out, password reset. *(shipped)*
+- **Getting into an organization**: create your own (you become its Admin), **claim** an
+  unclaimed org, **request access** to an existing one, or accept an **invitation** — full
+  detail in §11. *(shipped — PR #48)*
 - **The Dashboard**: Understanding the main navigation and your upcoming schedule.
 
 ### 2. Organization & Team Management
-- **Organization Settings**: Managing organization-wide defaults (branding, timezones).
+- **Organization Settings**: Managing organization-wide defaults (branding, timezones); the `claimed` state (see §11).
 - **Team Roles**: Capability matrix for Admin / Manager / Staff / Viewer (see §10); seeded default staff roles; a person can hold a different role in each org they belong to. *(shipped)*
-- **Inviting Members**: How to add your team and manage invitations.
+- **Inviting Members**: How to add your team and manage invitations (Admin/Manager pick the invitee's role).
 - **Adding people without a login**: quick-add staff/contacts, the duplicate-detection picker (see §3 and Prompt 6). *(shipped — issue #5)*
 - **Member Profiles**: Managing skills, contact info, and availability; the Organization Contacts roster grouped by login status (has account / invited / no account). *(shipped)*
 
 ### 3. Gig Management
-- **Creating a Gig**: Basic info, scheduling (Setup, Show, Strike), and location.
-- **The Gig List**: Upcoming / Past tabs (web + mobile), status/type/member filters that persist, CSV export with configurable financial columns. *(shipped)*
+- **Creating a Gig**: Basic info, start/end date-time, timezone, status, tags. Venue/location and everything else is added afterward from the gig's detail page. *(venue search unavailable — #22)*
+- **The Gig List**: Upcoming / Past tabs (web + mobile), status/type/member filters that persist, CSV export with configurable financial columns. Open a gig from the row **⋮ menu → View / Edit** (#27). *(shipped)*
 - **Gig Detail View**: Centralized hub for all gig-related data.
 - **Schedule / Run of Day**: Multi-act schedule entries (load-in, soundcheck, sets…), optional end times, date grouping. *(shipped)*
 - **Staffing & Participants**:
     - Managing Staff Slots (Roles, Quantities).
     - Assigning Team Members and tracking status (Invited → Confirmed/Declined).
     - **Participating Organizations**: venues, vendors, and acts as first-class participants, each with the client flag and its own contact roster. *(shipped)*
-    - **Per-gig participant contacts**: attach a contact to a participating org for this gig without making them a permanent member; pick an existing person (duplicate-checked) or create a new one. *(shipped — issues #5, #13)*
+    - **Per-gig participant contacts**: attach a contact to a participating org for this gig without making them a permanent member; pick an existing person (duplicate-checked) or create a new one. *(shipped — issues #5, #13, #28)*
     - Quick-add staff without an invite (no login required). *(shipped — issue #5)*
 - **Gig Documents & Notes**: Using the Markdown editor for show notes and attachments; receipts can be attached at the gig-expense level. *(shipped)*
 - **Change History**: per-gig audit trail (see §9). *(shipped)*
@@ -94,7 +143,7 @@ can't be saved after edit), #16, #12.
 - **Assets vs. Kits**: Understanding trackable individual items vs. grouped equipment sets.
 - **The Asset Library**: Searching, filtering, and managing your equipment database.
 - **Creating Kits**: Building standardized equipment packages (e.g., "Camera Op Kit").
-    - **Hierarchical / container kits**: kits can contain other kits (many-to-many, no hard depth cap); logical vs. container kits; how packing lists flatten the nested forest to real assets and dedupe across levels. *(shipped — see `hierarchical-kits-*` docs)*
+    - **Hierarchical / container kits**: kits can contain other kits (many-to-many, no hard depth cap); logical vs. container kits; how packing lists flatten the nested forest to real assets and dedupe across levels. *(shipped — see `hierarchical-kits-manual-test-checklist.md`)*
     - **Kit detail screen**: combined component tree + flattened view, container-aware item counts. *(shipped)*
 - **Location Explorer**: editable location hierarchy for where gear lives. *(shipped)*
 - **Inventory Reports**: manifest (with interactive checkboxes), packing list (nested kits), maintenance queue. *(shipped)*
@@ -112,7 +161,7 @@ can't be saved after edit), #16, #12.
 - **Gig-Specific Expenses**: Tracking purchases and expenses against specific projects.
     - **Assign Gig** flow on a purchase line / expense: date-windowed gig picker (±21 days), reversible retroactive association, burdened cost posts to the gig ledger. *(shipped — PR #4)*
     - Sub-contractor costs count as gig expenses in profitability. *(shipped)*
-    - **Simple Expense**: "Already paid" toggle + inline receipt upload; receipts attach directly to the gig expense. *(shipped)*
+    - **Simple Expense**: "Already paid" toggle + inline receipt upload; receipts attach directly to the gig expense; dates save correctly (#25). *(shipped)*
 - **Purchases Tab** *(in testing — `fin-improvements-913f`)*: dedicated tab, detail panel, edit purchases via the import-dialog UI, per-line gig assignment, inline document/asset panels.
 
 ### 6. Data Import & AI Scanning
@@ -134,7 +183,7 @@ can't be saved after edit), #16, #12.
       events" access on are shown in the picker — if you want to sync to a shared/team calendar you don't
       own, its owner needs to grant that access first, or connect using the owner's Google account instead.
       A calendar that loses write access after being selected shows a warning here and blocks "Sync All
-      Gigs" until it's resolved (see issue #9).
+      Gigs" until it's resolved (fixed in PR #19 / issue #9).
     - One-way sync of Gigs to your personal or organization-wide calendar.
 - **Conflict Detection**: How the system warns about overlapping schedules for staff, equipment, and venue. *(shipped)*
 
@@ -154,7 +203,21 @@ can't be saved after edit), #16, #12.
 ### 10. Roles & Access *(NEW — expand from §2)*
 - **Capability matrix**: what Admin / Manager / Staff / Viewer can each see and do (Financials reads and gig creation are Admin/Manager only; `canManage` hides create/edit/delete affordances from Staff/Viewer).
 - **Multi-org membership**: belonging to more than one organization with a different role in each.
+- **Claimed vs. unclaimed organizations**: `organizations.claimed` gates who may edit/delete an org, and determines whether newcomers *claim* or *request access* (see §11).
+- **Platform moderators**: the `platform_moderator` flag and what it grants (the access-request queue).
 - **Sharing a gig across organizations**: what participating-org members can see (RLS covers all org members, not just named contacts). *(shipped — commit `495cf35`)*
+
+### 11. Organization Access & Claiming *(NEW — shipped 2026-09, PR #48)*
+- **Four ways into an org**: create a new one (you become Admin) · **claim** an org that
+  has no Admin yet · **request access** to a claimed org (a platform moderator approves) ·
+  accept an **invitation** from an Admin/Manager (they choose your role).
+- **The request / approve flow**: where the "Claim" / "Request access" buttons appear, what
+  the requester sees while a request is pending, and the email + notification-bell update
+  when it's approved or rejected.
+- **Platform moderators**: the `platform_moderator` role and the moderator queue screen —
+  who has it, how they approve/reject, and what approval grants the requester.
+- **`organizations.claimed`**: what "claimed" means (ties to §10). Once an org is claimed,
+  only its Admin/Manager can edit or delete it.
 
 ---
 
@@ -183,3 +246,6 @@ can't be saved after edit), #16, #12.
 
 ### Prompt 8: Change History
 > "Write a short 'Change History' reference for GigWrangler. Explain that gigs, assets, and kits keep an audit trail of who changed what and when, that the recorded actor name/role is a snapshot from the moment of the change, and how to open the in-context history panel on a record."
+
+### Prompt 9: Getting Into an Organization
+> "Write a 'Joining an Organization' guide for GigWrangler. Cover the four paths: creating your own organization, claiming an organization that has no administrator yet, requesting access to an organization that's already claimed (and what a platform moderator does with that request), and accepting an emailed invitation. Explain what the requester sees while a request is pending and how they're notified of the decision (email and the in-app notification bell)."
