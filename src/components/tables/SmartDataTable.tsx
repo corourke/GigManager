@@ -73,6 +73,12 @@ export interface ColumnDef<T> {
    * timestamp accessor formatted to a plain export date).
    */
   exportValue?: (row: T) => string | number | null | undefined;
+  /**
+   * A single click on this cell calls this instead of selecting it for
+   * inline editing (double-click still edits, if `editable` is also set).
+   * Use for a "click the title to open the row" affordance.
+   */
+  onCellClick?: (row: T) => void;
 }
 
 interface SmartDataTableProps<T extends { id: string }> {

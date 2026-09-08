@@ -541,6 +541,10 @@ export function EditableCell<T>({
       )}
       onClick={(e) => {
         e.stopPropagation();
+        if (column.onCellClick) {
+          column.onCellClick(row);
+          return;
+        }
         if (!isSelected) {
           onSelect();
         } else if (!isEditing) {

@@ -10,6 +10,11 @@ const Toaster = ({ ...props }: ToasterProps) => {
     <Sonner
       theme={theme as ToasterProps["theme"]}
       className="toaster group"
+      // Explicit so every toast — including errors — is guaranteed to both
+      // auto-dismiss and offer a manual dismiss control (see #31): don't
+      // rely on the library default alone.
+      duration={5000}
+      closeButton
       style={
         {
           "--normal-bg": "var(--popover)",

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import GigBasicInfoSection from './GigBasicInfoSection';
 import * as gigService from '../../services/gig.service';
@@ -117,5 +117,36 @@ describe('GigBasicInfoSection', () => {
 
     const checkbox = screen.getByLabelText('All day') as HTMLButtonElement;
     expect(checkbox.getAttribute('data-state')).toBe('checked');
+  });
+
+  describe('create mode', () => {
+    it('commits uncommitted tag text on submit instead of discarding it (#23)', async () => {
+      const user = userEvent.setup();
+      const onCreate = vi.fn().mockResolvedValue(undefined);
+      const { container } = render(<GigBasicInfoSection onCreate={onCreate} />);
+
+      await user.type(screen.getByPlaceholderText('Enter gig title'), 'My Gig');
+      // All-day avoids also having to fill in hour/minute selects.
+      await user.click(screen.getByLabelText('All day'));
+      fireEvent.change(screen.getByLabelText(/Start Date/i), {
+        target: { value: '2024-06-01' },
+      });
+
+      // Type tag text but never press Enter/Tab to commit it.
+      await user.type(
+        screen.getByPlaceholderText('Add tags to categorize this gig...'),
+        'festival, main-stage'
+      );
+
+      const form = container.querySelector('#gig-basic-info-form') as HTMLFormElement;
+      fireEvent.submit(form);
+
+      await waitFor(() => {
+        expect(onCreate).toHaveBeenCalled();
+      });
+      expect(onCreate.mock.calls[0][0]).toEqual(
+        expect.objectContaining({ tags: ['festival', 'main-stage'] })
+      );
+    });
   });
 });

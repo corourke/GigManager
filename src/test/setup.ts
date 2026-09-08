@@ -9,6 +9,13 @@ if (typeof globalThis.ResizeObserver === 'undefined') {
   } as any;
 }
 
+// jsdom doesn't implement scrollIntoView; cmdk (Command/CommandList, used by
+// TagsInput's suggestions popover among others) calls it when an item is
+// highlighted, which otherwise throws and can crash the render tree mid-test.
+if (typeof Element !== 'undefined' && !Element.prototype.scrollIntoView) {
+  Element.prototype.scrollIntoView = function scrollIntoView() {};
+}
+
 // Reset persisted web storage between tests so filter/table state written by
 // one test (e.g. useGigListFilters) can't leak into the next. Whether
 // localStorage is backed by a real implementation depends on the JS engine /

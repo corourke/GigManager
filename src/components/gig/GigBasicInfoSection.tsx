@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useForm, Controller } from 'react-hook-form';
 import { forwardRef, useImperativeHandle } from 'react';
 import { z } from 'zod';
@@ -9,7 +9,7 @@ import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 import { Checkbox } from '../ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
-import TagsInput from '../TagsInput';
+import TagsInput, { TagsInputHandle } from '../TagsInput';
 import MarkdownEditor from '../MarkdownEditor';
 import { getGig, updateGig } from '../../services/gig.service';
 import { useAutoSave } from '../../utils/hooks/useAutoSave';
@@ -62,6 +62,7 @@ interface GigBasicInfoSectionProps {
 const GigBasicInfoSection = forwardRef<GigBasicInfoSectionHandle, GigBasicInfoSectionProps>(function GigBasicInfoSection({ gigId, onCreate, isSubmitting: externalIsSubmitting }, ref) {
   const [isLoading, setIsLoading] = useState(!!gigId);
   const isCreateMode = !gigId;
+  const tagsInputRef = useRef<TagsInputHandle>(null);
 
   const { control, handleSubmit, formState: { errors, isDirty, isSubmitting: internalIsSubmitting }, setValue, watch, reset } = useForm<BasicInfoFormData>({
     resolver: zodResolver(basicInfoSchema),
@@ -186,9 +187,15 @@ const GigBasicInfoSection = forwardRef<GigBasicInfoSectionHandle, GigBasicInfoSe
         </div>
       </CardHeader>
       <CardContent>
-        <form 
+        <form
           id="gig-basic-info-form"
-          onSubmit={isCreateMode ? handleSubmit(onCreate!) : (e) => e.preventDefault()}
+          onSubmit={isCreateMode ? (e) => {
+            // Commit any tag text still sitting in the input (not yet
+            // Enter-committed) before validating/submitting, so it isn't
+            // silently discarded.
+            tagsInputRef.current?.commitPending();
+            return handleSubmit(onCreate!)(e);
+          } : (e) => e.preventDefault()}
         >
           <div className="space-y-6">
             <div className="space-y-2">
@@ -467,6 +474,7 @@ const GigBasicInfoSection = forwardRef<GigBasicInfoSectionHandle, GigBasicInfoSe
                 control={control}
                 render={({ field }) => (
                   <TagsInput
+                    ref={tagsInputRef}
                     value={field.value || []}
                     onChange={field.onChange}
                     suggestions={SUGGESTED_TAGS}

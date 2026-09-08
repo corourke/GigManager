@@ -272,8 +272,9 @@ export default function GigListScreen({
       editable: canEdit,
       type: 'text',
       className: 'w-[25%]',
+      onCellClick: (row) => onViewGig(row.id),
       render: (val) => (
-        <span className="font-medium text-gray-900">
+        <span className="font-medium text-gray-900 hover:underline cursor-pointer">
           {val || <span className="text-gray-400 italic">Untitled Gig</span>}
         </span>
       ),
@@ -420,7 +421,7 @@ export default function GigListScreen({
       readOnly: true,
       type: 'currency',
     },
-  ], [canEdit, getGigFinancials]);
+  ], [canEdit, getGigFinancials, onViewGig]);
 
   // Fallback for the (rare) case Export is clicked before SmartDataTable's
   // mount effect has reported which columns are visible: mirrors its own
