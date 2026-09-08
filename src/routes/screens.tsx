@@ -43,6 +43,7 @@ import FinancialsScreen from '../components/FinancialsScreen';
 import OrganizationSelectionScreen from '../components/OrganizationSelectionScreen';
 import OrganizationScreen from '../components/OrganizationScreen';
 import AdminOrganizationsScreen from '../components/AdminOrganizationsScreen';
+import ModeratorAccessRequestsScreen from '../components/ModeratorAccessRequestsScreen';
 import DevTableDemoScreen from '../components/dev/DevTableDemoScreen';
 
 // Mobile screens
@@ -115,7 +116,16 @@ function CreateOrgRoute() {
     <OrganizationScreen
       userId={user.id}
       onCancel={nav.switchOrganization}
-      onOrganizationCreated={(org: Organization) => {
+      onOrganizationCreated={(org: Organization, joined: boolean) => {
+        if (!joined) {
+          // "Create without Joining": the creator is deliberately not a member
+          // (a partner org that stays unclaimed). Leave memberships and the
+          // selected org untouched and send them to the admin org list, where
+          // it shows with its "Unclaimed" badge — don't drop them into a
+          // dashboard for an org they aren't a member of and can't load.
+          nav.toAdminOrgs();
+          return;
+        }
         const newMembership: OrganizationMembership = { organization: org, role: 'Admin' };
         setOrganizations([...organizations, newMembership]);
         selectOrganization(org);
@@ -126,15 +136,32 @@ function CreateOrgRoute() {
 }
 
 function AdminOrgsRoute() {
-  const { user } = useAuth();
+  const { user, organizations } = useAuth();
   const nav = useNav();
   const { openEditProfile } = useAppShell();
   if (!user) return <LoadingSpinner />;
   return (
     <AdminOrganizationsScreen
       user={user}
+      organizations={organizations}
       onEditOrganization={nav.editOrg}
       onCreateOrganization={nav.toCreateOrg}
+      onBack={nav.toOrgSelection}
+      onLogout={nav.logoutAndHome}
+      onEditProfile={openEditProfile}
+    />
+  );
+}
+
+function ModeratorAccessRequestsRoute() {
+  const { user } = useAuth();
+  const nav = useNav();
+  const { openEditProfile } = useAppShell();
+  if (!user) return <LoadingSpinner />;
+  if (!user.platform_moderator) return <Navigate to="/org-selection" replace />;
+  return (
+    <ModeratorAccessRequestsScreen
+      user={user}
       onBack={nav.toOrgSelection}
       onLogout={nav.logoutAndHome}
       onEditProfile={openEditProfile}
@@ -630,6 +657,7 @@ export function AppRoutes() {
         <Route path="/create-org" element={<CreateOrgRoute />} />
         <Route path="/admin/orgs" element={<AdminOrgsRoute />} />
         <Route path="/admin/orgs/:orgId/edit" element={<EditOrgRoute />} />
+        <Route path="/admin/access-requests" element={<ModeratorAccessRequestsRoute />} />
 
         {/* Org-scoped app */}
         <Route element={<RequireOrg />}>

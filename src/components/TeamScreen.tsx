@@ -28,9 +28,12 @@ import {
   type OrganizationMember,
   type Invitation,
 } from './team/useTeamData';
-import { useMemberColumns, useInvitationColumns } from './team/teamColumns';
+import { useMemberColumns, useInvitationColumns, useAccessRequestColumns, AccessRequestActions } from './team/teamColumns';
 import AddTeamMemberDialog from './team/AddTeamMemberDialog';
 import EditMemberDialog from './team/EditMemberDialog';
+import RequestAccessDialog from './team/RequestAccessDialog';
+import { useOrgAccessRequests, useDecideAccessRequest } from '../hooks/useAccessRequests';
+import type { AccessRequestWithRelations } from '../utils/supabase/types';
 
 interface TeamScreenProps {
   organization: Organization;
@@ -64,16 +67,23 @@ export default function TeamScreen({
   const invitationsQuery = useInvitations(orgId);
   const { updateMember, removeMember, cancelInvitation } = useTeamMutations(orgId);
 
+  const isOrgAdmin = userRole === 'Admin';
+  const canRequestAccess = userRole === 'Viewer' || userRole === 'Staff';
+  const accessRequestsQuery = useOrgAccessRequests(orgId, isOrgAdmin);
+  const decideAccessRequest = useDecideAccessRequest();
+
   const members = membersQuery.data ?? [];
   const staffRoles = staffRolesQuery.data ?? [];
   const invitations = invitationsQuery.data?.invitations ?? [];
   const invitationsTableExists = invitationsQuery.data?.tableExists ?? true;
+  const accessRequests = accessRequestsQuery.data ?? [];
   const membersError = membersQuery.isError
     ? (membersQuery.error as Error)?.message || 'Failed to load members'
     : null;
 
   // Dialog state (non-URL local UI state)
   const [showAddDialog, setShowAddDialog] = useState(false);
+  const [showRequestAccessDialog, setShowRequestAccessDialog] = useState(false);
   const [memberToEdit, setMemberToEdit] = useState<OrganizationMember | null>(null);
   const [memberToRemove, setMemberToRemove] = useState<OrganizationMember | null>(null);
   const [invitationToCancel, setInvitationToCancel] = useState<Invitation | null>(null);
@@ -101,6 +111,7 @@ export default function TeamScreen({
     canManageTeam,
   });
   const invitationColumns = useInvitationColumns();
+  const accessRequestColumns = useAccessRequestColumns();
 
   // Inline cell edit with optimistic cache update + rollback on failure.
   const handleMemberUpdate = async (id: string, updates: Partial<OrganizationMember>) => {
@@ -179,6 +190,16 @@ export default function TeamScreen({
     },
   ], []);
 
+  const handleDecideAccessRequest = async (row: AccessRequestWithRelations, decision: 'approved' | 'rejected') => {
+    try {
+      await decideAccessRequest.mutateAsync({ orgId, requestId: row.id, decision });
+      toast.success(decision === 'approved' ? 'Access request approved' : 'Access request rejected');
+    } catch (error: any) {
+      console.error('Error deciding access request:', error);
+      toast.error(error.message || 'Failed to update access request');
+    }
+  };
+
   const handleRemoveMember = async () => {
     if (!memberToRemove) return;
     try {
@@ -221,7 +242,7 @@ export default function TeamScreen({
           title="Team"
           description={`Manage members of ${organization.name}`}
           actions={
-            canManageTeam && (
+            canManageTeam ? (
               <Button
                 onClick={() => setShowAddDialog(true)}
                 className="bg-sky-500 hover:bg-sky-600 text-white"
@@ -229,7 +250,14 @@ export default function TeamScreen({
                 <Plus className="mr-2 h-4 w-4" />
                 Add Team Member
               </Button>
-            )
+            ) : canRequestAccess ? (
+              <Button
+                onClick={() => setShowRequestAccessDialog(true)}
+                variant="outline"
+              >
+                Request Access
+              </Button>
+            ) : undefined
           }
         />
 
@@ -290,13 +318,32 @@ export default function TeamScreen({
 
         {/* Pending Invitations */}
         {canManageTeam && invitations.length > 0 && (
-          <Card className="p-6">
+          <Card className="p-6 mb-4">
             <h2 className="mb-4 text-gray-900">Pending Invitations</h2>
             <SmartDataTable
               tableId="team-invitations"
               data={invitations}
               columns={invitationColumns}
               rowActions={invitationRowActions}
+            />
+          </Card>
+        )}
+
+        {/* Pending Access Requests — this org's Admins only (issue #33) */}
+        {isOrgAdmin && accessRequests.length > 0 && (
+          <Card className="p-6">
+            <h2 className="mb-4 text-gray-900">Pending Access Requests</h2>
+            <SmartDataTable
+              tableId="team-access-requests"
+              data={accessRequests}
+              columns={accessRequestColumns}
+              actions={(row) => (
+                <AccessRequestActions
+                  row={row}
+                  onApprove={(r) => handleDecideAccessRequest(r, 'approved')}
+                  onReject={(r) => handleDecideAccessRequest(r, 'rejected')}
+                />
+              )}
             />
           </Card>
         )}
@@ -308,6 +355,13 @@ export default function TeamScreen({
         orgId={orgId}
         organizationName={organization.name}
         excludeUserIds={excludeUserIds}
+      />
+
+      <RequestAccessDialog
+        open={showRequestAccessDialog}
+        onOpenChange={setShowRequestAccessDialog}
+        orgId={orgId}
+        organizationName={organization.name}
       />
 
       <EditMemberDialog

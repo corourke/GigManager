@@ -1,6 +1,7 @@
 import type { App } from '../lib/types.ts';
 import { requireUser } from '../lib/auth.ts';
 import { requireOrgRole, verifyOrgMembership } from '../lib/orgRole.ts';
+import { emailDomainMatches } from '../lib/pure/authz.ts';
 import { supabaseAdmin } from '../lib/supabaseAdmin.ts';
 
 const ORG_UPDATE_FIELDS = [
@@ -49,7 +50,7 @@ export function registerOrganizations(app: App) {
     }
 
     const { data: org, error: orgError } = await supabaseAdmin
-      .from('organizations').insert(orgData).select().single();
+      .from('organizations').insert({ ...orgData, claimed: auto_join }).select().single();
     if (orgError) {
       console.error('Error creating organization:', orgError);
       return c.json({ error: orgError.message }, 400);
@@ -69,8 +70,8 @@ export function registerOrganizations(app: App) {
     return c.json(org);
   });
 
-  // Update organization — org Admin, or any global admin
-  app.put('/organizations/:id', requireUser, requireOrgRole({ roles: ['Admin'], allowGlobalAdmin: true }), async (c) => {
+  // Update organization — Admin of this org, or (while unclaimed) an Admin of any org
+  app.put('/organizations/:id', requireUser, requireOrgRole({ roles: ['Admin'], allowGlobalAdminIfUnclaimed: true }), async (c) => {
     const orgId = c.req.param('id');
 
     const { data: org, error: orgError } = await supabaseAdmin
@@ -104,8 +105,8 @@ export function registerOrganizations(app: App) {
     return c.json(updatedOrg);
   });
 
-  // Delete organization — org Admin, or any global admin
-  app.delete('/organizations/:id', requireUser, requireOrgRole({ roles: ['Admin'], allowGlobalAdmin: true }), async (c) => {
+  // Delete organization — Admin of this org, or (while unclaimed) an Admin of any org
+  app.delete('/organizations/:id', requireUser, requireOrgRole({ roles: ['Admin'], allowGlobalAdminIfUnclaimed: true }), async (c) => {
     const orgId = c.req.param('id');
 
     const { data: org, error: orgError } = await supabaseAdmin
@@ -171,8 +172,12 @@ export function registerOrganizations(app: App) {
       if (targetRole === 'Admin' && currentUserMembership.role !== 'Admin') {
         return c.json({ error: 'Only Admins can add other Admins' }, 403);
       }
+    } else if (targetRole === 'Staff') {
+      if (!emailDomainMatches(user.email, org.allowed_domains)) {
+        return c.json({ error: 'Self-joining as Staff requires a matching email domain' }, 400);
+      }
     } else if (targetRole !== 'Viewer') {
-      return c.json({ error: 'Self-joining can only be as Viewer' }, 400);
+      return c.json({ error: 'Self-joining can only be as Viewer, or Staff with a matching email domain' }, 400);
     }
 
     const { data: existingMember } = await supabaseAdmin

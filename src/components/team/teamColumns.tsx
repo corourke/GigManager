@@ -1,9 +1,10 @@
 import { useMemo } from 'react';
-import { Crown, Shield, User as UserIcon, Mail, Clock } from 'lucide-react';
+import { Crown, Shield, User as UserIcon, Mail, Clock, Check, X } from 'lucide-react';
 import { format } from 'date-fns';
 import { Badge } from '../ui/badge';
+import { Button } from '../ui/button';
 import { ColumnDef } from '../tables/SmartDataTable';
-import type { UserRole } from '../../utils/supabase/types';
+import type { UserRole, AccessRequestWithRelations } from '../../utils/supabase/types';
 import type { OrganizationMember, Invitation } from './useTeamData';
 
 export function getRoleIcon(role: UserRole) {
@@ -198,4 +199,89 @@ export function useInvitationColumns(): ColumnDef<Invitation>[] {
       ),
     },
   ], []);
+}
+
+export function useAccessRequestColumns(): ColumnDef<AccessRequestWithRelations>[] {
+  return useMemo<ColumnDef<AccessRequestWithRelations>[]>(() => [
+    {
+      id: 'requester',
+      header: 'Requester',
+      accessor: (row) => `${row.requester.first_name} ${row.requester.last_name}`,
+      sortable: true,
+      filterable: true,
+      render: (val, row) => (
+        <div>
+          <div className="font-medium text-gray-900">{val}</div>
+          <div className="text-sm text-gray-500">{row.requester.email}</div>
+        </div>
+      ),
+    },
+    {
+      id: 'requested_role',
+      header: 'Requested Role',
+      accessor: 'requested_role',
+      sortable: true,
+      filterable: true,
+      render: (val) => <Badge className={getRoleBadgeColor(val as UserRole)}>{val}</Badge>,
+    },
+    {
+      id: 'message',
+      header: 'Message',
+      accessor: 'message',
+      render: (val) => <span className="text-sm text-gray-600">{val || '—'}</span>,
+    },
+    {
+      id: 'created_at',
+      header: 'Requested',
+      accessor: 'created_at',
+      sortable: true,
+      render: (val) => (
+        <div className="flex items-center gap-2 text-sm text-gray-600">
+          <Clock className="w-4 h-4" />
+          {format(new Date(val), 'MMM d, yyyy')}
+        </div>
+      ),
+    },
+  ], []);
+}
+
+/**
+ * Approve/Reject as two compact labelled buttons rather than tucked behind a
+ * "..." menu — there are only ever these two choices, so a menu adds a click
+ * for no benefit. Labelled + bordered (not bare icons) so they're easy to see
+ * and hit. Pass via SmartDataTable's `actions` prop (not `rowActions`, which is
+ * for the generic view/edit/duplicate/delete set); that prop also widens the
+ * actions column to fit them.
+ */
+export function AccessRequestActions({
+  row,
+  onApprove,
+  onReject,
+}: {
+  row: AccessRequestWithRelations;
+  onApprove: (row: AccessRequestWithRelations) => void;
+  onReject: (row: AccessRequestWithRelations) => void;
+}) {
+  return (
+    <div className="flex items-center gap-2">
+      <Button
+        variant="outline"
+        size="sm"
+        className="border-green-300 bg-green-50 text-green-700 hover:bg-green-100 hover:text-green-800"
+        onClick={() => onApprove(row)}
+      >
+        <Check className="w-4 h-4" />
+        Approve
+      </Button>
+      <Button
+        variant="outline"
+        size="sm"
+        className="border-red-300 bg-red-50 text-red-700 hover:bg-red-100 hover:text-red-800"
+        onClick={() => onReject(row)}
+      >
+        <X className="w-4 h-4" />
+        Reject
+      </Button>
+    </div>
+  );
 }

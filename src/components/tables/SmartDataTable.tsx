@@ -265,7 +265,9 @@ export function SmartDataTable<T extends { id: string }>({
   const BASE_COL_WIDTH = 50;
   const SORT_ICON_WIDTH = 20;
   const FILTER_ICON_WIDTH = 25;
-  const ACTIONS_COL_WIDTH = 48;
+  // 48px fits the "…" row-actions menu. A custom `actions` render node (only the
+  // access-request approve/reject controls today) needs room for real buttons.
+  const ACTIONS_COL_WIDTH = actions ? 210 : 48;
 
   const getMinColWidth = useCallback((column: ColumnDef<T>) => {
     let w = BASE_COL_WIDTH;
@@ -678,7 +680,10 @@ export function SmartDataTable<T extends { id: string }>({
                     );
                   })}
                   {(actions || rowActions) && (
-                    <TableCell className="px-1 text-center" onClick={(e) => e.stopPropagation()}>
+                    <TableCell
+                      className={cn('px-1', actions ? 'py-3 align-top' : 'text-center')}
+                      onClick={(e) => e.stopPropagation()}
+                    >
                       {actions && actions(row)}
                       {renderRowActions(row)}
                     </TableCell>

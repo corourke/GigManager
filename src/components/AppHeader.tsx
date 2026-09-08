@@ -20,6 +20,8 @@ import { Organization, User, UserRole } from '../utils/supabase/types';
 import { USER_ROLE_CONFIG } from '../utils/supabase/constants';
 import NavigationMenu, { type RouteType } from './NavigationMenu';
 import { useNavigation } from '../contexts/NavigationContext';
+import NotificationBell from './NotificationBell';
+import ModeratorQueueMenuItem from './ModeratorQueueMenuItem';
 
 interface AppHeaderProps {
   organization?: Organization;
@@ -72,6 +74,7 @@ const AppHeader = React.memo(function AppHeader({
 
           {/* User Menu */}
           <div className="flex items-center gap-3">
+            <NotificationBell />
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <button className="flex items-center gap-2 hover:opacity-80 transition-opacity">
@@ -100,6 +103,7 @@ const AppHeader = React.memo(function AppHeader({
                     <DropdownMenuSeparator />
                   </>
                 )}
+                <ModeratorQueueMenuItem />
                 <DropdownMenuItem onClick={effectiveNavigateToSettings} disabled={!effectiveNavigateToSettings}>
                   <Settings className="w-4 h-4 mr-2" />
                   Settings

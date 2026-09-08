@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { sanitizeLikeInput, UUID_REGEX } from './validation-utils';
+import { sanitizeLikeInput, UUID_REGEX, emailDomainMatches } from './validation-utils';
 
 describe('sanitizeLikeInput', () => {
   it('returns plain strings unchanged', () => {
@@ -66,5 +66,19 @@ describe('UUID_REGEX', () => {
 
   it('rejects a UUID with extra characters appended', () => {
     expect(UUID_REGEX.test('550e8400-e29b-41d4-a716-446655440000extra')).toBe(false);
+  });
+});
+
+describe('emailDomainMatches (issue #33 point 7)', () => {
+  it('matches a domain in a comma-separated list, case-insensitively', () => {
+    expect(emailDomainMatches('user@Example.com', 'example.com, other.org')).toBe(true);
+  });
+  it('rejects a domain not in the list', () => {
+    expect(emailDomainMatches('user@gmail.com', 'example.com,other.org')).toBe(false);
+  });
+  it('rejects when either input is missing or malformed', () => {
+    expect(emailDomainMatches(null, 'example.com')).toBe(false);
+    expect(emailDomainMatches('user@example.com', null)).toBe(false);
+    expect(emailDomainMatches('not-an-email', 'example.com')).toBe(false);
   });
 });

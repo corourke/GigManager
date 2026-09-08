@@ -4,6 +4,8 @@
 
 **Last Updated**: 2026-02-09
 
+> **Deploying to production?** See [deployment.md](./deployment.md) — it covers the deploy pipeline, every hosted service, the complete environment-variable and secret inventory, and rollback procedures. This guide covers *configuring* each service; that one covers *shipping*.
+
 ---
 
 ## Table of Contents

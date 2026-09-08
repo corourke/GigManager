@@ -37,6 +37,52 @@ export function orgsIntersect(
 }
 
 /**
+ * Whether an email's domain matches one of an org's comma-separated
+ * allowed_domains (issue #33 point 7 — the first real enforcement of that
+ * field). Case-insensitive; ignores blank/whitespace-only entries.
+ */
+export function emailDomainMatches(
+  email: string | null | undefined,
+  allowedDomains: string | null | undefined
+): boolean {
+  if (!email || !allowedDomains) return false;
+  const atIndex = email.lastIndexOf('@');
+  if (atIndex === -1) return false;
+  const domain = email.slice(atIndex + 1).trim().toLowerCase();
+  if (!domain) return false;
+  return allowedDomains
+    .split(',')
+    .map((d) => d.trim().toLowerCase())
+    .filter(Boolean)
+    .includes(domain);
+}
+
+/**
+ * Who may decide an access request (issue #33, point 6): a platform
+ * moderator while the target org is unclaimed, or that org's own Admin once
+ * it isn't. A moderator does NOT get a say once the org has an Admin, and an
+ * Admin of a *different* org never does regardless of claimed status.
+ */
+export function canDecideAccessRequest(
+  orgClaimed: boolean,
+  isPlatformModerator: boolean,
+  callerOrgRole: string | null | undefined
+): boolean {
+  if (!orgClaimed && isPlatformModerator) return true;
+  return callerOrgRole === 'Admin';
+}
+
+/**
+ * Whether approving a request should flip organizations.claimed to true —
+ * only when the org didn't already have an Admin and the approved role is
+ * Admin (the #33 bootstrap case). Approving to Manager, or approving Admin on
+ * an already-claimed org (e.g. a second Admin), never touches claimed.
+ */
+export function shouldClaimOrgOnApproval(orgClaimed: boolean, approvedRole: string): boolean {
+  return !orgClaimed && approvedRole === 'Admin';
+}
+
+/**
  * Q-C fix (inventory #21): gig creation must always authorize against a
  * required primary organization. The legacy handler skipped the permission
  * check entirely when `primary_organization_id` was absent — this rejects that.

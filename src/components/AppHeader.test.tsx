@@ -14,6 +14,12 @@ vi.mock('../contexts/NavigationContext', () => ({
   })),
 }))
 
+// NotificationBell has its own auth/router/react-query dependencies covered
+// by its own tests — isolate AppHeader's tests from it, same as NavigationContext above.
+vi.mock('./NotificationBell', () => ({
+  default: () => null,
+}))
+
 const mockUser: User = makeUser()
 
 const mockOrganization: Organization = makeOrganization({ name: 'Test Org' })
