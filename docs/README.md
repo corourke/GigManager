@@ -1,8 +1,8 @@
-# GigManager Documentation
+# GigWrangler Documentation
 
-**Welcome to the GigManager documentation!** This directory contains comprehensive documentation for developers, AI agents, stakeholders, and users working with the GigManager production and event management platform.
+**Welcome to the GigWrangler documentation!** This directory contains comprehensive documentation for developers, AI agents, stakeholders, and users working with the GigWrangler production and event management platform.
 
-**Last Updated**: 2026-02-24  
+**Last Updated**: 2026-09-07  
 **Application Version**: 0.1.0
 
 ---
@@ -40,6 +40,13 @@ Development plans, AI coding guides, and testing strategies
 2. **[Database Schema](./technical/database.md)** - Complete data model and RLS policies
 3. **[Testing](./development/testing.md)** - Testing strategy and conventions
 
+### Shipping to Production
+
+**Deploying, or debugging a deploy?**
+
+1. **[Deployment](./technical/deployment.md)** - How production is deployed, every service involved, full config inventory, rollback procedures
+2. **[`deploy_prod.sh`](../deploy_prod.sh)** - The executable production runbook
+
 ---
 
 ## Product Documentation
@@ -56,7 +63,8 @@ Located in [`./technical/`](./technical/)
 
 - **[database.md](./technical/database.md)** - Complete database schema, Supabase integration, RLS policies
 - **[tech-stack.md](./technical/tech-stack.md)** - Technology choices, frameworks, and libraries
-- **[setup-guide.md](./technical/setup-guide.md)** - Local development setup, deployment, and configuration
+- **[setup-guide.md](./technical/setup-guide.md)** - Local development setup and per-service configuration
+- **[deployment.md](./technical/deployment.md)** - Production deployment: pipeline, Cloudflare Pages, Supabase, Vite, Sentry, Google, Anthropic, Resend, WebAuthn; environment variable and secret inventory; rollback and recovery
 - **[SmartDataTable.md](./technical/SmartDataTable.md)** - SmartDataTable component documentation
 - **[conflict-detection.md](./technical/conflict-detection.md)** - Equipment scheduling conflict detection
 - **[security-scheme.md](./technical/security-scheme.md)** - Security and authorization scheme
@@ -170,6 +178,7 @@ Before making code changes:
 - Update [database.md](./technical/database.md) when schema changes
 - Update [tech-stack.md](./technical/tech-stack.md) when dependencies change
 - Update [setup-guide.md](./technical/setup-guide.md) when setup process changes
+- Update [deployment.md](./technical/deployment.md) when the deploy pipeline changes, a hosting/service setting changes, or **any new environment variable or edge-function secret is introduced** — its configuration inventory is only useful if it stays exhaustive
 
 **Development Changes:**
 - Update [coding-guide.md](./development/coding-guide.md) when new patterns emerge
@@ -198,6 +207,12 @@ See [coding-guide.md](./development/coding-guide.md) for comprehensive guideline
 
 ### What features are currently implemented?
 See [requirements.md](./product/requirements.md) for complete feature requirements.
+
+### How does the app get to production?
+A human runs `./deploy_prod.sh` from `main`. See [deployment.md](./technical/deployment.md) for the full pipeline, service reference, and rollback procedures.
+
+### Where do I set an environment variable or API key for production?
+Frontend `VITE_*` values go in the Cloudflare Pages dashboard; edge-function secrets go through `supabase secrets set`. See the [configuration inventory](./technical/deployment.md#configuration-inventory) for the complete list of both.
 
 ---
 
