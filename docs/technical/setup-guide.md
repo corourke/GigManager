@@ -220,6 +220,9 @@ The web app tags events with `environment` (Vite mode) and `release` (`gigwrangl
 GigWrangler uses Supabase Edge Functions for complex server-side logic and external integrations, such as Google Places and AI-powered invoice scanning.
 
 ### 1. Google Places API Configuration
+
+The Google account currently used is: `cameron.orourke@gmail.com`.
+
 The `server` edge function requires a `GOOGLE_PLACES_API_KEY` to perform place searches. This should be a Google Cloud API key with the "Places API (New)" enabled.
 
 Set up the Google Cloud API key here: `https://console.cloud.google.com/`
@@ -341,8 +344,15 @@ detect or fix a sharing permission that was never granted in the first place.
 
 ### 4. Secrets Management
 - **List Secrets**: `supabase secrets list`
+
 - **Set Secret**: `supabase secrets set NAME=VALUE`
+
 - **Unset Secret**: `supabase secrets unset NAME`
+
+  Add: 
+
+  - `--project-ref hqnnhtxcxedisasvtbqv` for Production
+  - `--project-ref qcrzwsazasaojqoqxwnr` for Dev
 
 ---
 
