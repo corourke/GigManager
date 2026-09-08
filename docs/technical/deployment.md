@@ -57,6 +57,7 @@
 |---|---|
 | Web host | Cloudflare Pages, project `gigwrangler` |
 | Domain | `gigwrangler.com` (HTTPS via Cloudflare) |
+| DNS | Cloudflare — same account as Pages |
 | Backend | Supabase project `hqnnhtxcxedisasvtbqv` (Pro plan) |
 | Build tool | Vite 6 → `build/` |
 | Deploy trigger | **Manual** — a human runs `./deploy_prod.sh` from `main` |
@@ -177,9 +178,12 @@ Hosts the built SPA, terminates HTTPS, serves the CDN, and owns the custom domai
 | Build command | `npm run build` |
 | Build output directory | `build` |
 | Custom domain | `gigwrangler.com` |
+| DNS | Cloudflare, same account |
 | SPA routing | [`public/_redirects`](../../public/_redirects) → `/*  /index.html  200` |
 
 `public/` is copied into `build/` verbatim by Vite, which is how `_redirects` reaches the deploy. Without it, Cloudflare returns 404 for every client-side route (`/gigs/123`, `/settings`, …) on hard refresh or deep link.
+
+DNS for `gigwrangler.com` is managed in Cloudflare alongside the Pages project, so the custom domain binds without any external nameserver change and HTTPS is issued automatically. One account is therefore the single point of failure for hosting, DNS, and TLS — losing access to it takes the site down with no independent lever to recover.
 
 Deploys are pushed from a developer machine with the Wrangler CLI:
 
@@ -289,8 +293,9 @@ The `ai-scan` edge function uses Claude to extract structured data from invoices
 Transactional email (organization invitations) from the `server` function, via a raw `fetch` rather than an SDK.
 
 - Edge function secrets: `RESEND_API_KEY`, `RESEND_FROM_EMAIL`
-- Sends are **best-effort**: if `RESEND_API_KEY` is unset the call logs a warning and returns `{ sent: false }` rather than failing the request that triggered it. An unconfigured production would drop invitation emails silently.
-- The `RESEND_FROM_EMAIL` default is `GigManager <onboarding@resend.dev>` — Resend's sandbox sender, which only delivers to the account owner's verified address. A verified sending domain plus an explicit `RESEND_FROM_EMAIL` is required for real delivery. (The default string also still carries the pre-rebrand name.)
+- **Both are set in dev and prod, and delivery is confirmed working.**
+- Sends are **best-effort**: if `RESEND_API_KEY` is unset the call logs a warning and returns `{ sent: false }` rather than failing the request that triggered it. An unconfigured environment drops invitation emails silently — which is why `RESEND_API_KEY` belongs on any post-deploy verification pass.
+- `RESEND_FROM_EMAIL` must stay set. Its code fallback in [`lib/email.ts`](../../supabase/functions/server/lib/email.ts) is `GigManager <onboarding@resend.dev>` — Resend's sandbox sender, which only delivers to the account owner's verified address, and which still carries the pre-rebrand name. Unsetting the secret would therefore both break delivery and regress branding, with no error.
 
 ### WebAuthn / passkeys
 
@@ -343,7 +348,7 @@ Set with `supabase secrets set NAME=VALUE` against the **verified** target proje
 
 `SUPABASE_URL`, `SUPABASE_ANON_KEY`, and `SUPABASE_SERVICE_ROLE_KEY` are **injected automatically by the Supabase platform**. Do not set them by hand.
 
-Verify the production set:
+**Confirmation status (2026-09-07).** `RESEND_API_KEY` and `RESEND_FROM_EMAIL` are set in both dev and prod, with delivery verified. The remaining secrets have not been audited against the live projects — most are inferable from working features, but the two that fail *silently* (`RP_ID`, `ORIGIN`) cannot be, since a broken passkey flow produces no error anywhere. Confirm them directly:
 
 ```bash
 cat supabase/.temp/project-ref   # must read hqnnhtxcxedisasvtbqv
@@ -410,8 +415,7 @@ The one-time bring-up, should production ever need to be recreated. Originally e
 **3. Cloudflare Pages**
 - Create project `gigwrangler`; build command `npm run build`, output directory `build`
 - Add all four `VITE_*` variables from the [inventory](#frontend--build-time-vite_)
-- Add custom domain `gigwrangler.com`; verify HTTPS is active
-- Point the registrar's nameservers at Cloudflare (see [Known Gaps](#known-gaps) — the registrar is not recorded anywhere)
+- Add custom domain `gigwrangler.com`; verify HTTPS is active. DNS is already managed in the same Cloudflare account, so no external nameserver change is needed and the certificate issues automatically
 
 **4. First deploy**
 - Update `PROD_REF` in both `deploy_prod.sh` and `deploy_dev.sh` if the ref changed
@@ -434,9 +438,8 @@ Tracked here rather than lost. None of these block a deploy today; all of them w
 | Gap | Impact |
 |---|---|
 | **Cloudflare dashboard config is not in the repo** — no `wrangler.toml`, no record of which env vars are actually set | Rebuilding the Pages project means reconstructing settings from this doc and hoping it is current. Drift between dashboard and doc is undetectable. |
-| **DNS and registrar undocumented** — who registers `gigwrangler.com`, which nameservers, what records exist | A domain or DNS incident starts with a scavenger hunt |
-| **`RP_ID` / `ORIGIN` / `RESEND_API_KEY` unverified in prod** | Documented here for the first time; whether they are actually set on `hqnnhtxcxedisasvtbqv` has not been confirmed. Run `supabase secrets list` against prod to check. |
-| **`RESEND_FROM_EMAIL` default still says "GigManager"** and points at Resend's sandbox sender | Invitation emails either fail to deliver beyond the account owner, or arrive with pre-rebrand branding |
+| **`RP_ID` / `ORIGIN` unverified in prod** | Documented here for the first time; whether they are actually set on `hqnnhtxcxedisasvtbqv` has not been confirmed. Run `supabase secrets list` against prod to check. If unset, passkeys are already broken with no error anywhere. |
+| **Single-account blast radius** — hosting, DNS, and TLS all live in one Cloudflare account | Loss of access to that account takes the site down with no independent recovery path |
 | **No staging environment** | Migrations are first exercised against production data during the prod deploy itself. Dev is the only rehearsal, and its data is not representative. |
 | **No automated CD** | Every production release depends on one person with a working local toolchain, Docker running, and `gh` authenticated |
 | **`website/index.html`** — a standalone marketing landing page exists in the repo, not wired into the Vite build | Unclear whether it is deployed, where, or how it is updated |
