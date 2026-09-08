@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { useQueryClient } from '@tanstack/react-query';
-import { Users, Plus, Loader2, Mail, Check, X } from 'lucide-react';
+import { Users, Plus, Loader2, Mail } from 'lucide-react';
 import { Button } from './ui/button';
 import { Card } from './ui/card';
 import {
@@ -28,7 +28,7 @@ import {
   type OrganizationMember,
   type Invitation,
 } from './team/useTeamData';
-import { useMemberColumns, useInvitationColumns, useAccessRequestColumns } from './team/teamColumns';
+import { useMemberColumns, useInvitationColumns, useAccessRequestColumns, AccessRequestActions } from './team/teamColumns';
 import AddTeamMemberDialog from './team/AddTeamMemberDialog';
 import EditMemberDialog from './team/EditMemberDialog';
 import RequestAccessDialog from './team/RequestAccessDialog';
@@ -200,21 +200,6 @@ export default function TeamScreen({
     }
   };
 
-  const accessRequestRowActions = useMemo<RowAction<AccessRequestWithRelations>[]>(() => [
-    {
-      id: 'edit',
-      label: 'Approve',
-      icon: <Check className="h-4 w-4" />,
-      onClick: (row) => handleDecideAccessRequest(row, 'approved'),
-    },
-    {
-      id: 'delete',
-      label: 'Reject',
-      icon: <X className="h-4 w-4" />,
-      onClick: (row) => handleDecideAccessRequest(row, 'rejected'),
-    },
-  ], []);
-
   const handleRemoveMember = async () => {
     if (!memberToRemove) return;
     try {
@@ -352,7 +337,13 @@ export default function TeamScreen({
               tableId="team-access-requests"
               data={accessRequests}
               columns={accessRequestColumns}
-              rowActions={accessRequestRowActions}
+              actions={(row) => (
+                <AccessRequestActions
+                  row={row}
+                  onApprove={(r) => handleDecideAccessRequest(r, 'approved')}
+                  onReject={(r) => handleDecideAccessRequest(r, 'rejected')}
+                />
+              )}
             />
           </Card>
         )}

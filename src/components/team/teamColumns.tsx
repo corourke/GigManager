@@ -1,7 +1,8 @@
 import { useMemo } from 'react';
-import { Crown, Shield, User as UserIcon, Mail, Clock } from 'lucide-react';
+import { Crown, Shield, User as UserIcon, Mail, Clock, Check, X } from 'lucide-react';
 import { format } from 'date-fns';
 import { Badge } from '../ui/badge';
+import { Button } from '../ui/button';
 import { ColumnDef } from '../tables/SmartDataTable';
 import type { UserRole, AccessRequestWithRelations } from '../../utils/supabase/types';
 import type { OrganizationMember, Invitation } from './useTeamData';
@@ -242,4 +243,43 @@ export function useAccessRequestColumns(): ColumnDef<AccessRequestWithRelations>
       ),
     },
   ], []);
+}
+
+/**
+ * Approve/Reject as direct green-check / red-X buttons rather than tucked
+ * behind a "..." menu — there are only ever these two choices, so a menu
+ * adds a click for no benefit. Pass via SmartDataTable's `actions` prop
+ * (not `rowActions`, which is for the generic view/edit/duplicate/delete set).
+ */
+export function AccessRequestActions({
+  row,
+  onApprove,
+  onReject,
+}: {
+  row: AccessRequestWithRelations;
+  onApprove: (row: AccessRequestWithRelations) => void;
+  onReject: (row: AccessRequestWithRelations) => void;
+}) {
+  return (
+    <div className="flex items-center justify-center gap-1">
+      <Button
+        variant="ghost"
+        size="icon"
+        className="h-8 w-8 text-green-600 hover:text-green-700 hover:bg-green-50"
+        onClick={() => onApprove(row)}
+        title="Approve"
+      >
+        <Check className="w-4 h-4" />
+      </Button>
+      <Button
+        variant="ghost"
+        size="icon"
+        className="h-8 w-8 text-red-600 hover:text-red-700 hover:bg-red-50"
+        onClick={() => onReject(row)}
+        title="Reject"
+      >
+        <X className="w-4 h-4" />
+      </Button>
+    </div>
+  );
 }

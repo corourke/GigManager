@@ -1,12 +1,12 @@
 import { useMemo } from 'react';
 import { toast } from 'sonner';
-import { Check, X, Loader2, ShieldCheck, Inbox } from 'lucide-react';
+import { Loader2, ShieldCheck, Inbox } from 'lucide-react';
 import { Button } from './ui/button';
 import { Card } from './ui/card';
 import AppHeader from './AppHeader';
 import { PageHeader } from './ui/PageHeader';
-import { SmartDataTable, RowAction } from './tables/SmartDataTable';
-import { useAccessRequestColumns } from './team/teamColumns';
+import { SmartDataTable } from './tables/SmartDataTable';
+import { useAccessRequestColumns, AccessRequestActions } from './team/teamColumns';
 import { useModeratorAccessRequests, useDecideAccessRequest } from '../hooks/useAccessRequests';
 import type { AccessRequestWithRelations, User } from '../utils/supabase/types';
 
@@ -43,11 +43,6 @@ export default function ModeratorAccessRequestsScreen({
       toast.error(error.message || 'Failed to update access request');
     }
   };
-
-  const rowActions = useMemo<RowAction<AccessRequestWithRelations>[]>(() => [
-    { id: 'edit', label: 'Approve', icon: <Check className="h-4 w-4" />, onClick: (row) => handleDecide(row, 'approved') },
-    { id: 'delete', label: 'Reject', icon: <X className="h-4 w-4" />, onClick: (row) => handleDecide(row, 'rejected') },
-  ], []);
 
   // The organization column already exists on AccessRequestWithRelations but
   // useAccessRequestColumns() (shared with Team screen, which is org-scoped
@@ -100,7 +95,13 @@ export default function ModeratorAccessRequestsScreen({
               tableId="moderator-access-requests"
               data={requests}
               columns={columnsWithOrg}
-              rowActions={rowActions}
+              actions={(row) => (
+                <AccessRequestActions
+                  row={row}
+                  onApprove={(r) => handleDecide(r, 'approved')}
+                  onReject={(r) => handleDecide(r, 'rejected')}
+                />
+              )}
             />
           </Card>
         )}
