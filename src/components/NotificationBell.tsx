@@ -19,6 +19,7 @@ import {
   useMyAccessRequests,
   useModeratorAccessRequests,
   useMarkAccessRequestSeen,
+  ACCESS_REQUEST_REFRESH,
 } from '../hooks/useAccessRequests';
 
 /**
@@ -32,7 +33,7 @@ export default function NotificationBell() {
   const { user, organizations, selectOrganization } = useAuth();
   const nav = useNav();
 
-  const myRequestsQuery = useMyAccessRequests();
+  const myRequestsQuery = useMyAccessRequests(!!user);
   const markSeen = useMarkAccessRequestSeen();
 
   const adminMemberships = useMemo(
@@ -45,6 +46,8 @@ export default function NotificationBell() {
     queries: adminMemberships.map((m) => ({
       queryKey: queryKeys.orgAccessRequests(m.organization.id),
       queryFn: () => getOrgAccessRequests(m.organization.id),
+      enabled: !!user,
+      ...ACCESS_REQUEST_REFRESH,
     })),
   });
   const orgPendingCount = orgRequestsQueries.reduce((sum, q) => sum + (q.data?.length ?? 0), 0);

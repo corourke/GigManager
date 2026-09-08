@@ -116,7 +116,16 @@ function CreateOrgRoute() {
     <OrganizationScreen
       userId={user.id}
       onCancel={nav.switchOrganization}
-      onOrganizationCreated={(org: Organization) => {
+      onOrganizationCreated={(org: Organization, joined: boolean) => {
+        if (!joined) {
+          // "Create without Joining": the creator is deliberately not a member
+          // (a partner org that stays unclaimed). Leave memberships and the
+          // selected org untouched and send them to the admin org list, where
+          // it shows with its "Unclaimed" badge — don't drop them into a
+          // dashboard for an org they aren't a member of and can't load.
+          nav.toAdminOrgs();
+          return;
+        }
         const newMembership: OrganizationMembership = { organization: org, role: 'Admin' };
         setOrganizations([...organizations, newMembership]);
         selectOrganization(org);

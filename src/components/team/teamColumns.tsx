@@ -246,10 +246,12 @@ export function useAccessRequestColumns(): ColumnDef<AccessRequestWithRelations>
 }
 
 /**
- * Approve/Reject as direct green-check / red-X buttons rather than tucked
- * behind a "..." menu — there are only ever these two choices, so a menu
- * adds a click for no benefit. Pass via SmartDataTable's `actions` prop
- * (not `rowActions`, which is for the generic view/edit/duplicate/delete set).
+ * Approve/Reject as two compact labelled buttons rather than tucked behind a
+ * "..." menu — there are only ever these two choices, so a menu adds a click
+ * for no benefit. Labelled + bordered (not bare icons) so they're easy to see
+ * and hit. Pass via SmartDataTable's `actions` prop (not `rowActions`, which is
+ * for the generic view/edit/duplicate/delete set); that prop also widens the
+ * actions column to fit them.
  */
 export function AccessRequestActions({
   row,
@@ -261,24 +263,24 @@ export function AccessRequestActions({
   onReject: (row: AccessRequestWithRelations) => void;
 }) {
   return (
-    <div className="flex items-center justify-center gap-1">
+    <div className="flex items-center gap-2">
       <Button
-        variant="ghost"
-        size="icon"
-        className="h-8 w-8 text-green-600 hover:text-green-700 hover:bg-green-50"
+        variant="outline"
+        size="sm"
+        className="border-green-300 bg-green-50 text-green-700 hover:bg-green-100 hover:text-green-800"
         onClick={() => onApprove(row)}
-        title="Approve"
       >
         <Check className="w-4 h-4" />
+        Approve
       </Button>
       <Button
-        variant="ghost"
-        size="icon"
-        className="h-8 w-8 text-red-600 hover:text-red-700 hover:bg-red-50"
+        variant="outline"
+        size="sm"
+        className="border-red-300 bg-red-50 text-red-700 hover:bg-red-100 hover:text-red-800"
         onClick={() => onReject(row)}
-        title="Reject"
       >
         <X className="w-4 h-4" />
+        Reject
       </Button>
     </div>
   );

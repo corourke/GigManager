@@ -11,12 +11,25 @@ import {
 } from '../services/accessRequest.service';
 import type { AccessRequestWithRelations } from '../utils/supabase/types';
 
+/**
+ * These lists back the notification bell and the Team/moderator request cards,
+ * which have to reflect a decision made in another session or browser tab. The
+ * app's default query options are staleTime 30s / no refetch-on-focus, so on
+ * their own the bell only updates on a full reload — poll and refetch on focus
+ * so it self-heals within a minute.
+ */
+export const ACCESS_REQUEST_REFRESH = {
+  refetchOnWindowFocus: true,
+  refetchInterval: 60_000,
+} as const;
+
 /** Pending access requests for an org — for its Admins (Team screen). */
 export function useOrgAccessRequests(orgId: string, enabled: boolean = true) {
   return useQuery<AccessRequestWithRelations[]>({
     queryKey: queryKeys.orgAccessRequests(orgId),
     queryFn: () => getOrgAccessRequests(orgId),
     enabled,
+    ...ACCESS_REQUEST_REFRESH,
   });
 }
 
@@ -26,14 +39,22 @@ export function useModeratorAccessRequests(enabled: boolean) {
     queryKey: queryKeys.moderatorAccessRequests(),
     queryFn: () => getModeratorAccessRequests(),
     enabled,
+    ...ACCESS_REQUEST_REFRESH,
   });
 }
 
-/** The caller's own access requests — powers the notification bell's outcome notices. */
-export function useMyAccessRequests() {
+/**
+ * The caller's own access requests — powers the notification bell's outcome
+ * notices. `enabled` should track auth readiness: firing this before the
+ * Supabase session is restored caches an empty result that then sits until the
+ * next reload (the bug behind "outcome doesn't show until refresh").
+ */
+export function useMyAccessRequests(enabled: boolean = true) {
   return useQuery<AccessRequestWithRelations[]>({
     queryKey: queryKeys.myAccessRequests(),
     queryFn: () => getMyAccessRequests(),
+    enabled,
+    ...ACCESS_REQUEST_REFRESH,
   });
 }
 

@@ -34,7 +34,13 @@ import OrganizationContactsSection from './organization/OrganizationContactsSect
 
 interface OrganizationScreenProps {
   organization?: Organization; // If provided, we're in edit mode
-  onOrganizationCreated: (org: Organization) => void;
+  /**
+   * Called after a successful create. `joined` reflects which button was used:
+   * true for "Create and Join" (caller is now this org's Admin), false for
+   * "Create without Joining" (caller is deliberately NOT a member — the org
+   * stays unclaimed). Callers must not assume membership when `joined` is false.
+   */
+  onOrganizationCreated: (org: Organization, joined: boolean) => void;
   onOrganizationUpdated?: (org: Organization) => void;
   onCancel: () => void;
   userId?: string;
@@ -494,8 +500,12 @@ export default function OrganizationScreen({
 
         onOrganizationUpdated?.(resultOrganization);
       } else {
-        toast.success('Organization created successfully!');
-        onOrganizationCreated(resultOrganization);
+        toast.success(
+          autoJoinOrg
+            ? "Organization created — you're now its Admin."
+            : 'Organization created. It stays unclaimed until someone at that organization claims it.'
+        );
+        onOrganizationCreated(resultOrganization, autoJoinOrg);
       }
     } catch (err: any) {
       console.error(`Error ${isEditMode ? 'updating' : 'creating'} organization:`, err);
