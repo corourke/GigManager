@@ -6,8 +6,9 @@ touched, before merging to `main`. Covers the original implementation (nested ki
 cycle prevention, mobile scanning, conflict detection) plus every fix made during
 pre-merge testing (report bugs, container-boundary handling, gig-assignment conflicts).
 
-Related: `docs/development/hierarchical-kits-follow-ups.md` (known open items,
-deliberately not blocking this merge — see the bottom of this checklist).
+Related: `docs/development/.archive/hierarchical-kits-follow-ups.md` — the follow-up
+log from pre-merge testing. All of its items are now resolved, so it is archived and
+kept only as a record of what shipped when.
 
 ---
 
@@ -307,8 +308,9 @@ green in CI.
 
 - [ ] **(Informational only, do not block merge on this)** The "Add Components" picker
       silently omits candidates already covered elsewhere in the kit's tree (no
-      cycle-style inline warning for that case yet). Tracked separately in
-      `docs/development/hierarchical-kits-follow-ups.md` item 1, already spun off to a
-      background session. Confirm it still behaves as documented (items just don't
-      appear, no crash, no incorrect data) — this is a UX polish gap, not a
-      correctness bug.
+      cycle-style inline warning for that case yet). Tracked separately as item 1 of
+      `docs/development/.archive/hierarchical-kits-follow-ups.md`, which now records
+      that item as **fixed on 2026-09-01** (the picker shows such candidates grayed
+      out with an inline reason, matching the cycle-prevention case). This entry is
+      therefore likely stale — verify against current behavior and close it out rather
+      than re-testing the old symptom.
