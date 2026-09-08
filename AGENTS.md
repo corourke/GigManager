@@ -113,7 +113,7 @@ npm run build
 ## Language & Runtime
 **Language**: TypeScript  
 **Version**: Node.js (Frontend), Deno 2 (Supabase Edge Runtime)  
-**Build System**: Vite 6.3.5  
+**Build System**: Vite 6.4.3  
 **Package Manager**: npm  
 
 ## Dependencies

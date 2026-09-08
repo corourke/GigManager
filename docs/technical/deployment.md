@@ -199,7 +199,7 @@ Environment variables are set in **dashboard → Settings → Environment variab
 
 #### Why Cloudflare Pages
 
-Chosen over Vercel and Netlify during the original production bring-up ([requirements.md §5](../../.zenflow/tasks/production-setup-b686/requirements.md)):
+Chosen over Vercel and Netlify during the original production bring-up:
 
 - Free tier with unlimited bandwidth and no monthly build-minute cap (Netlify's free tier caps at 300 min/mo; Vercel enforces 100 GB bandwidth/mo)
 - Native custom domains with automatic HTTPS via Cloudflare's CDN
@@ -257,7 +257,34 @@ Error monitoring across three surfaces. **All three no-op when their DSN env var
 
 The web app tags events with `environment` (Vite mode) and `release` (`gigwrangler@<build timestamp>`), and sets `sendDefaultPii: false`. Edge functions flush explicitly before responding, because Deno isolates can terminate the moment a response is returned. The Sentry Deno import is version-pinned so `functions deploy` is reproducible.
 
-Setting `VITE_SENTRY_DSN` in Cloudflare requires a **redeploy** — it is a build-time value.
+**Two Sentry projects, two DSNs** — one per runtime. A **JavaScript React** project for the web app, and a **Deno** project for the edge functions. Each DSN comes from its own project's **Settings → Client Keys (DSN)**, and looks like `https://abc123@o123456.ingest.sentry.io/789`.
+
+#### Activating it
+
+**Web app** — add `VITE_SENTRY_DSN` (React project DSN) in the Cloudflare Pages dashboard → Settings → Environment variables → Production. It is baked into the bundle at build time, so **a new deploy is required** before it takes effect; run `./deploy_prod.sh`. Do not put it in `.env.production.local` — that file is local-only and never reaches the deploy.
+
+**Edge functions** — use the Deno project DSN:
+
+```bash
+cat supabase/.temp/project-ref   # verify the target first
+supabase secrets set SENTRY_DSN="https://…" SENTRY_ENVIRONMENT="production"
+```
+
+Secrets take effect immediately; no function redeploy is needed. Without `SENTRY_ENVIRONMENT`, events default to `development` and get filtered out of production dashboards — which looks identical to Sentry not working.
+
+#### Verifying
+
+On the deployed site, open DevTools → Network and filter for `sentry.io`; a session request should appear within seconds. `window.__SENTRY__` being defined in the console confirms init. For a real end-to-end check, run `throw new Error("Sentry test — delete me")` in the console and confirm it lands in **Issues** within ~30s, then delete it.
+
+#### What is and isn't captured
+
+Captured: React render errors via the `ErrorBoundary`, unhandled rejections and uncaught exceptions (auto-instrumented), and every unhandled throw in both edge functions.
+
+Deliberately **not** captured: expected HTTP errors returned as responses (401, 403, 429) — they are returned, not thrown; performance traces (`tracesSampleRate: 0` on edge functions); and PII (`sendDefaultPii: false`).
+
+#### Known limitation — no source maps
+
+Stack traces point at minified filenames (`index-XXXXXXXX.js`) rather than real source locations, which makes production errors materially harder to read. Fixing it means adding [`@sentry/vite-plugin`](https://docs.sentry.io/platforms/javascript/sourcemaps/uploading/vite/) to `vite.config.ts` and providing a `SENTRY_AUTH_TOKEN` at build time.
 
 ### Google
 
@@ -421,16 +448,44 @@ git checkout main
 
 ## Rebuilding Production From Scratch
 
-The one-time bring-up, should production ever need to be recreated. Originally executed as [`.zenflow/tasks/production-setup-b686/`](../../.zenflow/tasks/production-setup-b686/spec.md).
+The one-time bring-up, should production ever need to be recreated. This section is now the authoritative version; it was originally executed as `.zenflow/tasks/production-setup-b686/`, a historical artifact of the retired Zenflow tooling that is kept only for provenance and may be deleted without loss.
 
 **1. Supabase project**
 - Create a project on the **Pro plan**; note the new ref and DB password. PITR is a separate paid add-on on top of Pro — enable it deliberately if you want sub-daily recovery
 - `supabase link --project-ref <new-ref>` → verify → `supabase db push`
 - `supabase functions deploy`
-- Set every secret in the [inventory](#edge-functions--supabase-secrets) above
+- Set the secrets. The three site-identity values are not credentials and are the same on every rebuild, so they can be pasted verbatim — the rest come from their respective service dashboards:
+
+  ```bash
+  cat supabase/.temp/project-ref   # verify the target before every secrets command
+
+  # Site identity — WebAuthn relying party. Fixed values; no secret to look up.
+  # Omitting these is silent: the code falls back to localhost defaults and
+  # passkeys fail in production with no error anywhere.
+  supabase secrets set \
+    RP_ID=gigwrangler.com \
+    ORIGIN=https://gigwrangler.com \
+    RP_NAME=GigWrangler
+
+  # Third-party credentials — fetch each from its own console
+  supabase secrets set \
+    GOOGLE_PLACES_API_KEY=… \
+    GOOGLE_CLIENT_ID=… \
+    GOOGLE_CLIENT_SECRET=… \
+    ANTHROPIC_API_KEY=… \
+    RESEND_API_KEY=… \
+    RESEND_FROM_EMAIL="GigWrangler <noreply@…>" \
+    SENTRY_DSN=… \
+    SENTRY_ENVIRONMENT=production
+
+  supabase secrets list   # confirm all eleven are present
+  ```
+
+  `RP_NAME` is included even though its code default is already correct, so that every value the relying party depends on is explicit in one place rather than half-configured and half-inherited.
+
 - Authentication → URL Configuration: Site URL `https://gigwrangler.com`, redirect `https://gigwrangler.com/**`
 - Authentication → Providers → Google: enable, paste Client ID + Secret
-- Database → Backups: confirm daily backups active, retention ≥ 7 days, PITR enabled
+- Database → Backups: confirm daily backups are active and note the retention window; enable PITR if sub-daily recovery is wanted
 
 **2. Google Cloud Console**
 - OAuth consent screen (External)

@@ -102,24 +102,13 @@ Located in [`./development/`](./development/)
 
 ## Technology Stack Overview
 
-**Frontend:**
-- React 18.3.1 with TypeScript
-- Vite 6.3.5 build tool
-- Tailwind CSS v4.0 + Shadcn/ui components
-- react-hook-form + Zod validation
+**Frontend** — React + TypeScript on Vite, routed by react-router with TanStack Query for server state, styled with Tailwind v4 and shadcn/ui. Installable as a PWA.
 
-**Backend:**
-- Supabase (PostgreSQL 17)
-- Row-Level Security (RLS) for multi-tenant isolation
-- Real-time subscriptions via Postgres CDC
-- Edge Functions (Deno runtime)
+**Backend** — Supabase: PostgreSQL 17 with Row-Level Security as the tenant boundary, Auth, Storage, Realtime, and two Deno edge functions (a Hono-based API and an AI receipt scanner).
 
-**Testing:**
-- Vitest 4.0.10
-- @testing-library/react 14.1.2
-- 200 passing tests across 30 test files
+**Quality** — Vitest with Testing Library, TypeScript strict mode, and ESLint, all gating CI and the production deploy.
 
-See [tech-stack.md](./technical/tech-stack.md) for complete details.
+Version numbers are deliberately not repeated here — they go stale. See **[tech-stack.md](./technical/tech-stack.md)** for the full stack with versions, and [`package.json`](../package.json) for the authoritative constraints.
 
 ---
 
