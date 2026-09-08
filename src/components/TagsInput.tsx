@@ -1,4 +1,4 @@
-import { useState, useRef, KeyboardEvent } from 'react';
+import { useState, useRef, useImperativeHandle, forwardRef, KeyboardEvent } from 'react';
 import { Badge } from './ui/badge';
 import { Command, CommandEmpty, CommandGroup, CommandItem, CommandList } from './ui/command';
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
@@ -13,14 +13,19 @@ interface TagsInputProps {
   disabled?: boolean;
 }
 
-export default function TagsInput({
+export interface TagsInputHandle {
+  /** Commits any text still sitting in the input (split on comma) as tags, as if Enter had been pressed. */
+  commitPending: () => void;
+}
+
+const TagsInput = forwardRef<TagsInputHandle, TagsInputProps>(function TagsInput({
   value,
   onChange,
   onKeyDown,
   suggestions = [],
   placeholder = 'Add tags...',
   disabled = false
-}: TagsInputProps) {
+}, ref) {
   const [inputValue, setInputValue] = useState('');
   const [isOpen, setIsOpen] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -46,6 +51,23 @@ export default function TagsInput({
   const removeTag = (tagToRemove: string) => {
     onChange(value.filter(tag => tag !== tagToRemove));
   };
+
+  useImperativeHandle(ref, () => ({
+    commitPending: () => {
+      if (!inputValue.trim()) return;
+      const newTags = inputValue
+        .split(',')
+        .map((t) => t.trim())
+        .filter((t) => t.length > 0 && !value.includes(t));
+      if (newTags.length > 0) {
+        // Dedupe within the typed text itself (e.g. "a, a")
+        const merged = [...value, ...Array.from(new Set(newTags))];
+        onChange(merged);
+      }
+      setInputValue('');
+      setIsOpen(false);
+    },
+  }), [inputValue, value, onChange]);
 
   const handleLocalKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
     if ((e.key === 'Enter' || e.key === 'Tab') && inputValue.trim()) {
@@ -161,4 +183,6 @@ export default function TagsInput({
       </Popover>
     </div>
   );
-}
+});
+
+export default TagsInput;

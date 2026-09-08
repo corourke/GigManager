@@ -158,4 +158,33 @@ describe('GigListScreen', () => {
     });
     expect(screen.getByText('Past (1)')).toBeInTheDocument();
   });
+
+  it('opens the gig when the title cell is clicked (#27)', async () => {
+    const ue = userEvent.setup();
+    const onViewGig = vi.fn();
+    render(
+      <GigListScreen
+        organization={organization}
+        user={user}
+        userRole="Admin"
+        onBack={noop}
+        onCreateGig={noop}
+        onViewGig={onViewGig}
+        onEditGig={noop}
+        onNavigateToDashboard={noop}
+        onNavigateToGigs={noop}
+        onNavigateToAssets={noop}
+        onSwitchOrganization={noop}
+        onLogout={noop}
+      />
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText('Upcoming Show')).toBeInTheDocument();
+    });
+
+    await ue.click(screen.getByText('Upcoming Show'));
+
+    expect(onViewGig).toHaveBeenCalledWith('gig-future');
+  });
 });

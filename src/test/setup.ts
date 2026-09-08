@@ -9,6 +9,13 @@ if (typeof globalThis.ResizeObserver === 'undefined') {
   } as any;
 }
 
+// jsdom doesn't implement scrollIntoView; cmdk (Command/CommandList, used by
+// TagsInput's suggestions popover among others) calls it when an item is
+// highlighted, which otherwise throws and can crash the render tree mid-test.
+if (typeof Element !== 'undefined' && !Element.prototype.scrollIntoView) {
+  Element.prototype.scrollIntoView = function scrollIntoView() {};
+}
+
 // jsdom does not reliably back Web Storage, and Node >=22 ships an experimental
 // `localStorage` / `sessionStorage` global whose getter returns `undefined` (and
 // prints an ExperimentalWarning) unless `--localstorage-file` is passed — and
@@ -85,6 +92,9 @@ vi.mock('../utils/supabase/client', () => ({
       on: vi.fn().mockReturnThis(),
       subscribe: vi.fn(),
     })),
+    // Realtime-subscribing hooks (e.g. useTeamMembers) call this in their
+    // cleanup effect; without a stub, unmounting them throws.
+    removeChannel: vi.fn(),
   })),
 }))
 

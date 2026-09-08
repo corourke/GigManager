@@ -134,7 +134,12 @@ export function EditableCell<T>({
   }, [isEditing, column.type, editValue, commandSearch]);
 
   const handleDoubleClick = () => {
-    if (column.editable && !column.readOnly) {
+    // onCellClick already takes over the cell on the first click of any
+    // double-click (see the onClick handler below) — by the time a second
+    // click could land, the row has typically already navigated away, so
+    // there's no reachable "double-click to edit" here regardless of
+    // `editable`.
+    if (column.editable && !column.readOnly && !column.onCellClick) {
       setCommandSearch('');
       setIsEditing(true);
     }
@@ -541,6 +546,10 @@ export function EditableCell<T>({
       )}
       onClick={(e) => {
         e.stopPropagation();
+        if (column.onCellClick) {
+          column.onCellClick(row);
+          return;
+        }
         if (!isSelected) {
           onSelect();
         } else if (!isEditing) {

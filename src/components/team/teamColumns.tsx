@@ -35,6 +35,7 @@ interface MemberColumnsArgs {
   timezoneOptions: Array<{ label: string; value: string }>;
   currentUserId: string;
   canManageTeam: boolean;
+  onViewMember?: (memberId: string) => void;
 }
 
 export function useMemberColumns({
@@ -43,6 +44,7 @@ export function useMemberColumns({
   timezoneOptions,
   currentUserId,
   canManageTeam,
+  onViewMember,
 }: MemberColumnsArgs): ColumnDef<OrganizationMember>[] {
   return useMemo<ColumnDef<OrganizationMember>[]>(() => [
     {
@@ -51,8 +53,9 @@ export function useMemberColumns({
       accessor: (row) => `${row.user.first_name} ${row.user.last_name}`,
       sortable: true,
       filterable: true,
-      editable: canManageTeam,
+      editable: canManageTeam && !onViewMember,
       type: 'text',
+      onCellClick: onViewMember ? (row) => onViewMember(row.id) : undefined,
       render: (val, row) => {
         const isCurrentUser = row.user?.id === currentUserId;
         return (
@@ -153,7 +156,7 @@ export function useMemberColumns({
         );
       },
     },
-  ], [staffRoleMap, staffRoleOptions, timezoneOptions, currentUserId, canManageTeam]);
+  ], [staffRoleMap, staffRoleOptions, timezoneOptions, currentUserId, canManageTeam, onViewMember]);
 }
 
 export function useInvitationColumns(): ColumnDef<Invitation>[] {

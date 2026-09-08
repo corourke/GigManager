@@ -68,3 +68,68 @@ describe('EditableCell checkbox SPACE toggle', () => {
     expect(onSave).toHaveBeenLastCalledWith(true)
   })
 })
+
+describe('EditableCell onCellClick', () => {
+  function renderTitleCell(onCellClick: (row: any) => void, editable = true) {
+    const column: ColumnDef<any> = {
+      id: 'title',
+      header: 'Title',
+      accessor: 'title',
+      type: 'text',
+      editable,
+      onCellClick,
+    }
+
+    return render(
+      <EditableCell
+        value="Some Title"
+        column={column}
+        row={{ id: '1', title: 'Some Title' }}
+        onSave={vi.fn()}
+        isSelected={false}
+        onSelect={vi.fn()}
+      />,
+      { container: document.body.appendChild(tr) }
+    )
+  }
+
+  it('calls onCellClick on a single click instead of selecting', () => {
+    const onCellClick = vi.fn()
+    const onSelect = vi.fn()
+    const column: ColumnDef<any> = {
+      id: 'title',
+      header: 'Title',
+      accessor: 'title',
+      type: 'text',
+      editable: true,
+      onCellClick,
+    }
+    const { getByText } = render(
+      <EditableCell
+        value="Some Title"
+        column={column}
+        row={{ id: '1', title: 'Some Title' }}
+        onSave={vi.fn()}
+        isSelected={false}
+        onSelect={onSelect}
+      />,
+      { container: document.body.appendChild(tr) }
+    )
+
+    fireEvent.click(getByText('Some Title'))
+
+    expect(onCellClick).toHaveBeenCalledWith({ id: '1', title: 'Some Title' })
+    expect(onSelect).not.toHaveBeenCalled()
+  })
+
+  // Regression (#27): onCellClick fires on every click, including the first
+  // click of a double-click, so a double-click can never reach edit mode —
+  // `editable` must be ignored whenever onCellClick is set.
+  it('does not enter edit mode on double-click even when editable is true', () => {
+    const { container, getByText } = renderTitleCell(vi.fn())
+
+    fireEvent.doubleClick(getByText('Some Title'))
+
+    expect(container.querySelector('input')).toBeNull()
+  })
+})

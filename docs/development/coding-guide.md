@@ -68,6 +68,23 @@
 - **Touch Targets**: Minimum 44x44px for interactive elements.
 - **Layout**: Prefer Flexbox/Grid over absolute positioning.
 - **States**: Design for Loading, Error, Empty, and Success states.
+- **Consistency across pages**: an interaction pattern is a property of the *pattern*, not
+  of the one page it was first built on. When you add or fix how something behaves (a
+  click target, a confirmation step, an empty-state layout, a loading treatment), find
+  every other place the same kind of element already exists and apply the same behavior
+  there too, in the same change — don't leave one page doing it differently because that
+  wasn't the page you were asked about. If applying it everywhere is out of scope for the
+  change at hand, say so explicitly and file a follow-up rather than silently leaving the
+  inconsistency. This is what the `SmartDataTable` title-cell rule below is an instance of
+  (issue #27: the first fix only touched the Gigs list, and every other list needed the
+  identical fix once someone actually clicked around them).
+- **`SmartDataTable` title cell**: every list backed by `SmartDataTable` for a record with
+  its own detail/edit screen (gigs, assets, kits, team members, ...) must set `onCellClick`
+  on that record's title/name column to open it — a click opens the record. `onCellClick`
+  fires on every click, including the first click of a double-click, so it can't coexist
+  with inline editing on that column — don't also set `editable` there; rename/edit that
+  field from the detail screen instead. Don't rely on a row-menu action alone. A table with
+  no detail screen to open (invitations, access requests) doesn't need this.
 
 ## Quick Checklist
 
@@ -79,6 +96,8 @@
 - [ ] UI is responsive and touch-friendly (44px targets).
 - [ ] Types are explicitly defined (avoid `any`).
 - [ ] Components are modular and focused.
+- [ ] Any new/changed interaction pattern applied to every other page with the same kind
+      of element, not just the one page the task named.
 
 ## Quality Gates
 

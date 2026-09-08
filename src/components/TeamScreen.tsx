@@ -109,6 +109,7 @@ export default function TeamScreen({
     timezoneOptions,
     currentUserId: user.id,
     canManageTeam,
+    onViewMember,
   });
   const invitationColumns = useInvitationColumns();
   const accessRequestColumns = useAccessRequestColumns();

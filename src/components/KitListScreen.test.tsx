@@ -1,5 +1,6 @@
 import {describe, it, expect, vi } from 'vitest'
-import {render } from '@testing-library/react'
+import {render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import KitListScreen from './KitListScreen'
 import { makeUser, makeOrganization } from '../test/factories'
 import { getKits, getKitsFlattenedSummary } from '../services/kit.service'
@@ -119,6 +120,32 @@ describe('KitListScreen', () => {
     const { findByText } = render(<KitListScreen {...mockProps} />)
     expect(await findByText('$350.00')).toBeInTheDocument()
     expect(await findByText('5')).toBeInTheDocument()
+  })
+
+  it('opens the kit when the title cell is clicked (#27)', async () => {
+    // The previous test overrides getKits' resolved value for the rest of
+    // this file's run — restore the default "Test Kit" fixture explicitly.
+    vi.mocked(getKits).mockResolvedValue([{
+      id: 'kit-1',
+      organization_id: 'org-1',
+      name: 'Test Kit',
+      category: 'Audio',
+      is_container: true,
+      kit_components: [],
+    }] as any)
+    vi.mocked(getKitsFlattenedSummary).mockResolvedValue(new Map())
+
+    const ue = userEvent.setup()
+    const onViewKit = vi.fn()
+    render(<KitListScreen {...mockProps} onViewKit={onViewKit} />)
+
+    await waitFor(() => {
+      expect(screen.getByText('Test Kit')).toBeInTheDocument()
+    })
+
+    await ue.click(screen.getByText('Test Kit'))
+
+    expect(onViewKit).toHaveBeenCalledWith('kit-1')
   })
 })
 
