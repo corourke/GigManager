@@ -1,5 +1,13 @@
 import { describe, it, expect } from 'vitest';
-import { parseBearer, isRoleAllowed, orgsIntersect, requireGigCreateOrgId } from './authz';
+import {
+  parseBearer,
+  isRoleAllowed,
+  orgsIntersect,
+  requireGigCreateOrgId,
+  emailDomainMatches,
+  canDecideAccessRequest,
+  shouldClaimOrgOnApproval,
+} from './authz';
 
 describe('parseBearer', () => {
   it('extracts the token from a Bearer header', () => {
@@ -64,5 +72,55 @@ describe('requireGigCreateOrgId (Q-C fix, inventory #21)', () => {
   it('resolves the org id to authorize against when present', () => {
     const result = requireGigCreateOrgId({ primary_organization_id: 'org-1' });
     expect(result).toEqual({ ok: true, orgId: 'org-1' });
+  });
+});
+
+describe('emailDomainMatches (issue #33 point 7 — self-join Staff option)', () => {
+  it('matches a domain in a comma-separated list, case-insensitively', () => {
+    expect(emailDomainMatches('user@Example.com', 'example.com, other.org')).toBe(true);
+    expect(emailDomainMatches('user@other.org', 'example.com,other.org')).toBe(true);
+  });
+  it('ignores surrounding whitespace in the allowed_domains list', () => {
+    expect(emailDomainMatches('user@example.com', ' example.com , other.org ')).toBe(true);
+  });
+  it('rejects a domain not in the list', () => {
+    expect(emailDomainMatches('user@gmail.com', 'example.com,other.org')).toBe(false);
+  });
+  it('rejects when either input is missing or malformed', () => {
+    expect(emailDomainMatches(null, 'example.com')).toBe(false);
+    expect(emailDomainMatches('user@example.com', null)).toBe(false);
+    expect(emailDomainMatches('user@example.com', '')).toBe(false);
+    expect(emailDomainMatches('not-an-email', 'example.com')).toBe(false);
+  });
+});
+
+describe('canDecideAccessRequest (issue #33, point 6)', () => {
+  it('lets a platform moderator decide while the org is unclaimed', () => {
+    expect(canDecideAccessRequest(false, true, null)).toBe(true);
+    expect(canDecideAccessRequest(false, true, undefined)).toBe(true);
+  });
+  it('does not let a moderator decide once the org has an Admin', () => {
+    expect(canDecideAccessRequest(true, true, null)).toBe(false);
+  });
+  it('lets that org\'s own Admin decide regardless of claimed status', () => {
+    expect(canDecideAccessRequest(true, false, 'Admin')).toBe(true);
+    expect(canDecideAccessRequest(false, false, 'Admin')).toBe(true);
+  });
+  it('rejects a Manager or Viewer of the org, and a non-moderator non-Admin outsider', () => {
+    expect(canDecideAccessRequest(true, false, 'Manager')).toBe(false);
+    expect(canDecideAccessRequest(false, false, 'Viewer')).toBe(false);
+    expect(canDecideAccessRequest(false, false, null)).toBe(false);
+  });
+});
+
+describe('shouldClaimOrgOnApproval (issue #33 bootstrap case)', () => {
+  it('claims an unclaimed org when the approved role is Admin', () => {
+    expect(shouldClaimOrgOnApproval(false, 'Admin')).toBe(true);
+  });
+  it('does not claim for a Manager approval', () => {
+    expect(shouldClaimOrgOnApproval(false, 'Manager')).toBe(false);
+  });
+  it('does not re-claim an already-claimed org (e.g. approving a second Admin)', () => {
+    expect(shouldClaimOrgOnApproval(true, 'Admin')).toBe(false);
   });
 });

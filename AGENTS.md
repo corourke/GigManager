@@ -75,6 +75,8 @@ npm run build
 npx wrangler pages deploy build/ --project-name gigwrangler
 ```
 
+> Production deploys are orchestrated end-to-end by `./deploy_prod.sh` (gates → backups → migrations → functions → frontend → smoke check). Prefer it over running the commands above by hand. Full reference: [docs/technical/deployment.md](./docs/technical/deployment.md).
+
 ### Build & Installation
 
 ```bash
@@ -111,7 +113,7 @@ npm run build
 ## Language & Runtime
 **Language**: TypeScript  
 **Version**: Node.js (Frontend), Deno 2 (Supabase Edge Runtime)  
-**Build System**: Vite 6.3.5  
+**Build System**: Vite 6.4.3  
 **Package Manager**: npm  
 
 ## Dependencies

@@ -112,14 +112,16 @@ export async function updateOrganization(organizationId: string, orgData: {
 }
 
 /**
- * Join an organization as a Viewer
+ * Join an organization as a Viewer, or as Staff when the caller's email
+ * domain matches the org's allowed_domains (issue #33 point 7) — the server
+ * re-validates the domain match regardless of what's passed here.
  */
-export async function joinOrganization(orgId: string): Promise<{ organization: Organization; role: UserRole }> {
+export async function joinOrganization(orgId: string, role?: 'Viewer' | 'Staff'): Promise<{ organization: Organization; role: UserRole }> {
   try {
     const supabase = getSupabase();
     const { data, error } = await supabase.functions.invoke(`server/organizations/${orgId}/members`, {
       method: 'POST',
-      body: {} // No user_id or role means self-join as Viewer
+      body: role ? { role } : {} // No role means self-join as Viewer
     });
 
     if (error) return await handleFunctionsError(error, 'join organization');

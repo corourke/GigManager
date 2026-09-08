@@ -42,6 +42,10 @@ export type DbInvitation = Tables['invitations']['Row'];
 
 export type Invitation = DbInvitation;
 
+export type DbAccessRequest = Tables['access_requests']['Row'];
+
+export type AccessRequest = DbAccessRequest;
+
 export type DbAsset = Tables['assets']['Row'];
 
 export type DbPurchase = Tables['purchases']['Row'];
@@ -145,6 +149,12 @@ export interface InvitationWithInviter extends Invitation {
     first_name: string;
     last_name: string;
   };
+}
+
+export interface AccessRequestWithRelations extends AccessRequest {
+  requester: Pick<User, 'id' | 'first_name' | 'last_name' | 'email' | 'avatar_url'>;
+  organization: Pick<Organization, 'id' | 'name' | 'claimed'>;
+  handler: Pick<User, 'id' | 'first_name' | 'last_name'> | null;
 }
 
 // Google Calendar Integration Types — aliased to generated schema types

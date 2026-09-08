@@ -28,6 +28,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { searchOrganizations, joinOrganization } from '../services/organization.service';
+import { emailDomainMatches } from '../utils/validation-utils';
 import { 
   ORG_ROLE_CONFIG, 
   USER_ROLE_CONFIG 
@@ -102,16 +103,17 @@ export default function OrganizationSelectionScreen({
     return () => clearTimeout(debounceTimer);
   }, [searchQuery]);
 
-  // Handle joining an organization
-  const handleJoinOrganization = async (org: Organization) => {
+  // Handle joining an organization. Staff is only offered (see the render
+  // below) when the user's email domain matches the org's allowed_domains
+  // (issue #33 point 7) — the server re-validates regardless.
+  const handleJoinOrganization = async (org: Organization, role: 'Viewer' | 'Staff' = 'Viewer') => {
     setJoiningOrg(org.id);
 
     try {
-      // Use API function instead of Edge Function
-      await joinOrganization(org.id);
+      await joinOrganization(org.id, role);
 
-      toast.success(`Joined ${org.name} as Viewer`);
-      
+      toast.success(`Joined ${org.name} as ${role}`);
+
       // Refresh the page to update user's organizations
       window.location.reload();
     } catch (error: any) {
@@ -345,11 +347,34 @@ export default function OrganizationSelectionScreen({
                             <ChevronRight className="w-4 h-4 mr-1" />
                             Open
                           </Button>
+                        ) : emailDomainMatches(user.email, organization.allowed_domains) ? (
+                          <div className="flex gap-1.5">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => handleJoinOrganization(organization, 'Viewer')}
+                              disabled={isJoining}
+                              className="flex-1"
+                              title="Your email domain matches this organization"
+                            >
+                              {isJoining ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Viewer'}
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => handleJoinOrganization(organization, 'Staff')}
+                              disabled={isJoining}
+                              className="flex-1"
+                              title="Your email domain matches this organization"
+                            >
+                              {isJoining ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Staff'}
+                            </Button>
+                          </div>
                         ) : (
                           <Button
                             size="sm"
                             variant="outline"
-                            onClick={() => handleJoinOrganization(organization)}
+                            onClick={() => handleJoinOrganization(organization, 'Viewer')}
                             disabled={isJoining}
                             className="w-full"
                           >
@@ -384,7 +409,7 @@ export default function OrganizationSelectionScreen({
               className="w-full sm:w-auto"
             >
               <Building2 className="w-4 h-4 mr-2" />
-              Admin: View All Organizations
+              Browse All Organizations
             </Button>
           </div>
         )}

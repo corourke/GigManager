@@ -1211,6 +1211,7 @@ export type Database = {
           address_line2: string | null
           allowed_domains: string | null
           city: string | null
+          claimed: boolean
           country: string | null
           created_at: string
           description: string | null
@@ -1228,6 +1229,7 @@ export type Database = {
           address_line2?: string | null
           allowed_domains?: string | null
           city?: string | null
+          claimed?: boolean
           country?: string | null
           created_at?: string
           description?: string | null
@@ -1245,6 +1247,7 @@ export type Database = {
           address_line2?: string | null
           allowed_domains?: string | null
           city?: string | null
+          claimed?: boolean
           country?: string | null
           created_at?: string
           description?: string | null
@@ -1480,6 +1483,7 @@ export type Database = {
           id: string
           last_name: string
           phone: string | null
+          platform_moderator: boolean
           postal_code: string | null
           role_hint: string | null
           state: string | null
@@ -1499,6 +1503,7 @@ export type Database = {
           id: string
           last_name: string
           phone?: string | null
+          platform_moderator?: boolean
           postal_code?: string | null
           role_hint?: string | null
           state?: string | null
@@ -1518,12 +1523,55 @@ export type Database = {
           id?: string
           last_name?: string
           phone?: string | null
+          platform_moderator?: boolean
           postal_code?: string | null
           role_hint?: string | null
           state?: string | null
           timezone?: string | null
           updated_at?: string
           user_status?: string | null
+        }
+        Relationships: []
+      }
+      access_requests: {
+        Row: {
+          created_at: string
+          handled_at: string | null
+          handled_by: string | null
+          id: string
+          message: string | null
+          organization_id: string
+          requested_role: Database["public"]["Enums"]["user_role"]
+          requester_id: string
+          requester_seen_at: string | null
+          response_message: string | null
+          status: string
+        }
+        Insert: {
+          created_at?: string
+          handled_at?: string | null
+          handled_by?: string | null
+          id?: string
+          message?: string | null
+          organization_id: string
+          requested_role: Database["public"]["Enums"]["user_role"]
+          requester_id: string
+          requester_seen_at?: string | null
+          response_message?: string | null
+          status?: string
+        }
+        Update: {
+          created_at?: string
+          handled_at?: string | null
+          handled_by?: string | null
+          id?: string
+          message?: string | null
+          organization_id?: string
+          requested_role?: Database["public"]["Enums"]["user_role"]
+          requester_id?: string
+          requester_seen_at?: string | null
+          response_message?: string | null
+          status?: string
         }
         Relationships: []
       }
@@ -1622,6 +1670,7 @@ export type Database = {
           id: string
           last_name: string
           phone: string | null
+          platform_moderator: boolean
           postal_code: string | null
           role_hint: string | null
           state: string | null
@@ -1733,6 +1782,7 @@ export type Database = {
           id: string
           last_name: string
           phone: string | null
+          platform_moderator: boolean
           postal_code: string | null
           role_hint: string | null
           state: string | null

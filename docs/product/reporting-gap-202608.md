@@ -96,7 +96,7 @@ The competitive analysis ranks this #1 by impact ("no competitor has this") but 
 
 ## 6. Follow-up: June 2026 code review status check
 
-While preparing this report, cross-checked [code-and-product-review-202606.md](./code-and-product-review-202606.md) (a senior-engineer + PM pass from June) against the current code. Its engineering punch-list is essentially closed:
+While preparing this report, cross-checked [code-and-product-review-202606.md](./.archive/code-and-product-review-202606.md) (a senior-engineer + PM pass from June) against the current code. Its engineering punch-list is essentially closed:
 
 | # | June review item | Status now |
 |---|---|---|

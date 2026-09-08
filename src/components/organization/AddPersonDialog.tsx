@@ -43,7 +43,7 @@ interface AddPersonDialogProps {
 const EMPTY = { firstName: '', lastName: '', email: '', phone: '', title: '' };
 
 /**
- * One shared "add a person" dialog used everywhere GigManager creates a new
+ * One shared "add a person" dialog used everywhere GigWrangler creates a new
  * login-less contact/staff member or links an existing one: the
  * Organization Contacts tab, the Participants section (gig-scoped, via
  * GigParticipantContactsList), the Team screen's "No Account" tab, and the

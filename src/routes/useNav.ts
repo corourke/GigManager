@@ -62,6 +62,7 @@ export function useNav() {
     toOrgSelection: () => navigate('/org-selection'),
     toCreateOrg: () => navigate('/create-org'),
     toAdminOrgs: () => navigate('/admin/orgs'),
+    toModeratorQueue: () => navigate('/admin/access-requests'),
     editOrg: (org: Organization) => navigate(`/admin/orgs/${org.id}/edit`, { state: { org } }),
 
     // Switch organization: clear selection and return to the picker.
