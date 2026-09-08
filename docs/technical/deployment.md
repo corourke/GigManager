@@ -2,7 +2,7 @@
 
 **Purpose**: Single source of truth for how GigWrangler reaches production — the pipeline, every third-party service involved, the complete configuration inventory, and how to recover when something goes wrong.
 
-**Last Updated**: 2026-09-07
+**Last Updated**: 2026-09-08
 
 > For *local development* setup, see [setup-guide.md](./setup-guide.md). This document covers production only.
 
@@ -64,6 +64,7 @@
 | Automated CD | **None.** GitHub Actions runs quality gates only, never deploys |
 | Vercel / Netlify | **Not used.** Evaluated and rejected — see [Why Cloudflare Pages](#why-cloudflare-pages) |
 | Staging environment | **None.** Two environments only: dev and prod |
+| `website/index.html` | An unreleased marketing-page experiment. Deliberately not wired into the build and not deployed — ignore it when reasoning about production |
 
 ---
 
@@ -230,7 +231,7 @@ Provides Postgres, Auth, Storage, and Edge Functions. Two projects, no staging:
 **Edge functions** deployed to prod: `server` (the consolidated API — users, organizations, gigs, dashboard, Google integrations, WebAuthn, email) and `ai-scan` (receipt/invoice extraction). `_shared/` holds CORS and Sentry helpers and is not itself a function.
 
 **Backups** are two-layered:
-- Supabase-managed: automated daily backups + PITR (Pro plan), configured in dashboard → Database → Backups
+- Supabase-managed: automated daily backups, and optionally PITR, configured in dashboard → Database → Backups
 - Deploy-time: schema and data dumps into `./backups/` before every prod migration, taken by `deploy_prod.sh`
 
 ### Vite
@@ -348,12 +349,32 @@ Set with `supabase secrets set NAME=VALUE` against the **verified** target proje
 
 `SUPABASE_URL`, `SUPABASE_ANON_KEY`, and `SUPABASE_SERVICE_ROLE_KEY` are **injected automatically by the Supabase platform**. Do not set them by hand.
 
-**Confirmation status (2026-09-07).** `RESEND_API_KEY` and `RESEND_FROM_EMAIL` are set in both dev and prod, with delivery verified. The remaining secrets have not been audited against the live projects — most are inferable from working features, but the two that fail *silently* (`RP_ID`, `ORIGIN`) cannot be, since a broken passkey flow produces no error anywhere. Confirm them directly:
+Audit both projects with:
 
 ```bash
-cat supabase/.temp/project-ref   # must read hqnnhtxcxedisasvtbqv
+cat supabase/.temp/project-ref   # confirm which project you are looking at
 supabase secrets list
 ```
+
+### Audit results — 2026-09-08
+
+**`RP_ID`, `ORIGIN` and `RP_NAME` are absent from prod.** Passkey registration and authentication have therefore been running against the code defaults (`localhost`, `http://localhost:3000`) in production, which fail WebAuthn's origin and RPID validation. Fix:
+
+```bash
+supabase secrets set RP_ID=gigwrangler.com ORIGIN=https://gigwrangler.com
+```
+
+They are absent from dev too, and should stay that way — the `localhost` defaults are correct there, since the dev project is only ever reached from a local dev server. That asymmetry is exactly why this went unnoticed: passkeys work locally and fail only in production, silently.
+
+`ORIGIN` is a single exact-match string, so passkeys will not work on Cloudflare Pages preview URLs (`*.pages.dev`) even after the fix. `RP_ID` is a registrable domain suffix, so it does cover subdomains of `gigwrangler.com`.
+
+Three further observations from the same audit:
+
+| Finding | Assessment |
+|---|---|
+| `RESEND_API_KEY` and `RESEND_FROM_EMAIL` have **identical digests in dev and prod** — one Resend key and sender shared by both | Test sends from dev leave as production-branded mail, count against the same quota, and affect the same domain sending reputation. Worth splitting into a separate dev key. |
+| `SENTRY_DSN` is **shared** across dev and prod, but `SENTRY_ENVIRONMENT` **differs** | Correct as-is. This is Sentry's intended pattern: one project, environments separated by tag rather than by DSN. |
+| `GOOGLE_MAPS_API_KEY` exists on **dev only**, with the same digest as that project's `GOOGLE_PLACES_API_KEY`, and is read nowhere in the codebase | Orphan. Safe to unset: `supabase secrets unset GOOGLE_MAPS_API_KEY` against dev. |
 
 ---
 
@@ -370,7 +391,11 @@ Note that a rollback restores the *frontend only*. If the bad release also migra
 There is no automatic down-migration. Recovery options, in order of preference:
 
 1. **Roll forward** — write a corrective migration. Almost always right for a schema mistake.
-2. **Supabase PITR** — dashboard → Database → Backups. Restores to a point in time; loses writes after that point.
+2. **Supabase PITR**, *if enabled* — dashboard → Database → Backups.
+
+   **PITR (Point-In-Time Recovery)** continuously archives the database's write-ahead log, so you can restore to *any moment* inside a retention window — "09:42, just before the bad migration" — rather than only to the last nightly snapshot. Without it, the worst case is losing up to a full day of writes; with it, roughly the last few minutes.
+
+   It is a **paid add-on** on top of Pro, not something Pro includes, so it is off unless someone deliberately turned it on. **Whether it is enabled for this project has not been confirmed** — check the dashboard before relying on this step. If it is off, the deploy-time dumps below are the only fine-grained recovery path, and they only exist for migrations run through `deploy_prod.sh`.
 3. **Deploy-time dumps** — `./backups/prod-schema-backup-<ts>.sql` and `prod-data-backup-<ts>.sql`, taken immediately before the migrations that shipped.
 
 Restoring a data-only dump trips foreign-key checks, because rows are inserted in dump order rather than dependency order. Wrap the import:
@@ -399,7 +424,7 @@ git checkout main
 The one-time bring-up, should production ever need to be recreated. Originally executed as [`.zenflow/tasks/production-setup-b686/`](../../.zenflow/tasks/production-setup-b686/spec.md).
 
 **1. Supabase project**
-- Create a project on the **Pro plan** (required for PITR); note the new ref and DB password
+- Create a project on the **Pro plan**; note the new ref and DB password. PITR is a separate paid add-on on top of Pro — enable it deliberately if you want sub-daily recovery
 - `supabase link --project-ref <new-ref>` → verify → `supabase db push`
 - `supabase functions deploy`
 - Set every secret in the [inventory](#edge-functions--supabase-secrets) above
@@ -438,12 +463,12 @@ Tracked here rather than lost. None of these block a deploy today; all of them w
 | Gap | Impact |
 |---|---|
 | **Cloudflare dashboard config is not in the repo** — no `wrangler.toml`, no record of which env vars are actually set | Rebuilding the Pages project means reconstructing settings from this doc and hoping it is current. Drift between dashboard and doc is undetectable. |
-| **`RP_ID` / `ORIGIN` unverified in prod** | Documented here for the first time; whether they are actually set on `hqnnhtxcxedisasvtbqv` has not been confirmed. Run `supabase secrets list` against prod to check. If unset, passkeys are already broken with no error anywhere. |
+| **`RP_ID` / `ORIGIN` missing from prod** — confirmed 2026-09-08 | Passkeys are broken in production and produce no error anywhere. Fix in [Audit results](#audit-results--2026-09-08). |
+| **Dev and prod share one Resend key and sender** | Dev test sends go out as production-branded mail on the same quota and sending reputation |
 | **Single-account blast radius** — hosting, DNS, and TLS all live in one Cloudflare account | Loss of access to that account takes the site down with no independent recovery path |
 | **No staging environment** | Migrations are first exercised against production data during the prod deploy itself. Dev is the only rehearsal, and its data is not representative. |
 | **No automated CD** | Every production release depends on one person with a working local toolchain, Docker running, and `gh` authenticated |
-| **`website/index.html`** — a standalone marketing landing page exists in the repo, not wired into the Vite build | Unclear whether it is deployed, where, or how it is updated |
-| **Prod Supabase plan/PITR/retention values not recorded** | The bring-up checklist says to verify them; the values actually configured are not written down anywhere |
+| **Prod PITR and retention not confirmed** | The rollback procedure offers PITR as an option without anyone having verified it is switched on. PITR is a paid add-on, so the default answer is "off". |
 
 ---
 

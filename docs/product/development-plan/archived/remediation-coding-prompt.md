@@ -1,6 +1,6 @@
 # Remediation Implementation Prompt — Actions 1–8
 
-**Source**: [Code & Product Review, June 2026](../code-and-product-review-202606.md) — implements the "Prioritized Action List", items 1–8 (item 9, invoicing/settlement, is a product feature tracked separately).
+**Source**: [Code & Product Review, June 2026](../../.archive/code-and-product-review-202606.md) — implements the "Prioritized Action List", items 1–8 (item 9, invoicing/settlement, is a product feature tracked separately).
 
 **How to use**: Give this entire document to a coding agent as its task prompt. Phases are ordered by priority and risk. Each phase ends with a **STOP** gate — the agent must present its work and wait for user approval before starting the next phase. Phases 1–5 are small and sequential; phases 6–7 are larger and may be split across multiple sessions.
 
@@ -8,7 +8,7 @@
 
 ## Prompt
 
-You are implementing the remediation plan from the code and product review at `docs/product/code-and-product-review-202606.md`. Read that document first — it contains the findings, evidence, and rationale for everything below. Also read `AGENTS.md` and obey it strictly; in particular:
+You are implementing the remediation plan from the code and product review at `docs/product/.archive/code-and-product-review-202606.md`. Read that document first — it contains the findings, evidence, and rationale for everything below. Also read `AGENTS.md` and obey it strictly; in particular:
 
 - **Never modify a committed migration.** Schema changes require new migration files. Exception noted in Phase 1: `supabase/migrations/20260611000001_ensure_attachments_bucket.sql` is currently **uncommitted**, so it may be edited in place — verify with `git status` before touching it.
 - **Never apply migrations or deploy yourself.** After writing migrations or edge-function changes, enumerate the exact commands for the user (`supabase db push`, `supabase functions deploy`, etc.) and wait for confirmation. All Supabase CLI work targets **development** (`qcrzwsazasaojqoqxwnr`) unless explicitly instructed otherwise; verify with `cat supabase/.temp/project-ref`.
