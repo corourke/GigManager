@@ -233,7 +233,6 @@ export default function AssetListScreen({
       accessor: 'manufacturer_model',
       sortable: true,
       filterable: true,
-      editable: true,
       required: true,
       type: 'text',
       onCellClick: (row) => onViewAsset(row.id),

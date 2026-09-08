@@ -74,9 +74,12 @@ export interface ColumnDef<T> {
    */
   exportValue?: (row: T) => string | number | null | undefined;
   /**
-   * A single click on this cell calls this instead of selecting it for
-   * inline editing (double-click still edits, if `editable` is also set).
-   * Use for a "click the title to open the row" affordance.
+   * A click on this cell calls this instead of selecting it for inline
+   * editing, and takes over the cell entirely — it fires on every click,
+   * including the first click of a double-click, so there's no way to
+   * distinguish "open" from "edit" here. Setting this makes the column a
+   * pure navigation link; `editable` is ignored when this is set. Use for
+   * a "click the title to open the row" affordance.
    */
   onCellClick?: (row: T) => void;
 }

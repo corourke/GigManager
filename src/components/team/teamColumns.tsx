@@ -53,7 +53,7 @@ export function useMemberColumns({
       accessor: (row) => `${row.user.first_name} ${row.user.last_name}`,
       sortable: true,
       filterable: true,
-      editable: canManageTeam,
+      editable: canManageTeam && !onViewMember,
       type: 'text',
       onCellClick: onViewMember ? (row) => onViewMember(row.id) : undefined,
       render: (val, row) => {

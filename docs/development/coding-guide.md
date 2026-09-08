@@ -80,10 +80,11 @@
   identical fix once someone actually clicked around them).
 - **`SmartDataTable` title cell**: every list backed by `SmartDataTable` for a record with
   its own detail/edit screen (gigs, assets, kits, team members, ...) must set `onCellClick`
-  on that record's title/name column to open it — a single click opens the record; double-
-  click still edits it inline if the column is `editable`. Don't rely on a row-menu action
-  alone. A table with no detail screen to open (invitations, access requests) doesn't need
-  this.
+  on that record's title/name column to open it — a click opens the record. `onCellClick`
+  fires on every click, including the first click of a double-click, so it can't coexist
+  with inline editing on that column — don't also set `editable` there; rename/edit that
+  field from the detail screen instead. Don't rely on a row-menu action alone. A table with
+  no detail screen to open (invitations, access requests) doesn't need this.
 
 ## Quick Checklist
 

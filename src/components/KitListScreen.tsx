@@ -144,7 +144,6 @@ export default function KitListScreen({
       accessor: 'name',
       sortable: true,
       filterable: true,
-      editable: true,
       required: true,
       type: 'text',
       onCellClick: (row) => onViewKit(row.id),

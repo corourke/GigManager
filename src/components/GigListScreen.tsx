@@ -269,7 +269,6 @@ export default function GigListScreen({
       sortable: true,
       filterable: true,
       required: true,
-      editable: canEdit,
       type: 'text',
       className: 'w-[25%]',
       onCellClick: (row) => onViewGig(row.id),
