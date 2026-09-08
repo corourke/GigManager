@@ -1,5 +1,6 @@
 import {describe, it, expect, vi } from 'vitest'
-import {render } from '@testing-library/react'
+import {render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import AssetListScreen from './AssetListScreen'
 import { makeUser, makeOrganization } from '../test/factories'
 
@@ -99,6 +100,20 @@ describe('AssetListScreen', () => {
   it('renders tracking status filter dropdown', async () => {
     const { findAllByText } = render(<AssetListScreen {...mockProps} />)
     expect((await findAllByText('Tracking:')).length).toBeGreaterThan(0)
+  })
+
+  it('opens the asset when the title cell is clicked (#27)', async () => {
+    const ue = userEvent.setup()
+    const onViewAsset = vi.fn()
+    render(<AssetListScreen {...mockProps} onViewAsset={onViewAsset} />)
+
+    await waitFor(() => {
+      expect(screen.getByText('Test Asset')).toBeInTheDocument()
+    })
+
+    await ue.click(screen.getByText('Test Asset'))
+
+    expect(onViewAsset).toHaveBeenCalledWith('asset-1')
   })
 })
 

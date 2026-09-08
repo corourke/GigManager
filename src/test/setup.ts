@@ -92,6 +92,9 @@ vi.mock('../utils/supabase/client', () => ({
       on: vi.fn().mockReturnThis(),
       subscribe: vi.fn(),
     })),
+    // Realtime-subscribing hooks (e.g. useTeamMembers) call this in their
+    // cleanup effect; without a stub, unmounting them throws.
+    removeChannel: vi.fn(),
   })),
 }))
 

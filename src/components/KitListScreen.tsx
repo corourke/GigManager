@@ -147,6 +147,7 @@ export default function KitListScreen({
       editable: true,
       required: true,
       type: 'text',
+      onCellClick: (row) => onViewKit(row.id),
     },
     {
       id: 'category',
@@ -244,7 +245,7 @@ export default function KitListScreen({
       type: 'text',
       render: (value) => value ? <span className="text-xs">{value}</span> : <span className="text-xs text-muted-foreground">—</span>,
     },
-  ], [categories, TAG_PILL_CONFIG, kitTrackingSummary, kitFlattenedSummary]);
+  ], [categories, TAG_PILL_CONFIG, kitTrackingSummary, kitFlattenedSummary, onViewKit]);
 
   const canEdit = canManage(userRole);
 

@@ -236,6 +236,7 @@ export default function AssetListScreen({
       editable: true,
       required: true,
       type: 'text',
+      onCellClick: (row) => onViewAsset(row.id),
     },
     {
       id: 'type',
@@ -366,7 +367,7 @@ export default function AssetListScreen({
       type: 'text',
       render: (value) => value ? <span className="text-xs">{value}</span> : <span className="text-xs text-muted-foreground">—</span>,
     },
-  ], [categories, assetTrackingSummary]);
+  ], [categories, assetTrackingSummary, onViewAsset]);
 
   const canEdit = canManage(userRole);
 
