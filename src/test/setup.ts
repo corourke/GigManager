@@ -9,13 +9,39 @@ if (typeof globalThis.ResizeObserver === 'undefined') {
   } as any;
 }
 
+// jsdom does not reliably back Web Storage, and Node >=22 ships an experimental
+// `localStorage` / `sessionStorage` global whose getter returns `undefined` (and
+// prints an ExperimentalWarning) unless `--localstorage-file` is passed — and
+// that global shadows the one jsdom would otherwise install. The net effect on
+// newer Node is `typeof localStorage === 'undefined'` inside tests. Install a
+// deterministic in-memory implementation so tests that exercise persisted state
+// (selected org, list filters, table state) behave identically on every Node /
+// jsdom version.
+function createMemoryStorage(): Storage {
+  let store: Record<string, string> = {};
+  return {
+    getItem: (key: string) => (Object.prototype.hasOwnProperty.call(store, key) ? store[key] : null),
+    setItem: (key: string, value: string) => { store[String(key)] = String(value); },
+    removeItem: (key: string) => { delete store[String(key)]; },
+    clear: () => { store = {}; },
+    key: (index: number) => Object.keys(store)[index] ?? null,
+    get length() { return Object.keys(store).length; },
+  } as Storage;
+}
+
+for (const prop of ['localStorage', 'sessionStorage'] as const) {
+  const storage = createMemoryStorage();
+  Object.defineProperty(globalThis, prop, { value: storage, configurable: true, writable: false });
+  if (typeof window !== 'undefined' && window !== globalThis) {
+    Object.defineProperty(window, prop, { value: storage, configurable: true, writable: false });
+  }
+}
+
 // Reset persisted web storage between tests so filter/table state written by
-// one test (e.g. useGigListFilters) can't leak into the next. Whether
-// localStorage is backed by a real implementation depends on the JS engine /
-// jsdom version, so guard every access.
+// one test (e.g. useGigListFilters) can't leak into the next.
 afterEach(() => {
-  try { globalThis.localStorage?.clear(); } catch { /* no-op */ }
-  try { globalThis.sessionStorage?.clear(); } catch { /* no-op */ }
+  globalThis.localStorage.clear();
+  globalThis.sessionStorage.clear();
 });
 
 // Mock Supabase client
