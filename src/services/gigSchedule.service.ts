@@ -1,7 +1,8 @@
 import { handleApiError } from '../utils/api-error-utils';
 import { requireAuth } from '../utils/supabase/auth-utils';
 import { getSupabase } from './gigService.shared';
-import type { GigScheduleEntry } from '../utils/supabase/types';
+import { logActivity } from './activityLog.service';
+import type { GigScheduleEntry, ScheduleChange } from '../utils/supabase/types';
 
 /**
  * Fetch schedule entries for a gig, with joined act participant data.
@@ -40,7 +41,7 @@ export async function updateGigScheduleEntries(
   entries: Array<Partial<GigScheduleEntry>>
 ): Promise<void> {
   try {
-    const { supabase } = await requireAuth();
+    const { supabase, user } = await requireAuth();
 
     const { data: existing } = await supabase
       .from('gig_schedule_entries')
@@ -98,6 +99,37 @@ export async function updateGigScheduleEntries(
         .from('gig_schedule_entries')
         .insert(toInsert);
       if (insertError) throw insertError;
+
+      try {
+        const scheduleChanges: ScheduleChange[] = toInsert.map(e => ({
+          activity_type: e.activity_type,
+          label: e.label,
+          start_time: e.start_time,
+        }));
+        const { data: gigRow } = await supabase.from('gigs').select('title, primary_organization_id').eq('id', gigId).single();
+        const organization_id = (gigRow as any)?.primary_organization_id ?? null;
+        let actor_org_name = '';
+        if (organization_id) {
+          const { data: orgRow } = await (supabase.from('organizations') as any).select('name').eq('id', organization_id).single();
+          actor_org_name = (orgRow as any)?.name ?? '';
+        }
+        const actor_display_name = `${(user as any).user_metadata?.first_name ?? ''} ${(user as any).user_metadata?.last_name ?? ''}`.trim() || user.email || '';
+        await logActivity({
+          organization_id,
+          event_type: 'schedule_entry.added',
+          entity_type: 'schedule_entry',
+          entity_id: gigId,
+          gig_id: gigId,
+          context: {
+            context_version: 1,
+            actor_display_name,
+            actor_org_name,
+            gig_title: (gigRow as any)?.title ?? '',
+            schedule_changes: scheduleChanges,
+            change_count: scheduleChanges.length
+          }
+        });
+      } catch (e) { console.error('Activity log failed:', e); }
     }
   } catch (err) {
     return handleApiError(err, 'update schedule entries') as never;

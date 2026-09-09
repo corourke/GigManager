@@ -164,19 +164,39 @@ export async function updateGigStaffSlots(
       }
     }
 
-    if (staffingChanges.length > 0 && activityCtx) {
+    if (staffingChanges.length > 0) {
       try {
+        // Callers that own the gig-level save already computed activityCtx;
+        // direct callers (e.g. GigStaffSlotsSection's own autosave) don't, so
+        // derive it here rather than silently skipping the log (issue #55).
+        let effectiveCtx = activityCtx;
+        if (!effectiveCtx) {
+          const primary_organization_id = userMemberships.find(m => m.role === 'Admin' || m.role === 'Manager')?.organization_id || userMemberships[0]?.organization_id || null;
+          let actor_org_name = '';
+          if (primary_organization_id) {
+            const { data: orgRow } = await (supabase.from('organizations') as any).select('name').eq('id', primary_organization_id).single();
+            actor_org_name = (orgRow as any)?.name ?? '';
+          }
+          const { data: gigRow } = await supabase.from('gigs').select('title').eq('id', gigId).single();
+          effectiveCtx = {
+            organization_id: primary_organization_id,
+            actor_display_name: `${(user as any).user_metadata?.first_name ?? ''} ${(user as any).user_metadata?.last_name ?? ''}`.trim() || user.email || '',
+            actor_org_name,
+            gig_title: (gigRow as any)?.title ?? '',
+          };
+        }
+
         await logActivity({
-          organization_id: activityCtx.organization_id,
+          organization_id: effectiveCtx.organization_id,
           event_type: 'staffing.updated',
           entity_type: 'staffing',
           entity_id: gigId,
           gig_id: gigId,
           context: {
             context_version: 1,
-            actor_display_name: activityCtx.actor_display_name,
-            actor_org_name: activityCtx.actor_org_name,
-            gig_title: activityCtx.gig_title,
+            actor_display_name: effectiveCtx.actor_display_name,
+            actor_org_name: effectiveCtx.actor_org_name,
+            gig_title: effectiveCtx.gig_title,
             changes: staffingChanges,
             change_count: staffingChanges.length
           }

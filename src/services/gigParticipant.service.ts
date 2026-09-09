@@ -30,7 +30,7 @@ export async function updateGigParticipants(
   }
 ) {
   try {
-    const { supabase } = await requireAuth();
+    const { supabase, user } = await requireAuth();
 
     const { data: existingParticipants, error: fetchError } = await supabase
       .from('gig_participants')
@@ -39,6 +39,27 @@ export async function updateGigParticipants(
 
     if (fetchError) throw fetchError;
 
+    // Callers that own the gig-level save (gig.service#updateGig) already
+    // computed this; direct callers (e.g. GigParticipantsSection's own
+    // autosave) don't, so derive it here rather than silently skipping the
+    // activity log (issue #55 — adds via this path weren't logged at all).
+    let effectiveCtx = activityCtx;
+    if (!effectiveCtx) {
+      const { data: gigRow } = await supabase.from('gigs').select('title, primary_organization_id').eq('id', gigId).single();
+      const organization_id = (gigRow as any)?.primary_organization_id ?? null;
+      let actor_org_name = '';
+      if (organization_id) {
+        const { data: orgRow } = await (supabase.from('organizations') as any).select('name').eq('id', organization_id).single();
+        actor_org_name = (orgRow as any)?.name ?? '';
+      }
+      effectiveCtx = {
+        organization_id,
+        actor_display_name: `${(user as any).user_metadata?.first_name ?? ''} ${(user as any).user_metadata?.last_name ?? ''}`.trim() || user.email || '',
+        actor_org_name,
+        gig_title: (gigRow as any)?.title ?? '',
+      };
+    }
+
     const existingIds = (existingParticipants ?? []).map(p => p.id);
     const incomingIds = participants
       .filter(p => p.id && UUID_REGEX.test(p.id))
@@ -46,7 +67,7 @@ export async function updateGigParticipants(
 
     const idsToDelete = existingIds.filter(id => !incomingIds.includes(id));
 
-    if (idsToDelete.length > 0 && activityCtx) {
+    if (idsToDelete.length > 0) {
       const removedRows = (existingParticipants ?? []).filter(p => idsToDelete.includes(p.id));
       const orgIds = removedRows.map(r => r.organization_id).filter(Boolean);
       let orgNameMap: Map<string, string> = new Map();
@@ -57,16 +78,16 @@ export async function updateGigParticipants(
       for (const row of removedRows) {
         try {
           await logActivity({
-            organization_id: activityCtx.organization_id,
+            organization_id: effectiveCtx.organization_id,
             event_type: 'participant.removed',
             entity_type: 'participant',
             entity_id: row.id,
             gig_id: gigId,
             context: {
               context_version: 1,
-              actor_display_name: activityCtx.actor_display_name,
-              actor_org_name: activityCtx.actor_org_name,
-              gig_title: activityCtx.gig_title,
+              actor_display_name: effectiveCtx.actor_display_name,
+              actor_org_name: effectiveCtx.actor_org_name,
+              gig_title: effectiveCtx.gig_title,
               organization_name: orgNameMap.get(row.organization_id) ?? '',
               role: row.role
             }
@@ -95,20 +116,20 @@ export async function updateGigParticipants(
           .insert({ gig_id: gigId, ...participantData })
           .select('id')
           .single();
-        if (activityCtx && inserted?.id) {
+        if (inserted?.id) {
           const { data: orgRow } = await (supabase.from('organizations') as any).select('name').eq('id', participant.organization_id).single();
           try {
             await logActivity({
-              organization_id: activityCtx.organization_id,
+              organization_id: effectiveCtx.organization_id,
               event_type: 'participant.added',
               entity_type: 'participant',
               entity_id: inserted.id,
               gig_id: gigId,
               context: {
                 context_version: 1,
-                actor_display_name: activityCtx.actor_display_name,
-                actor_org_name: activityCtx.actor_org_name,
-                gig_title: activityCtx.gig_title,
+                actor_display_name: effectiveCtx.actor_display_name,
+                actor_org_name: effectiveCtx.actor_org_name,
+                gig_title: effectiveCtx.gig_title,
                 organization_name: (orgRow as any)?.name ?? '',
                 role: participant.role
               }

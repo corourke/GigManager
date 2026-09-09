@@ -1,10 +1,21 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { getGigExportAggregates } from './gigFinancial.service';
+import { getGigExportAggregates, updateGigFinancials } from './gigFinancial.service';
 import { createClient } from '../utils/supabase/client';
+import { requireAuth } from '../utils/supabase/auth-utils';
 
 vi.mock('../utils/supabase/client', () => ({
   createClient: vi.fn(),
 }));
+
+vi.mock('../utils/supabase/auth-utils', () => ({
+  requireAuth: vi.fn(),
+}));
+
+vi.mock('./activityLog.service', () => ({
+  logActivity: vi.fn().mockResolvedValue(undefined),
+}));
+
+import { logActivity } from './activityLog.service';
 
 // Chainable Supabase query builder stub that resolves to `result` when awaited.
 function makeChain(result: { data: any; error: any }) {
@@ -120,5 +131,68 @@ describe('getGigExportAggregates', () => {
       return makeChain({ data: null, error: new Error('permission denied') });
     });
     await expect(getGigExportAggregates('org-1')).rejects.toThrow('permission denied');
+  });
+});
+
+// ─── updateGigFinancials (issue #55 — add-only history events) ────────────
+
+function makeFullChain(result: { data: any; error: any }) {
+  const chain: any = {};
+  ['select', 'insert', 'update', 'delete', 'eq', 'in', 'is', 'or', 'order', 'limit'].forEach((m) => {
+    chain[m] = vi.fn().mockReturnValue(chain);
+  });
+  chain.single = vi.fn().mockResolvedValue(result);
+  chain.then = (resolve: any, reject: any) => Promise.resolve(result).then(resolve, reject);
+  return chain;
+}
+
+describe('updateGigFinancials', () => {
+  let mockSupabase: any;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockSupabase = { from: vi.fn() };
+    (requireAuth as any).mockResolvedValue({
+      supabase: mockSupabase,
+      user: { id: 'user-1', email: 'jane@example.com', user_metadata: { first_name: 'Jane', last_name: 'Doe' } },
+    });
+  });
+
+  it('logs financial.added when a new record is inserted', async () => {
+    mockSupabase.from.mockImplementation((table: string) => {
+      if (table === 'gig_financials') return makeFullChain({ data: [], error: null });
+      if (table === 'organizations') return makeFullChain({ data: { name: 'Acme' }, error: null });
+      if (table === 'gigs') return makeFullChain({ data: { title: 'Test Gig' }, error: null });
+      return makeFullChain({ data: [], error: null });
+    });
+
+    await updateGigFinancials('gig-1', 'org-1', [
+      { amount: 250, date: '2026-01-01', type: 'Expense Incurred' },
+    ]);
+
+    expect(logActivity).toHaveBeenCalledWith(expect.objectContaining({
+      event_type: 'financial.added',
+      organization_id: 'org-1',
+      gig_id: 'gig-1',
+      context: expect.objectContaining({
+        gig_title: 'Test Gig',
+        actor_org_name: 'Acme',
+        financial_changes: [{ amount: 250, fin_type: 'Expense Incurred' }],
+        change_count: 1,
+      }),
+    }));
+  });
+
+  it('does NOT log when only updating an existing record', async () => {
+    mockSupabase.from.mockImplementation((table: string) => {
+      if (table === 'gig_financials') return makeFullChain({ data: [{ id: '11111111-1111-1111-1111-111111111111' }], error: null });
+      return makeFullChain({ data: [], error: null });
+    });
+
+    await updateGigFinancials('gig-1', 'org-1', [
+      { id: '11111111-1111-1111-1111-111111111111', amount: 300, date: '2026-01-01', type: 'Payment Received' },
+    ]);
+
+    expect(logActivity).not.toHaveBeenCalled();
   });
 });

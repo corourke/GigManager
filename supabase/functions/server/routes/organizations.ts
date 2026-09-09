@@ -1,7 +1,7 @@
 import type { App } from '../lib/types.ts';
 import { requireUser } from '../lib/auth.ts';
 import { requireOrgRole, verifyOrgMembership } from '../lib/orgRole.ts';
-import { emailDomainMatches } from '../lib/pure/authz.ts';
+import { emailDomainMatches, ORGANIZATION_DELETE_REFERENCES, describeOrganizationDeleteBlockers } from '../lib/pure/authz.ts';
 import { supabaseAdmin } from '../lib/supabaseAdmin.ts';
 
 const ORG_UPDATE_FIELDS = [
@@ -115,22 +115,19 @@ export function registerOrganizations(app: App) {
       return c.json({ error: 'Organization not found' }, 404);
     }
 
-    const { count: memberCount, error: memberCountError } = await supabaseAdmin
-      .from('organization_members').select('*', { count: 'exact', head: true }).eq('organization_id', orgId);
-    if (memberCountError) {
-      return c.json({ error: 'Failed to check organization members' }, 500);
+    const counts: Record<string, number> = {};
+    for (const ref of ORGANIZATION_DELETE_REFERENCES) {
+      const { count, error: countError } = await supabaseAdmin
+        .from(ref.table).select('*', { count: 'exact', head: true }).eq(ref.column, orgId);
+      if (countError) {
+        console.error(`Error checking ${ref.table} for org delete:`, countError);
+        return c.json({ error: `Failed to check ${ref.label}` }, 500);
+      }
+      counts[ref.label] = count ?? 0;
     }
-    if ((memberCount ?? 0) > 0) {
-      return c.json({ error: 'Cannot delete an organization that has members. Remove all members first.' }, 409);
-    }
-
-    const { count: participantCount, error: participantCountError } = await supabaseAdmin
-      .from('gig_participants').select('*', { count: 'exact', head: true }).eq('organization_id', orgId);
-    if (participantCountError) {
-      return c.json({ error: 'Failed to check gig participants' }, 500);
-    }
-    if ((participantCount ?? 0) > 0) {
-      return c.json({ error: 'Cannot delete an organization that is a participant in gigs. Remove it from all gigs first.' }, 409);
+    const blockerMessage = describeOrganizationDeleteBlockers(counts);
+    if (blockerMessage) {
+      return c.json({ error: blockerMessage }, 409);
     }
 
     const { error: deleteError } = await supabaseAdmin

@@ -7,6 +7,7 @@ import {
   emailDomainMatches,
   canDecideAccessRequest,
   shouldClaimOrgOnApproval,
+  describeOrganizationDeleteBlockers,
 } from './authz';
 
 describe('parseBearer', () => {
@@ -122,5 +123,26 @@ describe('shouldClaimOrgOnApproval (issue #33 bootstrap case)', () => {
   });
   it('does not re-claim an already-claimed org (e.g. approving a second Admin)', () => {
     expect(shouldClaimOrgOnApproval(true, 'Admin')).toBe(false);
+  });
+});
+
+describe('describeOrganizationDeleteBlockers (issue #53)', () => {
+  it('allows deletion when every reference count is zero', () => {
+    expect(describeOrganizationDeleteBlockers({ members: 0, assets: 0, kits: 0 })).toBeNull();
+  });
+  it('names every non-zero reference in one message', () => {
+    const message = describeOrganizationDeleteBlockers({ members: 2, assets: 0, kits: 5, 'gig participations': 1 });
+    expect(message).toContain('members');
+    expect(message).toContain('kits');
+    expect(message).toContain('gig participations');
+    expect(message).not.toContain('assets');
+  });
+  it('blocks on a single non-zero reference', () => {
+    expect(describeOrganizationDeleteBlockers({ 'financial records': 3 })).toBe(
+      'Cannot delete an organization that still has financial records. Remove them first.'
+    );
+  });
+  it('allows deletion when there are no references to check', () => {
+    expect(describeOrganizationDeleteBlockers({})).toBeNull();
   });
 });

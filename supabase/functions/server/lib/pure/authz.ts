@@ -96,3 +96,45 @@ export function requireGigCreateOrgId(
   }
   return { ok: true, orgId };
 }
+
+/**
+ * Every table with a row that references an organization and would either
+ * cascade-delete (destroying real business data) or be silently orphaned
+ * (`gig_financials.organization_id` has no DB-level FK) if that organization
+ * were deleted. Used by the `DELETE /organizations/:id` referential-integrity
+ * guard (issue #53) — previously only `organization_members` and
+ * `gig_participants` were checked, so an org with assets, kits, financials,
+ * etc. could still be deleted out from under that data.
+ *
+ * `gig_financials.counterparty_id` is deliberately excluded: it's a `SET
+ * NULL` reference (an org can be someone else's counterparty), not one that
+ * would destroy or orphan the financial record itself.
+ */
+export const ORGANIZATION_DELETE_REFERENCES: ReadonlyArray<{ table: string; column: string; label: string }> = [
+  { table: 'organization_members', column: 'organization_id', label: 'members' },
+  { table: 'gig_participants', column: 'organization_id', label: 'gig participations' },
+  { table: 'gig_staff_slots', column: 'organization_id', label: 'gig staff slots' },
+  { table: 'gig_kit_assignments', column: 'organization_id', label: 'gig kit assignments' },
+  { table: 'gig_bids', column: 'organization_id', label: 'gig bids' },
+  { table: 'gig_financials', column: 'organization_id', label: 'financial records' },
+  { table: 'assets', column: 'organization_id', label: 'assets' },
+  { table: 'kits', column: 'organization_id', label: 'kits' },
+  { table: 'purchases', column: 'organization_id', label: 'purchases' },
+  { table: 'attachments', column: 'organization_id', label: 'attachments' },
+  { table: 'invitations', column: 'organization_id', label: 'pending invitations' },
+  { table: 'gig_participant_contacts', column: 'organization_id', label: 'participant contacts' },
+  { table: 'access_requests', column: 'organization_id', label: 'access requests' },
+];
+
+/**
+ * Turns a { label -> row count } map (one entry per
+ * `ORGANIZATION_DELETE_REFERENCES` row) into the user-facing error for a
+ * blocked organization delete, or null when nothing blocks it.
+ */
+export function describeOrganizationDeleteBlockers(counts: Record<string, number>): string | null {
+  const blockers = Object.entries(counts)
+    .filter(([, count]) => count > 0)
+    .map(([label]) => label);
+  if (blockers.length === 0) return null;
+  return `Cannot delete an organization that still has ${blockers.join(', ')}. Remove them first.`;
+}
