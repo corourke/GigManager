@@ -12,7 +12,7 @@ from the internal docs (`/docs`).
 
 ```bash
 cd website/docs
-npm install          # first time only (Node 20 or 22 — see "A note on Node")
+npm install          # first time only (needs Node >= 22.12 — see "A note on Node")
 npm run dev          # http://localhost:4321, hot-reloads as you edit
 ```
 
@@ -111,12 +111,17 @@ After this, the "Day-to-day" flow above is all that's needed.
 
 ## A note on Node
 
-The repo root runs a newer Node than Astro officially supports. Pin the docs build
-to **Node 20 or 22**:
+Astro 7 requires **Node >= 22.12** (`astro`'s `engines` field). Anything from
+Node 22 upward works — the site has been installed, built, and served on **Node 26**
+with no issues. You do **not** need a version manager for local development; use
+whatever Node you already have, as long as it's 22.12 or newer. (Node 20 and older
+are *not* supported by Astro 7.)
 
-- Cloudflare: the `NODE_VERSION=22` env var above.
-- Locally: `nvm use 22` (or `fnm`, `asdf`, …) before `npm install` / `npm run dev`
-  in this directory. `.nvmrc` here sets `22` so `nvm use` picks it up.
+What actually matters is **Cloudflare Pages**: its build runs on the Node version
+you pick via the `NODE_VERSION` build variable, so pin it for a reproducible
+deploy. `22` is a safe, always-available choice; set it to a newer version if you
+want to match local. `.nvmrc` here is set to `22` purely as a hint for anyone who
+*does* use `nvm` / `fnm` / `mise` — it's inert otherwise.
 
 ---
 
