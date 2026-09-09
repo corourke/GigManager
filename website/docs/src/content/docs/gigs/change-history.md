@@ -2,7 +2,7 @@
 title: Change history
 description: The audit trail of who changed what on a gig, and when.
 sidebar:
-  order: 5
+  order: 8
 ---
 
 Every gig keeps a **change history**. Open a gig and select the **History** tab.
@@ -25,3 +25,10 @@ The exact scope is still being finalized — see GitHub
 [#55](https://github.com/corourke/GigManager/issues/55). Assets and kits have their
 own history in the same style.
 :::
+
+<!-- TODO
+  - 📸 History tab with a few entries (create, rename, reschedule).
+  - Pin down the exact scope once #55 is resolved (currently gig fields only;
+    participant/staff/financial/schedule changes are NOT logged).
+  - Note #54: no-op "Rescheduled from X to X" entries can appear.
+-->

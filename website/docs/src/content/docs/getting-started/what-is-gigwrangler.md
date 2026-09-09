@@ -36,3 +36,8 @@ and a Viewer of another. See [Roles & access](/reference/roles-and-access/).
 2. [Getting into an organization](/getting-started/organizations/) — create your
    own, claim an existing one, request access, or accept an invitation.
 3. [The dashboard](/getting-started/the-dashboard/) — what you see once you're in.
+
+<!-- TODO
+  - Add a short "how GigWrangler is different from spreadsheets" paragraph (Prompt 1).
+  - 📸 A hero screenshot: the dashboard, populated.
+-->

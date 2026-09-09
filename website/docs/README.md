@@ -42,21 +42,45 @@ Every page needs frontmatter (Starlight's schema):
 ---
 title: Signing up
 description: One sentence for search results and social cards.
+draft: true        # optional — see "Hiding unfinished pages" below
 sidebar:
-  order: 2        # position within its sidebar group
+  order: 2         # position within its section
 ---
 ```
 
-The left-hand navigation is **defined explicitly** in `astro.config.mjs`
-(`sidebar: [...]`). A new page does not appear in the nav until you add an entry
-there:
+The left-hand nav is **auto-generated per directory** (`astro.config.mjs` →
+`sidebar` → one `autogenerate` group per folder under `src/content/docs/`). So:
 
-```js
-{ label: 'Signing up', slug: 'getting-started/onboarding' }
-```
+- **New page** → just create the `.md` file in the right folder; it shows up in
+  the nav automatically. No config edit.
+- **Order** within a section comes from `sidebar.order`; the label defaults to
+  `title` (override with `sidebar.label`).
+- **New top-level section** → add one line to the `sidebar` array in
+  `astro.config.mjs` and create the folder.
 
 Callouts: `:::note`, `:::tip`, `:::caution`, `:::danger`. Components like `<Card>`
 need an MDX file (`.mdx`) and an import. Full-text search (Pagefind) is automatic.
+
+### Hiding unfinished pages
+
+Put **`draft: true`** in a page's frontmatter. Then:
+
+| | `npm run dev` | `npm run build:staging` | `npm run build` (production / Cloudflare) |
+| --- | --- | --- | --- |
+| Draft page | shown, with a "draft" banner | shown | **excluded** — no route, no nav entry, not in search or sitemap |
+
+So drafts are fully editable and previewable locally, but never reach
+`docs.gigwrangler.com`. Remove the `draft: true` line when a page is ready.
+
+> Cloudflare preview deployments (non-`main` branches) also run `npm run build`,
+> so they **don't** show drafts either. To share a draft-visible build, run
+> `npm run build:staging` and deploy `dist/` somewhere yourself, or just use
+> `npm run dev`.
+
+Most pages in this repo are currently `draft: true` stubs — each has a
+"## Cover" / "## Screenshots" / "## Source" checklist drawn from
+`docs/development/user-documentation-plan.md`. Written pages carry `<!-- TODO -->`
+comments for what's still missing.
 
 ---
 
@@ -65,10 +89,11 @@ need an MDX file (`.mdx`) and an import. Full-text search (Pagefind) is automati
 Once the Cloudflare Worker is connected to this repo (see below), **you never
 deploy by hand** — pushing to GitHub triggers a Cloudflare build + deploy.
 
-1. Edit or add a file under `src/content/docs/`. New page → also add it to the
-   `sidebar` in `astro.config.mjs`.
+1. Edit or add a file under `src/content/docs/` (a new file appears in the nav
+   automatically). Not ready for readers? Add `draft: true` — see
+   "Hiding unfinished pages".
 2. Preview with `npm run dev` (or `npm run build && npm run preview` for the exact
-   production output).
+   production output; `npm run build:staging` to preview *with* drafts).
 3. Commit and push:
    ```bash
    git add website/docs

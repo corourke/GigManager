@@ -1,26 +1,33 @@
 ---
-title: Staffing & participants
-description: Add participating organizations and their contacts, and staff the gig.
+title: Staffing
+description: Fill role slots on a gig and assign people.
+draft: true
 sidebar:
-  order: 3
+  order: 4
 ---
 
-<!--
-TODO — flesh out from user-documentation-plan.md §3 and Prompt 6. Key points to cover:
-- Participants: your org is added automatically; add participating orgs by role
-  (Venue, Act, Sound, Lighting, …). Picking a Venue/Act participant fills the gig's
-  Venue/Act fields.
-- The org search on a new participant row: search existing orgs, or "Create <name>".
-- Per-participant: "Mark as client", "Change organization", "More actions" (contacts),
-  "Remove participant".
-- Per-gig contacts vs. permanent org members; duplicate-detection picker (name/email/phone).
-- Staff slots: pick a role, set how many are needed, assign people (with account,
-  invited, or quick-added without a login), track status Invited → Confirmed/Declined.
-- Rates and "Total Staff Cost" (Finalized / Projected / Total).
--->
+## Cover
 
-:::caution[Stub]
-This page isn't written yet. See the
-[documentation plan](https://github.com/corourke/GigManager/blob/main/docs/development/user-documentation-plan.md)
-(§3 and Prompt 6) for the outline.
-:::
+- **Staff slots**: pick a role (the seeded job roles — FOH, Monitor, Lighting,
+  Stage, …), set **how many are needed**, add notes.
+- **Assigning people** to a slot: someone with an account, an invited member, or a
+  person quick-added without a login (see
+  [Adding people without a login](/organizations/people-without-logins/)).
+- Assignment **status**: Invited → Confirmed / Declined; **Finalize All**.
+- **Rates** and **Total Staff Cost** (Finalized / Projected / Total), and how staff
+  cost feeds gig profit.
+- Deleting a slot (no confirmation today — issue territory).
+
+## Screenshots
+
+- 📸 A staffed gig: two slots, one filled, one open.
+- 📸 The user picker with "+ Add new person".
+- 📸 Total Staff Cost breakdown.
+
+## Notes
+
+- After adding a slot, its assignment row now renders without a reload (#16).
+
+## Source
+
+Plan §3, Prompt 6. Issues #5, #16.

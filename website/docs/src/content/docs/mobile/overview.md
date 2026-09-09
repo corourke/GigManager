@@ -1,0 +1,23 @@
+---
+title: Mobile app & field operations
+description: The staff-facing mobile experience.
+draft: true
+sidebar:
+  order: 1
+---
+
+## Cover
+
+- Installing the PWA (add to home screen); standalone mode.
+- The **mobile dashboard**: upcoming assigned gigs with venue/contact quick links.
+- Editing gigs from mobile; the mobile gig list (Upcoming/Past) and quick-create.
+- What's role-gated on mobile.
+
+## Screenshots
+
+- 📸 Mobile dashboard.
+- 📸 Mobile gig detail.
+
+## Source
+
+Plan §8. `docs/product/development-plan/04_mobile-development.md`.

@@ -27,3 +27,9 @@ and **Sign Out**.
 
 On the sign-in screen, choose **Forgot password?** and follow the emailed link to
 set a new one.
+
+<!-- TODO
+  - Confirm the exact Google sign-in flow and any org-domain auto-join behaviour.
+  - 📸 Sign Up form. 📸 Select Organization screen (empty state). 📸 Edit Profile.
+  - Note: production may require email confirmation — document that step if so.
+-->

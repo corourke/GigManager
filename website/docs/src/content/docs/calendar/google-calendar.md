@@ -2,7 +2,7 @@
 title: Google Calendar
 description: Sync your gigs one-way into Google Calendar.
 sidebar:
-  order: 1
+  order: 2
 ---
 
 GigWrangler can push your gigs one-way into Google Calendar — your personal
@@ -29,3 +29,9 @@ Gigs sync one-way, GigWrangler → Google. Changes you make in Google Calendar d
 come back.
 
 <!-- TODO: screenshots; per-gig vs. sync-all; what a synced event looks like; conflict detection. -->
+
+<!-- TODO
+  - 📸 Settings → Calendar connect screen. 📸 Calendar picker (writable only).
+  - 📸 A synced gig as it appears in Google Calendar.
+  - Document per-gig sync vs "Sync All Gigs", and the lost-write-access warning.
+-->

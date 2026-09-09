@@ -38,3 +38,9 @@ claim one or request access.
 A small number of accounts have a **platform moderator** flag. They review access
 requests for **unclaimed** organizations and approve or reject them from a queue.
 They don't otherwise act inside your organization.
+
+<!-- TODO
+  - Turn "Roles" into a full capability matrix (rows = actions, cols = roles).
+  - 📸 Team screen Role column. 📸 An unclaimed vs claimed org in "Browse All Organizations".
+  - Cross-check against server route guards in organizations.ts.
+-->
