@@ -204,6 +204,17 @@ export interface FieldChange {
   to: unknown;
 }
 
+export interface FinancialChange {
+  amount: number;
+  fin_type: string;
+}
+
+export interface ScheduleChange {
+  activity_type: string;
+  label?: string | null;
+  start_time: string;
+}
+
 export interface ActivityLogContext {
   context_version: number;
   actor_display_name: string;
@@ -229,6 +240,8 @@ export interface ActivityLogContext {
   field_changes?: FieldChange[];
   notes_changed?: boolean;
   asset_name?: string;
+  financial_changes?: FinancialChange[];
+  schedule_changes?: ScheduleChange[];
 }
 
 export interface ActivityLogEntry extends Omit<DbActivityLog, 'context'> {

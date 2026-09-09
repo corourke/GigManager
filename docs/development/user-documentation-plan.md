@@ -194,8 +194,14 @@ Resolved since the last revision — no longer blockers: **#9, #10, #16, #17, #1
 - **Field Inventory**: Using Mobile Inventory Mode to check gear in/out; nested-tree scan view. *(shipped)*
 - **Offline Access**: Understanding what data is available without a connection. *(offline sync still in progress — roadmap Sprint 5)*
 
-### 9. Change History & Audit Trail *(NEW — shipped 2026-06)*
-- **What's tracked**: create/edit/delete events for gigs, assets, and kits.
+### 9. Change History & Audit Trail *(NEW — shipped 2026-06; scope note added 2026-09-09, issue #55)*
+- **What's tracked**: create/edit/delete events for gigs, assets, and kits, plus **additions**
+  of a gig's participants, staff slots, financial records, and schedule entries (who added
+  it, and when). This is intentionally **add-only**, not full field-level auditing: editing
+  or removing an existing participant/staff slot/financial record/schedule entry does not
+  currently produce a history entry (participant *removal* is the one exception — it's
+  already logged). We are not a banking app — the goal is visibility into "something
+  changed, by whom, and when," not a complete ledger of every field on every sub-record.
 - **Reading history**: the in-context history panel on a record.
 - **Actor snapshotting**: why a past entry keeps the name/role the actor had at the time.
 - **Revert**: (if exposed in UI) restoring a prior state and its conflict checks.

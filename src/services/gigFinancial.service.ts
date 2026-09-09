@@ -1,9 +1,10 @@
-import { FinType, FinCategory, DbGigFinancial } from '../utils/supabase/types';
+import { FinType, FinCategory, DbGigFinancial, FinancialChange } from '../utils/supabase/types';
 import { FIN_TYPE_GROUPS } from '../utils/supabase/constants';
 import { handleApiError } from '../utils/api-error-utils';
 import { requireAuth } from '../utils/supabase/auth-utils';
 import { UUID_REGEX } from '../utils/validation-utils';
 import { getSupabase } from './gigService.shared';
+import { logActivity } from './activityLog.service';
 
 /**
  * Gig financial / bid operations (Phase 7, Step 4 — extracted from
@@ -528,6 +529,8 @@ export async function updateGigFinancials(gigId: string, organizationId: string,
       await supabase.from('gig_financials').delete().in('id', idsToDelete);
     }
 
+    const financialChanges: FinancialChange[] = [];
+
     for (const fin of financials) {
       // Strip out any non-database fields like 'counterparty' object
       const { id, counterparty, ...restFin } = fin as any;
@@ -563,8 +566,33 @@ export async function updateGigFinancials(gigId: string, organizationId: string,
       } else {
         const { error: insertErr } = await supabase.from('gig_financials').insert({ ...finData, created_by: user.id });
         if (insertErr) throw insertErr;
+        financialChanges.push({ amount: finData.amount, fin_type: finData.type });
       }
     }
+
+    if (financialChanges.length > 0) {
+      try {
+        const actor_display_name = `${(user as any).user_metadata?.first_name ?? ''} ${(user as any).user_metadata?.last_name ?? ''}`.trim() || user.email || '';
+        const { data: orgRow } = await (supabase.from('organizations') as any).select('name').eq('id', organizationId).single();
+        const { data: gigRow } = await supabase.from('gigs').select('title').eq('id', gigId).single();
+        await logActivity({
+          organization_id: organizationId,
+          event_type: 'financial.added',
+          entity_type: 'financial',
+          entity_id: gigId,
+          gig_id: gigId,
+          context: {
+            context_version: 1,
+            actor_display_name,
+            actor_org_name: (orgRow as any)?.name ?? '',
+            gig_title: (gigRow as any)?.title ?? '',
+            financial_changes: financialChanges,
+            change_count: financialChanges.length
+          }
+        });
+      } catch (e) { console.error('Activity log failed:', e); }
+    }
+
     return { success: true };
   } catch (err) {
     return handleApiError(err, 'update gig financials');

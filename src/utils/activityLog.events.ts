@@ -114,6 +114,32 @@ export const ACTIVITY_EVENTS = {
       return `Staffing updated: ${summary}`;
     },
   },
+  'financial.added': {
+    label: 'Financial Record Added',
+    entityType: 'financial',
+    calendarIndicator: false,
+    contextKeys: ['gig_title', 'financial_changes', 'change_count'],
+    format: (ctx) => {
+      if (!ctx.financial_changes?.length) return 'Financial record added';
+      const summary = ctx.financial_changes
+        .map((c) => `${c.fin_type}: $${c.amount.toFixed(2)}`)
+        .join('; ');
+      return `Added ${summary}`;
+    },
+  },
+  'schedule_entry.added': {
+    label: 'Schedule Entry Added',
+    entityType: 'schedule_entry',
+    calendarIndicator: false,
+    contextKeys: ['gig_title', 'schedule_changes', 'change_count'],
+    format: (ctx) => {
+      if (!ctx.schedule_changes?.length) return 'Schedule entry added';
+      const summary = ctx.schedule_changes
+        .map((c) => `${c.label || c.activity_type} at ${formatDate(c.start_time)}`)
+        .join('; ');
+      return `Added ${summary}`;
+    },
+  },
   'staffing.status_changed': {
     label: 'Staffing Status Changed',
     entityType: 'staffing',

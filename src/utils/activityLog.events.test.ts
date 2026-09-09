@@ -20,11 +20,13 @@ const EXPECTED_EVENT_TYPES: ActivityEventType[] = [
   'kit.updated',
   'kit.asset_added',
   'kit.asset_removed',
+  'financial.added',
+  'schedule_entry.added',
 ];
 
 describe('ACTIVITY_EVENTS', () => {
-  it('contains exactly 20 event types', () => {
-    expect(Object.keys(ACTIVITY_EVENTS)).toHaveLength(20);
+  it('contains exactly 22 event types', () => {
+    expect(Object.keys(ACTIVITY_EVENTS)).toHaveLength(22);
   });
 
   it('contains all expected event type keys', () => {
@@ -65,6 +67,41 @@ describe('ACTIVITY_EVENTS', () => {
     const cfg = ACTIVITY_EVENTS['staffing.updated'];
     const result = cfg.format({ context_version: 1, actor_display_name: '', actor_org_name: '' });
     expect(result).toBe('Staffing updated');
+  });
+
+  it('financial.added format renders each added record', () => {
+    const cfg = ACTIVITY_EVENTS['financial.added'];
+    const result = cfg.format({
+      context_version: 1,
+      actor_display_name: '',
+      actor_org_name: '',
+      financial_changes: [{ amount: 250, fin_type: 'Expense Incurred' }],
+      change_count: 1,
+    });
+    expect(result).toBe('Added Expense Incurred: $250.00');
+  });
+
+  it('financial.added format with no changes returns fallback text', () => {
+    const cfg = ACTIVITY_EVENTS['financial.added'];
+    expect(cfg.format({ context_version: 1, actor_display_name: '', actor_org_name: '' })).toBe('Financial record added');
+  });
+
+  it('schedule_entry.added format renders each added entry', () => {
+    const cfg = ACTIVITY_EVENTS['schedule_entry.added'];
+    const result = cfg.format({
+      context_version: 1,
+      actor_display_name: '',
+      actor_org_name: '',
+      schedule_changes: [{ activity_type: 'Load-in', label: null, start_time: '2026-09-20T14:00:00.000Z' }],
+      change_count: 1,
+    });
+    expect(result).toContain('Load-in at');
+    expect(result).toContain('20 Sep 2026');
+  });
+
+  it('schedule_entry.added format with no changes returns fallback text', () => {
+    const cfg = ACTIVITY_EVENTS['schedule_entry.added'];
+    expect(cfg.format({ context_version: 1, actor_display_name: '', actor_org_name: '' })).toBe('Schedule entry added');
   });
 
   it('gig.status_changed format uses from_status and to_status', () => {
