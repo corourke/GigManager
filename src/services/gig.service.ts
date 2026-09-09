@@ -440,6 +440,20 @@ export async function createGig(gigData: any, options?: { skipActivityLog?: bool
 }
 
 /**
+ * Compares two ISO-ish datetime strings by the instant they represent rather
+ * than by raw string equality, since the same instant can round-trip through
+ * different string forms (e.g. Postgres' `+00:00` vs. JS `Date#toISOString`'s
+ * `Z`), which otherwise makes an unchanged value look like a real edit.
+ */
+function datesRepresentSameInstant(a?: string | null, b?: string | null): boolean {
+  if (a === b) return true;
+  if (!a || !b) return false;
+  const aTime = new Date(a).getTime();
+  const bTime = new Date(b).getTime();
+  return !Number.isNaN(aTime) && !Number.isNaN(bTime) && aTime === bTime;
+}
+
+/**
  * Update gig details
  */
 export async function updateGig(gigId: string, gigData: {
@@ -545,7 +559,9 @@ export async function updateGig(gigId: string, gigData: {
       } catch (e) { console.error('Activity log failed:', e); }
     }
 
-    if ((gigData.start !== undefined || gigData.end !== undefined) && (gigData.start !== (preGig as any)?.start || gigData.end !== (preGig as any)?.end)) {
+    const startChanged = gigData.start !== undefined && !datesRepresentSameInstant(gigData.start, (preGig as any)?.start);
+    const endChanged = gigData.end !== undefined && !datesRepresentSameInstant(gigData.end, (preGig as any)?.end);
+    if (startChanged || endChanged) {
       try {
         await logActivity({ organization_id: primary_organization_id, event_type: 'gig.rescheduled', entity_type: 'gig', entity_id: gigId, gig_id: gigId, context: { ...baseCtx, from: { start: (preGig as any).start, end: (preGig as any).end }, to: { start: gigData.start ?? (preGig as any).start, end: gigData.end ?? (preGig as any).end } } });
       } catch (e) { console.error('Activity log failed:', e); }
