@@ -4,7 +4,11 @@ Public user guide for GigWrangler, built with [Astro](https://astro.build) +
 [Starlight](https://starlight.astro.build). Separate from the app (`/src`) and
 from the internal docs (`/docs`).
 
-/ **Content outline and priorities:** [`docs/development/user-documentation-plan.md`](../../docs/development/user-documentation-plan.md)
+> **Content outline and priorities:** [`docs/development/user-documentation-plan.md`](../../docs/development/user-documentation-plan.md)
+
+Hosting: a **Cloudflare Workers** project (Workers Builds), `gigwrangler-docs`,
+serving the static `dist/` as assets — separate from the marketing site
+(`gigwrangler` Worker) and from the app.
 
 ---
 
@@ -58,8 +62,8 @@ need an MDX file (`.mdx`) and an import. Full-text search (Pagefind) is automati
 
 ## Day-to-day: edit and publish
 
-Once Cloudflare Pages is connected to this repo (see below), **you never push to
-Cloudflare directly** — pushing to GitHub builds and deploys the site.
+Once the Cloudflare Worker is connected to this repo (see below), **you never
+deploy by hand** — pushing to GitHub triggers a Cloudflare build + deploy.
 
 1. Edit or add a file under `src/content/docs/`. New page → also add it to the
    `sidebar` in `astro.config.mjs`.
@@ -71,39 +75,47 @@ Cloudflare directly** — pushing to GitHub builds and deploys the site.
    git commit -m "docs: <what changed>"
    git push
    ```
-4. Cloudflare Pages reacts automatically:
-   - push a branch / open a PR → a **preview deployment** at a `*.pages.dev` URL
-     (also commented on the PR),
-   - merge to `main` → the **production deployment** at `docs.gigwrangler.com`.
+4. Cloudflare Workers Builds reacts automatically:
+   - push to **`main`** → runs `npm run build` then `npx wrangler deploy` →
+     **production** at `docs.gigwrangler.com`,
+   - push any **other branch** / open a PR → `npx wrangler versions upload` →
+     a **preview** URL (`<version>-gigwrangler-docs.<subdomain>.workers.dev`),
+     also posted on the PR.
 
-To roll back, in the Cloudflare Pages dashboard open **Deployments**, find a good
-one, and choose **Rollback to this deployment**.
+To roll back: the Worker's **Deployments** tab in the dashboard → pick a known-good
+deployment → **Rollback**, or locally `npx wrangler rollback` from `website/docs/`.
 
 ---
 
-## First-time Cloudflare Pages setup
+## First-time Cloudflare setup (Workers Builds)
 
 Do this once. Needs a Cloudflare account with access to the `gigwrangler.com` zone
-and permission to authorize the GitHub repo.
+and permission to authorize the GitHub repo. Deploy config lives in
+[`wrangler.jsonc`](./wrangler.jsonc) (project name, `./dist` as the asset
+directory) — the dashboard only supplies the build/deploy commands and the repo
+path.
 
-1. Cloudflare dashboard → **Workers & Pages** → **Create** → **Pages** →
-   **Connect to Git**.
-2. Authorize GitHub and pick **`corourke/GigManager`**. Production branch: **`main`**.
-3. Build settings:
-   | Setting | Value |
+1. Dashboard → **Workers & Pages** → **Create** → **Import a repository** →
+   authorize GitHub → pick **`corourke/GigManager`**.
+2. On **Set up your application**:
+   | Field | Value |
    | --- | --- |
-   | Framework preset | Astro |
-   | Root directory (advanced) | `website/docs` |
+   | Project name | `gigwrangler-docs` |
    | Build command | `npm run build` |
-   | Build output directory | `dist` *(relative to root directory)* |
-   | Environment variable | `NODE_VERSION` = `22` |
-4. **Save and Deploy**. First build runs; you get a `https://<project>.pages.dev`
-   URL. Open it and confirm the site looks right.
-5. Custom domain: project → **Custom domains** → **Set up a domain** →
-   `docs.gigwrangler.com`. Cloudflare adds the DNS record automatically when the
-   zone is on the same account; otherwise add a `CNAME docs → <project>.pages.dev`.
-6. (Optional) **Settings → Builds & deployments** → enable preview deployments for
-   all branches / PRs so drafts get a shareable URL.
+   | Deploy command | `npx wrangler deploy` |
+   | Non-production branch deploy command | `npx wrangler versions upload` |
+   | Path *(Advanced settings)* | `website/docs` |
+   | Build variable *(optional)* | `NODE_VERSION` = `22` — only if the build fails on a Node error; `.nvmrc` in this folder already pins it |
+   Leave the API token on **"a new token will be created automatically"**.
+3. **Deploy**. First build runs; you get `https://gigwrangler-docs.<subdomain>.workers.dev`.
+   Open it and confirm the site looks right.
+4. Custom domain: the Worker → **Settings** → **Domains & Routes** → **Add** →
+   **Custom domain** → `docs.gigwrangler.com`. Cloudflare creates the DNS record
+   and certificate automatically (the zone is on the same account).
+   *(Alternative: uncomment the `routes` line in `wrangler.jsonc` and redeploy.)*
+5. Production branch is **`main`** by default; confirm under the Worker's build
+   settings. Non-production branch builds (previews) are enabled by the
+   **"Builds for non-production branches"** checkbox during setup.
 
 After this, the "Day-to-day" flow above is all that's needed.
 
@@ -117,11 +129,11 @@ with no issues. You do **not** need a version manager for local development; use
 whatever Node you already have, as long as it's 22.12 or newer. (Node 20 and older
 are *not* supported by Astro 7.)
 
-What actually matters is **Cloudflare Pages**: its build runs on the Node version
-you pick via the `NODE_VERSION` build variable, so pin it for a reproducible
-deploy. `22` is a safe, always-available choice; set it to a newer version if you
-want to match local. `.nvmrc` here is set to `22` purely as a hint for anyone who
-*does* use `nvm` / `fnm` / `mise` — it's inert otherwise.
+What actually matters is the **Cloudflare build environment**: it runs on whatever
+Node version it picks up, so pin it for reproducibility. Cloudflare Workers Builds
+reads **`.nvmrc`** (set to `22` in this folder), so that's usually enough. If a
+build ever fails on a Node error, also add a `NODE_VERSION` = `22` build variable
+in the dashboard. Locally, use any Node ≥ 22.12.
 
 ---
 
@@ -133,4 +145,6 @@ want to match local. `.nvmrc` here is set to `22` purely as a hint for anyone wh
 | `src/content/docs/**` | The pages (Markdown / MDX) |
 | `src/content.config.ts` | Content collection schema (rarely touched) |
 | `public/` | Static files served as-is (favicon, images) |
+| `wrangler.jsonc` | Cloudflare Worker deploy config (name, `./dist` assets) |
+| `.nvmrc` | Node version pin for the Cloudflare build |
 | `dist/` | Build output (git-ignored) |
