@@ -17,9 +17,8 @@ hero:
 import { Card, CardGrid } from '@astrojs/starlight/components';
 
 :::caution[Work in progress]
-These docs are just getting started. Sections without much content yet are stubs —
-see [`docs/development/user-documentation-plan.md`](https://github.com/corourke/GigManager/blob/main/docs/development/user-documentation-plan.md)
-for the full plan and what's coming.
+Only some pages are written. Each section has an overview; deeper guides are being
+filled in. Plan: [`docs/development/user-documentation-plan.md`](https://github.com/corourke/GigManager/blob/main/docs/development/user-documentation-plan.md).
 :::
 
 <CardGrid stagger>
@@ -31,11 +30,19 @@ for the full plan and what's coming.
     Create a gig, staff it, add participating venues and vendors, build the run of
     day, and track every change. [Gigs overview](/gigs/overview/).
   </Card>
+  <Card title="Organizations & Team" icon="user-group">
+    Roles, invitations, adding people who don't need a login, and organization
+    settings. [Overview](/organizations/overview/).
+  </Card>
   <Card title="Equipment & Inventory" icon="setting">
     Assets, kits (including nested kits), packing lists, and inventory reports.
-    [Equipment overview](/equipment/overview/).
+    [Overview](/equipment/overview/).
   </Card>
   <Card title="Financials" icon="approve-check">
-    Revenue, expenses, burdened cost, and per-gig profit. [Financials overview](/financials/overview/).
+    Revenue, expenses, burdened cost, and per-gig profit. [Overview](/financials/overview/).
+  </Card>
+  <Card title="Reference" icon="open-book">
+    Roles & access, the glossary, and how access requests are moderated.
+    [Roles & access](/reference/roles-and-access/).
   </Card>
 </CardGrid>

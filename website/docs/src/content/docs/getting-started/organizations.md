@@ -62,3 +62,9 @@ use **Request Access** from the Team tab if you need more).
 ---
 
 Once you're in, head to [the dashboard](/getting-started/the-dashboard/).
+
+<!-- TODO
+  - 📸 Create New Organization (manual form). 📸 Switch Organization search result card.
+  - 📸 Team tab → "Request Access" dialog. 📸 Notification bell after a decision.
+  - Confirm copy for "Create without Joining" once #30 ships helper text.
+-->

@@ -1,19 +1,32 @@
 ---
 title: Schedule / run of day
 description: Build the timeline of a gig — load-in, soundcheck, sets, load-out.
+draft: true
 sidebar:
-  order: 4
+  order: 6
 ---
 
-The **Schedule** section on a gig holds its run of day.
+## Cover
 
-Choose **Add** and pick an entry type — **Load-In, Soundcheck, Rehearsal, Set,
-Intermission, Load-Out, Other**, or **Custom…** — then set the start time. Use the
-**End time, date, notes** control to expand an entry with an end time, a specific
-date (for multi-day gigs), and notes.
+- Adding an entry: **Add** → pick a type (**Load-In, Soundcheck, Rehearsal, Set,
+  Intermission, Load-Out, Other, Custom…**) → set the start time.
+- The **"End time, date, notes"** expander: optional end time, a specific date for
+  multi-day gigs, and per-entry notes.
+- Editing and removing entries; how entries are grouped by date.
+- How the schedule shows on the [calendar](/calendar/overview/) and the mobile
+  gig detail.
 
-<!-- TODO: editing/removing entries, date grouping across multi-day gigs, screenshots. -->
+## Screenshots
 
-:::caution[Stub]
-This page is a work in progress.
-:::
+- 📸 Schedule section with a few entries.
+- 📸 The type quick-pick.
+- 📸 An entry expanded (end time / notes).
+
+## Notes
+
+- Confirm the exact click order that reliably saves the chosen type — in testing an
+  entry saved as the default "Set" (issue territory).
+
+## Source
+
+Plan §3. Multi-act scheduling commits (2026-06).

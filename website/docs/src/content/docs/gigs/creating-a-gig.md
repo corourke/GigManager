@@ -2,7 +2,7 @@
 title: Creating a gig
 description: Book a gig and fill in the rest from its detail page.
 sidebar:
-  order: 2
+  order: 3
 ---
 
 From **Gigs**, choose **New Gig** (or **Create First Gig** on an empty list).
@@ -25,3 +25,8 @@ fill in from it — see [Staffing & participants](/gigs/staffing-and-participant
 :::
 
 <!-- TODO: screenshots; business/venue search is temporarily unavailable (see plan §"Known open issues", GitHub #22). -->
+
+<!-- TODO
+  - 📸 New Gig form. 📸 The tag field after pressing Enter.
+  - Venue/business search screenshot is BLOCKED on #22 (expired Places key).
+-->

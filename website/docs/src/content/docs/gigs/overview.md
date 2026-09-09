@@ -43,3 +43,9 @@ them.
 
 `Date Hold → Proposed → Booked → Completed → Settled` (plus `Cancelled`). Status
 drives what shows on the calendar and dashboard for the rest of the team.
+
+<!-- TODO
+  - 📸 Gig detail Overview tab (the section summary). 📸 The Gigs list.
+  - Confirm the status lifecycle labels and which transitions are enforced.
+  - If #12 lands (tabbed Gig Edit), rework the "sections of a gig" list.
+-->

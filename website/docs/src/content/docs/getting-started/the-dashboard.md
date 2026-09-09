@@ -24,3 +24,9 @@ Financials).
 The avatar menu (top-right) has **Switch Organization**, **Settings**,
 **Edit Profile**, and **Sign Out**. The bell next to it shows notifications, such
 as decisions on [access requests](/getting-started/organizations/).
+
+<!-- TODO
+  - 📸 Full dashboard, populated with a couple of gigs.
+  - 📸 Avatar menu open. 📸 Notification bell dropdown.
+  - List exactly which nav items each role sees.
+-->
