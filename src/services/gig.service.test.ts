@@ -824,6 +824,62 @@ describe('gig.service', () => {
         event_type: 'gig.notes_updated'
       }));
     });
+
+    it('does NOT log gig.rescheduled when only the title changes (start/end resubmitted as an equivalent instant)', async () => {
+      const gigId = 'gig-1';
+      // Same instants as preGig, just formatted the way the browser's
+      // Date#toISOString() would produce them, rather than Postgres' `+00:00` form.
+      const gigData = {
+        title: 'New Title',
+        start: '2026-09-20T14:00:00.000Z',
+        end: '2026-09-20T18:00:00.000Z',
+      };
+      const preGig = { id: 'gig-1', title: 'Old Title', notes: 'notes', start: '2026-09-20T14:00:00+00:00', end: '2026-09-20T18:00:00+00:00' };
+
+      (requireAuth as any).mockResolvedValue({ supabase: mockSupabase, user: { id: 'user-1' } });
+
+      mockSupabase.from.mockImplementation((table: string) => {
+        if (table === 'gig_participants') return makeChain({ data: [{ organization_id: 'org-1' }], error: null });
+        if (table === 'organization_members') return makeChain({ data: [{ organization_id: 'org-1', role: 'Admin' }], error: null });
+        if (table === 'organizations') return makeChain({ data: { name: 'Acme' }, error: null });
+        if (table === 'gigs') return makeChain({ data: preGig, error: null });
+        return makeChain({ data: [], error: null });
+      });
+
+      await updateGig(gigId, gigData);
+
+      expect(logActivity).toHaveBeenCalledWith(expect.objectContaining({ event_type: 'gig.renamed' }));
+      expect(logActivity).not.toHaveBeenCalledWith(expect.objectContaining({ event_type: 'gig.rescheduled' }));
+    });
+
+    it('still logs gig.rescheduled when start/end actually change', async () => {
+      const gigId = 'gig-1';
+      const gigData = {
+        start: '2026-09-21T14:00:00.000Z',
+        end: '2026-09-21T18:00:00.000Z',
+      };
+      const preGig = { id: 'gig-1', title: 'Old Title', notes: 'notes', start: '2026-09-20T14:00:00+00:00', end: '2026-09-20T18:00:00+00:00' };
+
+      (requireAuth as any).mockResolvedValue({ supabase: mockSupabase, user: { id: 'user-1' } });
+
+      mockSupabase.from.mockImplementation((table: string) => {
+        if (table === 'gig_participants') return makeChain({ data: [{ organization_id: 'org-1' }], error: null });
+        if (table === 'organization_members') return makeChain({ data: [{ organization_id: 'org-1', role: 'Admin' }], error: null });
+        if (table === 'organizations') return makeChain({ data: { name: 'Acme' }, error: null });
+        if (table === 'gigs') return makeChain({ data: preGig, error: null });
+        return makeChain({ data: [], error: null });
+      });
+
+      await updateGig(gigId, gigData);
+
+      expect(logActivity).toHaveBeenCalledWith(expect.objectContaining({
+        event_type: 'gig.rescheduled',
+        context: expect.objectContaining({
+          from: { start: preGig.start, end: preGig.end },
+          to: { start: gigData.start, end: gigData.end },
+        }),
+      }));
+    });
   });
 
   // ─── duplicateGig ───────────────────────────────────────────────────────────
