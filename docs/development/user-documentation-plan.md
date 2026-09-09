@@ -1,12 +1,15 @@
 # GigWrangler User Documentation Plan
 
-**Last Updated**: 2026-09-08
-**Status**: No user-facing docs written yet — but the core new-user path is now coherent
-end to end (see "Status & Next Steps"). Docs will be authored as **Markdown** and published
-from `website/` via a static-site generator (**Astro + Starlight** recommended; not yet
-stood up). The 2026-09-06 dry run
-([`dry-run-findings-2026-09-06.md`](dry-run-findings-2026-09-06.md)) drove issues #22–#33;
-most are now fixed.
+**Last Updated**: 2026-09-09
+**Status**: **The docs site is live — [docs.gigwrangler.com](https://docs.gigwrangler.com)** —
+Astro + Starlight in [`website/docs/`](../../website/docs/), deployed by Cloudflare
+Workers Builds (push to `main` → deploy; other branches/PRs → preview URL). See
+[`website/docs/README.md`](../../website/docs/README.md) for the edit/build/deploy
+workflow. **Getting Started is drafted** (What is GigWrangler / Signing up / Getting
+into an organization / The dashboard), plus Gigs overview + Change history, Google
+Calendar, and Roles & access. Remaining sections are stubs — see the backlog below.
+The two dry runs ([2026-09-06](dry-run-findings-2026-09-06.md),
+[2026-09-08](dry-run-findings-2026-09-08.md)) drove issues #22–#33 and #53–#55; most are fixed.
 
 > The product was renamed **GigManager → GigWrangler** (gigwrangler.com) in May 2026.
 > The git repository is still named `GigManager`. Use "GigWrangler" in all user-facing copy.
@@ -31,14 +34,21 @@ expense → calendar* path works without the blockers the 2026-09-06 dry run fou
 - 〰️ **Cosmetic, won't block docs:** #23 (tag entry needs Enter), #27 (list row opens via
   the ⋮ menu only), #29 (search-error copy), #31 (toast dismissal), #32 (signup password).
 
+**Done since the 2026-09-08 refresh:**
+- ✅ Docs site stood up (Astro + Starlight, `website/docs/`) and deployed —
+  [docs.gigwrangler.com](https://docs.gigwrangler.com) via Cloudflare Workers Builds (PR #56).
+- ✅ Second walkthrough pass — [`dry-run-findings-2026-09-08.md`](dry-run-findings-2026-09-08.md):
+  org claiming (#48) and participant→org verified; Change History issues #54/#55; #53.
+- ✅ **Getting Started** drafted (§1) plus Gigs overview + Change history, Google Calendar, Roles & access.
+
 **Next actions:**
-1. This refresh. *(done)*
-2. Stand up the `website/` docs site (Astro + Starlight): port `index.html`, wire the
-   sidebar to the section structure below, deploy to Cloudflare Pages.
-3. **Second walkthrough pass** covering what the first one missed — schedule entries,
-   calendar, change history, equipment/kits — plus the two newest, least-tested flows:
-   **org claiming (#48)** and **participant → contact (PR #14)**.
-4. Write **"Getting Started"** (§1–§3) against the now-working flow.
+1. Fill the stub pages — priority order: Gigs *creating-a-gig* / *staffing-and-participants*
+   (§3, Prompt 6), then Equipment/Kits (§4, Prompts 2 & 7), then Financials (§5, Prompts 3 & 5).
+2. Screenshots — hold anything showing venue/business search until **#22** (expired Places key)
+   is resolved.
+3. Still uncovered by either dry run and needed before writing: **Calendar view + Equipment/Kits**
+   walkthroughs; the **moderator side** of access requests (#48).
+4. Point `gigwrangler.com` at the docs (nav link / `/docs` redirect) once enough sections are filled.
 
 ---
 
