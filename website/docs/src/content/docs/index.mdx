@@ -1,0 +1,41 @@
+---
+title: GigWrangler Documentation
+description: User guide for GigWrangler — production and labor management for AV, sound, lighting, and events.
+template: splash
+hero:
+  tagline: Connect your people, your gigs, and your gear — with the money attached.
+  actions:
+    - text: Get started
+      link: /getting-started/what-is-gigwrangler/
+      icon: right-arrow
+    - text: View on GitHub
+      link: https://github.com/corourke/GigManager
+      icon: external
+      variant: minimal
+---
+
+import { Card, CardGrid } from '@astrojs/starlight/components';
+
+:::caution[Work in progress]
+These docs are just getting started. Sections without much content yet are stubs —
+see [`docs/development/user-documentation-plan.md`](https://github.com/corourke/GigManager/blob/main/docs/development/user-documentation-plan.md)
+for the full plan and what's coming.
+:::
+
+<CardGrid stagger>
+  <Card title="Getting Started" icon="rocket">
+    Sign up, get into an organization (create, claim, request access, or accept an
+    invite), and find your way around. [Start here](/getting-started/what-is-gigwrangler/).
+  </Card>
+  <Card title="Gigs" icon="calendar">
+    Create a gig, staff it, add participating venues and vendors, build the run of
+    day, and track every change. [Gigs overview](/gigs/overview/).
+  </Card>
+  <Card title="Equipment & Inventory" icon="setting">
+    Assets, kits (including nested kits), packing lists, and inventory reports.
+    [Equipment overview](/equipment/overview/).
+  </Card>
+  <Card title="Financials" icon="approve-check">
+    Revenue, expenses, burdened cost, and per-gig profit. [Financials overview](/financials/overview/).
+  </Card>
+</CardGrid>
