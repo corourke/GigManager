@@ -652,6 +652,10 @@ export interface ScanUnit {
   asset_id: string | null;
   asset_name: string | null;
   tag_number: string | null;
+  /** The component's own quantity (e.g. "3x XLR cable") — scanning tracks
+   * status per asset_id, not per physical copy, so this is a count shown
+   * alongside the row rather than a reason to emit multiple rows. */
+  quantity: number;
 }
 
 /**
@@ -676,6 +680,7 @@ export function flattenToScanUnits(nodes: KitComponentTreeNode[], owningKit: { i
         asset_id: node.asset?.id ?? null,
         asset_name: node.asset?.manufacturer_model ?? null,
         tag_number: node.asset?.tag_number ?? null,
+        quantity: node.quantity,
       });
     } else if (node.kit?.is_container) {
       units.push({
@@ -685,6 +690,7 @@ export function flattenToScanUnits(nodes: KitComponentTreeNode[], owningKit: { i
         asset_id: null,
         asset_name: null,
         tag_number: node.kit.tag_number ?? null,
+        quantity: node.quantity,
       });
     } else {
       units.push(...flattenToScanUnits(node.children, owningKit));

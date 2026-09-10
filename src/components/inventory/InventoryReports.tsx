@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { Fragment, useState, useEffect, useCallback, useMemo } from 'react';
 import { format } from 'date-fns';
 import { AlertTriangle, Printer, SlidersHorizontal } from 'lucide-react';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '../ui/tabs';
@@ -529,31 +529,47 @@ function PackingListTab({
               <span className="text-sm text-muted-foreground">No kits assigned to this gig.</span>
             </div>
           ) : (
-            Array.from(rowsByKit.entries()).map(([kitId, kitRows]) => {
-              const kitName = kitRows[0]?.kit_name ?? '—';
-              const isContainer = kitRows[0]?.is_container ?? false;
-              const hasConflict = conflictFlags.has(kitId);
-              return (
-                <div key={kitId}>
-                  <div className="bg-muted/40 px-4 py-2 flex items-center gap-2 border-b">
-                    <span className="font-medium text-sm">{kitName}</span>
-                    <KitTypeBadge isContainer={isContainer} />
-                    {hasConflict && <ConflictBadge />}
-                  </div>
-                  <Table className="[&_th]:border [&_td]:border">
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead className="w-8 text-center">✓</TableHead>
-                        <TableHead>Name</TableHead>
-                        <TableHead>Tag #</TableHead>
-                        {show('status') && <TableHead>Status</TableHead>}
-                        {show('scanned_at') && <TableHead>Last Scanned</TableHead>}
-                        {show('location') && <TableHead>Location</TableHead>}
-                        {show('scanned_by') && <TableHead>Scanned By</TableHead>}
-                        {show('notes') && <TableHead>Notes</TableHead>}
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
+            <Table className="[&_th]:border [&_td]:border">
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-8 text-center">✓</TableHead>
+                  <TableHead>Name</TableHead>
+                  <TableHead>Tag #</TableHead>
+                  <TableHead className="text-center">Qty</TableHead>
+                  {show('status') && <TableHead>Status</TableHead>}
+                  {show('scanned_at') && <TableHead>Last Scanned</TableHead>}
+                  {show('location') && <TableHead>Location</TableHead>}
+                  {show('scanned_by') && <TableHead>Scanned By</TableHead>}
+                  {show('notes') && <TableHead>Notes</TableHead>}
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {Array.from(rowsByKit.entries()).map(([kitId, kitRows]) => {
+                  const kitName = kitRows[0]?.kit_name ?? '—';
+                  const isContainer = kitRows[0]?.is_container ?? false;
+                  const hasConflict = conflictFlags.has(kitId);
+                  // A container assigned directly to the gig is already a
+                  // single sealed row — a divider header above just that one
+                  // row is pure clutter, so its name/badges move onto the
+                  // row itself instead of getting a section of its own.
+                  const isStandaloneRow = isContainer && kitRows.length === 1;
+                  const columnCount = 4 + [
+                    show('status'), show('scanned_at'), show('location'), show('scanned_by'), show('notes'),
+                  ].filter(Boolean).length;
+
+                  return (
+                    <Fragment key={kitId}>
+                      {!isStandaloneRow && (
+                        <TableRow className="bg-muted/40 hover:bg-muted/40">
+                          <TableCell colSpan={columnCount} className="py-2">
+                            <div className="flex items-center gap-2">
+                              <span className="font-medium text-sm">{kitName}</span>
+                              <KitTypeBadge isContainer={isContainer} />
+                              {hasConflict && <ConflictBadge />}
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      )}
                       {kitRows.map((row, i) => {
                         const rowKey = `${row.kit_id}-${row.asset_id ?? 'kit'}-${i}`;
                         const isChecked = checkedRows.has(rowKey);
@@ -567,9 +583,18 @@ function PackingListTab({
                             />
                           </TableCell>
                           <TableCell className={`font-medium ${isChecked ? 'line-through text-muted-foreground' : ''}`}>
-                            {row.asset_name ?? row.kit_name ?? '—'}
+                            <div className="flex items-center gap-2">
+                              {row.asset_name ?? row.kit_name ?? '—'}
+                              {isStandaloneRow && (
+                                <>
+                                  <KitTypeBadge isContainer={isContainer} />
+                                  {hasConflict && <ConflictBadge />}
+                                </>
+                              )}
+                            </div>
                           </TableCell>
                           <TableCell>{row.tag_number ?? '—'}</TableCell>
+                          <TableCell className="text-center">{row.quantity}</TableCell>
                           {show('status') && (
                             <TableCell>
                               {row.status ? (
@@ -602,11 +627,11 @@ function PackingListTab({
                         </TableRow>
                         );
                       })}
-                    </TableBody>
-                  </Table>
-                </div>
-              );
-            })
+                    </Fragment>
+                  );
+                })}
+              </TableBody>
+            </Table>
           )}
         </div>
       )}
