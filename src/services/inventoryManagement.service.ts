@@ -88,6 +88,7 @@ export interface PackingListRow {
   asset_id?: string | null;
   asset_name?: string | null;
   tag_number?: string | null;
+  quantity: number;
   status?: string | null;
   location?: string | null;
   scanned_at?: string | null;
@@ -596,6 +597,10 @@ export async function getPackingListReport(organizationId: string, gigId: string
           asset_id: null,
           asset_name: null,
           tag_number: kit.tag_number ?? null,
+          // A top-level kit is assigned to a gig once (gig_kit_assignments
+          // has no quantity of its own) — quantity only varies for a
+          // component *inside* a kit's tree, handled below.
+          quantity: 1,
           status: kitRecord?.status ?? null,
           location: kitRecord?.location ?? null,
           scanned_at: kitRecord?.scanned_at ?? null,
@@ -614,6 +619,7 @@ export async function getPackingListReport(organizationId: string, gigId: string
             asset_id: unit.asset_id,
             asset_name: unit.asset_name,
             tag_number: unit.tag_number,
+            quantity: unit.quantity,
             status: unitRecord?.status ?? null,
             location: unitRecord?.location ?? null,
             scanned_at: unitRecord?.scanned_at ?? null,
