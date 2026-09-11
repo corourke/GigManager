@@ -3,8 +3,8 @@
 **Purpose**: Evaluate realistic architectures for giving each organization a *credible, verifiable guarantee that the operator (Cameron) cannot read its data*, while preserving a narrow cross‑org sharing layer (shared gig core + busy/free availability). Architecture exploration to inform a direction decision. **No implementation.**
 
 **Status**: Draft for discussion
-**Last Updated**: 2026-09-06
-**Related**: [security-scheme.md](./security-scheme.md), [database.md](./database.md), [tech-stack.md](./tech-stack.md), [server-endpoint-inventory.md](./server-endpoint-inventory.md), and the 2026‑09‑02 schema‑verification report (scratchpad).
+**Last Updated**: 2026-09-10
+**Related**: [security-scheme.md](./security-scheme.md), [database.md](./database.md), [tech-stack.md](./tech-stack.md), [server-endpoint-inventory.md](./server-endpoint-inventory.md), and [schema-verification-2026-09.md](./schema-verification-2026-09.md) — the committed write-up of the 2026‑09‑02 live-database verification that motivated this document (the confirmed `gig_financials`/staffing/kit-assignment cross-org leaks in §1's "requirement" are documented there in full, with the actual policy text).
 
 ---
 

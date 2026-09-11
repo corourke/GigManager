@@ -69,6 +69,7 @@ Located in [`./technical/`](./technical/)
 - **[conflict-detection.md](./technical/conflict-detection.md)** - Equipment scheduling conflict detection
 - **[security-scheme.md](./technical/security-scheme.md)** - Security and authorization scheme
 - **[tenant-isolation-architecture.md](./technical/tenant-isolation-architecture.md)** - Options analysis for verifiable operator-exclusion (can't-read-your-data guarantees), per-tenant isolation, and cross-org federation (draft)
+- **[schema-verification-2026-09.md](./technical/schema-verification-2026-09.md)** - Point-in-time findings from a live-database RLS/tenancy audit (Sep 2026): confirmed cross-org data leaks, dev/prod drift, offboarding gaps, deferred remediation plan
 
 ---
 
