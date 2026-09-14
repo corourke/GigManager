@@ -10,6 +10,11 @@ export default tseslint.config(
       'supabase/functions/',
       'node_modules/',
       'public/',
+      // website/docs is a separate Astro subproject with its own build
+      // output and generated types; it isn't part of this root lint config
+      'website/docs/dist/',
+      'website/docs/.astro/',
+      'website/docs/node_modules/',
     ],
   },
   ...tseslint.configs.recommended,
