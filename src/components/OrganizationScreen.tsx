@@ -8,7 +8,7 @@
  * - App.tsx (routes: 'create-org', 'edit-org')
  */
 import { useState, useRef, useEffect } from 'react';
-import { Building2, Search, Loader2, MapPin, Phone, Globe, Check, AlertCircle, X, ChevronLeft } from 'lucide-react';
+import { Building2, Search, Loader2, MapPin, Phone, Globe, Check, AlertCircle, AlertTriangle, X, ChevronLeft } from 'lucide-react';
 import { toast } from 'sonner';
 import { 
   Organization, 
@@ -101,6 +101,8 @@ export default function OrganizationScreen({
   const [isSearching, setIsSearching] = useState(false);
   const [searchResults, setSearchResults] = useState<GooglePlace[]>([]);
   const [showResults, setShowResults] = useState(false);
+  /** True when the search request itself failed — must render distinctly from "no results found", since those mean very different things to the user. */
+  const [searchError, setSearchError] = useState(false);
   const [selectedPlace, setSelectedPlace] = useState<GooglePlace | null>(null);
   const [showManualEntry, setShowManualEntry] = useState(isEditMode); // Show form directly in edit mode
 
@@ -184,6 +186,7 @@ export default function OrganizationScreen({
     
     setIsSearching(true);
     setShowResults(true);
+    setSearchError(false);
 
     // Real API call
     try {
@@ -266,8 +269,8 @@ export default function OrganizationScreen({
       setIsSearching(false);
     } catch (error: any) {
       console.error('Error searching places:', error);
-      toast.error(error.message || 'Failed to search places. Please try again.');
       setSearchResults([]);
+      setSearchError(true);
       setIsSearching(false);
     }
   };
@@ -352,6 +355,7 @@ export default function OrganizationScreen({
   const handleManualEntry = () => {
     setShowManualEntry(true);
     setShowResults(false);
+    setSearchError(false);
     setSearchQuery('');
     toast.info('Fill in the form manually');
   };
@@ -588,6 +592,21 @@ export default function OrganizationScreen({
                   <div className="p-8 text-center">
                     <Loader2 className="h-8 w-8 animate-spin mx-auto mb-2 text-sky-500" />
                     <p className="text-sm text-gray-600">Searching Google Places...</p>
+                  </div>
+                ) : searchError ? (
+                  <div className="p-8 text-center">
+                    <AlertTriangle className="h-8 w-8 mx-auto mb-2 text-amber-600" />
+                    <p className="text-gray-900 mb-1">Couldn't reach business search</p>
+                    <p className="text-sm text-gray-600 mb-4">
+                      Enter the details manually instead.
+                    </p>
+                    <Button
+                      onClick={handleManualEntry}
+                      variant="outline"
+                      size="sm"
+                    >
+                      Fill in manually instead
+                    </Button>
                   </div>
                 ) : searchResults.length > 0 ? (
                   <div className="divide-y divide-gray-200">
