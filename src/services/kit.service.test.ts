@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { getKits, getKit, getDistinctKitValues, deleteKit, createKit, updateKit, duplicateKit, countInventoryItems, maxTreeDepth, getKitsThatWouldCycle, getKitComponentTree, KitComponentTreeNode } from './kit.service';
+import { getKits, getKit, getDistinctKitValues, deleteKit, createKit, updateKit, duplicateKit, countInventoryItems, maxTreeDepth, getKitsThatWouldCycle, getKitComponentTree, flattenToScanUnits, KitComponentTreeNode } from './kit.service';
 import { createClient } from '../utils/supabase/client';
 import { requireAuth } from '../utils/supabase/auth-utils';
 
@@ -509,5 +509,51 @@ describe('countInventoryItems / maxTreeDepth', () => {
   it('multiplies a non-container sub-kit\'s own contents by its quantity', () => {
     const nested = [kit('Duo Pack', false, 2, [asset(3)])];
     expect(countInventoryItems(nested)).toBe(6);
+  });
+});
+
+describe('flattenToScanUnits', () => {
+  const owningKit = { id: 'kit-top', name: 'Full Rack' };
+
+  const asset = (quantity: number, id = 'asset-1', model = 'DI Box'): KitComponentTreeNode => ({
+    clientKey: `asset-${id}`,
+    type: 'asset',
+    quantity,
+    asset: { id, manufacturer_model: model, tag_number: null },
+    children: [],
+  });
+
+  const kit = (id: string, isContainer: boolean, quantity: number, children: KitComponentTreeNode[]): KitComponentTreeNode => ({
+    clientKey: `kit-${id}`,
+    type: 'kit',
+    quantity,
+    kit: { id, name: id, category: null, is_container: isContainer, tag_number: null },
+    children,
+  });
+
+  // Issue #40: quantity used to be dropped entirely — a "3x XLR cable"
+  // component was indistinguishable from a single one in the packing list.
+  it('carries a loose asset\'s own quantity through to its scan unit', () => {
+    const units = flattenToScanUnits([asset(3, 'asset-xlr', 'XLR Cable')], owningKit);
+    expect(units).toEqual([
+      expect.objectContaining({ asset_id: 'asset-xlr', asset_name: 'XLR Cable', quantity: 3 }),
+    ]);
+  });
+
+  it('carries a container sub-kit\'s own quantity through to its scan unit', () => {
+    const units = flattenToScanUnits([kit('kit-case', true, 2, [asset(1)])], owningKit);
+    expect(units).toEqual([
+      expect.objectContaining({ kit_id: 'kit-case', is_container: true, quantity: 2 }),
+    ]);
+  });
+
+  it('attributes a transparent non-container sub-kit\'s assets to the owning kit, each with its own quantity', () => {
+    const units = flattenToScanUnits(
+      [kit('kit-lighting', false, 1, [asset(4, 'asset-par', 'LED Par')])],
+      owningKit
+    );
+    expect(units).toEqual([
+      expect.objectContaining({ kit_id: owningKit.id, asset_id: 'asset-par', quantity: 4 }),
+    ]);
   });
 });

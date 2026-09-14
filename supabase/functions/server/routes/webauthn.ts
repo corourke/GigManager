@@ -3,13 +3,16 @@ import { WebAuthnServer } from '../deps.ts';
 import { requireUser } from '../lib/auth.ts';
 import { supabaseAdmin } from '../lib/supabaseAdmin.ts';
 import * as kv from '../kv_store.ts';
-import { RP_NAME, RP_ID, ORIGIN, base64urlEncode, base64urlDecode } from '../lib/webauthnConfig.ts';
+import {
+  RP_NAME, RP_ID, ORIGIN, base64urlEncode, base64urlDecode, reportWebauthnConfigFallback,
+} from '../lib/webauthnConfig.ts';
 
 // WebAuthn device enrollment + unlock. register/* require auth (enrolling the
 // caller's device); authenticate/* are public by design (Q-E — the unlock flow,
 // gating only the cosmetic mobile lock, not data access).
 export function registerWebauthn(app: App) {
   app.post('/webauthn/register/options', requireUser, async (c) => {
+    reportWebauthnConfigFallback();
     const user = c.get('user');
 
     const { data: devices } = await supabaseAdmin
@@ -30,6 +33,7 @@ export function registerWebauthn(app: App) {
   });
 
   app.post('/webauthn/register/verify', requireUser, async (c) => {
+    reportWebauthnConfigFallback();
     const user = c.get('user');
     const { registrationResponse, deviceName } = await c.req.json();
 
@@ -79,6 +83,7 @@ export function registerWebauthn(app: App) {
 
   // Public (Q-E): unlock flow identifies the user by email.
   app.post('/webauthn/authenticate/options', async (c) => {
+    reportWebauthnConfigFallback();
     const { email } = await c.req.json();
     if (!email) {
       return c.json({ error: 'Email is required' }, 400);
@@ -108,6 +113,7 @@ export function registerWebauthn(app: App) {
 
   // Public (Q-E).
   app.post('/webauthn/authenticate/verify', async (c) => {
+    reportWebauthnConfigFallback();
     const { authenticationResponse, email } = await c.req.json();
     if (!email || !authenticationResponse) {
       return c.json({ error: 'Email and response are required' }, 400);

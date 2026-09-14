@@ -599,6 +599,76 @@ describe('inventoryManagement.service', () => {
       expect(result.map((r) => r.asset_name).sort()).toEqual(['DI Box', 'SM58']);
     });
 
+    // Issue #40: quantity was read from kit_components but dropped before
+    // reaching the report row, so a "3x XLR cable" component rendered
+    // indistinguishably from a single one.
+    it('carries a component quantity greater than one through to the row', async () => {
+      const { getPackingListReport } = await import('./inventoryManagement.service');
+
+      mockSupabase.rpc = vi.fn().mockResolvedValue({ data: [], error: null });
+      mockSupabase.from.mockImplementation((table: string) => {
+        if (table === 'gig_kit_assignments') {
+          return makeQueryChain({
+            data: [
+              { kit_id: 'kit-1', kit: { id: 'kit-1', name: 'Full Rack', is_container: false, tag_number: null, organization_id: 'org-1' } },
+            ],
+            error: null,
+          });
+        }
+        if (table === 'kits') {
+          return makeQueryChain({
+            data: [{ id: 'kit-1', name: 'Full Rack', category: null, is_container: false, tag_number: null }],
+            error: null,
+          });
+        }
+        if (table === 'kit_components') {
+          return makeQueryChain({
+            data: [
+              { kit_id: 'kit-1', asset_id: 'asset-xlr', child_kit_id: null, quantity: 3, asset: { id: 'asset-xlr', manufacturer_model: 'XLR Cable', tag_number: null } },
+            ],
+            error: null,
+          });
+        }
+        if (table === 'inventory_tracking') {
+          return makeQueryChain({ data: [], error: null });
+        }
+        if (table === 'gig_participants') {
+          return makeQueryChain({ data: [], error: null });
+        }
+        return makeQueryChain({ data: [], error: null });
+      });
+
+      const result = await getPackingListReport('org-1', 'gig-1');
+
+      expect(result).toHaveLength(1);
+      expect(result[0]).toMatchObject({ asset_name: 'XLR Cable', quantity: 3 });
+    });
+
+    // A top-level container assigned directly to the gig has no
+    // kit_components row of its own (gig_kit_assignments has no quantity
+    // column) — it's assigned once, so its row quantity is always 1.
+    it('gives a directly-assigned container row a quantity of 1', async () => {
+      const { getPackingListReport } = await import('./inventoryManagement.service');
+
+      mockSupabase.rpc = vi.fn().mockResolvedValue({ data: [], error: null });
+      mockSupabase.from.mockImplementation((table: string) => {
+        if (table === 'gig_kit_assignments') {
+          return makeQueryChain({
+            data: [
+              { kit_id: 'kit-2', kit: { id: 'kit-2', name: 'Road Case', is_container: true, tag_number: 'RC-1', organization_id: 'org-1' } },
+            ],
+            error: null,
+          });
+        }
+        return makeQueryChain({ data: [], error: null });
+      });
+
+      const result = await getPackingListReport('org-1', 'gig-1');
+
+      expect(result).toHaveLength(1);
+      expect(result[0]).toMatchObject({ kit_id: 'kit-2', is_container: true, quantity: 1 });
+    });
+
     // The actual bug reported live: a container nested inside a
     // non-container top-level kit was exploded into its individual assets
     // instead of showing as one row for the sealed unit.

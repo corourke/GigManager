@@ -29,3 +29,18 @@ export async function captureException(error: unknown): Promise<void> {
     console.error('Sentry capture failed:', sentryError);
   }
 }
+
+/**
+ * Capture a message (not a thrown error) at the given severity level, e.g. a
+ * degraded-but-running config that has no exception to throw. Same
+ * no-op-without-DSN and explicit-flush behavior as captureException.
+ */
+export async function captureMessage(message: string, level: 'warning' | 'error' = 'warning'): Promise<void> {
+  if (!dsn) return;
+  try {
+    Sentry.captureMessage(message, level);
+    await Sentry.flush(2000);
+  } catch (sentryError) {
+    console.error('Sentry capture failed:', sentryError);
+  }
+}
