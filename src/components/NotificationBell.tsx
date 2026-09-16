@@ -15,6 +15,7 @@ import { useNotifications, useMarkNotificationRead } from '../hooks/useNotificat
 import type {
   AccessRequestCreatedPayload,
   AccessRequestOutcomePayload,
+  InvitationAcceptedPayload,
   Notification,
 } from '../utils/supabase/types';
 
@@ -49,10 +50,22 @@ export default function NotificationBell() {
     }
   };
 
+  const goToOrgTeam = (organizationId: string) => {
+    const membership = organizations.find((m) => m.organization.id === organizationId);
+    if (membership) selectOrganization(membership.organization);
+    nav.toTeam();
+  };
+
   const handleCreatedClick = (notification: Notification) => {
     const payload = notification.payload as AccessRequestCreatedPayload;
     markRead.mutate(notification.id);
     goToAccessRequest(payload.organization_id);
+  };
+
+  const handleInvitationAcceptedClick = (notification: Notification) => {
+    const payload = notification.payload as InvitationAcceptedPayload;
+    markRead.mutate(notification.id);
+    goToOrgTeam(payload.organization_id);
   };
 
   const handleDismiss = (notification: Notification) => {
@@ -130,6 +143,29 @@ export default function NotificationBell() {
                   {payload.response_message && (
                     <p className="text-xs text-muted-foreground mt-1">{payload.response_message}</p>
                   )}
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {formatDistanceToNow(new Date(notification.created_at), { addSuffix: true })}
+                  </p>
+                </div>
+                {isPending && <Loader2 className="w-3 h-3 animate-spin shrink-0" />}
+              </DropdownMenuItem>
+            );
+          }
+
+          if (notification.type === 'invitation.accepted') {
+            const payload = notification.payload as InvitationAcceptedPayload;
+            return (
+              <DropdownMenuItem
+                key={notification.id}
+                onClick={() => handleInvitationAcceptedClick(notification)}
+                className="flex items-start gap-2 whitespace-normal"
+              >
+                <Check className="w-4 h-4 text-green-600 mt-0.5 shrink-0" />
+                <div className="flex-1">
+                  <p className="text-sm">
+                    <strong>{payload.accepted_user_name}</strong> accepted your invitation to{' '}
+                    {payload.organization_name}.
+                  </p>
                   <p className="text-xs text-muted-foreground mt-1">
                     {formatDistanceToNow(new Date(notification.created_at), { addSuffix: true })}
                   </p>

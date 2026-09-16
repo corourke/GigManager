@@ -186,4 +186,63 @@ describe('NotificationBell (issue #52 — generic notifications)', () => {
     render(<NotificationBell />);
     expect(notificationService.getMyNotifications).not.toHaveBeenCalled();
   });
+
+  it('badges an unread invitation-accepted notice and shows the accepted user/org', async () => {
+    vi.mocked(notificationService.getMyNotifications).mockResolvedValue([
+      {
+        id: 'notif-5',
+        recipient_id: 'inviter-1',
+        type: 'invitation.accepted',
+        payload: {
+          invitation_id: 'inv-1',
+          organization_id: 'org-1',
+          organization_name: 'Acme Productions',
+          accepted_user_name: 'Jordan Lee',
+        },
+        read_at: null,
+        created_at: '2026-01-01T00:00:00Z',
+      } as any,
+    ]);
+
+    const user = userEvent.setup();
+    render(<NotificationBell />);
+    await waitFor(() => expect(screen.getByText('1')).toBeInTheDocument());
+    await openBell(user);
+    expect(screen.getByText(/Jordan Lee/)).toBeInTheDocument();
+    expect(screen.getByText(/accepted your invitation/)).toBeInTheDocument();
+  });
+
+  it('clicking an invitation-accepted notice marks it read and selects that org before going to Team', async () => {
+    const selectOrganization = vi.fn();
+    mockUseAuth.mockReturnValue({
+      user: makeUser(),
+      organizations: [{ organization: org, role: 'Manager' }],
+      selectOrganization,
+    });
+    vi.mocked(notificationService.getMyNotifications).mockResolvedValue([
+      {
+        id: 'notif-6',
+        recipient_id: 'inviter-1',
+        type: 'invitation.accepted',
+        payload: {
+          invitation_id: 'inv-2',
+          organization_id: 'org-1',
+          organization_name: 'Acme Productions',
+          accepted_user_name: 'Jordan Lee',
+        },
+        read_at: null,
+        created_at: '2026-01-01T00:00:00Z',
+      } as any,
+    ]);
+
+    const user = userEvent.setup();
+    render(<NotificationBell />);
+    await waitFor(() => expect(screen.getByText('1')).toBeInTheDocument());
+    await openBell(user);
+    await user.click(screen.getByText(/Jordan Lee/));
+
+    await waitFor(() => expect(notificationService.markNotificationRead).toHaveBeenCalledWith('notif-6'));
+    expect(selectOrganization).toHaveBeenCalledWith(org);
+    expect(mockToTeam).toHaveBeenCalled();
+  });
 });
