@@ -1543,7 +1543,6 @@ export type Database = {
           organization_id: string
           requested_role: Database["public"]["Enums"]["user_role"]
           requester_id: string
-          requester_seen_at: string | null
           response_message: string | null
           status: string
         }
@@ -1556,7 +1555,6 @@ export type Database = {
           organization_id: string
           requested_role: Database["public"]["Enums"]["user_role"]
           requester_id: string
-          requester_seen_at?: string | null
           response_message?: string | null
           status?: string
         }
@@ -1569,9 +1567,35 @@ export type Database = {
           organization_id?: string
           requested_role?: Database["public"]["Enums"]["user_role"]
           requester_id?: string
-          requester_seen_at?: string | null
           response_message?: string | null
           status?: string
+        }
+        Relationships: []
+      }
+      notifications: {
+        Row: {
+          created_at: string
+          id: string
+          payload: Json
+          read_at: string | null
+          recipient_id: string
+          type: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          payload?: Json
+          read_at?: string | null
+          recipient_id: string
+          type: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          payload?: Json
+          read_at?: string | null
+          recipient_id?: string
+          type?: string
         }
         Relationships: []
       }

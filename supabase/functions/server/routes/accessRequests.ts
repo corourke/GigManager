@@ -2,8 +2,23 @@ import type { App, AppContext } from '../lib/types.ts';
 import { requireUser } from '../lib/auth.ts';
 import { requireOrgRole } from '../lib/orgRole.ts';
 import { supabaseAdmin } from '../lib/supabaseAdmin.ts';
-import { canDecideAccessRequest, shouldClaimOrgOnApproval } from '../lib/pure/authz.ts';
+import { canDecideAccessRequest, shouldClaimOrgOnApproval, accessRequestNotificationAudience } from '../lib/pure/authz.ts';
 import { sendEmail } from '../lib/email.ts';
+
+/**
+ * Best-effort side-channel insert into the generic notifications table
+ * (issue #52) — access_requests itself stays the durable, resolvable
+ * record; a failed insert here must never fail the caller's actual request.
+ */
+async function notify(recipientIds: string[], type: string, payload: Record<string, unknown>) {
+  if (recipientIds.length === 0) return;
+  const { error } = await supabaseAdmin
+    .from('notifications')
+    .insert(recipientIds.map((recipient_id) => ({ recipient_id, type, payload })));
+  if (error) {
+    console.warn(`Error inserting '${type}' notifications:`, error);
+  }
+}
 
 const REQUESTABLE_ROLES = ['Manager', 'Admin'];
 
@@ -58,6 +73,25 @@ export function registerAccessRequests(app: App) {
         console.error('Error creating access request:', error);
         return c.json({ error: error.message }, 400);
       }
+
+      const audience = accessRequestNotificationAudience(request.organization?.claimed ?? true);
+      const { data: recipients } =
+        audience === 'org_admins'
+          ? await supabaseAdmin
+              .from('organization_members').select('user_id')
+              .eq('organization_id', orgId).eq('role', 'Admin')
+          : await supabaseAdmin.from('users').select('id').eq('platform_moderator', true);
+      const recipientIds = (recipients || []).map((r: any) => r.user_id ?? r.id);
+      const requesterName = [request.requester?.first_name, request.requester?.last_name]
+        .filter(Boolean).join(' ') || request.requester?.email || 'A user';
+      await notify(recipientIds, 'access_request.created', {
+        access_request_id: request.id,
+        organization_id: orgId,
+        organization_name: request.organization?.name,
+        requester_name: requesterName,
+        requested_role: request.requested_role,
+      });
+
       return c.json(request);
     }
   );
@@ -159,6 +193,15 @@ export function registerAccessRequests(app: App) {
       return c.json({ error: updateError.message }, 400);
     }
 
+    await notify([request.requester_id], 'access_request.outcome', {
+      access_request_id: requestId,
+      organization_id: orgId,
+      organization_name: updatedRequest?.organization?.name,
+      requested_role: request.requested_role,
+      status: decision,
+      response_message: response_message || null,
+    });
+
     // Best-effort — a failed send must never fail the decision itself. The
     // in-app outcome notice (requester_seen_at / GET /me/access-requests) is
     // authoritative regardless of whether this succeeds.
@@ -212,38 +255,4 @@ export function registerAccessRequests(app: App) {
     return c.json(data || []);
   });
 
-  // The caller's own requests — powers the notification bell's outcome
-  // notices (approved/rejected, not yet seen).
-  app.get('/me/access-requests', requireUser, async (c: AppContext) => {
-    const user = c.get('user');
-    const { data, error } = await supabaseAdmin
-      .from('access_requests').select(REQUEST_SELECT)
-      .eq('requester_id', user.id)
-      .order('created_at', { ascending: false });
-    if (error) {
-      console.error('Error fetching own access requests:', error);
-      return c.json({ error: error.message }, 400);
-    }
-    return c.json(data || []);
-  });
-
-  // Dismiss an outcome notice. PUT, not PATCH — this app's CORS config only
-  // allows GET/POST/PUT/DELETE (index.ts), matching every other route here.
-  app.put('/access-requests/:requestId/seen', requireUser, async (c: AppContext) => {
-    const requestId = c.req.param('requestId');
-    const user = c.get('user');
-    const { data, error } = await supabaseAdmin
-      .from('access_requests')
-      .update({ requester_seen_at: new Date().toISOString() })
-      .eq('id', requestId).eq('requester_id', user.id)
-      .select('id').maybeSingle();
-    if (error) {
-      console.error('Error marking access request seen:', error);
-      return c.json({ error: error.message }, 400);
-    }
-    if (!data) {
-      return c.json({ error: 'Access request not found' }, 404);
-    }
-    return c.json({ success: true });
-  });
 }

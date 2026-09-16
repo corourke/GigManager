@@ -4,9 +4,7 @@ import {
   createAccessRequest,
   decideAccessRequest,
   getModeratorAccessRequests,
-  getMyAccessRequests,
   getOrgAccessRequests,
-  markAccessRequestSeen,
   RequestableRole,
 } from '../services/accessRequest.service';
 import type { AccessRequestWithRelations } from '../utils/supabase/types';
@@ -43,21 +41,6 @@ export function useModeratorAccessRequests(enabled: boolean) {
   });
 }
 
-/**
- * The caller's own access requests — powers the notification bell's outcome
- * notices. `enabled` should track auth readiness: firing this before the
- * Supabase session is restored caches an empty result that then sits until the
- * next reload (the bug behind "outcome doesn't show until refresh").
- */
-export function useMyAccessRequests(enabled: boolean = true) {
-  return useQuery<AccessRequestWithRelations[]>({
-    queryKey: queryKeys.myAccessRequests(),
-    queryFn: () => getMyAccessRequests(),
-    enabled,
-    ...ACCESS_REQUEST_REFRESH,
-  });
-}
-
 /** Create a new access request (Team screen's "Request Access" action). */
 export function useCreateAccessRequest(orgId: string) {
   const queryClient = useQueryClient();
@@ -65,7 +48,6 @@ export function useCreateAccessRequest(orgId: string) {
     mutationFn: (vars: { requestedRole: RequestableRole; message?: string }) =>
       createAccessRequest(orgId, vars.requestedRole, vars.message),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.myAccessRequests() });
       queryClient.invalidateQueries({ queryKey: queryKeys.orgAccessRequests(orgId) });
     },
   });
@@ -89,13 +71,3 @@ export function useDecideAccessRequest() {
   });
 }
 
-/** Dismiss an outcome notice from the notification bell. */
-export function useMarkAccessRequestSeen() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: (requestId: string) => markAccessRequestSeen(requestId),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.myAccessRequests() });
-    },
-  });
-}

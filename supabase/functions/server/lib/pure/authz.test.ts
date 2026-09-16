@@ -6,6 +6,7 @@ import {
   requireGigCreateOrgId,
   emailDomainMatches,
   canDecideAccessRequest,
+  accessRequestNotificationAudience,
   shouldClaimOrgOnApproval,
   describeOrganizationDeleteBlockers,
 } from './authz';
@@ -111,6 +112,15 @@ describe('canDecideAccessRequest (issue #33, point 6)', () => {
     expect(canDecideAccessRequest(true, false, 'Manager')).toBe(false);
     expect(canDecideAccessRequest(false, false, 'Viewer')).toBe(false);
     expect(canDecideAccessRequest(false, false, null)).toBe(false);
+  });
+});
+
+describe('accessRequestNotificationAudience (issue #52)', () => {
+  it('routes to platform moderators while the org is unclaimed', () => {
+    expect(accessRequestNotificationAudience(false)).toBe('platform_moderators');
+  });
+  it('routes to the org\'s own Admins once claimed', () => {
+    expect(accessRequestNotificationAudience(true)).toBe('org_admins');
   });
 });
 

@@ -41,5 +41,7 @@ export const queryKeys = {
   // Access requests (issue #33 cluster)
   orgAccessRequests: (orgId: string) => ['orgAccessRequests', orgId] as const,
   moderatorAccessRequests: () => ['moderatorAccessRequests'] as const,
-  myAccessRequests: () => ['myAccessRequests'] as const,
+
+  // Generic notification feed (issue #52) — powers the notification bell.
+  notifications: () => ['notifications'] as const,
 } as const;

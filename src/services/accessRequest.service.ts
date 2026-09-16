@@ -76,25 +76,3 @@ export async function getModeratorAccessRequests(): Promise<AccessRequestWithRel
   }
 }
 
-/** The caller's own access requests, most recent first — powers the notification bell's outcome notices. */
-export async function getMyAccessRequests(): Promise<AccessRequestWithRelations[]> {
-  try {
-    const supabase = getSupabase();
-    const { data, error } = await supabase.functions.invoke('server/me/access-requests', { method: 'GET' });
-    if (error) return await handleFunctionsError(error, 'fetch your access requests');
-    return data || [];
-  } catch (err) {
-    return await handleFunctionsError(err, 'fetch your access requests');
-  }
-}
-
-/** Dismiss an approved/rejected request's outcome notice. */
-export async function markAccessRequestSeen(requestId: string): Promise<void> {
-  try {
-    const supabase = getSupabase();
-    const { error } = await supabase.functions.invoke(`server/access-requests/${requestId}/seen`, { method: 'PUT' });
-    if (error) return await handleFunctionsError(error, 'dismiss notification');
-  } catch (err) {
-    return await handleFunctionsError(err, 'dismiss notification');
-  }
-}

@@ -1,10 +1,11 @@
 import type { ReactElement } from 'react';
 import { render as rtlRender, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { vi, describe, it, expect, beforeEach } from 'vitest';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router';
 import { makeUser, makeOrganization } from '../test/factories';
-import * as accessRequestService from '../services/accessRequest.service';
+import * as notificationService from '../services/notification.service';
 
 // src/test/setup.ts globally no-ops NotificationBell for every other screen
 // test that renders AppHeader — undo that here since this file exercises
@@ -28,25 +29,32 @@ vi.mock('../contexts/AuthContext', () => ({
   useAuth: () => mockUseAuth(),
 }));
 
-vi.mock('../services/accessRequest.service', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('../services/accessRequest.service')>();
+const mockToTeam = vi.fn();
+const mockToModeratorQueue = vi.fn();
+vi.mock('../routes/useNav', () => ({
+  useNav: () => ({ toTeam: mockToTeam, toModeratorQueue: mockToModeratorQueue }),
+}));
+
+vi.mock('../services/notification.service', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../services/notification.service')>();
   return {
     ...actual,
-    getMyAccessRequests: vi.fn().mockResolvedValue([]),
-    getOrgAccessRequests: vi.fn().mockResolvedValue([]),
-    getModeratorAccessRequests: vi.fn().mockResolvedValue([]),
-    markAccessRequestSeen: vi.fn().mockResolvedValue(undefined),
+    getMyNotifications: vi.fn().mockResolvedValue([]),
+    markNotificationRead: vi.fn().mockResolvedValue(undefined),
   };
 });
 
 const org = makeOrganization({ id: 'org-1', name: 'Acme Productions' });
 
-describe('NotificationBell (issue #33/#45)', () => {
+// DropdownMenuContent (Radix) only mounts its items once the trigger opens.
+async function openBell(user: ReturnType<typeof userEvent.setup>) {
+  await user.click(screen.getByRole('button', { name: 'Notifications' }));
+}
+
+describe('NotificationBell (issue #52 — generic notifications)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.mocked(accessRequestService.getMyAccessRequests).mockResolvedValue([]);
-    vi.mocked(accessRequestService.getOrgAccessRequests).mockResolvedValue([]);
-    vi.mocked(accessRequestService.getModeratorAccessRequests).mockResolvedValue([]);
+    vi.mocked(notificationService.getMyNotifications).mockResolvedValue([]);
     mockUseAuth.mockReturnValue({
       user: makeUser(),
       organizations: [],
@@ -54,68 +62,187 @@ describe('NotificationBell (issue #33/#45)', () => {
     });
   });
 
-  it('shows no badge when there is nothing pending or unseen', async () => {
+  it('shows no badge when there are no unread notifications', async () => {
     render(<NotificationBell />);
-    await waitFor(() => expect(accessRequestService.getMyAccessRequests).toHaveBeenCalled());
+    await waitFor(() => expect(notificationService.getMyNotifications).toHaveBeenCalled());
     expect(screen.queryByText(/\d/)).not.toBeInTheDocument();
   });
 
-  it('badges an unseen outcome notice', async () => {
-    vi.mocked(accessRequestService.getMyAccessRequests).mockResolvedValue([
+  it('badges an unread access-request outcome notice', async () => {
+    vi.mocked(notificationService.getMyNotifications).mockResolvedValue([
       {
-        id: 'req-1',
-        organization_id: 'org-1',
-        requester_id: 'user-1',
-        requested_role: 'Admin',
-        message: null,
-        status: 'approved',
-        handled_by: 'admin-1',
-        handled_at: '2026-01-01T00:00:00Z',
-        response_message: null,
-        requester_seen_at: null,
+        id: 'notif-1',
+        recipient_id: 'user-1',
+        type: 'access_request.outcome',
+        payload: {
+          access_request_id: 'req-1',
+          organization_id: 'org-1',
+          organization_name: 'Acme Productions',
+          requested_role: 'Admin',
+          status: 'approved',
+          response_message: null,
+        },
+        read_at: null,
         created_at: '2026-01-01T00:00:00Z',
-        requester: { id: 'user-1', first_name: 'Test', last_name: 'User', email: 't@example.com', avatar_url: null },
-        organization: { id: 'org-1', name: 'Acme Productions', claimed: true },
-        handler: null,
       } as any,
     ]);
 
+    const user = userEvent.setup();
     render(<NotificationBell />);
     await waitFor(() => expect(screen.getByText('1')).toBeInTheDocument());
+    await openBell(user);
+    expect(screen.getByText(/was approved/)).toBeInTheDocument();
   });
 
-  it('badges a pending count for an org the user administers', async () => {
+  it('badges an unread access-request created notice and shows requester/role/org', async () => {
+    vi.mocked(notificationService.getMyNotifications).mockResolvedValue([
+      {
+        id: 'notif-2',
+        recipient_id: 'admin-1',
+        type: 'access_request.created',
+        payload: {
+          access_request_id: 'req-2',
+          organization_id: 'org-1',
+          organization_name: 'Acme Productions',
+          requester_name: 'Jamie Doe',
+          requested_role: 'Manager',
+        },
+        read_at: null,
+        created_at: '2026-01-01T00:00:00Z',
+      } as any,
+    ]);
+
+    const user = userEvent.setup();
+    render(<NotificationBell />);
+    await waitFor(() => expect(screen.getByText('1')).toBeInTheDocument());
+    await openBell(user);
+    expect(screen.getByText(/Jamie Doe/)).toBeInTheDocument();
+  });
+
+  it('clicking a created notice for an org the user administers marks it read and goes to Team', async () => {
     mockUseAuth.mockReturnValue({
       user: makeUser(),
       organizations: [{ organization: org, role: 'Admin' }],
       selectOrganization: vi.fn(),
     });
-    vi.mocked(accessRequestService.getOrgAccessRequests).mockResolvedValue([
-      { id: 'req-2' } as any,
-      { id: 'req-3' } as any,
+    vi.mocked(notificationService.getMyNotifications).mockResolvedValue([
+      {
+        id: 'notif-3',
+        recipient_id: 'admin-1',
+        type: 'access_request.created',
+        payload: {
+          access_request_id: 'req-3',
+          organization_id: 'org-1',
+          organization_name: 'Acme Productions',
+          requester_name: 'Jamie Doe',
+          requested_role: 'Manager',
+        },
+        read_at: null,
+        created_at: '2026-01-01T00:00:00Z',
+      } as any,
     ]);
 
-    render(<NotificationBell />);
-    await waitFor(() => expect(screen.getByText('2')).toBeInTheDocument());
-  });
-
-  it('includes the moderator queue count for a platform moderator', async () => {
-    mockUseAuth.mockReturnValue({
-      user: makeUser({ platform_moderator: true }),
-      organizations: [],
-      selectOrganization: vi.fn(),
-    });
-    vi.mocked(accessRequestService.getModeratorAccessRequests).mockResolvedValue([{ id: 'req-4' } as any]);
-
+    const user = userEvent.setup();
     render(<NotificationBell />);
     await waitFor(() => expect(screen.getByText('1')).toBeInTheDocument());
-    // A non-moderator shouldn't trigger this query at all.
-    expect(accessRequestService.getModeratorAccessRequests).toHaveBeenCalledTimes(1);
+    await openBell(user);
+    await user.click(screen.getByText(/Jamie Doe/));
+
+    await waitFor(() => expect(notificationService.markNotificationRead).toHaveBeenCalledWith('notif-3'));
+    expect(mockToTeam).toHaveBeenCalled();
+    expect(mockToModeratorQueue).not.toHaveBeenCalled();
   });
 
-  it('does not query the moderator queue for a non-moderator', async () => {
+  it('clicking a created notice for an org the user does not administer goes to the moderator queue', async () => {
+    vi.mocked(notificationService.getMyNotifications).mockResolvedValue([
+      {
+        id: 'notif-4',
+        recipient_id: 'moderator-1',
+        type: 'access_request.created',
+        payload: {
+          access_request_id: 'req-4',
+          organization_id: 'org-unclaimed',
+          organization_name: 'New Org',
+          requester_name: 'Jamie Doe',
+          requested_role: 'Admin',
+        },
+        read_at: null,
+        created_at: '2026-01-01T00:00:00Z',
+      } as any,
+    ]);
+
+    const user = userEvent.setup();
     render(<NotificationBell />);
-    await waitFor(() => expect(accessRequestService.getMyAccessRequests).toHaveBeenCalled());
-    expect(accessRequestService.getModeratorAccessRequests).not.toHaveBeenCalled();
+    await waitFor(() => expect(screen.getByText('1')).toBeInTheDocument());
+    await openBell(user);
+    await user.click(screen.getByText(/Jamie Doe/));
+
+    await waitFor(() => expect(mockToModeratorQueue).toHaveBeenCalled());
+    expect(mockToTeam).not.toHaveBeenCalled();
+  });
+
+  it('does not query notifications when there is no user', async () => {
+    mockUseAuth.mockReturnValue({ user: null, organizations: [], selectOrganization: vi.fn() });
+    render(<NotificationBell />);
+    expect(notificationService.getMyNotifications).not.toHaveBeenCalled();
+  });
+
+  it('badges an unread invitation-accepted notice and shows the accepted user/org', async () => {
+    vi.mocked(notificationService.getMyNotifications).mockResolvedValue([
+      {
+        id: 'notif-5',
+        recipient_id: 'inviter-1',
+        type: 'invitation.accepted',
+        payload: {
+          invitation_id: 'inv-1',
+          organization_id: 'org-1',
+          organization_name: 'Acme Productions',
+          accepted_user_name: 'Jordan Lee',
+        },
+        read_at: null,
+        created_at: '2026-01-01T00:00:00Z',
+      } as any,
+    ]);
+
+    const user = userEvent.setup();
+    render(<NotificationBell />);
+    await waitFor(() => expect(screen.getByText('1')).toBeInTheDocument());
+    await openBell(user);
+    expect(screen.getByText(/Jordan Lee/)).toBeInTheDocument();
+    expect(screen.getByText(/accepted your invitation/)).toBeInTheDocument();
+  });
+
+  it('clicking an invitation-accepted notice marks it read and selects that org before going to Team', async () => {
+    const selectOrganization = vi.fn();
+    mockUseAuth.mockReturnValue({
+      user: makeUser(),
+      organizations: [{ organization: org, role: 'Manager' }],
+      selectOrganization,
+    });
+    vi.mocked(notificationService.getMyNotifications).mockResolvedValue([
+      {
+        id: 'notif-6',
+        recipient_id: 'inviter-1',
+        type: 'invitation.accepted',
+        payload: {
+          invitation_id: 'inv-2',
+          organization_id: 'org-1',
+          organization_name: 'Acme Productions',
+          accepted_user_name: 'Jordan Lee',
+        },
+        read_at: null,
+        created_at: '2026-01-01T00:00:00Z',
+      } as any,
+    ]);
+
+    const user = userEvent.setup();
+    render(<NotificationBell />);
+    await waitFor(() => expect(screen.getByText('1')).toBeInTheDocument());
+    await openBell(user);
+    await user.click(screen.getByText(/Jordan Lee/));
+
+    await waitFor(() => expect(notificationService.markNotificationRead).toHaveBeenCalledWith('notif-6'));
+    expect(selectOrganization).toHaveBeenCalledWith(org);
+    expect(mockToTeam).toHaveBeenCalled();
   });
 });
