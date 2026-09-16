@@ -46,6 +46,32 @@ export type DbAccessRequest = Tables['access_requests']['Row'];
 
 export type AccessRequest = DbAccessRequest;
 
+export type DbNotification = Tables['notifications']['Row'];
+
+export type NotificationType = 'access_request.created' | 'access_request.outcome';
+
+export interface AccessRequestCreatedPayload {
+  access_request_id: string;
+  organization_id: string;
+  organization_name: string;
+  requester_name: string;
+  requested_role: string;
+}
+
+export interface AccessRequestOutcomePayload {
+  access_request_id: string;
+  organization_id: string;
+  organization_name: string;
+  requested_role: string;
+  status: 'approved' | 'rejected';
+  response_message: string | null;
+}
+
+export type Notification = DbNotification & {
+  type: NotificationType;
+  payload: AccessRequestCreatedPayload | AccessRequestOutcomePayload;
+};
+
 export type DbAsset = Tables['assets']['Row'];
 
 export type DbPurchase = Tables['purchases']['Row'];

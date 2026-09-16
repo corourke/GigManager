@@ -73,6 +73,16 @@ export function canDecideAccessRequest(
 }
 
 /**
+ * Who should be notified that an access request was created (issue #52):
+ * platform moderators while the target org is unclaimed (mirrors
+ * canDecideAccessRequest — nobody else can act on it yet), that org's own
+ * Admins once it isn't.
+ */
+export function accessRequestNotificationAudience(orgClaimed: boolean): 'platform_moderators' | 'org_admins' {
+  return orgClaimed ? 'org_admins' : 'platform_moderators';
+}
+
+/**
  * Whether approving a request should flip organizations.claimed to true —
  * only when the org didn't already have an Admin and the approved role is
  * Admin (the #33 bootstrap case). Approving to Manager, or approving Admin on
