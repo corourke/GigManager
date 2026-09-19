@@ -48,7 +48,11 @@ export type AccessRequest = DbAccessRequest;
 
 export type DbNotification = Tables['notifications']['Row'];
 
-export type NotificationType = 'access_request.created' | 'access_request.outcome' | 'invitation.accepted';
+export type NotificationType =
+  | 'access_request.created'
+  | 'access_request.outcome'
+  | 'invitation.accepted'
+  | 'health_check.failure';
 
 export interface AccessRequestCreatedPayload {
   access_request_id: string;
@@ -74,9 +78,19 @@ export interface InvitationAcceptedPayload {
   accepted_user_name: string;
 }
 
+export interface HealthCheckFailurePayload {
+  check: 'supabase' | 'google_places' | 'sentry';
+  detail: string | null;
+  checked_at: string;
+}
+
 export type Notification = DbNotification & {
   type: NotificationType;
-  payload: AccessRequestCreatedPayload | AccessRequestOutcomePayload | InvitationAcceptedPayload;
+  payload:
+    | AccessRequestCreatedPayload
+    | AccessRequestOutcomePayload
+    | InvitationAcceptedPayload
+    | HealthCheckFailurePayload;
 };
 
 export type DbAsset = Tables['assets']['Row'];
