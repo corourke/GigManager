@@ -1,4 +1,4 @@
-import { Bell, Check, X, Loader2 } from 'lucide-react';
+import { Bell, Check, X, Loader2, AlertTriangle } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { Badge } from './ui/badge';
 import {
@@ -16,8 +16,15 @@ import type {
   AccessRequestCreatedPayload,
   AccessRequestOutcomePayload,
   InvitationAcceptedPayload,
+  HealthCheckFailurePayload,
   Notification,
 } from '../utils/supabase/types';
+
+const HEALTH_CHECK_LABELS: Record<HealthCheckFailurePayload['check'], string> = {
+  supabase: 'Supabase',
+  google_places: 'Google Places',
+  sentry: 'Sentry',
+};
 
 /**
  * Generic notification feed (issue #52): every alert type (access-request
@@ -143,6 +150,32 @@ export default function NotificationBell() {
                   {payload.response_message && (
                     <p className="text-xs text-muted-foreground mt-1">{payload.response_message}</p>
                   )}
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {formatDistanceToNow(new Date(notification.created_at), { addSuffix: true })}
+                  </p>
+                </div>
+                {isPending && <Loader2 className="w-3 h-3 animate-spin shrink-0" />}
+              </DropdownMenuItem>
+            );
+          }
+
+          if (notification.type === 'health_check.failure') {
+            const payload = notification.payload as HealthCheckFailurePayload;
+            return (
+              <DropdownMenuItem
+                key={notification.id}
+                onSelect={(e) => {
+                  e.preventDefault();
+                  handleDismiss(notification);
+                }}
+                className="flex items-start gap-2 whitespace-normal"
+              >
+                <AlertTriangle className="w-4 h-4 text-destructive mt-0.5 shrink-0" />
+                <div className="flex-1">
+                  <p className="text-sm">
+                    <strong>{HEALTH_CHECK_LABELS[payload.check] ?? payload.check}</strong> health check failed.
+                  </p>
+                  {payload.detail && <p className="text-xs text-muted-foreground mt-1">{payload.detail}</p>}
                   <p className="text-xs text-muted-foreground mt-1">
                     {formatDistanceToNow(new Date(notification.created_at), { addSuffix: true })}
                   </p>
