@@ -1,15 +1,12 @@
-import { createClient } from '../utils/supabase/client';
-import { 
-  User, 
+import {
+  User,
   OrganizationMembershipWithOrg,
   UserRole,
   DbOrganization,
 } from '../utils/supabase/types';
 import { handleApiError } from '../utils/api-error-utils';
-import { requireAuth } from '../utils/supabase/auth-utils';
 import { sanitizeLikeInput } from '../utils/validation-utils';
-
-const getSupabase = () => createClient();
+import { getSupabase, getCurrentUser, createRecord, updateRecord } from './base/dataAccess';
 
 /**
  * Fetch complete user data (profile + organizations) in one secure call
@@ -72,23 +69,11 @@ export async function createUserProfile(userData: {
   last_name: string;
   avatar_url?: string;
 }): Promise<User> {
-  const supabase = getSupabase();
-  try {
-    // Check if user already exists
-    const existing = await getUserProfile(userData.id);
-    if (existing) return existing;
+  // Check if user already exists
+  const existing = await getUserProfile(userData.id);
+  if (existing) return existing;
 
-    const { data, error } = await supabase
-      .from('users')
-      .insert(userData)
-      .select()
-      .single();
-
-    if (error) throw error;
-    return data;
-  } catch (err) {
-    return handleApiError(err, 'create user profile');
-  }
+  return createRecord<User>('users', userData);
 }
 
 /**
@@ -106,23 +91,10 @@ export async function updateUserProfile(userId: string, updates: {
   country?: string;
   timezone?: string;
 }): Promise<User> {
-  const supabase = getSupabase();
-  try {
-    const { data, error } = await supabase
-      .from('users')
-      .update({
-        ...updates,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', userId)
-      .select()
-      .single();
-
-    if (error) throw error;
-    return data;
-  } catch (err) {
-    return handleApiError(err, 'update user profile');
-  }
+  return updateRecord<User>('users', userId, {
+    ...updates,
+    updated_at: new Date().toISOString(),
+  });
 }
 
 /**
@@ -130,7 +102,8 @@ export async function updateUserProfile(userId: string, updates: {
  */
 export async function searchUsers(search?: string, organizationIds?: string[]): Promise<User[]> {
   try {
-    const { supabase, user } = await requireAuth();
+    const user = await getCurrentUser();
+    const supabase = getSupabase();
 
     let orgIds: string[] = [];
 
@@ -181,7 +154,8 @@ export async function searchUsers(search?: string, organizationIds?: string[]): 
  */
 export async function searchAllUsers(search: string): Promise<User[]> {
   try {
-    const { supabase } = await requireAuth();
+    await getCurrentUser();
+    const supabase = getSupabase();
 
     if (!search || search.length < 2) return [];
 
