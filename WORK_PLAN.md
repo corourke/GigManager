@@ -130,7 +130,8 @@ a committed migration, and ask Cameron to apply new ones to the remote Supabase 
 confirmation (rule 4); enumerate any manual deploy/verification steps after implementing (rule 7); keep
 project documents — including this file — updated as work completes (rule 8).
 
-**Maintaining this file.** Update it in place as part of the same branch/PR as the day's work, or as a
-standalone commit on a quiet day only if something actually changed. Keep §1 and §3 accurate first — they are
-what gets read at a glance. Move finished work into §4 rather than deleting it, so the history of what shipped
-stays available without digging through closed PRs.
+**Maintaining this file.** This file is maintained on `main` — the triage routine reads and writes it there,
+so board-only updates should land on `main` promptly rather than sitting on a feature branch, where a run that
+starts from `main` will not see them. Update it in place; on a quiet day, commit only if something actually
+changed. Keep §1 and §3 accurate first — they are what gets read at a glance. Move finished work into §4
+rather than deleting it, so the history of what shipped stays available without digging through closed PRs.

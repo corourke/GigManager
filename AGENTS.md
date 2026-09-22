@@ -8,7 +8,7 @@ There are user instructions to all AI Agents that are of highest priority.
 4. IMPORTANT: NEVER change a committed migration. Changes to schema.sql don't do anything! If we want to change the schema, we need to create migrations and apply them to the remote supabase database. After writing new migrations, Ask the user to apply them to the databse. Wait for confirmation that these steps have been performed. 
 6. STAY FOCUSED: If you discover potential performance issues or unrelated bugs during investigation, document them as "Future Considerations" rather than pursuing them immediately.
 7. After implementing changes, if there are manual deployment or verification steps, you MUST enumerate these steps to the user for implementation. 
-8. Keep project documents updated. Mark tasks done as they are completed. This includes both high-level plans (i.e. @plan.md) as well as detailed implementation plans (i.e. implementation-plan.md).
+8. Keep project documents updated. Mark tasks done as they are completed. This includes both high-level plans (i.e. @plan.md) as well as detailed implementation plans (i.e. implementation-plan.md). The issue triage board lives in [./WORK_PLAN.md](./WORK_PLAN.md) — it is the board of record for issue status, what is blocked on Cameron, and the continuity notes between runs. It replaced GitHub issue #41 (closed 2026-09-22), so update the file rather than reopening or recreating that issue, and land board updates on `main` promptly (a run that starts from `main` will not see updates parked on a feature branch).
 9. If you are confused by something, ASK!
 
 
