@@ -6,7 +6,7 @@ Migrated from GitHub issue [#41](https://github.com/corourke/GigManager/issues/4
 supersedes that issue as the board of record.
 
 - **Last updated:** 2026-09-22
-- **State verified:** 2026-09-22 (open issues, both open PRs, CI conclusions re-checked directly — not assumed)
+- **State verified:** 2026-09-22 (PR #66 merged; PR #65's CI/mergeability re-checked directly — not assumed)
 
 ---
 
@@ -15,12 +15,11 @@ supersedes that issue as the board of record.
 | # | Item | Type | State | Waiting on |
 |---|---|---|---|---|
 | [#65](https://github.com/corourke/GigManager/pull/65) | Health checks phase 2 (Supabase, Google Places, Sentry round-trip) | PR | Open, CI green, mergeable | Cameron — review/merge |
-| [#66](https://github.com/corourke/GigManager/pull/66) | Shared data-access base module + `user.service.ts` pilot | PR | Open, CI green, mergeable | Cameron — review/merge |
 | [#61](https://github.com/corourke/GigManager/issues/61) | Cross-org RLS leaks (5 tables) | Bug / security | Partially fixed; 4 leaks deferred | Cameron — scope decision |
 | [#52](https://github.com/corourke/GigManager/issues/52) | Health / diagnostic check on APIs | Feature | Phase 1 merged; phase 2 in PR #65 | Cameron — merge + Sentry secrets |
 | [#39](https://github.com/corourke/GigManager/issues/39) | Too many menu levels | UI/UX design | Mockups posted 09-19 | Cameron — pick a variant |
 | [#12](https://github.com/corourke/GigManager/issues/12) | Reorganize Gig Edit into tabbed sections | UI/UX design | Mockups posted 09-19 | Cameron — pick a variant |
-| [#20](https://github.com/corourke/GigManager/issues/20) | Shared data-access layer under `src/services/` | Refactor | Pilot in PR #66; 15 services remain | Cameron — merge pilot first |
+| [#20](https://github.com/corourke/GigManager/issues/20) | Shared data-access layer under `src/services/` | Refactor | Pilot merged (PR #66); 15 services remain | Nothing — pick up next service when wanted |
 | [#32](https://github.com/corourke/GigManager/issues/32) | Sign Up: no confirm-password field | Low priority | Open, not urgent | Nothing — accepted for beta |
 
 ---
@@ -64,9 +63,9 @@ work-plan-then-approval pattern as #12.
 ### Refactor
 
 **[#20](https://github.com/corourke/GigManager/issues/20) — Shared data-access layer under `src/services/`.**
-Base module + `user.service.ts` pilot implemented in **PR #66**, open and green. The remaining ~15 services
-are intentionally left for later and should be migrated service-by-service, only after the pilot is reviewed
-and merged so the pattern is settled.
+Base module + `user.service.ts` pilot **merged (PR #66, 09-22)**. The pattern is now settled — the remaining
+~15 services are intentionally left for later, migrated service-by-service, one at a time, only when Cameron
+wants the next one picked up.
 
 ### Auth / session
 
@@ -79,7 +78,7 @@ Low priority, explicitly acceptable for beta. Open, no action planned.
 
 Nothing below can move without a reply. Listed roughly in the order that unblocks the most work.
 
-1. **PR [#65](https://github.com/corourke/GigManager/pull/65) and PR [#66](https://github.com/corourke/GigManager/pull/66)** — both open, CI green, mergeable. Review and merge (or send back with comments).
+1. **PR [#65](https://github.com/corourke/GigManager/pull/65)** — open, CI green, mergeable. Review and merge (or send back with comments). (PR #66 merged 09-22.)
 2. **[#39](https://github.com/corourke/GigManager/issues/39)** — pick a mockup variant (or a hybrid) from the 09-19 canvas so a work plan can be written.
 3. **[#12](https://github.com/corourke/GigManager/issues/12)** — pick top-tabs vs. left-side-tabs from the 09-19 canvas, **and** say whether the cross-section coordination question (e.g. staffing needing gig dates) should be folded into the same design pass.
 4. **[#61](https://github.com/corourke/GigManager/issues/61)** — say whether to pull the `gig_staff_slots`/`gig_staff_assignments` leak forward next, or leave all four remaining leaks deferred until the tenant-isolation decision.
@@ -97,6 +96,7 @@ Nothing below can move without a reply. Listed roughly in the order that unblock
 | Google Places friendly error | PR #62 (09-14) | Merged; closed #29 |
 | `gig_financials` RLS leak fix | PR #63 (09-14) | Merged; #61 stays open for the 4 remaining leaks |
 | #52 phase 1 — generic `notifications` table | PR #64 (09-16) | Merged |
+| #20 — shared data-access base module + `user.service.ts` pilot | PR #66 (09-22) | Merged; ~15 services remain, one at a time |
 
 ---
 
@@ -104,20 +104,20 @@ Nothing below can move without a reply. Listed roughly in the order that unblock
 
 Read this section first on each run.
 
-**Where things stand.** 2026-09-21 was the second consecutive quiet day: no new replies on #39, #12 or #61
-since 09-20, and no new commits, reviews or non-bot comments on either open PR since 09-19. Re-verified on
-2026-09-22 — still true. Everything open is parked on Cameron's input; nothing has been implemented since
-PR #66 was opened on 09-19.
+**Where things stand.** PR #66 merged 2026-09-22 (mid-day, outside the morning run — caught via the PR-activity
+subscription). WORK_PLAN.md itself landed on `main` the same morning, alongside the PR #66 merge commit.
+#39, #12 and #61 are still quiet — no new replies since 09-20.
 
 **Order of checks each run.**
 
-1. PR #65 and PR #66 — re-verify CI and mergeability **directly** at the current head SHA, don't assume the
-   last-known state. As of 2026-09-22: #65 head `4469a71`, #66 head `191c56a`, `ci` conclusion `success` on
-   both (runs 35434313509 and 35434701960), both mergeable against `main` at `ee457e8`.
+1. PR #65 — re-verify CI and mergeability **directly** at the current head SHA, don't assume the last-known
+   state. As of 2026-09-22 (post PR #66 merge): head `4469a71`, `ci` conclusion `success` (run 35434313509),
+   mergeable against `main`.
 2. #39 — check for a reply. If a variant is picked → work plan → post → wait for approval → implement.
 3. #12 — same pattern.
 4. #61 — check for a reply on the staffing-leak question. If yes, follow the PR #63 pattern (migration +
    before/after access table + PR, no merge without review).
+5. #20 — no open question; only act if Cameron asks for the next service to be migrated.
 
 **Don't manufacture activity.** Each of #39, #12 and #61 already has exactly one open question on record.
 If a run finds everything still quiet, that is a legitimate no-op: do **not** re-post the same "still waiting"
