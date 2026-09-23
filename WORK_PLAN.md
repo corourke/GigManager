@@ -11,8 +11,8 @@ Cameron questions.
 Migrated from GitHub issue [#41](https://github.com/corourke/GigManager/issues/41) on 2026-09-22. This file now
 supersedes that issue as the board of record.
 
-- **Last updated:** 2026-09-23 (coordinator: resolved §3b, §3a now tracks #52 deploy confirmation)
-- **State verified:** 2026-09-23 (6 open issues, 2 open PRs — #67 and #68, both docs only, CI green, mergeable)
+- **Last updated:** 2026-09-23 (triage: docs PRs #67 and #68 merged)
+- **State verified:** 2026-09-23 (6 open issues, 0 open PRs — docs PRs #67 and #68 both merged 18:20 UTC)
 
 ---
 
@@ -101,7 +101,8 @@ order that unblocks the most work; the coordinator puts these to Cameron one at 
 *The triage routine adds entries here instead of asking Cameron directly — the question, and what it did in the
 meantime. The coordinator resolves each entry (decides it, or moves it into §3a) and deletes it.*
 
-- *(none)*
+- **2026-09-23 — PRs #67 and #68 merged.** §3a item 5 ("Docs PRs #67 and #68 — review/merge") is now
+  stale. There's no question. This is just so the coordinator can drop the item.
 
 ### 3c. Ready to build, nothing blocking
 
@@ -128,6 +129,7 @@ applies migrations), edge-function API shape, anything touching production confi
 | #52 phase 1 — generic `notifications` table | PR #64 (09-16) | Merged |
 | #20 — shared data-access base module + `user.service.ts` pilot | PR #66 (09-22) | Merged; ~15 services remain, one at a time |
 | #52 phase 2 — Supabase/Google Places/Sentry health checks + daily cron | PR #65 (09-23) | Merged; Sentry check reports "not configured" until secrets land |
+| Docs refresh: `testing.md` (PR #67), `setup-guide.md` + one line of `deployment.md` (PR #68) | PR #67, PR #68 (09-23) | Merged; docs only, from triage docs passes |
 
 ---
 
@@ -143,7 +145,6 @@ Read this section first on each run.
 | #61 remaining leaks | `supabase/migrations/` for staffing, kits, `inventory_tracking`, `activity_log` RLS | Not started — contract, coordinator only |
 | #20 remaining services | `src/services/*.service.ts` (all but `user.service.ts`) | Parked until Cameron asks for the next one |
 | PR [#67](https://github.com/corourke/GigManager/pull/67) — refresh `testing.md` | `docs/development/testing.md` | Docs only; open, awaiting review |
-| PR [#68](https://github.com/corourke/GigManager/pull/68) — correct `setup-guide.md` | `docs/technical/setup-guide.md`, `docs/technical/deployment.md` (one line, §Anthropic) | Docs only; open, awaiting review |
 
 **Dependencies.** #12 and #39 both reshape navigation/gig-edit UI — do them in sequence, not in parallel, once
 each has a direction. #52's Sentry check depends on the Sentry secrets (§3a item 5) only for a live result —
@@ -153,11 +154,11 @@ tenant-isolation-architecture decision.
 **Where things stand.** Both PRs from the 09-19 batch are now merged: PR #66 on 09-22, PR #65 on 09-23 (both
 caught via the PR-activity subscription, outside the morning run). #39, #12 and #61 are still quiet, with no new replies since 09-20.
 
-On 09-23 every item was blocked or parked, so the run moved on to docs. It opened docs-only PR
-[#67](https://github.com/corourke/GigManager/pull/67), which refreshes `docs/development/testing.md`: suite size,
+On 09-23 every item was blocked or parked, so the run moved on to docs. Docs-only PR
+[#67](https://github.com/corourke/GigManager/pull/67) refreshed `docs/development/testing.md`: suite size,
 the actual Supabase mock pattern, the finished March coverage plan replaced with the gaps that remain, and a CI
-section that now matches `ci.yml`. A second run the same day found nothing changed, and opened docs-only PR
-[#68](https://github.com/corourke/GigManager/pull/68), which corrects `setup-guide.md`. The fixes: Node 20.19+
+section that matches `ci.yml`. A second run the same day opened docs-only PR
+[#68](https://github.com/corourke/GigManager/pull/68), which corrected `setup-guide.md`. Both merged 09-23 18:20 UTC. The fixes: Node 20.19+
 instead of 18, a supported Supabase CLI install, the full migration set instead of pasting only
 `initial_schema.sql`, deploying both edge functions, a seed check that works, and removing the `ai-scan`
 `x-diagnostic` test that was dropped in June (also fixed in `deployment.md`).
@@ -173,7 +174,7 @@ broken yet.
 
 **Order of checks each run.**
 
-1. Check CI and mergeability on open PRs (as of 09-23 that is #67 and #68, both docs only).
+1. Check CI and mergeability on open PRs (none as of 09-23 evening).
 2. #39 — check for a reply. If a variant is picked → work plan → post → wait for approval → implement.
 3. #12 — same pattern.
 4. #61 — check for a reply on the staffing-leak question. If yes, follow the PR #63 pattern (migration +
