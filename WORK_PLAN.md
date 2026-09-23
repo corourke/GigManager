@@ -144,7 +144,6 @@ Read this section first on each run.
 |---|---|---|
 | #61 remaining leaks | `supabase/migrations/` for staffing, kits, `inventory_tracking`, `activity_log` RLS | Not started — contract, coordinator only |
 | #20 remaining services | `src/services/*.service.ts` (all but `user.service.ts`) | Parked until Cameron asks for the next one |
-| PR [#67](https://github.com/corourke/GigManager/pull/67) — refresh `testing.md` | `docs/development/testing.md` | Docs only; open, awaiting review |
 
 **Dependencies.** #12 and #39 both reshape navigation/gig-edit UI — do them in sequence, not in parallel, once
 each has a direction. #52's Sentry check depends on the Sentry secrets (§3a item 5) only for a live result —
