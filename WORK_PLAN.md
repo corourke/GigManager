@@ -11,8 +11,8 @@ Cameron questions.
 Migrated from GitHub issue [#41](https://github.com/corourke/GigManager/issues/41) on 2026-09-22. This file now
 supersedes that issue as the board of record.
 
-- **Last updated:** 2026-09-23 (coordinator: restructured §3 into 3a/3b/3c, added §5 file ownership)
-- **State verified:** 2026-09-23 (6 open issues, 1 open PR; PR #65 head `4469a71` `ci` success, mergeable)
+- **Last updated:** 2026-09-23 (triage: PR #65 merged)
+- **State verified:** 2026-09-23 (6 open issues, 0 open PRs — PR #65 merged this run)
 
 ---
 
@@ -20,9 +20,8 @@ supersedes that issue as the board of record.
 
 | # | Item | Type | State | Waiting on |
 |---|---|---|---|---|
-| [#65](https://github.com/corourke/GigManager/pull/65) | Health checks phase 2 (Supabase, Google Places, Sentry round-trip) | PR | Open, CI green, mergeable | Cameron — review/merge |
 | [#61](https://github.com/corourke/GigManager/issues/61) | Cross-org RLS leaks (5 tables) | Bug / security | Partially fixed; 4 leaks deferred | Cameron — scope decision |
-| [#52](https://github.com/corourke/GigManager/issues/52) | Health / diagnostic check on APIs | Feature | Phase 1 merged; phase 2 in PR #65 | Cameron — merge + Sentry secrets |
+| [#52](https://github.com/corourke/GigManager/issues/52) | Health / diagnostic check on APIs | Feature | Phases 1 and 2 both merged | Sentry secrets (not blocking) |
 | [#39](https://github.com/corourke/GigManager/issues/39) | Too many menu levels | UI/UX design | Mockups posted 09-19 | Cameron — pick a variant |
 | [#12](https://github.com/corourke/GigManager/issues/12) | Reorganize Gig Edit into tabbed sections | UI/UX design | Mockups posted 09-19 | Cameron — pick a variant |
 | [#20](https://github.com/corourke/GigManager/issues/20) | Shared data-access layer under `src/services/` | Refactor | Pilot merged (PR #66); 15 services remain | Nothing — pick up next service when wanted |
@@ -49,9 +48,8 @@ access-control data.
 
 **[#52](https://github.com/corourke/GigManager/issues/52) — Health / diagnostic check on APIs.**
 Phase 1 (generic `notifications` table) merged in PR #64 on 09-16. Phase 2 (Supabase, Google Places and
-Sentry round-trip checks) is implemented in **PR #65**, open and green, awaiting review/merge.
-The Sentry round-trip check reports `not configured` until the Sentry secrets land — see
-[§3a item 5](#3a-waiting-on-cameron).
+Sentry round-trip checks) **merged in PR #65 on 09-23**. The Sentry round-trip check reports `not configured`
+until the Sentry secrets land — see [§3a item 5](#3a-waiting-on-cameron) (not blocking; everything else runs).
 
 ### Gig list / detail UX
 
@@ -98,7 +96,9 @@ order that unblocks the most work; the coordinator puts these to Cameron one at 
 *The triage routine adds entries here instead of asking Cameron directly — the question, and what it did in the
 meantime. The coordinator resolves each entry (decides it, or moves it into §3a) and deletes it.*
 
-- *(none)*
+- **2026-09-23 — PR #65 merged.** §3a item 1 ("PR #65 — review and merge") is now stale; #52 phase 2 is fully
+  shipped. No new question — just flagging so the coordinator can drop that item and, if there's anything
+  Cameron should know (e.g. that phase 2 is live), fold it into whatever's next raised to him.
 
 ### 3c. Ready to build, nothing blocking
 
@@ -124,6 +124,7 @@ applies migrations), edge-function API shape, anything touching production confi
 | `gig_financials` RLS leak fix | PR #63 (09-14) | Merged; #61 stays open for the 4 remaining leaks |
 | #52 phase 1 — generic `notifications` table | PR #64 (09-16) | Merged |
 | #20 — shared data-access base module + `user.service.ts` pilot | PR #66 (09-22) | Merged; ~15 services remain, one at a time |
+| #52 phase 2 — Supabase/Google Places/Sentry health checks + daily cron | PR #65 (09-23) | Merged; Sentry check reports "not configured" until secrets land |
 
 ---
 
@@ -136,28 +137,27 @@ Read this section first on each run.
 
 | Claimed by | Files | Notes |
 |---|---|---|
-| PR #65 (#52 phase 2) | `supabase/functions/` health-check code, health-check UI/tests | Open, green, awaiting Cameron |
 | #61 remaining leaks | `supabase/migrations/` for staffing, kits, `inventory_tracking`, `activity_log` RLS | Not started — contract, coordinator only |
 | #20 remaining services | `src/services/*.service.ts` (all but `user.service.ts`) | Parked until Cameron asks for the next one |
 
 **Dependencies.** #12 and #39 both reshape navigation/gig-edit UI — do them in sequence, not in parallel, once
-each has a direction. #52 phase 2 Sentry check depends on the Sentry secrets (§3a item 5) only for a live
-result. The four #61 leaks depend on the tenant-isolation-architecture decision.
+each has a direction. #52's Sentry check depends on the Sentry secrets (§3a item 5) only for a live result —
+Supabase/Google Places checks and the daily schedule are live regardless. The four #61 leaks depend on the
+tenant-isolation-architecture decision.
 
-**Where things stand.** PR #66 merged 2026-09-22 (mid-day, outside the morning run — caught via the PR-activity
-subscription). WORK_PLAN.md itself landed on `main` the same morning, alongside the PR #66 merge commit.
-#39, #12 and #61 are still quiet — no new replies since 09-20.
+**Where things stand.** Both PRs from the 09-19 batch are now merged: PR #66 on 09-22, PR #65 on 09-23 (both
+caught via the PR-activity subscription, outside the morning run). No open PRs remain. #39, #12 and #61 are
+still quiet — no new replies since 09-20.
 
 **Order of checks each run.**
 
-1. PR #65 — re-verify CI and mergeability **directly** at the current head SHA, don't assume the last-known
-   state. As of 2026-09-23: head `4469a71`, `ci` conclusion `success` (run 35434313509),
-   mergeable against `main`.
+1. Confirm no open PRs need a merge check (none as of 09-23).
 2. #39 — check for a reply. If a variant is picked → work plan → post → wait for approval → implement.
 3. #12 — same pattern.
 4. #61 — check for a reply on the staffing-leak question. If yes, follow the PR #63 pattern (migration +
    before/after access table + PR, no merge without review).
 5. #20 — no open question; only act if Cameron asks for the next service to be migrated.
+6. Check §3b for unresolved entries the coordinator hasn't cleared yet.
 
 **Don't manufacture activity.** Each of #39, #12 and #61 already has exactly one open question on record.
 If a run finds everything still quiet, that is a legitimate no-op: do **not** re-post the same "still waiting"
