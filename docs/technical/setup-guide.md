@@ -2,7 +2,7 @@
 
 **Purpose**: This document provides step-by-step instructions for setting up the GigWrangler application for both local development and production environments using Supabase.
 
-**Last Updated**: 2026-02-09
+**Last Updated**: 2026-09-23
 
 > **Deploying to production?** See [deployment.md](./deployment.md) — it covers the deploy pipeline, every hosted service, the complete environment-variable and secret inventory, and rollback procedures. This guide covers *configuring* each service; that one covers *shipping*.
 
@@ -24,9 +24,9 @@
 
 ## Prerequisites
 
-- **Node.js**: version 18+ installed
+- **Node.js**: version 20.19+ (CI runs Node 20). ESLint 10 needs `^20.19`, and `@supabase/supabase-js` and Vitest 4 need 20+, so Node 18 no longer works.
 - **Docker**: Required for local Supabase development (Desktop or Colima)
-- **Supabase CLI**: Install via `npm install -g supabase`
+- **Supabase CLI**: `brew install supabase/tap/supabase`, or run it without installing as `npx supabase <command>`. The CLI does not support `npm install -g supabase`.
 - **Supabase Account**: Sign up at https://supabase.com for production hosting
 
 ---
@@ -43,7 +43,7 @@ supabase init
 ```
 
 ### 2. Start Local Supabase
-This command starts the Docker containers and applies the consolidated migration and seed data.
+This command starts the Docker containers, applies every migration in `supabase/migrations/` in order, then loads `supabase/seed.sql`.
 ```bash
 supabase start
 ```
@@ -52,8 +52,8 @@ supabase start
 ### 3. Verify Database State
 You can check if the database is properly seeded by running:
 ```bash
-# Count gigs in the local database
-PGPASSWORD=postgres psql -h 127.0.0.1 -p 54322 -U postgres -d postgres -c "SELECT count(*) FROM gigs;"
+# Count seeded organizations (seed.sql loads organizations, staff roles, assets and kits; it loads no gigs)
+PGPASSWORD=postgres psql -h 127.0.0.1 -p 54322 -U postgres -d postgres -c "SELECT count(*) FROM organizations;"
 ```
 
 ### 4. Configure Frontend
@@ -62,6 +62,8 @@ The app automatically detects the environment. Ensure your `.env.local` (not com
 Default local settings:
 - **API URL**: `http://127.0.0.1:54321`
 - **Anon Key**: (Get from `supabase status` output)
+
+Then run `npm run dev`. The dev server listens on **http://localhost:3000** (`server.port` in `vite.config.ts`). Keep that port: it is on the edge functions' CORS allow-list (`supabase/functions/_shared/cors.ts`) and in the Google Calendar redirect URIs below.
 
 #### 5. Access the Dashboard
 
@@ -108,25 +110,20 @@ The application exports these values in `src/utils/supabase/info.tsx`. If these 
 - Create a new project in the [Supabase Dashboard](https://supabase.com).
 - Note your **Project Reference ID** (found in project settings).
 
-### 2. Apply Consolidated Schema
-You must apply the consolidated schema to your remote database. There are two ways to do this:
+### 2. Apply the Migrations
+Apply every migration in `supabase/migrations/` with the CLI. The schema is no longer a single file: `20260209000000_initial_schema.sql` is only the first migration, and later ones add tables, policies and the health-check cron job, so pasting that one file into the SQL Editor leaves the database incomplete.
 
-#### Method A: Supabase Dashboard (Recommended for initial setup)
-1. Open the **SQL Editor** in your Supabase project.
-2. Click **New Query**.
-3. Copy the entire contents of `supabase/migrations/20260209000000_initial_schema.sql`.
-4. Paste the SQL into the editor and click **Run**.
-5. Verify that all tables, functions, and RLS policies were created successfully.
-
-#### Method B: Supabase CLI
-1. Link your local project to the remote one:
+1. Link your local project to the remote one, and verify the link (see [AGENTS.md](../../AGENTS.md)):
    ```bash
    supabase link --project-ref <your-project-id>
+   cat supabase/.temp/project-ref
    ```
 2. Push the migrations:
    ```bash
    supabase db push
    ```
+
+For the existing dev and prod projects, use `./deploy_dev.sh` and `./deploy_prod.sh` instead. They wrap these steps with the project-ref checks (see [deployment.md](./deployment.md)).
 
 ### 3. Configure Authentication
 - Go to **Authentication -> Providers** and ensure **Email** is enabled.
@@ -134,10 +131,11 @@ You must apply the consolidated schema to your remote database. There are two wa
 - For development/testing, you may want to disable "Confirm email" in **Auth Settings** to allow immediate signups.
 
 ### 4. Deploy Edge Functions
-If your project uses Edge Functions, deploy them using the CLI:
+There are two functions, `server` and `ai-scan`. With no name, the CLI deploys both:
 ```bash
-supabase functions deploy server --project-ref <your-project-id>
+supabase functions deploy --project-ref <your-project-id>
 ```
+Then set their secrets. The full list, with what breaks when each one is missing, is the [Configuration Inventory in deployment.md](./deployment.md#configuration-inventory).
 
 ---
 
@@ -251,7 +249,7 @@ The `ai-scan` edge function uses Anthropic's Claude models to extract structured
 
 1. **API Key**: Obtain an API key from the [Anthropic Console](https://console.anthropic.com/).
 2. **Model Support**:
-   - **Claude 3.6 Sonnet (Latest)**: Used by default (`claude-sonnet-4-6`). This model has native PDF support and high extraction accuracy.
+   - **Claude Sonnet 4.6** (`claude-sonnet-4-6`, hard-coded in `supabase/functions/ai-scan/index.ts`). It reads PDFs natively.
 3. **PDF Support Requirement**: 
    - **Tier 1+ Required**: To use PDF scanning support, your Anthropic API account must be **Tier 1 or higher** (requires at least $5 in credits and a successful payment). 
    - **Tier 0 (Free/Build)**: Accounts on the free tier only support **image scanning** (JPG, PNG, WebP). PDF uploads will trigger a manual entry fallback in the UI.
@@ -271,17 +269,7 @@ The `ai-scan` edge function uses Anthropic's Claude models to extract structured
    - **Success**: Returns a JSON message object.
    - **Failure**: Returns a `404` error (model not found) or `400` (bad request), confirming the model is unavailable for your current configuration.
 
-5. **Diagnostic Test (via Supabase)**:
-   To verify that your Supabase Edge Function is correctly configured and can reach Anthropic, run:
-   ```bash
-   curl -i -X POST https://YOUR_PROJECT_ID.supabase.co/functions/v1/ai-scan \
-     -H "Authorization: Bearer YOUR_ANON_KEY" \
-     -H "x-diagnostic: true"
-   ```
-   - **Success**: Returns `Anthropic connectivity successful`, confirming the function can communicate with the API using your stored secret.
-   - **Failure**: Returns an error message with details from the Anthropic API (e.g., "invalid api key" or "model not found").
-
-6. **Local Development**: Add the key to your `.env.local`:
+5. **Local Development**: Add the key to your `.env.local`:
    ```env
    ANTHROPIC_API_KEY=your_anthropic_key
    ```
@@ -289,7 +277,7 @@ The `ai-scan` edge function uses Anthropic's Claude models to extract structured
    ```bash
    supabase functions serve ai-scan --env-file .env.local
    ```
-3. **Production**: Set the secret in Supabase:
+6. **Production**: Set the secret in Supabase:
    ```bash
    supabase secrets set ANTHROPIC_API_KEY=your_anthropic_key
    ```
@@ -360,7 +348,8 @@ detect or fix a sharing permission that was never granted in the first place.
 
 ### Deploying Edge Functions
 ```bash
-supabase functions deploy server --project-ref <your-project-id>
+supabase functions deploy --project-ref <your-project-id>          # both functions
+supabase functions deploy server --project-ref <your-project-id>   # just one
 ```
 
 ### Managing Migrations
@@ -400,10 +389,10 @@ If the CLI reset fails or you want a fresh start without local migrations:
    GRANT ALL ON SCHEMA public TO authenticated;
    GRANT ALL ON SCHEMA public TO service_role;
    ```
-3. Re-apply the consolidated schema by following [Apply Consolidated Schema](#2-apply-consolidated-schema).
+3. Re-apply the schema by following [Apply the Migrations](#2-apply-the-migrations).
 4. **Redeploy Edge Functions**: If you have modified any Edge Functions, remember to redeploy them:
    ```bash
-   supabase functions deploy server --project-ref <your-project-id>
+   supabase functions deploy --project-ref <your-project-id>
    ```
 
 ---
@@ -432,10 +421,11 @@ If the CLI reset fails or you want a fresh start without local migrations:
 ## Checklists
 
 ### New Developer Onboarding
-- [ ] Install Node.js 18+ and Docker.
+- [ ] Install Node.js 20.19+, Docker and the Supabase CLI.
 - [ ] Run `npm install`.
 - [ ] Run `supabase start`.
-- [ ] Run `npm run dev` and sign up.
+- [ ] Create `.env.local` with `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY` from `supabase status`.
+- [ ] Run `npm run dev`, open http://localhost:3000 and sign up.
 
 ### Production Deployment
 - [ ] Enable Email confirmation / Configure OAuth.
