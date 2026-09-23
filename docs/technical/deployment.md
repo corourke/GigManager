@@ -373,8 +373,37 @@ Set with `supabase secrets set NAME=VALUE` against the **verified** target proje
 | `RP_NAME` | Optional | `server` → webauthn | Defaults to `GigWrangler` (correct) |
 | `SENTRY_DSN` | Optional | `_shared/sentry.ts` | Sentry no-ops in functions |
 | `SENTRY_ENVIRONMENT` | Optional | `_shared/sentry.ts` | Defaults to `development` — set to `production` |
+| `HEALTH_CHECK_CRON_SECRET` | For the daily health check | `server` → `routes/healthCheck.ts` | Cron's calls 401; no health checks run |
+| `SENTRY_API_TOKEN` | Optional | `server` → `routes/healthCheck.ts` | Health check reports the Sentry check as "not configured" |
+| `SENTRY_ORG_SLUG` | Optional (with `SENTRY_API_TOKEN`) | `server` → `routes/healthCheck.ts` | Same — Sentry check reports "not configured" |
+| `SENTRY_PROJECT_SLUG` | Optional (with `SENTRY_API_TOKEN`) | `server` → `routes/healthCheck.ts` | Same — Sentry check reports "not configured" |
 
 `SUPABASE_URL`, `SUPABASE_ANON_KEY`, and `SUPABASE_SERVICE_ROLE_KEY` are **injected automatically by the Supabase platform**. Do not set them by hand.
+
+#### Daily health check — one-time Vault + secrets setup (issue #52 phase 2)
+
+The `daily-health-check` cron job (added by migration `20260919000000_health_check_schedule.sql`) reads its target URL and bearer token from Supabase Vault, not from the migration itself — each project (dev and prod) needs its own values, run once via the SQL editor against the **verified** target project:
+
+```sql
+select vault.create_secret(
+  '<a random 32+ byte token, e.g. `openssl rand -hex 32`>',
+  'health_check_cron_secret',
+  'Bearer token the daily health-check cron sends to the edge function'
+);
+select vault.create_secret(
+  'https://<project-ref>.supabase.co/functions/v1/server/internal/health-check',
+  'health_check_function_url',
+  'URL the daily health-check cron calls'
+);
+```
+
+Then set the matching edge-function secret to the **same** token used above:
+
+```bash
+supabase secrets set HEALTH_CHECK_CRON_SECRET=<the same random token>
+```
+
+The Sentry round-trip check additionally needs `SENTRY_API_TOKEN` (a Sentry auth token with API read access), `SENTRY_ORG_SLUG`, and `SENTRY_PROJECT_SLUG` — until those are set, the health check reports the Sentry check as "not configured" rather than failing.
 
 Audit both projects with:
 

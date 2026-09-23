@@ -44,3 +44,22 @@ export async function captureMessage(message: string, level: 'warning' | 'error'
     console.error('Sentry capture failed:', sentryError);
   }
 }
+
+/**
+ * Fire a synthetic 'info' event and return its Sentry event ID, for the
+ * health-check round-trip proof (issue #52 phase 2): the check then queries
+ * Sentry's own API for this ID to confirm the event was actually ingested,
+ * rather than only confirming that captureMessage didn't throw. Returns null
+ * when SENTRY_DSN isn't set — there's nothing to prove in that case.
+ */
+export async function captureRoundTripEvent(message: string): Promise<string | null> {
+  if (!dsn) return null;
+  try {
+    const eventId = Sentry.captureMessage(message, 'info');
+    await Sentry.flush(2000);
+    return eventId ?? null;
+  } catch (sentryError) {
+    console.error('Sentry round-trip capture failed:', sentryError);
+    return null;
+  }
+}

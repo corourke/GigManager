@@ -245,4 +245,50 @@ describe('NotificationBell (issue #52 — generic notifications)', () => {
     expect(selectOrganization).toHaveBeenCalledWith(org);
     expect(mockToTeam).toHaveBeenCalled();
   });
+
+  it('badges an unread health-check failure and shows the failing check', async () => {
+    vi.mocked(notificationService.getMyNotifications).mockResolvedValue([
+      {
+        id: 'notif-7',
+        recipient_id: 'moderator-1',
+        type: 'health_check.failure',
+        payload: {
+          check: 'sentry',
+          detail: 'Synthetic event not retrievable within timeout',
+          checked_at: '2026-01-01T00:00:00Z',
+        },
+        read_at: null,
+        created_at: '2026-01-01T00:00:00Z',
+      } as any,
+    ]);
+
+    const user = userEvent.setup();
+    render(<NotificationBell />);
+    await waitFor(() => expect(screen.getByText('1')).toBeInTheDocument());
+    await openBell(user);
+    expect(screen.getByText(/Sentry/)).toBeInTheDocument();
+    expect(screen.getByText(/health check failed/)).toBeInTheDocument();
+    expect(screen.getByText(/Synthetic event not retrievable/)).toBeInTheDocument();
+  });
+
+  it('dismissing a health-check failure marks it read', async () => {
+    vi.mocked(notificationService.getMyNotifications).mockResolvedValue([
+      {
+        id: 'notif-8',
+        recipient_id: 'moderator-1',
+        type: 'health_check.failure',
+        payload: { check: 'google_places', detail: null, checked_at: '2026-01-01T00:00:00Z' },
+        read_at: null,
+        created_at: '2026-01-01T00:00:00Z',
+      } as any,
+    ]);
+
+    const user = userEvent.setup();
+    render(<NotificationBell />);
+    await waitFor(() => expect(screen.getByText('1')).toBeInTheDocument());
+    await openBell(user);
+    await user.click(screen.getByText(/Google Places/));
+
+    await waitFor(() => expect(notificationService.markNotificationRead).toHaveBeenCalledWith('notif-8'));
+  });
 });
