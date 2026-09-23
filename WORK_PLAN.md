@@ -11,7 +11,7 @@ Cameron questions.
 Migrated from GitHub issue [#41](https://github.com/corourke/GigManager/issues/41) on 2026-09-22. This file now
 supersedes that issue as the board of record.
 
-- **Last updated:** 2026-09-23 (second triage run: docs PR #68 opened)
+- **Last updated:** 2026-09-23 (coordinator: resolved §3b, §3a now tracks #52 deploy confirmation)
 - **State verified:** 2026-09-23 (6 open issues, 2 open PRs — #67 and #68, both docs only, CI green, mergeable)
 
 ---
@@ -85,20 +85,23 @@ Low priority, explicitly acceptable for beta. Open, no action planned.
 *Curated by the coordinator session only.* Nothing below can move without a reply. Listed roughly in the
 order that unblocks the most work; the coordinator puts these to Cameron one at a time.
 
-1. **PR [#65](https://github.com/corourke/GigManager/pull/65)** — open, CI green, mergeable. Review and merge (or send back with comments). (PR #66 merged 09-22.)
+1. **#52 phase 2 deploy (PR #65, merged 09-23)** — the PR added a migration (first `pg_cron`/`pg_net` use) plus one-time
+   per-project setup: `HEALTH_CHECK_CRON_SECRET` edge-function secret and the `vault.create_secret` calls in
+   `docs/technical/deployment.md`. Per AGENTS.md rule 4, Cameron applies these. Asked 09-23 whether dev is done;
+   until confirmed, don't treat the health check as live. Once it's confirmed on dev (and later prod), close #52 —
+   the Sentry secrets (item 6) are a valid steady state, not a reason to keep #52 open.
 2. **[#39](https://github.com/corourke/GigManager/issues/39)** — pick a mockup variant (or a hybrid) from the 09-19 canvas so a work plan can be written.
 3. **[#12](https://github.com/corourke/GigManager/issues/12)** — pick top-tabs vs. left-side-tabs from the 09-19 canvas, **and** say whether the cross-section coordination question (e.g. staffing needing gig dates) should be folded into the same design pass.
 4. **[#61](https://github.com/corourke/GigManager/issues/61)** — say whether to pull the `gig_staff_slots`/`gig_staff_assignments` leak forward next, or leave all four remaining leaks deferred until the tenant-isolation decision.
-5. **Sentry secrets** — `SENTRY_API_TOKEN`, `SENTRY_ORG_SLUG`, `SENTRY_PROJECT_SLUG` for #52's Sentry round-trip check. Not blocking; the check simply reports "not configured" until they exist.
+5. **Docs PRs [#67](https://github.com/corourke/GigManager/pull/67) and [#68](https://github.com/corourke/GigManager/pull/68)** — triage-authored, docs only, green. Review/merge when convenient; low stakes.
+6. **Sentry secrets** — `SENTRY_API_TOKEN`, `SENTRY_ORG_SLUG`, `SENTRY_PROJECT_SLUG` for #52's Sentry round-trip check. Not blocking; the check simply reports "not configured" until they exist.
 
 ### 3b. Raised by triage, for the coordinator
 
 *The triage routine adds entries here instead of asking Cameron directly — the question, and what it did in the
 meantime. The coordinator resolves each entry (decides it, or moves it into §3a) and deletes it.*
 
-- **2026-09-23 — PR #65 merged.** §3a item 1 ("PR #65 — review and merge") is now stale; #52 phase 2 is fully
-  shipped. No new question — just flagging so the coordinator can drop that item and, if there's anything
-  Cameron should know (e.g. that phase 2 is live), fold it into whatever's next raised to him.
+- *(none)*
 
 ### 3c. Ready to build, nothing blocking
 
