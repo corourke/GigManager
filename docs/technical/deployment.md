@@ -314,7 +314,7 @@ The `ai-scan` edge function uses Claude to extract structured data from invoices
 
 - Edge function secret: `ANTHROPIC_API_KEY`
 - PDF scanning requires a **Tier 1+** Anthropic account; Tier 0 supports images only and the UI falls back to manual entry
-- Connectivity diagnostic: `POST /functions/v1/ai-scan` with header `x-diagnostic: true`
+- No connectivity diagnostic: the old unauthenticated `x-diagnostic: true` mode was removed in June 2026 (see [security-scheme.md](./security-scheme.md)). To check the key, call the Anthropic API directly as shown in [setup-guide.md](./setup-guide.md#2-ai-scanning-configuration-anthropic).
 
 ### Resend
 
