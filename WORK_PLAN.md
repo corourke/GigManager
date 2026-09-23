@@ -11,8 +11,8 @@ Cameron questions.
 Migrated from GitHub issue [#41](https://github.com/corourke/GigManager/issues/41) on 2026-09-22. This file now
 supersedes that issue as the board of record.
 
-- **Last updated:** 2026-09-23 (triage: docs PR #67 opened)
-- **State verified:** 2026-09-23 (6 open issues, 1 open PR — #67, docs only)
+- **Last updated:** 2026-09-23 (second triage run: docs PR #68 opened)
+- **State verified:** 2026-09-23 (6 open issues, 2 open PRs — #67 and #68, both docs only, CI green, mergeable)
 
 ---
 
@@ -140,6 +140,7 @@ Read this section first on each run.
 | #61 remaining leaks | `supabase/migrations/` for staffing, kits, `inventory_tracking`, `activity_log` RLS | Not started — contract, coordinator only |
 | #20 remaining services | `src/services/*.service.ts` (all but `user.service.ts`) | Parked until Cameron asks for the next one |
 | PR [#67](https://github.com/corourke/GigManager/pull/67) — refresh `testing.md` | `docs/development/testing.md` | Docs only; open, awaiting review |
+| PR [#68](https://github.com/corourke/GigManager/pull/68) — correct `setup-guide.md` | `docs/technical/setup-guide.md`, `docs/technical/deployment.md` (one line, §Anthropic) | Docs only; open, awaiting review |
 
 **Dependencies.** #12 and #39 both reshape navigation/gig-edit UI — do them in sequence, not in parallel, once
 each has a direction. #52's Sentry check depends on the Sentry secrets (§3a item 5) only for a live result —
@@ -152,14 +153,24 @@ caught via the PR-activity subscription, outside the morning run). #39, #12 and 
 On 09-23 every item was blocked or parked, so the run moved on to docs. It opened docs-only PR
 [#67](https://github.com/corourke/GigManager/pull/67), which refreshes `docs/development/testing.md`: suite size,
 the actual Supabase mock pattern, the finished March coverage plan replaced with the gaps that remain, and a CI
-section that now matches `ci.yml`.
+section that now matches `ci.yml`. A second run the same day found nothing changed, and opened docs-only PR
+[#68](https://github.com/corourke/GigManager/pull/68), which corrects `setup-guide.md`. The fixes: Node 20.19+
+instead of 18, a supported Supabase CLI install, the full migration set instead of pasting only
+`initial_schema.sql`, deploying both edge functions, a seed check that works, and removing the `ai-scan`
+`x-diagnostic` test that was dropped in June (also fixed in `deployment.md`).
 
-**Docs covered by triage runs:** `docs/development/testing.md` (09-23). Next candidates:
-`docs/technical/setup-guide.md` (try its commands) and `docs/README.md` (index last updated 09-07).
+**Docs covered by triage runs:** `docs/development/testing.md` (09-23), `docs/technical/setup-guide.md`
+(09-23; build and dev server tried; `supabase start` not tried because the sandbox has no Docker daemon). Next
+candidates: `docs/README.md` (index last updated 09-07) and `docs/technical/database.md` (its 02-09 note
+still says the migrations are "consolidated into a single initialization file"; there are now 52).
+
+**Future considerations (not open work).** Supabase CLI 2.117 warns that `[inbucket]` in
+`supabase/config.toml` is deprecated in favour of `[local_smtp]`. This is local-only config, so nothing is
+broken yet.
 
 **Order of checks each run.**
 
-1. Check CI and mergeability on open PRs (as of 09-23 that is only #67, which is docs only).
+1. Check CI and mergeability on open PRs (as of 09-23 that is #67 and #68, both docs only).
 2. #39 — check for a reply. If a variant is picked → work plan → post → wait for approval → implement.
 3. #12 — same pattern.
 4. #61 — check for a reply on the staffing-leak question. If yes, follow the PR #63 pattern (migration +
