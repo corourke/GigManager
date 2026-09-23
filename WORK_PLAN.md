@@ -1,12 +1,18 @@
 # Work Plan — Issue Triage Board
 
-**Living reference for the daily issue-triage run. Edit this file in place; it is not an append-only log.**
+**Living reference for the daily issue-triage routine ("GitWrangler issue triage", 09:00 UTC) and the
+GigWrangler Coordinator session. Edit this file in place; it is not an append-only log.**
+
+**Who writes what.** The triage routine keeps §1, §2, §4 and §5 current and may add entries to
+[§3b](#3b-raised-by-triage-for-the-coordinator). Only the coordinator session writes
+[§3a](#3a-waiting-on-cameron) and [§3c](#3c-ready-to-build-nothing-blocking), and only the coordinator asks
+Cameron questions.
 
 Migrated from GitHub issue [#41](https://github.com/corourke/GigManager/issues/41) on 2026-09-22. This file now
 supersedes that issue as the board of record.
 
-- **Last updated:** 2026-09-22
-- **State verified:** 2026-09-22 (PR #66 merged; PR #65's CI/mergeability re-checked directly — not assumed)
+- **Last updated:** 2026-09-23 (coordinator: restructured §3 into 3a/3b/3c, added §5 file ownership)
+- **State verified:** 2026-09-23 (6 open issues, 1 open PR; PR #65 head `4469a71` `ci` success, mergeable)
 
 ---
 
@@ -45,7 +51,7 @@ access-control data.
 Phase 1 (generic `notifications` table) merged in PR #64 on 09-16. Phase 2 (Supabase, Google Places and
 Sentry round-trip checks) is implemented in **PR #65**, open and green, awaiting review/merge.
 The Sentry round-trip check reports `not configured` until the Sentry secrets land — see
-[§3 item 5](#3-blocked-on-cameron).
+[§3a item 5](#3a-waiting-on-cameron).
 
 ### Gig list / detail UX
 
@@ -74,15 +80,36 @@ Low priority, explicitly acceptable for beta. Open, no action planned.
 
 ---
 
-## 3. Blocked on Cameron
+## 3. Decisions and ready work
 
-Nothing below can move without a reply. Listed roughly in the order that unblocks the most work.
+### 3a. Waiting on Cameron
+
+*Curated by the coordinator session only.* Nothing below can move without a reply. Listed roughly in the
+order that unblocks the most work; the coordinator puts these to Cameron one at a time.
 
 1. **PR [#65](https://github.com/corourke/GigManager/pull/65)** — open, CI green, mergeable. Review and merge (or send back with comments). (PR #66 merged 09-22.)
 2. **[#39](https://github.com/corourke/GigManager/issues/39)** — pick a mockup variant (or a hybrid) from the 09-19 canvas so a work plan can be written.
 3. **[#12](https://github.com/corourke/GigManager/issues/12)** — pick top-tabs vs. left-side-tabs from the 09-19 canvas, **and** say whether the cross-section coordination question (e.g. staffing needing gig dates) should be folded into the same design pass.
 4. **[#61](https://github.com/corourke/GigManager/issues/61)** — say whether to pull the `gig_staff_slots`/`gig_staff_assignments` leak forward next, or leave all four remaining leaks deferred until the tenant-isolation decision.
 5. **Sentry secrets** — `SENTRY_API_TOKEN`, `SENTRY_ORG_SLUG`, `SENTRY_PROJECT_SLUG` for #52's Sentry round-trip check. Not blocking; the check simply reports "not configured" until they exist.
+
+### 3b. Raised by triage, for the coordinator
+
+*The triage routine adds entries here instead of asking Cameron directly — the question, and what it did in the
+meantime. The coordinator resolves each entry (decides it, or moves it into §3a) and deletes it.*
+
+- *(none)*
+
+### 3c. Ready to build, nothing blocking
+
+*Curated by the coordinator session only.* An item here without a **BLOCKED** marker counts as approved in shape
+under AGENTS.md rule 1: the routine posts its plan on the issue and proceeds. Anything not listed here still
+needs approval before code changes.
+
+- *(none at present — every open issue is waiting on a decision in §3a or is deliberately parked; see §1)*
+
+**Always a contract, never pre-approved:** new migrations or any RLS/policy change (AGENTS.md rule 4 — Cameron
+applies migrations), edge-function API shape, anything touching production config or `deploy_prod.sh`.
 
 ---
 
@@ -100,9 +127,22 @@ Nothing below can move without a reply. Listed roughly in the order that unblock
 
 ---
 
-## 5. Notes for continuity
+## 5. For the daily triage routine
 
 Read this section first on each run.
+
+**File ownership — what is claimed.** Check live before starting: `git fetch origin && git branch -r
+--sort=-committerdate | head -20` plus the open PR list. An open PR claims the files it touches.
+
+| Claimed by | Files | Notes |
+|---|---|---|
+| PR #65 (#52 phase 2) | `supabase/functions/` health-check code, health-check UI/tests | Open, green, awaiting Cameron |
+| #61 remaining leaks | `supabase/migrations/` for staffing, kits, `inventory_tracking`, `activity_log` RLS | Not started — contract, coordinator only |
+| #20 remaining services | `src/services/*.service.ts` (all but `user.service.ts`) | Parked until Cameron asks for the next one |
+
+**Dependencies.** #12 and #39 both reshape navigation/gig-edit UI — do them in sequence, not in parallel, once
+each has a direction. #52 phase 2 Sentry check depends on the Sentry secrets (§3a item 5) only for a live
+result. The four #61 leaks depend on the tenant-isolation-architecture decision.
 
 **Where things stand.** PR #66 merged 2026-09-22 (mid-day, outside the morning run — caught via the PR-activity
 subscription). WORK_PLAN.md itself landed on `main` the same morning, alongside the PR #66 merge commit.
@@ -111,7 +151,7 @@ subscription). WORK_PLAN.md itself landed on `main` the same morning, alongside 
 **Order of checks each run.**
 
 1. PR #65 — re-verify CI and mergeability **directly** at the current head SHA, don't assume the last-known
-   state. As of 2026-09-22 (post PR #66 merge): head `4469a71`, `ci` conclusion `success` (run 35434313509),
+   state. As of 2026-09-23: head `4469a71`, `ci` conclusion `success` (run 35434313509),
    mergeable against `main`.
 2. #39 — check for a reply. If a variant is picked → work plan → post → wait for approval → implement.
 3. #12 — same pattern.
