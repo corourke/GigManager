@@ -11,8 +11,8 @@ Cameron questions.
 Migrated from GitHub issue [#41](https://github.com/corourke/GigManager/issues/41) on 2026-09-22. This file now
 supersedes that issue as the board of record.
 
-- **Last updated:** 2026-09-24 (triage: new bug #69 diagnosed, raised in §3b)
-- **State verified:** 2026-09-24 (7 open issues, 0 open PRs)
+- **Last updated:** 2026-09-24 (triage: new bug #69 diagnosed, raised in §3b; docs PR #70 opened)
+- **State verified:** 2026-09-24 (7 open issues, 1 open PR — docs-only #70)
 
 ---
 
@@ -181,9 +181,12 @@ instead of 18, a supported Supabase CLI install, the full migration set instead 
 `x-diagnostic` test that was dropped in June (also fixed in `deployment.md`).
 
 **Docs covered by triage runs:** `docs/development/testing.md` (09-23), `docs/technical/setup-guide.md`
-(09-23; build and dev server tried; `supabase start` not tried because the sandbox has no Docker daemon). Next
-candidates: `docs/README.md` (index last updated 09-07) and `docs/technical/database.md` (its 02-09 note
-still says the migrations are "consolidated into a single initialization file"; there are now 52).
+(09-23; build and dev server tried; `supabase start` not tried because the sandbox has no Docker daemon),
+`docs/README.md` (09-24, PR #70: all links resolve; indexed `gig-financials.md`, `purchases-field-mapping.md` and
+`server-endpoint-inventory.md`, the last marked historical). `database.md`'s "single initialization file" line turned
+out to be a dated 02-09 changelog entry, not stale. Next candidates: the body of `docs/technical/database.md`
+(last updated 08-31; compare its tables with migrations since then) and `docs/technical/server-endpoint-inventory.md`
+(still cites the pre-refactor 3,322-line `index.ts`; retire it or re-point it at `routes/`).
 
 **Future considerations (not open work).** Supabase CLI 2.117 warns that `[inbucket]` in
 `supabase/config.toml` is deprecated in favour of `[local_smtp]`. This is local-only config, so nothing is
@@ -191,7 +194,7 @@ broken yet.
 
 **Order of checks each run.**
 
-1. Check CI and mergeability on open PRs (none as of 09-24).
+1. Check CI and mergeability on open PRs (docs-only [#70](https://github.com/corourke/GigManager/pull/70), "docs(README): index three unlisted technical docs", opened 09-24).
 2. #69 — if it is now in §3c, post the plan, write the failing test (repeated autosave must not delete and reinsert the row), then fix.
 3. #39 — check for a reply. If a variant is picked → work plan → post → wait for approval → implement.
 4. #12 — same pattern.
