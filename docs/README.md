@@ -2,7 +2,7 @@
 
 **Welcome to the GigWrangler documentation!** This directory contains comprehensive documentation for developers, AI agents, stakeholders, and users working with the GigWrangler production and event management platform.
 
-**Last Updated**: 2026-09-07  
+**Last Updated**: 2026-09-24  
 **Application Version**: 0.1.0
 
 ---
@@ -70,6 +70,9 @@ Located in [`./technical/`](./technical/)
 - **[security-scheme.md](./technical/security-scheme.md)** - Security and authorization scheme
 - **[tenant-isolation-architecture.md](./technical/tenant-isolation-architecture.md)** - Options analysis for verifiable operator-exclusion (can't-read-your-data guarantees), per-tenant isolation, and cross-org federation (draft)
 - **[schema-verification-2026-09.md](./technical/schema-verification-2026-09.md)** - Point-in-time findings from a live-database RLS/tenancy audit (Sep 2026): confirmed cross-org data leaks, dev/prod drift, offboarding gaps, deferred remediation plan
+- **[gig-financials.md](./technical/gig-financials.md)** - Gig financials technical reference: data model, ledger behaviour, and how staffing and purchases feed it
+- **[purchases-field-mapping.md](./technical/purchases-field-mapping.md)** - How purchase import/scan fields map onto the `purchases` (header/item rows) and `assets` tables
+- **[server-endpoint-inventory.md](./technical/server-endpoint-inventory.md)** - Endpoint-by-endpoint authorization spec written for the Phase 6 Hono refactor of the `server` edge function (historical: the refactor has landed and the function is now split into `routes/`; use it for the intended auth rules, not for current line numbers)
 
 ---
 
