@@ -96,11 +96,13 @@ Low priority, explicitly acceptable for beta. Open, no action planned.
 *Curated by the coordinator session only.* Nothing below can move without a reply. Listed roughly in the
 order that unblocks the most work; the coordinator puts these to Cameron one at a time.
 
-1. **#52 phase 2 deploy (PR #65, merged 09-23)** — the PR added a migration (first `pg_cron`/`pg_net` use) plus one-time
-   per-project setup: `HEALTH_CHECK_CRON_SECRET` edge-function secret and the `vault.create_secret` calls in
-   `docs/technical/deployment.md`. Per AGENTS.md rule 4, Cameron applies these. Asked 09-23 whether dev is done;
-   until confirmed, don't treat the health check as live. Once it's confirmed on dev (and later prod), close #52 —
-   the Sentry secrets (item 6) are a valid steady state, not a reason to keep #52 open.
+1. **#52 phase 2 deploy is broken as designed — fix awaiting approval (09-24).** The `server` function runs with
+   the platform default `verify_jwt = true`, so Supabase's gateway rejects the cron's random bearer token before
+   the route runs (verified 09-24: POST to dev `/server/internal/health-check` → `401 UNAUTHORIZED_INVALID_JWT_FORMAT`).
+   Proposed fix: move the handler into its own `health-check` edge function with `verify_jwt = false` in
+   `supabase/config.toml` (the route already checks its own bearer token), which leaves `server`'s auth untouched and
+   needs no new migration, since the cron reads its URL from Vault. **Don't run the Vault/secret setup until this lands.**
+   After it's fixed and deployed on dev, close #52; the Sentry secrets (item 6) are a valid steady state.
 2. **[#39](https://github.com/corourke/GigManager/issues/39)** — pick a mockup variant (or a hybrid) from the 09-19 canvas so a work plan can be written.
 3. **[#12](https://github.com/corourke/GigManager/issues/12)** — pick top-tabs vs. left-side-tabs from the 09-19 canvas, **and** say whether the cross-section coordination question (e.g. staffing needing gig dates) should be folded into the same design pass.
 4. **[#61](https://github.com/corourke/GigManager/issues/61)** — say whether to pull the `gig_staff_slots`/`gig_staff_assignments` leak forward next, or leave all four remaining leaks deferred until the tenant-isolation decision.
