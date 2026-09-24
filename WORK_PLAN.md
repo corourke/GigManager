@@ -11,8 +11,8 @@ Cameron questions.
 Migrated from GitHub issue [#41](https://github.com/corourke/GigManager/issues/41) on 2026-09-22. This file now
 supersedes that issue as the board of record.
 
-- **Last updated:** 2026-09-23 (triage: docs PRs #67 and #68 merged)
-- **State verified:** 2026-09-23 (6 open issues, 0 open PRs — docs PRs #67 and #68 both merged 18:20 UTC)
+- **Last updated:** 2026-09-24 (triage: new bug #69 diagnosed, raised in §3b)
+- **State verified:** 2026-09-24 (7 open issues, 0 open PRs)
 
 ---
 
@@ -20,6 +20,7 @@ supersedes that issue as the board of record.
 
 | # | Item | Type | State | Waiting on |
 |---|---|---|---|---|
+| [#69](https://github.com/corourke/GigManager/issues/69) | Adding a gig participant logs added/removed several times in History | Bug | Diagnosed 09-24 (frontend only) | Coordinator — not yet in §3c (see §3b) |
 | [#61](https://github.com/corourke/GigManager/issues/61) | Cross-org RLS leaks (5 tables) | Bug / security | Partially fixed; 4 leaks deferred | Cameron — scope decision |
 | [#52](https://github.com/corourke/GigManager/issues/52) | Health / diagnostic check on APIs | Feature | Phases 1 and 2 both merged | Sentry secrets (not blocking) |
 | [#39](https://github.com/corourke/GigManager/issues/39) | Too many menu levels | UI/UX design | Mockups posted 09-19 | Cameron — pick a variant |
@@ -30,6 +31,16 @@ supersedes that issue as the board of record.
 ---
 
 ## 2. Open items in detail
+
+### Bugs
+
+**[#69](https://github.com/corourke/GigManager/issues/69) — When adding participant to Gig, history records it 3 times.**
+Filed 09-23 by Cameron. Diagnosis posted on the issue 09-24. `GigParticipantsSection` keeps the client-side
+`temp-…` id in the form after an autosave inserts the row. Each later autosave (org, role, notes, client flag)
+sends `id: undefined`, so `updateGigParticipants` deletes the row and inserts it again, logging
+`participant.removed` and then `participant.added`. It also silently unlinks `gig_schedule_entries.act_participant_id`
+(`ON DELETE SET NULL`). The fix is frontend only: return the inserted ids and write them back into the form.
+No migration, no RLS change and no API-shape change. Not started, because it isn't in §3c.
 
 ### Security
 
@@ -103,6 +114,12 @@ meantime. The coordinator resolves each entry (decides it, or moves it into §3a
 
 - **2026-09-23 — PRs #67 and #68 merged.** §3a item 5 ("Docs PRs #67 and #68 — review/merge") is now
   stale. There's no question. This is just so the coordinator can drop the item.
+- **2026-09-24 — #69 (participant add logged several times in History) is a real bug with data impact. Should it go into §3c?**
+  The diagnosis is in §2 and on the issue. Beyond the duplicate History entries, every autosave after the first
+  deletes the participant row and inserts it again with a new id. That silently unlinks any schedule entry tied to
+  that act (`act_participant_id` is `ON DELETE SET NULL`). The fix is frontend/service only, with no contract
+  change: `updateGigParticipants` returns the inserted ids, and `GigParticipantsSection` writes them back after the
+  save, with a failing test first. In the meantime: diagnosis posted on #69; no code written; no files claimed.
 
 ### 3c. Ready to build, nothing blocking
 
@@ -150,7 +167,8 @@ each has a direction. #52's Sentry check depends on the Sentry secrets (§3a ite
 Supabase/Google Places checks and the daily schedule are live regardless. The four #61 leaks depend on the
 tenant-isolation-architecture decision.
 
-**Where things stand.** Both PRs from the 09-19 batch are now merged: PR #66 on 09-22, PR #65 on 09-23 (both
+**Where things stand.** New bug #69 (participant add logged several times in History) was filed 09-23. The 09-24
+run diagnosed it and raised it in §3b; it is buildable as soon as the coordinator lists it in §3c. Both PRs from the 09-19 batch are now merged: PR #66 on 09-22, PR #65 on 09-23 (both
 caught via the PR-activity subscription, outside the morning run). #39, #12 and #61 are still quiet, with no new replies since 09-20.
 
 On 09-23 every item was blocked or parked, so the run moved on to docs. Docs-only PR
@@ -173,13 +191,14 @@ broken yet.
 
 **Order of checks each run.**
 
-1. Check CI and mergeability on open PRs (none as of 09-23 evening).
-2. #39 — check for a reply. If a variant is picked → work plan → post → wait for approval → implement.
-3. #12 — same pattern.
-4. #61 — check for a reply on the staffing-leak question. If yes, follow the PR #63 pattern (migration +
+1. Check CI and mergeability on open PRs (none as of 09-24).
+2. #69 — if it is now in §3c, post the plan, write the failing test (repeated autosave must not delete and reinsert the row), then fix.
+3. #39 — check for a reply. If a variant is picked → work plan → post → wait for approval → implement.
+4. #12 — same pattern.
+5. #61 — check for a reply on the staffing-leak question. If yes, follow the PR #63 pattern (migration +
    before/after access table + PR, no merge without review).
-5. #20 — no open question; only act if Cameron asks for the next service to be migrated.
-6. Check §3b for unresolved entries the coordinator hasn't cleared yet.
+6. #20 — no open question; only act if Cameron asks for the next service to be migrated.
+7. Check §3b for unresolved entries the coordinator hasn't cleared yet.
 
 **Don't manufacture activity.** Each of #39, #12 and #61 already has exactly one open question on record.
 If a run finds everything still quiet, that is a legitimate no-op: do **not** re-post the same "still waiting"
