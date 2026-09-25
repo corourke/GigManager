@@ -2,9 +2,35 @@
 
 **Purpose**: Evaluate realistic architectures for giving each organization a *credible, verifiable guarantee that the operator (Cameron) cannot read its data*, while preserving a narrow cross‑org sharing layer (shared gig core + busy/free availability). Architecture exploration to inform a direction decision. **No implementation.**
 
-**Status**: Draft for discussion
-**Last Updated**: 2026-09-10
+**Status**: Decided 2026-09-25: hosted, shared database (see "Decision" below). The options analysis is kept for context.
+**Last Updated**: 2026-09-25
 **Related**: [security-scheme.md](./security-scheme.md), [database.md](./database.md), [tech-stack.md](./tech-stack.md), [server-endpoint-inventory.md](./server-endpoint-inventory.md), and [schema-verification-2026-09.md](./schema-verification-2026-09.md) — the committed write-up of the 2026‑09‑02 live-database verification that motivated this document (the confirmed `gig_financials`/staffing/kit-assignment cross-org leaks in §1's "requirement" are documented there in full, with the actual policy text).
+
+---
+
+## Decision (2026-09-25)
+
+**GigWrangler stays a hosted-only platform on a shared, multi-tenant database: Option A (§5), shared DB + RLS
+with the policies fixed.** Cameron decided this because a non-hosted product gives up too much functionality.
+A future installable client may run against GigWrangler's APIs, but a hosted component and a hosted database stay
+central. Options B–I and Tiers 2–3 are not being pursued. Tier 0 and Tier 1 remain available later as hardening
+*on top of* the shared model; they are not alternatives to it.
+
+What this means in practice:
+
+- **Tenant isolation is RLS's job and has to be correct now.** §9 step 7 ("skip the in-place RLS fixes") no
+  longer applies. The remaining #61 leaks are fixed in place.
+- **Every table is either org-private or deliberately shared, never private by accident.**
+  - An org-private table has a `NOT NULL organization_id`. Its policies check that org
+    (`user_is_member_of_org` / `user_is_admin_or_manager_of_org`) and have no gig-participation fallback.
+    Examples: `assets`, `kits`, `gig_financials`, staffing, kit assignments, `inventory_tracking`.
+  - A shared table is visible to every participating org by design and says so in
+    [security-scheme.md](./security-scheme.md). Examples: `gigs`, `gig_participants`, `gig_schedule_entries`.
+- **Isolation is tested, not just asserted.** `supabase/tests/rls/` applies every migration to a throwaway Postgres
+  and checks what each role in each org can see and do, including a second org on the same gig and an unrelated
+  third org. A new private table, or any policy change, should come with a test there.
+- **An installable client doesn't change this.** It talks to the same APIs as the web app, so the same RLS applies
+  to it.
 
 ---
 
