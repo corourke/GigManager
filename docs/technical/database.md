@@ -2,7 +2,7 @@
 
 **Purpose**: This document provides the complete database schema, Supabase integration details, and data access patterns for the GigWrangler application.
 
-**Last Updated**: 2026-08-31
+**Last Updated**: 2026-09-25
 
 ---
 
@@ -18,10 +18,13 @@
 8. [Purchases & Attachments](#purchases--attachments)
 9. [Staff Management Tables](#staff-management-tables)
 10. [Equipment Tables](#equipment-tables)
-11. [Operational Tables](#operational-tables)
-12. [Row-Level Security (RLS)](#row-level-security-rls)
-13. [Authentication](#authentication)
-14. [Real-Time Features](#real-time-features)
+11. [Google Calendar Integration Tables](#google-calendar-integration-tables)
+12. [Operational Tables](#operational-tables)
+13. [Helper Functions & Triggers](#helper-functions--triggers)
+14. [Indexes](#indexes)
+15. [Row-Level Security (RLS)](#row-level-security-rls)
+16. [Authentication](#authentication)
+17. [Real-Time Features](#real-time-features)
 
 ---
 
@@ -38,8 +41,8 @@ The database uses **PostgreSQL 17** hosted on **Supabase** with Row-Level Securi
 **Key Features:**
 - Multi-tenant architecture with RLS
 - Real-time subscriptions via Postgres CDC
-- Automatic audit trails (status history, timestamps)
-- Hierarchical data structures (nested gigs)
+- Unified activity log (`activity_log`) and automatic timestamps
+- Hierarchical data structures (nested gigs, nested kits)
 - Flexible participant/role management
 
 ---
@@ -49,9 +52,10 @@ The database uses **PostgreSQL 17** hosted on **Supabase** with Row-Level Securi
 ### What's Implemented
 
 **Database:**
-- Complete schema with 23 tables
+- Complete schema with 28 application tables
 - Row-Level Security (RLS) policies for data isolation
-- Automatic triggers for timestamp updates and status logging
+- Automatic triggers for timestamp updates, kit-hierarchy integrity/caching, and attachment cleanup
+- Scheduled jobs via `pg_cron` / `pg_net` (daily health check)
 - Seed data for common staff roles
 
 **Authentication:**
@@ -99,11 +103,21 @@ erDiagram
   ORGANIZATIONS ||--o{ ORGANIZATION_MEMBERS : has
   ORGANIZATIONS ||--o{ INVITATIONS : has
   USERS ||--o{ INVITATIONS : invited_by
+  ORGANIZATIONS ||--o{ ACCESS_REQUESTS : receives
+  USERS ||--o{ ACCESS_REQUESTS : requests
+  USERS ||--o{ NOTIFICATIONS : receives
 
   %% Gig management and participation
-  GIGS ||--o{ GIG_STATUS_HISTORY : has
   GIGS ||--o{ GIG_PARTICIPANTS : links
   ORGANIZATIONS ||--o{ GIG_PARTICIPANTS : participates
+  GIGS ||--o{ GIG_PARTICIPANT_CONTACTS : has
+  USERS ||--o{ GIG_PARTICIPANT_CONTACTS : "is contact"
+  GIGS ||--o{ GIG_SCHEDULE_ENTRIES : has
+  GIG_PARTICIPANTS ||--o{ GIG_SCHEDULE_ENTRIES : "act for"
+
+  %% Activity log
+  GIGS ||--o{ ACTIVITY_LOG : "logged on"
+  ORGANIZATIONS ||--o{ ACTIVITY_LOG : scopes
 
   %% Financial management
   GIGS ||--o{ GIG_FINANCIALS : has
@@ -125,8 +139,10 @@ erDiagram
   %% Equipment management
   ORGANIZATIONS ||--o{ ASSETS : owns
   ORGANIZATIONS ||--o{ KITS : owns
-  KITS ||--o{ KIT_ASSETS : contains
-  ASSETS ||--o{ KIT_ASSETS : included_in
+  KITS ||--o{ KIT_COMPONENTS : contains
+  ASSETS ||--o{ KIT_COMPONENTS : included_in
+  KITS ||--o{ KIT_COMPONENTS : "nested as child_kit"
+  KITS ||--o{ KIT_FLATTENED_CACHE : "flattens to"
   GIGS ||--o{ GIG_KIT_ASSIGNMENTS : assigned
   KITS ||--o{ GIG_KIT_ASSIGNMENTS : assigned_to
 
@@ -140,8 +156,8 @@ erDiagram
 
 The following custom enumeration types are defined in the database:
 
-### organization_type
-Used for categorization of organizations and their roles in gigs.
+### organization_role
+Used for categorization of organizations (`organizations.roles`, an array) and their role in a gig (`gig_participants.role`). Renamed to this name in migration 20260522000000.
 - `Production`
 - `Sound`
 - `Lighting`
@@ -188,21 +204,41 @@ Tracks the type of financial record/transaction.
 - `Deposit Sent`
 - `Deposit Refunded`
 - `Payment Sent`
-- `Payment Recieved` *(known typo — matches database enum; do not change without a migration)*
+- `Payment Received` *(originally misspelled `Payment Recieved`; renamed in migrations 20260322000000 / 20260328000000)*
 - `Expense Incurred`
 - `Expense Reimbursed`
 - `Invoice Issued`
 - `Invoice Settled`
+- `Informal Terms` *(added in migration 20260520000001)*
 
 ### fin_category
-Categorizes financial records for reporting.
-- `Labor`
-- `Equipment`
-- `Transportation`
-- `Venue`
-- `Production`
+IRS Schedule C expense categories (replaced the original `Labor / Equipment / …` set in migration 20260512000000). Only applies to expense-type records; nullable on `gig_financials`.
+- `Advertising`
+- `Car and truck expenses`
+- `Commissions and fees`
+- `Contract labor`
+- `Depreciation`
 - `Insurance`
-- `Rebillable`
+- `Legal and professional services`
+- `Office expense`
+- `Rent or lease`
+- `Repairs and maintenance`
+- `Supplies`
+- `Taxes and licenses`
+- `Travel`
+- `Meals`
+- `Utilities`
+- `Wages`
+- `Other expenses`
+
+### schedule_activity_type
+Activity kind for a gig run-of-show entry (`gig_schedule_entries.activity_type`; migration 20260616000000).
+- `Load-In`
+- `Soundcheck`
+- `Rehearsal`
+- `Set`
+- `Intermission`
+- `Load-Out`
 - `Other`
 
 ### sync_status
@@ -226,17 +262,20 @@ erDiagram
         text email
         text first_name
         text last_name
+        boolean platform_moderator
     }
     ORGANIZATIONS {
         uuid id PK
         text name
-        organization_type type
+        organization_role_array roles
+        boolean claimed
     }
     ORGANIZATION_MEMBERS {
         uuid id PK
         uuid organization_id FK
         uuid user_id FK
         user_role role
+        boolean is_primary_contact
     }
     INVITATIONS {
         uuid id PK
@@ -260,7 +299,7 @@ User profiles (extends Supabase auth.users)
 | Field | Type | Description |
 |-------|------|-------------|
 | id | UUID | Primary key, references auth.users(id) |
-| email | TEXT | User's email address (unique, NOT NULL) |
+| email | TEXT | User's email address (unique, **nullable** since migration 20260906180000 so login-less contacts can have no email) |
 | first_name | TEXT | User's first name (NOT NULL) |
 | last_name | TEXT | User's last name (NOT NULL) |
 | phone | TEXT | User's phone number (nullable) |
@@ -273,14 +312,17 @@ User profiles (extends Supabase auth.users)
 | country | TEXT | Country (nullable) |
 | timezone | VARCHAR | IANA timezone (e.g., "America/New_York"). Default for CSV imports. (nullable) |
 | role_hint | TEXT | Default staffing role hint (e.g., "FOH", "Lighting") (nullable) |
-| user_status | TEXT | User account status: `active`, `pending`, `inactive` (default 'active') |
+| user_status | TEXT | User account status: `active`, `pending`, `inactive`, `contact` (CHECK constraint; default 'active'). `contact` added in migration 20260825180000 |
+| platform_moderator | BOOLEAN | Platform-level moderator flag, distinct from org Admin; routes access requests for unclaimed orgs (default false, NOT NULL; migration 20260908000000) |
 | created_at | TIMESTAMPTZ | Record creation timestamp (NOT NULL) |
 | updated_at | TIMESTAMPTZ | Record last update timestamp (NOT NULL) |
 
 **Notes:**
 - Address fields structured to support both US and international addresses
 - `created_by` and `updated_by` fields in other models reference User.id but don't maintain reverse relations
-- RLS is **ENABLED** on this table. Users can view their own profile and profiles of users in the same organizations.
+- `user_status = 'contact'` marks a rolodex-only person who will never log in (no `auth.users` row); created via `add_organization_contact` / `create_contact_person`.
+- `platform_moderator` has no granting UI; it is set directly via SQL.
+- RLS is **ENABLED** on this table. Users can view their own profile and profiles of users in the same organizations, plus users of organizations they can manage contacts for (`user_can_manage_org_contacts`) and users linked as `gig_participant_contacts` on gigs they can access.
 
 ---
 
@@ -292,7 +334,7 @@ Companies, venues, acts, and other entities
 |-------|------|-------------|
 | id | UUID | Primary key |
 | name | TEXT | Organization name (NOT NULL) |
-| type | OrganizationType | Organization type enum (NOT NULL) |
+| roles | organization_role[] | Array of organization roles (NOT NULL). Renamed from scalar `type` and converted to an array in migration 20260522000000 |
 | url | TEXT | Organization website URL (nullable) |
 | phone_number | TEXT | Organization phone number (nullable) |
 | address_line1 | TEXT | Street address (nullable) |
@@ -303,15 +345,17 @@ Companies, venues, acts, and other entities
 | country | TEXT | Country (nullable) |
 | description | TEXT | Organization description (nullable), long text, markdown |
 | allowed_domains | TEXT | Comma separated list of automatically allowable user email domains. |
+| claimed | BOOLEAN | Whether the organization has an Admin yet (default true, NOT NULL; migration 20260908000000 backfilled `false` for orgs with no Admin member) |
 | created_at | TIMESTAMPTZ | Record creation timestamp (NOT NULL) |
 | updated_at | TIMESTAMPTZ | Record last update timestamp (NOT NULL) |
 
 **Notes:**
 
-- Organizations are editable only by their Admin members (via `OrganizationMember` with `Admin` role)
-- All authenticated users may read organizations, but only Admin members can modify
+- All authenticated users may read organizations (for participant selection).
+- UPDATE policy "Admins can update per claimed status" (migration 20260908000000): an Admin of **this** org can always edit it; an Admin of **any** org (`user_is_admin`) can edit it only while `claimed = false`.
+- `claimed` also drives access-request routing (see `access_requests`).
 - The `description` field is a long text in markdown format.
-- RLS is **ENABLED** on this table. Anyone can view organizations (for participant selection); only Admins can update.
+- RLS is **ENABLED** on this table.
 
 ---
 
@@ -326,13 +370,16 @@ User memberships in organizations with roles
 | user_id | UUID | Reference to users.id (NOT NULL) |
 | role | UserRole | RBAC role within organization: Admin, Manager, Staff, Viewer (NOT NULL) |
 | default_staff_role_id | UUID | Reference to staff_roles.id for default gig assignments (nullable) |
+| is_primary_contact | BOOLEAN | This member is the org's default point of contact (default false, NOT NULL; migration 20260825180000) |
+| contact_title | TEXT | Free-text title at this org, e.g. "Venue Manager" — distinct from `role` (nullable; migration 20260825180000) |
 | created_at | TIMESTAMPTZ | Record creation timestamp (NOT NULL) |
 
 **Notes:**
-- Only Admin members can modify organization records
 - Unique constraint on (organization_id, user_id) ensures a user can only be a member of an organization once
+- Partial unique index `organization_members_one_primary_contact_per_org` on (organization_id) WHERE `is_primary_contact` — at most one primary contact per org
 - `default_staff_role_id` allows pre-filling staff assignments for this member
-- RLS is **ENABLED** on this table. Users can view members of their own organizations; Admins can manage membership.
+- Contact rows are written via SECURITY DEFINER RPCs (`add_organization_contact`, `link_existing_person_to_organization`, `update_organization_contact`, `set_organization_primary_contact`, `unset_organization_primary_contact`, `remove_organization_contact`), gated by `user_can_manage_org_contacts`.
+- RLS is **ENABLED** on this table. Users can view members of their own organizations and members of any org they can manage contacts for ("Users can view members of organizations they can manage contacts for", migration 20260907000000); Admins can manage membership.
 
 ---
 
@@ -397,19 +444,32 @@ erDiagram
         uuid id PK
         uuid gig_id FK
         uuid organization_id FK
-        organization_type role
+        organization_role role
+        boolean is_client
     }
-    GIG_STATUS_HISTORY {
+    GIG_PARTICIPANT_CONTACTS {
         uuid id PK
         uuid gig_id FK
-        gig_status from_status
-        gig_status to_status
+        uuid organization_id FK
+        uuid user_id FK
+        boolean is_primary_contact
+    }
+    GIG_SCHEDULE_ENTRIES {
+        uuid id PK
+        uuid gig_id FK
+        schedule_activity_type activity_type
+        timestamptz start_time
+        uuid act_participant_id FK "NULLABLE"
     }
 
-    GIGS ||--o{ GIG_STATUS_HISTORY : has
     GIGS ||--o{ GIG_PARTICIPANTS : links
     GIGS ||--o{ GIGS : "parent/child"
     ORGANIZATIONS ||--o{ GIG_PARTICIPANTS : participates
+    GIGS ||--o{ GIG_PARTICIPANT_CONTACTS : has
+    ORGANIZATIONS ||--o{ GIG_PARTICIPANT_CONTACTS : "contact for"
+    USERS ||--o{ GIG_PARTICIPANT_CONTACTS : "is contact"
+    GIGS ||--o{ GIG_SCHEDULE_ENTRIES : has
+    GIG_PARTICIPANTS ||--o{ GIG_SCHEDULE_ENTRIES : "act for"
 ```
 
 ### gigs
@@ -435,34 +495,15 @@ Main gig records with status, dates, and details
 
 **Notes:**
 - Gigs are shared (participated in) by multiple organizations so there is no 'owning' organization.
-- Gigs link to organizations via `gig_participants` with a `role` using OrganizationType enum values
-- Gig status transitions are recorded in `gig_status_history` for auditability
+- Gigs link to organizations via `gig_participants` with a `role` using `organization_role` enum values
+- Gig status transitions are recorded in `activity_log` (`event_type = 'gig.status_changed'`) by the application via the `log_activity` RPC — there is no longer a database trigger for this (migration 20260615000000)
 - Any status can transition to any other status (no restrictions)
 - Gigs can span midnight, so we use full DateTime for both start and end
 - The "gig date" shown in UI is derived from the start DateTime
 - `parent_gig_id` enables hierarchical relationships between gigs (e.g., main event with sub-events)
 - `hierarchy_depth` tracks the depth level in the hierarchy for performance and validation
-- RLS is **ENABLED** on this table. Users can view gigs their organization participates in; Admins/Managers can update; Admins can delete.
-
----
-
-### gig_status_history
-
-Automatic audit log of status changes. Shared across all tenants.
-
-| Field | Type | Description |
-|-------|------|-------------|
-| id | UUID | Primary key |
-| gig_id | UUID | Reference to gigs.id (NOT NULL) |
-| from_status | GigStatus | Previous status (nullable if initial status) |
-| to_status | GigStatus | New status (NOT NULL) |
-| changed_by | UUID | Reference to users.id (informational, NOT NULL) |
-| changed_at | TIMESTAMPTZ | Status change timestamp (NOT NULL) |
-
-**Notes:**
-- `changed_by` is stored as User.id but doesn't maintain a reverse relation
-- All status transitions are recorded for auditability
-- RLS is **ENABLED** on this table. Users can view status history for gigs their organization participates in.
+- Deleting a gig fires `trg_cleanup_attachments` (migration 20260831000100).
+- RLS is **ENABLED** on this table. Users can view gigs their organization participates in; Admins/Managers can update; Admins can delete. There is **no INSERT policy** (dropped in migration 20260613000000): gigs are created only through the SECURITY DEFINER `create_gig_complex` RPC, which requires `primary_organization_id` and that the caller is Admin/Manager of it.
 
 ---
 
@@ -475,13 +516,61 @@ Organizations participating in a gig (venue, act, production, etc.)
 | id | UUID | Primary key |
 | organization_id | UUID | Reference to organizations.id (the participating organization) (NOT NULL) |
 | gig_id | UUID | Reference to gigs.id (NOT NULL) |
-| role | OrganizationType | Participant role using OrganizationType enum values (NOT NULL) |
+| role | organization_role | Participant role (single value, NOT NULL) |
 | notes | TEXT | Long text field for freeform notes (Markdown-formatted, nullable) |
+| is_client | BOOLEAN | This participating org is (one of) the paying client(s) for the gig (default false, NOT NULL; migration 20260825180000) |
 
 **Notes:**
-- `role` uses the same OrganizationType enum values: Production, Sound, Lighting, Staging, Rentals, Venue, Act, Agency
+- `role` uses the `organization_role` enum values: Production, Sound, Lighting, Staging, Rentals, Venue, Act, Agency
 - Composite unique constraint on (gig_id, organization_id, role)
+- `is_client` is orthogonal to `role` and deliberately has no uniqueness constraint (split billing / co-promotion)
 - RLS is **ENABLED** on this table. Users can view participants for accessible gigs; Admins/Managers can manage.
+
+---
+
+### gig_participant_contacts
+
+Who to contact at a participating organization, for one specific gig (migration 20260906200000). Independent of `organization_members` — a person listed here need not be a member of that organization.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| id | UUID | Primary key |
+| gig_id | UUID | Reference to gigs.id (NOT NULL, CASCADE delete) |
+| organization_id | UUID | Reference to organizations.id (NOT NULL, CASCADE delete) |
+| user_id | UUID | Reference to users.id (NOT NULL, CASCADE delete) |
+| is_primary_contact | BOOLEAN | Primary contact for this org on this gig (default false, NOT NULL) |
+| title | TEXT | Free-text role/title on this gig, e.g. "Day-of contact" (nullable) |
+| created_at | TIMESTAMPTZ | Record creation timestamp (NOT NULL) |
+
+**Notes:**
+- Unique constraint on (gig_id, organization_id, user_id); partial unique index `gig_participant_contacts_one_primary_per_gig_org` on (gig_id, organization_id) WHERE `is_primary_contact` — at most one primary per gig/org.
+- `is_primary_contact` defaults from `organization_members.is_primary_contact` only when the person is first added.
+- RLS is **ENABLED**. SELECT for anyone with gig access (`user_has_access_to_gig`). There are **no** INSERT/UPDATE/DELETE policies — all writes go through SECURITY DEFINER RPCs (`add_gig_participant_contact`, `set_gig_participant_contact_primary`, `remove_gig_participant_contact`, plus `create_contact_person` for brand-new people), gated by `user_can_manage_org_contacts`.
+
+---
+
+### gig_schedule_entries
+
+Run-of-show / multi-act schedule entries for a gig (migrations 20260616000000, 20260617000000).
+
+| Field | Type | Description |
+|-------|------|-------------|
+| id | UUID | Primary key |
+| gig_id | UUID | Reference to gigs.id (NOT NULL, CASCADE delete) |
+| activity_type | schedule_activity_type | Kind of activity (NOT NULL) |
+| label | TEXT | Optional display label (nullable) |
+| start_time | TIMESTAMPTZ | Start time (NOT NULL) |
+| end_time | TIMESTAMPTZ | End time (**nullable** since 20260617000000) |
+| act_participant_id | UUID | Reference to gig_participants.id — the act this entry belongs to (nullable, SET NULL on delete) |
+| sort_order | INTEGER | Display ordering (default 0, NOT NULL) |
+| notes | TEXT | Notes (nullable) |
+| created_at | TIMESTAMPTZ | Record creation timestamp (NOT NULL) |
+| updated_at | TIMESTAMPTZ | Record last update timestamp (NOT NULL) |
+
+**Notes:**
+- The original `end_time > start_time` check (`schedule_entry_time_order`) was dropped in 20260617000000; an entry may have only a start time.
+- No `update_updated_at_column` trigger is attached; `updated_at` must be set by the writer.
+- RLS is **ENABLED**. SELECT for any member of a participating org; INSERT/UPDATE/DELETE for Admin/Manager of a participating org (inline `gig_participants` ⨝ `organization_members` checks).
 
 ---
 
@@ -528,7 +617,7 @@ Centralized tracking for bids, payments, expenses, and invoices.
 | id | UUID | Primary key |
 | gig_id | UUID | Reference to gigs.id (NOT NULL) |
 | organization_id | UUID | Reference to organizations.id (the owning organization) (nullable) |
-| type | fin_type | Type of financial record (e.g., 'Bid Submitted', 'Payment Recieved', 'Expense Incurred') (NOT NULL, default 'Bid Submitted') |
+| type | fin_type | Type of financial record (e.g., 'Bid Submitted', 'Payment Received', 'Expense Incurred') (NOT NULL, no default — dropped in migration 20260520000000) |
 | category | fin_category | Category for reporting — IRS Schedule C categories, see below (**nullable**, no default) |
 | amount | DECIMAL(10,2) | Monetary amount (NOT NULL) |
 | mileage | NUMERIC(10,2) | Miles travelled to/from the gig, for mileage-based expense rows (nullable; migration 20260601000000) |
@@ -550,10 +639,10 @@ Centralized tracking for bids, payments, expenses, and invoices.
 
 **Notes:**
 - `gig_financials` replaces the legacy `gig_bids` table and `gigs.amount_paid` column.
-- `Payment Recieved` is spelled with 'ie' to match database enum definition.
+- The enum value is now spelled `Payment Received` (the original `Payment Recieved` typo was renamed in migration 20260322000000).
 - `purchase_id` / `staff_assignment_id` are the two-way links to the source documents that feed the ledger — see [gig-financials.md](gig-financials.md) §1.
 - **`fin_category`** was reworked (migrations 20260328000001 / 20260512000000) from the original `Labor / Equipment / Transportation / Venue / Production / Insurance / Rebillable / Other` set to IRS Schedule C names: `Advertising`, `Car and truck expenses`, `Commissions and fees`, `Contract labor`, `Depreciation`, `Insurance`, `Legal and professional services`, `Office expense`, `Rent or lease`, `Repairs and maintenance`, `Supplies`, `Taxes and licenses`, `Travel`, `Meals`, `Utilities`, `Wages`, `Other expenses`. It was also made nullable and lost its default (migrations 20260513000000 / 20260520000000). The authoritative list is `FIN_CATEGORY_CONFIG` in `src/utils/supabase/constants.ts`.
-- RLS is **ENABLED**. Insert/update/delete resolve to Admin **or Manager** of a participating org (via `user_can_manage_gig`); the narrower "Admins can …" policies are redundant duplicates layered on top.
+- RLS is **ENABLED**. Since migration 20260912000000 (cross-org leak fix, issue #61) there are exactly two policies, both scoped to the row's own `organization_id` via `user_is_admin_or_manager_of_org` — one FOR SELECT, one FOR ALL. Admins/Managers of *other* orgs participating in the same gig can no longer see or modify the row. Rows with a NULL `organization_id` are therefore invisible to all non-service-role clients.
 - Deleting a row fires `trg_cleanup_attachments`, which removes its `entity_attachments` links and any solely-owned `attachments` rows (migration 20260831000100).
 - `organization_id` represents the tenant who "owns" or is responsible for this financial record.
 - `counterparty_id` or `external_entity_name` tracks who the money is coming from or going to.
@@ -641,7 +730,7 @@ Handles acquisition headers and expense line items. Uses a self-referencing `par
 - A gig-linked purchase does **not** automatically get a `gig_financials` ledger row: the on-gig receipt scan creates one, but CSV import and post-hoc line assignment only prompt/offer to. Without that ledger row the expense is invisible to gig profitability.
 - Assets acquired in a purchase reference the header row via `assets.purchase_id`.
 - Deleting a row fires `trg_cleanup_attachments` (migration 20260831000100), removing its `entity_attachments` links and any solely-owned `attachments` rows.
-- RLS is **ENABLED** on this table. Users can view purchases for organizations they belong to; Admins/Managers can manage.
+- RLS is **ENABLED** on this table. Only Admins/Managers of the owning org can view or manage purchases — the member-level SELECT policy was dropped in migration 20260613000000 (Staff/Viewer have no Financials access).
 
 ---
 
@@ -707,6 +796,7 @@ erDiagram
         uuid slot_id FK
         uuid user_id FK
         text status
+        uuid gig_financial_id FK "NULLABLE"
     }
 
     GIGS ||--o{ GIG_STAFF_SLOTS : has
@@ -772,11 +862,15 @@ Actual staff assigned to positions
 | notes | TEXT | Notes about this assignment (nullable, Markdown-formatted) |
 | assigned_at | TIMESTAMPTZ | Assignment timestamp (default NOW(), NOT NULL) |
 | confirmed_at | TIMESTAMPTZ | Confirmation timestamp (nullable) |
+| completed_at | TIMESTAMPTZ | When the assignment was marked complete (nullable; migration 20260319213000) |
+| units_completed | NUMERIC(10,2) | Units (hours/days) actually worked, used to cost the labor (nullable; migration 20260319213000) |
+| gig_financial_id | UUID | Reference to gig_financials.id — the ledger row recording this labor cost (nullable, ON DELETE SET NULL; migration 20260319213000) |
 
 **Notes:**
 - There is no direct relation between Gig and User, only through GigStaffSlots and GigStaffAssignments.
 - There is no direct relation between Gig and GigStaffAssignments (only through GigStaffSlots)
-- RLS is **ENABLED** on this table. Users can view assignments for accessible gigs; Admins/Managers can manage; Staff can update their own.
+- `gig_financial_id` is the back-link of `gig_financials.staff_assignment_id` — see [gig-financials.md](gig-financials.md).
+- RLS is **ENABLED** on this table. Users can view assignments for accessible gigs; Admins/Managers can manage; Staff can update their own ("Staff can update their own assignments", recreated in 20260319213000 with a WITH CHECK intended to stop staff changing `completed_at` / `units_completed` / `gig_financial_id` — note that as written the check compares each column to itself, so it does not actually enforce this).
 
 ---
 
@@ -793,23 +887,23 @@ erDiagram
         text manufacturer_model
         text status
     }
-    ASSET_STATUS_HISTORY {
-        uuid id PK
-        uuid asset_id FK
-        text from_status
-        text to_status
-    }
     KITS {
         uuid id PK
         uuid organization_id FK
         text name
         boolean is_container
     }
-    KIT_ASSETS {
+    KIT_COMPONENTS {
         uuid id PK
         uuid kit_id FK
-        uuid asset_id FK
+        uuid asset_id FK "NULLABLE"
+        uuid child_kit_id FK "NULLABLE"
         integer quantity
+    }
+    KIT_FLATTENED_CACHE {
+        uuid kit_id PK
+        uuid asset_id PK
+        integer total_quantity
     }
     GIG_KIT_ASSIGNMENTS {
         uuid id PK
@@ -826,9 +920,11 @@ erDiagram
 
     ORGANIZATIONS ||--o{ ASSETS : owns
     ORGANIZATIONS ||--o{ KITS : owns
-    ASSETS ||--o{ ASSET_STATUS_HISTORY : has
-    KITS ||--o{ KIT_ASSETS : contains
-    ASSETS ||--o{ KIT_ASSETS : included_in
+    KITS ||--o{ KIT_COMPONENTS : contains
+    ASSETS ||--o{ KIT_COMPONENTS : included_in
+    KITS ||--o{ KIT_COMPONENTS : "nested as child_kit"
+    KITS ||--o{ KIT_FLATTENED_CACHE : "flattens to"
+    ASSETS ||--o{ KIT_FLATTENED_CACHE : counted_in
     GIGS ||--o{ GIG_KIT_ASSIGNMENTS : assigned
     KITS ||--o{ GIG_KIT_ASSIGNMENTS : assigned_to
     GIGS ||--o{ INVENTORY_TRACKING : tracks
@@ -873,27 +969,9 @@ Equipment and asset management
 - Assets are owned by a tenant organization via `organization_id` for RLS and filtering
 - `purchase_id` links the asset back to its acquisition purchase header
 - `item_cost` is the burdened cost (includes pro-rata allocation of tax, shipping, etc.)
-- Status changes are tracked via `asset_status_history` and the `track_asset_status_change` trigger
+- Status changes are recorded in `activity_log` (`event_type = 'asset.status_changed'`) by the application via `log_activity`; the former status-history trigger was dropped in migration 20260615000000
+- Deleting an asset fires `trg_cleanup_attachments` (migration 20260831000100)
 - RLS is **ENABLED** on this table. Users can view assets for organizations they belong to; Admins/Managers can manage.
-
----
-
-### asset_status_history
-
-Automatic audit log of asset status changes.
-
-| Field | Type | Description |
-|-------|------|-------------|
-| id | UUID | Primary key |
-| asset_id | UUID | Reference to assets.id (NOT NULL, CASCADE delete) |
-| from_status | TEXT | Previous status (nullable) |
-| to_status | TEXT | New status (NOT NULL) |
-| changed_by | UUID | Reference to auth.users(id) (nullable) |
-| changed_at | TIMESTAMPTZ | Status change timestamp (NOT NULL) |
-
-**Notes:**
-- Populated automatically by the `track_asset_status_change` trigger on assets.
-- RLS is **ENABLED** on this table. Users can view history for assets in their organization.
 
 ---
 
@@ -925,24 +1003,44 @@ Reusable collections of equipment assets
 
 ---
 
-### kit_assets
+### kit_components
 
-Junction table linking kits to their constituent assets
+Junction table linking a kit to its components — either an asset or a nested child kit (hierarchical kits, migration 20260826000000; formerly the asset-only junction table, renamed in that migration).
 
 | Field | Type | Description |
 |-------|------|-------------|
 | id | UUID | Primary key |
-| kit_id | UUID | Reference to kits.id (NOT NULL) |
-| asset_id | UUID | Reference to assets.id (NOT NULL) |
-| quantity | INTEGER | Number of this asset required in the kit (default 1, NOT NULL) |
-| notes | TEXT | Notes about this asset in the kit context (nullable) |
+| kit_id | UUID | Reference to kits.id — the parent kit (NOT NULL) |
+| asset_id | UUID | Reference to assets.id (nullable; CASCADE delete) |
+| child_kit_id | UUID | Reference to kits.id — a nested kit (nullable; CASCADE delete) |
+| quantity | INTEGER | Number of this asset/child kit in the kit (default 1, NOT NULL) |
+| notes | TEXT | Notes about this component in the kit context (nullable) |
 | created_at | TIMESTAMPTZ | Record creation timestamp (NOT NULL) |
 
 **Notes:**
-- Composite unique constraint on (kit_id, asset_id) prevents duplicate assets in same kit
-- Quantity allows specifying multiples of the same asset type (e.g., 2 mains, 2 subs)
-- Notes can specify usage context (e.g., "Main Left", "Backup Cable")
-- RLS is **ENABLED** on this table. Users can view kit assets for their organization's kits; Admins/Managers can manage.
+- CHECK `kit_components_exactly_one_target`: exactly one of `asset_id` / `child_kit_id` is set. CHECK `kit_components_no_self_reference`: `child_kit_id <> kit_id`.
+- Partial unique indexes `kit_components_kit_asset_key` (kit_id, asset_id) WHERE asset_id IS NOT NULL and `kit_components_kit_childkit_key` (kit_id, child_kit_id) WHERE child_kit_id IS NOT NULL prevent duplicate components.
+- Cycles are blocked by the `kit_components_prevent_cycle` BEFORE INSERT/UPDATE trigger (`prevent_kit_hierarchy_cycle` → `kit_would_create_cycle`), raising SQLSTATE 23514.
+- Every write fires `kit_components_refresh_cache` (AFTER INSERT/UPDATE/DELETE), which rebuilds `kit_flattened_cache` for the kit and all its ancestors.
+- Quantity allows specifying multiples (e.g., 2 mains, 2 subs); nested quantities multiply through the hierarchy.
+- RLS is **ENABLED**. SELECT for members of the parent kit's org; ALL for Admin/Manager of the parent kit's org **and**, when `child_kit_id` is set, Admin/Manager of the child kit's org.
+
+---
+
+### kit_flattened_cache
+
+Write-time-maintained flattened contents of each kit: total quantity of every asset, recursively through nested kits (migration 20260826000000).
+
+| Field | Type | Description |
+|-------|------|-------------|
+| kit_id | UUID | Reference to kits.id (PK part, NOT NULL, CASCADE delete) |
+| asset_id | UUID | Reference to assets.id (PK part, NOT NULL, CASCADE delete) |
+| total_quantity | INTEGER | Total quantity of the asset in the kit including nested kits (NOT NULL) |
+| updated_at | TIMESTAMPTZ | When the row was last rebuilt (default now(), NOT NULL) |
+
+**Notes:**
+- Primary key (kit_id, asset_id). Maintained only by `refresh_kit_flattened_cache` / `refresh_kit_flattened_cache_cascade` via the `kit_components_refresh_cache` trigger — never written by clients.
+- RLS is **ENABLED** with a SELECT-only policy for members of the kit's org; no write policies.
 
 ---
 
@@ -982,8 +1080,9 @@ Tracks equipment check-in/check-out status at gigs.
 | asset_id | UUID | Reference to assets.id (nullable, SET NULL on delete) |
 | status | TEXT | Tracking status (NOT NULL) |
 | scanned_at | TIMESTAMPTZ | When the scan occurred (NOT NULL) |
-| scanned_by | UUID | Reference to auth.users(id) (nullable) |
+| scanned_by | UUID | Reference to public.users(id) (nullable, SET NULL on delete; re-pointed from auth.users in migration 20260530000000) |
 | notes | TEXT | Notes about this tracking event (nullable) |
+| location | TEXT | Free-text location for the tracking event (nullable; migration 20260529000000) |
 | created_at | TIMESTAMPTZ | Record creation timestamp (NOT NULL) |
 
 **Notes:**
@@ -1013,7 +1112,7 @@ Stores user OAuth tokens and calendar preferences for Google Calendar integratio
 | updated_at | TIMESTAMPTZ | Record last update timestamp (NOT NULL) |
 
 **Notes:**
-- Unique constraint on (user_id, calendar_id) — one calendar setting per user per calendar.
+- Unique constraint on (user_id) — one calendar integration per user (replaced the former (user_id, calendar_id) constraint in migration 20260528000000).
 - RLS is **ENABLED**. Users can only access their own calendar settings.
 
 ---
@@ -1057,7 +1156,81 @@ Usage log for the `ai-scan` edge function, used for per-user rate limiting (20 s
 **Notes:**
 - RLS is **ENABLED with no policies** — only the edge function's service-role client can read or write.
 - Not a long-term audit log: the edge function opportunistically deletes rows older than 24 hours.
-- Indexed on (user_id, created_at) for the trailing-hour quota query.
+- Indexed on (user_id, created_at) (`idx_ai_scan_usage_user_time`) for the trailing-hour quota query.
+- No foreign keys on `user_id` / `organization_id` (migration 20260612000001).
+
+---
+
+### activity_log
+
+Unified, append-only activity/audit log for gigs, assets and other entities (migration 20260615000000). Replaced the former per-entity gig and asset status-history tables, whose rows were migrated in with `context_version = 1` and `'[Historical Record]'` placeholders.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| id | UUID | Primary key |
+| organization_id | UUID | Reference to organizations.id — the org the event is scoped to (nullable, SET NULL on delete) |
+| actor_id | UUID | Reference to users.id — who performed the action (nullable, SET NULL on delete) |
+| event_type | TEXT | Dotted event name, e.g. `gig.status_changed`, `asset.status_changed` (NOT NULL) |
+| entity_type | TEXT | Kind of entity the event is about, e.g. `gig`, `asset` (NOT NULL) |
+| entity_id | UUID | ID of that entity — polymorphic, no FK (NOT NULL) |
+| gig_id | UUID | Reference to gigs.id when the event is gig-scoped (nullable, CASCADE delete) |
+| context | JSONB | Denormalised display context (actor name, titles, from/to status, …) (default '{}', NOT NULL) |
+| occurred_at | TIMESTAMPTZ | When the event happened (default NOW(), NOT NULL) |
+
+**Notes:**
+- Written only through the SECURITY DEFINER `log_activity(p_organization_id, p_event_type, p_entity_type, p_entity_id, p_gig_id, p_context)` RPC, which sets `actor_id = auth.uid()` and checks gig access (or org membership when `p_gig_id` is NULL). There are no INSERT/UPDATE/DELETE policies.
+- RLS is **ENABLED**. Two SELECT policies: gig-scoped rows (`gig_id` set) are visible to anyone with `user_has_access_to_gig`; non-gig rows are visible to members of `organization_id`.
+- Event type catalogue lives in `src/utils/activityLog.events.ts`.
+
+---
+
+### access_requests
+
+Viewer/Staff → Manager/Admin elevation requests (migration 20260908000000). Routed to platform moderators while the target org is unclaimed, and to the org's own Admins once it is claimed.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| id | UUID | Primary key |
+| organization_id | UUID | Reference to organizations.id (NOT NULL, CASCADE delete) |
+| requester_id | UUID | Reference to users.id (NOT NULL, CASCADE delete) |
+| requested_role | user_role | Role requested — CHECK limits to `Manager` or `Admin` (NOT NULL) |
+| message | TEXT | Requester's message (nullable) |
+| status | TEXT | `pending`, `approved`, or `rejected` (CHECK; default 'pending', NOT NULL) |
+| handled_by | UUID | Reference to users.id — who approved/rejected (nullable) |
+| handled_at | TIMESTAMPTZ | When it was handled (nullable) |
+| response_message | TEXT | Handler's response (nullable) |
+| created_at | TIMESTAMPTZ | Record creation timestamp (NOT NULL) |
+
+**Notes:**
+- `requester_seen_at` existed originally but was dropped in migration 20260916000000 (outcome notices now come from `notifications`).
+- Partial unique index `access_requests_one_pending_per_requester` on (organization_id, requester_id) WHERE `status = 'pending'`; plus indexes `access_requests_org_status_idx` (organization_id, status) and `access_requests_requester_idx` (requester_id, status).
+- All app reads/writes go through the `server` edge function (service role). RLS is **ENABLED** with SELECT-only policies as a backstop / for realtime: requester sees own requests; org Admins see their org's requests; platform moderators see requests for unclaimed orgs. `authenticated` is granted SELECT only.
+
+---
+
+### notifications
+
+Generic per-user notification feed read by the NotificationBell (migration 20260916000000). Domain tables such as `access_requests` remain the durable record; this is the one-shot "something happened" side-channel.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| id | UUID | Primary key |
+| recipient_id | UUID | Reference to users.id (NOT NULL, CASCADE delete) |
+| type | TEXT | Notification type, e.g. `access_request.outcome`, `invitation.accepted` (NOT NULL) |
+| payload | JSONB | Type-specific data (default '{}', NOT NULL) |
+| read_at | TIMESTAMPTZ | When the recipient marked it read (nullable) |
+| created_at | TIMESTAMPTZ | Record creation timestamp (NOT NULL) |
+
+**Notes:**
+- Partial index `notifications_recipient_unread_idx` on (recipient_id) WHERE `read_at IS NULL`.
+- Inserted by the service-role edge function, and by `convert_pending_user_to_active` (one `invitation.accepted` row per accepted invitation, to its inviter).
+- RLS is **ENABLED**: recipients can SELECT and UPDATE (mark read) their own rows; `authenticated` is granted SELECT, UPDATE only.
+
+---
+
+### Scheduled jobs
+
+Migration 20260919000000 enables the `pg_cron` and `pg_net` extensions and schedules the `daily-health-check` cron job (13:00 UTC daily), which POSTs to the health-check edge function. The URL and bearer token are read at call time from Supabase Vault secrets `health_check_function_url` and `health_check_cron_secret` (one-time per-project setup — see [deployment.md](deployment.md)). No tables are added.
 
 ---
 
@@ -1092,14 +1265,27 @@ These functions are defined with `SECURITY DEFINER` to bypass RLS when necessary
 - `search_users_secure(search_text)`: Searches users by name/email (excludes inactive users).
 - `convert_pending_user_to_active(p_email, p_auth_user_id)`: Converts a pending user to active on first login.
 - `invite_user_to_organization(...)`: Creates an invitation and pending user record.
-- `create_gig_complex(p_gig_data, p_participants, p_staff_slots)`: Transactionally creates a gig with participants and staff slots.
+- `create_gig_complex(p_gig_data, p_participants, p_staff_slots)`: Transactionally creates a gig with participants and staff slots. Since migration 20260613000000 it requires `p_gig_data.primary_organization_id` and that the caller is Admin/Manager of that org; it is the only gig-creation path (no gigs INSERT policy).
 - `create_purchase_transaction_v1(p_header, p_items, p_assets)`: Transactionally creates a purchase header with item rows and associated assets.
-- `update_asset_status(p_asset_id, p_status)`: Updates asset status with permission check.
+- `reclassify_expense_as_asset(p_purchase_item_id)`: Converts an existing purchase `'item'` row into an `'asset'` row and creates the linked asset (migration 20260607000000).
+- `update_asset_status(p_asset_id, p_status)`: Updates asset status; requires the caller to be a member of the asset's org.
+- `user_is_admin(user_uuid)`: Returns true if the user is Admin of **at least one** organization (not a global admin; migration 20260522000000).
+- `user_can_manage_org_contacts(p_organization_id, p_user_id)`: True if the user is `user_is_admin`, Admin/Manager of the org, or Admin/Manager of an org sharing a gig with it. Gates all contact RPCs and the broadened member/user read policies.
+- `user_is_contact_status(p_user_id)`: True if the user's `user_status = 'contact'` (breaks RLS recursion between `users` and `organization_members`).
+- Organization-contact RPCs: `add_organization_contact`, `link_existing_person_to_organization`, `update_organization_contact`, `set_organization_primary_contact`, `unset_organization_primary_contact`, `remove_organization_contact`.
+- Gig-contact RPCs: `create_contact_person`, `add_gig_participant_contact`, `set_gig_participant_contact_primary`, `remove_gig_participant_contact` (the only write path for `gig_participant_contacts`).
+- `log_activity(p_organization_id, p_event_type, p_entity_type, p_entity_id, p_gig_id, p_context)`: The only write path for `activity_log`; returns the new row id.
+- `kit_would_create_cycle(p_parent_kit_id, p_child_kit_id)`: True if nesting the child kit under the parent would create a cycle.
+- `kits_that_would_cycle(p_parent_kit_id, p_candidate_kit_ids)`: Batch form of the above for the kit picker (migration 20260826230000).
+- `get_kit_hierarchy_tree(p_kit_id)`: Returns (parent_kit_id, child_kit_id, quantity, depth) rows for a kit's nested structure; requires org membership.
+- `refresh_kit_flattened_cache(p_kit_id)` / `refresh_kit_flattened_cache_cascade(p_kit_id)`: Rebuild `kit_flattened_cache` for a kit (and, for the cascade form, all its ancestor kits).
 
 ### Triggers
-- `update_updated_at_column()`: Automatically updates the `updated_at` column to `NOW()` before an UPDATE. Applied to: users, organizations, gigs, gig_financials, gig_staff_slots, gig_sync_status, kits, staff_roles, user_google_calendar_settings, purchases.
-- `log_gig_status_change()`: Automatically records gig status transitions in the `gig_status_history` table.
-- `track_asset_status_change()`: Automatically records asset status transitions in the `asset_status_history` table.
+- `update_updated_at_column()`: Automatically updates the `updated_at` column to `NOW()` before an UPDATE. Applied to: users, organizations, gigs, gig_financials, gig_staff_slots, gig_sync_status, kits, staff_roles, user_google_calendar_settings, purchases. (Not applied to `gig_schedule_entries`.)
+- `kit_components_prevent_cycle` → `prevent_kit_hierarchy_cycle()`: BEFORE INSERT/UPDATE on `kit_components` when `child_kit_id` is set; rejects circular nesting.
+- `kit_components_refresh_cache` → `trigger_refresh_kit_flattened_cache()`: AFTER INSERT/UPDATE/DELETE on `kit_components`; refreshes `kit_flattened_cache` for the kit and its ancestors.
+- `trg_cleanup_attachments` → `cleanup_orphaned_attachments(entity_type)`: BEFORE DELETE on `assets`, `gigs`, `purchases`, and `gig_financials`; removes the row's `entity_attachments` links and any `attachments` rows linked only to it (migration 20260831000100). Does not delete storage objects.
+- The former gig and asset status-history triggers were dropped in migration 20260615000000; status changes are now logged by the app via `log_activity`.
 
 ---
 
@@ -1118,14 +1304,21 @@ To optimize performance, the following indexes are implemented:
 - `idx_invitations_email`: On `invitations(email)`
 - `idx_invitations_token`: On `invitations(token)`
 - `idx_invitations_status`: On `invitations(status)`
+- `organization_members_one_primary_contact_per_org`: Unique on `organization_members(organization_id)` WHERE `is_primary_contact`
+- `access_requests_org_status_idx`: On `access_requests(organization_id, status)`
+- `access_requests_requester_idx`: On `access_requests(requester_id, status)`
+- `access_requests_one_pending_per_requester`: Unique on `access_requests(organization_id, requester_id)` WHERE `status = 'pending'`
+- `notifications_recipient_unread_idx`: On `notifications(recipient_id)` WHERE `read_at IS NULL`
 
 ### Gigs & Staffing
 - `idx_gigs_start`: On `gigs(start)`
 - `idx_gigs_parent_gig_id`: On `gigs(parent_gig_id)`
 - `idx_gig_participants_gig_id`: On `gig_participants(gig_id)`
 - `idx_gig_participants_org_id`: On `gig_participants(organization_id)`
-- `idx_gig_status_history_gig_id`: On `gig_status_history(gig_id)`
-- `idx_gig_status_history_changed_at`: On `gig_status_history(changed_at)`
+- `gig_participant_contacts_one_primary_per_gig_org`: Unique on `gig_participant_contacts(gig_id, organization_id)` WHERE `is_primary_contact`
+- `idx_gig_participant_contacts_gig_org`: On `gig_participant_contacts(gig_id, organization_id)`
+- `idx_schedule_entries_gig`: On `gig_schedule_entries(gig_id)`
+- `idx_schedule_entries_act`: On `gig_schedule_entries(act_participant_id)`
 - `idx_gig_staff_slots_gig_id`: On `gig_staff_slots(gig_id)`
 - `idx_gig_staff_slots_role_id`: On `gig_staff_slots(staff_role_id)`
 - `idx_gig_staff_slots_org_id`: On `gig_staff_slots(organization_id)`
@@ -1142,8 +1335,12 @@ To optimize performance, the following indexes are implemented:
 - `idx_assets_category`: On `assets(category)`
 - `idx_kits_org_id`: On `kits(organization_id)`
 - `idx_kits_category`: On `kits(category)`
-- `idx_kit_assets_kit_id`: On `kit_assets(kit_id)`
-- `idx_kit_assets_asset_id`: On `kit_assets(asset_id)`
+- `idx_kit_assets_kit_id`: On `kit_components(kit_id)` (index kept its pre-rename name)
+- `idx_kit_assets_asset_id`: On `kit_components(asset_id)` (index kept its pre-rename name)
+- `idx_kit_components_child_kit_id`: On `kit_components(child_kit_id)` WHERE `child_kit_id IS NOT NULL`
+- `kit_components_kit_asset_key`: Unique on `kit_components(kit_id, asset_id)` WHERE `asset_id IS NOT NULL`
+- `kit_components_kit_childkit_key`: Unique on `kit_components(kit_id, child_kit_id)` WHERE `child_kit_id IS NOT NULL`
+- `idx_kit_flattened_cache_asset_id`: On `kit_flattened_cache(asset_id)`
 - `idx_gig_kit_assignments_org_id`: On `gig_kit_assignments(organization_id)`
 - `idx_gig_kit_assignments_gig_id`: On `gig_kit_assignments(gig_id)`
 - `idx_gig_kit_assignments_kit_id`: On `gig_kit_assignments(kit_id)`
@@ -1155,6 +1352,13 @@ To optimize performance, the following indexes are implemented:
 - `idx_gig_sync_status_user_id`: On `gig_sync_status(user_id)`
 - `idx_gig_sync_status_sync_status`: On `gig_sync_status(sync_status)`
 
+### Operational
+- `idx_ai_scan_usage_user_time`: On `ai_scan_usage(user_id, created_at)`
+- `idx_activity_log_gig_id`: On `activity_log(gig_id, occurred_at DESC)`
+- `idx_activity_log_entity`: On `activity_log(entity_type, entity_id, occurred_at DESC)`
+- `idx_activity_log_org_id`: On `activity_log(organization_id, occurred_at DESC)`
+- `idx_activity_log_actor_id`: On `activity_log(actor_id, occurred_at DESC)`
+
 ---
 
 ## Row-Level Security (RLS)
@@ -1165,29 +1369,34 @@ All tables have RLS **ENABLED**. Access is controlled through a combination of R
 
 | Table | SELECT | INSERT | UPDATE | DELETE |
 |-------|--------|--------|--------|--------|
-| `users` | Own profile + same-org members | Own record (auth) | Own record | — |
-| `organizations` | All (public) | Authenticated | Admin only | — |
-| `organization_members` | Own orgs | Self-join as Viewer; Admin manages | Admin only | Admin only |
+| `users` | Own profile + same-org members + users of orgs you can manage contacts for + gig participant contacts on accessible gigs | Own record (auth) | Own record | — |
+| `organizations` | All (public) | Authenticated | Admin of this org; any org's Admin only while `claimed = false` | — |
+| `organization_members` | Own orgs + orgs you can manage contacts for | Self-join as Viewer; Admin manages | Admin only | Admin only |
 | `invitations` | Own org members | Admin/Manager | Admin/Manager + invitee accept | Admin/Manager |
 | `user_devices` | Own devices | Own | Own | Own |
-| `gigs` | Participating orgs | Authenticated | Admin/Manager of participant | Admin of participant |
-| `gig_status_history` | Participating orgs | Gig managers | — | — |
+| `access_requests` | Own requests; org Admins; platform moderators (unclaimed orgs) | — (service role) | — (service role) | — (service role) |
+| `notifications` | Own | — (service role / SECURITY DEFINER) | Own (mark read) | — |
+| `gigs` | Participating orgs | — (only via `create_gig_complex`) | Admin/Manager of participant | Admin of participant |
 | `gig_participants` | Accessible gigs | Gig managers | Gig managers | Gig managers |
-| `gig_financials` | Admin of owning org | Admin of owning org | Admin of owning org | Admin of owning org |
-| `purchases` | Org members | Admin/Manager | Admin/Manager | Admin/Manager |
+| `gig_participant_contacts` | Accessible gigs | — (RPC only) | — (RPC only) | — (RPC only) |
+| `gig_schedule_entries` | Participating org members | Admin/Manager of participant | Admin/Manager of participant | Admin/Manager of participant |
+| `activity_log` | Accessible gigs (gig rows); org members (non-gig rows) | — (`log_activity` only) | — | — |
+| `gig_financials` | Admin/Manager of owning org | Admin/Manager of owning org | Admin/Manager of owning org | Admin/Manager of owning org |
+| `purchases` | Admin/Manager | Admin/Manager | Admin/Manager | Admin/Manager |
 | `attachments` | Org members | Admin/Manager | Admin/Manager | Admin/Manager |
 | `entity_attachments` | Via parent attachment org | Admin/Manager (via attachment) | Admin/Manager (via attachment) | Admin/Manager (via attachment) |
 | `staff_roles` | All (public) | — | — | — |
 | `gig_staff_slots` | Accessible gigs | Gig managers | Gig managers | Gig managers |
 | `gig_staff_assignments` | Accessible gigs | Gig managers | Gig managers + own assignments | Gig managers |
 | `assets` | Org members | Admin/Manager | Admin/Manager | Admin/Manager |
-| `asset_status_history` | Via parent asset org | — | — | — |
 | `kits` | Org members | Admin/Manager | Admin/Manager | Admin/Manager |
-| `kit_assets` | Via parent kit org | Admin/Manager (via kit) | Admin/Manager (via kit) | Admin/Manager (via kit) |
+| `kit_components` | Via parent kit org | Admin/Manager of parent kit org (+ child kit org if nested) | Same | Same |
+| `kit_flattened_cache` | Via kit org | — (trigger-maintained) | — | — |
 | `gig_kit_assignments` | Accessible gigs | Gig managers | Gig managers | Gig managers |
 | `inventory_tracking` | Gig access | Gig access | Gig access | Gig access |
 | `user_google_calendar_settings` | Own settings | Own | Own | Own |
 | `gig_sync_status` | Own + participating gigs | Own | Own | Own |
+| `ai_scan_usage` | — (service role only) | — | — | — |
 
 ### Role Hierarchy
 
@@ -1283,6 +1492,7 @@ supabase
 
 ## Document History
 
+**2026-09-25**: Reconciled with all migrations through `20260919000000` (first full pass since 2026-03-16). Enum `organization_type` → `organization_role`, `organizations.type` → `roles` (array); `fin_type` typo fixed to `Payment Received` plus `Informal Terms`; `fin_category` listed as IRS Schedule C values; added `schedule_activity_type`. Removed the dropped `gig_status_history` / `asset_status_history` tables and their triggers in favour of the new `activity_log` table and `log_activity` RPC. `kit_assets` → `kit_components` (asset or `child_kit_id`, cycle-prevention trigger) and new `kit_flattened_cache`. Added `gig_schedule_entries`, `gig_participant_contacts`, `access_requests`, `notifications`, and the `pg_cron` daily health-check job. New columns: `users.platform_moderator` / `contact` status / nullable `email`, `organizations.claimed`, `organization_members.is_primary_contact` / `contact_title`, `gig_participants.is_client`, `gig_staff_assignments.completed_at` / `units_completed` / `gig_financial_id`, `inventory_tracking.location`. Updated RLS for `gig_financials` (owning-org Admin/Manager only, 20260912000000), `purchases` (Admin/Manager reads), `gigs` (no INSERT policy), `organizations` (claimed-aware UPDATE), broadened `users` / `organization_members` reads; refreshed helper functions, triggers, indexes, ER diagrams, and the Google Calendar one-setting-per-user constraint.
 **2026-03-16**: Major revision — reconciled all tables with `schema_dump.sql`. Added missing tables (`asset_status_history`, `inventory_tracking`, `user_devices`). Added missing columns (`users.timezone`, `kits.is_container`, `purchases.asset_id`). Removed ghost columns from `gigs` (`venue_address`, `settlement_type`, `settlement_amount`). Fixed type mismatches (`assets.quantity` is numeric(12,4), `assets.status` is NOT NULL). Updated `sync_status` enum with `updated`/`removed` values. Updated RLS to reflect all tables now ENABLED. Added `purchases`, `attachments`, `entity_attachments` tables. Added topical ER diagrams for each major section. Moved `invitations` to Core Tables. Removed unused `kv_store_de012ad4`. Updated helper functions list.
 **2026-02-24**: Fixed Prisma/schema.sql references, updated PostgreSQL version to 17, added Google Calendar integration tables (`user_google_calendar_settings`, `gig_sync_status`), documented `Payment Recieved` typo as known issue, fixed file structure paths.
 **2026-02-09**: Consolidated migrations into a single initialization file, improved local development workflow, and moved troubleshooting content to `setup-guide.md`.
