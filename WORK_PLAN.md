@@ -12,7 +12,7 @@ Migrated from GitHub issue [#41](https://github.com/corourke/GigManager/issues/4
 supersedes that issue as the board of record.
 
 - **Last updated:** 2026-09-25 (triage: new bug #71 diagnosed, raised in §3b; docs PR #72 opened)
-- **State verified:** 2026-09-25 (8 open issues, 2 open PRs — docs-only #70 and #72)
+- **State verified:** 2026-09-25 (8 open issues; docs-only PRs #70 and #72 both merged 09-25 — check live for any others)
 
 ---
 
@@ -172,6 +172,7 @@ applies migrations), edge-function API shape, anything touching production confi
 | #20 — shared data-access base module + `user.service.ts` pilot | PR #66 (09-22) | Merged; ~15 services remain, one at a time |
 | #52 phase 2 — Supabase/Google Places/Sentry health checks + daily cron | PR #65 (09-23) | Merged; Sentry check reports "not configured" until secrets land |
 | Docs refresh: `testing.md` (PR #67), `setup-guide.md` + one line of `deployment.md` (PR #68) | PR #67, PR #68 (09-23) | Merged; docs only, from triage docs passes |
+| Docs refresh: `docs/README.md` index (PR #70), `database.md` reconciled with migrations (PR #72) | PR #70, PR #72 (09-25) | Merged; docs only, from triage docs passes |
 
 ---
 
@@ -222,7 +223,7 @@ broken yet.
 
 **Order of checks each run.**
 
-1. Check CI and mergeability on open PRs: docs-only [#70](https://github.com/corourke/GigManager/pull/70), "docs(README): index three unlisted technical docs" (09-24), and docs-only [#72](https://github.com/corourke/GigManager/pull/72), "docs(database): reconcile database.md with migrations since March" (09-25).
+1. Check CI and mergeability on open PRs (docs-only #70 and #72 both merged 09-25; list live for anything newer).
 2. #69 and #71 — if either is now in §3c, post the plan, write the failing test first (#69: repeated autosave must not delete and reinsert the row; #71: adding an *Invoice Issued* record must send `category: null`), then fix.
 3. #39 — check for a reply. If a variant is picked → work plan → post → wait for approval → implement.
 4. #12 — same pattern.
