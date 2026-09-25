@@ -1,12 +1,19 @@
-import type { App } from '../lib/types.ts';
-import { supabaseAdmin } from '../lib/supabaseAdmin.ts';
-import { captureRoundTripEvent } from '../../_shared/sentry.ts';
+// Daily health check (issue #52), called by the pg_cron + pg_net job, not a
+// logged-in user. It is its own function, rather than a `server` route,
+// because the cron authenticates with a random bearer token that isn't a
+// Supabase JWT: the gateway would reject it unless JWT verification is off,
+// and that is switched off for this function alone ([functions.health-check]
+// in supabase/config.toml). The token is checked here instead, against the
+// HEALTH_CHECK_CRON_SECRET edge-function secret (see docs/technical/deployment.md).
+import { supabaseAdmin } from '../server/lib/supabaseAdmin.ts';
+import { captureRoundTripEvent } from '../_shared/sentry.ts';
 import {
   type HealthCheckResult,
   isAlertable,
+  isAuthorizedCronRequest,
   isSentryConfigured,
   recipientsToNotify,
-} from '../lib/pure/healthCheck.ts';
+} from '../server/lib/pure/healthCheck.ts';
 
 async function checkSupabase(): Promise<HealthCheckResult> {
   const { error } = await supabaseAdmin.from('users').select('id').limit(1);
@@ -119,22 +126,18 @@ async function notifyModerators(results: HealthCheckResult[]) {
   }
 }
 
-export function registerHealthCheck(app: App) {
-  // Called by the daily pg_cron + pg_net job, not a logged-in user — so this
-  // deliberately does not use requireUser. Locked down instead by a bearer
-  // token stored in Supabase Vault, checked against this edge-function
-  // secret (see docs/technical/deployment.md).
-  app.post('/internal/health-check', async (c) => {
-    const expected = Deno.env.get('HEALTH_CHECK_CRON_SECRET');
-    const authHeader = c.req.header('Authorization');
-    const provided = authHeader?.startsWith('Bearer ') ? authHeader.slice('Bearer '.length) : null;
-    if (!expected || !provided || provided !== expected) {
-      return c.json({ error: 'Unauthorized' }, 401);
-    }
-
-    const results = await Promise.all([checkSupabase(), checkGooglePlaces(), checkSentry()]);
-    await notifyModerators(results);
-
-    return c.json({ checked_at: new Date().toISOString(), results });
-  });
+function json(body: unknown, status = 200): Response {
+  return new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
 }
+
+Deno.serve(async (req) => {
+  if (req.method !== 'POST') return json({ error: 'Method not allowed' }, 405);
+  if (!isAuthorizedCronRequest(req.headers.get('Authorization'), Deno.env.get('HEALTH_CHECK_CRON_SECRET'))) {
+    return json({ error: 'Unauthorized' }, 401);
+  }
+
+  const results = await Promise.all([checkSupabase(), checkGooglePlaces(), checkSentry()]);
+  await notifyModerators(results);
+
+  return json({ checked_at: new Date().toISOString(), results });
+});

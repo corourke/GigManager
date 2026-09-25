@@ -1,6 +1,6 @@
 // Pure health-check helpers (issue #52 phase 2) — no Deno/network imports,
-// unit-testable under Vitest/Node. The route in ../../routes/healthCheck.ts
-// wraps these with the actual Supabase/Places/Sentry calls.
+// unit-testable under Vitest/Node. The health-check edge function
+// (../../../health-check/index.ts) wraps these with the actual Supabase/Places/Sentry calls.
 
 export type HealthCheckId = 'supabase' | 'google_places' | 'sentry';
 export type HealthCheckStatus = 'ok' | 'fail' | 'not_configured';
@@ -37,4 +37,16 @@ export function isSentryConfigured(
   projectSlug: string | null | undefined
 ): boolean {
   return Boolean(token && orgSlug && projectSlug);
+}
+
+/**
+ * Whether a request carries the cron's bearer token. Rejects everything while
+ * HEALTH_CHECK_CRON_SECRET is unset, so an unconfigured project fails closed.
+ */
+export function isAuthorizedCronRequest(
+  authHeader: string | null | undefined,
+  expected: string | null | undefined
+): boolean {
+  if (!expected || !authHeader?.startsWith('Bearer ')) return false;
+  return authHeader.slice('Bearer '.length) === expected;
 }
