@@ -198,15 +198,13 @@ broken yet.
 **Order of checks each run.**
 
 1. Check CI and mergeability on open PRs (docs-only #70 and #72 both merged 09-25; list live for anything newer).
-2. #69 and #71 — if either is now in §3c, post the plan, write the failing test first (#69: repeated autosave must not delete and reinsert the row; #71: adding an *Invoice Issued* record must send `category: null`), then fix.
+2. #69 and #71 are in §3c: post the plan, write the failing test first (#69: repeated autosave must not delete and reinsert the row; #71: adding an *Invoice Issued* record must send `category: null`), then fix.
 3. #39 — check for a reply. If a variant is picked → work plan → post → wait for approval → implement.
 4. #12 — same pattern.
-5. #61 — check for a reply on the staffing-leak question. If yes, follow the PR #63 pattern (migration +
-   before/after access table + PR, no merge without review).
-6. #20 — no open question; only act if Cameron asks for the next service to be migrated.
-7. Check §3b for unresolved entries the coordinator hasn't cleared yet.
+5. #20 — no open question; only act if Cameron asks for the next service to be migrated.
+6. Check §3b for unresolved entries the coordinator hasn't cleared yet.
 
-**Don't manufacture activity.** Each of #39, #12 and #61 already has exactly one open question on record.
+**Don't manufacture activity.** #39 and #12 each already have exactly one open question on record.
 If a run finds everything still quiet, that is a legitimate no-op: do **not** re-post the same "still waiting"
 comments — daily repetition is noise. Speak up only when something actually changes (a new reply, CI going
 red, a new review comment, a new issue).
