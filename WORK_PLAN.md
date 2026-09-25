@@ -11,7 +11,7 @@ Cameron questions.
 Migrated from GitHub issue [#41](https://github.com/corourke/GigManager/issues/41) on 2026-09-22. This file now
 supersedes that issue as the board of record.
 
-- **Last updated:** 2026-09-25 (coordinator: #52 closed; §3b resolved into §3a)
+- **Last updated:** 2026-09-25 (coordinator: #69 and #71 approved into §3c)
 - **State verified:** 2026-09-25 (8 open issues; docs-only PRs #70 and #72 both merged 09-25 — check live for any others)
 
 ---
@@ -20,8 +20,8 @@ supersedes that issue as the board of record.
 
 | # | Item | Type | State | Waiting on |
 |---|---|---|---|---|
-| [#71](https://github.com/corourke/GigManager/issues/71) | Adding an *Invoice Issued* financial record fails with a repeating `fin_category` enum error | Bug | Diagnosed 09-25 (frontend/service only) | Cameron — approve into §3c (§3a item 1) |
-| [#69](https://github.com/corourke/GigManager/issues/69) | Adding a gig participant logs added/removed several times in History | Bug | Diagnosed 09-24 (frontend only) | Cameron — approve into §3c (§3a item 1) |
+| [#71](https://github.com/corourke/GigManager/issues/71) | Adding an *Invoice Issued* financial record fails with a repeating `fin_category` enum error | Bug | Diagnosed 09-25 (frontend/service only) | Triage — approved, in §3c |
+| [#69](https://github.com/corourke/GigManager/issues/69) | Adding a gig participant logs added/removed several times in History | Bug | Diagnosed 09-24 (frontend only) | Triage — approved, in §3c |
 | [#61](https://github.com/corourke/GigManager/issues/61) | Cross-org RLS leaks (5 tables) | Bug / security | Partially fixed; 4 leaks deferred | Cameron — scope decision |
 | [#39](https://github.com/corourke/GigManager/issues/39) | Too many menu levels | UI/UX design | Mockups posted 09-19 | Cameron — pick a variant |
 | [#12](https://github.com/corourke/GigManager/issues/12) | Reorganize Gig Edit into tabbed sections | UI/UX design | Mockups posted 09-19 | Cameron — pick a variant |
@@ -103,13 +103,10 @@ Low priority, explicitly acceptable for beta. Open, no action planned.
 *Curated by the coordinator session only.* Nothing below can move without a reply. Listed roughly in the
 order that unblocks the most work; the coordinator puts these to Cameron one at a time.
 
-1. **[#69](https://github.com/corourke/GigManager/issues/69) and [#71](https://github.com/corourke/GigManager/issues/71) — approve the frontend bug fixes into §3c?** Both diagnosed by triage,
-   no contract change (details in §2). #71 item 4 (keep the modal open until the save succeeds) is a UX change and
-   is asked separately. Asked 09-25.
-2. **[#39](https://github.com/corourke/GigManager/issues/39)** — pick a mockup variant (or a hybrid) from the 09-19 canvas so a work plan can be written.
-3. **[#12](https://github.com/corourke/GigManager/issues/12)** — pick top-tabs vs. left-side-tabs from the 09-19 canvas, **and** say whether the cross-section coordination question (e.g. staffing needing gig dates) should be folded into the same design pass.
-4. **[#61](https://github.com/corourke/GigManager/issues/61)** — say whether to pull the staffing leak (`gig_staff_slots`/`gig_staff_assignments`) forward next, or leave all four remaining leaks deferred until the tenant-isolation decision. **Also covers** the always-true WITH CHECK on "Staff can update their own assignments" (`20260319213000_gig_financials_workflow.sql`; staff can set their own completion/units/ledger link), found 09-25 — same table, needs a migration, so it's a contract; best fixed together with the staffing leak.
-5. **Sentry secrets** — `SENTRY_API_TOKEN`, `SENTRY_ORG_SLUG`, `SENTRY_PROJECT_SLUG` for the health check's Sentry round-trip. Optional; it reports "not configured" until set.
+1. **[#39](https://github.com/corourke/GigManager/issues/39)** — pick a mockup variant (or a hybrid) from the 09-19 canvas so a work plan can be written.
+2. **[#12](https://github.com/corourke/GigManager/issues/12)** — pick top-tabs vs. left-side-tabs from the 09-19 canvas, **and** say whether the cross-section coordination question (e.g. staffing needing gig dates) should be folded into the same design pass.
+3. **[#61](https://github.com/corourke/GigManager/issues/61)** — say whether to pull the staffing leak (`gig_staff_slots`/`gig_staff_assignments`) forward next, or leave all four remaining leaks deferred until the tenant-isolation decision. **Also covers** the always-true WITH CHECK on "Staff can update their own assignments" (`20260319213000_gig_financials_workflow.sql`; staff can set their own completion/units/ledger link), found 09-25 — same table, needs a migration, so it's a contract; best fixed together with the staffing leak.
+4. **Sentry secrets** — `SENTRY_API_TOKEN`, `SENTRY_ORG_SLUG`, `SENTRY_PROJECT_SLUG` for the health check's Sentry round-trip. Optional; it reports "not configured" until set.
 
 ### 3b. Raised by triage, for the coordinator
 
@@ -124,7 +121,14 @@ meantime. The coordinator resolves each entry (decides it, or moves it into §3a
 under AGENTS.md rule 1: the routine posts its plan on the issue and proceeds. Anything not listed here still
 needs approval before code changes.
 
-- *(none at present — every open issue is waiting on a decision in §3a or is deliberately parked; see §1)*
+- **[#71](https://github.com/corourke/GigManager/issues/71) — *Invoice Issued* (and every non-expense type) fails with a repeating `fin_category` enum error.**
+  Approved 09-25, all four items of the fix posted on the issue: failing test first; send `category: null`, not `''`;
+  normalize `''` in `updateGigFinancials`; don't retry an identical failed payload; **and keep the modal open until
+  the save succeeds** (Cameron approved the UX change). Files: `GigFinancialsSection.tsx`, `gigFinancial.service.ts`.
+- **[#69](https://github.com/corourke/GigManager/issues/69) — adding a participant logs added/removed several times; each autosave re-creates the row.**
+  Approved 09-25, the fix posted on the issue: failing test first; `updateGigParticipants` returns the inserted
+  ids and `GigParticipantsSection` writes them back after the save, so later autosaves update in place.
+  Separate PR from #71.
 
 **Always a contract, never pre-approved:** new migrations or any RLS/policy change (AGENTS.md rule 4 — Cameron
 applies migrations), edge-function API shape, anything touching production config or `deploy_prod.sh`.
@@ -162,7 +166,7 @@ Read this section first on each run.
 | #20 remaining services | `src/services/*.service.ts` (all but `user.service.ts`) | Parked until Cameron asks for the next one |
 
 **Dependencies.** #12 and #39 both reshape navigation/gig-edit UI — do them in sequence, not in parallel, once
-each has a direction. #52's health check is live on dev and prod (09-25); its Sentry check additionally needs the Sentry secrets (§3a item 5). The four #61 leaks depend on the
+each has a direction. #52's health check is live on dev and prod (09-25); its Sentry check additionally needs the Sentry secrets (§3a item 4). The four #61 leaks depend on the
 tenant-isolation-architecture decision.
 
 **Where things stand.** New bug #71 (adding an *Invoice Issued* financial record fails with a repeating enum error) was filed 09-25; that
