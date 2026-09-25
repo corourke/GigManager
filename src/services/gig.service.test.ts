@@ -918,5 +918,38 @@ describe('gig.service', () => {
         })
       }));
     });
+
+    it("copies only the primary org's staff slots and kit assignments (#61)", async () => {
+      const originalGig = {
+        id: 'g', title: 'Original', start: '2026-03-15T20:00:00.000Z', end: '2026-03-16T01:00:00.000Z', timezone: 'UTC',
+        participants: [
+          { organization_id: 'org-a', role: 'Venue' },
+          { organization_id: 'org-b', role: 'Sound' },
+        ],
+        // RLS can still return another org's slot the caller is booked into.
+        staff_slots: [
+          { staff_role_id: 'r', organization_id: 'org-a', required_count: 1, staff_assignments: [] },
+          { staff_role_id: 'r', organization_id: 'org-b', required_count: 1, staff_assignments: [] },
+        ],
+        kit_assignments: [
+          { kit_id: 'kit-a', organization_id: 'org-a' },
+          { kit_id: 'kit-b', organization_id: 'org-b' },
+        ],
+      };
+      (requireAuth as any).mockResolvedValue({ supabase: mockSupabase, user: { id: 'user-1', user_metadata: {} } });
+      const kitChain = makeChain({ data: [], error: null });
+      mockSupabase.from.mockImplementation((table: string) => {
+        if (table === 'gigs') return makeChain({ data: originalGig, error: null });
+        if (table === 'gig_kit_assignments') return kitChain;
+        return makeChain({ data: [], error: null });
+      });
+      mockSupabase.rpc = vi.fn().mockResolvedValue({ data: [{ id: 'new' }], error: null });
+
+      await duplicateGig('g');
+
+      const rpcArgs = mockSupabase.rpc.mock.calls.find((c: any[]) => c[0] === 'create_gig_complex')[1];
+      expect(rpcArgs.p_staff_slots.map((s: any) => s.organization_id)).toEqual(['org-a']);
+      expect(kitChain.insert).toHaveBeenCalledWith([expect.objectContaining({ kit_id: 'kit-a', organization_id: 'org-a' })]);
+    });
   });
 });

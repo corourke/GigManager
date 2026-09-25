@@ -3,7 +3,9 @@
 -- auth.uid() = user, inside a subtransaction that is always rolled back, and
 -- returns the number of rows the statement saw/affected, or -1 if it was
 -- rejected (RLS WITH CHECK violation / insufficient privilege / raised error).
+SET client_min_messages = warning;
 DROP SCHEMA IF EXISTS rls_test CASCADE;
+RESET client_min_messages;
 CREATE SCHEMA rls_test;
 CREATE TABLE rls_test.results (label text, actual int, expected int);
 

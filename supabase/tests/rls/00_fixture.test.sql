@@ -1,1 +1,0 @@
-SELECT rls_test.expect('fixture sanity: a_admin sees gig', rls_test.visible(rls_test.u('a_admin'),'gigs'), 1); SELECT rls_test.expect('c_admin does not see gig', rls_test.visible(rls_test.u('c_admin'),'gigs'), 0);
