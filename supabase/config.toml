@@ -337,6 +337,12 @@ deno_version = 2
 [edge_runtime.secrets]
 GOOGLE_PLACES_API_KEY = "env(GOOGLE_PLACES_API_KEY)"
 
+# The daily health-check cron sends its own bearer token, not a Supabase JWT,
+# so the gateway must let it through; the function checks the token itself.
+# Every other function keeps the default (verify_jwt = true).
+[functions.health-check]
+verify_jwt = false
+
 [analytics]
 enabled = true
 port = 54327

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { isAlertable, recipientsToNotify, isSentryConfigured } from './healthCheck';
+import { isAlertable, recipientsToNotify, isSentryConfigured, isAuthorizedCronRequest } from './healthCheck';
 
 describe('isAlertable', () => {
   it('alerts only on a real failure', () => {
@@ -33,5 +33,23 @@ describe('isSentryConfigured', () => {
     expect(isSentryConfigured('token', undefined, 'project')).toBe(false);
     expect(isSentryConfigured('token', 'org', '')).toBe(false);
     expect(isSentryConfigured(undefined, undefined, undefined)).toBe(false);
+  });
+});
+
+describe('isAuthorizedCronRequest', () => {
+  const secret = 'a'.repeat(64);
+  it('accepts the exact bearer token', () => {
+    expect(isAuthorizedCronRequest(`Bearer ${secret}`, secret)).toBe(true);
+  });
+  it('rejects a wrong, missing or non-Bearer token', () => {
+    expect(isAuthorizedCronRequest(`Bearer ${'b'.repeat(64)}`, secret)).toBe(false);
+    expect(isAuthorizedCronRequest(`Bearer ${secret}x`, secret)).toBe(false);
+    expect(isAuthorizedCronRequest(null, secret)).toBe(false);
+    expect(isAuthorizedCronRequest(secret, secret)).toBe(false);
+  });
+  it('rejects everything while HEALTH_CHECK_CRON_SECRET is unset', () => {
+    expect(isAuthorizedCronRequest('Bearer ', undefined)).toBe(false);
+    expect(isAuthorizedCronRequest('Bearer ', '')).toBe(false);
+    expect(isAuthorizedCronRequest('Bearer undefined', undefined)).toBe(false);
   });
 });

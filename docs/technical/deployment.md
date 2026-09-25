@@ -228,7 +228,7 @@ Provides Postgres, Auth, Storage, and Edge Functions. Two projects, no staging:
 - Site URL: `https://gigwrangler.com`
 - Redirect URLs include: `https://gigwrangler.com/**`
 
-**Edge functions** deployed to prod: `server` (the consolidated API — users, organizations, gigs, dashboard, Google integrations, WebAuthn, email) and `ai-scan` (receipt/invoice extraction). `_shared/` holds CORS and Sentry helpers and is not itself a function.
+**Edge functions** deployed to prod: `server` (the consolidated API — users, organizations, gigs, dashboard, Google integrations, WebAuthn, email), `ai-scan` (receipt/invoice extraction), and `health-check` (the daily API health check, called only by `pg_cron`; see [below](#daily-health-check--one-time-setup-issue-52)). `_shared/` holds CORS and Sentry helpers and is not itself a function.
 
 **Backups** are two-layered:
 - Supabase-managed: automated daily backups, and optionally PITR, configured in dashboard → Database → Backups
@@ -373,37 +373,77 @@ Set with `supabase secrets set NAME=VALUE` against the **verified** target proje
 | `RP_NAME` | Optional | `server` → webauthn | Defaults to `GigWrangler` (correct) |
 | `SENTRY_DSN` | Optional | `_shared/sentry.ts` | Sentry no-ops in functions |
 | `SENTRY_ENVIRONMENT` | Optional | `_shared/sentry.ts` | Defaults to `development` — set to `production` |
-| `HEALTH_CHECK_CRON_SECRET` | For the daily health check | `server` → `routes/healthCheck.ts` | Cron's calls 401; no health checks run |
-| `SENTRY_API_TOKEN` | Optional | `server` → `routes/healthCheck.ts` | Health check reports the Sentry check as "not configured" |
-| `SENTRY_ORG_SLUG` | Optional (with `SENTRY_API_TOKEN`) | `server` → `routes/healthCheck.ts` | Same — Sentry check reports "not configured" |
-| `SENTRY_PROJECT_SLUG` | Optional (with `SENTRY_API_TOKEN`) | `server` → `routes/healthCheck.ts` | Same — Sentry check reports "not configured" |
+| `HEALTH_CHECK_CRON_SECRET` | For the daily health check | `health-check` | Cron's calls 401; no health checks run |
+| `SENTRY_API_TOKEN` | Optional | `health-check` | Health check reports the Sentry check as "not configured" |
+| `SENTRY_ORG_SLUG` | Optional (with `SENTRY_API_TOKEN`) | `health-check` | Same — Sentry check reports "not configured" |
+| `SENTRY_PROJECT_SLUG` | Optional (with `SENTRY_API_TOKEN`) | `health-check` | Same — Sentry check reports "not configured" |
 
 `SUPABASE_URL`, `SUPABASE_ANON_KEY`, and `SUPABASE_SERVICE_ROLE_KEY` are **injected automatically by the Supabase platform**. Do not set them by hand.
 
-#### Daily health check — one-time Vault + secrets setup (issue #52 phase 2)
+#### Daily health check — one-time setup (issue #52)
 
-The `daily-health-check` cron job (added by migration `20260919000000_health_check_schedule.sql`) reads its target URL and bearer token from Supabase Vault, not from the migration itself — each project (dev and prod) needs its own values, run once via the SQL editor against the **verified** target project:
+The `daily-health-check` cron job (migration `20260919000000_health_check_schedule.sql`) runs at 13:00 UTC and
+POSTs to the `health-check` edge function. It reads the function's URL and a bearer token from Supabase Vault at
+call time, so nothing secret is in git and dev and prod each have their own values.
 
-```sql
-select vault.create_secret(
-  '<a random 32+ byte token, e.g. `openssl rand -hex 32`>',
-  'health_check_cron_secret',
-  'Bearer token the daily health-check cron sends to the edge function'
-);
-select vault.create_secret(
-  'https://<project-ref>.supabase.co/functions/v1/server/internal/health-check',
-  'health_check_function_url',
-  'URL the daily health-check cron calls'
-);
-```
+`health-check` is the one function deployed with `verify_jwt = false` (`[functions.health-check]` in
+`supabase/config.toml`). The cron's token is not a Supabase JWT, and with the default the gateway rejects it with
+`401 UNAUTHORIZED_INVALID_JWT_FORMAT` before the function runs. The function checks the token itself against
+`HEALTH_CHECK_CRON_SECRET`, and refuses every request while that secret is unset.
 
-Then set the matching edge-function secret to the **same** token used above:
+Do this once per project, dev first. The token never goes into git, an issue, or a PR; it is pasted into exactly
+two places: the Vault (step 2) and the edge-function secrets (step 3).
 
-```bash
-supabase secrets set HEALTH_CHECK_CRON_SECRET=<the same random token>
-```
+1. **Generate a token** in your terminal and keep it in a shell variable for the steps below:
 
-The Sentry round-trip check additionally needs `SENTRY_API_TOKEN` (a Sentry auth token with API read access), `SENTRY_ORG_SLUG`, and `SENTRY_PROJECT_SLUG` — until those are set, the health check reports the Sentry check as "not configured" rather than failing.
+   ```bash
+   export T=$(openssl rand -hex 32)
+   echo $T    # copy this for step 2
+   ```
+
+2. **Store it and the URL in Vault.** Open the project's SQL Editor
+   (dev: `https://supabase.com/dashboard/project/qcrzwsazasaojqoqxwnr/sql`) and run, pasting the token:
+
+   ```sql
+   select vault.create_secret('<PASTE TOKEN>', 'health_check_cron_secret', 'Bearer token the daily health-check cron sends to the edge function');
+   select vault.create_secret('https://<project-ref>.supabase.co/functions/v1/health-check', 'health_check_function_url', 'URL the daily health-check cron calls');
+   ```
+
+   If a secret with that name already exists (for example, from an earlier attempt at the old
+   `/server/internal/health-check` URL), update it instead:
+   `select vault.update_secret((select id from vault.secrets where name = 'health_check_function_url'), 'https://<project-ref>.supabase.co/functions/v1/health-check');`
+
+3. **Set the same token on the edge functions and deploy** (from the repo root):
+
+   ```bash
+   cat supabase/.temp/project-ref            # must print the intended project ref
+   supabase secrets set HEALTH_CHECK_CRON_SECRET="$T"
+   ./deploy_dev.sh                           # dev; prod goes through ./deploy_prod.sh
+   ```
+
+   The deploy applies the cron migration (if it is not already applied) and deploys `health-check`.
+
+4. **Verify.** Call it by hand; expect HTTP 200 and a JSON `results` array with `supabase` and `google_places`
+   `ok`, and `sentry` `not_configured`:
+
+   ```bash
+   curl -sS -X POST -H "Authorization: Bearer $T" https://<project-ref>.supabase.co/functions/v1/health-check
+   ```
+
+   A `401 {"error":"Unauthorized"}` means the token doesn't match `HEALTH_CHECK_CRON_SECRET`. A
+   `401 ... Invalid JWT` means the function was deployed without the `config.toml` setting. After the next
+   13:00 UTC run, confirm the cron fired and the call succeeded:
+
+   ```sql
+   select status, return_message, start_time from cron.job_run_details order by start_time desc limit 5;
+   select status_code, content from net._http_response order by created desc limit 5;
+   ```
+
+5. `unset T` when done.
+
+The Sentry round-trip check additionally needs `SENTRY_API_TOKEN` (a Sentry auth token with API read access),
+`SENTRY_ORG_SLUG`, and `SENTRY_PROJECT_SLUG`, set the same way with `supabase secrets set`. Until then it reports
+"not configured", which is a valid steady state and does not raise an alert.
 
 Audit both projects with:
 
