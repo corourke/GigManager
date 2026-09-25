@@ -53,16 +53,8 @@ part is a UX change. No migration, no RLS change and no API-shape change. Not st
 
 ### Security
 
-**[#61](https://github.com/corourke/GigManager/issues/61) — Cross-org RLS leaks.**
-The `gig_financials` piece is **fixed and merged** (PR #63, 09-14). The remaining four leaks —
-`gig_staff_slots`/`gig_staff_assignments` (staffing), kit assignments, `inventory_tracking`, and `activity_log` —
-are deferred pending the tenant-isolation-architecture decision (see
-[docs/technical/tenant-isolation-architecture.md](./docs/technical/tenant-isolation-architecture.md)).
-A comment posted 09-20 proposing to pull the staffing leak forward next is still unanswered.
-
-When a leak is approved for work, follow the `gig_financials` pattern from PR #63: new migration + a
-before/after access table in the PR body + PR. **No merge without review** — this is live production
-access-control data.
+*(#61 closed 09-25: every leak fixed in PR #76; the migration is awaiting apply, §3a item 3. Any new org-private
+table or policy change needs a test in `supabase/tests/rls/`; CI runs it as the `rls` job.)*
 
 ### Diagnostics / ops
 
@@ -164,17 +156,14 @@ Read this section first on each run.
 
 | Claimed by | Files | Notes |
 |---|---|---|
-| #61 remaining leaks | `supabase/migrations/` for staffing, kits, `inventory_tracking`, `activity_log` RLS | Not started — contract, coordinator only |
 | #20 remaining services | `src/services/*.service.ts` (all but `user.service.ts`) | Parked until Cameron asks for the next one |
 
 **Dependencies.** #12 and #39 both reshape navigation/gig-edit UI — do them in sequence, not in parallel, once
-each has a direction. #52's health check is live on dev and prod (09-25); its Sentry check additionally needs the Sentry secrets (§3a item 4). The four #61 leaks depend on the
-tenant-isolation-architecture decision.
+each has a direction. #52's health check is live on dev and prod (09-25); its Sentry check additionally needs the Sentry secrets (§3a item 4). The tenant model is decided (hosted, shared DB, 09-25).
 
-**Where things stand.** New bug #71 (adding an *Invoice Issued* financial record fails with a repeating enum error) was filed 09-25; that
-run diagnosed it and raised it in §3b. Bug #69 (participant add logged several times in History) was filed 09-23. The 09-24
-run diagnosed it and raised it in §3b; it is buildable as soon as the coordinator lists it in §3c. Both PRs from the 09-19 batch are now merged: PR #66 on 09-22, PR #65 on 09-23 (both
-caught via the PR-activity subscription, outside the morning run). #39, #12 and #61 are still quiet, with no new replies since 09-20.
+**Where things stand.** 09-25: #52 closed (health check live on dev + prod after PR #73). #61 fixed in PR #76,
+migration awaiting apply. #69 and #71 approved into §3c for the next triage run. Still waiting on Cameron:
+#39 and #12 design picks.
 
 On 09-23 every item was blocked or parked, so the run moved on to docs. Docs-only PR
 [#67](https://github.com/corourke/GigManager/pull/67) refreshed `docs/development/testing.md`: suite size,
