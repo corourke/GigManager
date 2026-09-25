@@ -11,8 +11,8 @@ Cameron questions.
 Migrated from GitHub issue [#41](https://github.com/corourke/GigManager/issues/41) on 2026-09-22. This file now
 supersedes that issue as the board of record.
 
-- **Last updated:** 2026-09-24 (triage: new bug #69 diagnosed, raised in §3b; docs PR #70 opened)
-- **State verified:** 2026-09-24 (7 open issues, 1 open PR — docs-only #70)
+- **Last updated:** 2026-09-25 (triage: new bug #71 diagnosed, raised in §3b; docs PR #72 opened)
+- **State verified:** 2026-09-25 (8 open issues, 2 open PRs — docs-only #70 and #72)
 
 ---
 
@@ -20,6 +20,7 @@ supersedes that issue as the board of record.
 
 | # | Item | Type | State | Waiting on |
 |---|---|---|---|---|
+| [#71](https://github.com/corourke/GigManager/issues/71) | Adding an *Invoice Issued* financial record fails with a repeating `fin_category` enum error | Bug | Diagnosed 09-25 (frontend/service only) | Coordinator — not yet in §3c (see §3b) |
 | [#69](https://github.com/corourke/GigManager/issues/69) | Adding a gig participant logs added/removed several times in History | Bug | Diagnosed 09-24 (frontend only) | Coordinator — not yet in §3c (see §3b) |
 | [#61](https://github.com/corourke/GigManager/issues/61) | Cross-org RLS leaks (5 tables) | Bug / security | Partially fixed; 4 leaks deferred | Cameron — scope decision |
 | [#52](https://github.com/corourke/GigManager/issues/52) | Health / diagnostic check on APIs | Feature | Phases 1 and 2 both merged | Sentry secrets (not blocking) |
@@ -41,6 +42,16 @@ sends `id: undefined`, so `updateGigParticipants` deletes the row and inserts it
 `participant.removed` and then `participant.added`. It also silently unlinks `gig_schedule_entries.act_participant_id`
 (`ON DELETE SET NULL`). The fix is frontend only: return the inserted ids and write them back into the form.
 No migration, no RLS change and no API-shape change. Not started, because it isn't in §3c.
+
+**[#71](https://github.com/corourke/GigManager/issues/71) — When adding an invoice financial record error.**
+Filed 09-25 by Cameron. Diagnosis posted on the issue 09-25. `handleSaveModal` in `GigFinancialsSection` appends a
+new row with `category: modalData.category ?? ''`. Non-expense types never set a category, so the save sends `''`,
+and `updateGigFinancials` (which strips empty UUID and date fields but not `category`) makes Postgres reject it:
+`invalid input value for enum fin_category: ""`. The failed save leaves the form dirty, so the `watch()` effect
+retries it on every re-render, which is why the toast repeats. The dialog closes before the save runs, so the row
+is never written and a reload loses it. The fix is frontend/service only: send `null`, normalize `''` in the
+service, stop retrying an identical failed payload, and keep the dialog open until the save succeeds. That last
+part is a UX change. No migration, no RLS change and no API-shape change. Not started, because it isn't in §3c.
 
 ### Security
 
@@ -122,6 +133,20 @@ meantime. The coordinator resolves each entry (decides it, or moves it into §3a
   that act (`act_participant_id` is `ON DELETE SET NULL`). The fix is frontend/service only, with no contract
   change: `updateGigParticipants` returns the inserted ids, and `GigParticipantsSection` writes them back after the
   save, with a failing test first. In the meantime: diagnosis posted on #69; no code written; no files claimed.
+- **2026-09-25 — Should #71 (adding an *Invoice Issued* financial record fails with a repeating enum error) go into §3c?**
+  It blocks recording every non-expense financial type from the gig financials modal, and the row is silently
+  lost. Diagnosis is in §2 and on the issue. Items 1–3 of the proposed fix carry no contract change: a failing
+  test first, then send `category: null`, normalize `''` in `updateGigFinancials`, and don't retry an identical
+  failed payload. Item 4 (keep the modal open until the save succeeds) changes UX, so it may want its own decision.
+  In the meantime: diagnosis posted; no code written; no files claimed (`GigFinancialsSection.tsx`,
+  `gigFinancial.service.ts` are free).
+- **2026-09-25 — RLS gap found during the docs pass (PR #72): the staff self-update policy on `gig_staff_assignments` doesn't restrict anything.**
+  The WITH CHECK on "Staff can update their own assignments" (`20260319213000_gig_financials_workflow.sql`)
+  compares each column to itself (`completed_at IS NOT DISTINCT FROM completed_at`, and likewise for
+  `units_completed` and `gig_financial_id`), so it is always true. Staff can therefore set their own completion,
+  units and ledger link. Fixing it needs a new migration (a trigger, or column-level privileges), which makes it a
+  contract. It fits naturally alongside #61's staffing leak. In the meantime: documented in `database.md` only;
+  nothing changed.
 
 ### 3c. Ready to build, nothing blocking
 
@@ -169,7 +194,8 @@ each has a direction. #52's Sentry check depends on the Sentry secrets (§3a ite
 Supabase/Google Places checks and the daily schedule are live regardless. The four #61 leaks depend on the
 tenant-isolation-architecture decision.
 
-**Where things stand.** New bug #69 (participant add logged several times in History) was filed 09-23. The 09-24
+**Where things stand.** New bug #71 (adding an *Invoice Issued* financial record fails with a repeating enum error) was filed 09-25; that
+run diagnosed it and raised it in §3b. Bug #69 (participant add logged several times in History) was filed 09-23. The 09-24
 run diagnosed it and raised it in §3b; it is buildable as soon as the coordinator lists it in §3c. Both PRs from the 09-19 batch are now merged: PR #66 on 09-22, PR #65 on 09-23 (both
 caught via the PR-activity subscription, outside the morning run). #39, #12 and #61 are still quiet, with no new replies since 09-20.
 
@@ -186,8 +212,9 @@ instead of 18, a supported Supabase CLI install, the full migration set instead 
 (09-23; build and dev server tried; `supabase start` not tried because the sandbox has no Docker daemon),
 `docs/README.md` (09-24, PR #70: all links resolve; indexed `gig-financials.md`, `purchases-field-mapping.md` and
 `server-endpoint-inventory.md`, the last marked historical). `database.md`'s "single initialization file" line turned
-out to be a dated 02-09 changelog entry, not stale. Next candidates: the body of `docs/technical/database.md`
-(last updated 08-31; compare its tables with migrations since then) and `docs/technical/server-endpoint-inventory.md`
+out to be a dated 02-09 changelog entry, not stale. `docs/technical/database.md` body (09-25, PR #72: reconciled with every
+migration through `20260919000000` — dropped status-history tables, `kit_components` rename, six new tables, new columns).
+Next candidate: `docs/technical/server-endpoint-inventory.md`
 (still cites the pre-refactor 3,322-line `index.ts`; retire it or re-point it at `routes/`).
 
 **Future considerations (not open work).** Supabase CLI 2.117 warns that `[inbucket]` in
@@ -196,8 +223,8 @@ broken yet.
 
 **Order of checks each run.**
 
-1. Check CI and mergeability on open PRs (docs-only [#70](https://github.com/corourke/GigManager/pull/70), "docs(README): index three unlisted technical docs", opened 09-24).
-2. #69 — if it is now in §3c, post the plan, write the failing test (repeated autosave must not delete and reinsert the row), then fix.
+1. Check CI and mergeability on open PRs: docs-only [#70](https://github.com/corourke/GigManager/pull/70), "docs(README): index three unlisted technical docs" (09-24), and docs-only [#72](https://github.com/corourke/GigManager/pull/72), "docs(database): reconcile database.md with migrations since March" (09-25).
+2. #69 and #71 — if either is now in §3c, post the plan, write the failing test first (#69: repeated autosave must not delete and reinsert the row; #71: adding an *Invoice Issued* record must send `category: null`), then fix.
 3. #39 — check for a reply. If a variant is picked → work plan → post → wait for approval → implement.
 4. #12 — same pattern.
 5. #61 — check for a reply on the staffing-leak question. If yes, follow the PR #63 pattern (migration +
