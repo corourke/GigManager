@@ -107,13 +107,11 @@ Low priority, explicitly acceptable for beta. Open, no action planned.
 *Curated by the coordinator session only.* Nothing below can move without a reply. Listed roughly in the
 order that unblocks the most work; the coordinator puts these to Cameron one at a time.
 
-1. **#52 phase 2 deploy is broken as designed — fix awaiting approval (09-24).** The `server` function runs with
-   the platform default `verify_jwt = true`, so Supabase's gateway rejects the cron's random bearer token before
-   the route runs (verified 09-24: POST to dev `/server/internal/health-check` → `401 UNAUTHORIZED_INVALID_JWT_FORMAT`).
-   Proposed fix: move the handler into its own `health-check` edge function with `verify_jwt = false` in
-   `supabase/config.toml` (the route already checks its own bearer token), which leaves `server`'s auth untouched and
-   needs no new migration, since the cron reads its URL from Vault. **Don't run the Vault/secret setup until this lands.**
-   After it's fixed and deployed on dev, close #52; the Sentry secrets (item 6) are a valid steady state.
+1. **#52 health check: fix in PR [#73](https://github.com/corourke/GigManager/pull/73), then one-time setup.** The
+   cron's bearer token was rejected by the gateway's JWT check (`server` has `verify_jwt` on). Approved fix (09-25):
+   separate `health-check` function with `verify_jwt = false`. After merge, Cameron runs the one-time dev setup in
+   `docs/technical/deployment.md` ("Daily health check — one-time setup") and confirms; then close #52. The Sentry
+   secrets (item 6) are a valid steady state, not a reason to keep #52 open.
 2. **[#39](https://github.com/corourke/GigManager/issues/39)** — pick a mockup variant (or a hybrid) from the 09-19 canvas so a work plan can be written.
 3. **[#12](https://github.com/corourke/GigManager/issues/12)** — pick top-tabs vs. left-side-tabs from the 09-19 canvas, **and** say whether the cross-section coordination question (e.g. staffing needing gig dates) should be folded into the same design pass.
 4. **[#61](https://github.com/corourke/GigManager/issues/61)** — say whether to pull the `gig_staff_slots`/`gig_staff_assignments` leak forward next, or leave all four remaining leaks deferred until the tenant-isolation decision.
@@ -187,11 +185,12 @@ Read this section first on each run.
 | Claimed by | Files | Notes |
 |---|---|---|
 | #61 remaining leaks | `supabase/migrations/` for staffing, kits, `inventory_tracking`, `activity_log` RLS | Not started — contract, coordinator only |
+| PR [#73](https://github.com/corourke/GigManager/pull/73) — #52 health-check fix (coordinator) | `supabase/functions/health-check/`, `supabase/functions/server/index.ts`, `supabase/functions/server/lib/pure/healthCheck*`, `supabase/config.toml`, `docs/technical/deployment.md` (health-check section) | Open, awaiting Cameron |
 | #20 remaining services | `src/services/*.service.ts` (all but `user.service.ts`) | Parked until Cameron asks for the next one |
 
 **Dependencies.** #12 and #39 both reshape navigation/gig-edit UI — do them in sequence, not in parallel, once
-each has a direction. #52's Sentry check depends on the Sentry secrets (§3a item 5) only for a live result —
-Supabase/Google Places checks and the daily schedule are live regardless. The four #61 leaks depend on the
+each has a direction. #52's health check isn't live anywhere until PR #73 merges and the one-time setup
+is done (§3a item 1); the Sentry check additionally needs the Sentry secrets (§3a item 6). The four #61 leaks depend on the
 tenant-isolation-architecture decision.
 
 **Where things stand.** New bug #71 (adding an *Invoice Issued* financial record fails with a repeating enum error) was filed 09-25; that
