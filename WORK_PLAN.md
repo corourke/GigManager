@@ -11,7 +11,7 @@ Cameron questions.
 Migrated from GitHub issue [#41](https://github.com/corourke/GigManager/issues/41) on 2026-09-22. This file now
 supersedes that issue as the board of record.
 
-- **Last updated:** 2026-09-25 (triage: new bug #71 diagnosed, raised in §3b; docs PR #72 opened)
+- **Last updated:** 2026-09-25 (coordinator: PR #73 merged; #52 waits on dev setup)
 - **State verified:** 2026-09-25 (8 open issues; docs-only PRs #70 and #72 both merged 09-25 — check live for any others)
 
 ---
@@ -107,11 +107,11 @@ Low priority, explicitly acceptable for beta. Open, no action planned.
 *Curated by the coordinator session only.* Nothing below can move without a reply. Listed roughly in the
 order that unblocks the most work; the coordinator puts these to Cameron one at a time.
 
-1. **#52 health check: fix in PR [#73](https://github.com/corourke/GigManager/pull/73), then one-time setup.** The
-   cron's bearer token was rejected by the gateway's JWT check (`server` has `verify_jwt` on). Approved fix (09-25):
-   separate `health-check` function with `verify_jwt = false`. After merge, Cameron runs the one-time dev setup in
-   `docs/technical/deployment.md` ("Daily health check — one-time setup") and confirms; then close #52. The Sentry
-   secrets (item 6) are a valid steady state, not a reason to keep #52 open.
+1. **#52 health check — waiting on Cameron's one-time dev setup.** The fix merged in PR
+   [#73](https://github.com/corourke/GigManager/pull/73) on 09-25: `health-check` is now its own edge function with
+   `verify_jwt = false`. Cameron runs "Daily health check — one-time setup" in `docs/technical/deployment.md` on dev
+   (token → 2 Vault secrets → `supabase secrets set` → `./deploy_dev.sh` → `curl` check) and says "dev done"; then
+   close #52. The Sentry secrets (item 6) are a valid steady state, not a reason to keep #52 open.
 2. **[#39](https://github.com/corourke/GigManager/issues/39)** — pick a mockup variant (or a hybrid) from the 09-19 canvas so a work plan can be written.
 3. **[#12](https://github.com/corourke/GigManager/issues/12)** — pick top-tabs vs. left-side-tabs from the 09-19 canvas, **and** say whether the cross-section coordination question (e.g. staffing needing gig dates) should be folded into the same design pass.
 4. **[#61](https://github.com/corourke/GigManager/issues/61)** — say whether to pull the `gig_staff_slots`/`gig_staff_assignments` leak forward next, or leave all four remaining leaks deferred until the tenant-isolation decision.
@@ -171,6 +171,7 @@ applies migrations), edge-function API shape, anything touching production confi
 | #52 phase 1 — generic `notifications` table | PR #64 (09-16) | Merged |
 | #20 — shared data-access base module + `user.service.ts` pilot | PR #66 (09-22) | Merged; ~15 services remain, one at a time |
 | #52 phase 2 — Supabase/Google Places/Sentry health checks + daily cron | PR #65 (09-23) | Merged; Sentry check reports "not configured" until secrets land |
+| #52 fix — health check moved to its own `health-check` function (`verify_jwt = false`) | PR #73 (09-25) | Merged; needs one-time Vault/secret setup per project before it runs |
 | Docs refresh: `testing.md` (PR #67), `setup-guide.md` + one line of `deployment.md` (PR #68) | PR #67, PR #68 (09-23) | Merged; docs only, from triage docs passes |
 | Docs refresh: `docs/README.md` index (PR #70), `database.md` reconciled with migrations (PR #72) | PR #70, PR #72 (09-25) | Merged; docs only, from triage docs passes |
 
@@ -186,12 +187,11 @@ Read this section first on each run.
 | Claimed by | Files | Notes |
 |---|---|---|
 | #61 remaining leaks | `supabase/migrations/` for staffing, kits, `inventory_tracking`, `activity_log` RLS | Not started — contract, coordinator only |
-| PR [#73](https://github.com/corourke/GigManager/pull/73) — #52 health-check fix (coordinator) | `supabase/functions/health-check/`, `supabase/functions/server/index.ts`, `supabase/functions/server/lib/pure/healthCheck*`, `supabase/config.toml`, `docs/technical/deployment.md` (health-check section) | Open, awaiting Cameron |
 | #20 remaining services | `src/services/*.service.ts` (all but `user.service.ts`) | Parked until Cameron asks for the next one |
 
 **Dependencies.** #12 and #39 both reshape navigation/gig-edit UI — do them in sequence, not in parallel, once
-each has a direction. #52's health check isn't live anywhere until PR #73 merges and the one-time setup
-is done (§3a item 1); the Sentry check additionally needs the Sentry secrets (§3a item 6). The four #61 leaks depend on the
+each has a direction. #52's health check isn't live anywhere until the one-time setup
+is done (PR #73 merged 09-25) (§3a item 1); the Sentry check additionally needs the Sentry secrets (§3a item 6). The four #61 leaks depend on the
 tenant-isolation-architecture decision.
 
 **Where things stand.** New bug #71 (adding an *Invoice Issued* financial record fails with a repeating enum error) was filed 09-25; that
