@@ -358,7 +358,8 @@ export function registerGigs(app: App) {
         const { data: venueParticipant } = await supabaseAdmin
           .from('gig_participants').select('organization:organizations(name)').eq('gig_id', gigId).eq('role', 'Venue').maybeSingle();
         const { data: slots } = await supabaseAdmin
-          .from('gig_staff_slots').select(`id, required_count, gig_staff_assignments(id, status)`).eq('gig_id', gigId);
+          .from('gig_staff_slots').select(`id, required_count, gig_staff_assignments(id, status)`).eq('gig_id', gigId)
+          .eq('organization_id', orgId); // this org's staffing only (#61)
 
         let unfilledSlots = 0, unconfirmedAssignments = 0, rejectedAssignments = 0, confirmedAssignments = 0;
         (slots || []).forEach((slot: any) => {

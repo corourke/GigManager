@@ -654,7 +654,14 @@ export async function duplicateGig(gigId: string, newTitle?: string) {
       notes: gp.notes,
     }));
 
-    const staffSlots = (originalGig.staff_slots || []).map((slot: any) => ({
+    const primaryOrgId = participants.find((p: any) => p.role === 'Venue')?.organization_id
+      || participants[0]?.organization_id;
+
+    // Staff slots and kit assignments belong to one org each; copy only the
+    // primary org's. The caller must manage the primary org to create the gig (#61).
+    const staffSlots = (originalGig.staff_slots || [])
+      .filter((slot: any) => slot.organization_id === primaryOrgId)
+      .map((slot: any) => ({
       staff_role_id: slot.staff_role_id,
       organization_id: slot.organization_id,
       required_count: slot.required_count,
@@ -667,9 +674,6 @@ export async function duplicateGig(gigId: string, newTitle?: string) {
         notes: sa.notes,
       })),
     }));
-
-    const primaryOrgId = participants.find((p: any) => p.role === 'Venue')?.organization_id
-      || participants[0]?.organization_id;
 
     const { data, error } = await supabase.rpc('create_gig_complex', {
       p_gig_data: {
@@ -710,8 +714,10 @@ export async function duplicateGig(gigId: string, newTitle?: string) {
       await supabase.from('gig_financials').insert(financials);
     }
 
-    if (originalGig.kit_assignments && originalGig.kit_assignments.length > 0) {
-      const kitAssignments = originalGig.kit_assignments.map((gka: any) => ({
+    const ownKitAssignments = (originalGig.kit_assignments || [])
+      .filter((gka: any) => gka.organization_id === primaryOrgId);
+    if (ownKitAssignments.length > 0) {
+      const kitAssignments = ownKitAssignments.map((gka: any) => ({
         gig_id: newGigId,
         kit_id: gka.kit_id,
         organization_id: gka.organization_id,

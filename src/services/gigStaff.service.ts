@@ -58,8 +58,18 @@ export async function updateGigStaffSlots(
     const hasAdminOrManager = userMemberships.some(m => m.role === 'Admin' || m.role === 'Manager');
     if (!hasAdminOrManager) throw new Error('Access denied - only Admins and Managers can update staff slots');
 
-    const { data: existingSlots } = await supabase.from('gig_staff_slots').select('id').eq('gig_id', gigId);
-    const existingSlotIds = existingSlots?.map(s => s.id) || [];
+    // Only the caller's own orgs' slots are theirs to reconcile. RLS also shows
+    // a slot in another org the caller is booked into; leave that alone (#61).
+    const managedOrgIds = userMemberships
+      .filter(m => m.role === 'Admin' || m.role === 'Manager')
+      .map(m => m.organization_id);
+    const { data: existingSlots } = await supabase
+      .from('gig_staff_slots')
+      .select('id, organization_id')
+      .eq('gig_id', gigId);
+    const existingSlotIds = (existingSlots || [])
+      .filter(s => s.organization_id !== null && managedOrgIds.includes(s.organization_id))
+      .map(s => s.id);
     const incomingSlotIds = staff_slots.filter(s => s.id).map(s => s.id!);
 
     const slotIdsToDelete = existingSlotIds.filter(id => !incomingSlotIds.includes(id));

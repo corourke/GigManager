@@ -74,3 +74,27 @@ describe('updateGigStaffSlots (issue #55 — logs adds even without an explicit 
     expect(logActivity).not.toHaveBeenCalled();
   });
 });
+
+describe('updateGigStaffSlots (#61 — only touches slots owned by orgs the caller manages)', () => {
+  it("never deletes another participating org's slots when saving your own", async () => {
+    const slotChains: any[] = [];
+    const mockSupabase: any = {
+      from: vi.fn((table: string) => {
+        if (table === 'gig_participants') return makeChain({ data: [{ organization_id: 'org-a' }, { organization_id: 'org-b' }] });
+        if (table === 'organization_members') return makeChain({ data: [{ organization_id: 'org-a', role: 'Manager' }] });
+        if (table === 'gig_staff_slots') {
+          // An RLS-visible slot the caller doesn't manage (e.g. they're booked into org B's slot).
+          const c = makeChain({ data: [{ id: 'slot-b', organization_id: 'org-b' }] });
+          slotChains.push(c);
+          return c;
+        }
+        return makeChain({ data: [] });
+      }),
+    };
+    (requireAuth as any).mockResolvedValue({ supabase: mockSupabase, user: { id: 'user-1', user_metadata: {} } });
+
+    await updateGigStaffSlots('gig-1', [], { organization_id: 'org-a', actor_display_name: 'x', actor_org_name: 'A', gig_title: 'g' });
+
+    expect(slotChains.some((c) => c.delete.mock.calls.length > 0)).toBe(false);
+  });
+});

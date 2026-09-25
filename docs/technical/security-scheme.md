@@ -30,7 +30,27 @@ A user `U` can access Gig `G` if:
 - **`gig_financials` table**: Only accessible to **Admin** and **Manager** roles of the owning organization.
 - **`purchases` table** (org-level Financials): reads and writes are **Admin/Manager only** — Staff/Viewer cannot see Financials (migration `20260613000000` removed the prior member-level read).
 - **`gig_participants`**: Members can see the participant list.
-- **`gig_staff_assignments`**: **Staff** can update assignments where `user_id = auth.uid()`.
+
+### Shared vs. org-private gig data
+Several orgs can participate in one gig. **Shared by design:** the gig itself, `gig_participants` and
+`gig_schedule_entries`, which every participating org can see. **Org-private:** everything an org attaches to a
+gig is private to that org, even though other orgs are on the same gig. That covers financials, staffing, kit
+assignments and scans. Each org-private row has a `NOT NULL organization_id`: members of that org can read it,
+and Admins/Managers of that org can write it. No policy grants access through gig participation alone.
+Migration `20260925000000_org_private_gig_data.sql` (#61) applied this to the tables below, and
+`supabase/tests/rls/` tests it.
+
+| Table | Read | Write |
+|---|---|---|
+| `gig_financials` | Admin/Manager of owning org | Admin/Manager of owning org |
+| `gig_staff_slots` | members of owning org; anyone booked into the slot | Admin/Manager of owning org, which must be on the gig |
+| `gig_staff_assignments` | members of the slot's org; the assignee (own row only) | Admin/Manager of the slot's org. The **assignee** may change only `status`/`confirmed_at` (confirm or decline), enforced by trigger `restrict_assignee_self_update` |
+| `gig_kit_assignments` | members of owning org | Admin/Manager of owning org, which must be on the gig |
+| `inventory_tracking` | members of owning org | members of owning org (crew scan on mobile), which must be on the gig |
+| `activity_log` (gig entries) | gig/participant/schedule events: every participant. Staffing and kit events: members of the entry's org. Financial events: Admin/Manager of the entry's org | only via `log_activity`, which attributes an entry only to an org the actor belongs to |
+
+A person can be booked into another participating org's staff slot. They see that slot and their own assignment,
+but not the slot org's other assignments, rates or fees.
 
 ## 4. Broader Access Requirements
 - **Organization Discovery**: Any authenticated user can read the `organizations` table to find partners/venues.
