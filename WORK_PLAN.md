@@ -11,7 +11,7 @@ Cameron questions.
 Migrated from GitHub issue [#41](https://github.com/corourke/GigManager/issues/41) on 2026-09-22. This file now
 supersedes that issue as the board of record.
 
-- **Last updated:** 2026-09-25 (coordinator: #69 and #71 approved into §3c)
+- **Last updated:** 2026-09-25 (coordinator: #61 fixed and merged in PR #76; migration awaiting apply)
 - **State verified:** 2026-09-25 (8 open issues; docs-only PRs #70 and #72 both merged 09-25 — check live for any others)
 
 ---
@@ -22,7 +22,6 @@ supersedes that issue as the board of record.
 |---|---|---|---|---|
 | [#71](https://github.com/corourke/GigManager/issues/71) | Adding an *Invoice Issued* financial record fails with a repeating `fin_category` enum error | Bug | Diagnosed 09-25 (frontend/service only) | Triage — approved, in §3c |
 | [#69](https://github.com/corourke/GigManager/issues/69) | Adding a gig participant logs added/removed several times in History | Bug | Diagnosed 09-24 (frontend only) | Triage — approved, in §3c |
-| [#61](https://github.com/corourke/GigManager/issues/61) | Cross-org RLS leaks (5 tables) | Bug / security | Partially fixed; 4 leaks deferred | Cameron — scope decision |
 | [#39](https://github.com/corourke/GigManager/issues/39) | Too many menu levels | UI/UX design | Mockups posted 09-19 | Cameron — pick a variant |
 | [#12](https://github.com/corourke/GigManager/issues/12) | Reorganize Gig Edit into tabbed sections | UI/UX design | Mockups posted 09-19 | Cameron — pick a variant |
 | [#20](https://github.com/corourke/GigManager/issues/20) | Shared data-access layer under `src/services/` | Refactor | Pilot merged (PR #66); 15 services remain | Nothing — pick up next service when wanted |
@@ -105,7 +104,9 @@ order that unblocks the most work; the coordinator puts these to Cameron one at 
 
 1. **[#39](https://github.com/corourke/GigManager/issues/39)** — pick a mockup variant (or a hybrid) from the 09-19 canvas so a work plan can be written.
 2. **[#12](https://github.com/corourke/GigManager/issues/12)** — pick top-tabs vs. left-side-tabs from the 09-19 canvas, **and** say whether the cross-section coordination question (e.g. staffing needing gig dates) should be folded into the same design pass.
-3. **[#61](https://github.com/corourke/GigManager/issues/61)** — say whether to pull the staffing leak (`gig_staff_slots`/`gig_staff_assignments`) forward next, or leave all four remaining leaks deferred until the tenant-isolation decision. **Also covers** the always-true WITH CHECK on "Staff can update their own assignments" (`20260319213000_gig_financials_workflow.sql`; staff can set their own completion/units/ledger link), found 09-25 — same table, needs a migration, so it's a contract; best fixed together with the staffing leak.
+3. **Apply migration `20260925000000_org_private_gig_data.sql` (#61, PR [#76](https://github.com/corourke/GigManager/pull/76), merged 09-25).**
+   `./deploy_dev.sh --check` then `./deploy_dev.sh`; then `./deploy_prod.sh`. Until it's applied the leaks are
+   still live. Confirm here when done.
 4. **Sentry secrets** — `SENTRY_API_TOKEN`, `SENTRY_ORG_SLUG`, `SENTRY_PROJECT_SLUG` for the health check's Sentry round-trip. Optional; it reports "not configured" until set.
 
 ### 3b. Raised by triage, for the coordinator
@@ -147,6 +148,7 @@ applies migrations), edge-function API shape, anything touching production confi
 | #52 phase 1 — generic `notifications` table | PR #64 (09-16) | Merged |
 | #20 — shared data-access base module + `user.service.ts` pilot | PR #66 (09-22) | Merged; ~15 services remain, one at a time |
 | #52 phase 2 — Supabase/Google Places/Sentry health checks + daily cron | PR #65 (09-23) | Merged; Sentry check reports "not configured" until secrets land |
+| #61 — staffing, kit assignments, inventory scans and their History made org-private; shared-tenant decision recorded; RLS test suite + CI job | PR #76 (09-25) | Merged; migration awaiting apply (§3a item 3). #61 closed |
 | #52 fix — health check moved to its own `health-check` function (`verify_jwt = false`) | PR #73 (09-25) | Merged; setup done on dev + prod 09-25, verified by curl. #52 closed |
 | Docs refresh: `testing.md` (PR #67), `setup-guide.md` + one line of `deployment.md` (PR #68) | PR #67, PR #68 (09-23) | Merged; docs only, from triage docs passes |
 | Docs refresh: `docs/README.md` index (PR #70), `database.md` reconciled with migrations (PR #72) | PR #70, PR #72 (09-25) | Merged; docs only, from triage docs passes |
@@ -192,7 +194,15 @@ migration through `20260919000000` — dropped status-history tables, `kit_compo
 Next candidate: `docs/technical/server-endpoint-inventory.md`
 (still cites the pre-refactor 3,322-line `index.ts`; retire it or re-point it at `routes/`).
 
-**Future considerations (not open work).** Supabase CLI 2.117 warns that `[inbucket]` in
+**Future considerations (not open work).** Left over from #61 (closed 09-25): gig attachments are invisible
+to the other orgs on a gig (needs a sharing flag plus a storage-policy change), and prod has an extra
+`fin_category` value `'Production'` that no migration creates. Found while fixing #61: `duplicateGig` sends
+`staff_role_id` but `create_gig_complex` reads `role`, so duplicating a gig with staff slots probably fails;
+`gigParticipant`/`gigSchedule` services read a nonexistent `gigs.primary_organization_id`; Staff/Viewers can read
+their own org's staff `rate`/`fee`. Tenant model decided 09-25: hosted, shared DB. New private tables need a test
+in `supabase/tests/rls/` (CI job `rls`).
+
+ Supabase CLI 2.117 warns that `[inbucket]` in
 `supabase/config.toml` is deprecated in favour of `[local_smtp]`. This is local-only config, so nothing is
 broken yet.
 
