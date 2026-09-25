@@ -89,7 +89,7 @@ CREATE POLICY "Org Admins and Managers can manage their staff slots" ON gig_staf
 
 -- ─── gig_staff_assignments ──────────────────────────────────────────────────
 DROP POLICY IF EXISTS "Users can view assignments for accessible gigs" ON gig_staff_assignments;
-DROP POLICY IF EXISTS "Admins and Managers can manage all assignments for accessible g" -- name as stored (63-char limit) ON gig_staff_assignments;
+DROP POLICY IF EXISTS "Admins and Managers can manage all assignments for accessible g" ON gig_staff_assignments; -- stored name (63-char limit)
 DROP POLICY IF EXISTS "Staff can update their own assignments" ON gig_staff_assignments;
 
 CREATE POLICY "Slot org members and the assignee can view assignments" ON gig_staff_assignments
