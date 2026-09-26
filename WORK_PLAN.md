@@ -185,7 +185,7 @@ Read this section first on each run.
 **Dependencies.** #12 and #39 both reshape navigation/gig-edit UI — do them in sequence, not in parallel, once
 each has a direction. #52's health check is live on dev and prod (09-25); its Sentry check additionally needs the Sentry secrets (§3a item 4). The tenant model is decided (hosted, shared DB, 09-25).
 
-**Where things stand.** 09-26: #71 fixed in PR #77 (open, CI pending at push). #69 is still to build. Each run has one
+**Where things stand.** 09-26: #71 fixed in PR #77 (open; CI green, mergeable). #69 is still to build. Each run has one
 designated branch and #69 needs its own PR, so it goes to the next run. #74 was diagnosed and #75 is new, and both
 are raised in §3b. #61's migration is still awaiting apply (§3a). Still waiting on Cameron: #39 and #12 design picks.
 
