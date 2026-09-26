@@ -27,7 +27,7 @@ import type { Organization, OrganizationMembership } from '../utils/supabase/typ
 import Dashboard from '../components/Dashboard';
 import GigListScreen from '../components/GigListScreen';
 import GigScreen from '../components/GigScreen';
-import GigDetailScreen from '../components/GigDetailScreen';
+import GigPage from '../components/gig/GigPage';
 import TeamScreen from '../components/TeamScreen';
 import TeamMemberDetailScreen from '../components/TeamMemberDetailScreen';
 import AssetListScreen from '../components/AssetListScreen';
@@ -285,11 +285,10 @@ function GigListRoute({ view = 'list' }: { view?: 'list' | 'calendar' }) {
   );
 }
 
-function GigEditorRoute({ create }: { create: boolean }) {
+function GigCreateRoute() {
   const { user, organization, userRole } = useOrgScope();
   const { isMobile, openEditProfile } = useAppShell();
   const nav = useNav();
-  const { gigId } = useParams();
   if (!user || !organization) return <LoadingSpinner />;
   if (isMobile) return <Navigate to="/gigs" replace />;
   return (
@@ -297,7 +296,7 @@ function GigEditorRoute({ create }: { create: boolean }) {
       organization={organization}
       user={user}
       userRole={userRole}
-      gigId={create ? null : (gigId ?? null)}
+      gigId={null}
       onCancel={nav.toGigs}
       onGigCreated={(id) => nav.editGig(id)}
       onGigUpdated={nav.toGigs}
@@ -310,7 +309,8 @@ function GigEditorRoute({ create }: { create: boolean }) {
   );
 }
 
-function GigDetailRoute() {
+/** The one gig page (#12). `/gigs/:id/edit` opens it in edit mode. */
+function GigDetailRoute({ editing = false }: { editing?: boolean }) {
   const { user, organization, userRole } = useOrgScope();
   const { isMobile } = useAppShell();
   const nav = useNav();
@@ -318,6 +318,7 @@ function GigDetailRoute() {
   const [params] = useSearchParams();
   if (!user || !organization || !gigId) return <LoadingSpinner />;
   if (isMobile) {
+    if (editing) return <Navigate to="/gigs" replace />;
     return (
       <MobileShell active="mobile-gig-detail">
         <MobileGigDetail
@@ -330,14 +331,16 @@ function GigDetailRoute() {
   }
   const fromCalendar = params.get('from') === 'calendar';
   return (
-    <GigDetailScreen
+    <GigPage
+      key={`${gigId}-${editing}`}
       gigId={gigId}
       organization={organization}
       user={user}
       userRole={userRole}
+      initialEditing={editing}
       onBack={() => (fromCalendar ? nav.toCalendar() : nav.toGigs())}
-      backLabel={fromCalendar ? 'Back to Calendar' : 'Back to Gigs'}
-      onEdit={nav.editGig}
+      backLabel={fromCalendar ? 'Calendar' : 'Gigs'}
+      onGigDeleted={nav.toGigs}
       onSwitchOrganization={nav.switchOrganization}
       onLogout={nav.logoutAndHome}
       onEditOrganization={(org) => nav.editOrg(org)}
@@ -665,9 +668,9 @@ export function AppRoutes() {
           <Route path="/dashboard" element={<DashboardRoute />} />
           <Route path="/gigs" element={<GigListRoute />} />
           <Route path="/calendar" element={<GigListRoute view="calendar" />} />
-          <Route path="/gigs/new" element={<GigEditorRoute create />} />
+          <Route path="/gigs/new" element={<GigCreateRoute />} />
           <Route path="/gigs/:gigId" element={<GigDetailRoute />} />
-          <Route path="/gigs/:gigId/edit" element={<GigEditorRoute create={false} />} />
+          <Route path="/gigs/:gigId/edit" element={<GigDetailRoute editing />} />
           <Route path="/team" element={<TeamRoute />} />
           <Route path="/team/:memberId" element={<TeamMemberDetailRoute />} />
           <Route path="/assets" element={<AssetListRoute />} />

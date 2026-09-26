@@ -195,6 +195,21 @@ describe('GigFinancialsSection', () => {
     });
   });
 
+  // #12: on the gig page the page-wide edit mode drives this section; it has no toggle of its own.
+  it('follows the page edit mode and shows no toggle of its own when `editing` is given', async () => {
+    const viewing = render(<GigFinancialsSection {...defaultProps} editing={false} />);
+    await waitFor(() => expect(screen.getByText('Financials')).toBeInTheDocument());
+    expect(screen.queryByText('Edit Financials')).not.toBeInTheDocument();
+    expect(screen.queryByText('Other')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('edit-financial-0')).not.toBeInTheDocument();
+
+    viewing.unmount();
+    render(<GigFinancialsSection {...defaultProps} editing />);
+    await waitFor(() => expect(screen.getByText('Other')).toBeInTheDocument());
+    expect(screen.getByTestId('edit-financial-0')).toBeInTheDocument();
+    expect(screen.queryByText('Done Editing')).not.toBeInTheDocument();
+  });
+
   it('opens modal when Add Record button is clicked', async () => {
     render(<GigFinancialsSection {...defaultProps} />);
     

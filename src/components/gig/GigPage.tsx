@@ -1,0 +1,332 @@
+import { useCallback, useEffect, useState } from 'react';
+import { ArrowLeft, Copy, Loader2, MoreVertical, Pencil, Trash2 } from 'lucide-react';
+import { toast } from 'sonner';
+import AppHeader from '../AppHeader';
+import AttachmentManager from '../AttachmentManager';
+import ActivityFeed from '../ActivityFeed';
+import { ConflictWarning } from '../ConflictWarning';
+import { Alert, AlertDescription } from '../ui/alert';
+import { Badge } from '../ui/badge';
+import { Button } from '../ui/button';
+import { Card } from '../ui/card';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '../ui/dropdown-menu';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
+import GigBasicInfoSection from './GigBasicInfoSection';
+import GigFinancialsSection from './GigFinancialsSection';
+import GigKitAssignmentsSection from './GigKitAssignmentsSection';
+import GigParticipantsSection from './GigParticipantsSection';
+import GigScheduleEditor from './GigScheduleEditor';
+import GigStaffSlotsSection from './GigStaffSlotsSection';
+import GigEquipmentTable from './view/GigEquipmentTable';
+import GigParticipantsTable from './view/GigParticipantsTable';
+import GigScheduleView from './view/GigScheduleView';
+import GigSection from './view/GigSection';
+import GigStaffingTable from './view/GigStaffingTable';
+import GigVenueCard from './view/GigVenueCard';
+import OrganizationDetailsDialog from './view/OrganizationDetailsDialog';
+import { deleteGig, duplicateGig, getGig } from '../../services/gig.service';
+import { getGigActivity } from '../../services/activityLog.service';
+import { checkAllConflicts, type Conflict } from '../../services/conflictDetection.service';
+import { canManage } from '../../utils/permissions';
+import { GIG_STATUS_CONFIG } from '../../utils/supabase/constants';
+import { formatDateTimeDisplay } from '../../utils/dateUtils';
+import type { ActivityLogEntry, Gig, Organization, User, UserRole } from '../../utils/supabase/types';
+
+interface GigPageProps {
+  gigId: string;
+  organization: Organization;
+  user: User;
+  userRole?: UserRole;
+  /** Open in edit mode (the `/gigs/:id/edit` route). Ignored for roles that can't edit. */
+  initialEditing?: boolean;
+  onBack: () => void;
+  backLabel?: string;
+  onGigDeleted: () => void;
+  onEditOrganization?: (org: Organization) => void;
+  onSwitchOrganization: () => void;
+  onLogout: () => void;
+}
+
+/**
+ * The one gig page (#12): view mode for everyone, and a single page-wide edit
+ * mode for Admins and Managers. Replaces GigDetailScreen and the separate
+ * `/gigs/:id/edit` screen.
+ */
+export default function GigPage({
+  gigId,
+  organization,
+  user,
+  userRole,
+  initialEditing = false,
+  onBack,
+  backLabel = 'Gigs',
+  onGigDeleted,
+  onEditOrganization,
+  onSwitchOrganization,
+  onLogout,
+}: GigPageProps) {
+  const canEdit = canManage(userRole);
+  const [gig, setGig] = useState<Gig | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [editing, setEditing] = useState(initialEditing && canEdit);
+  const [tab, setTab] = useState('overview');
+  const [conflicts, setConflicts] = useState<Conflict[]>([]);
+  const [activity, setActivity] = useState<ActivityLogEntry[]>([]);
+  const [activityLoading, setActivityLoading] = useState(false);
+  const [viewingOrg, setViewingOrg] = useState<Partial<Organization> | null>(null);
+
+  const loadGig = useCallback(async () => {
+    setLoadError(null);
+    try {
+      const data = await getGig(gigId);
+      setGig(data);
+      checkAllConflicts(gigId, data.start, data.end).then((r) => setConflicts(r.conflicts)).catch(() => {});
+    } catch (error: any) {
+      setLoadError(error.message || 'Failed to load this gig.');
+    }
+  }, [gigId]);
+
+  useEffect(() => { loadGig(); }, [loadGig]);
+
+  useEffect(() => {
+    if (tab !== 'history') return;
+    setActivityLoading(true);
+    getGigActivity(gigId).then(setActivity).catch(() => setActivity([])).finally(() => setActivityLoading(false));
+  }, [tab, gigId]);
+
+  // Staff and Viewers never see financials (#12); keep them off that tab.
+  useEffect(() => { if (!canEdit && tab === 'financials') setTab('overview'); }, [canEdit, tab]);
+
+  const finishEditing = () => {
+    setEditing(false);
+    loadGig();
+  };
+
+  const handleDuplicate = async () => {
+    try {
+      await duplicateGig(gigId);
+      toast.success('Gig duplicated');
+      onBack();
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to duplicate gig');
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!confirm(`Delete "${gig?.title}"? This can't be undone.`)) return;
+    try {
+      await deleteGig(gigId);
+      toast.success('Gig deleted');
+      onGigDeleted();
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to delete gig');
+    }
+  };
+
+  const shell = (children: React.ReactNode) => (
+    <div className="min-h-screen bg-gray-50">
+      <AppHeader
+        organization={organization}
+        user={user}
+        userRole={userRole}
+        currentRoute="gig-detail"
+        onSwitchOrganization={onSwitchOrganization}
+        onLogout={onLogout}
+      />
+      {children}
+    </div>
+  );
+
+  const backLink = (
+    <button type="button" onClick={onBack} className="inline-flex items-center gap-1 text-sm text-sky-700 hover:underline w-fit">
+      <ArrowLeft className="w-4 h-4" />
+      {backLabel}
+    </button>
+  );
+
+  if (loadError) {
+    return shell(
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 space-y-4">
+        {backLink}
+        <Alert variant="destructive"><AlertDescription>{loadError}</AlertDescription></Alert>
+        <Button variant="outline" onClick={loadGig}>Retry</Button>
+      </div>,
+    );
+  }
+
+  if (!gig) {
+    return shell(
+      <div className="flex items-center justify-center py-24">
+        <Loader2 className="w-8 h-8 animate-spin text-sky-600" aria-label="Loading gig" />
+      </div>,
+    );
+  }
+
+  const participants = (gig.participants ?? []) as any[];
+  const venue = participants.find((p) => p.role === 'Venue')?.organization ?? null;
+  const acts = participants.filter((p) => p.role === 'Act');
+  const actNames = Object.fromEntries(acts.map((p) => [p.id, p.organization?.name ?? '']));
+  const ownSlots = (gig.staff_slots ?? []).filter((s) => s.organization_id === organization.id);
+  const participantOrgIds = [organization.id, ...participants.map((p) => p.organization_id)];
+  const status = GIG_STATUS_CONFIG[gig.status];
+
+  return shell(
+    <Tabs value={tab} onValueChange={setTab}>
+      <div className={editing ? 'bg-sky-50 border-b-2 border-sky-700' : 'bg-white border-b'}>
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-3 flex flex-col gap-2">
+          <div className="flex items-center justify-between">
+            {backLink}
+            {editing && <span className="text-[10px] font-bold uppercase tracking-[0.1em] text-sky-800">Editing</span>}
+          </div>
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex flex-col gap-1 min-w-0">
+              <div className="flex items-center gap-2.5 flex-wrap">
+                <h1 className="text-2xl font-bold leading-tight">{gig.title}</h1>
+                {status && <Badge className={`${status.color} border`}>{status.label}</Badge>}
+              </div>
+              <p className="text-sm text-muted-foreground">
+                {formatDateTimeDisplay(gig.start, gig.end, gig.timezone)}
+                {venue?.name ? ` · ${venue.name}` : ''}
+              </p>
+              {gig.tags.length > 0 && (
+                <div className="flex flex-wrap gap-1.5 pt-0.5">
+                  {gig.tags.map((t) => <Badge key={t} variant="secondary" className="font-medium">{t}</Badge>)}
+                </div>
+              )}
+            </div>
+            {canEdit && (
+              <div className="flex items-center gap-2 shrink-0">
+                {editing ? (
+                  <Button onClick={finishEditing} className="bg-sky-700 hover:bg-sky-800 text-white">Done</Button>
+                ) : (
+                  <>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="outline" size="icon" aria-label="More actions"><MoreVertical className="w-4 h-4" /></Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={handleDuplicate}><Copy className="w-4 h-4 mr-2" />Duplicate Gig</DropdownMenuItem>
+                        <DropdownMenuItem onClick={handleDelete} className="text-red-600 focus:text-red-600">
+                          <Trash2 className="w-4 h-4 mr-2" />Delete Gig
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                    <Button onClick={() => setEditing(true)} className="bg-sky-700 hover:bg-sky-800 text-white">
+                      <Pencil className="w-4 h-4 mr-1.5" />Edit
+                    </Button>
+                  </>
+                )}
+              </div>
+            )}
+          </div>
+          <TabsList className="bg-transparent p-0 h-auto gap-5 rounded-none">
+              {[
+                ['overview', 'Overview'],
+                ['equipment', 'Equipment'],
+                ...(canEdit ? [['financials', 'Financials']] : []),
+                ['history', 'History'],
+              ].map(([value, label]) => (
+                <TabsTrigger
+                  key={value}
+                  value={value}
+                  className="px-0 pb-2 rounded-none border-0 border-b-2 border-transparent data-[state=active]:border-sky-700 data-[state=active]:text-sky-700 data-[state=active]:shadow-none bg-transparent data-[state=active]:bg-transparent"
+                >
+                  {label}
+                </TabsTrigger>
+              ))}
+          </TabsList>
+        </div>
+      </div>
+
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+        {conflicts.length > 0 && <div className="mb-4"><ConflictWarning conflicts={conflicts} showAsCard /></div>}
+
+          <TabsContent value="overview" className="mt-0">
+            {editing ? (
+              <div className="space-y-4">
+                <GigBasicInfoSection gigId={gigId} />
+                <GigScheduleEditor
+                  gigId={gigId}
+                  gigStart={gig.start}
+                  actParticipants={acts.map((p) => ({ id: p.id, organization: p.organization }))}
+                />
+                <GigParticipantsSection
+                  gigId={gigId}
+                  currentOrganizationId={organization.id}
+                  currentOrganizationName={organization.name}
+                  currentOrganizationRole={organization.roles?.[0] || 'Production'}
+                  currentOrganizationRoles={organization.roles}
+                  onEditOrganization={onEditOrganization}
+                  userRole={userRole}
+                />
+                <GigStaffSlotsSection gigId={gigId} currentOrganizationId={organization.id} participantOrganizationIds={participantOrgIds} />
+                <Card className="p-4">
+                  <AttachmentManager organizationId={organization.id} entityType="gig" entityId={gigId} title="Attachments" />
+                </Card>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 items-start">
+                <div className="lg:col-span-2">
+                  <GigScheduleView entries={gig.schedule_entries ?? []} timeZone={gig.timezone} actNames={actNames} />
+                </div>
+                <GigVenueCard gigId={gigId} venue={venue} />
+                <GigSection title="Notes & attachments" className="lg:col-span-3">
+                  {gig.notes ? (
+                    <p className="text-sm whitespace-pre-wrap leading-relaxed">{gig.notes}</p>
+                  ) : (
+                    <p className="text-sm text-muted-foreground italic">No notes</p>
+                  )}
+                  <AttachmentManager organizationId={organization.id} entityType="gig" entityId={gigId} title="" allowUpload={false} />
+                </GigSection>
+                <div className="lg:col-span-3">
+                  <GigParticipantsTable
+                    gigId={gigId}
+                    participants={participants}
+                    currentOrganizationId={organization.id}
+                    onViewOrganization={setViewingOrg}
+                  />
+                </div>
+                <div className="lg:col-span-3">
+                  <GigStaffingTable slots={ownSlots} showAmounts={canEdit} />
+                </div>
+              </div>
+            )}
+          </TabsContent>
+
+          <TabsContent value="equipment" className="mt-0">
+            {editing ? (
+              <GigKitAssignmentsSection
+                gigId={gigId}
+                currentOrganizationId={organization.id}
+                gigStart={gig.start}
+                gigEnd={gig.end}
+                gigTimezone={gig.timezone}
+              />
+            ) : (
+              <GigEquipmentTable gigId={gigId} organizationId={organization.id} showAmounts={canEdit} />
+            )}
+          </TabsContent>
+
+          {canEdit && (
+            <TabsContent value="financials" className="mt-0">
+              <GigFinancialsSection
+                gigId={gigId}
+                currentOrganizationId={organization.id}
+                userRole={userRole}
+                gigStartDate={gig.start?.substring(0, 10)}
+                editing={editing}
+              />
+            </TabsContent>
+          )}
+
+          <TabsContent value="history" className="mt-0">
+            <GigSection title="History">
+              <ActivityFeed entries={activity} isLoading={activityLoading} />
+            </GigSection>
+          </TabsContent>
+      </main>
+
+      <OrganizationDetailsDialog organization={viewingOrg} onClose={() => setViewingOrg(null)} />
+    </Tabs>,
+  );
+}
