@@ -57,7 +57,7 @@ const financialSchema = z.object({
     return !isNaN(num) && num >= 0;
   }, 'Amount must be a positive number'),
   type: z.string(),
-  category: z.string(),
+  category: z.string().nullable().optional(),
   description: z.string().optional().default(''),
   reference_number: z.string().optional().default(''),
   counterparty_id: z.string().optional().default(''),
@@ -132,6 +132,9 @@ export default function GigFinancialsSection({
   const navigation = useNavigation();
   const queryClient = useQueryClient();
   const [showFinancialModal, setShowFinancialModal] = useState(false);
+  // Save error shown inside the Add dialog, which stays open until the save succeeds.
+  const [modalSaveError, setModalSaveError] = useState<string | null>(null);
+  const [isModalSaving, setIsModalSaving] = useState(false);
   const [currentFinancialIndex, setCurrentFinancialIndex] = useState<number | null>(null);
   const [selectedCounterparty, setSelectedCounterparty] = useState<any>(null);
   const [showNotesModal, setShowNotesModal] = useState<number | null>(null);
@@ -172,7 +175,7 @@ export default function GigFinancialsSection({
     },
   });
 
-  const { fields, append, remove } = useFieldArray({
+  const { fields, remove } = useFieldArray({
     control,
     name: 'financials',
     // Keep RHF's synthetic row key OUT of `id`. The default keyName is "id", which
@@ -211,7 +214,7 @@ export default function GigFinancialsSection({
       amount: parseFloat(f.amount),
       date: f.date,
       type: f.type as FinType,
-      category: f.category as FinCategory,
+      category: (f.category || null) as FinCategory | null,
       description: f.description || '',
       reference_number: f.reference_number || '',
       counterparty_id: f.counterparty_id || undefined,
@@ -242,7 +245,7 @@ export default function GigFinancialsSection({
     reset(data, { keepDirty: false });
   }, [reset]);
 
-  const { saveState, triggerSave } = useAutoSave<FinancialsFormInput>({
+  const { saveState, triggerSave, saveNow } = useAutoSave<FinancialsFormInput>({
     gigId,
     onSave: handleSave,
     onSuccess: handleSaveSuccess,
@@ -341,6 +344,7 @@ export default function GigFinancialsSection({
     });
     setSelectedCounterparty(null);
     setCurrentFinancialIndex(null);
+    setModalSaveError(null);
     setShowFinancialModal(true);
   };
 
@@ -378,6 +382,7 @@ export default function GigFinancialsSection({
     });
     setSelectedCounterparty(financial.counterparty || null);
     setCurrentFinancialIndex(index);
+    setModalSaveError(null);
     setShowFinancialModal(true);
   };
 
@@ -396,7 +401,7 @@ export default function GigFinancialsSection({
     remove(index);
   };
 
-  const handleSaveModal = () => {
+  const handleSaveModal = async () => {
     if (currentFinancialIndex !== null) {
       // Update existing
       Object.entries(modalData).forEach(([key, value]) => {
@@ -404,34 +409,40 @@ export default function GigFinancialsSection({
       });
       // Save the counterparty object for display in the table/selector next time
       setValue(`financials.${currentFinancialIndex}.counterparty` as any, selectedCounterparty, { shouldDirty: true });
-    } else {
-      // Add new
-      append({
-        id: `temp-${Math.random().toString(36).substr(2, 9)}`,
-        date: modalData.date,
-        amount: modalData.amount,
-        type: modalData.type,
-        category: modalData.category ?? '',
-        description: modalData.description,
-        reference_number: modalData.reference_number,
-        counterparty_id: modalData.counterparty_id,
-        counterparty: selectedCounterparty, // Save the counterparty object
-        external_entity_name: modalData.external_entity_name,
-        currency: modalData.currency,
-        due_date: modalData.due_date,
-        paid_at: modalData.paid_at,
-        notes: modalData.notes,
-        purchase_id: modalData.purchase_id,
-        staff_assignment_id: (modalData as any).staff_assignment_id,
-      });
+      setShowFinancialModal(false);
+      return;
+    }
+
+    // Add new: save it now and keep the dialog open until the save succeeds, so a
+    // failure is shown here instead of losing the record (issue #71). On success,
+    // handleSaveSuccess resets the form to the saved rows, which adds it to the table.
+    const newFinancial = {
+      id: `temp-${Math.random().toString(36).substr(2, 9)}`,
+      date: modalData.date,
+      amount: modalData.amount,
+      type: modalData.type,
+      category: modalData.category ?? null,
+      description: modalData.description,
+      reference_number: modalData.reference_number,
+      counterparty_id: modalData.counterparty_id,
+      counterparty: selectedCounterparty, // Save the counterparty object
+      external_entity_name: modalData.external_entity_name,
+      currency: modalData.currency,
+      due_date: modalData.due_date,
+      paid_at: modalData.paid_at,
+      notes: modalData.notes,
+      purchase_id: modalData.purchase_id,
+      staff_assignment_id: (modalData as any).staff_assignment_id,
+    };
+    setIsModalSaving(true);
+    setModalSaveError(null);
+    const result = await saveNow({ financials: [...getValues().financials, newFinancial] });
+    setIsModalSaving(false);
+    if (!result.ok) {
+      setModalSaveError(result.error.message || 'The record could not be saved.');
+      return;
     }
     setShowFinancialModal(false);
-    
-    // Explicitly trigger save for new records because isDirty might not update immediately
-    if (currentFinancialIndex === null) {
-      // Trigger save with the current form state
-      triggerSave(getValues());
-    }
   };
 
   const handleOpenNotes = (index: number) => {
@@ -1054,13 +1065,19 @@ export default function GigFinancialsSection({
             </div>
           </div>
 
+          {modalSaveError && (
+            <p role="alert" className="text-sm text-red-600">
+              Could not save this record: {modalSaveError}
+            </p>
+          )}
+
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowFinancialModal(false)}>
               Cancel
             </Button>
             <Button 
               onClick={handleSaveModal}
-              disabled={!modalData.date || !modalData.amount || parseFloat(modalData.amount) <= 0}
+              disabled={isModalSaving || !modalData.date || !modalData.amount || parseFloat(modalData.amount) <= 0}
             >
               {currentFinancialIndex !== null ? 'Update' : 'Add'} Financial Record
             </Button>

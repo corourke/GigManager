@@ -173,6 +173,10 @@ The `fin_type` enum has 24 values to support future multi-tenant workflows. For 
 
 Each `gig_financials` record also has a `category` (`fin_category` enum). The `type` describes *what happened*; the `category` describes *what it's for*. The original set (Labor, Equipment, Transportation, …) was replaced (migrations 20260328000001 / 20260512000000) with IRS Schedule C categories — Advertising, Car and truck expenses, Contract labor, Office expense, Rent or lease, Supplies, Travel, Meals, Utilities, Wages, Other expenses, and more. `category` is now **nullable with no default**. The authoritative list is `FIN_CATEGORY_CONFIG` in `src/utils/supabase/constants.ts`.
 
+Non-expense types (contracts, invoices, payments) store `category` as `NULL`. Never send `''`, because Postgres rejects it as an invalid enum value. `updateGigFinancials` turns `''` into `NULL` as a guard (issue #71).
+
+**Saving from the web section.** `GigFinancialsSection` autosaves edits through `useAutoSave`. The *Other* → *Add Financial Record* dialog saves immediately with `saveNow` and stays open until that save succeeds. If the save fails, the error shows inside the dialog and the row is not added to the table. A debounced autosave doesn't re-send a payload identical to the last one that failed, so a bad row can't retry and re-toast on every render. An explicit save (`saveNow`, `flush`) still retries.
+
 ---
 
 ## 4. Profitability Calculation

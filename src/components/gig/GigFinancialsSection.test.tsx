@@ -90,6 +90,7 @@ describe('GigFinancialsSection', () => {
       triggerSave: vi.fn(),
       flush: vi.fn(),
       flushAsync: vi.fn(),
+      saveNow: vi.fn(),
     });
     vi.mocked(gigService.getGigFinancials).mockResolvedValue(mockFinancials as unknown as Awaited<ReturnType<typeof gigService.getGigFinancials>>);
     vi.mocked(gigService.updateGigFinancials).mockResolvedValue({ success: true });
@@ -350,6 +351,7 @@ describe('GigFinancialsSection', () => {
         },
         flush: vi.fn(),
         flushAsync: vi.fn(),
+        saveNow: vi.fn(),
       }));
 
       const updatedFinancials = [
@@ -432,4 +434,66 @@ describe('GigFinancialsSection', () => {
       expect(getRow()).toHaveTextContent('$5,000.00');
     });
   });
+
+  describe('adding a non-expense record (issue #71)', () => {
+    // Drive the component's real onSave/onSuccess through saveNow, the way the
+    // real hook does, and report success or failure to the caller.
+    function mockSaveNow() {
+      vi.mocked(useAutoSave).mockImplementation(({ onSave, onSuccess }: any) => ({
+        saveState: 'saved',
+        error: null,
+        triggerSave: vi.fn(),
+        flush: vi.fn(),
+        flushAsync: vi.fn(),
+        saveNow: async (data: any) => {
+          try {
+            await onSave(data);
+            onSuccess?.(data);
+            return { ok: true };
+          } catch (error) {
+            return { ok: false, error };
+          }
+        },
+      }) as any);
+    }
+
+    async function addContractRecord() {
+      render(<GigFinancialsSection {...defaultProps} />);
+      await waitFor(() => expect(screen.getByText('Financials')).toBeInTheDocument());
+      fireEvent.click(screen.getByText('Edit Financials'));
+      await waitFor(() => expect(screen.getByText('Other')).toBeInTheDocument());
+      fireEvent.click(screen.getByText('Other'));
+      await waitFor(() => expect(screen.getByRole('heading', { name: 'Add Financial Record' })).toBeInTheDocument());
+      // The default type, Contract Signed, has no expense category — same path as Invoice Issued.
+      fireEvent.change(screen.getByLabelText('Amount'), { target: { value: '750' } });
+      fireEvent.click(screen.getByRole('button', { name: 'Add Financial Record' }));
+    }
+
+    it('sends category null, not an empty string', async () => {
+      mockSaveNow();
+      await addContractRecord();
+
+      await waitFor(() => expect(gigService.updateGigFinancials).toHaveBeenCalled());
+      const rows = vi.mocked(gigService.updateGigFinancials).mock.calls[0][2];
+      const added = rows.find((r: any) => r.amount === 750)!;
+      expect(added.category).toBeNull();
+    });
+
+    it('keeps the dialog open and shows the error when the save fails', async () => {
+      mockSaveNow();
+      vi.mocked(gigService.updateGigFinancials).mockRejectedValue(new Error('invalid input value for enum fin_category: ""'));
+      await addContractRecord();
+
+      await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('invalid input value for enum fin_category'));
+      expect(screen.getByRole('heading', { name: 'Add Financial Record' })).toBeInTheDocument();
+    });
+
+    it('closes the dialog once the save succeeds', async () => {
+      mockSaveNow();
+      await addContractRecord();
+
+      await waitFor(() => expect(screen.queryByRole('heading', { name: 'Add Financial Record' })).not.toBeInTheDocument());
+    });
+  });
 });
+

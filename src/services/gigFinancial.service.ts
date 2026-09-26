@@ -503,7 +503,7 @@ export async function updateGigFinancials(gigId: string, organizationId: string,
   amount: number;
   date: string;
   type: FinType;
-  category?: FinCategory;
+  category?: FinCategory | null;
   reference_number?: string;
   counterparty_id?: string;
   external_entity_name?: string;
@@ -553,6 +553,11 @@ export async function updateGigFinancials(gigId: string, organizationId: string,
           delete cleanFin[field];
         }
       });
+
+      // category is a nullable enum; '' is not a valid value (issue #71)
+      if (cleanFin.category === '') {
+        cleanFin.category = null;
+      }
 
       const finData = {
         ...cleanFin,
