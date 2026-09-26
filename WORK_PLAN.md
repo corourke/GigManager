@@ -11,7 +11,7 @@ Cameron questions.
 Migrated from GitHub issue [#41](https://github.com/corourke/GigManager/issues/41) on 2026-09-22. This file now
 supersedes that issue as the board of record.
 
-- **Last updated:** 2026-09-26 (coordinator: #12 design agreed; implementation plan awaiting approval)
+- **Last updated:** 2026-09-26 (coordinator: #12 PR 1 merged; migration awaiting apply; PRs 2–5 in progress)
 - **State verified:** 2026-09-26 16:15 UTC (7 open issues; no open PRs)
 
 ---
@@ -96,12 +96,10 @@ Low priority, explicitly acceptable for beta. Open, no action planned.
 order that unblocks the most work; the coordinator puts these to Cameron one at a time.
 
 1. **[#39](https://github.com/corourke/GigManager/issues/39)**: "keep top nav" (09-26) rules out the sidebar (Option B). It follows #12's redesign, since the gig screen is the deepest page and the two need one consistent header.
-2. **[#12](https://github.com/corourke/GigManager/issues/12): gig page redesign. Design agreed 09-26**
-   (mockups https://claude.ai/artifact/DgFeir8bWRGLAQEERLyzSt; decisions on the issue). Schedule item type becomes
-   free text. **Waiting on Cameron to approve the 5-PR implementation plan** posted on #12 on 09-26:
-   (1) data groundwork: enum → text, crew phone; (2) one page in view mode, with role gating and a Columns picker;
-   (3) one edit mode with When & schedule; (4) printing; (5) style guide. Also open: the primary-button colour
-   (`sky-600`?).
+2. **Apply migration `20260926000000_schedule_item_free_text.sql`** (#12 PR 1, [#79](https://github.com/corourke/GigManager/pull/79), merged 09-26):
+   `./deploy_dev.sh`, then `./deploy_prod.sh`. Until it's applied, saving schedule items named Act Arrival, Doors or
+   Return fails. The rest of #12 (plan approved 09-26, Cameron authorized the coordinator to merge) is being built by
+   the coordinator, PRs 2–5. Primary button colour decided: `sky-700` (#0369a1), as in the mockups.
 3. **Sentry secrets** — `SENTRY_API_TOKEN`, `SENTRY_ORG_SLUG`, `SENTRY_PROJECT_SLUG` for the health check's Sentry round-trip. Optional; it reports "not configured" until set.
 
 ### 3b. Raised by triage, for the coordinator
