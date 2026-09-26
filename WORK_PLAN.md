@@ -11,7 +11,7 @@ Cameron questions.
 Migrated from GitHub issue [#41](https://github.com/corourke/GigManager/issues/41) on 2026-09-22. This file now
 supersedes that issue as the board of record.
 
-- **Last updated:** 2026-09-26 (coordinator: #75 folded into #12; #12 design being redone; top nav kept)
+- **Last updated:** 2026-09-26 (coordinator: #12 decisions recorded; new mockups posted)
 - **State verified:** 2026-09-26 16:15 UTC (7 open issues; no open PRs)
 
 ---
@@ -96,10 +96,12 @@ Low priority, explicitly acceptable for beta. Open, no action planned.
 order that unblocks the most work; the coordinator puts these to Cameron one at a time.
 
 1. **[#39](https://github.com/corourke/GigManager/issues/39)**: "keep top nav" (09-26) rules out the sidebar (Option B). It follows #12's redesign, since the gig screen is the deepest page and the two need one consistent header.
-2. **[#12](https://github.com/corourke/GigManager/issues/12): gig screen redesign, with #75 folded in.** Cameron, 09-26:
-   the 09-19 mockups "made little sense"; settle on a design that works; **keep the top nav**. The scope now includes
-   one edit mode for the whole gig on web, with no separate Financials edit mode, like mobile. The coordinator is
-   redoing the design from the real screens and the mobile edit mode. The 09-19 canvas is superseded.
+2. **[#12](https://github.com/corourke/GigManager/issues/12): gig page redesign, with #75 folded in.** Decided 09-26:
+   keep the top nav; one Edit for the whole gig, so Staff and Financials get no edit modes of their own;
+   autosave plus a **Done** button (no Save/Cancel); one view page plus a printable gig sheet. The view and edit
+   routes merge into one page with jump links instead of tabs. Mockups (view, edit, print):
+   https://claude.ai/artifact/DgFeir8bWRGLAQEERLyzSt. **Waiting on Cameron to agree the mockups**, then the
+   coordinator writes the implementation plan.
 3. **Sentry secrets** — `SENTRY_API_TOKEN`, `SENTRY_ORG_SLUG`, `SENTRY_PROJECT_SLUG` for the health check's Sentry round-trip. Optional; it reports "not configured" until set.
 
 ### 3b. Raised by triage, for the coordinator
