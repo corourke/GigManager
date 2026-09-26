@@ -11,8 +11,8 @@ Cameron questions.
 Migrated from GitHub issue [#41](https://github.com/corourke/GigManager/issues/41) on 2026-09-22. This file now
 supersedes that issue as the board of record.
 
-- **Last updated:** 2026-09-26 (triage: #71 fixed in PR #77, open; #74 diagnosed; #74 and #75 added)
-- **State verified:** 2026-09-26 (8 open issues; 1 open PR, #77)
+- **Last updated:** 2026-09-26 (triage: PR #77 merged, #71 closed; #74 diagnosed; #74 and #75 added)
+- **State verified:** 2026-09-26 16:15 UTC (7 open issues; no open PRs)
 
 ---
 
@@ -20,7 +20,6 @@ supersedes that issue as the board of record.
 
 | # | Item | Type | State | Waiting on |
 |---|---|---|---|---|
-| [#71](https://github.com/corourke/GigManager/issues/71) | Adding an *Invoice Issued* financial record fails with a repeating `fin_category` enum error | Bug | Fix in PR [#77](https://github.com/corourke/GigManager/pull/77) (09-26) | Cameron — review/merge PR #77 |
 | [#69](https://github.com/corourke/GigManager/issues/69) | Adding a gig participant logs added/removed several times in History | Bug | Diagnosed 09-24 (frontend only) | Triage — approved, in §3c; next run |
 | [#74](https://github.com/corourke/GigManager/issues/74) | Gigs show up in Past too early | Bug | Diagnosed 09-26 (frontend only) | Coordinator — approve into §3c (§3b) |
 | [#75](https://github.com/corourke/GigManager/issues/75) | No need for second financial edit mode | UI/UX | New 09-25, not scoped | Coordinator — scope (§3b) |
@@ -43,18 +42,6 @@ sends `id: undefined`, so `updateGigParticipants` deletes the row and inserts it
 (`ON DELETE SET NULL`). The fix is frontend only: return the inserted ids and write them back into the form.
 No migration, no RLS change and no API-shape change. Not started, because it isn't in §3c.
 
-**[#71](https://github.com/corourke/GigManager/issues/71) — When adding an invoice financial record error.**
-**Fixed in PR [#77](https://github.com/corourke/GigManager/pull/77) (09-26, open, not merged).** All four approved parts are in it,
-including the *Add* dialog staying open until the save succeeds. It also adds `saveNow` to `useAutoSave`, and a debounced
-save no longer re-sends a payload identical to the last one that failed. Filed 09-25 by Cameron. Diagnosis posted on the issue 09-25. `handleSaveModal` in `GigFinancialsSection` appends a
-new row with `category: modalData.category ?? ''`. Non-expense types never set a category, so the save sends `''`,
-and `updateGigFinancials` (which strips empty UUID and date fields but not `category`) makes Postgres reject it:
-`invalid input value for enum fin_category: ""`. The failed save leaves the form dirty, so the `watch()` effect
-retries it on every re-render, which is why the toast repeats. The dialog closes before the save runs, so the row
-is never written and a reload loses it. The fix is frontend/service only: send `null`, normalize `''` in the
-service, stop retrying an identical failed payload, and keep the dialog open until the save succeeds. That last
-part is a UX change. No migration, no RLS change and no API-shape change.
-
 **[#74](https://github.com/corourke/GigManager/issues/74) — Gigs show up in Past too early.**
 Filed 09-25 by Cameron. Diagnosis posted on the issue 09-26. The timezone isn't the cause. Both `GigListScreen.tsx` (lines 191-198)
 and `MobileGigList.tsx` (lines 168-180) split on `new Date(gig.start) >= now`, so a gig moves to Past as soon as its start
@@ -67,7 +54,7 @@ Not started, because it isn't in §3c.
 **[#75](https://github.com/corourke/GigManager/issues/75) — No need for second financial edit mode.**
 Filed 09-25 by Cameron. On the web, the gig has an edit mode and the Financials section has a second one
 (`isEditMode` in `GigFinancialsSection`). Cameron wants a single edit mode, like mobile. This is a design change with
-no approach agreed yet. It touches `GigFinancialsSection.tsx`, which PR #77 also changes, so it should follow #77. It may
+no approach agreed yet. It touches `GigFinancialsSection.tsx` (last changed by PR #77, merged 09-26). It may
 also bear on #12 (the Gig Edit tabs).
 
 ### Security
@@ -125,10 +112,11 @@ order that unblocks the most work; the coordinator puts these to Cameron one at 
 *The triage routine adds entries here instead of asking Cameron directly — the question, and what it did in the
 meantime. The coordinator resolves each entry (decides it, or moves it into §3a) and deletes it.*
 
+- **#71 (09-26):** done. PR #77 merged 16:14 UTC and #71 is closed. §3c still lists #71; it can be removed from there.
 - **#74 (09-26):** diagnosed, and the fix is frontend only (see §2). Should it go into §3c as proposed on the issue? In the
   meantime: the diagnosis and plan are posted on the issue, and nothing is built.
 - **#75 (09-26):** a new design request (one edit mode for the gig, not a second one for Financials). It needs an
-  approach, and possibly a mockup, before any plan. It overlaps `GigFinancialsSection.tsx` (PR #77) and possibly #12.
+  approach, and possibly a mockup, before any plan. It touches `GigFinancialsSection.tsx` and possibly overlaps #12.
   In the meantime: no comment posted and nothing built.
 
 ### 3c. Ready to build, nothing blocking
@@ -166,6 +154,7 @@ applies migrations), edge-function API shape, anything touching production confi
 | #61 — staffing, kit assignments, inventory scans and their History made org-private; shared-tenant decision recorded; RLS test suite + CI job | PR #76 (09-25) | Merged; migration awaiting apply (§3a item 3). #61 closed |
 | #52 fix — health check moved to its own `health-check` function (`verify_jwt = false`) | PR #73 (09-25) | Merged; setup done on dev + prod 09-25, verified by curl. #52 closed |
 | Docs refresh: `testing.md` (PR #67), `setup-guide.md` + one line of `deployment.md` (PR #68) | PR #67, PR #68 (09-23) | Merged; docs only, from triage docs passes |
+| #71 — non-expense financial records save `category: null`; Add dialog stays open until saved; failed autosave no longer retries in a loop (`useAutoSave.saveNow`) | PR #77 (09-26) | Merged; #71 closed. Frontend only, ships with the next frontend deploy |
 | Docs refresh: `docs/README.md` index (PR #70), `database.md` reconciled with migrations (PR #72) | PR #70, PR #72 (09-25) | Merged; docs only, from triage docs passes |
 
 ---
@@ -180,12 +169,11 @@ Read this section first on each run.
 | Claimed by | Files | Notes |
 |---|---|---|
 | #20 remaining services | `src/services/*.service.ts` (all but `user.service.ts`) | Parked until Cameron asks for the next one |
-| PR #77 (#71) | `GigFinancialsSection.tsx` (+ test), `gigFinancial.service.ts` (+ test), `useAutoSave.ts` (+ test), `docs/technical/gig-financials.md` | Open 09-26. #69's fix shouldn't need to change `useAutoSave.ts` |
 
 **Dependencies.** #12 and #39 both reshape navigation/gig-edit UI — do them in sequence, not in parallel, once
 each has a direction. #52's health check is live on dev and prod (09-25); its Sentry check additionally needs the Sentry secrets (§3a item 4). The tenant model is decided (hosted, shared DB, 09-25).
 
-**Where things stand.** 09-26: #71 fixed in PR #77 (open; CI green, mergeable). #69 is still to build. Each run has one
+**Where things stand.** 09-26: #71 fixed in PR #77 (merged 16:14 UTC, #71 closed). #69 is still to build. Each run has one
 designated branch and #69 needs its own PR, so it goes to the next run. #74 was diagnosed and #75 is new, and both
 are raised in §3b. #61's migration is still awaiting apply (§3a). Still waiting on Cameron: #39 and #12 design picks.
 
@@ -221,7 +209,7 @@ broken yet.
 
 **Order of checks each run.**
 
-1. Check CI and mergeability on open PRs (PR #77 for #71; list live for anything newer). Once #77 merges, close #71 and move it to §4.
+1. Check CI and mergeability on open PRs (none open as of 09-26 16:15 UTC; list live).
 2. #69 is in §3c: post the plan, write the failing test first (repeated autosave must not delete and reinsert the row), then fix. Use a separate PR from #71.
 3. #39 — check for a reply. If a variant is picked → work plan → post → wait for approval → implement.
 4. #12 — same pattern.
