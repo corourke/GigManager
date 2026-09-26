@@ -11,7 +11,7 @@ Cameron questions.
 Migrated from GitHub issue [#41](https://github.com/corourke/GigManager/issues/41) on 2026-09-22. This file now
 supersedes that issue as the board of record.
 
-- **Last updated:** 2026-09-26 (coordinator: #74 approved into §3c)
+- **Last updated:** 2026-09-26 (coordinator: #75 folded into #12; #12 design being redone; top nav kept)
 - **State verified:** 2026-09-26 16:15 UTC (7 open issues; no open PRs)
 
 ---
@@ -22,7 +22,6 @@ supersedes that issue as the board of record.
 |---|---|---|---|---|
 | [#69](https://github.com/corourke/GigManager/issues/69) | Adding a gig participant logs added/removed several times in History | Bug | Diagnosed 09-24 (frontend only) | Triage — approved, in §3c; next run |
 | [#74](https://github.com/corourke/GigManager/issues/74) | Gigs show up in Past too early | Bug | Diagnosed 09-26 (frontend only) | Triage — approved, in §3c |
-| [#75](https://github.com/corourke/GigManager/issues/75) | No need for second financial edit mode | UI/UX | New 09-25, not scoped | Cameron — approach (§3a item 1) |
 | [#39](https://github.com/corourke/GigManager/issues/39) | Too many menu levels | UI/UX design | Mockups posted 09-19 | Cameron — pick a variant |
 | [#12](https://github.com/corourke/GigManager/issues/12) | Reorganize Gig Edit into tabbed sections | UI/UX design | Mockups posted 09-19 | Cameron — pick a variant |
 | [#20](https://github.com/corourke/GigManager/issues/20) | Shared data-access layer under `src/services/` | Refactor | Pilot merged (PR #66); 15 services remain | Nothing — pick up next service when wanted |
@@ -51,11 +50,7 @@ Not started, because it isn't in §3c.
 
 ### Financials UX
 
-**[#75](https://github.com/corourke/GigManager/issues/75) — No need for second financial edit mode.**
-Filed 09-25 by Cameron. On the web, the gig has an edit mode and the Financials section has a second one
-(`isEditMode` in `GigFinancialsSection`). Cameron wants a single edit mode, like mobile. This is a design change with
-no approach agreed yet. It touches `GigFinancialsSection.tsx` (last changed by PR #77, merged 09-26). It may
-also bear on #12 (the Gig Edit tabs).
+*(#75, one edit mode for the whole gig on web, was folded into #12 on 09-26.)*
 
 ### Security
 
@@ -100,10 +95,12 @@ Low priority, explicitly acceptable for beta. Open, no action planned.
 *Curated by the coordinator session only.* Nothing below can move without a reply. Listed roughly in the
 order that unblocks the most work; the coordinator puts these to Cameron one at a time.
 
-1. **[#75](https://github.com/corourke/GigManager/issues/75): one edit mode for the whole gig on web.** Needs an approach, and it may belong in #12's gig-edit redesign. 
-2. **[#39](https://github.com/corourke/GigManager/issues/39)** — pick a mockup variant (or a hybrid) from the 09-19 canvas so a work plan can be written.
-3. **[#12](https://github.com/corourke/GigManager/issues/12)** — pick top-tabs vs. left-side-tabs from the 09-19 canvas, **and** say whether the cross-section coordination question (e.g. staffing needing gig dates) should be folded into the same design pass.
-4. **Sentry secrets** — `SENTRY_API_TOKEN`, `SENTRY_ORG_SLUG`, `SENTRY_PROJECT_SLUG` for the health check's Sentry round-trip. Optional; it reports "not configured" until set.
+1. **[#39](https://github.com/corourke/GigManager/issues/39)**: "keep top nav" (09-26) rules out the sidebar (Option B). It follows #12's redesign, since the gig screen is the deepest page and the two need one consistent header.
+2. **[#12](https://github.com/corourke/GigManager/issues/12): gig screen redesign, with #75 folded in.** Cameron, 09-26:
+   the 09-19 mockups "made little sense"; settle on a design that works; **keep the top nav**. The scope now includes
+   one edit mode for the whole gig on web, with no separate Financials edit mode, like mobile. The coordinator is
+   redoing the design from the real screens and the mobile edit mode. The 09-19 canvas is superseded.
+3. **Sentry secrets** — `SENTRY_API_TOKEN`, `SENTRY_ORG_SLUG`, `SENTRY_PROJECT_SLUG` for the health check's Sentry round-trip. Optional; it reports "not configured" until set.
 
 ### 3b. Raised by triage, for the coordinator
 
@@ -165,7 +162,7 @@ Read this section first on each run.
 | #20 remaining services | `src/services/*.service.ts` (all but `user.service.ts`) | Parked until Cameron asks for the next one |
 
 **Dependencies.** #12 and #39 both reshape navigation/gig-edit UI — do them in sequence, not in parallel, once
-each has a direction. #52's health check is live on dev and prod (09-25); its Sentry check additionally needs the Sentry secrets (§3a item 4). The tenant model is decided (hosted, shared DB, 09-25).
+each has a direction. #52's health check is live on dev and prod (09-25); its Sentry check additionally needs the Sentry secrets (§3a item 3). The tenant model is decided (hosted, shared DB, 09-25).
 
 **Where things stand.** 09-26: #71 fixed in PR #77 (merged 16:14 UTC, #71 closed). #69 is still to build. Each run has one
 designated branch and #69 needs its own PR, so it goes to the next run. #74 was diagnosed and #75 is new, and both
