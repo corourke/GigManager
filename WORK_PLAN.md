@@ -11,8 +11,8 @@ Cameron questions.
 Migrated from GitHub issue [#41](https://github.com/corourke/GigManager/issues/41) on 2026-09-22. This file now
 supersedes that issue as the board of record.
 
-- **Last updated:** 2026-09-25 (coordinator: #61 fixed and merged in PR #76; migration awaiting apply)
-- **State verified:** 2026-09-25 (8 open issues; docs-only PRs #70 and #72 both merged 09-25 — check live for any others)
+- **Last updated:** 2026-09-26 (triage: #71 fixed in PR #77, open; #74 diagnosed; #74 and #75 added)
+- **State verified:** 2026-09-26 (8 open issues; 1 open PR, #77)
 
 ---
 
@@ -20,8 +20,10 @@ supersedes that issue as the board of record.
 
 | # | Item | Type | State | Waiting on |
 |---|---|---|---|---|
-| [#71](https://github.com/corourke/GigManager/issues/71) | Adding an *Invoice Issued* financial record fails with a repeating `fin_category` enum error | Bug | Diagnosed 09-25 (frontend/service only) | Triage — approved, in §3c |
-| [#69](https://github.com/corourke/GigManager/issues/69) | Adding a gig participant logs added/removed several times in History | Bug | Diagnosed 09-24 (frontend only) | Triage — approved, in §3c |
+| [#71](https://github.com/corourke/GigManager/issues/71) | Adding an *Invoice Issued* financial record fails with a repeating `fin_category` enum error | Bug | Fix in PR [#77](https://github.com/corourke/GigManager/pull/77) (09-26) | Cameron — review/merge PR #77 |
+| [#69](https://github.com/corourke/GigManager/issues/69) | Adding a gig participant logs added/removed several times in History | Bug | Diagnosed 09-24 (frontend only) | Triage — approved, in §3c; next run |
+| [#74](https://github.com/corourke/GigManager/issues/74) | Gigs show up in Past too early | Bug | Diagnosed 09-26 (frontend only) | Coordinator — approve into §3c (§3b) |
+| [#75](https://github.com/corourke/GigManager/issues/75) | No need for second financial edit mode | UI/UX | New 09-25, not scoped | Coordinator — scope (§3b) |
 | [#39](https://github.com/corourke/GigManager/issues/39) | Too many menu levels | UI/UX design | Mockups posted 09-19 | Cameron — pick a variant |
 | [#12](https://github.com/corourke/GigManager/issues/12) | Reorganize Gig Edit into tabbed sections | UI/UX design | Mockups posted 09-19 | Cameron — pick a variant |
 | [#20](https://github.com/corourke/GigManager/issues/20) | Shared data-access layer under `src/services/` | Refactor | Pilot merged (PR #66); 15 services remain | Nothing — pick up next service when wanted |
@@ -42,14 +44,31 @@ sends `id: undefined`, so `updateGigParticipants` deletes the row and inserts it
 No migration, no RLS change and no API-shape change. Not started, because it isn't in §3c.
 
 **[#71](https://github.com/corourke/GigManager/issues/71) — When adding an invoice financial record error.**
-Filed 09-25 by Cameron. Diagnosis posted on the issue 09-25. `handleSaveModal` in `GigFinancialsSection` appends a
+**Fixed in PR [#77](https://github.com/corourke/GigManager/pull/77) (09-26, open, not merged).** All four approved parts are in it,
+including the *Add* dialog staying open until the save succeeds. It also adds `saveNow` to `useAutoSave`, and a debounced
+save no longer re-sends a payload identical to the last one that failed. Filed 09-25 by Cameron. Diagnosis posted on the issue 09-25. `handleSaveModal` in `GigFinancialsSection` appends a
 new row with `category: modalData.category ?? ''`. Non-expense types never set a category, so the save sends `''`,
 and `updateGigFinancials` (which strips empty UUID and date fields but not `category`) makes Postgres reject it:
 `invalid input value for enum fin_category: ""`. The failed save leaves the form dirty, so the `watch()` effect
 retries it on every re-render, which is why the toast repeats. The dialog closes before the save runs, so the row
 is never written and a reload loses it. The fix is frontend/service only: send `null`, normalize `''` in the
 service, stop retrying an identical failed payload, and keep the dialog open until the save succeeds. That last
-part is a UX change. No migration, no RLS change and no API-shape change. Not started, because it isn't in §3c.
+part is a UX change. No migration, no RLS change and no API-shape change.
+
+**[#74](https://github.com/corourke/GigManager/issues/74) — Gigs show up in Past too early.**
+Filed 09-25 by Cameron. Diagnosis posted on the issue 09-26. The timezone isn't the cause. Both `GigListScreen.tsx` (lines 191-198)
+and `MobileGigList.tsx` (lines 168-180) split on `new Date(gig.start) >= now`, so a gig moves to Past as soon as its start
+time passes. Proposed fix: a shared `isGigPast(gig, now)` helper. A gig is past only after the end of its last calendar
+day (`end`, or `start` when there's no end), measured in the gig's `timezone`. Both screens use the helper. Frontend only.
+Not started, because it isn't in §3c.
+
+### Financials UX
+
+**[#75](https://github.com/corourke/GigManager/issues/75) — No need for second financial edit mode.**
+Filed 09-25 by Cameron. On the web, the gig has an edit mode and the Financials section has a second one
+(`isEditMode` in `GigFinancialsSection`). Cameron wants a single edit mode, like mobile. This is a design change with
+no approach agreed yet. It touches `GigFinancialsSection.tsx`, which PR #77 also changes, so it should follow #77. It may
+also bear on #12 (the Gig Edit tabs).
 
 ### Security
 
@@ -106,7 +125,11 @@ order that unblocks the most work; the coordinator puts these to Cameron one at 
 *The triage routine adds entries here instead of asking Cameron directly — the question, and what it did in the
 meantime. The coordinator resolves each entry (decides it, or moves it into §3a) and deletes it.*
 
-- *(none)*
+- **#74 (09-26):** diagnosed, and the fix is frontend only (see §2). Should it go into §3c as proposed on the issue? In the
+  meantime: the diagnosis and plan are posted on the issue, and nothing is built.
+- **#75 (09-26):** a new design request (one edit mode for the gig, not a second one for Financials). It needs an
+  approach, and possibly a mockup, before any plan. It overlaps `GigFinancialsSection.tsx` (PR #77) and possibly #12.
+  In the meantime: no comment posted and nothing built.
 
 ### 3c. Ready to build, nothing blocking
 
@@ -157,13 +180,14 @@ Read this section first on each run.
 | Claimed by | Files | Notes |
 |---|---|---|
 | #20 remaining services | `src/services/*.service.ts` (all but `user.service.ts`) | Parked until Cameron asks for the next one |
+| PR #77 (#71) | `GigFinancialsSection.tsx` (+ test), `gigFinancial.service.ts` (+ test), `useAutoSave.ts` (+ test), `docs/technical/gig-financials.md` | Open 09-26. #69's fix shouldn't need to change `useAutoSave.ts` |
 
 **Dependencies.** #12 and #39 both reshape navigation/gig-edit UI — do them in sequence, not in parallel, once
 each has a direction. #52's health check is live on dev and prod (09-25); its Sentry check additionally needs the Sentry secrets (§3a item 4). The tenant model is decided (hosted, shared DB, 09-25).
 
-**Where things stand.** 09-25: #52 closed (health check live on dev + prod after PR #73). #61 fixed in PR #76,
-migration awaiting apply. #69 and #71 approved into §3c for the next triage run. Still waiting on Cameron:
-#39 and #12 design picks.
+**Where things stand.** 09-26: #71 fixed in PR #77 (open, CI pending at push). #69 is still to build. Each run has one
+designated branch and #69 needs its own PR, so it goes to the next run. #74 was diagnosed and #75 is new, and both
+are raised in §3b. #61's migration is still awaiting apply (§3a). Still waiting on Cameron: #39 and #12 design picks.
 
 On 09-23 every item was blocked or parked, so the run moved on to docs. Docs-only PR
 [#67](https://github.com/corourke/GigManager/pull/67) refreshed `docs/development/testing.md`: suite size,
@@ -197,8 +221,8 @@ broken yet.
 
 **Order of checks each run.**
 
-1. Check CI and mergeability on open PRs (docs-only #70 and #72 both merged 09-25; list live for anything newer).
-2. #69 and #71 are in §3c: post the plan, write the failing test first (#69: repeated autosave must not delete and reinsert the row; #71: adding an *Invoice Issued* record must send `category: null`), then fix.
+1. Check CI and mergeability on open PRs (PR #77 for #71; list live for anything newer). Once #77 merges, close #71 and move it to §4.
+2. #69 is in §3c: post the plan, write the failing test first (repeated autosave must not delete and reinsert the row), then fix. Use a separate PR from #71.
 3. #39 — check for a reply. If a variant is picked → work plan → post → wait for approval → implement.
 4. #12 — same pattern.
 5. #20 — no open question; only act if Cameron asks for the next service to be migrated.
