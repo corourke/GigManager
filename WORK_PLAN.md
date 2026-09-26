@@ -11,7 +11,7 @@ Cameron questions.
 Migrated from GitHub issue [#41](https://github.com/corourke/GigManager/issues/41) on 2026-09-22. This file now
 supersedes that issue as the board of record.
 
-- **Last updated:** 2026-09-26 (triage: PR #77 merged, #71 closed; #74 diagnosed; #74 and #75 added)
+- **Last updated:** 2026-09-26 (coordinator: #61 migration live on prod; §3b resolved; #74/#75 moved to §3a)
 - **State verified:** 2026-09-26 16:15 UTC (7 open issues; no open PRs)
 
 ---
@@ -21,8 +21,8 @@ supersedes that issue as the board of record.
 | # | Item | Type | State | Waiting on |
 |---|---|---|---|---|
 | [#69](https://github.com/corourke/GigManager/issues/69) | Adding a gig participant logs added/removed several times in History | Bug | Diagnosed 09-24 (frontend only) | Triage — approved, in §3c; next run |
-| [#74](https://github.com/corourke/GigManager/issues/74) | Gigs show up in Past too early | Bug | Diagnosed 09-26 (frontend only) | Coordinator — approve into §3c (§3b) |
-| [#75](https://github.com/corourke/GigManager/issues/75) | No need for second financial edit mode | UI/UX | New 09-25, not scoped | Coordinator — scope (§3b) |
+| [#74](https://github.com/corourke/GigManager/issues/74) | Gigs show up in Past too early | Bug | Diagnosed 09-26 (frontend only) | Cameron — approve into §3c (§3a item 1) |
+| [#75](https://github.com/corourke/GigManager/issues/75) | No need for second financial edit mode | UI/UX | New 09-25, not scoped | Cameron — approach (§3a item 2) |
 | [#39](https://github.com/corourke/GigManager/issues/39) | Too many menu levels | UI/UX design | Mockups posted 09-19 | Cameron — pick a variant |
 | [#12](https://github.com/corourke/GigManager/issues/12) | Reorganize Gig Edit into tabbed sections | UI/UX design | Mockups posted 09-19 | Cameron — pick a variant |
 | [#20](https://github.com/corourke/GigManager/issues/20) | Shared data-access layer under `src/services/` | Refactor | Pilot merged (PR #66); 15 services remain | Nothing — pick up next service when wanted |
@@ -59,7 +59,7 @@ also bear on #12 (the Gig Edit tabs).
 
 ### Security
 
-*(#61 closed 09-25: every leak fixed in PR #76; the migration is awaiting apply, §3a item 3. Any new org-private
+*(#61 closed 09-25: every leak fixed in PR #76; the migration was applied to dev and prod on 09-26. Any new org-private
 table or policy change needs a test in `supabase/tests/rls/`; CI runs it as the `rls` job.)*
 
 ### Diagnostics / ops
@@ -100,24 +100,18 @@ Low priority, explicitly acceptable for beta. Open, no action planned.
 *Curated by the coordinator session only.* Nothing below can move without a reply. Listed roughly in the
 order that unblocks the most work; the coordinator puts these to Cameron one at a time.
 
-1. **[#39](https://github.com/corourke/GigManager/issues/39)** — pick a mockup variant (or a hybrid) from the 09-19 canvas so a work plan can be written.
-2. **[#12](https://github.com/corourke/GigManager/issues/12)** — pick top-tabs vs. left-side-tabs from the 09-19 canvas, **and** say whether the cross-section coordination question (e.g. staffing needing gig dates) should be folded into the same design pass.
-3. **Apply migration `20260925000000_org_private_gig_data.sql` (#61, PR [#76](https://github.com/corourke/GigManager/pull/76), merged 09-25).**
-   `./deploy_dev.sh --check` then `./deploy_dev.sh`; then `./deploy_prod.sh`. Until it's applied the leaks are
-   still live. Confirm here when done.
-4. **Sentry secrets** — `SENTRY_API_TOKEN`, `SENTRY_ORG_SLUG`, `SENTRY_PROJECT_SLUG` for the health check's Sentry round-trip. Optional; it reports "not configured" until set.
+1. **[#74](https://github.com/corourke/GigManager/issues/74): approve the "past only after the gig's last day, in its timezone" fix into §3c?** Asked 09-26.
+2. **[#75](https://github.com/corourke/GigManager/issues/75): one edit mode for the whole gig on web.** Needs an approach, and it may belong in #12's gig-edit redesign. It follows #74.
+3. **[#39](https://github.com/corourke/GigManager/issues/39)** — pick a mockup variant (or a hybrid) from the 09-19 canvas so a work plan can be written.
+4. **[#12](https://github.com/corourke/GigManager/issues/12)** — pick top-tabs vs. left-side-tabs from the 09-19 canvas, **and** say whether the cross-section coordination question (e.g. staffing needing gig dates) should be folded into the same design pass.
+5. **Sentry secrets** — `SENTRY_API_TOKEN`, `SENTRY_ORG_SLUG`, `SENTRY_PROJECT_SLUG` for the health check's Sentry round-trip. Optional; it reports "not configured" until set.
 
 ### 3b. Raised by triage, for the coordinator
 
 *The triage routine adds entries here instead of asking Cameron directly — the question, and what it did in the
 meantime. The coordinator resolves each entry (decides it, or moves it into §3a) and deletes it.*
 
-- **#71 (09-26):** done. PR #77 merged 16:14 UTC and #71 is closed. §3c still lists #71; it can be removed from there.
-- **#74 (09-26):** diagnosed, and the fix is frontend only (see §2). Should it go into §3c as proposed on the issue? In the
-  meantime: the diagnosis and plan are posted on the issue, and nothing is built.
-- **#75 (09-26):** a new design request (one edit mode for the gig, not a second one for Financials). It needs an
-  approach, and possibly a mockup, before any plan. It touches `GigFinancialsSection.tsx` and possibly overlaps #12.
-  In the meantime: no comment posted and nothing built.
+- *(none)*
 
 ### 3c. Ready to build, nothing blocking
 
@@ -125,10 +119,6 @@ meantime. The coordinator resolves each entry (decides it, or moves it into §3a
 under AGENTS.md rule 1: the routine posts its plan on the issue and proceeds. Anything not listed here still
 needs approval before code changes.
 
-- **[#71](https://github.com/corourke/GigManager/issues/71) — *Invoice Issued* (and every non-expense type) fails with a repeating `fin_category` enum error.**
-  Approved 09-25, all four items of the fix posted on the issue: failing test first; send `category: null`, not `''`;
-  normalize `''` in `updateGigFinancials`; don't retry an identical failed payload; **and keep the modal open until
-  the save succeeds** (Cameron approved the UX change). Files: `GigFinancialsSection.tsx`, `gigFinancial.service.ts`.
 - **[#69](https://github.com/corourke/GigManager/issues/69) — adding a participant logs added/removed several times; each autosave re-creates the row.**
   Approved 09-25, the fix posted on the issue: failing test first; `updateGigParticipants` returns the inserted
   ids and `GigParticipantsSection` writes them back after the save, so later autosaves update in place.
@@ -151,7 +141,7 @@ applies migrations), edge-function API shape, anything touching production confi
 | #52 phase 1 — generic `notifications` table | PR #64 (09-16) | Merged |
 | #20 — shared data-access base module + `user.service.ts` pilot | PR #66 (09-22) | Merged; ~15 services remain, one at a time |
 | #52 phase 2 — Supabase/Google Places/Sentry health checks + daily cron | PR #65 (09-23) | Merged; Sentry check reports "not configured" until secrets land |
-| #61 — staffing, kit assignments, inventory scans and their History made org-private; shared-tenant decision recorded; RLS test suite + CI job | PR #76 (09-25) | Merged; migration awaiting apply (§3a item 3). #61 closed |
+| #61 — staffing, kit assignments, inventory scans and their History made org-private; shared-tenant decision recorded; RLS test suite + CI job | PR #76 (09-25) | Merged; migration awaiting apply (§3a item 5). #61 closed |
 | #52 fix — health check moved to its own `health-check` function (`verify_jwt = false`) | PR #73 (09-25) | Merged; setup done on dev + prod 09-25, verified by curl. #52 closed |
 | Docs refresh: `testing.md` (PR #67), `setup-guide.md` + one line of `deployment.md` (PR #68) | PR #67, PR #68 (09-23) | Merged; docs only, from triage docs passes |
 | #71 — non-expense financial records save `category: null`; Add dialog stays open until saved; failed autosave no longer retries in a loop (`useAutoSave.saveNow`) | PR #77 (09-26) | Merged; #71 closed. Frontend only, ships with the next frontend deploy |
@@ -171,11 +161,11 @@ Read this section first on each run.
 | #20 remaining services | `src/services/*.service.ts` (all but `user.service.ts`) | Parked until Cameron asks for the next one |
 
 **Dependencies.** #12 and #39 both reshape navigation/gig-edit UI — do them in sequence, not in parallel, once
-each has a direction. #52's health check is live on dev and prod (09-25); its Sentry check additionally needs the Sentry secrets (§3a item 4). The tenant model is decided (hosted, shared DB, 09-25).
+each has a direction. #52's health check is live on dev and prod (09-25); its Sentry check additionally needs the Sentry secrets (§3a item 5). The tenant model is decided (hosted, shared DB, 09-25).
 
 **Where things stand.** 09-26: #71 fixed in PR #77 (merged 16:14 UTC, #71 closed). #69 is still to build. Each run has one
 designated branch and #69 needs its own PR, so it goes to the next run. #74 was diagnosed and #75 is new, and both
-are raised in §3b. #61's migration is still awaiting apply (§3a). Still waiting on Cameron: #39 and #12 design picks.
+are raised in §3b. #61's migration was applied to dev and prod on 09-26. Still waiting on Cameron: #39 and #12 design picks.
 
 On 09-23 every item was blocked or parked, so the run moved on to docs. Docs-only PR
 [#67](https://github.com/corourke/GigManager/pull/67) refreshed `docs/development/testing.md`: suite size,
