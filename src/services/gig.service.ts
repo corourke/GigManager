@@ -302,7 +302,7 @@ export async function getGig(gigId: string) {
           role_info:staff_roles(name),
           assignments:gig_staff_assignments(
             *,
-            user:user_id(id, email, first_name, last_name)
+            user:user_id(id, email, first_name, last_name, phone)
           )
         ),
         kit_assignments:gig_kit_assignments(*),

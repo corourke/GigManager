@@ -11,7 +11,7 @@ import { toast } from 'sonner';
 import { Button } from '../ui/button';
 import { Card } from '../ui/card';
 import { cn } from '../ui/utils';
-import { SCHEDULE_ACTIVITY_TYPES, SCHEDULE_ACTIVITY_CONFIG } from '../../utils/supabase/constants';
+import { SCHEDULE_DEFAULT_ITEMS, SCHEDULE_ACTIVITY_CONFIG } from '../../utils/supabase/constants';
 import { detectScheduleConflicts } from '../../utils/scheduleConflicts';
 import { getGigScheduleEntries, updateGigScheduleEntries } from '../../services/gigSchedule.service';
 import { getGigParticipants } from '../../services/gig.service';
@@ -345,8 +345,11 @@ export default function GigScheduleEditor({ gigId, gigStart, actParticipants: ac
                   }
                 }}
               >
-                {SCHEDULE_ACTIVITY_TYPES.map(t => (
-                  <option key={t} value={t}>{SCHEDULE_ACTIVITY_CONFIG[t].label}</option>
+                {(SCHEDULE_DEFAULT_ITEMS as readonly string[]).includes(entry.activity_type) ? null : (
+                  <option value={entry.activity_type}>{getDisplayLabel({ ...entry, label: '' })}</option>
+                )}
+                {SCHEDULE_DEFAULT_ITEMS.map(t => (
+                  <option key={t} value={t}>{t}</option>
                 ))}
                 <option value={CUSTOM_TYPE}>Custom...</option>
               </select>

@@ -111,6 +111,16 @@ describe('gig.service', () => {
       expect(chain.single).toHaveBeenCalled();
     });
 
+    it("loads each crew member's phone for the gig sheet (#12)", async () => {
+      const chain = makeChain({ data: { id: 'gig-1', title: 'G', staff_slots: [], participants: [] }, error: null });
+      mockSupabase.from.mockReturnValue(chain);
+
+      await getGig('gig-1');
+
+      const selectArg = String(chain.select.mock.calls[0][0]).replace(/\s+/g, ' ');
+      expect(selectArg).toMatch(/assignments:gig_staff_assignments\( \*, user:user_id\([^)]*\bphone\b[^)]*\)/);
+    });
+
     it('throws when gig is not found (null data)', async () => {
       mockSupabase.from.mockReturnValue(makeChain({ data: null, error: null }));
 

@@ -560,7 +560,7 @@ export type Database = {
       gig_schedule_entries: {
         Row: {
           act_participant_id: string | null
-          activity_type: Database["public"]["Enums"]["schedule_activity_type"]
+          activity_type: string
           created_at: string
           end_time: string | null
           gig_id: string
@@ -573,7 +573,7 @@ export type Database = {
         }
         Insert: {
           act_participant_id?: string | null
-          activity_type: Database["public"]["Enums"]["schedule_activity_type"]
+          activity_type: string
           created_at?: string
           end_time?: string | null
           gig_id: string
@@ -586,7 +586,7 @@ export type Database = {
         }
         Update: {
           act_participant_id?: string | null
-          activity_type?: Database["public"]["Enums"]["schedule_activity_type"]
+          activity_type?: string
           created_at?: string
           end_time?: string | null
           gig_id?: string
@@ -1952,14 +1952,6 @@ export type Database = {
         | "Venue"
         | "Act"
         | "Agency"
-      schedule_activity_type:
-        | "Load-In"
-        | "Soundcheck"
-        | "Rehearsal"
-        | "Set"
-        | "Intermission"
-        | "Load-Out"
-        | "Other"
       sync_status: "pending" | "synced" | "failed" | "updated" | "removed"
       user_role: "Admin" | "Manager" | "Staff" | "Viewer"
     }
@@ -2155,15 +2147,6 @@ export const Constants = {
         "Venue",
         "Act",
         "Agency",
-      ],
-      schedule_activity_type: [
-        "Load-In",
-        "Soundcheck",
-        "Rehearsal",
-        "Set",
-        "Intermission",
-        "Load-Out",
-        "Other",
       ],
       sync_status: ["pending", "synced", "failed", "updated", "removed"],
       user_role: ["Admin", "Manager", "Staff", "Viewer"],
