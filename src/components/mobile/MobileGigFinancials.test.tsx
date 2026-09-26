@@ -45,9 +45,21 @@ describe('MobileGigFinancials', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    (gigService.getGigFinancials as any).mockResolvedValue(mockFinancials);
+    // Resolve after a delay, like a real request: the transactions button is
+    // disabled until the data arrives, so tests must wait for it, not just for
+    // the static tile labels (this raced on slow CI runners).
+    (gigService.getGigFinancials as any).mockImplementation(
+      () => new Promise((resolve) => setTimeout(() => resolve(mockFinancials), 50)),
+    );
     (gigService.getGigProfitabilitySummary as any).mockResolvedValue(mockSummary);
   });
+
+  // Click "View 1 Transaction" once loading has finished and it's enabled.
+  const openTransactions = async () => {
+    const button = await screen.findByRole('button', { name: /View 1 Transaction/ });
+    await waitFor(() => expect(button).toBeEnabled());
+    fireEvent.click(button);
+  };
 
   it('renders nothing if user is not Admin or Manager', () => {
     render(<MobileGigFinancials {...defaultProps} userRole="Staff" />);
@@ -86,30 +98,18 @@ describe('MobileGigFinancials', () => {
   it('opens transactions modal when tiles are clicked', async () => {
     render(<MobileGigFinancials {...defaultProps} />);
     
-    await waitFor(() => {
-      expect(screen.getByText('Revenue')).toBeInTheDocument();
-    });
+    await openTransactions();
 
-    fireEvent.click(screen.getByText(/View \d+ Transaction/));
-
-    await waitFor(() => {
-      expect(screen.getByText(/Transactions \(1\)/)).toBeInTheDocument();
-      expect(screen.getByText('Test Agreement')).toBeInTheDocument();
-    }, { timeout: 3000 });
+    expect(await screen.findByText(/Transactions \(1\)/)).toBeInTheDocument();
+    expect(screen.getByText('Test Agreement')).toBeInTheDocument();
   });
 
   it('shows transaction detail when a transaction is clicked', async () => {
     render(<MobileGigFinancials {...defaultProps} />);
 
-    await waitFor(() => {
-      expect(screen.getByText('Revenue')).toBeInTheDocument();
-    });
+    await openTransactions();
 
-    fireEvent.click(screen.getByText(/View \d+ Transaction/));
-
-    await waitFor(() => {
-      expect(screen.getByText('Test Agreement')).toBeInTheDocument();
-    }, { timeout: 3000 });
+    expect(await screen.findByText('Test Agreement')).toBeInTheDocument();
 
     fireEvent.click(screen.getByText('Test Agreement'));
 
