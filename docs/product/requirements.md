@@ -235,7 +235,7 @@ Many gigs involve multiple acts performing at scheduled times, plus logistical a
 **Schedule Entries**:
 - A gig can have multiple schedule entries, each with a type, start time, end time, and optional notes.
 - Schedule entries are stored in a separate `gig_schedule_entries` table — participants define who is involved, schedule entries define when things happen.
-- **Activity Types**: Load-In, Soundcheck, Rehearsal, Set (linked to an act participant), Intermission/Break, Load-Out, Other (custom label).
+- **Schedule items**: free text. The UI offers the defaults Load-In, Act Arrival, Soundcheck, Doors, Set, Load-Out and Return (Set and Soundcheck can be linked to an act participant), and any custom item can be added (#12).
 - Schedule entry times must fall within the gig's start/end window.
 
 **Act Time Slots**:

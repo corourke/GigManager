@@ -231,15 +231,10 @@ IRS Schedule C expense categories (replaced the original `Labor / Equipment / â€
 - `Wages`
 - `Other expenses`
 
-### schedule_activity_type
-Activity kind for a gig run-of-show entry (`gig_schedule_entries.activity_type`; migration 20260616000000).
-- `Load-In`
-- `Soundcheck`
-- `Rehearsal`
-- `Set`
-- `Intermission`
-- `Load-Out`
-- `Other`
+### schedule_activity_type (dropped)
+Was the enum for `gig_schedule_entries.activity_type` (migration 20260616000000). Dropped by
+20260926000000: the column is now free `text` (non-blank), and the UI suggests the defaults Load-In, Act Arrival,
+Soundcheck, Doors, Set, Load-Out and Return (`SCHEDULE_DEFAULT_ITEMS` in `src/utils/supabase/constants.ts`).
 
 ### sync_status
 Tracks Google Calendar sync state for gigs.
@@ -457,7 +452,7 @@ erDiagram
     GIG_SCHEDULE_ENTRIES {
         uuid id PK
         uuid gig_id FK
-        schedule_activity_type activity_type
+        text activity_type
         timestamptz start_time
         uuid act_participant_id FK "NULLABLE"
     }
@@ -557,7 +552,7 @@ Run-of-show / multi-act schedule entries for a gig (migrations 20260616000000, 2
 |-------|------|-------------|
 | id | UUID | Primary key |
 | gig_id | UUID | Reference to gigs.id (NOT NULL, CASCADE delete) |
-| activity_type | schedule_activity_type | Kind of activity (NOT NULL) |
+| activity_type | text | Schedule item name: a UI default or any custom text (NOT NULL, not blank; free text since 20260926000000) |
 | label | TEXT | Optional display label (nullable) |
 | start_time | TIMESTAMPTZ | Start time (NOT NULL) |
 | end_time | TIMESTAMPTZ | End time (**nullable** since 20260617000000) |

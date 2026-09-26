@@ -80,26 +80,38 @@ export const ENTITY_TYPE = {
 
 export type EntityType = keyof typeof ENTITY_TYPE;
 
-export const SCHEDULE_ACTIVITY_TYPES = [
+/**
+ * Schedule items the UI offers by default. The database stores any name
+ * (`gig_schedule_entries.activity_type` is free text since #12), so these are
+ * suggestions, not a closed list.
+ */
+export const SCHEDULE_DEFAULT_ITEMS = [
   'Load-In',
+  'Act Arrival',
   'Soundcheck',
-  'Rehearsal',
+  'Doors',
   'Set',
-  'Intermission',
   'Load-Out',
-  'Other',
+  'Return',
 ] as const;
 
-export type ScheduleActivityType = (typeof SCHEDULE_ACTIVITY_TYPES)[number];
+/** A schedule item's type: one of the defaults or any custom name. */
+export type ScheduleActivityType = string;
 
-export const SCHEDULE_ACTIVITY_CONFIG: Record<ScheduleActivityType, { label: string; icon: string; color: string }> = {
+type ScheduleItemStyle = { label: string; icon: string; color: string };
+
+/** Display styling for known items; anything else falls back to `Other`. */
+export const SCHEDULE_ACTIVITY_CONFIG: Record<string, ScheduleItemStyle | undefined> = {
   'Load-In':      { label: 'Load-In',      icon: 'Truck',           color: 'bg-orange-100 text-orange-700 border-orange-300' },
+  'Act Arrival':  { label: 'Act Arrival',  icon: 'UserCheck',       color: 'bg-sky-100 text-sky-700 border-sky-300' },
   'Soundcheck':   { label: 'Soundcheck',   icon: 'Volume2',         color: 'bg-blue-100 text-blue-700 border-blue-300' },
-  'Rehearsal':    { label: 'Rehearsal',     icon: 'Music',           color: 'bg-purple-100 text-purple-700 border-purple-300' },
-  'Set':          { label: 'Set',           icon: 'Mic2',            color: 'bg-green-100 text-green-700 border-green-300' },
-  'Intermission': { label: 'Intermission',  icon: 'Coffee',          color: 'bg-amber-100 text-amber-700 border-amber-300' },
-  'Load-Out':     { label: 'Load-Out',      icon: 'Truck',           color: 'bg-orange-100 text-orange-700 border-orange-300' },
-  'Other':        { label: 'Other',         icon: 'MoreHorizontal',  color: 'bg-gray-100 text-gray-700 border-gray-300' },
+  'Doors':        { label: 'Doors',        icon: 'DoorOpen',        color: 'bg-teal-100 text-teal-700 border-teal-300' },
+  'Rehearsal':    { label: 'Rehearsal',    icon: 'Music',           color: 'bg-purple-100 text-purple-700 border-purple-300' },
+  'Set':          { label: 'Set',          icon: 'Mic2',            color: 'bg-green-100 text-green-700 border-green-300' },
+  'Intermission': { label: 'Intermission', icon: 'Coffee',          color: 'bg-amber-100 text-amber-700 border-amber-300' },
+  'Load-Out':     { label: 'Load-Out',     icon: 'Truck',           color: 'bg-orange-100 text-orange-700 border-orange-300' },
+  'Return':       { label: 'Return',       icon: 'Undo2',           color: 'bg-orange-100 text-orange-700 border-orange-300' },
+  'Other':        { label: 'Other',        icon: 'MoreHorizontal',  color: 'bg-gray-100 text-gray-700 border-gray-300' },
 };
 
 export const FIN_TYPE_CONFIG = {
