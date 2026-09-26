@@ -11,7 +11,7 @@ Cameron questions.
 Migrated from GitHub issue [#41](https://github.com/corourke/GigManager/issues/41) on 2026-09-22. This file now
 supersedes that issue as the board of record.
 
-- **Last updated:** 2026-09-26 (coordinator: #12 PR 1 merged; migration awaiting apply; PRs 2–5 in progress)
+- **Last updated:** 2026-09-26 (coordinator: #12 PRs 1–2 merged; migration awaiting apply; PRs 3–5 in progress)
 - **State verified:** 2026-09-26 16:15 UTC (7 open issues; no open PRs)
 
 ---
@@ -22,8 +22,8 @@ supersedes that issue as the board of record.
 |---|---|---|---|---|
 | [#69](https://github.com/corourke/GigManager/issues/69) | Adding a gig participant logs added/removed several times in History | Bug | Diagnosed 09-24 (frontend only) | Triage — approved, in §3c; next run |
 | [#74](https://github.com/corourke/GigManager/issues/74) | Gigs show up in Past too early | Bug | Diagnosed 09-26 (frontend only) | Triage — approved, in §3c |
-| [#39](https://github.com/corourke/GigManager/issues/39) | Too many menu levels | UI/UX design | Mockups posted 09-19 | Cameron — pick a variant |
-| [#12](https://github.com/corourke/GigManager/issues/12) | Reorganize Gig Edit into tabbed sections | UI/UX design | Mockups posted 09-19 | Cameron — pick a variant |
+| [#39](https://github.com/corourke/GigManager/issues/39) | Too many menu levels | UI/UX design | Plan approved 09-26; PRs 1–2 merged ([#79](https://github.com/corourke/GigManager/pull/79), [#80](https://github.com/corourke/GigManager/pull/80)) | Coordinator — PRs 3–5 |
+| [#12](https://github.com/corourke/GigManager/issues/12) | Reorganize Gig Edit into tabbed sections | UI/UX design | Plan approved 09-26; PRs 1–2 merged ([#79](https://github.com/corourke/GigManager/pull/79), [#80](https://github.com/corourke/GigManager/pull/80)) | Coordinator — PRs 3–5 |
 | [#20](https://github.com/corourke/GigManager/issues/20) | Shared data-access layer under `src/services/` | Refactor | Pilot merged (PR #66); 15 services remain | Nothing — pick up next service when wanted |
 | [#32](https://github.com/corourke/GigManager/issues/32) | Sign Up: no confirm-password field | Low priority | Open, not urgent | Nothing — accepted for beta |
 
@@ -64,9 +64,11 @@ table or policy change needs a test in `supabase/tests/rls/`; CI runs it as the 
 ### Gig list / detail UX
 
 **[#12](https://github.com/corourke/GigManager/issues/12) — Reorganize Gig Edit into tabbed sections.**
-Mockup canvas posted 09-19 (top tabs vs. left-side tabs). Blocked on a direction pick. Once a variant is
-chosen, write a full work plan (approach / test strategy / review criteria), post it, and **wait for approval
-before implementing** (AGENTS.md rule 1).
+Design and 5-PR plan approved 09-26 (mockups: https://claude.ai/artifact/DgFeir8bWRGLAQEERLyzSt); the
+coordinator builds and merges. PR 1 (schedule item free text, [#79](https://github.com/corourke/GigManager/pull/79))
+and PR 2 (one gig page, view mode, roles, Columns picker, [#80](https://github.com/corourke/GigManager/pull/80))
+merged 09-26. Next: PR 3 one edit mode (When & schedule, one save indicator, Done waits for saves), PR 4
+printing, PR 5 style guide.
 
 ### UI/UX — in design scoping
 
@@ -99,7 +101,7 @@ order that unblocks the most work; the coordinator puts these to Cameron one at 
 2. **Apply migration `20260926000000_schedule_item_free_text.sql`** (#12 PR 1, [#79](https://github.com/corourke/GigManager/pull/79), merged 09-26):
    `./deploy_dev.sh`, then `./deploy_prod.sh`. Until it's applied, saving schedule items named Act Arrival, Doors or
    Return fails. The rest of #12 (plan approved 09-26, Cameron authorized the coordinator to merge) is being built by
-   the coordinator, PRs 2–5. Primary button colour decided: `sky-700` (#0369a1), as in the mockups.
+   the coordinator: PR 2 merged ([#80](https://github.com/corourke/GigManager/pull/80)), PRs 3–5 to come. Primary button colour decided: `sky-700` (#0369a1), as in the mockups.
 3. **Sentry secrets** — `SENTRY_API_TOKEN`, `SENTRY_ORG_SLUG`, `SENTRY_PROJECT_SLUG` for the health check's Sentry round-trip. Optional; it reports "not configured" until set.
 
 ### 3b. Raised by triage, for the coordinator
