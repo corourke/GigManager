@@ -11,7 +11,7 @@ Cameron questions.
 Migrated from GitHub issue [#41](https://github.com/corourke/GigManager/issues/41) on 2026-09-22. This file now
 supersedes that issue as the board of record.
 
-- **Last updated:** 2026-09-26 (coordinator: #61 migration live on prod; §3b resolved; #74/#75 moved to §3a)
+- **Last updated:** 2026-09-26 (coordinator: #74 approved into §3c)
 - **State verified:** 2026-09-26 16:15 UTC (7 open issues; no open PRs)
 
 ---
@@ -21,8 +21,8 @@ supersedes that issue as the board of record.
 | # | Item | Type | State | Waiting on |
 |---|---|---|---|---|
 | [#69](https://github.com/corourke/GigManager/issues/69) | Adding a gig participant logs added/removed several times in History | Bug | Diagnosed 09-24 (frontend only) | Triage — approved, in §3c; next run |
-| [#74](https://github.com/corourke/GigManager/issues/74) | Gigs show up in Past too early | Bug | Diagnosed 09-26 (frontend only) | Cameron — approve into §3c (§3a item 1) |
-| [#75](https://github.com/corourke/GigManager/issues/75) | No need for second financial edit mode | UI/UX | New 09-25, not scoped | Cameron — approach (§3a item 2) |
+| [#74](https://github.com/corourke/GigManager/issues/74) | Gigs show up in Past too early | Bug | Diagnosed 09-26 (frontend only) | Triage — approved, in §3c |
+| [#75](https://github.com/corourke/GigManager/issues/75) | No need for second financial edit mode | UI/UX | New 09-25, not scoped | Cameron — approach (§3a item 1) |
 | [#39](https://github.com/corourke/GigManager/issues/39) | Too many menu levels | UI/UX design | Mockups posted 09-19 | Cameron — pick a variant |
 | [#12](https://github.com/corourke/GigManager/issues/12) | Reorganize Gig Edit into tabbed sections | UI/UX design | Mockups posted 09-19 | Cameron — pick a variant |
 | [#20](https://github.com/corourke/GigManager/issues/20) | Shared data-access layer under `src/services/` | Refactor | Pilot merged (PR #66); 15 services remain | Nothing — pick up next service when wanted |
@@ -40,7 +40,7 @@ Filed 09-23 by Cameron. Diagnosis posted on the issue 09-24. `GigParticipantsSec
 sends `id: undefined`, so `updateGigParticipants` deletes the row and inserts it again, logging
 `participant.removed` and then `participant.added`. It also silently unlinks `gig_schedule_entries.act_participant_id`
 (`ON DELETE SET NULL`). The fix is frontend only: return the inserted ids and write them back into the form.
-No migration, no RLS change and no API-shape change. Not started, because it isn't in §3c.
+No migration, no RLS change and no API-shape change. Approved into §3c on 09-26.
 
 **[#74](https://github.com/corourke/GigManager/issues/74) — Gigs show up in Past too early.**
 Filed 09-25 by Cameron. Diagnosis posted on the issue 09-26. The timezone isn't the cause. Both `GigListScreen.tsx` (lines 191-198)
@@ -100,11 +100,10 @@ Low priority, explicitly acceptable for beta. Open, no action planned.
 *Curated by the coordinator session only.* Nothing below can move without a reply. Listed roughly in the
 order that unblocks the most work; the coordinator puts these to Cameron one at a time.
 
-1. **[#74](https://github.com/corourke/GigManager/issues/74): approve the "past only after the gig's last day, in its timezone" fix into §3c?** Asked 09-26.
-2. **[#75](https://github.com/corourke/GigManager/issues/75): one edit mode for the whole gig on web.** Needs an approach, and it may belong in #12's gig-edit redesign. It follows #74.
-3. **[#39](https://github.com/corourke/GigManager/issues/39)** — pick a mockup variant (or a hybrid) from the 09-19 canvas so a work plan can be written.
-4. **[#12](https://github.com/corourke/GigManager/issues/12)** — pick top-tabs vs. left-side-tabs from the 09-19 canvas, **and** say whether the cross-section coordination question (e.g. staffing needing gig dates) should be folded into the same design pass.
-5. **Sentry secrets** — `SENTRY_API_TOKEN`, `SENTRY_ORG_SLUG`, `SENTRY_PROJECT_SLUG` for the health check's Sentry round-trip. Optional; it reports "not configured" until set.
+1. **[#75](https://github.com/corourke/GigManager/issues/75): one edit mode for the whole gig on web.** Needs an approach, and it may belong in #12's gig-edit redesign. 
+2. **[#39](https://github.com/corourke/GigManager/issues/39)** — pick a mockup variant (or a hybrid) from the 09-19 canvas so a work plan can be written.
+3. **[#12](https://github.com/corourke/GigManager/issues/12)** — pick top-tabs vs. left-side-tabs from the 09-19 canvas, **and** say whether the cross-section coordination question (e.g. staffing needing gig dates) should be folded into the same design pass.
+4. **Sentry secrets** — `SENTRY_API_TOKEN`, `SENTRY_ORG_SLUG`, `SENTRY_PROJECT_SLUG` for the health check's Sentry round-trip. Optional; it reports "not configured" until set.
 
 ### 3b. Raised by triage, for the coordinator
 
@@ -123,6 +122,11 @@ needs approval before code changes.
   Approved 09-25, the fix posted on the issue: failing test first; `updateGigParticipants` returns the inserted
   ids and `GigParticipantsSection` writes them back after the save, so later autosaves update in place.
   Separate PR from #71.
+
+- **[#74](https://github.com/corourke/GigManager/issues/74) — gigs move to Past as soon as they start.**
+  Approved 09-26 as posted on the issue: a failing test first; then a shared `isGigPast(gig, now)` helper, where a gig
+  is past only after the end of its last calendar day (`end`, else `start`) in the gig's `timezone`. Used by
+  `GigListScreen.tsx` and `MobileGigList.tsx`. Frontend only. Separate PR from #69.
 
 **Always a contract, never pre-approved:** new migrations or any RLS/policy change (AGENTS.md rule 4 — Cameron
 applies migrations), edge-function API shape, anything touching production config or `deploy_prod.sh`.
@@ -161,7 +165,7 @@ Read this section first on each run.
 | #20 remaining services | `src/services/*.service.ts` (all but `user.service.ts`) | Parked until Cameron asks for the next one |
 
 **Dependencies.** #12 and #39 both reshape navigation/gig-edit UI — do them in sequence, not in parallel, once
-each has a direction. #52's health check is live on dev and prod (09-25); its Sentry check additionally needs the Sentry secrets (§3a item 5). The tenant model is decided (hosted, shared DB, 09-25).
+each has a direction. #52's health check is live on dev and prod (09-25); its Sentry check additionally needs the Sentry secrets (§3a item 4). The tenant model is decided (hosted, shared DB, 09-25).
 
 **Where things stand.** 09-26: #71 fixed in PR #77 (merged 16:14 UTC, #71 closed). #69 is still to build. Each run has one
 designated branch and #69 needs its own PR, so it goes to the next run. #74 was diagnosed and #75 is new, and both
