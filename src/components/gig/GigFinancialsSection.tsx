@@ -121,6 +121,11 @@ interface GigFinancialsSectionProps {
   currentOrganizationId: string;
   userRole?: UserRole;
   gigStartDate?: string;
+  /**
+   * Page-wide edit mode (#12). When given, it decides whether the add / edit /
+   * delete controls show, and the section's own "Edit Financials" toggle is hidden.
+   */
+  editing?: boolean;
 }
 
 export default function GigFinancialsSection({
@@ -128,6 +133,7 @@ export default function GigFinancialsSection({
   currentOrganizationId,
   userRole,
   gigStartDate,
+  editing,
 }: GigFinancialsSectionProps) {
   const navigation = useNavigation();
   const queryClient = useQueryClient();
@@ -165,7 +171,8 @@ export default function GigFinancialsSection({
   });
 
   const isAdmin = userRole === 'Admin' || userRole === 'Manager';
-  const [isEditMode, setIsEditMode] = useState(false);
+  const [localEditMode, setIsEditMode] = useState(false);
+  const isEditMode = editing ?? localEditMode;
 
   const { control, handleSubmit: _handleSubmit, formState: { isDirty }, watch, reset, setValue, getValues } = useForm<z.input<typeof financialsFormSchema>, any, FinancialsFormData>({
     resolver: zodResolver(financialsFormSchema),
@@ -665,7 +672,7 @@ export default function GigFinancialsSection({
               <SaveStateIndicator state={saveState} />
             </div>
             <div className="flex items-center gap-2">
-              {isAdmin && (
+              {isAdmin && editing === undefined && (
                 <Button
                   variant={isEditMode ? "default" : "outline"}
                   size="sm"

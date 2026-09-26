@@ -54,8 +54,8 @@ vi.mock('./Dashboard', () => ({
 vi.mock('./GigListScreen', () => ({
   default: () => <div>GigListScreen</div>,
 }))
-vi.mock('./GigDetailScreen', () => ({
-  default: () => <div>GigDetailScreen</div>,
+vi.mock('./gig/GigPage', () => ({
+  default: () => <div>GigPage</div>,
 }))
 vi.mock('./GigScreen', () => ({
   default: () => <div>GigScreen</div>,
