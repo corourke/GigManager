@@ -195,4 +195,18 @@ describe('updateGigFinancials', () => {
 
     expect(logActivity).not.toHaveBeenCalled();
   });
+
+  it('sends category null, not an empty string, for a new record with no category (issue #71)', async () => {
+    const finChain = makeFullChain({ data: [], error: null });
+    mockSupabase.from.mockImplementation((table: string) => {
+      if (table === 'gig_financials') return finChain;
+      return makeFullChain({ data: null, error: null });
+    });
+
+    await updateGigFinancials('gig-1', 'org-1', [
+      { amount: 500, date: '2026-01-01', type: 'Invoice Issued', category: '' as any },
+    ]);
+
+    expect(finChain.insert).toHaveBeenCalledWith(expect.objectContaining({ category: null }));
+  });
 });

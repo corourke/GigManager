@@ -3,6 +3,8 @@ import { toast } from 'sonner';
 
 export type SaveState = 'idle' | 'saving' | 'saved' | 'error';
 
+export type SaveResult = { ok: true } | { ok: false; error: Error };
+
 interface UseAutoSaveOptions<T> {
   gigId: string;
   onSave: (data: T) => Promise<void>;
@@ -16,6 +18,8 @@ interface UseAutoSaveReturn<T> {
   triggerSave: (data: T) => void;
   flush: () => void;
   flushAsync: () => Promise<void>;
+  /** Save now, skipping the debounce; resolves to whether it succeeded, and why not. */
+  saveNow: (data: T) => Promise<SaveResult>;
 }
 
 export function useAutoSave<T>({
@@ -29,11 +33,14 @@ export function useAutoSave<T>({
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
   const dataToSaveRef = useRef<T | null>(null);
   const lastSavedDataRef = useRef<string>('');
+  // The last payload that failed. A debounced save skips an identical payload, so a
+  // re-render of a still-dirty form doesn't retry a doomed save (and re-toast) forever.
+  const lastFailedDataRef = useRef<string | null>(null);
 
-  const performSave = useCallback(async (data: T) => {
+  const performSave = useCallback(async (data: T): Promise<SaveResult> => {
     const dataString = JSON.stringify(data);
     if (dataString === lastSavedDataRef.current) {
-      return;
+      return { ok: true };
     }
 
     setSaveState('saving');
@@ -41,6 +48,7 @@ export function useAutoSave<T>({
     try {
       await onSave(data);
       lastSavedDataRef.current = dataString;
+      lastFailedDataRef.current = null;
       setSaveState('saved');
       
       if (onSuccess) {
@@ -50,11 +58,14 @@ export function useAutoSave<T>({
       setTimeout(() => {
         setSaveState((current) => (current === 'saved' ? 'idle' : current));
       }, 2000);
+      return { ok: true };
     } catch (err: any) {
       console.error('Auto-save error:', err);
       setSaveState('error');
       setError(err);
       toast.error(err.message || 'Failed to auto-save changes');
+      lastFailedDataRef.current = dataString;
+      return { ok: false, error: err };
     }
   }, [onSave, onSuccess]);
 
@@ -79,6 +90,9 @@ export function useAutoSave<T>({
   }, [performSave]);
 
   const triggerSave = useCallback((data: T) => {
+    if (JSON.stringify(data) === lastFailedDataRef.current) {
+      return;
+    }
     dataToSaveRef.current = data;
     
     if (timeoutRef.current) {
@@ -92,6 +106,15 @@ export function useAutoSave<T>({
       }
     }, debounceMs);
   }, [debounceMs, performSave]);
+
+  const saveNow = useCallback(async (data: T) => {
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+      timeoutRef.current = null;
+    }
+    dataToSaveRef.current = null;
+    return performSave(data);
+  }, [performSave]);
 
   useEffect(() => {
     return () => {
@@ -110,5 +133,6 @@ export function useAutoSave<T>({
     triggerSave,
     flush,
     flushAsync,
+    saveNow,
   };
 }
