@@ -82,6 +82,7 @@ export interface ManifestRow {
 }
 
 export interface PackingListRow {
+  /** The unit scanned: the container itself for a container row, else the kit an asset is tracked under. */
   kit_id: string;
   kit_name?: string | null;
   is_container: boolean;
@@ -95,6 +96,11 @@ export interface PackingListRow {
   scanned_by_name?: string | null;
   notes?: string | null;
   has_conflict: boolean;
+  /** The kit assigned to the gig that this row is packed under (#81): a container assigned on its own is its own group. */
+  group_kit_id: string;
+  group_kit_name: string;
+  group_is_container: boolean;
+  group_tag_number: string | null;
 }
 
 export interface MaintenanceRow {
@@ -587,6 +593,12 @@ export async function getPackingListReport(organizationId: string, gigId: string
       const kit = (assignment as any).kit;
       const kitId = assignment.kit_id;
       const hasConflict = conflictFlags.has(kitId);
+      const group = {
+        group_kit_id: kitId,
+        group_kit_name: kit.name,
+        group_is_container: !!kit.is_container,
+        group_tag_number: kit.tag_number ?? null,
+      };
 
       if (kit.is_container) {
         const kitRecord = latest.find((r) => r.kit_id === kitId && !r.asset_id);
@@ -607,6 +619,7 @@ export async function getPackingListReport(organizationId: string, gigId: string
           scanned_by_name: kitRecord ? formatUserName((kitRecord as any).scanned_by_user) : null,
           notes: kitRecord?.notes ?? null,
           has_conflict: hasConflict,
+          ...group,
         });
       } else {
         for (const unit of scanUnitsByKit.get(kitId) ?? []) {
@@ -626,6 +639,7 @@ export async function getPackingListReport(organizationId: string, gigId: string
             scanned_by_name: unitRecord ? formatUserName((unitRecord as any).scanned_by_user) : null,
             notes: unitRecord?.notes ?? null,
             has_conflict: unitConflict,
+            ...group,
           });
         }
       }

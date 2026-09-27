@@ -728,6 +728,63 @@ describe('inventoryManagement.service', () => {
       expect(result.some((r) => r.asset_name === 'SM58')).toBe(false);
     });
 
+    // Issue #81: rows only said which unit to scan, not which assigned kit they
+    // are packed under, so a kit holding only containers vanished and its
+    // containers (and any container assigned on its own) read as part of
+    // whichever kit happened to be listed above them.
+    it('records the assigned kit each row is packed under (#81)', async () => {
+      const { getPackingListReport } = await import('./inventoryManagement.service');
+
+      mockSupabase.rpc = vi.fn().mockResolvedValue({
+        data: [
+          { parent_kit_id: 'kit-all-mic', child_kit_id: 'kit-boom-1', quantity: 1, depth: 1 },
+          { parent_kit_id: 'kit-all-mic', child_kit_id: 'kit-boom-2', quantity: 1, depth: 1 },
+        ],
+        error: null,
+      });
+      mockSupabase.from.mockImplementation((table: string) => {
+        if (table === 'gig_kit_assignments') {
+          return makeQueryChain({
+            data: [
+              { kit_id: 'kit-all-mic', kit: { id: 'kit-all-mic', name: 'All Mic Stands', is_container: false, tag_number: null, organization_id: 'org-1' } },
+              { kit_id: 'kit-power', kit: { id: 'kit-power', name: 'Power Box', is_container: true, tag_number: 'PWR-1', organization_id: 'org-1' } },
+            ],
+            error: null,
+          });
+        }
+        if (table === 'kits') {
+          return makeQueryChain({
+            data: [
+              { id: 'kit-all-mic', name: 'All Mic Stands', category: null, is_container: false, tag_number: null },
+              { id: 'kit-boom-1', name: 'Boom Stands 1', category: null, is_container: true, tag_number: 'BS-1' },
+              { id: 'kit-boom-2', name: 'Boom Stands 2', category: null, is_container: true, tag_number: 'BS-2' },
+            ],
+            error: null,
+          });
+        }
+        if (table === 'kit_components') {
+          return makeQueryChain({
+            data: [
+              { kit_id: 'kit-all-mic', asset_id: null, child_kit_id: 'kit-boom-1', quantity: 1, asset: null },
+              { kit_id: 'kit-all-mic', asset_id: null, child_kit_id: 'kit-boom-2', quantity: 1, asset: null },
+            ],
+            error: null,
+          });
+        }
+        return makeQueryChain({ data: [], error: null });
+      });
+
+      const result = await getPackingListReport('org-1', 'gig-1');
+
+      expect(result).toHaveLength(3);
+      const allMic = { group_kit_id: 'kit-all-mic', group_kit_name: 'All Mic Stands', group_is_container: false, group_tag_number: null };
+      expect(result.find((r) => r.kit_id === 'kit-boom-1')).toMatchObject({ is_container: true, kit_name: 'Boom Stands 1', ...allMic });
+      expect(result.find((r) => r.kit_id === 'kit-boom-2')).toMatchObject({ is_container: true, kit_name: 'Boom Stands 2', ...allMic });
+      expect(result.find((r) => r.kit_id === 'kit-power')).toMatchObject({
+        group_kit_id: 'kit-power', group_kit_name: 'Power Box', group_is_container: true, group_tag_number: 'PWR-1',
+      });
+    });
+
     // Regression: a kit assigned directly to the gig AND nested inside
     // another assigned kit's tree (e.g. a container both stands alone and
     // sits inside a larger "gig pack") produced one row from each path —

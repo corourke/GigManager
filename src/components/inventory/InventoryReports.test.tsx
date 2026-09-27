@@ -36,23 +36,45 @@ vi.mock('../ui/select', () => {
 
 import { getPackingListReport } from '../../services/inventoryManagement.service';
 
+const blank = { status: null, location: null, scanned_at: null, scanned_by_name: null, notes: null, has_conflict: false };
+const lighting = { group_kit_id: 'kit-lighting', group_kit_name: 'Lighting Kit', group_is_container: false, group_tag_number: null };
 const PACKING_ROWS: PackingListRow[] = [
   {
     kit_id: 'kit-lighting', kit_name: 'Lighting Kit', is_container: false,
-    asset_id: 'asset-par', asset_name: 'LED Par', tag_number: 'PAR-1', quantity: 4,
-    status: null, location: null, scanned_at: null, scanned_by_name: null, notes: null, has_conflict: false,
+    asset_id: 'asset-par', asset_name: 'LED Par', tag_number: 'PAR-1', quantity: 4, ...lighting, ...blank,
   },
   {
     kit_id: 'kit-lighting', kit_name: 'Lighting Kit', is_container: false,
-    asset_id: 'asset-cable', asset_name: 'XLR Cable', tag_number: null, quantity: 3,
-    status: null, location: null, scanned_at: null, scanned_by_name: null, notes: null, has_conflict: false,
+    asset_id: 'asset-cable', asset_name: 'XLR Cable', tag_number: null, quantity: 3, ...lighting, ...blank,
   },
   {
     kit_id: 'kit-case', kit_name: 'Road Case', is_container: true,
     asset_id: null, asset_name: null, tag_number: 'RC-1', quantity: 1,
-    status: null, location: null, scanned_at: null, scanned_by_name: null, notes: null, has_conflict: false,
+    group_kit_id: 'kit-case', group_kit_name: 'Road Case', group_is_container: true, group_tag_number: 'RC-1', ...blank,
   },
 ];
+
+// Issue #81: a kit holding only containers, then a container assigned on its own.
+const allMic = { group_kit_id: 'kit-all-mic', group_kit_name: 'All Mic Stands', group_is_container: false, group_tag_number: null };
+const MIC_STAND_ROWS: PackingListRow[] = [
+  { kit_id: 'kit-boom-1', kit_name: 'Boom Stands 1', is_container: true, asset_id: null, asset_name: null, tag_number: 'BS-1', quantity: 1, ...allMic, ...blank },
+  { kit_id: 'kit-boom-2', kit_name: 'Boom Stands 2', is_container: true, asset_id: null, asset_name: null, tag_number: 'BS-2', quantity: 1, ...allMic, ...blank },
+  {
+    kit_id: 'kit-power', kit_name: 'Power Box', is_container: true, asset_id: null, asset_name: null, tag_number: 'PWR-1', quantity: 1,
+    group_kit_id: 'kit-power', group_kit_name: 'Power Box', group_is_container: true, group_tag_number: 'PWR-1', ...blank,
+  },
+];
+
+/** The table body top to bottom: a kit heading (a row with one spanning cell) as "# <kit>", an item row as its name. */
+function packingOrder(): string[] {
+  const body = screen.getAllByRole('rowgroup')[1];
+  return within(body).getAllByRole('row').map((row) => {
+    const cells = within(row).getAllByRole('cell');
+    return cells.length === 1
+      ? `# ${cells[0].querySelector('span')?.textContent ?? ''}`
+      : cells[1].firstElementChild?.firstChild?.textContent ?? '';
+  });
+}
 
 async function renderPackingListTab() {
   const user = userEvent.setup();
@@ -81,19 +103,25 @@ describe('InventoryReports — Packing List tab', () => {
     expect(within(cableRow).getByText('3')).toBeInTheDocument();
   });
 
-  it('gives a multi-item kit a divider row but skips it for a standalone container row', async () => {
+  it('puts every assigned kit under its own heading, a lone container included (#81)', async () => {
     (getPackingListReport as any).mockResolvedValue(PACKING_ROWS);
     await renderPackingListTab();
 
     await waitFor(() => expect(screen.getByText('LED Par')).toBeInTheDocument());
-
-    // Lighting Kit groups two rows — it gets its own divider row naming the kit.
-    expect(screen.getByText('Lighting Kit')).toBeInTheDocument();
-
-    // Road Case is a standalone container row — its name appears exactly
-    // once, inline on the item row itself, not also as a divider row.
-    expect(screen.getAllByText('Road Case')).toHaveLength(1);
-    const roadCaseRow = screen.getByText('Road Case').closest('tr')!;
+    expect(packingOrder()).toEqual(['# Lighting Kit', 'LED Par', 'XLR Cable', '# Road Case', 'Road Case']);
+    const roadCaseRow = screen.getAllByRole('row').find((r) => r.querySelectorAll('td').length > 1 && r.textContent?.includes('RC-1'))!;
     expect(within(roadCaseRow).getByText('1')).toBeInTheDocument();
+  });
+
+  it('lists containers packed inside a kit under that kit, not under whatever comes before (#81)', async () => {
+    (getPackingListReport as any).mockResolvedValue([...PACKING_ROWS.slice(0, 2), ...MIC_STAND_ROWS]);
+    await renderPackingListTab();
+
+    await waitFor(() => expect(screen.getByText('Boom Stands 1')).toBeInTheDocument());
+    expect(packingOrder()).toEqual([
+      '# Lighting Kit', 'LED Par', 'XLR Cable',
+      '# All Mic Stands', 'Boom Stands 1', 'Boom Stands 2',
+      '# Power Box', 'Power Box',
+    ]);
   });
 });
