@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render as rtlRender, screen, waitFor, fireEvent } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import GigParticipantsSection from './GigParticipantsSection';
+import { updateGigParticipants } from '../../services/gig.service';
 
 // GigParticipantContactsList (rendered per participant row) uses TanStack
 // Query, so renders need a QueryClientProvider. retry:false keeps tests
@@ -28,6 +29,20 @@ vi.mock('../../services/gig.service', () => ({
     ],
   }),
   updateGigParticipants: vi.fn().mockResolvedValue({}),
+}));
+
+// Radix Select doesn't open in jsdom; a native <select> lets tests pick a role.
+vi.mock('../ui/select', () => ({
+  Select: ({ value, onValueChange, disabled, children }: any) => (
+    <select aria-label="Role" value={value} disabled={disabled} onChange={(e) => onValueChange(e.target.value)}>
+      <option value="">Role</option>
+      {children}
+    </select>
+  ),
+  SelectTrigger: () => null,
+  SelectValue: () => null,
+  SelectContent: ({ children }: any) => <>{children}</>,
+  SelectItem: ({ value, children }: any) => <option value={value}>{children}</option>,
 }));
 
 vi.mock('../../services/organization.service', () => ({
@@ -123,5 +138,38 @@ describe('GigParticipantsSection', () => {
     await waitFor(() => {
       expect(screen.getAllByTitle('More actions')).toHaveLength(before + 1);
     });
+  });
+
+  it('reuses the database ids from the first autosave, so later autosaves update rows instead of re-creating them (#69)', async () => {
+    const dbIds: Record<string, string> = {
+      'current-org-id': '22222222-2222-4222-8222-222222222222',
+      'org-2': '33333333-3333-4333-8333-333333333333',
+    };
+    vi.mocked(updateGigParticipants).mockImplementation(async (_gigId, participants) => ({
+      success: true,
+      ids: participants.map((p) => p.id ?? dbIds[p.organization_id]),
+    }));
+
+    render(<GigParticipantsSection {...mockProps} />);
+    await waitFor(() => expect(screen.getByText('Test Org')).toBeInTheDocument());
+
+    fireEvent.click(screen.getByText('Add Participant'));
+    fireEvent.click(await screen.findByText('Mock Select Org'));
+    const roleSelects = screen.getAllByLabelText('Role');
+    fireEvent.change(roleSelects[roleSelects.length - 1], { target: { value: 'Venue' } });
+
+    // First autosave: the new row (and the current-org placeholder) have no database id yet.
+    await waitFor(() => expect(updateGigParticipants).toHaveBeenCalledTimes(1), { timeout: 3000 });
+    const first = vi.mocked(updateGigParticipants).mock.calls[0][1];
+    expect(first.find((p) => p.organization_id === 'org-2')?.id).toBeUndefined();
+
+    // A later edit to the same row (marking it as client) triggers another autosave.
+    const stars = screen.getAllByTitle('Mark as client');
+    fireEvent.click(stars[stars.length - 1]);
+
+    await waitFor(() => expect(updateGigParticipants).toHaveBeenCalledTimes(2), { timeout: 3000 });
+    const second = vi.mocked(updateGigParticipants).mock.calls[1][1];
+    expect(second.find((p) => p.organization_id === 'org-2')?.id).toBe(dbIds['org-2']);
+    expect(second.find((p) => p.organization_id === 'current-org-id')?.id).toBe(dbIds['current-org-id']);
   });
 });
