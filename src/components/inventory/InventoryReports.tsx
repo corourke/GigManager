@@ -435,12 +435,14 @@ function PackingListTab({
     fetchPackingList();
   }, [fetchPackingList]);
 
+  // Grouped by the kit assigned to the gig, so a container packed inside a kit
+  // sits under that kit and one assigned on its own gets its own heading (#81).
   const rowsByKit = useMemo(() => {
     const map = new Map<string, PackingListRow[]>();
     for (const row of rows) {
-      const list = map.get(row.kit_id) ?? [];
+      const list = map.get(row.group_kit_id) ?? [];
       list.push(row);
-      map.set(row.kit_id, list);
+      map.set(row.group_kit_id, list);
     }
     return map;
   }, [rows]);
@@ -545,31 +547,25 @@ function PackingListTab({
               </TableHeader>
               <TableBody>
                 {Array.from(rowsByKit.entries()).map(([kitId, kitRows]) => {
-                  const kitName = kitRows[0]?.kit_name ?? '—';
-                  const isContainer = kitRows[0]?.is_container ?? false;
-                  const hasConflict = conflictFlags.has(kitId);
-                  // A container assigned directly to the gig is already a
-                  // single sealed row — a divider header above just that one
-                  // row is pure clutter, so its name/badges move onto the
-                  // row itself instead of getting a section of its own.
-                  const isStandaloneRow = isContainer && kitRows.length === 1;
+                  const group = kitRows[0];
                   const columnCount = 4 + [
                     show('status'), show('scanned_at'), show('location'), show('scanned_by'), show('notes'),
                   ].filter(Boolean).length;
 
                   return (
                     <Fragment key={kitId}>
-                      {!isStandaloneRow && (
-                        <TableRow className="bg-muted/40 hover:bg-muted/40">
-                          <TableCell colSpan={columnCount} className="py-2">
-                            <div className="flex items-center gap-2">
-                              <span className="font-medium text-sm">{kitName}</span>
-                              <KitTypeBadge isContainer={isContainer} />
-                              {hasConflict && <ConflictBadge />}
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      )}
+                      <TableRow className="bg-muted/40 hover:bg-muted/40">
+                        <TableCell colSpan={columnCount} className="py-2">
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium text-sm">{group.group_kit_name}</span>
+                            <KitTypeBadge isContainer={group.group_is_container} />
+                            {group.group_tag_number && (
+                              <span className="text-xs text-muted-foreground">Tag {group.group_tag_number}</span>
+                            )}
+                            {conflictFlags.has(kitId) && <ConflictBadge />}
+                          </div>
+                        </TableCell>
+                      </TableRow>
                       {kitRows.map((row, i) => {
                         const rowKey = `${row.kit_id}-${row.asset_id ?? 'kit'}-${i}`;
                         const isChecked = checkedRows.has(rowKey);
@@ -585,12 +581,9 @@ function PackingListTab({
                           <TableCell className={`font-medium ${isChecked ? 'line-through text-muted-foreground' : ''}`}>
                             <div className="flex items-center gap-2">
                               {row.asset_name ?? row.kit_name ?? '—'}
-                              {isStandaloneRow && (
-                                <>
-                                  <KitTypeBadge isContainer={isContainer} />
-                                  {hasConflict && <ConflictBadge />}
-                                </>
-                              )}
+                              {/* A sealed case is packed and scanned whole. */}
+                              {row.is_container && <KitTypeBadge isContainer />}
+                              {row.is_container && row.kit_id !== kitId && conflictFlags.has(row.kit_id) && <ConflictBadge />}
                             </div>
                           </TableCell>
                           <TableCell>{row.tag_number ?? '—'}</TableCell>
