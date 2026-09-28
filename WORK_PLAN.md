@@ -11,7 +11,7 @@ Cameron questions.
 Migrated from GitHub issue [#41](https://github.com/corourke/GigManager/issues/41) on 2026-09-22. This file now
 supersedes that issue as the board of record.
 
-- **Last updated:** 2026-09-28 (coordinator: #81 reopened, reworked as an indented list in PR #86, awaiting Cameron's check; #12 PRs 3–5 in progress; migration awaiting apply)
+- **Last updated:** 2026-09-28 (coordinator: #84 fixed in PR #87; #81 reworked in PR #86, awaiting Cameron's check; #12 PRs 3–5 in progress; migration awaiting apply)
 - **State verified:** 2026-09-28 14:35 UTC (PRs #83 and #85 merged ~14:31 UTC, closing #69 and #74; no open PRs)
 
 ---
@@ -20,7 +20,6 @@ supersedes that issue as the board of record.
 
 | # | Item | Type | State | Waiting on |
 |---|---|---|---|---|
-| [#84](https://github.com/corourke/GigManager/issues/84) | Saved attachments are coming up blank | Bug (urgent) | Diagnosed 09-28 (frontend only) | Coordinator — §3b |
 | [#81](https://github.com/corourke/GigManager/issues/81) | Packing list not following container structure | Bug | Reopened 09-28; indented list per Cameron's list and mockup merged in [#86](https://github.com/corourke/GigManager/pull/86) | Cameron — check the #81 gig's packing list after the next frontend deploy (§3a item 1) |
 | [#39](https://github.com/corourke/GigManager/issues/39) | Too many menu levels | UI/UX design | Direction set 09-26: keep the top nav (no sidebar) | Follows #12's redesign; then Cameron (§3a item 1) |
 | [#12](https://github.com/corourke/GigManager/issues/12) | Reorganize Gig Edit into tabbed sections | UI/UX design | Plan approved 09-26; PRs 1–2 merged ([#79](https://github.com/corourke/GigManager/pull/79), [#80](https://github.com/corourke/GigManager/pull/80)) | Coordinator — PRs 3–5 |
@@ -33,11 +32,7 @@ supersedes that issue as the board of record.
 
 ### Bugs
 
-**[#84](https://github.com/corourke/GigManager/issues/84) — Saved attachments are coming up blank.**
-Filed 09-28 by Cameron (labels `bug`, `urgent`). Diagnosis posted on the issue 09-28. `AttachmentManager.handleDownload`
-opens `window.open('about:blank', '_blank', 'noopener,noreferrer')`, which returns `null` when `noopener` is set. The tab
-stays blank, and the anchor-click fallback after the `await` gets blocked as a second popup. Proposed fix: open without
-the feature string, then `opener = null` and `location.replace(url)`. Frontend only. Not in §3c, so not started (see §3b).
+*(None open. #84 fixed in PR #87 on 09-28; see §4.)*
 
 ### Financials UX
 
@@ -101,9 +96,7 @@ order that unblocks the most work; the coordinator puts these to Cameron one at 
 *The triage routine adds entries here instead of asking Cameron directly — the question, and what it did in the
 meantime. The coordinator resolves each entry (decides it, or moves it into §3a) and deletes it.*
 
-- **[#84](https://github.com/corourke/GigManager/issues/84) — attachments open to `about:blank` (urgent).** Diagnosed 09-28
-  on the issue; the fix is a two-line frontend change in `AttachmentManager.tsx` plus a test. It isn't in §3c, so triage
-  didn't build it. Question: approve it into §3c, or build it in the coordinator session? Nothing claims `AttachmentManager.tsx`.
+*(None open.)*
 
 ### 3c. Ready to build, nothing blocking
 
@@ -143,6 +136,7 @@ applies migrations), edge-function API shape, anything touching production confi
 | Docs refresh: `testing.md` (PR #67), `setup-guide.md` + one line of `deployment.md` (PR #68) | PR #67, PR #68 (09-23) | Merged; docs only, from triage docs passes |
 | #71 — non-expense financial records save `category: null`; Add dialog stays open until saved; failed autosave no longer retries in a loop (`useAutoSave.saveNow`) | PR #77 (09-26) | Merged; #71 closed. Frontend only, ships with the next frontend deploy |
 | #81 — web packing list groups rows under the kit they're packed in; every assigned kit, a lone container included, gets its own heading | PR #82 (09-27) | Merged, but a lone container then showed twice (heading + row); Cameron reopened #81 on 09-28 |
+| #84 — attachments open the file instead of a blank tab (`window.open` without `noopener`, opener cut by hand); first `AttachmentManager` tests | PR #87 (09-28) | Merged; #84 closed. Frontend only, ships with the next frontend deploy |
 | #81 rework — packing list is an indented list: kits A to Z marked Items/Container, an Items kit's contents indented under it, a lone container one line (approved mockup, board 7) | PR #86 (09-28) | Merged; #81 stays open for Cameron's check (§3a). Frontend only |
 | #74 — gig lists keep a gig in Upcoming until its last calendar day is over in the gig's timezone (`isGigPast` in `src/utils/gigTimeframe.ts`, web and mobile) | PR #85 (09-28) | Merged; #74 closed. Frontend only, ships with the next frontend deploy |
 | #69 — participants autosave keeps the database id after the first insert, so later autosaves update the row instead of deleting and re-inserting it (no more repeated added/removed History entries or unlinked schedule acts) | PR #83 (09-28) | Merged; #69 closed. Frontend only, ships with the next frontend deploy. Cameron to check a new participant's History after deploy |
@@ -166,7 +160,7 @@ Read this section first on each run.
 each has a direction. #52's health check is live on dev and prod (09-25); its Sentry check additionally needs the Sentry secrets (§3a item 3). The tenant model is decided (hosted, shared DB, 09-25).
 
 **Where things stand.** 09-28: PRs #83 (#69) and #85 (#74) merged ~14:31 UTC; both issues closed.
-New urgent bug #84 diagnosed and raised in §3b. Nothing in §3c is left unbuilt. #71 and #81 merged earlier (see §4).
+Urgent bug #84 approved by Cameron and fixed by the coordinator in PR #87 (merged 09-28); #81 reworked in PR #86, awaiting Cameron's check. Nothing in §3c is left unbuilt. #71 and #81 merged earlier (see §4).
 
 On 09-23 every item was blocked or parked, so the run moved on to docs. Docs-only PR
 [#67](https://github.com/corourke/GigManager/pull/67) refreshed `docs/development/testing.md`: suite size,
@@ -201,7 +195,7 @@ broken yet.
 **Order of checks each run.**
 
 1. Check CI and mergeability on open PRs (none open as of 09-28 14:35 UTC; list live).
-2. #84: if the coordinator has moved it into §3c, build it (plan and fix are on the issue; failing test first).
+2. #81: if Cameron has commented after checking the packing list, move it on (close, or raise what's still wrong in §3b).
 3. #39 — check for a reply. If a variant is picked → work plan → post → wait for approval → implement.
 4. #12 — same pattern.
 5. #20 — no open question; only act if Cameron asks for the next service to be migrated.
