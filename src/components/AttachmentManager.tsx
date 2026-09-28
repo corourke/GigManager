@@ -103,8 +103,10 @@ export default function AttachmentManager({
   const handleDownload = async (attachment: DbAttachment) => {
     // Open the tab synchronously, inside the click's user-activation window, so
     // the browser doesn't block it or fall back to a same-tab navigation once
-    // the async signed-URL call resolves.
-    const newTab = window.open('about:blank', '_blank', 'noopener,noreferrer');
+    // the async signed-URL call resolves. No 'noopener' feature here: with it,
+    // window.open returns null and the tab could never be sent anywhere (#84).
+    // The opener link is cut by hand below instead.
+    const newTab = window.open('about:blank', '_blank');
     try {
       const url = await getAttachmentUrl(attachment.file_path);
       if (newTab) {
