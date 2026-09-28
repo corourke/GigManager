@@ -26,6 +26,7 @@ import type { GigStatus } from '../../utils/supabase/types';
 import type { OrganizationRole } from '../../utils/supabase/types';
 import { getAllTimezones } from '../../utils/timezones';
 import { parseGigDateTimeFromInput } from '../../utils/dateUtils';
+import { isGigPast } from '../../utils/gigTimeframe';
 import { toast } from 'sonner';
 import {
   GigDateFilterDropdown,
@@ -168,14 +169,14 @@ export default function MobileGigList({ onViewGig, initialScrollTop, onScrollPos
   const upcomingGigs = useMemo(() => {
     const now = new Date();
     return filteredGigs
-      .filter((g) => new Date(g.start) >= now)
+      .filter((g) => !isGigPast(g, now))
       .sort((a: any, b: any) => new Date(a.start).getTime() - new Date(b.start).getTime());
   }, [filteredGigs]);
 
   const pastGigs = useMemo(() => {
     const now = new Date();
     return filteredGigs
-      .filter((g) => new Date(g.start) < now)
+      .filter((g) => isGigPast(g, now))
       .sort((a: any, b: any) => new Date(b.start).getTime() - new Date(a.start).getTime());
   }, [filteredGigs]);
 
