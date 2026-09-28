@@ -12,7 +12,7 @@ Migrated from GitHub issue [#41](https://github.com/corourke/GigManager/issues/4
 supersedes that issue as the board of record.
 
 - **Last updated:** 2026-09-27 (coordinator: #81 fixed in PR #82; #12 PRs 1–2 merged, PRs 3–5 in progress; migration awaiting apply)
-- **State verified:** 2026-09-27 (triage: 6 open issues; one open PR, [#83](https://github.com/corourke/GigManager/pull/83) for #69)
+- **State verified:** 2026-09-28 (triage: 7 open issues; open PRs [#83](https://github.com/corourke/GigManager/pull/83) for #69 and [#85](https://github.com/corourke/GigManager/pull/85) for #74, both CI green / mergeable at last check)
 
 ---
 
@@ -20,8 +20,9 @@ supersedes that issue as the board of record.
 
 | # | Item | Type | State | Waiting on |
 |---|---|---|---|---|
+| [#84](https://github.com/corourke/GigManager/issues/84) | Saved attachments are coming up blank | Bug (urgent) | Diagnosed 09-28 (frontend only) | Coordinator — §3b |
 | [#69](https://github.com/corourke/GigManager/issues/69) | Adding a gig participant logs added/removed several times in History | Bug | Fix in PR [#83](https://github.com/corourke/GigManager/pull/83) (opened 09-27) | Review and merge of PR #83 |
-| [#74](https://github.com/corourke/GigManager/issues/74) | Gigs show up in Past too early | Bug | Diagnosed 09-26 (frontend only) | Triage — approved, in §3c; next run |
+| [#74](https://github.com/corourke/GigManager/issues/74) | Gigs show up in Past too early | Bug | Fix in PR [#85](https://github.com/corourke/GigManager/pull/85) (opened 09-28) | Review and merge of PR #85 |
 | [#39](https://github.com/corourke/GigManager/issues/39) | Too many menu levels | UI/UX design | Direction set 09-26: keep the top nav (no sidebar) | Follows #12's redesign; then Cameron (§3a item 1) |
 | [#12](https://github.com/corourke/GigManager/issues/12) | Reorganize Gig Edit into tabbed sections | UI/UX design | Plan approved 09-26; PRs 1–2 merged ([#79](https://github.com/corourke/GigManager/pull/79), [#80](https://github.com/corourke/GigManager/pull/80)) | Coordinator — PRs 3–5 |
 | [#20](https://github.com/corourke/GigManager/issues/20) | Shared data-access layer under `src/services/` | Refactor | Pilot merged (PR #66); 15 services remain | Nothing — pick up next service when wanted |
@@ -32,6 +33,12 @@ supersedes that issue as the board of record.
 ## 2. Open items in detail
 
 ### Bugs
+
+**[#84](https://github.com/corourke/GigManager/issues/84) — Saved attachments are coming up blank.**
+Filed 09-28 by Cameron (labels `bug`, `urgent`). Diagnosis posted on the issue 09-28. `AttachmentManager.handleDownload`
+opens `window.open('about:blank', '_blank', 'noopener,noreferrer')`, which returns `null` when `noopener` is set. The tab
+stays blank, and the anchor-click fallback after the `await` gets blocked as a second popup. Proposed fix: open without
+the feature string, then `opener = null` and `location.replace(url)`. Frontend only. Not in §3c, so not started (see §3b).
 
 **[#69](https://github.com/corourke/GigManager/issues/69) — When adding participant to Gig, history records it 3 times.**
 Filed 09-23 by Cameron. Diagnosis posted on the issue 09-24. `GigParticipantsSection` keeps the client-side
@@ -48,7 +55,8 @@ Filed 09-25 by Cameron. Diagnosis posted on the issue 09-26. The timezone isn't 
 and `MobileGigList.tsx` (lines 168-180) split on `new Date(gig.start) >= now`, so a gig moves to Past as soon as its start
 time passes. Proposed fix: a shared `isGigPast(gig, now)` helper. A gig is past only after the end of its last calendar
 day (`end`, or `start` when there's no end), measured in the gig's `timezone`. Both screens use the helper. Frontend only.
-In §3c; not started (each run has one branch, and #69 took 09-27's).
+Fix in PR [#85](https://github.com/corourke/GigManager/pull/85) (09-28): `src/utils/gigTimeframe.ts` `isGigPast`, used by
+both screens; date-only gigs (noon UTC) use their UTC date.
 
 ### Financials UX
 
@@ -111,7 +119,9 @@ order that unblocks the most work; the coordinator puts these to Cameron one at 
 *The triage routine adds entries here instead of asking Cameron directly — the question, and what it did in the
 meantime. The coordinator resolves each entry (decides it, or moves it into §3a) and deletes it.*
 
-- *(none)*
+- **[#84](https://github.com/corourke/GigManager/issues/84) — attachments open to `about:blank` (urgent).** Diagnosed 09-28
+  on the issue; the fix is a two-line frontend change in `AttachmentManager.tsx` plus a test. It isn't in §3c, so triage
+  didn't build it. Question: approve it into §3c, or build it in the coordinator session? Nothing claims `AttachmentManager.tsx`.
 
 ### 3c. Ready to build, nothing blocking
 
@@ -165,14 +175,15 @@ Read this section first on each run.
 | Claimed by | Files | Notes |
 |---|---|---|
 | #20 remaining services | `src/services/*.service.ts` (all but `user.service.ts`) | Parked until Cameron asks for the next one |
+| PR #85 (#74) | `src/utils/gigTimeframe.ts` (+ test), `GigListScreen.tsx` (+ test), `mobile/MobileGigList.tsx` (+ test), `docs/product/requirements.md` | Open 09-28 |
 | PR #83 (#69) | `gigParticipant.service.ts` (+ test), `GigParticipantsSection.tsx` (+ test), `MobileGigDetail.test.tsx` | Open 09-27 |
 | Coordinator, #12 PR 3 (WIP branch `claude/epic-ramanujan-i9khnc`, no PR yet) | `GigScreen.tsx`, `gig/GigBasicInfoSection.tsx`, `gig/GigHeader.tsx`, `gig/GigScheduleEditor.tsx`, `gig/basicInfo/*`, `routes/screens.tsx`, `utils/hooks/editSession*`, `useAutoSave.ts`, `utils/scheduleWindow.ts` | Live as of 09-27 00:31 UTC |
 
 **Dependencies.** #12 and #39 both reshape navigation/gig-edit UI — do them in sequence, not in parallel, once
 each has a direction. #52's health check is live on dev and prod (09-25); its Sentry check additionally needs the Sentry secrets (§3a item 3). The tenant model is decided (hosted, shared DB, 09-25).
 
-**Where things stand.** 09-27: #69 built and PR #83 opened (not merged). #74 is next; it touches
-`GigListScreen.tsx` and `MobileGigList.tsx`, which nothing else claims. #71 and #81 merged earlier (see §4).
+**Where things stand.** 09-28: #74 built and PR #85 opened. PR #83 (#69, 09-27) is still open, green and mergeable.
+New urgent bug #84 diagnosed and raised in §3b. Nothing in §3c is left unbuilt. #71 and #81 merged earlier (see §4).
 
 On 09-23 every item was blocked or parked, so the run moved on to docs. Docs-only PR
 [#67](https://github.com/corourke/GigManager/pull/67) refreshed `docs/development/testing.md`: suite size,
@@ -206,8 +217,8 @@ broken yet.
 
 **Order of checks each run.**
 
-1. Check CI and mergeability on open PRs (PR #83 open as of 09-27; list live). Close #69 once PR #83 merges.
-2. #74 is in §3c: post the plan, write the failing test first (a gig that started earlier today is not yet past), then fix. Separate PR from #69.
+1. Check CI and mergeability on open PRs (PRs #83 and #85 open as of 09-28; list live). Close #69 once PR #83 merges and #74 once PR #85 merges.
+2. #84: if the coordinator has moved it into §3c, build it (plan and fix are on the issue; failing test first).
 3. #39 — check for a reply. If a variant is picked → work plan → post → wait for approval → implement.
 4. #12 — same pattern.
 5. #20 — no open question; only act if Cameron asks for the next service to be migrated.
