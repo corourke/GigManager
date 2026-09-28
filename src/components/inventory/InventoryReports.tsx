@@ -1,4 +1,4 @@
-import { Fragment, useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { format } from 'date-fns';
 import { AlertTriangle, Printer, SlidersHorizontal } from 'lucide-react';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '../ui/tabs';
@@ -76,7 +76,7 @@ function KitTypeBadge({ isContainer }: { isContainer: boolean }) {
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <span className="text-[10px] text-muted-foreground border rounded px-1.5 py-0.5 cursor-help shrink-0">
+        <span data-kit-kind className="text-[10px] font-normal text-muted-foreground border rounded px-1.5 py-0.5 cursor-help shrink-0">
           {isContainer ? 'Container' : 'Items'}
         </span>
       </TooltipTrigger>
@@ -375,6 +375,18 @@ const PACKING_COLUMNS: { key: PackingColumn; label: string }[] = [
   { key: 'notes', label: 'Notes' },
 ];
 
+/** One line of the packing list: a kit (depth 0) or something packed in it (depth 1). */
+interface PackingLine {
+  key: string;
+  depth: 0 | 1;
+  name: string;
+  /** The scannable unit; absent for an Items kit's own line. */
+  row?: PackingListRow;
+  /** An Items kit's own line: its id and tag. */
+  kitId?: string;
+  tag?: string | null;
+}
+
 function PackingListTab({
   organizationId,
   organizationName,
@@ -435,16 +447,34 @@ function PackingListTab({
     fetchPackingList();
   }, [fetchPackingList]);
 
-  // Grouped by the kit assigned to the gig, so a container packed inside a kit
-  // sits under that kit and one assigned on its own gets its own heading (#81).
-  const rowsByKit = useMemo(() => {
-    const map = new Map<string, PackingListRow[]>();
+  // The list as packed (#81): one line per kit assigned to the gig, A to Z, with
+  // an Items kit's contents (its loose items and the cases packed inside it)
+  // indented under it. A container on its own is a single line, since it is
+  // checked as one sealed case.
+  const packingLines = useMemo(() => {
+    const groups = new Map<string, PackingListRow[]>();
     for (const row of rows) {
-      const list = map.get(row.group_kit_id) ?? [];
+      const list = groups.get(row.group_kit_id) ?? [];
       list.push(row);
-      map.set(row.group_kit_id, list);
+      groups.set(row.group_kit_id, list);
     }
-    return map;
+    return Array.from(groups.values())
+      .sort((a, b) => a[0].group_kit_name.localeCompare(b[0].group_kit_name, undefined, { sensitivity: 'base' }))
+      .flatMap((kitRows): PackingLine[] => {
+        const group = kitRows[0];
+        if (group.group_is_container) {
+          return kitRows.map((row) => ({ key: `${row.kit_id}-kit`, depth: 0, name: row.kit_name ?? '—', row }));
+        }
+        return [
+          { key: `${group.group_kit_id}-kit`, depth: 0, name: group.group_kit_name, kitId: group.group_kit_id, tag: group.group_tag_number },
+          ...kitRows.map((row, i) => ({
+            key: `${row.kit_id}-${row.asset_id ?? 'kit'}-${i}`,
+            depth: 1 as const,
+            name: row.asset_name ?? row.kit_name ?? '—',
+            row,
+          })),
+        ];
+      });
   }, [rows]);
 
   const selectedGigTitle = gigs.find((g) => g.id === gigId)?.title;
@@ -526,7 +556,7 @@ function PackingListTab({
 
       {gigId && !loading && (
         <div className="rounded-md border overflow-hidden">
-          {rowsByKit.size === 0 ? (
+          {packingLines.length === 0 ? (
             <div className="flex items-center justify-center py-10">
               <span className="text-sm text-muted-foreground">No kits assigned to this gig.</span>
             </div>
@@ -546,81 +576,61 @@ function PackingListTab({
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {Array.from(rowsByKit.entries()).map(([kitId, kitRows]) => {
-                  const group = kitRows[0];
-                  const columnCount = 4 + [
-                    show('status'), show('scanned_at'), show('location'), show('scanned_by'), show('notes'),
-                  ].filter(Boolean).length;
-
+                {packingLines.map((line) => {
+                  const { row } = line;
+                  const isChecked = checkedRows.has(line.key);
+                  // An Items kit line: the kit isn't scanned itself, only what's in it.
+                  const blankCell = <span className="sr-only">Not tracked</span>;
+                  const isContainer = row ? row.is_container : false;
+                  const conflict = conflictFlags.has(row ? row.kit_id : line.kitId!) && (line.depth === 0 || isContainer);
                   return (
-                    <Fragment key={kitId}>
-                      <TableRow className="bg-muted/40 hover:bg-muted/40">
-                        <TableCell colSpan={columnCount} className="py-2">
-                          <div className="flex items-center gap-2">
-                            <span className="font-medium text-sm">{group.group_kit_name}</span>
-                            <KitTypeBadge isContainer={group.group_is_container} />
-                            {group.group_tag_number && (
-                              <span className="text-xs text-muted-foreground">Tag {group.group_tag_number}</span>
-                            )}
-                            {conflictFlags.has(kitId) && <ConflictBadge />}
-                          </div>
+                    <TableRow key={line.key} data-depth={line.depth} className={line.depth === 0 ? 'border-t-2' : undefined}>
+                      <TableCell className="text-center">
+                        <Checkbox
+                          aria-label={`Verified: ${line.name}`}
+                          checked={isChecked}
+                          onCheckedChange={() => toggleChecked(line.key)}
+                        />
+                      </TableCell>
+                      <TableCell className={`${line.depth === 0 ? 'font-semibold' : ''} ${isChecked ? 'line-through text-muted-foreground' : ''}`}>
+                        <div className={`flex items-center gap-2 ${line.depth === 1 ? 'pl-6 relative before:absolute before:left-2 before:top-1/2 before:w-3 before:border-t before:border-border' : ''}`}>
+                          <span data-item-name>{line.name}</span>
+                          {(line.depth === 0 || isContainer) && <KitTypeBadge isContainer={line.depth === 0 ? !line.kitId : true} />}
+                          {conflict && <ConflictBadge />}
+                        </div>
+                      </TableCell>
+                      <TableCell>{(row ? row.tag_number : line.tag) ?? '—'}</TableCell>
+                      <TableCell className="text-center">{row ? row.quantity : 1}</TableCell>
+                      {show('status') && (
+                        <TableCell>
+                          {!row ? blankCell : row.status ? (
+                            <TrackingStatusBadge status={row.status} />
+                          ) : (
+                            <span className="text-xs text-muted-foreground">Not scanned</span>
+                          )}
                         </TableCell>
-                      </TableRow>
-                      {kitRows.map((row, i) => {
-                        const rowKey = `${row.kit_id}-${row.asset_id ?? 'kit'}-${i}`;
-                        const isChecked = checkedRows.has(rowKey);
-                        return (
-                        <TableRow key={rowKey}>
-                          <TableCell className="text-center">
-                            <Checkbox
-                              aria-label={`Verified: ${row.asset_name ?? row.kit_name ?? 'item'}`}
-                              checked={isChecked}
-                              onCheckedChange={() => toggleChecked(rowKey)}
-                            />
-                          </TableCell>
-                          <TableCell className={`font-medium ${isChecked ? 'line-through text-muted-foreground' : ''}`}>
-                            <div className="flex items-center gap-2">
-                              {row.asset_name ?? row.kit_name ?? '—'}
-                              {/* A sealed case is packed and scanned whole. */}
-                              {row.is_container && <KitTypeBadge isContainer />}
-                              {row.is_container && row.kit_id !== kitId && conflictFlags.has(row.kit_id) && <ConflictBadge />}
-                            </div>
-                          </TableCell>
-                          <TableCell>{row.tag_number ?? '—'}</TableCell>
-                          <TableCell className="text-center">{row.quantity}</TableCell>
-                          {show('status') && (
-                            <TableCell>
-                              {row.status ? (
-                                <TrackingStatusBadge status={row.status} />
-                              ) : (
-                                <span className="text-xs text-muted-foreground">Not scanned</span>
-                              )}
-                            </TableCell>
-                          )}
-                          {show('scanned_at') && (
-                            <TableCell className="text-xs text-muted-foreground">
-                              {formatScanned(row.scanned_at)}
-                            </TableCell>
-                          )}
-                          {show('location') && (
-                            <TableCell className="text-xs text-muted-foreground">
-                              {row.location ?? '—'}
-                            </TableCell>
-                          )}
-                          {show('scanned_by') && (
-                            <TableCell className="text-xs text-muted-foreground">
-                              {row.scanned_by_name ?? '—'}
-                            </TableCell>
-                          )}
-                          {show('notes') && (
-                            <TableCell className="text-xs text-muted-foreground">
-                              {row.notes ?? '—'}
-                            </TableCell>
-                          )}
-                        </TableRow>
-                        );
-                      })}
-                    </Fragment>
+                      )}
+                      {show('scanned_at') && (
+                        <TableCell className="text-xs text-muted-foreground">
+                          {row ? formatScanned(row.scanned_at) : blankCell}
+                        </TableCell>
+                      )}
+                      {show('location') && (
+                        <TableCell className="text-xs text-muted-foreground">
+                          {row ? row.location ?? '—' : blankCell}
+                        </TableCell>
+                      )}
+                      {show('scanned_by') && (
+                        <TableCell className="text-xs text-muted-foreground">
+                          {row ? row.scanned_by_name ?? '—' : blankCell}
+                        </TableCell>
+                      )}
+                      {show('notes') && (
+                        <TableCell className="text-xs text-muted-foreground">
+                          {row ? row.notes ?? '—' : blankCell}
+                        </TableCell>
+                      )}
+                    </TableRow>
                   );
                 })}
               </TableBody>

@@ -54,25 +54,70 @@ const PACKING_ROWS: PackingListRow[] = [
   },
 ];
 
-// Issue #81: a kit holding only containers, then a container assigned on its own.
-const allMic = { group_kit_id: 'kit-all-mic', group_kit_name: 'All Mic Stands', group_is_container: false, group_tag_number: null };
-const MIC_STAND_ROWS: PackingListRow[] = [
-  { kit_id: 'kit-boom-1', kit_name: 'Boom Stands 1', is_container: true, asset_id: null, asset_name: null, tag_number: 'BS-1', quantity: 1, ...allMic, ...blank },
-  { kit_id: 'kit-boom-2', kit_name: 'Boom Stands 2', is_container: true, asset_id: null, asset_name: null, tag_number: 'BS-2', quantity: 1, ...allMic, ...blank },
-  {
-    kit_id: 'kit-power', kit_name: 'Power Box', is_container: true, asset_id: null, asset_name: null, tag_number: 'PWR-1', quantity: 1,
-    group_kit_id: 'kit-power', group_kit_name: 'Power Box', group_is_container: true, group_tag_number: 'PWR-1', ...blank,
-  },
-];
+// Issue #81, as Cameron listed it on 2026-09-28: kits A to Z, a kit's contents
+// indented under it, a container on its own a single line.
+const EXPECTED_81 = `
+All Mic Stands (Items)
+  Boom Stands 1 (Container)
+  Boom Stands 2 (Container)
+  Low Profile Boom Stands (Container)
+  Atlas Straight Microphone Stand
+Microphone Case (Container)
+Network Cable Bag (Container)
+Power Box (Container)
+RCF Speakers (Items)
+  RCF NX-932A Speaker, w/Cover
+  RCF NX-932A Speaker, w/Cover
+  RCF SUB-8003 Subwoofer, w/Casters and Cover
+  RCF SUB-8003 Subwoofer, w/Casters and Cover
+  RCF PowerCon Speaker Power Cable
+  RCF TrueCon Speaker Power Cable
+  Speaker Poles
+SndEng Case (Container)
+Stage Box Rack DS16 (Container)
+Stage Snakes (Items)
+  Seismic Audio - SASH-8x20 - 8 Channel XLR Send Sub Snake Cable - 20 Feet
+  Seismic Audio - SASH-8x35 - 8 Channel XLR Send Sub Snake Cable - 35 Feet
+WING Console (Container)
+XLR Cable Box (Container)
+`.trim().split('\n');
 
-/** The table body top to bottom: a kit heading (a row with one spanning cell) as "# <kit>", an item row as its name. */
-function packingOrder(): string[] {
+/** The report rows the service returns for that gig, kits in no particular order. */
+function rowsFor81(): PackingListRow[] {
+  const slug = (n: string) => n.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+  const group = (name: string, container: boolean) =>
+    ({ group_kit_id: `kit-${slug(name)}`, group_kit_name: name, group_is_container: container, group_tag_number: null });
+  const container = (name: string) =>
+    ({ kit_id: `kit-${slug(name)}`, kit_name: name, is_container: true, asset_id: null, asset_name: null, tag_number: null, quantity: 1, ...blank });
+  const kits: [string, string[]][] = [];
+  let current: [string, string[]] | null = null;
+  for (const line of EXPECTED_81) {
+    if (line.startsWith('  ')) current![1].push(line.trim());
+    else kits.push((current = [line, []]));
+  }
+  const rows = kits.flatMap(([line, contents]) => {
+    const name = line.replace(/ \((Items|Container)\)$/, '');
+    if (line.endsWith('(Container)')) return [{ ...container(name), ...group(name, true) }];
+    return contents.map((item, i) => item.endsWith('(Container)')
+      ? { ...container(item.replace(' (Container)', '')), ...group(name, false) }
+      : {
+          kit_id: `kit-${slug(name)}`, kit_name: name, is_container: false, asset_id: `asset-${slug(name)}-${i}`, asset_name: item,
+          tag_number: null, quantity: 1, ...blank, ...group(name, false),
+        });
+  });
+  // Scramble the kits: the report sorts them, not the service.
+  const order = ['kit-stage-snakes', 'kit-xlr-cable-box', 'kit-rcf-speakers', 'kit-power-box', 'kit-all-mic-stands'];
+  return [...rows].sort((x, y) => (order.indexOf(y.group_kit_id) - order.indexOf(x.group_kit_id)));
+}
+
+/** The report body as an indented list: "Name (Type)", contents two spaces in. */
+function packingTree(): string[] {
   const body = screen.getAllByRole('rowgroup')[1];
   return within(body).getAllByRole('row').map((row) => {
-    const cells = within(row).getAllByRole('cell');
-    return cells.length === 1
-      ? `# ${cells[0].querySelector('span')?.textContent ?? ''}`
-      : cells[1].firstElementChild?.firstChild?.textContent ?? '';
+    const indent = row.getAttribute('data-depth') === '1' ? '  ' : '';
+    const name = row.querySelector('[data-item-name]')?.textContent ?? '';
+    const kind = row.querySelector('[data-kit-kind]')?.textContent;
+    return `${indent}${name}${kind ? ` (${kind})` : ''}`;
   });
 }
 
@@ -103,25 +148,22 @@ describe('InventoryReports — Packing List tab', () => {
     expect(within(cableRow).getByText('3')).toBeInTheDocument();
   });
 
-  it('puts every assigned kit under its own heading, a lone container included (#81)', async () => {
-    (getPackingListReport as any).mockResolvedValue(PACKING_ROWS);
+  it('lists kits A to Z with their contents indented, each container once (#81)', async () => {
+    (getPackingListReport as any).mockResolvedValue(rowsFor81());
     await renderPackingListTab();
 
-    await waitFor(() => expect(screen.getByText('LED Par')).toBeInTheDocument());
-    expect(packingOrder()).toEqual(['# Lighting Kit', 'LED Par', 'XLR Cable', '# Road Case', 'Road Case']);
-    const roadCaseRow = screen.getAllByRole('row').find((r) => r.querySelectorAll('td').length > 1 && r.textContent?.includes('RC-1'))!;
-    expect(within(roadCaseRow).getByText('1')).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText('Speaker Poles')).toBeInTheDocument());
+    expect(packingTree()).toEqual(EXPECTED_81);
   });
 
-  it('lists containers packed inside a kit under that kit, not under whatever comes before (#81)', async () => {
-    (getPackingListReport as any).mockResolvedValue([...PACKING_ROWS.slice(0, 2), ...MIC_STAND_ROWS]);
+  it('gives each kit line a checkbox but no scan status for an Items kit (#81)', async () => {
+    (getPackingListReport as any).mockResolvedValue(rowsFor81());
     await renderPackingListTab();
 
-    await waitFor(() => expect(screen.getByText('Boom Stands 1')).toBeInTheDocument());
-    expect(packingOrder()).toEqual([
-      '# Lighting Kit', 'LED Par', 'XLR Cable',
-      '# All Mic Stands', 'Boom Stands 1', 'Boom Stands 2',
-      '# Power Box', 'Power Box',
-    ]);
+    const kitLine = (await screen.findByText('RCF Speakers')).closest('tr')!;
+    expect(within(kitLine).getByRole('checkbox', { name: 'Verified: RCF Speakers' })).toBeInTheDocument();
+    expect(within(kitLine).queryByText('Not scanned')).not.toBeInTheDocument();
+    const powerBox = screen.getByText('Power Box').closest('tr')!;
+    expect(within(powerBox).getByText('Not scanned')).toBeInTheDocument();
   });
 });
