@@ -75,7 +75,7 @@ export default function GigParticipantsSection({
   const [addContactForIndex, setAddContactForIndex] = useState<number | null>(null);
   const [isUserAdmin, setIsUserAdmin] = useState(false);
 
-  const { control, handleSubmit: _handleSubmit, formState: { errors, isDirty }, watch, reset, setValue } = useForm<ParticipantsFormData>({
+  const { control, handleSubmit: _handleSubmit, formState: { errors, isDirty }, watch, reset, setValue, getValues } = useForm<ParticipantsFormData>({
     resolver: zodResolver(participantsFormSchema),
     mode: 'onChange',
     defaultValues: {
@@ -89,8 +89,9 @@ export default function GigParticipantsSection({
   });
 
   const handleSave = useCallback(async (data: ParticipantsFormData) => {
-    const participantsData = data.participants
-      .filter(p => p.organization_id && p.organization_id.trim() !== '' && p.role && p.role.trim() !== '')
+    const rowsToSave = data.participants
+      .filter(p => p.organization_id && p.organization_id.trim() !== '' && p.role && p.role.trim() !== '');
+    const participantsData = rowsToSave
       .map(p => ({
         id: p.id.startsWith('temp-') || p.id === 'current-org' || !p.id.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i) ? undefined : p.id,
         organization_id: p.organization_id,
@@ -99,8 +100,23 @@ export default function GigParticipantsSection({
         is_client: p.is_client ?? false,
       }));
 
-    await updateGigParticipants(gigId, participantsData);
-  }, [gigId]);
+    const { ids } = await updateGigParticipants(gigId, participantsData);
+
+    // Rows inserted by this save still carry a client-side id (temp-…,
+    // current-org). Swap in the database id, so the next autosave updates the
+    // row instead of deleting and re-inserting it (issue #69). Match on the
+    // client id rather than the index: the form may have changed meanwhile.
+    const savedIds = new Map<string, string>();
+    rowsToSave.forEach((p, i) => {
+      if (participantsData[i].id === undefined && ids[i]) savedIds.set(p.id, ids[i]!);
+    });
+    if (savedIds.size > 0) {
+      getValues('participants').forEach((p, index) => {
+        const dbId = savedIds.get(p.id);
+        if (dbId) setValue(`participants.${index}.id`, dbId);
+      });
+    }
+  }, [gigId, getValues, setValue]);
 
   const handleSaveSuccess = useCallback((data: ParticipantsFormData) => {
     reset(data, { keepDirty: false, keepValues: true });

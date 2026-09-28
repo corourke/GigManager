@@ -71,7 +71,7 @@ describe('MobileGigDetail', () => {
     vi.clearAllMocks()
     vi.mocked(getGig).mockResolvedValue(mockGig as unknown as Awaited<ReturnType<typeof getGig>>)
     vi.mocked(updateGig).mockResolvedValue(undefined as unknown as Awaited<ReturnType<typeof updateGig>>)
-    vi.mocked(updateGigParticipants).mockResolvedValue({ success: true })
+    vi.mocked(updateGigParticipants).mockResolvedValue({ success: true, ids: [] })
     vi.mocked(searchOrganizations).mockResolvedValue([])
     mockUseAuth.mockReturnValue({
       user: { id: 'user-1' },

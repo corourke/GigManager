@@ -11,7 +11,13 @@ import { logActivity } from './activityLog.service';
  */
 
 /**
- * Update gig participants
+ * Update gig participants.
+ *
+ * Returns `ids`, parallel to `participants`: each row's database id, including
+ * the id of any row inserted by this call (undefined for a row that was
+ * skipped). Callers that keep editing the same rows (autosave) must write
+ * these back, or their next save sends no id and the row is deleted and
+ * inserted again (issue #69).
  */
 export async function updateGigParticipants(
   gigId: string,
@@ -100,6 +106,7 @@ export async function updateGigParticipants(
       await supabase.from('gig_participants').delete().in('id', idsToDelete);
     }
 
+    const ids: Array<string | undefined> = [];
     for (const participant of participants) {
       const isDbId = participant.id && UUID_REGEX.test(participant.id);
       const participantData = {
@@ -111,11 +118,13 @@ export async function updateGigParticipants(
 
       if (isDbId && existingIds.includes(participant.id!)) {
         await supabase.from('gig_participants').update(participantData).eq('id', participant.id!);
+        ids.push(participant.id);
       } else if (participant.organization_id && participant.role) {
         const { data: inserted } = await (supabase.from('gig_participants') as any)
           .insert({ gig_id: gigId, ...participantData })
           .select('id')
           .single();
+        ids.push(inserted?.id);
         if (inserted?.id) {
           const { data: orgRow } = await (supabase.from('organizations') as any).select('name').eq('id', participant.organization_id).single();
           try {
@@ -136,10 +145,12 @@ export async function updateGigParticipants(
             });
           } catch (e) { console.error('Activity log failed:', e); }
         }
+      } else {
+        ids.push(undefined);
       }
     }
 
-    return { success: true };
+    return { success: true, ids };
   } catch (err) {
     return handleApiError(err, 'update gig participants');
   }

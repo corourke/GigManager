@@ -96,4 +96,30 @@ describe('updateGigParticipants (issue #55 — logs adds even without an explici
       }),
     }));
   });
+
+  it('returns the database id of every participant, including newly inserted rows (issue #69)', async () => {
+    const existingId = '11111111-1111-4111-8111-111111111111';
+    const participantsChain = makeParticipantsChain();
+    participantsChain.then = (resolve: any, reject: any) =>
+      Promise.resolve({ data: [{ id: existingId, organization_id: 'org-1', role: 'Act' }], error: null }).then(resolve, reject);
+    mockSupabase.from.mockImplementation((table: string) => {
+      if (table === 'gig_participants') return participantsChain;
+      if (table === 'organizations') return makeChain({ data: { name: 'Acme' }, error: null });
+      return makeChain({ data: [], error: null });
+    });
+
+    const result = await updateGigParticipants(
+      'gig-1',
+      [
+        { id: existingId, organization_id: 'org-1', role: 'Act' },
+        { organization_id: 'org-2', role: 'Venue' },
+      ],
+      { organization_id: 'org-9', actor_display_name: 'Bob', actor_org_name: 'Bob Org', gig_title: 'Gig' }
+    );
+
+    // The caller needs the inserted row's id; without it, its next save sends
+    // no id for that row and the row is deleted and inserted again.
+    expect(result.ids).toEqual([existingId, 'p-1']);
+    expect(participantsChain.delete).not.toHaveBeenCalled();
+  });
 });
