@@ -11,7 +11,7 @@ Cameron questions.
 Migrated from GitHub issue [#41](https://github.com/corourke/GigManager/issues/41) on 2026-09-22. This file now
 supersedes that issue as the board of record.
 
-- **Last updated:** 2026-09-27 (coordinator: #81 fixed in PR #82; #12 PRs 1–2 merged, PRs 3–5 in progress; migration awaiting apply)
+- **Last updated:** 2026-09-28 (coordinator: #81 reopened, reworked as an indented list in PR #86, awaiting Cameron's check; #12 PRs 3–5 in progress; migration awaiting apply)
 - **State verified:** 2026-09-28 14:35 UTC (PRs #83 and #85 merged ~14:31 UTC, closing #69 and #74; no open PRs)
 
 ---
@@ -21,6 +21,7 @@ supersedes that issue as the board of record.
 | # | Item | Type | State | Waiting on |
 |---|---|---|---|---|
 | [#84](https://github.com/corourke/GigManager/issues/84) | Saved attachments are coming up blank | Bug (urgent) | Diagnosed 09-28 (frontend only) | Coordinator — §3b |
+| [#81](https://github.com/corourke/GigManager/issues/81) | Packing list not following container structure | Bug | Reopened 09-28; indented list per Cameron's list and mockup merged in [#86](https://github.com/corourke/GigManager/pull/86) | Cameron — check the #81 gig's packing list after the next frontend deploy (§3a item 1) |
 | [#39](https://github.com/corourke/GigManager/issues/39) | Too many menu levels | UI/UX design | Direction set 09-26: keep the top nav (no sidebar) | Follows #12's redesign; then Cameron (§3a item 1) |
 | [#12](https://github.com/corourke/GigManager/issues/12) | Reorganize Gig Edit into tabbed sections | UI/UX design | Plan approved 09-26; PRs 1–2 merged ([#79](https://github.com/corourke/GigManager/pull/79), [#80](https://github.com/corourke/GigManager/pull/80)) | Coordinator — PRs 3–5 |
 | [#20](https://github.com/corourke/GigManager/issues/20) | Shared data-access layer under `src/services/` | Refactor | Pilot merged (PR #66); 15 services remain | Nothing — pick up next service when wanted |
@@ -87,12 +88,13 @@ Low priority, explicitly acceptable for beta. Open, no action planned.
 *Curated by the coordinator session only.* Nothing below can move without a reply. Listed roughly in the
 order that unblocks the most work; the coordinator puts these to Cameron one at a time.
 
-1. **[#39](https://github.com/corourke/GigManager/issues/39)**: "keep top nav" (09-26) rules out the sidebar (Option B). It follows #12's redesign, since the gig screen is the deepest page and the two need one consistent header.
-2. **Apply migration `20260926000000_schedule_item_free_text.sql`** (#12 PR 1, [#79](https://github.com/corourke/GigManager/pull/79), merged 09-26):
+1. **[#81](https://github.com/corourke/GigManager/issues/81)**: after the next frontend deploy, open the packing list for the #81 gig and compare it with the list on the issue (kits A to Z, contents indented, each container once). Close #81 if it matches.
+2. **[#39](https://github.com/corourke/GigManager/issues/39)**: "keep top nav" (09-26) rules out the sidebar (Option B). It follows #12's redesign, since the gig screen is the deepest page and the two need one consistent header.
+3. **Apply migration `20260926000000_schedule_item_free_text.sql`** (#12 PR 1, [#79](https://github.com/corourke/GigManager/pull/79), merged 09-26):
    `./deploy_dev.sh`, then `./deploy_prod.sh`. Until it's applied, saving schedule items named Act Arrival, Doors or
    Return fails. The rest of #12 (plan approved 09-26, Cameron authorized the coordinator to merge) is being built by
    the coordinator: PR 2 merged ([#80](https://github.com/corourke/GigManager/pull/80)), PRs 3–5 to come. Primary button colour decided: `sky-700` (#0369a1), as in the mockups.
-3. **Sentry secrets** — `SENTRY_API_TOKEN`, `SENTRY_ORG_SLUG`, `SENTRY_PROJECT_SLUG` for the health check's Sentry round-trip. Optional; it reports "not configured" until set.
+4. **Sentry secrets** — `SENTRY_API_TOKEN`, `SENTRY_ORG_SLUG`, `SENTRY_PROJECT_SLUG` for the health check's Sentry round-trip. Optional; it reports "not configured" until set.
 
 ### 3b. Raised by triage, for the coordinator
 
@@ -140,7 +142,8 @@ applies migrations), edge-function API shape, anything touching production confi
 | #52 fix — health check moved to its own `health-check` function (`verify_jwt = false`) | PR #73 (09-25) | Merged; setup done on dev + prod 09-25, verified by curl. #52 closed |
 | Docs refresh: `testing.md` (PR #67), `setup-guide.md` + one line of `deployment.md` (PR #68) | PR #67, PR #68 (09-23) | Merged; docs only, from triage docs passes |
 | #71 — non-expense financial records save `category: null`; Add dialog stays open until saved; failed autosave no longer retries in a loop (`useAutoSave.saveNow`) | PR #77 (09-26) | Merged; #71 closed. Frontend only, ships with the next frontend deploy |
-| #81 — web packing list groups rows under the kit they're packed in; every assigned kit, a lone container included, gets its own heading | PR #82 (09-27) | Merged; #81 closed. Frontend only, ships with the next frontend deploy. Cameron to check the #81 gig's packing list after deploy |
+| #81 — web packing list groups rows under the kit they're packed in; every assigned kit, a lone container included, gets its own heading | PR #82 (09-27) | Merged, but a lone container then showed twice (heading + row); Cameron reopened #81 on 09-28 |
+| #81 rework — packing list is an indented list: kits A to Z marked Items/Container, an Items kit's contents indented under it, a lone container one line (approved mockup, board 7) | PR #86 (09-28) | Merged; #81 stays open for Cameron's check (§3a). Frontend only |
 | #74 — gig lists keep a gig in Upcoming until its last calendar day is over in the gig's timezone (`isGigPast` in `src/utils/gigTimeframe.ts`, web and mobile) | PR #85 (09-28) | Merged; #74 closed. Frontend only, ships with the next frontend deploy |
 | #69 — participants autosave keeps the database id after the first insert, so later autosaves update the row instead of deleting and re-inserting it (no more repeated added/removed History entries or unlinked schedule acts) | PR #83 (09-28) | Merged; #69 closed. Frontend only, ships with the next frontend deploy. Cameron to check a new participant's History after deploy |
 | Docs refresh: `docs/README.md` index (PR #70), `database.md` reconciled with migrations (PR #72) | PR #70, PR #72 (09-25) | Merged; docs only, from triage docs passes |
