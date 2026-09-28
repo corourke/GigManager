@@ -449,7 +449,7 @@ Mobile features are organized by priority. For full implementation detail, see [
 
 A compact interface for managing gigs on the go.
 
-- **Mobile Gig List**: Card-based list of upcoming gigs showing title, date/time, status badge, venue, and act(s). Filterable by date range, status, venue, and act. Searchable by title, venue, and act name.
+- **Mobile Gig List**: Card-based list of upcoming gigs showing title, date/time, status badge, venue, and act(s). Filterable by date range, status, venue, and act. Searchable by title, venue, and act name. Gigs are split into Upcoming and Past on web and mobile alike: a gig moves to Past only after its last day (`end`, or `start` when there's no end) is over in the gig's own timezone, so a gig underway today stays in Upcoming.
 - **Simplified Gig Detail**: Read-only view showing only essentials — basic information (title, dates, timezone, status, notes, tags) plus venue and act participants. Excludes staff assignments, financials, and equipment details.
 - **Quick-Create Gig**: Streamlined form for capturing new bookings with just: title, start/end dates, timezone, status (defaults to Date Hold), venue (dropdown), act (dropdown), and notes. Full details can be added later from the desktop app.
 - **Booking Status Confirmation**: Tap to update gig status directly from the gig list or detail view. Quick swipe actions for common status transitions (e.g., Date Hold → Booked).

@@ -54,6 +54,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Organization, User, UserRole, GigStatus, Gig } from '../utils/supabase/types';
+import { isGigPast } from '../utils/gigTimeframe';
 import { GIG_STATUS_CONFIG, TAG_CONFIG } from '../utils/supabase/constants';
 import { formatDateTimeDisplay, formatTimeDisplay, isNoonUTC } from '../utils/dateUtils';
 import { canManage } from '../utils/permissions';
@@ -193,7 +194,7 @@ export default function GigListScreen({
     const upcoming: Gig[] = [];
     const past: Gig[] = [];
     for (const gig of filteredGigs) {
-      (new Date(gig.start) >= now ? upcoming : past).push(gig);
+      (isGigPast(gig, now) ? past : upcoming).push(gig);
     }
     return { upcomingGigs: upcoming, pastGigs: past };
   }, [filteredGigs]);

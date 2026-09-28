@@ -188,6 +188,25 @@ describe('MobileGigList', () => {
     expect(cards[1].textContent).toBe('Far Future Gig')
   })
 
+  it('keeps a gig that started earlier today in Upcoming until its day is over (#74)', async () => {
+    // 15:00 in New York; the gig ran 10:00-12:00 there the same day.
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2026-09-25T19:00:00.000Z'))
+    try {
+      vi.mocked(getGigsForOrganization).mockResolvedValue([
+        { id: 'today', title: 'Today Gig', status: 'Booked', start: '2026-09-25T14:00:00.000Z', end: '2026-09-25T16:00:00.000Z', timezone: 'America/New_York', tags: [], participants: [] },
+      ])
+      render(<MobileGigList onViewGig={vi.fn()} />)
+      await waitFor(() => {
+        expect(screen.getByText('Today Gig')).toBeInTheDocument()
+      })
+      expect(screen.getByText('Upcoming (1)')).toBeInTheDocument()
+      expect(screen.queryByText(/^Past \(/)).not.toBeInTheDocument()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('sorts past gigs in descending order (most recent first)', async () => {
     const now = Date.now()
     const recentPast = new Date(now - 86400000).toISOString()

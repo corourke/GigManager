@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import GigListScreen from './GigListScreen';
@@ -78,6 +78,43 @@ describe('GigListScreen', () => {
     vi.clearAllMocks();
     localStorage.clear();
     vi.mocked(getGigsForOrganization).mockResolvedValue([futureGig, pastGig]);
+  });
+
+  describe('a gig that started earlier today (#74)', () => {
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it('stays in Upcoming until its day is over', async () => {
+      // 15:00 in New York; the gig ran 10:00-12:00 there the same day.
+      vi.useFakeTimers({ toFake: ['Date'] });
+      vi.setSystemTime(new Date('2026-09-25T19:00:00.000Z'));
+      vi.mocked(getGigsForOrganization).mockResolvedValue([
+        { ...futureGig, id: 'gig-today', title: 'Today Show', start: '2026-09-25T14:00:00.000Z', end: '2026-09-25T16:00:00.000Z' },
+      ]);
+      render(
+        <GigListScreen
+          organization={organization}
+          user={user}
+          userRole="Admin"
+          onBack={noop}
+          onCreateGig={noop}
+          onViewGig={noop}
+          onEditGig={noop}
+          onNavigateToDashboard={noop}
+          onNavigateToGigs={noop}
+          onNavigateToAssets={noop}
+          onSwitchOrganization={noop}
+          onLogout={noop}
+        />
+      );
+
+      await waitFor(() => {
+        expect(screen.getByText('Today Show')).toBeInTheDocument();
+      });
+      expect(screen.getByText('Upcoming (1)')).toBeInTheDocument();
+      expect(screen.getByText('Past (0)')).toBeInTheDocument();
+    });
   });
 
   it('shows Upcoming gigs by default and hides Past gigs', async () => {
