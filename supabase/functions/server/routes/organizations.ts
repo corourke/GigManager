@@ -1,7 +1,7 @@
 import type { App } from '../lib/types.ts';
 import { requireUser } from '../lib/auth.ts';
 import { requireOrgRole, verifyOrgMembership } from '../lib/orgRole.ts';
-import { emailDomainMatches, ORGANIZATION_DELETE_REFERENCES, describeOrganizationDeleteBlockers } from '../lib/pure/authz.ts';
+import { canAssignRole, emailDomainMatches, ORGANIZATION_DELETE_REFERENCES, describeOrganizationDeleteBlockers } from '../lib/pure/authz.ts';
 import { supabaseAdmin } from '../lib/supabaseAdmin.ts';
 
 const ORG_UPDATE_FIELDS = [
@@ -352,6 +352,9 @@ export function registerOrganizations(app: App) {
     if (!email || !role) {
       return c.json({ error: 'Email and role are required' }, 400);
     }
+    if (!canAssignRole(c.get('membership')?.role, role)) {
+      return c.json({ error: 'Only Admins can invite an Admin' }, 403);
+    }
 
     const { data, error: rpcError } = await supabaseAdmin.rpc('invite_user_to_organization', {
       p_organization_id: orgId,
@@ -388,6 +391,9 @@ export function registerOrganizations(app: App) {
     const { email, first_name, last_name, password, role } = body;
     if (!email || !first_name || !last_name || !password || !role) {
       return c.json({ error: 'Missing required fields' }, 400);
+    }
+    if (!canAssignRole(c.get('membership')?.role, role)) {
+      return c.json({ error: 'Only Admins can add an Admin' }, 403);
     }
 
     const { data: authData, error: createAuthError } = await supabaseAdmin.auth.admin.createUser({

@@ -31,8 +31,8 @@ Legend — **Auth**: 🔓 public · 🔑 any authenticated user · 👤 self onl
 | 14 | PUT | `/organizations/:id/members/:uid` | 🛡️; 👑 required to change to/from Admin | 🛡️ | Role/profile update. |
 | 15 | DELETE | `/organizations/:id/members/:uid` | 🛡️; 👑 required to remove an Admin | 🛡️ | Remove member. |
 | 16 | DELETE | `/invitations/:id` | 🛡️ of the invitation's org | 🛡️ | Cancel/decline an invite. |
-| 17 | POST | `/organizations/:id/invitations` | 🛡️ | 🛡️ | Create invite. |
-| 18 | POST | `/organizations/:id/members/create` | 🛡️ | 🛡️ | Create-and-add member. |
+| 17 | POST | `/organizations/:id/invitations` | 🛡️ | 🛡️ | Create invite. Only an Admin may invite an Admin (`canAssignRole`, 09-29). |
+| 18 | POST | `/organizations/:id/members/create` | 🛡️ | 🛡️ | Create-and-add member. Only an Admin may add an Admin (`canAssignRole`, 09-29). |
 
 ## Gigs
 
@@ -40,8 +40,8 @@ Legend — **Auth**: 🔓 public · 🔑 any authenticated user · 👤 self onl
 |---|--------|------|---------------------|----------|-------|
 | 19 | GET | `/gigs?organization_id=` | 🏢 of the query org | 🏢 | Lists gigs for an org the caller belongs to. |
 | 20 | GET | `/gigs/:id` | 🏢 of any participant org (intersection) | 🏢 (intersection) | Correct intersection check. |
-| 21 | POST | `/gigs` | 🛡️ of `primary_organization_id` **only if that field is present** | 🛡️ (FIX — always) | **Bug.** Refactor requires `primary_organization_id` and always enforces 🛡️. Failing test first. |
-| 22 | PUT | `/gigs/:id` | 🛡️ of a participant org (intersection) | 🛡️ (intersection) | Correct. |
+| 21 | POST | `/gigs` | — | — | **Removed 09-29.** Unused: the app creates gigs with the `create_gig_complex` RPC. |
+| 22 | PUT | `/gigs/:id` | — | — | **Removed 09-29.** Unused: the app edits gigs through RLS-guarded table writes. |
 | 23 | DELETE | `/gigs/:id` | 🛡️ of a participant org (intersection) | 🛡️ (intersection) | Correct. |
 | 24 | GET | `/organizations/:id/dashboard` | 🏢 (Admin/Manager/Staff) | 🏢 | Staff allowed (read-only dashboard). |
 
