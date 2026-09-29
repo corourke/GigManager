@@ -11,8 +11,8 @@ Cameron questions.
 Migrated from GitHub issue [#41](https://github.com/corourke/GigManager/issues/41) on 2026-09-22. This file now
 supersedes that issue as the board of record.
 
-- **Last updated:** 2026-09-29 (triage: quiet run; docs PR #88 opened for `server-endpoint-inventory.md`)
-- **State verified:** 2026-09-29 09:15 UTC (5 open issues, no change since 09-28; only open PR is docs-only #88)
+- **Last updated:** 2026-09-29 (triage run 2: board drift fixed; docs pass on `security-scheme.md`)
+- **State verified:** 2026-09-29 09:10 UTC (9 open issues: #12, #20, #32, #39, #90–#94; open PRs: docs-only #88, CI green, merges cleanly)
 
 ---
 
@@ -57,8 +57,8 @@ table or policy change needs a test in `supabase/tests/rls/`; CI runs it as the 
 Design and 5-PR plan approved 09-26 (mockups: https://claude.ai/artifact/DgFeir8bWRGLAQEERLyzSt); the
 coordinator builds and merges. PR 1 (schedule item free text, [#79](https://github.com/corourke/GigManager/pull/79))
 and PR 2 (one gig page, view mode, roles, Columns picker, [#80](https://github.com/corourke/GigManager/pull/80))
-merged 09-26. Next: PR 3 one edit mode (When & schedule, one save indicator, Done waits for saves), PR 4
-printing, PR 5 style guide.
+merged 09-26; PR 3 (one edit mode, [#89](https://github.com/corourke/GigManager/pull/89)) merged 09-29, when
+Cameron also approved the latest design. Next: PR 4 printing, PR 5 style guide.
 
 ### UI/UX — in design scoping
 
@@ -155,13 +155,14 @@ Read this section first on each run.
 |---|---|---|
 | Triage docs PR [#88](https://github.com/corourke/GigManager/pull/88) (`claude/friendly-hamilton-syc3g6`) | `docs/technical/server-endpoint-inventory.md`, one line each of `docs/README.md` and `docs/technical/tech-stack.md` | Docs only |
 | #20 remaining services | `src/services/*.service.ts` (all but `user.service.ts`) | Parked until Cameron asks for the next one |
-| Coordinator, #12 PR 3 (WIP branch `claude/epic-ramanujan-i9khnc`, no PR yet) | `GigScreen.tsx`, `gig/GigBasicInfoSection.tsx`, `gig/GigHeader.tsx`, `gig/GigScheduleEditor.tsx`, `gig/basicInfo/*`, `routes/screens.tsx`, `utils/hooks/editSession*`, `useAutoSave.ts`, `utils/scheduleWindow.ts` | Live as of 09-28 18:54 UTC |
+| Coordinator, #12 PRs 4–5 (next on `claude/epic-ramanujan-i9khnc`) | print/report components, `docs/design/STYLE_GUIDE.md` | Not started; PR 3's claim ended when #89 merged 09-29 04:52 UTC |
+| Coordinator, code-review bugs #90–#94 | not yet claimed | Not in §3c; triage leaves them alone |
 
 **Dependencies.** #12 and #39 both reshape navigation/gig-edit UI — do them in sequence, not in parallel, once
-each has a direction. #52's health check is live on dev and prod (09-25); its Sentry check additionally needs the Sentry secrets (§3a item 3). The tenant model is decided (hosted, shared DB, 09-25).
+each has a direction. #52's health check is live on dev and prod (09-25); its Sentry check additionally needs the Sentry secrets (§3a item 2). The tenant model is decided (hosted, shared DB, 09-25).
 
 **Where things stand.** 09-28: PRs #83 (#69) and #85 (#74) merged ~14:31 UTC; both issues closed.
-Urgent bug #84 approved by Cameron and fixed by the coordinator in PR #87 (merged 09-28). #81 reworked in PR #86; Cameron confirmed it 09-29 and it is closed. Nothing in §3c is left unbuilt. #71 and #81 merged earlier (see §4). 09-29: quiet (no new issue or PR activity); docs pass only.
+Urgent bug #84 approved by Cameron and fixed by the coordinator in PR #87 (merged 09-28). #81 reworked in PR #86; Cameron confirmed it 09-29 and it is closed. Nothing in §3c is left unbuilt. #71 and #81 merged earlier (see §4). 09-29: #12 PR 3 merged (#89) and code-review bugs #90–#94 filed by the coordinator; none are in §3c, so triage did a docs pass only.
 
 On 09-23 every item was blocked or parked, so the run moved on to docs. Docs-only PR
 [#67](https://github.com/corourke/GigManager/pull/67) refreshed `docs/development/testing.md`: suite size,
@@ -196,7 +197,7 @@ broken yet.
 
 **Order of checks each run.**
 
-1. Check CI and mergeability on open PRs (docs PR #88 open as of 09-29; list live).
+1. Check CI and mergeability on open PRs (docs PR #88 and the `security-scheme.md` docs PR open as of 09-29; list live).
 2. #39 — check for a reply. If a variant is picked → work plan → post → wait for approval → implement.
 3. #12 — same pattern.
 4. #20 — no open question; only act if Cameron asks for the next service to be migrated.
