@@ -11,8 +11,8 @@ Cameron questions.
 Migrated from GitHub issue [#41](https://github.com/corourke/GigManager/issues/41) on 2026-09-22. This file now
 supersedes that issue as the board of record.
 
-- **Last updated:** 2026-09-28 (coordinator: #84 fixed in PR #87; #81 reworked in PR #86, awaiting Cameron's check; #12 PRs 3–5 in progress; migration awaiting apply)
-- **State verified:** 2026-09-28 14:35 UTC (PRs #83 and #85 merged ~14:31 UTC, closing #69 and #74; no open PRs)
+- **Last updated:** 2026-09-29 (triage: quiet run; docs PR #88 opened for `server-endpoint-inventory.md`)
+- **State verified:** 2026-09-29 09:15 UTC (5 open issues, no change since 09-28; only open PR is docs-only #88)
 
 ---
 
@@ -96,7 +96,7 @@ order that unblocks the most work; the coordinator puts these to Cameron one at 
 *The triage routine adds entries here instead of asking Cameron directly — the question, and what it did in the
 meantime. The coordinator resolves each entry (decides it, or moves it into §3a) and deletes it.*
 
-*(None open.)*
+- **§3c still lists #69 and #74**, both shipped 09-28 (PRs #83, #85; issues closed). Triage left §3c alone; the entries can be deleted.
 
 ### 3c. Ready to build, nothing blocking
 
@@ -153,14 +153,15 @@ Read this section first on each run.
 
 | Claimed by | Files | Notes |
 |---|---|---|
+| Triage docs PR [#88](https://github.com/corourke/GigManager/pull/88) (`claude/friendly-hamilton-syc3g6`) | `docs/technical/server-endpoint-inventory.md`, one line each of `docs/README.md` and `docs/technical/tech-stack.md` | Docs only |
 | #20 remaining services | `src/services/*.service.ts` (all but `user.service.ts`) | Parked until Cameron asks for the next one |
-| Coordinator, #12 PR 3 (WIP branch `claude/epic-ramanujan-i9khnc`, no PR yet) | `GigScreen.tsx`, `gig/GigBasicInfoSection.tsx`, `gig/GigHeader.tsx`, `gig/GigScheduleEditor.tsx`, `gig/basicInfo/*`, `routes/screens.tsx`, `utils/hooks/editSession*`, `useAutoSave.ts`, `utils/scheduleWindow.ts` | Live as of 09-27 00:31 UTC |
+| Coordinator, #12 PR 3 (WIP branch `claude/epic-ramanujan-i9khnc`, no PR yet) | `GigScreen.tsx`, `gig/GigBasicInfoSection.tsx`, `gig/GigHeader.tsx`, `gig/GigScheduleEditor.tsx`, `gig/basicInfo/*`, `routes/screens.tsx`, `utils/hooks/editSession*`, `useAutoSave.ts`, `utils/scheduleWindow.ts` | Live as of 09-28 18:54 UTC |
 
 **Dependencies.** #12 and #39 both reshape navigation/gig-edit UI — do them in sequence, not in parallel, once
 each has a direction. #52's health check is live on dev and prod (09-25); its Sentry check additionally needs the Sentry secrets (§3a item 3). The tenant model is decided (hosted, shared DB, 09-25).
 
 **Where things stand.** 09-28: PRs #83 (#69) and #85 (#74) merged ~14:31 UTC; both issues closed.
-Urgent bug #84 approved by Cameron and fixed by the coordinator in PR #87 (merged 09-28); #81 reworked in PR #86, awaiting Cameron's check. Nothing in §3c is left unbuilt. #71 and #81 merged earlier (see §4).
+Urgent bug #84 approved by Cameron and fixed by the coordinator in PR #87 (merged 09-28); #81 reworked in PR #86, awaiting Cameron's check. Nothing in §3c is left unbuilt. #71 and #81 merged earlier (see §4). 09-29: quiet (no new issue or PR activity); docs pass only.
 
 On 09-23 every item was blocked or parked, so the run moved on to docs. Docs-only PR
 [#67](https://github.com/corourke/GigManager/pull/67) refreshed `docs/development/testing.md`: suite size,
@@ -177,8 +178,9 @@ instead of 18, a supported Supabase CLI install, the full migration set instead 
 `server-endpoint-inventory.md`, the last marked historical). `database.md`'s "single initialization file" line turned
 out to be a dated 02-09 changelog entry, not stale. `docs/technical/database.md` body (09-25, PR #72: reconciled with every
 migration through `20260919000000` — dropped status-history tables, `kit_components` rename, six new tables, new columns).
-Next candidate: `docs/technical/server-endpoint-inventory.md`
-(still cites the pre-refactor 3,322-line `index.ts`; retire it or re-point it at `routes/`).
+`docs/technical/server-endpoint-inventory.md` (09-29, PR #88: re-pointed at `routes/`, every row checked against the
+middleware; `DELETE /gigs/:id` is Admin-only; access-request and notification routes added). Next candidate:
+`docs/technical/security-scheme.md` (check it against the #61 policies and the RLS test suite).
 
 **Future considerations (not open work).** Left over from #61 (closed 09-25): gig attachments are invisible
 to the other orgs on a gig (needs a sharing flag plus a storage-policy change), and prod has an extra
@@ -194,7 +196,7 @@ broken yet.
 
 **Order of checks each run.**
 
-1. Check CI and mergeability on open PRs (none open as of 09-28 14:35 UTC; list live).
+1. Check CI and mergeability on open PRs (docs PR #88 open as of 09-29; list live).
 2. #81: if Cameron has commented after checking the packing list, move it on (close, or raise what's still wrong in §3b).
 3. #39 — check for a reply. If a variant is picked → work plan → post → wait for approval → implement.
 4. #12 — same pattern.
