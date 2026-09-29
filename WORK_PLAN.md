@@ -11,7 +11,7 @@ Cameron questions.
 Migrated from GitHub issue [#41](https://github.com/corourke/GigManager/issues/41) on 2026-09-22. This file now
 supersedes that issue as the board of record.
 
-- **Last updated:** 2026-09-29 (triage run 2: board drift fixed; docs pass on `security-scheme.md`)
+- **Last updated:** 2026-09-29 (triage run 2: board drift fixed; `security-scheme.md` check raised a security entry in §3b)
 - **State verified:** 2026-09-29 09:10 UTC (9 open issues: #12, #20, #32, #39, #90–#94; open PRs: docs-only #88, CI green, merges cleanly)
 
 ---
@@ -95,6 +95,7 @@ order that unblocks the most work; the coordinator puts these to Cameron one at 
 *The triage routine adds entries here instead of asking Cameron directly — the question, and what it did in the
 meantime. The coordinator resolves each entry (decides it, or moves it into §3a) and deletes it.*
 
+- **Security findings from the 09-29 `security-scheme.md` check, urgent.** Details went to Cameron by private notification on 09-29, not here, because this repo is public. In short, some contact-management RPCs trust caller-supplied input for authorization and can grant org membership, plus several broader read exposures. The fix needs a migration, which is a contract, so it's for the coordinator. Meanwhile triage filed no public issue and held the `security-scheme.md` doc update, since correcting the doc would describe the holes publicly.
 - **§3c still lists #69 and #74**, both shipped 09-28 (PRs #83, #85; issues closed). Triage left §3c alone; the entries can be deleted.
 
 ### 3c. Ready to build, nothing blocking
@@ -180,8 +181,7 @@ instead of 18, a supported Supabase CLI install, the full migration set instead 
 out to be a dated 02-09 changelog entry, not stale. `docs/technical/database.md` body (09-25, PR #72: reconciled with every
 migration through `20260919000000` — dropped status-history tables, `kit_components` rename, six new tables, new columns).
 `docs/technical/server-endpoint-inventory.md` (09-29, PR #88: re-pointed at `routes/`, every row checked against the
-middleware; `DELETE /gigs/:id` is Admin-only; access-request and notification routes added). Next candidate:
-`docs/technical/security-scheme.md` (check it against the #61 policies and the RLS test suite).
+middleware; `DELETE /gigs/:id` is Admin-only; access-request and notification routes added). `docs/technical/security-scheme.md` (09-29: checked against every policy, the RLS tests and the three edge functions; the update is **held** until the §3b security entry is resolved, then document helpers, gig UPDATE/DELETE and participant write rules, the full CORS list, `requireOrgRole` options and the `health-check` gate). Next candidate: `docs/technical/deployment.md` (try `deploy_prod.sh --help`/gates offline; don't run deploys).
 
 **Future considerations (not open work).** Left over from #61 (closed 09-25): gig attachments are invisible
 to the other orgs on a gig (needs a sharing flag plus a storage-policy change), and prod has an extra
@@ -197,7 +197,7 @@ broken yet.
 
 **Order of checks each run.**
 
-1. Check CI and mergeability on open PRs (docs PR #88 and the `security-scheme.md` docs PR open as of 09-29; list live).
+1. Check CI and mergeability on open PRs (docs PR #88 open as of 09-29; list live).
 2. #39 — check for a reply. If a variant is picked → work plan → post → wait for approval → implement.
 3. #12 — same pattern.
 4. #20 — no open question; only act if Cameron asks for the next service to be migrated.
