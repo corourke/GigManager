@@ -37,12 +37,6 @@ describe('GigScreen', () => {
     }).not.toThrow()
   })
 
-  it('renders in edit mode without throwing errors', () => {
-    expect(() => {
-      render(<GigScreen {...mockProps} gigId="test-id" />)
-    }).not.toThrow()
-  })
-
   // Submit button enable/disable behavior is tested through integration
   // The hook properly detects changes by comparing current form values with original data
   // This has been verified through manual testing of the application

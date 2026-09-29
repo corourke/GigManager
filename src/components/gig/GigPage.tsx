@@ -8,14 +8,11 @@ import { ConflictWarning } from '../ConflictWarning';
 import { Alert, AlertDescription } from '../ui/alert';
 import { Badge } from '../ui/badge';
 import { Button } from '../ui/button';
-import { Card } from '../ui/card';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '../ui/dropdown-menu';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
-import GigBasicInfoSection from './GigBasicInfoSection';
 import GigFinancialsSection from './GigFinancialsSection';
 import GigKitAssignmentsSection from './GigKitAssignmentsSection';
 import GigParticipantsSection from './GigParticipantsSection';
-import GigScheduleEditor from './GigScheduleEditor';
 import GigStaffSlotsSection from './GigStaffSlotsSection';
 import GigEquipmentTable from './view/GigEquipmentTable';
 import GigParticipantsTable from './view/GigParticipantsTable';
@@ -24,6 +21,10 @@ import GigSection from './view/GigSection';
 import GigStaffingTable from './view/GigStaffingTable';
 import GigVenueCard from './view/GigVenueCard';
 import OrganizationDetailsDialog from './view/OrganizationDetailsDialog';
+import { GigStatusField, GigTagsField, GigTitleField } from './basicInfo/GigBasicInfoFields';
+import { EditSaveStatus, GigEditForm, NotesCard, WhenAndScheduleCard } from './edit/GigEditParts';
+import { useEditSession } from '../../utils/hooks/editSession';
+import { EditSessionProvider } from '../../utils/hooks/EditSessionProvider';
 import { deleteGig, duplicateGig, getGig } from '../../services/gig.service';
 import { getGigActivity } from '../../services/activityLog.service';
 import { checkAllConflicts, type Conflict } from '../../services/conflictDetection.service';
@@ -74,6 +75,9 @@ export default function GigPage({
   const [activity, setActivity] = useState<ActivityLogEntry[]>([]);
   const [activityLoading, setActivityLoading] = useState(false);
   const [viewingOrg, setViewingOrg] = useState<Partial<Organization> | null>(null);
+  // Every autosaving section in edit mode reports here: one save state, one flush (#12).
+  const session = useEditSession();
+  const [finishing, setFinishing] = useState(false);
 
   const loadGig = useCallback(async () => {
     setLoadError(null);
@@ -97,7 +101,11 @@ export default function GigPage({
   // Staff and Viewers never see financials (#12); keep them off that tab.
   useEffect(() => { if (!canEdit && tab === 'financials') setTab('overview'); }, [canEdit, tab]);
 
-  const finishEditing = () => {
+  // Done waits for every pending save, so nothing typed just before is lost.
+  const finishEditing = async () => {
+    setFinishing(true);
+    await session.flushAll();
+    setFinishing(false);
     setEditing(false);
     loadGig();
   };
@@ -170,7 +178,7 @@ export default function GigPage({
   const participantOrgIds = [organization.id, ...participants.map((p) => p.organization_id)];
   const status = GIG_STATUS_CONFIG[gig.status];
 
-  return shell(
+  const page = (
     <Tabs value={tab} onValueChange={setTab}>
       <div className={editing ? 'bg-sky-50 border-b-2 border-sky-700' : 'bg-white border-b'}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-3 flex flex-col gap-2">
@@ -179,25 +187,38 @@ export default function GigPage({
             {editing && <span className="text-[10px] font-bold uppercase tracking-[0.1em] text-sky-800">Editing</span>}
           </div>
           <div className="flex items-start justify-between gap-4">
-            <div className="flex flex-col gap-1 min-w-0">
-              <div className="flex items-center gap-2.5 flex-wrap">
-                <h1 className="text-2xl font-bold leading-tight">{gig.title}</h1>
-                {status && <Badge className={`${status.color} border`}>{status.label}</Badge>}
-              </div>
-              <p className="text-sm text-muted-foreground">
-                {formatDateTimeDisplay(gig.start, gig.end, gig.timezone)}
-                {venue?.name ? ` · ${venue.name}` : ''}
-              </p>
-              {gig.tags.length > 0 && (
-                <div className="flex flex-wrap gap-1.5 pt-0.5">
-                  {gig.tags.map((t) => <Badge key={t} variant="secondary" className="font-medium">{t}</Badge>)}
+            {editing ? (
+              <div className="flex flex-col gap-2 min-w-0 flex-1" data-gig-header>
+                <div className="flex items-center gap-2.5 flex-wrap">
+                  <GigTitleField variant="header" />
+                  <GigStatusField variant="header" />
                 </div>
-              )}
-            </div>
+                <GigTagsField variant="header" />
+              </div>
+            ) : (
+              <div className="flex flex-col gap-1 min-w-0">
+                <div className="flex items-center gap-2.5 flex-wrap">
+                  <h1 className="text-2xl font-bold leading-tight">{gig.title}</h1>
+                  {status && <Badge className={`${status.color} border`}>{status.label}</Badge>}
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  {formatDateTimeDisplay(gig.start, gig.end, gig.timezone)}
+                  {venue?.name ? ` · ${venue.name}` : ''}
+                </p>
+                {gig.tags.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5 pt-0.5">
+                    {gig.tags.map((t) => <Badge key={t} variant="secondary" className="font-medium">{t}</Badge>)}
+                  </div>
+                )}
+              </div>
+            )}
             {canEdit && (
               <div className="flex items-center gap-2 shrink-0">
                 {editing ? (
-                  <Button onClick={finishEditing} className="bg-sky-700 hover:bg-sky-800 text-white">Done</Button>
+                  <>
+                    <EditSaveStatus state={session.state} />
+                    <Button onClick={finishEditing} disabled={finishing} className="bg-sky-700 hover:bg-sky-800 text-white">Done</Button>
+                  </>
                 ) : (
                   <>
                     <DropdownMenu>
@@ -238,14 +259,13 @@ export default function GigPage({
         </div>
       </div>
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+      <main className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
         {conflicts.length > 0 && <div className="mb-4"><ConflictWarning conflicts={conflicts} showAsCard /></div>}
 
           <TabsContent value="overview" className="mt-0">
             {editing ? (
               <div className="space-y-4">
-                <GigBasicInfoSection gigId={gigId} />
-                <GigScheduleEditor
+                <WhenAndScheduleCard
                   gigId={gigId}
                   gigStart={gig.start}
                   actParticipants={acts.map((p) => ({ id: p.id, organization: p.organization }))}
@@ -260,9 +280,7 @@ export default function GigPage({
                   userRole={userRole}
                 />
                 <GigStaffSlotsSection gigId={gigId} currentOrganizationId={organization.id} participantOrganizationIds={participantOrgIds} />
-                <Card className="p-4">
-                  <AttachmentManager organizationId={organization.id} entityType="gig" entityId={gigId} title="Attachments" />
-                </Card>
+                <NotesCard organizationId={organization.id} gigId={gigId} />
               </div>
             ) : (
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 items-start">
@@ -327,6 +345,14 @@ export default function GigPage({
       </main>
 
       <OrganizationDetailsDialog organization={viewingOrg} onClose={() => setViewingOrg(null)} />
-    </Tabs>,
+    </Tabs>
+  );
+
+  return shell(
+    editing ? (
+      <EditSessionProvider session={session}>
+        <GigEditForm gigId={gigId} gig={gig}>{page}</GigEditForm>
+      </EditSessionProvider>
+    ) : page,
   );
 }
