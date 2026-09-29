@@ -9,7 +9,7 @@ Tenant isolation lives in Postgres RLS, so it's tested against a real Postgres. 
 3. Applies every file in `supabase/migrations/` in order.
 4. Runs each `*.test.sql`, rolling each one back afterwards.
 
-A test acts as a user with `rls_test.try(user, sql)` and `rls_test.visible(user, table, where)`. These run as the `authenticated` role with `auth.uid()` set to that user. It records checks with `rls_test.expect(label, actual, expected)`, where `actual` is the number of rows seen or affected, or `-1` if the statement was rejected. The file fails if any check doesn't match.
+A test acts as a user with `rls_test.try(user, sql)` and `rls_test.visible(user, table, where)`. These run as the `authenticated` role with `auth.uid()` set to that user. `rls_test.try_anon(sql)` runs as the `anon` role, signed out. It records checks with `rls_test.expect(label, actual, expected)`, where `actual` is the number of rows seen or affected, or `-1` if the statement was rejected. The file fails if any check doesn't match.
 
 `_fixture.sql` sets up two orgs sharing one gig (A and B) and an unrelated org (C). Each org has an Admin, Manager, Staff and Viewer, named `a_admin` … `c_viewer`.
 

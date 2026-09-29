@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
+  canAssignRole,
   parseBearer,
   isRoleAllowed,
   orgsIntersect,
@@ -154,5 +155,18 @@ describe('describeOrganizationDeleteBlockers (issue #53)', () => {
   });
   it('allows deletion when there are no references to check', () => {
     expect(describeOrganizationDeleteBlockers({})).toBeNull();
+  });
+});
+
+describe('canAssignRole', () => {
+  it('lets an Admin give any role', () => {
+    for (const role of ['Admin', 'Manager', 'Staff', 'Viewer']) expect(canAssignRole('Admin', role)).toBe(true);
+  });
+  it('lets a Manager give any role except Admin', () => {
+    expect(canAssignRole('Manager', 'Admin')).toBe(false);
+    for (const role of ['Manager', 'Staff', 'Viewer']) expect(canAssignRole('Manager', role)).toBe(true);
+  });
+  it('lets nobody else give roles', () => {
+    for (const actor of ['Staff', 'Viewer', undefined, null, '']) expect(canAssignRole(actor, 'Viewer')).toBe(false);
   });
 });
