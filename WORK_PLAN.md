@@ -21,7 +21,12 @@ supersedes that issue as the board of record.
 | # | Item | Type | State | Waiting on |
 |---|---|---|---|---|
 | [#39](https://github.com/corourke/GigManager/issues/39) | Too many menu levels | UI/UX design | Direction set 09-26: keep the top nav (no sidebar) | Follows #12's redesign; then Cameron (§3a item 1) |
-| [#12](https://github.com/corourke/GigManager/issues/12) | Reorganize Gig Edit into tabbed sections | UI/UX design | Plan approved 09-26; PRs 1–2 merged ([#79](https://github.com/corourke/GigManager/pull/79), [#80](https://github.com/corourke/GigManager/pull/80)) | Coordinator — PRs 3–5 |
+| [#90](https://github.com/corourke/GigManager/issues/90) | Deleting an organization always fails (`gig_bids` doesn't exist) | Bug | From the 09-29 code review, confirmed | Coordinator — not started |
+| [#91](https://github.com/corourke/GigManager/issues/91) | Dashboard asset and insured values always $0 (`assets.cost` renamed) | Bug | From the 09-29 code review, confirmed | Coordinator — not started |
+| [#92](https://github.com/corourke/GigManager/issues/92) | Replace-all autosave can delete rows another user or tab added | Bug | From the 09-29 code review, confirmed by reading the code | Coordinator — not started |
+| [#93](https://github.com/corourke/GigManager/issues/93) | Some financial record dates use UTC instead of the local date | Bug (low) | From the 09-29 code review, confirmed | Coordinator — not started |
+| [#94](https://github.com/corourke/GigManager/issues/94) | A failed profile load at sign-in looks like "no organizations" | Bug (low) | From the 09-29 code review, confirmed | Coordinator — not started |
+| [#12](https://github.com/corourke/GigManager/issues/12) | Reorganize Gig Edit into tabbed sections | UI/UX design | Latest design approved 09-29; PRs 1–3 merged ([#79](https://github.com/corourke/GigManager/pull/79), [#80](https://github.com/corourke/GigManager/pull/80), [#89](https://github.com/corourke/GigManager/pull/89)) | Coordinator — PR 4 (printing), PR 5 (style guide) |
 | [#20](https://github.com/corourke/GigManager/issues/20) | Shared data-access layer under `src/services/` | Refactor | Pilot merged (PR #66); 15 services remain | Nothing — pick up next service when wanted |
 | [#32](https://github.com/corourke/GigManager/issues/32) | Sign Up: no confirm-password field | Low priority | Open, not urgent | Nothing — accepted for beta |
 
@@ -130,6 +135,7 @@ applies migrations), edge-function API shape, anything touching production confi
 | Docs refresh: `testing.md` (PR #67), `setup-guide.md` + one line of `deployment.md` (PR #68) | PR #67, PR #68 (09-23) | Merged; docs only, from triage docs passes |
 | #71 — non-expense financial records save `category: null`; Add dialog stays open until saved; failed autosave no longer retries in a loop (`useAutoSave.saveNow`) | PR #77 (09-26) | Merged; #71 closed. Frontend only, ships with the next frontend deploy |
 | #81 — web packing list groups rows under the kit they're packed in; every assigned kit, a lone container included, gets its own heading | PR #82 (09-27) | Merged, but a lone container then showed twice (heading + row); Cameron reopened #81 on 09-28 |
+| #12 PR 3 — one edit mode for the whole gig page: header fields, one save state, Done waits for saves; When & schedule with a dated table in the gig's time zone; the gig widens to cover its schedule | PR #89 (09-29) | Merged. Frontend only; no migration. Cameron to check edit mode after the next deploy |
 | #84 — attachments open the file instead of a blank tab (`window.open` without `noopener`, opener cut by hand); first `AttachmentManager` tests | PR #87 (09-28) | Merged; #84 closed. Deployed to dev + prod 09-29 |
 | #81 rework — packing list is an indented list: kits A to Z marked Items/Container, an Items kit's contents indented under it, a lone container one line (approved mockup, board 7) | PR #86 (09-28) | Merged; Cameron confirmed it on the live gig 09-29, #81 closed. Frontend only |
 | #74 — gig lists keep a gig in Upcoming until its last calendar day is over in the gig's timezone (`isGigPast` in `src/utils/gigTimeframe.ts`, web and mobile) | PR #85 (09-28) | Merged; #74 closed. Frontend only, ships with the next frontend deploy |
