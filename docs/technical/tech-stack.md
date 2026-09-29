@@ -152,5 +152,5 @@ supabase/
 - [deployment.md](./deployment.md) — how all of this ships to production
 - [database.md](./database.md) — schema, RLS policies, migrations
 - [security-scheme.md](./security-scheme.md) — authorization model
-- [server-endpoint-inventory.md](./server-endpoint-inventory.md) — edge function endpoint reference
+- [server-endpoint-inventory.md](./server-endpoint-inventory.md) — `server` edge function endpoints and their authorization
 - [coding-guide.md](../development/coding-guide.md) — conventions and patterns

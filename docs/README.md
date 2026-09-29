@@ -72,7 +72,7 @@ Located in [`./technical/`](./technical/)
 - **[schema-verification-2026-09.md](./technical/schema-verification-2026-09.md)** - Point-in-time findings from a live-database RLS/tenancy audit (Sep 2026): confirmed cross-org data leaks, dev/prod drift, offboarding gaps, deferred remediation plan
 - **[gig-financials.md](./technical/gig-financials.md)** - Gig financials technical reference: data model, ledger behaviour, and how staffing and purchases feed it
 - **[purchases-field-mapping.md](./technical/purchases-field-mapping.md)** - How purchase import/scan fields map onto the `purchases` (header/item rows) and `assets` tables
-- **[server-endpoint-inventory.md](./technical/server-endpoint-inventory.md)** - Endpoint-by-endpoint authorization spec written for the Phase 6 Hono refactor of the `server` edge function (historical: the refactor has landed and the function is now split into `routes/`; use it for the intended auth rules, not for current line numbers)
+- **[server-endpoint-inventory.md](./technical/server-endpoint-inventory.md)** - Endpoint-by-endpoint authorization of the `server` edge function: every route in `routes/`, the middleware that guards it, and the June 2026 decisions behind it
 
 ---
 
