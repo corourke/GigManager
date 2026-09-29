@@ -296,15 +296,11 @@ function GigCreateRoute() {
       organization={organization}
       user={user}
       userRole={userRole}
-      gigId={null}
       onCancel={nav.toGigs}
       onGigCreated={(id) => nav.editGig(id)}
-      onGigUpdated={nav.toGigs}
-      onGigDeleted={nav.toGigs}
       onSwitchOrganization={nav.switchOrganization}
       onEditProfile={openEditProfile}
       onLogout={nav.logoutAndHome}
-      onEditOrganization={(org) => nav.editOrg(org)}
     />
   );
 }

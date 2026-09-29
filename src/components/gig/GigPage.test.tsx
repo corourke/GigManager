@@ -1,14 +1,29 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, within } from '@testing-library/react';
+import { act, render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import GigPage from './GigPage';
+import { getGig, updateGig } from '../../services/gig.service';
 
 vi.mock('../AppHeader', () => ({ default: () => <div data-testid="app-header" /> }));
 vi.mock('../AttachmentManager', () => ({ default: () => <div data-testid="attachments" /> }));
 vi.mock('../ActivityFeed', () => ({ default: () => <div data-testid="activity" /> }));
 vi.mock('../ConflictWarning', () => ({ ConflictWarning: () => null }));
 vi.mock('./useGigParticipantContacts', () => ({ useGigParticipantContacts: () => ({ data: [] }) }));
-vi.mock('./GigBasicInfoSection', () => ({ default: () => <div data-testid="edit-basic-info" /> }));
-vi.mock('./GigScheduleEditor', () => ({ default: () => <div data-testid="edit-schedule" /> }));
+// The schedule editor stand-in reports to the page's edit session like the real one,
+// with a save state and flush each test controls.
+const schedule = vi.hoisted(() => ({
+  state: 'idle' as 'idle' | 'saving' | 'saved' | 'error',
+  flush: () => Promise.resolve(),
+  props: null as any,
+}));
+vi.mock('./GigScheduleEditor', async () => {
+  const { useReportToEditSession } = await import('../../utils/hooks/editSession');
+  function ScheduleEditorStandIn(props: any) {
+    schedule.props = props;
+    useReportToEditSession(schedule.state, () => schedule.flush());
+    return <div data-testid="edit-schedule" />;
+  }
+  return { default: ScheduleEditorStandIn };
+});
 vi.mock('./GigParticipantsSection', () => ({ default: () => <div data-testid="edit-participants" /> }));
 vi.mock('./GigStaffSlotsSection', () => ({ default: () => <div data-testid="edit-staffing" /> }));
 vi.mock('./GigKitAssignmentsSection', () => ({ default: () => <div data-testid="edit-equipment" /> }));
@@ -27,6 +42,7 @@ const gig = {
 
 vi.mock('../../services/gig.service', () => ({
   getGig: vi.fn(() => Promise.resolve(gig)),
+  updateGig: vi.fn().mockResolvedValue({}),
   getGigKits: vi.fn().mockResolvedValue([]),
   deleteGig: vi.fn(),
   duplicateGig: vi.fn(),
@@ -40,7 +56,13 @@ const baseProps = {
 };
 
 describe('GigPage (#12)', () => {
-  beforeEach(() => localStorage.clear());
+  beforeEach(() => {
+    localStorage.clear();
+    vi.clearAllMocks();
+    schedule.state = 'idle';
+    schedule.flush = () => Promise.resolve();
+    vi.mocked(getGig).mockImplementation(() => Promise.resolve(gig as any));
+  });
 
   it('shows the overview in the agreed order, read-only', async () => {
     render(<GigPage {...baseProps} userRole="Admin" />);
@@ -55,16 +77,16 @@ describe('GigPage (#12)', () => {
   it('gives Admins one Edit for the whole gig, then Done', async () => {
     render(<GigPage {...baseProps} userRole="Admin" />);
     fireEvent.click(await screen.findByRole('button', { name: /edit/i }));
-    expect(screen.getByTestId('edit-basic-info')).toBeInTheDocument();
+    expect(await screen.findByRole('textbox', { name: 'Gig title' })).toBeInTheDocument();
     expect(screen.getByTestId('edit-staffing')).toBeInTheDocument();
     expect(screen.getByTestId('edit-participants')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Done' }));
-    expect(screen.queryByTestId('edit-basic-info')).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByRole('textbox', { name: 'Gig title' })).not.toBeInTheDocument());
   });
 
   it('drives the Financials tab from the page edit mode', async () => {
     render(<GigPage {...baseProps} userRole="Manager" initialEditing />);
-    await screen.findByText('Riverside Summer Series');
+    await screen.findByRole('textbox', { name: 'Gig title' });
     fireEvent.mouseDown(screen.getByRole('tab', { name: 'Financials' }));
     expect((await screen.findByTestId('financials')).dataset.editing).toBe('true');
   });
@@ -86,5 +108,73 @@ describe('GigPage (#12)', () => {
     await screen.findByText('Riverside Summer Series');
     expect(screen.getByText('$450 fee')).toBeInTheDocument();
     expect(screen.getByText(/Staff cost/)).toBeInTheDocument();
+  });
+
+  describe('edit mode', () => {
+    const openEditor = async () => {
+      render(<GigPage {...baseProps} userRole="Admin" initialEditing />);
+      return screen.findByRole('textbox', { name: 'Gig title' });
+    };
+    const before = (a: Element, b: Element) => !!(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
+
+    it('edits the title, status and tags in the header, then When & schedule, Participants, Staffing, Notes', async () => {
+      expect(await openEditor()).toHaveValue('Riverside Summer Series');
+      const header = screen.getByRole('textbox', { name: 'Gig title' }).closest('[data-gig-header]') as HTMLElement;
+      expect(within(header).getByRole('combobox', { name: 'Status' })).toHaveTextContent('Booked');
+      expect(within(header).getByText('Outdoor')).toBeInTheDocument();
+
+      const when = screen.getByRole('heading', { name: 'When & schedule' });
+      const notes = screen.getByRole('heading', { name: 'Notes & attachments' });
+      expect(before(when, screen.getByTestId('edit-schedule'))).toBe(true);
+      expect(before(screen.getByTestId('edit-schedule'), screen.getByTestId('edit-participants'))).toBe(true);
+      expect(before(screen.getByTestId('edit-participants'), screen.getByTestId('edit-staffing'))).toBe(true);
+      expect(before(screen.getByTestId('edit-staffing'), notes)).toBe(true);
+      const notesCard = notes.closest('[data-slot="card"]') as HTMLElement;
+      expect(within(notesCard).getByDisplayValue('Crew parking in Lot C')).toBeInTheDocument();
+      expect(within(notesCard).getByTestId('attachments')).toBeInTheDocument();
+      expect(schedule.props.timeZone).toBe('America/Los_Angeles');
+    });
+
+    it('shows one save state for the whole page', async () => {
+      schedule.state = 'saving';
+      await openEditor();
+      expect(screen.getByText('Saving…')).toBeInTheDocument();
+    });
+
+    it('Done waits for pending saves before leaving edit mode', async () => {
+      let finish!: () => void;
+      schedule.flush = vi.fn(() => new Promise<void>((resolve) => { finish = resolve; }));
+      await openEditor();
+      vi.mocked(getGig).mockClear();
+
+      fireEvent.click(screen.getByRole('button', { name: 'Done' }));
+      await act(async () => { await Promise.resolve(); });
+      expect(schedule.flush).toHaveBeenCalled();
+      expect(screen.getByRole('textbox', { name: 'Gig title' })).toBeInTheDocument();
+      expect(getGig).not.toHaveBeenCalled();
+
+      await act(async () => { finish(); });
+      await waitFor(() => expect(screen.queryByRole('textbox', { name: 'Gig title' })).not.toBeInTheDocument());
+      expect(getGig).toHaveBeenCalled();
+    });
+
+    it('widens the gig to cover a schedule item outside it, and saves that', async () => {
+      await openEditor();
+      act(() => { schedule.props.onEntriesChange([{ start_time: '2026-07-12T17:00:00.000Z', end_time: null }]); });
+      fireEvent.click(screen.getByRole('button', { name: 'Done' }));
+      await waitFor(() => expect(updateGig).toHaveBeenCalledWith('g1', expect.objectContaining({
+        start: '2026-07-12T17:00:00.000Z',
+        end: '2026-07-13T06:30:00.000Z',
+      })));
+    });
+
+    it('leaves an all-day gig alone', async () => {
+      vi.mocked(getGig).mockResolvedValue({ ...gig, start: '2026-07-12T12:00:00.000Z', end: '2026-07-12T12:00:00.000Z' } as any);
+      await openEditor();
+      act(() => { schedule.props.onEntriesChange([{ start_time: '2026-07-12T09:00:00.000Z', end_time: null }]); });
+      fireEvent.click(screen.getByRole('button', { name: 'Done' }));
+      await waitFor(() => expect(screen.queryByRole('textbox', { name: 'Gig title' })).not.toBeInTheDocument());
+      expect(updateGig).not.toHaveBeenCalled();
+    });
   });
 });
