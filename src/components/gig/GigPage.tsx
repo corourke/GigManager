@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { ArrowLeft, Copy, Loader2, MoreVertical, Pencil, Trash2 } from 'lucide-react';
+import { ArrowLeft, Copy, Loader2, MoreVertical, Pencil, Printer, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import AppHeader from '../AppHeader';
 import AttachmentManager from '../AttachmentManager';
@@ -21,6 +21,7 @@ import GigSection from './view/GigSection';
 import GigStaffingTable from './view/GigStaffingTable';
 import GigVenueCard from './view/GigVenueCard';
 import OrganizationDetailsDialog from './view/OrganizationDetailsDialog';
+import GigPrintSheet from './print/GigPrintSheet';
 import { GigStatusField, GigTagsField, GigTitleField } from './basicInfo/GigBasicInfoFields';
 import { EditSaveStatus, GigEditForm, NotesCard, WhenAndScheduleCard } from './edit/GigEditParts';
 import { useEditSession } from '../../utils/hooks/editSession';
@@ -77,6 +78,10 @@ export default function GigPage({
   const [viewingOrg, setViewingOrg] = useState<Partial<Organization> | null>(null);
   // Every autosaving section in edit mode reports here: one save state, one flush (#12).
   const session = useEditSession();
+  // Printing (#12): the sheet is rendered on request, and prints once its data has loaded.
+  const [printRequest, setPrintRequest] = useState<{ financials: boolean; n: number } | null>(null);
+  const startPrint = (financials: boolean) => setPrintRequest((r) => ({ financials, n: (r?.n ?? 0) + 1 }));
+  const printWhenReady = useCallback(() => window.print(), []);
   const [finishing, setFinishing] = useState(false);
 
   const loadGig = useCallback(async () => {
@@ -131,17 +136,20 @@ export default function GigPage({
     }
   };
 
-  const shell = (children: React.ReactNode) => (
+  const shell = (children: React.ReactNode, printSheet?: React.ReactNode) => (
     <div className="min-h-screen bg-gray-50">
-      <AppHeader
-        organization={organization}
-        user={user}
-        userRole={userRole}
-        currentRoute="gig-detail"
-        onSwitchOrganization={onSwitchOrganization}
-        onLogout={onLogout}
-      />
-      {children}
+      <div className="no-print">
+        <AppHeader
+          organization={organization}
+          user={user}
+          userRole={userRole}
+          currentRoute="gig-detail"
+          onSwitchOrganization={onSwitchOrganization}
+          onLogout={onLogout}
+        />
+        {children}
+      </div>
+      {printSheet}
     </div>
   );
 
@@ -212,9 +220,22 @@ export default function GigPage({
                 )}
               </div>
             )}
-            {canEdit && (
+            {(canEdit || !editing) && (
               <div className="flex items-center gap-2 shrink-0">
-                {editing ? (
+                {!editing && (canEdit ? (
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="outline"><Printer className="w-4 h-4 mr-1.5" />Print</Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem onSelect={() => startPrint(false)}>Gig sheet</DropdownMenuItem>
+                      <DropdownMenuItem onSelect={() => startPrint(true)}>Gig sheet with financials</DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                ) : (
+                  <Button variant="outline" onClick={() => startPrint(false)}><Printer className="w-4 h-4 mr-1.5" />Print</Button>
+                ))}
+                {!canEdit ? null : editing ? (
                   <>
                     <EditSaveStatus state={session.state} />
                     <Button onClick={finishEditing} disabled={finishing} className="bg-sky-700 hover:bg-sky-800 text-white">Done</Button>
@@ -348,11 +369,25 @@ export default function GigPage({
     </Tabs>
   );
 
+  const printSheet = printRequest && (
+    <div className="print-only hidden">
+      <GigPrintSheet
+        key={printRequest.n}
+        gig={gig}
+        organization={organization}
+        slots={ownSlots}
+        includeFinancials={canEdit && printRequest.financials}
+        onReady={printWhenReady}
+      />
+    </div>
+  );
+
   return shell(
     editing ? (
       <EditSessionProvider session={session}>
         <GigEditForm gigId={gigId} gig={gig}>{page}</GigEditForm>
       </EditSessionProvider>
     ) : page,
+    printSheet,
   );
 }

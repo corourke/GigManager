@@ -248,6 +248,14 @@ html {
     padding: 4px 8px !important;
   }
 
+  /* The gig sheet (#12) rules each row instead of drawing a grid. */
+  .gig-print th, .gig-print td {
+    border: 0 !important;
+    border-bottom: 1px solid #bbb !important;
+    padding: 2px 6px 2px 0 !important;
+  }
+  .gig-print th { border-bottom-color: #000 !important; }
+
   div[key] {
     page-break-inside: avoid;
   }
