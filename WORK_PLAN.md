@@ -11,7 +11,7 @@ Cameron questions.
 Migrated from GitHub issue [#41](https://github.com/corourke/GigManager/issues/41) on 2026-09-22. This file now
 supersedes that issue as the board of record.
 
-- **Last updated:** 2026-09-30 (coordinator: Cameron found #107's participant add logged four times; fix is coordinator PR #108 — autosave runs one save at a time)
+- **Last updated:** 2026-09-30 (coordinator: merged #108 — autosave runs one save at a time, fixing #107's repeated "participant added"; Cameron to verify after the next frontend deploy)
 - **State verified:** 2026-09-30 19:45 UTC by triage (4 open issues: #12, #20, #39, #92; no open PRs. #104–#107 merged 19:41–19:43 UTC and closed #102, #32 and #103)
 
 ---
@@ -162,6 +162,7 @@ applies migrations), edge-function API shape, anything touching production confi
 | #93 ([Some financial record dates use UTC](https://github.com/corourke/GigManager/issues/93)): import payment, completed labor and the purchase fallback are dated in the gig's time zone (`toDateInTimeZone`) | PR #98 (09-30) | Merged; #93 closed. Frontend only |
 | #94 ([A failed profile load looks like "no organizations"](https://github.com/corourke/GigManager/issues/94)): `getCompleteUserData` throws; `RequireAuth` shows "We couldn't load your account" with a retry | PR #99 (09-30) | Merged; #94 closed. Frontend only |
 | #12 PR 4 — printing: the gig page's Print button makes a gig sheet (venue, schedule, participants, crew contacts, notes, attachment names), and Admins and Managers can add a financials page; the packing list prints with a header (org, gig, date, counts) | PR #100 (09-30) | Merged. Frontend only |
+| Follow-up to #107: a new participant was inserted and logged "added" several times because autosaves overlapped; `useAutoSave` now runs one save at a time (all autosaving sections) | PR #108 (09-30) | Merged. Frontend only; Cameron to re-check adding a participant after the next deploy and remove any duplicate rows from earlier testing |
 | #12 PR 5 — style guide: record-page, one-edit-mode, Columns picker and print patterns; primary buttons `sky-700`; stale tokens, header height and Tailwind setup corrected | PR #101 (09-30) | Merged. Docs only |
 | Docs: `server-endpoint-inventory.md` re-pointed at `routes/` and checked row by row (includes #95's route changes); one line each of `docs/README.md` and `tech-stack.md` | PR #88 (09-30) | Merged by the coordinator; docs only |
 | #102 ([Duplicate Gig fails when the gig has crew slots](https://github.com/corourke/GigManager/issues/102)): `duplicateGig` sends each slot's role name as `role`, as `create_gig_complex` reads it; copied slots start unstaffed | PR #104 (09-30) | Merged; #102 closed. Frontend only |
@@ -182,7 +183,6 @@ Read this section first on each run.
 
 | Claimed by | Files | Notes |
 |---|---|---|
-| Coordinator, [#108](https://github.com/corourke/GigManager/pull/108) (`claude/epic-ramanujan-i9khnc`) | `src/utils/hooks/useAutoSave.ts` and its test, `GigParticipantsSection.test.tsx` | Follow-up to #107: a new participant was inserted and logged several times because autosaves overlapped. The coordinator merges it |
 | #20 remaining services | `src/services/*.service.ts` (all but `user.service.ts` and `attachment.service.ts`) | Parked; `attachment.service.ts` released 09-30 (§3c) |
 | Coordinator, #92 | not yet claimed | Not in §3c; triage leaves it alone |
 | Stray branch `claude/triage-90-org-delete-references` | none | Duplicate of PR #96's commit, already merged. The proxy refused the delete; it's safe to delete |
@@ -223,7 +223,7 @@ broken yet.
 
 **Order of checks each run.**
 
-1. Check CI and mergeability on open PRs (as of 09-30 20:00 UTC: the coordinator's #108; list live). Fix a red or conflicted triage PR by merging `main` into it, never by rebasing.
+1. Check CI and mergeability on open PRs (none open as of 09-30 20:15 UTC; list live). Fix a red or conflicted triage PR by merging `main` into it, never by rebasing.
 2. #39 — check for a reply. If a variant is picked → work plan → post → wait for approval → implement.
 3. #12 — same pattern.
 4. §3c — build what is released there that has no PR yet (all four 09-30 items shipped in #104–#107; the coordinator clears §3c). For #20, only the service §3c names.
