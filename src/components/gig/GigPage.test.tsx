@@ -1,5 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { act, render, screen, fireEvent, waitFor, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { useEffect } from 'react';
 import GigPage from './GigPage';
 import { getGig, updateGig } from '../../services/gig.service';
 
@@ -24,6 +26,12 @@ vi.mock('./GigScheduleEditor', async () => {
   }
   return { default: ScheduleEditorStandIn };
 });
+vi.mock('./print/GigPrintSheet', () => ({
+  default: function PrintSheetStandIn({ includeFinancials, onReady }: { includeFinancials: boolean; onReady: () => void }) {
+    useEffect(() => { onReady(); }, [onReady]);
+    return <div data-testid="print-sheet" data-financials={String(includeFinancials)} />;
+  },
+}));
 vi.mock('./GigParticipantsSection', () => ({ default: () => <div data-testid="edit-participants" /> }));
 vi.mock('./GigStaffSlotsSection', () => ({ default: () => <div data-testid="edit-staffing" /> }));
 vi.mock('./GigKitAssignmentsSection', () => ({ default: () => <div data-testid="edit-equipment" /> }));
@@ -175,6 +183,39 @@ describe('GigPage (#12)', () => {
       fireEvent.click(screen.getByRole('button', { name: 'Done' }));
       await waitFor(() => expect(screen.queryByRole('textbox', { name: 'Gig title' })).not.toBeInTheDocument());
       expect(updateGig).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('printing', () => {
+    beforeEach(() => { window.print = vi.fn(); });
+
+    it('lets Admins print the gig sheet with or without the financials page', async () => {
+      const user = userEvent.setup();
+      render(<GigPage {...baseProps} userRole="Admin" />);
+      await user.click(await screen.findByRole('button', { name: 'Print' }));
+      await user.click(await screen.findByRole('menuitem', { name: 'Gig sheet with financials' }));
+      await waitFor(() => expect(window.print).toHaveBeenCalledTimes(1));
+      expect(screen.getByTestId('print-sheet').dataset.financials).toBe('true');
+
+      await user.click(screen.getByRole('button', { name: 'Print' }));
+      await user.click(await screen.findByRole('menuitem', { name: 'Gig sheet' }));
+      await waitFor(() => expect(window.print).toHaveBeenCalledTimes(2));
+      expect(screen.getByTestId('print-sheet').dataset.financials).toBe('false');
+    });
+
+    it.each(['Staff', 'Viewer'] as const)('%s prints the gig sheet only', async (role) => {
+      const user = userEvent.setup();
+      render(<GigPage {...baseProps} userRole={role} />);
+      await user.click(await screen.findByRole('button', { name: 'Print' }));
+      await waitFor(() => expect(window.print).toHaveBeenCalledTimes(1));
+      expect(screen.getByTestId('print-sheet').dataset.financials).toBe('false');
+      expect(screen.queryByText('Gig sheet with financials')).not.toBeInTheDocument();
+    });
+
+    it('hides the screen page and shows only the sheet when printing', async () => {
+      render(<GigPage {...baseProps} userRole="Admin" />);
+      await screen.findByRole('button', { name: 'Print' });
+      expect(screen.getByRole('main').closest('.no-print')).not.toBeNull();
     });
   });
 });

@@ -1,0 +1,101 @@
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { render, screen, waitFor, within } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import GigPrintSheet from './GigPrintSheet';
+import { getGigParticipantContacts } from '../../../services/gigParticipantContacts.service';
+
+vi.mock('../../../services/gigParticipantContacts.service', () => ({
+  getGigParticipantContacts: vi.fn(async (_gig: string, orgId: string) => ({
+    'o-venue': [{ id: 'c1', user_id: 'u-dana', is_primary_contact: true, title: 'Production Mgr', user: { id: 'u-dana', first_name: 'Dana', last_name: 'Ortiz', phone: '(503) 555-0142', email: 'dana@riverside.example' } }],
+    'o-act': [{ id: 'c2', user_id: 'u-marcus', is_primary_contact: true, title: 'Manager', user: { id: 'u-marcus', first_name: 'Marcus', last_name: 'Bell', phone: '(503) 555-0199', email: 'mgmt@lowtides.example' } }],
+  } as Record<string, unknown[]>)[orgId] ?? []),
+}));
+vi.mock('../../../services/attachment.service', () => ({
+  getEntityAttachments: vi.fn().mockResolvedValue([{ id: 'a1', file_name: 'Stage plot.pdf' }, { id: 'a2', file_name: 'Input list.pdf' }]),
+}));
+vi.mock('../../../services/gigFinancial.service', () => ({
+  getGigProfitabilitySummary: vi.fn().mockResolvedValue({
+    contractAmount: 6500, received: 3250, outstandingRevenue: 3250, actualCosts: 480, projectedStaffCosts: 730,
+    expectedSubContractCosts: 0, totalCosts: 1210, profit: 5290, margin: 81.4,
+  }),
+  getGigFinancials: vi.fn().mockResolvedValue([
+    { id: 'f1', date: '2026-05-02', type: 'Contract Signed', description: 'Performance agreement', reference_number: 'AGR-0412', paid_at: null, category: null, amount: 6500 },
+    { id: 'f2', date: '2026-07-10', type: 'Expense Incurred', description: 'Box truck rental', reference_number: null, paid_at: null, category: 'Rent or lease', amount: 420 },
+  ]),
+}));
+
+const gig = {
+  id: 'g1', title: 'Riverside Summer Series', status: 'Booked', start: '2026-07-12T19:00:00Z', end: '2026-07-13T06:30:00Z',
+  timezone: 'America/Los_Angeles', tags: [], notes: 'Crew parking in Lot C',
+  participants: [
+    { id: 'p1', role: 'Venue', organization_id: 'o-venue', organization: { id: 'o-venue', name: 'Riverside Amphitheater', address_line1: '1200 Waterfront Dr', city: 'Portland', state: 'OR', postal_code: '97209', phone_number: '(503) 555-0100' } },
+    { id: 'p2', role: 'Act', organization_id: 'o-act', organization: { id: 'o-act', name: 'The Low Tides' } },
+  ],
+  schedule_entries: [
+    { id: 's2', activity_type: 'Set', label: null, start_time: '2026-07-13T02:00:00Z', end_time: '2026-07-13T03:30:00Z', act_participant_id: 'p2', notes: null },
+    { id: 's1', activity_type: 'Load-In', label: null, start_time: '2026-07-12T19:00:00Z', end_time: null, act_participant_id: null, notes: 'Dock B' },
+  ],
+};
+const slots = [{
+  id: 'sl1', organization_id: 'org-1', role: 'A1 Audio Engineer', count: 2,
+  staff_assignments: [{ id: 'a1', user_id: 'u1', status: 'Confirmed', fee: 450, user: { first_name: 'Jordan', last_name: 'Lee', phone: '(503) 555-0121', email: 'jordan@example.com' } }],
+}];
+
+function renderSheet(props: Partial<React.ComponentProps<typeof GigPrintSheet>> = {}) {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const onReady = vi.fn();
+  render(
+    <QueryClientProvider client={client}>
+      <GigPrintSheet gig={gig as any} organization={{ id: 'org-1', name: 'Northwest Sound Co' } as any} slots={slots as any}
+        includeFinancials={false} onReady={onReady} {...props} />
+    </QueryClientProvider>,
+  );
+  return { onReady };
+}
+const page = (name: RegExp) => screen.getByRole('region', { name });
+
+beforeEach(() => vi.clearAllMocks());
+
+describe('GigPrintSheet (#12)', () => {
+  it('prints the gig sheet: venue, schedule, participants, crew contacts, notes and attachments', async () => {
+    const { onReady } = renderSheet();
+    await waitFor(() => expect(onReady).toHaveBeenCalledTimes(1));
+    const sheet = page(/gig sheet/i);
+    expect(within(sheet).getByText('Riverside Summer Series')).toBeInTheDocument();
+    expect(within(sheet).getByText('Northwest Sound Co', { exact: false })).toBeInTheDocument();
+    // Venue: address, main line and main contact.
+    expect(within(sheet).getByText('1200 Waterfront Dr')).toBeInTheDocument();
+    expect(within(sheet).getByText('Portland, OR 97209')).toBeInTheDocument();
+    expect(within(sheet).getByText(/^Contact:/).textContent).toMatch(/Dana Ortiz, Production Mgr\(503\) 555-0142 · dana@riverside\.example/);
+    // Schedule in time order, in the gig's time zone.
+    const schedule = within(sheet).getByRole('table', { name: 'Schedule' });
+    const rows = within(schedule).getAllByRole('row').map((r) => r.textContent);
+    expect(rows[0]).toMatch(/12:00 PM.*Load-In.*Dock B/);
+    expect(rows[1]).toMatch(/7:00 PM – 8:30 PM.*Set.*The Low Tides/);
+    // Participants with their primary contact; crew with phone and email, and open places.
+    const participants = within(sheet).getByRole('table', { name: 'Participants' });
+    expect(within(participants).getByText('mgmt@lowtides.example')).toBeInTheDocument();
+    const crew = within(sheet).getByRole('table', { name: 'Crew' });
+    expect(within(crew).getByText('(503) 555-0121')).toBeInTheDocument();
+    expect(within(crew).getByText('(open)')).toBeInTheDocument();
+    expect(within(sheet).getByText('Crew parking in Lot C')).toBeInTheDocument();
+    expect(within(sheet).getByText(/Stage plot\.pdf · Input list\.pdf/)).toBeInTheDocument();
+    // No pay on the gig sheet, and no financials page unless asked for.
+    expect(within(sheet).queryByText(/\$450/)).not.toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: /financials/i })).not.toBeInTheDocument();
+    expect(getGigParticipantContacts).toHaveBeenCalledWith('g1', 'o-venue');
+  });
+
+  it('adds the financials page when asked', async () => {
+    const { onReady } = renderSheet({ includeFinancials: true });
+    await waitFor(() => expect(onReady).toHaveBeenCalledTimes(1));
+    const fin = page(/financials/i);
+    expect(within(fin).getAllByText('$6,500')).toHaveLength(2); // the Revenue total and the contract row
+    expect(within(fin).getByText('$5,290')).toBeInTheDocument();
+    expect(within(within(fin).getByRole('table', { name: 'Revenue' })).getByText('AGR-0412')).toBeInTheDocument();
+    expect(within(within(fin).getByRole('table', { name: 'Expenses' })).getByText('Box truck rental')).toBeInTheDocument();
+    const staff = within(fin).getByRole('table', { name: 'Staff costs' });
+    expect(within(staff).getByText('Jordan Lee')).toBeInTheDocument();
+    expect(within(staff).getByText('$450')).toBeInTheDocument();
+  });
+});

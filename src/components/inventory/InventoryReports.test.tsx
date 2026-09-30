@@ -5,7 +5,7 @@ import { InventoryReports } from './InventoryReports';
 import type { PackingListRow } from '../../services/inventoryManagement.service';
 
 vi.mock('../../services/inventoryManagement.service', () => ({
-  getGigsForReportPicker: vi.fn().mockResolvedValue([{ id: 'gig-1', title: 'Test Gig' }]),
+  getGigsForReportPicker: vi.fn().mockResolvedValue([{ id: 'gig-1', title: 'Test Gig', start: '2026-07-12T19:00:00Z', timezone: 'America/Los_Angeles' }]),
   getInventoryConflictFlags: vi.fn().mockResolvedValue(new Set()),
   getManifestReport: vi.fn().mockResolvedValue([]),
   getMaintenanceQueueReport: vi.fn().mockResolvedValue([]),
@@ -165,5 +165,17 @@ describe('InventoryReports — Packing List tab', () => {
     expect(within(kitLine).queryByText('Not scanned')).not.toBeInTheDocument();
     const powerBox = screen.getByText('Power Box').closest('tr')!;
     expect(within(powerBox).getByText('Not scanned')).toBeInTheDocument();
+  });
+
+  it('prints a header with the gig, its date and the kit and line counts (#12)', async () => {
+    (getPackingListReport as any).mockResolvedValue(rowsFor81());
+    await renderPackingListTab();
+
+    await waitFor(() => expect(screen.getByText('Speaker Poles')).toBeInTheDocument());
+    const header = screen.getByTestId('packing-print-header');
+    expect(header).toHaveTextContent('Packing list · Test Org');
+    expect(header).toHaveTextContent('Test Gig');
+    expect(header).toHaveTextContent('Sun, Jul 12, 2026');
+    expect(header).toHaveTextContent('10 kits · 23 lines');
   });
 });

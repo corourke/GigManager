@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { format } from 'date-fns';
+import { formatInTimeZone } from '../../utils/dateUtils';
 import { AlertTriangle, Printer, SlidersHorizontal } from 'lucide-react';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '../ui/tabs';
 import {
@@ -477,16 +478,28 @@ function PackingListTab({
       });
   }, [rows]);
 
-  const selectedGigTitle = gigs.find((g) => g.id === gigId)?.title;
+  const selectedGig = gigs.find((g) => g.id === gigId);
+  const selectedGigTitle = selectedGig?.title;
   const show = (col: PackingColumn) => visibleColumns.has(col);
 
   return (
     <div className="flex flex-col gap-4">
-      <PrintHeader
-        organizationName={organizationName}
-        reportTitle="Packing List"
-        subtitle={selectedGigTitle}
-      />
+      {/* Printed header (#12, board 6): the gig and its date, then the kit and line counts. */}
+      <div data-testid="packing-print-header" className="print-only hidden text-black mb-3">
+        <div className="flex justify-between items-start border-b-[3px] border-black pb-2">
+          <div className="flex flex-col gap-0.5">
+            <div className="text-[8pt] uppercase tracking-[0.1em]">Packing list · {organizationName}</div>
+            <div className="text-[16pt] font-bold">{selectedGigTitle}</div>
+            {selectedGig?.start && (
+              <div>{formatInTimeZone(selectedGig.start, selectedGig.timezone ?? undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}</div>
+            )}
+          </div>
+          <div className="text-right text-[8.5pt]">
+            {packingLines.filter((l) => l.depth === 0).length} kits · {packingLines.length} lines
+            <br />Printed {format(new Date(), 'MMM d, yyyy')}
+          </div>
+        </div>
+      </div>
 
       <div className="flex flex-wrap gap-3 items-end no-print">
         <div className="flex flex-col gap-1 min-w-[220px] flex-1">

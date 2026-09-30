@@ -306,6 +306,8 @@ export async function getActiveGigsWithTracking(organizationId: string): Promise
 export interface GigOption {
   id: string;
   title: string;
+  start?: string | null;
+  timezone?: string | null;
 }
 
 // All gigs the organization participates in, unfiltered by status or date —
@@ -328,7 +330,7 @@ export async function getGigsForReportPicker(organizationId: string): Promise<Gi
 
     const { data: gigs, error: gigsError } = await supabase
       .from('gigs')
-      .select('id, title')
+      .select('id, title, start, timezone')
       .in('id', gigIds)
       .order('start', { ascending: false });
 
