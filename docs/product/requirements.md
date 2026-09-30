@@ -226,7 +226,7 @@ This app streamlines the management of gigs (where an act performs at a venue) f
 - **Read**: Staff+ can view gigs (staff see only assigned gigs)
 - **Update**: Manager+ can edit gigs
 - **Delete**: Admin can delete gigs
-- **Duplicate**: Copy gig with all related data (participants, slots, kit assignments)
+- **Duplicate**: Copy gig with its related data (participants, and the primary org's staff slots and kit assignments). Copied staff slots start unstaffed; assignments are not copied
 
 #### Multi-Act Scheduling & Event Timeline
 

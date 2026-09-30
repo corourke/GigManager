@@ -659,21 +659,16 @@ export async function duplicateGig(gigId: string, newTitle?: string) {
 
     // Staff slots and kit assignments belong to one org each; copy only the
     // primary org's. The caller must manage the primary org to create the gig (#61).
+    // create_gig_complex reads the role *name* as `role` and ignores assignments,
+    // so the copy (usually on a new date) starts unstaffed (#102).
     const staffSlots = (originalGig.staff_slots || [])
       .filter((slot: any) => slot.organization_id === primaryOrgId)
       .map((slot: any) => ({
-      staff_role_id: slot.staff_role_id,
-      organization_id: slot.organization_id,
-      required_count: slot.required_count,
-      notes: slot.notes,
-      assignments: (slot.staff_assignments || []).map((sa: any) => ({
-        user_id: sa.user_id,
-        status: sa.status,
-        rate: sa.rate,
-        fee: sa.fee,
-        notes: sa.notes,
-      })),
-    }));
+        role: slot.role,
+        organization_id: slot.organization_id,
+        required_count: slot.required_count,
+        notes: slot.notes,
+      }));
 
     const { data, error } = await supabase.rpc('create_gig_complex', {
       p_gig_data: {
