@@ -15,6 +15,7 @@ vi.mock('../services/user.service', () => ({
   getUserProfile: vi.fn(),
   getUserOrganizations: vi.fn(),
   getCompleteUserData: vi.fn(),
+  createUserProfile: vi.fn(),
 }));
 
 describe('AuthContext Hang Reproduction', () => {
@@ -183,5 +184,87 @@ describe('AuthContext Hang Reproduction', () => {
       await result.current.logout();
     });
     expect(localStorage.getItem('selectedOrganizationId')).toBeNull();
+  });
+
+  describe('a failed profile load (#94)', () => {
+    function captureAuthHandler() {
+      let handler: any;
+      mockSupabase.auth.onAuthStateChange.mockImplementation((h: any) => {
+        handler = h;
+        return { data: { subscription: { unsubscribe: vi.fn() } } };
+      });
+      return () => handler;
+    }
+
+    it('reports an error instead of treating the user as new, and recovers on retry', async () => {
+      const getHandler = captureAuthHandler();
+      (userService.getCompleteUserData as any).mockRejectedValueOnce(new Error('Failed to fetch'));
+
+      const { result } = renderHook(() => useAuth(), { wrapper });
+      await act(async () => {
+        getHandler()('SIGNED_IN', { user: { id: 'user-1' } });
+      });
+      await vi.waitFor(() => expect(result.current.isLoading).toBe(false), { timeout: 1000 });
+
+      expect(userService.createUserProfile).not.toHaveBeenCalled();
+      expect(result.current.user).toBeNull();
+      expect(result.current.profileLoadError).toBeTruthy();
+
+      const org = { id: 'org-1', name: 'Org One' };
+      (userService.getCompleteUserData as any).mockResolvedValueOnce({
+        profile: { id: 'user-1', email: 'test@example.com' },
+        organizations: [{ organization: org, role: 'Admin' }],
+      });
+      mockSupabase.auth.getSession.mockResolvedValue({ data: { session: { user: { id: 'user-1' } } }, error: null });
+      await act(async () => {
+        await result.current.refreshProfile();
+      });
+
+      expect(result.current.profileLoadError).toBeNull();
+      expect(result.current.user).toEqual({ id: 'user-1', email: 'test@example.com' });
+      expect(result.current.selectedOrganization?.id).toBe('org-1');
+    });
+
+    it('keeps an already-loaded user and their organizations when a later refresh fails', async () => {
+      const getHandler = captureAuthHandler();
+      const org = { id: 'org-1', name: 'Org One' };
+      (userService.getCompleteUserData as any).mockResolvedValueOnce({
+        profile: { id: 'user-1', email: 'test@example.com' },
+        organizations: [{ organization: org, role: 'Admin' }],
+      });
+
+      const { result } = renderHook(() => useAuth(), { wrapper });
+      await act(async () => {
+        getHandler()('SIGNED_IN', { user: { id: 'user-1' } });
+      });
+      await vi.waitFor(() => expect(result.current.user).not.toBeNull(), { timeout: 1000 });
+
+      (userService.getCompleteUserData as any).mockRejectedValueOnce(new Error('Failed to fetch'));
+      mockSupabase.auth.getSession.mockResolvedValue({ data: { session: { user: { id: 'user-1' } } }, error: null });
+      await act(async () => {
+        await result.current.refreshProfile();
+      });
+
+      expect(userService.createUserProfile).not.toHaveBeenCalled();
+      expect(result.current.user).toEqual({ id: 'user-1', email: 'test@example.com' });
+      expect(result.current.organizations).toHaveLength(1);
+      expect(result.current.selectedOrganization?.id).toBe('org-1');
+    });
+
+    it('still creates a profile for a genuinely new user', async () => {
+      const getHandler = captureAuthHandler();
+      (userService.getCompleteUserData as any).mockResolvedValueOnce({ profile: null, organizations: [] });
+      (userService.createUserProfile as any).mockResolvedValueOnce({ id: 'user-1', email: 'new@example.com' });
+
+      const { result } = renderHook(() => useAuth(), { wrapper });
+      await act(async () => {
+        getHandler()('SIGNED_IN', { user: { id: 'user-1' } });
+      });
+      await vi.waitFor(() => expect(result.current.isLoading).toBe(false), { timeout: 1000 });
+
+      expect(userService.createUserProfile).toHaveBeenCalledTimes(1);
+      expect(result.current.user).toEqual({ id: 'user-1', email: 'new@example.com' });
+      expect(result.current.profileLoadError).toBeNull();
+    });
   });
 });

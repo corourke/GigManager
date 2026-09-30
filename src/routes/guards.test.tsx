@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, waitFor } from '@testing-library/react';
+import { render, waitFor, screen, fireEvent } from '@testing-library/react';
 import { MemoryRouter, Routes, Route } from 'react-router';
-import { LandingRedirect, LogoutRoute } from './guards';
+import { LandingRedirect, LogoutRoute, RequireAuth } from './guards';
 
 const mockUseAppShell = vi.fn();
 const mockUseAuth = vi.fn();
@@ -138,5 +138,45 @@ describe('LogoutRoute (#18)', () => {
     renderLogoutRoute();
 
     await waitFor(() => expect(window.location.href).toBe('/'));
+  });
+});
+
+vi.mock('../components/LoginScreen', () => ({
+  default: () => <div data-testid="login-screen" />,
+}));
+
+describe('RequireAuth after a failed profile load (#94)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  function renderRequireAuth() {
+    render(
+      <MemoryRouter initialEntries={['/']}>
+        <Routes>
+          <Route element={<RequireAuth />}>
+            <Route path="/" element={<div data-testid="app" />} />
+          </Route>
+        </Routes>
+      </MemoryRouter>
+    );
+  }
+
+  it('shows an error with a retry instead of the login screen', async () => {
+    const refreshProfile = vi.fn().mockResolvedValue(undefined);
+    mockUseAuth.mockReturnValue({ isLoading: false, user: null, profileLoadError: 'Failed to fetch', refreshProfile });
+
+    renderRequireAuth();
+
+    expect(screen.queryByTestId('login-screen')).toBeNull();
+    expect(screen.getByText(/couldn.t load your account/i)).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: /try again/i }));
+    await waitFor(() => expect(refreshProfile).toHaveBeenCalledTimes(1));
+  });
+
+  it('shows the login screen when there is no user and no error', () => {
+    mockUseAuth.mockReturnValue({ isLoading: false, user: null, profileLoadError: null, refreshProfile: vi.fn() });
+    renderRequireAuth();
+    expect(screen.getByTestId('login-screen')).toBeTruthy();
   });
 });

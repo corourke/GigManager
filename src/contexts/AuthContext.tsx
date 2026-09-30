@@ -14,6 +14,8 @@ interface AuthContextType {
   organizations: OrganizationMembership[];
   selectedOrganization: Organization | null;
   isLoading: boolean;
+  /** Set when the signed-in user's profile couldn't be loaded (#94); cleared by a successful refreshProfile. */
+  profileLoadError: string | null;
   userRole: UserRole | undefined;
   login: (user: User, organizations: OrganizationMembership[]) => void;
   logout: () => Promise<void>;
@@ -34,6 +36,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [organizations, setOrganizations] = useState<OrganizationMembership[]>([]);
   const [selectedOrganization, setSelectedOrganizationState] = useState<Organization | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [profileLoadError, setProfileLoadError] = useState<string | null>(null);
 
   const selectOrganization = useCallback((org: Organization | null) => {
     setSelectedOrganizationState(org);
@@ -86,7 +89,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
         // Fetch complete user data in one single secure RPC call
         if (import.meta.env.DEV) console.log('[TRACE] AuthContext: Fetching complete user data...');
-        const { profile, organizations: orgs } = await getCompleteUserData(session.user.id);
+        let completeUserData: Awaited<ReturnType<typeof getCompleteUserData>>;
+        try {
+          completeUserData = await getCompleteUserData(session.user.id);
+        } catch (loadError: any) {
+          // A failed request is not a new user (#94): keep whatever is loaded,
+          // don't create a profile, and let RequireAuth offer a retry.
+          if (import.meta.env.DEV) console.error('[TRACE] AuthContext: Could not load user data:', loadError);
+          setProfileLoadError(loadError?.message || 'Could not load your account');
+          return;
+        }
+        setProfileLoadError(null);
+        const { profile, organizations: orgs } = completeUserData;
         
         if (import.meta.env.DEV) console.log('[TRACE] AuthContext: Complete user data fetch finished', { 
           hasProfile: !!profile, 
@@ -138,6 +152,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
       } else {
         if (import.meta.env.DEV) console.log('[TRACE] AuthContext: No session found in refreshProfile');
+        setProfileLoadError(null);
         setUser(null);
         setOrganizations([]);
         selectOrganization(null);
@@ -182,6 +197,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           }, 0);
         } else if (event === 'SIGNED_OUT' || (event === 'INITIAL_SESSION' && !session)) {
           if (import.meta.env.DEV) console.log(`[TRACE] AuthContext: Handling ${event} (no session)`);
+          setProfileLoadError(null);
           setUser(null);
           setOrganizations([]);
           selectOrganization(null);
@@ -271,6 +287,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     organizations,
     selectedOrganization,
     isLoading,
+    profileLoadError,
     userRole,
     login,
     logout,

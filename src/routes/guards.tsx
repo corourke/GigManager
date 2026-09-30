@@ -8,12 +8,48 @@ import AcceptInvitationScreen from '../components/AcceptInvitationScreen';
 import ResetPasswordScreen from '../components/ResetPasswordScreen';
 import InvitationErrorScreen from '../components/InvitationErrorScreen';
 import CalendarAuthCallback from '../components/CalendarAuthCallback';
+import { Button } from '../components/ui/button';
 import type { User } from '../utils/supabase/types';
 
 export function LoadingSpinner() {
   return (
     <div className="flex items-center justify-center min-h-screen">
       <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+    </div>
+  );
+}
+
+/**
+ * Shown when the signed-in user's account couldn't be loaded (#94), so a
+ * network blip reads as an error with a retry, not as a new user with no
+ * organizations.
+ */
+function ProfileLoadErrorScreen({ onRetry }: { onRetry: () => Promise<void> }) {
+  const [retrying, setRetrying] = useState(false);
+  return (
+    <div className="flex flex-col items-center justify-center min-h-screen gap-4 p-4 text-center">
+      <h1 className="text-lg font-semibold">We couldn't load your account</h1>
+      <p className="text-sm text-muted-foreground max-w-sm">
+        Check your connection and try again.
+      </p>
+      <div className="flex gap-2">
+        <Button
+          disabled={retrying}
+          onClick={async () => {
+            setRetrying(true);
+            try {
+              await onRetry();
+            } finally {
+              setRetrying(false);
+            }
+          }}
+        >
+          {retrying ? 'Trying again…' : 'Try again'}
+        </Button>
+        <Button variant="outline" onClick={() => { window.location.href = '/logout'; }}>
+          Sign out
+        </Button>
+      </div>
     </div>
   );
 }
@@ -28,10 +64,11 @@ function profileIncomplete(user: User): boolean {
  * an auth round-trip: after signing in, the originally requested route renders.
  */
 export function RequireAuth() {
-  const { isLoading, user, setUser } = useAuth();
+  const { isLoading, user, setUser, profileLoadError, refreshProfile } = useAuth();
   const navigate = useNavigate();
 
   if (isLoading) return <LoadingSpinner />;
+  if (!user && profileLoadError) return <ProfileLoadErrorScreen onRetry={() => refreshProfile()} />;
   if (!user) return <LoginScreen />;
 
   if (profileIncomplete(user)) {
