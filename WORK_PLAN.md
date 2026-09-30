@@ -12,7 +12,7 @@ Migrated from GitHub issue [#41](https://github.com/corourke/GigManager/issues/4
 supersedes that issue as the board of record.
 
 - **Last updated:** 2026-09-30 (coordinator: #12 PR 5 merged as #101, so all five #12 PRs are in; released #32, #102, #103 and a #20 slice to triage in §3c)
-- **State verified:** 2026-09-30 09:20 UTC by triage (7 open issues: #12, #20, #32, #39, #92, #102, #103; triage opened PRs #104–#107 for all four §3c items, none merged)
+- **State verified:** 2026-09-30 09:20 UTC by triage (5 open issues: #12, #20, #39, #92, #103; PRs #104 and #105 merged ~19:41 UTC and closed #102 and #32; PRs #106 and #107 open, CI green)
 
 ---
 
@@ -24,8 +24,6 @@ supersedes that issue as the board of record.
 | [#92](https://github.com/corourke/GigManager/issues/92) | Replace-all autosave can delete rows another user or tab added | Bug | From the 09-29 code review, confirmed by reading the code | Coordinator — not started |
 | [#12](https://github.com/corourke/GigManager/issues/12) | Reorganize Gig Edit into tabbed sections | UI/UX design | Latest design approved 09-29; All 5 PRs merged ([#79](https://github.com/corourke/GigManager/pull/79), [#80](https://github.com/corourke/GigManager/pull/80), [#89](https://github.com/corourke/GigManager/pull/89), [#100](https://github.com/corourke/GigManager/pull/100), [#101](https://github.com/corourke/GigManager/pull/101)) | Cameron — check after deploy, then close (§3a) |
 | [#20](https://github.com/corourke/GigManager/issues/20) | Shared data-access layer under `src/services/` | Refactor | Pilot merged (PR #66); `attachment.service.ts` in PR [#106](https://github.com/corourke/GigManager/pull/106), CI green; 14 services remain | Coordinator — review and merge #106 |
-| [#32](https://github.com/corourke/GigManager/issues/32) | Sign Up: no confirm-password field | Low priority | PR [#105](https://github.com/corourke/GigManager/pull/105) open, CI green | Coordinator — review and merge |
-| [#102](https://github.com/corourke/GigManager/issues/102) | Duplicate Gig fails when the gig has crew slots | Bug | PR [#104](https://github.com/corourke/GigManager/pull/104) open, CI green | Coordinator — review and merge |
 | [#103](https://github.com/corourke/GigManager/issues/103) | Participant and schedule history logged with no organization | Bug | PR [#107](https://github.com/corourke/GigManager/pull/107) open, CI green | Coordinator — review and merge |
 
 ---
@@ -34,7 +32,7 @@ supersedes that issue as the board of record.
 
 ### Bugs
 
-#102 ([Duplicate Gig fails with crew slots](https://github.com/corourke/GigManager/issues/102)) and #103 ([History logged with no organization](https://github.com/corourke/GigManager/issues/103)) were filed 09-30 from Future Considerations and released to triage (§3c); triage opened PR #104 (#102) and PR #107 (#103) the same day. #107 went one step past the spec: the shared lookup lives in a new `resolveGigActivityCtx` in `gigService.shared.ts`, and `GigParticipantsSection` and `MobileGigDetail` now pass the acting org. `GigScheduleEditor` and `updateGig` still rely on the membership fallback. #90, #91, #93 and #94 were fixed by triage PRs #96–#99 and merged 09-30 (see §4). #92 ([Replace-all autosave can delete rows](https://github.com/corourke/GigManager/issues/92)) is the coordinator's.
+#103 ([History logged with no organization](https://github.com/corourke/GigManager/issues/103)) was filed 09-30 from Future Considerations and released to triage (§3c); triage opened PR #107 the same day. (#102 was fixed by PR #104, merged 09-30; see §4.) #107 went one step past the spec: the shared lookup lives in a new `resolveGigActivityCtx` in `gigService.shared.ts`, and `GigParticipantsSection` and `MobileGigDetail` now pass the acting org. `GigScheduleEditor` and `updateGig` still rely on the membership fallback. #90, #91, #93 and #94 were fixed by triage PRs #96–#99 and merged 09-30 (see §4). #92 ([Replace-all autosave can delete rows](https://github.com/corourke/GigManager/issues/92)) is the coordinator's.
 
 ### Financials UX
 
@@ -73,8 +71,7 @@ for more triage work, so the coordinator released `attachment.service.ts` as the
 
 ### Auth / session
 
-**[#32](https://github.com/corourke/GigManager/issues/32) — Sign Up: no confirm-password field or strength indicator.**
-Low priority, acceptable for beta. Released to triage 09-30 (§3c); PR #105 adds the confirm field and a Weak/Fair/Strong hint (`getPasswordStrength` in `src/utils/passwordValidation.ts`: Strong = 12+ chars and 3 character classes, Fair = 8+ and 2). The hint only advises; the minimum stays at 6.
+*(#32 closed 09-30 by PR #105; see §4.)*
 
 ---
 
@@ -168,6 +165,8 @@ applies migrations), edge-function API shape, anything touching production confi
 | #12 PR 4 — printing: the gig page's Print button makes a gig sheet (venue, schedule, participants, crew contacts, notes, attachment names), and Admins and Managers can add a financials page; the packing list prints with a header (org, gig, date, counts) | PR #100 (09-30) | Merged. Frontend only |
 | #12 PR 5 — style guide: record-page, one-edit-mode, Columns picker and print patterns; primary buttons `sky-700`; stale tokens, header height and Tailwind setup corrected | PR #101 (09-30) | Merged. Docs only |
 | Docs: `server-endpoint-inventory.md` re-pointed at `routes/` and checked row by row (includes #95's route changes); one line each of `docs/README.md` and `tech-stack.md` | PR #88 (09-30) | Merged by the coordinator; docs only |
+| #102 ([Duplicate Gig fails when the gig has crew slots](https://github.com/corourke/GigManager/issues/102)): `duplicateGig` sends each slot's role name as `role`, as `create_gig_complex` reads it; copied slots start unstaffed | PR #104 (09-30) | Merged; #102 closed. Frontend only |
+| #32 ([Sign Up: no confirm-password field](https://github.com/corourke/GigManager/issues/32)): Confirm password field that must match, plus a Weak/Fair/Strong hint (`getPasswordStrength`) that advises only; minimum stays 6 | PR #105 (09-30) | Merged; #32 closed. Frontend only |
 | Tightened authorization on membership, contact, invitation and purchase functions; unused `POST /gigs` and `PUT /gigs/:id` removed | PR #95 (09-29) | Merged. Needs migration `20260929000000` and a `server` redeploy on dev and prod (§3a item 1) |
 | Docs refresh: `docs/README.md` index (PR #70), `database.md` reconciled with migrations (PR #72) | PR #70, PR #72 (09-25) | Merged; docs only, from triage docs passes |
 
@@ -183,8 +182,6 @@ Read this section first on each run.
 | Claimed by | Files | Notes |
 |---|---|---|
 | #20 remaining services | `src/services/*.service.ts` (all but `user.service.ts` and `attachment.service.ts`) | Parked; `attachment.service.ts` released 09-30 (§3c) |
-| PR #104 (#102) | `src/services/gig.service.ts`, `gig.service.test.ts`, `docs/product/requirements.md` | Open 09-30 |
-| PR #105 (#32) | `src/components/LoginScreen.tsx` + test, `src/utils/passwordValidation.ts` + test, `website/docs/.../onboarding.md` | Open 09-30 |
 | PR #106 (#20) | `src/services/attachment.service.ts` + test | Open 09-30 |
 | PR #107 (#103) | `gigParticipant.service.ts`, `gigSchedule.service.ts`, `gigService.shared.ts` (+ tests), `GigParticipantsSection.tsx`, `MobileGigDetail.tsx` | Open 09-30 |
 | Coordinator, #92 | not yet claimed | Not in §3c; triage leaves it alone |
@@ -226,7 +223,7 @@ broken yet.
 
 **Order of checks each run.**
 
-1. Check CI and mergeability on open PRs (#104–#107 open as of 09-30 09:20 UTC; list live). Fix a red or conflicted triage PR by merging `main` into it, never by rebasing.
+1. Check CI and mergeability on open PRs (#106 and #107 open as of 09-30 19:45 UTC; list live). Fix a red or conflicted triage PR by merging `main` into it, never by rebasing.
 2. #39 — check for a reply. If a variant is picked → work plan → post → wait for approval → implement.
 3. #12 — same pattern.
 4. §3c — build what is released there that has no PR yet (all four 09-30 items have PRs #104–#107). For #20, only the service §3c names.
