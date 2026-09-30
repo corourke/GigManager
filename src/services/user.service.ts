@@ -9,33 +9,31 @@ import { sanitizeLikeInput } from '../utils/validation-utils';
 import { getSupabase, getCurrentUser, createRecord, updateRecord } from './base/dataAccess';
 
 /**
- * Fetch complete user data (profile + organizations) in one secure call
+ * Fetch complete user data (profile + organizations) in one secure call.
+ * A null profile means a genuinely new user; a failed request throws, so the
+ * caller can offer a retry instead of treating the user as new (#94).
  */
 export async function getCompleteUserData(userId: string): Promise<{ profile: User | null; organizations: OrganizationMembershipWithOrg[] }> {
   const supabase = getSupabase();
-  
-  try {
-    const { data, error } = await supabase.rpc('get_complete_user_data', { user_uuid: userId });
 
-    if (error) {
-      throw error;
-    }
-    
-    // The RPC returns Json; shape defined by get_complete_user_data
-    const result = data as { profile: User | null; organizations: any[] } | null;
-    const profile = result?.profile || null;
-    const orgs = (result?.organizations || []).map((org: any) => ({
-      user_id: org.user_id,
-      organization_id: org.organization_id,
-      role: org.role,
-      joined_at: org.created_at,
-      organization: org.organization
-    }));
+  const { data, error } = await supabase.rpc('get_complete_user_data', { user_uuid: userId });
 
-    return { profile, organizations: orgs };
-  } catch (err) {
-    return { profile: null, organizations: [] };
+  if (error) {
+    throw error;
   }
+
+  // The RPC returns Json; shape defined by get_complete_user_data
+  const result = data as { profile: User | null; organizations: any[] } | null;
+  const profile = result?.profile || null;
+  const orgs = (result?.organizations || []).map((org: any) => ({
+    user_id: org.user_id,
+    organization_id: org.organization_id,
+    role: org.role,
+    joined_at: org.created_at,
+    organization: org.organization
+  }));
+
+  return { profile, organizations: orgs };
 }
 
 /**
