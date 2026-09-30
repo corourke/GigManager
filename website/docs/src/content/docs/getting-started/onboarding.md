@@ -9,7 +9,12 @@ sidebar:
 
 1. Go to the app and choose **Sign Up**.
 2. Enter your first name, last name, email, and a password (at least 6 characters).
-3. Select **Create Account**.
+   A hint under the password rates it **Weak**, **Fair** or **Strong**. It's only
+   advice: longer passwords that mix upper and lower case, numbers and symbols
+   rate higher.
+3. Type the password again in **Confirm Password**. If the two don't match, you'll
+   see an error and can't continue until they do.
+4. Select **Create Account**.
 
 You're signed in immediately and taken to the **Select Organization** screen —
 your account exists, but it isn't part of any organization yet. That's the next

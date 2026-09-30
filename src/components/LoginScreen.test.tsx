@@ -121,4 +121,102 @@ describe('LoginScreen', () => {
     expect(screen.getByRole('tab', { name: /sign in/i })).toBeTruthy()
     expect(screen.getByRole('tab', { name: /sign up/i })).toBeTruthy()
   })
+
+  describe('Sign Up password fields', () => {
+    const openSignUp = () => {
+      render(<LoginScreen />)
+      // Radix Tabs activate on mousedown, not click
+      fireEvent.mouseDown(screen.getByRole('tab', { name: /sign up/i }), { button: 0, ctrlKey: false })
+      return {
+        firstName: document.getElementById('signup-firstname') as HTMLInputElement,
+        lastName: document.getElementById('signup-lastname') as HTMLInputElement,
+        email: document.getElementById('signup-email') as HTMLInputElement,
+        password: document.getElementById('signup-password') as HTMLInputElement,
+        confirm: document.getElementById('signup-confirm-password') as HTMLInputElement,
+      }
+    }
+
+    const fillSignUp = (fields: ReturnType<typeof openSignUp>, password: string, confirm: string) => {
+      fireEvent.change(fields.firstName, { target: { value: 'Ada' } })
+      fireEvent.change(fields.lastName, { target: { value: 'Lovelace' } })
+      fireEvent.change(fields.email, { target: { value: 'ada@example.com' } })
+      fireEvent.change(fields.password, { target: { value: password } })
+      fireEvent.change(fields.confirm, { target: { value: confirm } })
+    }
+
+    it('renders a confirm password field', () => {
+      const fields = openSignUp()
+      expect(fields.confirm).not.toBeNull()
+      expect(fields.confirm.type).toBe('password')
+    })
+
+    it('shows an inline mismatch error and does not call signUp', async () => {
+      const fields = openSignUp()
+      fillSignUp(fields, 'hunter22', 'hunter23')
+
+      expect(screen.getByText('Passwords do not match')).toBeTruthy()
+      expect(fields.confirm.getAttribute('aria-invalid')).toBe('true')
+
+      fireEvent.submit(fields.confirm.closest('form')!)
+
+      await new Promise((r) => setTimeout(r, 0))
+      expect(mockAuth.signUp).not.toHaveBeenCalled()
+      expect(screen.getByText('Passwords do not match')).toBeTruthy()
+    })
+
+    it('blocks submit when the confirmation is left empty', async () => {
+      const fields = openSignUp()
+      fillSignUp(fields, 'hunter22', '')
+      // No error until the user has typed a confirmation or tried to submit
+      expect(screen.queryByText('Passwords do not match')).toBeNull()
+
+      fireEvent.submit(fields.confirm.closest('form')!)
+
+      await waitFor(() => {
+        expect(screen.getByText('Passwords do not match')).toBeTruthy()
+      })
+      expect(mockAuth.signUp).not.toHaveBeenCalled()
+    })
+
+    it('calls signUp when the passwords match', async () => {
+      const fields = openSignUp()
+      fillSignUp(fields, 'hunter22', 'hunter22')
+
+      expect(screen.queryByText('Passwords do not match')).toBeNull()
+
+      fireEvent.submit(fields.confirm.closest('form')!)
+
+      await waitFor(() => {
+        expect(mockAuth.signUp).toHaveBeenCalledWith(
+          expect.objectContaining({ email: 'ada@example.com', password: 'hunter22' })
+        )
+      })
+    })
+
+    it('shows a strength hint that updates as the password changes', () => {
+      const fields = openSignUp()
+      expect(screen.queryByText(/password strength/i)).toBeNull()
+
+      fireEvent.change(fields.password, { target: { value: 'abcdef' } })
+      expect(screen.getByText(/password strength: weak/i)).toBeTruthy()
+
+      fireEvent.change(fields.password, { target: { value: 'abcdefg1' } })
+      expect(screen.getByText(/password strength: fair/i)).toBeTruthy()
+
+      fireEvent.change(fields.password, { target: { value: 'abcdefghiJK1' } })
+      expect(screen.getByText(/password strength: strong/i)).toBeTruthy()
+    })
+
+    it('does not block submit on a weak (but 6+ character) password', async () => {
+      const fields = openSignUp()
+      fillSignUp(fields, 'abcdef', 'abcdef')
+      expect(screen.getByText(/password strength: weak/i)).toBeTruthy()
+
+      fireEvent.submit(fields.confirm.closest('form')!)
+
+      await waitFor(() => {
+        expect(mockAuth.signUp).toHaveBeenCalled()
+      })
+    })
+  })
 })

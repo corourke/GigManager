@@ -8,6 +8,13 @@ import { Label } from './ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import { Alert, AlertDescription } from './ui/alert';
 import { Separator } from './ui/separator';
+import { getPasswordStrength, type PasswordStrength } from '../utils/passwordValidation';
+
+const STRENGTH_LABEL: Record<PasswordStrength, { text: string; className: string }> = {
+  weak: { text: 'Weak', className: 'text-destructive' },
+  fair: { text: 'Fair', className: 'text-amber-600' },
+  strong: { text: 'Strong', className: 'text-green-600' },
+};
 
 export default function LoginScreen() {
   const [isSignUp, setIsSignUp] = useState(false);
@@ -15,6 +22,8 @@ export default function LoginScreen() {
   const [error, setError] = useState<string | null>(null);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [signUpSubmitted, setSignUpSubmitted] = useState(false);
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [forgotMode, setForgotMode] = useState(false);
@@ -94,8 +103,16 @@ export default function LoginScreen() {
     }
   };
 
+  const passwordsMismatch = password !== confirmPassword;
+  // Show the mismatch once the user has typed a confirmation or tried to submit
+  const showMismatchError = passwordsMismatch && (confirmPassword.length > 0 || signUpSubmitted);
+  const passwordStrength = getPasswordStrength(password);
+
   const handleEmailSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
+    setSignUpSubmitted(true);
+    if (passwordsMismatch) return;
+
     setIsLoading(true);
     setError(null);
 
@@ -399,7 +416,41 @@ export default function LoginScreen() {
                       disabled={isLoading}
                     />
                   </div>
-                  <p className="text-xs text-gray-500">Minimum 6 characters</p>
+                  <p className="text-xs text-gray-500">
+                    Minimum 6 characters
+                    {passwordStrength && (
+                      <>
+                        {' · '}
+                        <span className={`font-medium ${STRENGTH_LABEL[passwordStrength].className}`}>
+                          Password strength: {STRENGTH_LABEL[passwordStrength].text}
+                        </span>
+                      </>
+                    )}
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="signup-confirm-password">Confirm Password</Label>
+                  <div className="relative">
+                    <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                    <Input
+                      id="signup-confirm-password"
+                      type="password"
+                      placeholder="••••••••"
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      className={`pl-10 ${showMismatchError ? 'border-destructive focus-visible:ring-destructive' : ''}`}
+                      aria-invalid={showMismatchError || undefined}
+                      aria-describedby={showMismatchError ? 'signup-confirm-password-error' : undefined}
+                      required
+                      disabled={isLoading}
+                    />
+                  </div>
+                  {showMismatchError && (
+                    <p id="signup-confirm-password-error" className="text-destructive text-[11px] font-medium mt-1">
+                      Passwords do not match
+                    </p>
+                  )}
                 </div>
 
                 <Button
