@@ -3,6 +3,9 @@ import {
   uploadAttachment,
   deleteAttachment,
   getAttachmentUrl,
+  linkAttachmentToEntity,
+  getEntityAttachments,
+  unlinkAttachmentFromEntity,
 } from './attachment.service';
 import { createClient } from '../utils/supabase/client';
 import { requireAuth } from '../utils/supabase/auth-utils';
@@ -146,6 +149,88 @@ describe('attachment.service', () => {
       );
 
       await expect(deleteAttachment('att-1')).rejects.toThrow(/permission|not found/i);
+    });
+  });
+
+  // Table reads and writes moved onto src/services/base/dataAccess.ts (#20).
+  describe('data-access layer (#20)', () => {
+    it('uploadAttachment writes to the attachments table and returns the created row', async () => {
+      const file = new File(['data'], 'invoice.pdf', { type: 'application/pdf' });
+      const row = { id: 'att-1', file_path: `${orgId}/invoice.pdf` };
+      mockSupabase.then.mockImplementation((onFulfilled: any) => onFulfilled({ data: row, error: null }));
+
+      const result = await uploadAttachment(orgId, file, 'invoice.pdf');
+
+      expect(mockSupabase.from).toHaveBeenCalledWith('attachments');
+      expect(mockSupabase.insert).toHaveBeenCalledTimes(1);
+      expect(result).toEqual(row);
+    });
+
+    it('linkAttachmentToEntity inserts the link row with the current user and returns it', async () => {
+      const row = { id: 'ea-1', attachment_id: 'att-1', entity_type: 'gig', entity_id: 'gig-1' };
+      mockSupabase.then.mockImplementation((onFulfilled: any) => onFulfilled({ data: row, error: null }));
+
+      const result = await linkAttachmentToEntity('att-1', 'gig' as any, 'gig-1');
+
+      expect(mockSupabase.from).toHaveBeenCalledWith('entity_attachments');
+      expect(mockSupabase.insert).toHaveBeenCalledWith({
+        attachment_id: 'att-1',
+        entity_type: 'gig',
+        entity_id: 'gig-1',
+        created_by: mockUser.id,
+      });
+      expect(result).toEqual(row);
+    });
+
+    it('linkAttachmentToEntity throws when the insert fails', async () => {
+      mockSupabase.then.mockImplementation((onFulfilled: any) =>
+        onFulfilled({ data: null, error: new Error('link failed') })
+      );
+
+      await expect(linkAttachmentToEntity('att-1', 'gig' as any, 'gig-1')).rejects.toThrow('link failed');
+    });
+
+    it('getEntityAttachments filters by entity and flattens the joined attachment', async () => {
+      mockSupabase.then.mockImplementation((onFulfilled: any) =>
+        onFulfilled({
+          data: [{ id: 'ea-1', attachment: { id: 'att-1', file_name: 'invoice.pdf' } }],
+          error: null,
+        })
+      );
+
+      const result = await getEntityAttachments('gig' as any, 'gig-1');
+
+      expect(mockSupabase.from).toHaveBeenCalledWith('entity_attachments');
+      expect(mockSupabase.select).toHaveBeenCalledWith('*, attachment:attachment_id(*)');
+      expect(mockSupabase.eq).toHaveBeenCalledWith('entity_type', 'gig');
+      expect(mockSupabase.eq).toHaveBeenCalledWith('entity_id', 'gig-1');
+      expect(result).toEqual([{ id: 'att-1', file_name: 'invoice.pdf', entity_attachment_id: 'ea-1' }]);
+    });
+
+    it('getEntityAttachments returns an empty array when there are no rows', async () => {
+      mockSupabase.then.mockImplementation((onFulfilled: any) => onFulfilled({ data: null, error: null }));
+
+      await expect(getEntityAttachments('gig' as any, 'gig-1')).resolves.toEqual([]);
+    });
+
+    it('unlinkAttachmentFromEntity deletes only the link row by id', async () => {
+      mockSupabase.then.mockImplementation((onFulfilled: any) => onFulfilled({ data: null, error: null }));
+
+      const result = await unlinkAttachmentFromEntity('ea-1');
+
+      expect(mockSupabase.from).toHaveBeenCalledWith('entity_attachments');
+      expect(mockSupabase.from).not.toHaveBeenCalledWith('attachments');
+      expect(mockSupabase.delete).toHaveBeenCalled();
+      expect(mockSupabase.eq).toHaveBeenCalledWith('id', 'ea-1');
+      expect(result).toEqual({ success: true });
+    });
+
+    it('unlinkAttachmentFromEntity throws when the delete fails', async () => {
+      mockSupabase.then.mockImplementation((onFulfilled: any) =>
+        onFulfilled({ data: null, error: new Error('unlink failed') })
+      );
+
+      await expect(unlinkAttachmentFromEntity('ea-1')).rejects.toThrow('unlink failed');
     });
   });
 });

@@ -1,9 +1,13 @@
-import { createClient } from '../utils/supabase/client';
 import { handleApiError } from '../utils/api-error-utils';
-import { requireAuth } from '../utils/supabase/auth-utils';
 import type { DbAttachment, EntityType } from '../utils/supabase/types';
+import {
+  getSupabase,
+  getCurrentUser,
+  createRecord,
+  listRecords,
+  deleteRecord,
+} from './base/dataAccess';
 
-const getSupabase = () => createClient();
 const BUCKET_NAME = 'attachments';
 
 /**
@@ -15,7 +19,8 @@ export async function uploadAttachment(
   customFileName?: string
 ) {
   try {
-    const { supabase, user } = await requireAuth();
+    const user = await getCurrentUser();
+    const supabase = getSupabase();
 
     // Use organizationId prefix for storage paths for security isolation
     const fileName = customFileName || `${Date.now()}-${file.name}`;
@@ -29,23 +34,18 @@ export async function uploadAttachment(
     if (storageError) throw storageError;
 
     // 2. Create database record
-    const { data: attachment, error: dbError } = await (supabase.from('attachments') as any)
-      .insert({
+    try {
+      return await createRecord<DbAttachment>('attachments', {
         organization_id: organizationId,
         file_path: filePath,
         file_name: file.name,
         created_by: user.id,
-      })
-      .select()
-      .single();
-
-    if (dbError) {
+      });
+    } catch (dbError) {
       // Cleanup storage if database insert fails
       await supabase.storage.from(BUCKET_NAME).remove([filePath]);
       throw dbError;
     }
-
-    return attachment as DbAttachment;
   } catch (err) {
     return handleApiError(err, 'upload attachment');
   }
@@ -60,20 +60,14 @@ export async function linkAttachmentToEntity(
   entityId: string
 ) {
   try {
-    const { supabase, user } = await requireAuth();
+    const user = await getCurrentUser();
 
-    const { data, error } = await (supabase.from('entity_attachments') as any)
-      .insert({
-        attachment_id: attachmentId,
-        entity_type: entityType,
-        entity_id: entityId,
-        created_by: user.id,
-      })
-      .select()
-      .single();
-
-    if (error) throw error;
-    return data;
+    return await createRecord<any>('entity_attachments', {
+      attachment_id: attachmentId,
+      entity_type: entityType,
+      entity_id: entityId,
+      created_by: user.id,
+    });
   } catch (err) {
     return handleApiError(err, 'link attachment to entity');
   }
@@ -83,16 +77,16 @@ export async function linkAttachmentToEntity(
  * Fetch attachments for a specific entity
  */
 export async function getEntityAttachments(entityType: EntityType, entityId: string) {
-  const supabase = getSupabase();
   try {
-    const { data, error } = await (supabase.from('entity_attachments') as any)
-      .select('*, attachment:attachment_id(*)')
-      .eq('entity_type', entityType)
-      .eq('entity_id', entityId);
+    const data = await listRecords<any>('entity_attachments', {
+      select: '*, attachment:attachment_id(*)',
+      filters: [
+        { column: 'entity_type', operator: 'eq', value: entityType },
+        { column: 'entity_id', operator: 'eq', value: entityId },
+      ],
+    });
 
-    if (error) throw error;
-
-    return (data || []).map((ea: any) => ({
+    return data.map((ea: any) => ({
       ...ea.attachment,
       entity_attachment_id: ea.id,
     }));
@@ -102,7 +96,12 @@ export async function getEntityAttachments(entityType: EntityType, entityId: str
 }
 
 /**
- * Delete an attachment and its storage file
+ * Delete an attachment and its storage file.
+ *
+ * Stays on direct queries (via the shared getSupabase()) rather than
+ * getRecord/deleteRecord: the fetch relies on .single() erroring when the row
+ * is missing, and the delete needs the deleted rows back to detect an
+ * RLS-denied delete (0 rows, no error), which deleteRecord does not return.
  */
 export async function deleteAttachment(attachmentId: string) {
   const supabase = getSupabase();
@@ -120,7 +119,7 @@ export async function deleteAttachment(attachmentId: string) {
       .from(BUCKET_NAME)
       .remove([attachment.file_path]);
 
-    // We proceed even if storage delete fails to keep DB clean, 
+    // We proceed even if storage delete fails to keep DB clean,
     // unless it's a critical error.
     if (storageError) {
       console.warn('Could not delete storage file, but continuing with DB deletion', storageError);
@@ -148,13 +147,8 @@ export async function deleteAttachment(attachmentId: string) {
  * Unlink an attachment from an entity (but keep the attachment)
  */
 export async function unlinkAttachmentFromEntity(entityAttachmentId: string) {
-  const supabase = getSupabase();
   try {
-    const { error } = await (supabase.from('entity_attachments') as any)
-      .delete()
-      .eq('id', entityAttachmentId);
-
-    if (error) throw error;
+    await deleteRecord('entity_attachments', entityAttachmentId);
     return { success: true };
   } catch (err) {
     return handleApiError(err, 'unlink attachment');
