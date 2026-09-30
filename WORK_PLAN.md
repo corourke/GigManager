@@ -26,7 +26,7 @@ supersedes that issue as the board of record.
 | [#20](https://github.com/corourke/GigManager/issues/20) | Shared data-access layer under `src/services/` | Refactor | Pilot merged (PR #66); `attachment.service.ts` in PR [#106](https://github.com/corourke/GigManager/pull/106), CI green; 14 services remain | Coordinator — review and merge #106 |
 | [#32](https://github.com/corourke/GigManager/issues/32) | Sign Up: no confirm-password field | Low priority | PR [#105](https://github.com/corourke/GigManager/pull/105) open, CI green | Coordinator — review and merge |
 | [#102](https://github.com/corourke/GigManager/issues/102) | Duplicate Gig fails when the gig has crew slots | Bug | PR [#104](https://github.com/corourke/GigManager/pull/104) open, CI green | Coordinator — review and merge |
-| [#103](https://github.com/corourke/GigManager/issues/103) | Participant and schedule history logged with no organization | Bug | PR [#107](https://github.com/corourke/GigManager/pull/107) open | Coordinator — review and merge |
+| [#103](https://github.com/corourke/GigManager/issues/103) | Participant and schedule history logged with no organization | Bug | PR [#107](https://github.com/corourke/GigManager/pull/107) open, CI green | Coordinator — review and merge |
 
 ---
 
