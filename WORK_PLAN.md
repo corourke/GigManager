@@ -105,8 +105,9 @@ meantime. The coordinator resolves each entry (decides it, or moves it into §3a
 under AGENTS.md rule 1: the routine posts its plan on the issue and proceeds. Anything not listed here still
 needs approval before code changes.
 
-Released to the triage routine 09-30. Each is its own PR, with a failing test first, and the routine may merge
-it once CI is green. None needs a migration. The coordinator's next security PR will edit
+Released to the triage routine 09-30. Each is its own PR, with a failing test first. As the routine's prompt
+says, open the PR and don't merge it; the coordinator reviews and merges once CI is green. None needs a
+migration. The coordinator's next security PR will edit
 `supabase/functions/server/routes/organizations.ts` and `users.ts`, so keep #90's change in `authz.ts` and
 don't reshape those route files.
 
