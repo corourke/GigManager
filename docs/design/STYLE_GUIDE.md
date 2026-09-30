@@ -5,25 +5,42 @@ This document serves as the "Ground Truth" for the look and feel of the GigManag
 ## Design Principles
 1.  **Professional & Clean**: High contrast, crisp edges, and ample whitespace.
 2.  **Information Density**: High density for Web (admin/dashboard), optimized for legibility and tap targets for Mobile.
-3.  **Accent-Driven**: Use `sky` (blue) as the primary action and focus color.
+3.  **Accent-Driven**: Use `sky` (blue) for primary actions and the active state. Primary buttons are `sky-700` (`#0369a1`), decided 09-26 with the #12 gig page design.
 4.  **Semantic Hierarchy**: Use bold uppercase labels for metadata and specific font weights for primary data.
 
 ---
 
 ## Design Tokens (CSS Variables)
 
-Tokens are defined in `./src/styles/globals.css` and mapped to Tailwind configurations.
+Tokens are defined in `./src/styles/globals.css`: plain CSS variables on `:root` (light) and `.dark`, exposed to Tailwind v4 as colours by the `@theme inline` block (`--color-primary: var(--primary)` and so on). There is no `tailwind.config.js`; Tailwind is compiled by `@tailwindcss/vite`.
 
-### Colors
-| Token | Value (Hex/HSL) | Description |
-| :--- | :--- | :--- |
-| `--background` | `hsl(0 0% 100%)` | Main page background |
-| `--foreground` | `hsl(222.2 84% 4.9%)` | Primary text color |
-| `--muted` | `hsl(210 40% 96.1%)` | Secondary backgrounds |
-| `--muted-foreground` | `hsl(215.4 16.3% 46.9%)` | Secondary/metadata text |
-| `--accent-sky` | `#0ea5e9` | Primary action/highlight color |
-| `--accent-sky-foreground` | `#ffffff` | Text on sky backgrounds |
-| `--border` | `hsl(214.3 31.8% 91.4%)` | Standard border color |
+### Colors (light)
+| Token | Value | Tailwind | Description |
+| :--- | :--- | :--- | :--- |
+| `--background` | `#ffffff` | `bg-background` | Page and card background |
+| `--foreground` | `oklch(0.145 0 0)` | `text-foreground` | Primary text |
+| `--primary` | `#0284c7` (sky-600) | `bg-primary`, `text-primary` | The shadcn `Button` default variant and `link` variant. Not yet the decided primary colour; see [Buttons](#buttons) |
+| `--primary-foreground` | `#ffffff` | `text-primary-foreground` | Text on primary |
+| `--muted` | `#ececf0` | `bg-muted` | Secondary backgrounds, skeletons |
+| `--muted-foreground` | `#717182` | `text-muted-foreground` | Secondary and metadata text |
+| `--accent` | `#e9ebef` | `bg-accent` | Hover background for outline and ghost buttons |
+| `--destructive` | `#d4183d` | `bg-destructive`, `text-destructive` | Delete actions, errors |
+| `--border` | `rgba(0, 0, 0, 0.1)` | `border-border` | Standard border |
+| `--input-background` | `#f3f3f5` | `bg-input-background` | Input fill |
+| `--radius` | `0.625rem` | `rounded-md`, `rounded-lg` … | Corner radius base |
+
+There is no `--accent-sky` token. Where a pattern needs sky it uses Tailwind's palette directly (`sky-50`, `sky-700`, `sky-800`).
+
+### Buttons
+| Use | Classes |
+| :--- | :--- |
+| Primary (Edit, Done, Create, Save) | `<Button className="bg-sky-700 hover:bg-sky-800 text-white">`. White on `sky-700` passes WCAG AA contrast |
+| Secondary (Print, Cancel) | `<Button variant="outline">` |
+| Low-emphasis in a card header (Columns) | `<Button variant="ghost" size="sm" className="h-7 px-2 text-xs text-muted-foreground">` |
+| Destructive | `<Button variant="destructive">`, or a menu item with `text-red-600 focus:text-red-600` |
+| Text link | `text-sky-700 hover:underline` |
+
+Older screens still use `bg-sky-500 hover:bg-sky-600` or the plain default variant (`--primary`, sky-600). New and reworked screens use `sky-700`; the rest are brought in line as they are touched.
 
 ---
 
@@ -40,8 +57,8 @@ Use for headers of sections, field labels, or secondary status.
 
 ### Interaction States
 All interactive elements (buttons, inputs, links) must have defined states:
-- **Hover**: Subtle shift in background (e.g., `bg-muted/80`) or opacity (0.9).
-- **Focus**: `ring-2 ring-sky-500 ring-offset-2 outline-none` (Web).
+- **Hover**: Subtle shift in background (e.g., `bg-muted/80`, `hover:bg-sky-800` on a primary button).
+- **Focus**: the shadcn/ui components' own ring (`focus-visible:ring-ring/50 focus-visible:ring-[3px]`); don't remove it. Custom controls match it.
 - **Active**: Slight scale down (`scale-[0.98]`) or deeper background color.
 - **Disabled**: `opacity-50 cursor-not-allowed grayscale-[0.5]`.
 
@@ -50,9 +67,10 @@ All interactive elements (buttons, inputs, links) must have defined states:
 ## UI Patterns: Web
 
 ### 1. App Header
--   **Style**: Bordered bottom, background blur.
--   **Height**: `h-14` (56px).
--   **Content**: Title on left, actions/user on right.
+-   **Component**: `src/components/AppHeader.tsx`, the top nav on every web screen (#39 keeps the top nav; no sidebar).
+-   **Style**: White, bordered bottom.
+-   **Height**: `h-16` (64px).
+-   **Content**: Organization icon, name and your role badge on the left; notifications and the user menu (profile, switch organization, sign out) on the right. The navigation bar sits below it.
 
 ### 2. Inline Stats (Dashboard/Summary)
 Used for financial summaries or key metrics.
@@ -66,7 +84,57 @@ Used for financial summaries or key metrics.
 
 ---
 
+## UI Patterns: Record Pages (the gig page, #12)
+
+The gig page (`src/components/gig/GigPage.tsx`) is the model for a record page: one page for viewing and editing, tabs, cards, and printouts. Mockups: the approved #12 design boards.
+
+### 1. Page Header
+-   **Back link** above the title: `text-sm text-sky-700 hover:underline` with an `ArrowLeft` icon.
+-   **Title row**: `h1` `text-2xl font-bold leading-tight`, then the status `Badge`; a muted line (`text-sm text-muted-foreground`) with the date and venue; tags as `Badge variant="secondary"`.
+-   **Actions** on the right: Print (`outline`), the primary Edit button, and a `MoreVertical` icon menu for Duplicate and Delete.
+-   **Tabs** sit in the header, underlined rather than boxed: the active tab is `border-b-2 border-sky-700 text-sky-700`, with no pill background.
+-   **Content** width: `max-w-7xl mx-auto px-4 sm:px-6 lg:px-8`, page background `bg-gray-50`.
+
+### 2. Cards (`GigSection`)
+-   `src/components/gig/view/GigSection.tsx`: a `Card` with `p-4 gap-2.5`.
+-   Title row: `h2` `text-[15px] font-semibold`, an optional muted summary next to it (`text-xs text-muted-foreground`, e.g. "3 of 4 filled"), and right-aligned `actions` (e.g. the Columns picker).
+-   Lay cards out on a `grid grid-cols-1 lg:grid-cols-3 gap-4 items-start`; a table card takes `lg:col-span-2` or the full row.
+-   Empty content is a short italic muted line ("No notes"), not an empty-state panel.
+
+### 3. Edit Mode (one edit for the whole page)
+-   One **Edit** button puts the whole page into edit mode; there are no per-card edit modes and no Save/Cancel. Every field autosaves (`useAutoSave`), and **Done** (primary) waits for pending saves, then returns to view mode.
+-   **Header in edit mode**: the background becomes `bg-sky-50 border-b-2 border-sky-700`, a metadata label `Editing` (`text-sky-800`) appears above the title, and the title, status and tags become inputs in place.
+-   **One save state** for the page, in the header (`EditSaveStatus` in `src/components/gig/edit/GigEditParts.tsx`), announced with `aria-live="polite"`:
+    - Saving: `Loader2` spinner, "Saving…", `text-muted-foreground`.
+    - Saved: `Check`, "All changes saved", `text-green-800`.
+    - Error: `AlertCircle`, "Some changes didn't save", `text-red-700`.
+-   Each autosaving part reports to the page's edit session (`useReportToEditSession`), so the header shows the combined state and Done can flush everything. New editable parts must do the same.
+
+### 4. Columns Picker
+-   For tables where viewers want different detail (staffing, participants, equipment): `ColumnsPicker` plus `useColumnVisibility` in `src/components/gig/view/`.
+-   Trigger: a ghost `Columns` button with the `Columns3` icon in the card's `actions`, hidden when printing (`no-print`).
+-   Menu: a `Popover` with the metadata label "Show columns" and a checkbox per optional column. Required columns aren't listed; `defaultHidden` columns start off.
+-   The choice is remembered per table in this browser (`localStorage`, key `gw.columns.<table>`), and the page still works when storage is unavailable.
+
+---
+
+## UI Patterns: Print Layouts
+
+Printouts are separate components rendered only for print, not the screen styled down. Examples: `src/components/gig/print/GigPrintSheet.tsx` (gig sheet, optional financials page) and the packing list header in `src/components/inventory/InventoryReports.tsx`.
+
+-   **Show and hide**: wrap the screen UI in `no-print`; render the printout in `print-only hidden`. The `@media print` block in `globals.css` flips both.
+-   **Ink only**: black on white (`text-black bg-white`), no fills or colour; emphasis by weight and rules. Sizes in points: body `10pt`, tables `9.5pt`, fine print `8.5pt`.
+-   **Page header**: a kicker (`text-[8pt] uppercase tracking-[0.1em]`, e.g. "Packing list · Org name"), the title (`16–18pt` bold) and date on the left, counts or the print date on the right (`text-[8.5pt]`), then a `border-b-[3px] border-black` rule.
+-   **Section heading**: `text-[10pt] font-bold uppercase tracking-[0.08em] border-b-[1.5px] border-black`.
+-   **Tables**: rule each row (`border-b` in `#bbb`, header rule black) instead of drawing a grid; wrap the printout in `gig-print` so the print block's grid borders don't apply. Give each table an `aria-label`.
+-   **Pages**: start an optional page with `break-before-page`. Pay and financials print only on their own page, and only when an Admin or Manager asks for it.
+-   **Printing**: render the printout, wait until its data has loaded (`onReady`), then call `window.print()`.
+
+---
+
 ## UI Patterns: Mobile (PWA)
+
+Mobile screens live in `src/components/mobile/` and share the web app's tokens and Tailwind build.
 
 ### 1. Mobile Layout
 -   **Container**: `min-h-screen bg-muted/30`
@@ -96,7 +164,7 @@ Standardized section for mobile details (Participants, Staff, Times, etc.).
 - **Inline Error**: `text-destructive text-[11px] font-medium mt-1`. Use for field-specific errors.
 - **Input State**: Error fields should have `border-destructive focus-visible:ring-destructive`.
 - **Global Feedback**: Use Toasts (Sonner) for form submission status.
-    - **Success**: Sky-500 icon/accent.
+    - **Success**: Sky icon/accent.
     - **Error**: Destructive icon/accent.
 
 ### 2. Empty States
@@ -105,7 +173,7 @@ Used when a list, dashboard, or search result has no data.
 - **Icon**: `text-muted-foreground/40 w-12 h-12 mb-4`
 - **Title**: `text-lg font-semibold text-foreground`
 - **Description**: `text-sm text-muted-foreground max-w-[300px] mb-6`
-- **CTA**: Primary `sky` button (`bg-sky-500 text-white`).
+- **CTA**: Primary button (`bg-sky-700 hover:bg-sky-800 text-white`).
 
 ### 3. Loading Skeletons
 Use for progressive loading of data-heavy views.
@@ -140,7 +208,7 @@ Specific to the GigHierarchy system.
 Used for high-density data management (e.g., Gig Accounting, Kit Lists).
 
 ### 1. Selection & Navigation
-- **Selected Cell**: `box-shadow: inset 0 0 0 2px var(--accent-sky)` with `bg-sky-500/10`.
+- **Selected Cell**: `box-shadow: inset 0 0 0 2px #0ea5e9` (sky-500) with `bg-sky-500/10`.
 - **Keyboard**: `Tab` moves horizontally, `Enter` moves vertically.
 
 ### 2. Inline Editor
@@ -164,19 +232,17 @@ Standardized set of actions at the end of a row.
 
 ## Tailwind Configuration
 
-### Web (`./tailwind.config.js`)
--   Uses `@tailwindcss/vite` for live compilation.
--   Includes `sky` as a primary color palette.
-
-### Mobile (`./stage-plot-app/tailwind.config.js`)
--   Synced with Web tokens.
--   Extends `colors` with `sky` and semantic variables.
+-   Tailwind CSS v4, compiled by `@tailwindcss/vite` (see `vite.config.ts`). There is no `tailwind.config.js`.
+-   Tokens and theme mapping: `src/styles/globals.css` (`:root`, `.dark`, `@theme inline`). The print rules are its `@media print` block.
+-   The full default palette, `sky` included, is available; web and mobile screens share this one build.
 
 ---
 
 ## Implementation Checklist for AI Agents
-- [ ] Use `sky` for primary actions (buttons, active links).
+- [ ] Primary buttons: `bg-sky-700 hover:bg-sky-800 text-white`. Active tabs and links: `sky-700`.
 - [ ] Ensure all metadata labels are `uppercase tracking-wider font-bold`.
 - [ ] Use `border-border/40` for subtle internal dividers.
 - [ ] Mobile: Prefer `text-[14px]` for body text and `text-[11px]` for headers.
 - [ ] Web: Use standard shadcn/ui component patterns with token overrides.
+- [ ] Record pages: one Edit for the whole page, autosave, one save state in the header, Done waits for saves.
+- [ ] Printouts: a separate `print-only` component, black on white, point sizes, ruled rows, and `no-print` on screen chrome.
