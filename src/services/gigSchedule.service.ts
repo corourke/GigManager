@@ -1,6 +1,6 @@
 import { handleApiError } from '../utils/api-error-utils';
 import { requireAuth } from '../utils/supabase/auth-utils';
-import { getSupabase } from './gigService.shared';
+import { getSupabase, resolveGigActivityCtx, type GigActivityCtxInput } from './gigService.shared';
 import { logActivity } from './activityLog.service';
 import type { GigScheduleEntry, ScheduleChange } from '../utils/supabase/types';
 
@@ -38,7 +38,8 @@ export async function getGigScheduleEntries(gigId: string): Promise<GigScheduleE
  */
 export async function updateGigScheduleEntries(
   gigId: string,
-  entries: Array<Partial<GigScheduleEntry>>
+  entries: Array<Partial<GigScheduleEntry>>,
+  activityCtx?: GigActivityCtxInput
 ): Promise<void> {
   try {
     const { supabase, user } = await requireAuth();
@@ -106,25 +107,19 @@ export async function updateGigScheduleEntries(
           label: e.label,
           start_time: e.start_time,
         }));
-        const { data: gigRow } = await supabase.from('gigs').select('title, primary_organization_id').eq('id', gigId).single();
-        const organization_id = (gigRow as any)?.primary_organization_id ?? null;
-        let actor_org_name = '';
-        if (organization_id) {
-          const { data: orgRow } = await (supabase.from('organizations') as any).select('name').eq('id', organization_id).single();
-          actor_org_name = (orgRow as any)?.name ?? '';
-        }
-        const actor_display_name = `${(user as any).user_metadata?.first_name ?? ''} ${(user as any).user_metadata?.last_name ?? ''}`.trim() || user.email || '';
+        // Throws on a failed lookup, which the catch below reports (issue #103).
+        const ctx = await resolveGigActivityCtx(supabase, user, gigId, activityCtx);
         await logActivity({
-          organization_id,
+          organization_id: ctx.organization_id,
           event_type: 'schedule_entry.added',
           entity_type: 'schedule_entry',
           entity_id: gigId,
           gig_id: gigId,
           context: {
             context_version: 1,
-            actor_display_name,
-            actor_org_name,
-            gig_title: (gigRow as any)?.title ?? '',
+            actor_display_name: ctx.actor_display_name,
+            actor_org_name: ctx.actor_org_name,
+            gig_title: ctx.gig_title,
             schedule_changes: scheduleChanges,
             change_count: scheduleChanges.length
           }

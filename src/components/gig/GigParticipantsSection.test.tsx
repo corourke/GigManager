@@ -162,6 +162,11 @@ describe('GigParticipantsSection', () => {
     await waitFor(() => expect(updateGigParticipants).toHaveBeenCalledTimes(1), { timeout: 3000 });
     const first = vi.mocked(updateGigParticipants).mock.calls[0][1];
     expect(first.find((p) => p.organization_id === 'org-2')?.id).toBeUndefined();
+    // History is logged against the org the user is working as (#103).
+    expect(vi.mocked(updateGigParticipants).mock.calls[0][2]).toEqual({
+      organization_id: 'current-org-id',
+      actor_org_name: 'Current Org',
+    });
 
     // A later edit to the same row (marking it as client) triggers another autosave.
     const stars = screen.getAllByTitle('Mark as client');

@@ -217,7 +217,9 @@ export default function MobileGigDetail({ gigId, onBack, onViewPackingList }: Mo
       await updateGig(gigId, updatePayload);
       await updateGigParticipants(
         gigId,
-        editParticipants.map(p => ({ id: p.id, organization_id: p.organization_id, role: p.role as OrganizationRole }))
+        editParticipants.map(p => ({ id: p.id, organization_id: p.organization_id, role: p.role as OrganizationRole })),
+        // Log History against the org the user is working as (issue #103).
+        selectedOrganization ? { organization_id: selectedOrganization.id, actor_org_name: selectedOrganization.name } : undefined
       );
       toast.success('Gig updated');
       await loadGig();

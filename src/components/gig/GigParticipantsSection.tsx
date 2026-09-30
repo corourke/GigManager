@@ -100,7 +100,11 @@ export default function GigParticipantsSection({
         is_client: p.is_client ?? false,
       }));
 
-    const { ids } = await updateGigParticipants(gigId, participantsData);
+    // Log History against the org the user is working as (issue #103).
+    const { ids } = await updateGigParticipants(gigId, participantsData, {
+      organization_id: currentOrganizationId,
+      actor_org_name: currentOrganizationName,
+    });
 
     // Rows inserted by this save still carry a client-side id (temp-…,
     // current-org). Swap in the database id, so the next autosave updates the
@@ -116,7 +120,7 @@ export default function GigParticipantsSection({
         if (dbId) setValue(`participants.${index}.id`, dbId);
       });
     }
-  }, [gigId, getValues, setValue]);
+  }, [gigId, currentOrganizationId, currentOrganizationName, getValues, setValue]);
 
   const handleSaveSuccess = useCallback((data: ParticipantsFormData) => {
     reset(data, { keepDirty: false, keepValues: true });

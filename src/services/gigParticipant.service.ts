@@ -2,7 +2,7 @@ import { OrganizationRole } from '../utils/supabase/types';
 import { handleApiError } from '../utils/api-error-utils';
 import { requireAuth } from '../utils/supabase/auth-utils';
 import { UUID_REGEX } from '../utils/validation-utils';
-import { getSupabase } from './gigService.shared';
+import { getSupabase, resolveGigActivityCtx, type GigActivityCtx, type GigActivityCtxInput } from './gigService.shared';
 import { logActivity } from './activityLog.service';
 
 /**
@@ -28,12 +28,7 @@ export async function updateGigParticipants(
     notes?: string | null;
     is_client?: boolean;
   }>,
-  activityCtx?: {
-    organization_id: string | null;
-    actor_display_name: string;
-    actor_org_name: string;
-    gig_title: string;
-  }
+  activityCtx?: GigActivityCtxInput
 ) {
   try {
     const { supabase, user } = await requireAuth();
@@ -45,26 +40,19 @@ export async function updateGigParticipants(
 
     if (fetchError) throw fetchError;
 
-    // Callers that own the gig-level save (gig.service#updateGig) already
-    // computed this; direct callers (e.g. GigParticipantsSection's own
-    // autosave) don't, so derive it here rather than silently skipping the
-    // activity log (issue #55 — adds via this path weren't logged at all).
-    let effectiveCtx = activityCtx;
-    if (!effectiveCtx) {
-      const { data: gigRow } = await supabase.from('gigs').select('title, primary_organization_id').eq('id', gigId).single();
-      const organization_id = (gigRow as any)?.primary_organization_id ?? null;
-      let actor_org_name = '';
-      if (organization_id) {
-        const { data: orgRow } = await (supabase.from('organizations') as any).select('name').eq('id', organization_id).single();
-        actor_org_name = (orgRow as any)?.name ?? '';
-      }
-      effectiveCtx = {
-        organization_id,
-        actor_display_name: `${(user as any).user_metadata?.first_name ?? ''} ${(user as any).user_metadata?.last_name ?? ''}`.trim() || user.email || '',
-        actor_org_name,
-        gig_title: (gigRow as any)?.title ?? '',
-      };
-    }
+    // Callers that own the gig-level save (gig.service#updateGig) pass the
+    // whole context; others pass just the org they act as, or nothing, and the
+    // rest is derived here rather than silently skipping the activity log
+    // (issue #55 — adds via this path weren't logged at all).
+    // A failed lookup is reported and skips the log; it doesn't fail the save
+    // (issue #103 — it used to log against no organization).
+    let effectiveCtx: GigActivityCtx | null = null;
+    try {
+      effectiveCtx = await resolveGigActivityCtx(
+        supabase, user, gigId, activityCtx,
+        (existingParticipants ?? []).map(p => p.organization_id),
+      );
+    } catch (e) { console.error('Activity log context lookup failed:', e); }
 
     const existingIds = (existingParticipants ?? []).map(p => p.id);
     const incomingIds = participants
@@ -73,7 +61,7 @@ export async function updateGigParticipants(
 
     const idsToDelete = existingIds.filter(id => !incomingIds.includes(id));
 
-    if (idsToDelete.length > 0) {
+    if (idsToDelete.length > 0 && effectiveCtx) {
       const removedRows = (existingParticipants ?? []).filter(p => idsToDelete.includes(p.id));
       const orgIds = removedRows.map(r => r.organization_id).filter(Boolean);
       let orgNameMap: Map<string, string> = new Map();
@@ -125,7 +113,7 @@ export async function updateGigParticipants(
           .select('id')
           .single();
         ids.push(inserted?.id);
-        if (inserted?.id) {
+        if (inserted?.id && effectiveCtx) {
           const { data: orgRow } = await (supabase.from('organizations') as any).select('name').eq('id', participant.organization_id).single();
           try {
             await logActivity({

@@ -343,7 +343,7 @@ describe('MobileGigDetail', () => {
       mockUseAuth.mockReturnValue({
         user: { id: 'user-1' },
         userRole: 'Admin',
-        selectedOrganization: { id: 'org-1' },
+        selectedOrganization: { id: 'org-1', name: 'Org One' },
       })
       render(<MobileGigDetail gigId="gig-1" onBack={vi.fn()} onViewPackingList={vi.fn()} />)
 
@@ -369,7 +369,8 @@ describe('MobileGigDetail', () => {
       })
 
       await waitFor(() => {
-        expect(updateGigParticipants).toHaveBeenCalledWith('gig-1', expect.any(Array))
+        // History is logged against the org the user is working as (#103).
+        expect(updateGigParticipants).toHaveBeenCalledWith('gig-1', expect.any(Array), { organization_id: 'org-1', actor_org_name: 'Org One' })
       })
     })
 
