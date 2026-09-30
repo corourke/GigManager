@@ -1,4 +1,6 @@
 import { describe, it, expect } from 'vitest';
+import { readdirSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import {
   canAssignRole,
   parseBearer,
@@ -10,6 +12,7 @@ import {
   accessRequestNotificationAudience,
   shouldClaimOrgOnApproval,
   describeOrganizationDeleteBlockers,
+  ORGANIZATION_DELETE_REFERENCES,
 } from './authz';
 
 describe('parseBearer', () => {
@@ -169,4 +172,74 @@ describe('canAssignRole', () => {
   it('lets nobody else give roles', () => {
     for (const actor of ['Staff', 'Viewer', undefined, null, '']) expect(canAssignRole(actor, 'Viewer')).toBe(false);
   });
+});
+
+/**
+ * The public tables (and their columns) that the migrations leave behind,
+ * replaying CREATE TABLE, table and column renames, ADD/DROP COLUMN and
+ * DROP TABLE in file order. A rough parser, but enough to catch a reference
+ * to a table that was renamed away (issue #90: `gig_bids`).
+ */
+function tablesFromMigrations(): Map<string, Set<string>> {
+  const dir = join(__dirname, '../../../../migrations');
+  const tables = new Map<string, Set<string>>();
+  const name = String.raw`(?:"?public"?\.)?"?(\w+)"?`;
+  for (const file of readdirSync(dir).filter((f) => f.endsWith('.sql')).sort()) {
+    const sql = readFileSync(join(dir, file), 'utf8').replace(/--.*$/gm, '');
+    for (const stmt of sql.split(';')) {
+      const create = stmt.match(new RegExp(String.raw`create table (?:if not exists )?${name}\s*\(([\s\S]*)\)`, 'i'));
+      if (create) {
+        const columns = new Set<string>();
+        for (const line of create[2].split('\n')) {
+          const col = line.match(/^\s*"?(\w+)"?\s+\S/);
+          if (col && !/^(constraint|primary|unique|foreign|check|exclude)$/i.test(col[1])) columns.add(col[1]);
+        }
+        if (!tables.has(create[1])) tables.set(create[1], columns);
+        continue;
+      }
+      const alter = stmt.match(new RegExp(String.raw`alter table (?:if exists )?(?:only )?${name}([\s\S]*)`, 'i'));
+      if (alter) {
+        const [, table, rest] = alter;
+        const columns = tables.get(table);
+        const renameTable = rest.match(new RegExp(String.raw`^\s*rename to ${name}`, 'i'));
+        if (renameTable && columns) {
+          tables.delete(table);
+          tables.set(renameTable[1], columns);
+          continue;
+        }
+        if (!columns) continue;
+        const renameCol = rest.match(/rename column "?(\w+)"? to "?(\w+)"?/i);
+        if (renameCol) {
+          columns.delete(renameCol[1]);
+          columns.add(renameCol[2]);
+        }
+        for (const m of rest.matchAll(/add column (?:if not exists )?"?(\w+)"?/gi)) columns.add(m[1]);
+        for (const m of rest.matchAll(/drop column (?:if exists )?"?(\w+)"?/gi)) columns.delete(m[1]);
+        continue;
+      }
+      const drop = stmt.match(new RegExp(String.raw`drop table (?:if exists )?${name}`, 'i'));
+      if (drop) tables.delete(drop[1]);
+    }
+  }
+  return tables;
+}
+
+describe('ORGANIZATION_DELETE_REFERENCES', () => {
+  const tables = tablesFromMigrations();
+
+  it('reads the tables the migrations create', () => {
+    expect(tables.get('assets')).toContain('item_cost');
+    expect(tables.get('assets')).not.toContain('cost');
+    expect(tables.has('kit_components')).toBe(true);
+    expect(tables.has('kit_assets')).toBe(false);
+    expect(tables.has('gig_status_history')).toBe(false);
+  });
+
+  it.each(ORGANIZATION_DELETE_REFERENCES.map((ref) => [ref.table, ref.column]))(
+    'checks %s.%s, which exists',
+    (table, column) => {
+      expect(tables.has(table), `table ${table}`).toBe(true);
+      expect(tables.get(table), `column ${table}.${column}`).toContain(column);
+    }
+  );
 });

@@ -136,7 +136,6 @@ export const ORGANIZATION_DELETE_REFERENCES: ReadonlyArray<{ table: string; colu
   { table: 'gig_participants', column: 'organization_id', label: 'gig participations' },
   { table: 'gig_staff_slots', column: 'organization_id', label: 'gig staff slots' },
   { table: 'gig_kit_assignments', column: 'organization_id', label: 'gig kit assignments' },
-  { table: 'gig_bids', column: 'organization_id', label: 'gig bids' },
   { table: 'gig_financials', column: 'organization_id', label: 'financial records' },
   { table: 'assets', column: 'organization_id', label: 'assets' },
   { table: 'kits', column: 'organization_id', label: 'kits' },
