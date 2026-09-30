@@ -72,8 +72,11 @@ export function useAutoSave<T>({
     }
   }, [onSave, onSuccess]);
 
+  // Saves run one at a time: a save that starts while another is on its way waits
+  // for it. Overlapping saves of a new row each inserted it (#107).
   const performSave = useCallback((data: T): Promise<SaveResult> => {
-    const saving = doSave(data);
+    const previous = inFlightRef.current;
+    const saving = previous ? previous.then(() => doSave(data)) : doSave(data);
     inFlightRef.current = saving;
     saving.finally(() => {
       if (inFlightRef.current === saving) inFlightRef.current = null;

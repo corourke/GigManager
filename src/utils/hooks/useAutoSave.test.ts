@@ -144,6 +144,32 @@ describe('useAutoSave', () => {
     expect(flushed).toBe(true);
   });
 
+  it('does not start a save while the previous one is still running (#107)', async () => {
+    const finishes: Array<() => void> = [];
+    const onSave = vi.fn(() => new Promise<void>((resolve) => { finishes.push(resolve); }));
+    const { result } = renderHook(() => useAutoSave({ gigId, onSave }));
+
+    await act(async () => {
+      result.current.triggerSave({ title: 'A' });
+      vi.advanceTimersByTime(500);
+    });
+    expect(onSave).toHaveBeenCalledTimes(1);
+
+    // A second debounced save comes due while the first is on its way: it waits.
+    await act(async () => {
+      result.current.triggerSave({ title: 'B' });
+      vi.advanceTimersByTime(500);
+    });
+    expect(onSave).toHaveBeenCalledTimes(1);
+
+    await act(async () => { finishes[0](); });
+    expect(onSave).toHaveBeenCalledTimes(2);
+    expect(onSave).toHaveBeenLastCalledWith({ title: 'B' });
+
+    await act(async () => { finishes[1](); await result.current.flushAsync(); });
+    expect(result.current.saveState).toBe('saved');
+  });
+
   it('reports its state and flush to an enclosing edit session', async () => {
     const onSave = vi.fn().mockResolvedValue(undefined);
     const { result: session } = renderHook(() => useEditSession());
