@@ -8,6 +8,7 @@ import {
   formatGigDateTimeForDisplay,
   formatGigDateTimeForInput,
   parseGigDateTimeFromInput,
+  toDateInTimeZone,
 } from './dateUtils';
 
 describe('isNoonUTC', () => {
@@ -263,5 +264,33 @@ describe('parseGigDateTimeFromInput', () => {
     // Format back to local input
     const backToLocal = formatGigDateTimeForInput(utc, timezone);
     expect(backToLocal).toBe(original);
+  });
+});
+
+describe('toDateInTimeZone (#93)', () => {
+  // 8 PM Pacific (PDT) on March 14 is 03:00 UTC on March 15.
+  const eightPmPacific = '2026-03-15T03:00:00.000Z';
+
+  it('gives the calendar date in the given time zone, not the UTC date', () => {
+    expect(toDateInTimeZone(eightPmPacific, 'America/Los_Angeles')).toBe('2026-03-14');
+    expect(toDateInTimeZone(eightPmPacific, 'UTC')).toBe('2026-03-15');
+    expect(toDateInTimeZone(new Date(eightPmPacific), 'Asia/Tokyo')).toBe('2026-03-15');
+  });
+
+  it('keeps 6 PM Pacific on the last day of the month in that month', () => {
+    expect(toDateInTimeZone('2026-04-01T01:00:00.000Z', 'America/Los_Angeles')).toBe('2026-03-31');
+  });
+
+  it('keeps a date-only gig (noon UTC) on its own day', () => {
+    expect(toDateInTimeZone('2026-03-14T12:00:00.000Z', 'America/Los_Angeles')).toBe('2026-03-14');
+    expect(toDateInTimeZone('2026-03-14T12:00:00.000Z', 'Pacific/Auckland')).toBe('2026-03-15');
+  });
+
+  it('uses the local date when there is no time zone or it is invalid', () => {
+    const d = new Date(eightPmPacific);
+    const local = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    expect(toDateInTimeZone(d)).toBe(local);
+    expect(toDateInTimeZone(d, null)).toBe(local);
+    expect(toDateInTimeZone(d, 'Not/AZone')).toBe(local);
   });
 });

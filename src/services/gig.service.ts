@@ -15,6 +15,7 @@ import { updateGigParticipants } from './gigParticipant.service';
 // updateGig calls updateGigStaffSlots internally.
 import { updateGigStaffSlots } from './gigStaff.service';
 import { logActivity } from './activityLog.service';
+import { toDateInTimeZone } from '../utils/dateUtils';
 
 // Kit-assignment operations live in gigKit.service.ts (Step 4 split); re-export
 // them here so existing `services/gig.service` imports keep working.
@@ -376,10 +377,9 @@ export async function createGig(gigData: any, options?: { skipActivityLog?: bool
     // If amount is provided, create a financial record
     if (amount !== undefined && amount !== null && parseFloat(amount) > 0) {
       try {
-        // Use gig start date for the financial record, or current date if no start date
-        const finDate = restGigData.start 
-          ? new Date(restGigData.start).toISOString().split('T')[0]
-          : new Date().toISOString().split('T')[0];
+        // Use gig start date for the financial record, or current date if no start date,
+        // as a calendar date in the gig's time zone (#93)
+        const finDate = toDateInTimeZone(restGigData.start || new Date(), restGigData.timezone);
           
         await createGigFinancial({
           gig_id: newGigId,

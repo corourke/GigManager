@@ -50,6 +50,29 @@ export const formatInTimeZone = (
 };
 
 /**
+ * The calendar date (YYYY-MM-DD) of an instant in a time zone, e.g. for a
+ * `gig_financials.date`. `toISOString().split('T')[0]` gives the UTC date,
+ * which is a day ahead for an evening gig in the Americas (#93). Without a
+ * time zone, or with an invalid one, uses the browser's local date.
+ */
+export const toDateInTimeZone = (date: string | Date, timeZone?: string | null): string => {
+  const d = typeof date === 'string' ? new Date(date) : date;
+  if (timeZone) {
+    try {
+      const parts = new Intl.DateTimeFormat('en-US', {
+        timeZone, year: 'numeric', month: '2-digit', day: '2-digit',
+      }).formatToParts(d);
+      const part = (type: string) => parts.find((p) => p.type === type)?.value;
+      return `${part('year')}-${part('month')}-${part('day')}`;
+    } catch {
+      // Invalid time zone: fall through to the local date
+    }
+  }
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+};
+
+/**
  * Formats a date for display in the Gig Table (e.g., "Jan 31, 2026")
  */
 export const formatDateDisplay = (date: string | Date, timeZone?: string): string => {

@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
   getGig,
   getGigsForOrganization,
@@ -748,6 +748,29 @@ describe('gig.service', () => {
     });
   });
 
+  describe('completeStaffAssignment dates (#93)', () => {
+    afterEach(() => { vi.useRealTimers(); });
+
+    it('dates completed labor in the gig\'s time zone, not UTC', async () => {
+      // 6 PM Pacific on March 31 is already April 1 in UTC.
+      vi.useFakeTimers({ toFake: ['Date'] });
+      vi.setSystemTime(new Date('2026-04-01T01:00:00.000Z'));
+      const assignment = {
+        id: 'as-1', fee: 200, rate: null,
+        slot: { gig_id: 'gig-1', organization_id: 'org-1', gig: { timezone: 'America/Los_Angeles' }, role_info: { name: 'FOH Engineer' } },
+      };
+      const financialsChain = makeChain({ data: { id: 'fin-1' }, error: null });
+      mockSupabase.from.mockImplementation((table: string) =>
+        table === 'gig_financials' ? financialsChain : makeChain({ data: assignment, error: null })
+      );
+      (requireAuth as any).mockResolvedValue({ supabase: mockSupabase, user: { id: 'user-1' } });
+
+      await completeStaffAssignment('as-1');
+
+      expect(financialsChain.insert.mock.calls[0][0].date).toBe('2026-03-31');
+    });
+  });
+
   // ─── createGig ──────────────────────────────────────────────────────────────
 
   describe('createGig', () => {
@@ -767,6 +790,25 @@ describe('gig.service', () => {
           gig_title: 'New Gig'
         })
       }));
+    });
+
+    it('dates the import payment in the gig\'s time zone, not UTC (#93)', async () => {
+      // 8 PM Pacific on March 14 is already March 15 in UTC.
+      const gigData = {
+        title: 'Late Show', primary_organization_id: 'org-1', amount: '500',
+        start: '2026-03-15T03:00:00.000Z', timezone: 'America/Los_Angeles',
+      };
+      mockSupabase.rpc = vi.fn().mockResolvedValue({ data: [{ id: 'new-gig-1' }], error: null });
+      const financialsChain = makeChain({ data: { id: 'fin-1' }, error: null });
+      mockSupabase.from.mockImplementation((table: string) =>
+        table === 'gig_financials' ? financialsChain : makeChain({ data: { id: 'new-gig-1', name: 'Acme' }, error: null })
+      );
+      (requireAuth as any).mockResolvedValue({ supabase: mockSupabase, user: { id: 'user-1' } });
+
+      await createGig(gigData, { skipActivityLog: true });
+
+      const inserted = financialsChain.insert.mock.calls[0][0];
+      expect(inserted).toMatchObject({ description: 'Payment from import', date: '2026-03-14' });
     });
 
     it('skips logging when skipActivityLog is true', async () => {
