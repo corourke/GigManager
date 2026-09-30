@@ -11,7 +11,7 @@ Cameron questions.
 Migrated from GitHub issue [#41](https://github.com/corourke/GigManager/issues/41) on 2026-09-22. This file now
 supersedes that issue as the board of record.
 
-- **Last updated:** 2026-09-30 (coordinator: #12 PR 5 merged as #101, so all five #12 PRs are in; released #32, #102, #103 and a #20 slice to triage in §3c)
+- **Last updated:** 2026-09-30 (coordinator: Cameron found #107's participant add logged four times; fix is coordinator PR #108 — autosave runs one save at a time)
 - **State verified:** 2026-09-30 19:45 UTC by triage (4 open issues: #12, #20, #39, #92; no open PRs. #104–#107 merged 19:41–19:43 UTC and closed #102, #32 and #103)
 
 ---
@@ -182,6 +182,7 @@ Read this section first on each run.
 
 | Claimed by | Files | Notes |
 |---|---|---|
+| Coordinator, [#108](https://github.com/corourke/GigManager/pull/108) (`claude/epic-ramanujan-i9khnc`) | `src/utils/hooks/useAutoSave.ts` and its test, `GigParticipantsSection.test.tsx` | Follow-up to #107: a new participant was inserted and logged several times because autosaves overlapped. The coordinator merges it |
 | #20 remaining services | `src/services/*.service.ts` (all but `user.service.ts` and `attachment.service.ts`) | Parked; `attachment.service.ts` released 09-30 (§3c) |
 | Coordinator, #92 | not yet claimed | Not in §3c; triage leaves it alone |
 | Stray branch `claude/triage-90-org-delete-references` | none | Duplicate of PR #96's commit, already merged. The proxy refused the delete; it's safe to delete |
@@ -222,7 +223,7 @@ broken yet.
 
 **Order of checks each run.**
 
-1. Check CI and mergeability on open PRs (none open as of 09-30 19:45 UTC; list live). Fix a red or conflicted triage PR by merging `main` into it, never by rebasing.
+1. Check CI and mergeability on open PRs (as of 09-30 20:00 UTC: the coordinator's #108; list live). Fix a red or conflicted triage PR by merging `main` into it, never by rebasing.
 2. #39 — check for a reply. If a variant is picked → work plan → post → wait for approval → implement.
 3. #12 — same pattern.
 4. §3c — build what is released there that has no PR yet (all four 09-30 items shipped in #104–#107; the coordinator clears §3c). For #20, only the service §3c names.
