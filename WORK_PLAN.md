@@ -11,7 +11,7 @@ Cameron questions.
 Migrated from GitHub issue [#41](https://github.com/corourke/GigManager/issues/41) on 2026-09-22. This file now
 supersedes that issue as the board of record.
 
-- **Last updated:** 2026-09-30 (coordinator: merged triage PRs #96–#99 and docs PR #88; §3c cleared; org-delete question moved from §3b to §3a; #12 PR 4 merged as #100; PR 5 next)
+- **Last updated:** 2026-09-30 (coordinator: released #32, #102, #103 and a #20 slice to triage in §3c; #12 PR 5 open as #101)
 - **State verified:** 2026-09-30 04:25 UTC by triage (5 open issues: #12, #20, #32, #39, #92; no open PRs; docs PR #88 merged 04:21 UTC. PRs #96–#99 merged 04:19 UTC and closed #90, #91, #93, #94)
 
 ---
@@ -24,7 +24,9 @@ supersedes that issue as the board of record.
 | [#92](https://github.com/corourke/GigManager/issues/92) | Replace-all autosave can delete rows another user or tab added | Bug | From the 09-29 code review, confirmed by reading the code | Coordinator — not started |
 | [#12](https://github.com/corourke/GigManager/issues/12) | Reorganize Gig Edit into tabbed sections | UI/UX design | Latest design approved 09-29; PRs 1–4 merged ([#79](https://github.com/corourke/GigManager/pull/79), [#80](https://github.com/corourke/GigManager/pull/80), [#89](https://github.com/corourke/GigManager/pull/89), [#100](https://github.com/corourke/GigManager/pull/100)) | Coordinator — PR 5 (style guide) |
 | [#20](https://github.com/corourke/GigManager/issues/20) | Shared data-access layer under `src/services/` | Refactor | Pilot merged (PR #66); 15 services remain | Nothing — pick up next service when wanted |
-| [#32](https://github.com/corourke/GigManager/issues/32) | Sign Up: no confirm-password field | Low priority | Open, not urgent | Nothing — accepted for beta |
+| [#32](https://github.com/corourke/GigManager/issues/32) | Sign Up: no confirm-password field | Low priority | Released to triage 09-30 (§3c) | Triage |
+| [#102](https://github.com/corourke/GigManager/issues/102) | Duplicate Gig fails when the gig has crew slots | Bug | Filed 09-30 from Future Considerations; released (§3c) | Triage |
+| [#103](https://github.com/corourke/GigManager/issues/103) | Participant and schedule history logged with no organization | Bug | Filed 09-30 from Future Considerations; released (§3c) | Triage |
 
 ---
 
@@ -32,7 +34,7 @@ supersedes that issue as the board of record.
 
 ### Bugs
 
-#90, #91, #93 and #94 were fixed by triage PRs #96–#99 and merged 09-30 (see §4). #92 ([Replace-all autosave can delete rows](https://github.com/corourke/GigManager/issues/92)) is the coordinator's.
+#102 ([Duplicate Gig fails with crew slots](https://github.com/corourke/GigManager/issues/102)) and #103 ([History logged with no organization](https://github.com/corourke/GigManager/issues/103)) were filed 09-30 from Future Considerations and released to triage (§3c). #90, #91, #93 and #94 were fixed by triage PRs #96–#99 and merged 09-30 (see §4). #92 ([Replace-all autosave can delete rows](https://github.com/corourke/GigManager/issues/92)) is the coordinator's.
 
 ### Financials UX
 
@@ -66,13 +68,13 @@ work-plan-then-approval pattern as #12.
 
 **[#20](https://github.com/corourke/GigManager/issues/20) — Shared data-access layer under `src/services/`.**
 Base module + `user.service.ts` pilot **merged (PR #66, 09-22)**. The pattern is now settled — the remaining
-~15 services are intentionally left for later, migrated service-by-service, one at a time, only when Cameron
-wants the next one picked up.
+~15 services are intentionally left for later, migrated service-by-service, one at a time. 09-30: Cameron asked
+for more triage work, so the coordinator released `attachment.service.ts` as the next one (§3c).
 
 ### Auth / session
 
 **[#32](https://github.com/corourke/GigManager/issues/32) — Sign Up: no confirm-password field or strength indicator.**
-Low priority, explicitly acceptable for beta. Open, no action planned.
+Low priority, acceptable for beta. Released to triage 09-30 (§3c): confirm-password field plus simple strength feedback.
 
 ---
 
@@ -101,7 +103,35 @@ meantime. The coordinator resolves each entry (decides it, or moves it into §3a
 under AGENTS.md rule 1: the routine posts its plan on the issue and proceeds. Anything not listed here still
 needs approval before code changes.
 
-Nothing released right now. The 09-30 batch (#90, #91, #93, #94) was built as PRs #96–#99 and merged; see §4.
+Released to the triage routine 09-30, at Cameron's request for more triage work. Each is its own PR, with a
+failing test first. Open the PR and don't merge it; the coordinator reviews and merges once CI is green. None
+needs a migration or an edge-function change. Stay out of `supabase/functions/server/routes/` (the coordinator's
+next security PR edits it) and don't restructure the replace-all save logic in the gig services (#92, coordinator).
+
+- **[#102](https://github.com/corourke/GigManager/issues/102) — Duplicate Gig fails when the gig has crew slots.**
+  In `duplicateGig` (`src/services/gig.service.ts`), send each slot's role name as `role` (plus
+  `organization_id`, `required_count`, `notes`), as `create_gig_complex` reads it, and stop sending
+  `assignments` (the RPC ignores them; a copy on a new date starts unstaffed). Test that pins the slot shape
+  to the keys the RPC reads. Frontend only.
+
+- **[#103](https://github.com/corourke/GigManager/issues/103) — participant and schedule History logged with no organization.**
+  In `gigParticipant.service.ts` and `gigSchedule.service.ts`, stop selecting the nonexistent
+  `gigs.primary_organization_id`. Log against the acting org: pass it in `activityCtx` from the callers that
+  know it, and fall back to the user's Admin/Manager membership among the gig's participants (as
+  `gigStaff.service.ts` does). Don't ignore the query error. Tests assert the logged `organization_id` and
+  `gig_title`. Touch only the activity-log lookup in those files. Frontend only.
+
+- **[#32](https://github.com/corourke/GigManager/issues/32) — Sign Up: confirm password and strength feedback.**
+  On the Sign Up form, add a Confirm password field that must match (inline error, blocks submit), and a
+  simple strength hint under the password (weak / fair / strong from length and character variety, no new
+  dependency). Keep the minimum at 6, which is what Supabase Auth enforces; the hint advises, it doesn't block.
+  Follow `docs/design/STYLE_GUIDE.md` (inline error style). Tests for mismatch and the hint. Frontend only.
+
+- **[#20](https://github.com/corourke/GigManager/issues/20) — next service: `attachment.service.ts`.**
+  Move its table reads and writes onto `src/services/base/dataAccess.ts`, as `user.service.ts` did (PR #66).
+  Storage calls stay as they are. No change to exported function names or return shapes; existing callers
+  and tests must pass unchanged, and add tests for the moved functions. Only this one service; the rest
+  stay parked.
 
 **Always a contract, never pre-approved:** new migrations or any RLS/policy change (AGENTS.md rule 4 — Cameron
 applies migrations), edge-function API shape, anything touching production config or `deploy_prod.sh`.
@@ -150,8 +180,8 @@ Read this section first on each run.
 
 | Claimed by | Files | Notes |
 |---|---|---|
-| #20 remaining services | `src/services/*.service.ts` (all but `user.service.ts`) | Parked until Cameron asks for the next one |
-| Coordinator, #12 PR 5 (`claude/epic-ramanujan-i9khnc`) | `docs/design/STYLE_GUIDE.md` | Next. PR 4's claim ended when #100 merged 09-30 |
+| #20 remaining services | `src/services/*.service.ts` (all but `user.service.ts` and `attachment.service.ts`) | Parked; `attachment.service.ts` released 09-30 (§3c) |
+| Coordinator, #12 PR 5 ([#101](https://github.com/corourke/GigManager/pull/101), `claude/epic-ramanujan-i9khnc`) | `docs/design/STYLE_GUIDE.md` | Open; the coordinator merges it |
 | Coordinator, #92 | not yet claimed | Not in §3c; triage leaves it alone |
 | Stray branch `claude/triage-90-org-delete-references` | none | Duplicate of PR #96's commit, already merged. The proxy refused the delete; it's safe to delete |
 
@@ -159,7 +189,7 @@ Read this section first on each run.
 each has a direction. #52's health check is live on dev and prod (09-25); its Sentry check additionally needs the Sentry secrets (§3a item 4). The tenant model is decided (hosted, shared DB, 09-25).
 
 **Where things stand.** 09-28: PRs #83 (#69) and #85 (#74) merged ~14:31 UTC; both issues closed.
-Urgent bug #84 approved by Cameron and fixed by the coordinator in PR #87 (merged 09-28). #81 reworked in PR #86; Cameron confirmed it 09-29 and it is closed. Nothing in §3c is left unbuilt. #71 and #81 merged earlier (see §4). 09-29: #12 PR 3 merged (#89) and code-review bugs #90–#94 filed by the coordinator; security PR #95 merged (deploy waits on Cameron, §3a). 09-30: the coordinator released #90, #91, #93 and #94 in §3c; triage built all four as PRs #96–#99, merged 04:19 UTC, and merged `main` into docs PR #88 to clear its conflict. #90 and #91 need a `server` redeploy. The coordinator merged docs PR #88 and moved triage's org-delete question to §3a. §3c is empty.
+Urgent bug #84 approved by Cameron and fixed by the coordinator in PR #87 (merged 09-28). #81 reworked in PR #86; Cameron confirmed it 09-29 and it is closed. Nothing in §3c is left unbuilt. #71 and #81 merged earlier (see §4). 09-29: #12 PR 3 merged (#89) and code-review bugs #90–#94 filed by the coordinator; security PR #95 merged (deploy waits on Cameron, §3a). 09-30: the coordinator released #90, #91, #93 and #94 in §3c; triage built all four as PRs #96–#99, merged 04:19 UTC, and merged `main` into docs PR #88 to clear its conflict. #90 and #91 need a `server` redeploy. The coordinator merged docs PR #88 and moved triage's org-delete question to §3a. §3c is empty. Later on 09-30 the coordinator filed #102 and #103 and released them, #32 and `attachment.service.ts` (#20) in §3c.
 
 On 09-23 every item was blocked or parked, so the run moved on to docs. Docs-only PR
 [#67](https://github.com/corourke/GigManager/pull/67) refreshed `docs/development/testing.md`: suite size,
@@ -181,9 +211,7 @@ middleware; `DELETE /gigs/:id` is Admin-only; access-request and notification ro
 
 **Future considerations (not open work).** Left over from #61 (closed 09-25): gig attachments are invisible
 to the other orgs on a gig (needs a sharing flag plus a storage-policy change), and prod has an extra
-`fin_category` value `'Production'` that no migration creates. Found while fixing #61: `duplicateGig` sends
-`staff_role_id` but `create_gig_complex` reads `role`, so duplicating a gig with staff slots probably fails;
-`gigParticipant`/`gigSchedule` services read a nonexistent `gigs.primary_organization_id`; Staff/Viewers can read
+`fin_category` value `'Production'` that no migration creates. Found while fixing #61 (the first two filed 09-30 as #102 and #103): Staff/Viewers can read
 their own org's staff `rate`/`fee`. Tenant model decided 09-25: hosted, shared DB. New private tables need a test
 in `supabase/tests/rls/` (CI job `rls`).
 
@@ -193,10 +221,10 @@ broken yet.
 
 **Order of checks each run.**
 
-1. Check CI and mergeability on open PRs (none open as of 09-30 04:30 UTC; list live). Fix a red or conflicted triage PR by merging `main` into it, never by rebasing.
+1. Check CI and mergeability on open PRs (as of 09-30: the coordinator's #101; list live). Fix a red or conflicted triage PR by merging `main` into it, never by rebasing.
 2. #39 — check for a reply. If a variant is picked → work plan → post → wait for approval → implement.
 3. #12 — same pattern.
-4. #20 — no open question; only act if Cameron asks for the next service to be migrated.
+4. §3c — build what is released there (09-30: #102, #103, #32, #20 `attachment.service.ts`). For #20, only the service §3c names.
 5. Check §3b for unresolved entries the coordinator hasn't cleared yet.
 
 **Don't manufacture activity.** #39 and #12 each already have exactly one open question on record.
