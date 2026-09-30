@@ -12,7 +12,7 @@ Migrated from GitHub issue [#41](https://github.com/corourke/GigManager/issues/4
 supersedes that issue as the board of record.
 
 - **Last updated:** 2026-09-30 (coordinator: #90, #91, #93, #94 released to triage in §3c; #95's deploy awaiting Cameron; #12 PRs 4–5 next)
-- **State verified:** 2026-09-30 04:30 UTC by triage (9 open issues: #12, #20, #32, #39, #90–#94; open PRs: docs #88, and #96–#99 for §3c's #90, #91, #93, #94; all green or running, none conflicting)
+- **State verified:** 2026-09-30 04:25 UTC by triage (5 open issues: #12, #20, #32, #39, #92; open PRs: docs #88, CI green, merges cleanly. PRs #96–#99 merged 04:19 UTC and closed #90, #91, #93, #94)
 
 ---
 
@@ -21,11 +21,7 @@ supersedes that issue as the board of record.
 | # | Item | Type | State | Waiting on |
 |---|---|---|---|---|
 | [#39](https://github.com/corourke/GigManager/issues/39) | Too many menu levels | UI/UX design | Direction set 09-26: keep the top nav (no sidebar) | Follows #12's redesign; then Cameron (§3a item 1) |
-| [#90](https://github.com/corourke/GigManager/issues/90) | Deleting an organization always fails (`gig_bids` doesn't exist) | Bug | Fix in PR [#96](https://github.com/corourke/GigManager/pull/96) (triage, 09-30) | Coordinator — review and merge; then a `server` redeploy |
-| [#91](https://github.com/corourke/GigManager/issues/91) | Dashboard asset and insured values always $0 (`assets.cost` renamed) | Bug | Fix in PR [#97](https://github.com/corourke/GigManager/pull/97) (triage, 09-30) | Coordinator — review and merge; the same `server` redeploy covers #90 |
 | [#92](https://github.com/corourke/GigManager/issues/92) | Replace-all autosave can delete rows another user or tab added | Bug | From the 09-29 code review, confirmed by reading the code | Coordinator — not started |
-| [#93](https://github.com/corourke/GigManager/issues/93) | Some financial record dates use UTC instead of the local date | Bug (low) | Fix in PR [#98](https://github.com/corourke/GigManager/pull/98) (triage, 09-30) | Coordinator — review and merge; frontend only |
-| [#94](https://github.com/corourke/GigManager/issues/94) | A failed profile load at sign-in looks like "no organizations" | Bug (low) | Fix in PR [#99](https://github.com/corourke/GigManager/pull/99) (triage, 09-30) | Coordinator — review and merge; frontend only |
 | [#12](https://github.com/corourke/GigManager/issues/12) | Reorganize Gig Edit into tabbed sections | UI/UX design | Latest design approved 09-29; PRs 1–3 merged ([#79](https://github.com/corourke/GigManager/pull/79), [#80](https://github.com/corourke/GigManager/pull/80), [#89](https://github.com/corourke/GigManager/pull/89)) | Coordinator — PR 4 (printing), PR 5 (style guide) |
 | [#20](https://github.com/corourke/GigManager/issues/20) | Shared data-access layer under `src/services/` | Refactor | Pilot merged (PR #66); 15 services remain | Nothing — pick up next service when wanted |
 | [#32](https://github.com/corourke/GigManager/issues/32) | Sign Up: no confirm-password field | Low priority | Open, not urgent | Nothing — accepted for beta |
@@ -36,7 +32,7 @@ supersedes that issue as the board of record.
 
 ### Bugs
 
-Code-review bugs #90–#94 (filed 09-29). Triage opened a PR for each one §3c released: #90 ([Deleting an organization always fails](https://github.com/corourke/GigManager/issues/90)) → [#96](https://github.com/corourke/GigManager/pull/96), #91 ([Dashboard asset and insured values always $0](https://github.com/corourke/GigManager/issues/91)) → [#97](https://github.com/corourke/GigManager/pull/97), #93 ([Some financial record dates use UTC](https://github.com/corourke/GigManager/issues/93)) → [#98](https://github.com/corourke/GigManager/pull/98), #94 ([A failed profile load looks like "no organizations"](https://github.com/corourke/GigManager/issues/94)) → [#99](https://github.com/corourke/GigManager/pull/99). Each has a failing test first, mutation checks, and manual steps in the PR body. #92 ([Replace-all autosave can delete rows](https://github.com/corourke/GigManager/issues/92)) is the coordinator's.
+#90, #91, #93 and #94 were fixed by triage PRs #96–#99 and merged 09-30 (see §4). #92 ([Replace-all autosave can delete rows](https://github.com/corourke/GigManager/issues/92)) is the coordinator's.
 
 ### Financials UX
 
@@ -97,7 +93,7 @@ order that unblocks the most work; the coordinator puts these to Cameron one at 
 meantime. The coordinator resolves each entry (decides it, or moves it into §3a) and deletes it.*
 
 - **Security findings from the 09-29 `security-scheme.md` check, urgent.** Details went to Cameron by private notification on 09-29, not here, because this repo is public. In short, some contact-management RPCs trust caller-supplied input for authorization and can grant org membership, plus several broader read exposures. The fix needs a migration, which is a contract, so it's for the coordinator. Meanwhile triage filed no public issue and held the `security-scheme.md` doc update, since correcting the doc would describe the holes publicly.
-- **Organization delete still can't succeed for an org's own Admin (found building #90, 09-30).** The `DELETE /organizations/:id` guard (#53) counts `organization_members`, and that count includes the Admin doing the delete. So once PR #96 lands, an org's Admin gets "still has members" (409) instead of the old 500. Only an unclaimed org with no data can be deleted, by an Admin of any org. Is that intended, or should the guard ignore the caller's own membership? That would be a change in `routes/organizations.ts`, so triage didn't touch it. PR #96 describes the behaviour.
+- **Organization delete still can't succeed for an org's own Admin (found building #90, 09-30).** The `DELETE /organizations/:id` guard (#53) counts `organization_members`, and that count includes the Admin doing the delete. Now that PR #96 has merged, an org's Admin gets "still has members" (409) instead of the old 500. Only an unclaimed org with no data can be deleted, by an Admin of any org. Is that intended, or should the guard ignore the caller's own membership? That would be a change in `routes/organizations.ts`, so triage didn't touch it. PR #96 describes the behaviour.
 
 ### 3c. Ready to build, nothing blocking
 
@@ -161,6 +157,10 @@ applies migrations), edge-function API shape, anything touching production confi
 | #81 rework — packing list is an indented list: kits A to Z marked Items/Container, an Items kit's contents indented under it, a lone container one line (approved mockup, board 7) | PR #86 (09-28) | Merged; Cameron confirmed it on the live gig 09-29, #81 closed. Frontend only |
 | #74 — gig lists keep a gig in Upcoming until its last calendar day is over in the gig's timezone (`isGigPast` in `src/utils/gigTimeframe.ts`, web and mobile) | PR #85 (09-28) | Merged; #74 closed. Frontend only, ships with the next frontend deploy |
 | #69 — participants autosave keeps the database id after the first insert, so later autosaves update the row instead of deleting and re-inserting it (no more repeated added/removed History entries or unlinked schedule acts) | PR #83 (09-28) | Merged; #69 closed. Frontend only, ships with the next frontend deploy. Cameron to check a new participant's History after deploy |
+| #90 ([Deleting an organization always fails](https://github.com/corourke/GigManager/issues/90)): dropped the `gig_bids` delete-guard entry; a new test checks the guard against the tables the migrations create | PR #96 (09-30) | Merged; #90 closed. Needs a `server` redeploy |
+| #91 ([Dashboard asset and insured values always $0](https://github.com/corourke/GigManager/issues/91)): totals read `item_cost` through `lib/pure/dashboard.ts`, and query errors are returned | PR #97 (09-30) | Merged; #91 closed. The same `server` redeploy covers it |
+| #93 ([Some financial record dates use UTC](https://github.com/corourke/GigManager/issues/93)): import payment, completed labor and the purchase fallback are dated in the gig's time zone (`toDateInTimeZone`) | PR #98 (09-30) | Merged; #93 closed. Frontend only |
+| #94 ([A failed profile load looks like "no organizations"](https://github.com/corourke/GigManager/issues/94)): `getCompleteUserData` throws; `RequireAuth` shows "We couldn't load your account" with a retry | PR #99 (09-30) | Merged; #94 closed. Frontend only |
 | Tightened authorization on membership, contact, invitation and purchase functions; unused `POST /gigs` and `PUT /gigs/:id` removed | PR #95 (09-29) | Merged. Needs migration `20260929000000` and a `server` redeploy on dev and prod (§3a item 1) |
 | Docs refresh: `docs/README.md` index (PR #70), `database.md` reconciled with migrations (PR #72) | PR #70, PR #72 (09-25) | Merged; docs only, from triage docs passes |
 
@@ -176,19 +176,16 @@ Read this section first on each run.
 | Claimed by | Files | Notes |
 |---|---|---|
 | Triage docs PR [#88](https://github.com/corourke/GigManager/pull/88) (`claude/friendly-hamilton-syc3g6`) | `docs/technical/server-endpoint-inventory.md`, one line each of `docs/README.md` and `docs/technical/tech-stack.md` | Docs only. It conflicted after #95; triage merged `main` in on 09-30 and folded in #95's route changes |
-| Triage PR [#96](https://github.com/corourke/GigManager/pull/96) (#90, `claude/friendly-hamilton-d95zem`) | `supabase/functions/server/lib/pure/authz.ts` and `authz.test.ts` | A duplicate branch, `claude/triage-90-org-delete-references`, holds the same commit; the proxy refused the delete. It's safe to delete |
-| Triage PR [#97](https://github.com/corourke/GigManager/pull/97) (#91, `claude/friendly-hamilton-d95zem-91`) | `supabase/functions/server/routes/gigs.ts` (dashboard route), new `lib/pure/dashboard.ts` + test | |
-| Triage PR [#98](https://github.com/corourke/GigManager/pull/98) (#93, `claude/friendly-hamilton-d95zem-93`) | `src/utils/dateUtils.ts`, `gig.service.ts`, `gigStaff.service.ts`, `purchase.service.ts` and their tests | |
-| Triage PR [#99](https://github.com/corourke/GigManager/pull/99) (#94, `claude/friendly-hamilton-d95zem-94`) | `src/services/user.service.ts` (+ new test), `src/contexts/AuthContext.tsx`, `src/routes/guards.tsx` and their tests | |
 | #20 remaining services | `src/services/*.service.ts` (all but `user.service.ts`) | Parked until Cameron asks for the next one |
 | Coordinator, #12 PRs 4–5 (next on `claude/epic-ramanujan-i9khnc`) | print/report components, `docs/design/STYLE_GUIDE.md` | Not started; PR 3's claim ended when #89 merged 09-29 04:52 UTC |
 | Coordinator, #92 | not yet claimed | Not in §3c; triage leaves it alone |
+| Stray branch `claude/triage-90-org-delete-references` | none | Duplicate of PR #96's commit, already merged. The proxy refused the delete; it's safe to delete |
 
 **Dependencies.** #12 and #39 both reshape navigation/gig-edit UI — do them in sequence, not in parallel, once
 each has a direction. #52's health check is live on dev and prod (09-25); its Sentry check additionally needs the Sentry secrets (§3a item 2). The tenant model is decided (hosted, shared DB, 09-25).
 
 **Where things stand.** 09-28: PRs #83 (#69) and #85 (#74) merged ~14:31 UTC; both issues closed.
-Urgent bug #84 approved by Cameron and fixed by the coordinator in PR #87 (merged 09-28). #81 reworked in PR #86; Cameron confirmed it 09-29 and it is closed. Nothing in §3c is left unbuilt. #71 and #81 merged earlier (see §4). 09-29: #12 PR 3 merged (#89) and code-review bugs #90–#94 filed by the coordinator; security PR #95 merged (deploy waits on Cameron, §3a). 09-30: the coordinator released #90, #91, #93 and #94 in §3c; triage built all four as PRs #96–#99 (not merged) and merged `main` into docs PR #88 to clear its conflict. Nothing in §3c is left unbuilt.
+Urgent bug #84 approved by Cameron and fixed by the coordinator in PR #87 (merged 09-28). #81 reworked in PR #86; Cameron confirmed it 09-29 and it is closed. Nothing in §3c is left unbuilt. #71 and #81 merged earlier (see §4). 09-29: #12 PR 3 merged (#89) and code-review bugs #90–#94 filed by the coordinator; security PR #95 merged (deploy waits on Cameron, §3a). 09-30: the coordinator released #90, #91, #93 and #94 in §3c; triage built all four as PRs #96–#99, merged 04:19 UTC, and merged `main` into docs PR #88 to clear its conflict. #90 and #91 need a `server` redeploy. Nothing in §3c is left unbuilt.
 
 On 09-23 every item was blocked or parked, so the run moved on to docs. Docs-only PR
 [#67](https://github.com/corourke/GigManager/pull/67) refreshed `docs/development/testing.md`: suite size,
@@ -222,7 +219,7 @@ broken yet.
 
 **Order of checks each run.**
 
-1. Check CI and mergeability on open PRs (as of 09-30: docs #88, and #96–#99; list live). Fix a red or conflicted triage PR by merging `main` into it, never by rebasing.
+1. Check CI and mergeability on open PRs (as of 09-30: docs #88 only; list live). Fix a red or conflicted triage PR by merging `main` into it, never by rebasing.
 2. #39 — check for a reply. If a variant is picked → work plan → post → wait for approval → implement.
 3. #12 — same pattern.
 4. #20 — no open question; only act if Cameron asks for the next service to be migrated.
