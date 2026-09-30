@@ -146,7 +146,8 @@ describe('GigPage (#12)', () => {
     it('shows one save state for the whole page', async () => {
       schedule.state = 'saving';
       await openEditor();
-      expect(screen.getByText('Saving…')).toBeInTheDocument();
+      // Sections report their state from an effect, so it lands a render after the title box.
+      expect(await screen.findByText('Saving…')).toBeInTheDocument();
     });
 
     it('Done waits for pending saves before leaving edit mode', async () => {

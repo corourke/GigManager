@@ -177,4 +177,42 @@ describe('GigParticipantsSection', () => {
     expect(second.find((p) => p.organization_id === 'org-2')?.id).toBe(dbIds['org-2']);
     expect(second.find((p) => p.organization_id === 'current-org-id')?.id).toBe(dbIds['current-org-id']);
   });
+
+  it('adds a new participant once, even when the save is slow (#107: four "participant added" entries)', async () => {
+    const dbIds: Record<string, string> = {
+      'current-org-id': '22222222-2222-4222-8222-222222222222',
+      'org-2': '33333333-3333-4333-8333-333333333333',
+    };
+    // The first save takes a while (the service does several round trips), so
+    // the form re-renders and edits arrive while it is still on its way.
+    let releaseFirst!: () => void;
+    const firstDone = new Promise<void>((r) => { releaseFirst = r; });
+    vi.mocked(updateGigParticipants).mockImplementation(async (_gigId, participants) => {
+      if (vi.mocked(updateGigParticipants).mock.calls.length === 1) await firstDone;
+      return { success: true, ids: participants.map((p) => p.id ?? dbIds[p.organization_id]) };
+    });
+
+    render(<GigParticipantsSection {...mockProps} />);
+    await waitFor(() => expect(screen.getByText('Test Org')).toBeInTheDocument());
+
+    fireEvent.click(screen.getByText('Add Participant'));
+    fireEvent.click(await screen.findByText('Mock Select Org'));
+    const roleSelects = screen.getAllByLabelText('Role');
+    fireEvent.change(roleSelects[roleSelects.length - 1], { target: { value: 'Venue' } });
+    await waitFor(() => expect(updateGigParticipants).toHaveBeenCalledTimes(1), { timeout: 3000 });
+
+    // An edit to the new row while the first save is still running.
+    const stars = screen.getAllByTitle('Mark as client');
+    fireEvent.click(stars[stars.length - 1]);
+    await new Promise((r) => setTimeout(r, 2500));
+
+    releaseFirst();
+    await new Promise((r) => setTimeout(r, 2500));
+
+    // Only the first save may insert the new row; every later save must carry its database id.
+    const calls = vi.mocked(updateGigParticipants).mock.calls.map((c) => c[1]);
+    const inserts = calls.filter((rows) => rows.some((p) => p.organization_id === 'org-2' && p.id === undefined));
+    expect(inserts).toHaveLength(1);
+    expect(calls.at(-1)!.find((p) => p.organization_id === 'org-2')).toMatchObject({ id: dbIds['org-2'], is_client: true });
+  }, 15000);
 });
