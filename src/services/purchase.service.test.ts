@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
   getPurchases,
   createPurchase,
@@ -353,6 +353,45 @@ describe('purchase → gig ledger lifecycle', () => {
         purchase_id: 'line-1',
       });
       expect(payload.paid_at).toBeTruthy();
+    });
+  });
+
+  describe('buildPurchaseLineLedgerPayload fallback date (#93)', () => {
+    afterEach(() => { vi.useRealTimers(); });
+
+    it('uses today in the given time zone when the line has no purchase date', () => {
+      // 8 PM Pacific on March 14 is already March 15 in UTC.
+      vi.useFakeTimers({ toFake: ['Date'] });
+      vi.setSystemTime(new Date('2026-03-15T03:00:00.000Z'));
+      const payload = buildPurchaseLineLedgerPayload(line({ purchase_date: null }), 'gig-1', 'org-1', 'America/Los_Angeles');
+      expect(payload.date).toBe('2026-03-14');
+    });
+
+    it('keeps the purchase date when there is one', () => {
+      const payload = buildPurchaseLineLedgerPayload(line(), 'gig-1', 'org-1', 'Asia/Tokyo');
+      expect(payload.date).toBe('2026-02-01');
+    });
+  });
+
+  describe('createLedgerEntryForPurchaseLine fallback date (#93)', () => {
+    afterEach(() => { vi.useRealTimers(); });
+
+    it('looks up the gig\'s time zone for a line with no purchase date', async () => {
+      vi.useFakeTimers({ toFake: ['Date'] });
+      vi.setSystemTime(new Date('2026-03-15T03:00:00.000Z'));
+      const gigQuery = {
+        select: vi.fn().mockReturnThis(),
+        eq: vi.fn().mockReturnThis(),
+        maybeSingle: vi.fn().mockResolvedValue({ data: { timezone: 'America/Los_Angeles' }, error: null }),
+      };
+      (createClient as any).mockReturnValue({ from: vi.fn().mockReturnValue(gigQuery) });
+      mockedGetByPurchase.mockResolvedValue([]);
+      mockedCreate.mockResolvedValue({ id: 'fin-1' });
+
+      await createLedgerEntryForPurchaseLine(line({ purchase_date: null }), 'gig-1', 'org-1');
+
+      expect(gigQuery.eq).toHaveBeenCalledWith('id', 'gig-1');
+      expect(mockedCreate.mock.calls[0][0].date).toBe('2026-03-14');
     });
   });
 

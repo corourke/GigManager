@@ -4,6 +4,7 @@ import { requireAuth } from '../utils/supabase/auth-utils';
 import type { DbPurchase, PurchaseWithItems, DbGigFinancial } from '../utils/supabase/types';
 import type { AssetRow } from '../utils/csvImport';
 import { toFinCategory } from '../utils/supabase/constants';
+import { toDateInTimeZone } from '../utils/dateUtils';
 import {
   createGigFinancial,
   updateGigFinancial,
@@ -537,12 +538,21 @@ export function purchaseLineLedgerAmount(
   );
 }
 
-/** Build the `createGigFinancial` payload for a purchase line linked to a gig. */
-export function buildPurchaseLineLedgerPayload(item: LedgerLineSource, gigId: string, organizationId: string) {
+/**
+ * Build the `createGigFinancial` payload for a purchase line linked to a gig.
+ * A line with no purchase date is dated today in `timeZone` (the gig's), or
+ * the user's local date without one (#93).
+ */
+export function buildPurchaseLineLedgerPayload(
+  item: LedgerLineSource,
+  gigId: string,
+  organizationId: string,
+  timeZone?: string | null
+) {
   return {
     gig_id: gigId,
     organization_id: organizationId,
-    date: item.purchase_date || new Date().toISOString().slice(0, 10),
+    date: item.purchase_date || toDateInTimeZone(new Date(), timeZone),
     amount: purchaseLineLedgerAmount(item),
     type: 'Expense Incurred' as const,
     category: toFinCategory(item.category) ?? ('Other expenses' as const),
@@ -550,6 +560,16 @@ export function buildPurchaseLineLedgerPayload(item: LedgerLineSource, gigId: st
     purchase_id: item.id,
     paid_at: new Date().toISOString(),
   };
+}
+
+/** A gig's time zone, or null when it has none or can't be read. */
+async function getGigTimeZone(gigId: string): Promise<string | null> {
+  const { data, error } = await getSupabase().from('gigs').select('timezone').eq('id', gigId).maybeSingle();
+  if (error) {
+    console.error('Could not read the gig time zone; using the local date:', error);
+    return null;
+  }
+  return data?.timezone ?? null;
 }
 
 /**
@@ -576,7 +596,8 @@ export async function createLedgerEntryForPurchaseLine(
       }
       return { created: false, financial: primary };
     }
-    const financial = await createGigFinancial(buildPurchaseLineLedgerPayload(item, gigId, organizationId));
+    const timeZone = item.purchase_date ? null : await getGigTimeZone(gigId);
+    const financial = await createGigFinancial(buildPurchaseLineLedgerPayload(item, gigId, organizationId, timeZone));
     return { created: true, financial: financial as DbGigFinancial };
   } catch (err) {
     return handleApiError(err, 'create ledger entry for purchase line');

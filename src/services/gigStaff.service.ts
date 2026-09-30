@@ -3,6 +3,7 @@ import { requireAuth } from '../utils/supabase/auth-utils';
 import { getSupabase } from './gigService.shared';
 import { logActivity } from './activityLog.service';
 import { StaffingChange } from '../utils/supabase/types';
+import { toDateInTimeZone } from '../utils/dateUtils';
 
 /**
  * Gig staff-slot / assignment operations (Phase 7, Step 4 — extracted from
@@ -230,7 +231,7 @@ export async function completeStaffAssignment(assignmentId: string, unitsComplet
     // 1. Get assignment details
     const { data: assignment, error: fetchError } = await supabase
       .from('gig_staff_assignments')
-      .select('*, slot:gig_staff_slots(gig_id, organization_id, role_info:staff_roles(name))')
+      .select('*, slot:gig_staff_slots(gig_id, organization_id, gig:gigs(timezone), role_info:staff_roles(name))')
       .eq('id', assignmentId)
       .single();
 
@@ -249,7 +250,7 @@ export async function completeStaffAssignment(assignmentId: string, unitsComplet
         gig_id: gigId,
         organization_id: organizationId,
         amount: amount,
-        date: new Date().toISOString().split('T')[0],
+        date: toDateInTimeZone(new Date(), assignment.slot.gig?.timezone),
         type: 'Expense Incurred',
         category: 'Contract labor',
         description: `Labor: ${roleName}`,
