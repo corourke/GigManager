@@ -12,7 +12,7 @@ Migrated from GitHub issue [#41](https://github.com/corourke/GigManager/issues/4
 supersedes that issue as the board of record.
 
 - **Last updated:** 2026-09-30 (coordinator: #90, #91, #93, #94 released to triage in §3c; #95's deploy awaiting Cameron; #12 PRs 4–5 next)
-- **State verified:** 2026-09-30 04:25 UTC by triage (5 open issues: #12, #20, #32, #39, #92; open PRs: docs #88, CI green, merges cleanly. PRs #96–#99 merged 04:19 UTC and closed #90, #91, #93, #94)
+- **State verified:** 2026-09-30 04:25 UTC by triage (5 open issues: #12, #20, #32, #39, #92; no open PRs; docs PR #88 merged 04:21 UTC. PRs #96–#99 merged 04:19 UTC and closed #90, #91, #93, #94)
 
 ---
 
@@ -175,7 +175,6 @@ Read this section first on each run.
 
 | Claimed by | Files | Notes |
 |---|---|---|
-| Triage docs PR [#88](https://github.com/corourke/GigManager/pull/88) (`claude/friendly-hamilton-syc3g6`) | `docs/technical/server-endpoint-inventory.md`, one line each of `docs/README.md` and `docs/technical/tech-stack.md` | Docs only. It conflicted after #95; triage merged `main` in on 09-30 and folded in #95's route changes |
 | #20 remaining services | `src/services/*.service.ts` (all but `user.service.ts`) | Parked until Cameron asks for the next one |
 | Coordinator, #12 PRs 4–5 (next on `claude/epic-ramanujan-i9khnc`) | print/report components, `docs/design/STYLE_GUIDE.md` | Not started; PR 3's claim ended when #89 merged 09-29 04:52 UTC |
 | Coordinator, #92 | not yet claimed | Not in §3c; triage leaves it alone |
@@ -202,7 +201,7 @@ instead of 18, a supported Supabase CLI install, the full migration set instead 
 `server-endpoint-inventory.md`, the last marked historical). `database.md`'s "single initialization file" line turned
 out to be a dated 02-09 changelog entry, not stale. `docs/technical/database.md` body (09-25, PR #72: reconciled with every
 migration through `20260919000000` — dropped status-history tables, `kit_components` rename, six new tables, new columns).
-`docs/technical/server-endpoint-inventory.md` (09-29, PR #88: re-pointed at `routes/`, every row checked against the
+`docs/technical/server-endpoint-inventory.md` (09-29, PR #88, merged 09-30: re-pointed at `routes/`, every row checked against the
 middleware; `DELETE /gigs/:id` is Admin-only; access-request and notification routes added). `docs/technical/security-scheme.md` (09-29: checked against every policy, the RLS tests and the three edge functions; the update is **held** until the §3b security entry is resolved, then document helpers, gig UPDATE/DELETE and participant write rules, the full CORS list, `requireOrgRole` options and the `health-check` gate). Next candidate: `docs/technical/deployment.md` (try `deploy_prod.sh --help`/gates offline; don't run deploys).
 
 **Future considerations (not open work).** Left over from #61 (closed 09-25): gig attachments are invisible
@@ -219,7 +218,7 @@ broken yet.
 
 **Order of checks each run.**
 
-1. Check CI and mergeability on open PRs (as of 09-30: docs #88 only; list live). Fix a red or conflicted triage PR by merging `main` into it, never by rebasing.
+1. Check CI and mergeability on open PRs (none open as of 09-30 04:21 UTC; list live). Fix a red or conflicted triage PR by merging `main` into it, never by rebasing.
 2. #39 — check for a reply. If a variant is picked → work plan → post → wait for approval → implement.
 3. #12 — same pattern.
 4. #20 — no open question; only act if Cameron asks for the next service to be migrated.
