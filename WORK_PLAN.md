@@ -11,7 +11,7 @@ Cameron questions.
 Migrated from GitHub issue [#41](https://github.com/corourke/GigManager/issues/41) on 2026-09-22. This file now
 supersedes that issue as the board of record.
 
-- **Last updated:** 2026-09-29 (coordinator: #95 merged, its migration and server deploy awaiting Cameron; #84 confirmed and closed; #12 PRs 4–5 next)
+- **Last updated:** 2026-09-30 (coordinator: #90, #91, #93, #94 released to triage in §3c; #95's deploy awaiting Cameron; #12 PRs 4–5 next)
 - **State verified:** 2026-09-29 09:10 UTC (9 open issues: #12, #20, #32, #39, #90–#94; open PRs: docs-only #88, CI green, merges cleanly)
 
 ---
@@ -21,11 +21,11 @@ supersedes that issue as the board of record.
 | # | Item | Type | State | Waiting on |
 |---|---|---|---|---|
 | [#39](https://github.com/corourke/GigManager/issues/39) | Too many menu levels | UI/UX design | Direction set 09-26: keep the top nav (no sidebar) | Follows #12's redesign; then Cameron (§3a item 1) |
-| [#90](https://github.com/corourke/GigManager/issues/90) | Deleting an organization always fails (`gig_bids` doesn't exist) | Bug | From the 09-29 code review, confirmed | Coordinator — not started |
-| [#91](https://github.com/corourke/GigManager/issues/91) | Dashboard asset and insured values always $0 (`assets.cost` renamed) | Bug | From the 09-29 code review, confirmed | Coordinator — not started |
+| [#90](https://github.com/corourke/GigManager/issues/90) | Deleting an organization always fails (`gig_bids` doesn't exist) | Bug | From the 09-29 code review, confirmed | Triage — released in §3c 09-30 |
+| [#91](https://github.com/corourke/GigManager/issues/91) | Dashboard asset and insured values always $0 (`assets.cost` renamed) | Bug | From the 09-29 code review, confirmed | Triage — released in §3c 09-30 |
 | [#92](https://github.com/corourke/GigManager/issues/92) | Replace-all autosave can delete rows another user or tab added | Bug | From the 09-29 code review, confirmed by reading the code | Coordinator — not started |
-| [#93](https://github.com/corourke/GigManager/issues/93) | Some financial record dates use UTC instead of the local date | Bug (low) | From the 09-29 code review, confirmed | Coordinator — not started |
-| [#94](https://github.com/corourke/GigManager/issues/94) | A failed profile load at sign-in looks like "no organizations" | Bug (low) | From the 09-29 code review, confirmed | Coordinator — not started |
+| [#93](https://github.com/corourke/GigManager/issues/93) | Some financial record dates use UTC instead of the local date | Bug (low) | From the 09-29 code review, confirmed | Triage — released in §3c 09-30 |
+| [#94](https://github.com/corourke/GigManager/issues/94) | A failed profile load at sign-in looks like "no organizations" | Bug (low) | From the 09-29 code review, confirmed | Triage — released in §3c 09-30 |
 | [#12](https://github.com/corourke/GigManager/issues/12) | Reorganize Gig Edit into tabbed sections | UI/UX design | Latest design approved 09-29; PRs 1–3 merged ([#79](https://github.com/corourke/GigManager/pull/79), [#80](https://github.com/corourke/GigManager/pull/80), [#89](https://github.com/corourke/GigManager/pull/89)) | Coordinator — PR 4 (printing), PR 5 (style guide) |
 | [#20](https://github.com/corourke/GigManager/issues/20) | Shared data-access layer under `src/services/` | Refactor | Pilot merged (PR #66); 15 services remain | Nothing — pick up next service when wanted |
 | [#32](https://github.com/corourke/GigManager/issues/32) | Sign Up: no confirm-password field | Low priority | Open, not urgent | Nothing — accepted for beta |
@@ -105,15 +105,33 @@ meantime. The coordinator resolves each entry (decides it, or moves it into §3a
 under AGENTS.md rule 1: the routine posts its plan on the issue and proceeds. Anything not listed here still
 needs approval before code changes.
 
-- **[#69](https://github.com/corourke/GigManager/issues/69) — adding a participant logs added/removed several times; each autosave re-creates the row.**
-  Approved 09-25, the fix posted on the issue: failing test first; `updateGigParticipants` returns the inserted
-  ids and `GigParticipantsSection` writes them back after the save, so later autosaves update in place.
-  Separate PR from #71.
+Released to the triage routine 09-30. Each is its own PR, with a failing test first, and the routine may merge
+it once CI is green. None needs a migration. The coordinator's next security PR will edit
+`supabase/functions/server/routes/organizations.ts` and `users.ts`, so keep #90's change in `authz.ts` and
+don't reshape those route files.
 
-- **[#74](https://github.com/corourke/GigManager/issues/74) — gigs move to Past as soon as they start.**
-  Approved 09-26 as posted on the issue: a failing test first; then a shared `isGigPast(gig, now)` helper, where a gig
-  is past only after the end of its last calendar day (`end`, else `start`) in the gig's `timezone`. Used by
-  `GigListScreen.tsx` and `MobileGigList.tsx`. Frontend only. Separate PR from #69.
+- **[#90](https://github.com/corourke/GigManager/issues/90) — deleting an organization always fails.**
+  Remove the `gig_bids` entry from `ORGANIZATION_DELETE_REFERENCES` in
+  `supabase/functions/server/lib/pure/authz.ts`; `gig_financials` is already listed. Add a test that pins the
+  list to the tables the migrations actually create. Edge function only: after merging, add "redeploy the
+  `server` function" to §3a for Cameron.
+
+- **[#91](https://github.com/corourke/GigManager/issues/91) — Dashboard asset and insured values always $0.**
+  In `supabase/functions/server/routes/gigs.ts` (the `/organizations/:id/dashboard` route), select and sum
+  `item_cost` instead of the renamed `cost`, and return the query error instead of silently reporting zero.
+  If the totals can be pulled into a pure helper under `lib/pure/`, test it there with Vitest. Edge function
+  only: same §3a note as #90, and one redeploy covers both.
+
+- **[#93](https://github.com/corourke/GigManager/issues/93) — some financial record dates use UTC.**
+  Replace the `toISOString().split('T')[0]` dates in `gig.service.ts` (import "Payment from import"),
+  `gigStaff.service.ts` (completed labor) and `purchase.service.ts` (fallback) with the local date: the
+  gig's `timezone` where there is a gig, otherwise the user's. `dateUtils` already has `formatInTimeZone`.
+  Tests around the day boundary, for example 8 PM Pacific. Frontend only.
+
+- **[#94](https://github.com/corourke/GigManager/issues/94) — a failed profile load at sign-in looks like "no organizations".**
+  `getCompleteUserData` in `user.service.ts` should stop swallowing errors. Tell a genuinely new user (no
+  profile) apart from a failed request, and have `AuthContext` show an error with a retry for the latter,
+  never the create-org flow. Tests for both paths. Frontend only.
 
 **Always a contract, never pre-approved:** new migrations or any RLS/policy change (AGENTS.md rule 4 — Cameron
 applies migrations), edge-function API shape, anything touching production config or `deploy_prod.sh`.
