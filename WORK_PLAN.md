@@ -11,8 +11,8 @@ Cameron questions.
 Migrated from GitHub issue [#41](https://github.com/corourke/GigManager/issues/41) on 2026-09-22. This file now
 supersedes that issue as the board of record.
 
-- **Last updated:** 2026-09-28 (coordinator: #84 fixed in PR #87; #81 reworked in PR #86, awaiting Cameron's check; #12 PRs 3–5 in progress; migration awaiting apply)
-- **State verified:** 2026-09-28 14:35 UTC (PRs #83 and #85 merged ~14:31 UTC, closing #69 and #74; no open PRs)
+- **Last updated:** 2026-09-30 (coordinator: #90, #91, #93, #94 released to triage in §3c; #95's deploy awaiting Cameron; #12 PRs 4–5 next)
+- **State verified:** 2026-09-29 09:10 UTC (9 open issues: #12, #20, #32, #39, #90–#94; open PRs: docs-only #88, CI green, merges cleanly)
 
 ---
 
@@ -20,9 +20,13 @@ supersedes that issue as the board of record.
 
 | # | Item | Type | State | Waiting on |
 |---|---|---|---|---|
-| [#81](https://github.com/corourke/GigManager/issues/81) | Packing list not following container structure | Bug | Reopened 09-28; indented list per Cameron's list and mockup merged in [#86](https://github.com/corourke/GigManager/pull/86) | Cameron — check the #81 gig's packing list after the next frontend deploy (§3a item 1) |
 | [#39](https://github.com/corourke/GigManager/issues/39) | Too many menu levels | UI/UX design | Direction set 09-26: keep the top nav (no sidebar) | Follows #12's redesign; then Cameron (§3a item 1) |
-| [#12](https://github.com/corourke/GigManager/issues/12) | Reorganize Gig Edit into tabbed sections | UI/UX design | Plan approved 09-26; PRs 1–2 merged ([#79](https://github.com/corourke/GigManager/pull/79), [#80](https://github.com/corourke/GigManager/pull/80)) | Coordinator — PRs 3–5 |
+| [#90](https://github.com/corourke/GigManager/issues/90) | Deleting an organization always fails (`gig_bids` doesn't exist) | Bug | From the 09-29 code review, confirmed | Triage — released in §3c 09-30 |
+| [#91](https://github.com/corourke/GigManager/issues/91) | Dashboard asset and insured values always $0 (`assets.cost` renamed) | Bug | From the 09-29 code review, confirmed | Triage — released in §3c 09-30 |
+| [#92](https://github.com/corourke/GigManager/issues/92) | Replace-all autosave can delete rows another user or tab added | Bug | From the 09-29 code review, confirmed by reading the code | Coordinator — not started |
+| [#93](https://github.com/corourke/GigManager/issues/93) | Some financial record dates use UTC instead of the local date | Bug (low) | From the 09-29 code review, confirmed | Triage — released in §3c 09-30 |
+| [#94](https://github.com/corourke/GigManager/issues/94) | A failed profile load at sign-in looks like "no organizations" | Bug (low) | From the 09-29 code review, confirmed | Triage — released in §3c 09-30 |
+| [#12](https://github.com/corourke/GigManager/issues/12) | Reorganize Gig Edit into tabbed sections | UI/UX design | Latest design approved 09-29; PRs 1–3 merged ([#79](https://github.com/corourke/GigManager/pull/79), [#80](https://github.com/corourke/GigManager/pull/80), [#89](https://github.com/corourke/GigManager/pull/89)) | Coordinator — PR 4 (printing), PR 5 (style guide) |
 | [#20](https://github.com/corourke/GigManager/issues/20) | Shared data-access layer under `src/services/` | Refactor | Pilot merged (PR #66); 15 services remain | Nothing — pick up next service when wanted |
 | [#32](https://github.com/corourke/GigManager/issues/32) | Sign Up: no confirm-password field | Low priority | Open, not urgent | Nothing — accepted for beta |
 
@@ -53,8 +57,8 @@ table or policy change needs a test in `supabase/tests/rls/`; CI runs it as the 
 Design and 5-PR plan approved 09-26 (mockups: https://claude.ai/artifact/DgFeir8bWRGLAQEERLyzSt); the
 coordinator builds and merges. PR 1 (schedule item free text, [#79](https://github.com/corourke/GigManager/pull/79))
 and PR 2 (one gig page, view mode, roles, Columns picker, [#80](https://github.com/corourke/GigManager/pull/80))
-merged 09-26. Next: PR 3 one edit mode (When & schedule, one save indicator, Done waits for saves), PR 4
-printing, PR 5 style guide.
+merged 09-26; PR 3 (one edit mode, [#89](https://github.com/corourke/GigManager/pull/89)) merged 09-29, when
+Cameron also approved the latest design. Next: PR 4 printing, PR 5 style guide.
 
 ### UI/UX — in design scoping
 
@@ -83,20 +87,17 @@ Low priority, explicitly acceptable for beta. Open, no action planned.
 *Curated by the coordinator session only.* Nothing below can move without a reply. Listed roughly in the
 order that unblocks the most work; the coordinator puts these to Cameron one at a time.
 
-1. **[#81](https://github.com/corourke/GigManager/issues/81)**: after the next frontend deploy, open the packing list for the #81 gig and compare it with the list on the issue (kits A to Z, contents indented, each container once). Close #81 if it matches.
+1. **Deploy migration `20260929000000_tighten_membership_and_rpc_authorization.sql`** ([#95](https://github.com/corourke/GigManager/pull/95), merged 09-29): `./deploy_dev.sh`, then `./deploy_prod.sh`. That applies the migration and redeploys the `server` edge function. Then, as an Admin: add and remove a contact on your own org, add a contact to a venue you created, and invite a Staff member. Urgent.
 2. **[#39](https://github.com/corourke/GigManager/issues/39)**: "keep top nav" (09-26) rules out the sidebar (Option B). It follows #12's redesign, since the gig screen is the deepest page and the two need one consistent header.
-3. **Apply migration `20260926000000_schedule_item_free_text.sql`** (#12 PR 1, [#79](https://github.com/corourke/GigManager/pull/79), merged 09-26):
-   `./deploy_dev.sh`, then `./deploy_prod.sh`. Until it's applied, saving schedule items named Act Arrival, Doors or
-   Return fails. The rest of #12 (plan approved 09-26, Cameron authorized the coordinator to merge) is being built by
-   the coordinator: PR 2 merged ([#80](https://github.com/corourke/GigManager/pull/80)), PRs 3–5 to come. Primary button colour decided: `sky-700` (#0369a1), as in the mockups.
-4. **Sentry secrets** — `SENTRY_API_TOKEN`, `SENTRY_ORG_SLUG`, `SENTRY_PROJECT_SLUG` for the health check's Sentry round-trip. Optional; it reports "not configured" until set.
+3. **Sentry secrets** — `SENTRY_API_TOKEN`, `SENTRY_ORG_SLUG`, `SENTRY_PROJECT_SLUG` for the health check's Sentry round-trip. Optional; it reports "not configured" until set.
 
 ### 3b. Raised by triage, for the coordinator
 
 *The triage routine adds entries here instead of asking Cameron directly — the question, and what it did in the
 meantime. The coordinator resolves each entry (decides it, or moves it into §3a) and deletes it.*
 
-*(None open.)*
+- **Security findings from the 09-29 `security-scheme.md` check, urgent.** Details went to Cameron by private notification on 09-29, not here, because this repo is public. In short, some contact-management RPCs trust caller-supplied input for authorization and can grant org membership, plus several broader read exposures. The fix needs a migration, which is a contract, so it's for the coordinator. Meanwhile triage filed no public issue and held the `security-scheme.md` doc update, since correcting the doc would describe the holes publicly.
+- **§3c still lists #69 and #74**, both shipped 09-28 (PRs #83, #85; issues closed). Triage left §3c alone; the entries can be deleted.
 
 ### 3c. Ready to build, nothing blocking
 
@@ -104,15 +105,34 @@ meantime. The coordinator resolves each entry (decides it, or moves it into §3a
 under AGENTS.md rule 1: the routine posts its plan on the issue and proceeds. Anything not listed here still
 needs approval before code changes.
 
-- **[#69](https://github.com/corourke/GigManager/issues/69) — adding a participant logs added/removed several times; each autosave re-creates the row.**
-  Approved 09-25, the fix posted on the issue: failing test first; `updateGigParticipants` returns the inserted
-  ids and `GigParticipantsSection` writes them back after the save, so later autosaves update in place.
-  Separate PR from #71.
+Released to the triage routine 09-30. Each is its own PR, with a failing test first. As the routine's prompt
+says, open the PR and don't merge it; the coordinator reviews and merges once CI is green. None needs a
+migration. The coordinator's next security PR will edit
+`supabase/functions/server/routes/organizations.ts` and `users.ts`, so keep #90's change in `authz.ts` and
+don't reshape those route files.
 
-- **[#74](https://github.com/corourke/GigManager/issues/74) — gigs move to Past as soon as they start.**
-  Approved 09-26 as posted on the issue: a failing test first; then a shared `isGigPast(gig, now)` helper, where a gig
-  is past only after the end of its last calendar day (`end`, else `start`) in the gig's `timezone`. Used by
-  `GigListScreen.tsx` and `MobileGigList.tsx`. Frontend only. Separate PR from #69.
+- **[#90](https://github.com/corourke/GigManager/issues/90) — deleting an organization always fails.**
+  Remove the `gig_bids` entry from `ORGANIZATION_DELETE_REFERENCES` in
+  `supabase/functions/server/lib/pure/authz.ts`; `gig_financials` is already listed. Add a test that pins the
+  list to the tables the migrations actually create. Edge function only: after merging, add "redeploy the
+  `server` function" to §3a for Cameron.
+
+- **[#91](https://github.com/corourke/GigManager/issues/91) — Dashboard asset and insured values always $0.**
+  In `supabase/functions/server/routes/gigs.ts` (the `/organizations/:id/dashboard` route), select and sum
+  `item_cost` instead of the renamed `cost`, and return the query error instead of silently reporting zero.
+  If the totals can be pulled into a pure helper under `lib/pure/`, test it there with Vitest. Edge function
+  only: same §3a note as #90, and one redeploy covers both.
+
+- **[#93](https://github.com/corourke/GigManager/issues/93) — some financial record dates use UTC.**
+  Replace the `toISOString().split('T')[0]` dates in `gig.service.ts` (import "Payment from import"),
+  `gigStaff.service.ts` (completed labor) and `purchase.service.ts` (fallback) with the local date: the
+  gig's `timezone` where there is a gig, otherwise the user's. `dateUtils` already has `formatInTimeZone`.
+  Tests around the day boundary, for example 8 PM Pacific. Frontend only.
+
+- **[#94](https://github.com/corourke/GigManager/issues/94) — a failed profile load at sign-in looks like "no organizations".**
+  `getCompleteUserData` in `user.service.ts` should stop swallowing errors. Tell a genuinely new user (no
+  profile) apart from a failed request, and have `AuthContext` show an error with a retry for the latter,
+  never the create-org flow. Tests for both paths. Frontend only.
 
 **Always a contract, never pre-approved:** new migrations or any RLS/policy change (AGENTS.md rule 4 — Cameron
 applies migrations), edge-function API shape, anything touching production config or `deploy_prod.sh`.
@@ -136,8 +156,9 @@ applies migrations), edge-function API shape, anything touching production confi
 | Docs refresh: `testing.md` (PR #67), `setup-guide.md` + one line of `deployment.md` (PR #68) | PR #67, PR #68 (09-23) | Merged; docs only, from triage docs passes |
 | #71 — non-expense financial records save `category: null`; Add dialog stays open until saved; failed autosave no longer retries in a loop (`useAutoSave.saveNow`) | PR #77 (09-26) | Merged; #71 closed. Frontend only, ships with the next frontend deploy |
 | #81 — web packing list groups rows under the kit they're packed in; every assigned kit, a lone container included, gets its own heading | PR #82 (09-27) | Merged, but a lone container then showed twice (heading + row); Cameron reopened #81 on 09-28 |
-| #84 — attachments open the file instead of a blank tab (`window.open` without `noopener`, opener cut by hand); first `AttachmentManager` tests | PR #87 (09-28) | Merged; #84 closed. Frontend only, ships with the next frontend deploy |
-| #81 rework — packing list is an indented list: kits A to Z marked Items/Container, an Items kit's contents indented under it, a lone container one line (approved mockup, board 7) | PR #86 (09-28) | Merged; #81 stays open for Cameron's check (§3a). Frontend only |
+| #12 PR 3 — one edit mode for the whole gig page: header fields, one save state, Done waits for saves; When & schedule with a dated table in the gig's time zone; the gig widens to cover its schedule | PR #89 (09-29) | Merged. Frontend only; no migration. Cameron to check edit mode after the next deploy |
+| #84 — attachments open the file instead of a blank tab (`window.open` without `noopener`, opener cut by hand); first `AttachmentManager` tests | PR #87 (09-28) | Merged; #84 closed. Deployed to dev + prod 09-29 |
+| #81 rework — packing list is an indented list: kits A to Z marked Items/Container, an Items kit's contents indented under it, a lone container one line (approved mockup, board 7) | PR #86 (09-28) | Merged; Cameron confirmed it on the live gig 09-29, #81 closed. Frontend only |
 | #74 — gig lists keep a gig in Upcoming until its last calendar day is over in the gig's timezone (`isGigPast` in `src/utils/gigTimeframe.ts`, web and mobile) | PR #85 (09-28) | Merged; #74 closed. Frontend only, ships with the next frontend deploy |
 | #69 — participants autosave keeps the database id after the first insert, so later autosaves update the row instead of deleting and re-inserting it (no more repeated added/removed History entries or unlinked schedule acts) | PR #83 (09-28) | Merged; #69 closed. Frontend only, ships with the next frontend deploy. Cameron to check a new participant's History after deploy |
 | Docs refresh: `docs/README.md` index (PR #70), `database.md` reconciled with migrations (PR #72) | PR #70, PR #72 (09-25) | Merged; docs only, from triage docs passes |
@@ -153,14 +174,16 @@ Read this section first on each run.
 
 | Claimed by | Files | Notes |
 |---|---|---|
+| Triage docs PR [#88](https://github.com/corourke/GigManager/pull/88) (`claude/friendly-hamilton-syc3g6`) | `docs/technical/server-endpoint-inventory.md`, one line each of `docs/README.md` and `docs/technical/tech-stack.md` | Docs only |
 | #20 remaining services | `src/services/*.service.ts` (all but `user.service.ts`) | Parked until Cameron asks for the next one |
-| Coordinator, #12 PR 3 (WIP branch `claude/epic-ramanujan-i9khnc`, no PR yet) | `GigScreen.tsx`, `gig/GigBasicInfoSection.tsx`, `gig/GigHeader.tsx`, `gig/GigScheduleEditor.tsx`, `gig/basicInfo/*`, `routes/screens.tsx`, `utils/hooks/editSession*`, `useAutoSave.ts`, `utils/scheduleWindow.ts` | Live as of 09-27 00:31 UTC |
+| Coordinator, #12 PRs 4–5 (next on `claude/epic-ramanujan-i9khnc`) | print/report components, `docs/design/STYLE_GUIDE.md` | Not started; PR 3's claim ended when #89 merged 09-29 04:52 UTC |
+| Coordinator, code-review bugs #90–#94 | not yet claimed | Not in §3c; triage leaves them alone |
 
 **Dependencies.** #12 and #39 both reshape navigation/gig-edit UI — do them in sequence, not in parallel, once
-each has a direction. #52's health check is live on dev and prod (09-25); its Sentry check additionally needs the Sentry secrets (§3a item 3). The tenant model is decided (hosted, shared DB, 09-25).
+each has a direction. #52's health check is live on dev and prod (09-25); its Sentry check additionally needs the Sentry secrets (§3a item 2). The tenant model is decided (hosted, shared DB, 09-25).
 
 **Where things stand.** 09-28: PRs #83 (#69) and #85 (#74) merged ~14:31 UTC; both issues closed.
-Urgent bug #84 approved by Cameron and fixed by the coordinator in PR #87 (merged 09-28); #81 reworked in PR #86, awaiting Cameron's check. Nothing in §3c is left unbuilt. #71 and #81 merged earlier (see §4).
+Urgent bug #84 approved by Cameron and fixed by the coordinator in PR #87 (merged 09-28). #81 reworked in PR #86; Cameron confirmed it 09-29 and it is closed. Nothing in §3c is left unbuilt. #71 and #81 merged earlier (see §4). 09-29: #12 PR 3 merged (#89) and code-review bugs #90–#94 filed by the coordinator; none are in §3c, so triage did a docs pass only.
 
 On 09-23 every item was blocked or parked, so the run moved on to docs. Docs-only PR
 [#67](https://github.com/corourke/GigManager/pull/67) refreshed `docs/development/testing.md`: suite size,
@@ -177,8 +200,8 @@ instead of 18, a supported Supabase CLI install, the full migration set instead 
 `server-endpoint-inventory.md`, the last marked historical). `database.md`'s "single initialization file" line turned
 out to be a dated 02-09 changelog entry, not stale. `docs/technical/database.md` body (09-25, PR #72: reconciled with every
 migration through `20260919000000` — dropped status-history tables, `kit_components` rename, six new tables, new columns).
-Next candidate: `docs/technical/server-endpoint-inventory.md`
-(still cites the pre-refactor 3,322-line `index.ts`; retire it or re-point it at `routes/`).
+`docs/technical/server-endpoint-inventory.md` (09-29, PR #88: re-pointed at `routes/`, every row checked against the
+middleware; `DELETE /gigs/:id` is Admin-only; access-request and notification routes added). `docs/technical/security-scheme.md` (09-29: checked against every policy, the RLS tests and the three edge functions; the update is **held** until the §3b security entry is resolved, then document helpers, gig UPDATE/DELETE and participant write rules, the full CORS list, `requireOrgRole` options and the `health-check` gate). Next candidate: `docs/technical/deployment.md` (try `deploy_prod.sh --help`/gates offline; don't run deploys).
 
 **Future considerations (not open work).** Left over from #61 (closed 09-25): gig attachments are invisible
 to the other orgs on a gig (needs a sharing flag plus a storage-policy change), and prod has an extra
@@ -194,12 +217,11 @@ broken yet.
 
 **Order of checks each run.**
 
-1. Check CI and mergeability on open PRs (none open as of 09-28 14:35 UTC; list live).
-2. #81: if Cameron has commented after checking the packing list, move it on (close, or raise what's still wrong in §3b).
-3. #39 — check for a reply. If a variant is picked → work plan → post → wait for approval → implement.
-4. #12 — same pattern.
-5. #20 — no open question; only act if Cameron asks for the next service to be migrated.
-6. Check §3b for unresolved entries the coordinator hasn't cleared yet.
+1. Check CI and mergeability on open PRs (docs PR #88 open as of 09-29; list live).
+2. #39 — check for a reply. If a variant is picked → work plan → post → wait for approval → implement.
+3. #12 — same pattern.
+4. #20 — no open question; only act if Cameron asks for the next service to be migrated.
+5. Check §3b for unresolved entries the coordinator hasn't cleared yet.
 
 **Don't manufacture activity.** #39 and #12 each already have exactly one open question on record.
 If a run finds everything still quiet, that is a legitimate no-op: do **not** re-post the same "still waiting"

@@ -24,6 +24,22 @@ BEGIN
   END;
 END $$;
 
+-- Like try(), but as the `anon` role with no user (the public API key, not signed in).
+CREATE FUNCTION rls_test.try_anon(p_sql text) RETURNS int LANGUAGE plpgsql AS $$
+DECLARE n int;
+BEGIN
+  BEGIN
+    PERFORM set_config('request.jwt.claim.sub', '', true);
+    SET LOCAL ROLE anon;
+    EXECUTE p_sql;
+    GET DIAGNOSTICS n = ROW_COUNT;
+    RAISE EXCEPTION USING ERRCODE = 'P0099', MESSAGE = n::text;
+  EXCEPTION
+    WHEN SQLSTATE 'P0099' THEN RESET ROLE; RETURN SQLERRM::int;
+    WHEN OTHERS THEN RESET ROLE; RETURN -1;
+  END;
+END $$;
+
 -- SELECT count helper: rows of `p_table` matching `p_where` visible to the user.
 CREATE FUNCTION rls_test.visible(p_user uuid, p_table text, p_where text DEFAULT 'true') RETURNS int
 LANGUAGE plpgsql AS $$

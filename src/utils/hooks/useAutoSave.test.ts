@@ -1,6 +1,9 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
+import { createElement, type ReactNode } from 'react';
 import { useAutoSave, type SaveResult } from './useAutoSave';
+import { useEditSession } from './editSession';
+import { EditSessionProvider } from './EditSessionProvider';
 
 describe('useAutoSave', () => {
   const mockOnSave = vi.fn().mockResolvedValue(undefined);
@@ -119,5 +122,40 @@ describe('useAutoSave', () => {
     expect(res).toEqual({ ok: true });
     expect(onSave).toHaveBeenCalledTimes(2);
   });
-});
 
+  // #12: Done waits for pending saves, including one already on its way to the server.
+  it('flushAsync waits for a save that is already in flight', async () => {
+    let finish!: () => void;
+    const onSave = vi.fn(() => new Promise<void>((resolve) => { finish = resolve; }));
+    const { result } = renderHook(() => useAutoSave({ gigId, onSave }));
+
+    await act(async () => {
+      result.current.triggerSave({ title: 'A' });
+      vi.advanceTimersByTime(500);
+    });
+    expect(onSave).toHaveBeenCalledTimes(1);
+
+    let flushed = false;
+    const flushing = result.current.flushAsync().then(() => { flushed = true; });
+    await act(async () => { await Promise.resolve(); });
+    expect(flushed).toBe(false);
+
+    await act(async () => { finish(); await flushing; });
+    expect(flushed).toBe(true);
+  });
+
+  it('reports its state and flush to an enclosing edit session', async () => {
+    const onSave = vi.fn().mockResolvedValue(undefined);
+    const { result: session } = renderHook(() => useEditSession());
+    const wrapper = ({ children }: { children: ReactNode }) =>
+      createElement(EditSessionProvider, { session: session.current }, children);
+    const { result } = renderHook(() => useAutoSave({ gigId, onSave }), { wrapper });
+
+    act(() => { result.current.triggerSave({ title: 'Pending' }); });
+    expect(onSave).not.toHaveBeenCalled();
+
+    await act(() => session.current.flushAll());
+    expect(onSave).toHaveBeenCalledWith({ title: 'Pending' });
+    expect(session.current.state).toBe('saved');
+  });
+});

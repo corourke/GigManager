@@ -12,6 +12,17 @@ export function parseBearer(authHeader: string | null | undefined): string | nul
 }
 
 /**
+ * Whether a member with `actorRole` may give someone `targetRole` in the same
+ * organization: Admins any role, Managers any but Admin, nobody else. The
+ * database's membership guard enforces the same rule for signed-in users.
+ */
+export function canAssignRole(actorRole: string | null | undefined, targetRole: string): boolean {
+  if (actorRole === 'Admin') return true;
+  if (actorRole === 'Manager') return targetRole !== 'Admin';
+  return false;
+}
+
+/**
  * Whether a membership role satisfies an allow-list. When no allow-list is
  * given, any role (i.e. any member) is permitted — matching the legacy
  * verifyOrgMembership behavior.

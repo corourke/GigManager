@@ -21,6 +21,7 @@ CREATE TABLE auth.users (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   email text,
   raw_user_meta_data jsonb DEFAULT '{}'::jsonb,
+  email_confirmed_at timestamptz,
   created_at timestamptz DEFAULT now()
 );
 CREATE FUNCTION auth.uid() RETURNS uuid LANGUAGE sql STABLE AS

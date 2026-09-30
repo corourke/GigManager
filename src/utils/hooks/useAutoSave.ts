@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { toast } from 'sonner';
+import { useReportToEditSession } from './editSession';
 
 export type SaveState = 'idle' | 'saving' | 'saved' | 'error';
 
@@ -36,8 +37,10 @@ export function useAutoSave<T>({
   // The last payload that failed. A debounced save skips an identical payload, so a
   // re-render of a still-dirty form doesn't retry a doomed save (and re-toast) forever.
   const lastFailedDataRef = useRef<string | null>(null);
+  // The save on its way to the server, so flushAsync can wait for it too.
+  const inFlightRef = useRef<Promise<SaveResult> | null>(null);
 
-  const performSave = useCallback(async (data: T): Promise<SaveResult> => {
+  const doSave = useCallback(async (data: T): Promise<SaveResult> => {
     const dataString = JSON.stringify(data);
     if (dataString === lastSavedDataRef.current) {
       return { ok: true };
@@ -69,6 +72,15 @@ export function useAutoSave<T>({
     }
   }, [onSave, onSuccess]);
 
+  const performSave = useCallback((data: T): Promise<SaveResult> => {
+    const saving = doSave(data);
+    inFlightRef.current = saving;
+    saving.finally(() => {
+      if (inFlightRef.current === saving) inFlightRef.current = null;
+    });
+    return saving;
+  }, [doSave]);
+
   const flush = useCallback(() => {
     if (timeoutRef.current) {
       clearTimeout(timeoutRef.current);
@@ -85,9 +97,13 @@ export function useAutoSave<T>({
       timeoutRef.current = null;
       if (dataToSaveRef.current) {
         await performSave(dataToSaveRef.current);
+        return;
       }
     }
+    if (inFlightRef.current) await inFlightRef.current;
   }, [performSave]);
+
+  useReportToEditSession(saveState, flushAsync);
 
   const triggerSave = useCallback((data: T) => {
     if (JSON.stringify(data) === lastFailedDataRef.current) {

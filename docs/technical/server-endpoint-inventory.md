@@ -39,8 +39,8 @@ Legend — **Auth**: 🔓 public · 🔑 any authenticated user · 👤 self onl
 | 14 | PUT | `/organizations/:id/members/:memberId` | 🛡️; 👑 to change to/from Admin | `requireOrgRole({ roles: ['Admin', 'Manager'] })` + inline check | Role/profile update. |
 | 15 | DELETE | `/organizations/:id/members/:memberId` | 🛡️; 👑 to remove an Admin | `requireOrgRole({ roles: ['Admin', 'Manager'] })` + inline check | Remove member. |
 | 16 | DELETE | `/invitations/:invitationId` | 🛡️ of the invitation's org | `requireUser` + inline `verifyOrgMembership` | Cancel an invite. |
-| 17 | POST | `/organizations/:id/invitations` | 🛡️ | `requireOrgRole({ roles: ['Admin', 'Manager'] })` | Create invite. |
-| 18 | POST | `/organizations/:id/members/create` | 🛡️ | `requireOrgRole({ roles: ['Admin', 'Manager'] })` | Create-and-add member. |
+| 17 | POST | `/organizations/:id/invitations` | 🛡️ | `requireOrgRole({ roles: ['Admin', 'Manager'] })` + `canAssignRole` | Create invite. Only an Admin may invite an Admin (09-29). |
+| 18 | POST | `/organizations/:id/members/create` | 🛡️ | `requireOrgRole({ roles: ['Admin', 'Manager'] })` + `canAssignRole` | Create-and-add member. Only an Admin may add an Admin (09-29). |
 
 ## Gigs
 
@@ -48,8 +48,8 @@ Legend — **Auth**: 🔓 public · 🔑 any authenticated user · 👤 self onl
 |---|--------|------|---------------------|----------|-------|
 | 19 | GET | `/gigs?organization_id=` | 🏢 of the query org | `requireOrgRole({ getOrgId: query })` | |
 | 20 | GET | `/gigs/:id` | 🏢 of any participant org | `requireGigAccess()` | Intersection model. |
-| 21 | POST | `/gigs` | 🛡️ of `primary_organization_id` | `requireOrgRole({ roles: ['Admin', 'Manager'], getOrgId: body })` | Q-C fix: the org id is required (`requireGigCreateOrgId`). The app creates gigs through the `create_gig_complex` RPC instead, which has the same check. |
-| 22 | PUT | `/gigs/:id` | 🛡️ of a participant org | `requireGigAccess(['Admin', 'Manager'])` | |
+| 21 | POST | `/gigs` | — | — | **Removed 09-29 (PR #95).** Unused: the app creates gigs with the `create_gig_complex` RPC. |
+| 22 | PUT | `/gigs/:id` | — | — | **Removed 09-29 (PR #95).** Unused: the app edits gigs through RLS-guarded table writes. |
 | 23 | DELETE | `/gigs/:id` | 👑 of a participant org | `requireGigAccess(['Admin'])` | Admin only, narrower than the 🛡️ the original spec listed. |
 | 24 | GET | `/organizations/:id/dashboard` | 🏢 except Viewer | `requireOrgRole({ roles: ['Admin', 'Manager', 'Staff'] })` | Staff allowed (read-only dashboard). |
 
@@ -104,7 +104,7 @@ Decisions made for the refactor. The two fixes (Q-C, Q-D) shipped with it.
 
 - **Q-A — User directory exposure (#3, #5, #6).** ✅ **Decision: keep open for now.** Behavior was preserved through the refactor. Tightening to shared-org/gig is tracked in Future Considerations below.
 - **Q-B — Open org creation (#8).** ✅ **Decision: keep open** — self-serve onboarding. Revisit with rate-limiting/abuse controls before public launch.
-- **Q-C — Gig creation check bypass (#21).** ✅ **Fixed** — `primary_organization_id` is required and Admin/Manager membership of it is always enforced. **Note (smoke test, June 2026):** the frontend actually creates gigs via the `create_gig_complex` SECURITY DEFINER RPC, **not** this server endpoint, so the same Admin/Manager check was also added inside the RPC and the permissive `gigs` INSERT policy dropped (migration `20260613000000`). The server-endpoint check stays as defense-in-depth.
+- **Q-C — Gig creation check bypass (#21).** ✅ **Fixed** — `primary_organization_id` is required and Admin/Manager membership of it is always enforced. **Note (smoke test, June 2026):** the frontend actually creates gigs via the `create_gig_complex` SECURITY DEFINER RPC, **not** this server endpoint, so the same Admin/Manager check was also added inside the RPC and the permissive `gigs` INSERT policy dropped (migration `20260613000000`). The unused server endpoint was removed on 09-29 (PR #95), so the RPC check is now the only one.
 - **Q-D — Calendar sync access check (#32).** ✅ **Fixed** — the caller must be a member of a participant org of `gig_id` (`requireGigAccess`).
 - **Q-E — WebAuthn unlock endpoints (#35, #36).** ✅ **Decision: keep public** — unlock flow, gates only the cosmetic UI lock (the Supabase session in localStorage stays valid regardless), not data access.
 
