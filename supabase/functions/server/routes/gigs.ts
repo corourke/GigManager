@@ -3,6 +3,7 @@ import { requireUser } from '../lib/auth.ts';
 import { requireOrgRole } from '../lib/orgRole.ts';
 import { requireGigAccess } from '../lib/gigAccess.ts';
 import { supabaseAdmin } from '../lib/supabaseAdmin.ts';
+import { DASHBOARD_ASSET_COLUMNS, sumAssetValues } from '../lib/pure/dashboard.ts';
 
 export function registerGigs(app: App) {
   // List gigs for an org the caller belongs to
@@ -78,18 +79,21 @@ export function registerGigs(app: App) {
       if (status && Object.prototype.hasOwnProperty.call(statusCounts, status)) statusCounts[status]++;
     });
 
-    const { data: assets } = await supabaseAdmin
-      .from('assets').select('cost, replacement_value, insurance_policy_added').eq('organization_id', orgId);
-    let totalAssetValue = 0;
-    let totalInsuredValue = 0;
-    if (isAdminOrManager) {
-      (assets || []).forEach((asset: any) => {
-        if (asset.cost) totalAssetValue += parseFloat(asset.cost);
-        if (asset.insurance_policy_added && asset.replacement_value) totalInsuredValue += parseFloat(asset.replacement_value);
-      });
+    const { data: assets, error: assetsError } = await supabaseAdmin
+      .from('assets').select(DASHBOARD_ASSET_COLUMNS).eq('organization_id', orgId);
+    if (assetsError) {
+      console.error('Error fetching assets for dashboard:', assetsError);
+      return c.json({ error: assetsError.message }, 500);
     }
+    const { totalAssetValue, totalInsuredValue } = isAdminOrManager
+      ? sumAssetValues(assets)
+      : { totalAssetValue: 0, totalInsuredValue: 0 };
 
-    const { data: kits } = await supabaseAdmin.from('kits').select('rental_value').eq('organization_id', orgId);
+    const { data: kits, error: kitsError } = await supabaseAdmin.from('kits').select('rental_value').eq('organization_id', orgId);
+    if (kitsError) {
+      console.error('Error fetching kits for dashboard:', kitsError);
+      return c.json({ error: kitsError.message }, 500);
+    }
     let totalRentalValue = 0;
     if (isAdminOrManager) {
       (kits || []).forEach((kit: any) => { if (kit.rental_value) totalRentalValue += parseFloat(kit.rental_value); });
