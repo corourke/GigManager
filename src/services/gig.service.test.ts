@@ -1003,5 +1003,35 @@ describe('gig.service', () => {
       expect(rpcArgs.p_staff_slots.map((s: any) => s.organization_id)).toEqual(['org-a']);
       expect(kitChain.insert).toHaveBeenCalledWith([expect.objectContaining({ kit_id: 'kit-a', organization_id: 'org-a' })]);
     });
+
+    it('sends staff slots in the shape create_gig_complex reads, unstaffed (#102)', async () => {
+      // create_gig_complex reads v_slot->>'role' (a role name), 'organization_id',
+      // 'required_count' and 'notes'. It never reads staff_role_id or assignments.
+      const originalGig = {
+        id: 'g', title: 'Original', start: '2026-03-15T20:00:00.000Z', end: '2026-03-16T01:00:00.000Z', timezone: 'UTC',
+        participants: [{ organization_id: 'org-a', role: 'Venue' }],
+        staff_slots: [
+          {
+            id: 'slot-1', gig_id: 'g', staff_role_id: 'role-uuid', organization_id: 'org-a',
+            required_count: 2, notes: 'Bring headset',
+            role_info: { name: 'Audio Engineer' },
+            assignments: [{ id: 'sa-1', user_id: 'u-1', status: 'Confirmed', rate: 50, fee: null, notes: null }],
+          },
+        ],
+      };
+      (requireAuth as any).mockResolvedValue({ supabase: mockSupabase, user: { id: 'user-1', user_metadata: {} } });
+      mockSupabase.from.mockImplementation((table: string) => {
+        if (table === 'gigs') return makeChain({ data: originalGig, error: null });
+        return makeChain({ data: [], error: null });
+      });
+      mockSupabase.rpc = vi.fn().mockResolvedValue({ data: [{ id: 'new' }], error: null });
+
+      await duplicateGig('g');
+
+      const rpcArgs = mockSupabase.rpc.mock.calls.find((c: any[]) => c[0] === 'create_gig_complex')[1];
+      expect(rpcArgs.p_staff_slots).toEqual([
+        { role: 'Audio Engineer', organization_id: 'org-a', required_count: 2, notes: 'Bring headset' },
+      ]);
+    });
   });
 });
