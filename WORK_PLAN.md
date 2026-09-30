@@ -12,7 +12,7 @@ Migrated from GitHub issue [#41](https://github.com/corourke/GigManager/issues/4
 supersedes that issue as the board of record.
 
 - **Last updated:** 2026-09-30 (coordinator: #12 PR 5 merged as #101, so all five #12 PRs are in; released #32, #102, #103 and a #20 slice to triage in §3c)
-- **State verified:** 2026-09-30 09:20 UTC by triage (5 open issues: #12, #20, #39, #92, #103; PRs #104 and #105 merged ~19:41 UTC and closed #102 and #32; PRs #106 and #107 open, CI green)
+- **State verified:** 2026-09-30 09:20 UTC by triage (5 open issues: #12, #20, #39, #92, #103; PRs #104 and #105 merged ~19:41 UTC and closed #102 and #32; PR #106 (#20 slice) merged 19:42; PR #107 open, CI green)
 
 ---
 
@@ -23,7 +23,7 @@ supersedes that issue as the board of record.
 | [#39](https://github.com/corourke/GigManager/issues/39) | Too many menu levels | UI/UX design | Direction set 09-26: keep the top nav (no sidebar) | Follows #12's redesign; then Cameron (§3a item 2) |
 | [#92](https://github.com/corourke/GigManager/issues/92) | Replace-all autosave can delete rows another user or tab added | Bug | From the 09-29 code review, confirmed by reading the code | Coordinator — not started |
 | [#12](https://github.com/corourke/GigManager/issues/12) | Reorganize Gig Edit into tabbed sections | UI/UX design | Latest design approved 09-29; All 5 PRs merged ([#79](https://github.com/corourke/GigManager/pull/79), [#80](https://github.com/corourke/GigManager/pull/80), [#89](https://github.com/corourke/GigManager/pull/89), [#100](https://github.com/corourke/GigManager/pull/100), [#101](https://github.com/corourke/GigManager/pull/101)) | Cameron — check after deploy, then close (§3a) |
-| [#20](https://github.com/corourke/GigManager/issues/20) | Shared data-access layer under `src/services/` | Refactor | Pilot merged (PR #66); `attachment.service.ts` in PR [#106](https://github.com/corourke/GigManager/pull/106), CI green; 14 services remain | Coordinator — review and merge #106 |
+| [#20](https://github.com/corourke/GigManager/issues/20) | Shared data-access layer under `src/services/` | Refactor | Pilot merged (PR #66); `attachment.service.ts` merged 09-30 (PR [#106](https://github.com/corourke/GigManager/pull/106)); 14 services remain | Nothing — next service when released |
 | [#103](https://github.com/corourke/GigManager/issues/103) | Participant and schedule history logged with no organization | Bug | PR [#107](https://github.com/corourke/GigManager/pull/107) open, CI green | Coordinator — review and merge |
 
 ---
@@ -67,7 +67,7 @@ work-plan-then-approval pattern as #12.
 **[#20](https://github.com/corourke/GigManager/issues/20) — Shared data-access layer under `src/services/`.**
 Base module + `user.service.ts` pilot **merged (PR #66, 09-22)**. The pattern is now settled — the remaining
 ~15 services are intentionally left for later, migrated service-by-service, one at a time. 09-30: Cameron asked
-for more triage work, so the coordinator released `attachment.service.ts` as the next one (§3c); triage opened PR #106 for it. `deleteAttachment` keeps its own queries, because it needs the deleted rows to detect a delete that RLS blocked.
+for more triage work, so the coordinator released `attachment.service.ts` as the next one (§3c); PR #106 moved it, merged 09-30. `deleteAttachment` keeps its own queries, because it needs the deleted rows to detect a delete that RLS blocked.
 
 ### Auth / session
 
@@ -167,6 +167,7 @@ applies migrations), edge-function API shape, anything touching production confi
 | Docs: `server-endpoint-inventory.md` re-pointed at `routes/` and checked row by row (includes #95's route changes); one line each of `docs/README.md` and `tech-stack.md` | PR #88 (09-30) | Merged by the coordinator; docs only |
 | #102 ([Duplicate Gig fails when the gig has crew slots](https://github.com/corourke/GigManager/issues/102)): `duplicateGig` sends each slot's role name as `role`, as `create_gig_complex` reads it; copied slots start unstaffed | PR #104 (09-30) | Merged; #102 closed. Frontend only |
 | #32 ([Sign Up: no confirm-password field](https://github.com/corourke/GigManager/issues/32)): Confirm password field that must match, plus a Weak/Fair/Strong hint (`getPasswordStrength`) that advises only; minimum stays 6 | PR #105 (09-30) | Merged; #32 closed. Frontend only |
+| #20 slice: `attachment.service.ts` table reads/writes on `base/dataAccess.ts`; storage calls and `deleteAttachment`'s queries unchanged | PR #106 (09-30) | Merged; #20 stays open, 14 services remain. Frontend only |
 | Tightened authorization on membership, contact, invitation and purchase functions; unused `POST /gigs` and `PUT /gigs/:id` removed | PR #95 (09-29) | Merged. Needs migration `20260929000000` and a `server` redeploy on dev and prod (§3a item 1) |
 | Docs refresh: `docs/README.md` index (PR #70), `database.md` reconciled with migrations (PR #72) | PR #70, PR #72 (09-25) | Merged; docs only, from triage docs passes |
 
@@ -182,7 +183,6 @@ Read this section first on each run.
 | Claimed by | Files | Notes |
 |---|---|---|
 | #20 remaining services | `src/services/*.service.ts` (all but `user.service.ts` and `attachment.service.ts`) | Parked; `attachment.service.ts` released 09-30 (§3c) |
-| PR #106 (#20) | `src/services/attachment.service.ts` + test | Open 09-30 |
 | PR #107 (#103) | `gigParticipant.service.ts`, `gigSchedule.service.ts`, `gigService.shared.ts` (+ tests), `GigParticipantsSection.tsx`, `MobileGigDetail.tsx` | Open 09-30 |
 | Coordinator, #92 | not yet claimed | Not in §3c; triage leaves it alone |
 | Stray branch `claude/triage-90-org-delete-references` | none | Duplicate of PR #96's commit, already merged. The proxy refused the delete; it's safe to delete |
@@ -223,7 +223,7 @@ broken yet.
 
 **Order of checks each run.**
 
-1. Check CI and mergeability on open PRs (#106 and #107 open as of 09-30 19:45 UTC; list live). Fix a red or conflicted triage PR by merging `main` into it, never by rebasing.
+1. Check CI and mergeability on open PRs (#107 open as of 09-30 19:45 UTC; list live). Fix a red or conflicted triage PR by merging `main` into it, never by rebasing.
 2. #39 — check for a reply. If a variant is picked → work plan → post → wait for approval → implement.
 3. #12 — same pattern.
 4. §3c — build what is released there that has no PR yet (all four 09-30 items have PRs #104–#107). For #20, only the service §3c names.
