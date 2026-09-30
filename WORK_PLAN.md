@@ -11,7 +11,7 @@ Cameron questions.
 Migrated from GitHub issue [#41](https://github.com/corourke/GigManager/issues/41) on 2026-09-22. This file now
 supersedes that issue as the board of record.
 
-- **Last updated:** 2026-09-30 (coordinator: merged triage PRs #96–#99 and docs PR #88; §3c cleared; org-delete question moved from §3b to §3a; #12 PR 4 open as #100)
+- **Last updated:** 2026-09-30 (coordinator: merged triage PRs #96–#99 and docs PR #88; §3c cleared; org-delete question moved from §3b to §3a; #12 PR 4 merged as #100; PR 5 next)
 - **State verified:** 2026-09-30 04:25 UTC by triage (5 open issues: #12, #20, #32, #39, #92; no open PRs; docs PR #88 merged 04:21 UTC. PRs #96–#99 merged 04:19 UTC and closed #90, #91, #93, #94)
 
 ---
@@ -134,6 +134,7 @@ applies migrations), edge-function API shape, anything touching production confi
 | #91 ([Dashboard asset and insured values always $0](https://github.com/corourke/GigManager/issues/91)): totals read `item_cost` through `lib/pure/dashboard.ts`, and query errors are returned | PR #97 (09-30) | Merged; #91 closed. The same `server` redeploy covers it |
 | #93 ([Some financial record dates use UTC](https://github.com/corourke/GigManager/issues/93)): import payment, completed labor and the purchase fallback are dated in the gig's time zone (`toDateInTimeZone`) | PR #98 (09-30) | Merged; #93 closed. Frontend only |
 | #94 ([A failed profile load looks like "no organizations"](https://github.com/corourke/GigManager/issues/94)): `getCompleteUserData` throws; `RequireAuth` shows "We couldn't load your account" with a retry | PR #99 (09-30) | Merged; #94 closed. Frontend only |
+| #12 PR 4 — printing: the gig page's Print button makes a gig sheet (venue, schedule, participants, crew contacts, notes, attachment names), and Admins and Managers can add a financials page; the packing list prints with a header (org, gig, date, counts) | PR #100 (09-30) | Merged. Frontend only |
 | Docs: `server-endpoint-inventory.md` re-pointed at `routes/` and checked row by row (includes #95's route changes); one line each of `docs/README.md` and `tech-stack.md` | PR #88 (09-30) | Merged by the coordinator; docs only |
 | Tightened authorization on membership, contact, invitation and purchase functions; unused `POST /gigs` and `PUT /gigs/:id` removed | PR #95 (09-29) | Merged. Needs migration `20260929000000` and a `server` redeploy on dev and prod (§3a item 1) |
 | Docs refresh: `docs/README.md` index (PR #70), `database.md` reconciled with migrations (PR #72) | PR #70, PR #72 (09-25) | Merged; docs only, from triage docs passes |
@@ -150,7 +151,7 @@ Read this section first on each run.
 | Claimed by | Files | Notes |
 |---|---|---|
 | #20 remaining services | `src/services/*.service.ts` (all but `user.service.ts`) | Parked until Cameron asks for the next one |
-| Coordinator, #12 PR 4 ([#100](https://github.com/corourke/GigManager/pull/100), `claude/epic-ramanujan-i9khnc`) | `src/components/gig/print/`, `GigPage.tsx`, `InventoryReports.tsx`, `globals.css` print block | Open; the coordinator merges it. PR 5 (`docs/design/STYLE_GUIDE.md`) follows |
+| Coordinator, #12 PR 5 (`claude/epic-ramanujan-i9khnc`) | `docs/design/STYLE_GUIDE.md` | Next. PR 4's claim ended when #100 merged 09-30 |
 | Coordinator, #92 | not yet claimed | Not in §3c; triage leaves it alone |
 | Stray branch `claude/triage-90-org-delete-references` | none | Duplicate of PR #96's commit, already merged. The proxy refused the delete; it's safe to delete |
 
@@ -192,7 +193,7 @@ broken yet.
 
 **Order of checks each run.**
 
-1. Check CI and mergeability on open PRs (as of 09-30: the coordinator's #100 only; list live). Fix a red or conflicted triage PR by merging `main` into it, never by rebasing.
+1. Check CI and mergeability on open PRs (none open as of 09-30 04:30 UTC; list live). Fix a red or conflicted triage PR by merging `main` into it, never by rebasing.
 2. #39 — check for a reply. If a variant is picked → work plan → post → wait for approval → implement.
 3. #12 — same pattern.
 4. #20 — no open question; only act if Cameron asks for the next service to be migrated.
