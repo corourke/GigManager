@@ -3,7 +3,17 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render as rtlRender, screen, waitFor, fireEvent } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import GigParticipantsSection from './GigParticipantsSection';
-import { updateGigParticipants } from '../../services/gig.service';
+import { getGig, updateGigParticipants } from '../../services/gig.service';
+import { useEditSession } from '../../utils/hooks/editSession';
+import { EditSessionProvider } from '../../utils/hooks/EditSessionProvider';
+import { EditSaveStatus } from './edit/GigEditParts';
+
+// The gig page in edit mode: the section inside the page's edit session, whose save
+// state re-renders the page (and so the section) while a save runs.
+function InEditSession({ children }: { children: ReactElement }) {
+  const session = useEditSession();
+  return <EditSessionProvider session={session}><EditSaveStatus state={session.state} />{children}</EditSessionProvider>;
+}
 
 // GigParticipantContactsList (rendered per participant row) uses TanStack
 // Query, so renders need a QueryClientProvider. retry:false keeps tests
@@ -215,4 +225,44 @@ describe('GigParticipantsSection', () => {
     expect(inserts).toHaveLength(1);
     expect(calls.at(-1)!.find((p) => p.organization_id === 'org-2')).toMatchObject({ id: dbIds['org-2'], is_client: true });
   }, 15000);
+
+  it('picking the organization and then the role adds the participant once, with no remove (#108 follow-up)', async () => {
+    // A stand-in for the real service: rows in a table, a fresh id per insert, and the
+    // same added/removed events it logs. Each save takes a while, as the real one does.
+    let n = 0;
+    const table = [{ id: '11111111-1111-4111-8111-111111111111', organization_id: 'org-1' }];
+    const events: string[] = [];
+    vi.mocked(getGig).mockResolvedValueOnce({ participants: [{ ...table[0], organization_name: 'Test Org', role: 'Production', notes: '', is_client: false }] } as any);
+    vi.mocked(updateGigParticipants).mockImplementation(async (_gigId, participants) => {
+      const existing = table.map((r) => r.id);
+      await new Promise((r) => setTimeout(r, 800)); // about half of a real save
+      const keep = participants.map((p) => p.id).filter(Boolean);
+      for (const id of existing.filter((id) => !keep.includes(id))) {
+        events.push(`removed ${table.find((r) => r.id === id)!.organization_id}`);
+        table.splice(table.findIndex((r) => r.id === id), 1);
+      }
+      const ids = participants.map((p) => {
+        if (p.id && existing.includes(p.id)) return p.id;
+        const id = `00000000-0000-4000-8000-${String(++n).padStart(12, '0')}`;
+        table.push({ id, organization_id: p.organization_id });
+        events.push(`added ${p.organization_id}`);
+        return id;
+      });
+      await new Promise((r) => setTimeout(r, 800)); // about half of a real save
+      return { success: true, ids };
+    });
+
+    render(<InEditSession><GigParticipantsSection {...mockProps} currentOrganizationId="org-1" currentOrganizationName="Test Org" /></InEditSession>);
+    await waitFor(() => expect(screen.getByText('Test Org')).toBeInTheDocument());
+
+    fireEvent.click(screen.getByText('Add Participant'));
+    fireEvent.click(await screen.findByText('Mock Select Org'));
+    // The role is picked about a second after the organization, as the first save starts.
+    await new Promise((r) => setTimeout(r, 900));
+    const roleSelects = screen.getAllByLabelText('Role');
+    fireEvent.change(roleSelects[roleSelects.length - 1], { target: { value: 'Venue' } });
+    await new Promise((r) => setTimeout(r, 8000));
+
+    expect(events).toEqual(['added org-2']);
+  }, 30000);
 });
