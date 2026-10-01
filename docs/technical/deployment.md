@@ -2,7 +2,7 @@
 
 **Purpose**: Single source of truth for how GigWrangler reaches production — the pipeline, every third-party service involved, the complete configuration inventory, and how to recover when something goes wrong.
 
-**Last Updated**: 2026-09-08
+**Last Updated**: 2026-10-01
 
 > For *local development* setup, see [setup-guide.md](./setup-guide.md). This document covers production only.
 
@@ -153,13 +153,19 @@ No branch/cleanliness/test gates and no backups — dev is where unmerged work l
 
 ## Continuous Integration
 
-[`.github/workflows/ci.yml`](../../.github/workflows/ci.yml) runs on every push and pull request to `main`:
+[`.github/workflows/ci.yml`](../../.github/workflows/ci.yml) runs two jobs on every push and pull request to `main`.
+
+**`ci`**:
 
 1. `npm ci`
 2. `npm run typecheck` — TypeScript strict mode
 3. `npm run lint` — ESLint flat config
 4. `npm run test:run` — full Vitest suite
 5. `npm run build` — production Vite build
+
+**`rls`**: applies every migration to a throwaway Postgres 17 service container and runs the tenant-isolation tests in
+[`supabase/tests/rls/`](../../supabase/tests/rls/README.md) (`supabase/tests/rls/run.sh`). Any new org-private table
+or policy change needs a test there.
 
 **CI never deploys.** Its only relationship to production is that `deploy_prod.sh` refuses to run unless CI concluded `success` for the exact commit being deployed.
 
@@ -549,6 +555,9 @@ The one-time bring-up, should production ever need to be recreated. This section
 
   supabase secrets list   # confirm all eleven are present
   ```
+
+  Then do the [daily health check setup](#daily-health-check--one-time-setup-issue-52): it adds
+  `HEALTH_CHECK_CRON_SECRET` and two Vault entries, without which the cron's calls are refused.
 
   `RP_NAME` is included even though its code default is already correct, so that every value the relying party depends on is explicit in one place rather than half-configured and half-inherited.
 
