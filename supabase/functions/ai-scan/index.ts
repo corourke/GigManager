@@ -1,8 +1,9 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.8";
-import Anthropic from "https://esm.sh/@anthropic-ai/sdk@0.32.1";
+import Anthropic from "npm:@anthropic-ai/sdk@0.131.0";
 import { encodeBase64 } from "https://deno.land/std@0.224.0/encoding/base64.ts";
 import { captureException } from "../_shared/sentry.ts";
 import { corsHeaders } from "../_shared/cors.ts";
+import { buildScanParams, readScanResponse } from "./scanRequest.ts";
 
 function getCorsHeaders(req: Request): Record<string, string> {
   return corsHeaders(req.headers.get('Origin'), {
@@ -288,25 +289,9 @@ Deno.serve(async (req) => {
       });
     }
 
-    content.push({
-      type: "text",
-      text: EXTRACTION_PROMPT,
-    });
-
     let response;
     try {
-      // Try the latest model (Claude 3.5 Sonnet / 4.6 ID)
-      // PDF support is now stable and does not require beta headers.
-      response = await anthropic.messages.create({
-        model: "claude-sonnet-4-6",
-        max_tokens: 16384,
-        messages: [
-          {
-            role: "user",
-            content: content,
-          },
-        ],
-      });
+      response = await anthropic.beta.messages.create(buildScanParams(content, EXTRACTION_PROMPT));
     } catch (err: any) {
       console.error('Anthropic API Error:', err.status, err.message);
       
@@ -330,7 +315,7 @@ Deno.serve(async (req) => {
       console.warn('AI response was truncated (max_tokens reached)');
     }
 
-    const rawOutput = (response.content[0] as any).text;
+    const rawOutput = readScanResponse(response);
     
     // Extract JSON from response
     const jsonMatch = rawOutput.match(/\{.*\}/s);

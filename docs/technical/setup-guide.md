@@ -249,7 +249,7 @@ The `ai-scan` edge function uses Anthropic's Claude models to extract structured
 
 1. **API Key**: Obtain an API key from the [Anthropic Console](https://console.anthropic.com/).
 2. **Model Support**:
-   - **Claude Sonnet 4.6** (`claude-sonnet-4-6`, hard-coded in `supabase/functions/ai-scan/index.ts`). It reads PDFs natively.
+   - **Claude Sonnet 5.5** (`claude-sonnet-5-5`) at `low` effort, set in `supabase/functions/ai-scan/scanRequest.ts`. It reads PDFs natively. About 2–4¢ per invoice.
 3. **PDF Support Requirement**: 
    - **Tier 1+ Required**: To use PDF scanning support, your Anthropic API account must be **Tier 1 or higher** (requires at least $5 in credits and a successful payment). 
    - **Tier 0 (Free/Build)**: Accounts on the free tier only support **image scanning** (JPG, PNG, WebP). PDF uploads will trigger a manual entry fallback in the UI.
@@ -261,7 +261,7 @@ The `ai-scan` edge function uses Anthropic's Claude models to extract structured
      --header "anthropic-version: 2023-06-01" \
      --header "content-type: application/json" \
      --data '{
-       "model": "claude-sonnet-4-6",
+       "model": "claude-sonnet-5-5",
        "max_tokens": 10,
        "messages": [{"role": "user", "content": "test"}]
      }'
