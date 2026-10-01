@@ -12,7 +12,7 @@ Migrated from GitHub issue [#41](https://github.com/corourke/GigManager/issues/4
 supersedes that issue as the board of record.
 
 - **Last updated:** 2026-10-01 (triage: #109 added, cause found, raised in §3b; docs PR #110 for `deployment.md`)
-- **State verified:** 2026-10-01 09:15 UTC by triage (5 open issues: #12, #20, #39, #92, #109; one open PR, docs-only #110 from triage)
+- **State verified:** 2026-10-01 09:15 UTC by triage (5 open issues: #12, #20, #39, #92, #109; no open PRs; docs PR #110 merged 15:03 UTC)
 
 ---
 
@@ -175,6 +175,7 @@ applies migrations), edge-function API shape, anything touching production confi
 | #20 slice: `attachment.service.ts` table reads/writes on `base/dataAccess.ts`; storage calls and `deleteAttachment`'s queries unchanged | PR #106 (09-30) | Merged; #20 stays open, 14 services remain. Frontend only |
 | #103 ([History logged with no organization](https://github.com/corourke/GigManager/issues/103)): participant and schedule History logged against the acting org (passed in `activityCtx`, else the user's Admin/Manager membership on the gig); no more `primary_organization_id` select; lookup errors surface | PR #107 (09-30) | Merged; #103 closed. Frontend only |
 | Tightened authorization on membership, contact, invitation and purchase functions; unused `POST /gigs` and `PUT /gigs/:id` removed | PR #95 (09-29) | Merged. Needs migration `20260929000000` and a `server` redeploy on dev and prod (§3a item 1) |
+| Docs: `deployment.md` lists CI's `rls` job; rebuild steps point to the health-check setup | PR #110 (10-01) | Merged; docs only, from a triage docs pass |
 | Docs refresh: `docs/README.md` index (PR #70), `database.md` reconciled with migrations (PR #72) | PR #70, PR #72 (09-25) | Merged; docs only, from triage docs passes |
 
 ---
@@ -190,14 +191,13 @@ Read this section first on each run.
 |---|---|---|
 | #20 remaining services | `src/services/*.service.ts` (all but `user.service.ts` and `attachment.service.ts`) | Parked; `attachment.service.ts` released 09-30 (§3c) |
 | Coordinator, #92 | not yet claimed | Not in §3c; triage leaves it alone |
-| Triage docs PR [#110](https://github.com/corourke/GigManager/pull/110) | `docs/technical/deployment.md` | Opened 10-01, docs only |
 | Stray branch `claude/triage-90-org-delete-references` | none | Duplicate of PR #96's commit, already merged. The proxy refused the delete; it's safe to delete |
 
 **Dependencies.** #12 and #39 both reshape navigation/gig-edit UI — do them in sequence, not in parallel, once
 each has a direction. #52's health check is live on dev and prod (09-25); its Sentry check additionally needs the Sentry secrets (§3a item 5). The tenant model is decided (hosted, shared DB, 09-25).
 
 **Where things stand.** 09-28: PRs #83 (#69) and #85 (#74) merged ~14:31 UTC; both issues closed.
-Urgent bug #84 approved by Cameron and fixed by the coordinator in PR #87 (merged 09-28). #81 reworked in PR #86; Cameron confirmed it 09-29 and it is closed. Nothing in §3c is left unbuilt. #71 and #81 merged earlier (see §4). 09-29: #12 PR 3 merged (#89) and code-review bugs #90–#94 filed by the coordinator; security PR #95 merged (deploy waits on Cameron, §3a). 09-30: the coordinator released #90, #91, #93 and #94 in §3c; triage built all four as PRs #96–#99, merged 04:19 UTC, and merged `main` into docs PR #88 to clear its conflict. #90 and #91 need a `server` redeploy. The coordinator merged docs PR #88 and moved triage's org-delete question to §3a. §3c is empty. Later on 09-30 the coordinator filed #102 and #103 and released them, #32 and `attachment.service.ts` (#20) in §3c. The 09:00 triage run built all four: PRs #104 (#102), #105 (#32), #106 (#20) and #107 (#103), each with a plan comment on its issue, a test written first and a mutation check. Nothing in §3c is left unbuilt. 10-01: Cameron filed #109 (packing-list picker); triage found the cause and raised it in §3b, and ran the docs pass on `deployment.md` (PR #110).
+Urgent bug #84 approved by Cameron and fixed by the coordinator in PR #87 (merged 09-28). #81 reworked in PR #86; Cameron confirmed it 09-29 and it is closed. Nothing in §3c is left unbuilt. #71 and #81 merged earlier (see §4). 09-29: #12 PR 3 merged (#89) and code-review bugs #90–#94 filed by the coordinator; security PR #95 merged (deploy waits on Cameron, §3a). 09-30: the coordinator released #90, #91, #93 and #94 in §3c; triage built all four as PRs #96–#99, merged 04:19 UTC, and merged `main` into docs PR #88 to clear its conflict. #90 and #91 need a `server` redeploy. The coordinator merged docs PR #88 and moved triage's org-delete question to §3a. §3c is empty. Later on 09-30 the coordinator filed #102 and #103 and released them, #32 and `attachment.service.ts` (#20) in §3c. The 09:00 triage run built all four: PRs #104 (#102), #105 (#32), #106 (#20) and #107 (#103), each with a plan comment on its issue, a test written first and a mutation check. Nothing in §3c is left unbuilt. 10-01: Cameron filed #109 (packing-list picker); triage found the cause and raised it in §3b, and ran the docs pass on `deployment.md` (PR #110, merged 15:03 UTC).
 
 On 09-23 every item was blocked or parked, so the run moved on to docs. Docs-only PR
 [#67](https://github.com/corourke/GigManager/pull/67) refreshed `docs/development/testing.md`: suite size,
@@ -215,7 +215,7 @@ instead of 18, a supported Supabase CLI install, the full migration set instead 
 out to be a dated 02-09 changelog entry, not stale. `docs/technical/database.md` body (09-25, PR #72: reconciled with every
 migration through `20260919000000` — dropped status-history tables, `kit_components` rename, six new tables, new columns).
 `docs/technical/server-endpoint-inventory.md` (09-29, PR #88, merged 09-30: re-pointed at `routes/`, every row checked against the
-middleware; `DELETE /gigs/:id` is Admin-only; access-request and notification routes added). `docs/technical/security-scheme.md` (09-29: checked against every policy, the RLS tests and the three edge functions; the update is **held** until the §3b security entry is resolved, then document helpers, gig UPDATE/DELETE and participant write rules, the full CORS list, `requireOrgRole` options and the `health-check` gate). `docs/technical/deployment.md` (10-01, PR #110: checked against both deploy scripts, `ci.yml`, `vite.config.ts`, `config.toml` and every env read; added the `rls` CI job and the health-check step to the rebuild. Scripts only `bash -n`-checked. `deploy_prod.sh` has no `--help` and starts its gates on any run, so don't run it). Next candidate: `docs/technical/tech-stack.md`.
+middleware; `DELETE /gigs/:id` is Admin-only; access-request and notification routes added). `docs/technical/security-scheme.md` (09-29: checked against every policy, the RLS tests and the three edge functions; the update is **held** until the §3b security entry is resolved, then document helpers, gig UPDATE/DELETE and participant write rules, the full CORS list, `requireOrgRole` options and the `health-check` gate). `docs/technical/deployment.md` (10-01, PR #110, merged 10-01: checked against both deploy scripts, `ci.yml`, `vite.config.ts`, `config.toml` and every env read; added the `rls` CI job and the health-check step to the rebuild. Scripts only `bash -n`-checked. `deploy_prod.sh` has no `--help` and starts its gates on any run, so don't run it). Next candidate: `docs/technical/tech-stack.md`.
 
 **Future considerations (not open work).** Left over from #61 (closed 09-25): gig attachments are invisible
 to the other orgs on a gig (needs a sharing flag plus a storage-policy change), and prod has an extra
@@ -229,7 +229,7 @@ broken yet.
 
 **Order of checks each run.**
 
-1. Check CI and mergeability on open PRs (docs PR #110 open as of 10-01 09:15 UTC; list live). Fix a red or conflicted triage PR by merging `main` into it, never by rebasing.
+1. Check CI and mergeability on open PRs (none open as of 10-01 15:05 UTC; list live). Fix a red or conflicted triage PR by merging `main` into it, never by rebasing.
 2. #39 — check for a reply. If a variant is picked → work plan → post → wait for approval → implement.
 3. #12 — same pattern.
 4. §3c — build what is released there that has no PR yet (all four 09-30 items shipped in #104–#107; the coordinator clears §3c). For #20, only the service §3c names.
