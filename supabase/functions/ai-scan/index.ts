@@ -1,9 +1,10 @@
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.8";
+import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.39.8";
 import Anthropic from "npm:@anthropic-ai/sdk@0.131.0";
 import { encodeBase64 } from "https://deno.land/std@0.224.0/encoding/base64.ts";
 import { captureException } from "../_shared/sentry.ts";
 import { corsHeaders } from "../_shared/cors.ts";
 import { buildScanParams, readScanResponse } from "./scanRequest.ts";
+import { mediaTypeFor, queueUpdateFor, staleScanCutoff } from "./scanQueue.ts";
 
 function getCorsHeaders(req: Request): Record<string, string> {
   return corsHeaders(req.headers.get('Origin'), {
@@ -13,14 +14,8 @@ function getCorsHeaders(req: Request): Record<string, string> {
 }
 
 const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024; // 10 MB
-const SCANS_PER_HOUR_LIMIT = 20;
-const ALLOWED_MEDIA_TYPES = new Set([
-  'application/pdf',
-  'image/jpeg',
-  'image/png',
-  'image/webp',
-  'image/gif',
-]);
+// Raised from 20 for scanning a batch of invoices at once (10-01); about $3/hour at most.
+const SCANS_PER_HOUR_LIMIT = 60;
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 const ASSET_CATEGORY_HINTS = `
@@ -120,6 +115,168 @@ function classifyItem(item: any) {
   return 'Expense';
 }
 
+interface ScanResult {
+  status: number;
+  body: Record<string, unknown>;
+}
+
+/** Reads one invoice file with Claude. Errors the caller should report come back as a status; others throw. */
+async function scanFile(file: File, organizationId: string, userId: string, adminClient: SupabaseClient): Promise<ScanResult> {
+  if (file.size > MAX_FILE_SIZE_BYTES) {
+    return { status: 413, body: { error: 'File too large (max 10 MB)' } };
+  }
+
+  // Resolve the media type (fall back to the extension for clients that send
+  // a generic content type) and enforce the allowlist
+  const mediaType = mediaTypeFor(file.type, file.name);
+  if (!mediaType) {
+    return { status: 415, body: { error: 'Unsupported file type (PDF, JPEG, PNG, WebP, or GIF only)' } };
+  }
+
+  // Per-user rate limit: count scans in the trailing hour before spending
+  // Anthropic credits; record the attempt before making the call
+  const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+  const { count: recentScans, error: usageError } = await adminClient
+    .from('ai_scan_usage')
+    .select('id', { count: 'exact', head: true })
+    .eq('user_id', userId)
+    .gte('created_at', oneHourAgo);
+
+  if (usageError) {
+    console.error('Failed to check scan usage:', usageError);
+    throw new Error('Unable to verify scan quota');
+  }
+
+  if ((recentScans ?? 0) >= SCANS_PER_HOUR_LIMIT) {
+    return { status: 429, body: { error: `Scan limit reached (${SCANS_PER_HOUR_LIMIT}/hour). Try again later.` } };
+  }
+
+  const { error: insertError } = await adminClient
+    .from('ai_scan_usage')
+    .insert({ user_id: userId, organization_id: organizationId });
+  if (insertError) {
+    console.error('Failed to record scan usage:', insertError);
+    throw new Error('Unable to record scan usage');
+  }
+
+  // Opportunistic cleanup so the usage table stays small
+  const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+  await adminClient.from('ai_scan_usage').delete().lt('created_at', oneDayAgo);
+
+  const arrayBuffer = await file.arrayBuffer();
+  const uint8Array = new Uint8Array(arrayBuffer);
+  const base64Data = encodeBase64(uint8Array);
+
+  const apiKey = Deno.env.get('ANTHROPIC_API_KEY');
+  if (!apiKey) {
+    throw new Error('ANTHROPIC_API_KEY environment variable is not set');
+  }
+
+  const anthropic = new Anthropic({
+    apiKey,
+  });
+
+  // Determine content for Anthropic message
+  const content: any[] = [];
+
+  if (mediaType === 'application/pdf') {
+    content.push({
+      type: "document",
+      source: {
+        type: "base64",
+        media_type: "application/pdf",
+        data: base64Data,
+      },
+    });
+  } else {
+    content.push({
+      type: "image",
+      source: {
+        type: "base64",
+        media_type: mediaType as any,
+        data: base64Data,
+      },
+    });
+  }
+
+  let response;
+  try {
+    response = await anthropic.beta.messages.create(buildScanParams(content, EXTRACTION_PROMPT));
+  } catch (err: any) {
+    console.error('Anthropic API Error:', err.status, err.message);
+    
+    if (err.status === 404 || err.status === 400) {
+      return {
+        status: 403,
+        body: {
+          error: 'SCAN_ACCESS_REQUIRED',
+          message: `Anthropic model access denied. Status: ${err.status}. Message: ${err.message}`,
+        },
+      };
+    } else {
+      throw err;
+    }
+  }
+
+  if (response.stop_reason === 'max_tokens') {
+    console.warn('AI response was truncated (max_tokens reached)');
+  }
+
+  const rawOutput = readScanResponse(response);
+  
+  // Extract JSON from response
+  const jsonMatch = rawOutput.match(/\{.*\}/s);
+  if (!jsonMatch) {
+    throw new Error('Failed to extract JSON from AI response');
+  }
+  
+  let jsonStr = jsonMatch[0];
+
+  // Attempt repair if truncated: close open arrays/objects
+  let parsed;
+  try {
+    parsed = JSON.parse(jsonStr);
+  } catch (_parseErr) {
+    // Try to repair truncated JSON by closing open brackets
+    let openBraces = 0;
+    let openBrackets = 0;
+    let inString = false;
+    let escape = false;
+    for (const ch of jsonStr) {
+      if (escape) { escape = false; continue; }
+      if (ch === '\\') { escape = true; continue; }
+      if (ch === '"') { inString = !inString; continue; }
+      if (inString) continue;
+      if (ch === '{') openBraces++;
+      else if (ch === '}') openBraces--;
+      else if (ch === '[') openBrackets++;
+      else if (ch === ']') openBrackets--;
+    }
+
+    // Remove trailing comma before closing
+    jsonStr = jsonStr.replace(/,\s*$/, '');
+
+    for (let i = 0; i < openBrackets; i++) jsonStr += ']';
+    for (let i = 0; i < openBraces; i++) jsonStr += '}';
+
+    try {
+      parsed = JSON.parse(jsonStr);
+      console.warn('Repaired truncated JSON successfully');
+    } catch (repairErr: any) {
+      throw new Error(`AI returned malformed JSON that could not be repaired: ${repairErr.message}`);
+    }
+  }
+  
+  // Post-process: Apply classification and format for preview
+  const processedItems = (parsed.items || []).map((item: any) => ({
+    ...item,
+    suggested_type: classifyItem(item),
+    item_cost: item.item_cost || item.item_price || 0, // Fallback to item_price for cost if not extracted
+  }));
+
+  return { status: 200, body: { ...parsed, items: processedItems } };
+}
+
 Deno.serve(async (req) => {
   const corsHeaders = getCorsHeaders(req);
 
@@ -150,6 +307,65 @@ Deno.serve(async (req) => {
       });
     }
 
+    const json = (status: number, payload: unknown) =>
+      new Response(JSON.stringify(payload), { status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+
+    // Service-role client for the membership check, rate limiting and the scan
+    // queue (ai_scan_usage has no RLS policies; it is service-role only)
+    const adminClient = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+    );
+
+    // A queued invoice (10-01): the file is already in storage; claim the row so
+    // no other tab scans it too, scan it, and record the result on the row.
+    if ((req.headers.get('content-type') ?? '').includes('application/json')) {
+      const { queue_item_id: queueItemId } = await req.json().catch(() => ({}));
+      if (typeof queueItemId !== 'string' || !UUID_REGEX.test(queueItemId)) {
+        return json(400, { error: 'queue_item_id is required' });
+      }
+      const { data: item } = await adminClient
+        .from('purchase_scan_queue')
+        .select('id, organization_id, file_name, attachments(file_path)')
+        .eq('id', queueItemId)
+        .maybeSingle();
+      if (!item) return json(404, { error: 'Invoice not found in the scan queue' });
+
+      const { data: role } = await adminClient
+        .from('organization_members')
+        .select('role')
+        .eq('organization_id', item.organization_id)
+        .eq('user_id', user.id)
+        .maybeSingle();
+      if (!role || !['Admin', 'Manager'].includes(role.role)) {
+        return json(403, { error: 'Only Admins and Managers can scan invoices' });
+      }
+
+      const { data: claimed } = await adminClient
+        .from('purchase_scan_queue')
+        .update({ status: 'scanning', error: null })
+        .eq('id', queueItemId)
+        .or(`status.in.(queued,failed),and(status.eq.scanning,updated_at.lt.${staleScanCutoff(new Date())})`)
+        .select('id');
+      if (!claimed?.length) return json(409, { error: 'This invoice is already being scanned' });
+
+      let result: ScanResult;
+      try {
+        const filePath = (item.attachments as { file_path?: string } | null)?.file_path;
+        const { data: blob, error: downloadError } = filePath
+          ? await adminClient.storage.from('attachments').download(filePath)
+          : { data: null, error: new Error('missing file') };
+        if (downloadError || !blob) throw new Error('Could not read the invoice file');
+        const file = new File([blob], item.file_name, { type: blob.type });
+        result = await scanFile(file, item.organization_id, user.id, adminClient);
+      } catch (err: any) {
+        await captureException(err);
+        result = { status: 500, body: { error: err.message || 'Scan failed' } };
+      }
+      await adminClient.from('purchase_scan_queue').update(queueUpdateFor(result)).eq('id', queueItemId);
+      return json(result.status, result.body);
+    }
+
     const formData = await req.formData();
     const file = formData.get('file') as File;
     const organizationId = formData.get('organization_id');
@@ -168,13 +384,6 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Service-role client for the membership check and rate limiting
-    // (ai_scan_usage has no RLS policies; it is service-role only)
-    const adminClient = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-    );
-
     const { data: membership, error: membershipError } = await adminClient
       .from('organization_members')
       .select('id')
@@ -189,193 +398,8 @@ Deno.serve(async (req) => {
       });
     }
 
-    if (file.size > MAX_FILE_SIZE_BYTES) {
-      return new Response(JSON.stringify({ error: 'File too large (max 10 MB)' }), {
-        status: 413,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
-
-    // Resolve the media type (fall back to extension for clients that send
-    // a generic content type) and enforce the allowlist
-    let mediaType = file.type;
-    if (!ALLOWED_MEDIA_TYPES.has(mediaType)) {
-      const ext = file.name.split('.').pop()?.toLowerCase();
-      if (ext === 'pdf') mediaType = 'application/pdf';
-      else if (ext === 'jpg' || ext === 'jpeg') mediaType = 'image/jpeg';
-      else if (ext === 'png') mediaType = 'image/png';
-      else if (ext === 'webp') mediaType = 'image/webp';
-      else if (ext === 'gif') mediaType = 'image/gif';
-    }
-    if (!ALLOWED_MEDIA_TYPES.has(mediaType)) {
-      return new Response(
-        JSON.stringify({ error: 'Unsupported file type (PDF, JPEG, PNG, WebP, or GIF only)' }),
-        {
-          status: 415,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        }
-      );
-    }
-
-    // Per-user rate limit: count scans in the trailing hour before spending
-    // Anthropic credits; record the attempt before making the call
-    const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
-    const { count: recentScans, error: usageError } = await adminClient
-      .from('ai_scan_usage')
-      .select('id', { count: 'exact', head: true })
-      .eq('user_id', user.id)
-      .gte('created_at', oneHourAgo);
-
-    if (usageError) {
-      console.error('Failed to check scan usage:', usageError);
-      throw new Error('Unable to verify scan quota');
-    }
-
-    if ((recentScans ?? 0) >= SCANS_PER_HOUR_LIMIT) {
-      return new Response(
-        JSON.stringify({ error: `Scan limit reached (${SCANS_PER_HOUR_LIMIT}/hour). Try again later.` }),
-        {
-          status: 429,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        }
-      );
-    }
-
-    const { error: insertError } = await adminClient
-      .from('ai_scan_usage')
-      .insert({ user_id: user.id, organization_id: organizationId });
-    if (insertError) {
-      console.error('Failed to record scan usage:', insertError);
-      throw new Error('Unable to record scan usage');
-    }
-
-    // Opportunistic cleanup so the usage table stays small
-    const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-    await adminClient.from('ai_scan_usage').delete().lt('created_at', oneDayAgo);
-
-    const arrayBuffer = await file.arrayBuffer();
-    const uint8Array = new Uint8Array(arrayBuffer);
-    const base64Data = encodeBase64(uint8Array);
-
-    const apiKey = Deno.env.get('ANTHROPIC_API_KEY');
-    if (!apiKey) {
-      throw new Error('ANTHROPIC_API_KEY environment variable is not set');
-    }
-
-    const anthropic = new Anthropic({
-      apiKey,
-    });
-
-    // Determine content for Anthropic message
-    const content: any[] = [];
-
-    if (mediaType === 'application/pdf') {
-      content.push({
-        type: "document",
-        source: {
-          type: "base64",
-          media_type: "application/pdf",
-          data: base64Data,
-        },
-      });
-    } else {
-      content.push({
-        type: "image",
-        source: {
-          type: "base64",
-          media_type: mediaType as any,
-          data: base64Data,
-        },
-      });
-    }
-
-    let response;
-    try {
-      response = await anthropic.beta.messages.create(buildScanParams(content, EXTRACTION_PROMPT));
-    } catch (err: any) {
-      console.error('Anthropic API Error:', err.status, err.message);
-      
-      if (err.status === 404 || err.status === 400) {
-        return new Response(
-          JSON.stringify({ 
-            error: 'SCAN_ACCESS_REQUIRED', 
-            message: `Anthropic model access denied. Status: ${err.status}. Message: ${err.message}` 
-          }),
-          {
-            status: 403,
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-          }
-        );
-      } else {
-        throw err;
-      }
-    }
-
-    if (response.stop_reason === 'max_tokens') {
-      console.warn('AI response was truncated (max_tokens reached)');
-    }
-
-    const rawOutput = readScanResponse(response);
-    
-    // Extract JSON from response
-    const jsonMatch = rawOutput.match(/\{.*\}/s);
-    if (!jsonMatch) {
-      throw new Error('Failed to extract JSON from AI response');
-    }
-    
-    let jsonStr = jsonMatch[0];
-
-    // Attempt repair if truncated: close open arrays/objects
-    let parsed;
-    try {
-      parsed = JSON.parse(jsonStr);
-    } catch (_parseErr) {
-      // Try to repair truncated JSON by closing open brackets
-      let openBraces = 0;
-      let openBrackets = 0;
-      let inString = false;
-      let escape = false;
-      for (const ch of jsonStr) {
-        if (escape) { escape = false; continue; }
-        if (ch === '\\') { escape = true; continue; }
-        if (ch === '"') { inString = !inString; continue; }
-        if (inString) continue;
-        if (ch === '{') openBraces++;
-        else if (ch === '}') openBraces--;
-        else if (ch === '[') openBrackets++;
-        else if (ch === ']') openBrackets--;
-      }
-
-      // Remove trailing comma before closing
-      jsonStr = jsonStr.replace(/,\s*$/, '');
-
-      for (let i = 0; i < openBrackets; i++) jsonStr += ']';
-      for (let i = 0; i < openBraces; i++) jsonStr += '}';
-
-      try {
-        parsed = JSON.parse(jsonStr);
-        console.warn('Repaired truncated JSON successfully');
-      } catch (repairErr: any) {
-        throw new Error(`AI returned malformed JSON that could not be repaired: ${repairErr.message}`);
-      }
-    }
-    
-    // Post-process: Apply classification and format for preview
-    const processedItems = (parsed.items || []).map((item: any) => ({
-      ...item,
-      suggested_type: classifyItem(item),
-      item_cost: item.item_cost || item.item_price || 0, // Fallback to item_price for cost if not extracted
-    }));
-
-    return new Response(
-      JSON.stringify({
-        ...parsed,
-        items: processedItems,
-      }),
-      {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      }
-    );
+    const result = await scanFile(file, organizationId, user.id, adminClient);
+    return json(result.status, result.body);
 
   } catch (error: any) {
     console.error('Error in ai-scan:', error);

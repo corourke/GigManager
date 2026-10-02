@@ -1139,7 +1139,7 @@ Tracks sync status of gigs to Google Calendar per user.
 
 ### ai_scan_usage
 
-Usage log for the `ai-scan` edge function, used for per-user rate limiting (20 scans/hour).
+Usage log for the `ai-scan` edge function, used for per-user rate limiting (60 scans/hour since 10-02; it was 20).
 
 | Field | Type | Description |
 |-------|------|-------------|
@@ -1153,6 +1153,29 @@ Usage log for the `ai-scan` edge function, used for per-user rate limiting (20 s
 - Not a long-term audit log: the edge function opportunistically deletes rows older than 24 hours.
 - Indexed on (user_id, created_at) (`idx_ai_scan_usage_user_time`) for the trailing-hour quota query.
 - No foreign keys on `user_id` / `organization_id` (migration 20260612000001).
+
+---
+
+### purchase_scan_queue
+
+Invoices waiting to be scanned or reviewed on Financials → Purchases → Scan invoices (migration `20261002000000`). Each row is one uploaded invoice file; the row is deleted once its purchase is saved or the invoice is discarded.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| id | UUID | Primary key |
+| organization_id | UUID | Owning organization (NOT NULL, cascades on delete) |
+| attachment_id | UUID | The uploaded invoice file in `attachments` (NOT NULL, cascades on delete) |
+| file_name | TEXT | Original file name (NOT NULL) |
+| status | TEXT | `queued`, `scanning`, `ready` or `failed` (NOT NULL, default `queued`) |
+| scanned_data | JSONB | What the scan read: vendor, date, totals, line items |
+| error | TEXT | Why the scan failed |
+| created_by | UUID | Defaults to `auth.uid()` |
+| created_at / updated_at | TIMESTAMPTZ | `updated_at` maintained by trigger |
+
+**Notes:**
+- RLS: the organization's Admins and Managers only, for every operation, as with `purchases`. A row's `attachment_id` must belong to the same organization.
+- The `ai-scan` edge function, called with `{ queue_item_id }`, claims a row (`queued`/`failed`, or `scanning` for over five minutes), reads its file from storage, and writes the result back.
+- Discarding an invoice deletes its attachment, which deletes the row. Saving a purchase links the attachment to the purchase and deletes the row.
 
 ---
 
@@ -1392,6 +1415,7 @@ All tables have RLS **ENABLED**. Access is controlled through a combination of R
 | `user_google_calendar_settings` | Own settings | Own | Own | Own |
 | `gig_sync_status` | Own + participating gigs | Own | Own | Own |
 | `ai_scan_usage` | — (service role only) | — | — | — |
+| `purchase_scan_queue` | Admin/Manager | Admin/Manager (own org's file) | Admin/Manager | Admin/Manager |
 
 ### Role Hierarchy
 

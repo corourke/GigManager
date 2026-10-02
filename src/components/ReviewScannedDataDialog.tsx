@@ -128,6 +128,8 @@ interface ReviewScannedDataDialogProps {
   layout?: 'dialog' | 'page';
   /** The label of the button that calls onOpenChange(false). */
   cancelLabel?: string;
+  /** The file is already uploaded (a queued invoice): link this attachment instead of uploading `file` again. */
+  attachmentId?: string;
 }
 
 export default function ReviewScannedDataDialog({
@@ -142,6 +144,7 @@ export default function ReviewScannedDataDialog({
   onUpdated,
   layout = 'dialog',
   cancelLabel = 'Cancel',
+  attachmentId,
 }: ReviewScannedDataDialogProps) {
   const isPage = layout === 'page';
   const isEditMode = !!editPurchaseId;
@@ -445,7 +448,14 @@ export default function ReviewScannedDataDialog({
         }
       }
 
-      if (file) {
+      if (attachmentId) {
+        try {
+          await linkAttachmentToEntity(attachmentId, 'purchase', result.id);
+        } catch (linkErr) {
+          console.error('Error linking receipt attachment:', linkErr);
+          toast.error('Purchase created, but failed to attach the invoice');
+        }
+      } else if (file) {
         try {
           const attachment = await uploadAttachment(organizationId, file);
           if (attachment) {
