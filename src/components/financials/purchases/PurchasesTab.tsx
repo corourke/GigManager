@@ -72,6 +72,18 @@ import PurchaseDetailPanel, { PanelState } from './PurchaseDetailPanel';
 import ReviewScannedDataDialog from '../../ReviewScannedDataDialog';
 import PurchaseSummaryView from './PurchaseSummaryView';
 import GigCombobox from './GigCombobox';
+import {
+  DATE_PRESETS,
+  DEFAULT_DATE_PRESET,
+  groupPurchases,
+  presetRange,
+  purchaseTotals,
+  type DatePreset,
+  type PurchaseTypeFilter,
+} from './purchaseFilters';
+
+const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
+const money = (n: number) => `$${n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 interface PurchasesTabProps {
   organization: Organization;
@@ -123,9 +135,12 @@ export default function PurchasesTab({
 
   // Filters
   const [vendorFilter, setVendorFilter] = useState('');
-  const [typeFilter, setTypeFilter] = useState<'all' | 'asset' | 'expense'>('all');
-  const [startDate, setStartDate] = useState('');
-  const [endDate, setEndDate] = useState('');
+  const [typeFilter, setTypeFilter] = useState<PurchaseTypeFilter>('all');
+  // The report opens on the last 30 days so the list stays short; a preset fills
+  // in From/To, and typing a date by hand clears the preset.
+  const [datePreset, setDatePreset] = useState<DatePreset | null>(DEFAULT_DATE_PRESET);
+  const [startDate, setStartDate] = useState(() => presetRange(DEFAULT_DATE_PRESET).from);
+  const [endDate, setEndDate] = useState(() => presetRange(DEFAULT_DATE_PRESET).to);
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [activeUploadHeaderId, setActiveUploadHeaderId] = useState<string | null>(null);
@@ -420,78 +435,23 @@ export default function PurchasesTab({
     });
   }, [purchases, vendorFilter, startDate, endDate, showOnlyHighlighted, highlightPurchaseId]);
 
-  const groupedPurchases = useMemo(() => {
-    const headers = filteredPurchases.filter(p => p.row_type === 'header');
-    const items = filteredPurchases.filter(p => p.row_type === 'item' || p.row_type === 'asset');
+  const groupedPurchases = useMemo(() => groupPurchases(filteredPurchases, typeFilter), [filteredPurchases, typeFilter]);
 
-    const groups = headers.map(header => {
-      const children = items.filter(item => item.parent_id === header.id);
+  const totals = useMemo(() => purchaseTotals(groupedPurchases), [groupedPurchases]);
+  const allTimeTotals = useMemo(() => purchaseTotals(groupPurchases(purchases, 'all')), [purchases]);
 
-      const hasAssets = children.some(c => c.asset_id || c.row_type === 'asset');
-      const hasExpenses = children.some(c => !c.asset_id && c.row_type !== 'asset');
-
-      let matchesType = true;
-      if (typeFilter === 'asset') matchesType = hasAssets;
-      if (typeFilter === 'expense') matchesType = hasExpenses;
-
-      if (!matchesType) return null;
-
-      return {
-        header,
-        children: children.filter(c => {
-          if (typeFilter === 'asset') return !!c.asset_id || c.row_type === 'asset';
-          if (typeFilter === 'expense') return !c.asset_id && c.row_type !== 'asset';
-          return true;
-        })
-      };
-    }).filter(Boolean) as Array<{ header: DbPurchase, children: DbPurchase[] }>;
-
-    const orphanedItems = items.filter(item =>
-      !headers.some(h => h.id === item.parent_id) &&
-      (typeFilter === 'all' || (typeFilter === 'asset' ? (!!item.asset_id || item.row_type === 'asset') : (!item.asset_id && item.row_type !== 'asset')))
-    );
-
-    if (orphanedItems.length > 0) {
-      const orphanGroups = new Map<string, DbPurchase[]>();
-      orphanedItems.forEach(item => {
-        const key = `${item.purchase_date}|${item.vendor}`;
-        if (!orphanGroups.has(key)) orphanGroups.set(key, []);
-        orphanGroups.get(key)!.push(item);
-      });
-
-      orphanGroups.forEach((children, key) => {
-        const [date, vendor] = key.split('|');
-        groups.push({
-          header: {
-            id: `orphan-${key}`,
-            purchase_date: date,
-            vendor,
-            row_type: 'header',
-            total_inv_amount: children.reduce((sum, c) => sum + (c.line_cost || 0), 0)
-          } as DbPurchase,
-          children
-        });
-      });
-    }
-
-    return groups.sort((a, b) => (b.header.purchase_date || '').localeCompare(a.header.purchase_date || ''));
-  }, [filteredPurchases, typeFilter]);
-
-  const totals = useMemo(() => {
-    let totalCost = 0;
-    let assetCount = 0;
-    let expenseCount = 0;
-
-    groupedPurchases.forEach(group => {
-      group.children.forEach(child => {
-        totalCost += (child.line_cost || 0);
-        if (child.asset_id || child.row_type === 'asset') assetCount++;
-        else expenseCount++;
-      });
-    });
-
-    return { totalCost, assetCount, expenseCount };
-  }, [groupedPurchases]);
+  const applyDatePreset = (preset: DatePreset) => {
+    const { from, to } = presetRange(preset);
+    setDatePreset(preset);
+    setStartDate(from);
+    setEndDate(to);
+  };
+  const filtersAreDefault = !vendorFilter && typeFilter === 'all' && datePreset === DEFAULT_DATE_PRESET;
+  const clearAllFilters = () => {
+    setVendorFilter('');
+    setTypeFilter('all');
+    applyDatePreset(DEFAULT_DATE_PRESET);
+  };
 
   const highlightedGroupId = useMemo(() => {
     if (!highlightPurchaseId) return null;
@@ -695,7 +655,7 @@ export default function PurchasesTab({
                 type="date"
                 className="h-9 text-sm"
                 value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
+                onChange={(e) => { setStartDate(e.target.value); setDatePreset(null); }}
               />
             </div>
             <div className="w-36">
@@ -704,7 +664,7 @@ export default function PurchasesTab({
                 type="date"
                 className="h-9 text-sm"
                 value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
+                onChange={(e) => { setEndDate(e.target.value); setDatePreset(null); }}
               />
             </div>
 
@@ -729,10 +689,37 @@ export default function PurchasesTab({
               </Button>
             </div>
 
-            <div className="ml-auto flex gap-4 px-4 py-2 bg-gray-50 rounded-lg border border-gray-100">
+          </div>
+
+          <div className="flex flex-wrap items-center gap-1.5 mt-3">
+            {DATE_PRESETS.map(({ key, label }) => {
+              const isActive = datePreset === key;
+              return (
+                <button
+                  key={key}
+                  type="button"
+                  aria-pressed={isActive}
+                  onClick={() => applyDatePreset(key)}
+                  className={`px-2.5 py-1 rounded-full text-xs font-medium border transition-colors ${
+                    isActive
+                      ? 'bg-primary text-primary-foreground border-primary'
+                      : 'bg-white text-gray-600 border-gray-300 hover:border-gray-400 hover:text-gray-800'
+                  }`}
+                >
+                  {label}
+                </button>
+              );
+            })}
+            {!filtersAreDefault && (
+              <Button variant="ghost" size="sm" className="h-7 px-2 text-xs text-muted-foreground" onClick={clearAllFilters}>
+                <X className="w-3.5 h-3.5 mr-1" />
+                Clear all filters
+              </Button>
+            )}
+            <div className="ml-auto flex gap-3 px-3 py-1.5 bg-gray-50 rounded-lg border border-gray-100" data-testid="purchase-totals">
               <div className="text-center">
-                <p className="text-[10px] uppercase text-gray-500 font-semibold">Total Cost</p>
-                <p className="text-lg font-bold text-gray-900">${totals.totalCost.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+                <p className="text-[10px] uppercase text-gray-500 font-semibold">{filtersAreDefault ? 'Last 30 days' : 'Filtered'}</p>
+                <p className="text-lg font-bold text-gray-900">{money(totals.totalCost)}</p>
               </div>
               <div className="w-px bg-gray-200" />
               <div className="text-center">
@@ -743,6 +730,12 @@ export default function PurchasesTab({
               <div className="text-center">
                 <p className="text-[10px] uppercase text-gray-500 font-semibold">Expenses</p>
                 <p className="text-lg font-bold text-orange-600">{totals.expenseCount}</p>
+              </div>
+              <div className="w-px bg-gray-200" />
+              <div className="text-center" data-testid="purchase-totals-all-time">
+                <p className="text-[10px] uppercase text-gray-500 font-semibold">All time</p>
+                <p className="text-lg font-bold text-gray-500">{money(allTimeTotals.totalCost)}</p>
+                <p className="text-[10px] text-gray-500">{plural(allTimeTotals.assetCount, 'asset')} · {plural(allTimeTotals.expenseCount, 'expense')}</p>
               </div>
             </div>
           </div>
@@ -760,7 +753,16 @@ export default function PurchasesTab({
           <Card className="p-12 text-center text-gray-500">
             <Receipt className="w-12 h-12 mx-auto text-gray-300 mb-4" />
             <p className="text-lg font-medium">No purchases found</p>
-            <p className="text-sm mb-4">Try adjusting your filters or importing some data.</p>
+            {purchases.length > 0 ? (
+              <p className="text-sm mb-4">
+                Nothing matches these filters.{' '}
+                {datePreset !== 'all' && (
+                  <button type="button" className="text-sky-700 hover:underline" onClick={() => applyDatePreset('all')}>Show all time</button>
+                )}
+              </p>
+            ) : (
+              <p className="text-sm mb-4">Add a purchase or upload an invoice to get started.</p>
+            )}
             {isAdmin && (
               <div className="flex justify-center gap-3">
                 <Button size="sm" onClick={handleAddNew}>
