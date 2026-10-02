@@ -55,7 +55,6 @@ import { Organization, User, UserRole, DbPurchase } from '../../../utils/supabas
 import {
   getPurchases,
   reclassifyExpenseAsAsset,
-  scanInvoice,
   deletePurchase,
   updatePurchase,
   reconcileLedgerForLineGigChange,
@@ -94,6 +93,11 @@ interface PurchasesTabProps {
   onNavigateToGigDetail?: (gigId: string) => void;
   onNavigateToAssetDetail?: (assetId: string) => void;
   onEditAsset?: (assetId: string) => void;
+  /** Bumped by PurchasesSection after a purchase was added on another tab; reloads the list. */
+  reloadToken?: number;
+  /** Switch to the Add manually / Scan invoices tabs (offered from the empty state). */
+  onAddManually?: () => void;
+  onScanInvoices?: () => void;
 }
 
 export default function PurchasesTab({
@@ -105,6 +109,9 @@ export default function PurchasesTab({
   onNavigateToGigDetail,
   onNavigateToAssetDetail,
   onEditAsset,
+  reloadToken = 0,
+  onAddManually,
+  onScanInvoices,
 }: PurchasesTabProps) {
   const [purchases, setPurchases] = useState<DbPurchase[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -146,10 +153,6 @@ export default function PurchasesTab({
   const [activeUploadHeaderId, setActiveUploadHeaderId] = useState<string | null>(null);
   const [panelState, setPanelState] = useState<PanelState>({ mode: 'closed' });
   const [reviewDialogOpen, setReviewDialogOpen] = useState(false);
-  const [scannedData, setScannedData] = useState<any>(null);
-  const [scanFile, setScanFile] = useState<File | null>(null);
-  const [isScanning, setIsScanning] = useState(false);
-  const scanInputRef = useRef<HTMLInputElement>(null);
   const [editPurchaseId, setEditPurchaseId] = useState<string | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<{ type: 'header' | 'item'; purchase: DbPurchase; childCount?: number } | null>(null);
   const [viewMode, setViewMode] = useState<'detailed' | 'summary'>('detailed');
@@ -166,7 +169,7 @@ export default function PurchasesTab({
 
   useEffect(() => {
     loadPurchases();
-  }, [organization.id]);
+  }, [organization.id, reloadToken]);
 
   useEffect(() => {
     getGigOptionsForOrganization(organization.id)
@@ -508,44 +511,11 @@ export default function PurchasesTab({
 
   const isAdmin = userRole === 'Admin' || userRole === 'Manager';
 
-  const handleAddNew = () => {
-    setEditPurchaseId(null);
-    setScannedData(null);
-    setScanFile(null);
-    setReviewDialogOpen(true);
-  };
-
-  const handleUploadInvoice = () => {
-    scanInputRef.current?.click();
-  };
-
-  const handleScanFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (e.target) e.target.value = '';
-    if (!file) return;
-
-    setIsScanning(true);
-    try {
-      const data = await scanInvoice(file, organization.id);
-      setEditPurchaseId(null);
-      setScanFile(file);
-      setScannedData(data);
-      setReviewDialogOpen(true);
-    } catch (err: any) {
-      toast.error(err.message || 'Failed to scan invoice');
-    } finally {
-      setIsScanning(false);
-    }
-  };
-
   const handlePurchaseCreated = async (_purchaseId: string) => {
     await loadPurchases();
   };
 
   const handleEditHeader = (group: { header: DbPurchase; children: DbPurchase[] }) => {
-    // Reuse the same dialog as invoice import/create, in edit mode.
-    setScannedData(null);
-    setScanFile(null);
     setEditPurchaseId(group.header.id);
     setReviewDialogOpen(true);
   };
@@ -609,18 +579,6 @@ export default function PurchasesTab({
       ) : (
         <Card className="p-4">
           <div className="flex flex-wrap items-end gap-4">
-            {isAdmin && (
-              <div className="flex gap-2">
-                <Button size="sm" className="h-9" onClick={handleAddNew}>
-                  <Plus className="w-4 h-4 mr-1.5" />
-                  Add New
-                </Button>
-                <Button size="sm" variant="outline" className="h-9" onClick={handleUploadInvoice} disabled={isScanning}>
-                  {isScanning ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> : <Upload className="w-4 h-4 mr-1.5" />}
-                  {isScanning ? 'Scanning...' : 'Upload Invoice'}
-                </Button>
-              </div>
-            )}
             <div className="flex-1 min-w-[200px]">
               <Label htmlFor="vendor-filter" className="text-xs">Vendor</Label>
               <div className="relative">
@@ -761,18 +719,22 @@ export default function PurchasesTab({
                 )}
               </p>
             ) : (
-              <p className="text-sm mb-4">Add a purchase or upload an invoice to get started.</p>
+              <p className="text-sm mb-4">Add a purchase or scan an invoice to get started.</p>
             )}
-            {isAdmin && (
+            {(onAddManually || onScanInvoices) && (
               <div className="flex justify-center gap-3">
-                <Button size="sm" onClick={handleAddNew}>
-                  <Plus className="w-4 h-4 mr-1.5" />
-                  Add New
-                </Button>
-                <Button size="sm" variant="outline" onClick={handleUploadInvoice} disabled={isScanning}>
-                  {isScanning ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> : <Upload className="w-4 h-4 mr-1.5" />}
-                  {isScanning ? 'Scanning...' : 'Upload Invoice'}
-                </Button>
+                {onAddManually && (
+                  <Button size="sm" variant="outline" onClick={onAddManually}>
+                    <Plus className="w-4 h-4 mr-1.5" />
+                    Add manually
+                  </Button>
+                )}
+                {onScanInvoices && (
+                  <Button size="sm" className="bg-sky-700 hover:bg-sky-800 text-white" onClick={onScanInvoices}>
+                    <Upload className="w-4 h-4 mr-1.5" />
+                    Scan invoices
+                  </Button>
+                )}
               </div>
             )}
           </Card>
@@ -1185,18 +1147,11 @@ export default function PurchasesTab({
         open={reviewDialogOpen}
         onOpenChange={(o) => { setReviewDialogOpen(o); if (!o) setEditPurchaseId(null); }}
         organizationId={organization.id}
-        scannedData={scannedData}
-        file={scanFile}
+        scannedData={null}
+        file={null}
         editPurchaseId={editPurchaseId || undefined}
         onSuccess={handlePurchaseCreated}
         onUpdated={handlePurchaseCreated}
-      />
-      <input
-        type="file"
-        ref={scanInputRef}
-        onChange={handleScanFile}
-        className="hidden"
-        accept=".pdf,image/*"
       />
       <input
         type="file"

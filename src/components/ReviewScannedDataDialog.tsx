@@ -121,6 +121,13 @@ interface ReviewScannedDataDialogProps {
   editPurchaseId?: string;
   /** Called after a successful edit save. */
   onUpdated?: (purchaseId: string) => void;
+  /**
+   * 'dialog' (default) opens full screen over the page; 'page' renders in place,
+   * as the Add manually and Scan invoices tabs do. `onOpenChange(false)` is then Cancel.
+   */
+  layout?: 'dialog' | 'page';
+  /** The label of the button that calls onOpenChange(false). */
+  cancelLabel?: string;
 }
 
 export default function ReviewScannedDataDialog({
@@ -133,7 +140,10 @@ export default function ReviewScannedDataDialog({
   onSuccess,
   editPurchaseId,
   onUpdated,
+  layout = 'dialog',
+  cancelLabel = 'Cancel',
 }: ReviewScannedDataDialogProps) {
+  const isPage = layout === 'page';
   const isEditMode = !!editPurchaseId;
   const [formData, setFormData] = useState<ScannedData | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -609,463 +619,483 @@ export default function ReviewScannedDataDialog({
     />
   );
 
-  return (
-    <DialogPrimitive.Root open={open} onOpenChange={onOpenChange}>
-      <DialogPrimitive.Portal>
-        <DialogPrimitive.Overlay className="fixed inset-0 z-50 bg-black/50" />
-        <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ padding: 12 }}>
-          <div
-            className="bg-white rounded-lg shadow-2xl overflow-hidden flex flex-col border"
-            style={{ width: '96vw', height: '94vh' }}
+  const panel = (
+    <div
+      className={isPage ? "bg-white rounded-lg overflow-hidden flex flex-col border" : "bg-white rounded-lg shadow-2xl overflow-hidden flex flex-col border"}
+      style={isPage ? { width: '100%', height: 'calc(100vh - 240px)', minHeight: 560 } : { width: '96vw', height: '94vh' }}
+    >
+      <div style={{ padding: '6px 16px', borderBottom: '1px solid #e5e7eb', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
+        <div>
+          <h2 style={{ fontSize: 15, fontWeight: 600 }}>{isEditMode ? 'Edit Purchase' : scannedData ? 'Review Scanned Purchase' : 'Create Purchase Entry'}</h2>
+          <p style={{ fontSize: 11, color: '#6b7280' }}>
+            {isEditMode ? 'Update line items below. Changes to a linked asset or gig ledger are confirmed before saving.' : scannedData ? 'Verify the extracted data below.' : 'Enter details manually using the document preview as reference.'}
+          </p>
+        </div>
+        {!isPage && (
+          <DialogPrimitive.Close className="rounded-sm opacity-70 hover:opacity-100 p-1">
+            <CloseIcon className="h-4 w-4" />
+          </DialogPrimitive.Close>
+        )}
+      </div>
+
+      <div style={{ display: 'flex', flex: '1 1 0', overflow: 'hidden', minHeight: 0, height: 0 }}>
+        {/* Preview Panel */}
+        <div style={{ width: '45%', height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden', background: '#f3f4f6', borderRight: '1px solid #e5e7eb', position: 'relative' }}>
+          <button
+            onClick={() => setShowFullPreview(true)}
+            style={{ position: 'absolute', top: 8, right: 8, zIndex: 20, background: 'rgba(255,255,255,0.9)', border: 'none', borderRadius: 4, padding: 6, cursor: 'pointer', boxShadow: '0 1px 3px rgba(0,0,0,0.15)' }}
+            title="Full screen preview"
           >
-            <div style={{ padding: '6px 16px', borderBottom: '1px solid #e5e7eb', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
-              <div>
-                <h2 style={{ fontSize: 15, fontWeight: 600 }}>{isEditMode ? 'Edit Purchase' : scannedData ? 'Review Scanned Purchase' : 'Create Purchase Entry'}</h2>
-                <p style={{ fontSize: 11, color: '#6b7280' }}>
-                  {isEditMode ? 'Update line items below. Changes to a linked asset or gig ledger are confirmed before saving.' : scannedData ? 'Verify the extracted data below.' : 'Enter details manually using the document preview as reference.'}
-                </p>
+            <Maximize2 className="w-4 h-4" />
+          </button>
+
+          <div style={{ flex: 1, overflow: 'auto', padding: 12, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
+            {previewUrl && isImage && renderMagnifiableImage(previewUrl, 'Document Preview')}
+            {isPdf && pdfPageImages.length > 0 && pdfPageImages.map((src, i) => (
+              <div key={i}>{renderMagnifiableImage(src, `Page ${i + 1}`)}</div>
+            ))}
+            {isPdf && pdfPageImages.length === 0 && previewUrl && (
+              <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#9ca3af', fontSize: 14 }}>
+                <Loader2 className="w-5 h-5 mr-2 animate-spin" /> Rendering PDF...
               </div>
-              <DialogPrimitive.Close className="rounded-sm opacity-70 hover:opacity-100 p-1">
-                <CloseIcon className="h-4 w-4" />
-              </DialogPrimitive.Close>
-            </div>
-
-            <div style={{ display: 'flex', flex: '1 1 0', overflow: 'hidden', minHeight: 0, height: 0 }}>
-              {/* Preview Panel */}
-              <div style={{ width: '45%', height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden', background: '#f3f4f6', borderRight: '1px solid #e5e7eb', position: 'relative' }}>
-                <button
-                  onClick={() => setShowFullPreview(true)}
-                  style={{ position: 'absolute', top: 8, right: 8, zIndex: 20, background: 'rgba(255,255,255,0.9)', border: 'none', borderRadius: 4, padding: 6, cursor: 'pointer', boxShadow: '0 1px 3px rgba(0,0,0,0.15)' }}
-                  title="Full screen preview"
-                >
-                  <Maximize2 className="w-4 h-4" />
-                </button>
-
-                <div style={{ flex: 1, overflow: 'auto', padding: 12, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
-                  {previewUrl && isImage && renderMagnifiableImage(previewUrl, 'Document Preview')}
-                  {isPdf && pdfPageImages.length > 0 && pdfPageImages.map((src, i) => (
-                    <div key={i}>{renderMagnifiableImage(src, `Page ${i + 1}`)}</div>
-                  ))}
-                  {isPdf && pdfPageImages.length === 0 && previewUrl && (
-                    <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#9ca3af', fontSize: 14 }}>
-                      <Loader2 className="w-5 h-5 mr-2 animate-spin" /> Rendering PDF...
-                    </div>
-                  )}
-                  {/* Edit mode: render the already-attached document (no local file). */}
-                  {!previewUrl && existingDoc && existingDoc.kind === 'image' && (
-                    <img src={existingDoc.url} alt={existingDoc.name} style={{ maxWidth: '100%', display: 'block', borderRadius: 4 }} />
-                  )}
-                  {!previewUrl && existingDoc && existingDoc.kind === 'pdf' && (
-                    <iframe src={existingDoc.url} title={existingDoc.name} style={{ width: '100%', height: '100%', border: 0, borderRadius: 4 }} />
-                  )}
-                  {!previewUrl && existingDoc && existingDoc.kind === 'other' && (
-                    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: '#6b7280' }}>
-                      <FileIcon className="w-12 h-12 mb-2 opacity-30" />
-                      <a href={existingDoc.url} target="_blank" rel="noopener noreferrer" style={{ fontSize: 13, color: '#0284c7' }}>{existingDoc.name}</a>
-                    </div>
-                  )}
-                  {!previewUrl && !existingDoc && (
-                    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: '#9ca3af' }}>
-                      <FileIcon className="w-12 h-12 mb-2 opacity-20" />
-                      <p style={{ fontSize: 13 }}>{isEditMode ? 'No document attached' : 'No preview available'}</p>
-                    </div>
-                  )}
-                </div>
-
-                <div style={{ padding: '3px 12px', borderTop: '1px solid #e5e7eb', background: '#f9fafb', display: 'flex', justifyContent: 'center', gap: 12, fontSize: 10, color: '#9ca3af', flexShrink: 0 }}>
-                  <button
-                    onClick={() => { setMagnifierEnabled(v => !v); setMagnifier(prev => ({ ...prev, show: false })); }}
-                    style={{ display: 'flex', alignItems: 'center', gap: 4, border: 'none', background: magnifierEnabled ? '#dbeafe' : 'transparent', color: magnifierEnabled ? '#2563eb' : '#9ca3af', borderRadius: 3, padding: '2px 8px', cursor: 'pointer', fontSize: 10, fontWeight: magnifierEnabled ? 600 : 400 }}
-                  >
-                    <Search className="w-3 h-3" /> {magnifierEnabled ? 'Magnifier ON' : 'Magnifier'}
-                  </button>
-                  <button
-                    onClick={() => setShowFullPreview(true)}
-                    style={{ display: 'flex', alignItems: 'center', gap: 4, border: 'none', background: 'transparent', color: '#9ca3af', borderRadius: 3, padding: '2px 8px', cursor: 'pointer', fontSize: 10 }}
-                  >
-                    <Maximize2 className="w-3 h-3" /> Full preview
-                  </button>
-                </div>
+            )}
+            {/* Edit mode: render the already-attached document (no local file). */}
+            {!previewUrl && existingDoc && existingDoc.kind === 'image' && (
+              <img src={existingDoc.url} alt={existingDoc.name} style={{ maxWidth: '100%', display: 'block', borderRadius: 4 }} />
+            )}
+            {!previewUrl && existingDoc && existingDoc.kind === 'pdf' && (
+              <iframe src={existingDoc.url} title={existingDoc.name} style={{ width: '100%', height: '100%', border: 0, borderRadius: 4 }} />
+            )}
+            {!previewUrl && existingDoc && existingDoc.kind === 'other' && (
+              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: '#6b7280' }}>
+                <FileIcon className="w-12 h-12 mb-2 opacity-30" />
+                <a href={existingDoc.url} target="_blank" rel="noopener noreferrer" style={{ fontSize: 13, color: '#0284c7' }}>{existingDoc.name}</a>
               </div>
-
-              {/* Form Panel */}
-              <div style={{ width: '55%', height: '100%', display: 'flex', flexDirection: 'column', background: 'white' }}>
-                <style>{`.review-form-scroll::-webkit-scrollbar{width:8px}.review-form-scroll::-webkit-scrollbar-track{background:#f1f5f9}.review-form-scroll::-webkit-scrollbar-thumb{background:#cbd5e1;border-radius:4px}.review-form-scroll::-webkit-scrollbar-thumb:hover{background:#94a3b8}`}</style>
-                <div style={{ position: 'relative', flex: '1 1 0', minHeight: 0 }}>
-                <div className="review-form-scroll" style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, overflowY: 'scroll', WebkitOverflowScrolling: 'touch', padding: '12px 16px' }}>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                    {/* Purchase Summary */}
-                    <div>
-                      <h4 style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#9ca3af', borderBottom: '1px solid #e5e7eb', paddingBottom: 3, marginBottom: 6 }}>Purchase Summary</h4>
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                        <div style={{ flex: '2 1 300px' }}>
-                          <span style={{ fontSize: 8, fontWeight: 600, textTransform: 'uppercase', color: '#6b7280', display: 'block', marginBottom: 1 }}>Vendor</span>
-                          <Input
-                            value={formData.vendor}
-                            onChange={e => handleHeaderChange('vendor', e.target.value)}
-                            placeholder="e.g. Sweetwater, B&H, Amazon"
-                            className="h-7 text-xs font-semibold border-gray-300"
-                          />
-                        </div>
-                        <div style={{ flex: '1 1 120px' }}>
-                          <span style={{ fontSize: 8, fontWeight: 600, textTransform: 'uppercase', color: '#6b7280', display: 'block', marginBottom: 1 }}>Date</span>
-                          <Input
-                            type="date"
-                            value={formData.purchase_date}
-                            onChange={e => handleHeaderChange('purchase_date', e.target.value)}
-                            className="h-7 text-xs border-gray-300"
-                          />
-                        </div>
-                        <div style={{ width: '100%', display: 'flex', gap: 6 }}>
-                          <div style={{ flex: '2 1 0' }}>
-                            <span style={{ fontSize: 8, fontWeight: 600, textTransform: 'uppercase', color: '#6b7280', display: 'block', marginBottom: 1 }}>Description / Notes</span>
-                            <Input
-                              value={formData.description || ''}
-                              onChange={e => handleHeaderChange('description', e.target.value)}
-                              placeholder="Purchase notes"
-                              className="h-7 text-xs border-gray-300"
-                            />
-                          </div>
-                          <div style={{ flex: '0 0 100px' }}>
-                            <span style={{ fontSize: 8, fontWeight: 600, textTransform: 'uppercase', color: '#6b7280', display: 'block', marginBottom: 1 }}>Invoice Total</span>
-                            <div style={{ position: 'relative' }}>
-                              <span style={{ position: 'absolute', left: 4, top: '50%', transform: 'translateY(-50%)', color: '#9ca3af', fontSize: 10 }}>$</span>
-                              <NumericInput
-                                value={formData.total_inv_amount}
-                                onChange={v => handleHeaderChange('total_inv_amount', v)}
-                                className="pl-4 h-7 text-xs font-bold text-sky-700 border-gray-300"
-                              />
-                            </div>
-                          </div>
-                          <div style={{ flex: '1 1 0', display: 'flex', alignItems: 'center', paddingTop: 10 }}>
-                            <p style={{ fontSize: 7, color: '#9ca3af', fontStyle: 'italic', lineHeight: 1, margin: 0 }}>Distributed as burdened cost across items.</p>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Line Items */}
-                    <div>
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid #e5e7eb', paddingBottom: 3, marginBottom: 4 }}>
-                        <h4 style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#9ca3af' }}>Line Items</h4>
-                        <button
-                          onClick={handleAddItem}
-                          style={{ height: 22, padding: '0 8px', fontSize: 10, border: '1px solid #7dd3fc', color: '#0284c7', background: 'white', borderRadius: 4, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 3 }}
-                        >
-                          <Plus className="w-3 h-3" /> Add Item
-                        </button>
-                      </div>
-
-                      {formData.items.length > 0 && (
-                        <div style={{ display: 'grid', gridTemplateColumns: '24px 1fr 72px 40px 72px 68px 18px', gap: '0 3px', padding: '0 2px', marginBottom: 2, fontSize: 9, fontWeight: 700, textTransform: 'uppercase', color: '#9ca3af', letterSpacing: '0.04em' }}>
-                          <span style={{ fontSize: 8, textAlign: 'center' }}>A/E</span>
-                          <span>Description</span>
-                          <span style={{ textAlign: 'center' }}>Item Price</span>
-                          <span style={{ textAlign: 'center' }}>Qty</span>
-                          <span style={{ textAlign: 'center' }}>Line Amt</span>
-                          <span style={{ textAlign: 'center' }}>Unit Cost</span>
-                          <span />
-                        </div>
-                      )}
-
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                        {formData.items.map((item, index) => (
-                          <div key={index} style={{ background: '#f9fafb', borderRadius: 4, border: '1px solid #f3f4f6', padding: '2px 2px' }}>
-                            <div style={{ display: 'grid', gridTemplateColumns: '24px 1fr 72px 40px 72px 68px 18px', gap: '0 3px', alignItems: 'center' }}>
-                              <label style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', cursor: isEditMode ? 'not-allowed' : 'pointer', gap: 0 }} title={isEditMode ? (item.is_asset ? 'Asset — change type via Reclassify' : 'Expense — change type via Reclassify') : (item.is_asset ? 'Asset (durable)' : 'Expense')}>
-                                <input
-                                  type="checkbox"
-                                  checked={item.is_asset}
-                                  disabled={isEditMode}
-                                  onChange={e => {
-                                    handleItemChange(index, 'is_asset', e.target.checked);
-                                    if (e.target.checked && !item.show_extra) {
-                                      handleItemChange(index, 'show_extra', true);
-                                    }
-                                  }}
-                                  style={{ width: 13, height: 13, borderRadius: 2, accentColor: '#0284c7' }}
-                                />
-                              </label>
-                              <Input
-                                value={item.description}
-                                onChange={e => handleItemChange(index, 'description', e.target.value)}
-                                placeholder="Item description"
-                                className="bg-white border-gray-200 h-6 text-[11px]"
-                              />
-                              <div style={{ position: 'relative' }}>
-                                <span style={{ position: 'absolute', left: 4, top: '50%', transform: 'translateY(-50%)', color: '#9ca3af', fontSize: 10 }}>$</span>
-                                <NumericInput
-                                  value={item.item_price}
-                                  onChange={v => handleItemChange(index, 'item_price', v)}
-                                  className="pl-3.5 bg-white border-gray-200 h-6 text-[11px] font-semibold text-right"
-                                />
-                              </div>
-                              <NumericInput
-                                value={item.quantity}
-                                onChange={v => handleItemChange(index, 'quantity', Math.max(1, Math.round(v)))}
-                                placeholder="1"
-                                className="bg-white border-gray-200 text-center h-6 text-[11px] font-semibold"
-                              />
-                              <div style={{ position: 'relative' }}>
-                                <span style={{ position: 'absolute', left: 4, top: '50%', transform: 'translateY(-50%)', color: '#9ca3af', fontSize: 10 }}>$</span>
-                                <NumericInput
-                                  value={Number(((item.item_price ?? 0) * item.quantity).toFixed(2))}
-                                  onChange={v => handleLineAmtChange(index, v)}
-                                  className="pl-3.5 bg-white border-gray-200 h-6 text-[11px] text-right"
-                                />
-                              </div>
-                              <div style={{ height: 24, display: 'flex', alignItems: 'center', justifyContent: 'flex-end', padding: '0 4px', background: '#f0f9ff', borderRadius: 3, fontSize: 10, color: '#0369a1', fontWeight: 700, border: '1px solid #e0f2fe' }}>
-                                ${(item.item_cost ?? 0).toFixed(2)}
-                              </div>
-                              <button
-                                onClick={() => handleRemoveItem(index)}
-                                style={{ height: 24, width: 18, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#d1d5db', background: 'none', border: 'none', cursor: 'pointer' }}
-                                onMouseEnter={e => (e.currentTarget.style.color = '#ef4444')}
-                                onMouseLeave={e => (e.currentTarget.style.color = '#d1d5db')}
-                              >
-                                <Trash2 style={{ width: 12, height: 12 }} />
-                              </button>
-                            </div>
-                            <div style={{ display: 'grid', gridTemplateColumns: '24px 1fr', gap: '0 3px', marginTop: 1 }}>
-                              <span />
-                              <div style={{ display: 'flex', gap: 3, alignItems: 'center' }}>
-                                {item.is_asset ? (
-                                  isEditMode ? (
-                                    <span style={{ fontSize: 8, color: '#0284c7', whiteSpace: 'nowrap', fontWeight: 600, width: 40 + 12 }}>Asset</span>
-                                  ) : (
-                                    <button
-                                      onClick={() => handleItemChange(index, 'show_extra', !item.show_extra)}
-                                      style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', display: 'flex', alignItems: 'center', color: '#0284c7' }}
-                                    >
-                                      {item.show_extra ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
-                                      <span style={{ fontSize: 8, color: '#0284c7', whiteSpace: 'nowrap', fontWeight: 600, width: 40, textAlign: 'left', marginLeft: 1 }}>Asset</span>
-                                    </button>
-                                  )
-                                ) : (
-                                  <span style={{ fontSize: 8, color: '#810606', whiteSpace: 'nowrap', fontWeight: 600, width: 40 + 12 }}>Expense</span>
-                                )}
-                                <div style={{ display: 'flex', alignItems: 'center', gap: 1, flex: 1 }}>
-                                  <span style={{ fontSize: 7, color: '#9ca3af', fontWeight: 600, flexShrink: 0 }}>C:</span>
-                                  <Input
-                                    value={item.category || ''}
-                                    onChange={e => handleItemChange(index, 'category', e.target.value)}
-                                    placeholder="Category"
-                                    className="bg-white border-gray-200 h-5 text-[10px] flex-1"
-                                  />
-                                </div>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: 1, flex: 1 }}>
-                                  <span style={{ fontSize: 7, color: '#9ca3af', fontWeight: 600, flexShrink: 0 }}>SC:</span>
-                                  <Input
-                                    value={item.sub_category || ''}
-                                    onChange={e => handleItemChange(index, 'sub_category', e.target.value)}
-                                    placeholder="Sub-cat"
-                                    className="bg-white border-gray-200 h-5 text-[10px] flex-1"
-                                  />
-                                </div>
-                                {!isEditMode && (
-                                  <Input
-                                    value={item.equipment_type || ''}
-                                    onChange={e => handleItemChange(index, 'equipment_type', e.target.value)}
-                                    placeholder="Type"
-                                    className="bg-white border-gray-200 h-5 text-[10px] flex-1"
-                                  />
-                                )}
-                              </div>
-                            </div>
-                            {!isEditMode && item.is_asset && item.show_extra && (
-                              <div style={{ display: 'grid', gridTemplateColumns: '24px 1fr 1fr 1fr 72px', gap: '0 3px', marginTop: 2, paddingBottom: 2 }}>
-                                <span />
-                                <Input
-                                  value={item.kit || ''}
-                                  onChange={e => handleItemChange(index, 'kit', e.target.value)}
-                                  placeholder="Kit name"
-                                  className="bg-white border-gray-200 h-5 text-[10px]"
-                                />
-                                <Input
-                                  value={item.serial_number || ''}
-                                  onChange={e => handleItemChange(index, 'serial_number', e.target.value)}
-                                  placeholder="Serial #"
-                                  className="bg-white border-gray-200 h-5 text-[10px]"
-                                />
-                                <Input
-                                  value={item.tag_number || ''}
-                                  onChange={e => handleItemChange(index, 'tag_number', e.target.value)}
-                                  placeholder="Tag #"
-                                  className="bg-white border-gray-200 h-5 text-[10px]"
-                                />
-                                <div style={{ position: 'relative' }}>
-                                  <span style={{ position: 'absolute', left: 4, top: '50%', transform: 'translateY(-50%)', color: '#9ca3af', fontSize: 9 }}>$</span>
-                                  <NumericInput
-                                    value={item.replacement_value || 0}
-                                    onChange={v => handleItemChange(index, 'replacement_value', v)}
-                                    placeholder="Replace Value"
-                                    className="pl-3.5 bg-white border-gray-200 h-5 text-[10px] text-right"
-                                  />
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-
-                      {formData.items.length === 0 && (
-                        <div style={{ textAlign: 'center', padding: '20px 0', background: '#f9fafb', border: '2px dashed #e5e7eb', borderRadius: 8 }}>
-                          <Plus style={{ width: 24, height: 24, color: '#e5e7eb', margin: '0 auto 4px' }} />
-                          <p style={{ fontSize: 11, color: '#9ca3af' }}>No items yet. Click "Add Item" to begin.</p>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Reconciliation */}
-                    <div style={{ padding: 6, borderRadius: 4, display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, border: `1px solid ${hasMismatch ? '#fde68a' : '#a7f3d0'}`, background: hasMismatch ? '#fffbeb' : '#ecfdf5', color: hasMismatch ? '#92400e' : '#065f46' }}>
-                      <AlertCircle style={{ width: 14, height: 14, flexShrink: 0, color: hasMismatch ? '#f59e0b' : '#10b981' }} />
-                      <span>
-                        <strong>{hasMismatch ? 'Mismatch' : 'Reconciled'}:</strong>{' '}
-                        Line costs ${calculatedTotalCost.toFixed(2)} vs Invoice ${formData.total_inv_amount.toFixed(2)}
-                        {hasMismatch && <span style={{ color: '#d97706' }}> (diff: ${diff.toFixed(2)})</span>}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-                </div>
-
-                {/* Footer */}
-                <div style={{ padding: '6px 16px', borderTop: '1px solid #e5e7eb', background: '#f9fafb', display: 'flex', justifyContent: 'flex-end', gap: 12, flexShrink: 0 }}>
-                  <Button variant="outline" onClick={() => onOpenChange(false)} className="h-7 px-5 text-xs">
-                    Cancel
-                  </Button>
-                  <button
-                    onClick={isEditMode ? handleUpdate : handleSubmit}
-                    disabled={isSubmitting || formData.items.length === 0 || !formData.vendor}
-                    style={{ height: 28, padding: '0 20px', fontSize: 12, fontWeight: 600, borderRadius: 4, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#0284c7', color: 'white', border: 'none', cursor: 'pointer', opacity: (isSubmitting || formData.items.length === 0 || !formData.vendor) ? 0.5 : 1 }}
-                  >
-                    {isSubmitting && <Loader2 style={{ width: 14, height: 14, marginRight: 6 }} className="animate-spin" />}
-                    {isEditMode ? 'Save Changes' : 'Save Purchase'}
-                  </button>
-                </div>
+            )}
+            {!previewUrl && !existingDoc && (
+              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: '#9ca3af' }}>
+                <FileIcon className="w-12 h-12 mb-2 opacity-20" />
+                <p style={{ fontSize: 13 }}>{isEditMode ? 'No document attached' : 'No preview available'}</p>
               </div>
-            </div>
+            )}
+          </div>
+
+          <div style={{ padding: '3px 12px', borderTop: '1px solid #e5e7eb', background: '#f9fafb', display: 'flex', justifyContent: 'center', gap: 12, fontSize: 10, color: '#9ca3af', flexShrink: 0 }}>
+            <button
+              onClick={() => { setMagnifierEnabled(v => !v); setMagnifier(prev => ({ ...prev, show: false })); }}
+              style={{ display: 'flex', alignItems: 'center', gap: 4, border: 'none', background: magnifierEnabled ? '#dbeafe' : 'transparent', color: magnifierEnabled ? '#2563eb' : '#9ca3af', borderRadius: 3, padding: '2px 8px', cursor: 'pointer', fontSize: 10, fontWeight: magnifierEnabled ? 600 : 400 }}
+            >
+              <Search className="w-3 h-3" /> {magnifierEnabled ? 'Magnifier ON' : 'Magnifier'}
+            </button>
+            <button
+              onClick={() => setShowFullPreview(true)}
+              style={{ display: 'flex', alignItems: 'center', gap: 4, border: 'none', background: 'transparent', color: '#9ca3af', borderRadius: 3, padding: '2px 8px', cursor: 'pointer', fontSize: 10 }}
+            >
+              <Maximize2 className="w-3 h-3" /> Full preview
+            </button>
           </div>
         </div>
 
-        {pendingPlan && (pendingPlan.assetChanges.length > 0 || pendingPlan.gigChanges.length > 0) && (
-          <div style={{ position: 'fixed', inset: 0, zIndex: 150, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-            <div style={{ background: 'white', borderRadius: 8, boxShadow: '0 10px 40px rgba(0,0,0,0.3)', width: 540, maxWidth: '100%', maxHeight: '85vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-              <div style={{ padding: '12px 16px', borderBottom: '1px solid #e5e7eb' }}>
-                <h3 style={{ fontSize: 14, fontWeight: 700, color: '#111827' }}>Confirm linked record updates</h3>
-                <p style={{ fontSize: 11, color: '#6b7280', marginTop: 2 }}>Your edits also affect these linked records. Review and confirm before saving.</p>
-              </div>
-              <div style={{ padding: '12px 16px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 14 }}>
-                {pendingPlan.assetChanges.length > 0 && (
-                  <div>
-                    <h4 style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#0284c7', marginBottom: 6 }}>Asset updates</h4>
-                    {pendingPlan.assetChanges.map((a, ai) => (
-                      <div key={ai} style={{ marginBottom: 8, border: '1px solid #e5e7eb', borderRadius: 6, padding: '6px 8px' }}>
-                        <p style={{ fontSize: 11, fontWeight: 600, color: '#374151', marginBottom: 4 }}>{a.itemDescription}</p>
-                        <table style={{ width: '100%', fontSize: 11, borderCollapse: 'collapse' }}>
-                          <tbody>
-                            {a.changes.map((c, ci) => (
-                              <tr key={ci}>
-                                <td style={{ color: '#6b7280', padding: '1px 6px 1px 0', whiteSpace: 'nowrap' }}>{c.label}</td>
-                                <td style={{ color: '#9ca3af', padding: '1px 6px', textAlign: 'right' }}>{fmtVal(c.from)}</td>
-                                <td style={{ color: '#9ca3af', padding: '1px 4px' }}>→</td>
-                                <td style={{ color: '#065f46', fontWeight: 600, padding: '1px 0' }}>{fmtVal(c.to)}</td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
+        {/* Form Panel */}
+        <div style={{ width: '55%', height: '100%', display: 'flex', flexDirection: 'column', background: 'white' }}>
+          <style>{`.review-form-scroll::-webkit-scrollbar{width:8px}.review-form-scroll::-webkit-scrollbar-track{background:#f1f5f9}.review-form-scroll::-webkit-scrollbar-thumb{background:#cbd5e1;border-radius:4px}.review-form-scroll::-webkit-scrollbar-thumb:hover{background:#94a3b8}`}</style>
+          <div style={{ position: 'relative', flex: '1 1 0', minHeight: 0 }}>
+          <div className="review-form-scroll" style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, overflowY: 'scroll', WebkitOverflowScrolling: 'touch', padding: '12px 16px' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {/* Purchase Summary */}
+              <div>
+                <h4 style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#9ca3af', borderBottom: '1px solid #e5e7eb', paddingBottom: 3, marginBottom: 6 }}>Purchase Summary</h4>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                  <div style={{ flex: '2 1 300px' }}>
+                    <span style={{ fontSize: 8, fontWeight: 600, textTransform: 'uppercase', color: '#6b7280', display: 'block', marginBottom: 1 }}>Vendor</span>
+                    <Input
+                      value={formData.vendor}
+                      onChange={e => handleHeaderChange('vendor', e.target.value)}
+                      placeholder="e.g. Sweetwater, B&H, Amazon"
+                      className="h-7 text-xs font-semibold border-gray-300"
+                    />
+                  </div>
+                  <div style={{ flex: '1 1 120px' }}>
+                    <span style={{ fontSize: 8, fontWeight: 600, textTransform: 'uppercase', color: '#6b7280', display: 'block', marginBottom: 1 }}>Date</span>
+                    <Input
+                      type="date"
+                      value={formData.purchase_date}
+                      onChange={e => handleHeaderChange('purchase_date', e.target.value)}
+                      className="h-7 text-xs border-gray-300"
+                    />
+                  </div>
+                  <div style={{ width: '100%', display: 'flex', gap: 6 }}>
+                    <div style={{ flex: '2 1 0' }}>
+                      <span style={{ fontSize: 8, fontWeight: 600, textTransform: 'uppercase', color: '#6b7280', display: 'block', marginBottom: 1 }}>Description / Notes</span>
+                      <Input
+                        value={formData.description || ''}
+                        onChange={e => handleHeaderChange('description', e.target.value)}
+                        placeholder="Purchase notes"
+                        className="h-7 text-xs border-gray-300"
+                      />
+                    </div>
+                    <div style={{ flex: '0 0 100px' }}>
+                      <span style={{ fontSize: 8, fontWeight: 600, textTransform: 'uppercase', color: '#6b7280', display: 'block', marginBottom: 1 }}>Invoice Total</span>
+                      <div style={{ position: 'relative' }}>
+                        <span style={{ position: 'absolute', left: 4, top: '50%', transform: 'translateY(-50%)', color: '#9ca3af', fontSize: 10 }}>$</span>
+                        <NumericInput
+                          value={formData.total_inv_amount}
+                          onChange={v => handleHeaderChange('total_inv_amount', v)}
+                          className="pl-4 h-7 text-xs font-bold text-sky-700 border-gray-300"
+                        />
                       </div>
-                    ))}
+                    </div>
+                    <div style={{ flex: '1 1 0', display: 'flex', alignItems: 'center', paddingTop: 10 }}>
+                      <p style={{ fontSize: 7, color: '#9ca3af', fontStyle: 'italic', lineHeight: 1, margin: 0 }}>Distributed as burdened cost across items.</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Line Items */}
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid #e5e7eb', paddingBottom: 3, marginBottom: 4 }}>
+                  <h4 style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#9ca3af' }}>Line Items</h4>
+                  <button
+                    onClick={handleAddItem}
+                    style={{ height: 22, padding: '0 8px', fontSize: 10, border: '1px solid #7dd3fc', color: '#0284c7', background: 'white', borderRadius: 4, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 3 }}
+                  >
+                    <Plus className="w-3 h-3" /> Add Item
+                  </button>
+                </div>
+
+                {formData.items.length > 0 && (
+                  <div style={{ display: 'grid', gridTemplateColumns: '24px 1fr 72px 40px 72px 68px 18px', gap: '0 3px', padding: '0 2px', marginBottom: 2, fontSize: 9, fontWeight: 700, textTransform: 'uppercase', color: '#9ca3af', letterSpacing: '0.04em' }}>
+                    <span style={{ fontSize: 8, textAlign: 'center' }}>A/E</span>
+                    <span>Description</span>
+                    <span style={{ textAlign: 'center' }}>Item Price</span>
+                    <span style={{ textAlign: 'center' }}>Qty</span>
+                    <span style={{ textAlign: 'center' }}>Line Amt</span>
+                    <span style={{ textAlign: 'center' }}>Unit Cost</span>
+                    <span />
                   </div>
                 )}
-                {pendingPlan.gigChanges.length > 0 && (
-                  <div>
-                    <h4 style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#7c3aed', marginBottom: 6 }}>Gig ledger updates</h4>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                  {formData.items.map((item, index) => (
+                    <div key={index} style={{ background: '#f9fafb', borderRadius: 4, border: '1px solid #f3f4f6', padding: '2px 2px' }}>
+                      <div style={{ display: 'grid', gridTemplateColumns: '24px 1fr 72px 40px 72px 68px 18px', gap: '0 3px', alignItems: 'center' }}>
+                        <label style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', cursor: isEditMode ? 'not-allowed' : 'pointer', gap: 0 }} title={isEditMode ? (item.is_asset ? 'Asset — change type via Reclassify' : 'Expense — change type via Reclassify') : (item.is_asset ? 'Asset (durable)' : 'Expense')}>
+                          <input
+                            type="checkbox"
+                            checked={item.is_asset}
+                            disabled={isEditMode}
+                            onChange={e => {
+                              handleItemChange(index, 'is_asset', e.target.checked);
+                              if (e.target.checked && !item.show_extra) {
+                                handleItemChange(index, 'show_extra', true);
+                              }
+                            }}
+                            style={{ width: 13, height: 13, borderRadius: 2, accentColor: '#0284c7' }}
+                          />
+                        </label>
+                        <Input
+                          value={item.description}
+                          onChange={e => handleItemChange(index, 'description', e.target.value)}
+                          placeholder="Item description"
+                          className="bg-white border-gray-200 h-6 text-[11px]"
+                        />
+                        <div style={{ position: 'relative' }}>
+                          <span style={{ position: 'absolute', left: 4, top: '50%', transform: 'translateY(-50%)', color: '#9ca3af', fontSize: 10 }}>$</span>
+                          <NumericInput
+                            value={item.item_price}
+                            onChange={v => handleItemChange(index, 'item_price', v)}
+                            className="pl-3.5 bg-white border-gray-200 h-6 text-[11px] font-semibold text-right"
+                          />
+                        </div>
+                        <NumericInput
+                          value={item.quantity}
+                          onChange={v => handleItemChange(index, 'quantity', Math.max(1, Math.round(v)))}
+                          placeholder="1"
+                          className="bg-white border-gray-200 text-center h-6 text-[11px] font-semibold"
+                        />
+                        <div style={{ position: 'relative' }}>
+                          <span style={{ position: 'absolute', left: 4, top: '50%', transform: 'translateY(-50%)', color: '#9ca3af', fontSize: 10 }}>$</span>
+                          <NumericInput
+                            value={Number(((item.item_price ?? 0) * item.quantity).toFixed(2))}
+                            onChange={v => handleLineAmtChange(index, v)}
+                            className="pl-3.5 bg-white border-gray-200 h-6 text-[11px] text-right"
+                          />
+                        </div>
+                        <div style={{ height: 24, display: 'flex', alignItems: 'center', justifyContent: 'flex-end', padding: '0 4px', background: '#f0f9ff', borderRadius: 3, fontSize: 10, color: '#0369a1', fontWeight: 700, border: '1px solid #e0f2fe' }}>
+                          ${(item.item_cost ?? 0).toFixed(2)}
+                        </div>
+                        <button
+                          onClick={() => handleRemoveItem(index)}
+                          style={{ height: 24, width: 18, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#d1d5db', background: 'none', border: 'none', cursor: 'pointer' }}
+                          onMouseEnter={e => (e.currentTarget.style.color = '#ef4444')}
+                          onMouseLeave={e => (e.currentTarget.style.color = '#d1d5db')}
+                        >
+                          <Trash2 style={{ width: 12, height: 12 }} />
+                        </button>
+                      </div>
+                      <div style={{ display: 'grid', gridTemplateColumns: '24px 1fr', gap: '0 3px', marginTop: 1 }}>
+                        <span />
+                        <div style={{ display: 'flex', gap: 3, alignItems: 'center' }}>
+                          {item.is_asset ? (
+                            isEditMode ? (
+                              <span style={{ fontSize: 8, color: '#0284c7', whiteSpace: 'nowrap', fontWeight: 600, width: 40 + 12 }}>Asset</span>
+                            ) : (
+                              <button
+                                onClick={() => handleItemChange(index, 'show_extra', !item.show_extra)}
+                                style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', display: 'flex', alignItems: 'center', color: '#0284c7' }}
+                              >
+                                {item.show_extra ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
+                                <span style={{ fontSize: 8, color: '#0284c7', whiteSpace: 'nowrap', fontWeight: 600, width: 40, textAlign: 'left', marginLeft: 1 }}>Asset</span>
+                              </button>
+                            )
+                          ) : (
+                            <span style={{ fontSize: 8, color: '#810606', whiteSpace: 'nowrap', fontWeight: 600, width: 40 + 12 }}>Expense</span>
+                          )}
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 1, flex: 1 }}>
+                            <span style={{ fontSize: 7, color: '#9ca3af', fontWeight: 600, flexShrink: 0 }}>C:</span>
+                            <Input
+                              value={item.category || ''}
+                              onChange={e => handleItemChange(index, 'category', e.target.value)}
+                              placeholder="Category"
+                              className="bg-white border-gray-200 h-5 text-[10px] flex-1"
+                            />
+                          </div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 1, flex: 1 }}>
+                            <span style={{ fontSize: 7, color: '#9ca3af', fontWeight: 600, flexShrink: 0 }}>SC:</span>
+                            <Input
+                              value={item.sub_category || ''}
+                              onChange={e => handleItemChange(index, 'sub_category', e.target.value)}
+                              placeholder="Sub-cat"
+                              className="bg-white border-gray-200 h-5 text-[10px] flex-1"
+                            />
+                          </div>
+                          {!isEditMode && (
+                            <Input
+                              value={item.equipment_type || ''}
+                              onChange={e => handleItemChange(index, 'equipment_type', e.target.value)}
+                              placeholder="Type"
+                              className="bg-white border-gray-200 h-5 text-[10px] flex-1"
+                            />
+                          )}
+                        </div>
+                      </div>
+                      {!isEditMode && item.is_asset && item.show_extra && (
+                        <div style={{ display: 'grid', gridTemplateColumns: '24px 1fr 1fr 1fr 72px', gap: '0 3px', marginTop: 2, paddingBottom: 2 }}>
+                          <span />
+                          <Input
+                            value={item.kit || ''}
+                            onChange={e => handleItemChange(index, 'kit', e.target.value)}
+                            placeholder="Kit name"
+                            className="bg-white border-gray-200 h-5 text-[10px]"
+                          />
+                          <Input
+                            value={item.serial_number || ''}
+                            onChange={e => handleItemChange(index, 'serial_number', e.target.value)}
+                            placeholder="Serial #"
+                            className="bg-white border-gray-200 h-5 text-[10px]"
+                          />
+                          <Input
+                            value={item.tag_number || ''}
+                            onChange={e => handleItemChange(index, 'tag_number', e.target.value)}
+                            placeholder="Tag #"
+                            className="bg-white border-gray-200 h-5 text-[10px]"
+                          />
+                          <div style={{ position: 'relative' }}>
+                            <span style={{ position: 'absolute', left: 4, top: '50%', transform: 'translateY(-50%)', color: '#9ca3af', fontSize: 9 }}>$</span>
+                            <NumericInput
+                              value={item.replacement_value || 0}
+                              onChange={v => handleItemChange(index, 'replacement_value', v)}
+                              placeholder="Replace Value"
+                              className="pl-3.5 bg-white border-gray-200 h-5 text-[10px] text-right"
+                            />
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+
+                {formData.items.length === 0 && (
+                  <div style={{ textAlign: 'center', padding: '20px 0', background: '#f9fafb', border: '2px dashed #e5e7eb', borderRadius: 8 }}>
+                    <Plus style={{ width: 24, height: 24, color: '#e5e7eb', margin: '0 auto 4px' }} />
+                    <p style={{ fontSize: 11, color: '#9ca3af' }}>No items yet. Click "Add Item" to begin.</p>
+                  </div>
+                )}
+              </div>
+
+              {/* Reconciliation */}
+              <div style={{ padding: 6, borderRadius: 4, display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, border: `1px solid ${hasMismatch ? '#fde68a' : '#a7f3d0'}`, background: hasMismatch ? '#fffbeb' : '#ecfdf5', color: hasMismatch ? '#92400e' : '#065f46' }}>
+                <AlertCircle style={{ width: 14, height: 14, flexShrink: 0, color: hasMismatch ? '#f59e0b' : '#10b981' }} />
+                <span>
+                  <strong>{hasMismatch ? 'Mismatch' : 'Reconciled'}:</strong>{' '}
+                  Line costs ${calculatedTotalCost.toFixed(2)} vs Invoice ${formData.total_inv_amount.toFixed(2)}
+                  {hasMismatch && <span style={{ color: '#d97706' }}> (diff: ${diff.toFixed(2)})</span>}
+                </span>
+              </div>
+            </div>
+          </div>
+          </div>
+
+          {/* Footer */}
+          <div style={{ padding: '6px 16px', borderTop: '1px solid #e5e7eb', background: '#f9fafb', display: 'flex', justifyContent: 'flex-end', gap: 12, flexShrink: 0 }}>
+            <Button variant="outline" onClick={() => onOpenChange(false)} className="h-7 px-5 text-xs">
+              {cancelLabel}
+            </Button>
+            <button
+              onClick={isEditMode ? handleUpdate : handleSubmit}
+              disabled={isSubmitting || formData.items.length === 0 || !formData.vendor}
+              style={{ height: 28, padding: '0 20px', fontSize: 12, fontWeight: 600, borderRadius: 4, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#0284c7', color: 'white', border: 'none', cursor: 'pointer', opacity: (isSubmitting || formData.items.length === 0 || !formData.vendor) ? 0.5 : 1 }}
+            >
+              {isSubmitting && <Loader2 style={{ width: 14, height: 14, marginRight: 6 }} className="animate-spin" />}
+              {isEditMode ? 'Save Changes' : 'Save Purchase'}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
+  const overlays = (
+    <>
+    {pendingPlan && (pendingPlan.assetChanges.length > 0 || pendingPlan.gigChanges.length > 0) && (
+      <div style={{ position: 'fixed', inset: 0, zIndex: 150, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+        <div style={{ background: 'white', borderRadius: 8, boxShadow: '0 10px 40px rgba(0,0,0,0.3)', width: 540, maxWidth: '100%', maxHeight: '85vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+          <div style={{ padding: '12px 16px', borderBottom: '1px solid #e5e7eb' }}>
+            <h3 style={{ fontSize: 14, fontWeight: 700, color: '#111827' }}>Confirm linked record updates</h3>
+            <p style={{ fontSize: 11, color: '#6b7280', marginTop: 2 }}>Your edits also affect these linked records. Review and confirm before saving.</p>
+          </div>
+          <div style={{ padding: '12px 16px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 14 }}>
+            {pendingPlan.assetChanges.length > 0 && (
+              <div>
+                <h4 style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#0284c7', marginBottom: 6 }}>Asset updates</h4>
+                {pendingPlan.assetChanges.map((a, ai) => (
+                  <div key={ai} style={{ marginBottom: 8, border: '1px solid #e5e7eb', borderRadius: 6, padding: '6px 8px' }}>
+                    <p style={{ fontSize: 11, fontWeight: 600, color: '#374151', marginBottom: 4 }}>{a.itemDescription}</p>
                     <table style={{ width: '100%', fontSize: 11, borderCollapse: 'collapse' }}>
                       <tbody>
-                        {pendingPlan.gigChanges.map((g, gi) => (
-                          <tr key={gi}>
-                            <td style={{ color: '#6b7280', padding: '1px 6px 1px 0' }}>{g.label}</td>
-                            <td style={{ color: '#9ca3af', padding: '1px 6px', textAlign: 'right' }}>${g.from.toFixed(2)}</td>
+                        {a.changes.map((c, ci) => (
+                          <tr key={ci}>
+                            <td style={{ color: '#6b7280', padding: '1px 6px 1px 0', whiteSpace: 'nowrap' }}>{c.label}</td>
+                            <td style={{ color: '#9ca3af', padding: '1px 6px', textAlign: 'right' }}>{fmtVal(c.from)}</td>
                             <td style={{ color: '#9ca3af', padding: '1px 4px' }}>→</td>
-                            <td style={{ color: '#065f46', fontWeight: 600, padding: '1px 0' }}>${g.to.toFixed(2)}</td>
+                            <td style={{ color: '#065f46', fontWeight: 600, padding: '1px 0' }}>{fmtVal(c.to)}</td>
                           </tr>
                         ))}
                       </tbody>
                     </table>
                   </div>
-                )}
+                ))}
               </div>
-              <div style={{ padding: '10px 16px', borderTop: '1px solid #e5e7eb', background: '#f9fafb', display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
-                <Button variant="outline" onClick={() => setPendingPlan(null)} disabled={isSubmitting} className="h-7 px-4 text-xs">
-                  Cancel
-                </Button>
-                <button
-                  onClick={() => commitUpdate(pendingPlan)}
-                  disabled={isSubmitting}
-                  style={{ height: 28, padding: '0 16px', fontSize: 12, fontWeight: 600, borderRadius: 4, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#0284c7', color: 'white', border: 'none', cursor: 'pointer', opacity: isSubmitting ? 0.5 : 1 }}
-                >
-                  {isSubmitting && <Loader2 style={{ width: 14, height: 14, marginRight: 6 }} className="animate-spin" />}
-                  Confirm &amp; Save
-                </button>
+            )}
+            {pendingPlan.gigChanges.length > 0 && (
+              <div>
+                <h4 style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#7c3aed', marginBottom: 6 }}>Gig ledger updates</h4>
+                <table style={{ width: '100%', fontSize: 11, borderCollapse: 'collapse' }}>
+                  <tbody>
+                    {pendingPlan.gigChanges.map((g, gi) => (
+                      <tr key={gi}>
+                        <td style={{ color: '#6b7280', padding: '1px 6px 1px 0' }}>{g.label}</td>
+                        <td style={{ color: '#9ca3af', padding: '1px 6px', textAlign: 'right' }}>${g.from.toFixed(2)}</td>
+                        <td style={{ color: '#9ca3af', padding: '1px 4px' }}>→</td>
+                        <td style={{ color: '#065f46', fontWeight: 600, padding: '1px 0' }}>${g.to.toFixed(2)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
-            </div>
+            )}
           </div>
-        )}
-
-        {magnifier.show && magnifier.src && (
-          <div
-            style={{
-              position: 'fixed',
-              pointerEvents: 'none',
-              zIndex: 200,
-              border: '2px solid white',
-              boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
-              borderRadius: '50%',
-              overflow: 'hidden',
-              background: 'white',
-              width: MAG_R * 2,
-              height: MAG_R * 2,
-              left: magnifier.pageX - MAG_R,
-              top: magnifier.pageY - MAG_R,
-            }}
-          >
-            <div
-              style={{
-                width: '100%',
-                height: '100%',
-                backgroundImage: `url(${magnifier.src})`,
-                backgroundRepeat: 'no-repeat',
-                backgroundSize: `${magnifier.bgW}px ${magnifier.bgH}px`,
-                backgroundPosition: `${magnifier.bgX}px ${magnifier.bgY}px`,
-              }}
-            />
+          <div style={{ padding: '10px 16px', borderTop: '1px solid #e5e7eb', background: '#f9fafb', display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
+            <Button variant="outline" onClick={() => setPendingPlan(null)} disabled={isSubmitting} className="h-7 px-4 text-xs">
+              Cancel
+            </Button>
+            <button
+              onClick={() => commitUpdate(pendingPlan)}
+              disabled={isSubmitting}
+              style={{ height: 28, padding: '0 16px', fontSize: 12, fontWeight: 600, borderRadius: 4, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#0284c7', color: 'white', border: 'none', cursor: 'pointer', opacity: isSubmitting ? 0.5 : 1 }}
+            >
+              {isSubmitting && <Loader2 style={{ width: 14, height: 14, marginRight: 6 }} className="animate-spin" />}
+              Confirm &amp; Save
+            </button>
           </div>
-        )}
+        </div>
+      </div>
+    )}
 
-        {showFullPreview && previewUrl && (
-          <div
-            style={{ position: 'fixed', inset: 0, zIndex: 100, background: 'rgba(0,0,0,0.95)', display: 'flex', flexDirection: 'column', padding: 16 }}
+    {magnifier.show && magnifier.src && (
+      <div
+        style={{
+          position: 'fixed',
+          pointerEvents: 'none',
+          zIndex: 200,
+          border: '2px solid white',
+          boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
+          borderRadius: '50%',
+          overflow: 'hidden',
+          background: 'white',
+          width: MAG_R * 2,
+          height: MAG_R * 2,
+          left: magnifier.pageX - MAG_R,
+          top: magnifier.pageY - MAG_R,
+        }}
+      >
+        <div
+          style={{
+            width: '100%',
+            height: '100%',
+            backgroundImage: `url(${magnifier.src})`,
+            backgroundRepeat: 'no-repeat',
+            backgroundSize: `${magnifier.bgW}px ${magnifier.bgH}px`,
+            backgroundPosition: `${magnifier.bgX}px ${magnifier.bgY}px`,
+          }}
+        />
+      </div>
+    )}
+
+    {showFullPreview && previewUrl && (
+      <div
+        style={{ position: 'fixed', inset: 0, zIndex: 100, background: 'rgba(0,0,0,0.95)', display: 'flex', flexDirection: 'column', padding: 16 }}
+        onClick={() => setShowFullPreview(false)}
+      >
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
+          <button
+            style={{ background: 'none', border: 'none', color: 'white', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, padding: '4px 12px', borderRadius: 4 }}
             onClick={() => setShowFullPreview(false)}
+            onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.15)')}
+            onMouseLeave={e => (e.currentTarget.style.background = 'none')}
           >
-            <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
-              <button
-                style={{ background: 'none', border: 'none', color: 'white', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, padding: '4px 12px', borderRadius: 4 }}
-                onClick={() => setShowFullPreview(false)}
-                onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.15)')}
-                onMouseLeave={e => (e.currentTarget.style.background = 'none')}
-              >
-                <CloseIcon style={{ width: 18, height: 18 }} /> Close
-              </button>
-            </div>
-            <div style={{ flex: 1, overflow: 'auto', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 }} onClick={e => e.stopPropagation()}>
-              {isImage && <img src={previewUrl} alt="Full Preview" style={{ maxWidth: '100%', objectFit: 'contain', borderRadius: 4 }} />}
-              {isPdf && pdfPageImages.map((src, i) => (
-                <img key={i} src={src} alt={`Page ${i + 1}`} style={{ maxWidth: '100%', objectFit: 'contain', borderRadius: 4, boxShadow: '0 4px 12px rgba(0,0,0,0.3)' }} />
-              ))}
-            </div>
-          </div>
-        )}
+            <CloseIcon style={{ width: 18, height: 18 }} /> Close
+          </button>
+        </div>
+        <div style={{ flex: 1, overflow: 'auto', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 }} onClick={e => e.stopPropagation()}>
+          {isImage && <img src={previewUrl} alt="Full Preview" style={{ maxWidth: '100%', objectFit: 'contain', borderRadius: 4 }} />}
+          {isPdf && pdfPageImages.map((src, i) => (
+            <img key={i} src={src} alt={`Page ${i + 1}`} style={{ maxWidth: '100%', objectFit: 'contain', borderRadius: 4, boxShadow: '0 4px 12px rgba(0,0,0,0.3)' }} />
+          ))}
+        </div>
+      </div>
+    )}
+    </>
+  );
+
+  if (isPage) {
+    return (
+      <>
+        {panel}
+        {overlays}
+      </>
+    );
+  }
+
+  return (
+    <DialogPrimitive.Root open={open} onOpenChange={onOpenChange}>
+      <DialogPrimitive.Portal>
+        <DialogPrimitive.Overlay className="fixed inset-0 z-50 bg-black/50" />
+        <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ padding: 12 }}>
+          {panel}
+        </div>
+        {overlays}
       </DialogPrimitive.Portal>
     </DialogPrimitive.Root>
   );
