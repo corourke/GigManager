@@ -11,7 +11,7 @@ Cameron questions.
 Migrated from GitHub issue [#41](https://github.com/corourke/GigManager/issues/41) on 2026-09-22. This file now
 supersedes that issue as the board of record.
 
-- **Last updated:** 2026-10-02 (coordinator: Purchases plan approved 10-01; invoice scanning moved to Sonnet 5.5 (#113, merged); Purchases PR 1 open as #114)
+- **Last updated:** 2026-10-02 (coordinator: Purchases PRs 1–2 merged (#114, #115); PR 3, the scan queue, open as #116 and waiting on its migration)
 - **State verified:** 2026-10-01 09:15 UTC by triage (4 open issues: #20, #39, #92, #109; #12 closed 10-01 at Cameron's request; no open PRs; docs PR #110 merged 15:03 UTC)
 
 ---
@@ -81,7 +81,7 @@ order that unblocks the most work; the coordinator puts these to Cameron one at 
 
 1. **Deploy migration `20260929000000_tighten_membership_and_rpc_authorization.sql`** ([#95](https://github.com/corourke/GigManager/pull/95), merged 09-29): `./deploy_dev.sh`, then `./deploy_prod.sh`. That applies the migration and redeploys the `server` edge function, which also ships #90's and #91's fixes (PRs #96, #97). If you deployed before 04:19 UTC on 09-30, run it once more for those two. Then, as an Admin: add and remove a contact on your own org, add a contact to a venue you created, and invite a Staff member. Urgent.
 2. **[#39](https://github.com/corourke/GigManager/issues/39)**: "keep top nav" (09-26) rules out the sidebar (Option B). It follows #12's redesign, since the gig screen is the deepest page and the two need one consistent header.
-3. **Redeploy `ai-scan`** ([#113](https://github.com/corourke/GigManager/pull/113), merged 10-02): invoice scanning now uses Claude Sonnet 5.5 at `low` effort. `supabase functions deploy ai-scan` on dev, scan two or three real invoices (one messy) and compare with what you got before, then prod. No migration.
+3. **Purchases scan queue: apply migration `20261002000000_purchase_scan_queue.sql` and deploy `ai-scan`** ([#116](https://github.com/corourke/GigManager/pull/116), open; the coordinator merges it once dev has the migration). On dev: `supabase db push`, `supabase functions deploy ai-scan`, then with `npm run dev` scan three or four invoices at once, review them in turn, reload part-way through (unreviewed ones stay), discard one. The same `ai-scan` deploy ships Sonnet 5.5 (#113). Then prod via `./deploy_prod.sh`. Reports and tabs (#114, #115) are frontend only.
 4. **Organization delete by the org's own Admin** (raised by triage while fixing #90). `DELETE /organizations/:id` refuses while the org has members, and the Admin doing the delete counts as one, so an org's own Admin always gets "still has members". In practice only an unclaimed org with no data can be deleted. Should the check ignore the caller's own membership (the org still has to be free of gigs, assets and other data), or is deleting a claimed org meant to stay impossible from the app? Not urgent; a small server change either way.
 5. **Sentry secrets** — `SENTRY_API_TOKEN`, `SENTRY_ORG_SLUG`, `SENTRY_PROJECT_SLUG` for the health check's Sentry round-trip. Optional; it reports "not configured" until set.
 
@@ -164,6 +164,7 @@ applies migrations), edge-function API shape, anything touching production confi
 | #12 PR 4 — printing: the gig page's Print button makes a gig sheet (venue, schedule, participants, crew contacts, notes, attachment names), and Admins and Managers can add a financials page; the packing list prints with a header (org, gig, date, counts) | PR #100 (09-30) | Merged. Frontend only |
 | Follow-up to #107: a new participant was inserted and logged "added" several times because autosaves overlapped; `useAutoSave` now runs one save at a time (all autosaving sections) | PR #108 (09-30) | Merged. Frontend only; Cameron to re-check adding a participant after the next deploy and remove any duplicate rows from earlier testing |
 | #12 PR 5 — style guide: record-page, one-edit-mode, Columns picker and print patterns; primary buttons `sky-700`; stale tokens, header height and Tailwind setup corrected | PR #101 (09-30) | Merged. Docs only |
+| Purchases (approved 10-01): report opens on the last 30 days with date presets, Clear all filters, filtered and all-time totals (PR 1); Report / Add manually / Scan invoices tabs, report no longer reloaded on every save (PR 2). Invoice scanning moved to Claude Sonnet 5.5 at `low` effort | PRs #113, #114, #115 (10-02) | Merged. #113 needs an `ai-scan` deploy; #114/#115 frontend only |
 | Docs: `server-endpoint-inventory.md` re-pointed at `routes/` and checked row by row (includes #95's route changes); one line each of `docs/README.md` and `tech-stack.md` | PR #88 (09-30) | Merged by the coordinator; docs only |
 | #102 ([Duplicate Gig fails when the gig has crew slots](https://github.com/corourke/GigManager/issues/102)): `duplicateGig` sends each slot's role name as `role`, as `create_gig_complex` reads it; copied slots start unstaffed | PR #104 (09-30) | Merged; #102 closed. Frontend only |
 | #32 ([Sign Up: no confirm-password field](https://github.com/corourke/GigManager/issues/32)): Confirm password field that must match, plus a Weak/Fair/Strong hint (`getPasswordStrength`) that advises only; minimum stays 6 | PR #105 (09-30) | Merged; #32 closed. Frontend only |
@@ -184,7 +185,7 @@ Read this section first on each run.
 
 | Claimed by | Files | Notes |
 |---|---|---|
-| Coordinator, Purchases split + scan queue (approved 10-01; PR 1 [#114](https://github.com/corourke/GigManager/pull/114), `claude/epic-ramanujan-i9khnc`) | `src/components/financials/purchases/`, `FinancialsScreen.tsx`, `ReviewScannedDataDialog.tsx`, `supabase/functions/ai-scan/`, a new `purchase_scan_queue` migration | 3 PRs: report, sub-tabs, scan queue. Triage leaves these files alone |
+| Coordinator, Purchases scan queue (approved 10-01; PR 3 [#116](https://github.com/corourke/GigManager/pull/116), `claude/epic-ramanujan-i9khnc`; PRs 1–2 #114/#115 merged) | `src/components/financials/purchases/`, `FinancialsScreen.tsx`, `ReviewScannedDataDialog.tsx`, `supabase/functions/ai-scan/`, a new `purchase_scan_queue` migration | 3 PRs: report, sub-tabs, scan queue. Triage leaves these files alone |
 | #20 remaining services | `src/services/*.service.ts` (all but `user.service.ts` and `attachment.service.ts`) | Parked; `attachment.service.ts` released 09-30 (§3c) |
 | Coordinator, #92 | not yet claimed | Not in §3c; triage leaves it alone |
 | Stray branch `claude/triage-90-org-delete-references` | none | Duplicate of PR #96's commit, already merged. The proxy refused the delete; it's safe to delete |
