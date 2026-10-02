@@ -468,7 +468,8 @@ export default function ReviewScannedDataDialog({
       }
       toast.success('Purchase created successfully');
       onSuccess(result.id);
-      onOpenChange(false);
+      // In a page, onOpenChange(false) means Cancel (Discard on Scan invoices), not "done".
+      if (!isPage) onOpenChange(false);
     } catch (err: any) {
       console.error('Error creating purchase:', err);
       toast.error(err.message || 'Failed to create purchase');
@@ -591,7 +592,7 @@ export default function ReviewScannedDataDialog({
       }
       toast.success('Purchase updated successfully');
       onUpdated?.(editPurchaseId);
-      onOpenChange(false);
+      if (!isPage) onOpenChange(false);
     } catch (err: any) {
       console.error('Error updating purchase:', err);
       toast.error(err.message || 'Failed to update purchase');
