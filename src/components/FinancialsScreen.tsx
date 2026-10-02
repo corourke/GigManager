@@ -6,7 +6,7 @@ import { Button } from './ui/button';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from './ui/tabs';
 import AppHeader from './AppHeader';
 import GigAccountingTab from './financials/GigAccountingTab';
-import PurchasesTab from './financials/purchases/PurchasesTab';
+import PurchasesSection from './financials/purchases/PurchasesSection';
 import { Organization, User, UserRole } from '../utils/supabase/types';
 
 interface FinancialsScreenProps {
@@ -90,7 +90,7 @@ export default function FinancialsScreen({
           </div>
 
           <TabsContent value="purchases">
-            <PurchasesTab
+            <PurchasesSection
               organization={organization}
               user={user}
               userRole={userRole}
