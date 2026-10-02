@@ -11,7 +11,7 @@ Cameron questions.
 Migrated from GitHub issue [#41](https://github.com/corourke/GigManager/issues/41) on 2026-09-22. This file now
 supersedes that issue as the board of record.
 
-- **Last updated:** 2026-10-01 (coordinator: #108 confirmed by Cameron after a hard reload; regression test merged as #112; Purchases split + multi-invoice scan queue proposed, waiting on Cameron)
+- **Last updated:** 2026-10-02 (coordinator: Purchases plan approved 10-01; invoice scanning moved to Sonnet 5.5 (#113, merged); Purchases PR 1 open as #114)
 - **State verified:** 2026-10-01 09:15 UTC by triage (4 open issues: #20, #39, #92, #109; #12 closed 10-01 at Cameron's request; no open PRs; docs PR #110 merged 15:03 UTC)
 
 ---
@@ -81,7 +81,7 @@ order that unblocks the most work; the coordinator puts these to Cameron one at 
 
 1. **Deploy migration `20260929000000_tighten_membership_and_rpc_authorization.sql`** ([#95](https://github.com/corourke/GigManager/pull/95), merged 09-29): `./deploy_dev.sh`, then `./deploy_prod.sh`. That applies the migration and redeploys the `server` edge function, which also ships #90's and #91's fixes (PRs #96, #97). If you deployed before 04:19 UTC on 09-30, run it once more for those two. Then, as an Admin: add and remove a contact on your own org, add a contact to a venue you created, and invite a Staff member. Urgent.
 2. **[#39](https://github.com/corourke/GigManager/issues/39)**: "keep top nav" (09-26) rules out the sidebar (Option B). It follows #12's redesign, since the gig screen is the deepest page and the two need one consistent header.
-3. **Purchases: split the report from adding purchases, and a multi-invoice scan queue** (asked 10-01). Plan proposed: Report / Add manually / Scan invoices sub-tabs; report defaults to the last 30 days with date presets, Clear all filters, filtered and all-time totals; a server-side review queue (one migration, `purchase_scan_queue`) with background scanning and one-at-a-time review; scan limit 20 → 60 per hour; 3 PRs. Waiting on approval, and on server-side vs browser-only queue.
+3. **Redeploy `ai-scan`** ([#113](https://github.com/corourke/GigManager/pull/113), merged 10-02): invoice scanning now uses Claude Sonnet 5.5 at `low` effort. `supabase functions deploy ai-scan` on dev, scan two or three real invoices (one messy) and compare with what you got before, then prod. No migration.
 4. **Organization delete by the org's own Admin** (raised by triage while fixing #90). `DELETE /organizations/:id` refuses while the org has members, and the Admin doing the delete counts as one, so an org's own Admin always gets "still has members". In practice only an unclaimed org with no data can be deleted. Should the check ignore the caller's own membership (the org still has to be free of gigs, assets and other data), or is deleting a claimed org meant to stay impossible from the app? Not urgent; a small server change either way.
 5. **Sentry secrets** — `SENTRY_API_TOKEN`, `SENTRY_ORG_SLUG`, `SENTRY_PROJECT_SLUG` for the health check's Sentry round-trip. Optional; it reports "not configured" until set.
 
@@ -184,6 +184,7 @@ Read this section first on each run.
 
 | Claimed by | Files | Notes |
 |---|---|---|
+| Coordinator, Purchases split + scan queue (approved 10-01; PR 1 [#114](https://github.com/corourke/GigManager/pull/114), `claude/epic-ramanujan-i9khnc`) | `src/components/financials/purchases/`, `FinancialsScreen.tsx`, `ReviewScannedDataDialog.tsx`, `supabase/functions/ai-scan/`, a new `purchase_scan_queue` migration | 3 PRs: report, sub-tabs, scan queue. Triage leaves these files alone |
 | #20 remaining services | `src/services/*.service.ts` (all but `user.service.ts` and `attachment.service.ts`) | Parked; `attachment.service.ts` released 09-30 (§3c) |
 | Coordinator, #92 | not yet claimed | Not in §3c; triage leaves it alone |
 | Stray branch `claude/triage-90-org-delete-references` | none | Duplicate of PR #96's commit, already merged. The proxy refused the delete; it's safe to delete |
