@@ -12,7 +12,7 @@ Migrated from GitHub issue [#41](https://github.com/corourke/GigManager/issues/4
 supersedes that issue as the board of record.
 
 - **Last updated:** 2026-10-03 (coordinator: Purchases scan queue merged as #116 after Cameron tested it on dev; all three Purchases PRs are in; prod deploy is Cameron's)
-- **State verified:** 2026-10-03 09:20 UTC by triage (6 open issues: #20, #39, #92, #109, #111, #117, unchanged; open PRs: #116 (coordinator, CI green, merges cleanly at `b744cda`), docs PRs #118 (CI green, clean at `e5619a9`) and #119 (triage))
+- **State verified:** 2026-10-03 09:20 UTC by triage (6 open issues: #20, #39, #92, #109, #111, #117, unchanged; open PRs then: #116, #118, #119; all three merged by 10-03 15:00 UTC, so no PRs are open)
 
 ---
 
@@ -223,7 +223,7 @@ instead of 18, a supported Supabase CLI install, the full migration set instead 
 out to be a dated 02-09 changelog entry, not stale. `docs/technical/database.md` body (09-25, PR #72: reconciled with every
 migration through `20260919000000` — dropped status-history tables, `kit_components` rename, six new tables, new columns).
 `docs/technical/server-endpoint-inventory.md` (09-29, PR #88, merged 09-30: re-pointed at `routes/`, every row checked against the
-middleware; `DELETE /gigs/:id` is Admin-only; access-request and notification routes added). `docs/technical/security-scheme.md` (09-29: checked against every policy, the RLS tests and the three edge functions; the update is **held** until the §3b security entry is resolved, then document helpers, gig UPDATE/DELETE and participant write rules, the full CORS list, `requireOrgRole` options and the `health-check` gate). `docs/technical/deployment.md` (10-01, PR #110, merged 10-01: checked against both deploy scripts, `ci.yml`, `vite.config.ts`, `config.toml` and every env read; added the `rls` CI job and the health-check step to the rebuild. Scripts only `bash -n`-checked. `deploy_prod.sh` has no `--help` and starts its gates on any run, so don't run it). `docs/technical/tech-stack.md` (10-02, PR #118: checked against `package.json`, `supabase/functions/`, migrations and `ci.yml`; added `health-check` and `notifications.ts`, corrected storage to the one `attachments` bucket). `docs/development/coding-guide.md` (10-03, PR #119: schema section aligned with AGENTS.md rule 4 (it said to hand DDL to the SQL Editor), the `dataAccess.ts` base added, `build` added to the gates, lint debt recounted, the done `App.tsx` split retired). Next candidate: `docs/design/STYLE_GUIDE.md` was refreshed by #101, so try `docs/technical/gig-financials.md`.
+middleware; `DELETE /gigs/:id` is Admin-only; access-request and notification routes added). `docs/technical/security-scheme.md` (09-29: checked against every policy, the RLS tests and the three edge functions; the update is **held** until the §3b security entry is resolved, then document helpers, gig UPDATE/DELETE and participant write rules, the full CORS list, `requireOrgRole` options and the `health-check` gate). `docs/technical/deployment.md` (10-01, PR #110, merged 10-01: checked against both deploy scripts, `ci.yml`, `vite.config.ts`, `config.toml` and every env read; added the `rls` CI job and the health-check step to the rebuild. Scripts only `bash -n`-checked. `deploy_prod.sh` has no `--help` and starts its gates on any run, so don't run it). `docs/technical/tech-stack.md` (10-02, PR #118, merged 10-03: checked against `package.json`, `supabase/functions/`, migrations and `ci.yml`; added `health-check` and `notifications.ts`, corrected storage to the one `attachments` bucket). `docs/development/coding-guide.md` (10-03, PR #119, merged 10-03: schema section aligned with AGENTS.md rule 4 (it said to hand DDL to the SQL Editor), the `dataAccess.ts` base added, `build` added to the gates, lint debt recounted, the done `App.tsx` split retired). Next candidate: `docs/design/STYLE_GUIDE.md` was refreshed by #101, so try `docs/technical/gig-financials.md`.
 
 **Future considerations (not open work).** Left over from #61 (closed 09-25): gig attachments are invisible
 to the other orgs on a gig (needs a sharing flag plus a storage-policy change), and prod has an extra
@@ -237,7 +237,7 @@ broken yet.
 
 **Order of checks each run.**
 
-1. Check CI and mergeability on open PRs (#116 coordinator, #118 and #119 triage docs as of 10-03; list live). Fix a red or conflicted triage PR by merging `main` into it, never by rebasing.
+1. Check CI and mergeability on open PRs (none open as of 10-03 15:00 UTC; list live). Fix a red or conflicted triage PR by merging `main` into it, never by rebasing.
 2. #39 — check for a reply. If a variant is picked → work plan → post → wait for approval → implement.
 3. §3c — build what is released there that has no PR yet (all four 09-30 items shipped in #104–#107; the coordinator clears §3c). For #20, only the service §3c names.
 4. Check §3b for unresolved entries the coordinator hasn't cleared yet.
