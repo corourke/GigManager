@@ -11,7 +11,7 @@ Cameron questions.
 Migrated from GitHub issue [#41](https://github.com/corourke/GigManager/issues/41) on 2026-09-22. This file now
 supersedes that issue as the board of record.
 
-- **Last updated:** 2026-10-03 (coordinator: Purchases scan queue merged as #116 after Cameron tested it on dev; all three Purchases PRs are in; prod deploy is Cameron's)
+- **Last updated:** 2026-10-03 (coordinator: released #109, #111 and #117 to triage in §3c with their open points decided; cleared those §3b entries; merged docs PRs #118 and #119)
 - **State verified:** 2026-10-03 09:20 UTC by triage (6 open issues: #20, #39, #92, #109, #111, #117, unchanged; open PRs then: #116, #118, #119; all three merged by 10-03 15:00 UTC, so no PRs are open)
 
 ---
@@ -22,9 +22,9 @@ supersedes that issue as the board of record.
 |---|---|---|---|---|
 | [#39](https://github.com/corourke/GigManager/issues/39) | Too many menu levels | UI/UX design | Direction set 09-26: keep the top nav (no sidebar) | Cameron (§3a item 2); #12's redesign is done |
 | [#92](https://github.com/corourke/GigManager/issues/92) | Replace-all autosave can delete rows another user or tab added | Bug | From the 09-29 code review, confirmed by reading the code | Coordinator — not started |
-| [#109](https://github.com/corourke/GigManager/issues/109) | The Gig Selector on Packing List showing too many Gigs | Bug | Filed by Cameron 09-30; cause found (no date window in the picker query) | Coordinator — not in §3c (§3b) |
-| [#111](https://github.com/corourke/GigManager/issues/111) | Use Google Places lookup on ad hoc org adds | Feature | Filed by Cameron 10-01; Places search exists only in `OrganizationScreen` create mode | Coordinator — not in §3c (§3b) |
-| [#117](https://github.com/corourke/GigManager/issues/117) | Google Cal Entries make All-Day only | Feature | Filed by Cameron 10-02; event times are built in `server/routes/calendar.ts` (edge function) | Coordinator — not in §3c (§3b) |
+| [#109](https://github.com/corourke/GigManager/issues/109) | The Gig Selector on Packing List showing too many Gigs | Bug | Filed by Cameron 09-30; cause found (no date window in the picker query) | Triage — released 10-03 (§3c) |
+| [#111](https://github.com/corourke/GigManager/issues/111) | Use Google Places lookup on ad hoc org adds | Feature | Filed by Cameron 10-01; Places search exists only in `OrganizationScreen` create mode | Triage — released 10-03 (§3c) |
+| [#117](https://github.com/corourke/GigManager/issues/117) | Google Cal Entries make All-Day only | Feature | Filed by Cameron 10-02; event times are built in `server/routes/calendar.ts` (edge function) | Triage — released 10-03 (§3c) |
 | [#20](https://github.com/corourke/GigManager/issues/20) | Shared data-access layer under `src/services/` | Refactor | Pilot merged (PR #66); `attachment.service.ts` merged 09-30 (PR [#106](https://github.com/corourke/GigManager/pull/106)); 14 services remain | Nothing — next service when released |
 
 ---
@@ -36,15 +36,15 @@ supersedes that issue as the board of record.
 #102 and #103 were fixed by PRs #104 and #107, merged 09-30 (see §4). #107 put the shared lookup in `resolveGigActivityCtx` (`gigService.shared.ts`); `GigScheduleEditor` and `updateGig` still rely on the membership fallback.
 
 **[#109](https://github.com/corourke/GigManager/issues/109) — The Gig Selector on Packing List showing too many Gigs.**
-Cameron wants the picker to show gigs from 30 days back to 30 days ahead. `getGigsForReportPicker` (`src/services/inventoryManagement.service.ts`) returns every gig the org takes part in, newest first, with no date filter. The same list feeds the Location Manifest's "Gig (optional)" filter (`InventoryReports.tsx`). Not released in §3c yet; see §3b.
+Cameron wants the picker to show gigs from 30 days back to 30 days ahead. `getGigsForReportPicker` (`src/services/inventoryManagement.service.ts`) returns every gig the org takes part in, newest first, with no date filter. The same list feeds the Location Manifest's "Gig (optional)" filter (`InventoryReports.tsx`). Released to triage 10-03 (§3c).
 
 ### Features
 
 **[#111](https://github.com/corourke/GigManager/issues/111) — Use Google Places lookup on ad hoc org adds.**
-Cameron wants the onboarding Places lookup when adding a venue to a gig. The lookup lives in `OrganizationScreen.tsx` (`handleSearchPlaces`, create mode only, calling `server/integrations/google-places/search` and `/:place_id`). Adding an org from a gig goes through `OrganizationSelector` → `QuickCreateOrganizationDialog.tsx`, whose header comment says Places lookup is deliberately left to the full edit screen. The endpoints exist, so it's frontend only. Not in §3c; see §3b.
+Cameron wants the onboarding Places lookup when adding a venue to a gig. The lookup lives in `OrganizationScreen.tsx` (`handleSearchPlaces`, create mode only, calling `server/integrations/google-places/search` and `/:place_id`). Adding an org from a gig goes through `OrganizationSelector` → `QuickCreateOrganizationDialog.tsx`, whose header comment says Places lookup is deliberately left to the full edit screen. The endpoints exist, so it's frontend only. Released to triage 10-03 (§3c).
 
 **[#117](https://github.com/corourke/GigManager/issues/117) — Google Cal Entries make All-Day only.**
-Cameron wants every synced gig to be an all-day event, with the times and location in the notes. The event body is built in `supabase/functions/server/routes/calendar.ts` (~line 157): today only a noon-UTC start is treated as all-day, and other gigs get `dateTime` start/end in the gig's time zone; the all-day date comes from the UTC date. An edge-function change in `server/routes/`, which §3c keeps for the coordinator. Not in §3c; see §3b.
+Cameron wants every synced gig to be an all-day event, with the times and location in the notes. The event body is built in `supabase/functions/server/routes/calendar.ts` (~line 157): today only a noon-UTC start is treated as all-day, and other gigs get `dateTime` start/end in the gig's time zone; the all-day date comes from the UTC date. An edge-function change in `server/routes/calendar.ts`. Released to triage 10-03 (§3c); needs a `server` redeploy.
 
 ### Financials UX
 
@@ -101,9 +101,6 @@ order that unblocks the most work; the coordinator puts these to Cameron one at 
 meantime. The coordinator resolves each entry (decides it, or moves it into §3a) and deletes it.*
 
 - **Security findings from the 09-29 `security-scheme.md` check, urgent.** Details went to Cameron by private notification on 09-29, not here, because this repo is public. In short, some contact-management RPCs trust caller-supplied input for authorization and can grant org membership, plus several broader read exposures. The fix needs a migration, which is a contract, so it's for the coordinator. Meanwhile triage filed no public issue and held the `security-scheme.md` doc update, since correcting the doc would describe the holes publicly.
-- **[#117](https://github.com/corourke/GigManager/issues/117) (all-day calendar events) is an edge-function change.** It edits `server/routes/calendar.ts`, which §3c reserves for the coordinator, and needs a `server` redeploy. Points to settle: the date for the all-day event should be the gig's local date in `gigs.timezone` (the current all-day branch uses the UTC date); a multi-day gig spans start to end date inclusive; already-synced events change type on their next sync (Google accepts a `date` patch over `dateTime`, but worth checking). Triage built nothing.
-- **[#111](https://github.com/corourke/GigManager/issues/111) (Places lookup when adding a venue from a gig) ready to release?** Frontend only: lift the search from `OrganizationScreen` into a shared component or hook and use it in `QuickCreateOrganizationDialog`, which fills name, address, phone and website from the picked place. Open point: the dialog's header says it is deliberately minimal, so offer the lookup only for type Venue, or for every type? Triage built nothing; the files are unclaimed.
-- **[#109](https://github.com/corourke/GigManager/issues/109) ready to release?** Cause: `getGigsForReportPicker` has no date filter. A likely fix: a ±30-day window on `start`, done in the query, plus a test that pins the window. Two points to settle before releasing it in §3c: (1) should the Location Manifest's gig filter, which uses the same function, get the window too, or keep every gig? (2) should the window run from today in local time or in each gig's time zone, as `isGigPast` does? Triage built nothing, because it isn't in §3c. The file is unclaimed.
 
 ### 3c. Ready to build, nothing blocking
 
@@ -111,35 +108,40 @@ meantime. The coordinator resolves each entry (decides it, or moves it into §3a
 under AGENTS.md rule 1: the routine posts its plan on the issue and proceeds. Anything not listed here still
 needs approval before code changes.
 
-Released to the triage routine 09-30, at Cameron's request for more triage work. Each is its own PR, with a
-failing test first. Open the PR and don't merge it; the coordinator reviews and merges once CI is green. None
-needs a migration or an edge-function change. Stay out of `supabase/functions/server/routes/` (the coordinator's
-next security PR edits it) and don't restructure the replace-all save logic in the gig services (#92, coordinator).
+Released to the triage routine 10-03 (the 09-30 batch, #102, #103, #32 and #20's `attachment.service.ts`, all
+shipped; see §4). Each is its own PR, with a failing test first. Open the PR and don't merge it; the coordinator
+reviews and merges once CI is green. None needs a migration. Of `supabase/functions/server/routes/`, only
+`calendar.ts` is open (#117); `organizations.ts` and `users.ts` stay with the coordinator's next security PR.
+Don't restructure the replace-all save logic in the gig services (#92, coordinator).
 
-- **[#102](https://github.com/corourke/GigManager/issues/102) — Duplicate Gig fails when the gig has crew slots.**
-  In `duplicateGig` (`src/services/gig.service.ts`), send each slot's role name as `role` (plus
-  `organization_id`, `required_count`, `notes`), as `create_gig_complex` reads it, and stop sending
-  `assignments` (the RPC ignores them; a copy on a new date starts unstaffed). Test that pins the slot shape
-  to the keys the RPC reads. Frontend only.
+- **[#109](https://github.com/corourke/GigManager/issues/109) — the gig picker on the inventory reports lists every gig.**
+  Give `getGigsForReportPicker` (`src/services/inventoryManagement.service.ts`) a window of 30 days back to 30
+  days ahead of today, on `start`, filtered in the query. "Today" is the user's local date; that's what the
+  picker is about, so no per-gig time zone. The Packing List and the Location Manifest share the list, and
+  both get the window. Add a **Show all gigs** checkbox next to the picker for older or later gigs, and keep
+  the gig that's already selected in the list even when it falls outside the window. Tests pin the window
+  edges (day −30 and day +30 included, −31 and +31 excluded) and the checkbox. Frontend only.
 
-- **[#103](https://github.com/corourke/GigManager/issues/103) — participant and schedule History logged with no organization.**
-  In `gigParticipant.service.ts` and `gigSchedule.service.ts`, stop selecting the nonexistent
-  `gigs.primary_organization_id`. Log against the acting org: pass it in `activityCtx` from the callers that
-  know it, and fall back to the user's Admin/Manager membership among the gig's participants (as
-  `gigStaff.service.ts` does). Don't ignore the query error. Tests assert the logged `organization_id` and
-  `gig_title`. Touch only the activity-log lookup in those files. Frontend only.
+- **[#111](https://github.com/corourke/GigManager/issues/111) — Google Places lookup when adding an organization from a gig.**
+  Move the Places search out of `OrganizationScreen.tsx` (`handleSearchPlaces` and the place-details call)
+  into a shared hook or component, use it in `OrganizationScreen` unchanged, and add it to
+  `QuickCreateOrganizationDialog.tsx` for every organization type, as an optional "Search Google Places"
+  field above the form. Picking a place fills name, address, phone and website; the user can still edit them
+  or skip the search. Update the dialog's header comment, which says the lookup was left out on purpose. Uses
+  the existing `server/integrations/google-places` endpoints. Tests: picking a place fills the fields; the
+  dialog still works with no search. Frontend only.
 
-- **[#32](https://github.com/corourke/GigManager/issues/32) — Sign Up: confirm password and strength feedback.**
-  On the Sign Up form, add a Confirm password field that must match (inline error, blocks submit), and a
-  simple strength hint under the password (weak / fair / strong from length and character variety, no new
-  dependency). Keep the minimum at 6, which is what Supabase Auth enforces; the hint advises, it doesn't block.
-  Follow `docs/design/STYLE_GUIDE.md` (inline error style). Tests for mismatch and the hint. Frontend only.
-
-- **[#20](https://github.com/corourke/GigManager/issues/20) — next service: `attachment.service.ts`.**
-  Move its table reads and writes onto `src/services/base/dataAccess.ts`, as `user.service.ts` did (PR #66).
-  Storage calls stay as they are. No change to exported function names or return shapes; existing callers
-  and tests must pass unchanged, and add tests for the moved functions. Only this one service; the rest
-  stay parked.
+- **[#117](https://github.com/corourke/GigManager/issues/117) — Google Calendar entries are always all-day.**
+  In `supabase/functions/server/routes/calendar.ts`, send every gig as an all-day event. Dates are the gig's
+  local dates in `gigs.timezone` (not the UTC date the current all-day branch uses): start date to end date
+  inclusive, so Google's exclusive `end.date` is the day after. Put the times and the venue at the top of the
+  event description, for example "7:00 PM – 11:30 PM PDT" and "Riverside Amphitheater, 1200 Waterfront Dr,
+  Portland", then the gig notes and the GigWrangler link; keep the `location` field too. Events already synced
+  with times must become all-day on their next sync: when patching, clear `dateTime` and `timeZone` alongside
+  the new `date` (check against Google's API that the patch converts the event). Move the date and description
+  building into a pure helper under `server/lib/pure/` and test it with Vitest: a one-day gig, a gig past
+  midnight local time, a multi-day gig, a gig whose UTC date differs from its local date, and a gig with no
+  venue. Edge function only: after merging, the coordinator adds "redeploy `server`" to §3a.
 
 **Always a contract, never pre-approved:** new migrations or any RLS/policy change (AGENTS.md rule 4 — Cameron
 applies migrations), edge-function API shape, anything touching production config or `deploy_prod.sh`.
@@ -239,7 +241,7 @@ broken yet.
 
 1. Check CI and mergeability on open PRs (none open as of 10-03 15:00 UTC; list live). Fix a red or conflicted triage PR by merging `main` into it, never by rebasing.
 2. #39 — check for a reply. If a variant is picked → work plan → post → wait for approval → implement.
-3. §3c — build what is released there that has no PR yet (all four 09-30 items shipped in #104–#107; the coordinator clears §3c). For #20, only the service §3c names.
+3. §3c — build what is released there that has no PR yet (10-03: #109, #111, #117).
 4. Check §3b for unresolved entries the coordinator hasn't cleared yet.
 
 **Don't manufacture activity.** #39 already has exactly one open question on record.
