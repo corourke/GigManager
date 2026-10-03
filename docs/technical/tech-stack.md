@@ -2,7 +2,7 @@
 
 **Purpose**: What GigWrangler is built from, and why each choice was made.
 
-**Last Updated**: 2026-09-08
+**Last Updated**: 2026-10-02
 
 > Versions below are the constraints in [`package.json`](../../package.json), which is the source of truth. For how any of this reaches production, see [deployment.md](./deployment.md).
 
@@ -59,7 +59,7 @@ Supabase provides the database, auth, storage, and serverless compute as one man
 
 **Auth** — email/password plus Google OAuth, JWT sessions, with passkeys layered on via the WebAuthn routes.
 
-**Storage** — org-scoped buckets for attachments and receipts.
+**Storage** — one private `attachments` bucket for receipts, invoices and gig files; storage policies limit each file to its own organization.
 
 **Realtime** — Postgres CDC over WebSockets for live updates.
 
@@ -69,7 +69,7 @@ Supabase provides the database, auth, storage, and serverless compute as one man
 
 ## Edge Functions
 
-Two Deno functions under [`supabase/functions/`](../../supabase/functions/):
+Three Deno functions under [`supabase/functions/`](../../supabase/functions/):
 
 ### `server` — the consolidated API
 
@@ -84,6 +84,7 @@ Routes are registered per domain from [`server/routes/`](../../supabase/function
 | `accessRequests.ts` | Org claiming and access-request workflow |
 | `gigs.ts` | Gig CRUD with participants and hierarchy |
 | `calendar.ts` | Google Calendar OAuth exchange, listing, event sync |
+| `notifications.ts` | The notification bell's unread feed and mark-as-read |
 | `places.ts` | Google Places address search |
 | `webauthn.ts` | Passkey registration and authentication |
 
@@ -91,7 +92,11 @@ Shared helpers live in `server/lib/`. Pure, dependency-free logic is deliberatel
 
 ### `ai-scan` — receipt and invoice extraction
 
-Calls the **Anthropic API** (Claude) to pull structured data out of uploaded receipts and invoices. PDF input requires a Tier 1+ Anthropic account; lower tiers handle images only.
+Calls the **Anthropic API** (Claude, via `npm:@anthropic-ai/sdk`) to pull structured data out of uploaded receipts and invoices. The model and effort level are constants in `ai-scan/scanRequest.ts` (Claude Sonnet 5.5 at `low` effort since PR #113). PDF input requires a Tier 1+ Anthropic account; lower tiers handle images only.
+
+### `health-check` — daily API health check
+
+Called once a day by a `pg_cron` + `pg_net` job, not by users. It checks Supabase, Google Places and (when its secrets are set) Sentry, and sends each platform moderator a notification when a check fails (once per check until it is read). It is a separate function because the cron authenticates with its own bearer token rather than a Supabase JWT, so JWT verification is switched off for this function alone. Setup is in [deployment.md](./deployment.md).
 
 ### Shared
 
