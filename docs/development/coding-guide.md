@@ -15,9 +15,10 @@
 
 ### Schema Modifications
 
-- Write migration files to `/supabase/migrations/`
-- Provide DDL statements for the Supabase SQL Editor
-- Update database documentation files in `/docs/technical/database.md`
+- Write a new migration file in `/supabase/migrations/`. Never edit a committed migration; `schema.sql` changes do nothing.
+- Cameron applies migrations (`supabase db push` on dev, then `./deploy_prod.sh`); ask, and wait for confirmation (AGENTS.md rule 4).
+- Regenerate `src/utils/supabase/database.types.ts` and update `/docs/technical/database.md` in the same change.
+- A new org-private table or a policy change needs a test in `supabase/tests/rls/` (CI job `rls`).
 
 **Note**: The KV store limitations DO NOT apply to this project.
 
@@ -54,12 +55,13 @@
 - **Naming**: `FeatureScreen.tsx`, `FeatureDialog.tsx`, `FeatureForm.tsx`.
 
 ### 2. Forms & Data
-- **Partial Updates**: Use `useSimpleFormChanges` hook to identify only changed fields for `UPDATE` operations.
+- **Partial Updates**: Use the `useSimpleFormChanges` hook (`src/utils/hooks/`) to identify only changed fields for `UPDATE` operations.
 - **Validation**: Use Zod schemas for all forms.
 - **Loading States**: Show spinners on buttons and disable interactive elements during async operations.
 
 ### 3. API & Error Handling
 - **Location**: API functions belong in `src/services/*.service.ts`, with shared error handling in `src/utils/api-error-utils.ts`.
+- **Data-access base**: `src/services/base/dataAccess.ts` holds generic CRUD and the auth lookup (issue #20). `user.service.ts` and `attachment.service.ts` use it; the other services move one at a time, when released, not opportunistically.
 - **Error Pattern**: Catch errors, log to console, and throw user-friendly messages for the UI to display via `toast`.
 - **Timestamps**: Always update `updated_at` on records during updates.
 
@@ -101,12 +103,13 @@
 
 ## Quality Gates
 
-All three must pass before merging (CI enforces them from Phase 4 of the June 2026 remediation plan):
+All must pass before merging. CI (`.github/workflows/ci.yml`) runs them, then `npm run build`, plus the `rls` job:
 
 ```bash
 npm run typecheck   # tsc --noEmit, strict mode, root tsconfig.json
 npm run lint        # ESLint flat config (eslint.config.js)
 npm run test:run    # Vitest
+npm run build       # Vite production build
 ```
 
 ### Type system notes
@@ -116,16 +119,16 @@ npm run test:run    # Vitest
 
 ### Lint burn-down debt (intentional, tracked)
 
-- `@typescript-eslint/no-explicit-any` is **off**: ~500 legacy `any`s predate strict mode. Tighten to `error` as services/components are refactored (Phase 7).
-- The react-hooks v6 compiler rules (`set-state-in-effect`, `immutability`, `refs`, `purity`, `incompatible-library`, `static-components`) are **off**: they flag real but refactor-sized issues in the large screen components. Re-enable per-component as Phase 7 splits them.
-- `react-hooks/exhaustive-deps` is a **warning** (~45 open). Fix opportunistically; do not add new ones.
+- `@typescript-eslint/no-explicit-any` is **off**: about 660 `any`s in app code and 480 in tests (counted 2026-10-03). Tighten to `error` as services and components are refactored.
+- The react-hooks v6 compiler rules (`set-state-in-effect`, `immutability`, `refs`, `purity`, `incompatible-library`, `static-components`) are **off**: they flag real but refactor-sized issues in the large screen components. Re-enable them per component as the screens are split.
+- `react-hooks/exhaustive-deps` is a **warning** (37 open on 2026-10-03). Fix opportunistically; do not add new ones.
+- `react-refresh/only-export-components` is a **warning** (17 open, files that export helpers next to components).
 - `react-big-calendar` is typed as `any` via `src/types/react-big-calendar.d.ts`; replace with `@types/react-big-calendar` when convenient.
 
 ## Future Refactoring Opportunities
 
-- **`src/App.tsx`** (~816 lines): Contains routing, auth flow, and organization selection logic in a single file. Consider extracting into a router module, auth orchestrator, and layout components.
-- **`src/services/gig.service.ts`** (~1110 lines): Handles all gig CRUD, participants, financials, staff, and kit assignments. Consider splitting into focused modules (e.g., `gigParticipant.service.ts`, `gigFinancial.service.ts`).
-- **`src/components/AssetScreen.tsx`**: form state uses in-place string→number normalization with boundary casts at the `createAsset`/`updateAsset` call sites; replace with a typed conversion layer when the component is split.
+- **`src/services/gig.service.ts`** (~980 lines): participants, schedule, financials, staff, kits and participant contacts are already split into `gig*.service.ts` modules (kits, financials, participants and staff are re-exported from here). Gig CRUD, duplicate, the gig pickers and accounting summaries remain.
+- **`src/components/AssetScreen.tsx`** (~970 lines): form state uses in-place string→number normalization with boundary casts at the `createAsset`/`updateAsset` call sites; replace with a typed conversion layer when the component is split.
 
 ---
-**Last Updated**: 2026-02-24
+**Last Updated**: 2026-10-03
