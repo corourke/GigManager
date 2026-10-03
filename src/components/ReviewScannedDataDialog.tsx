@@ -128,6 +128,8 @@ interface ReviewScannedDataDialogProps {
   layout?: 'dialog' | 'page';
   /** The label of the button that calls onOpenChange(false). */
   cancelLabel?: string;
+  /** The file is already uploaded (a queued invoice): link this attachment instead of uploading `file` again. */
+  attachmentId?: string;
 }
 
 export default function ReviewScannedDataDialog({
@@ -142,6 +144,7 @@ export default function ReviewScannedDataDialog({
   onUpdated,
   layout = 'dialog',
   cancelLabel = 'Cancel',
+  attachmentId,
 }: ReviewScannedDataDialogProps) {
   const isPage = layout === 'page';
   const isEditMode = !!editPurchaseId;
@@ -445,7 +448,14 @@ export default function ReviewScannedDataDialog({
         }
       }
 
-      if (file) {
+      if (attachmentId) {
+        try {
+          await linkAttachmentToEntity(attachmentId, 'purchase', result.id);
+        } catch (linkErr) {
+          console.error('Error linking receipt attachment:', linkErr);
+          toast.error('Purchase created, but failed to attach the invoice');
+        }
+      } else if (file) {
         try {
           const attachment = await uploadAttachment(organizationId, file);
           if (attachment) {
@@ -458,7 +468,8 @@ export default function ReviewScannedDataDialog({
       }
       toast.success('Purchase created successfully');
       onSuccess(result.id);
-      onOpenChange(false);
+      // In a page, onOpenChange(false) means Cancel (Discard on Scan invoices), not "done".
+      if (!isPage) onOpenChange(false);
     } catch (err: any) {
       console.error('Error creating purchase:', err);
       toast.error(err.message || 'Failed to create purchase');
@@ -581,7 +592,7 @@ export default function ReviewScannedDataDialog({
       }
       toast.success('Purchase updated successfully');
       onUpdated?.(editPurchaseId);
-      onOpenChange(false);
+      if (!isPage) onOpenChange(false);
     } catch (err: any) {
       console.error('Error updating purchase:', err);
       toast.error(err.message || 'Failed to update purchase');

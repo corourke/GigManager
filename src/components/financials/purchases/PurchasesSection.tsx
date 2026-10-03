@@ -5,6 +5,7 @@ import type { Organization, User, UserRole } from '../../../utils/supabase/types
 import PurchasesTab from './PurchasesTab';
 import ManualPurchaseTab from './ManualPurchaseTab';
 import ScanInvoiceTab from './ScanInvoiceTab';
+import { useScanQueue } from './useScanQueue';
 
 type PurchasesView = 'report' | 'manual' | 'scan';
 
@@ -30,6 +31,8 @@ export default function PurchasesSection(props: PurchasesSectionProps) {
   const [view, setView] = useState<PurchasesView>('report');
   const [reloadToken, setReloadToken] = useState(0);
   const [reportIsStale, setReportIsStale] = useState(false);
+  // Lives here, not in the Scan tab, so scanning carries on while you're on the report.
+  const scanQueue = useScanQueue(organization.id, canAdd);
 
   const showView = (next: PurchasesView) => {
     if (next === 'report' && reportIsStale) {
@@ -65,6 +68,11 @@ export default function PurchasesSection(props: PurchasesSectionProps) {
           >
             <Icon className="w-4 h-4 mr-1.5" />
             {label}
+            {value === 'scan' && scanQueue.counts.ready > 0 && (
+              <span className="ml-1.5 rounded-full bg-sky-700 text-white text-[10px] font-bold px-1.5 min-w-[18px] text-center" aria-label={`${scanQueue.counts.ready} to review`}>
+                {scanQueue.counts.ready}
+              </span>
+            )}
           </TabsTrigger>
         ))}
       </TabsList>
@@ -77,7 +85,7 @@ export default function PurchasesSection(props: PurchasesSectionProps) {
         <ManualPurchaseTab organizationId={organization.id} onSaved={purchaseAdded} />
       </TabsContent>
       <TabsContent value="scan" className="mt-0">
-        <ScanInvoiceTab organizationId={organization.id} onSaved={purchaseAdded} />
+        <ScanInvoiceTab organizationId={organization.id} queue={scanQueue} onSaved={purchaseAdded} />
       </TabsContent>
     </Tabs>
   );
