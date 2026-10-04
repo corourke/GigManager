@@ -11,7 +11,7 @@ Cameron questions.
 Migrated from GitHub issue [#41](https://github.com/corourke/GigManager/issues/41) on 2026-09-22. This file now
 supersedes that issue as the board of record.
 
-- **Last updated:** 2026-10-04 (triage: built #109, #111 and #117 from §3c as PRs #120, #122 and #121)
+- **Last updated:** 2026-10-04 (coordinator: reviewed #120–#122 after merge; #117 needs a `server` redeploy plus the frontend, added to §3a; one #117 question for Cameron in §3a)
 - **State verified:** 2026-10-04 09:30 UTC by triage (6 open issues: #20, #39, #92, #109, #111, #117; no PRs were open at the start of the run; all three merged 15:22–15:24 UTC, closing #109, #111 and #117; no PRs open)
 
 ---
@@ -82,8 +82,9 @@ order that unblocks the most work; the coordinator puts these to Cameron one at 
 1. **Deploy migration `20260929000000_tighten_membership_and_rpc_authorization.sql`** ([#95](https://github.com/corourke/GigManager/pull/95), merged 09-29): `./deploy_dev.sh`, then `./deploy_prod.sh`. That applies the migration and redeploys the `server` edge function, which also ships #90's and #91's fixes (PRs #96, #97). If you deployed before 04:19 UTC on 09-30, run it once more for those two. Then, as an Admin: add and remove a contact on your own org, add a contact to a venue you created, and invite a Staff member. Urgent.
 2. **[#39](https://github.com/corourke/GigManager/issues/39)**: "keep top nav" (09-26) rules out the sidebar (Option B). It follows #12's redesign, since the gig screen is the deepest page and the two need one consistent header.
 3. **Deploy Purchases to prod** ([#116](https://github.com/corourke/GigManager/pull/116) merged 10-03; tested on dev by Cameron): `./deploy_prod.sh` applies migration `20261002000000_purchase_scan_queue.sql` and deploys `ai-scan` (scan queue + Sonnet 5.5, #113) and the frontend (#114–#116). Purchases saved during the dev test with OK on the old "Discard?" prompt lost their invoice file; re-attach with Attach Doc if needed.
-4. **Organization delete by the org's own Admin** (raised by triage while fixing #90). `DELETE /organizations/:id` refuses while the org has members, and the Admin doing the delete counts as one, so an org's own Admin always gets "still has members". In practice only an unclaimed org with no data can be deleted. Should the check ignore the caller's own membership (the org still has to be free of gigs, assets and other data), or is deleting a claimed org meant to stay impossible from the app? Not urgent; a small server change either way.
-5. **Sentry secrets** — `SENTRY_API_TOKEN`, `SENTRY_ORG_SLUG`, `SENTRY_PROJECT_SLUG` for the health check's Sentry round-trip. Optional; it reports "not configured" until set.
+4. **Deploy #117 (all-day Google Calendar events, PR #121 merged 10-04):** redeploy the `server` edge function and the frontend together, dev first (both sync paths changed). On dev, re-sync a gig that was synced with times and check it becomes all-day with the times and venue at the top of the description. `./deploy_prod.sh` covers prod, together with item 3. **Question:** a gig from 9 PM to 1:30 AM now shows on both days; should a gig that ends in the early morning (say before 6 AM) show only on its start day?
+5. **Organization delete by the org's own Admin** (raised by triage while fixing #90). `DELETE /organizations/:id` refuses while the org has members, and the Admin doing the delete counts as one, so an org's own Admin always gets "still has members". In practice only an unclaimed org with no data can be deleted. Should the check ignore the caller's own membership (the org still has to be free of gigs, assets and other data), or is deleting a claimed org meant to stay impossible from the app? Not urgent; a small server change either way.
+6. **Sentry secrets** — `SENTRY_API_TOKEN`, `SENTRY_ORG_SLUG`, `SENTRY_PROJECT_SLUG` for the health check's Sentry round-trip. Optional; it reports "not configured" until set.
 
 ### 3b. Raised by triage, for the coordinator
 
