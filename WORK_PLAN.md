@@ -12,7 +12,7 @@ Migrated from GitHub issue [#41](https://github.com/corourke/GigManager/issues/4
 supersedes that issue as the board of record.
 
 - **Last updated:** 2026-10-04 (triage: built #109, #111 and #117 from §3c as PRs #120, #122 and #121)
-- **State verified:** 2026-10-04 09:30 UTC by triage (6 open issues: #20, #39, #92, #109, #111, #117; no PRs were open at the start of the run; now open: #121, #122; #120 merged 15:22 UTC)
+- **State verified:** 2026-10-04 09:30 UTC by triage (6 open issues: #20, #39, #92, #109, #111, #117; no PRs were open at the start of the run; now open: #122; #120 and #121 merged 15:22–15:23 UTC)
 
 ---
 
@@ -23,7 +23,6 @@ supersedes that issue as the board of record.
 | [#39](https://github.com/corourke/GigManager/issues/39) | Too many menu levels | UI/UX design | Direction set 09-26: keep the top nav (no sidebar) | Cameron (§3a item 2); #12's redesign is done |
 | [#92](https://github.com/corourke/GigManager/issues/92) | Replace-all autosave can delete rows another user or tab added | Bug | From the 09-29 code review, confirmed by reading the code | Coordinator — not started |
 | [#111](https://github.com/corourke/GigManager/issues/111) | Use Google Places lookup on ad hoc org adds | Feature | Built 10-04: PR [#122](https://github.com/corourke/GigManager/pull/122), CI green | Coordinator — review and merge |
-| [#117](https://github.com/corourke/GigManager/issues/117) | Google Cal Entries make All-Day only | Feature | Built 10-04: PR [#121](https://github.com/corourke/GigManager/pull/121), CI green; needs a `server` redeploy **and** a frontend deploy | Coordinator — review and merge |
 | [#20](https://github.com/corourke/GigManager/issues/20) | Shared data-access layer under `src/services/` | Refactor | Pilot merged (PR #66); `attachment.service.ts` merged 09-30 (PR [#106](https://github.com/corourke/GigManager/pull/106)); 14 services remain | Nothing — next service when released |
 
 ---
@@ -38,9 +37,6 @@ supersedes that issue as the board of record.
 
 **[#111](https://github.com/corourke/GigManager/issues/111) — Use Google Places lookup on ad hoc org adds.**
 Cameron wants the onboarding Places lookup when adding a venue to a gig. The lookup lives in `OrganizationScreen.tsx` (`handleSearchPlaces`, create mode only, calling `server/integrations/google-places/search` and `/:place_id`). Adding an org from a gig goes through `OrganizationSelector` → `QuickCreateOrganizationDialog.tsx`, whose header comment says Places lookup is deliberately left to the full edit screen. The endpoints exist, so it's frontend only. Built 10-04 in PR #122: the search moved to `src/hooks/useGooglePlacesSearch.ts`, and the dialog gets an optional search that fills editable phone, website and address fields. It also corrects `createOrganization`'s parameter names to the real columns (`phone_number`, `url`).
-
-**[#117](https://github.com/corourke/GigManager/issues/117) — Google Cal Entries make All-Day only.**
-Cameron wants every synced gig to be an all-day event, with the times and location in the notes. The event body is built in `supabase/functions/server/routes/calendar.ts` (~line 157): today only a noon-UTC start is treated as all-day, and other gigs get `dateTime` start/end in the gig's time zone; the all-day date comes from the UTC date. Built 10-04 in PR #121: a pure `buildCalendarEvent` (`server/lib/pure/calendarEvent.ts`). **Scope note:** triage found a second writer of the event body, the browser's per-user sync (`syncGigToCalendarWithToken` in `src/services/googleCalendar.service.ts`). Left alone, it would have turned events back into timed ones, so it imports the same helper. Shipping needs a `server` redeploy and a frontend deploy together. Both writers update with `PUT`, which replaces the whole event, so already-synced timed events become all-day. That still needs checking against Google on dev.
 
 ### Financials UX
 
@@ -148,6 +144,7 @@ applies migrations), edge-function API shape, anything touching production confi
 
 | Work | Shipped in | Notes |
 |---|---|---|
+| #117 ([Google Cal Entries make All-Day only](https://github.com/corourke/GigManager/issues/117)): every synced gig is an all-day event in its local dates, times and venue at the top of the description; pure `buildCalendarEvent` (`server/lib/pure/calendarEvent.ts`) shared by the server's `sync-gig-all-users` and the browser's per-user sync | PR #121 (10-04) | Merged 15:23 UTC; #117 closed. Needs a `server` redeploy **and** a frontend deploy together; then check on dev that a previously timed event turns all-day on its next sync (updates are `PUT`) |
 | #109 ([The Gig Selector on Packing List showing too many Gigs](https://github.com/corourke/GigManager/issues/109)): both report gig pickers list gigs from 30 days back to 30 days ahead (`reportPickerWindow`, filtered in the query), with a shared **Show all gigs** checkbox; a selected gig stays listed | PR #120 (10-04) | Merged 15:22 UTC; #109 closed. Frontend only, ships with the next frontend deploy |
 | Org-ownership / access control | PR #48, PR #49 | Merged |
 | Change history (gig audit trail) | PR #57, PR #58 | Merged |
@@ -198,7 +195,6 @@ Read this section first on each run.
 | Claimed by | Files | Notes |
 |---|---|---|
 | #20 remaining services | `src/services/*.service.ts` (all but `user.service.ts` and `attachment.service.ts`) | Parked; `attachment.service.ts` released 09-30 (§3c) |
-| PR #121 (#117) | `supabase/functions/server/routes/calendar.ts`, `server/lib/pure/calendarEvent.ts` (+ test), `src/services/googleCalendar.service.ts` (+ test), `docs/technical/server-endpoint-inventory.md` | Open 10-04 |
 | PR #122 (#111) | `src/components/OrganizationScreen.tsx` (+ test), `src/components/QuickCreateOrganizationDialog.tsx` (+ test), `src/hooks/useGooglePlacesSearch.ts`, `src/services/organization.service.ts`, `docs/specs/organizations-contacts-clients/spec.md` | Open 10-04 |
 | Coordinator, #92 | not yet claimed | Not in §3c; triage leaves it alone |
 | Stray branch `claude/triage-90-org-delete-references` | none | Duplicate of PR #96's commit, already merged. The proxy refused the delete; it's safe to delete |
@@ -238,7 +234,7 @@ broken yet.
 
 **Order of checks each run.**
 
-1. Check CI and mergeability on open PRs (10-04: #121, #122; list live). Fix a red or conflicted triage PR by merging `main` into it, never by rebasing.
+1. Check CI and mergeability on open PRs (10-04: #122; list live). Fix a red or conflicted triage PR by merging `main` into it, never by rebasing.
 2. #39 — check for a reply. If a variant is picked → work plan → post → wait for approval → implement.
 3. §3c — build what is released there that has no PR yet (10-04: everything listed has a PR).
 4. Check §3b for unresolved entries the coordinator hasn't cleared yet.
