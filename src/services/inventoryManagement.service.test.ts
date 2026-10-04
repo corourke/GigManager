@@ -20,7 +20,7 @@ function makeQueryChain(result: { data: any; error: any }) {
   const chain: any = {};
   const methods = [
     'select', 'insert', 'update', 'upsert', 'delete',
-    'eq', 'neq', 'in', 'not', 'is', 'or', 'gte', 'lte',
+    'eq', 'neq', 'in', 'not', 'is', 'or', 'gte', 'lte', 'lt',
     'order', 'limit',
   ];
   methods.forEach((m) => { chain[m] = vi.fn().mockReturnValue(chain); });
@@ -412,7 +412,7 @@ describe('inventoryManagement.service', () => {
   });
 
   describe('getGigsForReportPicker', () => {
-    it('returns all gigs the org participates in, unfiltered by status or date', async () => {
+    it('returns the gigs the org participates in, unfiltered by status', async () => {
       const { getGigsForReportPicker } = await import('./inventoryManagement.service');
 
       mockSupabase.from.mockImplementation((table: string) => {
@@ -431,12 +431,61 @@ describe('inventoryManagement.service', () => {
         return makeQueryChain({ data: [], error: null });
       });
 
-      const result = await getGigsForReportPicker('org-1');
+      const result = await getGigsForReportPicker('org-1', { showAll: true });
 
       expect(result).toEqual([
         { id: 'gig-1', title: 'Electric Festival' },
         { id: 'gig-2', title: 'Old Completed Gig' },
       ]);
+    });
+
+    // #109: by default the picker shows gigs from 30 days back to 30 days ahead
+    // of the user's local today, filtered in the query on `start`.
+    describe('date window', () => {
+      const today = new Date(2026, 9, 4, 15, 30); // 2026-10-04 15:30 local
+      const inWindow = (start: Date, w: { from: string; to: string }) =>
+        start.getTime() >= new Date(w.from).getTime() && start.getTime() < new Date(w.to).getTime();
+
+      it('includes gigs on day -30 and day +30 and excludes day -31 and day +31', async () => {
+        const { reportPickerWindow } = await import('./inventoryManagement.service');
+        const w = reportPickerWindow(today);
+
+        expect(inWindow(new Date(2026, 8, 4, 0, 0), w)).toBe(true); // day -30, first minute
+        expect(inWindow(new Date(2026, 8, 3, 23, 59), w)).toBe(false); // day -31, last minute
+        expect(inWindow(new Date(2026, 10, 3, 23, 59), w)).toBe(true); // day +30, last minute
+        expect(inWindow(new Date(2026, 10, 4, 0, 0), w)).toBe(false); // day +31, first minute
+      });
+
+      it('filters the gigs query on start by the window', async () => {
+        const { getGigsForReportPicker, reportPickerWindow } = await import('./inventoryManagement.service');
+        const gigsChain = makeQueryChain({ data: [{ id: 'gig-1', title: 'Soon' }], error: null });
+        mockSupabase.from.mockImplementation((table: string) =>
+          table === 'gig_participants'
+            ? makeQueryChain({ data: [{ gig_id: 'gig-1' }], error: null })
+            : gigsChain,
+        );
+
+        await getGigsForReportPicker('org-1', { today });
+
+        const w = reportPickerWindow(today);
+        expect(gigsChain.gte).toHaveBeenCalledWith('start', w.from);
+        expect(gigsChain.lt).toHaveBeenCalledWith('start', w.to);
+      });
+
+      it('applies no date filter when showAll is set', async () => {
+        const { getGigsForReportPicker } = await import('./inventoryManagement.service');
+        const gigsChain = makeQueryChain({ data: [], error: null });
+        mockSupabase.from.mockImplementation((table: string) =>
+          table === 'gig_participants'
+            ? makeQueryChain({ data: [{ gig_id: 'gig-1' }], error: null })
+            : gigsChain,
+        );
+
+        await getGigsForReportPicker('org-1', { showAll: true, today });
+
+        expect(gigsChain.gte).not.toHaveBeenCalled();
+        expect(gigsChain.lt).not.toHaveBeenCalled();
+      });
     });
 
     it('returns an empty array when the org has no gig participants', async () => {

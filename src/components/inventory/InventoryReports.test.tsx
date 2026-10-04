@@ -34,7 +34,7 @@ vi.mock('../ui/select', () => {
   };
 });
 
-import { getPackingListReport } from '../../services/inventoryManagement.service';
+import { getGigsForReportPicker, getPackingListReport } from '../../services/inventoryManagement.service';
 
 const blank = { status: null, location: null, scanned_at: null, scanned_by_name: null, notes: null, has_conflict: false };
 const lighting = { group_kit_id: 'kit-lighting', group_kit_name: 'Lighting Kit', group_is_container: false, group_tag_number: null };
@@ -177,5 +177,47 @@ describe('InventoryReports — Packing List tab', () => {
     expect(header).toHaveTextContent('Test Gig');
     expect(header).toHaveTextContent('Sun, Jul 12, 2026');
     expect(header).toHaveTextContent('10 kits · 23 lines');
+  });
+});
+
+describe('InventoryReports — gig picker window (#109)', () => {
+  const recent = { id: 'gig-1', title: 'Test Gig', start: '2026-07-12T19:00:00Z', timezone: 'America/Los_Angeles' };
+  const old = { id: 'gig-old', title: 'Old Gig', start: '2025-01-10T19:00:00Z', timezone: 'America/Los_Angeles' };
+
+  it('asks for the windowed list first and the full list when Show all gigs is checked', async () => {
+    const picker = getGigsForReportPicker as any;
+    picker.mockClear();
+    picker.mockImplementation((_org: string, opts?: { showAll?: boolean }) =>
+      Promise.resolve(opts?.showAll ? [recent, old] : [recent]));
+    const user = userEvent.setup();
+    render(<InventoryReports organizationId="org-1" organizationName="Test Org" />);
+    await user.click(await screen.findByRole('tab', { name: 'Packing List' }));
+
+    expect(picker).toHaveBeenLastCalledWith('org-1', { showAll: false });
+    expect(screen.queryByRole('option', { name: 'Old Gig' })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('checkbox', { name: 'Show all gigs' }));
+
+    expect(picker).toHaveBeenLastCalledWith('org-1', { showAll: true });
+    expect(await screen.findByRole('option', { name: 'Old Gig' })).toBeInTheDocument();
+  });
+
+  it('keeps the selected gig in the list after Show all gigs is unchecked', async () => {
+    const picker = getGigsForReportPicker as any;
+    picker.mockImplementation((_org: string, opts?: { showAll?: boolean }) =>
+      Promise.resolve(opts?.showAll ? [recent, old] : [recent]));
+    (getPackingListReport as any).mockResolvedValue([]);
+    const user = userEvent.setup();
+    render(<InventoryReports organizationId="org-1" organizationName="Test Org" />);
+    await user.click(await screen.findByRole('tab', { name: 'Packing List' }));
+    await user.click(screen.getByRole('checkbox', { name: 'Show all gigs' }));
+    await user.click(await screen.findByRole('option', { name: 'Old Gig' }));
+    await waitFor(() => expect(getPackingListReport).toHaveBeenLastCalledWith('org-1', 'gig-old'));
+
+    await user.click(screen.getByRole('checkbox', { name: 'Show all gigs' }));
+
+    await waitFor(() => expect(picker).toHaveBeenLastCalledWith('org-1', { showAll: false }));
+    expect(screen.getByRole('option', { name: 'Old Gig' })).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: 'Test Gig' })).toBeInTheDocument();
   });
 });

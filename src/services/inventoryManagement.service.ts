@@ -310,12 +310,27 @@ export interface GigOption {
   timezone?: string | null;
 }
 
-// All gigs the organization participates in, unfiltered by status or date —
-// for report gig-pickers (Manifest, Packing List). getActiveGigsWithTracking
-// narrows to "what's happening this week" for the dashboard, which made
-// past/future/non-Booked gigs unselectable in reports that need to reach
-// any gig's history.
-export async function getGigsForReportPicker(organizationId: string): Promise<GigOption[]> {
+// The report pickers' default date window (#109): gigs starting from local
+// midnight 30 days before `today` up to, but not including, local midnight 31
+// days after it, so day -30 and day +30 are both in. "Today" is the user's
+// local date, not each gig's time zone.
+export function reportPickerWindow(today: Date = new Date()): { from: string; to: string } {
+  const y = today.getFullYear();
+  const m = today.getMonth();
+  const d = today.getDate();
+  return {
+    from: new Date(y, m, d - 30).toISOString(),
+    to: new Date(y, m, d + 31).toISOString(),
+  };
+}
+
+// Gigs the organization participates in, unfiltered by status — for report
+// gig-pickers (Manifest, Packing List). By default only gigs inside
+// reportPickerWindow; `showAll` drops the window to reach any gig's history.
+export async function getGigsForReportPicker(
+  organizationId: string,
+  options: { showAll?: boolean; today?: Date } = {},
+): Promise<GigOption[]> {
   const supabase = getSupabase();
   try {
     const { data: participatingGigIds, error: participantError } = await supabase
@@ -328,11 +343,15 @@ export async function getGigsForReportPicker(organizationId: string): Promise<Gi
     const gigIds = (participatingGigIds ?? []).map((r: any) => r.gig_id);
     if (gigIds.length === 0) return [];
 
-    const { data: gigs, error: gigsError } = await supabase
+    let query = supabase
       .from('gigs')
       .select('id, title, start, timezone')
-      .in('id', gigIds)
-      .order('start', { ascending: false });
+      .in('id', gigIds);
+    if (!options.showAll) {
+      const { from, to } = reportPickerWindow(options.today);
+      query = query.gte('start', from).lt('start', to);
+    }
+    const { data: gigs, error: gigsError } = await query.order('start', { ascending: false });
 
     if (gigsError) throw gigsError;
 
