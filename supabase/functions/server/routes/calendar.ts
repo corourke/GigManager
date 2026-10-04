@@ -2,6 +2,7 @@ import type { App } from '../lib/types.ts';
 import { requireUser } from '../lib/auth.ts';
 import { requireGigAccess } from '../lib/gigAccess.ts';
 import { supabaseAdmin } from '../lib/supabaseAdmin.ts';
+import { buildCalendarEvent } from '../lib/pure/calendarEvent.ts';
 
 // Google Calendar integration. All routes operate on the caller's own OAuth
 // tokens (per-user); sync-gig-all-users additionally requires gig access (Q-D).
@@ -155,42 +156,9 @@ export function registerCalendar(app: App) {
           if (!userSettings || userSettings.length === 0) return;
 
           const venue = gig.participants?.find((p: any) => p.role === 'Venue')?.organization;
-          const location = venue
-            ? `${venue.name}${venue.address_line1 ? `, ${venue.address_line1}` : ''}${venue.city ? `, ${venue.city}` : ''}`
-            : undefined;
-
-          const startDate = new Date(gig.start);
-          const endDate = gig.end ? new Date(gig.end) : null;
-          // All-day gigs are marked by a noon-UTC start (app convention).
-          const isNoonUTC = (dateStr: string): boolean => {
-            if (dateStr.endsWith('T12:00:00.000Z')) return true;
-            if (dateStr.endsWith(' 12:00:00+00')) return true;
-            const date = new Date(dateStr);
-            return date.toISOString().endsWith('T12:00:00.000Z');
-          };
-          const isAllDay = isNoonUTC(gig.start);
-
-          let startProp: Record<string, string>;
-          let endProp: Record<string, string>;
-          if (isAllDay) {
-            const startStr = startDate.toISOString().split('T')[0];
-            const actualEndDate = endDate || startDate;
-            const endStr = new Date(actualEndDate.getTime() + 86400000).toISOString().split('T')[0];
-            startProp = { date: startStr };
-            endProp = { date: endStr };
-          } else {
-            startProp = { dateTime: startDate.toISOString(), timeZone: gig.timezone };
-            const effectiveEnd = endDate && endDate.getTime() > startDate.getTime() ? endDate : new Date(startDate.getTime() + 3600000);
-            endProp = { dateTime: effectiveEnd.toISOString(), timeZone: gig.timezone };
-          }
-
-          const eventData = {
-            summary: gig.title,
-            description: `${gig.notes || ''}\n\n[View in GigWrangler](${origin || 'http://localhost:3000'}/gigs/${gig_id})`,
-            start: startProp,
-            end: endProp,
-            location,
-          };
+          // Always all-day in the gig's local dates (#117). Updates use PUT,
+          // which replaces the whole event, so a timed event becomes all-day.
+          const eventData = buildCalendarEvent(gig, venue, `${origin || 'http://localhost:3000'}/gigs/${gig_id}`);
 
           const clientId = Deno.env.get('GOOGLE_CLIENT_ID');
           const clientSecret = Deno.env.get('GOOGLE_CLIENT_SECRET');

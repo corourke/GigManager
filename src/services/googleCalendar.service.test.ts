@@ -89,7 +89,7 @@ describe('googleCalendar.service', () => {
         end: '2026-06-26T12:00:00.000Z',
         timezone: 'America/Los_Angeles',
         description: 'Testing all-day logic',
-        location: 'Main Stage',
+        venue: { name: 'Main Stage' },
       };
 
       const result = await service.syncGigToCalendar('user-123', 'gig-123', gigData);
@@ -109,7 +109,7 @@ describe('googleCalendar.service', () => {
       );
     });
 
-    it('correctly formats timed gigs with dateTime and timezone', async () => {
+    it('sends a timed gig as all-day in its local dates, times and venue in the description (#117)', async () => {
       const service = await import('./googleCalendar.service');
 
       const mockSettings = {
@@ -143,14 +143,14 @@ describe('googleCalendar.service', () => {
         error: null,
       });
 
-      // Timed gig starting at 8:00 PM (20:00:00) America/Los_Angeles
+      // Timed gig, 1:00 PM to 4:00 PM in Los Angeles
       const gigData = {
         title: 'Evening Show',
         start: '2026-06-26T20:00:00.000Z',
         end: '2026-06-26T23:00:00.000Z',
         timezone: 'America/Los_Angeles',
         description: '3-hour set',
-        location: 'Club Room',
+        venue: { name: 'Club Room' },
       };
 
       const result = await service.syncGigToCalendar('user-123', 'gig-123', gigData);
@@ -162,8 +162,10 @@ describe('googleCalendar.service', () => {
           body: expect.objectContaining({
             event_data: expect.objectContaining({
               summary: 'Evening Show',
-              start: { dateTime: '2026-06-26T20:00:00.000Z', timeZone: 'America/Los_Angeles' },
-              end: { dateTime: '2026-06-26T23:00:00.000Z', timeZone: 'America/Los_Angeles' },
+              start: { date: '2026-06-26' },
+              end: { date: '2026-06-27' },
+              location: 'Club Room',
+              description: expect.stringMatching(/^1:00 PM – 4:00 PM PDT\nClub Room\n\n3-hour set\n\n\[View in GigWrangler\]/),
             }),
           }),
         })
