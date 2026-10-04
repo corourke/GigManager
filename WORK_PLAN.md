@@ -12,7 +12,7 @@ Migrated from GitHub issue [#41](https://github.com/corourke/GigManager/issues/4
 supersedes that issue as the board of record.
 
 - **Last updated:** 2026-10-04 (triage: built #109, #111 and #117 from §3c as PRs #120, #122 and #121)
-- **State verified:** 2026-10-04 09:30 UTC by triage (6 open issues: #20, #39, #92, #109, #111, #117; no PRs were open at the start of the run; now open: #120, #121, #122)
+- **State verified:** 2026-10-04 09:30 UTC by triage (6 open issues: #20, #39, #92, #109, #111, #117; no PRs were open at the start of the run; now open: #121, #122; #120 merged 15:22 UTC)
 
 ---
 
@@ -22,7 +22,6 @@ supersedes that issue as the board of record.
 |---|---|---|---|---|
 | [#39](https://github.com/corourke/GigManager/issues/39) | Too many menu levels | UI/UX design | Direction set 09-26: keep the top nav (no sidebar) | Cameron (§3a item 2); #12's redesign is done |
 | [#92](https://github.com/corourke/GigManager/issues/92) | Replace-all autosave can delete rows another user or tab added | Bug | From the 09-29 code review, confirmed by reading the code | Coordinator — not started |
-| [#109](https://github.com/corourke/GigManager/issues/109) | The Gig Selector on Packing List showing too many Gigs | Bug | Built 10-04: PR [#120](https://github.com/corourke/GigManager/pull/120), CI green | Coordinator — review and merge |
 | [#111](https://github.com/corourke/GigManager/issues/111) | Use Google Places lookup on ad hoc org adds | Feature | Built 10-04: PR [#122](https://github.com/corourke/GigManager/pull/122), CI green | Coordinator — review and merge |
 | [#117](https://github.com/corourke/GigManager/issues/117) | Google Cal Entries make All-Day only | Feature | Built 10-04: PR [#121](https://github.com/corourke/GigManager/pull/121), CI green; needs a `server` redeploy **and** a frontend deploy | Coordinator — review and merge |
 | [#20](https://github.com/corourke/GigManager/issues/20) | Shared data-access layer under `src/services/` | Refactor | Pilot merged (PR #66); `attachment.service.ts` merged 09-30 (PR [#106](https://github.com/corourke/GigManager/pull/106)); 14 services remain | Nothing — next service when released |
@@ -33,10 +32,7 @@ supersedes that issue as the board of record.
 
 ### Bugs
 
-#102 and #103 were fixed by PRs #104 and #107, merged 09-30 (see §4). #107 put the shared lookup in `resolveGigActivityCtx` (`gigService.shared.ts`); `GigScheduleEditor` and `updateGig` still rely on the membership fallback.
-
-**[#109](https://github.com/corourke/GigManager/issues/109) — The Gig Selector on Packing List showing too many Gigs.**
-Cameron wants the picker to show gigs from 30 days back to 30 days ahead. `getGigsForReportPicker` (`src/services/inventoryManagement.service.ts`) returns every gig the org takes part in, newest first, with no date filter. The same list feeds the Location Manifest's "Gig (optional)" filter (`InventoryReports.tsx`). Built 10-04 in PR #120: a ±30-day window in the query (`reportPickerWindow`), a shared **Show all gigs** checkbox on both pickers, and the selected gig kept in the list. Frontend only.
+#102 and #103 were fixed by PRs #104 and #107, merged 09-30, and #109 by PR #120, merged 10-04 (see §4). #107 put the shared lookup in `resolveGigActivityCtx` (`gigService.shared.ts`); `GigScheduleEditor` and `updateGig` still rely on the membership fallback.
 
 ### Features
 
@@ -152,6 +148,7 @@ applies migrations), edge-function API shape, anything touching production confi
 
 | Work | Shipped in | Notes |
 |---|---|---|
+| #109 ([The Gig Selector on Packing List showing too many Gigs](https://github.com/corourke/GigManager/issues/109)): both report gig pickers list gigs from 30 days back to 30 days ahead (`reportPickerWindow`, filtered in the query), with a shared **Show all gigs** checkbox; a selected gig stays listed | PR #120 (10-04) | Merged 15:22 UTC; #109 closed. Frontend only, ships with the next frontend deploy |
 | Org-ownership / access control | PR #48, PR #49 | Merged |
 | Change history (gig audit trail) | PR #57, PR #58 | Merged |
 | WebAuthn Sentry safety net + packing list | PR #60 (09-14) | Merged; closed #50 |
@@ -201,7 +198,6 @@ Read this section first on each run.
 | Claimed by | Files | Notes |
 |---|---|---|
 | #20 remaining services | `src/services/*.service.ts` (all but `user.service.ts` and `attachment.service.ts`) | Parked; `attachment.service.ts` released 09-30 (§3c) |
-| PR #120 (#109) | `src/components/inventory/InventoryReports.tsx` (+ test), `src/services/inventoryManagement.service.ts` (+ test), `docs/development/hierarchical-kits-manual-test-checklist.md` | Open 10-04 |
 | PR #121 (#117) | `supabase/functions/server/routes/calendar.ts`, `server/lib/pure/calendarEvent.ts` (+ test), `src/services/googleCalendar.service.ts` (+ test), `docs/technical/server-endpoint-inventory.md` | Open 10-04 |
 | PR #122 (#111) | `src/components/OrganizationScreen.tsx` (+ test), `src/components/QuickCreateOrganizationDialog.tsx` (+ test), `src/hooks/useGooglePlacesSearch.ts`, `src/services/organization.service.ts`, `docs/specs/organizations-contacts-clients/spec.md` | Open 10-04 |
 | Coordinator, #92 | not yet claimed | Not in §3c; triage leaves it alone |
@@ -242,7 +238,7 @@ broken yet.
 
 **Order of checks each run.**
 
-1. Check CI and mergeability on open PRs (10-04: #120, #121, #122; list live). Fix a red or conflicted triage PR by merging `main` into it, never by rebasing.
+1. Check CI and mergeability on open PRs (10-04: #121, #122; list live). Fix a red or conflicted triage PR by merging `main` into it, never by rebasing.
 2. #39 — check for a reply. If a variant is picked → work plan → post → wait for approval → implement.
 3. §3c — build what is released there that has no PR yet (10-04: everything listed has a PR).
 4. Check §3b for unresolved entries the coordinator hasn't cleared yet.
