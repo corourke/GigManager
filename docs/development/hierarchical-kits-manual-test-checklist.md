@@ -228,6 +228,9 @@ green in CI.
 
 ## 6. Inventory Reports (Equipment → Inventory → Reports)
 
+> **Changed since this pass (#109, 2026-10):** both gig pickers now list gigs from 30 days back to 30 days
+> ahead by default; check **Show all gigs** to reach older or later ones (such as the July 4th gig below).
+
 ### Manifest
 
 - [x] Location filter is required; gig filter is optional and lists **every** gig

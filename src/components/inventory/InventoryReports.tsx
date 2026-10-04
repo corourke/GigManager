@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { format } from 'date-fns';
 import { formatInTimeZone } from '../../utils/dateUtils';
 import { AlertTriangle, Printer, SlidersHorizontal } from 'lucide-react';
@@ -120,19 +120,46 @@ const MANIFEST_COLUMNS: { key: ManifestColumn; label: string }[] = [
   { key: 'notes', label: 'Notes' },
 ];
 
+// The pickers list gigs within ±30 days unless Show all gigs is checked
+// (#109). A gig already selected stays in its picker when the list changes
+// and no longer holds it, so unchecking the box doesn't blank the report.
+function useGigsWithSelected(gigs: GigOption[], selectedId: string): GigOption[] {
+  const seen = useRef(new Map<string, GigOption>());
+  for (const gig of gigs) seen.current.set(gig.id, gig);
+  return useMemo(() => {
+    const selected = seen.current.get(selectedId);
+    if (!selected || gigs.some((g) => g.id === selectedId)) return gigs;
+    return [...gigs, selected];
+  }, [gigs, selectedId]);
+}
+
+function ShowAllGigsCheckbox({ id, checked, onChange }: { id: string; checked: boolean; onChange: (v: boolean) => void }) {
+  return (
+    <div className="flex items-center gap-2 h-9">
+      <Checkbox id={id} checked={checked} onCheckedChange={(v) => onChange(v === true)} />
+      <Label htmlFor={id} className="text-sm font-normal whitespace-nowrap">Show all gigs</Label>
+    </div>
+  );
+}
+
 function ManifestTab({
   organizationId,
   organizationName,
-  gigs,
+  gigs: gigList,
+  showAllGigs,
+  onShowAllGigsChange,
   conflictFlags,
 }: {
   organizationId: string;
   organizationName: string;
   gigs: GigOption[];
+  showAllGigs: boolean;
+  onShowAllGigsChange: (v: boolean) => void;
   conflictFlags: Set<string>;
 }) {
   const [location, setLocation] = useState('');
   const [gigFilter, setGigFilter] = useState('all');
+  const gigs = useGigsWithSelected(gigList, gigFilter);
   const [rows, setRows] = useState<ManifestRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [visibleColumns, setVisibleColumns] = useState<Set<ManifestColumn>>(
@@ -235,6 +262,7 @@ function ManifestTab({
             </SelectContent>
           </Select>
         </div>
+        <ShowAllGigsCheckbox id="manifest-show-all-gigs" checked={showAllGigs} onChange={onShowAllGigsChange} />
         <Popover>
           <PopoverTrigger asChild>
             <Button variant="outline" size="sm" className="gap-2 shrink-0">
@@ -391,15 +419,20 @@ interface PackingLine {
 function PackingListTab({
   organizationId,
   organizationName,
-  gigs,
+  gigs: gigList,
+  showAllGigs,
+  onShowAllGigsChange,
   conflictFlags,
 }: {
   organizationId: string;
   organizationName: string;
   gigs: GigOption[];
+  showAllGigs: boolean;
+  onShowAllGigsChange: (v: boolean) => void;
   conflictFlags: Set<string>;
 }) {
   const [gigId, setGigId] = useState('');
+  const gigs = useGigsWithSelected(gigList, gigId);
   const [rows, setRows] = useState<PackingListRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [visibleColumns, setVisibleColumns] = useState<Set<PackingColumn>>(
@@ -519,6 +552,7 @@ function PackingListTab({
             </SelectContent>
           </Select>
         </div>
+        <ShowAllGigsCheckbox id="packing-show-all-gigs" checked={showAllGigs} onChange={onShowAllGigsChange} />
         <Popover>
           <PopoverTrigger asChild>
             <Button variant="outline" size="sm" className="gap-2 shrink-0">
@@ -760,19 +794,20 @@ function MaintenanceQueueTab({
 
 export function InventoryReports({ organizationId, organizationName }: InventoryReportsProps) {
   const [gigs, setGigs] = useState<GigOption[]>([]);
+  const [showAllGigs, setShowAllGigs] = useState(false);
   const [conflictFlags, setConflictFlags] = useState<Set<string>>(new Set());
 
   useEffect(() => {
-    Promise.all([
-      getGigsForReportPicker(organizationId),
-      getInventoryConflictFlags(organizationId),
-    ])
-      .then(([gigsData, flags]) => {
-        setGigs(gigsData);
-        setConflictFlags(flags);
-      })
-      .catch(() => {});
+    getInventoryConflictFlags(organizationId).then(setConflictFlags).catch(() => {});
   }, [organizationId]);
+
+  useEffect(() => {
+    let cancelled = false;
+    getGigsForReportPicker(organizationId, { showAll: showAllGigs })
+      .then((gigsData) => { if (!cancelled) setGigs(gigsData); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [organizationId, showAllGigs]);
 
   return (
     <Tabs defaultValue="manifest">
@@ -787,6 +822,8 @@ export function InventoryReports({ organizationId, organizationName }: Inventory
           organizationId={organizationId}
           organizationName={organizationName}
           gigs={gigs}
+          showAllGigs={showAllGigs}
+          onShowAllGigsChange={setShowAllGigs}
           conflictFlags={conflictFlags}
         />
       </TabsContent>
@@ -796,6 +833,8 @@ export function InventoryReports({ organizationId, organizationName }: Inventory
           organizationId={organizationId}
           organizationName={organizationName}
           gigs={gigs}
+          showAllGigs={showAllGigs}
+          onShowAllGigsChange={setShowAllGigs}
           conflictFlags={conflictFlags}
         />
       </TabsContent>
