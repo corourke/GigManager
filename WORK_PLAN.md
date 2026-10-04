@@ -11,8 +11,8 @@ Cameron questions.
 Migrated from GitHub issue [#41](https://github.com/corourke/GigManager/issues/41) on 2026-09-22. This file now
 supersedes that issue as the board of record.
 
-- **Last updated:** 2026-10-03 (coordinator: released #109, #111 and #117 to triage in §3c with their open points decided; cleared those §3b entries; merged docs PRs #118 and #119)
-- **State verified:** 2026-10-03 09:20 UTC by triage (6 open issues: #20, #39, #92, #109, #111, #117, unchanged; open PRs then: #116, #118, #119; all three merged by 10-03 15:00 UTC, so no PRs are open)
+- **Last updated:** 2026-10-04 (triage: built #109, #111 and #117 from §3c as PRs #120, #122 and #121)
+- **State verified:** 2026-10-04 09:30 UTC by triage (6 open issues: #20, #39, #92, #109, #111, #117; no PRs were open at the start of the run; now open: #120, #121, #122)
 
 ---
 
@@ -22,9 +22,9 @@ supersedes that issue as the board of record.
 |---|---|---|---|---|
 | [#39](https://github.com/corourke/GigManager/issues/39) | Too many menu levels | UI/UX design | Direction set 09-26: keep the top nav (no sidebar) | Cameron (§3a item 2); #12's redesign is done |
 | [#92](https://github.com/corourke/GigManager/issues/92) | Replace-all autosave can delete rows another user or tab added | Bug | From the 09-29 code review, confirmed by reading the code | Coordinator — not started |
-| [#109](https://github.com/corourke/GigManager/issues/109) | The Gig Selector on Packing List showing too many Gigs | Bug | Filed by Cameron 09-30; cause found (no date window in the picker query) | Triage — released 10-03 (§3c) |
-| [#111](https://github.com/corourke/GigManager/issues/111) | Use Google Places lookup on ad hoc org adds | Feature | Filed by Cameron 10-01; Places search exists only in `OrganizationScreen` create mode | Triage — released 10-03 (§3c) |
-| [#117](https://github.com/corourke/GigManager/issues/117) | Google Cal Entries make All-Day only | Feature | Filed by Cameron 10-02; event times are built in `server/routes/calendar.ts` (edge function) | Triage — released 10-03 (§3c) |
+| [#109](https://github.com/corourke/GigManager/issues/109) | The Gig Selector on Packing List showing too many Gigs | Bug | Built 10-04: PR [#120](https://github.com/corourke/GigManager/pull/120), CI green | Coordinator — review and merge |
+| [#111](https://github.com/corourke/GigManager/issues/111) | Use Google Places lookup on ad hoc org adds | Feature | Built 10-04: PR [#122](https://github.com/corourke/GigManager/pull/122) | Coordinator — review and merge |
+| [#117](https://github.com/corourke/GigManager/issues/117) | Google Cal Entries make All-Day only | Feature | Built 10-04: PR [#121](https://github.com/corourke/GigManager/pull/121), CI green; needs a `server` redeploy **and** a frontend deploy | Coordinator — review and merge |
 | [#20](https://github.com/corourke/GigManager/issues/20) | Shared data-access layer under `src/services/` | Refactor | Pilot merged (PR #66); `attachment.service.ts` merged 09-30 (PR [#106](https://github.com/corourke/GigManager/pull/106)); 14 services remain | Nothing — next service when released |
 
 ---
@@ -36,15 +36,15 @@ supersedes that issue as the board of record.
 #102 and #103 were fixed by PRs #104 and #107, merged 09-30 (see §4). #107 put the shared lookup in `resolveGigActivityCtx` (`gigService.shared.ts`); `GigScheduleEditor` and `updateGig` still rely on the membership fallback.
 
 **[#109](https://github.com/corourke/GigManager/issues/109) — The Gig Selector on Packing List showing too many Gigs.**
-Cameron wants the picker to show gigs from 30 days back to 30 days ahead. `getGigsForReportPicker` (`src/services/inventoryManagement.service.ts`) returns every gig the org takes part in, newest first, with no date filter. The same list feeds the Location Manifest's "Gig (optional)" filter (`InventoryReports.tsx`). Released to triage 10-03 (§3c).
+Cameron wants the picker to show gigs from 30 days back to 30 days ahead. `getGigsForReportPicker` (`src/services/inventoryManagement.service.ts`) returns every gig the org takes part in, newest first, with no date filter. The same list feeds the Location Manifest's "Gig (optional)" filter (`InventoryReports.tsx`). Built 10-04 in PR #120: a ±30-day window in the query (`reportPickerWindow`), a shared **Show all gigs** checkbox on both pickers, and the selected gig kept in the list. Frontend only.
 
 ### Features
 
 **[#111](https://github.com/corourke/GigManager/issues/111) — Use Google Places lookup on ad hoc org adds.**
-Cameron wants the onboarding Places lookup when adding a venue to a gig. The lookup lives in `OrganizationScreen.tsx` (`handleSearchPlaces`, create mode only, calling `server/integrations/google-places/search` and `/:place_id`). Adding an org from a gig goes through `OrganizationSelector` → `QuickCreateOrganizationDialog.tsx`, whose header comment says Places lookup is deliberately left to the full edit screen. The endpoints exist, so it's frontend only. Released to triage 10-03 (§3c).
+Cameron wants the onboarding Places lookup when adding a venue to a gig. The lookup lives in `OrganizationScreen.tsx` (`handleSearchPlaces`, create mode only, calling `server/integrations/google-places/search` and `/:place_id`). Adding an org from a gig goes through `OrganizationSelector` → `QuickCreateOrganizationDialog.tsx`, whose header comment says Places lookup is deliberately left to the full edit screen. The endpoints exist, so it's frontend only. Built 10-04 in PR #122: the search moved to `src/hooks/useGooglePlacesSearch.ts`, and the dialog gets an optional search that fills editable phone, website and address fields. It also corrects `createOrganization`'s parameter names to the real columns (`phone_number`, `url`).
 
 **[#117](https://github.com/corourke/GigManager/issues/117) — Google Cal Entries make All-Day only.**
-Cameron wants every synced gig to be an all-day event, with the times and location in the notes. The event body is built in `supabase/functions/server/routes/calendar.ts` (~line 157): today only a noon-UTC start is treated as all-day, and other gigs get `dateTime` start/end in the gig's time zone; the all-day date comes from the UTC date. An edge-function change in `server/routes/calendar.ts`. Released to triage 10-03 (§3c); needs a `server` redeploy.
+Cameron wants every synced gig to be an all-day event, with the times and location in the notes. The event body is built in `supabase/functions/server/routes/calendar.ts` (~line 157): today only a noon-UTC start is treated as all-day, and other gigs get `dateTime` start/end in the gig's time zone; the all-day date comes from the UTC date. Built 10-04 in PR #121: a pure `buildCalendarEvent` (`server/lib/pure/calendarEvent.ts`). **Scope note:** triage found a second writer of the event body, the browser's per-user sync (`syncGigToCalendarWithToken` in `src/services/googleCalendar.service.ts`). Left alone, it would have turned events back into timed ones, so it imports the same helper. Shipping needs a `server` redeploy and a frontend deploy together. Both writers update with `PUT`, which replaces the whole event, so already-synced timed events become all-day. That still needs checking against Google on dev.
 
 ### Financials UX
 
@@ -201,13 +201,16 @@ Read this section first on each run.
 | Claimed by | Files | Notes |
 |---|---|---|
 | #20 remaining services | `src/services/*.service.ts` (all but `user.service.ts` and `attachment.service.ts`) | Parked; `attachment.service.ts` released 09-30 (§3c) |
+| PR #120 (#109) | `src/components/inventory/InventoryReports.tsx` (+ test), `src/services/inventoryManagement.service.ts` (+ test), `docs/development/hierarchical-kits-manual-test-checklist.md` | Open 10-04 |
+| PR #121 (#117) | `supabase/functions/server/routes/calendar.ts`, `server/lib/pure/calendarEvent.ts` (+ test), `src/services/googleCalendar.service.ts` (+ test), `docs/technical/server-endpoint-inventory.md` | Open 10-04 |
+| PR #122 (#111) | `src/components/OrganizationScreen.tsx` (+ test), `src/components/QuickCreateOrganizationDialog.tsx` (+ test), `src/hooks/useGooglePlacesSearch.ts`, `src/services/organization.service.ts`, `docs/specs/organizations-contacts-clients/spec.md` | Open 10-04 |
 | Coordinator, #92 | not yet claimed | Not in §3c; triage leaves it alone |
 | Stray branch `claude/triage-90-org-delete-references` | none | Duplicate of PR #96's commit, already merged. The proxy refused the delete; it's safe to delete |
 
 **Dependencies.** #39 follows #12's gig-page redesign, now done (#12 closed 10-01), so the header stays consistent with it. #52's health check is live on dev and prod (09-25); its Sentry check additionally needs the Sentry secrets (§3a item 5). The tenant model is decided (hosted, shared DB, 09-25).
 
 **Where things stand.** 09-28: PRs #83 (#69) and #85 (#74) merged ~14:31 UTC; both issues closed.
-Urgent bug #84 approved by Cameron and fixed by the coordinator in PR #87 (merged 09-28). #81 reworked in PR #86; Cameron confirmed it 09-29 and it is closed. Nothing in §3c is left unbuilt. #71 and #81 merged earlier (see §4). 09-29: #12 PR 3 merged (#89) and code-review bugs #90–#94 filed by the coordinator; security PR #95 merged (deploy waits on Cameron, §3a). 09-30: the coordinator released #90, #91, #93 and #94 in §3c; triage built all four as PRs #96–#99, merged 04:19 UTC, and merged `main` into docs PR #88 to clear its conflict. #90 and #91 need a `server` redeploy. The coordinator merged docs PR #88 and moved triage's org-delete question to §3a. §3c is empty. Later on 09-30 the coordinator filed #102 and #103 and released them, #32 and `attachment.service.ts` (#20) in §3c. The 09:00 triage run built all four: PRs #104 (#102), #105 (#32), #106 (#20) and #107 (#103), each with a plan comment on its issue, a test written first and a mutation check. Nothing in §3c is left unbuilt. 10-01: Cameron filed #109 (packing-list picker); triage found the cause and raised it in §3b, and ran the docs pass on `deployment.md` (PR #110, merged 15:03 UTC). Cameron closed #12 the same day. 10-02: Cameron filed #111 and #117 (both raised in §3b, nothing built); the docs pass covered `tech-stack.md` (PR #118). 10-03: quiet, with no new issues or replies; the docs pass covered `coding-guide.md` (PR #119).
+Urgent bug #84 approved by Cameron and fixed by the coordinator in PR #87 (merged 09-28). #81 reworked in PR #86; Cameron confirmed it 09-29 and it is closed. Nothing in §3c is left unbuilt. #71 and #81 merged earlier (see §4). 09-29: #12 PR 3 merged (#89) and code-review bugs #90–#94 filed by the coordinator; security PR #95 merged (deploy waits on Cameron, §3a). 09-30: the coordinator released #90, #91, #93 and #94 in §3c; triage built all four as PRs #96–#99, merged 04:19 UTC, and merged `main` into docs PR #88 to clear its conflict. #90 and #91 need a `server` redeploy. The coordinator merged docs PR #88 and moved triage's org-delete question to §3a. §3c is empty. Later on 09-30 the coordinator filed #102 and #103 and released them, #32 and `attachment.service.ts` (#20) in §3c. The 09:00 triage run built all four: PRs #104 (#102), #105 (#32), #106 (#20) and #107 (#103), each with a plan comment on its issue, a test written first and a mutation check. Nothing in §3c is left unbuilt. 10-01: Cameron filed #109 (packing-list picker); triage found the cause and raised it in §3b, and ran the docs pass on `deployment.md` (PR #110, merged 15:03 UTC). Cameron closed #12 the same day. 10-02: Cameron filed #111 and #117 (both raised in §3b, nothing built); the docs pass covered `tech-stack.md` (PR #118). 10-03: quiet, with no new issues or replies; the docs pass covered `coding-guide.md` (PR #119). Later that day the coordinator released #109, #111 and #117. 10-04: triage built all three, each with a plan comment on its issue, tests written first and mutation checks: PRs #120 (#109), #121 (#117) and #122 (#111). Nothing in §3c is left unbuilt. No docs pass this run.
 
 On 09-23 every item was blocked or parked, so the run moved on to docs. Docs-only PR
 [#67](https://github.com/corourke/GigManager/pull/67) refreshed `docs/development/testing.md`: suite size,
@@ -231,7 +234,7 @@ middleware; `DELETE /gigs/:id` is Admin-only; access-request and notification ro
 to the other orgs on a gig (needs a sharing flag plus a storage-policy change), and prod has an extra
 `fin_category` value `'Production'` that no migration creates. Found while fixing #61 (the first two filed 09-30 as #102 and #103): Staff/Viewers can read
 their own org's staff `rate`/`fee`. Tenant model decided 09-25: hosted, shared DB. New private tables need a test
-in `supabase/tests/rls/` (CI job `rls`).
+in `supabase/tests/rls/` (CI job `rls`). Found while building #111: `createOrganization`'s parameter type still lists `email` and `place_id`, which aren't `organizations` columns, so sending either would fail the insert. No caller sends them.
 
  Supabase CLI 2.117 warns that `[inbucket]` in
 `supabase/config.toml` is deprecated in favour of `[local_smtp]`. This is local-only config, so nothing is
@@ -239,9 +242,9 @@ broken yet.
 
 **Order of checks each run.**
 
-1. Check CI and mergeability on open PRs (none open as of 10-03 15:00 UTC; list live). Fix a red or conflicted triage PR by merging `main` into it, never by rebasing.
+1. Check CI and mergeability on open PRs (10-04: #120, #121, #122; list live). Fix a red or conflicted triage PR by merging `main` into it, never by rebasing.
 2. #39 — check for a reply. If a variant is picked → work plan → post → wait for approval → implement.
-3. §3c — build what is released there that has no PR yet (10-03: #109, #111, #117).
+3. §3c — build what is released there that has no PR yet (10-04: everything listed has a PR).
 4. Check §3b for unresolved entries the coordinator hasn't cleared yet.
 
 **Don't manufacture activity.** #39 already has exactly one open question on record.
