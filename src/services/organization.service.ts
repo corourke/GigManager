@@ -50,9 +50,9 @@ export async function createOrganization(orgData: {
   name: string;
   roles: OrganizationRole[];
   description?: string;
-  phone?: string;
+  phone_number?: string;
   email?: string;
-  website?: string;
+  url?: string;
   address_line1?: string;
   address_line2?: string;
   city?: string;

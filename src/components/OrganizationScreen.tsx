@@ -31,6 +31,8 @@ import {
 import { PageHeader } from './ui/PageHeader';
 import MarkdownEditor from './MarkdownEditor';
 import OrganizationContactsSection from './organization/OrganizationContactsSection';
+import { useGooglePlacesSearch, placeToOrganizationFields } from '../hooks/useGooglePlacesSearch';
+import type { GooglePlace } from '../hooks/useGooglePlacesSearch';
 
 interface OrganizationScreenProps {
   organization?: Organization; // If provided, we're in edit mode
@@ -69,20 +71,6 @@ interface FormErrors {
   general?: string;
 }
 
-interface GooglePlace {
-  place_id: string;
-  name: string;
-  formatted_address: string;
-  formatted_phone_number?: string;
-  website?: string;
-  editorial_summary?: string;
-  address_components: Array<{
-    long_name: string;
-    short_name: string;
-    types: string[];
-  }>;
-}
-
 const ORG_ROLES = Object.entries(ORG_ROLE_CONFIG).map(([value, config]) => ({
   value: value as OrganizationRole,
   label: config.label,
@@ -97,12 +85,16 @@ export default function OrganizationScreen({
 }: OrganizationScreenProps) {
   const isEditMode = !!organization;
   
-  const [searchQuery, setSearchQuery] = useState('');
-  const [isSearching, setIsSearching] = useState(false);
-  const [searchResults, setSearchResults] = useState<GooglePlace[]>([]);
-  const [showResults, setShowResults] = useState(false);
-  /** True when the search request itself failed — must render distinctly from "no results found", since those mean very different things to the user. */
-  const [searchError, setSearchError] = useState(false);
+  const {
+    searchQuery,
+    setSearchQuery,
+    isSearching,
+    searchResults,
+    showResults,
+    searchError,
+    search: handleSearchPlaces,
+    dismiss: dismissSearch,
+  } = useGooglePlacesSearch();
   const [selectedPlace, setSelectedPlace] = useState<GooglePlace | null>(null);
   const [showManualEntry, setShowManualEntry] = useState(isEditMode); // Show form directly in edit mode
 
@@ -181,154 +173,24 @@ export default function OrganizationScreen({
 
   const searchInputRef = useRef<HTMLInputElement>(null);
 
-  const handleSearchPlaces = async () => {
-    if (!searchQuery.trim()) return;
-    
-    setIsSearching(true);
-    setShowResults(true);
-    setSearchError(false);
-
-    // Real API call
-    try {
-      // Get current session
-      const supabase = createClient();
-      const { data: { session } } = await supabase.auth.getSession();
-      
-      if (!session?.access_token) {
-        toast.error('Not authenticated. Please sign in again.');
-        setIsSearching(false);
-        setShowResults(false);
-        return;
-      }
-
-      // Get user's location for proximity-based sorting
-      let userLocation: { latitude: number; longitude: number } | null = null;
-      
-      try {
-        if (navigator.geolocation) {
-          const position = await new Promise<GeolocationPosition>((resolve, reject) => {
-            navigator.geolocation.getCurrentPosition(resolve, reject, {
-              timeout: 5000,
-              enableHighAccuracy: false,
-            });
-          });
-          userLocation = {
-            latitude: position.coords.latitude,
-            longitude: position.coords.longitude,
-          };
-        }
-      } catch (geoError) {
-        // Silently fail - search will still work without location
-        console.warn('Geolocation not available or denied:', geoError);
-      }
-
-      // Build search params
-      const searchParams: any = { query: searchQuery };
-      if (userLocation) {
-        searchParams.latitude = userLocation.latitude;
-        searchParams.longitude = userLocation.longitude;
-      }
-
-      const queryStr = new URLSearchParams(searchParams).toString();
-      const { data: searchResult, error: invokeError } = await supabase.functions.invoke(`server/integrations/google-places/search?${queryStr}`, {
-        method: 'GET'
-      });
-
-      if (invokeError) {
-        await handleFunctionsError(invokeError, 'search places');
-      }
-
-      const placeResults = searchResult?.results;
-
-      if (!placeResults || placeResults.length === 0) {
-        setSearchResults([]);
-        setIsSearching(false);
-        return;
-      }
-
-      // Fetch details for each place to get phone, website, etc.
-      const detailedResults = await Promise.all(
-        placeResults.map(async (place: any) => {
-          try {
-            const { data: details, error: detailsError } = await supabase.functions.invoke(`server/integrations/google-places/${place.place_id}`, {
-              method: 'GET'
-            });
-
-            if (!detailsError && details) {
-              return details;
-            }
-            // If details fetch fails, return basic info
-            return place;
-          } catch {
-            return place;
-          }
-        })
-      );
-
-      setSearchResults(detailedResults);
-      setIsSearching(false);
-    } catch (error: any) {
-      console.error('Error searching places:', error);
-      setSearchResults([]);
-      setSearchError(true);
-      setIsSearching(false);
-    }
-  };
-
-  const parseAddressComponents = (components: GooglePlace['address_components']) => {
-    const address: {
-      street_number?: string;
-      route?: string;
-      locality?: string;
-      administrative_area_level_1?: string;
-      postal_code?: string;
-      country?: string;
-    } = {};
-
-    components.forEach(component => {
-      if (component.types.includes('street_number')) {
-        address.street_number = component.long_name;
-      } else if (component.types.includes('route')) {
-        address.route = component.long_name;
-      } else if (component.types.includes('locality')) {
-        address.locality = component.long_name;
-      } else if (component.types.includes('sublocality_level_1')) {
-        // Fallback for cities like NYC
-        if (!address.locality) address.locality = component.long_name;
-      } else if (component.types.includes('administrative_area_level_1')) {
-        address.administrative_area_level_1 = component.short_name;
-      } else if (component.types.includes('postal_code')) {
-        address.postal_code = component.long_name;
-      } else if (component.types.includes('country')) {
-        address.country = component.long_name;
-      }
-    });
-
-    return address;
-  };
-
   const handleSelectPlace = (place: GooglePlace) => {
     setSelectedPlace(place);
-    setShowResults(false);
-    setSearchQuery('');
+    dismissSearch();
 
-    const addressParts = parseAddressComponents(place.address_components);
-    const streetAddress = [addressParts.street_number, addressParts.route]
-      .filter(Boolean)
-      .join(' ');
+    const fields = placeToOrganizationFields(place);
 
     // Auto-fill form with place data
     setFormData({
       ...formData,
-      name: place.name || formData.name,
-      url: place.website || formData.url,
-      phone_number: place.formatted_phone_number || formData.phone_number,
-      description: place.editorial_summary || formData.description,
-      address_line1: streetAddress || formData.address_line1,
-      city: addressParts.locality || formData.city,
-      state: addressParts.administrative_area_level_1 || formData.state,
-      postal_code: addressParts.postal_code || formData.postal_code,
-      country: addressParts.country || formData.country,
+      name: fields.name || formData.name,
+      url: fields.url || formData.url,
+      phone_number: fields.phone_number || formData.phone_number,
+      description: fields.description || formData.description,
+      address_line1: fields.address_line1 || formData.address_line1,
+      city: fields.city || formData.city,
+      state: fields.state || formData.state,
+      postal_code: fields.postal_code || formData.postal_code,
+      country: fields.country || formData.country,
     });
 
     toast.success('Business information loaded from Google Places');
@@ -354,9 +216,7 @@ export default function OrganizationScreen({
 
   const handleManualEntry = () => {
     setShowManualEntry(true);
-    setShowResults(false);
-    setSearchError(false);
-    setSearchQuery('');
+    dismissSearch();
     toast.info('Fill in the form manually');
   };
 
