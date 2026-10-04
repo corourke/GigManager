@@ -69,7 +69,7 @@ Legend — **Auth**: 🔓 public · 🔑 any authenticated user · 👤 self onl
 | 29 | POST | `/integrations/google-calendar/calendars` | 👤 | `requireUser` | Lists the caller's calendars. |
 | 30 | POST | `/integrations/google-calendar/events` | 👤 | `requireUser` | Creates an event on the caller's calendar. |
 | 31 | DELETE | `/integrations/google-calendar/events` | 👤 | `requireUser` | |
-| 32 | POST | `/integrations/google-calendar/sync-gig-all-users` | 🏢 of a participant org of body `gig_id` | `requireGigAccess(undefined, body.gig_id)` | Q-D fix. The sync itself runs fire-and-forget after the response. |
+| 32 | POST | `/integrations/google-calendar/sync-gig-all-users` | 🏢 of a participant org of body `gig_id` | `requireGigAccess(undefined, body.gig_id)` | Q-D fix. The sync itself runs fire-and-forget after the response. Every gig goes out as an all-day event in its local dates, with times and venue in the description (#117, `lib/pure/calendarEvent.ts`, shared with the browser's per-user sync). |
 
 ## WebAuthn (mobile device lock)
 

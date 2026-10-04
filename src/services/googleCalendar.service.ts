@@ -2,7 +2,8 @@ import { createClient } from '../utils/supabase/client';
 import type { Json } from '../utils/supabase/database.types';
 import { UserGoogleCalendarSettings, GigSyncStatus } from '../utils/supabase/types';
 import { handleApiError, handleFunctionsError, unwrapFunctionsError } from '../utils/api-error-utils';
-import { isNoonUTC } from '../utils/dateUtils';
+import { buildCalendarEvent } from '../../supabase/functions/server/lib/pure/calendarEvent';
+import type { CalendarVenue } from '../../supabase/functions/server/lib/pure/calendarEvent';
 
 const getSupabase = () => createClient();
 
@@ -315,7 +316,7 @@ export async function syncGigToCalendar(
     end: string;
     timezone: string;
     description?: string;
-    location?: string;
+    venue?: CalendarVenue | null;
   }
 ): Promise<{ eventId: string; syncedAt: Date }> {
   const { accessToken, settings } = await getValidAccessToken(userId);
@@ -563,9 +564,6 @@ export async function syncAllGigsForUser(
   for (const gig of gigsToSync) {
     try {
       const venue = (gig.participants as any[])?.find((p: any) => p.role === 'Venue')?.organization;
-      const location = venue
-        ? `${venue.name}${venue.address_line1 ? `, ${venue.address_line1}` : ''}${venue.city ? `, ${venue.city}` : ''}`
-        : undefined;
 
       // Pass the already fetched accessToken to syncGigToCalendar to avoid redundant lookups
       await syncGigToCalendarWithToken(userId, accessToken, settings, gig.id, {
@@ -574,7 +572,7 @@ export async function syncAllGigsForUser(
         end: gig.end,
         timezone: gig.timezone,
         description: gig.notes ?? undefined,
-        location,
+        venue,
       });
       synced++;
     } catch (err) {
@@ -602,7 +600,7 @@ async function syncGigToCalendarWithToken(
     end: string;
     timezone: string;
     description?: string;
-    location?: string;
+    venue?: CalendarVenue | null;
   }
 ): Promise<{ eventId: string; syncedAt: Date }> {
   const supabase = getSupabase();
@@ -614,35 +612,13 @@ async function syncGigToCalendarWithToken(
   try {
     const existingSync = await getGigSyncStatus(gigId, userId);
 
-    const startDate = new Date(gigData.start);
-    const endDate = gigData.end ? new Date(gigData.end) : null;
-    
-    const isAllDay = isNoonUTC(gigData.start);
-
-    let startProp: Record<string, string>;
-    let endProp: Record<string, string>;
-
-    if (isAllDay) {
-      const startStr = startDate.toISOString().split('T')[0];
-      const actualEndDate = endDate || startDate;
-      const endStr = new Date(actualEndDate.getTime() + 86400000).toISOString().split('T')[0];
-      startProp = { date: startStr };
-      endProp = { date: endStr };
-    } else {
-      startProp = { dateTime: startDate.toISOString(), timeZone: gigData.timezone };
-      const effectiveEnd = endDate && endDate.getTime() > startDate.getTime()
-        ? endDate
-        : new Date(startDate.getTime() + 3600000);
-      endProp = { dateTime: effectiveEnd.toISOString(), timeZone: gigData.timezone };
-    }
-
-    const eventData = {
-      summary: gigData.title,
-      description: `${gigData.description || ''}\n\n[View in GigWrangler](${window.location.origin}/gigs/${gigId})`,
-      start: startProp,
-      end: endProp,
-      location: gigData.location,
-    };
+    // Same event body as the server's sync-gig-all-users: always all-day in
+    // the gig's local dates (#117), times and venue in the description.
+    const eventData = buildCalendarEvent(
+      { title: gigData.title, start: gigData.start, end: gigData.end, timezone: gigData.timezone, notes: gigData.description },
+      gigData.venue,
+      `${window.location.origin}/gigs/${gigId}`,
+    );
 
     const { data, error } = await supabase.functions.invoke(
       'server/integrations/google-calendar/events',
