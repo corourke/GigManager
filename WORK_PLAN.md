@@ -23,7 +23,7 @@ supersedes that issue as the board of record.
 | [#39](https://github.com/corourke/GigManager/issues/39) | Too many menu levels | UI/UX design | Direction set 09-26: keep the top nav (no sidebar) | Cameron (§3a item 2); #12's redesign is done |
 | [#92](https://github.com/corourke/GigManager/issues/92) | Replace-all autosave can delete rows another user or tab added | Bug | From the 09-29 code review, confirmed by reading the code | Coordinator — not started |
 | [#109](https://github.com/corourke/GigManager/issues/109) | The Gig Selector on Packing List showing too many Gigs | Bug | Built 10-04: PR [#120](https://github.com/corourke/GigManager/pull/120), CI green | Coordinator — review and merge |
-| [#111](https://github.com/corourke/GigManager/issues/111) | Use Google Places lookup on ad hoc org adds | Feature | Built 10-04: PR [#122](https://github.com/corourke/GigManager/pull/122) | Coordinator — review and merge |
+| [#111](https://github.com/corourke/GigManager/issues/111) | Use Google Places lookup on ad hoc org adds | Feature | Built 10-04: PR [#122](https://github.com/corourke/GigManager/pull/122), CI green | Coordinator — review and merge |
 | [#117](https://github.com/corourke/GigManager/issues/117) | Google Cal Entries make All-Day only | Feature | Built 10-04: PR [#121](https://github.com/corourke/GigManager/pull/121), CI green; needs a `server` redeploy **and** a frontend deploy | Coordinator — review and merge |
 | [#20](https://github.com/corourke/GigManager/issues/20) | Shared data-access layer under `src/services/` | Refactor | Pilot merged (PR #66); `attachment.service.ts` merged 09-30 (PR [#106](https://github.com/corourke/GigManager/pull/106)); 14 services remain | Nothing — next service when released |
 
