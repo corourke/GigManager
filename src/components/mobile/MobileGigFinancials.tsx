@@ -198,7 +198,7 @@ export default function MobileGigFinancials({
                       <span className="text-[11px] font-medium max-w-[180px] text-right">{selectedTransaction.description}</span>
                     </div>
                   )}
-                  {selectedTransaction.category && (
+                  {selectedTransaction.direction === 'out' && selectedTransaction.category && (
                     <div className="flex justify-between">
                       <span className="text-[11px] text-muted-foreground">Category</span>
                       <span className="text-[11px] font-medium">{selectedTransaction.category}</span>

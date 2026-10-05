@@ -204,25 +204,24 @@ describe('GigFinancialsSection', () => {
     await waitFor(() => expect(gigService.deleteGigFinancial).toHaveBeenCalledWith('fuel'));
   });
 
-  it('adds a bid request as money out with no amount', async () => {
+  it('has no Request a bid button, and asks no category for money in', async () => {
     render(<GigFinancialsSection {...defaultProps} editing />);
-    fireEvent.click(await screen.findByText('Request a bid'));
+    fireEvent.click(await screen.findByText('Other'));
     const dialog = await screen.findByRole('dialog');
-    expect(within(dialog).getByText('Add money out')).toBeInTheDocument();
-    fireEvent.change(within(dialog).getByLabelText('Description'), { target: { value: 'Lighting rig' } });
-    fireEvent.click(within(dialog).getByText('Save'));
+    expect(within(dialog).getByText('Add money in')).toBeInTheDocument();
+    expect(within(dialog).queryByLabelText('Category')).not.toBeInTheDocument();
+    expect(screen.queryByText('Request a bid')).not.toBeInTheDocument();
+  });
 
-    await waitFor(() => {
-      expect(gigService.createGigFinancial).toHaveBeenCalledWith(expect.objectContaining({
-        gig_id: 'test-gig-id',
-        organization_id: 'test-org-id',
-        direction: 'out',
-        stage: 'requested',
-        amount: null,
-        description: 'Lighting rig',
-        date: '2026-10-03',
-      }));
-    });
+  it('asks a category when editing money out', async () => {
+    const user = userEvent.setup();
+    render(<GigFinancialsSection {...defaultProps} editing />);
+    await screen.findByTestId('money-in-fee');
+    await user.click(screen.getByRole('button', { name: 'Actions for Fuel for van' }));
+    await user.click(await screen.findByRole('menuitem', { name: /Edit/ }));
+    const dialog = await screen.findByRole('dialog');
+    expect(within(dialog).getByText('Edit money out')).toBeInTheDocument();
+    expect(within(dialog).getByLabelText('Category')).toBeInTheDocument();
   });
 
   it('keeps the add dialog open and shows the error when the save fails (issue #71)', async () => {

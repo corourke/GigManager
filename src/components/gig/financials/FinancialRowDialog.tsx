@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '../../ui/dialog';
 import OrganizationSelector from '../../OrganizationSelector';
 import { FIN_CATEGORY_CONFIG } from '../../../utils/supabase/constants';
-import { ALL_STAGES, stageLabel, type FinDirection, type FinStage } from '../../../utils/moneyFlow';
+import { ALL_STAGES, stagePickerLabel, type FinDirection, type FinStage } from '../../../utils/moneyFlow';
 import type { DbGigFinancial, FinCategory } from '../../../utils/supabase/types';
 import type { GigFinancialPatch } from '../../../services/gigFinancial.service';
 import { CURRENCY_OPTIONS } from './format';
@@ -120,7 +120,8 @@ export default function FinancialRowDialog({ open, onOpenChange, row, defaults, 
         due_date: form.due_date || null,
         paid_at: isPaid ? form.paid_at || today() : null,
         description: form.description || null,
-        category: (form.category || null) as FinCategory | null,
+        // Category is for costs only.
+        category: isIn ? null : ((form.category || null) as FinCategory | null),
         reference_number: form.reference_number || null,
         counterparty_id: form.counterparty_id || null,
         external_entity_name: form.external_entity_name || null,
@@ -162,7 +163,7 @@ export default function FinancialRowDialog({ open, onOpenChange, row, defaults, 
                 <SelectTrigger id="fr-stage"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {ALL_STAGES.map((s) => (
-                    <SelectItem key={s} value={s}>{stageLabel(form.direction, s)}</SelectItem>
+                    <SelectItem key={s} value={s}>{stagePickerLabel(form.direction, s)}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -227,6 +228,7 @@ export default function FinancialRowDialog({ open, onOpenChange, row, defaults, 
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {!isIn && (
             <div className="space-y-2">
               <Label htmlFor="fr-category">Category</Label>
               <Select value={form.category || undefined} onValueChange={(v) => set('category', v)}>
@@ -238,6 +240,7 @@ export default function FinancialRowDialog({ open, onOpenChange, row, defaults, 
                 </SelectContent>
               </Select>
             </div>
+            )}
             <div className="space-y-2">
               <Label htmlFor="fr-ref">Reference</Label>
               <Input

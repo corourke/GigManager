@@ -63,6 +63,15 @@ export function stageLabel(direction: FinDirection, stage: FinStage): string {
   return STAGE_LABELS[direction]?.[stage] ?? stage;
 }
 
+/**
+ * A stage as offered in a picker. A verbal or informal agreement is the
+ * accepted stage, so the money-in option says so.
+ */
+export function stagePickerLabel(direction: FinDirection, stage: FinStage): string {
+  if (direction === 'in' && stage === 'accepted') return 'Accepted (incl. verbal / informal)';
+  return stageLabel(direction, stage);
+}
+
 /** The fields the calculations need; DB rows and form rows both fit. */
 export interface MoneyRow {
   direction: FinDirection;

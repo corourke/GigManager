@@ -12,7 +12,6 @@ import {
   MoreHorizontal,
   MousePointer2,
   Paperclip,
-  Plus,
   Receipt,
   Trash2,
   Users,
@@ -50,6 +49,7 @@ import {
   outstandingAmount,
   settledAmount,
   stageLabel,
+  stagePickerLabel,
   toDateKey,
   type FinDirection,
   type FinStage,
@@ -234,7 +234,7 @@ export default function GigFinancialsSection({
         <DropdownMenuLabel className="text-xs text-muted-foreground">Set stage</DropdownMenuLabel>
         {ALL_STAGES.filter((s) => s !== row.stage).map((s) => (
           <DropdownMenuItem key={s} onSelect={() => setStage(row, s)}>
-            {stageLabel(row.direction, s)}
+            {stagePickerLabel(row.direction, s)}
           </DropdownMenuItem>
         ))}
         <DropdownMenuSeparator />
@@ -296,13 +296,6 @@ export default function GigFinancialsSection({
                 gigStartDate={gigStartDate}
                 userRole={userRole}
               />
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setDialog({ row: null, defaults: { direction: 'out', stage: 'requested', date: gigStartDate } })}
-              >
-                <Plus className="w-4 h-4 mr-1" /> Request a bid
-              </Button>
               <div className="relative overflow-hidden">
                 <input
                   type="file"

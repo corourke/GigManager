@@ -23,7 +23,7 @@ import { Switch } from '../ui/switch';
 import { createGigFinancial } from '../../services/gig.service';
 import { uploadAttachment, linkAttachmentToEntity } from '../../services/attachment.service';
 import { FinCategory, UserRole } from '../../utils/supabase/types';
-import { STAGE_LABELS } from '../../utils/moneyFlow';
+import { STAGE_LABELS, stagePickerLabel } from '../../utils/moneyFlow';
 import { calculateMileageAmount, formatMileageNotes, getMileageRateForYear } from '../../utils/financials.utils';
 
 const commonSchema = {
@@ -350,7 +350,7 @@ export default function QuickActionButtons({
                   </SelectTrigger>
                   <SelectContent>
                     {FEE_STAGES.map((st) => (
-                      <SelectItem key={st} value={st}>{STAGE_LABELS.in[st]}</SelectItem>
+                      <SelectItem key={st} value={st}>{stagePickerLabel('in', st)}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>

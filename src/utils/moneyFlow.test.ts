@@ -7,6 +7,7 @@ import {
   outstandingAmount,
   settledAmount,
   stageLabel,
+  stagePickerLabel,
   summarizeMoney,
   type MoneyRow,
 } from './moneyFlow';
@@ -107,6 +108,12 @@ describe('moneyFlow', () => {
       expect(moneyInBadge([row({ stage: 'paid', amount_settled: 100 })], null, now))
         .toEqual({ label: 'Paid', tone: 'done' });
     });
+  });
+
+  it('names informal agreements in the money-in stage picker', () => {
+    expect(stagePickerLabel('in', 'accepted')).toBe('Accepted (incl. verbal / informal)');
+    expect(stagePickerLabel('out', 'accepted')).toBe('Accepted');
+    expect(stagePickerLabel('in', 'invoiced')).toBe('Invoiced');
   });
 
   it('labels stages by direction', () => {
