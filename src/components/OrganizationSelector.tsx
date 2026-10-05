@@ -148,10 +148,10 @@ export default function OrganizationSelector({
             <Building2 className="w-4 h-4 text-gray-600" />
           </div>
           <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 mb-1">
-              <p className="text-sm truncate">{selectedOrganization.name}</p>
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mb-1">
+              <p className="text-sm break-words min-w-0">{selectedOrganization.name}</p>
               {selectedOrganization.roles && selectedOrganization.roles.length > 0 && (
-                <Badge variant="secondary" className={`${ORG_ROLE_CONFIG[selectedOrganization.roles[0]].color} text-xs`}>
+                <Badge variant="secondary" className={`${ORG_ROLE_CONFIG[selectedOrganization.roles[0]].color} text-xs shrink-0`}>
                   {ORG_ROLE_CONFIG[selectedOrganization.roles[0]].label}
                   {selectedOrganization.roles.length > 1 && ` (+${selectedOrganization.roles.length - 1})`}
                 </Badge>
@@ -220,10 +220,10 @@ export default function OrganizationSelector({
                               <Building2 className="w-4 h-4 text-gray-600" />
                             </div>
                             <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-2 mb-1">
-                                <p className="text-sm truncate">{org.name}</p>
+                              <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mb-1">
+                                <p className="text-sm break-words min-w-0">{org.name}</p>
                                 {org.roles && org.roles.length > 0 && (
-                                  <Badge variant="secondary" className={`${ORG_ROLE_CONFIG[org.roles[0]].color} text-xs`}>
+                                  <Badge variant="secondary" className={`${ORG_ROLE_CONFIG[org.roles[0]].color} text-xs shrink-0`}>
                                     {ORG_ROLE_CONFIG[org.roles[0]].label}
                                     {org.roles.length > 1 && ` (+${org.roles.length - 1})`}
                                   </Badge>
