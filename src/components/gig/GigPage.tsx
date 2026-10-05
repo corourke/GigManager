@@ -353,6 +353,7 @@ export default function GigPage({
                 currentOrganizationId={organization.id}
                 userRole={userRole}
                 gigStartDate={gig.start?.substring(0, 10)}
+                gigEnd={gig.end}
                 editing={editing}
               />
             </TabsContent>

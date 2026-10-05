@@ -4,7 +4,8 @@ import { format } from 'date-fns';
 import { Button } from '../ui/button';
 import { TableRow, TableCell } from '../ui/table';
 import { getGigFinancials } from '../../services/gig.service';
-import { GigAccountingSummary } from '../../utils/supabase/types';
+import { GigAccountingSummary, FinDirection, FinStage } from '../../utils/supabase/types';
+import { settledAmount, stageLabel } from '../../utils/moneyFlow';
 import { DetailLine } from './purchases/DetailLine';
 
 interface GigAccountingRowDetailProps {
@@ -26,9 +27,12 @@ const formatDate = (dateStr: string) => {
 
 interface FinancialRecord {
   id: string;
-  type: string;
-  amount: number;
+  direction: FinDirection;
+  stage: FinStage;
+  amount: number | null;
+  amount_settled: number | null;
   date: string;
+  due_date?: string | null;
   paid_at?: string | null;
   description?: string;
   external_entity_name?: string;
@@ -52,7 +56,7 @@ export default function GigAccountingRowDetail({
     getGigFinancials(gig.gigId, organizationId)
       .then((data) => {
         if (!cancelled) {
-          setRecords(data as FinancialRecord[]);
+          setRecords(data as unknown as FinancialRecord[]);
           setIsLoading(false);
         }
       })
@@ -67,20 +71,19 @@ export default function GigAccountingRowDetail({
     };
   }, [gig.gigId, organizationId]);
 
-  const contractSigned = records?.filter((r) => r.type === 'Contract Signed') ?? [];
-  const depositsReceived = records?.filter((r) => r.type === 'Deposit Received') ?? [];
-  const paymentsReceived = records?.filter((r) => r.type === 'Payment Received') ?? [];
+  const moneyIn = records?.filter((r) => r.direction === 'in') ?? [];
+  const moneyOut = records?.filter((r) => r.direction === 'out') ?? [];
 
-  const expensesIncurred = records?.filter((r) => r.type === 'Expense Incurred') ?? [];
-  const paymentsSent = records?.filter((r) => r.type === 'Payment Sent') ?? [];
-  const depositsSent = records?.filter((r) => r.type === 'Deposit Sent') ?? [];
-
-  const subContractSubmitted = records?.filter((r) => r.type === 'Sub-Contract Submitted') ?? [];
-  const subContractSigned = records?.filter((r) => r.type === 'Sub-Contract Signed') ?? [];
-  const subContractSettled = records?.filter((r) => r.type === 'Sub-Contract Settled') ?? [];
-
-  const getCounterpartyName = (r: FinancialRecord) =>
-    r.counterparty?.name || r.external_entity_name || '—';
+  const label = (r: FinancialRecord) =>
+    r.description || r.counterparty?.name || r.external_entity_name || r.category || (r.direction === 'in' ? 'Money in' : 'Money out');
+  const value = (r: FinancialRecord) =>
+    r.amount == null ? '—' : formatCurrency(r.stage === 'paid' ? settledAmount(r) : Number(r.amount));
+  const secondary = (r: FinancialRecord) => {
+    const stage = stageLabel(r.direction, r.stage);
+    if (r.stage === 'paid' && r.paid_at) return `${stage} ${formatDate(r.paid_at)}`;
+    if (r.due_date) return `${stage}, due ${formatDate(`${r.due_date}T12:00:00`)}`;
+    return stage;
+  };
 
   return (
     <TableRow className="bg-gray-50 hover:bg-gray-50">
@@ -98,128 +101,27 @@ export default function GigAccountingRowDetail({
           )}
 
           {!isLoading && !error && records && (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
-                <h4 className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">Revenue</h4>
-
-                {contractSigned.length > 0 ? (
-                  contractSigned.map((r) => (
-                    <DetailLine
-                      key={r.id}
-                      label="Contract Signed"
-                      value={formatCurrency(r.amount)}
-                      secondary={r.date ? formatDate(r.date) : undefined}
-                    />
-                  ))
-                ) : (
-                  <DetailLine label="Contract Signed" value="—" />
-                )}
-
-                {depositsReceived.length > 0 && depositsReceived.map((r) => (
-                  <DetailLine
-                    key={r.id}
-                    label="Deposit Received"
-                    value={formatCurrency(r.amount)}
-                    secondary={r.paid_at ? `Paid ${formatDate(r.paid_at)}` : undefined}
-                  />
+                <h4 className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">Money in</h4>
+                {moneyIn.length === 0 && <p className="text-sm text-gray-400 italic">None</p>}
+                {moneyIn.map((r) => (
+                  <DetailLine key={r.id} label={label(r)} value={value(r)} secondary={secondary(r)} />
                 ))}
-
-                {paymentsReceived.length > 0 && paymentsReceived.map((r) => (
-                  <DetailLine
-                    key={r.id}
-                    label="Payment Received"
-                    value={formatCurrency(r.amount)}
-                    secondary={r.paid_at ? `Paid ${formatDate(r.paid_at)}` : undefined}
-                  />
-                ))}
-
-                {depositsReceived.length === 0 && paymentsReceived.length === 0 && (
-                  <DetailLine label="Payments / Deposits Received" value="None" />
-                )}
-
                 <div className="mt-2 pt-2 border-t border-gray-200">
-                  <DetailLine label="Outstanding" value={formatCurrency(gig.outstandingRevenue)} />
+                  <DetailLine label="Owed to you" value={formatCurrency(gig.outstandingRevenue)} />
                 </div>
               </div>
 
               <div>
-                <h4 className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">Expenses</h4>
-
-                {expensesIncurred.map((r) => (
-                  <DetailLine
-                    key={r.id}
-                    label={r.description || r.category || 'Expense'}
-                    value={formatCurrency(r.amount)}
-                    secondary={r.paid_at ? `Paid ${formatDate(r.paid_at)}` : 'Unpaid'}
-                  />
+                <h4 className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">Money out</h4>
+                {moneyOut.length === 0 && <p className="text-sm text-gray-400 italic">None</p>}
+                {moneyOut.map((r) => (
+                  <DetailLine key={r.id} label={label(r)} value={value(r)} secondary={secondary(r)} />
                 ))}
-
-                {paymentsSent.map((r) => (
-                  <DetailLine
-                    key={r.id}
-                    label={r.description || 'Payment Sent'}
-                    value={formatCurrency(r.amount)}
-                    secondary={r.paid_at ? formatDate(r.paid_at) : undefined}
-                  />
-                ))}
-
-                {depositsSent.map((r) => (
-                  <DetailLine
-                    key={r.id}
-                    label={r.description || 'Deposit Sent'}
-                    value={formatCurrency(r.amount)}
-                    secondary={r.paid_at ? formatDate(r.paid_at) : undefined}
-                  />
-                ))}
-
-                {expensesIncurred.length === 0 && paymentsSent.length === 0 && depositsSent.length === 0 && (
-                  <p className="text-sm text-gray-400 italic">No direct expenses</p>
-                )}
-              </div>
-
-              <div>
-                <h4 className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">Sub-Contracts</h4>
-
-                {subContractSubmitted.length === 0 && subContractSigned.length === 0 && subContractSettled.length === 0 && (
-                  <p className="text-sm text-gray-400 italic">No sub-contracts</p>
-                )}
-
-                {subContractSettled.map((r) => (
-                  <div key={r.id} className="flex items-baseline justify-between py-1 border-b border-gray-100 last:border-0">
-                    <div>
-                      <span className="text-sm text-gray-700">{getCounterpartyName(r)}</span>
-                      <span className="ml-1.5 text-xs px-1.5 py-0.5 rounded-full bg-green-100 text-green-700">Settled</span>
-                    </div>
-                    <span className="text-sm font-medium text-gray-900">{formatCurrency(r.amount)}</span>
-                  </div>
-                ))}
-
-                {subContractSigned.map((r) => (
-                  <div key={r.id} className="flex items-baseline justify-between py-1 border-b border-gray-100 last:border-0">
-                    <div>
-                      <span className="text-sm text-gray-700">{getCounterpartyName(r)}</span>
-                      <span className="ml-1.5 text-xs px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700">Signed</span>
-                    </div>
-                    <span className="text-sm font-medium text-gray-900">{formatCurrency(r.amount)}</span>
-                  </div>
-                ))}
-
-                {subContractSubmitted.map((r) => (
-                  <div key={r.id} className="flex items-baseline justify-between py-1 border-b border-gray-100 last:border-0">
-                    <div>
-                      <span className="text-sm text-gray-700">{getCounterpartyName(r)}</span>
-                      <span className="ml-1.5 text-xs px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-700">Submitted</span>
-                    </div>
-                    <span className="text-sm font-medium text-gray-900">{formatCurrency(r.amount)}</span>
-                  </div>
-                ))}
-
                 {gig.paymentsToMake > 0 && (
                   <div className="mt-2 pt-2 border-t border-gray-200">
-                    <DetailLine
-                      label="Payments to Make"
-                      value={formatCurrency(gig.paymentsToMake)}
-                    />
+                    <DetailLine label="You owe" value={formatCurrency(gig.paymentsToMake)} />
                   </div>
                 )}
               </div>

@@ -31,14 +31,16 @@ describe('MobileGigFinancials', () => {
       id: 'fin-1',
       date: '2026-01-01',
       amount: 100,
-      type: 'Agreement Revenue',
+      amount_settled: null,
+      direction: 'in',
+      stage: 'contracted',
       description: 'Test Agreement',
     },
   ];
 
   const mockSummary = {
-    contractAmount: 1000,
-    received: 100,
+    expectedIn: 1000,
+    receivedIn: 100,
     totalCosts: 50,
     profit: 950,
   };
@@ -115,7 +117,8 @@ describe('MobileGigFinancials', () => {
 
     await waitFor(() => {
       expect(screen.getByText('Transaction Detail')).toBeInTheDocument();
-      expect(screen.getByText('Agreement Revenue')).toBeInTheDocument();
+      expect(screen.getByText('Money in')).toBeInTheDocument();
+      expect(screen.getByText('Contracted')).toBeInTheDocument();
     });
   });
 });

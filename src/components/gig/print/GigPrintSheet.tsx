@@ -5,10 +5,11 @@ import { queryKeys } from '../../../lib/queryKeys';
 import { getGigParticipantContacts, type GigParticipantContact } from '../../../services/gigParticipantContacts.service';
 import { getEntityAttachments } from '../../../services/attachment.service';
 import { getGigFinancials, getGigProfitabilitySummary } from '../../../services/gigFinancial.service';
-import { FIN_TYPE_GROUPS, GIG_STATUS_CONFIG, ORG_ROLE_CONFIG, SCHEDULE_ACTIVITY_CONFIG } from '../../../utils/supabase/constants';
+import { GIG_STATUS_CONFIG, ORG_ROLE_CONFIG, SCHEDULE_ACTIVITY_CONFIG } from '../../../utils/supabase/constants';
 import { formatDateTimeDisplay, formatInTimeZone } from '../../../utils/dateUtils';
 import type { Gig, GigStaffSlotView, Organization } from '../../../utils/supabase/types';
 import { assignmentCost, money, staffRows } from '../view/staffRows';
+import { settledAmount, stageLabel } from '../../../utils/moneyFlow';
 
 interface GigPrintSheetProps {
   gig: Gig;
@@ -98,8 +99,11 @@ export default function GigPrintSheet({ gig, organization, slots, includeFinanci
   const cityLine = venue ? [venue.city, [venue.state, venue.postal_code].filter(Boolean).join(' ')].filter(Boolean).join(', ') : '';
 
   const rows = (financials.data ?? []) as any[];
-  const revenueRows = rows.filter((f) => ([...FIN_TYPE_GROUPS.revenue, ...FIN_TYPE_GROUPS.tracking] as readonly string[]).includes(f.type));
-  const expenseRows = rows.filter((f) => (FIN_TYPE_GROUPS.cost as readonly string[]).includes(f.type));
+  const revenueRows = rows.filter((f) => f.direction === 'in');
+  const expenseRows = rows.filter((f) => f.direction === 'out');
+  const dueOrPaid = (f: any) =>
+    f.stage === 'paid' ? `Paid ${shortDate(String(f.paid_at).slice(0, 10))}` : f.due_date ? `Due ${shortDate(f.due_date)}` : '';
+  const rowMoney = (f: any) => (f.amount == null ? '—' : money(f.stage === 'paid' ? settledAmount(f) : Number(f.amount)));
   const staffCosts = slots.flatMap((slot) =>
     (slot.staff_assignments ?? slot.assignments ?? [])
       .filter((a: any) => a.user_id && a.status !== 'Declined')
@@ -220,8 +224,8 @@ export default function GigPrintSheet({ gig, organization, slots, includeFinanci
           />
           <div className="grid grid-cols-3 gap-3">
             {[
-              ['Revenue', summary.data?.contractAmount, `Rcvd ${money(summary.data?.received ?? 0)} · Due ${money(summary.data?.outstandingRevenue ?? 0)}`],
-              ['Costs', summary.data?.totalCosts, `Actual ${money(summary.data?.actualCosts ?? 0)} · Staff ${money(summary.data?.projectedStaffCosts ?? 0)}`],
+              ['Revenue', summary.data?.expectedIn, `Rcvd ${money(summary.data?.receivedIn ?? 0)} · Owed ${money(summary.data?.outstandingIn ?? 0)}`],
+              ['Costs', summary.data?.totalCosts, `Paid ${money(summary.data?.paidOut ?? 0)} · Staff ${money(summary.data?.projectedStaffCosts ?? 0)}`],
               ['Profit', summary.data?.profit, `Margin ${(summary.data?.margin ?? 0).toFixed(1)}%`],
             ].map(([label, value, sub]) => (
               <div key={label as string} className="border-[1.5px] border-black px-2.5 py-1.5">
@@ -233,14 +237,14 @@ export default function GigPrintSheet({ gig, organization, slots, includeFinanci
           </div>
 
           <div>
-            <h2 className={H2}>Revenue</h2>
-            <table aria-label="Revenue" className={TABLE}>
-              <thead><tr><th>Date</th><th>Type</th><th>Description</th><th>Ref</th><th>Paid</th><th className="text-right">Amount</th></tr></thead>
+            <h2 className={H2}>Money in</h2>
+            <table aria-label="Money in" className={TABLE}>
+              <thead><tr><th>Date</th><th>Stage</th><th>Description</th><th>Ref</th><th>Due / paid</th><th className="text-right">Amount</th></tr></thead>
               <tbody>
                 {revenueRows.map((f) => (
                   <tr key={f.id}>
-                    <td>{shortDate(f.date)}</td><td>{f.type}</td><td>{f.description ?? ''}</td><td>{f.reference_number ?? ''}</td>
-                    <td>{f.paid_at ? 'Paid' : ''}</td><td className="text-right">{money(Number(f.amount))}</td>
+                    <td>{shortDate(f.date)}</td><td>{stageLabel('in', f.stage)}</td><td>{f.description ?? ''}</td><td>{f.reference_number ?? ''}</td>
+                    <td>{dueOrPaid(f)}</td><td className="text-right">{rowMoney(f)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -248,14 +252,14 @@ export default function GigPrintSheet({ gig, organization, slots, includeFinanci
           </div>
 
           <div>
-            <h2 className={H2}>Expenses</h2>
-            <table aria-label="Expenses" className={TABLE}>
-              <thead><tr><th>Date</th><th>Type</th><th>Category</th><th>Description</th><th>Paid</th><th className="text-right">Amount</th></tr></thead>
+            <h2 className={H2}>Money out</h2>
+            <table aria-label="Money out" className={TABLE}>
+              <thead><tr><th>Date</th><th>Stage</th><th>Category</th><th>Description</th><th>Due / paid</th><th className="text-right">Amount</th></tr></thead>
               <tbody>
                 {expenseRows.map((f) => (
                   <tr key={f.id}>
-                    <td>{shortDate(f.date)}</td><td>{f.type}</td><td>{f.category ?? ''}</td><td>{f.description ?? ''}</td>
-                    <td>{f.paid_at ? 'Paid' : ''}</td><td className="text-right">{money(Number(f.amount))}</td>
+                    <td>{shortDate(f.date)}</td><td>{stageLabel('out', f.stage)}</td><td>{f.category ?? ''}</td><td>{f.description ?? ''}</td>
+                    <td>{dueOrPaid(f)}</td><td className="text-right">{rowMoney(f)}</td>
                   </tr>
                 ))}
               </tbody>

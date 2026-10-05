@@ -251,7 +251,9 @@ export async function completeStaffAssignment(assignmentId: string, unitsComplet
         organization_id: organizationId,
         amount: amount,
         date: toDateInTimeZone(new Date(), assignment.slot.gig?.timezone),
-        type: 'Expense Incurred',
+        // Owed to the staff member until marked paid on the Financials tab.
+        direction: 'out',
+        stage: 'invoiced',
         category: 'Contract labor',
         description: `Labor: ${roleName}`,
         staff_assignment_id: assignmentId,

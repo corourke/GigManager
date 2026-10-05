@@ -5,7 +5,7 @@ import {
   getGigProfitabilitySummary 
 } from '../../services/gig.service';
 import { UserRole } from '../../utils/supabase/types';
-import { FIN_TYPE_GROUPS } from '../../utils/supabase/constants';
+import { stageLabel, settledAmount } from '../../utils/moneyFlow';
 import { Card, CardContent } from '../ui/card';
 import { Button } from '../ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '../ui/dialog';
@@ -87,7 +87,7 @@ export default function MobileGigFinancials({
           <div style={{ flex: 1, paddingRight: 12 }}>
             <p className="text-muted-foreground font-semibold" style={{ fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 2 }}>Revenue</p>
             <p className="font-semibold" style={{ fontSize: '14px' }}>
-              {isSummaryLoading ? '—' : formatCurrency(summary?.contractAmount || 0)}
+              {isSummaryLoading ? '—' : formatCurrency(summary?.expectedIn || 0)}
             </p>
           </div>
           <div style={{ flex: 1, paddingLeft: 12, paddingRight: 12, borderLeft: '1px solid var(--border)' }}>
@@ -173,8 +173,8 @@ export default function MobileGigFinancials({
                 </Button>
                 <div className="space-y-2 text-sm">
                   <div className="flex justify-between">
-                    <span className="text-[11px] text-muted-foreground">Type</span>
-                    <span className="text-[11px] font-medium">{selectedTransaction.type}</span>
+                    <span className="text-[11px] text-muted-foreground">{selectedTransaction.direction === 'out' ? 'Money out' : 'Money in'}</span>
+                    <span className="text-[11px] font-medium">{stageLabel(selectedTransaction.direction, selectedTransaction.stage)}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-[11px] text-muted-foreground">Date</span>
@@ -184,15 +184,21 @@ export default function MobileGigFinancials({
                   </div>
                   <div className="flex justify-between">
                     <span className="text-[11px] text-muted-foreground">Amount</span>
-                    <span className="text-[11px] font-bold">{formatCurrency(selectedTransaction.amount)}</span>
+                    <span className="text-[11px] font-bold">{selectedTransaction.amount == null ? '—' : formatCurrency(selectedTransaction.amount)}</span>
                   </div>
+                  {selectedTransaction.stage === 'paid' && Number(selectedTransaction.amount_settled) !== Number(selectedTransaction.amount) && (
+                    <div className="flex justify-between">
+                      <span className="text-[11px] text-muted-foreground">{selectedTransaction.direction === 'out' ? 'Paid' : 'Received'}</span>
+                      <span className="text-[11px] font-bold">{formatCurrency(settledAmount(selectedTransaction))}</span>
+                    </div>
+                  )}
                   {selectedTransaction.description && (
                     <div className="flex justify-between">
                       <span className="text-[11px] text-muted-foreground">Description</span>
                       <span className="text-[11px] font-medium max-w-[180px] text-right">{selectedTransaction.description}</span>
                     </div>
                   )}
-                  {selectedTransaction.category && (
+                  {selectedTransaction.direction === 'out' && selectedTransaction.category && (
                     <div className="flex justify-between">
                       <span className="text-[11px] text-muted-foreground">Category</span>
                       <span className="text-[11px] font-medium">{selectedTransaction.category}</span>
@@ -228,8 +234,8 @@ export default function MobileGigFinancials({
             ) : (
               <div className="space-y-1 py-1">
                 {sortedFinancials.map((fin) => {
-                  const isRevenue = (FIN_TYPE_GROUPS.revenue as readonly string[]).includes(fin.type);
-                  const isCost = (FIN_TYPE_GROUPS.cost as readonly string[]).includes(fin.type);
+                  const isRevenue = fin.direction === 'in';
+                  const isCost = fin.direction === 'out';
                   return (
                     <button
                       key={fin.id}
@@ -244,9 +250,9 @@ export default function MobileGigFinancials({
                           {isRevenue ? <DollarSign className="w-3 h-3" /> : isCost ? <Receipt className="w-3 h-3" /> : <FileText className="w-3 h-3" />}
                         </div>
                         <div className="min-w-0">
-                          <p className="text-[11px] font-semibold truncate">{fin.description || fin.type}</p>
+                          <p className="text-[11px] font-semibold truncate">{fin.description || (isRevenue ? 'Money in' : 'Money out')}</p>
                           <p className="text-[10px] text-muted-foreground">
-                            {fin.date ? format(parseISO(fin.date), 'MMM d, yyyy') : '—'}
+                            {stageLabel(fin.direction, fin.stage)} · {fin.date ? format(parseISO(fin.date), 'MMM d, yyyy') : '—'}
                           </p>
                         </div>
                       </div>
@@ -258,7 +264,7 @@ export default function MobileGigFinancials({
                           "text-[11px] font-bold",
                           isRevenue ? "text-green-600" : isCost ? "text-amber-600" : ""
                         )}>
-                          {isRevenue ? '+' : isCost ? '-' : ''}{formatCurrency(fin.amount)}
+                          {isRevenue ? '+' : isCost ? '-' : ''}{formatCurrency(fin.stage === 'paid' ? settledAmount(fin) : Number(fin.amount ?? 0))}
                         </span>
                         <ChevronRight className="w-3 h-3 text-muted-foreground" />
                       </div>

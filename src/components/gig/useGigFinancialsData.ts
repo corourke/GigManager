@@ -10,11 +10,8 @@ import {
 /**
  * Server-state hooks for the gig financials section (Phase 7, Step 3).
  *
- * Important: the financials list feeds a react-hook-form that is the editing
- * source of truth (with autosave). To avoid clobbering in-progress edits, the
- * financials query is NOT invalidated by mutations — only the summary is. The
- * form is re-synced from the financials query only on mount and explicit
- * refetches (external "gig-financials-updated" events, scan imports).
+ * Each change is saved row by row, so the section invalidates these queries
+ * after every write.
  */
 export function useGigFinancialsData(
   gigId: string,

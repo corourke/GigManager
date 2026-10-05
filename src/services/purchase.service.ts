@@ -520,8 +520,8 @@ export type LedgerLineSource = Pick<
  * Amount a purchase line contributes to a gig ledger.
  *
  * `line_cost` is the burdened line total that cost allocation reconciles to the
- * invoice (see `applyCostAllocation`), so it's the authoritative figure for an
- * "Expense Incurred" entry. "Cost" rows (imported/scanned expenses) only carry
+ * invoice (see `applyCostAllocation`), so it's the authoritative figure for a
+ * money-out ledger entry. "Cost" rows (imported/scanned expenses) only carry
  * `line_cost`/`item_cost` — `line_amount`/`item_price` are null for them, which
  * is why the old `line_amount`-first logic recorded $0. Fall back to the pre-fee
  * price only when no cost is stored.
@@ -554,7 +554,9 @@ export function buildPurchaseLineLedgerPayload(
     organization_id: organizationId,
     date: item.purchase_date || toDateInTimeZone(new Date(), timeZone),
     amount: purchaseLineLedgerAmount(item),
-    type: 'Expense Incurred' as const,
+    // A purchase is money already spent.
+    direction: 'out' as const,
+    stage: 'paid' as const,
     category: toFinCategory(item.category) ?? ('Other expenses' as const),
     description: item.description || `Expense: ${item.vendor || ''}`.trim(),
     purchase_id: item.id,
@@ -573,7 +575,7 @@ async function getGigTimeZone(gigId: string): Promise<string | null> {
 }
 
 /**
- * Create the "Expense Incurred" ledger entry for a purchase line linked to a gig.
+ * Create the money-out ledger entry for a purchase line linked to a gig.
  *
  * Dedup guard (correctness): if a `gig_financials` row already references this
  * purchase line, no new row is inserted — the existing one is returned. This

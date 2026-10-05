@@ -27,22 +27,51 @@ describe('QuickActionButtons', () => {
 
   it('renders all action buttons', () => {
     render(<QuickActionButtons {...defaultProps} />);
-    expect(screen.getByText('Agreement')).toBeInTheDocument();
-    expect(screen.getByText('Payment')).toBeInTheDocument();
+    expect(screen.getByText('Fee')).toBeInTheDocument();
+    expect(screen.getByText('Payment received')).toBeInTheDocument();
     expect(screen.getByText('Expense / Mileage')).toBeInTheDocument();
     expect(screen.getByText('Other')).toBeInTheDocument();
   });
 
-  it('opens agreement modal when Agreement is clicked', async () => {
-    render(<QuickActionButtons {...defaultProps} />);
-    fireEvent.click(screen.getByText('Agreement'));
-    expect(screen.getByText('Record Agreement')).toBeInTheDocument();
+  it('records a fee as money in at the chosen stage', async () => {
+    vi.mocked(gigService.createGigFinancial).mockResolvedValue({ id: 'fin-new' } as any);
+    render(<QuickActionButtons {...defaultProps} gigStartDate="2026-10-03" />);
+    fireEvent.click(screen.getByText('Fee'));
+    expect(screen.getByText('Add a fee')).toBeInTheDocument();
+    // a verbal / informal agreement is the default stage
+    expect(screen.getAllByText('Accepted (incl. verbal / informal)').length).toBeGreaterThan(0);
+    fireEvent.change(screen.getByLabelText('Amount'), { target: { value: '1000' } });
+    fireEvent.click(screen.getByText('Save Fee'));
+
+    await waitFor(() => {
+      expect(gigService.createGigFinancial).toHaveBeenCalledWith(expect.objectContaining({
+        direction: 'in',
+        stage: 'accepted',
+        amount: 1000,
+        date: '2026-10-03',
+        description: 'Fee',
+        due_date: null,
+      }));
+    });
   });
 
-  it('opens payment modal when Payment is clicked', async () => {
-    render(<QuickActionButtons {...defaultProps} />);
-    fireEvent.click(screen.getByText('Payment'));
-    expect(screen.getByText('Record Payment')).toBeInTheDocument();
+  it('records a payment received as paid money in', async () => {
+    vi.mocked(gigService.createGigFinancial).mockResolvedValue({ id: 'fin-new' } as any);
+    render(<QuickActionButtons {...defaultProps} gigStartDate="2026-10-03" />);
+    fireEvent.click(screen.getByText('Payment received'));
+    expect(screen.getByText('Date received')).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText('Amount'), { target: { value: '450' } });
+    fireEvent.click(screen.getByText('Save Payment'));
+
+    await waitFor(() => {
+      expect(gigService.createGigFinancial).toHaveBeenCalledWith(expect.objectContaining({
+        direction: 'in',
+        stage: 'paid',
+        amount: 450,
+        amount_settled: 450,
+        paid_at: '2026-10-03',
+      }));
+    });
   });
 
   it('opens expense/mileage choice modal when Expense / Mileage is clicked', async () => {
@@ -83,7 +112,8 @@ describe('QuickActionButtons', () => {
       expect(gigService.createGigFinancial).toHaveBeenCalledWith(expect.objectContaining({
         mileage: 100,
         amount: 67.5, // 100 * 0.675 (for 2026 default in utils)
-        type: 'Expense Incurred',
+        direction: 'out',
+        stage: 'paid',
         category: 'Car and truck expenses'
       }));
     });
@@ -170,13 +200,13 @@ describe('QuickActionButtons', () => {
 
     await waitFor(() => {
       expect(gigService.createGigFinancial).toHaveBeenCalledWith(
-        expect.objectContaining({ type: 'Expense Incurred', amount: 40, paid_at: expect.any(String) }),
+        expect.objectContaining({ direction: 'out', stage: 'paid', amount: 40, paid_at: expect.any(String) }),
       );
     });
     expect(attachmentService.uploadAttachment).not.toHaveBeenCalled();
   });
 
-  it('leaves paid_at unset when "Already paid" is off', async () => {
+  it('records an unpaid expense as owed when "Already paid" is off', async () => {
     vi.mocked(gigService.createGigFinancial).mockResolvedValue({ id: 'fin-new' } as any);
     render(<QuickActionButtons {...defaultProps} />);
 
@@ -185,7 +215,7 @@ describe('QuickActionButtons', () => {
 
     await waitFor(() => {
       expect(gigService.createGigFinancial).toHaveBeenCalledWith(
-        expect.objectContaining({ amount: 40, paid_at: undefined }),
+        expect.objectContaining({ direction: 'out', stage: 'invoiced', amount: 40, paid_at: undefined }),
       );
     });
   });

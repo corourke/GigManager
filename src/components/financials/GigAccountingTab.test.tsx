@@ -29,14 +29,17 @@ const makeSummary = (overrides: Partial<GigAccountingSummary> = {}): GigAccounti
   contractAmount: 5000,
   received: 3000,
   outstandingRevenue: 2000,
+  dueRevenue: 2000,
   actualCosts: 1000,
   expectedStaffCosts: 500,
   expectedSubContractCosts: 0,
   totalCosts: 1500,
   paymentsToMake: 0,
+  paymentsDue: 0,
   profit: 3500,
   margin: 70,
   paymentHealth: 'revenue-outstanding',
+  moneyInBadge: { label: 'Payment due', tone: 'attention' },
   ...overrides,
 });
 

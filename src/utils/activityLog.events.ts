@@ -1,5 +1,6 @@
 import type { ActivityLogContext } from './supabase/types';
 import { format } from 'date-fns';
+import { stageLabel, type FinStage } from './moneyFlow';
 
 interface EventTypeConfig {
   label: string;
@@ -16,6 +17,47 @@ function formatDate(dateStr: string | undefined): string {
   } catch {
     return dateStr;
   }
+}
+
+const money = (n: number | string) =>
+  `$${Number(n).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+const FINANCIAL_FIELD_LABELS: Record<string, string> = {
+  amount: 'Amount',
+  amount_settled: 'Amount paid',
+  date: 'Date',
+  due_date: 'Due',
+  paid_at: 'Paid on',
+  description: 'Description',
+  category: 'Category',
+  counterparty_id: 'Counterparty',
+  external_entity_name: 'Payee / payer',
+  reference_number: 'Reference',
+  notes: 'Notes',
+};
+
+function financialName(ctx: ActivityLogContext): string {
+  return ctx.description || (ctx.direction === 'out' ? 'Money out' : 'Money in');
+}
+
+function financialStage(ctx: ActivityLogContext): string {
+  return ctx.direction && ctx.stage ? stageLabel(ctx.direction, ctx.stage) : (ctx.stage ?? '');
+}
+
+function financialChanges(ctx: ActivityLogContext): string {
+  return (ctx.field_changes ?? [])
+    .map((c) => {
+      if (c.field === 'stage' && ctx.direction) {
+        return `${stageLabel(ctx.direction, c.from as FinStage)} → ${stageLabel(ctx.direction, c.to as FinStage)}`;
+      }
+      if (c.field === 'amount' || c.field === 'amount_settled') {
+        const f = (v: unknown) => (v == null ? '—' : money(v as number));
+        return `${FINANCIAL_FIELD_LABELS[c.field]} ${f(c.from)} → ${f(c.to)}`;
+      }
+      if (c.field === 'notes' || c.field === 'counterparty_id') return FINANCIAL_FIELD_LABELS[c.field];
+      return `${FINANCIAL_FIELD_LABELS[c.field] ?? c.field} ${c.from ?? '—'} → ${c.to ?? '—'}`;
+    })
+    .join('; ');
 }
 
 const ASSET_FIELD_LABELS: Record<string, string> = {
@@ -118,13 +160,51 @@ export const ACTIVITY_EVENTS = {
     label: 'Financial Record Added',
     entityType: 'financial',
     calendarIndicator: false,
-    contextKeys: ['gig_title', 'financial_changes', 'change_count'],
+    contextKeys: ['gig_title', 'financial_changes', 'change_count', 'direction', 'stage', 'amount', 'description'],
     format: (ctx) => {
-      if (!ctx.financial_changes?.length) return 'Financial record added';
-      const summary = ctx.financial_changes
-        .map((c) => `${c.fin_type}: $${c.amount.toFixed(2)}`)
-        .join('; ');
-      return `Added ${summary}`;
+      // Before the 2026-10 redesign one event covered several rows.
+      if (ctx.financial_changes?.length) {
+        const summary = ctx.financial_changes
+          .map((c) => `${c.fin_type}: $${c.amount.toFixed(2)}`)
+          .join('; ');
+        return `Added ${summary}`;
+      }
+      if (!ctx.direction) return 'Financial record added';
+      return `Added ${financialName(ctx)} · ${financialStage(ctx)}${ctx.amount != null ? ` · ${money(ctx.amount)}` : ''}`;
+    },
+  },
+  'financial.updated': {
+    label: 'Financial Record Updated',
+    entityType: 'financial',
+    calendarIndicator: false,
+    contextKeys: ['gig_title', 'direction', 'stage', 'amount', 'description', 'field_changes'],
+    format: (ctx) => `${financialName(ctx)} updated: ${financialChanges(ctx)}`,
+  },
+  'financial.paid': {
+    label: 'Financial Record Paid',
+    entityType: 'financial',
+    calendarIndicator: false,
+    contextKeys: ['gig_title', 'direction', 'stage', 'amount', 'amount_settled', 'description', 'field_changes'],
+    format: (ctx) =>
+      `${financialName(ctx)} ${ctx.direction === 'out' ? 'paid' : 'received'}: ${money(ctx.amount_settled ?? ctx.amount ?? 0)}`,
+  },
+  'financial.removed': {
+    label: 'Financial Record Removed',
+    entityType: 'financial',
+    calendarIndicator: false,
+    contextKeys: ['gig_title', 'direction', 'stage', 'amount', 'description'],
+    format: (ctx) => `Removed ${financialName(ctx)}${ctx.amount != null ? ` · ${money(ctx.amount)}` : ''}`,
+  },
+  'financial.converted': {
+    label: 'Financial Record Converted',
+    entityType: 'financial',
+    calendarIndicator: false,
+    contextKeys: ['gig_title', 'direction', 'stage', 'amount', 'description', 'sources'],
+    format: (ctx) => {
+      const from = (ctx.sources ?? [])
+        .map((s) => `${s.type} ${money(s.amount)} (${s.date})`)
+        .join(', ');
+      return `${financialName(ctx)} converted to ${financialStage(ctx)}${from ? ` from ${from}` : ''}`;
     },
   },
   'schedule_entry.added': {
