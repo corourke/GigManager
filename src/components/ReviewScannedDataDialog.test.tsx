@@ -61,3 +61,63 @@ describe('ReviewScannedDataDialog in a page (Scan invoices, 10-02)', () => {
     await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false));
   });
 });
+
+// #128: CSV-imported lines carry a cost but no printed price. Opening such a
+// purchase for edit recomputed every cost from the (missing) price, so saving
+// wrote $0 costs and proposed $0 to the linked assets.
+describe('ReviewScannedDataDialog editing a cost-only purchase (#128)', () => {
+  const costOnly = {
+    id: 'h1', vendor: 'IDJ Now', purchase_date: '2025-01-20', total_inv_amount: 131.58, description: 'Light bar, and carry bag',
+    items: [
+      { id: 'l1', row_type: 'item', description: 'Carry bag', quantity: 1, item_price: null, item_cost: 84.92, asset_id: null },
+      { id: 'l2', row_type: 'asset', description: 'T-Bar', quantity: 1, item_price: null, item_cost: 46.66, asset_id: 'a2' },
+    ],
+    assets: [{ id: 'a2', description: 'T-Bar', quantity: 1, item_price: null, item_cost: 46.66 }],
+    attachments: [],
+  };
+
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    const svc = await import('../services/purchase.service');
+    vi.mocked(svc.getPurchaseWithDetails).mockResolvedValue(costOnly as any);
+  });
+
+  const openForEdit = () =>
+    render(
+      <ReviewScannedDataDialog
+        open onOpenChange={vi.fn()} onSuccess={vi.fn()} onUpdated={vi.fn()}
+        organizationId="org-1" scannedData={null} file={null} editPurchaseId="h1"
+      />,
+    );
+
+  it('keeps the stored line costs when saved without changes', async () => {
+    const svc = await import('../services/purchase.service');
+    openForEdit();
+    await userEvent.click(await screen.findByRole('button', { name: 'Save Changes' }));
+    await waitFor(() => expect(svc.updatePurchase).toHaveBeenCalledWith('l2', expect.anything()));
+
+    expect(svc.updatePurchase).toHaveBeenCalledWith('l1', expect.objectContaining({ item_cost: 84.92, line_cost: 84.92 }));
+    expect(svc.updatePurchase).toHaveBeenCalledWith('l2', expect.objectContaining({ item_cost: 46.66, line_cost: 46.66 }));
+    // the linked asset is compared against its stored cost, not $0
+    expect(svc.computeAssetFieldChanges).toHaveBeenCalledWith(expect.objectContaining({ item_cost: 46.66 }), expect.anything());
+  });
+
+  it('scales the stored costs, not printed prices, when the invoice total changes', async () => {
+    const svc = await import('../services/purchase.service');
+    openForEdit();
+    const total = await screen.findByDisplayValue('131.58');
+    await userEvent.clear(total);
+    await userEvent.type(total, '263.16');
+    await userEvent.click(screen.getByRole('button', { name: 'Save Changes' }));
+    await waitFor(() => expect(svc.updatePurchase).toHaveBeenCalledWith('l2', expect.anything()));
+
+    expect(svc.updatePurchase).toHaveBeenCalledWith('l1', expect.objectContaining({ item_cost: expect.closeTo(169.84, 2) }));
+    expect(svc.updatePurchase).toHaveBeenCalledWith('l2', expect.objectContaining({ item_cost: expect.closeTo(93.32, 2) }));
+  });
+
+  it('shows the stored costs when it opens, with no mismatch against the total', async () => {
+    openForEdit();
+    expect(await screen.findByText('$84.92')).toBeInTheDocument();
+    expect(screen.getByText('$46.66')).toBeInTheDocument();
+  });
+});
