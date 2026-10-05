@@ -11,7 +11,7 @@ Cameron questions.
 Migrated from GitHub issue [#41](https://github.com/corourke/GigManager/issues/41) on 2026-09-22. This file now
 supersedes that issue as the board of record.
 
-- **Last updated:** 2026-10-05 (coordinator: 2025 data fixes applied to prod with Cameron's go, verified read-only)
+- **Last updated:** 2026-10-06 (coordinator: PR #136 — #133 step 1 migration + financial docs, user guide Financials rewritten)
 - **State verified:** 2026-10-05 09:15 UTC by triage (4 open issues: #20, #39, #92, #125; open PRs: #124 (coordinator, CI green, mergeable at `968bbc9`) and #126 (triage docs pass))
 
 ---
@@ -23,7 +23,7 @@ supersedes that issue as the board of record.
 | [#39](https://github.com/corourke/GigManager/issues/39) | Too many menu levels | UI/UX design | Direction set 09-26: keep the top nav (no sidebar) | Cameron (§3a item 3); #12's redesign is done |
 | [#92](https://github.com/corourke/GigManager/issues/92) | Replace-all autosave can delete rows another user or tab added | Bug | From the 09-29 code review, confirmed by reading the code | Coordinator — not started |
 | [#129](https://github.com/corourke/GigManager/issues/129) | Expense → asset deletes the wrong ledger rows; no asset → expense | Bug / feature | Filed 10-05; fix proposed (needs a migration) | Cameron: approve fix |
-| [#133](https://github.com/corourke/GigManager/issues/133) | Purchases: separate "track as equipment" from tax treatment (expense / depreciate) | Feature / data | Decided 10-05; replaces most of #129 | Coordinator: migration + dry run (Cameron applies) |
+| [#133](https://github.com/corourke/GigManager/issues/133) | Purchases: separate "track as equipment" from tax treatment (expense / depreciate) | Feature / data | Step 1 (migration `20261006000000`, tests, docs) in PR [#136](https://github.com/corourke/GigManager/pull/136); step 2 UI next | Cameron: merge, apply migration (dev, then prod); then Excellines fix + lock 2024/2025 |
 | [#134](https://github.com/corourke/GigManager/issues/134) | Grey-zone check: expensed items with per-item cost $200–$2,500 | Report / data | Answered 10-05 (2024–25: none; 2026: SHEHDS moving heads $2,392.05) | Cameron decides the 2026 item before filing |
 | [#135](https://github.com/corourke/GigManager/issues/135) | Audit and fix 2026 purchase data (tax treatment, equipment, gig expenses) after the code fixes | Data | Filed 10-05 | Blocked on #133, #130, #131, #125 steps 2–3 |
 | [#130](https://github.com/corourke/GigManager/issues/130) | Scan on a gig page books the whole invoice (assets included) as one gig expense | Bug | Filed 10-05; fix proposed | Cameron: approve fix |
@@ -249,7 +249,10 @@ middleware; `DELETE /gigs/:id` is Admin-only; access-request and notification ro
 |---|---|---|---|
 | `calendar/google-calendar.md` | published | — | not audited |
 | `equipment/overview.md` | published | — | not audited |
-| `financials/overview.md` | published | — | not audited |
+| `financials/overview.md` | published | 2026-10-06 (coordinator, PR #136) | — |
+| `financials/receipts-and-invoices.md` | published (new) | 2026-10-06 (coordinator, PR #136) | — |
+| `financials/gig-accounting.md` | published (new) | 2026-10-06 (coordinator, PR #136) | — |
+| `financials/tax-treatment.md` | draft (new) | 2026-10-06 | Publish with #133 step 2 |
 | `getting-started/onboarding.md` | published | — | not audited |
 | `getting-started/organizations.md` | published | — | not audited |
 | `getting-started/the-dashboard.md` | published | — | not audited |
@@ -269,9 +272,9 @@ middleware; `DELETE /gigs/:id` is Admin-only; access-request and notification ro
 | `equipment/inventory-reports.md` | draft | — | not audited |
 | `equipment/kits.md` | draft | — | not audited |
 | `equipment/location-explorer.md` | draft | — | not audited |
-| `financials/cost-allocation.md` | draft | — | not audited |
-| `financials/gig-expenses.md` | draft | — | not audited |
-| `financials/purchases.md` | draft | — | not audited |
+| `financials/cost-allocation.md` | published (was draft) | 2026-10-06 (coordinator, PR #136) | — |
+| `financials/gig-expenses.md` | published (was draft) | 2026-10-06 (coordinator, PR #136) | — |
+| `financials/purchases.md` | published (was draft) | 2026-10-06 (coordinator, PR #136) | — |
 | `gigs/documents-and-notes.md` | draft | — | not audited |
 | `gigs/participating-organizations.md` | draft | — | not audited |
 | `gigs/schedule.md` | draft | — | not audited |
