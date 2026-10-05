@@ -10,7 +10,7 @@ sidebar:
 
 - The gig **Notes** field (Markdown, with an Edit/Preview toggle).
 - **Attachments**: uploading files to a gig; attachments open in a new tab.
-- Expense-level receipts (cross-link to [Gig expenses](/financials/gig-expenses/)).
+- Expense-level receipts (cross-link to [A gig's money](/financials/gig-expenses/)).
 
 ## Screenshots
 
