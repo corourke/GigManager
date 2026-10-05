@@ -27,7 +27,7 @@ describe('QuickActionButtons', () => {
 
   it('renders all action buttons', () => {
     render(<QuickActionButtons {...defaultProps} />);
-    expect(screen.getByText('Fee')).toBeInTheDocument();
+    expect(screen.getByText('Booking')).toBeInTheDocument();
     expect(screen.getByText('Payment received')).toBeInTheDocument();
     expect(screen.getByText('Expense / Mileage')).toBeInTheDocument();
     expect(screen.getByText('Other')).toBeInTheDocument();
@@ -36,12 +36,12 @@ describe('QuickActionButtons', () => {
   it('records a fee as money in at the chosen stage', async () => {
     vi.mocked(gigService.createGigFinancial).mockResolvedValue({ id: 'fin-new' } as any);
     render(<QuickActionButtons {...defaultProps} gigStartDate="2026-10-03" />);
-    fireEvent.click(screen.getByText('Fee'));
-    expect(screen.getByText('Add a fee')).toBeInTheDocument();
+    fireEvent.click(screen.getByText('Booking'));
+    expect(screen.getByText('Add a booking')).toBeInTheDocument();
     // a verbal / informal agreement is the default stage
     expect(screen.getAllByText('Accepted (incl. verbal / informal)').length).toBeGreaterThan(0);
     fireEvent.change(screen.getByLabelText('Amount'), { target: { value: '1000' } });
-    fireEvent.click(screen.getByText('Save Fee'));
+    fireEvent.click(screen.getByText('Save Booking'));
 
     await waitFor(() => {
       expect(gigService.createGigFinancial).toHaveBeenCalledWith(expect.objectContaining({
@@ -49,7 +49,7 @@ describe('QuickActionButtons', () => {
         stage: 'accepted',
         amount: 1000,
         date: '2026-10-03',
-        description: 'Fee',
+        description: 'Income',
         due_date: null,
       }));
     });

@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import { useNavigate } from 'react-router';
 import { useAuth } from '../contexts/AuthContext';
 import type { Organization } from '../utils/supabase/types';
+import { financialsPath, gigPath, inventoryPath, type GigTab } from './paths';
 
 export interface FinancialsNavOptions {
   highlightPurchaseId?: string | null;
@@ -26,14 +27,14 @@ export function useNav() {
     toTeam: () => navigate('/team'),
     toAssets: () => navigate('/assets'),
     toKits: () => navigate('/kits'),
-    toInventory: () => navigate('/inventory'),
+    toInventory: () => navigate(inventoryPath()),
     toImport: () => navigate('/import'),
     toSettings: () => navigate('/settings'),
 
     // Gigs
     createGig: () => navigate('/gigs/new'),
-    viewGig: (gigId: string, fromCalendar?: boolean) =>
-      navigate(`/gigs/${gigId}${fromCalendar ? '?from=calendar' : ''}`),
+    viewGig: (gigId: string, fromCalendar?: boolean, tab?: GigTab) =>
+      navigate(`${gigPath(gigId, { tab })}${fromCalendar ? '?from=calendar' : ''}`),
     editGig: (gigId: string) => navigate(`/gigs/${gigId}/edit`),
 
     // Assets
@@ -55,7 +56,7 @@ export function useNav() {
       if (opts?.highlightPurchaseId) params.set('highlight', opts.highlightPurchaseId);
       if (opts?.returnGigId) params.set('returnGig', opts.returnGigId);
       const query = params.toString();
-      navigate(`/financials${query ? `?${query}` : ''}`);
+      navigate(`${financialsPath()}${query ? `?${query}` : ''}`);
     },
 
     // Organizations

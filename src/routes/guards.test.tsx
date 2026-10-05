@@ -1,7 +1,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, waitFor, screen, fireEvent } from '@testing-library/react';
 import { MemoryRouter, Routes, Route } from 'react-router';
-import { LandingRedirect, LogoutRoute, RequireAuth } from './guards';
+import { LandingRedirect, LogoutRoute, RequireAuth, RequireOrg } from './guards';
+import { useLocation } from 'react-router';
 
 const mockUseAppShell = vi.fn();
 const mockUseAuth = vi.fn();
@@ -178,5 +179,28 @@ describe('RequireAuth after a failed profile load (#94)', () => {
     mockUseAuth.mockReturnValue({ isLoading: false, user: null, profileLoadError: null, refreshProfile: vi.fn() });
     renderRequireAuth();
     expect(screen.getByTestId('login-screen')).toBeTruthy();
+  });
+});
+
+describe('RequireOrg', () => {
+  it('sends a deep link to the org picker remembering where it was going', () => {
+    mockUseAuth.mockReturnValue({ organizations: [{}, {}], selectedOrganization: null, selectOrganization: vi.fn() });
+    let from: string | undefined;
+    function Picker() {
+      from = (useLocation().state as { from?: string } | null)?.from;
+      return <div data-testid="picker" />;
+    }
+    render(
+      <MemoryRouter initialEntries={['/financials/gig-accounting?x=1']}>
+        <Routes>
+          <Route element={<RequireOrg />}>
+            <Route path="/financials/:tab?" element={<div />} />
+          </Route>
+          <Route path="/org-selection" element={<Picker />} />
+        </Routes>
+      </MemoryRouter>
+    );
+    expect(screen.getByTestId('picker')).toBeInTheDocument();
+    expect(from).toBe('/financials/gig-accounting?x=1');
   });
 });

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Navigate, Outlet, useNavigate } from 'react-router';
+import { Navigate, Outlet, useNavigate, useLocation } from 'react-router';
 import { useAuth } from '../contexts/AuthContext';
 import { useAppShell } from './appShell';
 import LoginScreen from '../components/LoginScreen';
@@ -65,7 +65,6 @@ function profileIncomplete(user: User): boolean {
  */
 export function RequireAuth() {
   const { isLoading, user, setUser, profileLoadError, refreshProfile } = useAuth();
-  const navigate = useNavigate();
 
   if (isLoading) return <LoadingSpinner />;
   if (!user && profileLoadError) return <ProfileLoadErrorScreen onRetry={() => refreshProfile()} />;
@@ -76,8 +75,8 @@ export function RequireAuth() {
       <UserProfileCompletionScreen
         user={user}
         onProfileCompleted={(updatedUser) => {
+          // Stay on the requested URL: the deep link renders once the profile is complete.
           setUser(updatedUser);
-          navigate('/');
         }}
       />
     );
@@ -92,6 +91,7 @@ export function RequireAuth() {
  */
 export function RequireOrg() {
   const { organizations, selectedOrganization, selectOrganization } = useAuth();
+  const location = useLocation();
 
   useEffect(() => {
     if (!selectedOrganization && organizations.length === 1) {
@@ -101,7 +101,8 @@ export function RequireOrg() {
 
   if (selectedOrganization) return <Outlet />;
   if (organizations.length === 1) return <LoadingSpinner />; // auto-selecting
-  return <Navigate to="/org-selection" replace />;
+  // Remember where they were going, so picking an org continues there.
+  return <Navigate to="/org-selection" replace state={{ from: `${location.pathname}${location.search}` }} />;
 }
 
 /** Root landing: role- and device-aware. */

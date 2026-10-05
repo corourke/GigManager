@@ -8,6 +8,7 @@ import {
   settledAmount,
   stageLabel,
   stagePickerLabel,
+  stagesFor,
   summarizeMoney,
   type MoneyRow,
 } from './moneyFlow';
@@ -116,10 +117,16 @@ describe('moneyFlow', () => {
     expect(stagePickerLabel('in', 'invoiced')).toBe('Invoiced');
   });
 
+  it('offers no bid-requested step for money in', () => {
+    expect(stagesFor('in')).not.toContain('requested');
+    expect(stagesFor('out')).toContain('requested');
+  });
+
   it('labels stages by direction', () => {
     expect(stageLabel('in', 'invoiced')).toBe('Invoiced');
     expect(stageLabel('out', 'invoiced')).toBe('Owed');
     expect(stageLabel('out', 'quoted')).toBe('Bid received');
+    expect(stageLabel('in', 'quoted')).toBe('Quoted');
   });
 
   it('walks the forward path', () => {

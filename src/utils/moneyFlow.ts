@@ -34,10 +34,15 @@ export const STAGE_PATH: FinStage[] = [
 
 export const ALL_STAGES: FinStage[] = [...STAGE_PATH, 'declined', 'cancelled'];
 
+/** Stages offered in pickers: money in has no "bid requested" step. */
+export function stagesFor(direction: FinDirection): FinStage[] {
+  return direction === 'in' ? ALL_STAGES.filter((s) => s !== 'requested') : ALL_STAGES;
+}
+
 export const STAGE_LABELS: Record<FinDirection, Record<FinStage, string>> = {
   in: {
     requested: 'Bid requested',
-    quoted: 'Bid sent',
+    quoted: 'Quoted',
     accepted: 'Accepted',
     contract_sent: 'Contract sent',
     contracted: 'Contracted',

@@ -4,7 +4,6 @@ import { toast } from 'sonner';
 import {
   ArrowDown,
   ArrowUp,
-  CircleAlert,
   DollarSign,
   Edit,
   ExternalLink,
@@ -42,10 +41,10 @@ import { queryKeys } from '../../lib/queryKeys';
 import { useNavigation } from '../../contexts/NavigationContext';
 import type { DbGigFinancial, UserRole } from '../../utils/supabase/types';
 import {
-  ALL_STAGES,
+  stagesFor,
   isDue,
   moneyInBadge,
-  nextStage,
+  isCommitted,
   outstandingAmount,
   settledAmount,
   stageLabel,
@@ -56,11 +55,10 @@ import {
 } from '../../utils/moneyFlow';
 import QuickActionButtons from './QuickActionButtons';
 import { useGigFinancialsData, useDeleteGigFinancial } from './useGigFinancialsData';
-import StageTrack from './financials/StageTrack';
 import MoneySummaryStrip from './financials/MoneySummaryStrip';
 import FinancialRowDialog from './financials/FinancialRowDialog';
 import RecordPaymentDialog, { type RecordPaymentValues } from './financials/RecordPaymentDialog';
-import { formatLong, formatMoney, formatShort } from './financials/format';
+import { formatMoney, formatShort } from './financials/format';
 
 type FinancialRow = DbGigFinancial & { counterparty?: { id: string; name: string } | null; attachment_count?: number };
 
@@ -92,10 +90,14 @@ function stageTone(row: FinancialRow, gigEnd: string | null | undefined): keyof 
   return 'pending';
 }
 
-function stageText(row: FinancialRow): string {
+function stageText(row: FinancialRow, gigEnd?: string | null): string {
   const label = stageLabel(row.direction, row.stage);
   if (row.stage === 'paid') return row.paid_at ? `${label} ${formatShort(row.paid_at)}` : label;
-  if (row.due_date && outstandingAmount(row) > 0) return `${label}, due ${formatShort(row.due_date)}`;
+  if (outstandingAmount(row) > 0) {
+    if (row.due_date && row.due_date < toDateKey(new Date())) return `${label}, overdue since ${formatShort(row.due_date)}`;
+    if (row.due_date) return `${label}, due ${formatShort(row.due_date)}`;
+    if (isDue(row, gigEnd)) return `${label}, payment due`;
+  }
   return label;
 }
 
@@ -232,7 +234,7 @@ export default function GigFinancialsSection({
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuLabel className="text-xs text-muted-foreground">Set stage</DropdownMenuLabel>
-        {ALL_STAGES.filter((s) => s !== row.stage).map((s) => (
+        {stagesFor(row.direction).filter((s) => s !== row.stage).map((s) => (
           <DropdownMenuItem key={s} onSelect={() => setStage(row, s)}>
             {stagePickerLabel(row.direction, s)}
           </DropdownMenuItem>
@@ -259,7 +261,6 @@ export default function GigFinancialsSection({
     </Button>
   );
 
-  const today = toDateKey(new Date());
 
   return (
     <>
@@ -321,71 +322,68 @@ export default function GigFinancialsSection({
             <h3 id="money-in-heading" className="flex items-center gap-2 text-sm font-semibold text-gray-900">
               <ArrowUp className="w-4 h-4 text-green-700" /> Money in
             </h3>
-            {moneyIn.length === 0 && <p className="text-sm text-gray-500 italic">No money in recorded yet.</p>}
-            {moneyIn.map((row) => {
-              const ended = row.stage === 'declined' || row.stage === 'cancelled';
-              const due = isDue(row, gigEnd);
-              const open = outstandingAmount(row) > 0;
-              const next = nextStage(row.stage);
-              const name = counterpartyName(row);
-              return (
-                <div
-                  key={row.id}
-                  className={cn('rounded-lg border bg-white p-4 space-y-3', ended && 'opacity-70')}
-                  data-testid={`money-in-${row.id}`}
-                >
-                  <div className="flex flex-wrap justify-between gap-3">
-                    <div className="min-w-0">
-                      <div className="font-semibold">{row.description || 'Fee'}</div>
-                      <div className="text-sm text-gray-500">
-                        {[name, formatLong(row.date)].filter(Boolean).join(' · ')}
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <div className="text-lg font-bold">{row.amount == null ? '—' : formatMoney(row.amount, row.currency)}</div>
-                      <div className="text-sm text-gray-500">
-                        {row.stage === 'paid'
-                          ? `${formatMoney(settledAmount(row), row.currency)} received ${formatShort(row.paid_at)}`
-                          : ended
-                            ? stageLabel('in', row.stage)
-                            : `${formatMoney(0, row.currency)} received`}
-                      </div>
-                    </div>
-                  </div>
-                  {!ended && <StageTrack direction="in" stage={row.stage} />}
-                  {(due || (open && row.due_date) || isEditMode) && (
-                    <div className="flex flex-wrap items-center justify-between gap-2 border-t pt-3">
-                      <div className={cn('text-sm flex items-center gap-1.5', due ? 'text-amber-800' : 'text-gray-600')}>
-                        {due && <CircleAlert className="w-4 h-4" />}
-                        {due
-                          ? row.due_date && row.due_date < today
-                            ? `Overdue since ${formatShort(row.due_date)}.`
-                            : row.due_date
-                              ? `Due ${formatShort(row.due_date)}.`
-                              : 'The gig is over and no payment is recorded yet.'
-                          : open && row.due_date
-                            ? `Due ${formatLong(row.due_date)}.`
-                            : ''}
-                      </div>
-                      {isEditMode && (
-                        <div className="flex items-center gap-1.5">
-                          {attachButton(row)}
-                          {open && next && next !== 'paid' && (
-                            <Button variant="outline" size="sm" onClick={() => setStage(row, next)}>
-                              Mark {stageLabel('in', next).toLowerCase()}
-                            </Button>
-                          )}
-                          {(open || row.stage === 'quoted' || row.stage === 'requested') && (
-                            <Button size="sm" onClick={() => setPaying(row)}>Record payment</Button>
-                          )}
-                          {rowMenu(row)}
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
+            {moneyIn.length === 0 ? (
+              <p className="text-sm text-gray-500 italic">No money in recorded yet.</p>
+            ) : (
+              <div className="border rounded-lg overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="bg-gray-50/50">
+                      <TableHead>Item</TableHead>
+                      <TableHead>Stage</TableHead>
+                      <TableHead className="text-right">Booking</TableHead>
+                      <TableHead className="text-right">Received</TableHead>
+                      <TableHead className="text-right"><span className="sr-only">Actions</span></TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {moneyIn.map((row) => {
+                      const ended = row.stage === 'declined' || row.stage === 'cancelled';
+                      const open = outstandingAmount(row) > 0;
+                      const name = counterpartyName(row);
+                      return (
+                        <TableRow key={row.id} className={cn(ended && 'text-gray-500')} data-testid={`money-in-${row.id}`}>
+                          <TableCell className="py-3">
+                            <div className="font-medium">{row.description || 'Booking'}</div>
+                            <div className="mt-1 text-xs text-gray-500">{[name, formatShort(row.date)].filter(Boolean).join(' · ')}</div>
+                          </TableCell>
+                          <TableCell className="py-3">
+                            <span className={cn('rounded-full px-2.5 py-0.5 text-xs font-semibold whitespace-nowrap', BADGE_TONES[stageTone(row, gigEnd)])}>
+                              {stageText(row, gigEnd)}
+                            </span>
+                          </TableCell>
+                          <TableCell className="py-3 text-right font-medium whitespace-nowrap">
+                            {row.amount == null ? '—' : formatMoney(row.amount, row.currency)}
+                          </TableCell>
+                          <TableCell className="py-3 text-right whitespace-nowrap">
+                            {formatMoney(settledAmount(row), row.currency)}
+                          </TableCell>
+                          <TableCell className="py-3 text-right">
+                            <div className="flex items-center justify-end gap-1">
+                              {attachButton(row)}
+                              {isEditMode && (open || row.stage === 'quoted') && (
+                                <Button variant="outline" size="sm" onClick={() => setPaying(row)}>Record Payment</Button>
+                              )}
+                              {isEditMode && rowMenu(row)}
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                  <TableFooter>
+                    <TableRow>
+                      <TableCell colSpan={2} className="font-semibold">Total income</TableCell>
+                      <TableCell className="text-right font-bold">
+                        {formatMoney(moneyIn.filter((r) => isCommitted(r.stage)).reduce((t, r) => t + Number(r.amount ?? 0), 0))}
+                      </TableCell>
+                      <TableCell className="text-right font-bold">{formatMoney(summaryQuery.data?.receivedIn ?? 0)}</TableCell>
+                      <TableCell />
+                    </TableRow>
+                  </TableFooter>
+                </Table>
+              </div>
+            )}
           </section>
 
           {/* Money out */}
@@ -427,7 +425,7 @@ export default function GigFinancialsSection({
                           <TableCell className="py-3 text-sm text-gray-600">{row.category ?? ''}</TableCell>
                           <TableCell className="py-3">
                             <span className={cn('rounded-full px-2.5 py-0.5 text-xs font-semibold whitespace-nowrap', BADGE_TONES[stageTone(row, gigEnd)])}>
-                              {stageText(row)}
+                              {stageText(row, gigEnd)}
                             </span>
                           </TableCell>
                           <TableCell className="py-3 text-right font-medium whitespace-nowrap">
@@ -459,7 +457,7 @@ export default function GigFinancialsSection({
                   </TableBody>
                   <TableFooter>
                     <TableRow>
-                      <TableCell colSpan={3} className="font-semibold">Total money out (paid and committed)</TableCell>
+                      <TableCell colSpan={3} className="font-semibold">Total expense (paid and committed)</TableCell>
                       <TableCell className="text-right font-bold">
                         {formatMoney((summaryQuery.data?.expectedOut ?? 0))}
                       </TableCell>

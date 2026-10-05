@@ -72,6 +72,9 @@ interface GigListScreenProps {
   user: User;
   userRole?: UserRole;
   initialViewMode?: ViewMode;
+  /** List or calendar, when the URL decides it (`/gigs` vs `/calendar`). */
+  viewMode?: ViewMode;
+  onViewModeChange?: (mode: ViewMode) => void;
   onBack: () => void;
   onCreateGig: () => void;
   onViewGig: (gigId: string, fromCalendar?: boolean) => void;
@@ -107,6 +110,8 @@ export default function GigListScreen({
   user,
   userRole,
   initialViewMode = 'list',
+  viewMode: viewModeProp,
+  onViewModeChange,
   onBack,
   onCreateGig,
   onViewGig,
@@ -122,7 +127,9 @@ export default function GigListScreen({
   const [gigs, setGigs] = useState<Gig[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [viewMode, setViewMode] = useState<ViewMode>(initialViewMode);
+  const [localViewMode, setLocalViewMode] = useState<ViewMode>(initialViewMode);
+  const viewMode = viewModeProp ?? localViewMode;
+  const setViewMode = (m: ViewMode) => (onViewModeChange ? onViewModeChange(m) : setLocalViewMode(m));
   const [gigTimeframe, setGigTimeframe] = useState<'upcoming' | 'past'>('upcoming');
   const [showExportConfirm, setShowExportConfirm] = useState(false);
   // Rows the list table is actually showing (date/status filters + per-column

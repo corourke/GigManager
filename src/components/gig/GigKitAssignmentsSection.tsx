@@ -27,28 +27,31 @@ import SaveStateIndicator from './SaveStateIndicator';
  * DB beyond the flattened-asset lookup, so it's usable client-side as
  * assignments change, before anything is even saved.
  */
-function findSameGigOverlaps(
+export interface SameGigOverlap {
+  kitA: string;
+  kitB: string;
+  /** Names of the assets both kits contain, sorted. */
+  shared: string[];
+}
+
+export function findSameGigOverlaps(
   kitIds: string[],
-  summaries: Map<string, { assetIds: Set<string> }>
-): Map<string, Set<string>> {
-  const overlaps = new Map<string, Set<string>>();
+  summaries: Map<string, { assetIds: Set<string>; assetLabels?: Map<string, string> }>
+): SameGigOverlap[] {
+  const pairs: SameGigOverlap[] = [];
   for (let i = 0; i < kitIds.length; i++) {
     for (let j = i + 1; j < kitIds.length; j++) {
-      const a = kitIds[i];
-      const b = kitIds[j];
-      const assetsA = summaries.get(a)?.assetIds;
-      const assetsB = summaries.get(b)?.assetIds;
-      if (!assetsA || !assetsB) continue;
-      const shares = [...assetsA].some((assetId) => assetsB.has(assetId));
-      if (shares) {
-        if (!overlaps.has(a)) overlaps.set(a, new Set());
-        if (!overlaps.has(b)) overlaps.set(b, new Set());
-        overlaps.get(a)!.add(b);
-        overlaps.get(b)!.add(a);
-      }
+      const a = summaries.get(kitIds[i]);
+      const b = summaries.get(kitIds[j]);
+      if (!a || !b) continue;
+      const shared = [...a.assetIds]
+        .filter((assetId) => b.assetIds.has(assetId))
+        .map((assetId) => a.assetLabels?.get(assetId) ?? 'Unnamed item')
+        .sort();
+      if (shared.length > 0) pairs.push({ kitA: kitIds[i], kitB: kitIds[j], shared });
     }
   }
-  return overlaps;
+  return pairs;
 }
 
 const kitAssignmentSchema = z.object({
@@ -96,7 +99,7 @@ export default function GigKitAssignmentsSection({
   const [availableKits, setAvailableKits] = useState<Kit[]>([]);
   const [showNotesDialog, setShowNotesDialog] = useState<number | null>(null);
   const [currentNotes, setCurrentNotes] = useState('');
-  const [sameGigOverlaps, setSameGigOverlaps] = useState<Map<string, Set<string>>>(new Map());
+  const [sameGigOverlaps, setSameGigOverlaps] = useState<SameGigOverlap[]>([]);
   const [crossGigConflicts, setCrossGigConflicts] = useState<Conflict[]>([]);
 
   const { control, reset, watch, setValue, formState: { isDirty, errors } } = useForm<KitFormData>({
@@ -111,6 +114,7 @@ export default function GigKitAssignmentsSection({
     control,
     name: 'assignments',
   });
+  const kitName = (kitId: string) => fields.find((f) => f.kit_id === kitId)?.kit?.name || 'Unknown Kit';
 
   const handleSave = useCallback(async (data: KitFormData) => {
     await updateGigKitAssignments(
@@ -167,7 +171,7 @@ export default function GigKitAssignmentsSection({
   const assignedKitIds = (formValues.assignments || []).map((a) => a.kit_id).filter(Boolean);
   useEffect(() => {
     if (assignedKitIds.length < 2) {
-      setSameGigOverlaps(new Map());
+      setSameGigOverlaps([]);
       return;
     }
     let cancelled = false;
@@ -289,13 +293,21 @@ export default function GigKitAssignmentsSection({
             {crossGigConflicts.length > 0 && (
               <ConflictWarning conflicts={crossGigConflicts} />
             )}
-            {sameGigOverlaps.size > 0 && (
+            {sameGigOverlaps.length > 0 && (
               <Alert className="border-amber-200 bg-amber-50 text-amber-900">
                 <AlertTriangle className="h-4 w-4 text-amber-600" />
                 <AlertTitle>Overlapping equipment</AlertTitle>
                 <AlertDescription>
-                  {sameGigOverlaps.size} of the kits assigned to this gig share a physical asset with
-                  another kit also assigned here — see the flagged rows below.
+                  <p>These kits assigned to this gig contain the same physical equipment:</p>
+                  <ul className="mt-1 space-y-1 list-disc pl-5">
+                    {sameGigOverlaps.map((o) => (
+                      <li key={`${o.kitA}-${o.kitB}`} data-testid={`overlap-${o.kitA}-${o.kitB}`}>
+                        <span className="font-medium">{kitName(o.kitA)}</span> and{' '}
+                        <span className="font-medium">{kitName(o.kitB)}</span> both contain{' '}
+                        {o.shared.join(', ')}
+                      </li>
+                    ))}
+                  </ul>
                 </AlertDescription>
               </Alert>
             )}
@@ -313,10 +325,9 @@ export default function GigKitAssignmentsSection({
                   </TableHeader>
                   <TableBody>
                     {fields.map((field, index) => {
-                      const overlapWith = sameGigOverlaps.get(field.kit_id);
-                      const overlapNames = overlapWith
-                        ? fields.filter((f) => overlapWith.has(f.kit_id)).map((f) => f.kit?.name || 'Unknown Kit')
-                        : [];
+                      const overlapNames = sameGigOverlaps
+                        .filter((o) => o.kitA === field.kit_id || o.kitB === field.kit_id)
+                        .map((o) => `${kitName(o.kitA === field.kit_id ? o.kitB : o.kitA)} (${o.shared.join(', ')})`);
                       return (
                       <TableRow key={field.id}>
                         <TableCell>

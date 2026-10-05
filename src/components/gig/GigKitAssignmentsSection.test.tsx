@@ -131,8 +131,10 @@ describe('GigKitAssignmentsSection', () => {
       },
     ] as any);
     vi.mocked(getKitsFlattenedSummary).mockResolvedValue(new Map([
-      ['kit-1', { totalValue: 0, totalItems: 1, assetIds: new Set(['asset-sm58']) }],
-      ['kit-2', { totalValue: 0, totalItems: 1, assetIds: new Set(['asset-sm58']) }],
+      ['kit-1', { totalValue: 0, totalItems: 2, assetIds: new Set(['asset-sm58', 'asset-stand']),
+        assetLabels: new Map([['asset-sm58', 'Shure SM58 (#M-12)'], ['asset-stand', 'Mic stand']]) }],
+      ['kit-2', { totalValue: 0, totalItems: 1, assetIds: new Set(['asset-sm58']),
+        assetLabels: new Map([['asset-sm58', 'Shure SM58 (#M-12)']]) }],
     ]));
 
     render(<GigKitAssignmentsSection {...mockProps} />);
@@ -140,8 +142,12 @@ describe('GigKitAssignmentsSection', () => {
     await waitFor(() => {
       expect(screen.getByText('Overlapping equipment')).toBeInTheDocument();
     });
-    expect(screen.getByText('Mic Case')).toBeInTheDocument();
-    expect(screen.getByText('Vocal Rig')).toBeInTheDocument();
+    expect(screen.getAllByText('Mic Case').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Vocal Rig').length).toBeGreaterThan(0);
+    // Says WHAT overlaps, not just that something does.
+    const pair = screen.getByTestId('overlap-kit-1-kit-2');
+    expect(pair).toHaveTextContent('Mic Case and Vocal Rig both contain Shure SM58 (#M-12)');
+    expect(pair).not.toHaveTextContent('Mic stand');
   });
 
   it('does not flag kits with no shared assets', async () => {
@@ -156,8 +162,8 @@ describe('GigKitAssignmentsSection', () => {
       },
     ] as any);
     vi.mocked(getKitsFlattenedSummary).mockResolvedValue(new Map([
-      ['kit-1', { totalValue: 0, totalItems: 1, assetIds: new Set(['asset-sm58']) }],
-      ['kit-2', { totalValue: 0, totalItems: 1, assetIds: new Set(['asset-par-can']) }],
+      ['kit-1', { totalValue: 0, totalItems: 1, assetIds: new Set(['asset-sm58']), assetLabels: new Map() }],
+      ['kit-2', { totalValue: 0, totalItems: 1, assetIds: new Set(['asset-par-can']), assetLabels: new Map() }],
     ]));
 
     render(<GigKitAssignmentsSection {...mockProps} />);
@@ -180,7 +186,7 @@ describe('GigKitAssignmentsSection', () => {
         gig_title: 'Other Show',
         start: '2024-02-01T00:00:00Z',
         end: '2024-02-01T04:00:00Z',
-        details: { conflicting_kits: [{ kit_id: 'kit-1', kit_name: 'Test Kit' }] },
+        details: { conflicting_kits: [{ kit_id: 'kit-9', kit_name: 'Their Kit', shared_assets: ['Shure SM58 (#M-12)'] }] },
       }],
       warnings: [],
     });
@@ -193,6 +199,7 @@ describe('GigKitAssignmentsSection', () => {
     await waitFor(() => {
       expect(screen.getByText(/Other Show/)).toBeInTheDocument();
     });
+    expect(screen.getByText(/Their Kit \(Shure SM58 \(#M-12\)\)/)).toBeInTheDocument();
   });
 
   it('does not check for cross-gig conflicts when gig dates are not yet known', async () => {

@@ -179,12 +179,12 @@ export default function QuickActionButtons({
         amount: parseFloat(data.amount),
         date: data.date,
         due_date: data.due_date || null,
-        description: data.description || 'Fee',
+        description: data.description || 'Income',
         notes: data.notes,
         counterparty_id: data.counterparty_id || undefined,
         external_entity_name: data.external_entity_name,
       });
-      toast.success(`Fee recorded (${STAGE_LABELS.in[data.stage]})`);
+      toast.success(`Booking recorded (${STAGE_LABELS.in[data.stage]})`);
       onSuccess();
       handleClose();
     } catch (error) {
@@ -313,7 +313,7 @@ export default function QuickActionButtons({
     <div className="flex flex-wrap gap-2">
       <Button variant="outline" size="sm" onClick={() => openModal('agreement')} className="flex items-center gap-2">
         <FileText className="h-4 w-4" />
-        Fee
+        Booking
       </Button>
       <Button variant="outline" size="sm" onClick={() => openModal('payment')} className="flex items-center gap-2">
         <DollarSign className="h-4 w-4" />
@@ -334,8 +334,8 @@ export default function QuickActionButtons({
       <Dialog open={activeModal === 'agreement'} onOpenChange={(open) => !open && handleClose()}>
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
-            <DialogTitle>Add a fee</DialogTitle>
-            <DialogDescription>Money coming in for this gig, and where the deal stands.</DialogDescription>
+            <DialogTitle>Add a booking</DialogTitle>
+            <DialogDescription>Gig income, and deal stage</DialogDescription>
           </DialogHeader>
           <form onSubmit={agreementForm.handleSubmit(onAgreementSubmit)} className="space-y-4 py-4">
             <div className="grid grid-cols-2 gap-4">
@@ -405,7 +405,7 @@ export default function QuickActionButtons({
               <Button type="button" variant="outline" onClick={handleClose}>Cancel</Button>
               <Button type="submit" disabled={isSubmitting}>
                 {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Save Fee
+                Save Booking
               </Button>
             </DialogFooter>
           </form>
@@ -417,7 +417,7 @@ export default function QuickActionButtons({
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
             <DialogTitle>Payment received</DialogTitle>
-            <DialogDescription>Money that has already arrived. To pay off a fee above, use its Record payment button instead.</DialogDescription>
+            <DialogDescription>Money that has already arrived. To pay off a booking, use its Record Payment button instead.</DialogDescription>
           </DialogHeader>
           <form onSubmit={paymentForm.handleSubmit(onPaymentSubmit)} className="space-y-4 py-4">
             <div className="grid grid-cols-2 gap-4">

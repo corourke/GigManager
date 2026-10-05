@@ -2,6 +2,7 @@ import { createClient } from '../utils/supabase/client';
 import { handleApiError } from '../utils/api-error-utils';
 import { isNoonUTC } from '../utils/dateUtils';
 import type { OrganizationRole } from '../utils/supabase/types';
+import { assetLabel } from './kit.service';
 
 const getSupabase = () => createClient();
 
@@ -268,15 +269,17 @@ export async function checkEquipmentConflicts(gigId: string, startTime: string, 
 
     const { data: flattenedRows, error: flattenError } = await supabase
       .from('kit_flattened_cache')
-      .select('kit_id, asset_id')
+      .select('kit_id, asset_id, asset:assets(manufacturer_model, tag_number)')
       .in('kit_id', allKitIds);
     if (flattenError) throw flattenError;
 
     const assetsByKit = new Map<string, Set<string>>();
+    const labels = new Map<string, string>();
     for (const row of (flattenedRows || []) as any[]) {
       const set = assetsByKit.get(row.kit_id) ?? new Set<string>();
       set.add(row.asset_id);
       assetsByKit.set(row.kit_id, set);
+      if (row.asset) labels.set(row.asset_id, assetLabel(row.asset));
     }
 
     const currentAssetIds = new Set<string>();
@@ -293,8 +296,16 @@ export async function checkEquipmentConflicts(gigId: string, startTime: string, 
       if (!level) continue;
 
       const matching = (gig.kit_assignments || [])
-        .filter((a: any) => [...(assetsByKit.get(a.kit_id) ?? [])].some((assetId) => currentAssetIds.has(assetId)))
-        .map((a: any) => ({ kit_id: a.kit?.id, kit_name: a.kit?.name }));
+        .map((a: any) => ({
+          kit_id: a.kit?.id,
+          kit_name: a.kit?.name,
+          // what this kit shares with the current gig's kits, by name
+          shared_assets: [...(assetsByKit.get(a.kit_id) ?? [])]
+            .filter((assetId) => currentAssetIds.has(assetId))
+            .map((assetId) => labels.get(assetId) ?? 'Unnamed item')
+            .sort(),
+        }))
+        .filter((k: any) => k.shared_assets.length > 0);
       if (matching.length === 0) continue;
 
       const entry: Conflict = {

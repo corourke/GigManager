@@ -2,8 +2,18 @@ import { useState, useEffect, useMemo } from 'react';
 import { Alert, AlertDescription } from '../ui/alert';
 import { Card } from '../ui/card';
 import { Skeleton } from '../ui/skeleton';
-import { Organization, UserRole, GigStatus, GigAccountingSummary } from '../../utils/supabase/types';
+import { Organization, UserRole, GigAccountingSummary } from '../../utils/supabase/types';
 import { getAllGigAccountingSummaries } from '../../services/gig.service';
+import {
+  classifyGig,
+  DEFAULT_TIMEFRAME,
+  inTimeframe,
+  SECTION_LABELS,
+  SECTION_ORDER,
+  timeframeRange,
+  type AccountingSectionId,
+  type TimeframePreset,
+} from '../../utils/gigAccountingSections';
 import GigAccountingFilters from './GigAccountingFilters';
 import GigAccountingSummaryBar from './GigAccountingSummaryBar';
 import GigAccountingTable, { GigSection } from './GigAccountingTable';
@@ -15,7 +25,11 @@ interface GigAccountingTabProps {
   onNavigateToGigDetail?: (gigId: string) => void;
 }
 
-const DEFAULT_STATUS_FILTERS: GigStatus[] = ['Completed', 'Booked', 'Proposed', 'DateHold'];
+const DEFAULT_SECTIONS: Record<AccountingSectionId, boolean> = {
+  'needs-attention': true,
+  upcoming: true,
+  settled: false,
+};
 
 export default function GigAccountingTab({
   organization,
@@ -27,12 +41,11 @@ export default function GigAccountingTab({
   const [error, setError] = useState<string | null>(null);
 
   const [searchQuery, setSearchQuery] = useState('');
-  const [statusFilters, setStatusFilters] = useState<GigStatus[]>(DEFAULT_STATUS_FILTERS);
-  const [showSettled, setShowSettled] = useState(false);
-  const [dateFrom, setDateFrom] = useState('');
-  const [dateTo, setDateTo] = useState('');
+  const [timeframe, setTimeframe] = useState<TimeframePreset>(DEFAULT_TIMEFRAME);
+  const [customFrom, setCustomFrom] = useState('');
+  const [customTo, setCustomTo] = useState('');
+  const [visibleSections, setVisibleSections] = useState(DEFAULT_SECTIONS);
   const [viewMode, setViewMode] = useState<'table' | 'card'>('table');
-  const [activeQuickFilter, setActiveQuickFilter] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -54,115 +67,32 @@ export default function GigAccountingTab({
     return () => { cancelled = true; };
   }, [organization.id]);
 
-  const handleQuickFilter = (key: string | null) => {
-    setActiveQuickFilter(key);
-    if (!key) return;
-
+  // Every gig in the timeframe (and search), sorted into its one section.
+  const allSections = useMemo((): GigSection[] => {
+    const range = timeframeRange(timeframe, new Date(), { from: customFrom, to: customTo });
+    const q = searchQuery.trim().toLowerCase();
     const now = new Date();
-    const year = now.getFullYear();
-
-    switch (key) {
-      case 'needs-attention':
-        setStatusFilters(['Completed']);
-        setShowSettled(false);
-        setDateFrom('');
-        setDateTo('');
-        break;
-      case 'upcoming':
-        setStatusFilters(['Booked', 'Proposed', 'DateHold']);
-        setShowSettled(false);
-        setDateFrom('');
-        setDateTo('');
-        break;
-      case 'this-year':
-        setDateFrom(`${year}-01-01`);
-        setDateTo(`${year}-12-31`);
-        break;
-      case 'unsettled-revenue':
-        break;
-      case 'payments-due':
-        break;
+    const buckets: Record<AccountingSectionId, GigAccountingSummary[]> = {
+      'needs-attention': [],
+      upcoming: [],
+      settled: [],
+    };
+    for (const s of summaries) {
+      if (q && !s.gigTitle.toLowerCase().includes(q)) continue;
+      if (!inTimeframe(s, range)) continue;
+      const id = classifyGig(s, now);
+      if (id) buckets[id].push(s);
     }
-  };
+    // Attention and settled: most recent first. Upcoming: soonest first.
+    buckets['needs-attention'].sort((a, b) => b.gigStart.localeCompare(a.gigStart));
+    buckets.upcoming.sort((a, b) => a.gigStart.localeCompare(b.gigStart));
+    buckets.settled.sort((a, b) => b.gigStart.localeCompare(a.gigStart));
+    return SECTION_ORDER.map((id) => ({ id, label: SECTION_LABELS[id], gigs: buckets[id], defaultCollapsed: false }));
+  }, [summaries, searchQuery, timeframe, customFrom, customTo]);
 
-  const handleClearFilters = () => {
-    setSearchQuery('');
-    setStatusFilters(DEFAULT_STATUS_FILTERS);
-    setShowSettled(false);
-    setDateFrom('');
-    setDateTo('');
-    setActiveQuickFilter(null);
-  };
-
-  const filteredSummaries = useMemo(() => {
-    let result = summaries;
-
-    if (searchQuery) {
-      const q = searchQuery.toLowerCase();
-      result = result.filter((s) => s.gigTitle.toLowerCase().includes(q));
-    }
-
-    result = result.filter((s) => {
-      if (s.gigStatus === 'Settled') return showSettled;
-      return statusFilters.includes(s.gigStatus);
-    });
-
-    if (dateFrom) {
-      result = result.filter((s) => s.gigStart >= dateFrom);
-    }
-    if (dateTo) {
-      result = result.filter((s) => s.gigStart <= dateTo);
-    }
-
-    if (activeQuickFilter === 'unsettled-revenue') {
-      result = result.filter((s) => s.outstandingRevenue > 0);
-    }
-    if (activeQuickFilter === 'payments-due') {
-      result = result.filter((s) => s.paymentsToMake > 0);
-    }
-
-    return result;
-  }, [summaries, searchQuery, statusFilters, showSettled, dateFrom, dateTo, activeQuickFilter]);
-
-  const sections = useMemo((): GigSection[] => {
-    const now = new Date().toISOString();
-
-    const needsAttention = filteredSummaries
-      .filter((s) => s.gigStatus === 'Completed')
-      .sort((a, b) => b.gigStart.localeCompare(a.gigStart));
-
-    const upcoming = filteredSummaries
-      .filter((s) => ['Booked', 'Proposed', 'DateHold'].includes(s.gigStatus) && s.gigStart > now)
-      .sort((a, b) => b.gigStart.localeCompare(a.gigStart));
-
-    const needsAttentionIds = new Set(needsAttention.map((s) => s.gigId));
-    const upcomingIds = new Set(upcoming.map((s) => s.gigId));
-
-    const pastSettled = filteredSummaries
-      .filter((s) => !needsAttentionIds.has(s.gigId) && !upcomingIds.has(s.gigId))
-      .sort((a, b) => b.gigStart.localeCompare(a.gigStart));
-
-    return [
-      {
-        id: 'needs-attention',
-        label: 'Needs Attention',
-        gigs: needsAttention,
-        defaultCollapsed: false,
-      },
-      {
-        id: 'upcoming',
-        label: 'Upcoming',
-        gigs: upcoming,
-        defaultCollapsed: false,
-      },
-      {
-        id: 'past-settled',
-        label: 'Past & Settled',
-        gigs: pastSettled,
-        defaultCollapsed: true,
-      },
-    ];
-  }, [filteredSummaries]);
+  const sections = allSections.filter((s) => visibleSections[s.id]);
+  const visibleGigs = useMemo(() => sections.flatMap((s) => s.gigs), [sections]);
+  const sectionCounts = Object.fromEntries(allSections.map((s) => [s.id, s.gigs.length])) as Record<AccountingSectionId, number>;
 
   if (userRole !== 'Admin') {
     return (
@@ -204,23 +134,25 @@ export default function GigAccountingTab({
     <div className="space-y-4">
       <GigAccountingFilters
         searchQuery={searchQuery}
-        statusFilters={statusFilters}
-        showSettled={showSettled}
-        dateFrom={dateFrom}
-        dateTo={dateTo}
+        timeframe={timeframe}
+        customFrom={customFrom}
+        customTo={customTo}
+        visibleSections={visibleSections}
+        sectionCounts={sectionCounts}
         viewMode={viewMode}
-        activeQuickFilter={activeQuickFilter}
         onSearchChange={setSearchQuery}
-        onStatusFiltersChange={setStatusFilters}
-        onShowSettledChange={setShowSettled}
-        onDateFromChange={setDateFrom}
-        onDateToChange={setDateTo}
+        onTimeframeChange={setTimeframe}
+        onCustomFromChange={setCustomFrom}
+        onCustomToChange={setCustomTo}
+        onToggleSection={(id) => setVisibleSections((v) => ({ ...v, [id]: !v[id] }))}
         onViewModeChange={setViewMode}
-        onQuickFilter={handleQuickFilter}
-        onClearFilters={handleClearFilters}
       />
 
-      <GigAccountingSummaryBar summaries={filteredSummaries} />
+      <GigAccountingSummaryBar summaries={visibleGigs} />
+
+      {sections.length === 0 && (
+        <Card className="p-8 text-center text-gray-500 text-sm">All sections are off. Turn one on above.</Card>
+      )}
 
       {viewMode === 'table' ? (
         <GigAccountingTable

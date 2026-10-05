@@ -99,19 +99,20 @@ describe('GigFinancialsSection', () => {
     expect(container.firstChild).toBeNull();
   });
 
-  it('shows money in as a card with its stage, and money out as a table', async () => {
+  it('shows money in and money out as tables with stage badges', async () => {
     render(<GigFinancialsSection {...defaultProps} />);
-    const card = await screen.findByTestId('money-in-fee');
-    expect(within(card).getByText('Performance fee')).toBeInTheDocument();
-    expect(within(card).getByText('$1,000.00')).toBeInTheDocument();
-    expect(within(card).getByRole('list', { name: 'Stage: Accepted' })).toBeInTheDocument();
-    expect(within(card).getByText('The gig is over and no payment is recorded yet.')).toBeInTheDocument();
+    const row = await screen.findByTestId('money-in-fee');
+    expect(within(row).getByText('Performance fee')).toBeInTheDocument();
+    expect(within(row).getByText('Accepted, payment due')).toBeInTheDocument();
+    expect(within(row).getByText('$1,000.00')).toBeInTheDocument(); // booking
+    expect(within(row).getByText('$0.00')).toBeInTheDocument(); // received
+    expect(screen.getByText('Total income')).toBeInTheDocument();
 
-    const table = screen.getByRole('table');
-    expect(within(table).getByText('Labor: Stage Hand')).toBeInTheDocument();
-    expect(within(table).getByText('Staff')).toBeInTheDocument();
-    expect(within(table).getByText('Paid Oct 3')).toBeInTheDocument();
-    expect(within(table).getByText('Paid Oct 4')).toBeInTheDocument();
+    const [, moneyOut] = screen.getAllByRole('table');
+    expect(within(moneyOut).getByText('Labor: Stage Hand')).toBeInTheDocument();
+    expect(within(moneyOut).getByText('Staff')).toBeInTheDocument();
+    expect(within(moneyOut).getByText('Paid Oct 3')).toBeInTheDocument();
+    expect(within(moneyOut).getByText('Paid Oct 4')).toBeInTheDocument();
   });
 
   it('shows the gig badge and the owed tile as due', async () => {
@@ -135,9 +136,9 @@ describe('GigFinancialsSection', () => {
     process.env.TZ = 'America/Los_Angeles';
     try {
       render(<GigFinancialsSection {...defaultProps} />);
-      const card = await screen.findByTestId('money-in-fee');
-      expect(within(card).getByText('Jul 22, 2026')).toBeInTheDocument();
-      expect(screen.queryByText('Jul 21, 2026')).not.toBeInTheDocument();
+      const row = await screen.findByTestId('money-in-fee');
+      expect(within(row).getByText('Jul 22')).toBeInTheDocument();
+      expect(screen.queryByText('Jul 21')).not.toBeInTheDocument();
     } finally {
       process.env.TZ = originalTZ;
     }
@@ -154,17 +155,17 @@ describe('GigFinancialsSection', () => {
     const viewing = render(<GigFinancialsSection {...defaultProps} editing={false} />);
     await screen.findByTestId('money-in-fee');
     expect(screen.queryByText('Edit Financials')).not.toBeInTheDocument();
-    expect(screen.queryByText('Record payment')).not.toBeInTheDocument();
+    expect(screen.queryByText('Record Payment')).not.toBeInTheDocument();
 
     viewing.unmount();
     render(<GigFinancialsSection {...defaultProps} editing />);
-    expect(await screen.findByText('Record payment')).toBeInTheDocument();
+    expect(await screen.findByText('Record Payment')).toBeInTheDocument();
     expect(screen.queryByText('Done Editing')).not.toBeInTheDocument();
   });
 
   it('records a partial payment as a split', async () => {
     render(<GigFinancialsSection {...defaultProps} editing />);
-    fireEvent.click(await screen.findByText('Record payment'));
+    fireEvent.click(await screen.findByText('Record Payment'));
 
     const dialog = await screen.findByRole('dialog');
     fireEvent.change(within(dialog).getByLabelText('Amount received'), { target: { value: '600' } });
@@ -180,9 +181,12 @@ describe('GigFinancialsSection', () => {
     });
   });
 
-  it('moves a fee to its next stage', async () => {
+  it('moves a booking to another stage from its menu', async () => {
+    const user = userEvent.setup();
     render(<GigFinancialsSection {...defaultProps} editing />);
-    fireEvent.click(await screen.findByText('Mark contract sent'));
+    await screen.findByTestId('money-in-fee');
+    await user.click(screen.getByRole('button', { name: 'Actions for Performance fee' }));
+    await user.click(await screen.findByRole('menuitem', { name: 'Contract sent' }));
     await waitFor(() => expect(gigService.updateGigFinancial).toHaveBeenCalledWith('fee', { stage: 'contract_sent' }));
   });
 

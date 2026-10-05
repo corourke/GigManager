@@ -229,8 +229,9 @@ describe('conflictDetection.service', () => {
         // Both kits are different rows but both flatten to the same asset.
         kit_flattened_cache: {
           data: [
-            { kit_id: 'kit-mine', asset_id: 'shared-asset' },
-            { kit_id: 'kit-theirs', asset_id: 'shared-asset' },
+            { kit_id: 'kit-mine', asset_id: 'shared-asset', asset: { manufacturer_model: 'Shure SM58', tag_number: 'M-12' } },
+            { kit_id: 'kit-mine', asset_id: 'my-only', asset: { manufacturer_model: 'Mic stand', tag_number: null } },
+            { kit_id: 'kit-theirs', asset_id: 'shared-asset', asset: { manufacturer_model: 'Shure SM58', tag_number: 'M-12' } },
           ],
           error: null,
         },
@@ -246,6 +247,8 @@ describe('conflictDetection.service', () => {
       const result = await checkEquipmentConflicts('gig-1', '2026-03-01T18:00:00Z', '2026-03-01T22:00:00Z');
       expect(result.conflicts.length).toBe(1);
       expect(result.conflicts[0].details.conflicting_kits[0].kit_name).toBe('Different Kit');
+      // names exactly what is shared
+      expect(result.conflicts[0].details.conflicting_kits[0].shared_assets).toEqual(['Shure SM58 (#M-12)']);
     });
 
     it('should NOT conflict when two different kits share no assets', async () => {

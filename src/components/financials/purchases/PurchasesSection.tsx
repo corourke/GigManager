@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { FileText, PencilLine, ScanLine } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../ui/tabs';
 import type { Organization, User, UserRole } from '../../../utils/supabase/types';
@@ -7,7 +7,7 @@ import ManualPurchaseTab from './ManualPurchaseTab';
 import ScanInvoiceTab from './ScanInvoiceTab';
 import { useScanQueue } from './useScanQueue';
 
-type PurchasesView = 'report' | 'manual' | 'scan';
+import type { PurchasesView } from '../../../routes/paths';
 
 interface PurchasesSectionProps {
   organization: Organization;
@@ -18,6 +18,9 @@ interface PurchasesSectionProps {
   onNavigateToGigDetail?: (gigId: string) => void;
   onNavigateToAssetDetail?: (assetId: string) => void;
   onEditAsset?: (assetId: string) => void;
+  /** The sub-tab, when the URL decides it. */
+  view?: PurchasesView;
+  onViewChange?: (view: PurchasesView) => void;
 }
 
 /**
@@ -28,19 +31,25 @@ interface PurchasesSectionProps {
 export default function PurchasesSection(props: PurchasesSectionProps) {
   const { organization, userRole } = props;
   const canAdd = userRole === 'Admin' || userRole === 'Manager';
-  const [view, setView] = useState<PurchasesView>('report');
+  const [localView, setLocalView] = useState<PurchasesView>('report');
+  const view = props.view ?? localView;
   const [reloadToken, setReloadToken] = useState(0);
   const [reportIsStale, setReportIsStale] = useState(false);
   // Lives here, not in the Scan tab, so scanning carries on while you're on the report.
   const scanQueue = useScanQueue(organization.id, canAdd);
 
   const showView = (next: PurchasesView) => {
-    if (next === 'report' && reportIsStale) {
+    if (props.onViewChange) props.onViewChange(next);
+    else setLocalView(next);
+  };
+  // Back on the report (by tab, link or the browser's back button): reload it
+  // if a purchase was added in the meantime.
+  useEffect(() => {
+    if (view === 'report' && reportIsStale) {
       setReloadToken((n) => n + 1);
       setReportIsStale(false);
     }
-    setView(next);
-  };
+  }, [view, reportIsStale]);
   const purchaseAdded = () => setReportIsStale(true);
 
   const report = (

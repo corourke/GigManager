@@ -1,12 +1,13 @@
 import { useState } from 'react';
-import { ChevronDown, ChevronRight, CheckCircle2, AlertCircle, CreditCard, AlertTriangle, FileText, Receipt, TrendingUp, TrendingDown } from 'lucide-react';
+import { ChevronDown, ChevronRight, FileText, Receipt, TrendingUp, TrendingDown } from 'lucide-react';
 import { format } from 'date-fns';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Badge } from '../ui/badge';
 import { Button } from '../ui/button';
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '../ui/collapsible';
 import { cn } from '../ui/utils';
-import { GigAccountingSummary, PaymentHealth, GigStatus } from '../../utils/supabase/types';
+import { GigAccountingSummary, GigStatus } from '../../utils/supabase/types';
+import { gigStatusText, STATUS_TONE, type AccountingSectionId } from '../../utils/gigAccountingSections';
 import { GIG_STATUS_CONFIG } from '../../utils/supabase/constants';
 import type { GigSection } from './GigAccountingTable';
 
@@ -26,40 +27,27 @@ const formatDateRange = (start: string, end: string) => {
   }
 };
 
-type HealthConfigEntry = {
-  icon: React.ComponentType<{ className?: string }>;
-  color: string;
-  label: string;
-};
-
-const HEALTH_CONFIG: Record<PaymentHealth, HealthConfigEntry> = {
-  'all-clear': { icon: CheckCircle2, color: 'text-green-600', label: 'All Clear' },
-  'revenue-outstanding': { icon: AlertCircle, color: 'text-amber-500', label: 'Revenue Outstanding' },
-  'payments-due': { icon: CreditCard, color: 'text-orange-500', label: 'Payments Due' },
-  'both': { icon: AlertTriangle, color: 'text-red-600', label: 'Needs Attention' },
-};
-
 const SECTION_HEADER_STYLES: Record<GigSection['id'], string> = {
   'needs-attention': 'bg-amber-50 border-amber-200 text-amber-800 hover:bg-amber-100',
-  'upcoming': 'bg-blue-50 border-blue-200 text-blue-800 hover:bg-blue-100',
-  'past-settled': 'bg-gray-50 border-gray-200 text-gray-700 hover:bg-gray-100',
+  'upcoming': 'bg-sky-50 border-sky-200 text-sky-900 hover:bg-sky-100',
+  'settled': 'bg-gray-50 border-gray-200 text-gray-700 hover:bg-gray-100',
 };
 
 const SECTION_COUNT_STYLES: Record<GigSection['id'], string> = {
   'needs-attention': 'bg-amber-200 text-amber-800',
-  'upcoming': 'bg-blue-200 text-blue-800',
-  'past-settled': 'bg-gray-200 text-gray-700',
+  'upcoming': 'bg-sky-200 text-sky-900',
+  'settled': 'bg-gray-200 text-gray-700',
 };
 
 function GigCard({
   gig,
+  sectionId,
   onNavigateToGigDetail,
 }: {
   gig: GigAccountingSummary;
+  sectionId: AccountingSectionId;
   onNavigateToGigDetail?: (gigId: string) => void;
 }) {
-  const health = HEALTH_CONFIG[gig.paymentHealth];
-  const HealthIcon = health.icon;
   const statusConfig = GIG_STATUS_CONFIG[gig.gigStatus as GigStatus];
 
   const revenueCardColor =
@@ -90,10 +78,10 @@ function GigCard({
               {statusConfig?.label ?? gig.gigStatus}
             </Badge>
           </div>
-          <div className={cn('flex-shrink-0 mt-0.5', health.color)} title={health.label}>
-            <HealthIcon className="w-5 h-5" />
-          </div>
         </div>
+        <span className={cn('self-start rounded-full px-2.5 py-0.5 text-xs font-semibold', STATUS_TONE[sectionId])}>
+          {gigStatusText(gig)}
+        </span>
       </CardHeader>
 
       <CardContent className="flex-1 flex flex-col gap-3 pt-0">
@@ -101,7 +89,7 @@ function GigCard({
           <Card className={cn('border-l-4 transition-all', revenueCardColor)}>
             <CardHeader className="flex flex-row items-center justify-between pb-1 space-y-0 px-3 pt-3">
               <CardTitle className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
-                Revenue
+                Money in
               </CardTitle>
               <FileText className="h-3 w-3 text-muted-foreground" />
             </CardHeader>
@@ -125,7 +113,7 @@ function GigCard({
           <Card className={cn('border-l-4 transition-all', profitCardColor)}>
             <CardHeader className="flex flex-row items-center justify-between pb-1 space-y-0 px-3 pt-3">
               <CardTitle className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
-                {gig.profit >= 0 ? 'Profit' : 'Loss'}
+                Net
               </CardTitle>
               {gig.profit >= 0 ? (
                 <TrendingUp className="h-3 w-3 text-green-600" />
@@ -142,7 +130,7 @@ function GigCard({
         </div>
 
         <div className="text-xs text-gray-500 px-0.5">
-          Rcvd {formatCurrency(gig.received)} | Due {formatCurrency(gig.outstandingRevenue)} | Pay {formatCurrency(gig.paymentsToMake)}
+          Received {formatCurrency(gig.received)} · Owed to you {formatCurrency(gig.outstandingRevenue)} · You owe {formatCurrency(gig.paymentsToMake)}
         </div>
 
         <div className="mt-auto pt-1">
@@ -199,6 +187,7 @@ function SectionCardGrid({
                 <GigCard
                   key={gig.gigId}
                   gig={gig}
+                  sectionId={section.id}
                   onNavigateToGigDetail={onNavigateToGigDetail}
                 />
               ))}
