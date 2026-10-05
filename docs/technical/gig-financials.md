@@ -113,6 +113,8 @@ erDiagram
 
 ## 2. Data Boundaries
 
+> For how purchases, assets and expenses are recorded end to end — and where this section is out of date — see [purchases-assets-expenses.md](purchases-assets-expenses.md).
+
 ### `gig_financials` vs. `purchases`
 
 **`purchases`** is the receipt box — it stores invoices and receipts with line-item detail and file attachments. Created via AI receipt scanning or CSV import.
