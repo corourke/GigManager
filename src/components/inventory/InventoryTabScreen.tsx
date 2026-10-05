@@ -9,6 +9,7 @@ import { LocationExplorer } from './LocationExplorer';
 import { InventoryReports } from './InventoryReports';
 import TrackingTab from './TrackingTab';
 import { Organization, User, UserRole } from '../../utils/supabase/types';
+import type { InventoryTab } from '../../routes/paths';
 
 interface InventoryTabScreenProps {
   organization: Organization;
@@ -17,6 +18,9 @@ interface InventoryTabScreenProps {
   onNavigateToAssets: () => void;
   onNavigateToKits: () => void;
   onNavigateToInventory: () => void;
+  /** The sub-tab, when the URL decides it (`/inventory/tracking`). */
+  subTab?: InventoryTab;
+  onSubTabChange?: (tab: InventoryTab) => void;
   onSwitchOrganization?: () => void;
   onLogout?: () => void;
   onEditProfile?: () => void;
@@ -29,11 +33,15 @@ export default function InventoryTabScreen({
   onNavigateToAssets,
   onNavigateToKits,
   onNavigateToInventory,
+  subTab: subTabProp,
+  onSubTabChange,
   onSwitchOrganization,
   onLogout,
   onEditProfile,
 }: InventoryTabScreenProps) {
-  const [subTab, setSubTab] = useState<'summary' | 'explorer' | 'reports' | 'tracking'>('summary');
+  const [localSubTab, setLocalSubTab] = useState<InventoryTab>('summary');
+  const subTab = subTabProp ?? localSubTab;
+  const setSubTab = (t: InventoryTab) => (onSubTabChange ? onSubTabChange(t) : setLocalSubTab(t));
 
   return (
     <div className="min-h-screen bg-gray-50">

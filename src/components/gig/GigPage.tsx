@@ -33,6 +33,7 @@ import { canManage } from '../../utils/permissions';
 import { GIG_STATUS_CONFIG } from '../../utils/supabase/constants';
 import { formatDateTimeDisplay } from '../../utils/dateUtils';
 import type { ActivityLogEntry, Gig, Organization, User, UserRole } from '../../utils/supabase/types';
+import type { GigTab } from '../../routes/paths';
 
 interface GigPageProps {
   gigId: string;
@@ -41,6 +42,9 @@ interface GigPageProps {
   userRole?: UserRole;
   /** Open in edit mode (the `/gigs/:id/edit` route). Ignored for roles that can't edit. */
   initialEditing?: boolean;
+  /** The open tab, when the URL decides it (`/gigs/:id/financials`). */
+  tab?: GigTab;
+  onTabChange?: (tab: GigTab) => void;
   onBack: () => void;
   backLabel?: string;
   onGigDeleted: () => void;
@@ -60,6 +64,8 @@ export default function GigPage({
   user,
   userRole,
   initialEditing = false,
+  tab: tabProp,
+  onTabChange,
   onBack,
   backLabel = 'Gigs',
   onGigDeleted,
@@ -71,7 +77,9 @@ export default function GigPage({
   const [gig, setGig] = useState<Gig | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [editing, setEditing] = useState(initialEditing && canEdit);
-  const [tab, setTab] = useState('overview');
+  const [localTab, setLocalTab] = useState<GigTab>('overview');
+  const tab = tabProp ?? localTab;
+  const setTab = (t: string) => (onTabChange ? onTabChange(t as GigTab) : setLocalTab(t as GigTab));
   const [conflicts, setConflicts] = useState<Conflict[]>([]);
   const [activity, setActivity] = useState<ActivityLogEntry[]>([]);
   const [activityLoading, setActivityLoading] = useState(false);

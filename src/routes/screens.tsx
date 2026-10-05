@@ -53,6 +53,7 @@ import MobileGigDetail from '../components/mobile/MobileGigDetail';
 import MobileDashboard from '../components/mobile/MobileDashboard';
 import MobileInventoryMode from '../components/mobile/MobileInventoryMode';
 import MobileSettings from '../components/mobile/MobileSettings';
+import { financialsPath, gigPath, inventoryPath, parseFinancialsPath, parseGigTab, parseInventoryTab } from './paths';
 
 /** Narrow the (nullable) auth values for org-scoped screens. */
 function useOrgScope() {
@@ -90,6 +91,8 @@ function MobileShell({ active, children }: { active: string; children: ReactNode
 function OrgSelectionRoute() {
   const { user, organizations, selectOrganization } = useAuth();
   const nav = useNav();
+  // Where RequireOrg was taking them before it asked for an org.
+  const from = (useLocation().state as { from?: string } | null)?.from;
   const { openEditProfile } = useAppShell();
   if (!user) return <LoadingSpinner />;
   return (
@@ -98,7 +101,7 @@ function OrgSelectionRoute() {
       organizations={organizations}
       onSelectOrganization={(org) => {
         selectOrganization(org);
-        nav.navigate('/'); // role/device-aware landing
+        nav.navigate(from && from !== '/org-selection' ? from : '/'); // else the role/device-aware landing
       }}
       onCreateOrganization={nav.toCreateOrg}
       onAdminViewAll={nav.toAdminOrgs}
@@ -269,7 +272,8 @@ function GigListRoute({ view = 'list' }: { view?: 'list' | 'calendar' }) {
       organization={organization}
       user={user}
       userRole={userRole}
-      initialViewMode={view}
+      viewMode={view}
+      onViewModeChange={(mode) => (mode === 'calendar' ? nav.toCalendar() : nav.toGigs())}
       onBack={nav.toDashboard}
       onCreateGig={nav.createGig}
       onViewGig={(id, fromCalendar) => nav.viewGig(id, fromCalendar)}
@@ -310,7 +314,7 @@ function GigDetailRoute({ editing = false }: { editing?: boolean }) {
   const { user, organization, userRole } = useOrgScope();
   const { isMobile } = useAppShell();
   const nav = useNav();
-  const { gigId } = useParams();
+  const { gigId, tab } = useParams();
   const [params] = useSearchParams();
   if (!user || !organization || !gigId) return <LoadingSpinner />;
   if (isMobile) {
@@ -334,6 +338,8 @@ function GigDetailRoute({ editing = false }: { editing?: boolean }) {
       user={user}
       userRole={userRole}
       initialEditing={editing}
+      tab={parseGigTab(tab)}
+      onTabChange={(t) => nav.navigate(`${gigPath(gigId, { tab: t, editing })}${params.toString() ? `?${params}` : ''}`)}
       onBack={() => (fromCalendar ? nav.toCalendar() : nav.toGigs())}
       backLabel={fromCalendar ? 'Calendar' : 'Gigs'}
       onGigDeleted={nav.toGigs}
@@ -540,6 +546,7 @@ function InventoryRoute() {
   const { isMobile } = useAppShell();
   const nav = useNav();
   const [params] = useSearchParams();
+  const { subTab } = useParams();
   if (!user || !organization) return <LoadingSpinner />;
   if (isMobile) {
     return (
@@ -559,6 +566,8 @@ function InventoryRoute() {
       onNavigateToAssets={nav.toAssets}
       onNavigateToKits={nav.toKits}
       onNavigateToInventory={nav.toInventory}
+      subTab={parseInventoryTab(subTab)}
+      onSubTabChange={(t) => nav.navigate(inventoryPath(t))}
     />
   );
 }
@@ -615,6 +624,8 @@ function FinancialsRoute() {
   const { isMobile } = useAppShell();
   const nav = useNav();
   const [params] = useSearchParams();
+  const { tab, sub } = useParams();
+  const { tab: activeTab, purchasesView } = parseFinancialsPath(tab, sub);
   if (!user || !organization) return <LoadingSpinner />;
   if (isMobile) return <Navigate to="/gigs" replace />;
   return (
@@ -627,9 +638,14 @@ function FinancialsRoute() {
       onNavigateToGigs={nav.toGigs}
       highlightPurchaseId={params.get('highlight')}
       returnGigId={params.get('returnGig')}
-      onNavigateToGigDetail={(id) => nav.viewGig(id)}
+      // From Financials, a gig opens on its own Financials tab.
+      onNavigateToGigDetail={(id) => nav.viewGig(id, false, 'financials')}
       onNavigateToAssetDetail={nav.viewAsset}
       onEditAsset={nav.editAsset}
+      tab={activeTab}
+      purchasesView={purchasesView}
+      // Changing tabs drops the purchase highlight / return-to-gig context.
+      onNavigate={(t, v) => nav.navigate(financialsPath(t, v))}
     />
   );
 }
@@ -667,6 +683,8 @@ export function AppRoutes() {
           <Route path="/gigs/new" element={<GigCreateRoute />} />
           <Route path="/gigs/:gigId" element={<GigDetailRoute />} />
           <Route path="/gigs/:gigId/edit" element={<GigDetailRoute editing />} />
+          <Route path="/gigs/:gigId/edit/:tab" element={<GigDetailRoute editing />} />
+          <Route path="/gigs/:gigId/:tab" element={<GigDetailRoute />} />
           <Route path="/team" element={<TeamRoute />} />
           <Route path="/team/:memberId" element={<TeamMemberDetailRoute />} />
           <Route path="/assets" element={<AssetListRoute />} />
@@ -677,10 +695,10 @@ export function AppRoutes() {
           <Route path="/kits/new" element={<KitEditorRoute create />} />
           <Route path="/kits/:kitId" element={<KitDetailRoute />} />
           <Route path="/kits/:kitId/edit" element={<KitEditorRoute create={false} />} />
-          <Route path="/inventory" element={<InventoryRoute />} />
+          <Route path="/inventory/:subTab?" element={<InventoryRoute />} />
           <Route path="/settings" element={<SettingsRoute />} />
           <Route path="/import" element={<ImportRoute />} />
-          <Route path="/financials" element={<FinancialsRoute />} />
+          <Route path="/financials/:tab?/:sub?" element={<FinancialsRoute />} />
         </Route>
       </Route>
 

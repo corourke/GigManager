@@ -92,6 +92,14 @@ describe('GigPage (#12)', () => {
     await waitFor(() => expect(screen.queryByRole('textbox', { name: 'Gig title' })).not.toBeInTheDocument());
   });
 
+  it('opens on the tab the URL names, and reports tab changes to the URL', async () => {
+    const onTabChange = vi.fn();
+    render(<GigPage {...baseProps} userRole="Manager" tab="financials" onTabChange={onTabChange} />);
+    expect(await screen.findByTestId('financials')).toBeInTheDocument();
+    fireEvent.mouseDown(screen.getByRole('tab', { name: 'History' }));
+    expect(onTabChange).toHaveBeenCalledWith('history');
+  });
+
   it('drives the Financials tab from the page edit mode', async () => {
     render(<GigPage {...baseProps} userRole="Manager" initialEditing />);
     await screen.findByRole('textbox', { name: 'Gig title' });

@@ -8,6 +8,7 @@ import AppHeader from './AppHeader';
 import GigAccountingTab from './financials/GigAccountingTab';
 import PurchasesSection from './financials/purchases/PurchasesSection';
 import { Organization, User, UserRole } from '../utils/supabase/types';
+import type { FinancialTab, PurchasesView } from '../routes/paths';
 
 interface FinancialsScreenProps {
   organization: Organization;
@@ -21,9 +22,11 @@ interface FinancialsScreenProps {
   onNavigateToGigDetail?: (gigId: string) => void;
   onNavigateToAssetDetail?: (assetId: string) => void;
   onEditAsset?: (assetId: string) => void;
+  /** The tab and Purchases sub-tab, when the URL decides them (see routes/paths). */
+  tab?: FinancialTab;
+  purchasesView?: PurchasesView;
+  onNavigate?: (tab: FinancialTab, purchasesView?: PurchasesView) => void;
 }
-
-type FinancialTab = 'purchases' | 'gig-accounting' | 'reporting';
 
 export default function FinancialsScreen({
   organization,
@@ -36,9 +39,14 @@ export default function FinancialsScreen({
   returnGigId,
   onNavigateToGigDetail,
   onNavigateToAssetDetail,
-  onEditAsset
+  onEditAsset,
+  tab,
+  purchasesView,
+  onNavigate,
 }: FinancialsScreenProps) {
-  const [activeTab, setActiveTab] = useState<FinancialTab>('purchases');
+  const [localTab, setLocalTab] = useState<FinancialTab>('purchases');
+  const activeTab = tab ?? localTab;
+  const setActiveTab = (t: FinancialTab) => (onNavigate ? onNavigate(t) : setLocalTab(t));
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -99,6 +107,8 @@ export default function FinancialsScreen({
               onNavigateToGigDetail={onNavigateToGigDetail}
               onNavigateToAssetDetail={onNavigateToAssetDetail}
               onEditAsset={onEditAsset}
+              view={purchasesView}
+              onViewChange={onNavigate ? (v) => onNavigate('purchases', v) : undefined}
             />
           </TabsContent>
 
