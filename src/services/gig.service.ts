@@ -16,6 +16,7 @@ import { updateGigParticipants } from './gigParticipant.service';
 import { updateGigStaffSlots } from './gigStaff.service';
 import { logActivity } from './activityLog.service';
 import { toDateInTimeZone } from '../utils/dateUtils';
+import { summarizeMoney, moneyInBadge, type MoneyRow } from '../utils/moneyFlow';
 
 // Kit-assignment operations live in gigKit.service.ts (Step 4 split); re-export
 // them here so existing `services/gig.service` imports keep working.
@@ -35,16 +36,12 @@ export {
   getPurchaseIdsWithLedgerEntry,
   getGigProfitabilitySummary,
   getGigExportAggregates,
-  getGigBids,
   createGigFinancial,
-  createGigBid,
   updateGigFinancial,
-  updateGigBid,
+  recordGigFinancialPayment,
   deleteGigFinancial,
-  deleteGigBid,
-  updateGigFinancials,
-  updateGigBids,
 } from './gigFinancial.service';
+export type { GigFinancialInput, GigFinancialPatch, GigMoneySummary } from './gigFinancial.service';
 
 // Participant / venue / act operations live in gigParticipant.service.ts.
 export {
@@ -384,9 +381,12 @@ export async function createGig(gigData: any, options?: { skipActivityLog?: bool
         await createGigFinancial({
           gig_id: newGigId,
           organization_id: primary_organization_id,
+          direction: 'in',
+          stage: 'paid',
           amount: parseFloat(amount),
+          amount_settled: parseFloat(amount),
           date: finDate,
-          type: 'Payment Received',
+          paid_at: finDate,
           description: 'Payment from import'
         });
       } catch (finError) {
@@ -691,12 +691,17 @@ export async function duplicateGig(gigId: string, newTitle?: string) {
     const newGigId = data[0].id;
 
     if (originalGig.financials && originalGig.financials.length > 0) {
-      const financials = originalGig.financials.map((fin: any) => ({
+      // The copy is a new deal: carry the agreed terms, not their progress.
+      // Rows past acceptance start over at accepted; ended ones are left out.
+      const financials = originalGig.financials
+        .filter((fin: any) => fin.stage !== 'declined' && fin.stage !== 'cancelled')
+        .map((fin: any) => ({
         gig_id: newGigId,
         organization_id: fin.organization_id,
         amount: fin.amount,
         date: fin.date,
-        type: fin.type,
+        direction: fin.direction,
+        stage: ['requested', 'quoted', 'accepted'].includes(fin.stage) ? fin.stage : 'accepted',
         category: fin.category,
         reference_number: fin.reference_number,
         counterparty_id: fin.counterparty_id,
@@ -797,7 +802,7 @@ export async function getAllGigAccountingSummaries(
 
     const { data: financials, error: finError } = await supabase
       .from('gig_financials')
-      .select('id, gig_id, type, amount, paid_at, staff_assignment_id')
+      .select('id, gig_id, direction, stage, amount, amount_settled, due_date, paid_at')
       .in('gig_id', gigIds)
       .eq('organization_id', organizationId);
 
@@ -811,7 +816,6 @@ export async function getAllGigAccountingSummaries(
         rate,
         status,
         completed_at,
-        gig_financial_id,
         slot:gig_staff_slots!inner(gig_id, organization_id)
       `)
       .in('slot.gig_id', gigIds)
@@ -819,14 +823,7 @@ export async function getAllGigAccountingSummaries(
 
     if (staffError) throw staffError;
 
-    type RawFinancial = {
-      id: string;
-      gig_id: string;
-      type: string;
-      amount: number;
-      paid_at: string | null;
-      staff_assignment_id: string | null;
-    };
+    type RawFinancial = MoneyRow & { id: string; gig_id: string };
 
     type RawAssignment = {
       id: string;
@@ -834,7 +831,6 @@ export async function getAllGigAccountingSummaries(
       rate: number | null;
       status: string;
       completed_at: string | null;
-      gig_financial_id: string | null;
       slot: { gig_id: string; organization_id: string };
     };
 
@@ -853,92 +849,25 @@ export async function getAllGigAccountingSummaries(
       assignmentsByGig.set(gigId, list);
     }
 
-    const financialIdToPaidAt = new Map<string, string | null>();
-    for (const f of (financials || []) as RawFinancial[]) {
-      financialIdToPaidAt.set(f.id, f.paid_at);
-    }
-
+    const now = new Date();
     return (gigs || []).map((gig: { id: string; title: string; status: string; start: string; end: string }) => {
       const gigFinancials = financialsByGig.get(gig.id) ?? [];
       const gigAssignments = assignmentsByGig.get(gig.id) ?? [];
+      const money = summarizeMoney(gigFinancials, gig.end, now);
 
-      let contractSignedTotal = 0;
-      let bidAcceptedTotal = 0;
-      let informalTermsTotal = 0;
-      let received = 0;
-      let actualCosts = 0;
-      let expectedSubContractCosts = 0;
-      let subContractSignedTotal = 0;
-      let subContractSettledTotal = 0;
-
-      for (const f of gigFinancials) {
-        const amount = Number(f.amount) || 0;
-
-        if (f.type === 'Contract Signed') {
-          contractSignedTotal += amount;
-        } else if (f.type === 'Bid Accepted') {
-          bidAcceptedTotal += amount;
-        } else if (f.type === 'Informal Terms') {
-          informalTermsTotal += amount;
-        }
-
-        if (f.type === 'Deposit Received' || f.type === 'Payment Received') {
-          received += amount;
-        }
-
-        if (
-          f.type === 'Expense Incurred' ||
-          f.type === 'Payment Sent' ||
-          f.type === 'Deposit Sent' ||
-          f.type === 'Sub-Contract Settled'
-        ) {
-          actualCosts += amount;
-        }
-
-        if (f.type === 'Sub-Contract Submitted' || f.type === 'Sub-Contract Signed') {
-          expectedSubContractCosts += amount;
-        }
-
-        if (f.type === 'Sub-Contract Signed') {
-          subContractSignedTotal += amount;
-        }
-
-        if (f.type === 'Sub-Contract Settled') {
-          subContractSettledTotal += amount;
-        }
-      }
-
-      const formalContractAmount = contractSignedTotal > 0
-        ? contractSignedTotal
-        : bidAcceptedTotal > 0
-          ? bidAcceptedTotal
-          : informalTermsTotal;
-
-      const contractAmount = Math.max(formalContractAmount, received);
-      const outstandingRevenue = Math.max(0, contractAmount - received);
-
+      // Staff booked but not yet finalized; a finalized assignment is a
+      // money-out row (owed until marked paid) and already in `money`.
       let expectedStaffCosts = 0;
-      let paymentsToMakeStaff = 0;
-
       for (const a of gigAssignments) {
         if ((a.status === 'Confirmed' || a.status === 'Requested') && !a.completed_at) {
-          const amount = a.fee !== null ? Number(a.fee) : (a.rate !== null ? Number(a.rate) : 0);
-          expectedStaffCosts += amount;
-        }
-
-        if (a.completed_at && a.gig_financial_id) {
-          const paidAt = financialIdToPaidAt.get(a.gig_financial_id);
-          if (paidAt === null || paidAt === undefined) {
-            const fee = a.fee !== null ? Number(a.fee) : (a.rate !== null ? Number(a.rate) : 0);
-            paymentsToMakeStaff += fee;
-          }
+          expectedStaffCosts += a.fee !== null ? Number(a.fee) : (a.rate !== null ? Number(a.rate) : 0);
         }
       }
 
-      const paymentsToMakeSubContracts = Math.max(0, subContractSignedTotal - subContractSettledTotal);
-      const paymentsToMake = paymentsToMakeSubContracts + paymentsToMakeStaff;
-
-      const totalCosts = actualCosts + expectedStaffCosts + expectedSubContractCosts;
+      const contractAmount = money.expectedIn;
+      const outstandingRevenue = money.outstandingIn;
+      const paymentsToMake = money.outstandingOut;
+      const totalCosts = money.expectedOut + expectedStaffCosts;
       const profit = contractAmount - totalCosts;
       const margin = contractAmount > 0 ? (profit / contractAmount) * 100 : 0;
 
@@ -960,16 +889,19 @@ export async function getAllGigAccountingSummaries(
         gigStart: gig.start,
         gigEnd: gig.end,
         contractAmount,
-        received,
+        received: money.receivedIn,
         outstandingRevenue,
-        actualCosts,
+        dueRevenue: money.dueIn,
+        actualCosts: money.paidOut,
         expectedStaffCosts,
-        expectedSubContractCosts,
+        expectedSubContractCosts: money.outstandingOut,
         totalCosts,
         paymentsToMake,
+        paymentsDue: money.dueOut,
         profit,
         margin,
         paymentHealth,
+        moneyInBadge: moneyInBadge(gigFinancials, gig.end, now),
       } satisfies GigAccountingSummary;
     });
   } catch (err) {

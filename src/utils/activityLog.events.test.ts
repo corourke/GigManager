@@ -21,12 +21,16 @@ const EXPECTED_EVENT_TYPES: ActivityEventType[] = [
   'kit.asset_added',
   'kit.asset_removed',
   'financial.added',
+  'financial.updated',
+  'financial.paid',
+  'financial.removed',
+  'financial.converted',
   'schedule_entry.added',
 ];
 
 describe('ACTIVITY_EVENTS', () => {
-  it('contains exactly 22 event types', () => {
-    expect(Object.keys(ACTIVITY_EVENTS)).toHaveLength(22);
+  it('contains exactly 26 event types', () => {
+    expect(Object.keys(ACTIVITY_EVENTS)).toHaveLength(26);
   });
 
   it('contains all expected event type keys', () => {
@@ -84,6 +88,41 @@ describe('ACTIVITY_EVENTS', () => {
   it('financial.added format with no changes returns fallback text', () => {
     const cfg = ACTIVITY_EVENTS['financial.added'];
     expect(cfg.format({ context_version: 1, actor_display_name: '', actor_org_name: '' })).toBe('Financial record added');
+  });
+
+  const ctx = { context_version: 1, actor_display_name: '', actor_org_name: '' };
+
+  it('financial.added format renders one new-style row', () => {
+    expect(ACTIVITY_EVENTS['financial.added'].format({
+      ...ctx, direction: 'in', stage: 'quoted', amount: 1800, description: 'Performance fee',
+    })).toBe('Added Performance fee · Bid sent · $1,800.00');
+  });
+
+  it('financial.updated format lists amount and stage changes (St. Raymond)', () => {
+    expect(ACTIVITY_EVENTS['financial.updated'].format({
+      ...ctx, direction: 'in', stage: 'accepted', amount: 1000, description: 'Performance fee',
+      field_changes: [
+        { field: 'amount', from: 1800, to: 1000 },
+        { field: 'stage', from: 'quoted', to: 'accepted' },
+      ],
+    })).toBe('Performance fee updated: Amount $1,800.00 → $1,000.00; Bid sent → Accepted');
+  });
+
+  it('financial.paid format says received for money in, paid for money out', () => {
+    expect(ACTIVITY_EVENTS['financial.paid'].format({ ...ctx, direction: 'in', stage: 'paid', amount: 250, amount_settled: 260 }))
+      .toBe('Money in received: $260.00');
+    expect(ACTIVITY_EVENTS['financial.paid'].format({ ...ctx, direction: 'out', stage: 'paid', amount: 200, description: 'Stage Hand' }))
+      .toBe('Stage Hand paid: $200.00');
+  });
+
+  it('financial.converted format lists the old rows', () => {
+    expect(ACTIVITY_EVENTS['financial.converted'].format({
+      ...ctx, direction: 'in', stage: 'accepted', amount: 1000, description: 'All day festival',
+      sources: [
+        { id: 'a', type: 'Informal Terms', amount: 1800, date: '2026-07-22' },
+        { id: 'b', type: 'Bid Accepted', amount: 1000, date: '2026-07-29' },
+      ],
+    })).toBe('All day festival converted to Accepted from Informal Terms $1,800.00 (2026-07-22), Bid Accepted $1,000.00 (2026-07-29)');
   });
 
   it('schedule_entry.added format renders each added entry', () => {

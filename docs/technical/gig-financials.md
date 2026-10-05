@@ -2,7 +2,7 @@
 
 Technical documentation for the gig financial management system. For the design analysis and implementation plan, see [07_gig-financials-workflow.md](../product/development-plan/07_gig-financials-workflow.md).
 
-**Last Updated**: 2026-09-04
+**Last Updated**: 2026-10-05 (money in / money out with stages; migration `20261005000000_fin_direction_stage`)
 
 ---
 
@@ -28,9 +28,11 @@ erDiagram
         uuid id PK
         uuid gig_id FK
         uuid organization_id FK
+        fin_direction direction
+        fin_stage stage
         numeric amount
+        numeric amount_settled
         date date
-        fin_type type
         fin_category category
         text description
         uuid counterparty_id FK
@@ -151,94 +153,69 @@ These operations only touch `gig_financials` rows that were auto-created from a 
 flowchart LR
     A["**Assignment Created**<br />fee or rate set<br />status = Confirmed"] --> B["**Projected Cost**<br />shows in profitability<br />from assignments table"]
     B --> C["**Assignment Completed**<br />completed_at set<br />gig_financials record created<br />two-way link established"]
-    C --> D["**Actual Cost**<br />in ledger as<br />Expense Incurred / Labor"]
-    D --> E["**Payment Sent**<br />separate gig_financials record<br />paid_at set"]
+    C --> D["**Owed**<br />money-out row<br />stage = invoiced (Owed)"]
+    D --> E["**Paid**<br />same row, stage = paid<br />paid_at + amount_settled set"]
 ```
 
 For rate-based assignments, completion requires entering `units_completed`. The ledger amount = rate × units_completed.
 
 ---
 
-## 3. Financial Type Groupings
+## 3. Money in, money out, and stages
 
-The `fin_type` enum has 24 values to support future multi-tenant workflows. For the single-org sound company, the UI groups types into practical categories via `FIN_TYPE_GROUPS`:
+Since 2026-10 every row is either **money in** (`direction = 'in'`: fees, deposits, reimbursements) or **money out** (`direction = 'out'`: sub-contractors, staff, expenses), and sits at one **stage**. The 25-value `fin_type` enum is gone from the app; the old value is kept on converted rows as `legacy_type` for audit and will be dropped later.
 
-**Revenue** (money coming in): `Informal Terms`, `Contract Signed`, `Bid Accepted`, `Deposit Received`, `Payment Recieved`
+| Stage | Money in label | Money out label | Counts toward |
+|---|---|---|---|
+| `requested` | Bid requested | Bid requested | Nothing (no amount needed) |
+| `quoted` | Bid sent | Bid received | Nothing (pipeline only) |
+| `accepted` | Accepted | Accepted | Expected |
+| `contract_sent` | Contract sent | Contract sent | Expected |
+| `contracted` | Contracted | Contracted | Expected |
+| `invoiced` | Invoiced | Owed | Expected; due on its due date |
+| `paid` | Paid | Paid | Expected and received / paid, at `amount_settled` |
+| `declined` | Declined | Declined | Nothing |
+| `cancelled` | Cancelled | Cancelled | Nothing |
 
-**Cost** (money going out): `Expense Incurred`, `Payment Sent`, `Deposit Sent`, `Sub-Contract Submitted`, `Sub-Contract Signed`, `Sub-Contract Settled`
+Every stage except `paid` is optional. A verbal agreement goes from `accepted` straight to `paid`; a mileage expense is created `paid`.
 
-**Tracking** (informational): `Invoice Issued`, `Invoice Settled`
+**Fields.** `amount` is the agreed amount (NULL only at `requested`). `amount_settled` is what actually moved, set when the row is paid (more than agreed is recorded as is). `date` is when the item started. `due_date` is when payment is due; with none, an unpaid committed row is **due once the gig is over** (`gigs.end` in the past). `paid_at` is when it was paid. Two check constraints enforce this: `amount` may be NULL only at `requested`, and a `paid` row must have `paid_at` and `amount_settled`.
 
-**Advanced** (bid/contract workflow — future use): All `Bid *` and `Contract *` types, plus the remaining `Sub-Contract *` types (`Revised`, `Rejected`, `Cancelled`)
+**One row per payment.** A planned deposit and balance are two rows from the start. An unplanned partial payment splits the row (`recordGigFinancialPayment`): the row becomes paid at what arrived, and the rest becomes a new row at the original stage and due date. Alternatively the user can settle for less, which lowers the agreed amount.
 
-Each `gig_financials` record also has a `category` (`fin_category` enum). The `type` describes *what happened*; the `category` describes *what it's for*. The original set (Labor, Equipment, Transportation, …) was replaced (migrations 20260328000001 / 20260512000000) with IRS Schedule C categories — Advertising, Car and truck expenses, Contract labor, Office expense, Rent or lease, Supplies, Travel, Meals, Utilities, Wages, Other expenses, and more. `category` is now **nullable with no default**. The authoritative list is `FIN_CATEGORY_CONFIG` in `src/utils/supabase/constants.ts`.
+**History.** Each write logs one `activity_log` event against the row (`entity_type = 'financial'`): `financial.added`, `financial.updated` (with `field_changes`), `financial.paid`, `financial.removed`. The conversion logged one `financial.converted` per surviving row, listing the old rows it came from in `context.sources`.
 
-Non-expense types (contracts, invoices, payments) store `category` as `NULL`. Never send `''`, because Postgres rejects it as an invalid enum value. `updateGigFinancials` turns `''` into `NULL` as a guard (issue #71).
+**Writers.** Finalizing a staff assignment creates a money-out row at `invoiced` (Owed) with `staff_assignment_id`. Linking a purchase to a gig creates a `paid` money-out row with `purchase_id`. A scanned receipt saved against a gig does the same.
 
-**Saving from the web section.** `GigFinancialsSection` autosaves edits through `useAutoSave`. The *Other* → *Add Financial Record* dialog saves immediately with `saveNow` and stays open until that save succeeds. If the save fails, the error shows inside the dialog and the row is not added to the table. A debounced autosave doesn't re-send a payload identical to the last one that failed, so a bad row can't retry and re-toast on every render. An explicit save (`saveNow`, `flush`) still retries.
+`category` (`fin_category`, IRS Schedule C, nullable) says what a row is for. Never send `''` for it, or for the uuid and date columns; the service turns `''` into NULL (issue #71).
+
+**The conversion** (`20261005000000_fin_direction_stage.sql`, tested by `supabase/tests/conversion/`): per gig and organization, the fee rows (terms, bids, contracts, invoices) collapse into the most recent one at the furthest stage reached; payments fold in, the last one settling the fee row and earlier ones staying as their own paid rows; if less than the fee was received the fee row keeps the remainder. A fee on a cancelled gig with nothing paid becomes `cancelled`. Money-out rows convert one for one; expenses with no `paid_at` were spent on their date.
 
 ---
 
 ## 4. Profitability Calculation
 
-The system calculates a single set of numbers that reflects the best available picture at any point in the gig lifecycle — using formal contract records when present, and falling back to actual receipts when they're not. All three summary tiles (Revenue, Total Costs, Profit) update in real time as records are added.
-
-### Revenue
+All calculations live in `src/utils/moneyFlow.ts` so the gig page, the Gig Accounting report and the CSV export agree.
 
 ```
-FORMAL REVENUE   = SUM(amount) WHERE type = 'Contract Signed'      [if any exist]
-                   ELSE SUM(amount) WHERE type = 'Bid Accepted'    [if any exist]
-                   ELSE SUM(amount) WHERE type = 'Informal Terms'
+EXPECTED IN   = Σ money in at accepted or later   (paid rows at amount_settled)
+RECEIVED      = Σ amount_settled, money in, paid
+OWED TO YOU   = Σ amount, money in, accepted … invoiced
+DUE NOW       = the part of OWED TO YOU past its due date, or with no due date on a gig that is over
 
-                   Priority order prevents double-counting: Contract Signed > Bid Accepted > Informal Terms.
-                   Only one tier contributes; lower tiers are ignored when a higher one is present.
+EXPECTED OUT  = Σ money out at accepted or later   (paid rows at amount_settled)
+PAID OUT      = Σ amount_settled, money out, paid
+YOU OWE       = Σ amount, money out, accepted … invoiced
 
-RECEIVED         = SUM(amount) WHERE type IN (Deposit Received, Payment Received)
+PROJECTED STAFF = Σ gig_staff_assignments.fee (rate when fee is null)
+                  WHERE completed_at IS NULL AND status IN (Confirmed, Requested)
 
-REVENUE          = MAX(FORMAL REVENUE, RECEIVED)
+TOTAL COSTS   = EXPECTED OUT + PROJECTED STAFF
+NET (PROFIT)  = EXPECTED IN − TOTAL COSTS
+MARGIN        = NET / EXPECTED IN × 100
 ```
 
-`REVENUE` is the effective top line. If a formal contract record exists, that defines the expected revenue (even if not yet received). If there is no formal contract record, money actually received IS the revenue — a `Payment Received` record alone is sufficient to establish both revenue and a profit baseline.
-
-```
-OUTSTANDING REV  = MAX(0, REVENUE - RECEIVED)
-```
-
-### Costs
-
-```
-ACTUAL COSTS     = SUM(amount) WHERE type IN (Expense Incurred, Payment Sent, Deposit Sent, Sub-Contract Settled)
-
-PROJECTED STAFF  = SUM(gig_staff_assignments.fee) WHERE completed_at IS NULL
-                   AND status IN (Confirmed, Requested)
-                   [rate used as proxy for fee when fee is null]
-
-EXPECTED SUB-CONTRACT COSTS = SUM(amount) WHERE type IN (Sub-Contract Submitted, Sub-Contract Signed)
-                   [a settled sub-contract moves from "expected" to "actual" —
-                   Sub-Contract Rejected / Cancelled never contribute]
-
-TOTAL COSTS      = ACTUAL COSTS + PROJECTED STAFF + EXPECTED SUB-CONTRACT COSTS
-```
-
-Projected staff costs disappear as assignments are completed: each completion creates a ledger entry (`Expense Incurred / Labor`) and removes the assignment from the projection. Sub-contractor costs follow the same actual/expected split as staff costs — a signed or submitted sub-contract is a real (if not yet paid) expense to the gig, matching `getAllGigAccountingSummaries` (used by the org-wide Gig Accounting tab), which has always treated sub-contracts this way.
-
-### Profit
-
-```
-PROFIT           = REVENUE - TOTAL COSTS
-MARGIN           = PROFIT / REVENUE × 100
-```
-
-### Lifecycle examples
-
-| Stage | Revenue tile | Costs tile | Profit tile |
-|-------|-------------|------------|-------------|
-| Contract signed, no costs yet | Formal contract amount | $0 | = contract amount |
-| Contract + some staff confirmed | Formal contract amount | Projected staff | Contract − staff projection |
-| Payment received, no contract | Received amount | Actual costs | Received − costs |
-| Fully settled | Contract amount (= received) | Actual costs only | Final margin |
-
-All settled/actual financials come from `gig_financials`. Projected staff costs are the only read-time calculation from a second table, and they disappear as assignments are completed into ledger entries.
+The gig's money-in badge comes from its least advanced unpaid money-in row: "Payment due" or "Overdue" when due now, else that row's stage ("Invoiced, due Oct 26"), else "Paid".
 
 ---
 
@@ -246,7 +223,7 @@ All settled/actual financials come from `gig_financials`. Projected staff costs 
 
 `gig_financials` supports file attachments via the `entity_attachments` polymorphic system (`entity_type = 'gig_financial'`, added in migration 20260831000000). Receipts, invoices, and supporting documents attach directly to a financial record, independent of any linked `purchases` record — so a manually-entered expense or mileage row can carry its own receipt.
 
-- **Web**: a paperclip button with a count badge on each expense row in `GigFinancialsSection` opens a per-row modal (`AttachmentManager`). View is always available; upload requires edit mode + Admin/Manager.
+- **Web**: a paperclip button with a count badge on each money-out row in `GigFinancialsSection` opens a per-row modal (`AttachmentManager`); money-in cards show it in edit mode.
 - **Mobile**: the transaction detail sheet in `MobileGigFinancials` mounts the same `AttachmentManager`; list rows show a paperclip when attachments exist.
 - Not wired into the Simple Expense / Mileage **entry** modals — attach after the row exists.
 - Storage, RLS, and the `{org_id}/{filename}` path convention are shared with all other attachments. Deleting a `gig_financials` row triggers `trg_cleanup_attachments` (metadata) and a best-effort storage-blob removal in `deleteGigFinancial`.

@@ -341,14 +341,15 @@ describe('purchase → gig ledger lifecycle', () => {
   });
 
   describe('buildPurchaseLineLedgerPayload', () => {
-    it('builds an Expense Incurred payload linked to the purchase line', () => {
+    it('builds a paid money-out payload linked to the purchase line', () => {
       const payload = buildPurchaseLineLedgerPayload(line(), 'gig-1', 'org-1');
       expect(payload).toMatchObject({
         gig_id: 'gig-1',
         organization_id: 'org-1',
         date: '2026-02-01',
         amount: 200,
-        type: 'Expense Incurred',
+        direction: 'out',
+        stage: 'paid',
         description: 'Van rental',
         purchase_id: 'line-1',
       });

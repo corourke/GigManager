@@ -1,5 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { getGigExportAggregates, updateGigFinancials } from './gigFinancial.service';
+import {
+  createGigFinancial,
+  getGigExportAggregates,
+  recordGigFinancialPayment,
+  updateGigFinancial,
+} from './gigFinancial.service';
 import { createClient } from '../utils/supabase/client';
 import { requireAuth } from '../utils/supabase/auth-utils';
 
@@ -56,19 +61,23 @@ describe('getGigExportAggregates', () => {
   });
 
   it('aggregates revenue, staff cost/count and non-staff expenses per gig', async () => {
+    const row = (gig_id: string, direction: string, stage: string, amount: number, extra: any = {}) => ({
+      gig_id, direction, stage, amount, amount_settled: stage === 'paid' ? amount : null, staff_assignment_id: null, ...extra,
+    });
     setup({
       participants: [{ gig_id: 'gig-1' }, { gig_id: 'gig-2' }, { gig_id: 'gig-3' }],
       financials: [
-        { gig_id: 'gig-1', type: 'Contract Signed', amount: 4000, staff_assignment_id: null },
-        { gig_id: 'gig-1', type: 'Payment Received', amount: 1000, staff_assignment_id: null },
-        { gig_id: 'gig-1', type: 'Expense Incurred', amount: 300, staff_assignment_id: null },
-        { gig_id: 'gig-1', type: 'Payment Sent', amount: 150, staff_assignment_id: null },
+        // $4,000 fee: $1,000 deposit paid, $3,000 balance invoiced
+        row('gig-1', 'in', 'paid', 1000),
+        row('gig-1', 'in', 'invoiced', 3000),
+        // a bid that was never accepted doesn't count
+        row('gig-1', 'in', 'quoted', 9000),
+        row('gig-1', 'out', 'paid', 300),
+        row('gig-1', 'out', 'invoiced', 150),
         // staff-linked ledger entry — already counted in costOfStaff, excluded from expenses
-        { gig_id: 'gig-1', type: 'Expense Incurred', amount: 900, staff_assignment_id: 'a1' },
-        // tracking type — ignored entirely
-        { gig_id: 'gig-1', type: 'Invoice Issued', amount: 5000, staff_assignment_id: null },
-        { gig_id: 'gig-2', type: 'Bid Accepted', amount: 2000, staff_assignment_id: null },
-        { gig_id: 'gig-2', type: 'Deposit Received', amount: 2500, staff_assignment_id: null },
+        row('gig-1', 'out', 'paid', 900, { staff_assignment_id: 'a1' }),
+        // overpaid: $2,000 agreed, $2,500 received
+        { ...row('gig-2', 'in', 'paid', 2000), amount_settled: 2500 },
       ],
       assignments: [
         { fee: 500, rate: null, slot: { gig_id: 'gig-1', organization_id: 'org-1' } },
@@ -80,13 +89,13 @@ describe('getGigExportAggregates', () => {
     const result = await getGigExportAggregates('org-1');
 
     expect(result.get('gig-1')).toEqual({
-      revenue: 4000, // max(Contract Signed 4000, received 1000)
+      revenue: 4000,
       costOfStaff: 700, // 500 + 200 + 0
-      expenses: 450, // 300 + 150 (staff-linked 900 excluded)
+      expenses: 450, // 300 paid + 150 owed (staff-linked 900 excluded)
       staffCount: 3,
     });
     expect(result.get('gig-2')).toEqual({
-      revenue: 2500, // max(Bid Accepted 2000, received 2500)
+      revenue: 2500, // what was actually received
       costOfStaff: 0,
       expenses: 0,
       staffCount: 0,
@@ -95,23 +104,18 @@ describe('getGigExportAggregates', () => {
     expect(result.has('gig-3')).toBe(false);
   });
 
-  it('counts sub-contractor costs as expenses, regardless of paid/pending status', async () => {
-    // FIN_TYPE_GROUPS.cost includes all three Sub-Contract types; unlike
-    // getGigProfitabilitySummary this export deliberately doesn't split
-    // paid (Settled) from pending (Submitted/Signed) — same "sum everything"
-    // treatment as costOfStaff summing assignments regardless of status.
+  it('counts sub-contractors once accepted, paid or not; bids and declined ones not at all', async () => {
     setup({
       participants: [{ gig_id: 'gig-1' }],
       financials: [
-        { gig_id: 'gig-1', type: 'Sub-Contract Submitted', amount: 100, staff_assignment_id: null },
-        { gig_id: 'gig-1', type: 'Sub-Contract Signed', amount: 200, staff_assignment_id: null },
-        { gig_id: 'gig-1', type: 'Sub-Contract Settled', amount: 300, staff_assignment_id: null },
-        // Rejected/Cancelled aren't cost types — excluded entirely
-        { gig_id: 'gig-1', type: 'Sub-Contract Rejected', amount: 999, staff_assignment_id: null },
+        { gig_id: 'gig-1', direction: 'out', stage: 'quoted', amount: 100, staff_assignment_id: null },
+        { gig_id: 'gig-1', direction: 'out', stage: 'contracted', amount: 200, staff_assignment_id: null },
+        { gig_id: 'gig-1', direction: 'out', stage: 'paid', amount: 300, amount_settled: 300, staff_assignment_id: null },
+        { gig_id: 'gig-1', direction: 'out', stage: 'declined', amount: 999, staff_assignment_id: null },
       ],
     });
     const result = await getGigExportAggregates('org-1');
-    expect(result.get('gig-1')).toMatchObject({ expenses: 600 });
+    expect(result.get('gig-1')).toMatchObject({ expenses: 500 });
   });
 
   it('handles PostgREST returning the embedded slot as a single-element array', async () => {
@@ -134,7 +138,7 @@ describe('getGigExportAggregates', () => {
   });
 });
 
-// ─── updateGigFinancials (issue #55 — add-only history events) ────────────
+// ─── Row writes: settlement rules and history events ──────────────────────
 
 function makeFullChain(result: { data: any; error: any }) {
   const chain: any = {};
@@ -142,71 +146,135 @@ function makeFullChain(result: { data: any; error: any }) {
     chain[m] = vi.fn().mockReturnValue(chain);
   });
   chain.single = vi.fn().mockResolvedValue(result);
+  chain.maybeSingle = vi.fn().mockResolvedValue(result);
   chain.then = (resolve: any, reject: any) => Promise.resolve(result).then(resolve, reject);
   return chain;
 }
 
-describe('updateGigFinancials', () => {
+const baseRow = {
+  id: 'fin-1',
+  gig_id: 'gig-1',
+  organization_id: 'org-1',
+  direction: 'in',
+  stage: 'invoiced',
+  amount: 1500,
+  amount_settled: null,
+  date: '2026-05-01',
+  due_date: '2027-01-09',
+  paid_at: null,
+  description: 'Wedding balance',
+  category: null,
+  counterparty_id: null,
+  external_entity_name: null,
+  reference_number: null,
+  notes: null,
+  currency: 'USD',
+};
+
+describe('gig financial row writes', () => {
   let mockSupabase: any;
+  let finChains: any[];
+  let current: any;
 
   beforeEach(() => {
     vi.clearAllMocks();
+    finChains = [];
+    current = { ...baseRow };
     mockSupabase = { from: vi.fn() };
     (requireAuth as any).mockResolvedValue({
       supabase: mockSupabase,
       user: { id: 'user-1', email: 'jane@example.com', user_metadata: { first_name: 'Jane', last_name: 'Doe' } },
     });
-  });
-
-  it('logs financial.added when a new record is inserted', async () => {
+    (createClient as any).mockReturnValue(mockSupabase);
     mockSupabase.from.mockImplementation((table: string) => {
-      if (table === 'gig_financials') return makeFullChain({ data: [], error: null });
+      if (table === 'gig_financials') {
+        const chain = makeFullChain({ data: current, error: null });
+        // insert/update return what was written, merged over the current row
+        chain.insert = vi.fn((v: any) => { chain.single.mockResolvedValue({ data: { ...baseRow, id: 'fin-new', ...v }, error: null }); return chain; });
+        chain.update = vi.fn((v: any) => { current = { ...current, ...v }; chain.single.mockResolvedValue({ data: current, error: null }); return chain; });
+        finChains.push(chain);
+        return chain;
+      }
       if (table === 'organizations') return makeFullChain({ data: { name: 'Acme' }, error: null });
       if (table === 'gigs') return makeFullChain({ data: { title: 'Test Gig' }, error: null });
-      return makeFullChain({ data: [], error: null });
+      return makeFullChain({ data: null, error: null });
     });
+  });
 
-    await updateGigFinancials('gig-1', 'org-1', [
-      { amount: 250, date: '2026-01-01', type: 'Expense Incurred' },
-    ]);
-
+  it('fills in paid_at and amount_settled when a row is created as paid', async () => {
+    await createGigFinancial({
+      gig_id: 'gig-1', organization_id: 'org-1', direction: 'out', stage: 'paid', amount: 51.3, date: '2026-09-17',
+    });
+    const inserted = finChains[0].insert.mock.calls[0][0];
+    expect(inserted.amount_settled).toBe(51.3);
+    expect(inserted.stage).toBe('paid');
+    expect(inserted.paid_at).toEqual(expect.any(String));
     expect(logActivity).toHaveBeenCalledWith(expect.objectContaining({
       event_type: 'financial.added',
-      organization_id: 'org-1',
+      entity_type: 'financial',
+      entity_id: 'fin-new',
       gig_id: 'gig-1',
+      context: expect.objectContaining({ gig_title: 'Test Gig', actor_org_name: 'Acme', direction: 'out', stage: 'paid' }),
+    }));
+  });
+
+  it('sends null, not empty strings, for blank uuid, date and enum fields (issue #71)', async () => {
+    await createGigFinancial({
+      gig_id: 'gig-1', organization_id: 'org-1', direction: 'in', stage: 'accepted', amount: 500, date: '2026-01-01',
+      category: '' as any, counterparty_id: '', due_date: '',
+    });
+    expect(finChains[0].insert).toHaveBeenCalledWith(expect.objectContaining({ category: null, counterparty_id: null, due_date: null }));
+  });
+
+  it('logs the changed fields on update, as financial.updated', async () => {
+    await updateGigFinancial('fin-1', { amount: 1000, stage: 'accepted' });
+    expect(logActivity).toHaveBeenCalledWith(expect.objectContaining({
+      event_type: 'financial.updated',
+      entity_id: 'fin-1',
       context: expect.objectContaining({
-        gig_title: 'Test Gig',
-        actor_org_name: 'Acme',
-        financial_changes: [{ amount: 250, fin_type: 'Expense Incurred' }],
-        change_count: 1,
+        field_changes: expect.arrayContaining([
+          { field: 'amount', from: 1500, to: 1000 },
+          { field: 'stage', from: 'invoiced', to: 'accepted' },
+        ]),
       }),
     }));
   });
 
-  it('does NOT log when only updating an existing record', async () => {
-    mockSupabase.from.mockImplementation((table: string) => {
-      if (table === 'gig_financials') return makeFullChain({ data: [{ id: '11111111-1111-1111-1111-111111111111' }], error: null });
-      return makeFullChain({ data: [], error: null });
-    });
-
-    await updateGigFinancials('gig-1', 'org-1', [
-      { id: '11111111-1111-1111-1111-111111111111', amount: 300, date: '2026-01-01', type: 'Payment Received' },
-    ]);
-
+  it('does not log an update that changes nothing', async () => {
+    await updateGigFinancial('fin-1', { amount: 1500 });
     expect(logActivity).not.toHaveBeenCalled();
   });
 
-  it('sends category null, not an empty string, for a new record with no category (issue #71)', async () => {
-    const finChain = makeFullChain({ data: [], error: null });
-    mockSupabase.from.mockImplementation((table: string) => {
-      if (table === 'gig_financials') return finChain;
-      return makeFullChain({ data: null, error: null });
+  it('clears paid_at and amount_settled when a paid row is moved back', async () => {
+    current = { ...baseRow, stage: 'paid', amount_settled: 1500, paid_at: '2026-06-01T00:00:00Z' };
+    await updateGigFinancial('fin-1', { stage: 'invoiced' });
+    expect(finChains[1].update).toHaveBeenCalledWith(expect.objectContaining({ stage: 'invoiced', paid_at: null, amount_settled: null }));
+  });
+
+  it('splits a partial payment: the row is paid, the rest stays owed as a new row', async () => {
+    const { paid, remainder } = await recordGigFinancialPayment(baseRow as any, {
+      amount: 600, paid_at: '2026-12-12', remainder: 'split',
     });
+    const inserted = finChains.find((c) => c.insert.mock.calls.length)!.insert.mock.calls[0][0];
+    expect(inserted).toMatchObject({ direction: 'in', stage: 'invoiced', amount: 900, due_date: '2027-01-09', description: 'Wedding balance (remainder)' });
+    expect(remainder).not.toBeNull();
+    expect(paid).toMatchObject({ stage: 'paid', amount: 600, amount_settled: 600, paid_at: '2026-12-12' });
+    expect(logActivity).toHaveBeenCalledWith(expect.objectContaining({ event_type: 'financial.paid', entity_id: 'fin-1' }));
+  });
 
-    await updateGigFinancials('gig-1', 'org-1', [
-      { amount: 500, date: '2026-01-01', type: 'Invoice Issued', category: '' as any },
-    ]);
+  it('settles for less: the agreed amount drops and nothing stays owed', async () => {
+    const { paid, remainder } = await recordGigFinancialPayment(baseRow as any, {
+      amount: 600, paid_at: '2026-12-12', remainder: 'settle',
+    });
+    expect(remainder).toBeNull();
+    expect(paid).toMatchObject({ stage: 'paid', amount: 600, amount_settled: 600 });
+  });
 
-    expect(finChain.insert).toHaveBeenCalledWith(expect.objectContaining({ category: null }));
+  it('records an overpayment as received, keeping the agreed amount', async () => {
+    const { paid, remainder } = await recordGigFinancialPayment({ ...baseRow, amount: 250 } as any, {
+      amount: 260, paid_at: '2026-06-24', remainder: 'split',
+    });
+    expect(remainder).toBeNull();
+    expect(paid).toMatchObject({ stage: 'paid', amount: 250, amount_settled: 260 });
   });
 });

@@ -1049,7 +1049,7 @@ export default function PurchasesTab({
             <AlertDialogTitle>Create gig expense record?</AlertDialogTitle>
             <AlertDialogDescription>
               This expense line is now linked to {ledgerPrompt?.gigTitle ? `"${ledgerPrompt.gigTitle}"` : 'a gig'}. Would you
-              like to record it as an "Expense Incurred" entry in that gig's financials
+              like to record it as a paid expense in that gig's financials
               {ledgerPrompt && (
                 <> for ${purchaseLineLedgerAmount(ledgerPrompt.item).toFixed(2)}</>
               )}? You can skip this and the line will still be linked to the gig.
@@ -1070,7 +1070,7 @@ export default function PurchasesTab({
           <AlertDialogHeader>
             <AlertDialogTitle>Remove gig association and its ledger entry?</AlertDialogTitle>
             <AlertDialogDescription>
-              This line has a linked "Expense Incurred" entry
+              This line has a linked expense entry
               {clearLedgerConfirm && <> for ${clearLedgerConfirm.amount.toFixed(2)}</>} in the gig's
               financials. Unlinking the line will also delete that ledger entry so the gig's costs stay
               correct. This cannot be undone.
@@ -1093,7 +1093,7 @@ export default function PurchasesTab({
             <AlertDialogDescription>
               {headerLedgerPrompt?.itemIds.length} expense line(s) from this receipt were linked to{' '}
               {headerLedgerPrompt?.gigTitle ? `"${headerLedgerPrompt.gigTitle}"` : 'the gig'}. Record
-              each as an "Expense Incurred" entry in that gig's financials? You can also do this later
+              each as a paid expense in that gig's financials? You can also do this later
               from each line.
             </AlertDialogDescription>
           </AlertDialogHeader>

@@ -38,9 +38,9 @@ INSERT INTO gig_kit_assignments (id, organization_id, gig_id, kit_id, assigned_b
 INSERT INTO inventory_tracking (id, organization_id, gig_id, kit_id, status) VALUES
   (rls_test.u('inv_a'), rls_test.u('org_a'), rls_test.u('gig'), rls_test.u('kit_a'), 'Checked Out'),
   (rls_test.u('inv_b'), rls_test.u('org_b'), rls_test.u('gig'), rls_test.u('kit_b'), 'Checked Out');
-INSERT INTO gig_financials (id, gig_id, organization_id, amount, date, created_by, type)
+INSERT INTO gig_financials (id, gig_id, organization_id, amount, date, created_by, direction, stage)
 VALUES (rls_test.u('fin_a'), rls_test.u('gig'), rls_test.u('org_a'), 100, current_date, rls_test.u('a_admin'),
-        (enum_range(NULL::fin_type))[1]);
+        'in', 'accepted');
 INSERT INTO activity_log (organization_id, actor_id, event_type, entity_type, entity_id, gig_id) VALUES
   (rls_test.u('org_a'), rls_test.u('a_admin'), 'gig.status_changed', 'gig', rls_test.u('gig'), rls_test.u('gig')),
   (NULL,                rls_test.u('a_admin'), 'participant.added', 'participant', rls_test.u('org_b'), rls_test.u('gig')),

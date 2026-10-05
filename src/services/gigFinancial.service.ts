@@ -1,10 +1,10 @@
-import { FinType, FinCategory, DbGigFinancial, FinancialChange } from '../utils/supabase/types';
-import { FIN_TYPE_GROUPS } from '../utils/supabase/constants';
+import { FinCategory, FinDirection, FinStage, DbGigFinancial, FieldChange } from '../utils/supabase/types';
 import { handleApiError } from '../utils/api-error-utils';
 import { requireAuth } from '../utils/supabase/auth-utils';
-import { UUID_REGEX } from '../utils/validation-utils';
 import { getSupabase } from './gigService.shared';
 import { logActivity } from './activityLog.service';
+import type { ActivityEventType } from '../utils/activityLog.events';
+import { expectedAmount, summarizeMoney, type MoneyRow, type MoneySummary } from '../utils/moneyFlow';
 
 /**
  * Gig financial / bid operations (Phase 7, Step 4 — extracted from
@@ -50,23 +50,25 @@ export async function getGigFinancials(gigId: string, organizationId?: string) {
 }
 
 /**
- * Fetch a summary of gig profitability
+ * Money summary for one gig and organization: what is expected, received and
+ * owed in each direction (see utils/moneyFlow), plus projected costs of staff
+ * who are booked but not yet finalized.
  */
 export async function getGigProfitabilitySummary(gigId: string, organizationId: string) {
   const supabase = getSupabase();
   try {
-    // 1. Fetch all financial records for this gig
     const { data: financials, error: finError } = await supabase
       .from('gig_financials')
-      .select('type, amount')
+      .select('direction, stage, amount, amount_settled, due_date, paid_at')
       .eq('gig_id', gigId)
       .eq('organization_id', organizationId);
 
     if (finError) throw finError;
 
-    // 2. Fetch all uncompleted staff assignments for projected costs
-    // Sourced from gig_staff_assignments where completed_at IS NULL
-    // Join with gig_staff_slots to ensure they belong to this gig and organization
+    const { data: gig } = await supabase.from('gigs').select('end').eq('id', gigId).maybeSingle();
+
+    // Uncompleted staff assignments: projected costs until they are finalized
+    // into a money-out row.
     const { data: assignments, error: staffError } = await supabase
       .from('gig_staff_assignments')
       .select(`
@@ -82,105 +84,52 @@ export async function getGigProfitabilitySummary(gigId: string, organizationId: 
 
     if (staffError) throw staffError;
 
-    // 3. Calculate metrics
-    let received = 0;
-    let actualCosts = 0;
-    let expectedSubContractCosts = 0;
-    let contractSignedTotal = 0;
-    let bidAcceptedTotal = 0;
-    let informalTermsTotal = 0;
-
-    (financials || []).forEach(f => {
-      const amount = Number(f.amount) || 0;
-
-      if (f.type === 'Contract Signed') {
-        contractSignedTotal += amount;
-      } else if (f.type === 'Bid Accepted') {
-        bidAcceptedTotal += amount;
-      } else if (f.type === 'Informal Terms') {
-        informalTermsTotal += amount;
-      }
-
-      if (f.type === 'Deposit Received' || f.type === 'Payment Received') {
-        received += amount;
-      }
-
-      if (
-        f.type === 'Expense Incurred' ||
-        f.type === 'Payment Sent' ||
-        f.type === 'Deposit Sent' ||
-        f.type === 'Sub-Contract Settled'
-      ) {
-        actualCosts += amount;
-      }
-
-      if (f.type === 'Sub-Contract Submitted' || f.type === 'Sub-Contract Signed') {
-        expectedSubContractCosts += amount;
-      }
-    });
-
-    const formalContractAmount = contractSignedTotal > 0
-      ? contractSignedTotal
-      : bidAcceptedTotal > 0
-        ? bidAcceptedTotal
-        : informalTermsTotal;
-
-    const contractAmount = Math.max(formalContractAmount, received);
+    const money = summarizeMoney((financials || []) as MoneyRow[], (gig as any)?.end ?? null);
 
     let projectedStaffCosts = 0;
     (assignments || []).forEach(a => {
-      // Only include Confirmed or Requested assignments in projected costs
       if (a.status === 'Confirmed' || a.status === 'Requested') {
-        // Use fee if available, otherwise rate (assume 1 unit for projection)
         const amount = a.fee !== null ? Number(a.fee) : (a.rate !== null ? Number(a.rate) : 0);
         projectedStaffCosts += amount;
       }
     });
 
-    const outstandingRevenue = Math.max(0, contractAmount - received);
-    const totalCosts = actualCosts + projectedStaffCosts + expectedSubContractCosts;
-    const profit = contractAmount - totalCosts;
-    const margin = contractAmount > 0 ? (profit / contractAmount) * 100 : 0;
+    const totalCosts = money.expectedOut + projectedStaffCosts;
+    const profit = money.expectedIn - totalCosts;
+    const margin = money.expectedIn > 0 ? (profit / money.expectedIn) * 100 : 0;
 
     return {
-      contractAmount,
-      received,
-      outstandingRevenue,
-      actualCosts,
+      ...money,
       projectedStaffCosts,
-      expectedSubContractCosts,
       totalCosts,
       profit,
-      margin
+      margin,
     };
   } catch (err) {
     return handleApiError(err, 'calculate gig profitability summary');
   }
 }
 
-/**
- * Legacy alias for getGigFinancials
- */
-export const getGigBids = getGigFinancials;
+export type GigMoneySummary = MoneySummary & {
+  projectedStaffCosts: number;
+  totalCosts: number;
+  profit: number;
+  margin: number;
+};
 
 /**
  * Per-gig financial aggregates for the Gigs List CSV export.
  *
  * Each field is defined independently so the export columns reconcile as
  * `profit = revenue - costOfStaff - expenses`:
- *  - `revenue`      booked/contract amount (same precedence as
- *                   getAllGigAccountingSummaries: Contract Signed, else Bid
- *                   Accepted, else Informal Terms; floored at payments received).
+ *  - `revenue`      money in that is accepted or later (paid rows at what was
+ *                   actually received); see utils/moneyFlow.
  *  - `costOfStaff`  sum of every staff assignment's fee (or rate) on the gig,
  *                   regardless of status.
- *  - `expenses`     non-staff logged costs only — FIN_TYPE_GROUPS.cost rows whose
- *                   `staff_assignment_id` is null (a completed staff assignment
- *                   auto-creates an "Expense Incurred" row tagged with its id;
- *                   that spend is already counted in `costOfStaff`). This
- *                   includes sub-contractor costs (Submitted/Signed/Settled are
- *                   all in FIN_TYPE_GROUPS.cost) regardless of whether they're
- *                   paid yet — consistent with `costOfStaff` also summing every
- *                   assignment regardless of status.
+ *  - `expenses`     money out that is accepted or later, paid or not, except
+ *                   rows with a `staff_assignment_id` (a finalized staff
+ *                   assignment creates a money-out row tagged with its id; that
+ *                   spend is already counted in `costOfStaff`).
  *  - `staffCount`   number of staff assignments on the gig, all roles/statuses.
  */
 export interface GigExportAggregates {
@@ -213,7 +162,7 @@ export async function getGigExportAggregates(
 
     const { data: financials, error: finError } = await supabase
       .from('gig_financials')
-      .select('gig_id, type, amount, staff_assignment_id')
+      .select('gig_id, direction, stage, amount, amount_settled, staff_assignment_id')
       .in('gig_id', gigIds)
       .eq('organization_id', organizationId);
 
@@ -227,10 +176,8 @@ export async function getGigExportAggregates(
 
     if (staffError) throw staffError;
 
-    type RawFinancial = {
+    type RawFinancial = MoneyRow & {
       gig_id: string;
-      type: string;
-      amount: number | null;
       staff_assignment_id: string | null;
     };
     type RawAssignment = {
@@ -239,13 +186,8 @@ export async function getGigExportAggregates(
       slot: { gig_id: string; organization_id: string } | { gig_id: string; organization_id: string }[];
     };
 
-    const costTypes = FIN_TYPE_GROUPS.cost as readonly string[];
-
     type Acc = {
-      contractSigned: number;
-      bidAccepted: number;
-      informalTerms: number;
-      received: number;
+      revenue: number;
       expenses: number;
       costOfStaff: number;
       staffCount: number;
@@ -254,15 +196,7 @@ export async function getGigExportAggregates(
     const bucket = (gigId: string): Acc => {
       let a = acc.get(gigId);
       if (!a) {
-        a = {
-          contractSigned: 0,
-          bidAccepted: 0,
-          informalTerms: 0,
-          received: 0,
-          expenses: 0,
-          costOfStaff: 0,
-          staffCount: 0,
-        };
+        a = { revenue: 0, expenses: 0, costOfStaff: 0, staffCount: 0 };
         acc.set(gigId, a);
       }
       return a;
@@ -270,19 +204,8 @@ export async function getGigExportAggregates(
 
     for (const f of (financials || []) as RawFinancial[]) {
       const a = bucket(f.gig_id);
-      const amount = Number(f.amount) || 0;
-
-      if (f.type === 'Contract Signed') a.contractSigned += amount;
-      else if (f.type === 'Bid Accepted') a.bidAccepted += amount;
-      else if (f.type === 'Informal Terms') a.informalTerms += amount;
-
-      if (f.type === 'Deposit Received' || f.type === 'Payment Received') {
-        a.received += amount;
-      }
-
-      if (costTypes.includes(f.type) && f.staff_assignment_id == null) {
-        a.expenses += amount;
-      }
+      if (f.direction === 'in') a.revenue += expectedAmount(f);
+      else if (f.staff_assignment_id == null) a.expenses += expectedAmount(f);
     }
 
     for (const s of (assignments || []) as RawAssignment[]) {
@@ -296,10 +219,8 @@ export async function getGigExportAggregates(
 
     const result = new Map<string, GigExportAggregates>();
     for (const [gigId, a] of acc) {
-      const formalContract =
-        a.contractSigned > 0 ? a.contractSigned : a.bidAccepted > 0 ? a.bidAccepted : a.informalTerms;
       result.set(gigId, {
-        revenue: Math.max(formalContract, a.received),
+        revenue: a.revenue,
         costOfStaff: a.costOfStaff,
         expenses: a.expenses,
         staffCount: a.staffCount,
@@ -313,7 +234,7 @@ export async function getGigExportAggregates(
 
 /**
  * Fetch the gig_financials rows that reference a given purchase (line or header)
- * via `purchase_id`. Used to keep the auto-created "Expense Incurred" ledger
+ * via `purchase_id`. Used to keep the auto-created money-out ledger
  * entry in sync when a purchase line is assigned to / moved between / cleared of
  * a gig, and as a dedup guard so a line never gets two ledger entries.
  */
@@ -353,89 +274,203 @@ export async function getPurchaseIdsWithLedgerEntry(purchaseIds: string[]): Prom
   }
 }
 
-/**
- * Create a new financial record for a gig
- */
-export async function createGigFinancial(finData: {
+
+/** Fields a gig_financials row can be written with. */
+export interface GigFinancialInput {
   gig_id: string;
   organization_id: string;
-  amount: number;
+  direction: FinDirection;
+  stage: FinStage;
+  /** Agreed amount; null only while a bid is requested. */
+  amount: number | null;
+  amount_settled?: number | null;
   date: string;
-  type: FinType;
-  category?: FinCategory;
-  reference_number?: string;
-  counterparty_id?: string;
-  external_entity_name?: string;
+  due_date?: string | null;
+  paid_at?: string | null;
+  category?: FinCategory | null;
+  description?: string | null;
+  notes?: string | null;
+  reference_number?: string | null;
+  counterparty_id?: string | null;
+  external_entity_name?: string | null;
   currency?: string;
-  description?: string;
-  notes?: string;
-  due_date?: string;
-  paid_at?: string;
-  purchase_id?: string;
-  staff_assignment_id?: string;
-  mileage?: number;
-}) {
+  purchase_id?: string | null;
+  staff_assignment_id?: string | null;
+  mileage?: number | null;
+}
+
+export type GigFinancialPatch = Partial<Omit<GigFinancialInput, 'organization_id'>>;
+
+/**
+ * A paid row must say when and how much (DB check constraint). Fill in what the
+ * caller left out: paid now, at the agreed amount. Leaving paid clears both.
+ */
+function withSettlement<T extends GigFinancialPatch>(data: T, current?: Partial<DbGigFinancial>): T {
+  const stage = data.stage ?? current?.stage;
+  if (stage === 'paid') {
+    const out = { ...data };
+    if (!(out.paid_at ?? current?.paid_at)) out.paid_at = new Date().toISOString();
+    if ((out.amount_settled ?? current?.amount_settled) == null) {
+      out.amount_settled = out.amount ?? current?.amount ?? null;
+    }
+    return out;
+  }
+  if (data.stage && current?.stage === 'paid') {
+    return { ...data, paid_at: null, amount_settled: null };
+  }
+  return data;
+}
+
+/** Empty strings from forms are not valid uuids, dates or enum values. */
+function clean<T extends Record<string, unknown>>(data: T): T {
+  const out: Record<string, unknown> = { ...data };
+  for (const k of ['counterparty_id', 'purchase_id', 'staff_assignment_id', 'due_date', 'paid_at', 'category']) {
+    if (out[k] === '') out[k] = null;
+  }
+  return out as T;
+}
+
+const LOGGED_FIELDS: (keyof DbGigFinancial)[] = [
+  'stage', 'amount', 'amount_settled', 'date', 'due_date', 'paid_at', 'description',
+  'category', 'counterparty_id', 'external_entity_name', 'reference_number', 'notes',
+];
+
+/** Record a financial.* event against the row. Never throws. */
+async function logFinancialEvent(
+  event: ActivityEventType,
+  row: Pick<DbGigFinancial, 'id' | 'gig_id' | 'organization_id' | 'direction' | 'stage' | 'amount' | 'amount_settled' | 'description'>,
+  fieldChanges?: FieldChange[],
+): Promise<void> {
   try {
     const { supabase, user } = await requireAuth();
+    const actor_display_name =
+      `${(user as any).user_metadata?.first_name ?? ''} ${(user as any).user_metadata?.last_name ?? ''}`.trim() ||
+      user.email ||
+      '';
+    const [{ data: orgRow }, { data: gigRow }] = await Promise.all([
+      (supabase.from('organizations') as any).select('name').eq('id', row.organization_id).maybeSingle(),
+      supabase.from('gigs').select('title').eq('id', row.gig_id).maybeSingle(),
+    ]);
+    await logActivity({
+      organization_id: row.organization_id,
+      event_type: event,
+      entity_type: 'financial',
+      entity_id: row.id,
+      gig_id: row.gig_id,
+      context: {
+        context_version: 1,
+        actor_display_name,
+        actor_org_name: (orgRow as any)?.name ?? '',
+        gig_title: (gigRow as any)?.title ?? '',
+        direction: row.direction,
+        stage: row.stage,
+        amount: row.amount === null ? null : Number(row.amount),
+        amount_settled: row.amount_settled === null ? null : Number(row.amount_settled),
+        description: row.description,
+        ...(fieldChanges?.length ? { field_changes: fieldChanges } : {}),
+      },
+    });
+  } catch (e) {
+    console.error('Activity log failed:', e);
+  }
+}
 
-    const { data, error } = await supabase.from('gig_financials').insert({ ...finData, created_by: user.id }).select().single();
+/**
+ * Create a financial row for a gig.
+ */
+export async function createGigFinancial(finData: GigFinancialInput): Promise<DbGigFinancial> {
+  try {
+    const { supabase, user } = await requireAuth();
+    const insert = withSettlement(clean({ ...finData }));
+    const { data, error } = await supabase
+      .from('gig_financials')
+      .insert({ ...insert, created_by: user.id } as any)
+      .select()
+      .single();
     if (error) throw error;
-    return data;
+    await logFinancialEvent('financial.added', data as DbGigFinancial);
+    return data as DbGigFinancial;
   } catch (err) {
     return handleApiError(err, 'create gig financial');
   }
 }
 
 /**
- * Legacy alias for createGigFinancial
+ * Update a financial row. Changed fields are recorded in the gig's history.
  */
-export async function createGigBid(bidData: any) {
-  return createGigFinancial({
-    ...bidData,
-    date: bidData.date_given,
-    type: 'Bid Submitted',
-  });
-}
-
-/**
- * Update an existing financial record
- */
-export async function updateGigFinancial(finId: string, finData: {
-  amount?: number;
-  date?: string;
-  type?: FinType;
-  category?: FinCategory;
-  reference_number?: string;
-  counterparty_id?: string;
-  external_entity_name?: string;
-  currency?: string;
-  description?: string;
-  notes?: string;
-  due_date?: string;
-  paid_at?: string;
-  gig_id?: string;
-  purchase_id?: string;
-  staff_assignment_id?: string;
-}) {
-  const supabase = getSupabase();
+export async function updateGigFinancial(finId: string, finData: GigFinancialPatch): Promise<DbGigFinancial> {
   try {
-    const { data, error } = await supabase.from('gig_financials').update(finData).eq('id', finId).select().single();
+    const { supabase, user } = await requireAuth();
+    const { data: before, error: readError } = await supabase
+      .from('gig_financials')
+      .select('*')
+      .eq('id', finId)
+      .single();
+    if (readError) throw readError;
+
+    const patch = withSettlement(clean({ ...finData }), before as DbGigFinancial);
+    const { data, error } = await supabase
+      .from('gig_financials')
+      .update({ ...patch, updated_by: user.id } as any)
+      .eq('id', finId)
+      .select()
+      .single();
     if (error) throw error;
-    return data;
+
+    const after = data as DbGigFinancial;
+    const changes: FieldChange[] = LOGGED_FIELDS
+      .filter((f) => String((before as any)[f] ?? '') !== String((after as any)[f] ?? ''))
+      .map((f) => ({ field: f, from: (before as any)[f] ?? null, to: (after as any)[f] ?? null }));
+    if (changes.length > 0) {
+      const event: ActivityEventType =
+        after.stage === 'paid' && (before as DbGigFinancial).stage !== 'paid' ? 'financial.paid' : 'financial.updated';
+      await logFinancialEvent(event, after, changes);
+    }
+    return after;
   } catch (err) {
     return handleApiError(err, 'update gig financial');
   }
 }
 
 /**
- * Legacy alias for updateGigFinancial
+ * Record a payment against a row. If less than the agreed amount arrives, the
+ * rest either stays owed as a new row at the original stage (`'split'`) or is
+ * written off by lowering the agreed amount (`'settle'`). More than agreed just
+ * records what arrived.
  */
-export async function updateGigBid(bidId: string, bidData: any) {
-  const mappedData: any = { ...bidData };
-  if (bidData.date_given) mappedData.date = bidData.date_given;
-  delete mappedData.date_given;
-  delete mappedData.result; // Dropped column
-  return updateGigFinancial(bidId, mappedData);
+export async function recordGigFinancialPayment(
+  row: DbGigFinancial,
+  payment: { amount: number; paid_at: string; remainder: 'split' | 'settle'; reference_number?: string | null },
+): Promise<{ paid: DbGigFinancial; remainder: DbGigFinancial | null }> {
+  const agreed = Number(row.amount ?? 0);
+  const short = agreed - payment.amount;
+  let remainder: DbGigFinancial | null = null;
+
+  if (short > 0.004 && payment.remainder === 'split') {
+    remainder = await createGigFinancial({
+      gig_id: row.gig_id,
+      organization_id: row.organization_id!,
+      direction: row.direction,
+      stage: row.stage,
+      amount: Math.round(short * 100) / 100,
+      date: row.date,
+      due_date: row.due_date,
+      category: row.category,
+      description: row.description ? `${row.description} (remainder)` : 'Remainder',
+      counterparty_id: row.counterparty_id,
+      external_entity_name: row.external_entity_name,
+      currency: row.currency,
+    });
+  }
+
+  const paid = await updateGigFinancial(row.id, {
+    stage: 'paid',
+    amount: short > 0.004 ? payment.amount : agreed,
+    amount_settled: payment.amount,
+    paid_at: payment.paid_at,
+    ...(payment.reference_number ? { reference_number: payment.reference_number } : {}),
+  });
+  return { paid, remainder };
 }
 
 /**
@@ -484,134 +519,9 @@ export async function deleteGigFinancial(finId: string) {
     if (!data || data.length === 0) {
       throw new Error('Financial record not found, or you do not have permission to delete it.');
     }
+    await logFinancialEvent('financial.removed', data[0] as DbGigFinancial);
     return { success: true };
   } catch (err) {
     return handleApiError(err, 'delete gig financial');
   }
-}
-
-/**
- * Legacy alias for deleteGigFinancial
- */
-export const deleteGigBid = deleteGigFinancial;
-
-/**
- * Update all financials for a gig
- */
-export async function updateGigFinancials(gigId: string, organizationId: string, financials: Array<{
-  id?: string;
-  amount: number;
-  date: string;
-  type: FinType;
-  category?: FinCategory | null;
-  reference_number?: string;
-  counterparty_id?: string;
-  external_entity_name?: string;
-  currency?: string;
-  description?: string;
-  notes?: string;
-  due_date?: string;
-  paid_at?: string;
-  purchase_id?: string;
-  staff_assignment_id?: string;
-}>) {
-  try {
-    const { supabase, user } = await requireAuth();
-
-    const { data: existingFins, error: fetchError } = await supabase.from('gig_financials').select('id').eq('gig_id', gigId).eq('organization_id', organizationId);
-    if (fetchError) throw fetchError;
-
-    const existingIds = existingFins?.map(f => f.id) || [];
-    const incomingIds = financials.filter(f => f.id && UUID_REGEX.test(f.id)).map(f => f.id!);
-
-    const idsToDelete = existingIds.filter(id => !incomingIds.includes(id));
-    if (idsToDelete.length > 0) {
-      await supabase.from('gig_financials').delete().in('id', idsToDelete);
-    }
-
-    const financialChanges: FinancialChange[] = [];
-
-    for (const fin of financials) {
-      // Strip out any non-database fields like 'counterparty' object
-      const { id, counterparty, ...restFin } = fin as any;
-
-      // Clean and sanitize data: convert empty strings to null for UUID and Date fields
-      // This prevents Supabase 400 Bad Request errors for invalid formats
-      const cleanFin: any = { ...restFin };
-
-      const uuidFields = ['counterparty_id', 'purchase_id', 'staff_assignment_id'];
-      const dateFields = ['date', 'due_date', 'paid_at'];
-
-      uuidFields.forEach(field => {
-        if (cleanFin[field] === '' || cleanFin[field] === undefined) {
-          delete cleanFin[field];
-        }
-      });
-
-      dateFields.forEach(field => {
-        if (cleanFin[field] === '' || cleanFin[field] === undefined) {
-          delete cleanFin[field];
-        }
-      });
-
-      // category is a nullable enum; '' is not a valid value (issue #71)
-      if (cleanFin.category === '') {
-        cleanFin.category = null;
-      }
-
-      const finData = {
-        ...cleanFin,
-        gig_id: gigId,
-        organization_id: organizationId,
-      };
-
-      if (id && existingIds.includes(id)) {
-        const { error: updateErr } = await supabase.from('gig_financials').update(finData).eq('id', id);
-        if (updateErr) throw updateErr;
-      } else {
-        const { error: insertErr } = await supabase.from('gig_financials').insert({ ...finData, created_by: user.id });
-        if (insertErr) throw insertErr;
-        financialChanges.push({ amount: finData.amount, fin_type: finData.type });
-      }
-    }
-
-    if (financialChanges.length > 0) {
-      try {
-        const actor_display_name = `${(user as any).user_metadata?.first_name ?? ''} ${(user as any).user_metadata?.last_name ?? ''}`.trim() || user.email || '';
-        const { data: orgRow } = await (supabase.from('organizations') as any).select('name').eq('id', organizationId).single();
-        const { data: gigRow } = await supabase.from('gigs').select('title').eq('id', gigId).single();
-        await logActivity({
-          organization_id: organizationId,
-          event_type: 'financial.added',
-          entity_type: 'financial',
-          entity_id: gigId,
-          gig_id: gigId,
-          context: {
-            context_version: 1,
-            actor_display_name,
-            actor_org_name: (orgRow as any)?.name ?? '',
-            gig_title: (gigRow as any)?.title ?? '',
-            financial_changes: financialChanges,
-            change_count: financialChanges.length
-          }
-        });
-      } catch (e) { console.error('Activity log failed:', e); }
-    }
-
-    return { success: true };
-  } catch (err) {
-    return handleApiError(err, 'update gig financials');
-  }
-}
-
-/**
- * Legacy alias for updateGigFinancials
- */
-export async function updateGigBids(gigId: string, organizationId: string, bids: any[]) {
-  return updateGigFinancials(gigId, organizationId, bids.map(bid => ({
-    ...bid,
-    date: bid.date_given,
-    type: 'Bid Submitted',
-    category: 'Other'
-  })));
 }

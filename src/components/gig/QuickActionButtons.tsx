@@ -22,7 +22,8 @@ import { Textarea } from '../ui/textarea';
 import { Switch } from '../ui/switch';
 import { createGigFinancial } from '../../services/gig.service';
 import { uploadAttachment, linkAttachmentToEntity } from '../../services/attachment.service';
-import { FinType, FinCategory, UserRole } from '../../utils/supabase/types';
+import { FinCategory, UserRole } from '../../utils/supabase/types';
+import { STAGE_LABELS } from '../../utils/moneyFlow';
 import { calculateMileageAmount, formatMileageNotes, getMileageRateForYear } from '../../utils/financials.utils';
 
 const commonSchema = {
@@ -36,13 +37,16 @@ const commonSchema = {
 const agreementSchema = z.object({
   ...commonSchema,
   amount: z.string().refine((val) => !isNaN(parseFloat(val)) && parseFloat(val) >= 0, 'Amount must be positive'),
-  type: z.enum(['Informal Terms', 'Bid Accepted', 'Contract Signed']),
+  stage: z.enum(['quoted', 'accepted', 'contract_sent', 'contracted', 'invoiced']),
+  due_date: z.string().optional().default(''),
 });
+
+// Where a fee can start; paid is recorded with Payment received.
+const FEE_STAGES = ['quoted', 'accepted', 'contract_sent', 'contracted', 'invoiced'] as const;
 
 const paymentSchema = z.object({
   ...commonSchema,
   amount: z.string().refine((val) => !isNaN(parseFloat(val)) && parseFloat(val) >= 0, 'Amount must be positive'),
-  type: z.enum(['Payment Received', 'Deposit Received']),
   paid_at: z.string().min(1, 'Payment date is required'),
   reference_number: z.string().optional().default(''),
 });
@@ -89,7 +93,8 @@ export default function QuickActionButtons({
     resolver: zodResolver(agreementSchema),
     defaultValues: {
       date: defaultDate,
-      type: 'Informal Terms',
+      stage: 'accepted',
+      due_date: '',
       amount: '',
       description: '',
       notes: '',
@@ -101,7 +106,6 @@ export default function QuickActionButtons({
     defaultValues: {
       date: defaultDate,
       paid_at: defaultDate,
-      type: 'Payment Received',
       amount: '',
       description: '',
       reference_number: '',
@@ -170,15 +174,17 @@ export default function QuickActionButtons({
       await createGigFinancial({
         gig_id: gigId,
         organization_id: organizationId,
-        type: data.type as FinType,
+        direction: 'in',
+        stage: data.stage,
         amount: parseFloat(data.amount),
         date: data.date,
-        description: data.description,
+        due_date: data.due_date || null,
+        description: data.description || 'Fee',
         notes: data.notes,
         counterparty_id: data.counterparty_id || undefined,
         external_entity_name: data.external_entity_name,
       });
-      toast.success(`${data.type} recorded`);
+      toast.success(`Fee recorded (${STAGE_LABELS.in[data.stage]})`);
       onSuccess();
       handleClose();
     } catch (error) {
@@ -195,8 +201,10 @@ export default function QuickActionButtons({
       await createGigFinancial({
         gig_id: gigId,
         organization_id: organizationId,
-        type: data.type as FinType,
+        direction: 'in',
+        stage: 'paid',
         amount: parseFloat(data.amount),
+        amount_settled: parseFloat(data.amount),
         date: data.date,
         paid_at: data.paid_at,
         reference_number: data.reference_number,
@@ -205,7 +213,7 @@ export default function QuickActionButtons({
         counterparty_id: data.counterparty_id || undefined,
         external_entity_name: data.external_entity_name,
       });
-      toast.success(`${data.type} recorded`);
+      toast.success('Payment recorded');
       onSuccess();
       handleClose();
     } catch (error) {
@@ -236,11 +244,13 @@ export default function QuickActionButtons({
       await createGigFinancial({
         gig_id: gigId,
         organization_id: organizationId,
-        type: 'Expense Incurred',
+        direction: 'out',
+        stage: 'paid',
         category: 'Car and truck expenses',
         amount,
         mileage: distance,
         date: data.date,
+        paid_at: data.date,
         description: data.description,
         notes: combinedNotes,
         counterparty_id: data.counterparty_id || undefined,
@@ -263,7 +273,9 @@ export default function QuickActionButtons({
       const created = await createGigFinancial({
         gig_id: gigId,
         organization_id: organizationId,
-        type: 'Expense Incurred',
+        direction: 'out',
+        // Not yet paid: owed until marked paid.
+        stage: data.paid ? 'paid' : 'invoiced',
         category: data.category as FinCategory,
         amount: parseFloat(data.amount),
         date: data.date,
@@ -301,11 +313,11 @@ export default function QuickActionButtons({
     <div className="flex flex-wrap gap-2">
       <Button variant="outline" size="sm" onClick={() => openModal('agreement')} className="flex items-center gap-2">
         <FileText className="h-4 w-4" />
-        Agreement
+        Fee
       </Button>
       <Button variant="outline" size="sm" onClick={() => openModal('payment')} className="flex items-center gap-2">
         <DollarSign className="h-4 w-4" />
-        Payment
+        Payment received
       </Button>
       <Button variant="outline" size="sm" onClick={() => openModal('expense')} className="flex items-center gap-2">
         <Receipt className="h-4 w-4" />
@@ -322,24 +334,24 @@ export default function QuickActionButtons({
       <Dialog open={activeModal === 'agreement'} onOpenChange={(open) => !open && handleClose()}>
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
-            <DialogTitle>Record Agreement</DialogTitle>
-            <DialogDescription>Quickly record a contract, bid, or informal agreement.</DialogDescription>
+            <DialogTitle>Add a fee</DialogTitle>
+            <DialogDescription>Money coming in for this gig, and where the deal stands.</DialogDescription>
           </DialogHeader>
           <form onSubmit={agreementForm.handleSubmit(onAgreementSubmit)} className="space-y-4 py-4">
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="ag-type">Type</Label>
-                <Select 
-                  value={agreementForm.watch('type')} 
-                  onValueChange={(v) => agreementForm.setValue('type', v as any)}
+                <Label htmlFor="ag-stage">Stage</Label>
+                <Select
+                  value={agreementForm.watch('stage')}
+                  onValueChange={(v) => agreementForm.setValue('stage', v as any)}
                 >
-                  <SelectTrigger id="ag-type">
+                  <SelectTrigger id="ag-stage">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="Informal Terms">Informal Terms</SelectItem>
-                    <SelectItem value="Bid Accepted">Bid Accepted</SelectItem>
-                    <SelectItem value="Contract Signed">Contract Signed</SelectItem>
+                    {FEE_STAGES.map((st) => (
+                      <SelectItem key={st} value={st}>{STAGE_LABELS.in[st]}</SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
@@ -357,8 +369,14 @@ export default function QuickActionButtons({
             </div>
             <div className="space-y-2">
               <Label htmlFor="ag-description">Description</Label>
-              <Input id="ag-description" placeholder="What is this agreement for?" {...agreementForm.register('description')} />
+              <Input id="ag-description" placeholder="e.g. Performance fee" {...agreementForm.register('description')} />
             </div>
+            {agreementForm.watch('stage') === 'invoiced' && (
+              <div className="space-y-2">
+                <Label htmlFor="ag-due">Due date</Label>
+                <Input id="ag-due" type="date" {...agreementForm.register('due_date')} />
+              </div>
+            )}
 
             <div className="flex items-center space-x-2 pt-2">
               <Switch
@@ -387,7 +405,7 @@ export default function QuickActionButtons({
               <Button type="button" variant="outline" onClick={handleClose}>Cancel</Button>
               <Button type="submit" disabled={isSubmitting}>
                 {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Save Agreement
+                Save Fee
               </Button>
             </DialogFooter>
           </form>
@@ -398,34 +416,13 @@ export default function QuickActionButtons({
       <Dialog open={activeModal === 'payment'} onOpenChange={(open) => !open && handleClose()}>
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
-            <DialogTitle>Record Payment</DialogTitle>
-            <DialogDescription>Record a payment or deposit received.</DialogDescription>
+            <DialogTitle>Payment received</DialogTitle>
+            <DialogDescription>Money that has already arrived. To pay off a fee above, use its Record payment button instead.</DialogDescription>
           </DialogHeader>
           <form onSubmit={paymentForm.handleSubmit(onPaymentSubmit)} className="space-y-4 py-4">
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="pay-type">Type</Label>
-                <Select 
-                  value={paymentForm.watch('type')} 
-                  onValueChange={(v) => paymentForm.setValue('type', v as any)}
-                >
-                  <SelectTrigger id="pay-type">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Payment Received">Payment Received</SelectItem>
-                    <SelectItem value="Deposit Received">Deposit Received</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="pay-date">Date</Label>
-                <Input id="pay-date" type="date" {...paymentForm.register('date')} />
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="pay-paid-date">Paid Date</Label>
+                <Label htmlFor="pay-paid-date">Date received</Label>
                 <Input id="pay-paid-date" type="date" {...paymentForm.register('paid_at')} />
               </div>
               <div className="space-y-2">
@@ -442,7 +439,7 @@ export default function QuickActionButtons({
             </div>
             <div className="space-y-2">
               <Label htmlFor="pay-description">Description</Label>
-              <Input id="pay-description" placeholder="e.g. Final payment for Gig" {...paymentForm.register('description')} />
+              <Input id="pay-description" placeholder="e.g. Deposit" {...paymentForm.register('description')} />
             </div>
 
             <div className="flex items-center space-x-2 pt-2">

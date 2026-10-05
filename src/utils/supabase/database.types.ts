@@ -295,7 +295,8 @@ export type Database = {
       }
       gig_financials: {
         Row: {
-          amount: number
+          amount: number | null
+          amount_settled: number | null
           category: Database["public"]["Enums"]["fin_category"] | null
           counterparty_id: string | null
           created_at: string
@@ -303,10 +304,12 @@ export type Database = {
           currency: string
           date: string
           description: string | null
+          direction: Database["public"]["Enums"]["fin_direction"]
           due_date: string | null
           external_entity_name: string | null
           gig_id: string
           id: string
+          legacy_type: Database["public"]["Enums"]["fin_type"] | null
           mileage: number | null
           notes: string | null
           organization_id: string | null
@@ -314,12 +317,13 @@ export type Database = {
           purchase_id: string | null
           reference_number: string | null
           staff_assignment_id: string | null
-          type: Database["public"]["Enums"]["fin_type"]
+          stage: Database["public"]["Enums"]["fin_stage"]
           updated_at: string | null
           updated_by: string | null
         }
         Insert: {
-          amount: number
+          amount?: number | null
+          amount_settled?: number | null
           category?: Database["public"]["Enums"]["fin_category"] | null
           counterparty_id?: string | null
           created_at?: string
@@ -327,23 +331,26 @@ export type Database = {
           currency?: string
           date: string
           description?: string | null
+          direction: Database["public"]["Enums"]["fin_direction"]
           due_date?: string | null
           external_entity_name?: string | null
           gig_id: string
           id?: string
+          legacy_type?: Database["public"]["Enums"]["fin_type"] | null
           mileage?: number | null
           notes?: string | null
           organization_id?: string | null
           paid_at?: string | null
           purchase_id?: string | null
           reference_number?: string | null
+          stage: Database["public"]["Enums"]["fin_stage"]
           staff_assignment_id?: string | null
-          type: Database["public"]["Enums"]["fin_type"]
           updated_at?: string | null
           updated_by?: string | null
         }
         Update: {
-          amount?: number
+          amount?: number | null
+          amount_settled?: number | null
           category?: Database["public"]["Enums"]["fin_category"] | null
           counterparty_id?: string | null
           created_at?: string
@@ -351,18 +358,20 @@ export type Database = {
           currency?: string
           date?: string
           description?: string | null
+          direction?: Database["public"]["Enums"]["fin_direction"]
           due_date?: string | null
           external_entity_name?: string | null
           gig_id?: string
           id?: string
+          legacy_type?: Database["public"]["Enums"]["fin_type"] | null
           mileage?: number | null
           notes?: string | null
           organization_id?: string | null
           paid_at?: string | null
           purchase_id?: string | null
           reference_number?: string | null
+          stage?: Database["public"]["Enums"]["fin_stage"]
           staff_assignment_id?: string | null
-          type?: Database["public"]["Enums"]["fin_type"]
           updated_at?: string | null
           updated_by?: string | null
         }
@@ -1910,6 +1919,17 @@ export type Database = {
         | "Utilities"
         | "Wages"
         | "Other expenses"
+      fin_direction: "in" | "out"
+      fin_stage:
+        | "requested"
+        | "quoted"
+        | "accepted"
+        | "contract_sent"
+        | "contracted"
+        | "invoiced"
+        | "paid"
+        | "declined"
+        | "cancelled"
       fin_type:
         | "Bid Submitted"
         | "Bid Accepted"
@@ -2102,6 +2122,18 @@ export const Constants = {
         "Utilities",
         "Wages",
         "Other expenses",
+      ],
+      fin_direction: ["in", "out"],
+      fin_stage: [
+        "requested",
+        "quoted",
+        "accepted",
+        "contract_sent",
+        "contracted",
+        "invoiced",
+        "paid",
+        "declined",
+        "cancelled",
       ],
       fin_type: [
         "Bid Submitted",

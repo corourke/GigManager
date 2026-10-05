@@ -1,8 +1,11 @@
-import { OrganizationRole, UserRole, GigStatus, FinType, FinCategory, AssetStatus, PurchaseRowType, EntityType, ScheduleActivityType } from './constants';
+import { OrganizationRole, UserRole, GigStatus, FinCategory, AssetStatus, PurchaseRowType, EntityType, ScheduleActivityType } from './constants';
 import type { Database } from './database.types';
+import type { FinDirection, FinStage, MoneyBadge } from '../moneyFlow';
+
+export type { FinDirection, FinStage };
 
 // Re-export constants types for convenience
-export type { OrganizationRole, UserRole, GigStatus, FinType, FinCategory, AssetStatus, PurchaseRowType, EntityType, ScheduleActivityType };
+export type { OrganizationRole, UserRole, GigStatus, FinCategory, AssetStatus, PurchaseRowType, EntityType, ScheduleActivityType };
 
 // Database types for Supabase tables
 
@@ -221,21 +224,30 @@ export interface GigAccountingSummary {
   gigStart: string;
   gigEnd: string;
 
+  /** Money in, accepted or later (paid rows at what was received). */
   contractAmount: number;
   received: number;
+  /** Money in committed but not yet received. */
   outstandingRevenue: number;
+  /** Part of outstandingRevenue due now (past its due date, or the gig is over). */
+  dueRevenue: number;
 
+  /** Money out already paid. */
   actualCosts: number;
   expectedStaffCosts: number;
+  /** Money out committed but not yet paid (sub-contractors, staff owed). */
   expectedSubContractCosts: number;
   totalCosts: number;
 
   paymentsToMake: number;
+  /** Part of paymentsToMake due now. */
+  paymentsDue: number;
 
   profit: number;
   margin: number;
 
   paymentHealth: PaymentHealth;
+  moneyInBadge: MoneyBadge | null;
 }
 
 export interface StaffingChange {
@@ -254,6 +266,18 @@ export interface FieldChange {
 export interface FinancialChange {
   amount: number;
   fin_type: string;
+}
+
+/** An old (pre-2026-10) gig_financials row, as recorded by the conversion. */
+export interface LegacyFinancialSource {
+  id: string;
+  type: string;
+  amount: number;
+  date: string;
+  due_date?: string;
+  paid_at?: string;
+  description?: string;
+  notes?: string;
 }
 
 export interface ScheduleChange {
@@ -289,6 +313,13 @@ export interface ActivityLogContext {
   asset_name?: string;
   financial_changes?: FinancialChange[];
   schedule_changes?: ScheduleChange[];
+  // financial.* events (one row each)
+  direction?: FinDirection;
+  stage?: FinStage;
+  amount?: number | null;
+  amount_settled?: number | null;
+  description?: string | null;
+  sources?: LegacyFinancialSource[];
 }
 
 export interface ActivityLogEntry extends Omit<DbActivityLog, 'context'> {

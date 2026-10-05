@@ -102,27 +102,28 @@ export function registerGigs(app: App) {
     const now = new Date();
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
     const startOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-    const endOfLastMonth = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59);
     const startOfYear = new Date(now.getFullYear(), 0, 1);
 
     let revenueThisMonth = 0;
     let revenueLastMonth = 0;
     let revenueThisYear = 0;
     if (isAdminOrManager) {
-      const { data: thisMonthFin } = await supabaseAdmin
-        .from('gig_financials').select('amount').eq('organization_id', orgId).eq('type', 'Payment Received')
-        .gte('date', startOfMonth.toISOString().split('T')[0]);
-      revenueThisMonth = (thisMonthFin || []).reduce((sum: number, f: any) => sum + parseFloat(f.amount), 0);
+      // Revenue = money received, by when it arrived.
+      const received = () => supabaseAdmin
+        .from('gig_financials').select('amount_settled')
+        .eq('organization_id', orgId).eq('direction', 'in').eq('stage', 'paid');
+      const total = (rows: any[] | null) =>
+        (rows || []).reduce((sum: number, f: any) => sum + parseFloat(f.amount_settled), 0);
 
-      const { data: lastMonthFin } = await supabaseAdmin
-        .from('gig_financials').select('amount').eq('organization_id', orgId).eq('type', 'Payment Received')
-        .gte('date', startOfLastMonth.toISOString().split('T')[0]).lte('date', endOfLastMonth.toISOString().split('T')[0]);
-      revenueLastMonth = (lastMonthFin || []).reduce((sum: number, f: any) => sum + parseFloat(f.amount), 0);
+      const { data: thisMonthFin } = await received().gte('paid_at', startOfMonth.toISOString());
+      revenueThisMonth = total(thisMonthFin);
 
-      const { data: thisYearFin } = await supabaseAdmin
-        .from('gig_financials').select('amount').eq('organization_id', orgId).eq('type', 'Payment Received')
-        .gte('date', startOfYear.toISOString().split('T')[0]);
-      revenueThisYear = (thisYearFin || []).reduce((sum: number, f: any) => sum + parseFloat(f.amount), 0);
+      const { data: lastMonthFin } = await received()
+        .gte('paid_at', startOfLastMonth.toISOString()).lt('paid_at', startOfMonth.toISOString());
+      revenueLastMonth = total(lastMonthFin);
+
+      const { data: thisYearFin } = await received().gte('paid_at', startOfYear.toISOString());
+      revenueThisYear = total(thisYearFin);
     }
 
     const thirtyDaysFromNow = new Date();

@@ -58,3 +58,5 @@ jobs:
       - uses: actions/checkout@v4
       - name: RLS tests
         run: supabase/tests/rls/run.sh
+      - name: Data conversion tests
+        run: supabase/tests/conversion/run.sh

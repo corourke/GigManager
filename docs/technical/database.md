@@ -183,8 +183,15 @@ Tracks the lifecycle of a gig.
 - `Cancelled`
 - `Settled`
 
+### fin_direction
+Whether a `gig_financials` row is money coming to the organization (`in`) or money it pays (`out`). Added in migration 20261005000000.
+
+### fin_stage
+Where a `gig_financials` row stands (migration 20261005000000). Every stage except `paid` is optional; see [gig-financials.md](gig-financials.md) §3 for labels and what each counts toward.
+- `requested`, `quoted`, `accepted`, `contract_sent`, `contracted`, `invoiced` (shown as "Owed" for money out), `paid`, `declined`, `cancelled`
+
 ### fin_type
-Tracks the type of financial record/transaction.
+**Legacy.** The pre-2026-10 record type, now only in `gig_financials.legacy_type` on converted rows. Not used by the app; to be dropped.
 - `Bid Submitted`
 - `Bid Accepted`
 - `Bid Rejected`
@@ -587,9 +594,11 @@ erDiagram
         uuid id PK
         uuid gig_id FK
         uuid organization_id FK
-        fin_type type
+        fin_direction direction
+        fin_stage stage
         fin_category category
         decimal amount
+        decimal amount_settled
         date date
         uuid purchase_id FK "NULLABLE"
         uuid staff_assignment_id FK "NULLABLE"
@@ -605,21 +614,24 @@ full ER diagram, see [gig-financials.md](gig-financials.md).
 
 ### gig_financials
 
-Centralized tracking for bids, payments, expenses, and invoices.
+Every amount of money a gig brings in or costs, one row each, with its stage.
 
 | Field | Type | Description |
 |-------|------|-------------|
 | id | UUID | Primary key |
 | gig_id | UUID | Reference to gigs.id (NOT NULL) |
 | organization_id | UUID | Reference to organizations.id (the owning organization) (nullable) |
-| type | fin_type | Type of financial record (e.g., 'Bid Submitted', 'Payment Received', 'Expense Incurred') (NOT NULL, no default — dropped in migration 20260520000000) |
+| direction | fin_direction | `in` or `out` (NOT NULL; migration 20261005000000) |
+| stage | fin_stage | Where the row stands (NOT NULL; migration 20261005000000) |
+| legacy_type | fin_type | The pre-2026-10 `type`, kept on converted rows for audit (nullable; renamed from `type` in migration 20261005000000) |
 | category | fin_category | Category for reporting — IRS Schedule C categories, see below (**nullable**, no default) |
-| amount | DECIMAL(10,2) | Monetary amount (NOT NULL) |
+| amount | DECIMAL(10,2) | Agreed amount (nullable only when `stage = 'requested'`; CHECK `gig_financials_amount_present`) |
+| amount_settled | DECIMAL(10,2) | Amount actually paid or received; required when `stage = 'paid'` (CHECK `gig_financials_paid_has_settlement`) |
 | mileage | NUMERIC(10,2) | Miles travelled to/from the gig, for mileage-based expense rows (nullable; migration 20260601000000) |
 | currency | TEXT | Currency code (default 'USD') (NOT NULL) |
-| date | DATE | Transaction or record date (NOT NULL) |
-| due_date | DATE | Payment due date (nullable) |
-| paid_at | TIMESTAMPTZ | When payment was actually completed (nullable) |
+| date | DATE | When the item started (NOT NULL) |
+| due_date | DATE | Payment due date; NULL means due once the gig is over (nullable) |
+| paid_at | TIMESTAMPTZ | When payment was made; required when `stage = 'paid'` |
 | reference_number| TEXT | Invoice, PO, or check number (nullable) |
 | counterparty_id | UUID | Reference to organizations.id for the other party in transaction (nullable) |
 | external_entity_name | TEXT | Name of counterparty if not in organizations table (nullable) |
@@ -634,7 +646,7 @@ Centralized tracking for bids, payments, expenses, and invoices.
 
 **Notes:**
 - `gig_financials` replaces the legacy `gig_bids` table and `gigs.amount_paid` column.
-- The enum value is now spelled `Payment Received` (the original `Payment Recieved` typo was renamed in migration 20260322000000).
+- Migration 20261005000000 converted the old typed rows (several per deal) into one row per amount with a stage, logging a `financial.converted` activity entry per surviving row. Index `idx_gig_financials_gig_direction_stage` covers (gig_id, direction, stage).
 - `purchase_id` / `staff_assignment_id` are the two-way links to the source documents that feed the ledger — see [gig-financials.md](gig-financials.md) §1.
 - **`fin_category`** was reworked (migrations 20260328000001 / 20260512000000) from the original `Labor / Equipment / Transportation / Venue / Production / Insurance / Rebillable / Other` set to IRS Schedule C names: `Advertising`, `Car and truck expenses`, `Commissions and fees`, `Contract labor`, `Depreciation`, `Insurance`, `Legal and professional services`, `Office expense`, `Rent or lease`, `Repairs and maintenance`, `Supplies`, `Taxes and licenses`, `Travel`, `Meals`, `Utilities`, `Wages`, `Other expenses`. It was also made nullable and lost its default (migrations 20260513000000 / 20260520000000). The authoritative list is `FIN_CATEGORY_CONFIG` in `src/utils/supabase/constants.ts`.
 - RLS is **ENABLED**. Since migration 20260912000000 (cross-org leak fix, issue #61) there are exactly two policies, both scoped to the row's own `organization_id` via `user_is_admin_or_manager_of_org` — one FOR SELECT, one FOR ALL. Admins/Managers of *other* orgs participating in the same gig can no longer see or modify the row. Rows with a NULL `organization_id` are therefore invisible to all non-service-role clients.
@@ -1511,6 +1523,7 @@ supabase
 
 ## Document History
 
+**2026-10-05**: `gig_financials` money in / money out with stages (migration `20261005000000`): new `direction`, `stage`, `amount_settled`; `type` renamed to `legacy_type`; enums `fin_direction`, `fin_stage`; `fin_type` marked legacy.
 **2026-09-25**: Reconciled with all migrations through `20260919000000` (first full pass since 2026-03-16). Enum `organization_type` → `organization_role`, `organizations.type` → `roles` (array); `fin_type` typo fixed to `Payment Received` plus `Informal Terms`; `fin_category` listed as IRS Schedule C values; added `schedule_activity_type`. Removed the dropped `gig_status_history` / `asset_status_history` tables and their triggers in favour of the new `activity_log` table and `log_activity` RPC. `kit_assets` → `kit_components` (asset or `child_kit_id`, cycle-prevention trigger) and new `kit_flattened_cache`. Added `gig_schedule_entries`, `gig_participant_contacts`, `access_requests`, `notifications`, and the `pg_cron` daily health-check job. New columns: `users.platform_moderator` / `contact` status / nullable `email`, `organizations.claimed`, `organization_members.is_primary_contact` / `contact_title`, `gig_participants.is_client`, `gig_staff_assignments.completed_at` / `units_completed` / `gig_financial_id`, `inventory_tracking.location`. Updated RLS for `gig_financials` (owning-org Admin/Manager only, 20260912000000), `purchases` (Admin/Manager reads), `gigs` (no INSERT policy), `organizations` (claimed-aware UPDATE), broadened `users` / `organization_members` reads; refreshed helper functions, triggers, indexes, ER diagrams, and the Google Calendar one-setting-per-user constraint.
 **2026-03-16**: Major revision — reconciled all tables with `schema_dump.sql`. Added missing tables (`asset_status_history`, `inventory_tracking`, `user_devices`). Added missing columns (`users.timezone`, `kits.is_container`, `purchases.asset_id`). Removed ghost columns from `gigs` (`venue_address`, `settlement_type`, `settlement_amount`). Fixed type mismatches (`assets.quantity` is numeric(12,4), `assets.status` is NOT NULL). Updated `sync_status` enum with `updated`/`removed` values. Updated RLS to reflect all tables now ENABLED. Added `purchases`, `attachments`, `entity_attachments` tables. Added topical ER diagrams for each major section. Moved `invitations` to Core Tables. Removed unused `kv_store_de012ad4`. Updated helper functions list.
 **2026-02-24**: Fixed Prisma/schema.sql references, updated PostgreSQL version to 17, added Google Calendar integration tables (`user_google_calendar_settings`, `gig_sync_status`), documented `Payment Recieved` typo as known issue, fixed file structure paths.

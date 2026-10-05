@@ -1,126 +1,76 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import {useForm, useFieldArray } from 'react-hook-form';
-import { z } from 'zod';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { format, parseISO } from 'date-fns';
 import { toast } from 'sonner';
-import {DollarSign, FileText, Loader2, Trash2, Edit, ExternalLink, Paperclip } from 'lucide-react';
+import {
+  ArrowDown,
+  ArrowUp,
+  CircleAlert,
+  DollarSign,
+  Edit,
+  ExternalLink,
+  Loader2,
+  MoreHorizontal,
+  MousePointer2,
+  Paperclip,
+  Plus,
+  Receipt,
+  Trash2,
+  Users,
+} from 'lucide-react';
 import { Button } from '../ui/button';
-import { Input } from '../ui/input';
-import { Label } from '../ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
+import { Badge } from '../ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '../ui/dialog';
-import { Textarea } from '../ui/textarea';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table';
-import OrganizationSelector from '../OrganizationSelector';
-import { updateGigFinancials } from '../../services/gig.service';
-import { useGigFinancialsData, useDeleteGigFinancial } from './useGigFinancialsData';
-import { queryKeys } from '../../lib/queryKeys';
-import { scanInvoice } from '../../services/purchase.service';
-import ReviewScannedDataDialog from '../ReviewScannedDataDialog';
-import { useAutoSave } from '../../utils/hooks/useAutoSave';
-import SaveStateIndicator from './SaveStateIndicator';
-import { UserRole, FinType, FinCategory } from '../../utils/supabase/types';
-import { FIN_TYPE_CONFIG, FIN_CATEGORY_CONFIG, FIN_TYPE_GROUPS } from '../../utils/supabase/constants';
-import GigProfitabilitySummary from './GigProfitabilitySummary';
-import QuickActionButtons from './QuickActionButtons';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '../ui/dropdown-menu';
+import { Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow } from '../ui/table';
+import { cn } from '../ui/utils';
 import AttachmentManager from '../AttachmentManager';
-import { Badge } from '../ui/badge';
+import ReviewScannedDataDialog from '../ReviewScannedDataDialog';
+import { scanInvoice } from '../../services/purchase.service';
+import {
+  createGigFinancial,
+  recordGigFinancialPayment,
+  updateGigFinancial,
+} from '../../services/gig.service';
+import { queryKeys } from '../../lib/queryKeys';
 import { useNavigation } from '../../contexts/NavigationContext';
-import {ChevronDown, Receipt, Users, MousePointer2 } from 'lucide-react';
+import type { DbGigFinancial, UserRole } from '../../utils/supabase/types';
+import {
+  ALL_STAGES,
+  isDue,
+  moneyInBadge,
+  nextStage,
+  outstandingAmount,
+  settledAmount,
+  stageLabel,
+  toDateKey,
+  type FinDirection,
+  type FinStage,
+} from '../../utils/moneyFlow';
+import QuickActionButtons from './QuickActionButtons';
+import { useGigFinancialsData, useDeleteGigFinancial } from './useGigFinancialsData';
+import StageTrack from './financials/StageTrack';
+import MoneySummaryStrip from './financials/MoneySummaryStrip';
+import FinancialRowDialog from './financials/FinancialRowDialog';
+import RecordPaymentDialog, { type RecordPaymentValues } from './financials/RecordPaymentDialog';
+import { formatLong, formatMoney, formatShort } from './financials/format';
 
-const CURRENCY_OPTIONS = [
-  { code: 'USD', symbol: '$', name: 'US Dollar' },
-  { code: 'CAD', symbol: 'C$', name: 'Canadian Dollar' },
-  { code: 'EUR', symbol: '€', name: 'Euro' },
-  { code: 'GBP', symbol: '£', name: 'British Pound' },
-];
-
-const COMMON_FIN_TYPES: FinType[] = [
-  'Contract Signed',
-  'Bid Accepted',
-  'Informal Terms',
-  'Deposit Received',
-  'Payment Received',
-  'Expense Incurred',
-  'Payment Sent',
-];
-
-const financialSchema = z.object({
-  id: z.string(),
-  date: z.string().min(1, 'Date is required'),
-  amount: z.string().refine((val) => {
-    if (!val.trim()) return false;
-    const num = parseFloat(val);
-    return !isNaN(num) && num >= 0;
-  }, 'Amount must be a positive number'),
-  type: z.string(),
-  category: z.string().nullable().optional(),
-  description: z.string().optional().default(''),
-  reference_number: z.string().optional().default(''),
-  counterparty_id: z.string().optional().default(''),
-  external_entity_name: z.string().optional().default(''),
-  currency: z.string().optional().default('USD'),
-  due_date: z.string().optional().default(''),
-  paid_at: z.string().optional().default(''),
-  notes: z.string().optional().default(''),
-  purchase_id: z.string().optional(),
-  staff_assignment_id: z.string().optional(),
-  // Counterparty object carried in form state for display in the selector
-  counterparty: z.any().optional(),
-});
-
-const financialsFormSchema = z.object({
-  financials: z.array(financialSchema),
-});
-
-type FinancialsFormData = z.infer<typeof financialsFormSchema>;
-// Raw form values before zod applies defaults — what watch()/getValues() return
-type FinancialsFormInput = z.input<typeof financialsFormSchema>;
-
-interface _FinancialData {
-  id: string;
-  date: string;
-  amount: string;
-  type: FinType;
-  category?: FinCategory | null;
-  description: string;
-  reference_number: string;
-  counterparty_id: string;
-  external_entity_name: string;
-  currency: string;
-  due_date: string;
-  paid_at: string;
-  notes: string;
-  purchase_id?: string;
-  staff_assignment_id?: string;
-}
-
-interface FinancialModalData {
-  id?: string;
-  date: string;
-  amount: string;
-  type: FinType;
-  category?: FinCategory | null;
-  description: string;
-  reference_number: string;
-  counterparty_id: string;
-  external_entity_name: string;
-  currency: string;
-  due_date: string;
-  paid_at: string;
-  notes: string;
-  purchase_id?: string;
-  staff_assignment_id?: string;
-}
+type FinancialRow = DbGigFinancial & { counterparty?: { id: string; name: string } | null; attachment_count?: number };
 
 interface GigFinancialsSectionProps {
   gigId: string;
   currentOrganizationId: string;
   userRole?: UserRole;
   gigStartDate?: string;
+  /** When the gig ends; an unpaid fee with no due date is due after this. */
+  gigEnd?: string | null;
   /**
    * Page-wide edit mode (#12). When given, it decides whether the add / edit /
    * delete controls show, and the section's own "Edit Financials" toggle is hidden.
@@ -128,1043 +78,468 @@ interface GigFinancialsSectionProps {
   editing?: boolean;
 }
 
+const BADGE_TONES = {
+  attention: 'bg-amber-100 text-amber-900',
+  pending: 'bg-sky-100 text-sky-900',
+  done: 'bg-green-100 text-green-800',
+  muted: 'bg-gray-100 text-gray-700',
+} as const;
+
+function stageTone(row: FinancialRow, gigEnd: string | null | undefined): keyof typeof BADGE_TONES {
+  if (row.stage === 'paid') return 'done';
+  if (row.stage === 'declined' || row.stage === 'cancelled') return 'muted';
+  if (isDue(row, gigEnd)) return 'attention';
+  return 'pending';
+}
+
+function stageText(row: FinancialRow): string {
+  const label = stageLabel(row.direction, row.stage);
+  if (row.stage === 'paid') return row.paid_at ? `${label} ${formatShort(row.paid_at)}` : label;
+  if (row.due_date && outstandingAmount(row) > 0) return `${label}, due ${formatShort(row.due_date)}`;
+  return label;
+}
+
+const counterpartyName = (row: FinancialRow) => row.counterparty?.name || row.external_entity_name || '';
+
 export default function GigFinancialsSection({
   gigId,
   currentOrganizationId,
   userRole,
   gigStartDate,
+  gigEnd,
   editing,
 }: GigFinancialsSectionProps) {
   const navigation = useNavigation();
   const queryClient = useQueryClient();
-  const [showFinancialModal, setShowFinancialModal] = useState(false);
-  // Save error shown inside the Add dialog, which stays open until the save succeeds.
-  const [modalSaveError, setModalSaveError] = useState<string | null>(null);
-  const [isModalSaving, setIsModalSaving] = useState(false);
-  const [currentFinancialIndex, setCurrentFinancialIndex] = useState<number | null>(null);
-  const [selectedCounterparty, setSelectedCounterparty] = useState<any>(null);
-  const [showNotesModal, setShowNotesModal] = useState<number | null>(null);
-  const [currentNotes, setCurrentNotes] = useState('');
-  // Per-row receipt/document attachments modal.
-  const [attachmentModal, setAttachmentModal] = useState<{ id: string; label: string } | null>(null);
-  
-  // Scanning states
+  const isAdmin = userRole === 'Admin' || userRole === 'Manager';
+  const [localEditMode, setLocalEditMode] = useState(false);
+  const isEditMode = editing ?? localEditMode;
+
+  const { financialsQuery, summaryQuery, projectedStaffQuery } = useGigFinancialsData(gigId, currentOrganizationId, isAdmin);
+  const deleteFinancial = useDeleteGigFinancial(gigId);
+
+  const [dialog, setDialog] = useState<
+    { row: FinancialRow | null; defaults?: { direction: FinDirection; stage: FinStage; date?: string } } | null
+  >(null);
+  const [paying, setPaying] = useState<FinancialRow | null>(null);
+  const [attachmentsFor, setAttachmentsFor] = useState<FinancialRow | null>(null);
   const [isScanning, setIsScanning] = useState(false);
   const [scannedData, setScannedData] = useState<any>(null);
   const [scannedFile, setScannedFile] = useState<File | null>(null);
   const [showReviewDialog, setShowReviewDialog] = useState(false);
-  const [showAllFinTypes, setShowAllFinTypes] = useState(false);
 
-  const [modalData, setModalData] = useState<FinancialModalData>({
-    date: format(new Date(), 'yyyy-MM-dd'),
-    amount: '',
-    type: 'Contract Signed',
-    category: null,
-    description: '',
-    reference_number: '',
-    counterparty_id: '',
-    external_entity_name: '',
-    currency: 'USD',
-    due_date: '',
-    paid_at: '',
-    notes: '',
-  });
-
-  const isAdmin = userRole === 'Admin' || userRole === 'Manager';
-  const [localEditMode, setIsEditMode] = useState(false);
-  const isEditMode = editing ?? localEditMode;
-
-  const { control, handleSubmit: _handleSubmit, formState: { isDirty }, watch, reset, setValue, getValues } = useForm<z.input<typeof financialsFormSchema>, any, FinancialsFormData>({
-    resolver: zodResolver(financialsFormSchema),
-    mode: 'onChange',
-    defaultValues: {
-      financials: [],
-    },
-  });
-
-  const { fields, remove } = useFieldArray({
-    control,
-    name: 'financials',
-    // Keep RHF's synthetic row key OUT of `id`. The default keyName is "id", which
-    // makes useFieldArray overwrite each row's real gig_financials id with a random
-    // UUID — breaking anything that reads `field.id` expecting the DB id (delete,
-    // per-row attachments, edit round-trip). Use `_key` for React keys instead.
-    keyName: '_key',
-  });
-
-  // Server state (Phase 7): reads via useQuery, delete via useMutation.
-  const { financialsQuery, summaryQuery, projectedStaffQuery } = useGigFinancialsData(
-    gigId,
-    currentOrganizationId,
-    isAdmin,
-  );
-  const deleteFinancial = useDeleteGigFinancial(gigId);
-  const summary = summaryQuery.data ?? null;
+  const rows = useMemo(() => (financialsQuery.data ?? []) as FinancialRow[], [financialsQuery.data]);
+  const byDate = (a: FinancialRow, b: FinancialRow) => a.date.localeCompare(b.date) || a.created_at.localeCompare(b.created_at);
+  const moneyIn = useMemo(() => rows.filter((r) => r.direction === 'in').sort(byDate), [rows]);
+  const moneyOut = useMemo(() => rows.filter((r) => r.direction === 'out').sort(byDate), [rows]);
+  const badge = useMemo(() => moneyInBadge(rows, gigEnd), [rows, gigEnd]);
   const projectedStaff = projectedStaffQuery.data ?? [];
-  const isLoading = financialsQuery.isLoading;
-  const isSummaryLoading = summaryQuery.isLoading;
 
-  const handleSave = useCallback(async (data: FinancialsFormInput) => {
-    // Only save financials that have a valid amount
-    const validFinancials = data.financials.filter(f => {
-      const amount = parseFloat(f.amount);
-      return !isNaN(amount) && f.date;
-    });
-
-    if (validFinancials.length === 0 && data.financials.length > 0) {
-      // If there are financials but none are valid yet, don't save
-      return;
-    }
-
-    await updateGigFinancials(gigId, currentOrganizationId, validFinancials.map(f => ({
-      id: f.id.startsWith('temp-') ? undefined : f.id,
-      amount: parseFloat(f.amount),
-      date: f.date,
-      type: f.type as FinType,
-      category: (f.category || null) as FinCategory | null,
-      description: f.description || '',
-      reference_number: f.reference_number || '',
-      counterparty_id: f.counterparty_id || undefined,
-      external_entity_name: f.external_entity_name || '',
-      currency: f.currency || 'USD',
-      due_date: f.due_date || undefined,
-      paid_at: f.paid_at || undefined,
-      notes: f.notes || '',
-      purchase_id: f.purchase_id || undefined,
-      staff_assignment_id: f.staff_assignment_id || undefined,
-    })));
-    // Refresh the financials query cache so other mounted instances of this
-    // section (or a later remount, e.g. switching Gig View tabs) pick up the
-    // saved data instead of serving it from the pre-edit cache (issue #8).
-    // This mounted instance's own display is resynced directly in
-    // handleSaveSuccess below, so this doesn't need to be awaited.
+  const refresh = useCallback(() => {
     void queryClient.invalidateQueries({ queryKey: queryKeys.financials(gigId) });
-    void summaryQuery.refetch();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [gigId, currentOrganizationId, queryClient]);
+    void queryClient.invalidateQueries({ queryKey: queryKeys.gigFinancialsSummary(gigId) });
+    void queryClient.invalidateQueries({ queryKey: queryKeys.gigProjectedStaff(gigId) });
+  }, [queryClient, gigId]);
 
-  const handleSaveSuccess = useCallback((data: FinancialsFormInput) => {
-    // A plain reset (no `keepValues`) is required here: useFieldArray's `fields`
-    // (what the table renders from) only resyncs to current values on a full
-    // reset, not on a per-field setValue — so `keepValues: true` was silently
-    // leaving the displayed rows on their pre-edit values until an unrelated
-    // full reset happened to fire (e.g. a query refetch).
-    reset(data, { keepDirty: false });
-  }, [reset]);
-
-  const { saveState, triggerSave, saveNow } = useAutoSave<FinancialsFormInput>({
-    gigId,
-    onSave: handleSave,
-    onSuccess: handleSaveSuccess,
-    debounceMs: 1000
-  });
-
-  const formValues = watch();
-
-  // Receipt/document counts per financial row, kept out of RHF form state so they
-  // never mark the form dirty. Sourced from getGigFinancials (single round-trip).
-  const attachmentCounts = useMemo(() => {
-    const m = new Map<string, number>();
-    (financialsQuery.data || []).forEach((f: any) => m.set(f.id, f.attachment_count || 0));
-    return m;
-  }, [financialsQuery.data]);
-
-  const groupedFinancials = {
-    revenue: fields.filter((f: any) => (FIN_TYPE_GROUPS.revenue as readonly string[]).includes(f.type)),
-    cost: fields.filter((f: any) => (FIN_TYPE_GROUPS.cost as readonly string[]).includes(f.type)),
-    other: fields.filter((f: any) => 
-      !(FIN_TYPE_GROUPS.revenue as readonly string[]).includes(f.type) && 
-      !(FIN_TYPE_GROUPS.cost as readonly string[]).includes(f.type)
-    )
-  };
-
+  // External updates (staff finalization, scanned receipts).
   useEffect(() => {
-    if (isDirty) {
-      triggerSave(formValues);
-    }
-  }, [formValues, isDirty, triggerSave]);
-
-  // Sync the form from the financials query on initial load and whenever it
-  // refetches (including the invalidation this component's own save now
-  // triggers, and external refetches like the 'gig-financials-updated'
-  // event). Skip while the form is dirty so a save still in flight elsewhere,
-  // or another concurrent edit, can't clobber an in-progress local edit.
-  useEffect(() => {
-    if (isDirty) return;
-    const data = financialsQuery.data;
-    if (!data) return;
-    const loadedFinancials = data.map((f: any) => ({
-      id: f.id,
-      date: f.date || format(new Date(), 'yyyy-MM-dd'),
-      amount: (f.amount !== null && f.amount !== undefined) ? f.amount.toString() : '',
-      type: f.type,
-      category: f.category,
-      description: f.description || '',
-      reference_number: f.reference_number || '',
-      counterparty_id: f.counterparty_id || '',
-      counterparty: f.counterparty || null,
-      external_entity_name: f.external_entity_name || '',
-      currency: f.currency || 'USD',
-      due_date: f.due_date || '',
-      paid_at: f.paid_at || '',
-      notes: f.notes || '',
-      purchase_id: f.purchase_id || '',
-      staff_assignment_id: f.staff_assignment_id || '',
-    }));
-    reset({ financials: loadedFinancials });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [financialsQuery.data, isDirty]);
-
-  const refetchAll = useCallback(() => {
-    void financialsQuery.refetch();
-    void summaryQuery.refetch();
-    void projectedStaffQuery.refetch();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [gigId]);
-
-  // Listen for external updates (like staff finalization)
-  useEffect(() => {
-    const handleExternalUpdate = (event: any) => {
-      if (event.detail?.gigId === gigId) {
-        refetchAll();
-      }
+    const handle = (event: any) => {
+      if (!event.detail?.gigId || event.detail.gigId === gigId) refresh();
     };
+    window.addEventListener('gig-financials-updated', handle);
+    return () => window.removeEventListener('gig-financials-updated', handle);
+  }, [gigId, refresh]);
 
-    window.addEventListener('gig-financials-updated', handleExternalUpdate);
-    return () => window.removeEventListener('gig-financials-updated', handleExternalUpdate);
-  }, [gigId, refetchAll]);
-
-  const handleAddFinancial = () => {
-    setModalData({
-      date: format(new Date(), 'yyyy-MM-dd'),
-      amount: '',
-      type: 'Contract Signed',
-      category: null,
-      description: '',
-      reference_number: '',
-      counterparty_id: '',
-      external_entity_name: '',
-      currency: 'USD',
-      due_date: '',
-      paid_at: '',
-      notes: '',
-    });
-    setSelectedCounterparty(null);
-    setCurrentFinancialIndex(null);
-    setModalSaveError(null);
-    setShowFinancialModal(true);
-  };
-
-  const handleModalTypeChange = (type: FinType) => {
-    setModalData(prev => {
-      const next = { ...prev, type };
-      // Infer paid_at for certain types
-      if (type === 'Expense Incurred' || type === 'Payment Received' || type === 'Payment Sent' || type === 'Deposit Received') {
-        if (!prev.paid_at) {
-          next.paid_at = format(new Date(), "yyyy-MM-dd'T'HH:mm:ss");
-        }
-      }
-      return next;
-    });
-  };
-
-  const handleEditFinancial = (index: number) => {
-    const financial = fields[index] as any;
-    setModalData({
-      id: financial.id,
-      date: financial.date,
-      amount: financial.amount,
-      type: financial.type,
-      category: financial.category ?? undefined,
-      description: financial.description || '',
-      reference_number: financial.reference_number || '',
-      counterparty_id: financial.counterparty_id || '',
-      external_entity_name: financial.external_entity_name || '',
-      currency: financial.currency || 'USD',
-      due_date: financial.due_date || '',
-      paid_at: financial.paid_at || '',
-      notes: financial.notes || '',
-      purchase_id: financial.purchase_id || '',
-      staff_assignment_id: financial.staff_assignment_id || '',
-    });
-    setSelectedCounterparty(financial.counterparty || null);
-    setCurrentFinancialIndex(index);
-    setModalSaveError(null);
-    setShowFinancialModal(true);
-  };
-
-  const handleRemoveFinancial = async (index: number) => {
-    const financial = fields[index];
-    if (financial.id && !financial.id.startsWith('temp-')) {
-      try {
-        await deleteFinancial.mutateAsync(financial.id);
-        toast.success('Financial record deleted');
-      } catch (error: any) {
-        console.error('Error deleting financial:', error);
-        toast.error('Failed to delete financial record');
-        return;
-      }
+  const saveRow = async (values: Parameters<React.ComponentProps<typeof FinancialRowDialog>['onSubmit']>[0]) => {
+    if (dialog?.row) {
+      await updateGigFinancial(dialog.row.id, values);
+    } else {
+      await createGigFinancial({ ...values, gig_id: gigId, organization_id: currentOrganizationId, amount: values.amount ?? null, date: values.date! });
     }
-    remove(index);
+    refresh();
   };
 
-  const handleSaveModal = async () => {
-    if (currentFinancialIndex !== null) {
-      // Update existing
-      Object.entries(modalData).forEach(([key, value]) => {
-        setValue(`financials.${currentFinancialIndex}.${key}` as any, value, { shouldDirty: true });
-      });
-      // Save the counterparty object for display in the table/selector next time
-      setValue(`financials.${currentFinancialIndex}.counterparty` as any, selectedCounterparty, { shouldDirty: true });
-      setShowFinancialModal(false);
+  const setStage = async (row: FinancialRow, stage: FinStage) => {
+    if (stage === 'paid') {
+      setPaying(row);
       return;
     }
-
-    // Add new: save it now and keep the dialog open until the save succeeds, so a
-    // failure is shown here instead of losing the record (issue #71). On success,
-    // handleSaveSuccess resets the form to the saved rows, which adds it to the table.
-    const newFinancial = {
-      id: `temp-${Math.random().toString(36).substr(2, 9)}`,
-      date: modalData.date,
-      amount: modalData.amount,
-      type: modalData.type,
-      category: modalData.category ?? null,
-      description: modalData.description,
-      reference_number: modalData.reference_number,
-      counterparty_id: modalData.counterparty_id,
-      counterparty: selectedCounterparty, // Save the counterparty object
-      external_entity_name: modalData.external_entity_name,
-      currency: modalData.currency,
-      due_date: modalData.due_date,
-      paid_at: modalData.paid_at,
-      notes: modalData.notes,
-      purchase_id: modalData.purchase_id,
-      staff_assignment_id: (modalData as any).staff_assignment_id,
-    };
-    setIsModalSaving(true);
-    setModalSaveError(null);
-    const result = await saveNow({ financials: [...getValues().financials, newFinancial] });
-    setIsModalSaving(false);
-    if (!result.ok) {
-      setModalSaveError(result.error.message || 'The record could not be saved.');
-      return;
+    try {
+      await updateGigFinancial(row.id, { stage });
+      refresh();
+    } catch (e: any) {
+      toast.error(e?.message || 'Could not change the stage');
     }
-    setShowFinancialModal(false);
   };
 
-  const handleOpenNotes = (index: number) => {
-    const financial = fields[index];
-    setCurrentNotes(financial.notes || '');
-    setShowNotesModal(index);
+  const recordPayment = async (row: DbGigFinancial, values: RecordPaymentValues) => {
+    const { remainder } = await recordGigFinancialPayment(row, values);
+    refresh();
+    toast.success(remainder ? `Payment recorded; ${formatMoney(remainder.amount)} still owed` : 'Payment recorded');
   };
 
-  const handleSaveNotes = () => {
-    if (showNotesModal !== null) {
-      setValue(`financials.${showNotesModal}.notes`, currentNotes, { shouldDirty: true });
-      setShowNotesModal(null);
-      setCurrentNotes('');
+  const remove = async (row: FinancialRow) => {
+    try {
+      await deleteFinancial.mutateAsync(row.id);
+      refresh();
+      toast.success('Removed');
+    } catch (e) {
+      console.error('Error deleting financial:', e);
+      toast.error('Could not remove the record');
     }
   };
 
   const handleUploadReceipt = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
-
     setScannedFile(file);
     setIsScanning(true);
     try {
-      const data = await scanInvoice(file, currentOrganizationId);
-      setScannedData(data);
+      setScannedData(await scanInvoice(file, currentOrganizationId));
       setShowReviewDialog(true);
     } catch (err: any) {
       console.error('Error scanning receipt:', err);
-      if (err.message?.includes('PDF_SCAN_ACCESS_REQUIRED') || err.message?.includes('access to the Claude 3.5 Sonnet PDF beta')) {
-        toast.error('AI scan unavailable for this file type. Opening manual entry.');
-        setScannedData(null);
-        setShowReviewDialog(true);
-      } else {
-        toast.error(err.message || 'Failed to scan receipt');
-      }
+      toast.error(err.message || 'Failed to scan receipt');
     } finally {
       setIsScanning(false);
       event.target.value = '';
     }
   };
 
-  const formatCurrency = (amount: string, currency: string = 'USD') => {
-    const num = parseFloat(amount);
-    if (isNaN(num)) return '$0.00';
-    
-    const opt = CURRENCY_OPTIONS.find(c => c.code === currency);
-    const symbol = opt?.symbol || '$';
-    
-    return `${symbol}${num.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-  };
+  if (!isAdmin) return null;
 
-  const formatDate = (dateStr: string) => {
-    if (!dateStr) return '';
-    try {
-      // dateStr is a plain date-only string (e.g. "2026-09-06"); parseISO treats
-      // it as local midnight, unlike `new Date()` which treats it as UTC and can
-      // roll the display back a day in timezones behind UTC.
-      return format(parseISO(dateStr), 'MMM dd, yyyy');
-    } catch {
-      return dateStr;
-    }
-  };
-
-  const FinancialRow = ({ field, index }: { field: any; index: number }) => {
-    const isPaid = !!field.paid_at;
-    const source = field.purchase_id ? 'Receipt' : field.staff_assignment_id ? 'Staff' : 'Manual';
-    const attachmentCount = attachmentCounts.get(field.id) || 0;
-    
-    return (
-      <TableRow key={field.id}>
-        <TableCell className="py-3">
-          <div className="flex flex-col">
-            <span className="text-sm font-medium">{formatDate(field.date)}</span>
-            <div className="flex items-center gap-1.5 mt-1">
-              {source === 'Receipt' && (
-                <Badge variant="outline" className="h-5 px-1.5 text-[10px] bg-blue-50 text-blue-700 border-blue-200">
-                  <Receipt className="w-3 h-3 mr-1" />
-                  Receipt
-                </Badge>
-              )}
-              {source === 'Staff' && (
-                <Badge variant="outline" className="h-5 px-1.5 text-[10px] bg-purple-50 text-purple-700 border-purple-200">
-                  <Users className="w-3 h-3 mr-1" />
-                  Staff
-                </Badge>
-              )}
-              {source === 'Manual' && (
-                <Badge variant="outline" className="h-5 px-1.5 text-[10px] bg-gray-50 text-gray-600 border-gray-200">
-                  <MousePointer2 className="w-3 h-3 mr-1" />
-                  Manual
-                </Badge>
-              )}
-            </div>
-          </div>
-        </TableCell>
-        <TableCell className="py-3">
-          <div className="flex flex-col gap-1">
-            <span className="text-sm">{FIN_TYPE_CONFIG[field.type as FinType]?.label || field.type}</span>
-            <div className="flex items-center gap-1">
-              {!field.type.toLowerCase().includes('bid') && !field.type.toLowerCase().includes('proposal') && (
-                <>
-                  {isPaid ? (
-                    <Badge className="h-4 px-1 text-[9px] bg-green-100 text-green-700 hover:bg-green-100 border-none">Paid</Badge>
-                  ) : (
-                    <Badge className="h-4 px-1 text-[9px] bg-amber-100 text-amber-700 hover:bg-amber-100 border-none">Unpaid</Badge>
-                  )}
-                  <span className="text-[10px] text-gray-400">•</span>
-                </>
-              )}
-              <span className="text-[10px] text-gray-500">{field.category}</span>
-            </div>
-          </div>
-        </TableCell>
-        <TableCell className="text-right font-mono py-3">
-          <span className={isPaid ? 'text-green-700' : 'text-gray-900'}>
-            {formatCurrency(field.amount, field.currency)}
-          </span>
-        </TableCell>
-        <TableCell className="py-3 text-sm text-gray-600 max-w-[200px] truncate">
-          {field.description || '-'}
-        </TableCell>
-        <TableCell className="text-right py-3">
-          <div className="flex items-center justify-end gap-1">
-            {field.purchase_id && (
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                className="h-8 w-8 p-0 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
-                onClick={() => navigation?.onNavigateToPurchase?.(field.purchase_id!, gigId)}
-                title="View Receipt Details"
-              >
-                <ExternalLink className="w-4 h-4" />
-              </Button>
-            )}
-            {field.id && !String(field.id).startsWith('temp-') && (
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={() => setAttachmentModal({
-                  id: field.id,
-                  label: field.description || FIN_TYPE_CONFIG[field.type as FinType]?.label || field.type,
-                })}
-                className="h-8 px-1.5 relative"
-                title={attachmentCount ? `${attachmentCount} attachment(s)` : 'Attach a receipt or document'}
-              >
-                <Paperclip className="w-4 h-4" />
-                {attachmentCount > 0 && (
-                  <span className="ml-0.5 text-[10px] font-semibold text-muted-foreground">{attachmentCount}</span>
-                )}
-              </Button>
-            )}
-            {isEditMode && (
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={() => handleOpenNotes(index)}
-              className="h-8 w-8 p-0"
-            >
-              <FileText className="w-4 h-4" />
-            </Button>
-            )}
-            {isEditMode && (
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={() => handleEditFinancial(index)}
-              className="h-8 w-8 p-0"
-              data-testid={`edit-financial-${index}`}
-            >
-              <Edit className="w-4 h-4" />
-            </Button>
-            )}
-            {isEditMode && (
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={() => handleRemoveFinancial(index)}
-              className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
-              data-testid={`delete-financial-${index}`}
-            >
-              <Trash2 className="w-4 h-4" />
-            </Button>
-            )}
-          </div>
-        </TableCell>
-      </TableRow>
-    );
-  };
-
-  if (!isAdmin) {
-    return null; // Don't show the section at all for non-admins
-  }
-
-  if (isLoading) {
+  if (financialsQuery.isLoading) {
     return (
       <Card className="mb-6">
-        <CardContent className="py-12">
-          <div className="flex flex-col items-center justify-center">
-            <Loader2 className="h-8 w-8 animate-spin text-sky-500 mb-2" />
-            <p className="text-gray-600">Loading financials...</p>
-          </div>
+        <CardContent className="py-12 flex flex-col items-center">
+          <Loader2 className="h-8 w-8 animate-spin text-sky-600 mb-2" />
+          <p className="text-gray-600">Loading financials...</p>
         </CardContent>
       </Card>
     );
   }
 
+  const rowMenu = (row: FinancialRow) => (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant="ghost" size="sm" className="h-8 w-8 p-0" aria-label={`Actions for ${row.description || 'row'}`}>
+          <MoreHorizontal className="w-4 h-4" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end">
+        <DropdownMenuItem onSelect={() => setDialog({ row })}>
+          <Edit className="w-4 h-4 mr-2" /> Edit
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <DropdownMenuLabel className="text-xs text-muted-foreground">Set stage</DropdownMenuLabel>
+        {ALL_STAGES.filter((s) => s !== row.stage).map((s) => (
+          <DropdownMenuItem key={s} onSelect={() => setStage(row, s)}>
+            {stageLabel(row.direction, s)}
+          </DropdownMenuItem>
+        ))}
+        <DropdownMenuSeparator />
+        <DropdownMenuItem className="text-red-600" onSelect={() => remove(row)}>
+          <Trash2 className="w-4 h-4 mr-2" /> Remove
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+
+  const attachButton = (row: FinancialRow) => (
+    <Button
+      variant="ghost"
+      size="sm"
+      className="h-8 px-1.5"
+      onClick={() => setAttachmentsFor(row)}
+      aria-label={row.attachment_count ? `${row.attachment_count} attachment(s)` : 'Attach a receipt or document'}
+      title={row.attachment_count ? `${row.attachment_count} attachment(s)` : 'Attach a receipt or document'}
+    >
+      <Paperclip className="w-4 h-4" />
+      {!!row.attachment_count && <span className="ml-0.5 text-[10px] font-semibold text-muted-foreground">{row.attachment_count}</span>}
+    </Button>
+  );
+
+  const today = toDateKey(new Date());
+
   return (
     <>
       <Card className="mb-6">
-        <CardHeader>
-          <div className="flex items-center justify-between">
+        <CardHeader className="gap-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="flex items-center gap-2">
               <DollarSign className="w-5 h-5 text-gray-600" />
               <CardTitle>Financials</CardTitle>
-              <SaveStateIndicator state={saveState} />
-            </div>
-            <div className="flex items-center gap-2">
-              {isAdmin && editing === undefined && (
-                <Button
-                  variant={isEditMode ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => setIsEditMode(!isEditMode)}
-                  className="h-7 text-xs gap-1.5"
-                >
-                  <Edit className="h-3 w-3" />
-                  {isEditMode ? 'Done Editing' : 'Edit Financials'}
-                </Button>
+              {badge && (
+                <span className={cn('rounded-full px-2.5 py-0.5 text-xs font-semibold', BADGE_TONES[badge.tone])}>{badge.label}</span>
               )}
             </div>
+            {editing === undefined && (
+              <Button
+                variant={isEditMode ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setLocalEditMode(!isEditMode)}
+                className="h-7 text-xs gap-1.5"
+              >
+                <Edit className="h-3 w-3" />
+                {isEditMode ? 'Done Editing' : 'Edit Financials'}
+              </Button>
+            )}
           </div>
-          {(summary || isSummaryLoading) && (
-            <div className="pt-2">
-              <GigProfitabilitySummary
-                summary={summary ?? { contractAmount: 0, received: 0, outstandingRevenue: 0, actualCosts: 0, projectedStaffCosts: 0, totalCosts: 0, profit: 0, margin: 0 }}
-                isLoading={isSummaryLoading}
-              />
-            </div>
-          )}
-          {isAdmin && isEditMode && (
-            <div className="flex flex-wrap items-center gap-2 pt-1">
+          <MoneySummaryStrip summary={summaryQuery.data ?? null} isLoading={summaryQuery.isLoading} />
+          {isEditMode && (
+            <div className="flex flex-wrap items-center gap-2">
               <QuickActionButtons
                 gigId={gigId}
                 organizationId={currentOrganizationId}
-                onSuccess={() => {
-                  refetchAll();
-                }}
-                onOther={handleAddFinancial}
+                onSuccess={refresh}
+                onOther={() => setDialog({ row: null, defaults: { direction: 'in', stage: 'accepted', date: gigStartDate } })}
                 gigStartDate={gigStartDate}
                 userRole={userRole}
               />
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setDialog({ row: null, defaults: { direction: 'out', stage: 'requested', date: gigStartDate } })}
+              >
+                <Plus className="w-4 h-4 mr-1" /> Request a bid
+              </Button>
               <div className="relative overflow-hidden">
                 <input
                   type="file"
                   title=""
+                  aria-label="Upload a receipt to scan"
                   className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
                   onChange={handleUploadReceipt}
                   disabled={isScanning}
                   accept=".pdf,image/*"
                 />
-                <Button variant="outline" size="sm" disabled={isScanning}>
-                  {isScanning ? (
-                    <>
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      Scanning...
-                    </>
-                  ) : (
-                    <>
-                      <Receipt className="w-4 h-4 mr-1" />
-                      Upload Receipt
-                    </>
-                  )}
+                <Button variant="outline" size="sm" disabled={isScanning} tabIndex={-1}>
+                  {isScanning ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Receipt className="w-4 h-4 mr-1" />}
+                  {isScanning ? 'Scanning...' : 'Upload Receipt'}
                 </Button>
               </div>
             </div>
           )}
         </CardHeader>
-        <CardContent>
-          <div className="space-y-8">
-            {fields.length > 0 ? (
-              <>
-                {/* Revenue Section */}
-                <div className="space-y-3">
-                  <div className="flex items-center gap-2 pb-1 border-b">
-                    <h3 className="text-sm font-semibold text-green-700">Revenue</h3>
-                    <Badge variant="outline" className="h-5 px-1.5 text-[10px] bg-green-50 text-green-700 border-green-200">
-                      {groupedFinancials.revenue.length}
-                    </Badge>
-                  </div>
-                  {groupedFinancials.revenue.length > 0 ? (
-                    <div className="border rounded-lg overflow-hidden">
-                      <Table>
-                        <TableHeader>
-                          <TableRow className="bg-gray-50/50">
-                            <TableHead className="h-10">Date</TableHead>
-                            <TableHead className="h-10">Type</TableHead>
-                            <TableHead className="text-right h-10">Amount</TableHead>
-                            <TableHead className="h-10">Description</TableHead>
-                            <TableHead className="text-right h-10">Actions</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {groupedFinancials.revenue.map((field: any) => {
-                            const index = fields.findIndex(f => f.id === field.id);
-                            return <FinancialRow key={field._key} field={field} index={index} />;
-                          })}
-                        </TableBody>
-                      </Table>
+
+        <CardContent className="space-y-8">
+          {/* Money in */}
+          <section className="space-y-3" aria-labelledby="money-in-heading">
+            <h3 id="money-in-heading" className="flex items-center gap-2 text-sm font-semibold text-gray-900">
+              <ArrowUp className="w-4 h-4 text-green-700" /> Money in
+            </h3>
+            {moneyIn.length === 0 && <p className="text-sm text-gray-500 italic">No money in recorded yet.</p>}
+            {moneyIn.map((row) => {
+              const ended = row.stage === 'declined' || row.stage === 'cancelled';
+              const due = isDue(row, gigEnd);
+              const open = outstandingAmount(row) > 0;
+              const next = nextStage(row.stage);
+              const name = counterpartyName(row);
+              return (
+                <div
+                  key={row.id}
+                  className={cn('rounded-lg border bg-white p-4 space-y-3', ended && 'opacity-70')}
+                  data-testid={`money-in-${row.id}`}
+                >
+                  <div className="flex flex-wrap justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="font-semibold">{row.description || 'Fee'}</div>
+                      <div className="text-sm text-gray-500">
+                        {[name, formatLong(row.date)].filter(Boolean).join(' · ')}
+                      </div>
                     </div>
-                  ) : (
-                    <p className="text-xs text-gray-500 italic py-2 pl-1">No revenue records yet</p>
+                    <div className="text-right">
+                      <div className="text-lg font-bold">{row.amount == null ? '—' : formatMoney(row.amount, row.currency)}</div>
+                      <div className="text-sm text-gray-500">
+                        {row.stage === 'paid'
+                          ? `${formatMoney(settledAmount(row), row.currency)} received ${formatShort(row.paid_at)}`
+                          : ended
+                            ? stageLabel('in', row.stage)
+                            : `${formatMoney(0, row.currency)} received`}
+                      </div>
+                    </div>
+                  </div>
+                  {!ended && <StageTrack direction="in" stage={row.stage} />}
+                  {(due || (open && row.due_date) || isEditMode) && (
+                    <div className="flex flex-wrap items-center justify-between gap-2 border-t pt-3">
+                      <div className={cn('text-sm flex items-center gap-1.5', due ? 'text-amber-800' : 'text-gray-600')}>
+                        {due && <CircleAlert className="w-4 h-4" />}
+                        {due
+                          ? row.due_date && row.due_date < today
+                            ? `Overdue since ${formatShort(row.due_date)}.`
+                            : row.due_date
+                              ? `Due ${formatShort(row.due_date)}.`
+                              : 'The gig is over and no payment is recorded yet.'
+                          : open && row.due_date
+                            ? `Due ${formatLong(row.due_date)}.`
+                            : ''}
+                      </div>
+                      {isEditMode && (
+                        <div className="flex items-center gap-1.5">
+                          {attachButton(row)}
+                          {open && next && next !== 'paid' && (
+                            <Button variant="outline" size="sm" onClick={() => setStage(row, next)}>
+                              Mark {stageLabel('in', next).toLowerCase()}
+                            </Button>
+                          )}
+                          {(open || row.stage === 'quoted' || row.stage === 'requested') && (
+                            <Button size="sm" onClick={() => setPaying(row)}>Record payment</Button>
+                          )}
+                          {rowMenu(row)}
+                        </div>
+                      )}
+                    </div>
                   )}
                 </div>
+              );
+            })}
+          </section>
 
-                {/* Expenses Section */}
-                <div className="space-y-3 pt-10">
-                  <div className="flex items-center gap-2 pb-1 border-b">
-                    <h3 className="text-sm font-semibold text-red-700">Expenses</h3>
-                    <Badge variant="outline" className="h-5 px-1.5 text-[10px] bg-red-50 text-red-700 border-red-200">
-                      {groupedFinancials.cost.length}
-                    </Badge>
-                  </div>
-                  {groupedFinancials.cost.length > 0 ? (
-                    <div className="border rounded-lg overflow-hidden">
-                      <Table>
-                        <TableHeader>
-                          <TableRow className="bg-gray-50/50">
-                            <TableHead className="h-10">Date</TableHead>
-                            <TableHead className="h-10">Type</TableHead>
-                            <TableHead className="text-right h-10">Amount</TableHead>
-                            <TableHead className="h-10">Description</TableHead>
-                            <TableHead className="text-right h-10">Actions</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {groupedFinancials.cost.map((field: any) => {
-                            const index = fields.findIndex(f => f.id === field.id);
-                            return <FinancialRow key={field._key} field={field} index={index} />;
-                          })}
-                        </TableBody>
-                      </Table>
-                    </div>
-                  ) : (
-                    <p className="text-xs text-gray-500 italic py-2 pl-1">No expense records yet</p>
-                  )}
-                </div>
-
-                {/* Projected Staff Section */}
-                {projectedStaff.length > 0 && (
-                  <div className="space-y-3 pt-10">
-                    <div className="flex items-center gap-2 pb-1 border-b">
-                      <h3 className="text-sm font-semibold text-amber-700">Projected Staff Costs</h3>
-                      <Badge variant="outline" className="h-5 px-1.5 text-[10px] bg-amber-50 text-amber-700 border-amber-200">
-                        {projectedStaff.length}
-                      </Badge>
-                    </div>
-                    <div className="border rounded-lg overflow-hidden bg-amber-50/10">
-                      <Table>
-                        <TableHeader>
-                          <TableRow className="bg-amber-50/30 hover:bg-amber-50/30">
-                            <TableHead className="h-10">Role</TableHead>
-                            <TableHead className="h-10">Staff</TableHead>
-                            <TableHead className="text-right h-10">Projected Amount</TableHead>
-                            <TableHead className="h-10">Status</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {projectedStaff.map((staff: any) => (
-                            <TableRow key={staff.id} className="hover:bg-amber-50/20">
-                              <TableCell className="py-2.5 font-medium">{staff.slot?.role_info?.name || 'Staff'}</TableCell>
-                              <TableCell className="py-2.5">
-                                {staff.user ? `${staff.user.first_name} ${staff.user.last_name}` : 'Unassigned'}
-                              </TableCell>
-                              <TableCell className="py-2.5 text-right font-mono">
-                                {formatCurrency(staff.fee?.toString() || staff.rate?.toString() || '0')}
-                              </TableCell>
-                              <TableCell className="py-2.5">
-                                <Badge variant="secondary" className="text-[10px] font-normal">
-                                  {staff.status}
-                                </Badge>
-                              </TableCell>
-                            </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
-                    </div>
-                  </div>
-                )}
-
-                {/* Other Section (if any) */}
-                {groupedFinancials.other.length > 0 && (
-                  <div className="space-y-3">
-                    <div className="flex items-center gap-2 pb-1 border-b">
-                      <h3 className="text-sm font-semibold text-gray-700">Other Records</h3>
-                      <Badge variant="outline" className="h-5 px-1.5 text-[10px] bg-gray-50 text-gray-700 border-gray-200">
-                        {groupedFinancials.other.length}
-                      </Badge>
-                    </div>
-                    <div className="border rounded-lg overflow-hidden">
-                      <Table>
-                        <TableHeader>
-                          <TableRow className="bg-gray-50/50">
-                            <TableHead className="h-10">Date</TableHead>
-                            <TableHead className="h-10">Type</TableHead>
-                            <TableHead className="text-right h-10">Amount</TableHead>
-                            <TableHead className="h-10">Description</TableHead>
-                            <TableHead className="text-right h-10">Actions</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {groupedFinancials.other.map((field: any) => {
-                            const index = fields.findIndex(f => f.id === field.id);
-                            return <FinancialRow key={field._key} field={field} index={index} />;
-                          })}
-                        </TableBody>
-                      </Table>
-                    </div>
-                  </div>
-                )}
-              </>
+          {/* Money out */}
+          <section className="space-y-3" aria-labelledby="money-out-heading">
+            <h3 id="money-out-heading" className="flex items-center gap-2 text-sm font-semibold text-gray-900">
+              <ArrowDown className="w-4 h-4 text-amber-700" /> Money out
+            </h3>
+            {moneyOut.length === 0 ? (
+              <p className="text-sm text-gray-500 italic">No money out recorded yet.</p>
             ) : (
-              <p className="text-sm text-gray-500 text-center py-8">No financial records yet</p>
+              <div className="border rounded-lg overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="bg-gray-50/50">
+                      <TableHead>Item</TableHead>
+                      <TableHead>Category</TableHead>
+                      <TableHead>Stage</TableHead>
+                      <TableHead className="text-right">Amount</TableHead>
+                      <TableHead className="text-right"><span className="sr-only">Actions</span></TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {moneyOut.map((row) => {
+                      const source = row.purchase_id ? 'Receipt' : row.staff_assignment_id ? 'Staff' : 'Manual';
+                      const name = counterpartyName(row);
+                      const open = outstandingAmount(row) > 0;
+                      return (
+                        <TableRow key={row.id} className={cn((row.stage === 'declined' || row.stage === 'cancelled') && 'text-gray-500')}>
+                          <TableCell className="py-3">
+                            <div className="font-medium">{row.description || 'Expense'}</div>
+                            <div className="flex items-center gap-1.5 mt-1 text-xs text-gray-500">
+                              <Badge variant="outline" className="h-5 px-1.5 text-[10px]">
+                                {source === 'Receipt' ? <Receipt className="w-3 h-3 mr-1" /> : source === 'Staff' ? <Users className="w-3 h-3 mr-1" /> : <MousePointer2 className="w-3 h-3 mr-1" />}
+                                {source}
+                              </Badge>
+                              {[name, formatShort(row.date)].filter(Boolean).join(' · ')}
+                            </div>
+                          </TableCell>
+                          <TableCell className="py-3 text-sm text-gray-600">{row.category ?? ''}</TableCell>
+                          <TableCell className="py-3">
+                            <span className={cn('rounded-full px-2.5 py-0.5 text-xs font-semibold whitespace-nowrap', BADGE_TONES[stageTone(row, gigEnd)])}>
+                              {stageText(row)}
+                            </span>
+                          </TableCell>
+                          <TableCell className="py-3 text-right font-medium whitespace-nowrap">
+                            {row.amount == null ? '—' : formatMoney(row.stage === 'paid' ? settledAmount(row) : row.amount, row.currency)}
+                          </TableCell>
+                          <TableCell className="py-3 text-right">
+                            <div className="flex items-center justify-end gap-1">
+                              {row.purchase_id && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-8 w-8 p-0 text-sky-700"
+                                  onClick={() => navigation?.onNavigateToPurchase?.(row.purchase_id!, gigId)}
+                                  aria-label="View receipt details"
+                                >
+                                  <ExternalLink className="w-4 h-4" />
+                                </Button>
+                              )}
+                              {attachButton(row)}
+                              {isEditMode && open && (
+                                <Button variant="outline" size="sm" onClick={() => setPaying(row)}>Mark paid</Button>
+                              )}
+                              {isEditMode && rowMenu(row)}
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                  <TableFooter>
+                    <TableRow>
+                      <TableCell colSpan={3} className="font-semibold">Total money out (paid and committed)</TableCell>
+                      <TableCell className="text-right font-bold">
+                        {formatMoney((summaryQuery.data?.expectedOut ?? 0))}
+                      </TableCell>
+                      <TableCell />
+                    </TableRow>
+                  </TableFooter>
+                </Table>
+              </div>
             )}
-          </div>
+          </section>
+
+          {projectedStaff.length > 0 && (
+            <section className="space-y-3" aria-labelledby="projected-staff-heading">
+              <h3 id="projected-staff-heading" className="text-sm font-semibold text-amber-800">Projected staff costs</h3>
+              <div className="border rounded-lg overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="bg-amber-50/30">
+                      <TableHead>Role</TableHead>
+                      <TableHead>Staff</TableHead>
+                      <TableHead className="text-right">Projected</TableHead>
+                      <TableHead>Status</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {projectedStaff.map((staff: any) => (
+                      <TableRow key={staff.id}>
+                        <TableCell className="py-2.5 font-medium">{staff.slot?.role_info?.name || 'Staff'}</TableCell>
+                        <TableCell className="py-2.5">
+                          {staff.user ? `${staff.user.first_name} ${staff.user.last_name}` : 'Unassigned'}
+                        </TableCell>
+                        <TableCell className="py-2.5 text-right">{formatMoney(staff.fee ?? staff.rate ?? 0)}</TableCell>
+                        <TableCell className="py-2.5">
+                          <Badge variant="secondary" className="text-[10px] font-normal">{staff.status}</Badge>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </section>
+          )}
         </CardContent>
       </Card>
 
-      <Dialog open={showFinancialModal} onOpenChange={(open) => {
-        if (!open) {
-          setShowFinancialModal(false);
-          setCurrentFinancialIndex(null);
-        }
-      }}>
-        <DialogContent className="max-w-[800px] max-h-[80vh] overflow-y-auto">
+      <FinancialRowDialog
+        open={!!dialog}
+        onOpenChange={(open) => !open && setDialog(null)}
+        row={dialog?.row ?? null}
+        defaults={dialog?.defaults}
+        onSubmit={saveRow}
+      />
+
+      <RecordPaymentDialog row={paying} onOpenChange={(open) => !open && setPaying(null)} onSubmit={recordPayment} />
+
+      <Dialog open={!!attachmentsFor} onOpenChange={(open) => !open && setAttachmentsFor(null)}>
+        <DialogContent className="max-w-[640px]">
           <DialogHeader>
-            <DialogTitle>
-              {currentFinancialIndex !== null ? 'Edit Financial Record' : 'Add Financial Record'}
-            </DialogTitle>
-            <DialogDescription>
-              {currentFinancialIndex !== null ? 'Update the financial record details.' : 'Add a new financial record for this gig.'}
-            </DialogDescription>
+            <DialogTitle>Receipts &amp; documents</DialogTitle>
+            <DialogDescription>{attachmentsFor?.description || 'Financial record'}</DialogDescription>
           </DialogHeader>
-          
-          <div className="grid gap-4 py-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="modal-date">Date</Label>
-                <Input
-                  id="modal-date"
-                  type="date"
-                  value={modalData.date}
-                  onChange={(e) => setModalData({ ...modalData, date: e.target.value })}
-                />
-              </div>
-              <div>
-                <Label htmlFor="modal-amount">Amount</Label>
-                <div className="relative flex items-center">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-500 font-medium pointer-events-none">
-                    {CURRENCY_OPTIONS.find(c => c.code === modalData.currency)?.symbol || '$'}
-                  </span>
-                  <Input
-                    id="modal-amount"
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    placeholder="0.00"
-                    className="pl-8 pr-16"
-                    value={modalData.amount}
-                    onChange={(e) => setModalData({ ...modalData, amount: e.target.value })}
-                  />
-                  <div className="absolute right-2">
-                    <Select 
-                      value={modalData.currency} 
-                      onValueChange={(value) => setModalData({ ...modalData, currency: value })}
-                    >
-                      <SelectTrigger className="h-4 w-auto min-w-[42px] px-1.5 py-0 text-[12px] font-normal uppercase border-none bg-sky-100 text-sky-700 hover:bg-sky-200 transition-colors rounded-full shadow-none focus:ring-0">
-                        <SelectValue placeholder="USD" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {CURRENCY_OPTIONS.map((opt) => (
-                          <SelectItem key={opt.code} value={opt.code} className="text-xs">{opt.code}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="modal-type">Type</Label>
-                <Select value={modalData.type} onValueChange={(value: FinType) => handleModalTypeChange(value)}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select type" />
-                  </SelectTrigger>
-                  <SelectContent className="max-h-[300px]">
-                    <div className="px-2 py-1.5 text-xs font-semibold text-gray-500 bg-gray-50/50">Common Types</div>
-                    {COMMON_FIN_TYPES.map((type) => (
-                      <SelectItem key={type} value={type}>
-                        {FIN_TYPE_CONFIG[type].label}
-                      </SelectItem>
-                    ))}
-
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setShowAllFinTypes((prev) => !prev)}
-                      className="w-full justify-between px-2 py-1.5 h-8 text-xs font-medium text-sky-600 hover:text-sky-700 hover:bg-sky-50"
-                    >
-                      <span>All Types</span>
-                      <ChevronDown className={`h-3 w-3 transition-transform ${showAllFinTypes || !COMMON_FIN_TYPES.includes(modalData.type) ? 'rotate-180' : ''}`} />
-                    </Button>
-                    <div className={showAllFinTypes || !COMMON_FIN_TYPES.includes(modalData.type) ? '' : 'hidden'}>
-                      {Object.entries(FIN_TYPE_CONFIG)
-                        .filter(([type]) => !COMMON_FIN_TYPES.includes(type as FinType))
-                        .map(([value, config]) => (
-                          <SelectItem key={value} value={value} className="pl-4">
-                            {config.label}
-                          </SelectItem>
-                        ))}
-                    </div>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label htmlFor="modal-category">Expense Category</Label>
-                <Select value={modalData.category ?? undefined} onValueChange={(value: FinCategory) => setModalData({ ...modalData, category: value })}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select category" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {Object.entries(FIN_CATEGORY_CONFIG).map(([value, config]) => (
-                      <SelectItem key={value} value={value}>{config.label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            <div>
-              <Label htmlFor="modal-description">Description</Label>
-              <Input
-                id="modal-description"
-                value={modalData.description}
-                onChange={(e) => setModalData({ ...modalData, description: e.target.value })}
-                placeholder="Brief description of this financial record"
-              />
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="modal-reference">Reference Number</Label>
-                <Input
-                  id="modal-reference"
-                  value={modalData.reference_number}
-                  onChange={(e) => setModalData({ ...modalData, reference_number: e.target.value })}
-                  placeholder="Invoice #, Check #, etc."
-                />
-              </div>
-              <div>
-                <Label htmlFor="modal-due-date">Due Date</Label>
-                <Input
-                  id="modal-due-date"
-                  type="date"
-                  value={modalData.due_date}
-                  onChange={(e) => setModalData({ ...modalData, due_date: e.target.value })}
-                />
-              </div>
-            </div>
-
-            <div>
-              <Label>Counterparty (Internal Organization)</Label>
-              <OrganizationSelector
-                selectedOrganization={selectedCounterparty}
-                onSelect={(org) => {
-                  setSelectedCounterparty(org);
-                  setModalData({ ...modalData, counterparty_id: org?.id || '' });
-                }}
-                placeholder="Search for internal organization..."
-              />
-            </div>
-
-            <div>
-              <Label htmlFor="modal-external-entity">External Entity (Client/Vendor)</Label>
-              <Input
-                id="modal-external-entity"
-                value={modalData.external_entity_name}
-                onChange={(e) => setModalData({ ...modalData, external_entity_name: e.target.value })}
-                placeholder="External client or vendor name"
-              />
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="modal-paid-at">Paid Date</Label>
-                <Input
-                  id="modal-paid-at"
-                  type="date"
-                  value={modalData.paid_at ? modalData.paid_at.split('T')[0] : ''}
-                  onChange={(e) => setModalData({ ...modalData, paid_at: e.target.value })}
-                />
-              </div>
-            </div>
-
-            <div>
-              <Label htmlFor="modal-notes">Notes</Label>
-              <Textarea
-                id="modal-notes"
-                value={modalData.notes}
-                onChange={(e) => setModalData({ ...modalData, notes: e.target.value })}
-                placeholder="Internal notes (not shown on invoices)"
-                rows={3}
-              />
-            </div>
-          </div>
-
-          {modalSaveError && (
-            <p role="alert" className="text-sm text-red-600">
-              Could not save this record: {modalSaveError}
-            </p>
-          )}
-
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowFinancialModal(false)}>
-              Cancel
-            </Button>
-            <Button 
-              onClick={handleSaveModal}
-              disabled={isModalSaving || !modalData.date || !modalData.amount || parseFloat(modalData.amount) <= 0}
-            >
-              {currentFinancialIndex !== null ? 'Update' : 'Add'} Financial Record
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={showNotesModal !== null} onOpenChange={(open) => {
-        if (!open) {
-          setShowNotesModal(null);
-          setCurrentNotes('');
-        }
-      }}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Financial Record Notes</DialogTitle>
-            <DialogDescription>
-              Internal notes for this financial record. These are not shown on public documents.
-            </DialogDescription>
-          </DialogHeader>
-          <Textarea
-            value={currentNotes}
-            onChange={(e) => setCurrentNotes(e.target.value)}
-            placeholder="Enter notes..."
-            rows={10}
-            onFocus={(e) => {
-              const len = e.target.value.length;
-              e.target.setSelectionRange(len, len);
-            }}
-          />
-          <DialogFooter>
-            <Button variant="outline" onClick={() => {
-              setShowNotesModal(null);
-              setCurrentNotes('');
-            }}>
-              Cancel
-            </Button>
-            <Button onClick={handleSaveNotes}>
-              Save Notes
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog
-        open={attachmentModal !== null}
-        onOpenChange={(open) => {
-          if (!open) {
-            setAttachmentModal(null);
-            refetchAll();
-          }
-        }}
-      >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Receipts &amp; Documents</DialogTitle>
-            <DialogDescription>
-              Files attached to “{attachmentModal?.label}”. Attach a receipt, invoice, or supporting
-              document directly to this expense.
-            </DialogDescription>
-          </DialogHeader>
-          {attachmentModal && (
+          {attachmentsFor && (
             <AttachmentManager
               organizationId={currentOrganizationId}
               entityType="gig_financial"
-              entityId={attachmentModal.id}
+              entityId={attachmentsFor.id}
               title="Attachments"
               allowUpload={isAdmin}
+              onAttachmentsChange={refresh}
             />
           )}
           <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => {
-                setAttachmentModal(null);
-                refetchAll();
-              }}
-            >
-              Done
-            </Button>
+            <Button variant="outline" onClick={() => setAttachmentsFor(null)}>Close</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -1176,9 +551,7 @@ export default function GigFinancialsSection({
         scannedData={scannedData}
         file={scannedFile}
         gigId={gigId}
-        onSuccess={() => {
-          refetchAll();
-        }}
+        onSuccess={refresh}
       />
     </>
   );

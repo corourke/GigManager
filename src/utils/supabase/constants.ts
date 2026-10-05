@@ -114,42 +114,6 @@ export const SCHEDULE_ACTIVITY_CONFIG: Record<string, ScheduleItemStyle | undefi
   'Other':        { label: 'Other',        icon: 'MoreHorizontal',  color: 'bg-gray-100 text-gray-700 border-gray-300' },
 };
 
-export const FIN_TYPE_CONFIG = {
-  'Informal Terms': { label: 'Informal Terms' },
-  'Bid Submitted': { label: 'Bid Submitted' },
-  'Bid Accepted': { label: 'Bid Accepted' },
-  'Bid Rejected': { label: 'Bid Rejected' },
-  'Contract Submitted': { label: 'Contract Submitted' },
-  'Contract Revised': { label: 'Contract Revised' },
-  'Contract Signed': { label: 'Contract Signed' },
-  'Contract Rejected': { label: 'Contract Rejected' },
-  'Contract Cancelled': { label: 'Contract Cancelled' },
-  'Contract Settled': { label: 'Contract Settled' },
-  'Sub-Contract Submitted': { label: 'Sub-Contract Submitted' },
-  'Sub-Contract Revised': { label: 'Sub-Contract Revised' },
-  'Sub-Contract Signed': { label: 'Sub-Contract Signed' },
-  'Sub-Contract Rejected': { label: 'Sub-Contract Rejected' },
-  'Sub-Contract Cancelled': { label: 'Sub-Contract Cancelled' },
-  'Sub-Contract Settled': { label: 'Sub-Contract Settled' },
-  'Deposit Received': { label: 'Deposit Received' },
-  'Deposit Sent': { label: 'Deposit Sent' },
-  'Deposit Refunded': { label: 'Deposit Refunded' },
-  'Payment Sent': { label: 'Payment Sent' },
-  'Payment Received': { label: 'Payment Received' },
-  'Expense Incurred': { label: 'Expense Incurred' },
-  'Expense Reimbursed': { label: 'Expense Reimbursed' },
-  'Invoice Issued': { label: 'Invoice Issued' },
-  'Invoice Settled': { label: 'Invoice Settled' },
-} as const;
-
-export type FinType = keyof typeof FIN_TYPE_CONFIG;
-
-export const FIN_TYPE_GROUPS = {
-  revenue: ['Contract Signed', 'Bid Accepted', 'Informal Terms', 'Deposit Received', 'Payment Received'],
-  cost: ['Expense Incurred', 'Payment Sent', 'Deposit Sent', 'Sub-Contract Submitted', 'Sub-Contract Signed', 'Sub-Contract Settled'],
-  tracking: ['Invoice Issued', 'Invoice Settled'],
-} as const;
-
 export const FIN_CATEGORY_CONFIG = {
   'Advertising': { label: 'Advertising' },
   'Car and truck expenses': { label: 'Car and truck expenses' },

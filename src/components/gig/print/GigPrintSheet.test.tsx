@@ -15,12 +15,12 @@ vi.mock('../../../services/attachment.service', () => ({
 }));
 vi.mock('../../../services/gigFinancial.service', () => ({
   getGigProfitabilitySummary: vi.fn().mockResolvedValue({
-    contractAmount: 6500, received: 3250, outstandingRevenue: 3250, actualCosts: 480, projectedStaffCosts: 730,
-    expectedSubContractCosts: 0, totalCosts: 1210, profit: 5290, margin: 81.4,
+    expectedIn: 6500, receivedIn: 3250, outstandingIn: 3250, dueIn: 0, expectedOut: 480, paidOut: 480,
+    outstandingOut: 0, dueOut: 0, net: 6020, projectedStaffCosts: 730, totalCosts: 1210, profit: 5290, margin: 81.4,
   }),
   getGigFinancials: vi.fn().mockResolvedValue([
-    { id: 'f1', date: '2026-05-02', type: 'Contract Signed', description: 'Performance agreement', reference_number: 'AGR-0412', paid_at: null, category: null, amount: 6500 },
-    { id: 'f2', date: '2026-07-10', type: 'Expense Incurred', description: 'Box truck rental', reference_number: null, paid_at: null, category: 'Rent or lease', amount: 420 },
+    { id: 'f1', date: '2026-05-02', direction: 'in', stage: 'contracted', description: 'Performance agreement', reference_number: 'AGR-0412', paid_at: null, due_date: null, category: null, amount: 6500, amount_settled: null },
+    { id: 'f2', date: '2026-07-10', direction: 'out', stage: 'paid', description: 'Box truck rental', reference_number: null, paid_at: '2026-07-10T00:00:00Z', due_date: null, category: 'Rent or lease', amount: 420, amount_settled: 420 },
   ]),
 }));
 
@@ -92,8 +92,12 @@ describe('GigPrintSheet (#12)', () => {
     const fin = page(/financials/i);
     expect(within(fin).getAllByText('$6,500')).toHaveLength(2); // the Revenue total and the contract row
     expect(within(fin).getByText('$5,290')).toBeInTheDocument();
-    expect(within(within(fin).getByRole('table', { name: 'Revenue' })).getByText('AGR-0412')).toBeInTheDocument();
-    expect(within(within(fin).getByRole('table', { name: 'Expenses' })).getByText('Box truck rental')).toBeInTheDocument();
+    const moneyIn = within(within(fin).getByRole('table', { name: 'Money in' }));
+    expect(moneyIn.getByText('AGR-0412')).toBeInTheDocument();
+    expect(moneyIn.getByText('Contracted')).toBeInTheDocument();
+    const moneyOut = within(within(fin).getByRole('table', { name: 'Money out' }));
+    expect(moneyOut.getByText('Box truck rental')).toBeInTheDocument();
+    expect(moneyOut.getByText('Paid Jul 10')).toBeInTheDocument();
     const staff = within(fin).getByRole('table', { name: 'Staff costs' });
     expect(within(staff).getByText('Jordan Lee')).toBeInTheDocument();
     expect(within(staff).getByText('$450')).toBeInTheDocument();
