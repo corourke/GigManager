@@ -1,15 +1,17 @@
 import { useState } from 'react';
-import { ChevronDown, ChevronRight, CheckCircle2, AlertCircle, CreditCard, AlertTriangle } from 'lucide-react';
+import { ChevronDown, ChevronRight } from 'lucide-react';
 import { format } from 'date-fns';
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '../ui/collapsible';
 import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from '../ui/table';
 import { Badge } from '../ui/badge';
-import { GigAccountingSummary, PaymentHealth, GigStatus } from '../../utils/supabase/types';
+import { GigAccountingSummary, GigStatus } from '../../utils/supabase/types';
+import { gigStatusText, STATUS_TONE, type AccountingSectionId } from '../../utils/gigAccountingSections';
+import { cn } from '../ui/utils';
 import { GIG_STATUS_CONFIG } from '../../utils/supabase/constants';
 import GigAccountingRowDetail from './GigAccountingRowDetail';
 
 export interface GigSection {
-  id: 'needs-attention' | 'upcoming' | 'past-settled';
+  id: AccountingSectionId;
   label: string;
   gigs: GigAccountingSummary[];
   defaultCollapsed: boolean;
@@ -39,41 +41,28 @@ const formatDateRange = (start: string, end: string) => {
 
 const SECTION_HEADER_STYLES: Record<GigSection['id'], string> = {
   'needs-attention': 'bg-amber-50 border-amber-200 text-amber-800 hover:bg-amber-100',
-  'upcoming': 'bg-blue-50 border-blue-200 text-blue-800 hover:bg-blue-100',
-  'past-settled': 'bg-gray-50 border-gray-200 text-gray-700 hover:bg-gray-100',
+  'upcoming': 'bg-sky-50 border-sky-200 text-sky-900 hover:bg-sky-100',
+  'settled': 'bg-gray-50 border-gray-200 text-gray-700 hover:bg-gray-100',
 };
 
 const SECTION_COUNT_STYLES: Record<GigSection['id'], string> = {
   'needs-attention': 'bg-amber-200 text-amber-800',
-  'upcoming': 'bg-blue-200 text-blue-800',
-  'past-settled': 'bg-gray-200 text-gray-700',
-};
-
-type HealthConfigEntry = {
-  icon: React.ComponentType<{ className?: string }>;
-  color: string;
-  label: string;
-};
-
-const HEALTH_CONFIG: Record<PaymentHealth, HealthConfigEntry> = {
-  'all-clear': { icon: CheckCircle2, color: 'text-green-600', label: 'All Clear' },
-  'revenue-outstanding': { icon: AlertCircle, color: 'text-amber-500', label: 'Revenue Outstanding' },
-  'payments-due': { icon: CreditCard, color: 'text-orange-500', label: 'Payments Due' },
-  'both': { icon: AlertTriangle, color: 'text-red-600', label: 'Needs Attention' },
+  'upcoming': 'bg-sky-200 text-sky-900',
+  'settled': 'bg-gray-200 text-gray-700',
 };
 
 function GigTableRow({
   gig,
+  sectionId,
   onNavigateToGigDetail,
   organizationId,
 }: {
   gig: GigAccountingSummary;
+  sectionId: AccountingSectionId;
   onNavigateToGigDetail?: (gigId: string) => void;
   organizationId?: string;
 }) {
   const [expanded, setExpanded] = useState(false);
-  const health = HEALTH_CONFIG[gig.paymentHealth];
-  const HealthIcon = health.icon;
   const statusConfig = GIG_STATUS_CONFIG[gig.gigStatus as GigStatus];
 
   return (
@@ -82,7 +71,7 @@ function GigTableRow({
         className="cursor-pointer hover:bg-gray-50 transition-colors"
         onClick={() => onNavigateToGigDetail?.(gig.gigId)}
       >
-        <TableCell className="max-w-[220px]">
+        <TableCell>
           <div className="font-semibold text-gray-900 truncate">{gig.gigTitle}</div>
           <div className="text-xs text-gray-500 mt-0.5">{formatDateRange(gig.gigStart, gig.gigEnd)}</div>
           <Badge
@@ -96,14 +85,15 @@ function GigTableRow({
         <TableCell>
           <div className="font-medium text-gray-900">{formatCurrency(gig.contractAmount)}</div>
           <div className="text-xs text-gray-500 mt-0.5">
-            Rcvd: {formatCurrency(gig.received)} / Due: {formatCurrency(gig.outstandingRevenue)}
+            Received {formatCurrency(gig.received)} · Owed {formatCurrency(gig.outstandingRevenue)}
           </div>
         </TableCell>
 
         <TableCell>
           <div className="font-medium text-gray-900">{formatCurrency(gig.totalCosts)}</div>
           <div className="text-xs text-gray-500 mt-0.5">
-            Actual: {formatCurrency(gig.actualCosts)} / Staff: {formatCurrency(gig.expectedStaffCosts)} / Sub: {formatCurrency(gig.expectedSubContractCosts)}
+            Paid {formatCurrency(gig.actualCosts)} · Owed {formatCurrency(gig.paymentsToMake)}
+            {gig.expectedStaffCosts > 0 ? ` · Staff booked ${formatCurrency(gig.expectedStaffCosts)}` : ''}
           </div>
         </TableCell>
 
@@ -121,10 +111,9 @@ function GigTableRow({
         </TableCell>
 
         <TableCell>
-          <div className="flex items-center gap-1.5">
-            <HealthIcon className={`w-4 h-4 flex-shrink-0 ${health.color}`} />
-            <span className={`text-xs ${health.color}`}>{health.label}</span>
-          </div>
+          <span className={cn('inline-block rounded-full px-2.5 py-0.5 text-xs font-semibold', STATUS_TONE[sectionId])}>
+            {gigStatusText(gig)}
+          </span>
         </TableCell>
 
         <TableCell
@@ -182,15 +171,16 @@ function SectionTable({
       </CollapsibleTrigger>
 
       <CollapsibleContent>
-        <Table>
+        {/* Fixed widths so every section's columns line up. */}
+        <Table className="table-fixed min-w-[760px]">
           <TableHeader>
             <TableRow className="bg-gray-50 hover:bg-gray-50">
-              <TableHead className="w-[220px]">Gig</TableHead>
-              <TableHead>Revenue</TableHead>
-              <TableHead>Costs</TableHead>
-              <TableHead>Profit</TableHead>
-              <TableHead>Health</TableHead>
-              <TableHead className="w-8"></TableHead>
+              <TableHead className="w-[26%]">Gig</TableHead>
+              <TableHead className="w-[20%]">Money in</TableHead>
+              <TableHead className="w-[20%]">Costs</TableHead>
+              <TableHead className="w-[11%]">Net</TableHead>
+              <TableHead>Status</TableHead>
+              <TableHead className="w-10"><span className="sr-only">Details</span></TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -205,6 +195,7 @@ function SectionTable({
                 <GigTableRow
                   key={gig.gigId}
                   gig={gig}
+                  sectionId={section.id}
                   onNavigateToGigDetail={onNavigateToGigDetail}
                   organizationId={organizationId}
                 />

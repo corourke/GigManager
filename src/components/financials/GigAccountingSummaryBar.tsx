@@ -47,21 +47,21 @@ export default function GigAccountingSummaryBar({ summaries }: GigAccountingSumm
 
   return (
     <div className="flex flex-wrap gap-3">
-      <MetricCard label="Expected Revenue" value={totals.contractAmount} />
+      <MetricCard label="Expected" value={totals.contractAmount} />
       <MetricCard label="Received" value={totals.received} />
       <MetricCard
-        label="Outstanding"
+        label="Owed to you"
         value={totals.outstandingRevenue}
         valueClassName={totals.outstandingRevenue > 0 ? 'text-amber-600' : 'text-green-600'}
       />
-      <MetricCard label="Total Costs" value={totals.totalCosts} />
+      <MetricCard label="Costs" value={totals.totalCosts} />
       <MetricCard
-        label="Payments Due"
+        label="You owe"
         value={totals.paymentsToMake}
         valueClassName={totals.paymentsToMake > 0 ? 'text-red-600' : 'text-green-600'}
       />
       <MetricCard
-        label="Net Profit"
+        label="Net"
         value={totals.profit}
         valueClassName={totals.profit >= 0 ? 'text-green-600' : 'text-red-600'}
       />
