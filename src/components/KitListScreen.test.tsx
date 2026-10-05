@@ -114,7 +114,7 @@ describe('KitListScreen', () => {
       kit_components: [{ id: 'kc-1', child_kit_id: 'kit-child', quantity: 1 }],
     }] as any)
     vi.mocked(getKitsFlattenedSummary).mockResolvedValue(new Map([
-      ['kit-parent', { totalValue: 350, totalItems: 5, assetIds: new Set(['di-box', 'led-par']) }],
+      ['kit-parent', { totalValue: 350, totalItems: 5, assetIds: new Set(['di-box', 'led-par']), assetLabels: new Map() }],
     ]))
 
     const { findByText } = render(<KitListScreen {...mockProps} />)

@@ -445,6 +445,14 @@ export interface KitFlattenedSummary {
   totalItems: number;
   /** Every distinct asset reachable inside this kit, at any depth — used to detect the same physical asset entering a kit twice (once directly, once via a nested sub-kit, or via two different sub-kits). */
   assetIds: Set<string>;
+  /** A readable name per asset id ("Shure SM58 (#M-12)"), to say what two kits share. */
+  assetLabels: Map<string, string>;
+}
+
+/** How an asset is named when telling the user what overlaps: model, plus tag when it has one. */
+export function assetLabel(asset: { manufacturer_model?: string | null; tag_number?: string | null } | null | undefined): string {
+  const model = asset?.manufacturer_model || 'Unnamed item';
+  return asset?.tag_number ? `${model} (#${asset.tag_number})` : model;
 }
 
 /**
@@ -466,15 +474,16 @@ export async function getKitsFlattenedSummary(kitIds: string[]): Promise<Map<str
   try {
     const { data, error } = await supabase
       .from('kit_flattened_cache')
-      .select('kit_id, asset_id, total_quantity, asset:assets(replacement_value)')
+      .select('kit_id, asset_id, total_quantity, asset:assets(replacement_value, manufacturer_model, tag_number)')
       .in('kit_id', kitIds);
 
     if (error) throw error;
     for (const row of (data || []) as any[]) {
-      const existing = result.get(row.kit_id) || { totalValue: 0, totalItems: 0, assetIds: new Set<string>() };
+      const existing = result.get(row.kit_id) || { totalValue: 0, totalItems: 0, assetIds: new Set<string>(), assetLabels: new Map<string, string>() };
       existing.totalValue += (row.asset?.replacement_value || 0) * row.total_quantity;
       existing.totalItems += row.total_quantity;
       existing.assetIds.add(row.asset_id);
+      existing.assetLabels.set(row.asset_id, assetLabel(row.asset));
       result.set(row.kit_id, existing);
     }
     return result;

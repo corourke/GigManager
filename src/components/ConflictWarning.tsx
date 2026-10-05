@@ -1,10 +1,18 @@
-import React from 'react';
+import { format } from 'date-fns';
 import { AlertTriangle, Users, MapPin, Package } from 'lucide-react';
 import { Alert, AlertTitle, AlertDescription } from './ui/alert';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
 import { Card } from './ui/card';
 import { Conflict } from '../services/conflictDetection.service';
+
+const formatGigDate = (iso: string) => {
+  try {
+    return format(new Date(iso), 'EEE MMM d, h:mm a');
+  } catch {
+    return iso;
+  }
+};
 
 interface ConflictWarningProps {
   conflicts: Conflict[];
@@ -53,7 +61,9 @@ export function ConflictWarning({
       case 'venue':
         return `Venue conflict at: ${conflict.details.venue_name || 'Unknown venue'}`;
       case 'equipment':
-        const kitNames = conflict.details.conflicting_kits?.map((k: any) => k.kit_name).join(', ') || '';
+        const kitNames = conflict.details.conflicting_kits
+          ?.map((k: any) => (k.shared_assets?.length ? `${k.kit_name} (${k.shared_assets.join(', ')})` : k.kit_name))
+          .join('; ') || '';
         return `Equipment conflict with kits: ${kitNames}`;
       default:
         return 'Unknown conflict type';
@@ -72,6 +82,7 @@ export function ConflictWarning({
           </Badge>
           <span className="text-sm font-medium text-gray-900 truncate">
             {conflict.gig_title}
+            {conflict.start ? ` (${formatGigDate(conflict.start)})` : ''}
           </span>
         </div>
         <p className="text-sm text-gray-600 mb-2">
@@ -123,7 +134,8 @@ export function ConflictWarning({
             <div key={`${conflict.type}-${conflict.gig_id}-${index}`} className="flex items-center gap-2">
               {getConflictIcon(conflict.type)}
               <span className="text-sm">
-                <strong>{conflict.gig_title}</strong> - {formatConflictDetails(conflict)}
+                <strong>{conflict.gig_title}</strong>
+                {conflict.start ? ` (${formatGigDate(conflict.start)})` : ''} - {formatConflictDetails(conflict)}
               </span>
               {onViewGig && (
                 <Button

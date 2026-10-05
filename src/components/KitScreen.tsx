@@ -170,7 +170,7 @@ export default function KitScreen({
       setChildKitSummaries((prev) => {
         const next = new Map(prev);
         for (const id of missing) {
-          next.set(id, summaries.get(id) ?? { totalValue: 0, totalItems: 0, assetIds: new Set() });
+          next.set(id, summaries.get(id) ?? { totalValue: 0, totalItems: 0, assetIds: new Set(), assetLabels: new Map() });
         }
         return next;
       });
