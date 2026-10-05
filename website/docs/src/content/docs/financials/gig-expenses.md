@@ -1,28 +1,92 @@
 ---
-title: Gig expenses
-description: Assign costs to a gig; Simple Expense; receipts.
-draft: true
+title: A gig's money
+description: Bookings, payments, expenses, mileage and staff pay on a gig's Financials tab.
 sidebar:
-  order: 4
+  order: 5
 ---
 
-## Cover
+Every gig has a **Financials** tab (Admins and Managers). It shows the gig's **money in** (bookings and payments) and **money out** (expenses, sub-contractors, staff pay), and whether the gig makes money.
 
-- The **Assign Gig** flow on a purchase line / expense: the date-windowed picker
-  (±21 days), that association is reversible, and that the **burdened cost** posts
-  to the gig ledger.
-- **Simple Expense**: category (IRS Schedule C list), the **"Already paid"** toggle,
-  inline **receipt** upload.
-- Sub-contractor costs count as gig expenses in profitability.
-- On a gig: the Financials section — REVENUE / COSTS / PROFIT (shows **LOSS** when
-  negative) and the revenue/expense tables.
+## The summary
 
-## Screenshots
+| | Means |
+|---|---|
+| **Expected** | Money in that's agreed (accepted or later) |
+| **Received** | Money in that has arrived |
+| **Owed to you** | Agreed but not paid yet; shows what's **due now** |
+| **Costs** | Money out: paid, owed, and staff booked but not yet finalized |
+| **Net** | Expected minus costs, with your margin |
 
-- 📸 "Assign Gig" picker on an expense.
-- 📸 Record Simple Expense dialog (category, Already paid, Receipt).
-- 📸 Gig Financials section with a LOSS.
+The badge next to the title sums up money in: **Paid**, **Payment due**, **Overdue**, or the stage of what's still open.
 
-## Source
+## Stages
 
-Plan §5. PR #4. Issue #25 (dates). Commits `7090f2b` `cdb6502` `5888673`.
+Each booking and each cost sits at a stage. You can skip stages, so a handshake deal can go straight from **Accepted** to **Paid**.
+
+| Money in | Money out |
+|---|---|
+| Quoted | Bid requested · Bid received |
+| Accepted (incl. verbal / informal) | Accepted |
+| Contract sent · Contracted | Contract sent · Contracted |
+| Invoiced | Owed |
+| Paid | Paid |
+| Declined · Cancelled | Declined · Cancelled |
+
+**Expected** counts everything from **Accepted** on. Something unpaid is **due** on its due date or, with no due date, once the gig is over.
+
+## Adding money
+
+Click **Edit Financials** to show the buttons.
+
+| Button | Records |
+|---|---|
+| **Booking** | Income you've agreed: the stage, date, amount and description (e.g. "Performance fee"). An **Invoiced** booking also takes a due date. |
+| **Payment received** | Money that has already arrived, not tied to a booking. To pay off a booking, use its **Record Payment** button instead. |
+| **Expense / Mileage** | Choose **Simple Expense** or **Mileage** (below). |
+| **Other** | Any row, with every field: direction, stage, amounts, dates, category, reference, the other party, notes. Desktop only. |
+| **Upload Receipt** | Scans a receipt and records it as a purchase and as this gig's cost. See [Receipts and invoices](/financials/receipts-and-invoices/). |
+
+**Simple Expense:**
+- **Date**, **Amount**, **Category** and **Description**.
+- **Already paid**: leave it off if you still owe the money.
+- **Receipt (optional)**: attach the receipt now.
+
+**Mileage:**
+- Enter odometer **Start** and **End**, or the **Miles Driven**.
+- GigWrangler multiplies by the IRS standard mileage rate for that date and records it as a paid car and truck expense.
+
+## Getting paid
+
+**Record Payment** on a booking asks for the amount, the date and a reference (check number, transaction id).
+
+If less than the agreed amount arrived, you choose what the rest is:
+- **Still owed:** it becomes its own row, still due.
+- **Not coming:** the booking is settled for what you received. History keeps the change.
+
+On a cost, **Mark paid** does the same for money you paid out.
+
+The **…** menu on any row offers **Edit**, **Set stage** and **Remove**.
+
+## Staff pay
+
+Staff booked on the gig show under **Projected staff costs** until you finalize them in the gig's staffing section (**Finalize Assignment** or **Finalize All**).
+
+- **Finalizing** adds the pay to money out as **Owed**, labelled "Labor: {role}" and marked **Staff**.
+- **Hourly or per-unit pay** asks how many units were worked.
+- **Undo Finalize** takes the row back out.
+
+## Where a cost came from
+
+Money-out rows carry a source badge: **Receipt** (from a purchase), **Staff**, or **Manual**.
+
+On a **Receipt** row, the link icon opens that purchase in **Financials → Purchases**.
+
+## Receipts and documents
+
+The paperclip on a row opens **Receipts & documents**. Upload as many files as you like; they stay with that row.
+
+## On a phone
+
+The gig's Financials card shows **Revenue**, **Costs** and **Profit**. In edit mode, the same buttons appear, except **Other** and **Upload Receipt**.
+
+**View N Transactions** lists every row. Tap one for its details and its **Receipts & Documents**.

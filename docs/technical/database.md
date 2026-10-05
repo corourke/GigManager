@@ -187,7 +187,7 @@ Tracks the lifecycle of a gig.
 Whether a `gig_financials` row is money coming to the organization (`in`) or money it pays (`out`). Added in migration 20261005000000.
 
 ### fin_stage
-Where a `gig_financials` row stands (migration 20261005000000). Every stage except `paid` is optional; see [gig-financials.md](gig-financials.md) §3 for labels and what each counts toward.
+Where a `gig_financials` row stands (migration 20261005000000). Every stage except `paid` is optional; see [financials.md](financials.md) §2.3 for labels and what each counts toward.
 - `requested`, `quoted`, `accepted`, `contract_sent`, `contracted`, `invoiced` (shown as "Owed" for money out), `paid`, `declined`, `cancelled`
 
 ### fin_type
@@ -610,7 +610,7 @@ erDiagram
 ```
 
 For how `purchase_id` / `staff_assignment_id` feed the single ledger, and the
-full ER diagram, see [gig-financials.md](gig-financials.md).
+full ER diagram, see [financials.md](financials.md).
 
 ### gig_financials
 
@@ -647,7 +647,7 @@ Every amount of money a gig brings in or costs, one row each, with its stage.
 **Notes:**
 - `gig_financials` replaces the legacy `gig_bids` table and `gigs.amount_paid` column.
 - Migration 20261005000000 converted the old typed rows (several per deal) into one row per amount with a stage, logging a `financial.converted` activity entry per surviving row. Index `idx_gig_financials_gig_direction_stage` covers (gig_id, direction, stage).
-- `purchase_id` / `staff_assignment_id` are the two-way links to the source documents that feed the ledger — see [gig-financials.md](gig-financials.md) §1.
+- `purchase_id` / `staff_assignment_id` are the two-way links to the source documents that feed the ledger — see [financials.md](financials.md) §2.3.
 - **`fin_category`** was reworked (migrations 20260328000001 / 20260512000000) from the original `Labor / Equipment / Transportation / Venue / Production / Insurance / Rebillable / Other` set to IRS Schedule C names: `Advertising`, `Car and truck expenses`, `Commissions and fees`, `Contract labor`, `Depreciation`, `Insurance`, `Legal and professional services`, `Office expense`, `Rent or lease`, `Repairs and maintenance`, `Supplies`, `Taxes and licenses`, `Travel`, `Meals`, `Utilities`, `Wages`, `Other expenses`. It was also made nullable and lost its default (migrations 20260513000000 / 20260520000000). The authoritative list is `FIN_CATEGORY_CONFIG` in `src/utils/supabase/constants.ts`.
 - RLS is **ENABLED**. Since migration 20260912000000 (cross-org leak fix, issue #61) there are exactly two policies, both scoped to the row's own `organization_id` via `user_is_admin_or_manager_of_org` — one FOR SELECT, one FOR ALL. Admins/Managers of *other* orgs participating in the same gig can no longer see or modify the row. Rows with a NULL `organization_id` are therefore invisible to all non-service-role clients.
 - Deleting a row fires `trg_cleanup_attachments`, which removes its `entity_attachments` links and any solely-owned `attachments` rows (migration 20260831000100).
@@ -724,6 +724,8 @@ Handles acquisition headers and expense line items. Uses a self-referencing `par
 | description | TEXT | Line item description — item only (nullable) |
 | category | TEXT | Category — item only (nullable) |
 | sub_category | TEXT | Sub-category — item only (nullable) |
+| tax_treatment | TEXT | Lines only: `'expense'` or `'depreciate'`; NULL on headers (CHECK). Independent of `asset_id` except that depreciate requires one (deferred check). Migration 20261006000000. |
+| recovery_period | SMALLINT | Depreciated lines only: 5, 7 or 15 years (CHECK). Migration 20261006000000. |
 | created_by | UUID | Reference to users.id (default auth.uid()) |
 | updated_by | UUID | Reference to users.id (default auth.uid()) |
 | created_at | TIMESTAMPTZ | Record creation timestamp (NOT NULL) |
@@ -733,10 +735,11 @@ Handles acquisition headers and expense line items. Uses a self-referencing `par
 - A **header** row (`row_type = 'header'`) represents an overall purchase transaction (vendor, date, total, payment method).
 - **Item** / **asset** rows represent individual line items and reference their header via `parent_id`; an `'asset'` row also has `asset_id` set.
 - When assets are imported, the `create_purchase_transaction_v1` function creates `'asset'` line rows with `asset_id` linking back to the created asset. `reclassify_expense_as_asset` flips an existing `'item'` row to `'asset'` after the fact.
-- `gig_id` links gig-specific expenses to the relevant gig, displayed alongside `gig_financials`. It can be set at creation, edited per line, or assigned for a whole receipt from the Purchases tab — see [gig-financials.md](gig-financials.md) §2.
+- `gig_id` links gig-specific expenses to the relevant gig, displayed alongside `gig_financials`. It can be set at creation, edited per line, or assigned for a whole receipt from the Purchases tab — see [financials.md](financials.md) §4.
 - A gig-linked purchase does **not** automatically get a `gig_financials` ledger row: the on-gig receipt scan creates one, but CSV import and post-hoc line assignment only prompt/offer to. Without that ledger row the expense is invisible to gig profitability.
 - Assets acquired in a purchase reference the header row via `assets.purchase_id`.
 - Deleting a row fires `trg_cleanup_attachments` (migration 20260831000100), removing its `entity_attachments` links and any solely-owned `attachments` rows.
+- **Tax treatment (#133, migration 20261006000000)** — a line's `tax_treatment` is filled from `row_type` when a writer leaves it out (`asset` → depreciate, `item` → expense). A depreciated line must keep its `asset_id` and can't be pointed at by a `gig_financials` row. Rows dated in a year locked in `tax_years` can't have their tax fields changed, added or deleted — see [financials.md](financials.md) §2.5 and §3.
 - RLS is **ENABLED** on this table. Only Admins/Managers of the owning org can view or manage purchases — the member-level SELECT policy was dropped in migration 20260613000000 (Staff/Viewer have no Financials access).
 
 ---
@@ -876,7 +879,7 @@ Actual staff assigned to positions
 **Notes:**
 - There is no direct relation between Gig and User, only through GigStaffSlots and GigStaffAssignments.
 - There is no direct relation between Gig and GigStaffAssignments (only through GigStaffSlots)
-- `gig_financial_id` is the back-link of `gig_financials.staff_assignment_id` — see [gig-financials.md](gig-financials.md).
+- `gig_financial_id` is the back-link of `gig_financials.staff_assignment_id` — see [financials.md](financials.md).
 - RLS is **ENABLED** on this table. Users can view assignments for accessible gigs; Admins/Managers can manage; Staff can update their own ("Staff can update their own assignments", recreated in 20260319213000 with a WITH CHECK intended to stop staff changing `completed_at` / `units_completed` / `gig_financial_id` — note that as written the check compares each column to itself, so it does not actually enforce this).
 
 ---
@@ -1165,6 +1168,23 @@ Usage log for the `ai-scan` edge function, used for per-user rate limiting (60 s
 - Not a long-term audit log: the edge function opportunistically deletes rows older than 24 hours.
 - Indexed on (user_id, created_at) (`idx_ai_scan_usage_user_time`) for the trailing-hour quota query.
 - No foreign keys on `user_id` / `organization_id` (migration 20260612000001).
+
+---
+
+### tax_years
+
+Filed tax years, per organization (migration 20261006000000, #133). Purchases dated in a locked year keep their tax fields.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| organization_id | UUID | Reference to organizations.id (PK part, ON DELETE CASCADE) |
+| year | SMALLINT | The tax year (PK part, 2000–2100) |
+| locked | BOOLEAN | Default true; false re-opens the year |
+| filed_on | DATE | When the return was filed (nullable) |
+| notes | TEXT | (nullable) |
+| created_at / updated_at | TIMESTAMPTZ | |
+
+**Notes:** RLS enabled — Admins and Managers of the org read; only its Admins insert, update or delete. Enforcement is the `purchases_c_tax_year_lock` trigger on `purchases`, via `tax_year_is_locked(org, date)`; see [financials.md](financials.md) §2.5.
 
 ---
 

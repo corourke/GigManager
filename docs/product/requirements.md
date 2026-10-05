@@ -957,7 +957,7 @@ The application provides a centralized system for managing file attachments (PDF
 - Staff assignment fees are projected costs until the assignment is marked complete, at which point they become actual costs in the ledger.
 - Capital asset purchases (equipment acquisitions) are inventory, not gig expenses, and do not appear in gig profitability.
 
-For the technical data model, ER diagram, and two-way linking pattern, see [Gig Financials Technical Reference](../technical/gig-financials.md).
+For the technical data model, ER diagram, and two-way linking pattern, see [Financial Data Technical Reference](../technical/financials.md).
 
 #### Staff Cost Lifecycle
 - **Before gig**: Staff assigned with fee/rate → shows as projected cost in profitability view
@@ -990,7 +990,7 @@ For the technical data model, ER diagram, and two-way linking pattern, see [Gig 
 - [Development Roadmap](./development-plan/01_roadmap.md) — Product roadmap with completed work, what's next, and strategic priorities
 - [Competitive Analysis](./development-plan/02_competitive-analysis.md) — Market positioning vs. Rentman, Current RMS, LASSO, BackOpsLive, gig-manager.app
 - [Database Documentation](../technical/database.md) — Schema and RLS policies
-- [Gig Financials Technical Reference](../technical/gig-financials.md) — Financial architecture, data boundaries, ER diagram
+- [Financial Data Technical Reference](../technical/financials.md) — Financial architecture, data boundaries, ER diagram
 - [Tech Stack](../technical/tech-stack.md) — Technology overview
 - [Security Scheme](../technical/security-scheme.md) — Authentication, authorization, and storage security
 

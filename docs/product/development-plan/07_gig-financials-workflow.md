@@ -23,7 +23,7 @@ After reading all specified files, here is what exists:
 - **`FIN_CATEGORY_CONFIG`**: 8 `fin_category` enum values with display labels: Labor, Equipment, Transportation, Venue, Production, Insurance, Rebillable, Other. Each `gig_financials` record has both a `type` (what happened — Contract Signed, Expense Incurred, etc.) and a `category` (what it's for — Labor, Equipment, etc.).
 
 ### Attachments
-- `gig_financials` supports file attachments via the `entity_attachments` system (`entity_type = 'gig_financial'`). Receipts, invoices, and supporting documents attach directly to financial records. **Shipped 2026-08** (migration 20260831000000 + per-row UI in `GigFinancialsSection` / `MobileGigFinancials`); see [gig-financials.md](../../technical/gig-financials.md) §5. This bullet described the intended end state well before it was built.
+- `gig_financials` supports file attachments via the `entity_attachments` system (`entity_type = 'gig_financial'`). Receipts, invoices, and supporting documents attach directly to financial records. **Shipped 2026-08** (migration 20260831000000 + per-row UI in `GigFinancialsSection` / `MobileGigFinancials`); see [financials.md](../../technical/financials.md) §5. This bullet described the intended end state well before it was built.
 
 ---
 
@@ -461,6 +461,6 @@ block-beta
 
 ## Related Documentation
 
-- [Technical Reference: Gig Financials](../../technical/gig-financials.md) — Architecture, data boundaries, ER diagram, schema DDL
+- [Technical Reference: Gig Financials](../../technical/financials.md) — Architecture, data boundaries, ER diagram, schema DDL
 - [Coding Prompt](./financials-coding-prompt.md) — AI coding agent prompt for implementation
 - [Requirements](../requirements.md) — Section 7 (Expense Management & Gig Profitability)
