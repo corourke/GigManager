@@ -238,7 +238,10 @@ export default function ReviewScannedDataDialog({
         setAssetsById(aById);
         setOriginalItemIds(items.map((it) => it.id));
 
-        setFormData(recalculateBurdenedCosts({
+        // Show what is stored. Recomputing here would zero cost-only lines (CSV
+        // imports have no printed price) and rescale lines that don't add up to
+        // the total; the mismatch warning flags those instead (#128).
+        setFormData({
           vendor: details.vendor || '',
           purchase_date: details.purchase_date || format(new Date(), 'yyyy-MM-dd'),
           total_inv_amount: details.total_inv_amount || 0,
@@ -259,7 +262,7 @@ export default function ReviewScannedDataDialog({
             _gigId: it.gig_id || null,
             _rowType: it.row_type,
           })),
-        }));
+        });
 
         // Gig ledger rows linked by purchase_id, across every distinct linked gig.
         const gigIds = Array.from(new Set(
@@ -293,17 +296,20 @@ export default function ReviewScannedDataDialog({
     return () => { cancelled = true; };
   }, [open, editPurchaseId, organizationId]);
 
+  // Spread the invoice total across the lines in proportion to each line's
+  // printed price, or its stored cost when it has no price (CSV imports, #128).
   function recalculateBurdenedCosts(data: ScannedData): ScannedData {
-    const totalLinePrice = data.items.reduce((sum, item) => sum + (item.item_price * item.quantity), 0);
-    if (totalLinePrice <= 0 || data.total_inv_amount <= 0) {
-      return { ...data, items: data.items.map(item => ({ ...item, item_cost: item.item_price })) };
+    const basis = (item: ScannedItem) => (item.item_price > 0 ? item.item_price : item.item_cost ?? 0);
+    const totalBasis = data.items.reduce((sum, item) => sum + basis(item) * item.quantity, 0);
+    if (totalBasis <= 0 || data.total_inv_amount <= 0) {
+      return { ...data, items: data.items.map(item => ({ ...item, item_cost: basis(item) })) };
     }
-    const burdenFactor = data.total_inv_amount / totalLinePrice;
+    const burdenFactor = data.total_inv_amount / totalBasis;
     return {
       ...data,
       items: data.items.map(item => ({
         ...item,
-        item_cost: Number((item.item_price * burdenFactor).toFixed(4))
+        item_cost: Number((basis(item) * burdenFactor).toFixed(4))
       }))
     };
   }
