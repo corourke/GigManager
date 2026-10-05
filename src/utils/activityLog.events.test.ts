@@ -95,7 +95,7 @@ describe('ACTIVITY_EVENTS', () => {
   it('financial.added format renders one new-style row', () => {
     expect(ACTIVITY_EVENTS['financial.added'].format({
       ...ctx, direction: 'in', stage: 'quoted', amount: 1800, description: 'Performance fee',
-    })).toBe('Added Performance fee · Bid sent · $1,800.00');
+    })).toBe('Added Performance fee · Quoted · $1,800.00');
   });
 
   it('financial.updated format lists amount and stage changes (St. Raymond)', () => {
@@ -105,7 +105,7 @@ describe('ACTIVITY_EVENTS', () => {
         { field: 'amount', from: 1800, to: 1000 },
         { field: 'stage', from: 'quoted', to: 'accepted' },
       ],
-    })).toBe('Performance fee updated: Amount $1,800.00 → $1,000.00; Bid sent → Accepted');
+    })).toBe('Performance fee updated: Amount $1,800.00 → $1,000.00; Quoted → Accepted');
   });
 
   it('financial.paid format says received for money in, paid for money out', () => {

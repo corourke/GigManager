@@ -167,8 +167,8 @@ Since 2026-10 every row is either **money in** (`direction = 'in'`: fees, deposi
 
 | Stage | Money in label | Money out label | Counts toward |
 |---|---|---|---|
-| `requested` | Bid requested | Bid requested | Nothing (no amount needed) |
-| `quoted` | Bid sent | Bid received | Nothing (pipeline only) |
+| `requested` | (not used) | Bid requested | Nothing (no amount needed) |
+| `quoted` | Quoted | Bid received | Nothing (pipeline only) |
 | `accepted` | Accepted | Accepted | Expected |
 | `contract_sent` | Contract sent | Contract sent | Expected |
 | `contracted` | Contracted | Contracted | Expected |

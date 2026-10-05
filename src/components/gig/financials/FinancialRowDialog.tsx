@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '../../ui/dialog';
 import OrganizationSelector from '../../OrganizationSelector';
 import { FIN_CATEGORY_CONFIG } from '../../../utils/supabase/constants';
-import { ALL_STAGES, stagePickerLabel, type FinDirection, type FinStage } from '../../../utils/moneyFlow';
+import { stagesFor, stagePickerLabel, type FinDirection, type FinStage } from '../../../utils/moneyFlow';
 import type { DbGigFinancial, FinCategory } from '../../../utils/supabase/types';
 import type { GigFinancialPatch } from '../../../services/gigFinancial.service';
 import { CURRENCY_OPTIONS } from './format';
@@ -149,7 +149,17 @@ export default function FinancialRowDialog({ open, onOpenChange, row, defaults, 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="fr-direction">Direction</Label>
-              <Select value={form.direction} onValueChange={(v) => set('direction', v as FinDirection)}>
+              <Select
+                value={form.direction}
+                onValueChange={(v) =>
+                  setForm((f) => ({
+                    ...f,
+                    direction: v as FinDirection,
+                    // money in has no "bid requested" step
+                    stage: v === 'in' && f.stage === 'requested' ? 'quoted' : f.stage,
+                  }))
+                }
+              >
                 <SelectTrigger id="fr-direction"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="in">Money in</SelectItem>
@@ -162,7 +172,7 @@ export default function FinancialRowDialog({ open, onOpenChange, row, defaults, 
               <Select value={form.stage} onValueChange={(v) => set('stage', v as FinStage)}>
                 <SelectTrigger id="fr-stage"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  {ALL_STAGES.map((s) => (
+                  {stagesFor(form.direction).map((s) => (
                     <SelectItem key={s} value={s}>{stagePickerLabel(form.direction, s)}</SelectItem>
                   ))}
                 </SelectContent>

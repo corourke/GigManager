@@ -42,7 +42,7 @@ import { queryKeys } from '../../lib/queryKeys';
 import { useNavigation } from '../../contexts/NavigationContext';
 import type { DbGigFinancial, UserRole } from '../../utils/supabase/types';
 import {
-  ALL_STAGES,
+  stagesFor,
   isDue,
   moneyInBadge,
   nextStage,
@@ -232,7 +232,7 @@ export default function GigFinancialsSection({
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuLabel className="text-xs text-muted-foreground">Set stage</DropdownMenuLabel>
-        {ALL_STAGES.filter((s) => s !== row.stage).map((s) => (
+        {stagesFor(row.direction).filter((s) => s !== row.stage).map((s) => (
           <DropdownMenuItem key={s} onSelect={() => setStage(row, s)}>
             {stagePickerLabel(row.direction, s)}
           </DropdownMenuItem>
@@ -336,7 +336,7 @@ export default function GigFinancialsSection({
                 >
                   <div className="flex flex-wrap justify-between gap-3">
                     <div className="min-w-0">
-                      <div className="font-semibold">{row.description || 'Fee'}</div>
+                      <div className="font-semibold">{row.description || 'Income'}</div>
                       <div className="text-sm text-gray-500">
                         {[name, formatLong(row.date)].filter(Boolean).join(' · ')}
                       </div>
@@ -459,7 +459,7 @@ export default function GigFinancialsSection({
                   </TableBody>
                   <TableFooter>
                     <TableRow>
-                      <TableCell colSpan={3} className="font-semibold">Total money out (paid and committed)</TableCell>
+                      <TableCell colSpan={3} className="font-semibold">Total expense (paid and committed)</TableCell>
                       <TableCell className="text-right font-bold">
                         {formatMoney((summaryQuery.data?.expectedOut ?? 0))}
                       </TableCell>
