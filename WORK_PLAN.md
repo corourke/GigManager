@@ -11,7 +11,7 @@ Cameron questions.
 Migrated from GitHub issue [#41](https://github.com/corourke/GigManager/issues/41) on 2026-09-22. This file now
 supersedes that issue as the board of record.
 
-- **Last updated:** 2026-10-04 (coordinator: prod read access works via `SUPABASE_ACCESS_TOKEN`; read all 144 `gig_financials` rows; type-simplification proposal sent to Cameron)
+- **Last updated:** 2026-10-05 (coordinator: #125 step 0 done — purchases/assets/expenses write-up in PR #127; prerequisite bugs filed as #128–#131; #125 re-planned)
 - **State verified:** 2026-10-05 09:15 UTC by triage (4 open issues: #20, #39, #92, #125; open PRs: #124 (coordinator, CI green, mergeable at `968bbc9`) and #126 (triage docs pass))
 
 ---
@@ -22,7 +22,11 @@ supersedes that issue as the board of record.
 |---|---|---|---|---|
 | [#39](https://github.com/corourke/GigManager/issues/39) | Too many menu levels | UI/UX design | Direction set 09-26: keep the top nav (no sidebar) | Cameron (§3a item 3); #12's redesign is done |
 | [#92](https://github.com/corourke/GigManager/issues/92) | Replace-all autosave can delete rows another user or tab added | Bug | From the 09-29 code review, confirmed by reading the code | Coordinator — not started |
-| [#125](https://github.com/corourke/GigManager/issues/125) | Financials → Reporting: expense-by-category and asset (depreciation vs Section 179) reports — data gaps | Feature / data | Filed 10-05 by the coordinator | Cameron (§3a) |
+| [#128](https://github.com/corourke/GigManager/issues/128) | Editing a cost-only purchase sets its line costs to $0 (249 purchases exposed, 1 damaged) | Bug — **urgent** | Filed 10-05 by the coordinator; fix proposed in the issue | Cameron: approve fix; IDJ Now invoice for the repair |
+| [#129](https://github.com/corourke/GigManager/issues/129) | Expense → asset deletes the wrong ledger rows; no asset → expense | Bug / feature | Filed 10-05; fix proposed (needs a migration) | Cameron: approve fix |
+| [#130](https://github.com/corourke/GigManager/issues/130) | Scan on a gig page books the whole invoice (assets included) as one gig expense | Bug | Filed 10-05; fix proposed | Cameron: approve fix |
+| [#131](https://github.com/corourke/GigManager/issues/131) | Purchases: smaller data issues (line dates, ledger edits, dropped fields, stale import script) | Bug (checklist) | Filed 10-05 | Cameron: approve; line dates first (blocks #125) |
+| [#125](https://github.com/corourke/GigManager/issues/125) | Financials → Reporting: tax-program data export (expenses by category, assets by recovery period, disposals) | Feature / data | Plan agreed 10-05; step 0 done (PR #127); blocked on #128–#131 | Cameron: category table, 6 questions, F1–F7 approvals |
 | [#20](https://github.com/corourke/GigManager/issues/20) | Shared data-access layer under `src/services/` | Refactor | Pilot merged (PR #66); `attachment.service.ts` merged 09-30 (PR [#106](https://github.com/corourke/GigManager/pull/106)); 14 services remain | Nothing — next service when released |
 
 ---
@@ -81,7 +85,8 @@ for more triage work, so the coordinator released `attachment.service.ts` as the
 order that unblocks the most work; the coordinator puts these to Cameron one at a time.
 
 1. **Gig financials redesign: done.** #123 and #124 merged; migration `20261005000000` is in prod (verified read-only 10-05: 125 rows converted, 80 in / 45 out).
-1. **Financials → Reporting ([#125](https://github.com/corourke/GigManager/issues/125)), 10-05:** plan agreed and written into the issue (tax-program data export; no tax calculation). Step 0 in progress: a write-up of how purchases, assets and expenses work today, after which the plan is re-checked. **Waiting on Cameron:** the expense-category table and 5 open questions in #125; each prod data fix F1–F7 needs his approval.
+1. **Financials → Reporting ([#125](https://github.com/corourke/GigManager/issues/125)), 10-05:** plan agreed and kept in the issue (tax-program data export; no tax calculation). Step 0 done: `docs/technical/purchases-assets-expenses.md` (docs PR [#127](https://github.com/corourke/GigManager/pull/127), to merge). It found bugs that must be fixed before the reports can be trusted, now filed as **#128 (urgent: $0 costs on edit), #129, #130, #131**; the revised order of work and the report counting rule are in #125. **Waiting on Cameron:** approve the fixes for #128–#131 (each built test-first); the expense-category table and 6 open questions in #125 (including the IDJ Now invoice); each prod data fix F1–F7 needs his approval.
+   - Meanwhile, avoid editing CSV-imported purchases in the app until #128 is fixed: saving zeroes their costs.
 2. **Deploy migration `20260929000000_tighten_membership_and_rpc_authorization.sql`** ([#95](https://github.com/corourke/GigManager/pull/95), merged 09-29): `./deploy_dev.sh`, then `./deploy_prod.sh`. That applies the migration and redeploys the `server` edge function, which also ships #90's and #91's fixes (PRs #96, #97). If you deployed before 04:19 UTC on 09-30, run it once more for those two. Then, as an Admin: add and remove a contact on your own org, add a contact to a venue you created, and invite a Staff member. Urgent.
 3. **[#39](https://github.com/corourke/GigManager/issues/39)**: "keep top nav" (09-26) rules out the sidebar (Option B). It follows #12's redesign, since the gig screen is the deepest page and the two need one consistent header.
 4. **Deploy Purchases to prod** ([#116](https://github.com/corourke/GigManager/pull/116) merged 10-03; tested on dev by Cameron): `./deploy_prod.sh` applies migration `20261002000000_purchase_scan_queue.sql` and deploys `ai-scan` (scan queue + Sonnet 5.5, #113) and the frontend (#114–#116). Purchases saved during the dev test with OK on the old "Discard?" prompt lost their invoice file; re-attach with Attach Doc if needed.
