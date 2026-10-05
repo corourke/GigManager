@@ -146,9 +146,9 @@ There is no Schedule C line number anywhere and no link from a category to a rec
 
 ## 9. Known problems (as of 2026-10-05)
 
-Ordered by risk. Production counts are from read-only queries. Items 5–8 are tracked in [#131](https://github.com/corourke/GigManager/issues/131); 9–10 in [#125](https://github.com/corourke/GigManager/issues/125).
+Ordered by risk. Production counts are from read-only queries. Items 5–8 are tracked in [#131](https://github.com/corourke/GigManager/issues/131); 9–11 in [#125](https://github.com/corourke/GigManager/issues/125).
 
-1. **Editing a cost-only purchase zeroes its costs** ([#128](https://github.com/corourke/GigManager/issues/128)). The review dialog recomputes every line's cost from the printed price when it opens. CSV-imported lines have no printed price, so the cost becomes $0, and saving writes it (and proposes $0 to linked assets). **401 of 461 lines (249 purchases) in production are cost-only.** One invoice already shows the damage: IDJ Now, 2025-02-23, $47.53 total, three lines at $0, edited after import.
+1. **Editing a cost-only purchase zeroes its costs** ([#128](https://github.com/corourke/GigManager/issues/128)). The review dialog recomputes every line's cost from the printed price when it opens. CSV-imported lines have no printed price, so the cost becomes $0, and saving writes it (and proposes $0 to linked assets). **401 of 461 lines (249 purchases) in production are cost-only.** No production data has been damaged yet: the only $0 lines are deliberate (IDJ Now 2025-02-23, where a store credit was put entirely on the T-bar, and a Mac Mini bought with airline points).
 2. **Reclassify deletes the wrong ledger rows** ([#129](https://github.com/corourke/GigManager/issues/129)). It deletes by the header's id, so a per-line ledger row survives (the line is then both an asset and a gig expense), while a scan-from-gig whole-invoice row is deleted along with the expense lines' share. Production: 6 per-line and 4 header-level purchase ledger rows exist.
 3. **Scanning on a gig page books the whole invoice as a gig expense** ([#130](https://github.com/corourke/GigManager/issues/130)), asset lines included, and later per-line links on the same invoice can count the expense lines a second time.
 4. **No way back from asset to expense** ([#129](https://github.com/corourke/GigManager/issues/129)); deleting the asset leaves an asset line with no asset.
@@ -156,8 +156,9 @@ Ordered by risk. Production counts are from read-only queries. Items 5–8 are t
 6. **Ledger edits from the purchase dialog** update the row's amount but not the paid amount, and use the printed price instead of `line_cost`.
 7. **Assets created on the Assets screen or by the Python script have no purchase**, and duplicating an asset copies the original's purchase link.
 8. **Review dialog drops fields at save**: the asset "Type" and the AI's manufacturer/model.
-9. **Mileage rates** wrong for 2025 and 2026 (§8).
-10. **Free-text categories and status** (§7, §2).
+9. **Lines that don't add up to the invoice total.** Five Amazon purchases from 2025 (06-07, 06-15, 08-11, 08-13, 09-20) have line costs summing to more or less than the header total, most likely several orders filed under one header. They need checking against the invoices before the reports use them.
+10. **Mileage rates** wrong for 2025 and 2026 (§8).
+11. **Free-text categories and status** (§7, §2).
 
 ---
 
