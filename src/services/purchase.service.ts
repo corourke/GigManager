@@ -435,6 +435,22 @@ export async function createPurchaseTransaction(
 }
 
 /**
+ * Track a purchase line as equipment (#133): creates its `assets` record from the
+ * line and links it, without changing the line's tax treatment. Works for lines in
+ * a filed (locked) year, since only `asset_id` changes. Returns the new asset id.
+ */
+export async function trackPurchaseLineAsEquipment(lineId: string): Promise<string> {
+  try {
+    const { supabase } = await requireAuth();
+    const { data, error } = await supabase.rpc('track_purchase_line_as_equipment', { p_line_id: lineId });
+    if (error) throw error;
+    return data as string;
+  } catch (err) {
+    return handleApiError(err, 'track purchase line as equipment');
+  }
+}
+
+/**
  * Reclassify a purchase expense item as a capital asset
  */
 export async function reclassifyExpenseAsAsset(purchaseItemId: string): Promise<{ asset_id: string }> {
