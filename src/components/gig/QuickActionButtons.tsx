@@ -417,7 +417,7 @@ export default function QuickActionButtons({
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
             <DialogTitle>Payment received</DialogTitle>
-            <DialogDescription>Money that has already arrived. To pay off a fee above, use its Record payment button instead.</DialogDescription>
+            <DialogDescription>Money that has already arrived. To pay off a booking, use its Record Payment button instead.</DialogDescription>
           </DialogHeader>
           <form onSubmit={paymentForm.handleSubmit(onPaymentSubmit)} className="space-y-4 py-4">
             <div className="grid grid-cols-2 gap-4">
