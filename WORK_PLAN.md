@@ -11,7 +11,7 @@ Cameron questions.
 Migrated from GitHub issue [#41](https://github.com/corourke/GigManager/issues/41) on 2026-09-22. This file now
 supersedes that issue as the board of record.
 
-- **Last updated:** 2026-10-05 (coordinator: PR #132 merged, #128 closed; fix awaits deploy. 2025 return reconciliation worksheet sent to Cameron; equipment-vs-tax-treatment split proposed)
+- **Last updated:** 2026-10-05 (coordinator: user guide added to triage's scope; full user-guide audit released in §3c)
 - **State verified:** 2026-10-05 09:15 UTC by triage (4 open issues: #20, #39, #92, #125; open PRs: #124 (coordinator, CI green, mergeable at `968bbc9`) and #126 (triage docs pass))
 
 ---
@@ -107,6 +107,8 @@ meantime. The coordinator resolves each entry (decides it, or moves it into §3a
 *Curated by the coordinator session only.* An item here without a **BLOCKED** marker counts as approved in shape
 under AGENTS.md rule 1: the routine posts its plan on the issue and proceeds. Anything not listed here still
 needs approval before code changes.
+
+**User-guide audit, full pass (released 10-05, Cameron's request).** The user guide in `website/docs/` must be kept as current as `docs/`. Audit every page in §5's user-docs table, published pages first (they are live on docs.gigwrangler.com): check each statement against the current app code, fix what is wrong, and fill draft stubs where the feature is built. Known stale: `financials/overview.md` predates the 10-05 money-in/money-out redesign (#123, #124) and the Gig Accounting report. Deliver it as docs-only PRs, one per section (getting-started, gigs, financials…), each passing `cd website/docs && npm ci && npm run build`. Follow the user-guide rules in §5. This takes priority over the `docs/` pass until every page has a "Last verified" date.
 
 Released to the triage routine 10-03 (the 09-30 batch, #102, #103, #32 and #20's `attachment.service.ts`, all
 shipped; see §4). Each is its own PR, with a failing test first. Open the PR and don't merge it; the coordinator
@@ -230,6 +232,60 @@ out to be a dated 02-09 changelog entry, not stale. `docs/technical/database.md`
 migration through `20260919000000` — dropped status-history tables, `kit_components` rename, six new tables, new columns).
 `docs/technical/server-endpoint-inventory.md` (09-29, PR #88, merged 09-30: re-pointed at `routes/`, every row checked against the
 middleware; `DELETE /gigs/:id` is Admin-only; access-request and notification routes added). `docs/technical/security-scheme.md` (09-29: checked against every policy, the RLS tests and the three edge functions; the update is **held** until the §3b security entry is resolved, then document helpers, gig UPDATE/DELETE and participant write rules, the full CORS list, `requireOrgRole` options and the `health-check` gate). `docs/technical/deployment.md` (10-01, PR #110, merged 10-01: checked against both deploy scripts, `ci.yml`, `vite.config.ts`, `config.toml` and every env read; added the `rls` CI job and the health-check step to the rebuild. Scripts only `bash -n`-checked. `deploy_prod.sh` has no `--help` and starts its gates on any run, so don't run it). `docs/technical/tech-stack.md` (10-02, PR #118, merged 10-03: checked against `package.json`, `supabase/functions/`, migrations and `ci.yml`; added `health-check` and `notifications.ts`, corrected storage to the one `attachments` bucket). `docs/development/coding-guide.md` (10-03, PR #119, merged 10-03: schema section aligned with AGENTS.md rule 4 (it said to hand DDL to the SQL Editor), the `dataAccess.ts` base added, `build` added to the gates, lint debt recounted, the done `App.tsx` split retired). `docs/technical/SmartDataTable.md` (10-05, PR #126, merged 10-05: checked against `SmartDataTable.tsx`, `EditableCell.tsx` and `useTableState.ts`. Tab visits every column, there are no arrow keys, edits aren't optimistic, and widths persist. The missing props and column options were added.) Next candidate: `docs/technical/conflict-detection.md` (PR #124, which changed `conflictDetection.service.ts`, has merged).
+
+**User guide (`website/docs/`), rules for triage.** These extend the routine's prompt and win where it says only `docs/`.
+- Any PR that changes something a user can see or do also updates the matching page under `website/docs/src/content/docs/`, in the same PR.
+- Check every statement against the current app code, not older docs. Use the exact on-screen labels, and call the product "GigWrangler". Outline and priorities: `docs/development/user-documentation-plan.md`; editing rules: `website/docs/README.md`.
+- PRs touching `website/docs/` must pass `cd website/docs && npm ci && npm run build`.
+- **Publishing is not triage's call.** Fill in and correct drafts but keep `draft: true`; when one is complete and verified, set its row below to "ready to publish". The coordinator publishes with Cameron. On an already-published page, fix errors directly; if one can't be fixed in a single PR, add a `:::caution` note saying what is out of date and record it below.
+- On a quiet run, alternate the docs pass: one run on the user guide (next row below that isn't verified, published first), the next on `docs/`.
+
+**User-docs table** (one row per page; triage keeps it current):
+
+| Page (`website/docs/src/content/docs/`) | Status | Last verified | Still wrong |
+|---|---|---|---|
+| `calendar/google-calendar.md` | published | — | not audited |
+| `equipment/overview.md` | published | — | not audited |
+| `financials/overview.md` | published | — | not audited |
+| `getting-started/onboarding.md` | published | — | not audited |
+| `getting-started/organizations.md` | published | — | not audited |
+| `getting-started/the-dashboard.md` | published | — | not audited |
+| `getting-started/what-is-gigwrangler.md` | published | — | not audited |
+| `gigs/change-history.md` | published | — | not audited |
+| `gigs/creating-a-gig.md` | published | — | not audited |
+| `gigs/overview.md` | published | — | not audited |
+| `import/overview.md` | published | — | not audited |
+| `index.mdx` | published | — | not audited |
+| `organizations/overview.md` | published | — | not audited |
+| `reference/roles-and-access.md` | published | — | not audited |
+| `calendar/conflict-detection.md` | draft | — | not audited |
+| `calendar/overview.md` | draft | — | not audited |
+| `equipment/assets.md` | draft | — | not audited |
+| `equipment/assigning-to-a-gig.md` | draft | — | not audited |
+| `equipment/barcode-scanning.md` | draft | — | not audited |
+| `equipment/inventory-reports.md` | draft | — | not audited |
+| `equipment/kits.md` | draft | — | not audited |
+| `equipment/location-explorer.md` | draft | — | not audited |
+| `financials/cost-allocation.md` | draft | — | not audited |
+| `financials/gig-expenses.md` | draft | — | not audited |
+| `financials/purchases.md` | draft | — | not audited |
+| `gigs/documents-and-notes.md` | draft | — | not audited |
+| `gigs/participating-organizations.md` | draft | — | not audited |
+| `gigs/schedule.md` | draft | — | not audited |
+| `gigs/staffing-and-participants.md` | draft | — | not audited |
+| `gigs/the-gig-list.md` | draft | — | not audited |
+| `import/ai-receipt-scanning.md` | draft | — | not audited |
+| `import/csv-asset-import.md` | draft | — | not audited |
+| `mobile/biometric-unlock.md` | draft | — | not audited |
+| `mobile/field-inventory.md` | draft | — | not audited |
+| `mobile/offline-access.md` | draft | — | not audited |
+| `mobile/overview.md` | draft | — | not audited |
+| `organizations/invitations.md` | draft | — | not audited |
+| `organizations/member-profiles.md` | draft | — | not audited |
+| `organizations/people-without-logins.md` | draft | — | not audited |
+| `organizations/team-and-roles.md` | draft | — | not audited |
+| `reference/access-requests-and-moderation.md` | draft | — | not audited |
+| `reference/glossary.md` | draft | — | not audited |
 
 **Future considerations (not open work).** Left over from #61 (closed 09-25): gig attachments are invisible
 to the other orgs on a gig (needs a sharing flag plus a storage-policy change), and prod has an extra
