@@ -179,7 +179,9 @@ function StarterCategoriesRoute() {
   const { openEditProfile } = useAppShell();
   if (!user) return <LoadingSpinner />;
   if (!user.platform_moderator) return <Navigate to="/org-selection" replace />;
-  return <StarterCategoriesScreen user={user} onLogout={nav.logoutAndHome} onEditProfile={openEditProfile} />;
+  // Opened from the header menu on any page: Back returns there.
+  const goBack = () => (window.history.length > 1 ? nav.navigate(-1) : nav.navigate('/'));
+  return <StarterCategoriesScreen user={user} onBack={goBack} onLogout={nav.logoutAndHome} onEditProfile={openEditProfile} />;
 }
 
 function EditOrgRoute() {
