@@ -86,4 +86,13 @@ describe('EquipmentDetailsDialog', () => {
     open({ categoryLocked: true });
     expect(screen.getByRole('combobox', { name: 'Category' })).toBeDisabled();
   });
+
+  // 10-06 on dev: a long item name widened the dialog's grid track, pushing the
+  // fields and the Cancel/Done buttons past the dialog's right edge.
+  it('a long item name truncates instead of widening the pop-up', () => {
+    open({ itemName: 'U-Haul truck rental, in-town return, 10/3/2026 9:25 AM to 10/4/2026 7:44 AM, 16.4 miles at $1.39/mi' });
+    const dialog = screen.getByRole('dialog');
+    expect(dialog.className).toContain('grid-cols-[minmax(0,1fr)]');
+    expect(screen.getByText(/U-Haul truck rental/).className).toContain('truncate');
+  });
 });
