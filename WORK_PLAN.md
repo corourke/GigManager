@@ -11,7 +11,7 @@ Cameron questions.
 Migrated from GitHub issue [#41](https://github.com/corourke/GigManager/issues/41) on 2026-09-22. This file now
 supersedes that issue as the board of record.
 
-- **Last updated:** 2026-10-06 (coordinator: migrations 20261007000000–20261010000000 live on dev and prod, verified read-only; PR #142 open — Back button on Starter categories)
+- **Last updated:** 2026-10-06 (coordinator: PR #142 merged — Settings tabs (Google Calendar / Categories), consistent page layout, Back on Starter categories; next: equipment details pop-up + drop sub_category)
 - **State verified:** 2026-10-06 09:15 UTC by triage (10 open issues: #20, #39, #92, #125, #129, #130, #131, #133, #134, #135; open PRs: #138 (coordinator, CI green, mergeable at `c3d9b4e`) and #139 (triage user-guide pass, getting-started))
 
 ---
