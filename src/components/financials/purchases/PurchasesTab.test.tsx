@@ -10,12 +10,14 @@ const rows = [
   { id: 'h1', row_type: 'header', vendor: 'Sweetwater', purchase_date: recent, total_inv_amount: 120 },
   { id: 'i1', row_type: 'item', parent_id: 'h1', vendor: 'Sweetwater', purchase_date: recent, line_cost: 120, description: 'Cables' },
   { id: 'h2', row_type: 'header', vendor: 'Guitar Center', purchase_date: old, total_inv_amount: 900 },
-  { id: 'i2', row_type: 'item', parent_id: 'h2', vendor: 'Guitar Center', purchase_date: old, line_cost: 900, asset_id: 'a1', description: 'Mixer' },
+  { id: 'i2', row_type: 'asset', tax_treatment: 'depreciate', parent_id: 'h2', vendor: 'Guitar Center', purchase_date: old, line_cost: 900, asset_id: 'a1', description: 'Mixer' },
+  { id: 'h3', row_type: 'header', vendor: 'Amazon', purchase_date: old, total_inv_amount: 0 },
+  { id: 'i3', row_type: 'asset', tax_treatment: 'expense', parent_id: 'h3', vendor: 'Amazon', purchase_date: old, line_cost: 0, asset_id: 'a3', description: 'Mic stand' },
 ];
 
 vi.mock('../../../services/purchase.service', () => ({
   getPurchases: vi.fn(async () => rows),
-  reclassifyExpenseAsAsset: vi.fn(),
+  trackPurchaseLineAsEquipment: vi.fn(async () => 'a-new'),
   scanInvoice: vi.fn(),
   deletePurchase: vi.fn(),
   updatePurchase: vi.fn(),
@@ -57,7 +59,7 @@ describe('Purchases report (10-01)', () => {
     expect(within(totals()).getByText('$120.00')).toBeInTheDocument();
     const allTime = screen.getByTestId('purchase-totals-all-time');
     expect(within(allTime).getByText('$1,020.00')).toBeInTheDocument();
-    expect(within(allTime).getByText('1 asset · 1 expense')).toBeInTheDocument();
+    expect(within(allTime).getByText('1 depreciated · 2 expensed')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /clear all filters/i })).not.toBeInTheDocument();
   });
 
@@ -96,5 +98,53 @@ describe('Purchases report (10-01)', () => {
     await waitFor(() => expect(screen.getByText('No purchases found')).toBeInTheDocument());
     fireEvent.click(screen.getByRole('button', { name: 'Show all time' }));
     expect(screen.getByText('Guitar Center')).toBeInTheDocument();
+  });
+});
+
+// #133: tax treatment and equipment are separate on each line.
+describe('Purchases report: tax treatment and equipment (#133)', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  const open = async (description: string) => {
+    render(<PurchasesTab {...props} />);
+    await waitFor(() => expect(screen.getByText('Sweetwater')).toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button', { name: 'All time' }));
+    fireEvent.click(screen.getByText(description));
+    return screen.getByText(description).closest('tr')!;
+  };
+
+  it('shows each line\'s tax treatment, and marks equipment separately', async () => {
+    const row = await open('Mic stand');
+    expect(within(row).getByText('Expense')).toBeInTheDocument();
+    expect(within(row).getByText('Equipment')).toBeInTheDocument();
+    const mixer = screen.getByText('Mixer').closest('tr')!;
+    expect(within(mixer).getByText('Depreciate')).toBeInTheDocument();
+  });
+
+  it('offers Track as equipment, not Reclassify as Asset, on an untracked expense line', async () => {
+    const svc = await import('../../../services/purchase.service');
+    await open('Cables');
+    expect(screen.queryByRole('button', { name: /Reclassify as Asset/ })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Track as equipment' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Track it' }));
+    await waitFor(() => expect(svc.trackPurchaseLineAsEquipment).toHaveBeenCalledWith('i1'));
+  });
+
+  it('a depreciated line can\'t be assigned to a gig', async () => {
+    await open('Mixer');
+    expect(screen.queryByText('Assign Gig:')).not.toBeInTheDocument();
+    expect(screen.getByText(/Depreciated items aren't gig expenses/)).toBeInTheDocument();
+  });
+
+  it('an expensed line can be assigned to a gig even when it is equipment', async () => {
+    await open('Mic stand');
+    expect(screen.getByText('Assign Gig:')).toBeInTheDocument();
+  });
+
+  it('filters by tax treatment and by equipment', async () => {
+    render(<PurchasesTab {...props} />);
+    await waitFor(() => expect(screen.getByText('Sweetwater')).toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button', { name: 'All time' }));
+    expect(screen.getByRole('combobox', { name: 'Type' })).toBeInTheDocument();
   });
 });

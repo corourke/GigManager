@@ -1,34 +1,31 @@
 ---
 title: Tax treatment and equipment
 description: Expense or depreciate, tracking gear as equipment, and filed years.
-draft: true
 sidebar:
   order: 7
 ---
 
-:::caution[Draft]
-This page describes the release in progress (#133). Publish it with the change to the purchase screens.
-:::
-
 Every item you buy raises two separate questions. GigWrangler now asks them separately.
+
+Both questions appear on every line of the purchase screen, whether you scan an invoice, add one by hand, or edit one.
 
 ## 1. Track as equipment?
 
-Tick **Track as equipment** for gear you'll look after: cables, stands, fixtures, cases. It gets an equipment record, so you can tag it and put it in kits.
+Tick the checkbox at the start of the line (column **Equip**) for gear you'll look after: cables, stands, fixtures, cases. It gets an equipment record, so you can tag it and put it in kits.
 
 Leave it off for things you use up, like tape, batteries and software.
 
 ## 2. Expense or depreciate?
 
-For tax purposes, each item is either an **expense** (deducted in the year you buy it) or a **depreciable asset** (deducted over several years). The **(?)** next to the choice explains it:
+For tax purposes, each item is either an **expense** (deducted in the year you buy it) or a **depreciable asset** (deducted over several years). Choose **Expense** or **Depreciate** under the line. The **(?)** next to the choice explains it:
 
 > Per-item cost of less than $200 should automatically be expensed. Any item over $2500 should be depreciated. From $200 to $2500 is a grey zone.
 
 - **Under $200 per item:** set to **Expense** for you.
 - **Over $2,500:** set to **Depreciate**.
-- **In between:** you choose.
+- **In between:** you choose. Until you do, the choice is outlined in amber and **Save Purchase** waits, with a note saying how many items still need a choice.
 
-You can change it until you file that year's taxes. Whether you elect the de minimis safe harbor is decided when you file, so GigWrangler never forces it.
+You can change it until you file that year's taxes: **Edit** the purchase in **Financials → Purchases**. Whether you elect the de minimis safe harbor is decided when you file, so GigWrangler never forces it.
 
 Per-item cost is the item's cost after tax and shipping (see [Cost allocation](/financials/cost-allocation/)).
 
@@ -38,17 +35,23 @@ Per-item cost is the item's cost after tax and shipping (see [Cost allocation](/
 |---|---|---|
 | Track as equipment | Optional | Always |
 | Count it as a cost of a gig | Optional | Never |
-| Recovery period (5, 7 or 15 years) | — | Yes |
+| Recovery period (5, 7 or 15 years) | — | Yes (you'll set it with the tax reports, coming soon) |
 
 A cable bought for one show can be that gig's cost **and** go in a kit. Depreciated gear belongs to the business, not to one gig.
+
+- Choosing **Depreciate** ticks **Track as equipment** for you, and it stays ticked.
+- A line that's already a gig's cost can't be switched to **Depreciate**. Remove it from the gig first.
+- To start tracking something you bought earlier, open its line in **Financials → Purchases** and click **Track as equipment**.
 
 Your gig costs and your tax figures never double-count. A purchase linked to a gig shows in the gig's money out so you can see the gig's profit, but for tax it's counted once, from the purchase.
 
 ## Filed years are locked
 
-Once you've filed a year's taxes, an Admin locks that year.
+Once you've filed a year's taxes, an Admin locks that year under **Financials → Reporting → Filed tax years**: enter the year and the date you filed, then click **Lock year**.
 
 - **Locked:** you can't change that year's purchases' costs, dates, categories or tax treatment, or add or delete purchases dated in it.
 - **Still allowed:** tracking an item as equipment, putting it in kits, and editing descriptions.
 
-If you need to amend a return, an Admin can unlock the year.
+Editing a purchase from a locked year shows a note saying so, and only its descriptions can change.
+
+If you need to amend a return, an Admin can **Unlock** the year. Managers can see which years are locked.

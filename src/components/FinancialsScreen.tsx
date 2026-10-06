@@ -5,6 +5,7 @@ import { PageHeader } from './ui/PageHeader';
 import { Button } from './ui/button';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from './ui/tabs';
 import AppHeader from './AppHeader';
+import TaxYearsCard from './financials/TaxYearsCard';
 import GigAccountingTab from './financials/GigAccountingTab';
 import PurchasesSection from './financials/purchases/PurchasesSection';
 import { Organization, User, UserRole } from '../utils/supabase/types';
@@ -120,7 +121,8 @@ export default function FinancialsScreen({
             />
           </TabsContent>
 
-          <TabsContent value="reporting">
+          <TabsContent value="reporting" className="space-y-4">
+            <TaxYearsCard organizationId={organization.id} userRole={userRole} />
             <Card className="p-12 text-center text-gray-500">
               <TrendingUp className="w-12 h-12 mx-auto text-gray-300 mb-4" />
               <p className="text-lg font-medium">Reporting Dashboard Coming Soon</p>

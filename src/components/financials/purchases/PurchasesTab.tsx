@@ -52,9 +52,10 @@ import {
   AlertDialogTrigger,
 } from '../../ui/alert-dialog';
 import { Organization, User, UserRole, DbPurchase } from '../../../utils/supabase/types';
+import { lineTaxTreatment } from '../../../utils/taxTreatment';
 import {
   getPurchases,
-  reclassifyExpenseAsAsset,
+  trackPurchaseLineAsEquipment,
   deletePurchase,
   updatePurchase,
   reconcileLedgerForLineGigChange,
@@ -81,7 +82,6 @@ import {
   type PurchaseTypeFilter,
 } from './purchaseFilters';
 
-const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
 const money = (n: number) => `$${n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 interface PurchasesTabProps {
@@ -116,7 +116,7 @@ export default function PurchasesTab({
   const [purchases, setPurchases] = useState<DbPurchase[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [expandedItemId, setExpandedItemId] = useState<string | null>(null);
-  const [reclassifyingItemId, setReclassifyingItemId] = useState<string | null>(null);
+  const [trackingItemId, setTrackingItemId] = useState<string | null>(null);
   const [assigningGigItemId, setAssigningGigItemId] = useState<string | null>(null);
   const [ledgerPrompt, setLedgerPrompt] = useState<{ item: DbPurchase; gigId: string; gigTitle?: string } | null>(null);
   const [creatingLedger, setCreatingLedger] = useState(false);
@@ -193,7 +193,7 @@ export default function PurchasesTab({
       setPurchases(data);
 
       const gigLinkedItemIds = data
-        .filter((p: DbPurchase) => p.row_type === 'item' && p.gig_id)
+        .filter((p: DbPurchase) => lineTaxTreatment(p) === 'expense' && p.gig_id)
         .map((p: DbPurchase) => p.id);
       setLinesWithLedger(await getPurchaseIdsWithLedgerEntry(gigLinkedItemIds));
 
@@ -255,17 +255,17 @@ export default function PurchasesTab({
     }
   };
 
-  const handleReclassifyAsAsset = async (itemId: string) => {
-    setReclassifyingItemId(itemId);
+  // Start tracking a line as equipment (#133). Its tax treatment doesn't change.
+  const handleTrackAsEquipment = async (itemId: string) => {
+    setTrackingItemId(itemId);
     try {
-      await reclassifyExpenseAsAsset(itemId);
-      toast.success('Item reclassified as asset');
-      await loadPurchases();
-      setExpandedItemId(null);
+      await trackPurchaseLineAsEquipment(itemId);
+      toast.success('Now tracked as equipment');
+      loadPurchases();
     } catch (err: any) {
-      toast.error(err.message || 'Failed to reclassify item');
+      toast.error(err.message || 'Failed to track the item as equipment');
     } finally {
-      setReclassifyingItemId(null);
+      setTrackingItemId(null);
     }
   };
 
@@ -367,7 +367,7 @@ export default function PurchasesTab({
     const { itemIds, gigId } = headerLedgerPrompt;
     setCreatingLedger(true);
     try {
-      const items = purchases.filter((p) => itemIds.includes(p.id) && p.row_type === 'item');
+      const items = purchases.filter((p) => itemIds.includes(p.id) && lineTaxTreatment(p) === 'expense');
       let created = 0;
       for (const it of items) {
         const res = await createLedgerEntryForPurchaseLine(it, gigId, organization.id);
@@ -596,13 +596,14 @@ export default function PurchasesTab({
             <div className="w-40">
               <Label className="text-xs">Type</Label>
               <Select value={typeFilter} onValueChange={(v: any) => setTypeFilter(v)}>
-                <SelectTrigger className="h-9 text-sm">
+                <SelectTrigger className="h-9 text-sm" aria-label="Type">
                   <SelectValue placeholder="All Types" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Types</SelectItem>
-                  <SelectItem value="asset">Assets</SelectItem>
-                  <SelectItem value="expense">Expenses</SelectItem>
+                  <SelectItem value="expense">Expensed</SelectItem>
+                  <SelectItem value="depreciate">Depreciated</SelectItem>
+                  <SelectItem value="equipment">Equipment</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -681,19 +682,19 @@ export default function PurchasesTab({
               </div>
               <div className="w-px bg-gray-200" />
               <div className="text-center">
-                <p className="text-[10px] uppercase text-gray-500 font-semibold">Assets</p>
-                <p className="text-lg font-bold text-blue-600">{totals.assetCount}</p>
+                <p className="text-[10px] uppercase text-gray-500 font-semibold">Depreciated</p>
+                <p className="text-lg font-bold text-blue-600">{totals.depreciatedCount}</p>
               </div>
               <div className="w-px bg-gray-200" />
               <div className="text-center">
-                <p className="text-[10px] uppercase text-gray-500 font-semibold">Expenses</p>
-                <p className="text-lg font-bold text-orange-600">{totals.expenseCount}</p>
+                <p className="text-[10px] uppercase text-gray-500 font-semibold">Expensed</p>
+                <p className="text-lg font-bold text-orange-600">{totals.expensedCount}</p>
               </div>
               <div className="w-px bg-gray-200" />
               <div className="text-center" data-testid="purchase-totals-all-time">
                 <p className="text-[10px] uppercase text-gray-500 font-semibold">All time</p>
                 <p className="text-lg font-bold text-gray-500">{money(allTimeTotals.totalCost)}</p>
-                <p className="text-[10px] text-gray-500">{plural(allTimeTotals.assetCount, 'asset')} · {plural(allTimeTotals.expenseCount, 'expense')}</p>
+                <p className="text-[10px] text-gray-500">{allTimeTotals.depreciatedCount} depreciated · {allTimeTotals.expensedCount} expensed</p>
               </div>
             </div>
           </div>
@@ -886,11 +887,18 @@ export default function PurchasesTab({
                         onClick={() => setExpandedItemId(expandedItemId === item.id ? null : item.id)}
                       >
                         <TableCell className="py-1 px-4">
-                          {(item.asset_id || item.row_type === 'asset') ? (
-                            <Badge className="bg-blue-100 text-blue-700 hover:bg-blue-100 border-none text-[10px] h-5 px-1.5 uppercase font-bold">Asset</Badge>
-                          ) : (
-                            <Badge className="bg-orange-100 text-orange-700 hover:bg-orange-100 border-none text-[10px] h-5 px-1.5 uppercase font-bold">Expense</Badge>
-                          )}
+                          <div className="flex items-center gap-1">
+                            {lineTaxTreatment(item) === 'depreciate' ? (
+                              <Badge className="bg-blue-100 text-blue-700 hover:bg-blue-100 border-none text-[10px] h-5 px-1.5 uppercase font-bold">Depreciate</Badge>
+                            ) : (
+                              <Badge className="bg-orange-100 text-orange-700 hover:bg-orange-100 border-none text-[10px] h-5 px-1.5 uppercase font-bold">Expense</Badge>
+                            )}
+                            {item.asset_id && (
+                              <Badge variant="outline" className="text-[10px] h-5 px-1.5 font-semibold text-gray-600 border-gray-300" title="Tracked as equipment">
+                                <Package className="w-3 h-3 mr-0.5" />Equipment
+                              </Badge>
+                            )}
+                          </div>
                         </TableCell>
                         <TableCell className="py-1 font-medium text-sm text-gray-800">
                           {item.description || '-'}
@@ -921,7 +929,8 @@ export default function PurchasesTab({
                               <div><span className="text-gray-500 font-medium">Line Cost:</span> {item.line_cost != null ? `$${item.line_cost.toFixed(2)}` : '-'}</div>
                               <div><span className="text-gray-500 font-medium">Category:</span> {item.category || '-'}</div>
                               <div><span className="text-gray-500 font-medium">Sub-cat:</span> {item.sub_category || '-'}</div>
-                              <div><span className="text-gray-500 font-medium">Row Type:</span> {item.row_type}</div>
+                              <div><span className="text-gray-500 font-medium">Tax:</span> {lineTaxTreatment(item) === 'depreciate' ? 'Depreciate' : 'Expense'}</div>
+                              <div><span className="text-gray-500 font-medium">Equipment:</span> {item.asset_id ? 'Yes' : 'No'}</div>
                               <div><span className="text-gray-500 font-medium">ID:</span> <span className="font-mono text-[10px]">{item.id}</span></div>
                               {item.asset_id && <div className="col-span-2"><span className="text-gray-500 font-medium">Asset ID:</span> <span className="font-mono text-[10px]">{item.asset_id}</span></div>}
                             </div>
@@ -937,7 +946,7 @@ export default function PurchasesTab({
                                   Delete Item
                                 </Button>
                               )}
-                              {(item.asset_id || item.row_type === 'asset') && item.asset_id && (
+                              {item.asset_id && (
                                 <Button
                                   variant="outline"
                                   size="sm"
@@ -960,7 +969,12 @@ export default function PurchasesTab({
                                 </Button>
                               )}
                             </div>
-                            {isAdmin && (
+                            {isAdmin && lineTaxTreatment(item) === 'depreciate' && (
+                              <p className="mt-3 pt-3 border-t border-gray-200 text-xs text-gray-500">
+                                Depreciated items aren't gig expenses, so this line can't be assigned to a gig.
+                              </p>
+                            )}
+                            {isAdmin && lineTaxTreatment(item) === 'expense' && (
                               <div className="mt-3 pt-3 border-t border-gray-200 flex items-center gap-2 flex-wrap" onClick={(e) => e.stopPropagation()}>
                                 <span className="text-xs text-gray-500 font-medium whitespace-nowrap">Assign Gig:</span>
                                 <div className="w-[360px] max-w-full">
@@ -972,7 +986,7 @@ export default function PurchasesTab({
                                     disabled={assigningGigItemId === item.id}
                                   />
                                 </div>
-                                {item.row_type === 'item' && item.gig_id && !linesWithLedger.has(item.id) && (
+                                {item.gig_id && !linesWithLedger.has(item.id) && (
                                   <Button
                                     variant="outline"
                                     size="sm"
@@ -989,30 +1003,30 @@ export default function PurchasesTab({
                                 )}
                               </div>
                             )}
-                            {item.row_type === 'item' && (userRole === 'Admin' || userRole === 'Manager') && (
-                              <div className="mt-3 pt-3 border-t border-gray-200">
+                            {!item.asset_id && (userRole === 'Admin' || userRole === 'Manager') && (
+                              <div className="mt-3 pt-3 border-t border-gray-200" onClick={(e) => e.stopPropagation()}>
                                 <AlertDialog>
                                   <AlertDialogTrigger asChild>
                                     <Button variant="outline" size="sm" className="h-7 px-3 text-xs text-blue-600 border-blue-200 hover:bg-blue-50 hover:text-blue-700">
-                                      <RefreshCw className="w-3 h-3 mr-1.5" />
-                                      Reclassify as Asset
+                                      <Package className="w-3 h-3 mr-1.5" />
+                                      Track as equipment
                                     </Button>
                                   </AlertDialogTrigger>
                                   <AlertDialogContent>
                                     <AlertDialogHeader>
-                                      <AlertDialogTitle>Reclassify as Asset?</AlertDialogTitle>
+                                      <AlertDialogTitle>Track as equipment?</AlertDialogTitle>
                                       <AlertDialogDescription>
-                                        This will register the item as a capital asset in inventory. If this purchase is linked to a gig, the linked gig expense record will also be removed. This action cannot be undone.
+                                        Creates an equipment record for this item, so you can tag it and put it in kits. Its tax treatment stays {lineTaxTreatment(item) === 'depreciate' ? 'Depreciate' : 'Expense'}, and a gig it's linked to keeps it as an expense.
                                       </AlertDialogDescription>
                                     </AlertDialogHeader>
                                     <AlertDialogFooter>
                                       <AlertDialogCancel>Cancel</AlertDialogCancel>
                                       <AlertDialogAction
-                                        onClick={() => handleReclassifyAsAsset(item.id)}
-                                        disabled={reclassifyingItemId === item.id}
+                                        onClick={() => handleTrackAsEquipment(item.id)}
+                                        disabled={trackingItemId === item.id}
                                       >
-                                        {reclassifyingItemId === item.id && <RefreshCw className="w-3.5 h-3.5 mr-1.5 animate-spin" />}
-                                        Reclassify as Asset
+                                        {trackingItemId === item.id && <RefreshCw className="w-3.5 h-3.5 mr-1.5 animate-spin" />}
+                                        Track it
                                       </AlertDialogAction>
                                     </AlertDialogFooter>
                                   </AlertDialogContent>

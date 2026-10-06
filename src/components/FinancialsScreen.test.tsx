@@ -5,6 +5,7 @@ import { makeOrganization } from '../test/factories';
 
 vi.mock('./AppHeader', () => ({ default: () => null }));
 vi.mock('./financials/GigAccountingTab', () => ({ default: () => <div data-testid="gig-accounting" /> }));
+vi.mock('./financials/TaxYearsCard', () => ({ default: () => <div data-testid="tax-years" /> }));
 vi.mock('./financials/purchases/PurchasesSection', () => ({
   default: ({ view, onViewChange }: any) => (
     <button data-testid="purchases" data-view={view} onClick={() => onViewChange?.('scan')}>purchases</button>

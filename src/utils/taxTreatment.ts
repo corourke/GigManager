@@ -41,3 +41,13 @@ export function isTaxYearLocked(date: string | null | undefined, lockedYears: Se
   const year = Number(date.slice(0, 4));
   return Number.isFinite(year) && lockedYears.has(year);
 }
+
+/**
+ * A purchase line's treatment as stored, or — for rows written before #133 —
+ * taken from its row type. Null for headers.
+ */
+export function lineTaxTreatment(p: { row_type?: string | null; tax_treatment?: string | null }): TaxTreatment | null {
+  if (p.row_type === 'header') return null;
+  if (p.tax_treatment === 'expense' || p.tax_treatment === 'depreciate') return p.tax_treatment;
+  return p.row_type === 'asset' ? 'depreciate' : 'expense';
+}

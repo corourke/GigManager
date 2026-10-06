@@ -5,6 +5,7 @@ import type { DbPurchase, PurchaseWithItems, DbGigFinancial } from '../utils/sup
 import type { AssetRow } from '../utils/csvImport';
 import { toFinCategory } from '../utils/supabase/constants';
 import { toDateInTimeZone } from '../utils/dateUtils';
+import { lineTaxTreatment } from '../utils/taxTreatment';
 import {
   createGigFinancial,
   updateGigFinancial,
@@ -474,8 +475,10 @@ export async function reclassifyExpenseAsAsset(purchaseItemId: string): Promise<
  * on the target gig are left alone; lines on a *different* gig are not stolen
  * (they must be reassigned individually so their ledger entry can be moved).
  *
- * Returns the ids of the expense `item` lines that were newly linked, so the
- * caller can offer to create their gig ledger entries.
+ * Depreciated lines are never gig expenses (#133), so they are left unlinked.
+ *
+ * Returns the ids of the expensed lines that were newly linked, so the caller
+ * can offer to create their gig ledger entries.
  */
 export async function assignGigToPurchaseChildren(
   headerId: string,
@@ -485,13 +488,13 @@ export async function assignGigToPurchaseChildren(
   const supabase = getSupabase();
   try {
     const { data: children, error } = await (supabase.from('purchases') as any)
-      .select('id, gig_id, row_type')
+      .select('id, gig_id, row_type, tax_treatment')
       .eq('parent_id', headerId);
     if (error) throw error;
 
     const rows: any[] = children || [];
-    const toLink = rows.filter((c) => !c.gig_id);
-    const newlyLinkedItemIds = toLink.filter((c) => c.row_type === 'item').map((c) => c.id);
+    const toLink = rows.filter((c) => !c.gig_id && lineTaxTreatment(c) === 'expense');
+    const newlyLinkedItemIds = toLink.map((c) => c.id);
 
     const results = await Promise.allSettled([
       updatePurchase(headerId, { gig_id: gigId }),
@@ -530,7 +533,7 @@ export type LedgerLineSource = Pick<
   DbPurchase,
   | 'id' | 'row_type' | 'line_cost' | 'item_cost' | 'line_amount' | 'item_price'
   | 'quantity' | 'purchase_date' | 'description' | 'vendor' | 'category'
->;
+> & { tax_treatment?: string | null };
 
 /**
  * Amount a purchase line contributes to a gig ledger.
@@ -640,7 +643,7 @@ export type LedgerReconcileResult =
  * reassigned line) are applied here; destructive ones (removing an entry when a
  * line is unlinked from every gig) are returned for the caller to confirm.
  *
- * Only `row_type === 'item'` lines ever carry a ledger entry.
+ * Only expensed lines ever carry a ledger entry; a depreciated line never does (#133).
  */
 export async function reconcileLedgerForLineGigChange(params: {
   item: LedgerLineSource;
@@ -650,7 +653,7 @@ export async function reconcileLedgerForLineGigChange(params: {
 }): Promise<LedgerReconcileResult> {
   const { item, newGigId } = params;
   try {
-    if (item.row_type !== 'item') return { action: 'noop' };
+    if (lineTaxTreatment(item) !== 'expense') return { action: 'noop' };
 
     const existing = await getGigFinancialsByPurchaseId(item.id);
 

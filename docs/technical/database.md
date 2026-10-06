@@ -740,6 +740,7 @@ Handles acquisition headers and expense line items. Uses a self-referencing `par
 - Assets acquired in a purchase reference the header row via `assets.purchase_id`.
 - Deleting a row fires `trg_cleanup_attachments` (migration 20260831000100), removing its `entity_attachments` links and any solely-owned `attachments` rows.
 - **Tax treatment (#133, migration 20261006000000)** — a line's `tax_treatment` is filled from `row_type` when a writer leaves it out (`asset` → depreciate, `item` → expense). A depreciated line must keep its `asset_id` and can't be pointed at by a `gig_financials` row. Rows dated in a year locked in `tax_years` can't have their tax fields changed, added or deleted — see [financials.md](financials.md) §2.5 and §3.
+- **Writers (#133 step 2, migration 20261007000000)** — `create_purchase_transaction_v1` stores each line's `tax_treatment` / `recovery_period`; `track_purchase_line_as_equipment(line)` (SECURITY DEFINER, Admins/Managers) creates and links an `assets` row for a line without changing anything else, so it works in locked years.
 - RLS is **ENABLED** on this table. Only Admins/Managers of the owning org can view or manage purchases — the member-level SELECT policy was dropped in migration 20260613000000 (Staff/Viewer have no Financials access).
 
 ---

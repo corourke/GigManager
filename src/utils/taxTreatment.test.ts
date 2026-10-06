@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { suggestedTaxTreatment, TAX_EXPENSE_BELOW, TAX_DEPRECIATE_ABOVE, taxTreatmentLabel, isTaxYearLocked } from './taxTreatment';
+import { lineTaxTreatment, suggestedTaxTreatment, TAX_EXPENSE_BELOW, TAX_DEPRECIATE_ABOVE, taxTreatmentLabel, isTaxYearLocked } from './taxTreatment';
 
 describe('tax treatment rule (#133)', () => {
   it('expenses items under $200 per item', () => {
@@ -34,5 +34,12 @@ describe('tax treatment rule (#133)', () => {
     expect(isTaxYearLocked('2025-02-14', locked)).toBe(true);
     expect(isTaxYearLocked('2026-01-02', locked)).toBe(false);
     expect(isTaxYearLocked(null, locked)).toBe(false);
+  });
+
+  it('reads a line\'s treatment, falling back to its row type', () => {
+    expect(lineTaxTreatment({ row_type: 'asset', tax_treatment: 'expense' })).toBe('expense');
+    expect(lineTaxTreatment({ row_type: 'asset', tax_treatment: null })).toBe('depreciate');
+    expect(lineTaxTreatment({ row_type: 'item' })).toBe('expense');
+    expect(lineTaxTreatment({ row_type: 'header', tax_treatment: null })).toBeNull();
   });
 });

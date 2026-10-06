@@ -28,6 +28,7 @@ GigWrangler keeps track of three kinds of money:
 | Understand why an item's cost is more than its price | [Cost allocation](/financials/cost-allocation/) |
 | Record a gig's fee, a payment, an expense or mileage | [A gig's money](/financials/gig-expenses/) |
 | See which gigs owe you money | [Gig Accounting](/financials/gig-accounting/) |
+| Decide expense or depreciate, track gear as equipment, lock a filed year | [Tax treatment and equipment](/financials/tax-treatment/) |
 
 ## Three ways to scan an invoice
 
@@ -40,5 +41,5 @@ GigWrangler can read an invoice or receipt for you (a PDF or a photo) and fill i
 You can also attach a file without scanning it, to a purchase, to one of a gig's money rows, or to a piece of equipment. [Receipts and invoices](/financials/receipts-and-invoices/) lists every way.
 
 :::note[Tax time]
-GigWrangler records the facts your tax program needs: what you spent, on what, and when. It doesn't calculate tax. Reports for Schedule C and Form 4562 are on the way under **Financials → Reporting**.
+GigWrangler records the facts your tax program needs: what you spent, on what, when, and whether you expensed or depreciated it. It doesn't calculate tax. Once you've filed, lock the year under **Financials → Reporting**. Reports for Schedule C and Form 4562 are on the way there too.
 :::
