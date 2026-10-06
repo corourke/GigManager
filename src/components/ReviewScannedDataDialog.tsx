@@ -910,7 +910,7 @@ export default function ReviewScannedDataDialog({
     const value = item.category || '';
     const known = expenseCats.some(c => c.name === value);
     return (
-      <div style={{ display: 'flex', alignItems: 'center', gap: 2, flex: '1 1 150px', minWidth: 0 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 2, flex: '0 1 240px', minWidth: 0 }}>
         {fieldLabel('Expense')}
         <select
           aria-label={`Expense category: ${item.description || 'item'}`}
