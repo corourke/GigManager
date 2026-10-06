@@ -66,7 +66,7 @@ flowchart LR
 | `item_price`, `line_amount` | Unit and line price as printed, before tax and shipping. Empty on CSV-imported lines. |
 | `item_cost`, `line_cost` | Unit and line cost **after** tax, shipping and fees are spread across the lines ("burdened"). `line_cost` is the authoritative cost; `item_cost` is the per-item cost the tax thresholds use. |
 | `quantity` | Can be fractional. |
-| `category`, `sub_category` | Free text for now. Lines inherit the header's when left blank. Replaced by a shared category table in #125. |
+| `category`, `sub_category` | Free text. An **expensed** line's `category` is an expense category (a name from `expense_categories`, §6); a **depreciated** line's is its equipment category, the same as its asset's. An expensed line tracked as equipment keeps its equipment category on the asset. Lines inherit the header's when left blank. |
 | `tax_treatment` | Lines only: `expense` or `depreciate` (§3). NULL on headers. |
 | `recovery_period` | Depreciated lines only: 5, 7 or 15 years. The tax program computes depreciation; GigWrangler only records the period. |
 | `gig_id` | The gig this line is a cost of. Headers still carry one today (old "assign receipt to gig"); #133 step 3 moves it to the lines. |
@@ -297,12 +297,13 @@ Gig rows **with** a `purchase_id` are skipped, because the line already counts.
 
 ## 6. Categories and mileage
 
-**Categories today** come from three unconnected lists:
-- purchases: free text;
-- equipment: free text;
-- gig money out: the `fin_category` Schedule C list.
+**Two kinds of category** (2026-10-06):
+- **Expense categories:** the shared `expense_categories` table (migration 20261008000000), one list for every organization, seeded with the headings Cameron filed on his 2025 Schedule C. Each has the `schedule_c_line` it was filed on; all 15 headings were listed in Part V (line 48), which totals onto line 27b. "Reimbursable (not deducted)" has no line. Signed-in users read the list; nobody writes it from the app, so a migration adds or renames one. An expensed purchase line stores the **name** in `purchases.category`.
+- **Equipment categories:** free text on `assets.category`, picked from the values the organization already uses (tidied: Cases → Cases/Bags, Small Parts → Misc), with **Add new category…**. A depreciated line's `category` is the same value.
 
-Purchase categories map to `fin_category` only on an exact name match; anything else becomes Other expenses. #125 replaces all three with one shared `expense_categories` table, which gives each category a Schedule C line and a default recovery period.
+`src/utils/purchaseCategories.ts` holds the rules: `suggestExpenseCategory` maps old and scanned values to a heading (Audio → Small audio parts, …), and `retargetCategories` moves a line's categories when its treatment changes (depreciating takes the equipment category onto the line; expensing keeps it for the asset and suggests a heading). The review dialog won't save a new equipment record without an equipment category, since `assets.category` is required.
+
+Not yet joined up: gig money out still uses the `fin_category` Schedule C enum, and purchase categories map to it only on an exact name match (anything else becomes Other expenses). Older expensed lines still carry equipment-style values (Audio, Lighting, …); the dropdown shows them as "not on the list" until #125 F3 maps them.
 
 **Mileage** is recorded only on a gig: miles × the IRS standard rate for the trip's date. The rate table is fixed in #125 F1. It needs 70¢ for 2025, and 72.5¢ to 2026-06-30 then 76¢.
 
@@ -319,7 +320,7 @@ Purchase categories map to `fin_category` only on an exact name match; anything 
 | 5 | The review dialog drops the asset Type and the AI's manufacturer/model. | #131 |
 | 6 | Duplicating an asset copies its purchase link, serial number and tag. | #131 |
 | 7 | **Add manually** and editing a purchase can't attach a file. Use **Attach Doc** on the report. | |
-| 8 | Mileage rates for 2025–26; free-text categories and status. | #125 |
+| 8 | Mileage rates for 2025–26; older lines' categories not yet mapped to the expense list (F3); gig money out still uses `fin_category`. | #125 |
 
 Fixed: #128 (editing a cost-only purchase zeroed its costs, 2026-10-05). The 2025 data was reconciled with the filed return on 2026-10-05 (see `WORK_PLAN.md`).
 

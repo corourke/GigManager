@@ -53,13 +53,17 @@ The same screen appears for every scan, for **Add manually**, and when you edit 
 - **Line Items:** one row per item, with **Description**, **Item Price**, **Qty**, **Line Amt** and **Unit Cost**.
   - **Unit Cost** is calculated: the invoice total is spread across the lines (see [Cost allocation](/financials/cost-allocation/)).
   - **Add Item** adds a line; the trash icon removes one.
-  - Each line also has a category (**C:**) and sub-category (**SC:**).
 - **Two questions on every line** (see [Tax treatment and equipment](/financials/tax-treatment/)):
-  - **Track as equipment:** the checkbox at the start of the line (column **Equip**). Tick it for gear you look after. Saving then creates an equipment record you can tag and put in kits. The arrow next to it shows **Kit name**, **Serial #**, **Tag #** and **Replace Value**.
   - **Expense | Depreciate:** how the item counts for tax. It's set for you from the item's cost: **Expense** under $200, **Depreciate** over $2,500. Between those you choose; the **(?)** explains. **Save Purchase** waits until every line has one.
+  - **Equipment:** the switch under the line. Turn it on (it turns blue) for gear you look after. Saving then creates an equipment record you can tag and put in kits. The arrow at the start of the row shows **Type**, **Kit name**, **Serial #**, **Tag #** and **Replace Value**.
+- **Categories**, picked from lists:
+  - **Expense:** for an expensed item, the heading it goes under at tax time (Small audio parts, Supplies, Software subscriptions, Insurance, …).
+  - **Equip.:** for anything tracked as equipment, its equipment category (Audio, Lighting, Cases/Bags, …). Choose **Add new category…** at the bottom to type a new one. **Save Purchase** waits until every new piece of equipment has one.
+  - A depreciated item has only the equipment category. An expensed item tracked as equipment has both.
+  - Each line also has a free-text **Sub-cat**.
 - **Reconciled / Mismatch:** at the bottom, GigWrangler compares the lines with the invoice total. **Mismatch** means they differ by more than 5¢. Fix the total or the lines before saving.
 
-The scan suggests which lines are equipment and suggests categories. Change anything that's wrong.
+The scan suggests which lines are equipment and suggests categories; for expensed items it picks the matching heading (a scanned "Audio" becomes **Small audio parts**). Change anything that's wrong.
 
 When you **edit** a saved purchase and the change also affects a linked equipment record or a gig's money out, GigWrangler lists those changes first and asks you to **Confirm & Save**.
 

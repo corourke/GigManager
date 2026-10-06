@@ -13,6 +13,7 @@ import {
   ChevronDown,
   ChevronRight,
   HelpCircle,
+  Package,
   X as CloseIcon
 } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
@@ -39,6 +40,8 @@ import {
 import { createGigFinancial, getGigFinancials, updateGigFinancial } from '../services/gig.service';
 import { uploadAttachment, linkAttachmentToEntity, getAttachmentUrl } from '../services/attachment.service';
 import { updateAsset } from '../services/asset.service';
+import { getExpenseCategories, getEquipmentCategories, type ExpenseCategory } from '../services/purchaseCategory.service';
+import { retargetCategories, equipmentCategoryOf, tidyAssetCategory } from '../utils/purchaseCategories';
 
 function NumericInput({ value, onChange, placeholder = '0.00', className = '', disabled = false }: {
   value: number;
@@ -90,7 +93,12 @@ interface ScannedItem {
   /** The user (or a saved purchase) chose the treatment, so price changes don't re-suggest it. */
   _taxChosen?: boolean;
   is_durable?: boolean;
+  /** Expensed: the expense category. Depreciated: the equipment category (see utils/purchaseCategories). */
   category?: string;
+  /** The equipment category of an expensed line tracked as equipment (its asset's category). */
+  asset_category?: string;
+  /** Typing a new equipment category instead of picking one. */
+  _newAssetCat?: boolean;
   sub_category?: string;
   equipment_type?: string;
   kit?: string;
@@ -112,8 +120,8 @@ interface UpdatePlan {
   removedItemIds: string[];
   assetChanges: { assetId: string; itemDescription: string; changes: AssetFieldChange[]; data: Record<string, any> }[];
   gigChanges: { finId: string; label: string; from: number; to: number }[];
-  /** Existing lines to start tracking as equipment (before their treatment is saved). */
-  trackLineIds: string[];
+  /** Existing lines to start tracking as equipment (before their treatment is saved), with the equipment's category. */
+  trackLines: { id: string; category: string }[];
   /** The purchase is in a filed year: only descriptions and equipment links change. */
   locked: boolean;
 }
@@ -175,6 +183,8 @@ export default function ReviewScannedDataDialog({
   const [ledgerByPurchaseId, setLedgerByPurchaseId] = useState<Record<string, any>>({});
   const [originalItemIds, setOriginalItemIds] = useState<string[]>([]);
   const [lockedYears, setLockedYears] = useState<Set<number>>(new Set());
+  const [expenseCats, setExpenseCats] = useState<ExpenseCategory[]>([]);
+  const [equipmentCats, setEquipmentCats] = useState<string[]>([]);
   const [originalDate, setOriginalDate] = useState<string | null>(null);
   // Judged on the saved date, so editing the date can't step around the lock.
   const purchaseLocked = isEditMode && isTaxYearLocked(originalDate, lockedYears);
@@ -230,8 +240,13 @@ export default function ReviewScannedDataDialog({
       setFormData(recalculateBurdenedCosts({
         ...scannedData,
         description,
+        // The scanner's categories are equipment-style ("Audio"). Seeding each line as
+        // depreciated lets withTaxDefaults move them into place for its suggested
+        // treatment: an expensed line gets the matching expense heading.
         items: (scannedData.items || []).map(item => ({
           ...item,
+          category: item.category ? tidyAssetCategory(item.category) : item.category,
+          tax_treatment: item._taxChosen ? item.tax_treatment : 'depreciate',
           is_asset: item.is_asset ?? item.is_durable ?? false,
         }))
       }));
@@ -251,6 +266,8 @@ export default function ReviewScannedDataDialog({
     if (!open || !organizationId) return;
     let cancelled = false;
     getLockedTaxYears(organizationId).then(years => { if (!cancelled) setLockedYears(years); });
+    getExpenseCategories().then(c => { if (!cancelled) setExpenseCats(c); });
+    getEquipmentCategories(organizationId).then(c => { if (!cancelled) setEquipmentCats(c); });
     return () => { cancelled = true; };
   }, [open, organizationId]);
 
@@ -292,6 +309,8 @@ export default function ReviewScannedDataDialog({
             tax_treatment: (it.tax_treatment as TaxTreatment | null) ?? (it.row_type === 'asset' ? 'depreciate' : 'expense'),
             _taxChosen: true,
             category: it.category || '',
+            asset_category: it.asset_id && it.tax_treatment !== 'depreciate' && !(it.tax_treatment == null && it.row_type === 'asset')
+              ? aById[it.asset_id]?.category ?? undefined : undefined,
             sub_category: it.sub_category || '',
             _purchaseId: it.id,
             _assetId: it.asset_id || null,
@@ -358,7 +377,11 @@ export default function ReviewScannedDataDialog({
       ...data,
       items: data.items.map(item => {
         const tax_treatment = item._taxChosen ? item.tax_treatment ?? null : suggestedTaxTreatment(item.item_cost ?? 0);
-        return { ...item, tax_treatment, is_asset: item.is_asset || tax_treatment === 'depreciate' };
+        return {
+          ...retargetCategories(item, item.tax_treatment, tax_treatment),
+          tax_treatment,
+          is_asset: item.is_asset || tax_treatment === 'depreciate',
+        };
       }),
     };
   }
@@ -393,8 +416,10 @@ export default function ReviewScannedDataDialog({
     setFormData(prev => {
       if (!prev) return null;
       const newItems = [...prev.items];
-      newItems[index] = { ...newItems[index], [field]: value };
+      const before = newItems[index];
+      newItems[index] = { ...before, [field]: value };
       if (field === 'tax_treatment') {
+        newItems[index] = retargetCategories(newItems[index], before.tax_treatment, value as TaxTreatment);
         newItems[index]._taxChosen = true;
         if (value === 'depreciate') newItems[index].is_asset = true;
       }
@@ -472,7 +497,7 @@ export default function ReviewScannedDataDialog({
           organization_id: organizationId,
           manufacturer_model: item.description,
           description: item.description,
-          category: item.category || formData.category,
+          category: equipmentCategoryOf(item) || item.category || formData.category,
           sub_category: item.sub_category || formData.sub_category,
           equipment_type: item.equipment_type,
           quantity: item.quantity,
@@ -546,9 +571,9 @@ export default function ReviewScannedDataDialog({
   const buildUpdatePlan = (fd: ScannedData): UpdatePlan => {
     // Existing lines newly ticked "Track as equipment" (or depreciated) get an
     // equipment record first, so a depreciated line always has one.
-    const trackLineIds = fd.items
+    const trackLines = fd.items
       .filter(item => item._purchaseId && !item._assetId && item.is_asset)
-      .map(item => item._purchaseId!);
+      .map(item => ({ id: item._purchaseId!, category: equipmentCategoryOf(item) }));
 
     // A filed year: only descriptions (and equipment links) may change (#133).
     if (purchaseLocked) {
@@ -561,7 +586,7 @@ export default function ReviewScannedDataDialog({
         removedItemIds: [],
         assetChanges: [],
         gigChanges: [],
-        trackLineIds,
+        trackLines,
         locked: true,
       };
     }
@@ -604,6 +629,7 @@ export default function ReviewScannedDataDialog({
           purchase_date: fd.purchase_date,
           ...lineData,
           _track: item.is_asset,
+          _assetCategory: equipmentCategoryOf(item),
         });
       }
     }
@@ -617,7 +643,7 @@ export default function ReviewScannedDataDialog({
         const changes = computeAssetFieldChanges(
           {
             description: item.description,
-            category: item.category || fd.category,
+            category: equipmentCategoryOf(item) || assetsById[item._assetId].category,
             sub_category: item.sub_category || fd.sub_category,
             quantity: item.quantity,
             item_price: item.item_price,
@@ -651,7 +677,7 @@ export default function ReviewScannedDataDialog({
       }
     }
 
-    return { headerData, updatedItems, newItems, removedItemIds, assetChanges, gigChanges, trackLineIds, locked: false };
+    return { headerData, updatedItems, newItems, removedItemIds, assetChanges, gigChanges, trackLines, locked: false };
   };
 
   const commitUpdate = async (plan: UpdatePlan) => {
@@ -659,14 +685,19 @@ export default function ReviewScannedDataDialog({
     setIsSubmitting(true);
     try {
       await updatePurchase(editPurchaseId, plan.headerData);
-      for (const id of plan.trackLineIds) await trackPurchaseLineAsEquipment(id);
+      // The new equipment record starts with the line's category; give it its own.
+      const track = async (lineId: string, category: string) => {
+        const assetId = await trackPurchaseLineAsEquipment(lineId);
+        if (assetId && category) await updateAsset(assetId, { category });
+      };
+      for (const t of plan.trackLines) await track(t.id, t.category);
       for (const u of plan.updatedItems) await updatePurchase(u.id, u.data);
-      for (const { _track, ...n } of plan.newItems) {
+      for (const { _track, _assetCategory, ...n } of plan.newItems) {
         // A depreciated line needs its equipment record before it is depreciated.
         const wanted = n.tax_treatment;
         const created: any = await createPurchase({ ...n, tax_treatment: _track ? 'expense' : wanted });
         if (_track && created?.id) {
-          await trackPurchaseLineAsEquipment(created.id);
+          await track(created.id, _assetCategory);
           if (wanted === 'depreciate') await updatePurchase(created.id, { tax_treatment: 'depreciate' });
         }
       }
@@ -715,7 +746,10 @@ export default function ReviewScannedDataDialog({
   const diff = Math.abs(calculatedTotalCost - formData.total_inv_amount);
   const hasMismatch = diff > 0.05;
   const undecided = formData.items.filter(item => !item.tax_treatment).length;
-  const canSave = !isSubmitting && formData.items.length > 0 && !!formData.vendor && undecided === 0;
+  // New equipment records need a category (lines already tracked have one).
+  const noEquipCategory = formData.items
+    .filter(item => item.is_asset && !(isEditMode && item._assetId) && !equipmentCategoryOf(item).trim()).length;
+  const canSave = !isSubmitting && formData.items.length > 0 && !!formData.vendor && undecided === 0 && noEquipCategory === 0;
   const isImage = file?.type.startsWith('image/');
   const isPdf = file?.type === 'application/pdf';
 
@@ -778,6 +812,103 @@ export default function ReviewScannedDataDialog({
           </PopoverTrigger>
           <PopoverContent className="w-72 text-xs leading-relaxed">{TAX_TREATMENT_HELP}</PopoverContent>
         </Popover>
+      </div>
+    );
+  };
+
+  const renderEquipmentSwitch = (item: ScannedItem, index: number) => {
+    const locked = equipmentLocked(item);
+    const on = item.is_asset;
+    return (
+      <button
+        type="button"
+        role="switch"
+        aria-checked={on}
+        aria-label={`Track ${item.description || 'item'} as equipment`}
+        title={equipmentTitle(item)}
+        disabled={locked}
+        onClick={() => {
+          handleItemChange(index, 'is_asset', !on);
+          if (!on && !item.show_extra) handleItemChange(index, 'show_extra', true);
+        }}
+        style={{
+          height: 20, padding: '0 8px 0 3px', display: 'inline-flex', alignItems: 'center', gap: 4, flexShrink: 0,
+          borderRadius: 999, border: `1.5px solid ${on ? '#0369a1' : '#94a3b8'}`, background: on ? '#e0f2fe' : 'white',
+          color: on ? '#0c4a6e' : '#475569', fontSize: 10, fontWeight: 700, cursor: locked ? 'not-allowed' : 'pointer',
+          opacity: locked && !on ? 0.5 : 1,
+        }}
+      >
+        <span aria-hidden style={{ width: 22, height: 12, borderRadius: 999, background: on ? '#0369a1' : '#cbd5e1', position: 'relative', flexShrink: 0 }}>
+          <span style={{ position: 'absolute', top: 1, left: on ? 11 : 1, width: 10, height: 10, borderRadius: 999, background: 'white', boxShadow: '0 1px 1px rgba(0,0,0,0.3)' }} />
+        </span>
+        <Package style={{ width: 12, height: 12 }} />
+        Equipment
+      </button>
+    );
+  };
+
+  const selectStyle: React.CSSProperties = { height: 20, fontSize: 10, border: '1px solid #e5e7eb', borderRadius: 4, background: 'white', padding: '0 2px', minWidth: 0, flex: 1 };
+  const fieldLabel = (text: string) => <span style={{ fontSize: 7, color: '#9ca3af', fontWeight: 700, textTransform: 'uppercase', flexShrink: 0 }}>{text}</span>;
+
+  const renderExpenseCategory = (item: ScannedItem, index: number) => {
+    const value = item.category || '';
+    const known = expenseCats.some(c => c.name === value);
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', gap: 2, flex: '1 1 150px', minWidth: 0 }}>
+        {fieldLabel('Expense')}
+        <select
+          aria-label={`Expense category: ${item.description || 'item'}`}
+          value={value}
+          disabled={purchaseLocked}
+          onChange={e => handleItemChange(index, 'category', e.target.value)}
+          style={{ ...selectStyle, borderColor: value ? '#e5e7eb' : '#fcd34d' }}
+        >
+          <option value="">Choose…</option>
+          {value && !known && <option value={value}>{value} (not on the list)</option>}
+          {expenseCats.map(c => <option key={c.name} value={c.name}>{c.name}</option>)}
+        </select>
+      </div>
+    );
+  };
+
+  const renderEquipmentCategory = (item: ScannedItem, index: number) => {
+    const field: keyof ScannedItem = item.tax_treatment === 'depreciate' ? 'category' : 'asset_category';
+    const value = equipmentCategoryOf(item);
+    // A depreciated line's category is its tax category too, so a filed year freezes it.
+    const disabled = purchaseLocked && field === 'category';
+    const label = `${item.description || 'item'}`;
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', gap: 2, flex: '1 1 130px', minWidth: 0 }}>
+        {fieldLabel('Equip.')}
+        {item._newAssetCat ? (
+          <Input
+            autoFocus
+            aria-label={`New equipment category: ${label}`}
+            value={value}
+            placeholder="New category"
+            onChange={e => handleItemChange(index, field, e.target.value)}
+            onBlur={() => { if (!value.trim()) handleItemChange(index, '_newAssetCat', false); }}
+            className="bg-white border-gray-200 h-5 text-[10px] flex-1"
+          />
+        ) : (
+          <select
+            aria-label={`Equipment category: ${label}`}
+            value={value}
+            disabled={disabled}
+            onChange={e => {
+              if (e.target.value === '__new__') {
+                handleItemChange(index, field, '');
+                handleItemChange(index, '_newAssetCat', true);
+              } else handleItemChange(index, field, e.target.value);
+            }}
+            style={{ ...selectStyle, borderColor: value ? '#e5e7eb' : '#fcd34d' }}
+          >
+            <option value="">Choose…</option>
+            {value && !equipmentCats.includes(value) && <option value={value}>{value} (new)</option>}
+            {equipmentCats.map(c => <option key={c} value={c}>{c}</option>)}
+            <option value="__new__">Add new category…</option>
+          </select>
+        )}
       </div>
     );
   };
@@ -937,8 +1068,7 @@ export default function ReviewScannedDataDialog({
                 </div>
 
                 {formData.items.length > 0 && (
-                  <div style={{ display: 'grid', gridTemplateColumns: '24px 1fr 72px 40px 72px 68px 18px', gap: '0 3px', padding: '0 2px', marginBottom: 2, fontSize: 9, fontWeight: 700, textTransform: 'uppercase', color: '#9ca3af', letterSpacing: '0.04em' }}>
-                    <span style={{ fontSize: 8, textAlign: 'center' }} title="Track as equipment">Equip</span>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 72px 40px 72px 68px 18px', gap: '0 3px', padding: '0 2px', marginBottom: 2, fontSize: 9, fontWeight: 700, textTransform: 'uppercase', color: '#9ca3af', letterSpacing: '0.04em' }}>
                     <span>Description</span>
                     <span style={{ textAlign: 'center' }}>Item Price</span>
                     <span style={{ textAlign: 'center' }}>Qty</span>
@@ -951,22 +1081,7 @@ export default function ReviewScannedDataDialog({
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                   {formData.items.map((item, index) => (
                     <div key={index} style={{ background: '#f9fafb', borderRadius: 4, border: '1px solid #f3f4f6', padding: '2px 2px' }}>
-                      <div style={{ display: 'grid', gridTemplateColumns: '24px 1fr 72px 40px 72px 68px 18px', gap: '0 3px', alignItems: 'center' }}>
-                        <label style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', cursor: equipmentLocked(item) ? 'not-allowed' : 'pointer', gap: 0 }} title={equipmentTitle(item)}>
-                          <input
-                            type="checkbox"
-                            aria-label={`Track ${item.description || 'item'} as equipment`}
-                            checked={item.is_asset}
-                            disabled={equipmentLocked(item)}
-                            onChange={e => {
-                              handleItemChange(index, 'is_asset', e.target.checked);
-                              if (e.target.checked && !item.show_extra) {
-                                handleItemChange(index, 'show_extra', true);
-                              }
-                            }}
-                            style={{ width: 13, height: 13, borderRadius: 2, accentColor: '#0284c7' }}
-                          />
-                        </label>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 72px 40px 72px 68px 18px', gap: '0 3px', alignItems: 'center' }}>
                         <Input
                           value={item.description}
                           onChange={e => handleItemChange(index, 'description', e.target.value)}
@@ -1012,52 +1127,39 @@ export default function ReviewScannedDataDialog({
                           <Trash2 style={{ width: 12, height: 12 }} />
                         </button>
                       </div>
-                      <div style={{ display: 'grid', gridTemplateColumns: '24px 1fr', gap: '0 3px', marginTop: 1 }}>
-                        <span />
-                        <div style={{ display: 'flex', gap: 3, alignItems: 'center' }}>
-                          {!isEditMode && item.is_asset && (
-                            <button
-                              onClick={() => handleItemChange(index, 'show_extra', !item.show_extra)}
-                              aria-label={item.show_extra ? 'Hide equipment details' : 'Show equipment details'}
-                              style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', display: 'flex', alignItems: 'center', color: '#0284c7' }}
-                            >
-                              {item.show_extra ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
-                            </button>
-                          )}
-                          {renderTaxChoice(item, index)}
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 1, flex: 1 }}>
-                            <span style={{ fontSize: 7, color: '#9ca3af', fontWeight: 600, flexShrink: 0 }}>C:</span>
-                            <Input
-                              value={item.category || ''}
-                              disabled={purchaseLocked}
-                              onChange={e => handleItemChange(index, 'category', e.target.value)}
-                              placeholder="Category"
-                              className="bg-white border-gray-200 h-5 text-[10px] flex-1"
-                            />
-                          </div>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 1, flex: 1 }}>
-                            <span style={{ fontSize: 7, color: '#9ca3af', fontWeight: 600, flexShrink: 0 }}>SC:</span>
-                            <Input
-                              value={item.sub_category || ''}
-                              disabled={purchaseLocked}
-                              onChange={e => handleItemChange(index, 'sub_category', e.target.value)}
-                              placeholder="Sub-cat"
-                              className="bg-white border-gray-200 h-5 text-[10px] flex-1"
-                            />
-                          </div>
-                          {!isEditMode && (
-                            <Input
-                              value={item.equipment_type || ''}
-                              onChange={e => handleItemChange(index, 'equipment_type', e.target.value)}
-                              placeholder="Type"
-                              className="bg-white border-gray-200 h-5 text-[10px] flex-1"
-                            />
-                          )}
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3, alignItems: 'center', marginTop: 2 }}>
+                        {!isEditMode && item.is_asset && (
+                          <button
+                            onClick={() => handleItemChange(index, 'show_extra', !item.show_extra)}
+                            aria-label={item.show_extra ? 'Hide equipment details' : 'Show equipment details'}
+                            style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', display: 'flex', alignItems: 'center', color: '#0284c7' }}
+                          >
+                            {item.show_extra ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
+                          </button>
+                        )}
+                        {renderTaxChoice(item, index)}
+                        {renderEquipmentSwitch(item, index)}
+                        {item.tax_treatment !== 'depreciate' && renderExpenseCategory(item, index)}
+                        {(item.is_asset || item.tax_treatment === 'depreciate') && renderEquipmentCategory(item, index)}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 1, flex: '0 1 90px', minWidth: 0 }}>
+                          <Input
+                            aria-label={`Sub-category: ${item.description || 'item'}`}
+                            value={item.sub_category || ''}
+                            disabled={purchaseLocked}
+                            onChange={e => handleItemChange(index, 'sub_category', e.target.value)}
+                            placeholder="Sub-cat"
+                            className="bg-white border-gray-200 h-5 text-[10px] flex-1"
+                          />
                         </div>
                       </div>
                       {!isEditMode && item.is_asset && item.show_extra && (
-                        <div style={{ display: 'grid', gridTemplateColumns: '24px 1fr 1fr 1fr 72px', gap: '0 3px', marginTop: 2, paddingBottom: 2 }}>
-                          <span />
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr 72px', gap: '0 3px', marginTop: 2, paddingBottom: 2 }}>
+                          <Input
+                            value={item.equipment_type || ''}
+                            onChange={e => handleItemChange(index, 'equipment_type', e.target.value)}
+                            placeholder="Type"
+                            className="bg-white border-gray-200 h-5 text-[10px]"
+                          />
                           <Input
                             value={item.kit || ''}
                             onChange={e => handleItemChange(index, 'kit', e.target.value)}
@@ -1112,6 +1214,12 @@ export default function ReviewScannedDataDialog({
                 <div role="status" style={{ padding: 6, borderRadius: 4, display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, border: '1px solid #fde68a', background: '#fffbeb', color: '#92400e' }}>
                   <AlertCircle style={{ width: 14, height: 14, flexShrink: 0, color: '#f59e0b' }} />
                   <span>Choose Expense or Depreciate for {undecided} {undecided === 1 ? 'item' : 'items'} between $200 and $2,500 before saving.</span>
+                </div>
+              )}
+              {noEquipCategory > 0 && (
+                <div role="status" style={{ padding: 6, borderRadius: 4, display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, border: '1px solid #fde68a', background: '#fffbeb', color: '#92400e' }}>
+                  <AlertCircle style={{ width: 14, height: 14, flexShrink: 0, color: '#f59e0b' }} />
+                  <span>Choose an equipment category for {noEquipCategory} {noEquipCategory === 1 ? 'item' : 'items'} tracked as equipment before saving.</span>
                 </div>
               )}
             </div>

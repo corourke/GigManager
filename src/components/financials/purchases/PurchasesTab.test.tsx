@@ -113,12 +113,24 @@ describe('Purchases report: tax treatment and equipment (#133)', () => {
     return screen.getByText(description).closest('tr')!;
   };
 
-  it('shows each line\'s tax treatment, and marks equipment separately', async () => {
+  it('shows each line\'s tax treatment, and marks equipment with an icon in its own column', async () => {
     const row = await open('Mic stand');
     expect(within(row).getByText('Expense')).toBeInTheDocument();
-    expect(within(row).getByText('Equipment')).toBeInTheDocument();
+    const cells = within(row).getAllByRole('cell');
+    const headers = within(row.closest('table')!).getAllByRole('columnheader').map(h => h.textContent);
+    expect(headers.slice(0, 3)).toEqual(['Type', 'Description / Model', 'Equipment']);
+    expect(within(cells[2]).getByRole('img', { name: 'Tracked as equipment' })).toBeInTheDocument();
+    expect(within(cells[0]).queryByText('Equipment')).not.toBeInTheDocument();
     const mixer = screen.getByText('Mixer').closest('tr')!;
     expect(within(mixer).getByText('Depreciate')).toBeInTheDocument();
+  });
+
+  it('a long description is cut short, with the full text on hover, so it can\'t push the other columns', async () => {
+    const row = await open('Mic stand');
+    const cell = within(row).getAllByRole('cell')[1];
+    expect(cell).toHaveClass('truncate');
+    expect(cell).toHaveAttribute('title', 'Mic stand');
+    expect(row.closest('table')).toHaveClass('table-fixed');
   });
 
   it('offers Track as equipment, not Reclassify as Asset, on an untracked expense line', async () => {

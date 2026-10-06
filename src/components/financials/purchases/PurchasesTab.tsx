@@ -3,7 +3,6 @@ import {
   Receipt,
   Search,
   Filter,
-  Calendar as CalendarIcon,
   ChevronDown,
   ChevronRight,
   FileText,
@@ -81,6 +80,13 @@ import {
   type DatePreset,
   type PurchaseTypeFilter,
 } from './purchaseFilters';
+
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+/** A purchase date (YYYY-MM-DD) split for the date block on each purchase card. */
+function dateBlock(date: string | null | undefined): { mon: string; day: string; year: string } {
+  const [y, m, d] = (date ?? '').split('-');
+  return { mon: MONTHS[Number(m) - 1] ?? '', day: d ? String(Number(d)) : '', year: y ?? '' };
+}
 
 const money = (n: number) => `$${n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
@@ -755,30 +761,29 @@ export default function PurchasesTab({
             onViewDoc={handleViewDoc}
           />
         ) : (
-          <div className="space-y-4">
-            {groupedPurchases.map((group) => (
+          <div className="space-y-5">
+            {groupedPurchases.map((group) => {
+              const { mon, day, year } = dateBlock(group.header.purchase_date);
+              return (
               <div key={group.header.id} ref={highlightedGroupId === group.header.id ? highlightRef : undefined}>
               <Card
-                className={`overflow-hidden border-gray-200${highlightedGroupId === group.header.id ? ' ring-2 ring-sky-400 ring-offset-2' : ''}`}
+                className={`overflow-hidden gap-0 border-slate-300 shadow-md${highlightedGroupId === group.header.id ? ' ring-2 ring-sky-400 ring-offset-2' : ''}`}
               >
-                <div className="bg-gray-50 px-4 py-2 border-b border-gray-200 flex items-center justify-between">
-                  <div className="flex items-center gap-4">
-                    <div className="flex items-center gap-1.5">
-                      <CalendarIcon className="w-4 h-4 text-gray-400" />
-                      <span className="text-sm font-semibold text-gray-900">{group.header.purchase_date}</span>
+                {/* Design A (10-06): a tinted band with a date block, so each purchase's top is easy to find. */}
+                <div className="bg-sky-50 px-4 py-2.5 border-b border-sky-200 flex items-center justify-between gap-4">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="flex flex-col items-center justify-center w-12 h-12 rounded-lg bg-sky-700 text-white shrink-0" aria-label={group.header.purchase_date ?? undefined} title={group.header.purchase_date ?? undefined}>
+                      <span className="text-[10px] font-semibold uppercase tracking-wider leading-none">{mon}</span>
+                      <span className="text-lg font-bold leading-tight">{day}</span>
                     </div>
-                    <div className="w-px h-4 bg-gray-300" />
-                    <span className="text-sm font-bold text-sky-700">{group.header.vendor}</span>
-                    {group.header.description && (
-                      <>
-                        <div className="w-px h-4 bg-gray-300" />
-                        <span className="text-sm text-gray-600 truncate max-w-[300px]" title={group.header.description}>
-                          {group.header.description}
-                        </span>
-                      </>
-                    )}
+                    <div className="min-w-0">
+                      <div className="text-base font-bold text-sky-900 truncate" title={group.header.vendor ?? undefined}>{group.header.vendor}</div>
+                      <div className="text-xs text-slate-600 truncate" title={group.header.description ?? undefined}>
+                        {[group.header.description, year].filter(Boolean).join(' · ')}
+                      </div>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-3 shrink-0">
                     {isAdmin && !isSyntheticHeader(group.header.id) && (
                       <div className="w-[220px]" onClick={(e) => e.stopPropagation()}>
                         <GigCombobox
@@ -834,9 +839,9 @@ export default function PurchasesTab({
                         </Button>
                       )
                     )}
-                    <div className="text-right">
-                      <span className="text-xs text-gray-500 mr-2">Invoice Total:</span>
-                      <span className="text-sm font-bold">${group.header.total_inv_amount?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                    <div className="text-right min-w-[96px]">
+                      <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Invoice total</div>
+                      <div className="text-base font-bold tabular-nums">${group.header.total_inv_amount?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
                     </div>
                     {isAdmin && !isSyntheticHeader(group.header.id) && (
                       <>
@@ -867,15 +872,16 @@ export default function PurchasesTab({
                 </div>
 
                 {!collapsedGroups.has(group.header.id) && (
-                <Table>
+                <Table className="table-fixed">
                   <TableHeader className="bg-white">
                     <TableRow className="h-8 hover:bg-transparent">
-                      <TableHead className="text-[10px] uppercase font-bold py-1 px-4">Type</TableHead>
+                      <TableHead className="text-[10px] uppercase font-bold py-1 px-4 w-[112px]">Type</TableHead>
                       <TableHead className="text-[10px] uppercase font-bold py-1">Description / Model</TableHead>
-                      <TableHead className="text-[10px] uppercase font-bold py-1">Category</TableHead>
-                      <TableHead className="text-[10px] uppercase font-bold py-1 text-center">Qty</TableHead>
-                      <TableHead className="text-[10px] uppercase font-bold py-1 text-right">Price</TableHead>
-                      <TableHead className="text-[10px] uppercase font-bold py-1 text-right">Cost</TableHead>
+                      <TableHead className="text-[10px] uppercase font-bold py-1 text-center w-[92px]">Equipment</TableHead>
+                      <TableHead className="text-[10px] uppercase font-bold py-1 w-[200px]">Category</TableHead>
+                      <TableHead className="text-[10px] uppercase font-bold py-1 text-center w-[56px]">Qty</TableHead>
+                      <TableHead className="text-[10px] uppercase font-bold py-1 text-right w-[96px]">Price</TableHead>
+                      <TableHead className="text-[10px] uppercase font-bold py-1 text-right w-[104px]">Cost</TableHead>
                       <TableHead className="text-[10px] uppercase font-bold py-1 w-8" />
                     </TableRow>
                   </TableHeader>
@@ -887,23 +893,21 @@ export default function PurchasesTab({
                         onClick={() => setExpandedItemId(expandedItemId === item.id ? null : item.id)}
                       >
                         <TableCell className="py-1 px-4">
-                          <div className="flex items-center gap-1">
-                            {lineTaxTreatment(item) === 'depreciate' ? (
-                              <Badge className="bg-blue-100 text-blue-700 hover:bg-blue-100 border-none text-[10px] h-5 px-1.5 uppercase font-bold">Depreciate</Badge>
-                            ) : (
-                              <Badge className="bg-orange-100 text-orange-700 hover:bg-orange-100 border-none text-[10px] h-5 px-1.5 uppercase font-bold">Expense</Badge>
-                            )}
-                            {item.asset_id && (
-                              <Badge variant="outline" className="text-[10px] h-5 px-1.5 font-semibold text-gray-600 border-gray-300" title="Tracked as equipment">
-                                <Package className="w-3 h-3 mr-0.5" />Equipment
-                              </Badge>
-                            )}
-                          </div>
+                          {lineTaxTreatment(item) === 'depreciate' ? (
+                            <Badge className="bg-blue-100 text-blue-700 hover:bg-blue-100 border-none text-[10px] h-5 px-1.5 uppercase font-bold">Depreciate</Badge>
+                          ) : (
+                            <Badge className="bg-orange-100 text-orange-700 hover:bg-orange-100 border-none text-[10px] h-5 px-1.5 uppercase font-bold">Expense</Badge>
+                          )}
                         </TableCell>
-                        <TableCell className="py-1 font-medium text-sm text-gray-800">
+                        <TableCell className="py-1 font-medium text-sm text-gray-800 truncate" title={item.description || undefined}>
                           {item.description || '-'}
                         </TableCell>
-                        <TableCell className="py-1 text-sm text-gray-600">
+                        <TableCell className="py-1 text-center">
+                          {item.asset_id && (
+                            <Package role="img" aria-label="Tracked as equipment" className="w-4 h-4 text-sky-700 inline" />
+                          )}
+                        </TableCell>
+                        <TableCell className="py-1 text-sm text-gray-600 truncate" title={item.category || undefined}>
                           {item.category || '-'}
                         </TableCell>
                         <TableCell className="py-1 text-sm text-center font-mono">
@@ -921,7 +925,7 @@ export default function PurchasesTab({
                       </TableRow>
                       {expandedItemId === item.id && (
                         <TableRow className="bg-gray-50">
-                          <TableCell colSpan={7} className="py-2 px-6">
+                          <TableCell colSpan={8} className="py-2 px-6 whitespace-normal">
                             <div className="grid grid-cols-2 md:grid-cols-4 gap-x-6 gap-y-1 text-xs">
                               <div><span className="text-gray-500 font-medium">Item Price:</span> {item.item_price != null ? `$${item.item_price.toFixed(2)}` : '-'}</div>
                               <div><span className="text-gray-500 font-medium">Item Cost:</span> {item.item_cost != null ? `$${item.item_cost.toFixed(2)}` : '-'}</div>
@@ -1043,7 +1047,8 @@ export default function PurchasesTab({
                 )}
               </Card>
               </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>

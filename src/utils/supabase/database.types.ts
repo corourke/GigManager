@@ -293,6 +293,33 @@ export type Database = {
           },
         ]
       }
+      expense_categories: {
+        Row: {
+          active: boolean
+          created_at: string
+          id: string
+          name: string
+          schedule_c_line: string | null
+          sort_order: number
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          id?: string
+          name: string
+          schedule_c_line?: string | null
+          sort_order: number
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          id?: string
+          name?: string
+          schedule_c_line?: string | null
+          sort_order?: number
+        }
+        Relationships: []
+      }
       gig_financials: {
         Row: {
           amount: number | null
