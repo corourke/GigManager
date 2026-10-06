@@ -9,8 +9,9 @@ PGOPTIONS="-c client_min_messages=warning" psql -qX -d postgres -c "DROP DATABAS
 sed "s/CURRENT_DATABASE_PLACEHOLDER/$DB/" supabase/tests/rls/supabase_shim.sql | psql -qX -v ON_ERROR_STOP=1 -d $DB >/dev/null
 for f in supabase/migrations/*.sql; do
   # pg_cron/pg_net can't be installed on a plain Postgres; the shim stubs their functions.
+  # One transaction per migration, as `supabase db push` applies them.
   grep -vE '^CREATE EXTENSION IF NOT EXISTS pg_(cron|net)' "$f" \
-    | psql -qX -v ON_ERROR_STOP=1 -d $DB >/dev/null 2>/tmp/gw_rls_mig.err \
+    | psql -qX -v ON_ERROR_STOP=1 --single-transaction -d $DB >/dev/null 2>/tmp/gw_rls_mig.err \
     || { echo "FAILED applying $f"; cat /tmp/gw_rls_mig.err; exit 1; }
 done
 echo "Applied $(ls supabase/migrations/*.sql | wc -l) migrations."

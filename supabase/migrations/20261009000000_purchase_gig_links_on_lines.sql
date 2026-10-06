@@ -31,6 +31,10 @@ UPDATE public.gig_financials f
 UPDATE public.purchases SET gig_id = NULL WHERE row_type = 'header' AND gig_id IS NOT NULL;
 
 -- 4. Keep it that way
+-- The updates above queue the deferred purchases_depreciate_has_asset check, and
+-- ALTER TABLE refuses to run while it is pending (db push applies a migration as
+-- one transaction): run it now.
+SET CONSTRAINTS ALL IMMEDIATE;
 ALTER TABLE public.purchases
   ADD CONSTRAINT purchases_header_no_gig CHECK (row_type <> 'header' OR gig_id IS NULL),
   ADD CONSTRAINT purchases_depreciate_no_gig CHECK (tax_treatment IS DISTINCT FROM 'depreciate' OR gig_id IS NULL);
