@@ -11,7 +11,7 @@ Cameron questions.
 Migrated from GitHub issue [#41](https://github.com/corourke/GigManager/issues/41) on 2026-09-22. This file now
 supersedes that issue as the board of record.
 
-- **Last updated:** 2026-10-06 (coordinator: PR #138 open — category dropdowns, Equipment switch, report design A; migration 20261008000000)
+- **Last updated:** 2026-10-06 (coordinator: PR #138 merged — category dropdowns, Equipment switch, report design A; migrations 20261007000000 + 20261008000000 await apply)
 - **State verified:** 2026-10-06 09:15 UTC by triage (10 open issues: #20, #39, #92, #125, #129, #130, #131, #133, #134, #135; open PRs: #138 (coordinator, CI green, mergeable at `c3d9b4e`) and #139 (triage user-guide pass, getting-started))
 
 ---
