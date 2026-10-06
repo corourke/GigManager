@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import SettingsScreen from '../SettingsScreen';
 import ModeratorQueueMenuItem from '../ModeratorQueueMenuItem';
 
@@ -19,8 +20,10 @@ vi.mock('../ui/dropdown-menu', () => ({
 }));
 
 const noop = () => {};
-const settings = (userRole: any) => render(
+const onTabChange = vi.fn();
+const settings = (userRole: any, tab: 'calendar' | 'categories' = 'categories') => render(
   <SettingsScreen organization={{ id: 'org-1' } as any} user={{ id: 'u1' } as any} userRole={userRole}
+    tab={tab} onTabChange={onTabChange}
     onBack={noop} onNavigateToDashboard={noop} onNavigateToGigs={noop} onNavigateToAssets={noop}
     onSwitchOrganization={noop} onLogout={noop} />,
 );
@@ -34,9 +37,17 @@ describe('Who edits the category lists', () => {
     settings('Manager');
     expect(screen.getByTestId('categories')).toHaveTextContent('org-1:false');
   });
-  it('Staff don\'t see them', () => {
+  it('Staff don\'t see them, not even as a tab', () => {
     settings('Staff');
     expect(screen.queryByTestId('categories')).not.toBeInTheDocument();
+    expect(screen.queryByRole('tab', { name: /Categories/ })).not.toBeInTheDocument();
+  });
+  it('Google Calendar and Categories are separate tabs, each with its own address', async () => {
+    settings('Admin', 'calendar');
+    expect(screen.getByRole('tab', { name: /Google Calendar/ })).toHaveAttribute('data-state', 'active');
+    expect(screen.queryByTestId('categories')).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('tab', { name: /Categories/ }));
+    expect(onTabChange).toHaveBeenCalledWith('categories');
   });
   it('only platform moderators get the Starter categories menu entry', () => {
     const { unmount } = render(<ModeratorQueueMenuItem />);

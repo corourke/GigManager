@@ -19,7 +19,7 @@ export default function CategoriesSettings({
   description = 'The choices offered when you record purchases and equipment.',
 }: CategoriesSettingsProps) {
   return (
-    <Card className="p-6 mt-6">
+    <Card className="p-6">
       <div className="flex items-start gap-3 mb-4">
         <Tags className="w-5 h-5 text-sky-700 mt-0.5" />
         <div>

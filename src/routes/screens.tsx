@@ -585,6 +585,7 @@ function InventoryRoute() {
 }
 
 function SettingsRoute() {
+  const { tab } = useParams();
   const { user, organization, userRole } = useOrgScope();
   const { isMobile, openEditProfile, lockMobile } = useAppShell();
   const nav = useNav();
@@ -601,6 +602,8 @@ function SettingsRoute() {
       organization={organization}
       user={user}
       userRole={userRole}
+      tab={tab === 'categories' ? 'categories' : 'calendar'}
+      onTabChange={t => nav.navigate(`/settings/${t}`, { replace: true })}
       onBack={nav.toDashboard}
       onNavigateToDashboard={nav.toDashboard}
       onNavigateToGigs={nav.toGigs}
@@ -709,7 +712,7 @@ export function AppRoutes() {
           <Route path="/kits/:kitId" element={<KitDetailRoute />} />
           <Route path="/kits/:kitId/edit" element={<KitEditorRoute create={false} />} />
           <Route path="/inventory/:subTab?" element={<InventoryRoute />} />
-          <Route path="/settings" element={<SettingsRoute />} />
+          <Route path="/settings/:tab?" element={<SettingsRoute />} />
           <Route path="/import" element={<ImportRoute />} />
           <Route path="/financials/:tab?/:sub?" element={<FinancialsRoute />} />
         </Route>

@@ -22,13 +22,20 @@ export default function StarterCategoriesScreen({ user, onBack, onLogout, onEdit
   return (
     <div className="min-h-screen bg-gray-50">
       <AppHeader user={user} currentRoute="dashboard" onLogout={onLogout} onEditProfile={onEditProfile} />
-      <div className="container mx-auto p-6 max-w-4xl">
-        <PageHeader
-          icon={ShieldCheck}
-          title="Starter categories"
-          description="What each organization starts with. Organizations that already have their own lists aren't changed."
-          actions={<Button onClick={onBack} variant="outline">Back</Button>}
-        />
+
+      {/* Same layout as the other platform pages (Access Requests, Admin: All Organizations). */}
+      <div className="bg-white border-b border-gray-200">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+          <PageHeader
+            icon={ShieldCheck}
+            title="Starter categories"
+            description="What each organization starts with. Organizations that already have their own lists aren't changed."
+            actions={<Button onClick={onBack} variant="outline">Back</Button>}
+          />
+        </div>
+      </div>
+
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <CategoriesSettings organizationId={null} canEdit title="Starter sets" description="Copied into an organization the first time it needs a category list." />
       </div>
     </div>
