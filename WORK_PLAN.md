@@ -12,7 +12,7 @@ Migrated from GitHub issue [#41](https://github.com/corourke/GigManager/issues/4
 supersedes that issue as the board of record.
 
 - **Last updated:** 2026-10-06 (coordinator: PR #138 open — category dropdowns, Equipment switch, report design A; migration 20261008000000)
-- **State verified:** 2026-10-05 09:15 UTC by triage (4 open issues: #20, #39, #92, #125; open PRs: #124 (coordinator, CI green, mergeable at `968bbc9`) and #126 (triage docs pass))
+- **State verified:** 2026-10-06 09:15 UTC by triage (10 open issues: #20, #39, #92, #125, #129, #130, #131, #133, #134, #135; open PRs: #138 (coordinator, CI green, mergeable at `c3d9b4e`) and #139 (triage user-guide pass, getting-started))
 
 ---
 
@@ -210,13 +210,15 @@ Read this section first on each run.
 | Claimed by | Files | Notes |
 |---|---|---|
 | #20 remaining services | `src/services/*.service.ts` (all but `user.service.ts` and `attachment.service.ts`) | Parked; `attachment.service.ts` released 09-30 (§3c) |
+| Coordinator, PR #138 (#133) | `ReviewScannedDataDialog.tsx`, `financials/purchases/PurchasesTab.tsx`, `purchaseCategory.service.ts`, `purchaseCategories.ts`, `database.types.ts`, `docs/technical/{database,financials}.md`, user-guide `financials/{purchases,receipts-and-invoices,tax-treatment}.md` | Open, green |
+| Triage, PR #139 | user-guide `getting-started/*.md` | Open; docs only |
 | Coordinator, #92 | not yet claimed | Not in §3c; triage leaves it alone |
 | Stray branch `claude/triage-90-org-delete-references` | none | Duplicate of PR #96's commit, already merged. The proxy refused the delete; it's safe to delete |
 
 **Dependencies.** #39 follows #12's gig-page redesign, now done (#12 closed 10-01), so the header stays consistent with it. #52's health check is live on dev and prod (09-25); its Sentry check additionally needs the Sentry secrets (§3a item 7). The tenant model is decided (hosted, shared DB, 09-25).
 
 **Where things stand.** 09-28: PRs #83 (#69) and #85 (#74) merged ~14:31 UTC; both issues closed.
-Urgent bug #84 approved by Cameron and fixed by the coordinator in PR #87 (merged 09-28). #81 reworked in PR #86; Cameron confirmed it 09-29 and it is closed. Nothing in §3c is left unbuilt. #71 and #81 merged earlier (see §4). 09-29: #12 PR 3 merged (#89) and code-review bugs #90–#94 filed by the coordinator; security PR #95 merged (deploy waits on Cameron, §3a). 09-30: the coordinator released #90, #91, #93 and #94 in §3c; triage built all four as PRs #96–#99, merged 04:19 UTC, and merged `main` into docs PR #88 to clear its conflict. #90 and #91 need a `server` redeploy. The coordinator merged docs PR #88 and moved triage's org-delete question to §3a. §3c is empty. Later on 09-30 the coordinator filed #102 and #103 and released them, #32 and `attachment.service.ts` (#20) in §3c. The 09:00 triage run built all four: PRs #104 (#102), #105 (#32), #106 (#20) and #107 (#103), each with a plan comment on its issue, a test written first and a mutation check. Nothing in §3c is left unbuilt. 10-01: Cameron filed #109 (packing-list picker); triage found the cause and raised it in §3b, and ran the docs pass on `deployment.md` (PR #110, merged 15:03 UTC). Cameron closed #12 the same day. 10-02: Cameron filed #111 and #117 (both raised in §3b, nothing built); the docs pass covered `tech-stack.md` (PR #118). 10-03: quiet, with no new issues or replies; the docs pass covered `coding-guide.md` (PR #119). Later that day the coordinator released #109, #111 and #117. 10-04: triage built all three, each with a plan comment on its issue, tests written first and mutation checks: PRs #120 (#109), #121 (#117) and #122 (#111). Nothing in §3c is left unbuilt. No docs pass this run. 10-05: quiet for triage. #125 is new (coordinator, waiting on Cameron) and #124 is green, so there was nothing to build. The docs pass covered `SmartDataTable.md` (PR #126).
+Urgent bug #84 approved by Cameron and fixed by the coordinator in PR #87 (merged 09-28). #81 reworked in PR #86; Cameron confirmed it 09-29 and it is closed. Nothing in §3c is left unbuilt. #71 and #81 merged earlier (see §4). 09-29: #12 PR 3 merged (#89) and code-review bugs #90–#94 filed by the coordinator; security PR #95 merged (deploy waits on Cameron, §3a). 09-30: the coordinator released #90, #91, #93 and #94 in §3c; triage built all four as PRs #96–#99, merged 04:19 UTC, and merged `main` into docs PR #88 to clear its conflict. #90 and #91 need a `server` redeploy. The coordinator merged docs PR #88 and moved triage's org-delete question to §3a. §3c is empty. Later on 09-30 the coordinator filed #102 and #103 and released them, #32 and `attachment.service.ts` (#20) in §3c. The 09:00 triage run built all four: PRs #104 (#102), #105 (#32), #106 (#20) and #107 (#103), each with a plan comment on its issue, a test written first and a mutation check. Nothing in §3c is left unbuilt. 10-01: Cameron filed #109 (packing-list picker); triage found the cause and raised it in §3b, and ran the docs pass on `deployment.md` (PR #110, merged 15:03 UTC). Cameron closed #12 the same day. 10-02: Cameron filed #111 and #117 (both raised in §3b, nothing built); the docs pass covered `tech-stack.md` (PR #118). 10-03: quiet, with no new issues or replies; the docs pass covered `coding-guide.md` (PR #119). Later that day the coordinator released #109, #111 and #117. 10-04: triage built all three, each with a plan comment on its issue, tests written first and mutation checks: PRs #120 (#109), #121 (#117) and #122 (#111). Nothing in §3c is left unbuilt. No docs pass this run. 10-05: quiet for triage. #125 is new (coordinator, waiting on Cameron) and #124 is green, so there was nothing to build. The docs pass covered `SmartDataTable.md` (PR #126). 10-06: no new issues; #138 green. The §3c user-guide audit began with the getting-started section (PR #139).
 
 On 09-23 every item was blocked or parked, so the run moved on to docs. Docs-only PR
 [#67](https://github.com/corourke/GigManager/pull/67) refreshed `docs/development/testing.md`: suite size,
@@ -253,10 +255,10 @@ middleware; `DELETE /gigs/:id` is Admin-only; access-request and notification ro
 | `financials/receipts-and-invoices.md` | published (new) | 2026-10-06 (coordinator, PR #136) | — |
 | `financials/gig-accounting.md` | published (new) | 2026-10-06 (coordinator, PR #136) | — |
 | `financials/tax-treatment.md` | published (PR #137, merged) | 2026-10-06 (coordinator) | — |
-| `getting-started/onboarding.md` | published | — | not audited |
-| `getting-started/organizations.md` | published | — | not audited |
-| `getting-started/the-dashboard.md` | published | — | not audited |
-| `getting-started/what-is-gigwrangler.md` | published | — | not audited |
+| `getting-started/onboarding.md` | published | 2026-10-06 (triage, PR #139) | — |
+| `getting-started/organizations.md` | published | 2026-10-06 (triage, PR #139) | — |
+| `getting-started/the-dashboard.md` | published | 2026-10-06 (triage, PR #139) | — |
+| `getting-started/what-is-gigwrangler.md` | published | 2026-10-06 (triage, PR #139) | — |
 | `gigs/change-history.md` | published | — | not audited |
 | `gigs/creating-a-gig.md` | published | — | not audited |
 | `gigs/overview.md` | published | — | not audited |
@@ -297,7 +299,7 @@ middleware; `DELETE /gigs/:id` is Admin-only; access-request and notification ro
 to the other orgs on a gig (needs a sharing flag plus a storage-policy change), and prod has an extra
 `fin_category` value `'Production'` that no migration creates. Found while fixing #61 (the first two filed 09-30 as #102 and #103): Staff/Viewers can read
 their own org's staff `rate`/`fee`. Tenant model decided 09-25: hosted, shared DB. New private tables need a test
-in `supabase/tests/rls/` (CI job `rls`). Found while building #111: `createOrganization`'s parameter type still lists `email` and `place_id`, which aren't `organizations` columns, so sending either would fail the insert. No caller sends them.
+in `supabase/tests/rls/` (CI job `rls`). Found while building #111: `createOrganization`'s parameter type still lists `email` and `place_id`, which aren't `organizations` columns, so sending either would fail the insert. No caller sends them. Found in the 10-06 user-guide audit: after a first Google sign-in the profile-completion screen requires **Set Password** (written for invitations) and doesn't prefill the Google name, because only `first_name`/`last_name` metadata is read.
 
  Supabase CLI 2.117 warns that `[inbucket]` in
 `supabase/config.toml` is deprecated in favour of `[local_smtp]`. This is local-only config, so nothing is
@@ -309,9 +311,9 @@ Never call `/database/query` (the read-write endpoint), `supabase db push`, `fun
 
 **Order of checks each run.**
 
-1. Check CI and mergeability on open PRs (list live; #124 and #126 merged 10-05). Fix a red or conflicted triage PR by merging `main` into it, never by rebasing.
+1. Check CI and mergeability on open PRs (list live; 10-06: #138 coordinator, #139 triage). Fix a red or conflicted triage PR by merging `main` into it, never by rebasing.
 2. #39 — check for a reply. If a variant is picked → work plan → post → wait for approval → implement.
-3. §3c — build what is released there that has no PR yet (10-05: everything listed has merged).
+3. §3c — build what is released there that has no PR yet. The user-guide audit is in progress: getting-started done (PR #139); next section is gigs (published pages first), then the rest of the published pages, then drafts. Skip `financials/` while PR #138 is open.
 4. Check §3b for unresolved entries the coordinator hasn't cleared yet.
 
 **Don't manufacture activity.** #39 already has exactly one open question on record.
