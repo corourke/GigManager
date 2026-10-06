@@ -1189,6 +1189,23 @@ Filed tax years, per organization (migration 20261006000000, #133). Purchases da
 
 ---
 
+### expense_categories
+
+The shared expense-category list (migration 20261008000000, #125): the headings filed on the 2025 Schedule C. Global, not per organization.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| id | UUID | Primary key |
+| name | TEXT | Unique. Expensed purchase lines store this in `purchases.category` |
+| schedule_c_line | TEXT | The Schedule C line it is filed on (`27b` for all 2025 headings); NULL = not deducted |
+| sort_order | SMALLINT | Display order |
+| active | BOOLEAN | Default true; inactive ones are hidden from pickers |
+| created_at | TIMESTAMPTZ | |
+
+**Notes:** RLS enabled — any signed-in user reads; there are no write policies, so changes come by migration. See [financials.md](financials.md) §6.
+
+---
+
 ### purchase_scan_queue
 
 Invoices waiting to be scanned or reviewed on Financials → Purchases → Scan invoices (migration `20261002000000`). Each row is one uploaded invoice file; the row is deleted once its purchase is saved or the invoice is discarded.

@@ -22,6 +22,10 @@ vi.mock('../services/attachment.service', () => ({
   getAttachmentUrl: vi.fn(),
 }));
 vi.mock('../services/asset.service', () => ({ updateAsset: vi.fn() }));
+vi.mock('../services/purchaseCategory.service', () => ({
+  getExpenseCategories: vi.fn(async () => ['Small audio parts', 'Small lighting parts', 'Supplies', 'Software subscriptions'].map(name => ({ name, schedule_c_line: '27b' }))),
+  getEquipmentCategories: vi.fn(async () => ['Audio', 'Lighting', 'Misc']),
+}));
 
 const scanned = {
   vendor: 'Amazon',
@@ -133,8 +137,8 @@ describe('ReviewScannedDataDialog: tax treatment and equipment (#133)', () => {
     vendor: 'Sweetwater', purchase_date: '2026-07-05', total_inv_amount: 3289,
     items: [
       { description: 'Cable', quantity: 1, item_price: 50, item_cost: 50, is_asset: false },
-      { description: 'Console', quantity: 1, item_price: 3000, item_cost: 3000, is_asset: true },
-      { description: 'Moving head', quantity: 1, item_price: 239, item_cost: 239, is_asset: true },
+      { description: 'Console', quantity: 1, item_price: 3000, item_cost: 3000, is_asset: true, category: 'Audio' },
+      { description: 'Moving head', quantity: 1, item_price: 239, item_cost: 239, is_asset: true, category: 'Lighting' },
     ],
   };
   const tax = (desc: string) => within(screen.getByRole('group', { name: `Tax treatment: ${desc}` }));
@@ -174,7 +178,7 @@ describe('ReviewScannedDataDialog: tax treatment and equipment (#133)', () => {
 
   it('a depreciated line is always tracked as equipment', async () => {
     openNew({ ...threeLines, total_inv_amount: 400, items: [{ description: 'Amp', quantity: 1, item_price: 400, item_cost: 400, is_asset: false }] });
-    const track = await screen.findByRole('checkbox', { name: 'Track Amp as equipment' });
+    const track = await screen.findByRole('switch', { name: 'Track Amp as equipment' });
     expect(track).not.toBeChecked();
     await userEvent.click(tax('Amp').getByRole('button', { name: 'Depreciate' }));
     expect(track).toBeChecked();
@@ -191,7 +195,7 @@ describe('ReviewScannedDataDialog: tax treatment and equipment (#133)', () => {
 describe('ReviewScannedDataDialog: editing tax treatment and equipment (#133)', () => {
   const purchase = (date: string) => ({
     id: 'h1', vendor: 'Sweetwater', purchase_date: date, total_inv_amount: 400, description: 'Stands',
-    items: [{ id: 'l1', row_type: 'item', tax_treatment: 'expense', description: 'Stand', quantity: 1, item_price: 400, item_cost: 400, asset_id: null }],
+    items: [{ id: 'l1', row_type: 'item', tax_treatment: 'expense', description: 'Stand', quantity: 1, item_price: 400, item_cost: 400, asset_id: null, category: 'Audio' }],
     assets: [], attachments: [],
   });
   const tax = () => within(screen.getByRole('group', { name: 'Tax treatment: Stand' }));
@@ -222,11 +226,16 @@ describe('ReviewScannedDataDialog: editing tax treatment and equipment (#133)', 
     expect(trackOrder).toBeLessThan(vi.mocked(svc.updatePurchase).mock.invocationCallOrder[lineUpdate]);
   });
 
-  it('can track an expensed line as equipment without changing its treatment', async () => {
+  it('can track an expensed line as equipment without changing its treatment, giving the equipment its own category', async () => {
     const svc = await openEdit('2026-03-01');
-    await userEvent.click(screen.getByRole('checkbox', { name: 'Track Stand as equipment' }));
+    const assets = await import('../services/asset.service');
+    await userEvent.click(screen.getByRole('switch', { name: 'Track Stand as equipment' }));
+    expect(screen.getByRole('button', { name: 'Save Changes' })).toBeDisabled();
+    expect(screen.getByText(/Choose an equipment category for 1 item/)).toBeInTheDocument();
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Equipment category: Stand' }), 'Lighting');
     await userEvent.click(screen.getByRole('button', { name: 'Save Changes' }));
     await waitFor(() => expect(svc.trackPurchaseLineAsEquipment).toHaveBeenCalledWith('l1'));
+    expect(assets.updateAsset).toHaveBeenCalledWith('asset-new', { category: 'Lighting' });
     expect(svc.updatePurchase).toHaveBeenCalledWith('l1', expect.objectContaining({ tax_treatment: 'expense' }));
   });
 
@@ -239,10 +248,116 @@ describe('ReviewScannedDataDialog: editing tax treatment and equipment (#133)', 
     const svc = await openEdit('2025-02-14', { locked: [2025] });
     expect(screen.getByText(/2025 tax year is filed/)).toBeInTheDocument();
     expect(tax().getByRole('button', { name: 'Depreciate' })).toBeDisabled();
-    await userEvent.click(screen.getByRole('checkbox', { name: 'Track Stand as equipment' }));
+    expect(screen.getByRole('combobox', { name: 'Expense category: Stand' })).toBeDisabled();
+    await userEvent.click(screen.getByRole('switch', { name: 'Track Stand as equipment' }));
+    // the equipment category isn't a tax field, so it can still be chosen
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Equipment category: Stand' }), 'Audio');
     await userEvent.click(screen.getByRole('button', { name: 'Save Changes' }));
     await waitFor(() => expect(svc.trackPurchaseLineAsEquipment).toHaveBeenCalledWith('l1'));
     expect(svc.updatePurchase).toHaveBeenCalledWith('l1', { description: 'Stand' });
     expect(svc.updatePurchase).toHaveBeenCalledWith('h1', expect.not.objectContaining({ total_inv_amount: expect.anything() }));
+  });
+});
+
+describe('ReviewScannedDataDialog: categories (10-06)', () => {
+  const invoice = {
+    vendor: 'Sweetwater', purchase_date: '2026-07-05', total_inv_amount: 3050,
+    items: [
+      { description: 'Cable', quantity: 1, item_price: 50, item_cost: 50, is_asset: false, category: 'Audio' },
+      { description: 'Console', quantity: 1, item_price: 3000, item_cost: 3000, is_asset: true, category: 'Audio' },
+    ],
+  };
+  const select = (name: string) => screen.getByRole('combobox', { name }) as HTMLSelectElement;
+
+  beforeEach(() => vi.clearAllMocks());
+  const openNew = async (data: any = invoice) => {
+    render(<ReviewScannedDataDialog open onOpenChange={vi.fn()} onSuccess={vi.fn()} organizationId="org-1" scannedData={data} file={null} />);
+    // the lists have loaded
+    await screen.findAllByRole('option', { name: /^(Supplies|Misc)$/ });
+  };
+
+  it('an expensed line picks from the expense categories, with the scanned category mapped to its heading', async () => {
+    await openNew();
+    expect(select('Expense category: Cable').value).toBe('Small audio parts');
+    expect(screen.queryByRole('combobox', { name: 'Equipment category: Cable' })).not.toBeInTheDocument();
+  });
+
+  it('a depreciated line has one category: its equipment category', async () => {
+    await openNew();
+    expect(select('Equipment category: Console').value).toBe('Audio');
+    expect(screen.queryByRole('combobox', { name: 'Expense category: Console' })).not.toBeInTheDocument();
+  });
+
+  it('the equipment switch is labelled and, when on, asks for an equipment category too', async () => {
+    await openNew();
+    const sw = screen.getByRole('switch', { name: 'Track Cable as equipment' });
+    expect(sw).toHaveTextContent('Equipment');
+    expect(sw).not.toBeChecked();
+    await userEvent.click(sw);
+    expect(sw).toBeChecked();
+    expect(select('Equipment category: Cable').value).toBe('Audio');
+    expect(select('Expense category: Cable').value).toBe('Small audio parts');
+  });
+
+  it('saves the expense category on the line and the equipment category on its asset', async () => {
+    await openNew();
+    await userEvent.click(screen.getByRole('switch', { name: 'Track Cable as equipment' }));
+    await userEvent.selectOptions(select('Equipment category: Cable'), 'Misc');
+    await userEvent.selectOptions(select('Expense category: Cable'), 'Supplies');
+    await userEvent.click(screen.getByRole('button', { name: 'Save Purchase' }));
+    await waitFor(() => expect(createPurchaseTransaction).toHaveBeenCalled());
+    const [, items, assets] = vi.mocked(createPurchaseTransaction).mock.calls[0];
+    expect(items!.map((i: any) => i.category)).toEqual(['Supplies', 'Audio']);
+    expect(assets!.map((a: any) => a.category)).toEqual(['Misc', 'Audio']);
+  });
+
+  it('switching to Depreciate moves the equipment category onto the line, and back', async () => {
+    await openNew({ ...invoice, total_inv_amount: 450, items: [{ description: 'Amp', quantity: 1, item_price: 450, item_cost: 450, is_asset: true, category: 'Audio' }] });
+    const tax = within(screen.getByRole('group', { name: 'Tax treatment: Amp' }));
+    await userEvent.click(tax.getByRole('button', { name: 'Depreciate' }));
+    expect(select('Equipment category: Amp').value).toBe('Audio');
+    await userEvent.click(tax.getByRole('button', { name: 'Expense' }));
+    expect(select('Expense category: Amp').value).toBe('Small audio parts');
+    expect(select('Equipment category: Amp').value).toBe('Audio');
+  });
+
+  it('can add a new equipment category', async () => {
+    await openNew({ ...invoice, total_inv_amount: 3000, items: [{ description: 'Switcher', quantity: 1, item_price: 3000, item_cost: 3000, is_asset: true }] });
+    await userEvent.selectOptions(select('Equipment category: Switcher'), 'Add new category…');
+    await userEvent.type(screen.getByRole('textbox', { name: 'New equipment category: Switcher' }), 'Video');
+    await userEvent.click(screen.getByRole('button', { name: 'Save Purchase' }));
+    await waitFor(() => expect(createPurchaseTransaction).toHaveBeenCalled());
+    const [, items, assets] = vi.mocked(createPurchaseTransaction).mock.calls[0];
+    expect(items![0].category).toBe('Video');
+    expect(assets![0].category).toBe('Video');
+  });
+
+  it('keeps a saved category that is not on the list', async () => {
+    const svc = await import('../services/purchase.service');
+    vi.mocked(svc.getPurchaseWithDetails).mockResolvedValue({
+      id: 'h1', vendor: 'V', purchase_date: '2026-03-01', total_inv_amount: 20, description: '',
+      items: [{ id: 'l1', row_type: 'item', tax_treatment: 'expense', description: 'Pens', quantity: 1, item_price: 20, item_cost: 20, asset_id: null, category: 'Office' }],
+      assets: [], attachments: [],
+    } as any);
+    render(<ReviewScannedDataDialog open onOpenChange={vi.fn()} onSuccess={vi.fn()} onUpdated={vi.fn()} organizationId="org-1" scannedData={null} file={null} editPurchaseId="h1" />);
+    await screen.findByRole('option', { name: 'Supplies' });
+    expect(select('Expense category: Pens').value).toBe('Office');
+    expect(screen.getByRole('option', { name: 'Office (not on the list)' })).toBeInTheDocument();
+  });
+
+  it('an existing expensed line already tracked shows its equipment\'s category', async () => {
+    const svc = await import('../services/purchase.service');
+    vi.mocked(svc.getPurchaseWithDetails).mockResolvedValue({
+      id: 'h1', vendor: 'V', purchase_date: '2026-03-01', total_inv_amount: 20, description: '',
+      items: [{ id: 'l1', row_type: 'asset', tax_treatment: 'expense', description: 'Clamp', quantity: 1, item_price: 20, item_cost: 20, asset_id: 'a1', category: 'Small lighting parts' }],
+      assets: [{ id: 'a1', category: 'Lighting', item_cost: 20, quantity: 1 }], attachments: [],
+    } as any);
+    render(<ReviewScannedDataDialog open onOpenChange={vi.fn()} onSuccess={vi.fn()} onUpdated={vi.fn()} organizationId="org-1" scannedData={null} file={null} editPurchaseId="h1" />);
+    await screen.findByRole('option', { name: 'Supplies' });
+    expect(select('Expense category: Clamp').value).toBe('Small lighting parts');
+    expect(select('Equipment category: Clamp').value).toBe('Lighting');
+    await userEvent.click(screen.getByRole('button', { name: 'Save Changes' }));
+    await waitFor(() => expect(svc.computeAssetFieldChanges).toHaveBeenCalled());
+    expect(svc.computeAssetFieldChanges).toHaveBeenCalledWith(expect.objectContaining({ category: 'Lighting' }), expect.anything());
   });
 });

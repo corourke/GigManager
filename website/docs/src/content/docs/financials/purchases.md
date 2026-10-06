@@ -34,7 +34,9 @@ Each invoice card shows the date, vendor, description and **Invoice Total**, and
 
 ## A line
 
-The line table shows **Type** (**Expense** or **Depreciate**, plus **Equipment** if it's tracked as equipment), **Description / Model**, **Category**, **Qty**, **Price** and **Cost**. **Cost** is the item's share of the invoice total; see [Cost allocation](/financials/cost-allocation/).
+Each purchase is a card. Its blue band at the top shows the date, the vendor, the invoice description and year, and the **Invoice total**.
+
+The line table shows **Type** (**Expense** or **Depreciate**), **Description / Model**, **Equipment** (a box icon when the item is tracked as equipment), **Category**, **Qty**, **Price** and **Cost**. Long descriptions are cut short; hover to read the whole thing. **Cost** is the item's share of the invoice total; see [Cost allocation](/financials/cost-allocation/).
 
 Click a line to open it. You'll see its price and cost figures, and these actions:
 

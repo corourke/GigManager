@@ -11,7 +11,7 @@ Both questions appear on every line of the purchase screen, whether you scan an 
 
 ## 1. Track as equipment?
 
-Tick the checkbox at the start of the line (column **Equip**) for gear you'll look after: cables, stands, fixtures, cases. It gets an equipment record, so you can tag it and put it in kits.
+Turn on the **Equipment** switch under the line for gear you'll look after: cables, stands, fixtures, cases. It gets an equipment record, so you can tag it and put it in kits, and you pick its equipment category (Audio, Lighting, …).
 
 Leave it off for things you use up, like tape, batteries and software.
 
@@ -35,11 +35,12 @@ Per-item cost is the item's cost after tax and shipping (see [Cost allocation](/
 |---|---|---|
 | Track as equipment | Optional | Always |
 | Count it as a cost of a gig | Optional | Never |
+| Category | An expense heading (and an equipment category if it's equipment) | An equipment category |
 | Recovery period (5, 7 or 15 years) | — | Yes (you'll set it with the tax reports, coming soon) |
 
 A cable bought for one show can be that gig's cost **and** go in a kit. Depreciated gear belongs to the business, not to one gig.
 
-- Choosing **Depreciate** ticks **Track as equipment** for you, and it stays ticked.
+- Choosing **Depreciate** turns on **Equipment** for you, and it stays on.
 - A line that's already a gig's cost can't be switched to **Depreciate**. Remove it from the gig first.
 - To start tracking something you bought earlier, open its line in **Financials → Purchases** and click **Track as equipment**.
 
@@ -50,7 +51,7 @@ Your gig costs and your tax figures never double-count. A purchase linked to a g
 Once you've filed a year's taxes, an Admin locks that year under **Financials → Reporting → Filed tax years**: enter the year and the date you filed, then click **Lock year**.
 
 - **Locked:** you can't change that year's purchases' costs, dates, categories or tax treatment, or add or delete purchases dated in it.
-- **Still allowed:** tracking an item as equipment, putting it in kits, and editing descriptions.
+- **Still allowed:** tracking an item as equipment (and choosing its equipment category), putting it in kits, and editing descriptions.
 
 Editing a purchase from a locked year shows a note saying so, and only its descriptions can change.
 
