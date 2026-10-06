@@ -1289,8 +1289,10 @@ export type Database = {
           payment_method: string | null
           purchase_date: string | null
           quantity: number | null
+          recovery_period: number | null
           row_type: string
           sub_category: string | null
+          tax_treatment: string | null
           total_inv_amount: number | null
           updated_at: string
           updated_by: string | null
@@ -1313,8 +1315,10 @@ export type Database = {
           payment_method?: string | null
           purchase_date?: string | null
           quantity?: number | null
+          recovery_period?: number | null
           row_type: string
           sub_category?: string | null
+          tax_treatment?: string | null
           total_inv_amount?: number | null
           updated_at?: string
           updated_by?: string | null
@@ -1337,8 +1341,10 @@ export type Database = {
           payment_method?: string | null
           purchase_date?: string | null
           quantity?: number | null
+          recovery_period?: number | null
           row_type?: string
           sub_category?: string | null
+          tax_treatment?: string | null
           total_inv_amount?: number | null
           updated_at?: string
           updated_by?: string | null
@@ -1396,6 +1402,36 @@ export type Database = {
           id?: string
           name?: string
           updated_at?: string
+        }
+        Relationships: []
+      }
+      tax_years: {
+        Row: {
+          created_at: string
+          filed_on: string | null
+          locked: boolean
+          notes: string | null
+          organization_id: string
+          updated_at: string
+          year: number
+        }
+        Insert: {
+          created_at?: string
+          filed_on?: string | null
+          locked?: boolean
+          notes?: string | null
+          organization_id: string
+          updated_at?: string
+          year: number
+        }
+        Update: {
+          created_at?: string
+          filed_on?: string | null
+          locked?: boolean
+          notes?: string | null
+          organization_id?: string
+          updated_at?: string
+          year?: number
         }
         Relationships: []
       }
@@ -1774,6 +1810,10 @@ export type Database = {
           p_gig_id: string
           p_organization_id: string
         }
+        Returns: string
+      }
+      track_purchase_line_as_equipment: {
+        Args: { p_line_id: string }
         Returns: string
       }
       reclassify_expense_as_asset: {

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { DATE_PRESETS, DEFAULT_DATE_PRESET, presetRange, purchaseTotals } from './purchaseFilters';
+import { DATE_PRESETS, DEFAULT_DATE_PRESET, groupPurchases, presetRange, purchaseTotals } from './purchaseFilters';
 
 // Wednesday 15 April 2026, mid-afternoon local time.
 const today = new Date(2026, 3, 15, 15, 30);
@@ -35,11 +35,37 @@ describe('purchase report date presets', () => {
 });
 
 describe('purchase report totals', () => {
-  it('adds up line costs and counts assets and expenses', () => {
+  it('adds up line costs and counts by tax treatment, with equipment counted separately (#133)', () => {
     const groups = [
-      { children: [{ line_cost: 100, asset_id: 'a1' }, { line_cost: 25.5 }] },
-      { children: [{ line_cost: 10, row_type: 'asset' }, { line_cost: null }] },
+      { children: [
+        { line_cost: 100, row_type: 'asset', tax_treatment: 'depreciate', asset_id: 'a1' },
+        { line_cost: 25.5, row_type: 'item', tax_treatment: 'expense' },
+      ] },
+      { children: [
+        { line_cost: 10, row_type: 'asset', tax_treatment: 'expense', asset_id: 'a2' }, // expensed gear
+        { line_cost: null, row_type: 'item' },                                           // no treatment yet: expense
+      ] },
     ];
-    expect(purchaseTotals(groups as any)).toEqual({ totalCost: 135.5, assetCount: 2, expenseCount: 2 });
+    expect(purchaseTotals(groups as any)).toEqual({ totalCost: 135.5, depreciatedCount: 1, expensedCount: 3, equipmentCount: 2 });
+  });
+});
+
+describe('groupPurchases type filter (#133)', () => {
+  const header = { id: 'h', row_type: 'header', purchase_date: '2026-03-01', vendor: 'V' };
+  const lines = [
+    { id: 'dep', parent_id: 'h', row_type: 'asset', tax_treatment: 'depreciate', asset_id: 'a1' },
+    { id: 'gear', parent_id: 'h', row_type: 'asset', tax_treatment: 'expense', asset_id: 'a2' },
+    { id: 'tape', parent_id: 'h', row_type: 'item', tax_treatment: 'expense', asset_id: null },
+  ];
+  const ids = (f: any) => groupPurchases([header, ...lines] as any, f).flatMap(g => g.children.map(c => c.id));
+
+  it('filters by tax treatment, whatever the line\'s row type', () => {
+    expect(ids('expense')).toEqual(['gear', 'tape']);
+    expect(ids('depreciate')).toEqual(['dep']);
+  });
+
+  it('filters equipment, expensed or depreciated', () => {
+    expect(ids('equipment')).toEqual(['dep', 'gear']);
+    expect(ids('all')).toEqual(['dep', 'gear', 'tape']);
   });
 });

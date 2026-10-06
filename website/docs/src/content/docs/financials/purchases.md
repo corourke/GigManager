@@ -10,12 +10,12 @@ sidebar:
 ## The report
 
 **Filters:**
-- **Vendor**, **Type** (**All Types**, **Assets**, **Expenses**), and a **From** / **To** date range.
+- **Vendor**, **Type** (**All Types**, **Expensed**, **Depreciated**, **Equipment**), and a **From** / **To** date range. **Equipment** shows every line tracked as equipment, expensed or depreciated.
 - Quick ranges: **Last 30 days** (the default), **This month**, **Last month**, **This quarter**, **This year**, **Last year**, **All time**.
 - **Clear all filters** puts everything back to the defaults.
 
 **Totals.** The box beside the filters shows:
-- the total for what's on screen, labelled **Last 30 days** or **Filtered**, with the number of equipment lines (**Assets**) and **Expenses**;
+- the total for what's on screen, labelled **Last 30 days** or **Filtered**, with the number of **Depreciated** and **Expensed** lines;
 - the **All time** total.
 
 **Views.** The two buttons switch between them:
@@ -34,14 +34,16 @@ Each invoice card shows the date, vendor, description and **Invoice Total**, and
 
 ## A line
 
-The line table shows **Type** (**Asset** or **Expense**), **Description / Model**, **Category**, **Qty**, **Price** and **Cost**. **Cost** is the item's share of the invoice total; see [Cost allocation](/financials/cost-allocation/).
+The line table shows **Type** (**Expense** or **Depreciate**, plus **Equipment** if it's tracked as equipment), **Description / Model**, **Category**, **Qty**, **Price** and **Cost**. **Cost** is the item's share of the invoice total; see [Cost allocation](/financials/cost-allocation/).
 
 Click a line to open it. You'll see its price and cost figures, and these actions:
 
 - **Asset Details**: the equipment record, with **Edit Asset** and **Open Asset**.
 - **Gig Details**: the linked gig, with **Open Gig**.
 - **Delete Item**: removes the line. Its equipment record, if any, is kept.
-- **Reclassify as Asset** (expense lines only): turns the line into equipment and creates its equipment record. This can't be undone. If the purchase is linked to a gig, the gig's matching expense is removed.
+- **Track as equipment** (lines that aren't yet): creates an equipment record for the item so you can tag it and put it in kits. Its tax treatment doesn't change, and if it's a gig's expense it stays one. This works for purchases from filed years too.
+
+To change a line's tax treatment, **Edit** the purchase.
 
 ### Linking a line to a gig
 
@@ -54,12 +56,4 @@ Use **Assign Gig:** on the line to say it was a cost of a particular gig (a van 
 - **Clearing the gig** asks whether to **Unlink and delete entry** or **Keep linked**.
 - **Add to gig ledger** appears on any expense line that's linked to a gig but isn't in its money out yet, for example after you clicked **Skip**.
 
-Equipment lines are never added to a gig's money out. Equipment is bought for the business, not for one show.
-
-## Coming soon: tax treatment and equipment as separate choices
-
-Today a line is either an **Asset** or an **Expense**. Soon each line will ask two separate questions:
-- **Track as equipment?** — so it can go in kits.
-- **For tax: expense or depreciate?**
-
-So a cable you expensed can still go in a kit.
+Only **expensed** lines can be a gig's cost, whether or not they're tracked as equipment. A **depreciated** line can't be assigned to a gig: it's bought for the business, not for one show. Assigning a whole receipt to a gig links only its expensed lines.

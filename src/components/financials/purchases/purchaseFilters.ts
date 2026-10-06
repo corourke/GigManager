@@ -1,4 +1,5 @@
 import type { DbPurchase } from '../../../utils/supabase/types';
+import { lineTaxTreatment } from '../../../utils/taxTreatment';
 
 // Date presets and totals for the purchases report (10-01). Dates are local
 // calendar days as YYYY-MM-DD, the same form as purchase_date.
@@ -44,11 +45,18 @@ export function presetRange(preset: DatePreset, today: Date = new Date()): { fro
   }
 }
 
-export type PurchaseTypeFilter = 'all' | 'asset' | 'expense';
+/** By tax treatment (#133), or every line tracked as equipment whatever its treatment. */
+export type PurchaseTypeFilter = 'all' | 'expense' | 'depreciate' | 'equipment';
 
 export interface PurchaseGroup {
   header: DbPurchase;
   children: DbPurchase[];
+}
+
+export function lineMatchesType(line: DbPurchase, typeFilter: PurchaseTypeFilter): boolean {
+  if (typeFilter === 'all') return true;
+  if (typeFilter === 'equipment') return !!line.asset_id;
+  return lineTaxTreatment(line) === typeFilter;
 }
 
 /**
@@ -57,33 +65,16 @@ export interface PurchaseGroup {
  */
 export function groupPurchases(purchases: DbPurchase[], typeFilter: PurchaseTypeFilter): PurchaseGroup[] {
   const headers = purchases.filter(p => p.row_type === 'header');
-  const items = purchases.filter(p => p.row_type === 'item' || p.row_type === 'asset');
+  const items = purchases.filter(p => p.row_type !== 'header');
 
   const groups = headers.map(header => {
-    const children = items.filter(item => item.parent_id === header.id);
-
-    const hasAssets = children.some(c => c.asset_id || c.row_type === 'asset');
-    const hasExpenses = children.some(c => !c.asset_id && c.row_type !== 'asset');
-
-    let matchesType = true;
-    if (typeFilter === 'asset') matchesType = hasAssets;
-    if (typeFilter === 'expense') matchesType = hasExpenses;
-
-    if (!matchesType) return null;
-
-    return {
-      header,
-      children: children.filter(c => {
-        if (typeFilter === 'asset') return !!c.asset_id || c.row_type === 'asset';
-        if (typeFilter === 'expense') return !c.asset_id && c.row_type !== 'asset';
-        return true;
-      })
-    };
+    const children = items.filter(item => item.parent_id === header.id && lineMatchesType(item, typeFilter));
+    if (typeFilter !== 'all' && children.length === 0) return null;
+    return { header, children };
   }).filter(Boolean) as PurchaseGroup[];
 
   const orphanedItems = items.filter(item =>
-    !headers.some(h => h.id === item.parent_id) &&
-    (typeFilter === 'all' || (typeFilter === 'asset' ? (!!item.asset_id || item.row_type === 'asset') : (!item.asset_id && item.row_type !== 'asset')))
+    !headers.some(h => h.id === item.parent_id) && lineMatchesType(item, typeFilter)
   );
 
   if (orphanedItems.length > 0) {
@@ -114,20 +105,21 @@ export function groupPurchases(purchases: DbPurchase[], typeFilter: PurchaseType
 
 export interface PurchaseTotals {
   totalCost: number;
-  assetCount: number;
-  expenseCount: number;
+  depreciatedCount: number;
+  expensedCount: number;
+  /** Lines tracked as equipment, expensed or depreciated. */
+  equipmentCount: number;
 }
 
-const isAssetLine = (p: Pick<DbPurchase, 'asset_id' | 'row_type'>) => !!p.asset_id || p.row_type === 'asset';
-
-/** Total cost and asset/expense line counts over invoice groups. */
+/** Total cost, and line counts by tax treatment and equipment, over invoice groups. */
 export function purchaseTotals(groups: { children: DbPurchase[] }[]): PurchaseTotals {
-  const totals: PurchaseTotals = { totalCost: 0, assetCount: 0, expenseCount: 0 };
+  const totals: PurchaseTotals = { totalCost: 0, depreciatedCount: 0, expensedCount: 0, equipmentCount: 0 };
   for (const group of groups) {
     for (const line of group.children) {
       totals.totalCost += line.line_cost || 0;
-      if (isAssetLine(line)) totals.assetCount++;
-      else totals.expenseCount++;
+      if (lineTaxTreatment(line) === 'depreciate') totals.depreciatedCount++;
+      else totals.expensedCount++;
+      if (line.asset_id) totals.equipmentCount++;
     }
   }
   return totals;

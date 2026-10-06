@@ -431,7 +431,7 @@ describe('purchase → gig ledger lifecycle', () => {
   });
 
   describe('reconcileLedgerForLineGigChange', () => {
-    it('is a noop for non-item rows', async () => {
+    it('is a noop for depreciated lines (an asset row with no stored treatment)', async () => {
       const res = await reconcileLedgerForLineGigChange({
         item: line({ row_type: 'asset' }), previousGigId: null, newGigId: 'gig-1', organizationId: 'org-1',
       });
@@ -552,10 +552,10 @@ describe('assignGigToPurchaseChildren (header → gig cascade)', () => {
 
     const res = await assignGigToPurchaseChildren('header-1', 'gig-1', 'org-1');
 
-    // header + c1 + c2 updated; c3 left alone
-    expect(res.updated).toBe(3);
+    // header + c1 updated; c2 (an asset line, so depreciated) is never a gig expense (#133); c3 left alone
+    expect(res.updated).toBe(2);
     expect(res.failed).toBe(0);
-    expect(res.newlyLinkedItemIds).toEqual(['c1']); // only row_type 'item' among the newly linked
+    expect(res.newlyLinkedItemIds).toEqual(['c1']);
   });
 
   it('reports failures without throwing', async () => {
@@ -569,5 +569,36 @@ describe('assignGigToPurchaseChildren (header → gig cascade)', () => {
 
     const res = await assignGigToPurchaseChildren('header-1', 'gig-1', 'org-1');
     expect(res.failed).toBeGreaterThan(0);
+  });
+});
+
+// #133: gig links follow the tax treatment, not the row type.
+describe('gig links and tax treatment (#133)', () => {
+  const mockSupabase: any = { from: vi.fn(() => mockSupabase), select: vi.fn(() => mockSupabase), eq: vi.fn(() => mockSupabase), update: vi.fn(() => mockSupabase), single: vi.fn(() => mockSupabase), then: vi.fn() };
+  beforeEach(() => {
+    vi.clearAllMocks();
+    (createClient as any).mockReturnValue(mockSupabase);
+    (requireAuth as any).mockResolvedValue({ supabase: mockSupabase, user: { id: 'u1' } });
+  });
+
+  it('assigning a receipt to a gig links expensed lines (equipment or not) and never depreciated ones', async () => {
+    const children = [
+      { id: 'tape', gig_id: null, row_type: 'item', tax_treatment: 'expense' },
+      { id: 'stand', gig_id: null, row_type: 'asset', tax_treatment: 'expense' },
+      { id: 'console', gig_id: null, row_type: 'asset', tax_treatment: 'depreciate' },
+    ];
+    mockSupabase.then.mockImplementation((onFulfilled: any) => onFulfilled({ data: children, error: null }));
+    const res = await assignGigToPurchaseChildren('header-1', 'gig-1', 'org-1');
+    expect(res.newlyLinkedItemIds).toEqual(['tape', 'stand']);
+    expect(res.updated).toBe(3); // the header + the two expensed lines
+  });
+
+  it('an expensed equipment line gets a gig ledger entry; a depreciated one never does', async () => {
+    vi.mocked(getGigFinancialsByPurchaseId).mockResolvedValue([]);
+    const base = { id: 'l1', line_cost: 40, item_cost: 40, line_amount: 40, item_price: 40, quantity: 1, purchase_date: '2026-03-01', description: 'Stand', vendor: 'V', category: null } as any;
+    expect(await reconcileLedgerForLineGigChange({ item: { ...base, row_type: 'asset', tax_treatment: 'expense' }, previousGigId: null, newGigId: 'g1', organizationId: 'o' }))
+      .toEqual({ action: 'needs-entry', gigId: 'g1' });
+    expect(await reconcileLedgerForLineGigChange({ item: { ...base, row_type: 'asset', tax_treatment: 'depreciate' }, previousGigId: null, newGigId: 'g1', organizationId: 'o' }))
+      .toEqual({ action: 'noop' });
   });
 });

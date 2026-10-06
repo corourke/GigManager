@@ -4,7 +4,7 @@ How GigWrangler records money: purchases (invoices and their lines), equipment (
 
 This replaces `gig-financials.md` and `purchases-assets-expenses.md`, which now point here. The user-facing version is the Financials section of the user guide (`website/docs/src/content/docs/financials/`).
 
-**Last Updated**: 2026-10-06 (migration `20261006000000_purchase_tax_treatment`, #133 step 1)
+**Last Updated**: 2026-10-06 (#133 steps 1–2: migrations `20261006000000_purchase_tax_treatment` and `20261007000000_purchase_tax_treatment_writers`, and the UI)
 
 ---
 
@@ -204,13 +204,30 @@ Files live in the `attachments` table and storage bucket, joined through `entity
 - **Deferred constraint trigger** for "depreciate has equipment". `create_purchase_transaction_v1` inserts a line before linking its asset, so the check waits for the end of the transaction.
 - **Triggers on both tables** for "never a gig expense": one on `gig_financials` (insert, or a change of `purchase_id`), and one on `purchases` (a change to depreciate).
 
-**Choosing the treatment** (UI, #133 step 2). The user is asked:
+**Writers** (migration `20261007000000`, tests in `41_tax_treatment_writers.test.sql`):
+- `create_purchase_transaction_v1` stores each line's `tax_treatment` and `recovery_period` when given. `row_type` still decides which lines get an equipment record until step 3.
+- `track_purchase_line_as_equipment(line)` (Admins and Managers) creates the equipment record from the line and links it. It changes nothing else, so it works on lines in a locked year.
+
+**Choosing the treatment** (UI, #133 step 2: `ReviewScannedDataDialog`, `src/utils/taxTreatment.ts`). Each line on the review screen has a **Track as equipment** checkbox (column "Equip") and an **Expense | Depreciate** switch with a (?) that shows:
 
 > For tax purposes, do you want to mark this item as an expense, or a depreciable asset. (Per-item cost of less than $200 should automatically be expensed. Any item over $2500 should be depreciated. From $200 to $2500 is a grey zone.)
 
 - **Per-item cost** is `item_cost`.
 - **Pre-sets:** under $200 is Expense; over $2,500 is Depreciate; nothing is pre-set in between.
 - **Changeable** until the year is locked. Whether the de minimis safe harbor is elected is only known at filing, so the app never forces it.
+- **Saving waits** until every grey-zone line has a choice.
+- **Depreciate ticks equipment** and keeps it ticked.
+- **Edit mode:**
+  - you can change the treatment, or start tracking a line (the dialog calls `track_purchase_line_as_equipment` first, then saves the treatment);
+  - Depreciate is disabled on a line that's a gig expense;
+  - a purchase dated in a locked year shows a notice, and only descriptions are sent (plus tracking).
+- **Purchases report:**
+  - type badges show the treatment, with a separate **Equipment** chip;
+  - the Type filter is All, Expensed, Depreciated or Equipment;
+  - **Track as equipment** replaces **Reclassify as Asset**;
+  - **Assign Gig** and **Add to gig ledger** appear only on expensed lines;
+  - assigning a whole receipt to a gig links only its expensed lines (`assignGigToPurchaseChildren`, `reconcileLedgerForLineGigChange`).
+- **Tax years:** Admins lock and unlock years under **Financials → Reporting → Filed tax years** (`TaxYearsCard`, `taxYear.service.ts`); Managers see them read-only.
 
 "Track as equipment" is a separate question.
 
@@ -237,7 +254,9 @@ Files live in the `attachments` table and storage bucket, joined through `entity
 | Staffing → **Finalize** | Money-out row at Owed | §2.4 |
 | Purchases report → line → **Assign Gig** | Line `gig_id`; then offers a paid money-out row at `line_cost` | Moving the line moves the row; clearing the gig offers to delete it; **Add to gig ledger** covers lines linked earlier. |
 | Purchases report → invoice → **Assign receipt to gig** | Header and unlinked lines' `gig_id`; offers rows for the expense lines | Lines already on another gig are left alone. |
-| Purchases report → line → **Reclassify as Asset** | Creates the asset; line becomes `asset`/depreciate | One way only. Replaced in #133 step 2 by the two settings. Its ledger cleanup is wrong (#129). |
+| Purchases report → line → **Track as equipment** | An `assets` row linked to the line (RPC `track_purchase_line_as_equipment`) | Tax treatment unchanged; works in locked years. Replaced **Reclassify as Asset** (#133 step 2). |
+| Review screen (edit) → **Expense / Depreciate** | The line's `tax_treatment` | Depreciating first tracks the line as equipment. Not on a gig expense or in a locked year. |
+| Financials → Reporting → **Filed tax years** | `tax_years` rows (Admins) | Lock with the filed date; unlock to amend. |
 
 The AI scan suggests whether each line is equipment (a $50 durable rule) and suggests categories; the user can change both before saving.
 
@@ -293,7 +312,7 @@ Purchase categories map to `fin_category` only on an exact name match; anything 
 
 | # | Problem | Issue |
 |---|---|---|
-| 1 | Reclassify as Asset deletes ledger rows by the header id: a line's own gig row survives, and a whole-invoice row is deleted. There is no way back. | #129 (largely replaced by #133) |
+| 1 | Reclassify as Asset (now removed from the UI; the RPC remains until step 3) deleted ledger rows by the header id. | #129, replaced by #133 |
 | 2 | Upload Receipt on a gig books the whole invoice, equipment included, as one gig expense. Later per-line links can count lines twice. | #130 |
 | 3 | Editing a purchase's date doesn't reach its lines. Lines added while editing get no date. | #131 |
 | 4 | Ledger edits from the purchase dialog use the printed price and don't update the paid amount. | #131 |

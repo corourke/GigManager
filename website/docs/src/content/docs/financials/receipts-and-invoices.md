@@ -54,7 +54,9 @@ The same screen appears for every scan, for **Add manually**, and when you edit 
   - **Unit Cost** is calculated: the invoice total is spread across the lines (see [Cost allocation](/financials/cost-allocation/)).
   - **Add Item** adds a line; the trash icon removes one.
   - Each line also has a category (**C:**) and sub-category (**SC:**).
-- **The checkbox at the start of each line** (column **A/E**) marks the line as equipment. When it's ticked, saving also creates an equipment record you can tag and put in kits. Its tooltip reads **Asset (durable)** or **Expense**.
+- **Two questions on every line** (see [Tax treatment and equipment](/financials/tax-treatment/)):
+  - **Track as equipment:** the checkbox at the start of the line (column **Equip**). Tick it for gear you look after. Saving then creates an equipment record you can tag and put in kits. The arrow next to it shows **Kit name**, **Serial #**, **Tag #** and **Replace Value**.
+  - **Expense | Depreciate:** how the item counts for tax. It's set for you from the item's cost: **Expense** under $200, **Depreciate** over $2,500. Between those you choose; the **(?)** explains. **Save Purchase** waits until every line has one.
 - **Reconciled / Mismatch:** at the bottom, GigWrangler compares the lines with the invoice total. **Mismatch** means they differ by more than 5¢. Fix the total or the lines before saving.
 
 The scan suggests which lines are equipment and suggests categories. Change anything that's wrong.
