@@ -69,7 +69,7 @@ flowchart LR
 | `category`, `sub_category` | Free text. An **expensed** line's `category` is an expense category (a name from `expense_categories`, §6); a **depreciated** line's is its equipment category, the same as its asset's. An expensed line tracked as equipment keeps its equipment category on the asset. Lines inherit the header's when left blank. |
 | `tax_treatment` | Lines only: `expense` or `depreciate` (§3). NULL on headers. |
 | `recovery_period` | Depreciated lines only: 5, 7 or 15 years. The tax program computes depreciation; GigWrangler only records the period. |
-| `gig_id` | The gig this line is a cost of. Headers still carry one today (old "assign receipt to gig"); #133 step 3 moves it to the lines. |
+| `gig_id` | Lines only: the gig this **expensed** line is a cost of. Constraints `purchases_header_no_gig` and `purchases_depreciate_no_gig` (migration 20261009000000) keep it off headers and depreciated lines. That migration moved the 10 header links onto their expensed lines. |
 | `asset_id` | The line's equipment record, if it is tracked. |
 
 **Cost allocation.** The invoice total includes tax and shipping, but the printed lines don't, so the difference is spread across the lines and the lines' `line_cost` adds up to the header's `total_inv_amount`:
@@ -125,7 +125,7 @@ Each row is **money in** (`direction = 'in'`: fees, deposits, reimbursements) or
 - `paid_at`: when it was paid.
 - `category` (`fin_category`, IRS Schedule C): what a row is for. Money out only in the UI.
 - `counterparty_id` / `external_entity_name`: the other party.
-- `purchase_id`: the purchase line this cost came from (or a header, for old scan-from-gig rows).
+- `purchase_id`: the purchase line this cost came from. Old scan-from-gig rows that pointed at a header were moved to its line by migration 20261009000000 when it had one expensed line.
 - `staff_assignment_id`: the staff assignment that produced this row.
 - `legacy_type`: the pre-2026-10 type, kept for audit.
 
@@ -226,7 +226,7 @@ Files live in the `attachments` table and storage bucket, joined through `entity
   - the Type filter is All, Expensed, Depreciated or Equipment;
   - **Track as equipment** replaces **Reclassify as Asset**;
   - **Assign Gig** and **Add to gig ledger** appear only on expensed lines;
-  - assigning a whole receipt to a gig links only its expensed lines (`assignGigToPurchaseChildren`, `reconcileLedgerForLineGigChange`).
+  - a purchase is never assigned to a gig as a whole: **Assign receipt to gig** was removed in #133 step 3; lines are linked one at a time (`reconcileLedgerForLineGigChange`).
 - **Tax years:** Admins lock and unlock years under **Financials → Reporting → Filed tax years** (`TaxYearsCard`, `taxYear.service.ts`); Managers see them read-only.
 
 "Track as equipment" is a separate question.
@@ -244,7 +244,7 @@ Files live in the `attachments` table and storage bucket, joined through `entity
 |---|---|---|
 | Financials → Purchases → **Scan invoices** | Header + lines; an `assets` row per line marked as equipment; the file as `purchase` attachment | Several files at once, read in the background two at a time, reviewed one at a time. RPC `create_purchase_transaction_v1`. |
 | Financials → Purchases → **Add manually** | Same, without a file | Attach the file afterwards with **Attach Doc** on the report. |
-| Gig → Financials → **Upload Receipt** | Same, plus **one** gig money-out row for the whole invoice total (`purchase_id` = header) | Scans one file. Booking the whole invoice, equipment included, is bug #130. |
+| Gig → Financials → **Upload Receipt** | Same, then each **expensed** line gets the gig's `gig_id` and its own money-out row (`createLedgerEntryForPurchaseLine`) | Scans one file. Depreciated lines are not the gig's cost (#130, fixed 10-06). |
 | Assets list → **Upload Invoice** | Same as Scan invoices, for one file | Opens manual entry if the file can't be scanned. |
 | Purchases report → **Attach Doc** | A `purchase` attachment on the header | No scan. |
 | Import → **CSV Import** | Headers, lines and assets from rows | No gig links, no attachments. `source` 0 = header, 1 = equipment line + asset, 2 = expense line. See `purchases-field-mapping.md`. |
@@ -253,7 +253,6 @@ Files live in the `attachments` table and storage bucket, joined through `entity
 | Gig → **Expense / Mileage** | One money-out row | Mileage = miles × the IRS rate for the date (`src/utils/financials.utils.ts`; 2025–26 rates wrong, #125 F1). A simple expense can carry a receipt (`gig_financial`). |
 | Staffing → **Finalize** | Money-out row at Owed | §2.4 |
 | Purchases report → line → **Assign Gig** | Line `gig_id`; then offers a paid money-out row at `line_cost` | Moving the line moves the row; clearing the gig offers to delete it; **Add to gig ledger** covers lines linked earlier. |
-| Purchases report → invoice → **Assign receipt to gig** | Header and unlinked lines' `gig_id`; offers rows for the expense lines | Lines already on another gig are left alone. |
 | Purchases report → line → **Track as equipment** | An `assets` row linked to the line (RPC `track_purchase_line_as_equipment`) | Tax treatment unchanged; works in locked years. Replaced **Reclassify as Asset** (#133 step 2). |
 | Review screen (edit) → **Expense / Depreciate** | The line's `tax_treatment` | Depreciating first tracks the line as equipment. Not on a gig expense or in a locked year. |
 | Financials → Reporting → **Filed tax years** | `tax_years` rows (Admins) | Lock with the filed date; unlock to amend. |
@@ -314,7 +313,6 @@ Not yet joined up: gig money out still uses the `fin_category` Schedule C enum, 
 | # | Problem | Issue |
 |---|---|---|
 | 1 | Reclassify as Asset (now removed from the UI; the RPC remains until step 3) deleted ledger rows by the header id. | #129, replaced by #133 |
-| 2 | Upload Receipt on a gig books the whole invoice, equipment included, as one gig expense. Later per-line links can count lines twice. | #130 |
 | 3 | Editing a purchase's date doesn't reach its lines. Lines added while editing get no date. | #131 |
 | 4 | Ledger edits from the purchase dialog use the printed price and don't update the paid amount. | #131 |
 | 5 | The review dialog drops the asset Type and the AI's manufacturer/model. | #131 |

@@ -61,7 +61,6 @@ import {
   createLedgerEntryForPurchaseLine,
   removeLedgerEntriesForPurchaseLine,
   purchaseLineLedgerAmount,
-  assignGigToPurchaseChildren,
 } from '../../../services/purchase.service';
 import { getEntityAttachments, uploadAttachment, linkAttachmentToEntity } from '../../../services/attachment.service';
 import { getGigOptionsForOrganization, getGigFinancialsByPurchaseId, getPurchaseIdsWithLedgerEntry } from '../../../services/gig.service';
@@ -131,10 +130,6 @@ export default function PurchasesTab({
     { item: DbPurchase; financialIds: string[]; fromGigId: string; amount: number } | null
   >(null);
   const [clearingLedger, setClearingLedger] = useState(false);
-  // Offer to create ledger entries for the lines a header-level gig assignment just linked.
-  const [headerLedgerPrompt, setHeaderLedgerPrompt] = useState<
-    { itemIds: string[]; gigId: string; gigTitle?: string } | null
-  >(null);
   const [isUploadingAttachment, setIsUploadingAttachment] = useState<string | null>(null);
   const [highlightPurchaseId, setHighlightPurchaseId] = useState<string | null>(initialHighlightId || null);
   const [showOnlyHighlighted, setShowOnlyHighlighted] = useState(!!initialHighlightId);
@@ -328,29 +323,6 @@ export default function PurchasesTab({
     }
   };
 
-  // Assign a whole receipt (header) to a gig, cascading to its unlinked lines.
-  const handleAssignHeaderGig = async (header: DbPurchase, gigId: string | null, gigTitle?: string) => {
-    if (!gigId || gigId === (header.gig_id || null)) return;
-    setAssigningGigItemId(header.id);
-    try {
-      const res = await assignGigToPurchaseChildren(header.id, gigId, organization.id);
-      toast.success(
-        res.failed > 0
-          ? `Assigned receipt to ${gigTitle || 'gig'} (${res.failed} line(s) failed)`
-          : `Assigned receipt and its lines to ${gigTitle || 'gig'}`
-      );
-      await loadPurchases();
-      if (res.newlyLinkedItemIds.length > 0) {
-        setHeaderLedgerPrompt({ itemIds: res.newlyLinkedItemIds, gigId, gigTitle });
-      }
-    } catch (err: any) {
-      toast.error(err.message || 'Failed to assign receipt to gig');
-      await loadPurchases();
-    } finally {
-      setAssigningGigItemId(null);
-    }
-  };
-
   // Persistent affordance: create the ledger entry for a line that is linked to a
   // gig but has none (e.g. the user skipped the prompt, or it came from import).
   const handleAddLineToLedger = async (item: DbPurchase) => {
@@ -365,28 +337,6 @@ export default function PurchasesTab({
       toast.error(err.message || 'Failed to add to gig ledger');
     } finally {
       setAssigningGigItemId(null);
-    }
-  };
-
-  const handleCreateLedgerEntriesForHeader = async () => {
-    if (!headerLedgerPrompt) return;
-    const { itemIds, gigId } = headerLedgerPrompt;
-    setCreatingLedger(true);
-    try {
-      const items = purchases.filter((p) => itemIds.includes(p.id) && lineTaxTreatment(p) === 'expense');
-      let created = 0;
-      for (const it of items) {
-        const res = await createLedgerEntryForPurchaseLine(it, gigId, organization.id);
-        if (res.created) created += 1;
-      }
-      window.dispatchEvent(new CustomEvent('gig-financials-updated', { detail: { gigId } }));
-      toast.success(`Added ${created} expense line(s) to the gig ledger`);
-      setHeaderLedgerPrompt(null);
-      await loadPurchases();
-    } catch (err: any) {
-      toast.error(err.message || 'Failed to add lines to the gig ledger');
-    } finally {
-      setCreatingLedger(false);
     }
   };
 
@@ -426,11 +376,18 @@ export default function PurchasesTab({
   };
 
   // Filter and group purchases
+  // A highlighted id (from a gig's money row) is a purchase or one of its lines.
+  const highlightedHeaderId = useMemo(() => {
+    if (!highlightPurchaseId) return null;
+    const p = purchases.find(x => x.id === highlightPurchaseId);
+    return p?.parent_id ?? highlightPurchaseId;
+  }, [purchases, highlightPurchaseId]);
+
   const filteredPurchases = useMemo(() => {
     return purchases.filter(p => {
       if (showOnlyHighlighted && highlightPurchaseId) {
-        if (p.row_type === 'header') return p.id === highlightPurchaseId;
-        return p.id === highlightPurchaseId || p.parent_id === highlightPurchaseId;
+        // The highlighted id is a purchase or one of its lines: show the whole purchase.
+        return p.id === highlightedHeaderId || p.parent_id === highlightedHeaderId;
       }
 
       if (vendorFilter && !p.vendor?.toLowerCase().includes(vendorFilter.toLowerCase())) {
@@ -442,7 +399,7 @@ export default function PurchasesTab({
 
       return true;
     });
-  }, [purchases, vendorFilter, startDate, endDate, showOnlyHighlighted, highlightPurchaseId]);
+  }, [purchases, vendorFilter, startDate, endDate, showOnlyHighlighted, highlightPurchaseId, highlightedHeaderId]);
 
   const groupedPurchases = useMemo(() => groupPurchases(filteredPurchases, typeFilter), [filteredPurchases, typeFilter]);
 
@@ -784,31 +741,6 @@ export default function PurchasesTab({
                     </div>
                   </div>
                   <div className="flex items-center gap-3 shrink-0">
-                    {isAdmin && !isSyntheticHeader(group.header.id) && (
-                      <div className="w-[220px]" onClick={(e) => e.stopPropagation()}>
-                        <GigCombobox
-                          organizationId={organization.id}
-                          value={group.header.gig_id || null}
-                          aroundDate={group.header.purchase_date}
-                          placeholder="Assign receipt to gig…"
-                          hideClear
-                          onChange={(gigId, gigTitle) => { if (gigId) handleAssignHeaderGig(group.header, gigId, gigTitle); }}
-                          disabled={assigningGigItemId === group.header.id}
-                        />
-                      </div>
-                    )}
-                    {group.header.gig_id && !isSyntheticHeader(group.header.id) && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-7 px-2 text-purple-600 hover:bg-purple-50"
-                        onClick={(e) => { e.stopPropagation(); handleOpenGigPanel(group.header.gig_id!); }}
-                        title="View linked gig"
-                      >
-                        <Music className="w-3.5 h-3.5 mr-1" />
-                        <span className="text-[10px]">Gig Details</span>
-                      </Button>
-                    )}
                     {!isSyntheticHeader(group.header.id) && (
                       headerAttachments.has(group.header.id) ? (
                         <Button
@@ -1100,27 +1032,6 @@ export default function PurchasesTab({
             <AlertDialogAction onClick={(e) => { e.preventDefault(); handleConfirmClearLedger(); }} disabled={clearingLedger}>
               {clearingLedger && <RefreshCw className="w-3.5 h-3.5 mr-1.5 animate-spin" />}
               Unlink and delete entry
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      <AlertDialog open={!!headerLedgerPrompt} onOpenChange={(open) => { if (!open && !creatingLedger) setHeaderLedgerPrompt(null); }}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Add these expenses to the gig ledger?</AlertDialogTitle>
-            <AlertDialogDescription>
-              {headerLedgerPrompt?.itemIds.length} expense line(s) from this receipt were linked to{' '}
-              {headerLedgerPrompt?.gigTitle ? `"${headerLedgerPrompt.gigTitle}"` : 'the gig'}. Record
-              each as a paid expense in that gig's financials? You can also do this later
-              from each line.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={creatingLedger}>Later</AlertDialogCancel>
-            <AlertDialogAction onClick={(e) => { e.preventDefault(); handleCreateLedgerEntriesForHeader(); }} disabled={creatingLedger}>
-              {creatingLedger && <RefreshCw className="w-3.5 h-3.5 mr-1.5 animate-spin" />}
-              Add all
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

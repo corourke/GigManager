@@ -735,7 +735,7 @@ Handles acquisition headers and expense line items. Uses a self-referencing `par
 - A **header** row (`row_type = 'header'`) represents an overall purchase transaction (vendor, date, total, payment method).
 - **Item** / **asset** rows represent individual line items and reference their header via `parent_id`; an `'asset'` row also has `asset_id` set.
 - When assets are imported, the `create_purchase_transaction_v1` function creates `'asset'` line rows with `asset_id` linking back to the created asset. `reclassify_expense_as_asset` flips an existing `'item'` row to `'asset'` after the fact.
-- `gig_id` links gig-specific expenses to the relevant gig, displayed alongside `gig_financials`. It can be set at creation, edited per line, or assigned for a whole receipt from the Purchases tab — see [financials.md](financials.md) §4.
+- `gig_id` links gig-specific expenses to the relevant gig, displayed alongside `gig_financials`. Lines only, and only expensed lines (constraints `purchases_header_no_gig`, `purchases_depreciate_no_gig`, migration 20261009000000). It is set per line on the Purchases tab, or for each expensed line when a receipt is scanned on a gig — see [financials.md](financials.md) §4.
 - A gig-linked purchase does **not** automatically get a `gig_financials` ledger row: the on-gig receipt scan creates one, but CSV import and post-hoc line assignment only prompt/offer to. Without that ledger row the expense is invisible to gig profitability.
 - Assets acquired in a purchase reference the header row via `assets.purchase_id`.
 - Deleting a row fires `trg_cleanup_attachments` (migration 20260831000100), removing its `entity_attachments` links and any solely-owned `attachments` rows.

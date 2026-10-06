@@ -31,11 +31,7 @@ Use this for a receipt that belongs to one gig, such as a van rental for that sh
 2. Click **Upload Receipt** and choose one file.
 3. Check the purchase and save it.
 
-Saving creates the purchase and adds the receipt's total to the gig's **money out**.
-
-:::caution
-Today this adds the **whole** receipt to the gig, including any equipment on it. If the receipt has equipment on it, scan it from **Purchases** instead, then link only the expense lines to the gig (see [Purchases](/financials/purchases/#linking-a-line-to-a-gig)).
-:::
+Saving creates the purchase and makes each **expensed** item a cost of the gig: it's linked to the gig and added to the gig's **money out**, one row per item. Equipment you **depreciate** isn't a gig's cost, so it's saved as a purchase only.
 
 ### 3. Equipment → Upload Invoice
 
