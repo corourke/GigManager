@@ -4,10 +4,10 @@ import { getDistinctKitValues } from '../../services/kit.service';
 import { getSeedValues } from '../../config/autocompleteSeeds';
 
 interface UseAutocompleteSuggestionsOptions {
-  field: 'category' | 'sub_category' | 'type' | 'vendor';
+  field: 'category' | 'type' | 'vendor';
   organizationId: string;
   sourceTable?: 'assets' | 'kits'; // Default: 'assets'
-  filterByCategory?: string; // For sub_category filtering
+  filterByCategory?: string; // Types: only those used in this category
   seedValues?: string[]; // Optional override, otherwise uses config
   enabled?: boolean; // Default: true
   formType?: 'asset' | 'kit'; // For seed value lookup, defaults based on sourceTable

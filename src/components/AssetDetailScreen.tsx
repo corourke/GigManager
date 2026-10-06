@@ -174,11 +174,6 @@ export default function AssetDetailScreen({
                     {asset.category}
                   </Badge>
                 )}
-                {asset.sub_category && (
-                  <Badge variant="outline">
-                    {asset.sub_category}
-                  </Badge>
-                )}
                 {asset.type && (
                   <Badge variant="outline" className="bg-sky-50 text-sky-700 border-sky-200">
                     {asset.type}

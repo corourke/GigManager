@@ -66,7 +66,7 @@ flowchart LR
 | `item_price`, `line_amount` | Unit and line price as printed, before tax and shipping. Empty on CSV-imported lines. |
 | `item_cost`, `line_cost` | Unit and line cost **after** tax, shipping and fees are spread across the lines ("burdened"). `line_cost` is the authoritative cost; `item_cost` is the per-item cost the tax thresholds use. |
 | `quantity` | Can be fractional. |
-| `category`, `sub_category` | Free text. An **expensed** line's `category` is an expense category (a name from `expense_categories`, §6); a **depreciated** line's is its equipment category, the same as its asset's. An expensed line tracked as equipment keeps its equipment category on the asset. Lines inherit the header's when left blank. |
+| `category` | Free text. An **expensed** line's `category` is an expense category (a name from `expense_categories`, §6); a **depreciated** line's is its equipment category, the same as its asset's. An expensed line tracked as equipment keeps its equipment category on the asset. Lines inherit the header's when left blank. |
 | `tax_treatment` | Lines only: `expense` or `depreciate` (§3). NULL on headers. |
 | `recovery_period` | Depreciated lines only: 5, 7 or 15 years. The tax program computes depreciation; GigWrangler only records the period. |
 | `gig_id` | Lines only: the gig this **expensed** line is a cost of. Constraints `purchases_header_no_gig` and `purchases_depreciate_no_gig` (migration 20261009000000) keep it off headers and depreciated lines. That migration moved the 10 header links onto their expensed lines. |
@@ -87,7 +87,7 @@ flowchart LR
 | Column | Meaning |
 |---|---|
 | `manufacturer_model`, `description`, `serial_number`, `tag_number`, `type` | Identity. |
-| `category`, `sub_category` | Free text; the form suggests values already in use. |
+| `category`, `type` | `category` is a name from the organization's `equipment_categories` (§6). `type` is a comma path from general to specific ("Cable, XLR, Snake"); the forms suggest the types already used in the chosen category. (`sub_category` was folded into `type` and dropped, migration 20261011000000.) |
 | `acquisition_date`, `vendor` | When and where it was bought. |
 | `item_cost`, `item_price`, `quantity` | Copied from the purchase line when the asset is created; the line stays authoritative for tax. |
 | `replacement_value`, `insurance_policy_added`, `insurance_class` | Insurance, per item. |
@@ -167,7 +167,7 @@ RLS: an organization's Admins and Managers read it; only its Admins add, change 
 
 **The lock** (trigger `purchases_c_tax_year_lock`) applies to purchases dated in a locked year. A line with no date uses its invoice's date.
 - **Refused:**
-  - changes to `tax_treatment`, `recovery_period`, `row_type`, `parent_id`, `organization_id`, `purchase_date`, `total_inv_amount`, `quantity`, `item_price`, `item_cost`, `line_amount`, `line_cost`, `category` and `sub_category`;
+  - changes to `tax_treatment`, `recovery_period`, `row_type`, `parent_id`, `organization_id`, `purchase_date`, `total_inv_amount`, `quantity`, `item_price`, `item_cost`, `line_amount`, `line_cost` and `category`;
   - moving a row into or out of the year;
   - adding or deleting rows.
 - **Allowed:** `asset_id` (so expensed gear from a filed year can be tracked and put in kits), `gig_id`, `description`, `vendor` and `payment_method`.

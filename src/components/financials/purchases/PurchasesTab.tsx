@@ -864,7 +864,6 @@ export default function PurchasesTab({
                               <div><span className="text-gray-500 font-medium">Line Amt:</span> {item.line_amount != null ? `$${item.line_amount.toFixed(2)}` : '-'}</div>
                               <div><span className="text-gray-500 font-medium">Line Cost:</span> {item.line_cost != null ? `$${item.line_cost.toFixed(2)}` : '-'}</div>
                               <div><span className="text-gray-500 font-medium">Category:</span> {item.category || '-'}</div>
-                              <div><span className="text-gray-500 font-medium">Sub-cat:</span> {item.sub_category || '-'}</div>
                               <div><span className="text-gray-500 font-medium">Tax:</span> {lineTaxTreatment(item) === 'depreciate' ? 'Depreciate' : 'Expense'}</div>
                               <div><span className="text-gray-500 font-medium">Equipment:</span> {item.asset_id ? 'Yes' : 'No'}</div>
                               <div><span className="text-gray-500 font-medium">ID:</span> <span className="font-mono text-[10px]">{item.id}</span></div>

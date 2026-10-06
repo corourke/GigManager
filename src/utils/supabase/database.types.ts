@@ -141,7 +141,6 @@ export type Database = {
           serial_number: string | null
           service_life: number | null
           status: string
-          sub_category: string | null
           tag_number: string | null
           type: string | null
           updated_at: string
@@ -170,7 +169,6 @@ export type Database = {
           serial_number?: string | null
           service_life?: number | null
           status?: string
-          sub_category?: string | null
           tag_number?: string | null
           type?: string | null
           updated_at?: string
@@ -199,7 +197,6 @@ export type Database = {
           serial_number?: string | null
           service_life?: number | null
           status?: string
-          sub_category?: string | null
           tag_number?: string | null
           type?: string | null
           updated_at?: string
@@ -1348,7 +1345,6 @@ export type Database = {
           quantity: number | null
           recovery_period: number | null
           row_type: string
-          sub_category: string | null
           tax_treatment: string | null
           total_inv_amount: number | null
           updated_at: string
@@ -1374,7 +1370,6 @@ export type Database = {
           quantity?: number | null
           recovery_period?: number | null
           row_type: string
-          sub_category?: string | null
           tax_treatment?: string | null
           total_inv_amount?: number | null
           updated_at?: string
@@ -1400,7 +1395,6 @@ export type Database = {
           quantity?: number | null
           recovery_period?: number | null
           row_type?: string
-          sub_category?: string | null
           tax_treatment?: string | null
           total_inv_amount?: number | null
           updated_at?: string
@@ -1878,10 +1872,6 @@ export type Database = {
       track_purchase_line_as_equipment: {
         Args: { p_line_id: string }
         Returns: string
-      }
-      reclassify_expense_as_asset: {
-        Args: { p_purchase_item_id: string }
-        Returns: Json
       }
       refresh_kit_flattened_cache: {
         Args: { p_kit_id: string }

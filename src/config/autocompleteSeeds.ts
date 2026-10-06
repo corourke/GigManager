@@ -5,68 +5,15 @@
  */
 
 export const AUTCOMPLETE_SEEDS = {
-  // Asset fields
+  // Asset fields. Categories come from the organization's equipment
+  // categories, and types only from the types already used in a category
+  // (10-06), so there are no seeds for them.
   asset: {
-    category: [
-      'Audio',
-      'Lighting',
-      'Video',
-      'Staging',
-      'Power',
-      'Rigging',
-      'Network',
-      'Comms',
-      'Instruments',
-      'Cases',
-      'Other',
-    ],
-    sub_category: [
-        'Amplifier',
-        'Mixer',
-        'Processor',
-        'Switch',
-        'Access Point',
-        'Speaker',
-        'Microphone',
-        'Stand',
-        'Wireless',
-        'Truss',
-        'Cable',
-        'Other',
-    ], 
-    type: [
-        'Powered Speaker',
-        'Passive Speaker',
-        'Monitor Speaker',
-        'Powered Subwoofer',
-        'Line-Array Speaker',
-        'Speaker Stand',
-        'Speaker Pole',
-        'Mixing Console',
-        'Rack Mixer',
-        'Touchscreen',
-        'Power Conditioner',
-        'Power Supply',
-        'Power Strip',
-        'Power Distribution Unit',
-        'Network Switch',
-        'Network Hub',
-        'WiFi Access Point',
-        'DMX Controller',
-        'DMX Wireless Transmitter',
-        'DMX Wireless Receiver',
-        'Microphone',
-        'Dynamic Microphone',
-        'Condenser Microphone',,
-        'XLR Cable',
-        'DMX Cable',
-        'Ethernet Cable',
-        'USB Cable',
-        'HDMI Cable',
-    ], 
+    category: [],
+    type: [],
     vendor: [], // No seed values, only from database
   },
-  
+
   // Kit fields
   kit: {
     category: [

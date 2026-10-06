@@ -53,7 +53,6 @@ export interface AssetRow {
   item_cost?: string;
   manufacturer_model: string;
   category: string;
-  sub_category?: string;
   type?: string;
   kit?: string;
   serial_number?: string;
@@ -454,8 +453,8 @@ export function validateAssetRow(row: any, rowIndex: number): ParsedRow<AssetRow
     item_cost: row.item_cost || row.cost_per_item || '',
     manufacturer_model: row.manufacturer_model || row.description || row.notes || '',
     category: row.category || '',
-    sub_category: row['sub-category'] || row['sub_category'] || '',
-    type: row.type || row.equipment_type || '',
+    // An old sheet's sub-category becomes the type when it has none (10-06).
+    type: row.type || row.equipment_type || row['sub-category'] || row['sub_category'] || '',
     kit: row.kit || '',
     serial_number: row.serial_number || '',
     tag_number: row.tag_number || '',
@@ -786,7 +785,6 @@ export function generateAssetTemplate(): string {
     'item_cost',
     'manufacturer_model',
     'category',
-    'sub_category',
     'type',
     'kit',
     'serial_number',

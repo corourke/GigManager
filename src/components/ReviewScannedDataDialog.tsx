@@ -10,8 +10,8 @@ import {
   FileIcon,
   Search,
   Maximize2,
-  ChevronDown,
-  ChevronRight,
+  Briefcase,
+  Pencil,
   HelpCircle,
   Package,
   X as CloseIcon
@@ -41,6 +41,8 @@ import {
 import { getGigFinancials, updateGigFinancial } from '../services/gig.service';
 import { uploadAttachment, linkAttachmentToEntity, getAttachmentUrl } from '../services/attachment.service';
 import { updateAsset } from '../services/asset.service';
+import { addAssetToKits, getKitOptions } from '../services/kit.service';
+import EquipmentDetailsDialog, { type EquipmentDetails } from './purchases/EquipmentDetailsDialog';
 import { getExpenseCategories, getEquipmentCategories, type ExpenseCategory } from '../services/purchaseCategory.service';
 import { retargetCategories, equipmentCategoryOf, tidyAssetCategory } from '../utils/purchaseCategories';
 
@@ -98,15 +100,12 @@ interface ScannedItem {
   category?: string;
   /** The equipment category of an expensed line tracked as equipment (its asset's category). */
   asset_category?: string;
-  /** Typing a new equipment category instead of picking one. */
-  _newAssetCat?: boolean;
-  sub_category?: string;
+  /** Equipment details, edited in the pop-up: the asset's Type, kits, serial, tag, replacement value. */
   equipment_type?: string;
-  kit?: string;
+  kit_ids?: string[];
   serial_number?: string;
   tag_number?: string;
   replacement_value?: number;
-  show_extra?: boolean;
   // Edit-mode tracking (present only when editing an existing purchase)
   _purchaseId?: string;
   _assetId?: string | null;
@@ -121,11 +120,33 @@ interface UpdatePlan {
   removedItemIds: string[];
   assetChanges: { assetId: string; itemDescription: string; changes: AssetFieldChange[]; data: Record<string, any> }[];
   gigChanges: { finId: string; label: string; from: number; to: number }[];
-  /** Existing lines to start tracking as equipment (before their treatment is saved), with the equipment's category. */
-  trackLines: { id: string; category: string }[];
+  /** Existing lines to start tracking as equipment (before their treatment is saved), with its details. */
+  trackLines: { id: string; details: NewEquipmentDetails }[];
   /** The purchase is in a filed year: only descriptions and equipment links change. */
   locked: boolean;
 }
+
+/** What a newly tracked line's equipment record gets once it exists. */
+interface NewEquipmentDetails {
+  category: string;
+  type: string;
+  serial_number: string;
+  tag_number: string;
+  replacement_value: number;
+  kitIds: string[];
+  quantity: number;
+}
+
+const newEquipmentDetails = (item: ScannedItem): NewEquipmentDetails => ({
+  category: equipmentCategoryOf(item),
+  type: item.equipment_type ?? '',
+  serial_number: item.serial_number ?? '',
+  tag_number: item.tag_number ?? '',
+  // Like a new purchase's equipment: the printed price unless one was entered.
+  replacement_value: item.replacement_value || item.item_price || 0,
+  kitIds: item.kit_ids ?? [],
+  quantity: item.quantity,
+});
 
 interface ScannedData {
   vendor: string;
@@ -134,7 +155,6 @@ interface ScannedData {
   payment_method?: string;
   description?: string;
   category?: string;
-  sub_category?: string;
   invoice_number?: string;
   items: ScannedItem[];
 }
@@ -186,6 +206,9 @@ export default function ReviewScannedDataDialog({
   const [lockedYears, setLockedYears] = useState<Set<number>>(new Set());
   const [expenseCats, setExpenseCats] = useState<ExpenseCategory[]>([]);
   const [equipmentCats, setEquipmentCats] = useState<string[]>([]);
+  const [kitNames, setKitNames] = useState<Record<string, string>>({});
+  /** The line whose Equipment details pop-up is open. */
+  const [detailsIndex, setDetailsIndex] = useState<number | null>(null);
   const [originalDate, setOriginalDate] = useState<string | null>(null);
   // Judged on the saved date, so editing the date can't step around the lock.
   const purchaseLocked = isEditMode && isTaxYearLocked(originalDate, lockedYears);
@@ -269,6 +292,9 @@ export default function ReviewScannedDataDialog({
     getLockedTaxYears(organizationId).then(years => { if (!cancelled) setLockedYears(years); });
     getExpenseCategories(organizationId).then(c => { if (!cancelled) setExpenseCats(c); });
     getEquipmentCategories(organizationId).then(c => { if (!cancelled) setEquipmentCats(c); });
+    getKitOptions(organizationId)
+      .then(k => { if (!cancelled) setKitNames(Object.fromEntries((k ?? []).map(x => [x.id, x.name]))); })
+      .catch(() => {});
     return () => { cancelled = true; };
   }, [open, organizationId]);
 
@@ -300,7 +326,6 @@ export default function ReviewScannedDataDialog({
           payment_method: details.payment_method || undefined,
           description: details.description || '',
           category: details.category || undefined,
-          sub_category: details.sub_category || undefined,
           items: items.map((it) => ({
             description: it.description || '',
             quantity: it.quantity || 1,
@@ -312,7 +337,11 @@ export default function ReviewScannedDataDialog({
             category: it.category || '',
             asset_category: it.asset_id && it.tax_treatment !== 'depreciate' && !(it.tax_treatment == null && it.row_type === 'asset')
               ? aById[it.asset_id]?.category ?? undefined : undefined,
-            sub_category: it.sub_category || '',
+            // An existing equipment record's details, for the pop-up.
+            equipment_type: it.asset_id ? aById[it.asset_id]?.type ?? '' : undefined,
+            serial_number: it.asset_id ? aById[it.asset_id]?.serial_number ?? '' : undefined,
+            tag_number: it.asset_id ? aById[it.asset_id]?.tag_number ?? '' : undefined,
+            replacement_value: it.asset_id ? Number(aById[it.asset_id]?.replacement_value ?? 0) : undefined,
             _purchaseId: it.id,
             _assetId: it.asset_id || null,
             _gigId: it.gig_id || null,
@@ -470,7 +499,6 @@ export default function ReviewScannedDataDialog({
         payment_method: formData.payment_method,
         description: formData.description,
         category: formData.category,
-        sub_category: formData.sub_category,
         row_type: 'header' as const,
       };
       const items = formData.items.map(item => ({
@@ -484,7 +512,6 @@ export default function ReviewScannedDataDialog({
         line_amount: item.item_price * item.quantity,
         line_cost: item.item_cost * item.quantity,
         category: item.category || formData.category,
-        sub_category: item.sub_category || formData.sub_category,
         // row_type still decides which lines get an equipment record (until #133 step 3);
         // the tax treatment is its own choice.
         row_type: item.is_asset ? 'asset' as const : 'item' as const,
@@ -498,8 +525,7 @@ export default function ReviewScannedDataDialog({
           manufacturer_model: item.description,
           description: item.description,
           category: equipmentCategoryOf(item) || item.category || formData.category,
-          sub_category: item.sub_category || formData.sub_category,
-          equipment_type: item.equipment_type,
+          type: item.equipment_type?.trim() || undefined,
           quantity: item.quantity,
           item_price: item.item_price,
           item_cost: item.item_cost,
@@ -508,7 +534,7 @@ export default function ReviewScannedDataDialog({
           serial_number: item.serial_number,
           tag_number: item.tag_number,
           replacement_value: item.replacement_value || item.item_price,
-          kit: item.kit,
+          kit_ids: item.kit_ids ?? [],
           insurance_policy_added: false,
           status: 'Active',
         }));
@@ -569,7 +595,32 @@ export default function ReviewScannedDataDialog({
     // equipment record first, so a depreciated line always has one.
     const trackLines = fd.items
       .filter(item => item._purchaseId && !item._assetId && item.is_asset)
-      .map(item => ({ id: item._purchaseId!, category: equipmentCategoryOf(item) }));
+      .map(item => ({ id: item._purchaseId!, details: newEquipmentDetails(item) }));
+
+    // An existing equipment record's details edited in the pop-up. Its record
+    // isn't a tax record, so this applies in a filed year too.
+    const detailChanges = (item: ScannedItem): AssetFieldChange[] => {
+      const asset = item._assetId ? assetsById[item._assetId] : null;
+      if (!asset) return [];
+      const norm = (v: unknown) => (v === undefined || v === null || v === '' ? null : v);
+      const out: AssetFieldChange[] = [];
+      const cmp = (field: string, label: string, to: unknown) => {
+        if (to === undefined) return;
+        const from = field === 'replacement_value' ? (asset[field] == null ? null : Number(asset[field])) : norm(asset[field]);
+        const next = field === 'replacement_value' ? (to ? Number(to) : null) : norm(typeof to === 'string' ? to.trim() : to);
+        if (from !== next) out.push({ field, label, from, to: next });
+      };
+      cmp('type', 'Type', item.equipment_type);
+      cmp('serial_number', 'Serial Number', item.serial_number);
+      cmp('tag_number', 'Tag Number', item.tag_number);
+      cmp('replacement_value', 'Replacement Value', item.replacement_value);
+      return out;
+    };
+    const toAssetChange = (item: ScannedItem, changes: AssetFieldChange[]) => {
+      const data: Record<string, any> = {};
+      changes.forEach(c => { data[c.field] = c.to; });
+      return { assetId: item._assetId!, itemDescription: item.description || '(item)', changes, data };
+    };
 
     // A filed year: only descriptions (and equipment links) may change (#133).
     if (purchaseLocked) {
@@ -580,7 +631,17 @@ export default function ReviewScannedDataDialog({
           .map(item => ({ id: item._purchaseId!, data: { description: item.description } })),
         newItems: [],
         removedItemIds: [],
-        assetChanges: [],
+        assetChanges: fd.items
+          .map(item => {
+            // An expensed line's equipment category is the asset's, not a tax field.
+            const changes = detailChanges(item);
+            const asset = item._assetId ? assetsById[item._assetId] : null;
+            if (asset && item.tax_treatment !== 'depreciate' && item.asset_category && item.asset_category !== asset.category) {
+              changes.unshift({ field: 'category', label: 'Category', from: asset.category, to: item.asset_category });
+            }
+            return changes.length ? toAssetChange(item, changes) : null;
+          })
+          .filter((c): c is NonNullable<typeof c> => !!c),
         gigChanges: [],
         trackLines,
         locked: true,
@@ -594,7 +655,6 @@ export default function ReviewScannedDataDialog({
       total_inv_amount: fd.total_inv_amount,
       payment_method: fd.payment_method,
       category: fd.category,
-      sub_category: fd.sub_category,
     };
 
     const updatedItems: UpdatePlan['updatedItems'] = [];
@@ -610,7 +670,6 @@ export default function ReviewScannedDataDialog({
         line_amount: Number((item.item_price * item.quantity).toFixed(4)),
         line_cost: Number((item.item_cost * item.quantity).toFixed(4)),
         category: item.category || fd.category,
-        sub_category: item.sub_category || fd.sub_category,
         tax_treatment: item.tax_treatment ?? 'expense',
       };
       if (item._purchaseId) {
@@ -625,7 +684,7 @@ export default function ReviewScannedDataDialog({
           purchase_date: fd.purchase_date,
           ...lineData,
           _track: item.is_asset,
-          _assetCategory: equipmentCategoryOf(item),
+          _details: newEquipmentDetails(item),
         });
       }
     }
@@ -640,7 +699,6 @@ export default function ReviewScannedDataDialog({
           {
             description: item.description,
             category: equipmentCategoryOf(item) || assetsById[item._assetId].category,
-            sub_category: item.sub_category || fd.sub_category,
             quantity: item.quantity,
             item_price: item.item_price,
             item_cost: item.item_cost,
@@ -648,12 +706,8 @@ export default function ReviewScannedDataDialog({
             purchase_date: fd.purchase_date,
           },
           assetsById[item._assetId]
-        );
-        if (changes.length > 0) {
-          const data: Record<string, any> = {};
-          changes.forEach(c => { data[c.field] = c.to; });
-          assetChanges.push({ assetId: item._assetId, itemDescription: item.description || '(item)', changes, data });
-        }
+        ).concat(detailChanges(item));
+        if (changes.length > 0) assetChanges.push(toAssetChange(item, changes));
       }
     }
 
@@ -681,19 +735,28 @@ export default function ReviewScannedDataDialog({
     setIsSubmitting(true);
     try {
       await updatePurchase(editPurchaseId, plan.headerData);
-      // The new equipment record starts with the line's category; give it its own.
-      const track = async (lineId: string, category: string) => {
+      // The new equipment record starts from the line; then it gets the details
+      // chosen in the pop-up and goes into its kits.
+      const track = async (lineId: string, d: NewEquipmentDetails) => {
         const assetId = await trackPurchaseLineAsEquipment(lineId);
-        if (assetId && category) await updateAsset(assetId, { category });
+        if (!assetId) return;
+        const data: Record<string, any> = {};
+        if (d.category) data.category = d.category;
+        if (d.type.trim()) data.type = d.type.trim();
+        if (d.serial_number.trim()) data.serial_number = d.serial_number.trim();
+        if (d.tag_number.trim()) data.tag_number = d.tag_number.trim();
+        if (d.replacement_value) data.replacement_value = d.replacement_value;
+        if (Object.keys(data).length) await updateAsset(assetId, data);
+        if (d.kitIds.length) await addAssetToKits(assetId, d.kitIds, d.quantity);
       };
-      for (const t of plan.trackLines) await track(t.id, t.category);
+      for (const t of plan.trackLines) await track(t.id, t.details);
       for (const u of plan.updatedItems) await updatePurchase(u.id, u.data);
-      for (const { _track, _assetCategory, ...n } of plan.newItems) {
+      for (const { _track, _details, ...n } of plan.newItems) {
         // A depreciated line needs its equipment record before it is depreciated.
         const wanted = n.tax_treatment;
         const created: any = await createPurchase({ ...n, tax_treatment: _track ? 'expense' : wanted });
         if (_track && created?.id) {
-          await track(created.id, _assetCategory);
+          await track(created.id, _details);
           if (wanted === 'depreciate') await updatePurchase(created.id, { tax_treatment: 'depreciate' });
         }
       }
@@ -823,10 +886,7 @@ export default function ReviewScannedDataDialog({
         aria-label={`Track ${item.description || 'item'} as equipment`}
         title={equipmentTitle(item)}
         disabled={locked}
-        onClick={() => {
-          handleItemChange(index, 'is_asset', !on);
-          if (!on && !item.show_extra) handleItemChange(index, 'show_extra', true);
-        }}
+        onClick={() => handleItemChange(index, 'is_asset', !on)}
         style={{
           height: 20, padding: '0 8px 0 3px', display: 'inline-flex', alignItems: 'center', gap: 4, flexShrink: 0,
           borderRadius: 999, border: `1.5px solid ${on ? '#0369a1' : '#94a3b8'}`, background: on ? '#e0f2fe' : 'white',
@@ -867,46 +927,58 @@ export default function ReviewScannedDataDialog({
     );
   };
 
-  const renderEquipmentCategory = (item: ScannedItem, index: number) => {
-    const field: keyof ScannedItem = item.tax_treatment === 'depreciate' ? 'category' : 'asset_category';
-    const value = equipmentCategoryOf(item);
-    // A depreciated line's category is its tax category too, so a filed year freezes it.
-    const disabled = purchaseLocked && field === 'category';
-    const label = `${item.description || 'item'}`;
+  // The equipment details chip: Category › Type, then the kits after a divider.
+  // Amber until a category is chosen. Opens the Equipment details pop-up.
+  const renderEquipmentChip = (item: ScannedItem, index: number) => {
+    const category = equipmentCategoryOf(item);
+    const type = item.equipment_type?.trim();
+    const kits = (item.kit_ids ?? []).map(id => kitNames[id] ?? 'Kit');
+    const missing = !category;
     return (
-      <div style={{ display: 'flex', alignItems: 'center', gap: 2, flex: '1 1 130px', minWidth: 0 }}>
-        {fieldLabel('Equip.')}
-        {item._newAssetCat ? (
-          <Input
-            autoFocus
-            aria-label={`New equipment category: ${label}`}
-            value={value}
-            placeholder="New category"
-            onChange={e => handleItemChange(index, field, e.target.value)}
-            onBlur={() => { if (!value.trim()) handleItemChange(index, '_newAssetCat', false); }}
-            className="bg-white border-gray-200 h-5 text-[10px] flex-1"
-          />
-        ) : (
-          <select
-            aria-label={`Equipment category: ${label}`}
-            value={value}
-            disabled={disabled}
-            onChange={e => {
-              if (e.target.value === '__new__') {
-                handleItemChange(index, field, '');
-                handleItemChange(index, '_newAssetCat', true);
-              } else handleItemChange(index, field, e.target.value);
-            }}
-            style={{ ...selectStyle, borderColor: value ? '#e5e7eb' : '#fcd34d' }}
-          >
-            <option value="">Choose…</option>
-            {value && !equipmentCats.includes(value) && <option value={value}>{value} (new)</option>}
-            {equipmentCats.map(c => <option key={c} value={c}>{c}</option>)}
-            <option value="__new__">Add new category…</option>
-          </select>
+      <button
+        type="button"
+        aria-label={`Equipment details: ${item.description || 'item'}`}
+        onClick={() => setDetailsIndex(index)}
+        style={{
+          height: 20, padding: '0 8px', display: 'inline-flex', alignItems: 'center', gap: 5, maxWidth: '100%', minWidth: 0,
+          borderRadius: 4, fontSize: 10, fontWeight: 600, cursor: 'pointer',
+          border: `1px solid ${missing ? '#fcd34d' : '#7dd3fc'}`, background: missing ? '#fffbeb' : '#f0f9ff', color: missing ? '#92400e' : '#0c4a6e',
+        }}
+      >
+        <Package style={{ width: 11, height: 11, flexShrink: 0 }} />
+        <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+          {missing ? 'Choose an equipment category' : type ? `${category} › ${type}` : category}
+        </span>
+        {kits.length > 0 && (
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, paddingLeft: 6, borderLeft: '1px solid #7dd3fc', whiteSpace: 'nowrap' }} title="Kits">
+            <Briefcase style={{ width: 11, height: 11 }} aria-label="Kits" />
+            {kits.join(', ')}
+          </span>
         )}
-      </div>
+        <Pencil style={{ width: 10, height: 10, opacity: 0.7, flexShrink: 0 }} />
+      </button>
     );
+  };
+
+  const detailsItem = detailsIndex !== null ? formData.items[detailsIndex] : null;
+  const saveDetails = (d: EquipmentDetails) => {
+    if (detailsIndex === null || !detailsItem) return;
+    const field: keyof ScannedItem = detailsItem.tax_treatment === 'depreciate' ? 'category' : 'asset_category';
+    setFormData(prev => {
+      if (!prev) return prev;
+      const items = [...prev.items];
+      items[detailsIndex] = {
+        ...items[detailsIndex],
+        [field]: d.category,
+        equipment_type: d.type,
+        kit_ids: d.kitIds,
+        serial_number: d.serial_number,
+        tag_number: d.tag_number,
+        replacement_value: d.replacement_value,
+      };
+      return { ...prev, items };
+    });
+    if (d.category && !equipmentCats.includes(d.category)) setEquipmentCats(c => [...c, d.category]);
   };
 
   const panel = (
@@ -1124,67 +1196,11 @@ export default function ReviewScannedDataDialog({
                         </button>
                       </div>
                       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3, alignItems: 'center', marginTop: 2 }}>
-                        {!isEditMode && item.is_asset && (
-                          <button
-                            onClick={() => handleItemChange(index, 'show_extra', !item.show_extra)}
-                            aria-label={item.show_extra ? 'Hide equipment details' : 'Show equipment details'}
-                            style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', display: 'flex', alignItems: 'center', color: '#0284c7' }}
-                          >
-                            {item.show_extra ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
-                          </button>
-                        )}
                         {renderTaxChoice(item, index)}
                         {renderEquipmentSwitch(item, index)}
                         {item.tax_treatment !== 'depreciate' && renderExpenseCategory(item, index)}
-                        {(item.is_asset || item.tax_treatment === 'depreciate') && renderEquipmentCategory(item, index)}
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 1, flex: '0 1 90px', minWidth: 0 }}>
-                          <Input
-                            aria-label={`Sub-category: ${item.description || 'item'}`}
-                            value={item.sub_category || ''}
-                            disabled={purchaseLocked}
-                            onChange={e => handleItemChange(index, 'sub_category', e.target.value)}
-                            placeholder="Sub-cat"
-                            className="bg-white border-gray-200 h-5 text-[10px] flex-1"
-                          />
-                        </div>
+                        {(item.is_asset || item.tax_treatment === 'depreciate') && renderEquipmentChip(item, index)}
                       </div>
-                      {!isEditMode && item.is_asset && item.show_extra && (
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr 72px', gap: '0 3px', marginTop: 2, paddingBottom: 2 }}>
-                          <Input
-                            value={item.equipment_type || ''}
-                            onChange={e => handleItemChange(index, 'equipment_type', e.target.value)}
-                            placeholder="Type"
-                            className="bg-white border-gray-200 h-5 text-[10px]"
-                          />
-                          <Input
-                            value={item.kit || ''}
-                            onChange={e => handleItemChange(index, 'kit', e.target.value)}
-                            placeholder="Kit name"
-                            className="bg-white border-gray-200 h-5 text-[10px]"
-                          />
-                          <Input
-                            value={item.serial_number || ''}
-                            onChange={e => handleItemChange(index, 'serial_number', e.target.value)}
-                            placeholder="Serial #"
-                            className="bg-white border-gray-200 h-5 text-[10px]"
-                          />
-                          <Input
-                            value={item.tag_number || ''}
-                            onChange={e => handleItemChange(index, 'tag_number', e.target.value)}
-                            placeholder="Tag #"
-                            className="bg-white border-gray-200 h-5 text-[10px]"
-                          />
-                          <div style={{ position: 'relative' }}>
-                            <span style={{ position: 'absolute', left: 4, top: '50%', transform: 'translateY(-50%)', color: '#9ca3af', fontSize: 9 }}>$</span>
-                            <NumericInput
-                              value={item.replacement_value || 0}
-                              onChange={v => handleItemChange(index, 'replacement_value', v)}
-                              placeholder="Replace Value"
-                              className="pl-3.5 bg-white border-gray-200 h-5 text-[10px] text-right"
-                            />
-                          </div>
-                        </div>
-                      )}
                     </div>
                   ))}
                 </div>
@@ -1215,7 +1231,7 @@ export default function ReviewScannedDataDialog({
               {noEquipCategory > 0 && (
                 <div role="status" style={{ padding: 6, borderRadius: 4, display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, border: '1px solid #fde68a', background: '#fffbeb', color: '#92400e' }}>
                   <AlertCircle style={{ width: 14, height: 14, flexShrink: 0, color: '#f59e0b' }} />
-                  <span>Choose an equipment category for {noEquipCategory} {noEquipCategory === 1 ? 'item' : 'items'} tracked as equipment before saving.</span>
+                  <span>Choose an equipment category for {noEquipCategory} {noEquipCategory === 1 ? 'item' : 'items'} tracked as equipment before saving: click its amber Equipment details chip.</span>
                 </div>
               )}
             </div>
@@ -1243,6 +1259,27 @@ export default function ReviewScannedDataDialog({
 
   const overlays = (
     <>
+    {detailsItem && (
+      <EquipmentDetailsDialog
+        open
+        onOpenChange={o => { if (!o) setDetailsIndex(null); }}
+        organizationId={organizationId}
+        itemName={detailsItem.description}
+        categories={equipmentCats}
+        value={{
+          category: equipmentCategoryOf(detailsItem),
+          type: detailsItem.equipment_type ?? '',
+          kitIds: detailsItem.kit_ids ?? [],
+          serial_number: detailsItem.serial_number ?? '',
+          tag_number: detailsItem.tag_number ?? '',
+          replacement_value: detailsItem.replacement_value || (detailsItem._assetId ? 0 : detailsItem.item_price) || 0,
+        }}
+        onSave={saveDetails}
+        // A depreciated line's category is its tax category too, so a filed year freezes it.
+        categoryLocked={purchaseLocked && detailsItem.tax_treatment === 'depreciate'}
+        kitsLocked={isEditMode && !!detailsItem._assetId}
+      />
+    )}
     {pendingPlan && (pendingPlan.assetChanges.length > 0 || pendingPlan.gigChanges.length > 0) && (
       <div style={{ position: 'fixed', inset: 0, zIndex: 150, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
         <div style={{ background: 'white', borderRadius: 8, boxShadow: '0 10px 40px rgba(0,0,0,0.3)', width: 540, maxWidth: '100%', maxHeight: '85vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>

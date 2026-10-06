@@ -54,7 +54,7 @@ export default function AssetDetailView({ assetId, onViewAsset, onEditAsset }: A
     <div className="space-y-3">
       <DetailLine label="Name / Model" value={asset.manufacturer_model || asset.description || '—'} />
       <DetailLine label="Category" value={asset.category || '—'} />
-      {asset.sub_category && <DetailLine label="Sub-category" value={asset.sub_category} />}
+      {asset.type && <DetailLine label="Type" value={asset.type} />}
       <DetailLine label="Serial Number" value={asset.serial_number || '—'} />
       <DetailLine label="Tag Number" value={asset.tag_number || '—'} />
       <DetailLine label="Condition" value={asset.condition || asset.status || '—'} />
