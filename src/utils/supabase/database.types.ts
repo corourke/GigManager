@@ -293,12 +293,40 @@ export type Database = {
           },
         ]
       }
+      equipment_categories: {
+        Row: {
+          active: boolean
+          created_at: string
+          id: string
+          name: string
+          organization_id: string | null
+          sort_order: number
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          id?: string
+          name: string
+          organization_id?: string | null
+          sort_order: number
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          id?: string
+          name?: string
+          organization_id?: string | null
+          sort_order?: number
+        }
+        Relationships: []
+      }
       expense_categories: {
         Row: {
           active: boolean
           created_at: string
           id: string
           name: string
+          organization_id: string | null
           schedule_c_line: string | null
           sort_order: number
         }
@@ -307,6 +335,7 @@ export type Database = {
           created_at?: string
           id?: string
           name: string
+          organization_id?: string | null
           schedule_c_line?: string | null
           sort_order: number
         }
@@ -315,6 +344,7 @@ export type Database = {
           created_at?: string
           id?: string
           name?: string
+          organization_id?: string | null
           schedule_c_line?: string | null
           sort_order?: number
         }
@@ -1407,6 +1437,12 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      schedule_c_lines: {
+        Row: { code: string; label: string; sort_order: number }
+        Insert: { code: string; label: string; sort_order: number }
+        Update: { code?: string; label?: string; sort_order?: number }
+        Relationships: []
       }
       staff_roles: {
         Row: {

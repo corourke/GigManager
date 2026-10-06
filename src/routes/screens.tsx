@@ -44,6 +44,7 @@ import OrganizationSelectionScreen from '../components/OrganizationSelectionScre
 import OrganizationScreen from '../components/OrganizationScreen';
 import AdminOrganizationsScreen from '../components/AdminOrganizationsScreen';
 import ModeratorAccessRequestsScreen from '../components/ModeratorAccessRequestsScreen';
+import StarterCategoriesScreen from '../components/StarterCategoriesScreen';
 import DevTableDemoScreen from '../components/dev/DevTableDemoScreen';
 
 // Mobile screens
@@ -170,6 +171,15 @@ function ModeratorAccessRequestsRoute() {
       onEditProfile={openEditProfile}
     />
   );
+}
+
+function StarterCategoriesRoute() {
+  const { user } = useAuth();
+  const nav = useNav();
+  const { openEditProfile } = useAppShell();
+  if (!user) return <LoadingSpinner />;
+  if (!user.platform_moderator) return <Navigate to="/org-selection" replace />;
+  return <StarterCategoriesScreen user={user} onLogout={nav.logoutAndHome} onEditProfile={openEditProfile} />;
 }
 
 function EditOrgRoute() {
@@ -673,6 +683,7 @@ export function AppRoutes() {
         <Route path="/admin/orgs" element={<AdminOrgsRoute />} />
         <Route path="/admin/orgs/:orgId/edit" element={<EditOrgRoute />} />
         <Route path="/admin/access-requests" element={<ModeratorAccessRequestsRoute />} />
+        <Route path="/admin/starter-categories" element={<StarterCategoriesRoute />} />
 
         {/* Org-scoped app */}
         <Route element={<RequireOrg />}>

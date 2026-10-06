@@ -26,7 +26,6 @@ sidebar:
 
 Each invoice card shows the date, vendor, description and **Invoice Total**, and these buttons:
 
-- **Assign receipt to gig…**: links the invoice and all its unlinked lines to a gig, then asks **Add these expenses to the gig ledger?** **Add all** records each expense line in the gig's money out.
 - **Gig Details**: shows the linked gig.
 - **Attach Doc** / **View Doc**: attach the invoice file, or open it.
 - **Edit** (pencil): opens the purchase on the review screen. See [Receipts and invoices](/financials/receipts-and-invoices/#the-review-screen).
@@ -58,4 +57,4 @@ Use **Assign Gig:** on the line to say it was a cost of a particular gig (a van 
 - **Clearing the gig** asks whether to **Unlink and delete entry** or **Keep linked**.
 - **Add to gig ledger** appears on any expense line that's linked to a gig but isn't in its money out yet, for example after you clicked **Skip**.
 
-Only **expensed** lines can be a gig's cost, whether or not they're tracked as equipment. A **depreciated** line can't be assigned to a gig: it's bought for the business, not for one show. Assigning a whole receipt to a gig links only its expensed lines.
+Only **expensed** lines can be a gig's cost, whether or not they're tracked as equipment. A **depreciated** line can't be assigned to a gig: it's bought for the business, not for one show. A purchase is never linked to a gig as a whole, only line by line. Scanning a receipt on a gig (**Upload Receipt**) links just its expensed lines.

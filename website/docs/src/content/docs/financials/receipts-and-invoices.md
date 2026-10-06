@@ -31,11 +31,7 @@ Use this for a receipt that belongs to one gig, such as a van rental for that sh
 2. Click **Upload Receipt** and choose one file.
 3. Check the purchase and save it.
 
-Saving creates the purchase and adds the receipt's total to the gig's **money out**.
-
-:::caution
-Today this adds the **whole** receipt to the gig, including any equipment on it. If the receipt has equipment on it, scan it from **Purchases** instead, then link only the expense lines to the gig (see [Purchases](/financials/purchases/#linking-a-line-to-a-gig)).
-:::
+Saving creates the purchase and makes each **expensed** item a cost of the gig: it's linked to the gig and added to the gig's **money out**, one row per item. Equipment you **depreciate** isn't a gig's cost, so it's saved as a purchase only.
 
 ### 3. Equipment → Upload Invoice
 
@@ -56,7 +52,7 @@ The same screen appears for every scan, for **Add manually**, and when you edit 
 - **Two questions on every line** (see [Tax treatment and equipment](/financials/tax-treatment/)):
   - **Expense | Depreciate:** how the item counts for tax. It's set for you from the item's cost: **Expense** under $200, **Depreciate** over $2,500. Between those you choose; the **(?)** explains. **Save Purchase** waits until every line has one.
   - **Equipment:** the switch under the line. Turn it on (it turns blue) for gear you look after. Saving then creates an equipment record you can tag and put in kits. The arrow at the start of the row shows **Type**, **Kit name**, **Serial #**, **Tag #** and **Replace Value**.
-- **Categories**, picked from lists:
+- **Categories**, picked from your organization's lists (an Admin edits them under **Settings → Categories**; see [Expense and equipment categories](/organizations/categories/)):
   - **Expense:** for an expensed item, the heading it goes under at tax time (Small audio parts, Supplies, Software subscriptions, Insurance, …).
   - **Equip.:** for anything tracked as equipment, its equipment category (Audio, Lighting, Cases/Bags, …). Choose **Add new category…** at the bottom to type a new one. **Save Purchase** waits until every new piece of equipment has one.
   - A depreciated item has only the equipment category. An expensed item tracked as equipment has both.

@@ -25,7 +25,6 @@ vi.mock('../../../services/purchase.service', () => ({
   createLedgerEntryForPurchaseLine: vi.fn(),
   removeLedgerEntriesForPurchaseLine: vi.fn(),
   purchaseLineLedgerAmount: vi.fn(),
-  assignGigToPurchaseChildren: vi.fn(),
 }));
 vi.mock('../../../services/attachment.service', () => ({
   getEntityAttachments: vi.fn(async () => []),
@@ -158,5 +157,24 @@ describe('Purchases report: tax treatment and equipment (#133)', () => {
     await waitFor(() => expect(screen.getByText('Sweetwater')).toBeInTheDocument());
     fireEvent.click(screen.getByRole('button', { name: 'All time' }));
     expect(screen.getByRole('combobox', { name: 'Type' })).toBeInTheDocument();
+  });
+});
+
+// #133 step 3: gig links live on lines; a purchase itself is never assigned to a gig.
+describe('Purchases report: gig links are on lines (#133 step 3)', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('has no purchase-level "Assign receipt to gig" pulldown', async () => {
+    render(<PurchasesTab {...props} />);
+    await waitFor(() => expect(screen.getByText('Sweetwater')).toBeInTheDocument());
+    expect(screen.queryByText('Assign receipt to gig…')).not.toBeInTheDocument();
+  });
+
+  it('opening a gig money row that points at a line shows that line\'s whole purchase', async () => {
+    render(<PurchasesTab {...props} highlightPurchaseId="i3" />);
+    await waitFor(() => expect(screen.getByText('Mic stand')).toBeInTheDocument());
+    expect(screen.getByText('Amazon')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Edit purchase' })).toBeInTheDocument();
+    expect(screen.queryByText('Guitar Center')).not.toBeInTheDocument();
   });
 });

@@ -14,7 +14,6 @@ import {
   createLedgerEntryForPurchaseLine,
   reconcileLedgerForLineGigChange,
   removeLedgerEntriesForPurchaseLine,
-  assignGigToPurchaseChildren,
 } from './purchase.service';
 import { createClient } from '../utils/supabase/client';
 import { requireAuth } from '../utils/supabase/auth-utils';
@@ -524,54 +523,6 @@ describe('purchase → gig ledger lifecycle', () => {
   });
 });
 
-describe('assignGigToPurchaseChildren (header → gig cascade)', () => {
-  let mockSupabase: any;
-
-  beforeEach(() => {
-    vi.clearAllMocks();
-    mockSupabase = {
-      from: vi.fn().mockReturnThis(),
-      select: vi.fn().mockReturnThis(),
-      update: vi.fn().mockReturnThis(),
-      eq: vi.fn().mockReturnThis(),
-      single: vi.fn().mockReturnThis(),
-      then: vi.fn(),
-    };
-    (createClient as any).mockReturnValue(mockSupabase);
-    (requireAuth as any).mockResolvedValue({ supabase: mockSupabase, user: { id: 'u1' } });
-  });
-
-  it('sets the header gig, cascades to unlinked lines, and skips lines already on another gig', async () => {
-    const children = [
-      { id: 'c1', gig_id: null, row_type: 'item' },
-      { id: 'c2', gig_id: null, row_type: 'asset' },
-      { id: 'c3', gig_id: 'gig-OTHER', row_type: 'item' }, // must not be stolen
-    ];
-    // first await → children query; subsequent awaits → updatePurchase results
-    mockSupabase.then.mockImplementation((onFulfilled: any) => onFulfilled({ data: children, error: null }));
-
-    const res = await assignGigToPurchaseChildren('header-1', 'gig-1', 'org-1');
-
-    // header + c1 updated; c2 (an asset line, so depreciated) is never a gig expense (#133); c3 left alone
-    expect(res.updated).toBe(2);
-    expect(res.failed).toBe(0);
-    expect(res.newlyLinkedItemIds).toEqual(['c1']);
-  });
-
-  it('reports failures without throwing', async () => {
-    const children = [{ id: 'c1', gig_id: null, row_type: 'item' }];
-    let call = 0;
-    mockSupabase.then.mockImplementation((onFulfilled: any, onRejected: any) => {
-      call += 1;
-      if (call === 1) return onFulfilled({ data: children, error: null }); // children query
-      return Promise.reject(new Error('RLS')).catch(onRejected); // both updatePurchase calls fail
-    });
-
-    const res = await assignGigToPurchaseChildren('header-1', 'gig-1', 'org-1');
-    expect(res.failed).toBeGreaterThan(0);
-  });
-});
-
 // #133: gig links follow the tax treatment, not the row type.
 describe('gig links and tax treatment (#133)', () => {
   const mockSupabase: any = { from: vi.fn(() => mockSupabase), select: vi.fn(() => mockSupabase), eq: vi.fn(() => mockSupabase), update: vi.fn(() => mockSupabase), single: vi.fn(() => mockSupabase), then: vi.fn() };
@@ -579,18 +530,6 @@ describe('gig links and tax treatment (#133)', () => {
     vi.clearAllMocks();
     (createClient as any).mockReturnValue(mockSupabase);
     (requireAuth as any).mockResolvedValue({ supabase: mockSupabase, user: { id: 'u1' } });
-  });
-
-  it('assigning a receipt to a gig links expensed lines (equipment or not) and never depreciated ones', async () => {
-    const children = [
-      { id: 'tape', gig_id: null, row_type: 'item', tax_treatment: 'expense' },
-      { id: 'stand', gig_id: null, row_type: 'asset', tax_treatment: 'expense' },
-      { id: 'console', gig_id: null, row_type: 'asset', tax_treatment: 'depreciate' },
-    ];
-    mockSupabase.then.mockImplementation((onFulfilled: any) => onFulfilled({ data: children, error: null }));
-    const res = await assignGigToPurchaseChildren('header-1', 'gig-1', 'org-1');
-    expect(res.newlyLinkedItemIds).toEqual(['tape', 'stand']);
-    expect(res.updated).toBe(3); // the header + the two expensed lines
   });
 
   it('an expensed equipment line gets a gig ledger entry; a depreciated one never does', async () => {

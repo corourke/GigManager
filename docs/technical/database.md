@@ -735,7 +735,7 @@ Handles acquisition headers and expense line items. Uses a self-referencing `par
 - A **header** row (`row_type = 'header'`) represents an overall purchase transaction (vendor, date, total, payment method).
 - **Item** / **asset** rows represent individual line items and reference their header via `parent_id`; an `'asset'` row also has `asset_id` set.
 - When assets are imported, the `create_purchase_transaction_v1` function creates `'asset'` line rows with `asset_id` linking back to the created asset. `reclassify_expense_as_asset` flips an existing `'item'` row to `'asset'` after the fact.
-- `gig_id` links gig-specific expenses to the relevant gig, displayed alongside `gig_financials`. It can be set at creation, edited per line, or assigned for a whole receipt from the Purchases tab — see [financials.md](financials.md) §4.
+- `gig_id` links gig-specific expenses to the relevant gig, displayed alongside `gig_financials`. Lines only, and only expensed lines (constraints `purchases_header_no_gig`, `purchases_depreciate_no_gig`, migration 20261009000000). It is set per line on the Purchases tab, or for each expensed line when a receipt is scanned on a gig — see [financials.md](financials.md) §4.
 - A gig-linked purchase does **not** automatically get a `gig_financials` ledger row: the on-gig receipt scan creates one, but CSV import and post-hoc line assignment only prompt/offer to. Without that ledger row the expense is invisible to gig profitability.
 - Assets acquired in a purchase reference the header row via `assets.purchase_id`.
 - Deleting a row fires `trg_cleanup_attachments` (migration 20260831000100), removing its `entity_attachments` links and any solely-owned `attachments` rows.
@@ -1191,18 +1191,42 @@ Filed tax years, per organization (migration 20261006000000, #133). Purchases da
 
 ### expense_categories
 
-The shared expense-category list (migration 20261008000000, #125): the headings filed on the 2025 Schedule C. Global, not per organization.
+Expense categories per organization (migration 20261008000000, made per organization by 20261010000000, #125). Rows with `organization_id` NULL are the starter set.
 
 | Field | Type | Description |
 |-------|------|-------------|
 | id | UUID | Primary key |
-| name | TEXT | Unique. Expensed purchase lines store this in `purchases.category` |
-| schedule_c_line | TEXT | The Schedule C line it is filed on (`27b` for all 2025 headings); NULL = not deducted |
+| organization_id | UUID | Owning organization (ON DELETE CASCADE); NULL = starter set |
+| name | TEXT | Unique per organization (case-insensitive). Expensed purchase lines store this in `purchases.category` |
+| schedule_c_line | TEXT | FK to `schedule_c_lines.code`; NULL = not deducted |
 | sort_order | SMALLINT | Display order |
 | active | BOOLEAN | Default true; inactive ones are hidden from pickers |
 | created_at | TIMESTAMPTZ | |
 
-**Notes:** RLS enabled — any signed-in user reads; there are no write policies, so changes come by migration. See [financials.md](financials.md) §6.
+**Notes:** RLS — the organization's Admins and Managers read, its Admins write; starter rows are read and written only by platform moderators. `ensure_org_categories(org)` copies the starter set into an organization on first use. See [financials.md](financials.md) §6.
+
+---
+
+### equipment_categories
+
+Equipment categories per organization (migration 20261010000000). Rows with `organization_id` NULL are the starter set.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| id | UUID | Primary key |
+| organization_id | UUID | Owning organization (ON DELETE CASCADE); NULL = starter set |
+| name | TEXT | Unique per organization (case-insensitive). Assets store this in `assets.category` |
+| sort_order | SMALLINT | Display order |
+| active | BOOLEAN | Default true |
+| created_at | TIMESTAMPTZ | |
+
+**Notes:** RLS — the organization's members read, its Admins write; starter rows are platform moderators only.
+
+---
+
+### schedule_c_lines
+
+IRS Schedule C Part II expense lines (migration 20261010000000): `code` (PK, e.g. `22`, `24a`, `27b`), `label`, `sort_order`. Read-only for signed-in users; changed by migration.
 
 ---
 

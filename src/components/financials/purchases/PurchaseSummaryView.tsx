@@ -107,7 +107,10 @@ export default function PurchaseSummaryView({
             const lineTotal = sumLineCosts(group.children);
             const reconciled = isReconciled(group.header.total_inv_amount, group.children);
             const hasDoc = headerAttachments.has(group.header.id);
-            const gigName = group.header.gig_id ? gigNames.get(group.header.gig_id) : null;
+            // Gig links live on lines (#133): name the gig(s) the lines are costs of.
+            const lineGigIds = Array.from(new Set(group.children.map(c => c.gig_id).filter(Boolean))) as string[];
+            const gigName = lineGigIds.length === 0 ? null
+              : (gigNames.get(lineGigIds[0]) ?? 'Gig') + (lineGigIds.length > 1 ? ` +${lineGigIds.length - 1}` : '');
 
             return (
               <TableRow

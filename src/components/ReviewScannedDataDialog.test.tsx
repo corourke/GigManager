@@ -13,6 +13,7 @@ vi.mock('../services/purchase.service', () => ({
   deletePurchase: vi.fn(),
   computeAssetFieldChanges: vi.fn(() => []),
   trackPurchaseLineAsEquipment: vi.fn(async () => 'asset-new'),
+  createLedgerEntryForPurchaseLine: vi.fn(async () => ({ created: true, financial: {} })),
 }));
 vi.mock('../services/taxYear.service', () => ({ getLockedTaxYears: vi.fn(async () => new Set<number>()) }));
 vi.mock('../services/gig.service', () => ({ createGigFinancial: vi.fn(), getGigFinancials: vi.fn(async () => []), updateGigFinancial: vi.fn() }));
@@ -359,5 +360,38 @@ describe('ReviewScannedDataDialog: categories (10-06)', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Save Changes' }));
     await waitFor(() => expect(svc.computeAssetFieldChanges).toHaveBeenCalled());
     expect(svc.computeAssetFieldChanges).toHaveBeenCalledWith(expect.objectContaining({ category: 'Lighting' }), expect.anything());
+  });
+});
+
+// #130 / #133 step 3: a receipt scanned on a gig links its expensed lines to the gig,
+// one money-out row each. The purchase itself, and depreciated equipment, are not the gig's.
+describe('ReviewScannedDataDialog: Upload Receipt on a gig (#130)', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('links each expensed line to the gig, never the purchase or depreciated equipment', async () => {
+    const svc = await import('../services/purchase.service');
+    const gigs = await import('../services/gig.service');
+    const lines = [
+      { id: 'l-tape', row_type: 'item', tax_treatment: 'expense', description: 'Tape', line_cost: 50 },
+      { id: 'l-console', row_type: 'asset', tax_treatment: 'depreciate', description: 'Console', line_cost: 3000 },
+    ];
+    vi.mocked(svc.getPurchaseWithDetails).mockResolvedValue({ id: 'p-new', items: lines } as any);
+    render(
+      <ReviewScannedDataDialog open onOpenChange={vi.fn()} onSuccess={vi.fn()} organizationId="org-1" gigId="g1" file={null}
+        scannedData={{ vendor: 'Sweetwater', purchase_date: '2026-07-05', total_inv_amount: 3050, items: [
+          { description: 'Tape', quantity: 1, item_price: 50, item_cost: 50, is_asset: false, category: 'Supplies' },
+          { description: 'Console', quantity: 1, item_price: 3000, item_cost: 3000, is_asset: true, category: 'Audio' },
+        ] } as any} />,
+    );
+    await userEvent.click(await screen.findByRole('button', { name: 'Save Purchase' }));
+    await waitFor(() => expect(svc.createLedgerEntryForPurchaseLine).toHaveBeenCalled());
+
+    const [header] = vi.mocked(createPurchaseTransaction).mock.calls[0];
+    expect(header).not.toHaveProperty('gig_id');
+    expect(svc.updatePurchase).toHaveBeenCalledTimes(1);
+    expect(svc.updatePurchase).toHaveBeenCalledWith('l-tape', { gig_id: 'g1' });
+    expect(svc.createLedgerEntryForPurchaseLine).toHaveBeenCalledTimes(1);
+    expect(svc.createLedgerEntryForPurchaseLine).toHaveBeenCalledWith(expect.objectContaining({ id: 'l-tape' }), 'g1', 'org-1');
+    expect(gigs.createGigFinancial).not.toHaveBeenCalled();
   });
 });

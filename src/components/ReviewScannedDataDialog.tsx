@@ -19,7 +19,6 @@ import {
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
-import { toFinCategory } from '../utils/supabase/constants';
 import {
   createPurchaseTransaction,
   getPurchaseWithDetails,
@@ -28,16 +27,18 @@ import {
   deletePurchase,
   computeAssetFieldChanges,
   trackPurchaseLineAsEquipment,
+  createLedgerEntryForPurchaseLine,
   type AssetFieldChange,
 } from '../services/purchase.service';
 import { getLockedTaxYears } from '../services/taxYear.service';
 import {
   suggestedTaxTreatment,
   isTaxYearLocked,
+  lineTaxTreatment,
   TAX_TREATMENT_HELP,
   type TaxTreatment,
 } from '../utils/taxTreatment';
-import { createGigFinancial, getGigFinancials, updateGigFinancial } from '../services/gig.service';
+import { getGigFinancials, updateGigFinancial } from '../services/gig.service';
 import { uploadAttachment, linkAttachmentToEntity, getAttachmentUrl } from '../services/attachment.service';
 import { updateAsset } from '../services/asset.service';
 import { getExpenseCategories, getEquipmentCategories, type ExpenseCategory } from '../services/purchaseCategory.service';
@@ -266,7 +267,7 @@ export default function ReviewScannedDataDialog({
     if (!open || !organizationId) return;
     let cancelled = false;
     getLockedTaxYears(organizationId).then(years => { if (!cancelled) setLockedYears(years); });
-    getExpenseCategories().then(c => { if (!cancelled) setExpenseCats(c); });
+    getExpenseCategories(organizationId).then(c => { if (!cancelled) setExpenseCats(c); });
     getEquipmentCategories(organizationId).then(c => { if (!cancelled) setEquipmentCats(c); });
     return () => { cancelled = true; };
   }, [open, organizationId]);
@@ -470,7 +471,6 @@ export default function ReviewScannedDataDialog({
         description: formData.description,
         category: formData.category,
         sub_category: formData.sub_category,
-        gig_id: gigId,
         row_type: 'header' as const,
       };
       const items = formData.items.map(item => ({
@@ -515,24 +515,20 @@ export default function ReviewScannedDataDialog({
 
       const result = await createPurchaseTransaction(header, items, assets);
 
+      // Scanned on a gig: each expensed line is a cost of the gig, with its own
+      // money-out row. The purchase itself, and depreciated equipment, are not (#130, #133).
       if (gigId) {
         try {
-          await createGigFinancial({
-            gig_id: gigId,
-            organization_id: organizationId,
-            date: formData.purchase_date,
-            amount: formData.total_inv_amount,
-            direction: 'out',
-            stage: 'paid',
-            category: toFinCategory(formData.category) ?? 'Other expenses',
-            description: formData.description || `Receipt: ${formData.vendor}`,
-            purchase_id: result.id,
-            paid_at: new Date().toISOString(), // Incurred from receipt implies paid
-          });
-          // Dispatch event to refresh financials
+          const saved = await getPurchaseWithDetails(result.id);
+          const expensed = (saved?.items ?? []).filter((it: any) => lineTaxTreatment(it) === 'expense');
+          for (const line of expensed) {
+            await updatePurchase(line.id, { gig_id: gigId });
+            await createLedgerEntryForPurchaseLine(line, gigId, organizationId);
+          }
           window.dispatchEvent(new CustomEvent('gig-financials-updated', { detail: { gigId } }));
         } catch (finErr) {
-          console.error('Error creating linked gig financial record:', finErr);
+          console.error('Error linking receipt lines to the gig:', finErr);
+          toast.error('Purchase created, but its lines could not be added to the gig');
         }
       }
 

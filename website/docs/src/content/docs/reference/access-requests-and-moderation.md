@@ -14,6 +14,9 @@ sidebar:
 - **Platform moderators**: the `platform_moderator` flag, who has it, the queue
   screen.
 - Reviewing a request: what you see, approve / reject, what approval grants.
+- **Starter categories** (header menu → Starter categories): the expense and equipment
+  category sets an organization is given the first time it needs a list. Only
+  moderators see or edit them; organizations that already have lists aren't changed.
 - Notifications: the requester's in-app bell + email (Resend) on a decision.
 - Org Admins reviewing requests for their *own* (claimed) org vs. moderators
   handling *unclaimed* orgs.

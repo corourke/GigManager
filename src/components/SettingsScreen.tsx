@@ -4,6 +4,7 @@ import { Settings } from 'lucide-react';
 import AppHeader from './AppHeader';
 import { PageHeader } from './ui/PageHeader';
 import CalendarIntegrationSettings from './CalendarIntegrationSettings';
+import CategoriesSettings from './settings/CategoriesSettings';
 import { Organization, User, UserRole } from '../utils/supabase/types';
 
 interface SettingsScreenProps {
@@ -55,6 +56,11 @@ export default function SettingsScreen({
           organizationId={organization.id}
           onSettingsChanged={() => {}}
         />
+
+        {/* Admins edit the category lists; Managers see them. */}
+        {(userRole === 'Admin' || userRole === 'Manager') && (
+          <CategoriesSettings organizationId={organization.id} canEdit={userRole === 'Admin'} />
+        )}
       </div>
     </div>
   );

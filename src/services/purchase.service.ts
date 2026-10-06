@@ -470,46 +470,6 @@ export async function reclassifyExpenseAsAsset(purchaseItemId: string): Promise<
 }
 
 /**
- * Assign a whole receipt to a gig: set the header's `gig_id` and cascade it to
- * every child line that isn't already pointed at a different gig. Lines already
- * on the target gig are left alone; lines on a *different* gig are not stolen
- * (they must be reassigned individually so their ledger entry can be moved).
- *
- * Depreciated lines are never gig expenses (#133), so they are left unlinked.
- *
- * Returns the ids of the expensed lines that were newly linked, so the caller
- * can offer to create their gig ledger entries.
- */
-export async function assignGigToPurchaseChildren(
-  headerId: string,
-  gigId: string,
-  _organizationId: string
-): Promise<{ updated: number; failed: number; newlyLinkedItemIds: string[] }> {
-  const supabase = getSupabase();
-  try {
-    const { data: children, error } = await (supabase.from('purchases') as any)
-      .select('id, gig_id, row_type, tax_treatment')
-      .eq('parent_id', headerId);
-    if (error) throw error;
-
-    const rows: any[] = children || [];
-    const toLink = rows.filter((c) => !c.gig_id && lineTaxTreatment(c) === 'expense');
-    const newlyLinkedItemIds = toLink.map((c) => c.id);
-
-    const results = await Promise.allSettled([
-      updatePurchase(headerId, { gig_id: gigId }),
-      ...toLink.map((c) => updatePurchase(c.id, { gig_id: gigId })),
-    ]);
-
-    const failed = results.filter((r) => r.status === 'rejected').length;
-    const updated = results.filter((r) => r.status === 'fulfilled').length;
-    return { updated, failed, newlyLinkedItemIds };
-  } catch (err) {
-    return handleApiError(err, 'assign gig to purchase children');
-  }
-}
-
-/**
  * Predicate: should we prompt the user to create a gig financial ledger entry?
  * Only fires for expense items (row_type === 'item') being assigned a gig for the first time.
  *
