@@ -1,0 +1,191 @@
+import { useEffect, useState } from 'react';
+import { toast } from 'sonner';
+import { Plus } from 'lucide-react';
+import { Button } from '../ui/button';
+import { Input } from '../ui/input';
+import { Switch } from '../ui/switch';
+import {
+  listCategories,
+  addCategory,
+  updateCategory,
+  getScheduleCLines,
+  getCategoryUsage,
+  type CategoryKind,
+  type CategoryRow,
+  type ScheduleCLine,
+} from '../../services/purchaseCategory.service';
+
+/** Shown with the equipment categories: how each item's Type is written. */
+export function TypeWritingRules() {
+  return (
+    <div className="rounded-lg border bg-sky-50 border-sky-200 p-4 text-sm text-sky-950 space-y-2">
+      <h3 className="font-semibold">How the types are written</h3>
+      <ul className="list-disc pl-5 space-y-1">
+        <li>The first word says what it is, as a singular noun: Cable, Microphone, Fixture, Stand, Case.</li>
+        <li>Each word after narrows it: Microphone, Vocal, Dynamic; Fixture, Moving Head, Wash.</li>
+        <li>Brand, model, size and length stay in the name, not the type.</li>
+        <li>The dropdown in the app will offer the types already in use for that category, so the list stays consistent.</li>
+      </ul>
+    </div>
+  );
+}
+
+interface CategoryListEditorProps {
+  kind: CategoryKind;
+  /** The organization whose list this is, or null for the starter set (platform moderators). */
+  organizationId: string | null;
+  canEdit: boolean;
+}
+
+/**
+ * One category list: an organization's expense or equipment categories, or a
+ * starter set. Categories are turned off rather than deleted, and one that
+ * records already use can't be renamed here (records store the name).
+ */
+export default function CategoryListEditor({ kind, organizationId, canEdit }: CategoryListEditorProps) {
+  const [rows, setRows] = useState<CategoryRow[] | null>(null);
+  const [lines, setLines] = useState<ScheduleCLine[]>([]);
+  const [usage, setUsage] = useState<Record<string, number> | null>(null);
+  const [names, setNames] = useState<Record<string, string>>({});
+  const [newName, setNewName] = useState('');
+  const [newLine, setNewLine] = useState('27b');
+  const [adding, setAdding] = useState(false);
+  const isExpense = kind === 'expense';
+
+  useEffect(() => {
+    let cancelled = false;
+    setRows(null);
+    listCategories(kind, organizationId)
+      .then(r => { if (!cancelled) { setRows(r); setNames(Object.fromEntries(r.map(x => [x.id, x.name]))); } })
+      .catch(err => { console.error(err); if (!cancelled) { setRows([]); toast.error('Failed to load categories'); } });
+    if (isExpense) getScheduleCLines().then(l => { if (!cancelled) setLines(l); }).catch(() => {});
+    if (organizationId) getCategoryUsage(kind, organizationId).then(u => { if (!cancelled) setUsage(u); }).catch(() => {});
+    return () => { cancelled = true; };
+  }, [kind, organizationId, isExpense]);
+
+  const usedBy = (name: string) => usage?.[name.trim().toLowerCase()] ?? 0;
+
+  const save = async (row: CategoryRow, patch: Partial<CategoryRow>) => {
+    setRows(prev => prev?.map(r => (r.id === row.id ? { ...r, ...patch } : r)) ?? prev);
+    try {
+      await updateCategory(kind, row.id, patch);
+    } catch (err: any) {
+      setRows(prev => prev?.map(r => (r.id === row.id ? row : r)) ?? prev);
+      setNames(prev => ({ ...prev, [row.id]: row.name }));
+      toast.error(err?.message?.includes('duplicate') ? 'That name is already in the list' : 'Failed to save the change');
+    }
+  };
+
+  const rename = (row: CategoryRow) => {
+    const name = (names[row.id] ?? '').trim();
+    if (!name || name === row.name) { setNames(prev => ({ ...prev, [row.id]: row.name })); return; }
+    save(row, { name });
+  };
+
+  const add = async () => {
+    const name = newName.trim();
+    if (!name || !rows) return;
+    if (rows.some(r => r.name.toLowerCase() === name.toLowerCase())) { toast.error('That name is already in the list'); return; }
+    setAdding(true);
+    try {
+      const sort_order = Math.max(0, ...rows.map(r => r.sort_order)) + 10;
+      const created = await addCategory(kind, organizationId, isExpense ? { name, schedule_c_line: newLine, sort_order } : { name, sort_order });
+      setRows(prev => [...(prev ?? []), created]);
+      setNames(prev => ({ ...prev, [created.id]: created.name }));
+      setNewName('');
+    } catch (err) {
+      console.error(err);
+      toast.error('Failed to add the category');
+    } finally {
+      setAdding(false);
+    }
+  };
+
+  const lineSelect = (value: string, onChange: (v: string) => void, label: string, disabled: boolean) => (
+    <select
+      aria-label={label}
+      value={value}
+      disabled={disabled}
+      onChange={e => onChange(e.target.value)}
+      className="h-9 w-full rounded-md border border-input bg-background px-2 text-sm disabled:opacity-60"
+    >
+      {lines.length === 0 && value && <option value={value}>{value}</option>}
+      {lines.map(l => <option key={l.code} value={l.code}>{l.code}: {l.label}</option>)}
+    </select>
+  );
+
+  if (rows === null) return <p className="text-sm text-muted-foreground py-4">Loading categories…</p>;
+
+  return (
+    <div className="space-y-4">
+      {kind === 'equipment' && <TypeWritingRules />}
+      <div className="overflow-x-auto rounded-lg border">
+        <table className="w-full text-sm">
+          <thead className="bg-muted/50 text-xs uppercase text-muted-foreground">
+            <tr>
+              <th className="text-left font-semibold px-3 py-2">Name</th>
+              {isExpense && <th className="text-left font-semibold px-3 py-2 w-[38%]">Schedule C line</th>}
+              {organizationId && <th className="text-right font-semibold px-3 py-2 w-20">In use</th>}
+              <th className="text-center font-semibold px-3 py-2 w-16">On</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map(row => {
+              const inUse = organizationId ? usedBy(row.name) : 0;
+              return (
+                <tr key={row.id} className={`border-t ${row.active ? '' : 'text-muted-foreground'}`}>
+                  <td className="px-3 py-1.5">
+                    <Input
+                      aria-label={`Name: ${row.name}`}
+                      value={names[row.id] ?? row.name}
+                      disabled={!canEdit || inUse > 0}
+                      title={inUse > 0 ? `In use by ${inUse}, so it can't be renamed here` : undefined}
+                      onChange={e => setNames(prev => ({ ...prev, [row.id]: e.target.value }))}
+                      onBlur={() => rename(row)}
+                      onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
+                      className="h-9"
+                    />
+                  </td>
+                  {isExpense && (
+                    <td className="px-3 py-1.5">
+                      {lineSelect(row.schedule_c_line ?? '', v => save(row, { schedule_c_line: v }), `Schedule C line: ${row.name}`, !canEdit)}
+                    </td>
+                  )}
+                  {organizationId && <td className="px-3 py-1.5 text-right tabular-nums">{inUse || '—'}</td>}
+                  <td className="px-3 py-1.5 text-center">
+                    <Switch
+                      aria-label={`Use ${row.name}`}
+                      checked={row.active}
+                      disabled={!canEdit}
+                      onCheckedChange={checked => save(row, { active: checked })}
+                    />
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+      {canEdit && (
+        <div className="flex flex-wrap items-center gap-2">
+          <Input
+            aria-label="New category name"
+            placeholder="New category"
+            value={newName}
+            onChange={e => setNewName(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter') add(); }}
+            className="h-9 max-w-xs"
+          />
+          {isExpense && <div className="w-72">{lineSelect(newLine, setNewLine, 'New category Schedule C line', false)}</div>}
+          <Button size="sm" onClick={add} disabled={adding || !newName.trim()} className="bg-sky-700 hover:bg-sky-800 text-white">
+            <Plus className="w-4 h-4 mr-1" />Add
+          </Button>
+        </div>
+      )}
+      <p className="text-xs text-muted-foreground">
+        Turn a category off to hide it from the pickers; records that use it keep it.
+        {organizationId ? ' A category already in use can’t be renamed here.' : ''}
+      </p>
+    </div>
+  );
+}

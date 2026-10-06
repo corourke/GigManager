@@ -267,7 +267,7 @@ export default function ReviewScannedDataDialog({
     if (!open || !organizationId) return;
     let cancelled = false;
     getLockedTaxYears(organizationId).then(years => { if (!cancelled) setLockedYears(years); });
-    getExpenseCategories().then(c => { if (!cancelled) setExpenseCats(c); });
+    getExpenseCategories(organizationId).then(c => { if (!cancelled) setExpenseCats(c); });
     getEquipmentCategories(organizationId).then(c => { if (!cancelled) setEquipmentCats(c); });
     return () => { cancelled = true; };
   }, [open, organizationId]);

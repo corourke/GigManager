@@ -52,7 +52,7 @@ The same screen appears for every scan, for **Add manually**, and when you edit 
 - **Two questions on every line** (see [Tax treatment and equipment](/financials/tax-treatment/)):
   - **Expense | Depreciate:** how the item counts for tax. It's set for you from the item's cost: **Expense** under $200, **Depreciate** over $2,500. Between those you choose; the **(?)** explains. **Save Purchase** waits until every line has one.
   - **Equipment:** the switch under the line. Turn it on (it turns blue) for gear you look after. Saving then creates an equipment record you can tag and put in kits. The arrow at the start of the row shows **Type**, **Kit name**, **Serial #**, **Tag #** and **Replace Value**.
-- **Categories**, picked from lists:
+- **Categories**, picked from your organization's lists (an Admin edits them under **Settings → Categories**; see [Expense and equipment categories](/organizations/categories/)):
   - **Expense:** for an expensed item, the heading it goes under at tax time (Small audio parts, Supplies, Software subscriptions, Insurance, …).
   - **Equip.:** for anything tracked as equipment, its equipment category (Audio, Lighting, Cases/Bags, …). Choose **Add new category…** at the bottom to type a new one. **Save Purchase** waits until every new piece of equipment has one.
   - A depreciated item has only the equipment category. An expensed item tracked as equipment has both.

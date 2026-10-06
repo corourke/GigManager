@@ -1,4 +1,4 @@
-import { ShieldCheck } from 'lucide-react';
+import { ShieldCheck, Tags } from 'lucide-react';
 import { DropdownMenuItem, DropdownMenuSeparator } from './ui/dropdown-menu';
 import { useAuth } from '../contexts/AuthContext';
 import { useNav } from '../routes/useNav';
@@ -18,6 +18,10 @@ export default function ModeratorQueueMenuItem() {
       <DropdownMenuItem onClick={nav.toModeratorQueue}>
         <ShieldCheck className="w-4 h-4 mr-2" />
         Access Requests
+      </DropdownMenuItem>
+      <DropdownMenuItem onClick={nav.toStarterCategories}>
+        <Tags className="w-4 h-4 mr-2" />
+        Starter categories
       </DropdownMenuItem>
       <DropdownMenuSeparator />
     </>

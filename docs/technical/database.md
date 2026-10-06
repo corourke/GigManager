@@ -1191,18 +1191,42 @@ Filed tax years, per organization (migration 20261006000000, #133). Purchases da
 
 ### expense_categories
 
-The shared expense-category list (migration 20261008000000, #125): the headings filed on the 2025 Schedule C. Global, not per organization.
+Expense categories per organization (migration 20261008000000, made per organization by 20261010000000, #125). Rows with `organization_id` NULL are the starter set.
 
 | Field | Type | Description |
 |-------|------|-------------|
 | id | UUID | Primary key |
-| name | TEXT | Unique. Expensed purchase lines store this in `purchases.category` |
-| schedule_c_line | TEXT | The Schedule C line it is filed on (`27b` for all 2025 headings); NULL = not deducted |
+| organization_id | UUID | Owning organization (ON DELETE CASCADE); NULL = starter set |
+| name | TEXT | Unique per organization (case-insensitive). Expensed purchase lines store this in `purchases.category` |
+| schedule_c_line | TEXT | FK to `schedule_c_lines.code`; NULL = not deducted |
 | sort_order | SMALLINT | Display order |
 | active | BOOLEAN | Default true; inactive ones are hidden from pickers |
 | created_at | TIMESTAMPTZ | |
 
-**Notes:** RLS enabled — any signed-in user reads; there are no write policies, so changes come by migration. See [financials.md](financials.md) §6.
+**Notes:** RLS — the organization's Admins and Managers read, its Admins write; starter rows are read and written only by platform moderators. `ensure_org_categories(org)` copies the starter set into an organization on first use. See [financials.md](financials.md) §6.
+
+---
+
+### equipment_categories
+
+Equipment categories per organization (migration 20261010000000). Rows with `organization_id` NULL are the starter set.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| id | UUID | Primary key |
+| organization_id | UUID | Owning organization (ON DELETE CASCADE); NULL = starter set |
+| name | TEXT | Unique per organization (case-insensitive). Assets store this in `assets.category` |
+| sort_order | SMALLINT | Display order |
+| active | BOOLEAN | Default true |
+| created_at | TIMESTAMPTZ | |
+
+**Notes:** RLS — the organization's members read, its Admins write; starter rows are platform moderators only.
+
+---
+
+### schedule_c_lines
+
+IRS Schedule C Part II expense lines (migration 20261010000000): `code` (PK, e.g. `22`, `24a`, `27b`), `label`, `sort_order`. Read-only for signed-in users; changed by migration.
 
 ---
 
