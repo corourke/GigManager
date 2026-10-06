@@ -75,15 +75,6 @@ describe('asset.service', () => {
       expect(chain.eq).toHaveBeenCalledWith('category', 'Microphone');
     });
 
-    it('applies sub_category filter when provided', async () => {
-      const chain = makeChain({ data: [], error: null });
-      mockSupabase.from.mockReturnValue(chain);
-
-      await getAssets('org-1', { sub_category: 'Condenser' });
-
-      expect(chain.eq).toHaveBeenCalledWith('sub_category', 'Condenser');
-    });
-
     it('applies insurance_added filter when true', async () => {
       const chain = makeChain({ data: [], error: null });
       mockSupabase.from.mockReturnValue(chain);
@@ -146,16 +137,16 @@ describe('asset.service', () => {
       expect(result).toEqual(['Amplifier', 'Microphone']);
     });
 
-    it('filters by category when fetching sub_category values', async () => {
+    it('suggests only the types used in the chosen category', async () => {
       const chain = makeChain({ data: [], error: null });
       mockSupabase.from.mockReturnValue(chain);
 
-      await getDistinctAssetValues('org-1', 'sub_category', 'Microphone');
+      await getDistinctAssetValues('org-1', 'type', 'Microphone');
 
       expect(chain.eq).toHaveBeenCalledWith('category', 'Microphone');
     });
 
-    it('does not apply category filter for non sub_category fields', async () => {
+    it('does not apply the category filter to other fields', async () => {
       const chain = makeChain({ data: [], error: null });
       mockSupabase.from.mockReturnValue(chain);
 

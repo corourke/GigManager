@@ -63,6 +63,36 @@ export async function getKits(organizationId: string, filters?: {
   }
 }
 
+/** Every kit in the organization, for pickers (getKits leaves out empty kits). */
+export async function getKitOptions(organizationId: string): Promise<{ id: string; name: string }[]> {
+  const supabase = getSupabase();
+  try {
+    const { data, error } = await (supabase.from('kits') as any)
+      .select('id, name')
+      .eq('organization_id', organizationId)
+      .order('name');
+    if (error) throw error;
+    return (data ?? []) as { id: string; name: string }[];
+  } catch (err) {
+    return handleApiError(err, 'fetch kits');
+  }
+}
+
+/** Put a new equipment record (all of its quantity) into kits. */
+export async function addAssetToKits(assetId: string, kitIds: string[], quantity: number): Promise<void> {
+  if (!kitIds.length) return;
+  const supabase = getSupabase();
+  try {
+    const rows = kitIds.map(kit_id => ({ kit_id, asset_id: assetId, quantity: Math.max(1, Math.round(quantity || 1)) }));
+    // A plain insert: the (kit_id, asset_id) unique index is partial, which
+    // PostgREST's on-conflict can't target. Callers pass only new records.
+    const { error } = await (supabase.from('kit_components') as any).insert(rows);
+    if (error) throw error;
+  } catch (err) {
+    return handleApiError(err, 'add equipment to kits');
+  }
+}
+
 /**
  * Fetch a single kit with its direct components (assets and/or sub-kits, one
  * level — not the recursive flattened view, see getKitFlattenedContents).

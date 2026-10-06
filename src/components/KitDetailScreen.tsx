@@ -374,9 +374,9 @@ export default function KitDetailScreen({
                       </TableCell>
                       <TableCell>
                         <div className="text-sm text-gray-700">{row.asset?.category}</div>
-                        {row.asset?.sub_category && (
+                        {row.asset?.type && (
                           <div className="text-xs text-gray-500">
-                            {row.asset.sub_category}
+                            {row.asset.type}
                           </div>
                         )}
                       </TableCell>

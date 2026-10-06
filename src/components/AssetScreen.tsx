@@ -21,6 +21,7 @@ import { ASSET_STATUS_CONFIG } from '../utils/supabase/constants';
 import { useSimpleFormChanges } from '../utils/hooks/useSimpleFormChanges';
 import { createSubmissionPayload, normalizeFormData } from '../utils/form-utils';
 import { useAutocompleteSuggestions } from '../utils/hooks/useAutocompleteSuggestions';
+import { getEquipmentCategories } from '../services/purchaseCategory.service';
 import AttachmentManager from './AttachmentManager';
 
 interface AssetScreenProps {
@@ -46,7 +47,6 @@ interface FormData {
   item_price: string;
   item_cost: string;
   replacement_value: string;
-  sub_category: string;
   type: string;
   description: string;
   insurance_policy_added: boolean;
@@ -88,7 +88,6 @@ export default function AssetScreen({
     item_price: '',
     item_cost: '',
     replacement_value: '',
-    sub_category: '',
     type: '',
     description: '',
     insurance_policy_added: false,
@@ -110,27 +109,21 @@ export default function AssetScreen({
 
   const isEditMode = !!assetId;
 
-  // Autocomplete suggestions for all fields
-  const categorySuggestions = useAutocompleteSuggestions({
-    field: 'category',
-    organizationId: organization.id,
-    sourceTable: 'assets',
-    enabled: true,
-  });
-
-  const subCategorySuggestions = useAutocompleteSuggestions({
-    field: 'sub_category',
-    organizationId: organization.id,
-    sourceTable: 'assets',
-    filterByCategory: formData.category || undefined,
-    enabled: true,
-  });
+  // Categories come from the organization's list (Settings → Categories);
+  // types are suggested from those already used in the chosen category.
+  const [equipmentCategories, setEquipmentCategories] = useState<string[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    getEquipmentCategories(organization.id).then(c => { if (!cancelled) setEquipmentCategories(c); });
+    return () => { cancelled = true; };
+  }, [organization.id]);
 
   const typeSuggestions = useAutocompleteSuggestions({
     field: 'type',
     organizationId: organization.id,
     sourceTable: 'assets',
-    enabled: true,
+    filterByCategory: formData.category || undefined,
+    enabled: !!formData.category,
   });
 
   const vendorSuggestions = useAutocompleteSuggestions({
@@ -163,7 +156,6 @@ export default function AssetScreen({
       item_price: asset.item_price?.toString() || '',
       item_cost: asset.item_cost?.toString() || '',
       replacement_value: asset.replacement_value?.toString() || '',
-      sub_category: asset.sub_category || '',
       type: asset.type || '',
       description: asset.description || '',
       insurance_policy_added: asset.insurance_policy_added || false,
@@ -407,19 +399,29 @@ export default function AssetScreen({
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="type">Equipment Type</Label>
-                  <Input
-                    id="type"
-                    list="types"
-                    value={formData.type}
-                    onChange={(e) => handleChange('type', e.target.value)}
-                    placeholder="e.g., Dynamic Microphone"
-                  />
-                  <datalist id="types">
-                    {typeSuggestions.suggestions.map((type, index) => (
-                      <option key={`type-${index}-${type}`} value={type} />
+                  <Label htmlFor="category">
+                    Category <span className="text-red-500">*</span>
+                  </Label>
+                  <select
+                    id="category"
+                    value={formData.category}
+                    onChange={(e) => handleChange('category', e.target.value)}
+                    className={`h-9 w-full rounded-md border bg-input-background px-3 text-base md:text-sm outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] ${errors.category ? 'border-red-500' : 'border-input'}`}
+                  >
+                    <option value="">Choose a category…</option>
+                    {formData.category && !equipmentCategories.includes(formData.category) && (
+                      <option value={formData.category}>{formData.category}</option>
+                    )}
+                    {equipmentCategories.map((cat) => (
+                      <option key={cat} value={cat}>{cat}</option>
                     ))}
-                  </datalist>
+                  </select>
+                  {errors.category && (
+                    <p className="text-sm text-red-600 flex items-center gap-1">
+                      <AlertCircle className="w-4 h-4" />
+                      {errors.category}
+                    </p>
+                  )}
                 </div>
 
                 <div className="space-y-2">
@@ -434,45 +436,24 @@ export default function AssetScreen({
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="category">
-                    Category <span className="text-red-500">*</span>
-                  </Label>
+                  <Label htmlFor="type">Type</Label>
                   <Input
-                    id="category"
-                    list="categories"
-                    value={formData.category}
-                    onChange={(e) => handleChange('category', e.target.value)}
-                    placeholder="e.g., Audio, Lighting, Video"
-                    className={errors.category ? 'border-red-500' : ''}
+                    id="type"
+                    list="types"
+                    value={formData.type}
+                    onChange={(e) => handleChange('type', e.target.value)}
+                    placeholder="e.g., Microphone, Vocal, Dynamic"
                   />
-                  <datalist id="categories">
-                    {categorySuggestions.suggestions.map((cat, index) => (
-                      <option key={`category-${index}-${cat}`} value={cat} />
+                  <datalist id="types">
+                    {typeSuggestions.suggestions.map((type, index) => (
+                      <option key={`type-${index}-${type}`} value={type} />
                     ))}
                   </datalist>
-                  {errors.category && (
-                    <p className="text-sm text-red-600 flex items-center gap-1">
-                      <AlertCircle className="w-4 h-4" />
-                      {errors.category}
-                    </p>
-                  )}
+                  <p className="text-xs text-gray-500">
+                    General to specific, separated by commas. Suggestions are the types already used in this category.
+                  </p>
                 </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="sub_category">Sub-Category</Label>
-                  <Input
-                    id="sub_category"
-                    list="sub_categories"
-                    value={formData.sub_category}
-                    onChange={(e) => handleChange('sub_category', e.target.value)}
-                    placeholder="e.g., Microphones, LED Fixtures"
-                  />
-                  <datalist id="sub_categories">
-                    {subCategorySuggestions.suggestions.map((subCat, index) => (
-                      <option key={`subcategory-${index}-${subCat}`} value={subCat} />
-                    ))}
-                  </datalist>
-                </div>
               </div>
             </div>
 

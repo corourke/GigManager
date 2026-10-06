@@ -5,7 +5,6 @@ import {
   createPurchaseTransaction,
   scanInvoice,
   importPurchases,
-  reclassifyExpenseAsAsset,
   deletePurchase,
   shouldPromptForLedgerEntry,
   computeAssetFieldChanges,
@@ -140,23 +139,6 @@ describe('purchase.service', () => {
     });
   });
 
-  describe('reclassifyExpenseAsAsset', () => {
-    it('should call reclassify_expense_as_asset RPC and return asset_id', async () => {
-      mockSupabase.rpc.mockResolvedValue({ data: { asset_id: 'asset-1' }, error: null });
-
-      const result = await reclassifyExpenseAsAsset('item-1');
-
-      expect(mockSupabase.rpc).toHaveBeenCalledWith('reclassify_expense_as_asset', { p_purchase_item_id: 'item-1' });
-      expect(result).toEqual({ asset_id: 'asset-1' });
-    });
-
-    it('should throw when RPC returns an error', async () => {
-      mockSupabase.rpc.mockResolvedValue({ data: null, error: { message: 'DB error' } });
-
-      await expect(reclassifyExpenseAsAsset('item-1')).rejects.toThrow();
-    });
-  });
-
   describe('importPurchases', () => {
     it('should group rows by header and call createPurchaseTransaction', async () => {
       const rows = [
@@ -232,7 +214,6 @@ describe('purchase.service', () => {
       manufacturer_model: 'SM58',
       description: 'SM58',
       category: 'Audio',
-      sub_category: 'Microphones',
       quantity: 1,
       item_price: 100,
       item_cost: 105,
@@ -242,7 +223,7 @@ describe('purchase.service', () => {
 
     it('returns no changes when the line matches the asset', () => {
       const changes = computeAssetFieldChanges(
-        { description: 'SM58', category: 'Audio', sub_category: 'Microphones', quantity: 1, item_price: 100, item_cost: 105, vendor: 'Sweetwater', purchase_date: '2024-01-01' },
+        { description: 'SM58', category: 'Audio', quantity: 1, item_price: 100, item_cost: 105, vendor: 'Sweetwater', purchase_date: '2024-01-01' },
         asset
       );
       expect(changes).toEqual([]);

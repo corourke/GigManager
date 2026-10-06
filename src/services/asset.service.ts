@@ -8,7 +8,7 @@ import { logActivity, getEntityActivity } from './activityLog.service';
 const getSupabase = () => createClient();
 
 const ASSET_TRACKED_FIELDS = [
-  'manufacturer_model', 'serial_number', 'category', 'sub_category', 'type',
+  'manufacturer_model', 'serial_number', 'category', 'type',
   'description', 'vendor', 'item_price', 'item_cost', 'replacement_value',
   'acquisition_date', 'retired_on', 'tag_number',
 ] as const;
@@ -32,7 +32,6 @@ function computeFieldChanges<T extends Record<string, any>>(
  */
 export async function getAssets(organizationId: string, filters?: {
   category?: string;
-  sub_category?: string;
   insurance_added?: boolean;
   purchase_id?: string;
   search?: string;
@@ -46,10 +45,6 @@ export async function getAssets(organizationId: string, filters?: {
 
     if (filters?.category) {
       query = query.eq('category', filters.category);
-    }
-
-    if (filters?.sub_category) {
-      query = query.eq('sub_category', filters.sub_category);
     }
 
     if (filters?.insurance_added !== undefined) {
@@ -78,7 +73,7 @@ export async function getAssets(organizationId: string, filters?: {
  */
 export async function getDistinctAssetValues(
   organizationId: string,
-  field: 'category' | 'sub_category' | 'type' | 'vendor',
+  field: 'category' | 'type' | 'vendor',
   filterByCategory?: string
 ): Promise<string[]> {
   const supabase = getSupabase();
@@ -88,7 +83,8 @@ export async function getDistinctAssetValues(
       .eq('organization_id', organizationId)
       .not(field, 'is', null);
 
-    if (filterByCategory && field === 'sub_category') {
+    // Types are suggested per category ("Cable, XLR" only under Audio).
+    if (filterByCategory && field === 'type') {
       query = query.eq('category', filterByCategory);
     }
 

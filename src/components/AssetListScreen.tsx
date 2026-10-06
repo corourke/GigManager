@@ -189,7 +189,6 @@ export default function AssetListScreen({
         return (
           asset.manufacturer_model?.toLowerCase().includes(query) ||
           asset.category?.toLowerCase().includes(query) ||
-          asset.sub_category?.toLowerCase().includes(query) ||
           asset.serial_number?.toLowerCase().includes(query) ||
           asset.tag_number?.toLowerCase().includes(query) ||
           asset.type?.toLowerCase().includes(query) ||
@@ -216,16 +215,6 @@ export default function AssetListScreen({
       editable: true,
       type: 'select',
       options: categories.map(cat => ({ label: cat, value: cat })),
-    },
-    {
-      id: 'sub_category',
-      header: 'Sub Category',
-      accessor: 'sub_category',
-      sortable: true,
-      filterable: true,
-      editable: true,
-      optional: true,
-      type: 'text',
     },
     {
       id: 'manufacturer_model',

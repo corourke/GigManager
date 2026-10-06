@@ -723,7 +723,6 @@ Handles acquisition headers and expense line items. Uses a self-referencing `par
 | item_cost | NUMERIC(10,2) | Unit burdened cost — item only (nullable) |
 | description | TEXT | Line item description — item only (nullable) |
 | category | TEXT | Category — item only (nullable) |
-| sub_category | TEXT | Sub-category — item only (nullable) |
 | tax_treatment | TEXT | Lines only: `'expense'` or `'depreciate'`; NULL on headers (CHECK). Independent of `asset_id` except that depreciate requires one (deferred check). Migration 20261006000000. |
 | recovery_period | SMALLINT | Depreciated lines only: 5, 7 or 15 years (CHECK). Migration 20261006000000. |
 | created_by | UUID | Reference to users.id (default auth.uid()) |
@@ -734,7 +733,7 @@ Handles acquisition headers and expense line items. Uses a self-referencing `par
 **Notes:**
 - A **header** row (`row_type = 'header'`) represents an overall purchase transaction (vendor, date, total, payment method).
 - **Item** / **asset** rows represent individual line items and reference their header via `parent_id`; an `'asset'` row also has `asset_id` set.
-- When assets are imported, the `create_purchase_transaction_v1` function creates `'asset'` line rows with `asset_id` linking back to the created asset. `reclassify_expense_as_asset` flips an existing `'item'` row to `'asset'` after the fact.
+- When assets are imported, the `create_purchase_transaction_v1` function creates `'asset'` line rows with `asset_id` linking back to the created asset. Each asset may carry `kit_ids`: the function checks they belong to the header's organization and adds the new asset to each (`kit_components`, migration 20261011000000). (`reclassify_expense_as_asset` was retired by 20261011000000; `track_purchase_line_as_equipment` replaces it.)
 - `gig_id` links gig-specific expenses to the relevant gig, displayed alongside `gig_financials`. Lines only, and only expensed lines (constraints `purchases_header_no_gig`, `purchases_depreciate_no_gig`, migration 20261009000000). It is set per line on the Purchases tab, or for each expensed line when a receipt is scanned on a gig — see [financials.md](financials.md) §4.
 - A gig-linked purchase does **not** automatically get a `gig_financials` ledger row: the on-gig receipt scan creates one, but CSV import and post-hoc line assignment only prompt/offer to. Without that ledger row the expense is invisible to gig profitability.
 - Assets acquired in a purchase reference the header row via `assets.purchase_id`.
@@ -955,7 +954,6 @@ Equipment and asset management
 | item_price | NUMERIC(10,2) | Unit purchase price (nullable) |
 | item_cost | NUMERIC(10,2) | Burdened unit cost incl. pro-rata tax/shipping (nullable) |
 | category | TEXT | Asset category (e.g., "Audio", "Lighting", "Video") (NOT NULL) |
-| sub_category | TEXT | Asset sub-category (nullable) |
 | insurance_policy_added | BOOLEAN | Whether asset has been added to insurance policy (default false, NOT NULL) |
 | manufacturer_model | TEXT | Manufacturer and model information (NOT NULL) |
 | type | TEXT | Asset type (nullable) |
@@ -1359,7 +1357,7 @@ These functions are defined with `SECURITY DEFINER` to bypass RLS when necessary
 - `invite_user_to_organization(...)`: Creates an invitation and pending user record.
 - `create_gig_complex(p_gig_data, p_participants, p_staff_slots)`: Transactionally creates a gig with participants and staff slots. Since migration 20260613000000 it requires `p_gig_data.primary_organization_id` and that the caller is Admin/Manager of that org; it is the only gig-creation path (no gigs INSERT policy).
 - `create_purchase_transaction_v1(p_header, p_items, p_assets)`: Transactionally creates a purchase header with item rows and associated assets.
-- `reclassify_expense_as_asset(p_purchase_item_id)`: Converts an existing purchase `'item'` row into an `'asset'` row and creates the linked asset (migration 20260607000000).
+- `reclassify_expense_as_asset(p_purchase_item_id)`: Retired (dropped by migration 20261011000000, which also dropped `purchases.sub_category` and `assets.sub_category`).
 - `update_asset_status(p_asset_id, p_status)`: Updates asset status; requires the caller to be a member of the asset's org.
 - `user_is_admin(user_uuid)`: Returns true if the user is Admin of **at least one** organization (not a global admin; migration 20260522000000).
 - `user_can_manage_org_contacts(p_organization_id, p_user_id)`: True if the user is `user_is_admin`, Admin/Manager of the org, or Admin/Manager of an org sharing a gig with it. Gates all contact RPCs and the broadened member/user read policies.

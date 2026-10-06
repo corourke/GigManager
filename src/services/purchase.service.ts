@@ -452,24 +452,6 @@ export async function trackPurchaseLineAsEquipment(lineId: string): Promise<stri
 }
 
 /**
- * Reclassify a purchase expense item as a capital asset
- */
-export async function reclassifyExpenseAsAsset(purchaseItemId: string): Promise<{ asset_id: string }> {
-  try {
-    const { supabase } = await requireAuth();
-
-    const { data, error } = await supabase.rpc('reclassify_expense_as_asset', {
-      p_purchase_item_id: purchaseItemId,
-    });
-
-    if (error) throw error;
-    return data as { asset_id: string };
-  } catch (err) {
-    return handleApiError(err, 'reclassify expense as asset');
-  }
-}
-
-/**
  * Predicate: should we prompt the user to create a gig financial ledger entry?
  * Only fires for expense items (row_type === 'item') being assigned a gig for the first time.
  *
@@ -676,7 +658,6 @@ export interface AssetFieldChange {
 export interface EditableLineSnapshot {
   description?: string | null;
   category?: string | null;
-  sub_category?: string | null;
   quantity?: number | null;
   item_price?: number | null;
   item_cost?: number | null;
@@ -710,7 +691,6 @@ export function computeAssetFieldChanges(
     push('description', 'Description', line.description);
   }
   if (line.category !== undefined) push('category', 'Category', line.category);
-  if (line.sub_category !== undefined) push('sub_category', 'Sub-category', line.sub_category);
   if (line.quantity !== undefined) push('quantity', 'Quantity', line.quantity);
   if (line.item_price !== undefined) push('item_price', 'Item Price', line.item_price);
   if (line.item_cost !== undefined) push('item_cost', 'Item Cost', line.item_cost);
@@ -752,7 +732,6 @@ function mapRowToPurchaseHeader(organizationId: string, data: any, invAmt: numbe
     payment_method: data.payment_method,
     description: data.manufacturer_model || data.description || '',
     category: data.category,
-    sub_category: data.sub_category || undefined,
   };
 }
 
@@ -772,7 +751,6 @@ function mapRowToPurchaseItem(organizationId: string, data: any) {
     purchase_date: data.acquisition_date,
     vendor: data.vendor,
     category: data.category,
-    sub_category: data.sub_category || undefined,
     description: desc,
     line_amount: parsedLineAmount,
     line_cost: parsedLineCost,
@@ -795,7 +773,6 @@ function mapRowToAsset(organizationId: string, data: any) {
   return {
     organization_id: organizationId,
     category: data.category,
-    sub_category: data.sub_category || undefined,
     manufacturer_model: data.manufacturer_model,
     type: data.type || undefined,
     serial_number: data.serial_number || undefined,

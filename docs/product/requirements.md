@@ -267,7 +267,7 @@ Tracking all assets owned, for the purposes of assigning equipment to gigs, trac
 **Asset Data**:
 
 - **Required**: category, manufacturer_model, acquisition_date
-- **Optional**: sub_category, type, serial_number, vendor, cost, quantity, replacement_value, insurance_policy_added, insurance_class, notes
+- **Optional**: type (comma path, general to specific), serial_number, vendor, cost, quantity, replacement_value, insurance_policy_added, insurance_class, notes
 
 **Asset Categories**: Sound, Lighting, Video, Staging, Other
 

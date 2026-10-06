@@ -159,3 +159,27 @@ export async function getCategoryUsage(kind: CategoryKind, organizationId: strin
   }
   return counts;
 }
+
+/** The types an organization's equipment in a category already uses, most used first. */
+export async function getTypeUsage(organizationId: string, category: string): Promise<{ type: string; count: number }[]> {
+  if (!category) return [];
+  try {
+    const { supabase } = await requireAuth();
+    const { data, error } = await (supabase.from('assets') as any)
+      .select('type')
+      .eq('organization_id', organizationId)
+      .eq('category', category)
+      .not('type', 'is', null);
+    if (error) throw error;
+    const counts = new Map<string, number>();
+    for (const r of (data ?? []) as { type: string }[]) {
+      const t = (r.type ?? '').trim();
+      if (t) counts.set(t, (counts.get(t) ?? 0) + 1);
+    }
+    return [...counts].map(([type, count]) => ({ type, count }))
+      .sort((a, b) => a.type.localeCompare(b.type));
+  } catch (err) {
+    console.error('Error loading types:', err);
+    return [];
+  }
+}

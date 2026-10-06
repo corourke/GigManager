@@ -10,7 +10,8 @@ sidebar:
 
 - What an asset is (unique item, serial number, value, insurance, purchase link).
 - The Asset Library: search, filter, columns, in-place editing (SmartDataTable).
-- Creating an asset; reclassifying an expense line into an asset.
+- Creating an asset: Category from the organization list; Type as a comma path (general to specific) with suggestions from the types used in that category.
+- Tracking a purchase line as equipment (Equipment switch + Equipment details pop-up on the receipt review screen).
 - Asset detail / panel: view vs edit navigation.
 
 ## Screenshots
