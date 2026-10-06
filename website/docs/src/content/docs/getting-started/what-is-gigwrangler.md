@@ -15,8 +15,9 @@ manager normally juggles across a stack of spreadsheets:
   from first hold through settlement.
 - **Gear** — assets and kits, what's assigned where, and what needs to come back.
 
-…with the **money attached** to all of it: revenue, expenses, burdened cost, and
-per-gig profit in a single ledger.
+…with the **money attached** to all of it: each gig's money in and money out and
+its profit, plus your purchases and what your equipment cost. See
+[Financials](/financials/overview/).
 
 ## Who it's for
 
@@ -25,7 +26,7 @@ per-gig profit in a single ledger.
 | **Admin** | Set up the organization, manage the team and roles, see everything. |
 | **Manager** | Book and run gigs, staff them, manage equipment and financials. |
 | **Staff** | See their assigned gigs, schedule, and call details; check gear in and out. |
-| **Viewer** | Read-only access to an organization's gigs and team. |
+| **Viewer** | Read-only access to an organization's gigs, team and equipment. |
 
 Roles are per-organization — the same person can be an Admin of one organization
 and a Viewer of another. See [Roles & access](/reference/roles-and-access/).
