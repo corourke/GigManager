@@ -19,14 +19,20 @@ at-a-glance summary:
 
 ## Navigation
 
-The top bar has **Dashboard · Gigs · Financials · Team · Equipment**. What you see
-depends on your role:
+The top bar has the section menu, **Dashboard · Gigs · Financials · Team ·
+Equipment**, with the current section highlighted. In a narrow window the menu
+shows icons only; hover over one to see its name. What you see depends on your
+role:
 
 | | Admin, Manager | Staff | Viewer |
 | --- | --- | --- | --- |
 | **Dashboard** | ✓ | ✓ | — |
 | **Gigs**, **Team**, **Equipment** | ✓ | ✓ | ✓ |
 | **Financials** | ✓ | — | — |
+
+Under the top bar, every page starts with its title. On a page you open from
+somewhere else, such as Financials opened from a gig, the **Back** arrow sits
+just left of the title. If a page has tabs, they're right below the title.
 
 The avatar menu (top-right) has **Switch Organization**, **Settings**,
 **Edit Profile**, and **Sign Out**. Platform moderators also see

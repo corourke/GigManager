@@ -66,11 +66,24 @@ All interactive elements (buttons, inputs, links) must have defined states:
 
 ## UI Patterns: Web
 
-### 1. App Header
--   **Component**: `src/components/AppHeader.tsx`, the top nav on every web screen (#39 keeps the top nav; no sidebar).
--   **Style**: White, bordered bottom.
--   **Height**: `h-16` (64px).
--   **Content**: Organization icon, name and your role badge on the left; notifications and the user menu (profile, switch organization, sign out) on the right. The navigation bar sits below it.
+### 1. Page layout (#39): the same frame on every web screen
+
+Every web screen stacks the same bands, in this order. Nothing goes above the title.
+
+| Band | Component | Height | What's in it |
+|---|---|---|---|
+| Top bar | `src/components/AppHeader.tsx` | 56 px (`h-14`) | Org icon, name and role badge · the section menu · notifications and the account menu, on **one row** |
+| Title row | `src/components/layout/PageHeader.tsx` | 64 px (`min-h-16`) | **Slot** · title (`h1`, 22 px bold) · optional badge · optional one line of facts (`meta`) · actions on the right |
+| Page tabs | `PageHeader`'s `tabs` slot, `src/components/layout/PageTabs.tsx` | 40 px | Optional. **At most one row**, always below the title, aligned with it |
+| Content | the screen | — | `max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4` on `bg-gray-50` |
+
+-   **Section menu** (`NavigationMenu.tsx`): a segmented control centred in the top bar. Grey track (`bg-gray-100 border-gray-200`); the current section is a raised white pill (`text-sky-700 font-semibold shadow-sm`) with `aria-current="page"`. Below `lg` the labels hide; each button keeps its name through `aria-label` and a tooltip. Which sections a role sees: Viewers have no Dashboard, only Admins and Managers have Financials.
+-   **The slot** is a 32 px square left of the title, always rendered, so the title starts at the same place on every page. On a top-level page it shows the section icon (`icon`, tinted with `iconClassName`, default `bg-sky-50 text-sky-700`). On a page you drill into it shows **Back** (`back={{ label: 'Back to Assets', onClick }}`): an outlined icon button whose `aria-label` and tooltip name where it goes. Back always goes here, never above the title or in the actions.
+-   **Title**: a name, not a sentence. No description lines under it ("Manage your equipment inventory" is gone); `meta` is only for data, such as a gig's date and venue.
+-   **Actions** go on the right of the title row. A "do something" choice (Add, Scan, Import) is a button there, not a tab.
+-   **Tabs** use `PageTabsList` / `PageTabsTrigger` (underlined; active `border-sky-700 text-sky-700`), inside the page's `Tabs` root from `ui/tabs`, wrapping both the header and the content. When each tab is a route, set `activationMode="manual"`: with automatic activation a click fires `onValueChange` twice (mousedown and focus) and pushes the route twice. A choice inside a tab is a dropdown or filter, never a second row of tabs. The boxed `ui/tabs` `TabsList` is for in-content toggles only (Upcoming/Past, Month/Week).
+-   **Section headers that span several routes** share one component so the title stays put: `EquipmentHeader.tsx` titles Assets, Kits and Inventory "Equipment".
+-   **Migration status**: Dashboard, Gigs, Team, Financials, Equipment and Settings use the frame. The drill-down pages (gig page, detail and edit pages, Import, org and admin screens) still use their own headers or the old `ui/PageHeader.tsx`, and move over next; Inventory's own sub-tabs stay in its content until the Equipment reorganization.
 
 ### 2. Inline Stats (Dashboard/Summary)
 Used for financial summaries or key metrics.

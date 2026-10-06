@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, within, cleanup } from '@testing-library/react'
 import AppHeader from './AppHeader'
 import { makeUser, makeOrganization } from '../test/factories'
 import { Organization, User } from '../utils/supabase/types'
@@ -83,3 +83,42 @@ describe('AppHeader', () => {
   })
 })
 
+
+describe('AppHeader top bar (#39)', () => {
+  const renderHeader = (userRole: 'Admin' | 'Staff' | 'Viewer', currentRoute: 'dashboard' | 'asset-list' = 'dashboard') =>
+    render(
+      <AppHeader
+        organization={mockOrganization}
+        user={mockUser}
+        userRole={userRole}
+        currentRoute={currentRoute}
+        onLogout={vi.fn()}
+      />
+    )
+
+  it('puts the org, the section menu and the account menu on one row', () => {
+    renderHeader('Admin')
+    const row = screen.getByTestId('app-top-bar')
+    expect(within(row).getByText('Test Org')).toBeInTheDocument()
+    expect(within(row).getByRole('navigation', { name: 'Sections' })).toBeInTheDocument()
+  })
+
+  it('marks the current section with aria-current', () => {
+    renderHeader('Admin', 'asset-list')
+    const nav = screen.getByRole('navigation', { name: 'Sections' })
+    expect(within(nav).getByRole('button', { name: 'Equipment' })).toHaveAttribute('aria-current', 'page')
+    expect(within(nav).getByRole('button', { name: 'Dashboard' })).not.toHaveAttribute('aria-current')
+  })
+
+  it('shows each role only the sections it can open', () => {
+    renderHeader('Staff')
+    let nav = screen.getByRole('navigation', { name: 'Sections' })
+    expect(within(nav).getByRole('button', { name: 'Dashboard' })).toBeInTheDocument()
+    expect(within(nav).queryByRole('button', { name: 'Financials' })).toBeNull()
+    cleanup()
+    renderHeader('Viewer')
+    nav = screen.getByRole('navigation', { name: 'Sections' })
+    expect(within(nav).queryByRole('button', { name: 'Dashboard' })).toBeNull()
+    expect(within(nav).getByRole('button', { name: 'Gigs' })).toBeInTheDocument()
+  })
+})

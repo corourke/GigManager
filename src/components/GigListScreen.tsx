@@ -58,7 +58,7 @@ import { isGigPast } from '../utils/gigTimeframe';
 import { GIG_STATUS_CONFIG, TAG_CONFIG } from '../utils/supabase/constants';
 import { formatDateTimeDisplay, formatTimeDisplay, isNoonUTC } from '../utils/dateUtils';
 import { canManage } from '../utils/permissions';
-import { PageHeader } from './ui/PageHeader';
+import { PageHeader } from './layout/PageHeader';
 import { checkAllConflictsForGigs, Conflict } from '../services/conflictDetection.service';
 
 const locales = { 'en-US': enUS };
@@ -676,49 +676,49 @@ export default function GigListScreen({
         onLogout={onLogout}
       />
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <PageHeader
-          icon={CalendarIcon}
-          title="Gigs"
-          description={`Manage gigs for ${organization.name}`}
-          actions={
-            <>
-              {viewToggle}
-              {canEdit && (
-                <Button
-                  onClick={onCreateGig}
-                  className="bg-sky-500 hover:bg-sky-600 text-white"
-                >
-                  <Plus className="w-4 h-4 mr-2" />
-                  New Gig
-                </Button>
-              )}
-              {canEdit && onNavigateToImport && (
-                <Button
-                  onClick={onNavigateToImport}
-                  variant="outline"
-                  className="border-sky-500 text-sky-600 hover:bg-sky-50"
-                >
-                  <Upload className="w-4 h-4 mr-2" />
-                  Import
-                </Button>
-              )}
-              {viewMode === 'list' && (
-                <Button
-                  onClick={() => setShowExportConfirm(true)}
-                  variant="outline"
-                  disabled={filteredGigs.length === 0}
-                  className="border-sky-500 text-sky-600 hover:bg-sky-50"
-                >
-                  <Download className="w-4 h-4 mr-2" />
-                  Export
-                </Button>
-              )}
-            </>
-          }
-        />
+      <PageHeader
+        icon={CalendarIcon}
+        title="Gigs"
+        actions={
+          <>
+            {viewToggle}
+            {canEdit && (
+              <Button
+                onClick={onCreateGig}
+                className="bg-sky-500 hover:bg-sky-600 text-white"
+              >
+                <Plus className="w-4 h-4 mr-2" />
+                New Gig
+              </Button>
+            )}
+            {canEdit && onNavigateToImport && (
+              <Button
+                onClick={onNavigateToImport}
+                variant="outline"
+                className="border-sky-500 text-sky-600 hover:bg-sky-50"
+              >
+                <Upload className="w-4 h-4 mr-2" />
+                Import
+              </Button>
+            )}
+            {viewMode === 'list' && (
+              <Button
+                onClick={() => setShowExportConfirm(true)}
+                variant="outline"
+                disabled={filteredGigs.length === 0}
+                className="border-sky-500 text-sky-600 hover:bg-sky-50"
+              >
+                <Download className="w-4 h-4 mr-2" />
+                Export
+              </Button>
+            )}
+          </>
+        }
+      />
 
-        <div className="py-6">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+
+        <div className="pb-6">
           {error ? (
             <Card className="p-12 text-center">
               <div className="text-red-500 mb-4 font-semibold">Error loading gigs</div>

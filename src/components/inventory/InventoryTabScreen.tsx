@@ -1,9 +1,7 @@
 import { useState } from 'react';
-import { ScanLine } from 'lucide-react';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '../ui/tabs';
 import AppHeader from '../AppHeader';
-import EquipmentTabs from '../EquipmentTabs';
-import { PageHeader } from '../ui/PageHeader';
+import EquipmentHeader from '../EquipmentHeader';
 import { InventorySummaryDashboard } from './InventorySummaryDashboard';
 import { LocationExplorer } from './LocationExplorer';
 import { InventoryReports } from './InventoryReports';
@@ -57,24 +55,17 @@ export default function InventoryTabScreen({
         />
       </div>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="no-print">
-          <EquipmentTabs
-            activeTab="inventory"
-            onNavigateToAssets={onNavigateToAssets}
-            onNavigateToKits={onNavigateToKits}
-            onNavigateToInventory={onNavigateToInventory}
-          />
-        </div>
+      <div className="no-print">
+        <EquipmentHeader
+          activeTab="inventory"
+          onNavigateToAssets={onNavigateToAssets}
+          onNavigateToKits={onNavigateToKits}
+          onNavigateToInventory={onNavigateToInventory}
+        />
+      </div>
 
-        <div className="no-print">
-          <PageHeader
-            icon={ScanLine}
-            title="Inventory"
-            description="Track equipment through Pack-Out, Load, On-Site, and Unload workflows."
-          />
-        </div>
-
+      {/* Until #39's Equipment reorganization, Inventory keeps its own sub-tabs in the content. */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
         <Tabs value={subTab} onValueChange={(v) => setSubTab(v as typeof subTab)}>
           <TabsList className="mb-6 no-print">
             <TabsTrigger value="summary">Summary</TabsTrigger>

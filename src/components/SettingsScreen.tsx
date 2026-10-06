@@ -2,8 +2,9 @@ import React from 'react';
 import { Settings, Calendar, Tags } from 'lucide-react';
 
 import AppHeader from './AppHeader';
-import { PageHeader } from './ui/PageHeader';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
+import { PageHeader } from './layout/PageHeader';
+import { PageTabsList, PageTabsTrigger } from './layout/PageTabs';
+import { Tabs, TabsContent } from './ui/tabs';
 import CalendarIntegrationSettings from './CalendarIntegrationSettings';
 import CategoriesSettings from './settings/CategoriesSettings';
 import { Organization, User, UserRole } from '../utils/supabase/types';
@@ -52,27 +53,28 @@ export default function SettingsScreen({
         onEditProfile={onEditProfile}
       />
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <Tabs value={active} onValueChange={v => onTabChange?.(v as SettingsTab)} activationMode="manual" className="gap-0">
         <PageHeader
           icon={Settings}
+          iconClassName="bg-gray-100 text-gray-700"
           title="Settings"
-          description="Manage your integrations and your organization's lists"
+          tabs={
+            <PageTabsList aria-label="Settings sections">
+              <PageTabsTrigger value="calendar">
+                <Calendar />
+                Google Calendar
+              </PageTabsTrigger>
+              {showCategories && (
+                <PageTabsTrigger value="categories">
+                  <Tags />
+                  Categories
+                </PageTabsTrigger>
+              )}
+            </PageTabsList>
+          }
         />
 
-        <Tabs value={active} onValueChange={v => onTabChange?.(v as SettingsTab)} className="space-y-6">
-          <TabsList className="bg-white border border-gray-200 p-1">
-            <TabsTrigger value="calendar" className="flex items-center gap-2">
-              <Calendar className="w-4 h-4" />
-              Google Calendar
-            </TabsTrigger>
-            {showCategories && (
-              <TabsTrigger value="categories" className="flex items-center gap-2">
-                <Tags className="w-4 h-4" />
-                Categories
-              </TabsTrigger>
-            )}
-          </TabsList>
-
+        <div className="max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-4">
           <TabsContent value="calendar" className="max-w-3xl">
             <CalendarIntegrationSettings
               userId={user.id}
@@ -85,8 +87,8 @@ export default function SettingsScreen({
               <CategoriesSettings organizationId={organization.id} canEdit={userRole === 'Admin'} />
             </TabsContent>
           )}
-        </Tabs>
-      </div>
+        </div>
+      </Tabs>
     </div>
   );
 }

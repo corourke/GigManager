@@ -14,7 +14,7 @@ import {GIG_STATUS_CONFIG } from '../utils/supabase/constants';
 import { createClient } from '../utils/supabase/client';
 import { handleFunctionsError } from '../utils/api-error-utils';
 import GigTable from './tables/GigTable';
-import { PageHeader } from './ui/PageHeader';
+import { PageHeader } from './layout/PageHeader';
 import { getRecentActivity } from '../services/activityLog.service';
 import ActivityFeed from './ActivityFeed';
 
@@ -157,13 +157,14 @@ export default function Dashboard({
         onLogout={onLogout}
       />
 
+      <PageHeader
+        icon={LayoutDashboard}
+        title="Dashboard"
+        meta={`Welcome back, ${user.first_name}!`}
+      />
+
       {/* Main Content */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <PageHeader 
-          icon={LayoutDashboard}
-          title={`Welcome back, ${user.first_name}!`}
-          description={`Here's what's happening with ${organization.name}`}
-        />
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
 
         {loading ? (
           <div className="flex items-center justify-center py-12">

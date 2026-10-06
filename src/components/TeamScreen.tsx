@@ -16,7 +16,7 @@ import {
 } from './ui/alert-dialog';
 import { SmartDataTable, RowAction } from './tables/SmartDataTable';
 import AppHeader from './AppHeader';
-import { PageHeader } from './ui/PageHeader';
+import { PageHeader } from './layout/PageHeader';
 import { User, Organization, UserRole } from './../utils/supabase/types';
 import { getTimezoneOptions } from '../utils/timezones';
 import { queryKeys } from '../lib/queryKeys';
@@ -237,30 +237,30 @@ export default function TeamScreen({
         onLogout={onLogout}
       />
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <PageHeader
-          icon={Users}
-          title="Team"
-          description={`Manage members of ${organization.name}`}
-          actions={
-            canManageTeam ? (
-              <Button
-                onClick={() => setShowAddDialog(true)}
-                className="bg-sky-500 hover:bg-sky-600 text-white"
-              >
-                <Plus className="mr-2 h-4 w-4" />
-                Add Team Member
-              </Button>
-            ) : canRequestAccess ? (
-              <Button
-                onClick={() => setShowRequestAccessDialog(true)}
-                variant="outline"
-              >
-                Request Access
-              </Button>
-            ) : undefined
-          }
-        />
+      <PageHeader
+        icon={Users}
+        title="Team"
+        actions={
+          canManageTeam ? (
+            <Button
+              onClick={() => setShowAddDialog(true)}
+              className="bg-sky-500 hover:bg-sky-600 text-white"
+            >
+              <Plus className="mr-2 h-4 w-4" />
+              Add Team Member
+            </Button>
+          ) : canRequestAccess ? (
+            <Button
+              onClick={() => setShowRequestAccessDialog(true)}
+              variant="outline"
+            >
+              Request Access
+            </Button>
+          ) : undefined
+        }
+      />
+
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
 
         {/* Migration Notice Banner */}
         {canManageTeam && !invitationsTableExists && (
