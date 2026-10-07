@@ -103,6 +103,7 @@ meantime. The coordinator resolves each entry (decides it, or moves it into §3a
 
 *The Docs Lead's own lane (separate from triage's §3b). It adds app problems it finds while documenting and decisions it needs from the coordinator. It files app bugs as GitHub issues itself and links them here. The coordinator triages each entry (release to §3c, decide, or take it to Cameron) and deletes it when settled.*
 
+- **From the Docs Lead (10-07, Gigs drafts): four app issues filed.** **#168**, the gig list offers Revenue/Expenses/Profit columns to Staff and Viewers, who see $0 (same pattern as #158). **#169**, the gig page shows notes as raw text, so Markdown isn't rendered. **#170**, the conflict banner on the list and calendar shows an empty equipment detail, labels act conflicts as venue conflicts, and its list View button sets **Back to Calendar**. **#171**, deleting a staff slot doesn't ask for confirmation, and rates always show "/ hr". All four are small, UI-only changes. The guide's draft pages carry TODOs pointing at #169 and #170.
 - **From the Docs Lead (10-07): app issues from screenshotting the dev demo org.** Cameron reviewed them 10-07 and authorized filing: **#157** (dashboard Equipment total should be replacement value × quantity, as on the asset list), **#158** (Staff dashboard shows $0 cards instead of hiding them) and **#159** (hard-coded © 2025 on Sign Up). Also **#160** (location tracking ignores quantity, so an asset split across kits and containers has one location and the override can't move part of it; needs a design call and probably a migration). Not a bug: the Assets table at 1440px (users choose columns and widths). The nested-kit packing list is correct behavior, because containers don't list their contents; the demo seed had wrongly made a whole sound package a container. Cameron suspects bugs in the **Out on Gigs** and **Locations** reports and is testing them himself. The dev-only CORS port item was dropped.
 - **From the Docs Lead (10-07): simulating email delivery.** Cameron wants a way to simulate email delivery so invitation, sign-up confirmation and password-reset flows can be shown with the demo `.test` logins. Hosted dev sends real mail through Supabase Auth, so this needs a decision (for example a dev-only SMTP catcher such as Mailpit behind the dev project's custom SMTP, or a dev-only admin "generate link" route).
 
@@ -297,9 +298,9 @@ middleware; `DELETE /gigs/:id` is Admin-only; access-request and notification ro
 | `getting-started/organizations.md` | published | 2026-10-06 (triage, PR #139) | — |
 | `getting-started/the-dashboard.md` | published | 2026-10-06 (triage, PR #139) | — |
 | `getting-started/what-is-gigwrangler.md` | published | 2026-10-06 (triage, PR #139) | — |
-| `gigs/change-history.md` | published | 2026-10-07 (triage, PR #151) | — |
-| `gigs/creating-a-gig.md` | published | 2026-10-07 (triage, PR #151) | — |
-| `gigs/overview.md` | published | 2026-10-07 (triage, PR #151) | — |
+| `gigs/change-history.md` | published | 2026-10-07 (triage, PR #151); screenshots PR #166 | — |
+| `gigs/creating-a-gig.md` | published | 2026-10-07 (triage, PR #151); screenshots PR #166 | — |
+| `gigs/overview.md` | published | 2026-10-07 (triage, PR #151); screenshots PR #166 | — |
 | `import/overview.md` | published | — | not audited |
 | `index.mdx` | published | — | not audited |
 | `organizations/overview.md` | published | — | not audited |
@@ -315,11 +316,13 @@ middleware; `DELETE /gigs/:id` is Admin-only; access-request and notification ro
 | `financials/cost-allocation.md` | published (was draft) | 2026-10-06 (coordinator, PR #136) | — |
 | `financials/gig-expenses.md` | published (was draft) | 2026-10-06 (coordinator, PR #136) | — |
 | `financials/purchases.md` | published (was draft) | 2026-10-06 (coordinator, PR #136) | — |
-| `gigs/documents-and-notes.md` | draft | — | not audited |
-| `gigs/participating-organizations.md` | draft | — | not audited |
-| `gigs/schedule.md` | draft | — | not audited |
-| `gigs/staffing-and-participants.md` | draft | — | not audited |
-| `gigs/the-gig-list.md` | draft | — | not audited |
+| `gigs/calendar-view.md` | draft, written (PR #172) | 2026-10-07 (Docs Lead) | ready to publish once #172 merges |
+| `gigs/conflict-detection.md` | draft, written (PR #172) | 2026-10-07 (Docs Lead) | ready to publish once #172 merges |
+| `gigs/documents-and-notes.md` | draft, written (PR #172) | 2026-10-07 (Docs Lead) | ready to publish once #172 merges |
+| `gigs/participating-organizations.md` | draft, written (PR #172) | 2026-10-07 (Docs Lead) | ready to publish once #172 merges |
+| `gigs/schedule.md` | draft, written (PR #172) | 2026-10-07 (Docs Lead) | ready to publish once #172 merges |
+| `gigs/staffing-and-participants.md` | draft, written (PR #172) | 2026-10-07 (Docs Lead) | ready to publish once #172 merges |
+| `gigs/the-gig-list.md` | draft, written (PR #172) | 2026-10-07 (Docs Lead) | ready to publish once #172 merges |
 | `import/ai-receipt-scanning.md` | draft | — | not audited |
 | `import/csv-asset-import.md` | draft | — | not audited |
 | `mobile/biometric-unlock.md` | draft | — | not audited |
