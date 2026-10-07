@@ -1,0 +1,95 @@
+/*
+ * GigWrangler docs theme: style A, "app match" (chosen by Cameron 2026-10-07).
+ * Colours and shapes follow the app's tokens in src/styles/globals.css: sky
+ * accent (#0284c7 / sky-700 for text), neutral greys, the system font stack and
+ * a 10px radius. The current sidebar page is a raised pill, like the app's top nav.
+ * Only Starlight's documented custom properties are overridden here.
+ */
+
+/* Dark mode (Starlight's default :root) */
+:root {
+  --sl-font: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --sl-font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+
+  --sl-color-accent-low: #082f49;  /* sky-950 */
+  --sl-color-accent: #0284c7;      /* sky-600, the app's primary */
+  --sl-color-accent-high: #bae6fd; /* sky-200 */
+
+  /* Neutral greys instead of Starlight's blue-tinted ones (Tailwind neutral). */
+  --sl-color-white: #ffffff;
+  --sl-color-gray-1: #f5f5f5;
+  --sl-color-gray-2: #d4d4d4;
+  --sl-color-gray-3: #a3a3a3;
+  --sl-color-gray-4: #737373;
+  --sl-color-gray-5: #404040;
+  --sl-color-gray-6: #262626;
+  --sl-color-black: #171717;
+
+  --gw-radius: 0.625rem;
+  --gw-pill-bg: #262626;
+  --gw-pill-border: #404040;
+  --gw-pill-text: #7dd3fc; /* sky-300: AA on the dark pill */
+}
+
+/* Light mode */
+:root[data-theme='light'] {
+  --sl-color-accent-low: #e0f2fe;  /* sky-100 */
+  --sl-color-accent: #0369a1;      /* sky-700: AA contrast for links on white */
+  --sl-color-accent-high: #0c4a6e; /* sky-900 */
+
+  --sl-color-white: #0a0a0a;
+  --sl-color-gray-1: #171717;
+  --sl-color-gray-2: #262626;
+  --sl-color-gray-3: #525252;
+  --sl-color-gray-4: #737373;
+  --sl-color-gray-5: #d4d4d4;
+  --sl-color-gray-6: #f5f5f5;
+  --sl-color-gray-7: #fafafa;
+  --sl-color-black: #ffffff;
+
+  --gw-pill-bg: #ffffff;
+  --gw-pill-border: rgba(0, 0, 0, 0.1);
+  --gw-pill-text: var(--sl-color-accent);
+}
+
+/* The site title reads like the app's org name: foreground, not accent. */
+.site-title {
+  color: var(--sl-color-white);
+}
+
+/* Light sidebar on a faint grey, like the app's nav bar track. */
+:root[data-theme='light'] .sidebar-pane {
+  background-color: var(--sl-color-gray-7);
+}
+
+/* Current page: a raised pill in the accent colour, not a filled block. */
+.sidebar-content a[aria-current='page'],
+.sidebar-content a[aria-current='page']:hover,
+.sidebar-content a[aria-current='page']:focus {
+  background-color: var(--gw-pill-bg);
+  color: var(--gw-pill-text);
+  border: 1px solid var(--gw-pill-border);
+  border-radius: calc(var(--gw-radius) - 2px);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
+  font-weight: 600;
+}
+.sidebar-content a {
+  border: 1px solid transparent;
+  border-radius: calc(var(--gw-radius) - 2px);
+}
+
+/* The app's rounder corners on buttons, cards and asides. */
+.sl-link-button,
+.card,
+.sl-link-card,
+.starlight-aside,
+.expressive-code .frame {
+  border-radius: var(--gw-radius);
+}
+
+/* Screenshots: a thin border and the app's radius so white screens don't
+   bleed into the white page. */
+.sl-markdown-content img:not(.hero img) {
+  border: 1px solid var(--sl-color-gray-5);
+  border-radius: var(--gw-radius);
+}

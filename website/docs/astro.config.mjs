@@ -18,6 +18,9 @@ export default defineConfig({
   integrations: [
     starlight({
       title: 'GigWrangler Docs',
+      // Style A, the app match (Cameron, 2026-10-07): see src/styles/theme.css.
+      logo: { src: './src/assets/logo.svg' },
+      customCss: ['./src/styles/theme.css'],
       description:
         'User guide for GigWrangler — production and labor management for AV, sound, lighting, and events.',
       social: [
