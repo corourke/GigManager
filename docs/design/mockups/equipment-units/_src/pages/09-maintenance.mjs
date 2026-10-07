@@ -1,16 +1,17 @@
-import { icon, unitChip, kindPill, btnPrimary, btnOutline, topbar, equipmentHeader, content, frame, shell, newMark, input, field, checkbox, phone } from '../lib.mjs';
+import { icon, unitChip, lotChip, kindPill, btnPrimary, btnOutline, topbar, equipmentHeader, content, frame, shell, newMark, input, field, checkbox, phone } from '../lib.mjs';
 
 const C = 'px-3 py-2 align-middle';
 const back = (d) => d ? `<span class="tabular-nums">${d}</span>` : '<span class="italic text-muted-foreground">not set</span>';
-const row = (item, which, note, where, due, flagged) => `<tr class="border-b"><td class="${C} w-16">${kindPill('unit')}</td><td class="${C} font-medium">${item}</td><td class="${C} whitespace-nowrap">${which}</td><td class="${C} text-xs text-gray-700 max-w-[220px]">${note}</td><td class="${C} text-xs whitespace-nowrap">${where}</td><td class="${C} text-xs whitespace-nowrap">${back(due)}</td><td class="${C} text-xs text-muted-foreground">${flagged}</td>
+const row = (item, which, note, where, due, flagged, kind = 'unit') => `<tr class="border-b"><td class="${C} w-16">${kindPill(kind)}</td><td class="${C} font-medium">${item}</td><td class="${C} whitespace-nowrap">${which}</td><td class="${C} text-xs text-gray-700 max-w-[220px]">${note}</td><td class="${C} text-xs whitespace-nowrap">${where}</td><td class="${C} text-xs whitespace-nowrap">${back(due)}</td><td class="${C} text-xs text-muted-foreground">${flagged}</td>
 <td class="${C} whitespace-nowrap text-right"><span class="inline-flex h-8 items-center gap-1.5 rounded-md border bg-white px-3 text-xs font-medium">${icon('check', 'h-3.5 w-3.5')}Return to service</span><span class="ml-1 inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground">${icon('pencil', 'h-3.5 w-3.5')}</span></td></tr>`;
 
-const queue = `<div class="mb-3 flex items-center justify-between"><span class="text-sm text-muted-foreground">3 units in maintenance</span>${btnOutline('Print', 'printer', 'h-8')}</div>
+const queue = `<div class="mb-3 flex items-center justify-between"><span class="text-sm text-muted-foreground">4 in maintenance: 3 units and 1 untagged cable</span>${btnOutline('Print', 'printer', 'h-8')}</div>
 <div class="rounded-md border overflow-hidden bg-white"><table class="w-full text-sm">
 <thead><tr class="border-b bg-muted/30 text-left text-xs font-semibold"><th class="px-3 py-2"></th><th class="px-3 py-2">Item</th><th class="px-3 py-2">Which ${newMark(1)}</th><th class="px-3 py-2">Condition Notes</th><th class="px-3 py-2">Location</th><th class="px-3 py-2">Expected Back</th><th class="px-3 py-2">Flagged</th><th class="px-3 py-2 text-right">${newMark(2)}</th></tr></thead><tbody>
 ${row('QSC K12.2', unitChip('DSL-0104', 'GAA213430'), 'Woofer rattles above 100 Hz', 'Repair Bench', 'Oct 20, 2026', 'Oct 2 · Unload after Fall Food &amp; Wine Festival · Cameron')}
 ${row('Fennimore Wash Bar 8', unitChip('DSL-0152', 'FWB8-22107'), 'Cell 6 dead. Sent to Brightline for warranty repair.', 'Brightline Lighting', 'Nov 3, 2026', 'Sep 27 · Load-Out, Fall Food &amp; Wine Festival · Jordan')}
 ${row('Tessel W2 Wireless Handheld', unitChip('DSL-0091', 'W2-11873'), 'Battery door latch broken', 'Repair Bench', '', 'Sep 12 · Unload after Paper Lanterns Acoustic Night · Jordan')}
+${row('XLR Cable, 25 ft', lotChip(1, 'split from the loose lot (now 19)'), 'Pin 2 intermittent', 'Repair Bench', '', 'Sep 12 · Unload after Paper Lanterns Acoustic Night · Jordan', 'lot')}
 </tbody></table></div>`;
 
 const editDlg = `<div class="w-full rounded-lg border bg-white p-6 shadow-lg"><div class="flex items-start justify-between"><div><h2 class="text-lg font-semibold flex items-center gap-2">Maintenance details ${newMark(3)}</h2><p class="mt-1 text-sm text-muted-foreground">QSC K12.2 · ${unitChip('DSL-0104', 'GAA213430')}</p></div>${icon('x', 'h-4 w-4 text-muted-foreground')}</div>
@@ -43,6 +44,7 @@ export default () => ({
       '<b>Which one</b>: the list shows units by tag and serial, so “the K12.2 with the rattle” is DSL-0104, not “one of the six”. The item’s other units stay Active and available.',
       '<b>Return to service</b> is a button on each row: the unit goes back to Active. Nothing is sent to maintenance from this page.',
       '<b>Editing</b> is limited to what changes while it’s away: condition notes, location and expected-back date. Return to service is here too.',
+      '<b>Untagged pieces</b>: sending 1 bad 25 ft cable splits it off its lot as a lot of 1 with status Maintenance (or Retired); the loose lot drops to 19. <b>Return to service</b> merges it back. On the phone, a counted line’s note takes a quantity to send.',
       '<b>Sending to maintenance happens during scanning</b>, from the item’s note in Inventory Mode (the existing “Maintenance Req’d” checkbox), with an optional location and expected-back date.',
     ],
   }),
