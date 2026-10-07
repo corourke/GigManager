@@ -73,13 +73,14 @@ ${tree('XLR Cable Box', cBadge('Container') + '<span class="font-mono text-xs te
   `${kindPill('unit')}Cable trunk, 30 in ${unitChip('CASE-02')}`,
   `${anyPill}<b>10 ×</b> XLR Cable, 25 ft`,
   `${anyPill}<b>10 ×</b> XLR Cable, 15 ft`,
-], 'A container: the untagged cables live in the box. Scanning CASE-02 checks out all 21 pieces.')}
+], 'A container: its contents stay in it and are not free for other kits. Scanning CASE-02 checks out all 21 pieces.')}
 ${tree('PA Rack', cBadge('Container') + '<span class="font-mono text-xs text-muted-foreground">RACK-01</span>', [
   `${kindPill('unit')}Armorline 8U Rack Case ${unitChip('RACK-01')}`,
   `${kindPill('unit')}QSC PLD4.5 Amplifier ${unitChip('DSL-0031', 'PLD45-19A0772')}`,
   `${kindPill('unit')}dbx DriveRack PA2 ${unitChip('DSL-0032', 'DRPA2-06611')}`,
   `${kindPill('unit')}Voltline PD-20 ${unitChip('DSL-0021', 'DSL021-24777')}`,
-], 'Specific serial-numbered units, always the same ones.')}
+  `${anyPill}<b>6 ×</b> XLR Cable, 3 ft <span class="text-xs text-muted-foreground">patch cables, installed</span>`,
+], 'Specific serial-numbered units, plus 6 patch cables wired between them. Those 6 are never free for other kits.')}
 </div>`;
 
 export default () => ({
@@ -91,7 +92,7 @@ export default () => ({
       '<b>Two kinds of entry</b>. <b>Any</b>: “10 × XLR Cable, 5 ft”, how many of an item, any unit will do. The kit doesn’t say how they are checked off: that depends on whether the item has inventory tags. <b>Unit</b>: a specific one, such as the trunk the cables travel in. Availability shows how many are owned and free, and warns when a kit asks for more than are free (the 50 ft: 2 of 6 sit in FOH Console Package).',
       '<b>Tracking type is unchanged</b>: Items or Container, nothing more. The Small XLR Cable Box is an <b>Items</b> kit: at pack-out each line is checked off (the trunk by its tag; the cables have no tags, so they are counted), and the box is done when every line is. The XLR Cable Box and the PA Rack are <b>Containers</b>, always checked off as one, whatever they hold.',
       '<b>Add Components</b> groups results by kind: an item (with a quantity, any will do), a specific unit, or a kit.',
-      '<b>The other examples</b>: the PA kit asks for 2 × any K12.2; the XLR Cable Box lists its trunk and 10 × any of each cable length; the PA Rack lists four specific serial-numbered units. The rack’s and box’s own case is a unit in the kit, and the case’s tag is the kit’s tag (CASE-02 is both).',
+      '<b>The other examples</b>: the PA kit asks for 2 × any K12.2; the XLR Cable Box lists its trunk and 10 × any of each cable length; the PA Rack lists four specific serial-numbered units and 6 × any 3 ft patch cables. A container’s contents are never free for other kits. The rack’s and box’s own case is a unit in the kit, and the case’s tag is the kit’s tag (CASE-02 is both).',
     ],
   }),
 });

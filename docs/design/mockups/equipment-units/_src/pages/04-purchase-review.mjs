@@ -67,12 +67,10 @@ const xlrDialog = eqDialog({
   desc: 'XLR Cable 25ft, black · qty 30 · Expense',
   mark: newMark(3),
   body: itemPicker(true, 'XLR Cable, 25 ft', '30 owned in 2 lots') + `<div class="space-y-2">${dlgLabel('Track as')}
-<div class="grid grid-cols-2 gap-2"><div class="rounded-md border-2 border-slate-200 p-2">${radio(false, '30 units', 'A serial or tag for each')}</div><div class="rounded-md border-2 border-sky-500 bg-sky-50 p-2">${radio(true, 'Lots', 'No serials or tags')}</div></div></div>
+<div class="grid grid-cols-2 gap-2"><div class="rounded-md border-2 border-slate-200 p-2">${radio(false, '30 units', 'A serial or tag for each')}</div><div class="rounded-md border-2 border-sky-500 bg-sky-50 p-2">${radio(true, 'A lot of 30', 'No serials or tags')}</div></div></div>
 <div class="rounded-md border border-slate-200 p-2.5 space-y-2 text-sm">
-<div class="flex items-center gap-2">${kindPill('lot')}<span class="inline-flex h-8 w-14 items-center justify-center rounded-md border border-slate-300 font-medium">10</span><span class="text-slate-600">lives in</span><span class="inline-flex h-8 items-center gap-1.5 rounded-md border border-slate-300 px-2">${icon('package', 'h-3.5 w-3.5 text-slate-500')}XLR Cable Box (CASE-02)${icon('chevron-down', 'h-3.5 w-3.5 text-slate-400')}</span></div>
-<div class="flex items-center gap-2">${kindPill('lot')}<span class="inline-flex h-8 w-14 items-center justify-center rounded-md border border-slate-300 font-medium">20</span><span class="text-slate-600">loose stock</span></div>
-<div class="text-xs text-sky-700 font-medium">+ Another lot</div></div>
-<div class="text-[11px] text-slate-500">Adds 30 to XLR Cable, 25 ft. Totals 30 of 30.</div>`,
+<div class="flex items-center gap-2">${kindPill('lot')}<span class="inline-flex h-8 w-14 items-center justify-center rounded-md border border-slate-300 font-medium">30</span><span class="text-slate-600">one lot of 30</span></div></div>
+<div class="text-[11px] text-slate-500">Adds a lot of 30 to XLR Cable, 25 ft (60 owned after this). Kits that want them ask for “N × any”.</div>`,
 });
 
 const partial = `<div class="space-y-3">
@@ -89,7 +87,7 @@ export default () => ({
     notes: [
       '<b>One line of 6 creates 6 units</b>. Cameron no longer splits the Trio purchase into six lines. The pop-up first asks <b>which item</b>: one we already have (search) or a new one (model, category, type, replacement value; it suggests close matches to avoid duplicates).',
       '<b>Units or a lot</b>: for units, a serial and a tag per row, with helpers to number tags in sequence, paste a column of serials from the invoice, or scan them. Each unit needs a serial or a tag (either will do) and gets the line’s unit cost and recovery period. <b>Track as</b> decides units or a lot; a unit is never folded into a lot, and a lot has no serials or tags.',
-      '<b>Lots</b>: the 30 cables from one line can be split into lots, and a lot can be put in a container now (10 into the XLR Cable Box). The totals must add up to the line quantity.',
+      '<b>Lots</b>: the 30 untagged cables from one line become one lot of 30. Which kits use them is set on the kits (“10 × any”), not here.',
       '<b>Same pop-up for manual purchases</b>. Serial # and Tag # move out of the pop-up’s single row (which assumed one record per line); replacement value moves to the item. The Kits field adds the item to a kit as “N × any”.',
     ],
   }),

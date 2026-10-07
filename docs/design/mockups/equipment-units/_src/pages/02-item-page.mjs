@@ -62,12 +62,12 @@ const xlr = frame(header('XLR Cable, 25 ft', 'Audio', 'Cable, XLR') + content(`
 <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 items-start">
 <div class="lg:col-span-2">${card('Units and lots', `
 <div class="rounded-md border bg-white overflow-hidden"><table class="w-full text-sm">
-${thead([{ h: '' }, { h: 'Lot' }, { h: 'Qty', cls: 'text-right' }, { h: 'Status' }, { h: 'Lives in' }, { h: 'Location' }, { h: 'Purchase' }, { h: '' }])}
+${thead([{ h: '' }, { h: 'Lot' }, { h: 'Qty', cls: 'text-right' }, { h: 'Status' }, { h: 'Location' }, { h: 'Purchase' }, { h: '' }])}
 <tbody>
-<tr class="border-b"><td class="${TD} w-16">${kindPill('lot')}</td><td class="${TD}">${lotChip(10)}</td><td class="${TD} text-right tabular-nums">10</td><td class="${TD}">${status('Active')}</td><td class="${TD} text-xs"><span class="inline-flex items-center gap-1">${icon('package', 'h-3.5 w-3.5 text-gray-400')}XLR Cable Box (CASE-02)</span></td><td class="${TD}"><div class="flex items-center gap-2">${tracking('In Warehouse')}<span class="text-xs">with the box</span></div></td><td class="${TD} text-xs text-sky-700">Cablesmith Direct · 2026-07-24</td><td class="px-2">${rowMenu()}</td></tr>
-<tr class="border-b"><td class="${TD}">${kindPill('lot')}</td><td class="${TD}">${lotChip(20)}</td><td class="${TD} text-right tabular-nums">20</td><td class="${TD}">${status('Active')}</td><td class="${TD} text-xs text-muted-foreground">loose stock</td><td class="${TD}"><div class="text-xs leading-5"><div class="flex items-center gap-2">${tracking('In Warehouse')}<span>18 in Warehouse, Bay 2</span></div><div class="mt-1 flex items-center gap-2">${tracking('Checked Out')}<span>2 in Staging Area (Main PA)</span></div></div></td><td class="${TD} text-xs text-sky-700">Cablesmith Direct · 2026-07-24</td><td class="px-2">${rowMenu()}</td></tr>
+<tr class="border-b"><td class="${TD} w-16">${kindPill('lot')}</td><td class="${TD}">${lotChip(10)}</td><td class="${TD} text-right tabular-nums">10</td><td class="${TD}">${status('Active')}</td><td class="${TD}"><div class="flex items-center gap-2">${tracking('In Warehouse')}<span class="text-xs">in XLR Cable Box (CASE-02)</span></div></td><td class="${TD} text-xs text-sky-700 !whitespace-normal">Cablesmith Direct<br>2026-07-24</td><td class="px-2">${rowMenu()}</td></tr>
+<tr class="border-b"><td class="${TD}">${kindPill('lot')}</td><td class="${TD}">${lotChip(20)}</td><td class="${TD} text-right tabular-nums">20</td><td class="${TD}">${status('Active')}</td><td class="${TD}"><div class="text-xs leading-5"><div class="flex items-center gap-2">${tracking('In Warehouse')}<span>18 in Warehouse, Bay 2</span></div><div class="mt-1 flex items-center gap-2">${tracking('Checked Out')}<span>2 in Staging Area (Main PA)</span></div></div></td><td class="${TD} text-xs text-sky-700 !whitespace-normal">Cablesmith Direct<br>2026-07-24</td><td class="px-2">${rowMenu()}</td></tr>
 </tbody></table></div>`, { summary: '30 cables in 2 lots', actions: newMark(5) })}</div>
-${card('Inventory', `<div class="grid grid-cols-3 gap-3">${stat(30, 'Owned', '2 lots')}${stat(30, 'Available')}${stat(0, 'In maintenance')}</div>`)}
+${card('Inventory', `<div class="grid grid-cols-3 gap-3">${stat(30, 'Owned', '2 lots')}${stat(20, 'Available', '10 are in the XLR Cable Box')}${stat(0, 'In maintenance')}</div>`)}
 </div>`), 'The same page for an item kept as lots: XLR Cable, 25 ft.');
 
 export default () => ({
@@ -87,7 +87,7 @@ export default () => ({
       '<b>Inventory is counted, not typed</b>: owned, available and in maintenance come from the units, with where they are and what they are booked on next.',
       '<b>Units and lots</b> is the main table: tag, serial, status, location, booking, purchase line, cost and recovery period, per unit. Clicking a row opens the unit form (screen 3). <b>Add unit or lot</b> is in the title row and on the card.',
       '<b>Used in kits</b> shows both kinds of kit entry: “2 × any QSC K12.2” (the PA kit; scans decide which two) and specific units (a side-fill pair that is always DSL-0105 and DSL-0106).',
-      '<b>Items kept as lots</b> use the same page. A lot shows its quantity and, if it belongs in a container, the container. Its location can be split, as on the loose lot: 18 in the warehouse and 2 in Staging (#160), without splitting the lot record.',
+      '<b>Items kept as lots</b> use the same page. A lot shows its quantity and where it is, from scans. Its location can be split, as on the lot of 20: 18 in the warehouse and 2 in Staging (#160), without splitting the lot record.',
     ],
   }),
 });

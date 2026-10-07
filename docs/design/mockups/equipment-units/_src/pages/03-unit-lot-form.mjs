@@ -30,8 +30,7 @@ ${section('Unit or lot', seg(KIND, 'Lot') + `<div class="mt-3 grid grid-cols-3 g
   ${field('Quantity', input('10'))}
   ${field('Serial Number', input('', { disabled: true, placeholder: 'Not for a lot' }))}
   ${field('Inventory Tag ID', input('', { disabled: true, placeholder: 'Not for a lot' }))}
-</div>
-<div class="mt-3">${field('Lives in (optional)', select('XLR Cable Box (CASE-02)'), 'A lot that always travels in one container. The box’s kit gets “this lot × 10”.')}</div>`, false, newMark(4))}
+</div>`, false, newMark(4))}
 ${section('Purchase', `<div class="space-y-3">${purchaseBox('Cablesmith Direct · 2026-07-24 · XLR Cable, 25 ft × 30 @ $14.98', 'Line 2 of 4 · 30 cables: this lot of 10, and a lot of 20')}
 <div class="grid grid-cols-3 gap-3">${field('Acquisition Date', input('2026-07-24'))}${field('Vendor', input('Cablesmith Direct'))}${field('Item Cost', money('14.98'))}</div>
 <div class="grid grid-cols-3 gap-3">${field('Tax treatment', select('Expense'), 'From the purchase line')}<div class="col-span-2 self-center text-xs text-muted-foreground">No recovery period: the line is expensed.</div></div></div>`)}
@@ -57,7 +56,7 @@ export default () => ({
       '<b>The item is picked, not typed.</b> The form for a unit or lot no longer has model, category, type or replacement value; those are on the item (screen 2). <b>Change item</b> moves a unit to another item (to fix a mis-grouping after the migration).',
       '<b>Unit or lot</b> is the first choice. A unit has a serial number or a tag (or both) and its quantity is fixed at 1; the database enforces it. A lot has neither and has a quantity.',
       '<b>Purchase</b>: the unit points at its purchase line (the link is reversed, so one line of 2 created both K12.2s). <b>Recovery period</b> stays on the unit and only shows when the line is depreciated; its default comes from the line (#125).',
-      '<b>Lives in</b>: a lot that always lives in one container (the XLR Cable Box’s 10 × 25 ft) says so, and the container kit lists it as a specific lot.',
+      '<b>A lot</b> has a quantity and no serial or tag. Where it is comes from scans (the lot of 10 is in the XLR Cable Box today), not from the form.',
       '<b>Guard rails</b>: typing a serial into a lot of 10 offers to turn it into units instead of saving a serial on 10 cables (prod has 3 such records today). Splitting a lot is a row action.',
     ],
   }),

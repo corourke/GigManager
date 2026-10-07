@@ -29,13 +29,13 @@ ${line(done, '<span class="font-medium">10 × XLR Cable, 5 ft</span> ' + any(10)
 ${line(part, '<span class="font-medium">10 × XLR Cable, 15 ft</span> ' + any(10), '', prog(7, 10), '<span class="text-xs text-amber-700">7 counted · 3 short</span>')}
 ${line(todo, '<span class="font-medium">4 × XLR Cable, 50 ft</span> ' + any(4), '', prog(0, 4), '<span class="text-xs text-muted-foreground">Not scanned</span>')}
 ${kit('PA Rack', 'Container', 'RACK-01', done)}
-${line('', '<span class="text-muted-foreground">Armorline 8U Rack Case · QSC PLD4.5 (DSL-0031) · dbx DriveRack PA2 (DSL-0032) · Voltline PD-20 (DSL-0021)</span>', '', '<span class="text-muted-foreground">4</span>', scanned(true))}
+${line('', '<span class="text-muted-foreground">Armorline 8U Rack Case · QSC PLD4.5 (DSL-0031) · dbx DriveRack PA2 (DSL-0032) · Voltline PD-20 (DSL-0021) · 6 × XLR Cable, 3 ft</span>', '', '<span class="text-muted-foreground">10</span>', scanned(true))}
 ${kit('Club Lighting Package', 'Items', 'KIT-003', done)}
 ${line(done, `<span class="font-medium">4 × Chauvet Intimidator Trio</span> ${any(4)}`, '', prog(4, 4), '<span class="text-xs text-emerald-700">DSL-0141, -0142, -0143, -0144</span>')}
 </tbody></table></div>`;
 
 const kitsTable = `<table class="w-full text-sm"><thead><tr class="text-left text-[10px] font-bold uppercase tracking-[0.08em] text-muted-foreground border-b"><th class="py-1.5 pr-3">Kit</th><th class="py-1.5 pr-3">Tag #</th><th class="py-1.5 pr-3">Category</th><th class="py-1.5 pr-3">Holds</th><th class="py-1.5 pr-3 text-right">Rental value</th></tr></thead><tbody>
-${[['Main PA: K12.2 Pair', 'KIT-005', 'Audio', '2 × QSC K12.2, 2 stands, 4 cables', '$400.00'], ['XLR Cable Box', 'CASE-02', 'Audio', '20 cables (2 lots)', '$60.00'], ['Small XLR Cable Box', 'CASE-03', 'Audio', '24 cables, picked at pack-out', '$45.00'], ['PA Rack', 'RACK-01', 'Audio', '4 units', '$250.00'], ['Club Lighting Package', 'KIT-003', 'Lighting', '4 × Chauvet Intimidator Trio …', '$900.00']].map(([a, b, c, d, e]) => `<tr class="border-b border-border/40 last:border-0"><td class="py-1.5 pr-3 font-semibold">${a}</td><td class="py-1.5 pr-3 font-mono text-xs">${b}</td><td class="py-1.5 pr-3 text-muted-foreground">${c}</td><td class="py-1.5 pr-3 text-muted-foreground">${d}</td><td class="py-1.5 pr-3 text-right tabular-nums">${e}</td></tr>`).join('')}</tbody></table>`;
+${[['Main PA: K12.2 Pair', 'KIT-005', 'Audio', '2 × QSC K12.2, 2 stands, 4 cables', '$400.00'], ['XLR Cable Box', 'CASE-02', 'Audio', '20 cables', '$60.00'], ['Small XLR Cable Box', 'CASE-03', 'Audio', '24 cables, picked at pack-out', '$45.00'], ['PA Rack', 'RACK-01', 'Audio', '4 units, 6 patch cables', '$250.00'], ['Club Lighting Package', 'KIT-003', 'Lighting', '4 × Chauvet Intimidator Trio …', '$900.00']].map(([a, b, c, d, e]) => `<tr class="border-b border-border/40 last:border-0"><td class="py-1.5 pr-3 font-semibold">${a}</td><td class="py-1.5 pr-3 font-mono text-xs">${b}</td><td class="py-1.5 pr-3 text-muted-foreground">${c}</td><td class="py-1.5 pr-3 text-muted-foreground">${d}</td><td class="py-1.5 pr-3 text-right tabular-nums">${e}</td></tr>`).join('')}</tbody></table>`;
 
 const gigPage = frame(topbar('Gigs') + pageHeader({
   title: GIG.title, back: 'Back to Gigs', badge: gigStatus('Booked'), meta: `${GIG.date} · ${GIG.venue} ${tagBadge('Corporate')}`,
@@ -62,7 +62,7 @@ ${pRow(10, 'XLR Cable, 5 ft <i>(any)</i>', '<span class="font-sans">count</span>
 ${pRow(10, 'XLR Cable, 15 ft <i>(any)</i>', '<span class="font-sans">count</span>')}
 ${pRow(4, 'XLR Cable, 50 ft <i>(any)</i>', '<span class="font-sans">count</span>')}
 ${pKit('PA Rack', 'RACK-01')}
-${pRow(1, 'PA Rack: Armorline 8U case, QSC PLD4.5, dbx DriveRack PA2, Voltline PD-20', 'RACK-01')}
+${pRow(1, 'PA Rack: Armorline 8U case, QSC PLD4.5, dbx DriveRack PA2, Voltline PD-20, 6 patch cables', 'RACK-01')}
 ${pKit('Club Lighting Package', 'KIT-003')}
 ${pRow(4, 'Chauvet Intimidator Trio <i>(any)</i>', blanks(4))}
 </tbody></table>

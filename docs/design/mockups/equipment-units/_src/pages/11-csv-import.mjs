@@ -9,9 +9,9 @@ const template = cardP(`<div class="flex items-center justify-between"><div><div
 <div class="mt-5 border-t pt-4"><div class="mb-2 flex items-center gap-2 text-sm font-medium text-gray-900">Template columns: one row per unit or lot ${newMark(1)}</div>
 <div class="grid grid-cols-3 gap-3">
 ${group(`${kindPill('item')} What it is`, 'Rows with the same model and category are one item. Matched to an existing item, or a new one is made.', 'border-gray-200 bg-gray-50', ['manufacturer_model', 'category'].map((c) => col(c, true)).join('') + ['type', 'description', 'replacement_value', 'insurance_class'].map((c) => col(c)).join(''))}
-${group(`${kindPill('unit')}${kindPill('lot')} What we own`, 'Serial or tag: a unit (quantity 1). Neither: a lot. Several serials or tags, separated by “;”, make one unit each.', 'border-sky-200 bg-sky-50/50', [col('quantity', true), col('serial_number'), col('tag_number'), col('status'), col('kit'), col('lives_in'), col('insured'), col('recovery_period'), col('retired_on'), col('liquidation_amt')].join(''), newMark(2))}
+${group(`${kindPill('unit')}${kindPill('lot')} What we own`, 'Serial or tag: a unit (quantity 1). Neither: a lot. Several serials or tags, separated by “;”, make one unit each.', 'border-sky-200 bg-sky-50/50', [col('quantity', true), col('serial_number'), col('tag_number'), col('status'), col('kit'), col('insured'), col('recovery_period'), col('retired_on'), col('liquidation_amt')].join(''), newMark(2))}
 ${group(`${icon('receipt', 'h-3.5 w-3.5')} Purchase line`, 'Rows with the same date, vendor and invoice share a purchase; each row is one line.', 'border-green-200 bg-green-50/50', [col('acquisition_date', true), col('vendor'), col('source'), col('total_inv_amount'), col('payment_method'), col('line_amount'), col('line_cost'), col('item_price'), col('item_cost')].join(''))}
-</div><p class="mt-2 text-xs text-muted-foreground">Removed: <span class="font-mono">service_life</span> and <span class="font-mono">dep_method</span> (replaced by <span class="font-mono">recovery_period</span>, #125). New: <span class="font-mono">lives_in</span> (a container kit for a lot).</p></div>`);
+</div><p class="mt-2 text-xs text-muted-foreground">Removed: <span class="font-mono">service_life</span> and <span class="font-mono">dep_method</span> (replaced by <span class="font-mono">recovery_period</span>, #125).</p></div>`);
 
 const upload = cardP(`<div class="flex items-center justify-between"><div class="font-medium text-gray-900">Upload CSV File</div>${btnOutline('Start New Import', '', 'h-8')}</div><div class="mt-3 flex items-center gap-3 rounded-lg border-2 border-dashed border-gray-300 p-4">${icon('file', 'h-6 w-6 text-sky-600')}<div><div class="text-sm font-medium">lighting-and-cables-2025.csv</div><div class="text-xs text-muted-foreground">Click to select a different file</div></div></div>`);
 
@@ -30,7 +30,7 @@ const matched = (n) => badge(`Matches · ${n} owned`, 'bg-white text-gray-700 bo
 const valid = cardP(`<div class="mb-3 flex items-center gap-2 font-medium text-gray-900">${icon('check-circle', 'h-4 w-4 text-green-600')}Valid Rows (4)</div>
 <div class="rounded-md border overflow-hidden"><table class="w-full"><thead><tr class="border-b bg-muted/30 text-left text-xs font-semibold"><th class="px-2 py-2">Row</th><th class="px-2 py-2">Model</th><th class="px-2 py-2">Item</th><th class="px-2 py-2 text-right">Qty</th><th class="px-2 py-2">Serial numbers</th><th class="px-2 py-2">Tags</th><th class="px-2 py-2">Creates</th><th class="px-2 py-2">Purchase line</th><th class="px-2 py-2">Import Status</th></tr></thead><tbody>
 ${vr(2, 'Chauvet Intimidator Trio', newItem, 6, 'IT32510290; IT32510297; IT32510304; …', 'DSL-0141 … DSL-0146', `${kindPill('unit')} × 6`, 'Brightline Lighting · 2025-10-29 · line 1')}
-${vr(3, 'XLR Cable, 25 ft', matched(30), 10, '', '', `${kindPill('lot')} of 10, lives in XLR Cable Box`, 'Cablesmith Direct · 2025-11-14 · line 1')}
+${vr(3, 'XLR Cable, 25 ft', matched(30), 10, '', '', `${kindPill('lot')} of 10`, 'Cablesmith Direct · 2025-11-14 · line 1')}
 ${vr(4, 'XLR Cable, 25 ft', matched(30), 20, '', '', `${kindPill('lot')} of 20`, 'Cablesmith Direct · 2025-11-14 · line 2')}
 ${vr(5, 'QSC K12.2', matched(6), 1, 'GAB118077', 'DSL-0107', `${kindPill('unit')} × 1`, 'Sweetwater · 2025-12-02 · line 1')}
 </tbody></table></div>`);
@@ -47,7 +47,7 @@ export default () => ({
     body: frame(topbar() + pageHeader({ title: 'CSV Import', back: 'Back to Equipment' }) + content(`<div class="space-y-6">${template}${upload}${summary}${invalid}${valid}</div>`, '*:max-w-6xl'), 'Equipment › Items › Import (Assets), after reading a file.'),
     notes: [
       '<b>The assets template</b> keeps one row per thing bought, but its columns now fall into three groups: what it is (the item), what we own (unit or lot), and the purchase line. Rows with the same model and category land on one item.',
-      '<b>Serials and tags</b>: one serial or tag makes a unit of quantity 1. A row of quantity 6 can list 6 serials (or tags) separated by “;” to make 6 units on one purchase line: the six Trios in one row. No serial or tag makes a lot, which can name the container it lives in.',
+      '<b>Serials and tags</b>: one serial or tag makes a unit of quantity 1. A row of quantity 6 can list 6 serials (or tags) separated by “;” to make 6 units on one purchase line: the six Trios in one row. No serial or tag makes a lot.',
       '<b>The summary</b> says what will be created before anything is: items new and matched, units and lots, purchase lines. Each row says whether it matched an existing item, so a typo in the model shows up as an unexpected “New item”.',
       '<b>A serial with a quantity above 1</b> is invalid and says how to fix it, the same rule as the form (screen 3). It is how today’s 3 prod records with this problem would be caught on import.',
     ],

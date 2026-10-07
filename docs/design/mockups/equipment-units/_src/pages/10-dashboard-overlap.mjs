@@ -30,10 +30,10 @@ const needTable = `<section class="rounded-xl border bg-white p-4 space-y-2.5"><
 <div class="rounded-md border overflow-hidden"><table class="w-full"><thead><tr class="border-b bg-muted/30 text-left text-xs font-semibold"><th class="px-3 py-2">Item</th><th class="px-3 py-2 text-right">This gig</th><th class="px-3 py-2 text-right">Overlapping</th><th class="px-3 py-2 text-right">Needed</th><th class="px-3 py-2 text-right">Owned</th><th class="px-3 py-2 text-right">In maintenance</th><th class="px-3 py-2 text-right">Free</th><th class="px-3 py-2"></th></tr></thead><tbody>
 ${need('Chauvet Intimidator Trio', 4, 4, 6, 0, 6, short('2 short'))}
 ${need('QSC K12.2', 2, 2, 6, 1, 5, ok)}
-${need('XLR Cable, 50 ft', 4, 2, 10, 0, '6 <span class="text-[11px] text-muted-foreground">of 10</span>', tight('none spare · 4 are a lot in XLR Cable Box'))}
+${need('XLR Cable, 50 ft', 4, 2, 10, 0, '6 <span class="text-[11px] text-muted-foreground">of 10</span>', tight('none spare · 4 are in the XLR Cable Box'))}
 ${need('XLR Cable, 25 ft', 2, 0, 30, 1, 19, ok)}
 </tbody></table></div>
-<p class="text-xs text-muted-foreground">Counts units per item, whichever kits ask for them. A specific unit (the PA Rack’s amp) conflicts only if the same unit is booked twice. A lot that lives in a container counts only toward that container.</p></section>`;
+<p class="text-xs text-muted-foreground">Counts units per item, whichever kits ask for them. A specific unit (the PA Rack’s amp) conflicts only if the same unit is booked twice. Pieces inside a container kit (the XLR Cable Box’s cables, the PA Rack’s patch cables) are never free for other kits.</p></section>`;
 
 const gig = frame(topbar('Gigs') + pageHeader({
   title: GIG.title, back: 'Back to Gigs', badge: gigStatus('Booked'), meta: `${GIG.date} · ${GIG.venue} ${tagBadge('Corporate')}`,
