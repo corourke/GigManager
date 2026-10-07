@@ -98,6 +98,10 @@ meantime. The coordinator resolves each entry (decides it, or moves it into §3a
 
 - **Security findings from the 09-29 `security-scheme.md` check, urgent.** Details went to Cameron by private notification on 09-29, not here, because this repo is public. In short, some contact-management RPCs trust caller-supplied input for authorization and can grant org membership, plus several broader read exposures. The fix needs a migration, which is a contract, so it's for the coordinator. Meanwhile triage filed no public issue and held the `security-scheme.md` doc update, since correcting the doc would describe the holes publicly.
 
+### 3d. Raised by the Docs Lead, for the coordinator
+
+*The Docs Lead's own lane (separate from triage's §3b). It adds app problems it finds while documenting and decisions it needs from the coordinator. It files app bugs as GitHub issues itself and links them here. The coordinator triages each entry (release to §3c, decide, or take it to Cameron) and deletes it when settled.*
+
 - **From the Docs Lead (10-07): six app issues found while screenshotting the dev demo org, not yet filed.** Issue creation was refused by this session's permission classifier, so they are listed here until an issue can be filed. Each was checked against all 64 issue titles; none is a duplicate.
   1. Dashboard **Equipment → Total Value** ignores quantity: `supabase/functions/server/lib/pure/dashboard.ts:24` sums `item_cost` without `quantity` (Insured, :25, too). The asset list footer (`AssetListScreen.tsx:541`) sums `replacement_value × quantity`, so the two also use different bases. Demo org: $13.2K vs the list's total. Question for Cameron: which value should the dashboard show?
   2. The **Assets** table at 1440px has overlapping headers, wrapped model names and clipped totals (`AssetListScreen.tsx` columns ~262-300).
@@ -230,7 +234,7 @@ applies migrations), edge-function API shape, anything touching production confi
 
 Read this section first on each run.
 
-**Docs Lead (since 10-07).** A separate session, "GigWrangler Docs Lead", owns the look, quality and organization of the user guide (`website/docs/`) and `docs/`: its information architecture, its style guide, and screenshots taken from a demo organization in **dev**, which it has read-write access to. Prod stays off-limits. It opens docs PRs for the coordinator to merge, and files app issues and §3b entries instead of building code. Triage: before a user-guide pass, check the user-docs table below for pages the Docs Lead has claimed, and skip them.
+**Docs Lead (since 10-07).** A separate session, "GigWrangler Docs Lead", owns the look, quality and organization of the user guide (`website/docs/`) and `docs/`: its information architecture, its style guide, and screenshots taken from a demo organization in **dev**, which it has read-write access to. Prod stays off-limits. It opens docs PRs for the coordinator to merge, and files app issues (it may create GitHub issues) with §3d entries instead of building code. Triage: before a user-guide pass, check the user-docs table below for pages the Docs Lead has claimed, and skip them.
 
 **Docs Lead decisions, 10-07 (Cameron).** **Coordinator, please note:**
 1. *Visual style:* option A, the app match (sky-blue accent, neutral greys, system font). The Docs Lead builds it in its own PR.
