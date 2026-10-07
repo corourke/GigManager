@@ -39,7 +39,7 @@ const d = header('4 / 9 scanned') + `<div class="relative flex-1 p-3 space-y-3 o
 <div class="absolute inset-x-0 bottom-0 rounded-t-2xl bg-white p-4 space-y-4 shadow-2xl"><div class="mx-auto h-1 w-10 rounded-full bg-gray-300"></div>
 <div><div class="text-base font-bold">2 × Speaker Stand, Tripod</div><div class="text-xs text-muted-foreground">Main PA: K12.2 Pair · from the lot of 6 in Warehouse, Bay 2</div></div>
 <div class="flex items-center justify-center gap-6 py-2"><span class="flex h-14 w-14 items-center justify-center rounded-full border text-gray-700">${icon('minus', 'h-6 w-6')}</span><span class="w-16 text-center text-5xl font-bold tabular-nums">2</span><span class="flex h-14 w-14 items-center justify-center rounded-full border text-gray-300">${icon('plus', 'h-6 w-6')}</span></div>
-<div class="grid grid-cols-2 gap-2"><span class="flex h-11 items-center justify-center rounded-lg border text-sm">Cancel</span><span class="flex h-11 items-center justify-center rounded-lg text-sm font-medium text-white" style="background:${P}">Confirm line</span></div></div></div>`;
+<div class="grid grid-cols-2 gap-2"><span class="flex h-11 items-center justify-center rounded-lg border text-sm">Cancel</span><span class="flex h-11 items-center justify-center rounded-lg text-sm font-medium text-white" style="background:${P}">Confirm</span></div></div></div>`;
 
 // e) packing the Small XLR Cable Box from stock
 const e = header('17 / 24 counted') + `<div class="p-3 space-y-3 overflow-hidden">
@@ -61,7 +61,7 @@ export default () => ({
     notes: [
       '<b>Resolving “2 × K12.2” by scanning</b>: the line shows a slot per piece. Scanning any K12.2 fills a slot and records <i>that</i> unit on the gig, so later the system knows DSL-0101 and DSL-0103 went (and which came back).',
       '<b>Guard rails</b>: a unit in Maintenance or booked on an overlapping gig warns before it is pulled; a third K12.2 for a kit that has its two offers a swap. ',
-      '<b>Scan or count</b> follows the item, not the kit: an “any” line of tagged items (K12.2s) is scanned piece by piece; an “any” line of untagged items (stands, cables) is counted. The counter starts at the full amount, so a full line is one tap on <b>Confirm line</b>; − records fewer and leaves the line short.',
+      '<b>Scan or count</b> follows the item, not the kit: an “any” line of tagged items (K12.2s) is scanned piece by piece; an “any” line of untagged items (stands, cables) is counted. The counter starts at the full amount, so a full line is one tap on <b>Confirm</b>; − confirms fewer and leaves the line short.',
       '<b>No packing step</b>: the Small XLR Cable Box is an ordinary Items kit. Its trunk is scanned and its untagged cable lines counted; the kit is complete when every line is. Containers (XLR Cable Box, PA Rack) are always checked off as one.',
     ],
   }),

@@ -9,7 +9,7 @@ const BLURB = {
   '06-packing-list': '“2 × QSC K12.2” filled in by scans, container progress, and the printout with write-in blanks.',
   '07-scanning-pull': 'Tagged items are scanned (the K12.2s); untagged ones are counted, with a counter that starts full.',
   '08-locations-override': 'Counts per place (#160) and overrides that move part of a lot.',
-  '09-maintenance': 'Sending one specific unit by serial, or one piece of a lot; availability impact.',
+  '09-maintenance': 'Units in maintenance by tag and serial: edit notes, location and expected-back date, or return to service. Sent there while scanning.',
   '10-dashboard-overlap': 'Dashboard total = units × replacement value (#157); conflicts counted per item.',
   '11-csv-import': 'Template grouped by item / unit or lot / purchase; “;”-separated serials; serial-with-quantity guard.',
 };
