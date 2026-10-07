@@ -1,6 +1,5 @@
-import { useState } from 'react';
+import { lazy, Suspense, useState } from 'react';
 import { Banknote, Receipt, TrendingUp } from 'lucide-react';
-import { Card } from './ui/card';
 import { PageHeader } from './layout/PageHeader';
 import { PageTabsList, PageTabsTrigger } from './layout/PageTabs';
 import { Tabs, TabsContent } from './ui/tabs';
@@ -11,6 +10,9 @@ import PurchasesSection, { PurchasesActions } from './financials/purchases/Purch
 import { useScanQueue } from './financials/purchases/useScanQueue';
 import { Organization, User, UserRole } from '../utils/supabase/types';
 import type { FinancialTab, PurchasesView } from '../routes/paths';
+
+// Loaded when the Reporting tab opens (keeps the main bundle under the offline-cache limit).
+const ReportingTab = lazy(() => import('./financials/ReportingTab'));
 
 interface FinancialsScreenProps {
   organization: Organization;
@@ -132,12 +134,10 @@ export default function FinancialsScreen({
           </TabsContent>
 
           <TabsContent value="reporting" className="space-y-4">
+            <Suspense fallback={<p className="text-sm text-muted-foreground py-8 text-center">Loading reports…</p>}>
+              <ReportingTab organizationId={organization.id} organizationName={organization.name} onEditAsset={onEditAsset} />
+            </Suspense>
             <TaxYearsCard organizationId={organization.id} userRole={userRole} />
-            <Card className="p-12 text-center text-gray-500">
-              <TrendingUp className="w-12 h-12 mx-auto text-gray-300 mb-4" />
-              <p className="text-lg font-medium">Reporting Dashboard Coming Soon</p>
-              <p className="text-sm">Visual reports on your organization's spending and assets.</p>
-            </Card>
           </TabsContent>
         </div>
       </Tabs>
