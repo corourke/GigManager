@@ -26,11 +26,13 @@ over. Admins and Managers also see **New Gig** and **Import**.
 To open a gig, click the row's **⋯** menu and choose **View**. Admins and Managers
 also get **Edit** (opens the gig in edit mode), **Duplicate** and **Delete**.
 
+![The Gigs list on the Upcoming tab, with the date and status filters, Columns, and New Gig, Import and Export buttons above gigs showing their start, status, venue, act and tags](../../../assets/screenshots/gigs/overview-gig-list.png)
+
 ## The gig page
 
-The page header shows the gig's title, status, dates, venue and tags, with a **Back to
-Gigs** link above it (**Back to Calendar** if you opened the gig from the
-calendar). Below it are up to four tabs:
+The page header shows the gig's title, status, dates, venue and tags. The arrow to
+the left of the title goes **Back to Gigs** (or **Back to Calendar** if you opened
+the gig from the calendar). Below the header are up to four tabs:
 
 | Tab | What it shows |
 | --- | --- |
@@ -38,6 +40,8 @@ calendar). Below it are up to four tabs:
 | **Equipment** | The kits assigned to the gig, and its packing list. |
 | **Financials** | Money in and money out for the gig — Admins and Managers only. See [Financials](/financials/overview/). |
 | **History** | The gig's [change history](/gigs/change-history/). |
+
+![A gig page's Overview tab: the header with Print and Edit, then the Schedule, the Venue with its main contact, and Notes & attachments](../../../assets/screenshots/gigs/overview-gig-page.png)
 
 **Print** offers a **Gig sheet**, a **Packing list** and, for Admins and Managers,
 a **Gig sheet with financials**. The **⋮** menu next to **Edit** has **Duplicate
@@ -62,7 +66,3 @@ Staff and Viewers see the gig read-only, without the Financials tab or staff pay
 A gig is **Date Hold**, **Proposed**, **Booked**, **Completed**, **Settled** or
 **Cancelled**. New gigs start as Date Hold. You can set any status at any time;
 GigWrangler doesn't enforce an order.
-
-<!-- TODO
-  - 📸 Gig page Overview tab. 📸 The Gigs list.
--->

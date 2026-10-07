@@ -38,5 +38,145 @@
     "anchor": "2026-10-07",
     "taken": "2026-10-07",
     "appCommit": "39173c1"
+  },
+  "gigs/calendar-view-month": {
+    "page": "gigs/calendar-view.md",
+    "user": "admin",
+    "sources": [
+      "src/components/GigListScreen.tsx"
+    ],
+    "anchor": "2026-10-07",
+    "taken": "2026-10-07",
+    "appCommit": "7c87dfb"
+  },
+  "gigs/change-history-history-tab": {
+    "page": "gigs/change-history.md",
+    "user": "admin",
+    "sources": [
+      "src/components/gig/GigPage.tsx",
+      "src/services/activityLog.service.ts"
+    ],
+    "anchor": "2026-10-07",
+    "taken": "2026-10-07",
+    "appCommit": "7c87dfb"
+  },
+  "gigs/conflict-detection-gig-page": {
+    "page": "gigs/conflict-detection.md",
+    "user": "admin",
+    "sources": [
+      "src/components/ConflictWarning.tsx",
+      "src/services/conflictDetection.service.ts"
+    ],
+    "anchor": "2026-10-07",
+    "taken": "2026-10-07",
+    "appCommit": "7c87dfb"
+  },
+  "gigs/creating-a-gig-form": {
+    "page": "gigs/creating-a-gig.md",
+    "user": "admin",
+    "sources": [
+      "src/components/gig/basicInfo/GigBasicInfoFields.tsx",
+      "src/components/TagsInput.tsx"
+    ],
+    "anchor": "2026-10-07",
+    "taken": "2026-10-07",
+    "appCommit": "7c87dfb"
+  },
+  "gigs/documents-and-notes-section": {
+    "page": "gigs/documents-and-notes.md",
+    "user": "admin",
+    "sources": [
+      "src/components/gig/GigPage.tsx",
+      "src/components/AttachmentManager.tsx"
+    ],
+    "anchor": "2026-10-07",
+    "taken": "2026-10-07",
+    "appCommit": "7c87dfb"
+  },
+  "gigs/overview-gig-list": {
+    "page": "gigs/overview.md",
+    "user": "admin",
+    "sources": [
+      "src/components/GigListScreen.tsx",
+      "src/components/tables/SmartDataTable.tsx"
+    ],
+    "anchor": "2026-10-07",
+    "taken": "2026-10-07",
+    "appCommit": "7c87dfb"
+  },
+  "gigs/overview-gig-page": {
+    "page": "gigs/overview.md",
+    "user": "admin",
+    "sources": [
+      "src/components/gig/GigPage.tsx",
+      "src/components/layout/PageHeader.tsx"
+    ],
+    "anchor": "2026-10-07",
+    "taken": "2026-10-07",
+    "appCommit": "7c87dfb"
+  },
+  "gigs/participating-organizations-add": {
+    "page": "gigs/participating-organizations.md",
+    "user": "admin",
+    "sources": [
+      "src/components/gig/GigParticipantsSection.tsx"
+    ],
+    "anchor": "2026-10-07",
+    "taken": "2026-10-07",
+    "appCommit": "7c87dfb"
+  },
+  "gigs/participating-organizations-contacts": {
+    "page": "gigs/participating-organizations.md",
+    "user": "admin",
+    "sources": [
+      "src/components/gig/GigParticipantsSection.tsx"
+    ],
+    "anchor": "2026-10-07",
+    "taken": "2026-10-07",
+    "appCommit": "7c87dfb"
+  },
+  "gigs/schedule-editor": {
+    "page": "gigs/schedule.md",
+    "user": "admin",
+    "sources": [
+      "src/components/gig/GigScheduleEditor.tsx",
+      "src/components/gig/basicInfo/GigBasicInfoFields.tsx"
+    ],
+    "anchor": "2026-10-07",
+    "taken": "2026-10-07",
+    "appCommit": "7c87dfb"
+  },
+  "gigs/staffing-assignments": {
+    "page": "gigs/staffing-and-participants.md",
+    "user": "admin",
+    "sources": [
+      "src/components/gig/GigStaffSlotsSection.tsx"
+    ],
+    "anchor": "2026-10-07",
+    "taken": "2026-10-07",
+    "appCommit": "7c87dfb"
+  },
+  "gigs/the-gig-list-row-menu": {
+    "page": "gigs/the-gig-list.md",
+    "user": "admin",
+    "sources": [
+      "src/components/GigListScreen.tsx",
+      "src/components/tables/SmartDataTable.tsx"
+    ],
+    "anchor": "2026-10-07",
+    "taken": "2026-10-07",
+    "appCommit": "7c87dfb"
+  },
+  "gigs/the-gig-list-upcoming": {
+    "page": "gigs/the-gig-list.md",
+    "user": "admin",
+    "sources": [
+      "src/components/GigListScreen.tsx",
+      "src/components/gigs/GigListFilters.tsx",
+      "src/components/gigs/GigDateFilterDropdown.tsx"
+    ],
+    "anchor": "2026-10-07",
+    "taken": "2026-10-07",
+    "appCommit": "7c87dfb"
   }
 }

@@ -10,10 +10,38 @@
 //   prepare   async (page, ctx) => navigate and set up the screen
 //   target    (page) => Locator, or an array of Locators, to crop to (their
 //             combined box; optional pad, CSS px), or
-//   clip      { x, y, width, height } in CSS px
+//   clip      { x, y, width, height } in CSS px, or async (page) => that
 //   viewport  optional override of the default 1200 x 900
 //
 // ctx.base is the app URL; ctx.users holds the demo emails.
+
+// The demo gig most shots use: Harvest Gala Dinner & Dance, this Saturday.
+const HARVEST_GALA = 'de000000-0000-4000-8000-000300000007';
+// Cedar Hall Fall Songwriter Showcase, which the seed makes conflict with another gig.
+const SONGWRITER_SHOWCASE = 'de000000-0000-4000-8000-000300000008';
+
+// The bounding box of a locator, as a plain object.
+const box = async (locator) => {
+  const b = await locator.boundingBox();
+  if (!b) throw new Error('locator not visible');
+  return b;
+};
+// The card (rounded section) that contains a piece of text.
+const cardOf = (page, text) =>
+  page.getByText(text, { exact: true }).first().locator('xpath=ancestor::div[contains(@class,"rounded-xl") or contains(@class,"rounded-lg")][1]');
+const hideConflictBanner = (page) =>
+  page.getByText(/Conflicts Detected/i).first().evaluate((el) => {
+    el.closest('.mb-4')?.setAttribute('style', 'display:none');
+  }).catch(() => {});
+const openEdit = async (page, ctx, gigId) => {
+  await page.goto(`${ctx.base}/gigs/${gigId}/edit`);
+  await page.getByText('All changes saved').waitFor();
+};
+
+const pick = async (page, trigger, option) => {
+  await page.getByLabel(trigger).click();
+  await page.getByRole('option', { name: option, exact: true }).click();
+};
 
 export const shots = [
   {
@@ -74,6 +102,197 @@ export const shots = [
     // The menu plus the avatar button above it.
     target: (page) => [page.getByRole('menu'), page.locator('button[aria-haspopup="menu"]').last()],
     pad: 12,
+  },
+  {
+    id: 'gigs/overview-gig-list',
+    page: 'gigs/overview.md',
+    user: 'admin',
+    sources: ['src/components/GigListScreen.tsx', 'src/components/tables/SmartDataTable.tsx'],
+    prepare: async (page, ctx) => {
+      await page.goto(`${ctx.base}/gigs`);
+      await page.getByText('Harvest Gala Dinner & Dance').first().waitFor();
+      // Leave out the demo data's deliberate conflict: the banner has its own page
+      // (gigs/conflict-detection) and this shot is about the list itself.
+      await hideConflictBanner(page);
+    },
+    // Ends on a row boundary (the sixth upcoming gig).
+    clip: { x: 0, y: 0, width: 1200, height: 592 },
+  },
+  {
+    id: 'gigs/overview-gig-page',
+    page: 'gigs/overview.md',
+    user: 'admin',
+    sources: ['src/components/gig/GigPage.tsx', 'src/components/layout/PageHeader.tsx'],
+    prepare: async (page, ctx) => {
+      await page.goto(`${ctx.base}/gigs/${HARVEST_GALA}`);
+      await page.getByText('Load-Out').first().waitFor();
+    },
+    // Header, tabs, Schedule, Venue and the notes; Participants and Staffing are below.
+    clip: { x: 0, y: 56, width: 1200, height: 620 },
+  },
+  {
+    id: 'gigs/creating-a-gig-form',
+    page: 'gigs/creating-a-gig.md',
+    user: 'admin',
+    sources: ['src/components/gig/basicInfo/GigBasicInfoFields.tsx', 'src/components/TagsInput.tsx'],
+    viewport: { width: 1200, height: 1250 },
+    prepare: async (page, ctx) => {
+      // Fill the form but never select Create Gig.
+      await page.goto(`${ctx.base}/gigs/new`);
+      await page.locator('#title').fill('Winter Wonderland Gala');
+      await page.locator('#start_time').fill('2026-12-05');
+      await pick(page, 'start_time hour', '16');
+      await pick(page, 'start_time minute', '00');
+      await page.locator('#end_time').fill('2026-12-05');
+      await pick(page, 'end_time hour', '23');
+      await pick(page, 'end_time minute', '30');
+      // The placeholder disappears after the first tag, so find the input by its label.
+      const tags = page.getByText('Tags', { exact: true }).locator('xpath=following::input[1]');
+      await tags.fill('Gala');
+      await tags.press('Enter');
+      await tags.fill('Holiday');
+      await tags.press('Enter');
+      await page.evaluate(() => document.activeElement?.blur());
+    },
+    target: (page) => page.getByText('Basic Information', { exact: true }).locator('xpath=ancestor::div[contains(@class,"rounded")][1]'),
+    pad: 8,
+  },
+  {
+    id: 'gigs/change-history-history-tab',
+    page: 'gigs/change-history.md',
+    user: 'admin',
+    sources: ['src/components/gig/GigPage.tsx', 'src/services/activityLog.service.ts'],
+    prepare: async (page, ctx) => {
+      await page.goto(`${ctx.base}/gigs/${HARVEST_GALA}`);
+      await page.getByRole('tab', { name: 'History' }).click();
+      await page.getByText('Gig created').waitFor();
+    },
+    // The tabs and the History card.
+    target: (page) => [
+      page.getByRole('tab', { name: 'Overview' }),
+      page.getByText('Gig created').locator('xpath=ancestor::div[contains(@class,"rounded")][1]'),
+    ],
+    pad: 6,
+  },
+  {
+    id: 'gigs/the-gig-list-upcoming',
+    page: 'gigs/the-gig-list.md',
+    user: 'admin',
+    sources: ['src/components/GigListScreen.tsx', 'src/components/gigs/GigListFilters.tsx', 'src/components/gigs/GigDateFilterDropdown.tsx'],
+    prepare: async (page, ctx) => {
+      await page.goto(`${ctx.base}/gigs`);
+      await page.getByText('Harvest Gala Dinner & Dance').first().waitFor();
+    },
+    // From the tabs and filters down through six rows; leaves out the conflict banner.
+    clip: async (page) => {
+      const top = await box(page.getByRole('tab', { name: /Upcoming/ }));
+      return { x: 24, y: top.y - 12, width: 1152, height: 440 };
+    },
+  },
+  {
+    id: 'gigs/the-gig-list-row-menu',
+    page: 'gigs/the-gig-list.md',
+    user: 'admin',
+    sources: ['src/components/GigListScreen.tsx', 'src/components/tables/SmartDataTable.tsx'],
+    prepare: async (page, ctx) => {
+      await page.goto(`${ctx.base}/gigs`);
+      const row = page.getByText('Harvest Gala Dinner & Dance', { exact: true }).first().locator('xpath=ancestor::tr[1]');
+      await row.getByRole('button').last().click();
+      await page.getByRole('menuitem', { name: 'Duplicate' }).waitFor();
+    },
+    target: (page) => [page.getByRole('menu'), page.getByText('Harvest Gala Dinner & Dance', { exact: true }).first().locator('xpath=ancestor::tr[1]')],
+    pad: 8,
+  },
+  {
+    id: 'gigs/calendar-view-month',
+    page: 'gigs/calendar-view.md',
+    user: 'admin',
+    sources: ['src/components/GigListScreen.tsx'],
+    viewport: { width: 1200, height: 1200 }, // the whole month
+    prepare: async (page, ctx) => {
+      await page.goto(`${ctx.base}/gigs`);
+      await page.getByRole('button', { name: 'Calendar' }).click();
+      await page.getByText('Loading calendar...').waitFor({ state: 'hidden' });
+      await page.getByText('Harvest Gala', { exact: false }).first().waitFor();
+    },
+    // The calendar card only (the conflict banner above it has its own page).
+    target: (page) => page.getByRole('button', { name: 'Today' }).locator('xpath=ancestor::div[contains(@class,"rounded")][last()]'),
+  },
+  {
+    id: 'gigs/schedule-editor',
+    page: 'gigs/schedule.md',
+    user: 'admin',
+    sources: ['src/components/gig/GigScheduleEditor.tsx', 'src/components/gig/basicInfo/GigBasicInfoFields.tsx'],
+    prepare: (page, ctx) => openEdit(page, ctx, HARVEST_GALA),
+    target: (page) => cardOf(page, 'When & schedule'),
+  },
+  {
+    id: 'gigs/staffing-assignments',
+    page: 'gigs/staffing-and-participants.md',
+    user: 'admin',
+    sources: ['src/components/gig/GigStaffSlotsSection.tsx'],
+    viewport: { width: 1200, height: 3000 },
+    prepare: (page, ctx) => openEdit(page, ctx, HARVEST_GALA),
+    target: (page) => cardOf(page, 'Staff Assignments'),
+  },
+  {
+    id: 'gigs/participating-organizations-add',
+    page: 'gigs/participating-organizations.md',
+    user: 'admin',
+    sources: ['src/components/gig/GigParticipantsSection.tsx'],
+    viewport: { width: 1200, height: 3000 }, // keeps the card in the window
+    prepare: async (page, ctx) => {
+      // Opens a new row and types a name, but never picks or creates an organization.
+      await openEdit(page, ctx, HARVEST_GALA);
+      await page.getByRole('button', { name: 'Add Participant' }).click();
+      const search = page.getByPlaceholder('Search organizations...').last();
+      await search.click();
+      await search.fill('Lumen');
+      await page.getByText('Create "Lumen"', { exact: false }).first().waitFor();
+      await page.getByText('Saving...').waitFor({ state: 'hidden', timeout: 5000 }).catch(() => {});
+    },
+    clip: async (page) => {
+      const card = await box(cardOf(page, 'Participants'));
+      return { x: card.x - 8, y: card.y - 8, width: card.width + 16, height: card.height + 260 };
+    },
+  },
+  {
+    id: 'gigs/participating-organizations-contacts',
+    page: 'gigs/participating-organizations.md',
+    user: 'admin',
+    sources: ['src/components/gig/GigParticipantsSection.tsx'],
+    viewport: { width: 1200, height: 3000 }, // keeps the card in the window
+    prepare: async (page, ctx) => {
+      await openEdit(page, ctx, HARVEST_GALA);
+      await cardOf(page, 'Participants').getByRole('button', { name: 'More actions' }).first().click();
+      await page.getByRole('menuitem', { name: 'Add Contact' }).waitFor();
+    },
+    target: (page) => [cardOf(page, 'Participants'), page.getByRole('menu')],
+    pad: 8,
+  },
+  {
+    id: 'gigs/documents-and-notes-section',
+    page: 'gigs/documents-and-notes.md',
+    user: 'admin',
+    sources: ['src/components/gig/GigPage.tsx', 'src/components/AttachmentManager.tsx'],
+    viewport: { width: 1200, height: 3000 },
+    prepare: (page, ctx) => openEdit(page, ctx, HARVEST_GALA),
+    target: (page) => cardOf(page, 'Notes & attachments'),
+  },
+  {
+    id: 'gigs/conflict-detection-gig-page',
+    page: 'gigs/conflict-detection.md',
+    user: 'admin',
+    sources: ['src/components/ConflictWarning.tsx', 'src/services/conflictDetection.service.ts'],
+    prepare: async (page, ctx) => {
+      await page.goto(`${ctx.base}/gigs/${SONGWRITER_SHOWCASE}`);
+      await page.getByText('Brightwave Rooftop Mixer').first().waitFor();
+    },
+    // The gig header and the Conflicts Detected card.
+    clip: async (page) => {
+      const card = await box(page.getByText(/Conflicts Detected/i).first().locator('xpath=ancestor::div[contains(@class,"rounded")][1]'));
+      return { x: 0, y: 56, width: 1200, height: card.y + card.height + 12 - 56 };
+    },
   },
   // Held: getting-started/the-dashboard-overview waits for #157 (the Equipment
   // card's Total Value ignores quantity), so the guide doesn't show a wrong figure.

@@ -16,6 +16,8 @@ Each entry shows:
   14:00 to 21 Sep 2026 14:00"*),
 - **when**, as a relative time ("3 days ago").
 
+![A gig's History tab listing, newest first: notes updated, staffing updated, a deposit received, a status change from Proposed to Booked, an act added as a participant, and Gig created](../../../assets/screenshots/gigs/change-history-history-tab.png)
+
 The name and organization are recorded **at the moment of the change**, so later
 renames don't rewrite past entries.
 
@@ -35,7 +37,3 @@ to members of the organization that made them, and financial changes only to tha
 organization's Admins and Managers.
 
 Assets and kits have their own history in the same style.
-
-<!-- TODO
-  - 📸 History tab with a few entries (create, rename, reschedule).
--->

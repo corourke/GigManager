@@ -91,7 +91,7 @@ for (const shot of selected) {
     await page.waitForLoadState('networkidle');
     await page.evaluate(() => document.fonts.ready);
     await page.waitForTimeout(400);
-    let clip = shot.clip;
+    let clip = typeof shot.clip === 'function' ? await shot.clip(page) : shot.clip;
     if (!clip) {
       const targets = [shot.target(page)].flat();
       const boxes = await Promise.all(targets.map((t) => t.boundingBox()));
@@ -110,7 +110,7 @@ for (const shot of selected) {
     console.log(`ok    ${shot.id}`);
   } catch (err) {
     failed++;
-    console.error(`FAIL  ${shot.id}: ${err.message.split('\n')[0]}`);
+    console.error(`FAIL  ${shot.id}: ${err.message.split('\n').slice(0, 4).join(' | ')}`);
   }
   await c.close();
 }
