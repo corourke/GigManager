@@ -31,7 +31,7 @@ ${section('Unit or lot', seg(KIND, 'Lot') + `<div class="mt-3 grid grid-cols-3 g
   ${field('Serial Number', input('', { disabled: true, placeholder: 'Not for a lot' }))}
   ${field('Inventory Tag ID', input('', { disabled: true, placeholder: 'Not for a lot' }))}
 </div>`, false, newMark(4))}
-${section('Purchase', `<div class="space-y-3">${purchaseBox('Cablesmith Direct · 2026-07-24 · XLR Cable, 25 ft × 30 @ $14.98', 'Line 2 of 4 · 30 cables: this lot of 10, and a lot of 20')}
+${section('Purchase', `<div class="space-y-3">${purchaseBox('Cablesmith Direct · 2026-07-24 · XLR Cable, 25 ft × 10 @ $14.98', 'Line 2 of 4 · one lot per purchase line')}
 <div class="grid grid-cols-3 gap-3">${field('Acquisition Date', input('2026-07-24'))}${field('Vendor', input('Cablesmith Direct'))}${field('Item Cost', money('14.98'))}</div>
 <div class="grid grid-cols-3 gap-3">${field('Tax treatment', select('Expense'), 'From the purchase line')}<div class="col-span-2 self-center text-xs text-muted-foreground">No recovery period: the line is expensed.</div></div></div>`)}
 ${section('Lifecycle', `<div class="grid grid-cols-3 gap-3">${field('Status', `<div class="flex h-9 items-center justify-between rounded-md bg-input-background px-3">${status('Active')}${icon('chevron-down', 'h-4 w-4 opacity-50')}</div>`)}</div>`)}
