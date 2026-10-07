@@ -111,7 +111,7 @@ needs approval before code changes.
 3. The scanned manufacturer/model fills the equipment's `manufacturer_model`, falling back to the description when the scan has none. Check what `ai-scan` returns today (no edge-function change in this PR).
 4. `duplicateAsset` clears `purchase_id` on the copy.
 5. Delete `scripts/invoice_import.py` and its mention in `scripts/README.md`.
-Frontend and services only, no migration. Update `docs/technical/purchases-assets-expenses.md` / `financials.md` and the user guide where behaviour changes.
+Frontend and services only, no migration. Update `docs/technical/financials.md` where behaviour changes; list user-visible changes in the PR body for the Docs Lead.
 
 **[#20](https://github.com/corourke/GigManager/issues/20) — move the remaining services onto the shared data-access layer (released 10-07 by the coordinator, Cameron: "do it now").** The layer is `src/services/base/dataAccess.ts`; the pilots are `user.service.ts` and `attachment.service.ts`. Follow them and the issue's constraints:
 - small helpers, no domain logic;
@@ -127,9 +127,9 @@ One PR per batch, in this order, the next batch only after the previous one merg
 6. `gig`: **hold until #92** (replace-all saves, coordinator) is settled
 7. `purchase`: **hold until #131's PR merges** (it changes this file)
 
-Pure refactor: no migrations, and no edge-function or UI changes. `npm run test:run`, typecheck, lint and build must pass per PR. Note in each PR which helpers were added to the layer, if any. Update `docs/technical/` (the services section) once, in batch 1.
+Pure refactor: no migrations, and no edge-function or UI changes ("User-visible changes: None"). `npm run test:run`, typecheck, lint and build must pass per PR. Note in each PR which helpers were added to the layer, if any. Update `docs/technical/` (the services section) once, in batch 1.
 
-**User-guide audit, full pass (released 10-05, Cameron's request).** The user guide in `website/docs/` must be kept as current as `docs/`. Audit every page in §5's user-docs table, published pages first (they are live on docs.gigwrangler.com): check each statement against the current app code, fix what is wrong, and fill draft stubs where the feature is built. Known stale: `financials/overview.md` predates the 10-05 money-in/money-out redesign (#123, #124) and the Gig Accounting report. Deliver it as docs-only PRs, one per section (getting-started, gigs, financials…), each passing `cd website/docs && npm ci && npm run build`. Follow the user-guide rules in §5. This takes priority over the `docs/` pass until every page has a "Last verified" date.
+**User-guide audit** (released 10-05) is handed to the Docs Lead (10-07); triage no longer works on `website/docs/`.
 
 Released to the triage routine 10-03 (the 09-30 batch, #102, #103, #32 and #20's `attachment.service.ts`, all
 shipped; see §4). Each is its own PR, with a failing test first. Open the PR and don't merge it; the coordinator
@@ -264,14 +264,19 @@ migration through `20260919000000` — dropped status-history tables, `kit_compo
 `docs/technical/server-endpoint-inventory.md` (09-29, PR #88, merged 09-30: re-pointed at `routes/`, every row checked against the
 middleware; `DELETE /gigs/:id` is Admin-only; access-request and notification routes added). `docs/technical/security-scheme.md` (09-29: checked against every policy, the RLS tests and the three edge functions; the update is **held** until the §3b security entry is resolved, then document helpers, gig UPDATE/DELETE and participant write rules, the full CORS list, `requireOrgRole` options and the `health-check` gate). `docs/technical/deployment.md` (10-01, PR #110, merged 10-01: checked against both deploy scripts, `ci.yml`, `vite.config.ts`, `config.toml` and every env read; added the `rls` CI job and the health-check step to the rebuild. Scripts only `bash -n`-checked. `deploy_prod.sh` has no `--help` and starts its gates on any run, so don't run it). `docs/technical/tech-stack.md` (10-02, PR #118, merged 10-03: checked against `package.json`, `supabase/functions/`, migrations and `ci.yml`; added `health-check` and `notifications.ts`, corrected storage to the one `attachments` bucket). `docs/development/coding-guide.md` (10-03, PR #119, merged 10-03: schema section aligned with AGENTS.md rule 4 (it said to hand DDL to the SQL Editor), the `dataAccess.ts` base added, `build` added to the gates, lint debt recounted, the done `App.tsx` split retired). `docs/technical/SmartDataTable.md` (10-05, PR #126, merged 10-05: checked against `SmartDataTable.tsx`, `EditableCell.tsx` and `useTableState.ts`. Tab visits every column, there are no arrow keys, edits aren't optimistic, and widths persist. The missing props and column options were added.) Next candidate: `docs/technical/conflict-detection.md` (PR #124, which changed `conflictDetection.service.ts`, has merged).
 
-**User guide (`website/docs/`), rules for triage.** These extend the routine's prompt and win where it says only `docs/`.
-- Any PR that changes something a user can see or do also updates the matching page under `website/docs/src/content/docs/`, in the same PR.
+**Who updates which docs (Cameron, 10-07).** These rules win over the routine's prompt wherever it says to put the user guide in the same PR.
+- **Code PRs** (triage, coordinator) keep the **technical docs** in `docs/` in step with the code, in the same PR: schema, data model, services, deployment.
+- **Code PRs don't touch the user guide** (`website/docs/`) **or screenshots.** Instead, the PR body ends with a **"User-visible changes"** section: what a user now sees or does differently, with exact on-screen labels and the screens affected, or "None".
+- **The Docs Lead owns the user guide and screenshots.** It reads that section on merged PRs and decides what to update and how, as documentation work in its own PRs.
+- Triage's user-guide passes are retired. Leave `website/docs/` to the Docs Lead, apart from the user-docs table below, which the Docs Lead now keeps.
+
+**User guide (`website/docs/`), rules for the Docs Lead.**
 - Check every statement against the current app code, not older docs. Use the exact on-screen labels, and call the product "GigWrangler". Outline and priorities: `docs/development/user-documentation-plan.md`; editing rules: `website/docs/README.md`.
 - PRs touching `website/docs/` must pass `cd website/docs && npm ci && npm run build`.
 - **Publishing is not triage's call.** Fill in and correct drafts but keep `draft: true`; when one is complete and verified, set its row below to "ready to publish". The coordinator publishes with Cameron. On an already-published page, fix errors directly; if one can't be fixed in a single PR, add a `:::caution` note saying what is out of date and record it below.
-- On a quiet run, alternate the docs pass: one run on the user guide (next row below that isn't verified, published first), the next on `docs/`.
+- Triage: on a quiet run, do a `docs/` pass (technical and development docs) only.
 
-**User-docs table** (one row per page; triage keeps it current):
+**User-docs table** (one row per page; the Docs Lead keeps it current):
 
 | Page (`website/docs/src/content/docs/`) | Status | Last verified | Still wrong |
 |---|---|---|---|
@@ -339,7 +344,7 @@ Never call `/database/query` (the read-write endpoint), `supabase db push`, `fun
 
 1. Check CI and mergeability on open PRs (list live; #151 merged 10-07). Fix a red or conflicted triage PR by merging `main` into it, never by rebasing.
 2. #39 — check for a reply. If a variant is picked → work plan → post → wait for approval → implement.
-3. §3c — build what is released there that has no PR yet. The user-guide audit is in progress: getting-started done (PR #139, merged 10-06); gigs published pages done (PR #151, merged 10-07); next are the remaining published pages (`calendar/google-calendar.md`, `equipment/overview.md`, `import/overview.md`, `index.mdx`, `organizations/overview.md`, `reference/roles-and-access.md`), then drafts. `financials/` was verified by the coordinator 10-06.
+3. §3c — build what is released there that has no PR yet. The user-guide audit moved to the Docs Lead 10-07; skip `website/docs/`.
 4. Check §3b for unresolved entries the coordinator hasn't cleared yet.
 
 **Don't manufacture activity.** #39 already has exactly one open question on record.
