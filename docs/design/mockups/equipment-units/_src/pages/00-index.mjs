@@ -10,7 +10,7 @@ const BLURB = {
   '07-scanning-pull': 'Tagged items are scanned (the K12.2s); untagged ones are counted, with a counter that starts full.',
   '08-locations-override': 'Counts per place (#160) and overrides that move part of a lot.',
   '09-maintenance': 'Units in maintenance by tag and serial: edit notes, location and expected-back date, or return to service. Sent there while scanning.',
-  '10-dashboard-overlap': 'Dashboard total = units × replacement value (#157); conflicts counted per item.',
+  '10-dashboard-overlap': 'Dashboard total = the sum of unit and lot replacement values (#157); conflicts counted per item.',
   '11-csv-import': 'Template grouped by item / unit or lot / purchase; “;”-separated serials; serial-with-quantity guard.',
 };
 
@@ -23,7 +23,7 @@ export default () => ({
 <p class="mt-2 max-w-3xl text-[15px] text-gray-700">Splitting <b>what it is</b> (a new <i>item</i>, such as “QSC K12.2”) from <b>what we own</b> (an existing <i>asset</i> row, now a <i>unit</i> or a <i>lot</i>), so serial numbers, tags, quantities and kits work properly. Each screen below uses Cameron’s examples: the K12.2 PA kit, the XLR Cable Box, the Small XLR Cable Box packed at checkout, the PA Rack, and the six Chauvet Intimidator Trios bought on one line.</p></header>
 
 <section class="mb-8 grid gap-3 rounded-xl border bg-white p-4 md:grid-cols-4 text-sm">
-<div><div class="mb-1">${kindPill('item')}</div><b>Item</b>: what it is. Model, category, type, replacement value. Quantity is counted from its units and lots.</div>
+<div><div class="mb-1">${kindPill('item')}</div><b>Item</b>: what it is. Model, category, type. Quantity is counted from its units and lots.</div>
 <div><div class="mb-1">${kindPill('unit')}</div><b>Unit</b>: one physical thing with a serial number or tag. Quantity is always 1.</div>
 <div><div class="mb-1">${kindPill('lot')}</div><b>Lot</b>: several identical untagged things, counted together, such as 10 untagged cables.</div>
 <div><div class="mb-1">${badge(`${icon('box', 'h-3 w-3')}Any`, 'bg-white text-gray-700 border-gray-300')}</div><b>“N × any”</b>: a kit entry for how many of an item; scans decide which.</div>

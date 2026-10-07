@@ -10,7 +10,7 @@ const itemBox = (name, sub) => `<div class="flex items-center gap-3 rounded-lg b
 const purchaseBox = (line, tax) => `<div class="rounded-lg border px-3 py-2.5"><div class="flex items-center gap-2 text-sm">${icon('receipt', 'h-4 w-4 text-gray-500')}<span class="font-medium">${line}</span><span class="ml-auto text-xs font-medium text-sky-700">View purchase</span></div><div class="mt-1 text-xs text-muted-foreground">${tax}</div></div>`;
 
 const unitForm = frame(pageHeader({ title: 'DSL-0105', back: 'Back to QSC K12.2', badge: status('Active'), meta: 'QSC K12.2 · unit' }) + `<div class="bg-gray-50 p-4"><div class="rounded-xl border bg-white p-4 space-y-4">
-${section('What it is', itemBox('QSC K12.2', 'Audio · Speaker, Powered, Full-Range · replacement $1,049 each'), true, newMark(1))}
+${section('What it is', itemBox('QSC K12.2', 'Audio · Speaker, Powered, Full-Range'), true, newMark(1))}
 ${section('Unit or lot', seg(KIND, 'Unit') + `<div class="mt-3 grid grid-cols-3 gap-3">
   ${field('Serial Number', input('GAB118051', { mono: true }))}
   ${field('Inventory Tag ID', input('DSL-0105', { mono: true }))}
@@ -19,13 +19,13 @@ ${section('Unit or lot', seg(KIND, 'Unit') + `<div class="mt-3 grid grid-cols-3 
 ${section('Purchase', `<div class="space-y-3">${purchaseBox('Sweetwater · 2025-05-02 · QSC K12.2 × 2 @ $949.00', 'Line 1 of 3 · this is unit 1 of the 2 it created')}
 <div class="grid grid-cols-3 gap-3">${field('Acquisition Date', input('2025-05-02'))}${field('Vendor', input('Sweetwater'))}${field('Item Cost', money('949.00'), 'Burdened, per item')}</div>
 <div class="grid grid-cols-3 gap-3 items-end">${field('Tax treatment', select('Depreciate'), 'From the purchase line')}${field('Recovery period', select('5-year property'), 'Shown when depreciated')}<div></div></div></div>`, false, newMark(3))}
-${section('Insurance', checkbox(true, 'This unit has been added to an insurance policy.'))}
+${section('Insurance', `<div class="grid grid-cols-3 gap-3 items-end">${field('Replacement Value', money('1,049.00'), 'Per item')}<div class="col-span-2 pb-2">${checkbox(true, 'This unit has been added to an insurance policy.')}</div></div>`)}
 ${section('Lifecycle', `<div class="grid grid-cols-3 gap-3">${field('Status', `<div class="flex h-9 items-center justify-between rounded-md bg-input-background px-3">${status('Active')}${icon('chevron-down', 'h-4 w-4 opacity-50')}</div>`)}${field('Retired On', input('', { placeholder: 'mm/dd/yyyy' }))}${field('Disposal or Salvage', money(''))}</div>`)}
 <div class="flex justify-end gap-3 border-t border-gray-200 pt-4">${btnOutline('Cancel')}${btnPrimary('Update Unit')}</div>
 </div></div>`, 'Unit form (opened from the K12.2’s units table). Depreciated, so the recovery period shows.');
 
 const lotForm = frame(pageHeader({ title: 'Add unit or lot', back: 'Back to XLR Cable, 25 ft', meta: 'XLR Cable, 25 ft' }) + `<div class="bg-gray-50 p-4"><div class="rounded-xl border bg-white p-4 space-y-4">
-${section('What it is', itemBox('XLR Cable, 25 ft', 'Audio · Cable, XLR · replacement $16 each'), true)}
+${section('What it is', itemBox('XLR Cable, 25 ft', 'Audio · Cable, XLR'), true)}
 ${section('Unit or lot', seg(KIND, 'Lot') + `<div class="mt-3 grid grid-cols-3 gap-3">
   ${field('Quantity', input('10'))}
   ${field('Serial Number', input('', { disabled: true, placeholder: 'Not for a lot' }))}
@@ -33,6 +33,7 @@ ${section('Unit or lot', seg(KIND, 'Lot') + `<div class="mt-3 grid grid-cols-3 g
 </div>`, false, newMark(4))}
 ${section('Purchase', `<div class="space-y-3">${purchaseBox('Cablesmith Direct · 2026-07-24 · XLR Cable, 25 ft × 10 @ $14.98', 'Line 2 of 4 · one lot per purchase line')}
 <div class="grid grid-cols-3 gap-3">${field('Acquisition Date', input('2026-07-24'))}${field('Vendor', input('Cablesmith Direct'))}${field('Item Cost', money('14.98'))}</div>
+<div class="grid grid-cols-3 gap-3">${field('Replacement Value', money('16.00'), 'Per item')}</div>
 <div class="grid grid-cols-3 gap-3">${field('Tax treatment', select('Expense'), 'From the purchase line')}<div class="col-span-2 self-center text-xs text-muted-foreground">No recovery period: the line is expensed.</div></div></div>`)}
 ${section('Lifecycle', `<div class="grid grid-cols-3 gap-3">${field('Status', `<div class="flex h-9 items-center justify-between rounded-md bg-input-background px-3">${status('Active')}${icon('chevron-down', 'h-4 w-4 opacity-50')}</div>`)}</div>`)}
 <div class="flex justify-end gap-3 border-t border-gray-200 pt-4">${btnOutline('Cancel')}${btnPrimary('Add Lot')}</div>
@@ -53,7 +54,7 @@ export default () => ({
     id: '03-unit-lot-form',
     body: topbarless(),
     notes: [
-      '<b>The item is picked, not typed.</b> The form for a unit or lot no longer has model, category, type or replacement value; those are on the item (screen 2). <b>Change item</b> moves a unit to another item (to fix a mis-grouping after the migration).',
+      '<b>The item is picked, not typed.</b> The form for a unit or lot no longer has model, category or type; those are on the item (screen 2). <b>Change item</b> moves a unit to another item (to fix a mis-grouping after the migration).',
       '<b>Unit or lot</b> is the first choice. A unit has a serial number or a tag (or both) and its quantity is fixed at 1; the database enforces it. A lot has neither and has a quantity.',
       '<b>Purchase</b>: the unit points at its purchase line (the link is reversed, so one line of 2 created both K12.2s). <b>Recovery period</b> stays on the unit and only shows when the line is depreciated; its default comes from the line (#125).',
       '<b>A lot</b> has a quantity and no serial or tag. Where it is comes from scans (the lot of 10 is in the XLR Cable Box today), not from the form.',

@@ -6,7 +6,7 @@ const tile = (title, ic, icCls, rows, extra = '') => `<section class="rounded-xl
 const dash = frame(topbar('Dashboard') + pageHeader({ title: 'Dashboard', slotIcon: 'dashboard', meta: 'Welcome back, Cameron!' }) + content(`
 <div class="grid grid-cols-4 gap-4">
 ${tile('Gigs', 'calendar', 'text-sky-500', [['Upcoming', '9'], ['This month', '5'], ['Date holds', '1']], 'opacity-50')}
-<div class="relative">${tile('Equipment', 'package', 'text-purple-500', [['Total Value', '$71,486', 'replacement value × units'], ['Insured', '$64,210', '301 of 339 pieces'], ['Rental Value', '$5,310'], ['Owned', '38 items · 339 pieces']], 'ring-2 ring-fuchsia-400')}<span class="absolute -right-2 -top-2">${newMark(1)}</span></div>
+<div class="relative">${tile('Equipment', 'package', 'text-purple-500', [['Total Value', '$71,286', 'sum of unit and lot replacement values'], ['Insured', '$64,210', '301 of 339 pieces'], ['Rental Value', '$5,310'], ['Owned', '38 items · 339 pieces']], 'ring-2 ring-fuchsia-400')}<span class="absolute -right-2 -top-2">${newMark(1)}</span></div>
 ${tile('Financials', 'banknote', 'text-green-500', [['Revenue (YTD)', '$48,900'], ['Expenses (YTD)', '$21,450'], ['Net', '$27,450']], 'opacity-50')}
 ${tile('Team', 'users', 'text-orange-500', [['Members', '7'], ['Unfilled slots', '3']], 'opacity-50')}
 </div>
@@ -49,7 +49,7 @@ export default () => ({
     id: '10-dashboard-overlap',
     body: dash + gig + frame(`<div class="bg-white p-4">${alertForm}</div>`, 'The compact alert (gig list, calendar, kit editor), same wording.'),
     notes: [
-      '<b>Dashboard total</b> becomes units × the item’s replacement value, the same $71,486 as the Items footer (#157); Insured counts the same way. A new “Owned” row gives items and pieces. Today’s tile sums item_cost without quantity: $13.2K.',
+      '<b>Dashboard total</b> adds up each unit’s and lot’s replacement value, the same $71,286 as the Items footer (#157); Insured counts the same way. A new “Owned” row gives items and pieces. Today’s tile sums item_cost without quantity: $13.2K.',
       '<b>The conflict</b> is now about an item, not a shared record: “Chauvet Intimidator Trio: 8 needed on Oct 10, 6 owned. 2 short.” It says which kits ask for them on each gig.',
       '<b>Equipment needed</b> (new, under the warning) shows the sums behind it for every item the overlapping gigs share: needed, owned, in maintenance, free. “Any” entries add up per item; it also flags when nothing is spare, like the 50 ft cables.',
     ],

@@ -43,7 +43,7 @@ const itemPicker = (existing, name, sub) => `<div class="space-y-1.5">${dlgLabel
 <div class="rounded-md border-2 ${existing ? 'border-sky-500 bg-sky-50' : 'border-slate-200'} p-2">${radio(existing, 'An item we already have')}</div>
 <div class="rounded-md border-2 ${!existing ? 'border-sky-500 bg-sky-50' : 'border-slate-200'} p-2">${radio(!existing, 'A new item')}</div></div>
 ${existing ? `<div class="flex h-9 items-center gap-2 rounded-md border border-slate-300 bg-white px-2.5 text-sm">${icon('search', 'h-3.5 w-3.5 text-slate-400')}<span class="font-medium">${name}</span><span class="text-xs text-slate-500">${sub}</span><span class="ml-auto">${icon('chevron-down', 'h-4 w-4 text-slate-400')}</span></div>`
-    : `<div class="grid grid-cols-2 gap-2"><div>${dlgLabel('Manufacturer &amp; model')}${sIn(name)}</div><div>${dlgLabel('Replacement value', 'each')}${sIn('$699.00')}</div><div>${dlgLabel('Category')}${sIn('Lighting')}</div><div>${dlgLabel('Type')}${sIn('Light Fixture, Moving Head, Beam')}</div></div>
+    : `<div class="grid grid-cols-2 gap-2"><div>${dlgLabel('Manufacturer &amp; model')}${sIn(name)}</div><div></div><div>${dlgLabel('Category')}${sIn('Lighting')}</div><div>${dlgLabel('Type')}${sIn('Light Fixture, Moving Head, Beam')}</div></div>
 <div class="text-[11px] text-slate-500">Closest existing items: <span class="text-sky-700">Chauvet Intimidator Spot 360</span> · <span class="text-sky-700">Fennimore Spot 150 Moving Head</span></div>`}
 </div>`;
 
@@ -60,7 +60,7 @@ const trioDialog = eqDialog({
   desc: 'Chauvet DJ Intimidator Trio · qty 6 · Depreciate',
   mark: newMark(1),
   body: itemPicker(false, 'Chauvet Intimidator Trio') + trackAs(true) + unitsGrid +
-    `<div>${dlgLabel('Kits')}<div class="mt-1 flex flex-wrap gap-1.5 rounded-md border border-slate-300 p-1.5"><span class="inline-flex items-center gap-1 rounded-full bg-sky-100 px-2 py-0.5 text-xs font-semibold text-sky-900">${icon('package', 'h-3 w-3')}Club Lighting Package · 4 × any${icon('x', 'h-3 w-3')}</span><span class="text-xs text-slate-400 self-center">Search kits…</span></div></div>`,
+    `<div class="grid grid-cols-2 gap-2"><div>${dlgLabel('Replacement value', 'each, copied to all 6 units')}${sIn('$699.00')}</div></div><div>${dlgLabel('Kits')}<div class="mt-1 flex flex-wrap gap-1.5 rounded-md border border-slate-300 p-1.5"><span class="inline-flex items-center gap-1 rounded-full bg-sky-100 px-2 py-0.5 text-xs font-semibold text-sky-900">${icon('package', 'h-3 w-3')}Club Lighting Package · 4 × any${icon('x', 'h-3 w-3')}</span><span class="text-xs text-slate-400 self-center">Search kits…</span></div></div>`,
 });
 
 const xlrDialog = eqDialog({
@@ -85,10 +85,10 @@ export default () => ({
     body: `<div class="grid grid-cols-[1fr_560px] gap-6 items-start"><div>${frame(review, 'Financials › Purchases › Scan invoices: the review panel (unchanged, except the Equipment pill now says what it will create).')}<div class="mt-6">${frame(`<div class="bg-white p-4">${partial}</div>`, 'Before saving the Trio line.')}</div></div><div>${frame(`<div class="bg-slate-900/40 p-5">${trioDialog}</div>`, 'Equipment details for the Trio line: a new item, 6 units.')}</div></div>
 <div class="grid grid-cols-[560px_1fr] gap-6 items-start"><div>${frame(`<div class="bg-slate-900/40 p-5">${xlrDialog}</div>`, 'Equipment details for a cable line: an existing item, as lots.')}</div><div class="pt-6 text-sm text-gray-700 space-y-3"><p class="font-semibold text-gray-900 flex items-center gap-2">Manual purchases ${newMark(4)}</p><p>Financials › Purchases › Add purchase uses the same Equipment pill and the same Equipment details pop-up, so a manually entered line of 6 also creates 6 units.</p><p>Editing a saved purchase line shows its units (“6 units: DSL-0141 to DSL-0146”) with a link to the item. Changing the quantity of a saved line asks which units to add or remove; it never deletes a unit silently.</p></div></div>`,
     notes: [
-      '<b>One line of 6 creates 6 units</b>. Cameron no longer splits the Trio purchase into six lines. The pop-up first asks <b>which item</b>: one we already have (search) or a new one (model, category, type, replacement value; it suggests close matches to avoid duplicates).',
+      '<b>One line of 6 creates 6 units</b>. Cameron no longer splits the Trio purchase into six lines. The pop-up first asks <b>which item</b>: one we already have (search) or a new one (model, category, type; it suggests close matches to avoid duplicates).',
       '<b>Units or a lot</b>: for units, a serial and a tag per row, with helpers to number tags in sequence, paste a column of serials from the invoice, or scan them. Each unit needs a serial or a tag (either will do) and gets the line’s unit cost and recovery period. <b>Track as</b> decides units or a lot; a unit is never folded into a lot, and a lot has no serials or tags.',
       '<b>Lots</b>: the 30 untagged cables from one line become one lot of 30. Which kits use them is set on the kits (“10 × any”), not here.',
-      '<b>Same pop-up for manual purchases</b>. Serial # and Tag # move out of the pop-up’s single row (which assumed one record per line); replacement value moves to the item. The Kits field adds the item to a kit as “N × any”.',
+      '<b>Same pop-up for manual purchases</b>. Serial # and Tag # move out of the pop-up’s single row (which assumed one record per line); replacement value is entered once for the line and copied to each unit or lot, where it can be changed later. The Kits field adds the item to a kit as “N × any”.',
     ],
   }),
 });

@@ -5,12 +5,12 @@ export const K12 = {
   model: 'QSC K12.2', category: 'Audio', type: 'Speaker, Powered, Full-Range', replacement: 1049,
   insurance: 'Audio', vendor: 'Sweetwater',
   units: [
-    { tag: 'DSL-0101', serial: 'GAA213409', status: 'Active', where: ['In Warehouse', 'Warehouse, Bay 2'], acquired: '2024-03-12', cost: 899 },
-    { tag: 'DSL-0102', serial: 'GAA213415', status: 'Active', where: ['In Warehouse', 'Warehouse, Bay 2'], acquired: '2024-03-12', cost: 899 },
-    { tag: 'DSL-0103', serial: 'GAA213422', status: 'Active', where: ['In Warehouse', 'Warehouse, Bay 2'], acquired: '2024-03-12', cost: 899 },
-    { tag: 'DSL-0104', serial: 'GAA213430', status: 'Maintenance', where: ['In Warehouse', 'Repair Bench'], acquired: '2024-03-12', cost: 899 },
-    { tag: 'DSL-0105', serial: 'GAB118051', status: 'Active', where: ['In Warehouse', 'Warehouse, Bay 2'], acquired: '2025-05-02', cost: 949 },
-    { tag: 'DSL-0106', serial: 'GAB118064', status: 'Active', where: ['In Warehouse', 'Warehouse, Bay 2'], acquired: '2025-05-02', cost: 949 },
+    { tag: 'DSL-0101', serial: 'GAA213409', status: 'Active', where: ['In Warehouse', 'Warehouse, Bay 2'], acquired: '2024-03-12', cost: 899, repl: 999 },
+    { tag: 'DSL-0102', serial: 'GAA213415', status: 'Active', where: ['In Warehouse', 'Warehouse, Bay 2'], acquired: '2024-03-12', cost: 899, repl: 999 },
+    { tag: 'DSL-0103', serial: 'GAA213422', status: 'Active', where: ['In Warehouse', 'Warehouse, Bay 2'], acquired: '2024-03-12', cost: 899, repl: 999 },
+    { tag: 'DSL-0104', serial: 'GAA213430', status: 'Maintenance', where: ['In Warehouse', 'Repair Bench'], acquired: '2024-03-12', cost: 899, repl: 999 },
+    { tag: 'DSL-0105', serial: 'GAB118051', status: 'Active', where: ['In Warehouse', 'Warehouse, Bay 2'], acquired: '2025-05-02', cost: 949, repl: 1049 },
+    { tag: 'DSL-0106', serial: 'GAB118064', status: 'Active', where: ['In Warehouse', 'Warehouse, Bay 2'], acquired: '2025-05-02', cost: 949, repl: 1049 },
   ],
 };
 

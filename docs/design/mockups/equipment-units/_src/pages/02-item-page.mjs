@@ -19,16 +19,16 @@ const unitRows = K12.units.map((u) => `
   <td class="${TD}">${status(u.status)}</td>
   <td class="${TD}"><div class="flex items-center gap-2">${tracking(u.where[0])}<span class="text-xs whitespace-nowrap">${u.where[1]}</span></div></td>
   <td class="${TD} text-xs text-gray-700 !whitespace-normal">${u.tag === 'DSL-0101' || u.tag === 'DSL-0103' ? 'Harvest Gala (Oct 10) · Main PA' : '<span class="text-muted-foreground">—</span>'}</td>
-  <td class="${TD} text-xs text-muted-foreground whitespace-nowrap">${u.acquired}</td>
+  
   <td class="${TD} text-xs"><span class="text-sky-700 hover:underline">${u.acquired === '2024-03-12' ? 'Sweetwater · 2024-03-12' : 'Sweetwater · 2025-05-02'}</span></td>
-  <td class="${TD} text-right text-xs tabular-nums">${money(u.cost)}</td>
+  <td class="${TD} text-right text-xs tabular-nums">${money(u.cost)}</td><td class="${TD} text-right text-xs tabular-nums">${money(u.repl)}</td>
   <td class="${TD} text-xs text-gray-700 whitespace-nowrap">5-year</td>
   <td class="px-2 w-10">${rowMenu()}</td>
 </tr>`).join('');
 
 const unitsTable = `
 <div class="rounded-md border bg-white overflow-hidden"><table class="w-full text-sm">
-${thead([{ h: '' }, { h: 'Tag #' }, { h: 'Serial #' }, { h: 'Status' }, { h: 'Location' }, { h: 'Booked on' }, { h: 'Acquired' }, { h: 'Purchase' }, { h: 'Cost', cls: 'text-right' }, { h: 'Recovery' }, { h: '' }])}
+${thead([{ h: '' }, { h: 'Tag #' }, { h: 'Serial #' }, { h: 'Status' }, { h: 'Location' }, { h: 'Booked on' }, { h: 'Purchase' }, { h: 'Cost', cls: 'text-right' }, { h: 'Replacement', cls: 'text-right' }, { h: 'Recovery' }, { h: '' }])}
 <tbody>${unitRows}</tbody></table></div>`;
 
 const left = card('Item', `
@@ -36,7 +36,6 @@ const left = card('Item', `
   ${fieldV('Manufacturer &amp; Model', K12.model)}
   ${fieldV('Category', 'Audio')}
   ${fieldV('Type', K12.type)}
-  ${fieldV('Replacement value (each)', money(K12.replacement))}
   ${fieldV('Insurance class', 'Audio, Class B')}
   ${fieldV('Insured', '6 of 6 units')}
 </div>
@@ -46,7 +45,7 @@ const stat = (n, l, sub = '') => `<div><div class="text-2xl text-gray-900 tabula
 const right = card('Inventory', `
 <div class="grid grid-cols-3 gap-3">${stat(6, 'Owned', '6 units')}${stat(5, 'Available')}${stat(1, 'In maintenance')}</div>
 <div class="mt-2 border-t pt-2.5 space-y-1.5 text-sm">
-  <div class="flex justify-between"><span class="text-gray-600">Total value</span><span class="font-medium tabular-nums">${money(K12.replacement * 6)}</span></div>
+  <div class="flex justify-between"><span class="text-gray-600">Total value</span><span class="font-medium tabular-nums">${money(6094)}</span></div>
   <div class="flex justify-between"><span class="text-gray-600">Where they are</span><span class="text-right text-xs leading-5">5 in Warehouse, Bay 2<br>1 on the Repair Bench</span></div>
   <div class="flex justify-between"><span class="text-gray-600">Next booked</span><span class="text-right text-xs leading-5">2 on Harvest Gala, Oct 10<br>2 on Cedar Hall Showcase, Oct 17</span></div>
 </div>`, { actions: newMark(2) });
@@ -80,10 +79,10 @@ export default () => ({
   ${right}
   <div class="lg:col-span-3">${card('Units and lots', unitsTable, { summary: '6 units', actions: newMark(3) + btnGhostSm('Columns', 'columns') + btnGhostSm('Add unit or lot', 'plus') })}</div>
   <div class="lg:col-span-2">${kits}</div>
-  ${card('Change History', `<ul class="space-y-2 text-xs text-gray-700"><li><b>DSL-0104</b> status Active → Maintenance · Cameron · Oct 2</li><li><b>DSL-0105, DSL-0106</b> added from purchase Sweetwater 2025-05-02 · Cameron</li><li>Replacement value $999 → $1,049 · Cameron · Jan 8</li></ul>`)}
+  ${card('Change History', `<ul class="space-y-2 text-xs text-gray-700"><li><b>DSL-0104</b> status Active → Maintenance · Cameron · Oct 2</li><li><b>DSL-0105, DSL-0106</b> added from purchase Sweetwater 2025-05-02 · Cameron</li><li><b>DSL-0105</b> replacement value $999 → $1,049 · Cameron · Jan 8</li></ul>`)}
 </div>`), 'Equipment › Items › QSC K12.2 (the new item page). Opened from a row on the Items tab.') + xlr,
     notes: [
-      '<b>The item card holds what is shared</b> by every K12.2: category, model, type, description, replacement value and insurance class. Edit changes them for all six. Fields that differ per speaker (serial, tag, cost, purchase, status) are on the units.',
+      '<b>The item card holds what is shared</b> by every K12.2: category, model, type, description and insurance class. Edit changes them for all six. Fields that differ per speaker (serial, tag, cost, replacement value, purchase, status) are on the units.',
       '<b>Inventory is counted, not typed</b>: owned, available and in maintenance come from the units, with where they are and what they are booked on next.',
       '<b>Units and lots</b> is the main table: tag, serial, status, location, booking, purchase line, cost and recovery period, per unit. Clicking a row opens the unit form (screen 3). <b>Add unit or lot</b> is in the title row and on the card.',
       '<b>Used in kits</b> shows both kinds of kit entry: “2 × any QSC K12.2” (the PA kit; scans decide which two) and specific units (a side-fill pair that is always DSL-0105 and DSL-0106).',
