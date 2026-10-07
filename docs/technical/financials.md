@@ -315,19 +315,25 @@ Not yet joined up: gig money out still uses the `fin_category` Schedule C enum, 
 
 ---
 
-## 7. Known problems (2026-10-06)
+## 7. Known problems (2026-10-07)
 
 | # | Problem | Issue |
 |---|---|---|
-| 1 | Reclassify as Asset (now removed from the UI; the RPC remains until step 3) deleted ledger rows by the header id. | #129, replaced by #133 |
-| 3 | Editing a purchase's date doesn't reach its lines. Lines added while editing get no date. | #131 |
-| 4 | Ledger edits from the purchase dialog use the printed price and don't update the paid amount. | #131 |
-| 5 | The review dialog drops the asset Type and the AI's manufacturer/model. | #131 |
-| 6 | Duplicating an asset copies its purchase link, serial number and tag. | #131 |
-| 7 | **Add purchase** and editing a purchase can't attach a file. Use **Attach Doc** on the report. | |
-| 8 | Mileage rates for 2025–26; older lines' categories not yet mapped to the expense list (F3); gig money out still uses `fin_category`. | #125 |
+| 1 | Duplicating an asset copies its serial number and tag (its purchase link is cleared since #131). | |
+| 2 | **Add purchase** and editing a purchase can't attach a file. Use **Attach Doc** on the report. | |
+| 3 | Mileage rates for 2025–26; older lines' categories not yet mapped to the expense list (F3); gig money out still uses `fin_category`. | #125 |
 
-Fixed: #128 (editing a cost-only purchase zeroed its costs, 2026-10-05). The 2025 data was reconciled with the filed return on 2026-10-05 (see `WORK_PLAN.md`).
+Fixed:
+- #128: editing a cost-only purchase zeroed its costs (2026-10-05).
+- #129: Reclassify as Asset deleted ledger rows by the header id. The function is gone (#133, migration `20261011000000`).
+- #131 (2026-10-07):
+  - changing a purchase's date moves its lines too;
+  - a linked gig expense follows the line cost (amount, and the settled amount when it was settled);
+  - new equipment keeps the scanned manufacturer/model (Type since #143);
+  - a duplicated asset has no purchase link;
+  - `scripts/invoice_import.py` is retired.
+
+The 2025 data was reconciled with the filed return on 2026-10-05 (see `WORK_PLAN.md`).
 
 ---
 

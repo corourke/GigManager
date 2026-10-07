@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { render, screen, waitFor, within, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import ReviewScannedDataDialog from './ReviewScannedDataDialog';
 import { createPurchaseTransaction } from '../services/purchase.service';
@@ -505,5 +505,56 @@ describe('ReviewScannedDataDialog: equipment details pop-up (10-06)', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Save Changes' }));
     expect(await screen.findByText('Confirm linked record updates')).toBeInTheDocument();
     expect(screen.getByText('Clamp, Truss')).toBeInTheDocument();
+  });
+});
+
+// #131 (Cameron's answers, 10-07)
+describe('ReviewScannedDataDialog: purchase data fixes (#131)', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  const editing = async (over: Record<string, any> = {}) => {
+    const svc = await import('../services/purchase.service');
+    vi.mocked(svc.getPurchaseWithDetails).mockResolvedValue({
+      id: 'h1', vendor: 'V', purchase_date: '2026-03-01', total_inv_amount: 21.6, description: '',
+      items: [{ id: 'l1', row_type: 'line', tax_treatment: 'expense', description: 'Tape', quantity: 1, item_price: 20, item_cost: 21.6,
+                line_cost: 21.6, asset_id: null, category: 'Supplies', purchase_date: '2026-03-01', gig_id: over.gig_id ?? null }],
+      assets: [], attachments: [],
+    } as any);
+    render(<ReviewScannedDataDialog open onOpenChange={vi.fn()} onSuccess={vi.fn()} onUpdated={vi.fn()} organizationId="org-1" scannedData={null} file={null} editPurchaseId="h1" />);
+    await screen.findByRole('option', { name: 'Supplies' });
+    return svc;
+  };
+
+  it('changing the purchase date moves its lines to the new date', async () => {
+    const svc = await editing();
+    fireEvent.change(screen.getByDisplayValue('2026-03-01'), { target: { value: '2026-03-05' } });
+    await userEvent.click(screen.getByRole('button', { name: 'Save Changes' }));
+    await waitFor(() => expect(svc.updatePurchase).toHaveBeenCalledWith('l1', expect.anything()));
+    expect(svc.updatePurchase).toHaveBeenCalledWith('l1', expect.objectContaining({ purchase_date: '2026-03-05' }));
+  });
+
+  it('a line\'s gig expense follows the line cost, amount and settled amount', async () => {
+    const gigs = await import('../services/gig.service');
+    vi.mocked(gigs.getGigFinancials).mockResolvedValueOnce([
+      { id: 'f1', purchase_id: 'l1', amount: 20, amount_settled: 20, stage: 'paid' },
+    ] as any);
+    await editing({ gig_id: 'g1' });
+    await userEvent.click(screen.getByRole('button', { name: 'Save Changes' }));
+    await userEvent.click(await screen.findByRole('button', { name: /Confirm & Save/ }));
+    await waitFor(() => expect(gigs.updateGigFinancial).toHaveBeenCalled());
+    expect(gigs.updateGigFinancial).toHaveBeenCalledWith('f1', { amount: 21.6, amount_settled: 21.6 });
+  });
+
+  it('new equipment keeps the scanned manufacturer and model, or falls back to the description', async () => {
+    render(<ReviewScannedDataDialog open onOpenChange={vi.fn()} onSuccess={vi.fn()} organizationId="org-1" file={null}
+      scannedData={{ vendor: 'Sweetwater', purchase_date: '2026-06-14', total_inv_amount: 200, items: [
+        { description: 'Shure SM58 vocal mic with clip and bag', manufacturer_model: 'Shure SM58', quantity: 1, item_price: 100, item_cost: 100, is_asset: true, category: 'Audio' },
+        { description: 'XLR cable 25ft', quantity: 1, item_price: 100, item_cost: 100, is_asset: true, category: 'Audio' },
+      ] } as any} />);
+    await userEvent.click(await screen.findByRole('button', { name: 'Save Purchase' }));
+    await waitFor(() => expect(createPurchaseTransaction).toHaveBeenCalled());
+    const [, , assets] = vi.mocked(createPurchaseTransaction).mock.calls[0];
+    expect(assets!.map((a: any) => a.manufacturer_model)).toEqual(['Shure SM58', 'XLR cable 25ft']);
+    expect(assets![0].description).toBe('Shure SM58 vocal mic with clip and bag');
   });
 });

@@ -359,6 +359,8 @@ export async function duplicateAsset(assetId: string) {
       updated_at,
       created_by,
       updated_by,
+      // The copy wasn't on the original's invoice (#131).
+      purchase_id: _purchaseId,
       ...assetData
     } = original;
 
