@@ -22,7 +22,6 @@ supersedes that issue as the board of record.
 |---|---|---|---|---|
 | [#92](https://github.com/corourke/GigManager/issues/92) | Replace-all autosave can delete rows another user or tab added | Bug | From the 09-29 code review, confirmed by reading the code | Coordinator — not started |
 | [#135](https://github.com/corourke/GigManager/issues/135) | Audit and fix 2026 purchase data (tax treatment, equipment, gig expenses) after the code fixes | Data | Filed 10-05 | Blocked on #133, #130, #131, #125 steps 2–3 |
-| [#131](https://github.com/corourke/GigManager/issues/131) | Purchases: smaller data issues (line dates, ledger edits, dropped fields, stale import script) | Bug (checklist) | Answers from Cameron 10-07 recorded on the issue; released in §3c | PR [#156](https://github.com/corourke/GigManager/pull/156) merged 10-07 (no migration); close #131 once deployed |
 | [#125](https://github.com/corourke/GigManager/issues/125) | Financials → Reporting: tax-program data export (expenses by category, assets by recovery period, disposals) | Feature / data | Plan agreed 10-05; step 0 done (PR #127); blocked on #128–#131 | Cameron: category table, 6 questions, F1–F7 approvals |
 | [#20](https://github.com/corourke/GigManager/issues/20) | Shared data-access layer under `src/services/` | Refactor | Pilot merged (PR #66); `attachment.service.ts` merged 09-30 (PR [#106](https://github.com/corourke/GigManager/pull/106)); 14 services remain | Released in §3c 10-07 (Cameron: do it now): 7 batches, one PR each |
 
@@ -114,14 +113,6 @@ meantime. The coordinator resolves each entry (decides it, or moves it into §3a
 under AGENTS.md rule 1: the routine posts its plan on the issue and proceeds. Anything not listed here still
 needs approval before code changes.
 
-**[#131](https://github.com/corourke/GigManager/issues/131) — purchases: smaller data issues (released 10-07 by the coordinator, Cameron's answers on the issue). CLAIMED by the coordinator 10-07 — triage skips it.** One PR, with a failing test first for each item:
-1. Changing a purchase's date updates every line's `purchase_date` (in `ReviewScannedDataDialog`'s update plan and wherever else a header date is saved). A change into or out of a locked tax year is refused by the existing lock trigger; show its message.
-2. Editing a line linked to a gig expense updates that `gig_financials` row's `amount` **and** `amount_settled`, both from `line_cost` (not `item_price × quantity`).
-3. The scanned manufacturer/model fills the equipment's `manufacturer_model`, falling back to the description when the scan has none. Check what `ai-scan` returns today (no edge-function change in this PR).
-4. `duplicateAsset` clears `purchase_id` on the copy.
-5. Delete `scripts/invoice_import.py` and its mention in `scripts/README.md`.
-Frontend and services only, no migration. Update `docs/technical/financials.md` where behaviour changes; list user-visible changes in the PR body for the Docs Lead.
-
 **[#20](https://github.com/corourke/GigManager/issues/20) — move the remaining services onto the shared data-access layer (released 10-07 by the coordinator, Cameron: "do it now").** The layer is `src/services/base/dataAccess.ts`; the pilots are `user.service.ts` and `attachment.service.ts`. Follow them and the issue's constraints:
 - small helpers, no domain logic;
 - RLS stays the security boundary;
@@ -184,7 +175,8 @@ applies migrations), edge-function API shape, anything touching production confi
 
 | Work | Shipped in | Notes |
 |---|---|---|
-| #133 ([Purchases: separate "track as equipment" from tax treatment](https://github.com/corourke/GigManager/issues/133)): tax treatment + filed-year locks, per-org categories, gig links on lines, equipment details, one line type, filed-year lock on gig income and expenses | PRs #137, #138, #140, #143–#146, #152 | Closed 10-07. #152 on dev 10-07 (verified); **prod: apply `20261012000000` before the frontend** |
+| #131 ([Purchases: smaller data issues](https://github.com/corourke/GigManager/issues/131)): line dates follow the purchase, gig rows use line cost (+ settled), scanned make/model kept, duplicates drop the purchase link, `invoice_import.py` retired | PR #156 (10-07) | Live in dev and prod 10-07 (verified); closed |
+| #133 ([Purchases: separate "track as equipment" from tax treatment](https://github.com/corourke/GigManager/issues/133)): tax treatment + filed-year locks, per-org categories, gig links on lines, equipment details, one line type, filed-year lock on gig income and expenses | PRs #137, #138, #140, #143–#146, #152 | Closed 10-07. #152 live in dev and prod 10-07 (prod verified: migration `20261012000000` applied, 464 lines all `line`, gig money lock trigger present) |
 | #134 ([Grey-zone check](https://github.com/corourke/GigManager/issues/134)): answered; the SHEHDS decision moved to #135, the Grey zone report to #125 | — | Closed 10-07 |
 | #39 ([Too many menu levels](https://github.com/corourke/GigManager/issues/39)): one-row top bar, shared page header with Back in a fixed slot, Equipment 4 → 2 levels (five tabs; packing list on the gig page), Financials 3 → 2 levels (Add purchase / Scan invoices as title-row buttons), design docs rebuilt | PRs #144, #147, #148, #149, #150 (10-07) | Merged and live in dev and prod 10-07 (bundle verified); closed 10-07 |
 | #129 ([Moving a purchase line between expense and asset](https://github.com/corourke/GigManager/issues/129)): superseded by #133 — tax treatment and "track as equipment" are separate two-way settings, reclassify RPC dropped, gig links on lines with a depreciate guard | PRs #140, #143 (10-06/07) | Closed 10-07 as completed |
