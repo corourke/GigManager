@@ -21,15 +21,33 @@ its profit, plus your purchases and what your equipment cost. See
 
 ## Who it's for
 
-| Role | What they mostly do in GigWrangler |
-| --- | --- |
-| **Admin** | Set up the organization, manage the team and roles, see everything. |
-| **Manager** | Book and run gigs, staff them, manage equipment and financials. |
-| **Staff** | See their assigned gigs, schedule, and call details; check gear in and out. |
-| **Viewer** | Read-only access to an organization's gigs, team and equipment. |
+GigWrangler is for the companies that put on live events, and the people who work
+in them.
 
-Roles are per-organization — the same person can be an Admin of one organization
-and a Viewer of another. See [Roles & access](/reference/roles-and-access/).
+**Companies**
+
+- **Sound, lighting and production companies** run their operation in it: booking
+  gigs, crewing them, tracking gear and keeping each job's money straight.
+- **Event producers and agencies** keep track of the gigs they book for clients,
+  and the venues, acts and vendors on each one.
+- **Venues, acts and rental companies** often appear on other companies' gigs as
+  participants, with a day-of contact. They can also run their own gigs in their
+  own organization.
+
+**People**
+
+- **Owners and production managers** book and schedule gigs, build the crew for
+  each one, assign the gear, and follow the money from quote to settlement. The
+  dashboard shows them what's coming up and what's changed.
+- **Engineers, techs and stagehands** see the gigs they're on, the day's schedule
+  (load-in, soundcheck, doors, set, load-out) and who to call at the venue. In the
+  field they check gear out and back in from a phone.
+- **Whoever keeps the books** records purchases and receipts, sees what each gig
+  earned and cost, and tracks equipment for taxes.
+
+What each person can see and change depends on the role their organization gives
+them: Admin, Manager, Staff or Viewer. One person can have different roles in
+different organizations. See [Roles & access](/reference/roles-and-access/).
 
 ## The next few pages
 
