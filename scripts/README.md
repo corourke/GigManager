@@ -385,3 +385,22 @@ The `ai-scan` Edge Function requires an Anthropic API key to process PDFs.
    supabase secrets set ANTHROPIC_API_KEY=your_key_here
    ```
    Alternatively, add it via the Supabase Dashboard under **Project Settings -> Edge Functions -> Secrets**.
+
+---
+
+## Demo data for user-guide screenshots (`seed-demo.sh`)
+
+`scripts/seed-demo.sh` posts `scripts/seed-demo.sql` to the **development** Supabase project (`qcrzwsazasaojqoqxwnr`) through the Management API `database/query` endpoint (curl + jq; credentials come from your environment or proxy, the script sends no token). **Dev only:** it refuses to run for any other project ref and must never be pointed at production.
+
+- **Idempotent.** The SQL first deletes every row belonging to the demo organizations and users (fixed UUIDs of the form `de000000-0000-4000-8000-<kind><n>`), then re-inserts. Dates are relative to today, so re-running keeps the calendar current. Rows without a demo UUID are never touched.
+- **Contents.** "Demo Sound & Lighting" plus five partner orgs (two venues, two acts, one agency/client); 3 logins and 7 no-login contacts; 12 gigs from about 2 months back to 3 months ahead across all statuses, with participants, schedules, staffing and kit assignments; 26 assets and 4 kits (one nested); 3 purchases and a gig ledger with paid, invoiced, overdue, contracted and quoted rows.
+- **Demo logins** (password `DemoPass!2026`):
+
+  | Email | Role in Demo Sound & Lighting |
+  |---|---|
+  | `demo-admin@gigwrangler.test` | Admin |
+  | `demo-manager@gigwrangler.test` | Manager |
+  | `demo-staff@gigwrangler.test` | Staff |
+
+- **Run:** `./scripts/seed-demo.sh` (prints per-table row counts on success).
+- The SQL targets the live dev schema. If dev gains new required columns or constraints (for example migration `20261012000000` renaming `purchases.row_type` `item`/`asset` to `line`), update `seed-demo.sql` to match.
