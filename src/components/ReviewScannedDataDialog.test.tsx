@@ -195,8 +195,10 @@ describe('ReviewScannedDataDialog: tax treatment and equipment (#133)', () => {
 
     const [, items, assets] = vi.mocked(createPurchaseTransaction).mock.calls[0];
     expect(items!.map((i: any) => i.tax_treatment)).toEqual(['expense', 'depreciate', 'expense']);
-    // tracked as equipment is separate: the expensed moving head is still equipment
-    expect(items!.map((i: any) => i.row_type)).toEqual(['item', 'asset', 'asset']);
+    // tracked as equipment is separate: the expensed moving head is still equipment.
+    // Lines are one type (10-07); `track` asks for the equipment record.
+    expect(items!.map((i: any) => i.track)).toEqual([false, true, true]);
+    expect(items!.map((i: any) => i.row_type)).toEqual(['line', 'line', 'line']);
     expect(assets).toHaveLength(2);
   });
 
@@ -372,6 +374,22 @@ describe('ReviewScannedDataDialog: categories (10-06)', () => {
     await screen.findByRole('option', { name: 'Supplies' });
     expect(select('Expense category: Pens').value).toBe('Office');
     expect(screen.getByRole('option', { name: 'Office (not on the list)' })).toBeInTheDocument();
+  });
+
+  it('a line added while editing is written as row_type line (10-07)', async () => {
+    const svc = await import('../services/purchase.service');
+    vi.mocked(svc.getPurchaseWithDetails).mockResolvedValue({
+      id: 'h1', vendor: 'V', purchase_date: '2026-03-01', total_inv_amount: 20, description: '',
+      items: [{ id: 'l1', row_type: 'line', tax_treatment: 'expense', description: 'Pens', quantity: 1, item_price: 20, item_cost: 20, asset_id: null, category: 'Supplies' }],
+      assets: [], attachments: [],
+    } as any);
+    vi.mocked(svc.createPurchase).mockResolvedValue({ id: 'l2' } as any);
+    render(<ReviewScannedDataDialog open onOpenChange={vi.fn()} onSuccess={vi.fn()} onUpdated={vi.fn()} organizationId="org-1" scannedData={null} file={null} editPurchaseId="h1" />);
+    await screen.findByRole('option', { name: 'Supplies' });
+    await userEvent.click(screen.getByRole('button', { name: /Add Item/ }));
+    await userEvent.click(screen.getByRole('button', { name: 'Save Changes' }));
+    await waitFor(() => expect(svc.createPurchase).toHaveBeenCalled());
+    expect(vi.mocked(svc.createPurchase).mock.calls[0][0]).toEqual(expect.objectContaining({ row_type: 'line' }));
   });
 
   it('an existing expensed line already tracked shows its equipment\'s category', async () => {

@@ -43,11 +43,20 @@ export function isTaxYearLocked(date: string | null | undefined, lockedYears: Se
 }
 
 /**
- * A purchase line's treatment as stored, or — for rows written before #133 —
- * taken from its row type. Null for headers.
+ * A purchase line's treatment as stored (every line has one since #133; a row
+ * without one counts as an expense). Null for headers.
  */
 export function lineTaxTreatment(p: { row_type?: string | null; tax_treatment?: string | null }): TaxTreatment | null {
   if (p.row_type === 'header') return null;
-  if (p.tax_treatment === 'expense' || p.tax_treatment === 'depreciate') return p.tax_treatment;
-  return p.row_type === 'asset' ? 'depreciate' : 'expense';
+  return p.tax_treatment === 'depreciate' ? 'depreciate' : 'expense';
+}
+
+/**
+ * The database's own message when a change is refused because its tax year is
+ * filed (purchases since #133, gig income and expenses since 10-07), so a
+ * screen can say why instead of a generic "failed to save". Undefined otherwise.
+ */
+export function lockedYearMessage(err: unknown): string | undefined {
+  const e = err as { code?: string; message?: string } | null;
+  return e?.code === '42501' && /tax year is locked/.test(e.message ?? '') ? e.message : undefined;
 }

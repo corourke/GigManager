@@ -62,7 +62,7 @@ SELECT rls_test.expect('A header is refused',
 SELECT rls_test.as_user('a_manager');
 SELECT public.track_purchase_line_as_equipment(rls_test.u('i25'));
 SELECT rls_test.expect('Works in a locked year, and the line stays an expense',
-  (SELECT count(*)::int FROM purchases WHERE id = rls_test.u('i25') AND asset_id IS NOT NULL AND tax_treatment = 'expense' AND row_type = 'item'), 1);
+  (SELECT count(*)::int FROM purchases WHERE id = rls_test.u('i25') AND asset_id IS NOT NULL AND tax_treatment = 'expense' AND row_type = 'line'), 1);
 SELECT rls_test.expect('The equipment record copies the line',
   (SELECT count(*)::int FROM assets a JOIN purchases p ON p.asset_id = a.id
    WHERE p.id = rls_test.u('i25') AND a.manufacturer_model = 'XLR cable 20ft' AND a.quantity = 10 AND a.item_cost = 31.43

@@ -25,6 +25,7 @@ import { uploadAttachment, linkAttachmentToEntity } from '../../services/attachm
 import { FinCategory, UserRole } from '../../utils/supabase/types';
 import { STAGE_LABELS, stagePickerLabel } from '../../utils/moneyFlow';
 import { calculateMileageAmount, formatMileageNotes, getMileageRateForYear } from '../../utils/financials.utils';
+import { lockedYearMessage } from '../../utils/taxTreatment';
 
 const commonSchema = {
   date: z.string().min(1, 'Date is required'),
@@ -189,7 +190,7 @@ export default function QuickActionButtons({
       handleClose();
     } catch (error) {
       console.error('Error saving agreement:', error);
-      toast.error('Failed to save agreement');
+      toast.error(lockedYearMessage(error) ?? 'Failed to save agreement');
     } finally {
       setIsSubmitting(false);
     }
@@ -218,7 +219,7 @@ export default function QuickActionButtons({
       handleClose();
     } catch (error) {
       console.error('Error saving payment:', error);
-      toast.error('Failed to save payment');
+      toast.error(lockedYearMessage(error) ?? 'Failed to save payment');
     } finally {
       setIsSubmitting(false);
     }
@@ -261,7 +262,7 @@ export default function QuickActionButtons({
       handleClose();
     } catch (error) {
       console.error('Error saving mileage:', error);
-      toast.error('Failed to save mileage');
+      toast.error(lockedYearMessage(error) ?? 'Failed to save mileage');
     } finally {
       setIsSubmitting(false);
     }
@@ -303,7 +304,7 @@ export default function QuickActionButtons({
       handleClose();
     } catch (error) {
       console.error('Error saving expense:', error);
-      toast.error('Failed to save expense');
+      toast.error(lockedYearMessage(error) ?? 'Failed to save expense');
     } finally {
       setIsSubmitting(false);
     }

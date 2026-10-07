@@ -40,6 +40,7 @@ import {
 import { queryKeys } from '../../lib/queryKeys';
 import { useNavigation } from '../../contexts/NavigationContext';
 import type { DbGigFinancial, UserRole } from '../../utils/supabase/types';
+import { lockedYearMessage } from '../../utils/taxTreatment';
 import {
   stagesFor,
   isDue,
@@ -187,7 +188,7 @@ export default function GigFinancialsSection({
       toast.success('Removed');
     } catch (e) {
       console.error('Error deleting financial:', e);
-      toast.error('Could not remove the record');
+      toast.error(lockedYearMessage(e) ?? 'Could not remove the record');
     }
   };
 

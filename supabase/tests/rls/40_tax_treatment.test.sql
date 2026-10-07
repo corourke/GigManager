@@ -62,8 +62,9 @@ SELECT rls_test.expect('Treatment must be expense or depreciate',
   rls_test.attempt(format('UPDATE purchases SET tax_treatment = %L WHERE id = %s', 'capitalize', rls_test.id('i26'))), -1);
 SELECT rls_test.expect('A line cannot have its treatment cleared',
   rls_test.attempt(format('UPDATE purchases SET tax_treatment = NULL WHERE id = %s', rls_test.id('i26'))), -1);
-UPDATE purchases SET row_type = 'asset', asset_id = rls_test.u('asset_a2') WHERE id = rls_test.u('r26');
-SELECT rls_test.expect('Old reclassify (row_type item -> asset) makes the line depreciate', (rls_test.tt('r26') = 'depreciate')::int, 1);
+-- 10-07: lines are one type ('line'); an old app's 'item' / 'asset' is stored as 'line' (test 46).
+SELECT rls_test.expect('Lines written as item / asset are stored as line',
+  (SELECT count(*)::int FROM purchases WHERE id IN (rls_test.u('i25'), rls_test.u('s25'), rls_test.u('r26')) AND row_type = 'line'), 3);
 
 -- Depreciate needs an equipment record; expense doesn't care
 SELECT rls_test.expect('A depreciated line must keep its equipment record',

@@ -51,6 +51,8 @@ Your gig costs and your tax figures never double-count. A purchase linked to a g
 Once you've filed a year's taxes, an Admin locks that year under **Financials → Reporting → Filed tax years**: enter the year and the date you filed, then click **Lock year**.
 
 - **Locked:** you can't change that year's purchases' costs, dates, categories or tax treatment, or add or delete purchases dated in it.
+- **Gig money is locked too:** a gig's income, and its expenses that didn't come from a purchase (quick expenses, mileage, staff pay), dated in that year. Their amounts, dates, categories and status can't change, and you can't add or remove them. Their notes and descriptions still can. A gig expense that came from a purchase stays editable on the gig, because the purchase is what counts for tax.
+- A change that a locked year refuses shows a message naming the year.
 - **Still allowed:** tracking an item as equipment (and choosing its equipment category), putting it in kits, and editing descriptions.
 
 Editing a purchase from a locked year shows a note saying so, and only its descriptions can change.
