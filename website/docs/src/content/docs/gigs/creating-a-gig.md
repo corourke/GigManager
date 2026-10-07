@@ -2,7 +2,7 @@
 title: Creating a gig
 description: Book a gig and fill in the rest from its gig page.
 sidebar:
-  order: 3
+  order: 4
 ---
 
 Admins and Managers create gigs. From **Gigs**, choose **New Gig** (or **Create

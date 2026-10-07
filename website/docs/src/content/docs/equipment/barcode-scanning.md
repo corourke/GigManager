@@ -3,7 +3,7 @@ title: Barcode & QR scanning
 description: Print asset tags and scan gear in the field.
 draft: true
 sidebar:
-  order: 6
+  order: 7
 ---
 
 ## Cover

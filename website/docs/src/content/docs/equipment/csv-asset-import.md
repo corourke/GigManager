@@ -3,7 +3,7 @@ title: CSV asset import
 description: Bulk-load equipment from a spreadsheet.
 draft: true
 sidebar:
-  order: 2
+  order: 8
 ---
 
 ## Cover

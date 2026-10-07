@@ -3,7 +3,7 @@ title: Location Explorer
 description: An editable hierarchy of where gear is stored.
 draft: true
 sidebar:
-  order: 4
+  order: 5
 ---
 
 ## Cover

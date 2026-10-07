@@ -2,7 +2,7 @@
 title: Expense and equipment categories
 description: The category lists your organization picks from when recording purchases and equipment.
 sidebar:
-  order: 6
+  order: 3
 ---
 
 Your organization has two category lists, edited under **Settings → Categories**:

@@ -3,7 +3,7 @@ title: Documents & notes
 description: Show notes and file attachments on a gig.
 draft: true
 sidebar:
-  order: 7
+  order: 8
 ---
 
 ## Cover

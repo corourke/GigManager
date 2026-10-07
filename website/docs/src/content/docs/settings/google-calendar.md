@@ -10,7 +10,7 @@ calendar or a shared organization calendar.
 
 ## Connect
 
-Open **Settings → Calendar** and connect your Google account.
+Open **Settings → Google Calendar** and connect your Google account.
 
 ## Choose a calendar you can write to
 
@@ -31,7 +31,7 @@ come back.
 <!-- TODO: screenshots; per-gig vs. sync-all; what a synced event looks like; conflict detection. -->
 
 <!-- TODO
-  - 📸 Settings → Calendar connect screen. 📸 Calendar picker (writable only).
+  - 📸 Settings → Google Calendar connect screen. 📸 Calendar picker (writable only).
   - 📸 A synced gig as it appears in Google Calendar.
   - Document per-gig sync vs "Sync All Gigs", and the lost-write-access warning.
 -->

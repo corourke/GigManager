@@ -3,7 +3,7 @@ title: Assigning equipment to a gig
 description: Attach kits to a gig and track them.
 draft: true
 sidebar:
-  order: 7
+  order: 4
 ---
 
 ## Cover
