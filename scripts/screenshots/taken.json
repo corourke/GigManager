@@ -38,5 +38,49 @@
     "anchor": "2026-10-07",
     "taken": "2026-10-07",
     "appCommit": "39173c1"
+  },
+  "gigs/change-history-history-tab": {
+    "page": "gigs/change-history.md",
+    "user": "admin",
+    "sources": [
+      "src/components/gig/GigPage.tsx",
+      "src/services/activityLog.service.ts"
+    ],
+    "anchor": "2026-10-07",
+    "taken": "2026-10-07",
+    "appCommit": "f60944e"
+  },
+  "gigs/creating-a-gig-form": {
+    "page": "gigs/creating-a-gig.md",
+    "user": "admin",
+    "sources": [
+      "src/components/gig/basicInfo/GigBasicInfoFields.tsx",
+      "src/components/TagsInput.tsx"
+    ],
+    "anchor": "2026-10-07",
+    "taken": "2026-10-07",
+    "appCommit": "f60944e"
+  },
+  "gigs/overview-gig-list": {
+    "page": "gigs/overview.md",
+    "user": "admin",
+    "sources": [
+      "src/components/GigListScreen.tsx",
+      "src/components/tables/SmartDataTable.tsx"
+    ],
+    "anchor": "2026-10-07",
+    "taken": "2026-10-07",
+    "appCommit": "f60944e"
+  },
+  "gigs/overview-gig-page": {
+    "page": "gigs/overview.md",
+    "user": "admin",
+    "sources": [
+      "src/components/gig/GigPage.tsx",
+      "src/components/layout/PageHeader.tsx"
+    ],
+    "anchor": "2026-10-07",
+    "taken": "2026-10-07",
+    "appCommit": "f60944e"
   }
 }

@@ -110,7 +110,7 @@ for (const shot of selected) {
     console.log(`ok    ${shot.id}`);
   } catch (err) {
     failed++;
-    console.error(`FAIL  ${shot.id}: ${err.message.split('\n')[0]}`);
+    console.error(`FAIL  ${shot.id}: ${err.message.split('\n').slice(0, 4).join(' | ')}`);
   }
   await c.close();
 }
