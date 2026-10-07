@@ -293,7 +293,7 @@ function GigListRoute({ view = 'list' }: { view?: 'list' | 'calendar' }) {
       onNavigateToDashboard={nav.toDashboard}
       onNavigateToGigs={nav.toGigs}
       onNavigateToAssets={nav.toAssets}
-      onNavigateToImport={nav.toImport}
+      onNavigateToImport={() => nav.toImport('gigs')}
       onSwitchOrganization={nav.switchOrganization}
       onEditProfile={openEditProfile}
       onLogout={nav.logoutAndHome}
@@ -425,7 +425,7 @@ function AssetListRoute() {
       onNavigateToAssets={nav.toAssets}
       onNavigateToKits={nav.toKits}
       onNavigateToInventory={nav.toInventory}
-      onNavigateToImport={nav.toImport}
+      onNavigateToImport={() => nav.toImport('assets')}
       onSwitchOrganization={nav.switchOrganization}
       onEditProfile={openEditProfile}
       onLogout={nav.logoutAndHome}
@@ -619,6 +619,8 @@ function ImportRoute() {
   const { user, organization, userRole } = useOrgScope();
   const { isMobile } = useAppShell();
   const nav = useNav();
+  const [params] = useSearchParams();
+  const fromAssets = params.get('from') === 'assets';
   if (!user || !organization) return <LoadingSpinner />;
   if (isMobile) return <Navigate to="/gigs" replace />;
   return (
@@ -626,7 +628,9 @@ function ImportRoute() {
       organization={organization}
       user={user}
       userRole={userRole}
-      onCancel={nav.toDashboard}
+      onCancel={fromAssets ? nav.toAssets : nav.toGigs}
+      backLabel={fromAssets ? 'Back to Assets' : 'Back to Gigs'}
+      initialImportType={fromAssets ? 'assets' : 'gigs'}
       onNavigateToGigs={nav.toGigs}
       onSwitchOrganization={nav.switchOrganization}
       onLogout={nav.logoutAndHome}

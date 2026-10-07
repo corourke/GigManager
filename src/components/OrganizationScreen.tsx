@@ -8,7 +8,7 @@
  * - App.tsx (routes: 'create-org', 'edit-org')
  */
 import { useState, useRef, useEffect } from 'react';
-import { Building2, Search, Loader2, MapPin, Phone, Globe, Check, AlertCircle, AlertTriangle, X, ChevronLeft } from 'lucide-react';
+import { Building2, Search, Loader2, MapPin, Phone, Globe, Check, AlertCircle, AlertTriangle, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { 
   Organization, 
@@ -28,7 +28,7 @@ import { Alert, AlertDescription } from './ui/alert';
 import { Checkbox } from './ui/checkbox';
 import {
 } from './ui/select';
-import { PageHeader } from './ui/PageHeader';
+import { PageHeader } from './layout/PageHeader';
 import MarkdownEditor from './MarkdownEditor';
 import OrganizationContactsSection from './organization/OrganizationContactsSection';
 import { useGooglePlacesSearch, placeToOrganizationFields } from '../hooks/useGooglePlacesSearch';
@@ -380,37 +380,25 @@ export default function OrganizationScreen({
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <div className="bg-white border-b border-gray-200">
-        <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <div className="flex items-center gap-3">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={onCancel}
-              className="text-gray-600 hover:text-gray-900"
-            >
-              <ChevronLeft className="w-5 h-5 mr-1" />
-              Back
-            </Button>
-            <div className="flex items-center gap-3">
-              <div className="inline-flex items-center justify-center w-10 h-10 bg-sky-500 rounded-lg">
-                <Building2 className="w-6 h-6 text-white" />
-              </div>
-              <span className="text-gray-900">GigWrangler</span>
+      {/* No organization yet, so the top bar carries only the product name (#39 frame). */}
+      <div className="bg-background border-b border-border">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex h-14 items-center gap-2.5">
+            <div className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-primary">
+              <Building2 className="h-[18px] w-[18px] text-primary-foreground" />
             </div>
+            <span className="text-[15px] font-semibold text-foreground">GigWrangler</span>
           </div>
         </div>
       </div>
 
-      {/* Main Content */}
-      <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <PageHeader
-          icon={Building2}
-          title={isEditMode ? 'Edit Organization' : 'Create New Organization'}
-          description={isEditMode ? 'Update organization details' : 'Search for your business or enter details manually'}
-        />
+      <PageHeader
+        back={{ label: isEditMode ? 'Back' : 'Back to Select Organization', onClick: onCancel }}
+        title={isEditMode ? 'Edit Organization' : 'Create New Organization'}
+      />
 
+      {/* Main Content: narrower than the header, but left-aligned with the title (#39). */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 *:max-w-3xl">
         {/* Google Places Search - Only show in create mode */}
         {!isEditMode && !selectedPlace && (
           <Card className="p-6 mb-6">

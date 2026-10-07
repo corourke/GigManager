@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
-import { Box, ArrowLeft, Edit2, Trash2, Copy, Loader2, History, CreditCard, ExternalLink } from 'lucide-react';
+import { Edit2, Trash2, Copy, Loader2, History, CreditCard, ExternalLink } from 'lucide-react';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { Button } from './ui/button';
@@ -9,6 +9,7 @@ import { Badge } from './ui/badge';
 import { Alert, AlertDescription } from './ui/alert';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './ui/table';
 import AppHeader from './AppHeader';
+import { PageHeader } from './layout/PageHeader';
 import AttachmentManager from './AttachmentManager';
 import { Organization, User, UserRole } from '../utils/supabase/types';
 import { canManage } from '../utils/permissions';
@@ -126,11 +127,8 @@ export default function AssetDetailScreen({
           onEditProfile={onEditProfile}
           onLogout={onLogout}
         />
+        <PageHeader back={{ label: 'Back to Assets', onClick: onBack }} title="Asset" />
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <Button variant="ghost" onClick={onBack} className="mb-4 -ml-2">
-            <ArrowLeft className="w-4 h-4 mr-2" />
-            Back to Assets
-          </Button>
           <Alert variant="destructive">
             <AlertDescription>{loadError || 'Asset not found.'}</AlertDescription>
           </Alert>
@@ -154,71 +152,59 @@ export default function AssetDetailScreen({
         onLogout={onLogout}
       />
 
+      <PageHeader
+        back={{ label: 'Back to Assets', onClick: onBack }}
+        title={asset.manufacturer_model}
+        badge={
+          <>
+            {asset.category && <Badge variant="secondary">{asset.category}</Badge>}
+            {asset.type && (
+              <Badge variant="outline" className="bg-sky-50 text-sky-700 border-sky-200">
+                {asset.type}
+              </Badge>
+            )}
+            {asset.status && (
+              <span className={`inline-flex items-center rounded-md border px-2 py-0.5 text-xs font-medium ${ASSET_STATUS_CONFIG[asset.status as keyof typeof ASSET_STATUS_CONFIG]?.color ?? 'bg-gray-100 text-gray-700 border-gray-300'}`}>
+                {asset.status}
+              </span>
+            )}
+          </>
+        }
+        actions={
+          <>
+            {canManage(userRole) && (
+              <Button
+                variant="outline"
+                onClick={() => onEdit(assetId)}
+              >
+                <Edit2 className="w-4 h-4 mr-2" />
+                Edit
+              </Button>
+            )}
+            {canManage(userRole) && (
+              <Button
+                variant="outline"
+                onClick={handleDuplicate}
+              >
+                <Copy className="w-4 h-4 mr-2" />
+                Duplicate
+              </Button>
+            )}
+            {userRole === 'Admin' && (
+              <Button
+                variant="outline"
+                onClick={handleDelete}
+                className="text-red-600 hover:text-red-700 border-red-200 hover:bg-red-50"
+              >
+                <Trash2 className="w-4 h-4 mr-2" />
+                Delete
+              </Button>
+            )}
+          </>
+        }
+      />
+
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-        {/* Header */}
-        <div className="mb-4">
-          <Button variant="ghost" onClick={onBack} className="mb-2 -ml-2">
-            <ArrowLeft className="w-4 h-4 mr-2" />
-            Back to Assets
-          </Button>
-
-          <div className="flex items-start justify-between">
-            <div className="flex-1">
-              <div className="flex items-center gap-3 mb-2">
-                <Box className="w-8 h-8 text-sky-500" />
-                <h1 className="text-2xl font-bold text-gray-900">{asset.manufacturer_model}</h1>
-              </div>
-              <div className="flex flex-wrap gap-2 mb-4">
-                {asset.category && (
-                  <Badge variant="secondary">
-                    {asset.category}
-                  </Badge>
-                )}
-                {asset.type && (
-                  <Badge variant="outline" className="bg-sky-50 text-sky-700 border-sky-200">
-                    {asset.type}
-                  </Badge>
-                )}
-                {asset.status && (
-                  <span className={`inline-flex items-center rounded-md border px-2 py-0.5 text-xs font-medium ${ASSET_STATUS_CONFIG[asset.status as keyof typeof ASSET_STATUS_CONFIG]?.color ?? 'bg-gray-100 text-gray-700 border-gray-300'}`}>
-                    {asset.status}
-                  </span>
-                )}
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2">
-              {canManage(userRole) && (
-                <Button
-                  variant="outline"
-                  onClick={() => onEdit(assetId)}
-                >
-                  <Edit2 className="w-4 h-4 mr-2" />
-                  Edit
-                </Button>
-              )}
-              {canManage(userRole) && (
-                <Button
-                  variant="outline"
-                  onClick={handleDuplicate}
-                >
-                  <Copy className="w-4 h-4 mr-2" />
-                  Duplicate
-                </Button>
-              )}
-              {userRole === 'Admin' && (
-                <Button
-                  variant="outline"
-                  onClick={handleDelete}
-                  className="text-red-600 hover:text-red-700 border-red-200 hover:bg-red-50"
-                >
-                  <Trash2 className="w-4 h-4 mr-2" />
-                  Delete
-                </Button>
-              )}
-            </div>
-          </div>
-        </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
           {/* Main Details */}

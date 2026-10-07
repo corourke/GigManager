@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import OrganizationScreen from './OrganizationScreen';
+import { getBackInHeaderSlot } from '../test/pageFrame';
 
 const invoke = vi.fn();
 vi.mock('../utils/supabase/client', () => ({
@@ -25,6 +26,16 @@ const mockProps = {
   onCancel: vi.fn(),
   userId: 'user-1',
 };
+
+describe('OrganizationScreen — page header (#39)', () => {
+  it('puts Back to Select Organization in the header slot when creating', async () => {
+    const onCancel = vi.fn();
+    render(<OrganizationScreen {...mockProps} onCancel={onCancel} />);
+    expect(screen.getByRole('heading', { level: 1, name: 'Create New Organization' })).toBeInTheDocument();
+    await userEvent.click(getBackInHeaderSlot('Back to Select Organization'));
+    expect(onCancel).toHaveBeenCalledTimes(1);
+  });
+});
 
 describe('OrganizationScreen — business search failure', () => {
   // Issue #29: a failed Google Places search used to surface the raw

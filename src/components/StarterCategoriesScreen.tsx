@@ -1,7 +1,6 @@
 import { ShieldCheck } from 'lucide-react';
-import { Button } from './ui/button';
 import AppHeader from './AppHeader';
-import { PageHeader } from './ui/PageHeader';
+import { PageHeader } from './layout/PageHeader';
 import CategoriesSettings from './settings/CategoriesSettings';
 import type { User } from '../utils/supabase/types';
 
@@ -23,19 +22,11 @@ export default function StarterCategoriesScreen({ user, onBack, onLogout, onEdit
     <div className="min-h-screen bg-gray-50">
       <AppHeader user={user} currentRoute="dashboard" onLogout={onLogout} onEditProfile={onEditProfile} />
 
-      {/* Same layout as the other platform pages (Access Requests, Admin: All Organizations). */}
-      <div className="bg-white border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <PageHeader
-            icon={ShieldCheck}
-            title="Starter categories"
-            description="What each organization starts with. Organizations that already have their own lists aren't changed."
-            actions={<Button onClick={onBack} variant="outline">Back</Button>}
-          />
-        </div>
-      </div>
+      {/* Opened from the header menu on any page, so Back is a plain "Back" (history). */}
+      <PageHeader icon={ShieldCheck} back={{ label: 'Back', onClick: onBack }} title="Starter categories" />
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+        <p className="mb-4 text-sm text-gray-600">What each organization starts with. Organizations that already have their own lists aren't changed.</p>
         <CategoriesSettings organizationId={null} canEdit title="Starter sets" description="Copied into an organization the first time it needs a category list." />
       </div>
     </div>

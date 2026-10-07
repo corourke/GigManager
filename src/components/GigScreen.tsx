@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { toast } from 'sonner';
-import { AlertCircle, ArrowLeft, Plus } from 'lucide-react';
+import { AlertCircle, Plus } from 'lucide-react';
 import { Alert, AlertDescription } from './ui/alert';
 import { Button } from './ui/button';
 import AppHeader from './AppHeader';
+import { PageHeader } from './layout/PageHeader';
 import { User, Organization, UserRole } from '../utils/supabase/types';
 import { createGig } from '../services/gig.service';
 import GigBasicInfoSection from './gig/GigBasicInfoSection';
@@ -76,7 +77,10 @@ export default function GigScreen({
         onLogout={onLogout}
       />
 
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <PageHeader back={{ label: 'Back to Gigs', onClick: onCancel }} title="New Gig" />
+
+      {/* Narrower than the header, but left-aligned with the title (#39). */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 *:max-w-4xl">
         {generalError && (
           <Alert variant="destructive" className="mb-6">
             <AlertCircle className="h-4 w-4" />
@@ -88,8 +92,7 @@ export default function GigScreen({
           <GigBasicInfoSection onCreate={handleCreateGig} isSubmitting={isSubmitting} />
           <div className="mt-8 flex items-center justify-end gap-4 pb-12">
             <Button onClick={onCancel} variant="outline">
-              <ArrowLeft className="mr-2 h-4 w-4" />
-              Cancel and Go Back
+              Cancel
             </Button>
             <Button type="submit" form="gig-basic-info-form" className="bg-sky-500 hover:bg-sky-600 text-white">
               <Plus className="w-4 h-4 mr-2" />

@@ -15,7 +15,7 @@ import { handleFunctionsError } from '../utils/api-error-utils';
 import { createClient } from '../utils/supabase/client';
 import { Button } from './ui/button';
 import AppHeader from './AppHeader';
-import { PageHeader } from './ui/PageHeader';
+import { PageHeader } from './layout/PageHeader';
 import { Card } from './ui/card';
 import { Badge } from './ui/badge';
 import { Alert, AlertDescription } from './ui/alert';
@@ -172,36 +172,23 @@ export default function AdminOrganizationsScreen({
         onEditProfile={onEditProfile}
       />
 
-      {/* Admin Header Info */}
-      <div className="bg-white border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <PageHeader
-            icon={Shield}
-            title="Admin: All Organizations"
-            description="Manage all organizations in the system"
-            actions={
-              <>
-                <Button
-                  onClick={onBack}
-                  variant="outline"
-                >
-                  Back
-                </Button>
-                <Button
-                  onClick={onCreateOrganization}
-                  className="bg-sky-500 hover:bg-sky-600 text-white"
-                >
-                  <Plus className="w-4 h-4 mr-2" />
-                  Create Organization
-                </Button>
-              </>
-            }
-          />
-        </div>
-      </div>
+      <PageHeader
+        icon={Shield}
+        back={{ label: 'Back to Select Organization', onClick: onBack }}
+        title="Admin: All Organizations"
+        actions={
+          <Button
+            onClick={onCreateOrganization}
+            className="bg-sky-500 hover:bg-sky-600 text-white"
+          >
+            <Plus className="w-4 h-4 mr-2" />
+            Create Organization
+          </Button>
+        }
+      />
 
       {/* Main Content */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
         {error && (
           <Alert variant="destructive" className="mb-6">
             <AlertCircle className="h-4 w-4" />

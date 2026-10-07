@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Package, ArrowLeft, Save, Loader2, AlertCircle, History, CreditCard, ExternalLink } from 'lucide-react';
+import { Save, Loader2, AlertCircle, History, CreditCard, ExternalLink } from 'lucide-react';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { Button } from './ui/button';
@@ -11,7 +11,7 @@ import { Textarea } from './ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './ui/table';
 import AppHeader from './AppHeader';
-import { PageHeader } from './ui/PageHeader';
+import { PageHeader } from './layout/PageHeader';
 import { Organization, User, UserRole } from '../utils/supabase/types';
 import { createAsset, updateAsset } from '../services/asset.service';
 import { useAssetData, useAssetMutations } from './asset/useAssetData';
@@ -354,23 +354,13 @@ export default function AssetScreen({
         onLogout={onLogout}
       />
 
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-        {/* Header */}
-        <div className="mb-4">
-          <Button
-            variant="ghost"
-            onClick={onCancel}
-            className="mb-2 -ml-2"
-          >
-            <ArrowLeft className="w-4 h-4 mr-2" />
-            Back to Assets
-          </Button>
-          <PageHeader
-            icon={Package}
-            title={isEditMode ? 'Edit Asset' : 'Add New Asset'}
-            description={isEditMode ? 'Update asset information' : 'Add a new asset to your inventory'}
-          />
-        </div>
+      <PageHeader
+        back={{ label: 'Back to Assets', onClick: onCancel }}
+        title={isEditMode ? 'Edit Asset' : 'Add New Asset'}
+      />
+
+      {/* Narrower than the header, but left-aligned with the title (#39). */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 *:max-w-4xl">
 
         {/* Form */}
         <Card className="p-4">

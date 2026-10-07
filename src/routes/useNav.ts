@@ -28,7 +28,8 @@ export function useNav() {
     toAssets: () => navigate('/assets'),
     toKits: () => navigate('/kits'),
     toInventory: () => navigate(inventoryPath()),
-    toImport: () => navigate('/import'),
+    /** Import remembers where it was opened from, for its Back button and default type. */
+    toImport: (from: 'gigs' | 'assets' = 'gigs') => navigate(from === 'assets' ? '/import?from=assets' : '/import'),
     toSettings: () => navigate('/settings'),
 
     // Gigs

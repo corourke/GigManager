@@ -1,7 +1,8 @@
 import { describe, it, expect, vi } from 'vitest'
-import { render } from '@testing-library/react'
+import { render, screen, fireEvent } from '@testing-library/react'
 import GigScreen from './GigScreen'
 import { makeUser, makeOrganization } from '../test/factories'
+import { getBackInHeaderSlot } from '../test/pageFrame'
 
 // Mock all dependencies
 vi.mock('../services/gig.service', () => ({
@@ -31,6 +32,14 @@ const mockProps = {
 }
 
 describe('GigScreen', () => {
+  it('titles the page "New Gig" with Back to Gigs in the header slot (#39)', () => {
+    const onCancel = vi.fn()
+    render(<GigScreen {...mockProps} onCancel={onCancel} />)
+    expect(screen.getByRole('heading', { level: 1, name: 'New Gig' })).toBeInTheDocument()
+    fireEvent.click(getBackInHeaderSlot('Back to Gigs'))
+    expect(onCancel).toHaveBeenCalledTimes(1)
+  })
+
   it('renders without throwing errors', () => {
     expect(() => {
       render(<GigScreen {...mockProps} />)

@@ -11,7 +11,7 @@ import { Tabs, TabsList, TabsTrigger } from './ui/tabs';
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
 import { Calendar as CalendarIcon, ChevronLeft, ChevronRight } from 'lucide-react';
 import AppHeader from './AppHeader';
-import { PageHeader } from './ui/PageHeader';
+import { PageHeader } from './layout/PageHeader';
 import { CalendarFilters } from './CalendarFilters';
 import { ConflictWarning } from './ConflictWarning';
 import {
@@ -353,7 +353,6 @@ export default function CalendarScreen({
         <PageHeader
           icon={CalendarIcon}
           title="Calendar"
-          description="View and manage your gigs in calendar format"
           actions={
             <Button onClick={onCreateGig}>
               <CalendarIcon className="h-4 w-4 mr-2" />

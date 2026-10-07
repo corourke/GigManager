@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '../ui/card';
-import { PageHeader } from '../ui/PageHeader';
 import { Settings, LogOut, Smartphone, Trash2, Plus, Fingerprint, Loader2, Lock } from 'lucide-react';
 import { Button } from '../ui/button';
 import { createClient } from '../../utils/supabase/client';
@@ -116,11 +115,14 @@ export default function MobileSettings({ onLogout, onLock }: MobileSettingsProps
 
   return (
     <div className="space-y-4 pb-20">
-      <PageHeader 
-        icon={Settings}
-        title="Settings"
-        description="Mobile preferences and biometric auth"
-      />
+      {/* The mobile layout has its own header style; the web page frame (#39) is desktop only. */}
+      <div className="flex items-center gap-3">
+        <Settings className="w-6 h-6 text-sky-600" aria-hidden="true" />
+        <div>
+          <h1 className="text-lg font-bold text-gray-900">Settings</h1>
+          <p className="text-sm text-gray-600">Mobile preferences and biometric auth</p>
+        </div>
+      </div>
       
       <Card>
         <CardHeader className="pb-3">
