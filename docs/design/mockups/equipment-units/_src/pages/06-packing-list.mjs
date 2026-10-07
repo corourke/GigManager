@@ -77,7 +77,7 @@ export default () => ({
     notes: [
       '<b>“2 × QSC K12.2”</b> is one line with a progress count. The scans fill it in: under it are the units that went (DSL-0101 and DSL-0103, with serials). Counted lines (stands, cables) show a count only.',
       '<b>A container</b> (XLR Cable Box) is one line to check, with its contents listed underneath for reference; scanning CASE-02 covers all 21 pieces.',
-      '<b>The Small XLR Cable Box is an Items kit</b>: its cable lines are counted, not scanned, so the crew sees “7 counted · 3 short” if a line was confirmed for fewer. It is complete when every line is.',
+      '<b>The Small XLR Cable Box is an Items kit</b>: its cables have no tags, so their lines are counted, so the crew sees “7 counted · 3 short” if a line was confirmed for fewer. It is complete when every line is.',
       '<b>Print</b> keeps the packing-list print layout. A scanned “any” line gets a blank per piece to write the tag pulled; once scanned, the blanks print filled in. Counted lines get a checkbox only. Equipment (the kit table) gains a short “Holds” column.',
     ],
   }),

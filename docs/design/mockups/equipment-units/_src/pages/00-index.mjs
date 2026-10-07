@@ -7,7 +7,7 @@ const BLURB = {
   '04-purchase-review': 'One line of 6 Trios creates 6 units: pick or create the item, enter serials or tags, or keep a lot.',
   '05-kit-editor': '“N × any” or a specific unit or lot; Items kits confirm each line, containers scan as one.',
   '06-packing-list': '“2 × QSC K12.2” filled in by scans, container progress, and the printout with write-in blanks.',
-  '07-scanning-pull': 'Scanning the K12.2s that go, and counting cable and stand lines with a counter that starts full.',
+  '07-scanning-pull': 'Tagged items are scanned (the K12.2s); untagged ones are counted, with a counter that starts full.',
   '08-locations-override': 'Counts per place (#160) and overrides that move part of a lot.',
   '09-maintenance': 'Sending one specific unit by serial, or one piece of a lot; availability impact.',
   '10-dashboard-overlap': 'Dashboard total = units × replacement value (#157); conflicts counted per item.',

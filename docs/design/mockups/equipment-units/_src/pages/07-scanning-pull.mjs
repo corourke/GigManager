@@ -43,7 +43,7 @@ const d = header('4 / 9 scanned') + `<div class="relative flex-1 p-3 space-y-3 o
 
 // e) packing the Small XLR Cable Box from stock
 const e = header('17 / 24 counted') + `<div class="p-3 space-y-3 overflow-hidden">
-<div class="rounded-xl border bg-white p-3 text-sm"><div class="flex items-center gap-2 font-semibold">${icon('layers', 'h-4 w-4 text-gray-500')}Small XLR Cable Box <span class="text-[11px] font-normal text-muted-foreground">CASE-03 · Items kit</span></div><div class="text-xs text-muted-foreground mt-0.5">Count each line as it goes in. Cables are not scanned, even tagged ones.</div></div>
+<div class="rounded-xl border bg-white p-3 text-sm"><div class="flex items-center gap-2 font-semibold">${icon('layers', 'h-4 w-4 text-gray-500')}Small XLR Cable Box <span class="text-[11px] font-normal text-muted-foreground">CASE-03 · Items kit</span></div><div class="text-xs text-muted-foreground mt-0.5">These cables have no inventory tags, so each line is counted.</div></div>
 ${row('done', 'Cable trunk, 24 in', `${tb('Checked Out')} <span class="font-mono">CASE-03</span> <span>scanned</span>`)}
 ${row('done', '10 × XLR Cable, 5 ft', `${tb('Checked Out')} <span>10 of 10 counted</span>`)}
 ${row('part', '10 × XLR Cable, 15 ft', `<span class="text-amber-700 font-medium">7 of 10 counted · 3 short</span>`)}
@@ -56,13 +56,13 @@ export default () => ({
     id: '07-scanning-pull',
     body: frame(`<div class="bg-gray-100 px-6 py-8 space-y-10">
 <div class="flex justify-center gap-10">${phone(a, `<b>1.</b> Pack-out for ${GIG.title}. “2 × QSC K12.2” shows two empty slots: any K12.2 fills one.`)}${phone(b, '<b>2.</b> Scanning DSL-0101 resolves one slot. The scanner says which line it counted toward.')}${phone(c, '<b>3.</b> Both slots filled with the units that went. Scanning a unit in Maintenance warns first.')}</div>
-<div class="flex justify-center gap-10">${phone(d, '<b>4.</b> Tapping a counted line opens the counter at the full amount: confirm, or tap − first if some are missing.')}${phone(e, '<b>5.</b> The Small XLR Cable Box is an Items kit: the trunk is scanned, the cable lines are counted (one short here).')}</div>
+<div class="flex justify-center gap-10">${phone(d, '<b>4.</b> Stands have no tags, so tapping the line opens the counter at the full amount: confirm, or tap − first if some are missing.')}${phone(e, '<b>5.</b> The Small XLR Cable Box is an Items kit: the trunk (a Unit line) is scanned; the cables have no tags, so their lines are counted (one short here).')}</div>
 </div>`, 'Mobile PWA › Inventory Mode (also embedded in the web “Track a gig” dialog).'),
     notes: [
       '<b>Resolving “2 × K12.2” by scanning</b>: the line shows a slot per piece. Scanning any K12.2 fills a slot and records <i>that</i> unit on the gig, so later the system knows DSL-0101 and DSL-0103 went (and which came back).',
       '<b>Guard rails</b>: a unit in Maintenance or booked on an overlapping gig warns before it is pulled; a third K12.2 for a kit that has its two offers a swap. ',
-      '<b>Counted lines</b>: an “any” line of cables or stands is counted, never scanned piece by piece, even when the pieces have tags. The counter starts at the full amount, so a full line is one tap on <b>Confirm line</b>; − records fewer and leaves the line short.',
-      '<b>No packing step</b>: the Small XLR Cable Box is an ordinary Items kit. Its trunk is scanned and its cable lines counted; the kit is complete when every line is. Containers (XLR Cable Box, PA Rack) always scan as one.',
+      '<b>Scan or count</b> follows the item, not the kit: an “any” line of tagged items (K12.2s) is scanned piece by piece; an “any” line of untagged items (stands, cables) is counted. The counter starts at the full amount, so a full line is one tap on <b>Confirm line</b>; − records fewer and leaves the line short.',
+      '<b>No packing step</b>: the Small XLR Cable Box is an ordinary Items kit. Its trunk is scanned and its untagged cable lines counted; the kit is complete when every line is. Containers (XLR Cable Box, PA Rack) are always checked off as one.',
     ],
   }),
 });
