@@ -103,6 +103,7 @@ meantime. The coordinator resolves each entry (decides it, or moves it into §3a
 
 *The Docs Lead's own lane (separate from triage's §3b). It adds app problems it finds while documenting and decisions it needs from the coordinator. It files app bugs as GitHub issues itself and links them here. The coordinator triages each entry (release to §3c, decide, or take it to Cameron) and deletes it when settled.*
 
+- **From the Docs Lead (10-07, Team and Reference, PR #177): four app issues filed.** **#173**, a member's details page (Edit goes nowhere, default role not shown, timezone edits dropped). **#174**, role and invitation UI (Admin offered to Managers, then refused; misleading "Invitation sent!"; developer copy). **#175**, Delete gig is shown to Managers but is Admin-only; Cameron to decide the rule, and whether any participating organization's Admin should be able to delete. **#176**, no direct path to your own organization's settings, and the Contacts card clips. **Also a security finding in the membership RPCs, reported to Cameron directly (10-07)**: no details here because the repo is public. Coordinator: ask Cameron.
 - **From the Docs Lead (10-07, Gigs drafts): four app issues filed.** **#168**, the gig list offers Revenue/Expenses/Profit columns to Staff and Viewers, who see $0 (same pattern as #158). **#169**, the gig page shows notes as raw text, so Markdown isn't rendered. **#170**, the conflict banner on the list and calendar shows an empty equipment detail, labels act conflicts as venue conflicts, and its list View button sets **Back to Calendar**. **#171**, deleting a staff slot doesn't ask for confirmation, and rates always show "/ hr". All four are small, UI-only changes. The guide's draft pages carry TODOs pointing at #169 and #170.
 - **From the Docs Lead (10-07): app issues from screenshotting the dev demo org.** Cameron reviewed them 10-07 and authorized filing: **#157** (dashboard Equipment total should be replacement value × quantity, as on the asset list), **#158** (Staff dashboard shows $0 cards instead of hiding them) and **#159** (hard-coded © 2025 on Sign Up). Also **#160** (location tracking ignores quantity, so an asset split across kits and containers has one location and the override can't move part of it; needs a design call and probably a migration). Not a bug: the Assets table at 1440px (users choose columns and widths). The nested-kit packing list is correct behavior, because containers don't list their contents; the demo seed had wrongly made a whole sound package a container. Cameron suspects bugs in the **Out on Gigs** and **Locations** reports and is testing them himself. The dev-only CORS port item was dropped.
 - **From the Docs Lead (10-07): simulating email delivery.** Cameron wants a way to simulate email delivery so invitation, sign-up confirmation and password-reset flows can be shown with the demo `.test` logins. Hosted dev sends real mail through Supabase Auth, so this needs a decision (for example a dev-only SMTP catcher such as Mailpit behind the dev project's custom SMTP, or a dev-only admin "generate link" route).
@@ -303,8 +304,8 @@ middleware; `DELETE /gigs/:id` is Admin-only; access-request and notification ro
 | `gigs/overview.md` | published | 2026-10-07 (triage, PR #151); screenshots PR #166 | — |
 | `import/overview.md` | published | — | not audited |
 | `index.mdx` | published | — | not audited |
-| `organizations/overview.md` | published | — | not audited |
-| `reference/roles-and-access.md` | published | — | not audited |
+| `team/overview.md` | published | 2026-10-07 (Docs Lead, PR #177) | corrections go live when #177 merges |
+| `reference/roles-and-access.md` | published | 2026-10-07 (Docs Lead, PR #177) | corrections go live when #177 merges |
 | `calendar/conflict-detection.md` | draft | — | not audited |
 | `calendar/overview.md` | draft | — | not audited |
 | `equipment/assets.md` | draft | — | not audited |
@@ -329,12 +330,12 @@ middleware; `DELETE /gigs/:id` is Admin-only; access-request and notification ro
 | `mobile/field-inventory.md` | draft | — | not audited |
 | `mobile/offline-access.md` | draft | — | not audited |
 | `mobile/overview.md` | draft | — | not audited |
-| `organizations/invitations.md` | draft | — | not audited |
-| `organizations/member-profiles.md` | draft | — | not audited |
-| `organizations/people-without-logins.md` | draft | — | not audited |
-| `organizations/team-and-roles.md` | draft | — | not audited |
-| `reference/access-requests-and-moderation.md` | draft | — | not audited |
-| `reference/glossary.md` | draft | — | not audited |
+| `team/invitations.md` | draft, written (PR #177) | 2026-10-07 (Docs Lead) | ready to publish once #177 merges |
+| `team/member-profiles.md` | draft, written (PR #177) | 2026-10-07 (Docs Lead) | ready to publish once #177 merges |
+| `team/people-without-logins.md` | draft, written (PR #177) | 2026-10-07 (Docs Lead) | ready to publish once #177 merges |
+| `team/team-and-roles.md` | draft, written (PR #177) | 2026-10-07 (Docs Lead) | ready to publish once #177 merges |
+| `reference/access-requests-and-moderation.md` | draft, written (PR #177) | 2026-10-07 (Docs Lead) | ready to publish once #177 merges |
+| `reference/glossary.md` | draft, written (PR #177) | 2026-10-07 (Docs Lead) | ready to publish once #177 merges |
 
 **Future considerations (not open work).** Left over from #61 (closed 09-25): gig attachments are invisible
 to the other orgs on a gig (needs a sharing flag plus a storage-policy change), and prod has an extra
