@@ -29,6 +29,7 @@
 --   demo-manager@gigwrangler.test  Marcus Reyes     Manager
 --   demo-staff@gigwrangler.test    Sofia Lindqvist  Staff
 --   demo-viewer@gigwrangler.test   Victor Okafor    Viewer
+--   demo-newuser@gigwrangler.test  Nina Newman      (no organization: onboarding shots)
 -- =============================================================================
 
 BEGIN;
@@ -113,6 +114,8 @@ SELECT * FROM (VALUES
   (2,  'demo-manager@gigwrangler.test',      'Marcus',  'Reyes',     '(415) 555-0102', 'Oakland',       '94609', true,  1),
   (3,  'demo-staff@gigwrangler.test',        'Sofia',   'Lindqvist', '(415) 555-0103', 'Alameda',       '94501', true,  1),
   (4,  'demo-viewer@gigwrangler.test',       'Victor',  'Okafor',    '(415) 555-0104', 'Oakland',       '94610', true,  6),
+  -- signed up but in no organization yet (the onboarding screens)
+  (5,  'demo-newuser@gigwrangler.test',      'Nina',    'Newman',    '(415) 555-0105', 'San Francisco', '94110', true,  2),
   -- freelance crew without logins (Staff at Demo Sound & Lighting)
   (11, 'sam.whitfield@crew.example',         'Sam',     'Whitfield', '(510) 555-0113', 'Oakland',       '94610', false, NULL),
   (12, 'shane.park@crew.example',            'Shane',   'Park',      '(510) 555-0112', 'Berkeley',      '94703', false, NULL),

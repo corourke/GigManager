@@ -122,11 +122,20 @@ Markdown path so Astro optimizes them:
 - **Demo data only.** Take every screenshot while signed in as a demo user in the
   "Demo Sound & Lighting" organization on dev (`scripts/seed-demo.sh`). Never use
   real customer data, real people's names, real email addresses or production.
-- **Light theme**, the default app theme, browser at **1440 × 900** with device
-  scale factor 2. Mobile pages use **390 × 844** at scale 2.
-- **Crop to the subject:** the dialog, panel or table being described, plus enough
-  context to find it. Use the full window only on overview pages. No browser
-  chrome, no OS cursor.
+- **Light only.** The app has no dark mode for users, so screenshots show the light
+  app on both the light and dark docs themes. If the app gains a dark mode, shoot
+  both and show the one matching the reader's theme.
+- **Window 1200 × 900** at device scale factor 2, so the app's content fills the
+  frame with little side margin. Mobile pages use **390 × 844** at scale 2.
+- **Pinned date and time zone.** The browser's clock is frozen at the seed's anchor
+  date (10 AM) in `America/Los_Angeles`, so dates, "Upcoming" and "Next 30 Days"
+  match the demo data.
+- **Crop to the subject:** the dialog, menu, panel or table the text describes, plus
+  enough context to find it, so the app's text stays readable at the page's width.
+  Use a full window only to orient the reader, such as the first look at a section.
+  No browser chrome, no OS cursor.
+- **Don't show a known bug.** If a screen shows a wrong figure or label that has an
+  open issue, hold the shot (leave a TODO naming the issue) rather than document it.
 - **Purpose and placement:** one screenshot per task or screen, placed right after
   the paragraph or step that introduces it. Don't screenshot what one sentence can
   say.
@@ -134,9 +143,10 @@ Markdown path so Astro optimizes them:
   you do add one, use a single 3 px rounded box in the app's primary color.
 - **Alt text:** describe what the image shows, in a sentence. Don't start with
   "Screenshot of".
-- **Reproducible:** take shots with the Playwright script in `scripts/screenshots/` (being set up), so they can be retaken
-  when the UI changes. Retake the shots for a page in the same PR that changes its
-  text, whenever the UI they show has changed.
+- **Reproducible:** every shot is defined in `scripts/screenshots/shots.mjs` and taken
+  with `scripts/screenshots/shoot.mjs` (see its README). Never add a hand-taken
+  screenshot. Code PRs don't retake shots; the Docs Lead retakes them when the UI
+  they show changes, and runs a full refresh at each production release.
 - **Format and size:** PNG, under about 300 KB each after optimizing.
 
 ## Drafts and TODOs

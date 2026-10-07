@@ -16,9 +16,13 @@ sidebar:
    see an error and can't continue until they do.
 4. Select **Create Account**.
 
+![The Sign Up tab filled in with a first name, last name, email and password, rated Fair, above the Create Account and Continue with Google buttons](../../../assets/screenshots/getting-started/onboarding-sign-up.png)
+
 You're signed in and taken to the **Select Organization** screen — your account
 exists, but it isn't part of any organization yet. That's the next step:
 [Getting into an organization](/getting-started/organizations/).
+
+![The Select Organization screen for a new account: "No organizations yet", a search box, and Create New Organization and Create Your First Organization buttons](../../../assets/screenshots/getting-started/onboarding-select-organization.png)
 
 If you instead see "Please check your email to confirm your account before
 signing in.", follow the link in the confirmation email, then sign in on the
@@ -44,11 +48,9 @@ Open the avatar menu (top-right) → **Edit Profile** to change your name, phone
 **Timezone**, avatar and address. The avatar menu is also where you **Switch Organization**
 and **Sign Out**.
 
+![The Edit Your Profile dialog with name, email (which can't be changed), phone, timezone, avatar URL and an optional address](../../../assets/screenshots/getting-started/onboarding-edit-profile.png)
+
 ## Forgot your password?
 
 On the **Sign In** tab, choose **Forgot password?**, enter your email and select
 **Send reset link**. Follow the emailed link to set a new password.
-
-<!-- TODO
-  - 📸 Sign Up form. 📸 Select Organization screen (empty state). 📸 Edit Profile.
--->

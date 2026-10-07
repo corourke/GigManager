@@ -49,4 +49,4 @@ fi
 echo "Done. Demo row counts:"
 jq -r '.[0].counts | fromjson | to_entries[] | "  \(.key): \(.value)"' <<<"$RESPONSE"
 echo
-echo "Logins (password demo1pass): demo-admin@ / demo-manager@ / demo-staff@ / demo-viewer@gigwrangler.test"
+echo "Logins (password demo1pass): demo-admin@ / demo-manager@ / demo-staff@ / demo-viewer@ / demo-newuser@gigwrangler.test"
