@@ -1,33 +1,37 @@
 ---
 title: Creating a gig
-description: Book a gig and fill in the rest from its detail page.
+description: Book a gig and fill in the rest from its gig page.
 sidebar:
   order: 3
 ---
 
-From **Gigs**, choose **New Gig** (or **Create First Gig** on an empty list).
+Admins and Managers create gigs. From **Gigs**, choose **New Gig** (or **Create
+First Gig** on an empty list).
 
-The create form is deliberately short:
+The **New Gig** form is deliberately short:
 
-- **Title** (required)
-- **All day**, or **Start** and **End** date-time (both required) and **Time zone**
+- **Gig Title** (required)
+- **All day**, or **Start Date/Time** (required) and **End Date/Time**; the end must
+  be after the start
+- **Timezone** (required)
 - **Status** — defaults to Date Hold
-- **Tags** — type a tag and press <kbd>Enter</kbd> to add it
+- **Tags** — type a tag and press <kbd>Enter</kbd> or <kbd>Tab</kbd> to add it; common
+  tags are suggested as you type
 - **Notes** — supports Markdown
 
-Choose **Create Gig**, or **Cancel** (or the **Back** arrow left of the page
-title) to leave without saving. Everything else — venue, participants, staffing, financials,
-equipment, schedule — is added afterward from the gig's [detail page](/gigs/overview/).
+Choose **Create Gig**. The gig opens in edit mode, where you add everything else —
+venue, participants, schedule, staffing, equipment and financials (see the
+[Gigs overview](/gigs/overview/)). **Cancel**, or **Back to Gigs** above the
+title, leaves without saving.
+
+Your organization is added to the gig as a participant automatically.
 
 :::note
-The gig's **venue** and **act** aren't set on this form. Add a participating
-organization with the **Venue** (or **Act**) role and the gig's Venue/Act fields
-fill in from it — see [Staffing & participants](/gigs/staffing-and-participants/).
+The gig's **venue** isn't set on this form. Add a participating organization with
+the **Venue** role, and it shows as the gig's venue in the page header and the
+**Venue** card.
 :::
-
-<!-- TODO: screenshots; business/venue search is temporarily unavailable (see plan §"Known open issues", GitHub #22). -->
 
 <!-- TODO
   - 📸 New Gig form. 📸 The tag field after pressing Enter.
-  - Venue/business search screenshot is BLOCKED on #22 (expired Places key).
 -->
