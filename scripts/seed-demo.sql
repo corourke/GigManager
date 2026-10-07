@@ -22,6 +22,8 @@
 --
 -- People: first names start with the letter of their role (Admin = A,
 -- Manager = M, Staff = S, Viewer = V), so a screenshot shows who is who.
+-- Nothing is timestamped later than 8 AM on the anchor day: on the day itself a
+-- later seeded row would outrank what a reviewer does in the app (latest scan wins).
 -- Demo logins (all password demo1pass):
 --   demo-admin@gigwrangler.test    Alicia Hale      Admin
 --   demo-manager@gigwrangler.test  Marcus Reyes     Manager
@@ -107,8 +109,8 @@ VALUES
 CREATE TEMP TABLE _u ON COMMIT DROP AS
 SELECT * FROM (VALUES
   -- n, email, first, last, phone, city, postal, login?, last sign-in (days before anchor)
-  (1,  'demo-admin@gigwrangler.test',        'Alicia',  'Hale',      '(415) 555-0101', 'Oakland',       '94607', true,  0),
-  (2,  'demo-manager@gigwrangler.test',      'Marcus',  'Reyes',     '(415) 555-0102', 'Oakland',       '94609', true,  0),
+  (1,  'demo-admin@gigwrangler.test',        'Alicia',  'Hale',      '(415) 555-0101', 'Oakland',       '94607', true,  1),
+  (2,  'demo-manager@gigwrangler.test',      'Marcus',  'Reyes',     '(415) 555-0102', 'Oakland',       '94609', true,  1),
   (3,  'demo-staff@gigwrangler.test',        'Sofia',   'Lindqvist', '(415) 555-0103', 'Alameda',       '94501', true,  1),
   (4,  'demo-viewer@gigwrangler.test',       'Victor',  'Okafor',    '(415) 555-0104', 'Oakland',       '94610', true,  6),
   -- freelance crew without logins (Staff at Demo Sound & Lighting)
@@ -420,14 +422,14 @@ SELECT pg_temp.d(1,1), pg_temp.d(3, g.n), pg_temp.d(5, k.kit), NULL, pg_temp.d(2
  WHERE k.kit IS NOT NULL AND g.status NOT IN ('DateHold','Cancelled') AND g.fill <> 'none';
 
 -- Last known locations (Location Explorer; every scan belongs to a gig): the FOH
--- package is staged for this Saturday's gala, and the lighting kit and the wash
+-- package was staged yesterday for this Saturday's gala, and the lighting kit and the wash
 -- bars (on the repair bench) were checked in after the festival.
 INSERT INTO public.inventory_tracking (id, organization_id, gig_id, kit_id, asset_id, status, scanned_at, scanned_by, notes, location)
 SELECT pg_temp.d(12, row_number() OVER ()::int), pg_temp.d(1,1), s.gig, s.kit, pg_temp.d(4, s.asset), s.status,
        pg_temp.at(pg_temp.anchor() - s.ago, s.hr), pg_temp.d(2, s.usr), s.notes, s.location
   FROM (
     SELECT pg_temp.d(3,7) AS gig, pg_temp.d(5,1) AS kit, c.asset_id_n AS asset, 'Checked Out' AS status,
-           0 AS ago, 10.5 AS hr, 3 AS usr, NULL::text AS notes, 'Staging Area' AS location
+           1 AS ago, 16.0 AS hr, 3 AS usr, NULL::text AS notes, 'Staging Area' AS location
       FROM (VALUES (4),(5),(19),(23),(26)) AS c(asset_id_n)
     UNION ALL
     SELECT pg_temp.d(3,5), pg_temp.d(5,3), c.n, 'In Warehouse', 9, 17.0, 2, 'Checked in after the festival', 'Warehouse, Bay 2'
@@ -604,7 +606,7 @@ SELECT pg_temp.d(11, e.n), pg_temp.d(1,1), pg_temp.d(2, e.usr), e.event, e.entit
     (14,  2, 10.0, 2, 'staffing.updated',   'staffing',    7,  NULL,             '{"change_count":2,"changes":[{"role":"FOH Engineer","type":"assigned","user_name":"Sofia Lindqvist","initial_status":"Confirmed"},{"role":"Lighting Tech","type":"assigned","user_name":"Shane Park","initial_status":"Requested"}]}'),
     (15,  1, 15.0, 1, 'gig.created',        'gig',         16, NULL,             '{}'),
     (16,  1, 15.5, 1, 'financial.added',    'financial',   16, pg_temp.d(7,30),  '{"stage":"quoted","amount":15000,"direction":"in","description":"Quote for both days"}'),
-    (17,  0,  9.0, 2, 'gig.notes_updated',  'gig',         7,  NULL,             '{"notes_changed":true}')
+    (17,  0,  7.5, 2, 'gig.notes_updated',  'gig',         7,  NULL,             '{"notes_changed":true}')
   ) AS e(n, ago, hr, usr, event, entity, g, entity_id, ctx)
   JOIN public.gigs g ON g.id = pg_temp.d(3, e.g)
   JOIN public.users u ON u.id = pg_temp.d(2, e.usr);
