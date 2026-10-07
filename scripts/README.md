@@ -61,3 +61,26 @@ The `ai-scan` Edge Function requires an Anthropic API key to process PDFs.
    supabase secrets set ANTHROPIC_API_KEY=your_key_here
    ```
    Alternatively, add it via the Supabase Dashboard under **Project Settings -> Edge Functions -> Secrets**.
+
+---
+
+## Demo data for user-guide screenshots (`seed-demo.sh`)
+
+`scripts/seed-demo.sh` posts `scripts/seed-demo.sql` to the **development** Supabase project (`qcrzwsazasaojqoqxwnr`) through the Management API `database/query` endpoint (curl + jq; credentials come from your environment or proxy, the script sends no token). **Dev only:** it refuses to run for any other project ref and must never be pointed at production.
+
+- **Idempotent.** The SQL first deletes every row belonging to the demo organizations and users (fixed UUIDs of the form `de000000-0000-4000-8000-<kind><n>`), then re-inserts. Rows without a demo UUID are never touched.
+- **Pinned dates.** Every date hangs off an anchor date, the demo world's "today" (default `2026-10-07`; pass another as `./scripts/seed-demo.sh 2027-01-15` or `SEED_DEMO_ANCHOR`). Screenshots freeze the browser clock to the same date and use the `America/Los_Angeles` time zone, so Upcoming/Past and "next 30 days" don't drift. Move the anchor only for a full screenshot refresh. Gigs are placed by week and weekday, so they stay on Friday and Saturday evenings.
+- **Contents.** "Demo Sound & Lighting" plus five partner orgs (Harborlight Pavilion and Cedar Hall, venues; Neon Orchard and Paper Lanterns, acts; Brightwave Events, the main client); 4 logins and 10 people without logins; 16 gigs from about 8 weeks back to 14 weeks ahead across all statuses (two of them two-day), with participants, day-of contacts, schedules, staffing and kit assignments; 26 assets, 4 kits (one nested) and last-scanned locations; 4 purchases; a gig ledger with paid, invoiced, overdue, contracted and quoted rows; and three weeks of activity history.
+- **People.** First names start with the letter of their role (Admin **A**licia, Manager **M**arcus, Staff **S**ofia and the freelance crew, Viewer **V**ictor and the partner contacts), so a screenshot shows who is who. Avatars stay as initials.
+- **Demo logins** (password `demo1pass`):
+
+  | Email | Name | Role in Demo Sound & Lighting |
+  |---|---|---|
+  | `demo-admin@gigwrangler.test` | Alicia Hale | Admin |
+  | `demo-manager@gigwrangler.test` | Marcus Reyes | Manager |
+  | `demo-staff@gigwrangler.test` | Sofia Lindqvist | Staff |
+  | `demo-viewer@gigwrangler.test` | Victor Okafor | Viewer |
+
+  The `.test` addresses receive no mail, so flows that send email (invitations, sign-up confirmation, password reset) can't be completed with them yet. Screenshotting those needs a way to simulate email delivery (noted in WORK_PLAN.md §5).
+- **Run:** `./scripts/seed-demo.sh` (prints per-table row counts on success).
+- The SQL targets the live dev schema. If dev gains new required columns or constraints (for example migration `20261012000000` renaming `purchases.row_type` `item`/`asset` to `line`), update `seed-demo.sql` to match.
