@@ -99,6 +99,15 @@ meantime. The coordinator resolves each entry (decides it, or moves it into §3a
 
 - **Security findings from the 09-29 `security-scheme.md` check, urgent.** Details went to Cameron by private notification on 09-29, not here, because this repo is public. In short, some contact-management RPCs trust caller-supplied input for authorization and can grant org membership, plus several broader read exposures. The fix needs a migration, which is a contract, so it's for the coordinator. Meanwhile triage filed no public issue and held the `security-scheme.md` doc update, since correcting the doc would describe the holes publicly.
 
+- **From the Docs Lead (10-07): six app issues found while screenshotting the dev demo org, not yet filed.** Issue creation was refused by this session's permission classifier, so they are listed here until an issue can be filed. Each was checked against all 64 issue titles; none is a duplicate.
+  1. Dashboard **Equipment → Total Value** ignores quantity: `supabase/functions/server/lib/pure/dashboard.ts:24` sums `item_cost` without `quantity` (Insured, :25, too). The asset list footer (`AssetListScreen.tsx:541`) sums `replacement_value × quantity`, so the two also use different bases. Demo org: $13.2K vs the list's total. Question for Cameron: which value should the dashboard show?
+  2. The **Assets** table at 1440px has overlapping headers, wrapped model names and clipped totals (`AssetListScreen.tsx` columns ~262-300).
+  3. A gig's **Equipment** packing list shows a nested container kit with no contents (demo: "Full Band Sound Package" holds two kits). Possibly a gap in #81's rework; `InventoryReports.tsx` `PackingList`.
+  4. A Staff user's dashboard shows **Equipment** and **Revenue** cards at $0 instead of hiding them; the server zeroes them (`routes/gigs.ts:72-110`) but `Dashboard.tsx` ~208-245 always renders them.
+  5. The **Sign Up** footer hard-codes "© 2025" (`LoginScreen.tsx:529`).
+  6. The dev `server` function's CORS list allows only `localhost:3000` (`_shared/cors.ts:7-13`), so any other local port gets no `Access-Control-Allow-Origin`. Minor, local tooling only; allowing any localhost port outside prod is a security call.
+- **From the Docs Lead (10-07): simulating email delivery.** Cameron wants a way to simulate email delivery so invitation, sign-up confirmation and password-reset flows can be shown with the demo `.test` logins. Hosted dev sends real mail through Supabase Auth, so this needs a decision (for example a dev-only SMTP catcher such as Mailpit behind the dev project's custom SMTP, or a dev-only admin "generate link" route).
+
 ### 3c. Ready to build, nothing blocking
 
 *Curated by the coordinator session only.* An item here without a **BLOCKED** marker counts as approved in shape
@@ -230,6 +239,11 @@ applies migrations), edge-function API shape, anything touching production confi
 Read this section first on each run.
 
 **Docs Lead (since 10-07).** A separate session, "GigWrangler Docs Lead", owns the look, quality and organization of the user guide (`website/docs/`) and `docs/`: its information architecture, its style guide, and screenshots taken from a demo organization in **dev**, which it has read-write access to. Prod stays off-limits. It opens docs PRs for the coordinator to merge, and files app issues and §3b entries instead of building code. Triage: before a user-guide pass, check the user-docs table below for pages the Docs Lead has claimed, and skip them.
+
+**Docs Lead decisions, 10-07 (Cameron).** **Coordinator, please note:**
+1. *Visual style:* option A, the app match (sky-blue accent, neutral greys, system font). The Docs Lead builds it in its own PR.
+2. *Demo data:* approved with the review-pack fixes plus Cameron's own: role-initial first names (Admin Alicia, Manager Marcus, Staff Sofia, Viewer Victor), gigs mostly on Friday and Saturday evenings, password `demo1pass`. Revised seed pushed to PR #155 and applied to dev. **Cameron also approved deleting all other data in dev**, so on 10-07 every non-demo organization, gig, purchase, asset, activity row and test login was removed. Cameron's own logins (`cameron*` addresses) were kept but now belong to no organization. A JSON copy of the deleted rows is in the Docs Lead session's scratchpad. Anyone testing on dev should use the demo logins (`scripts/README.md`) or create fresh data.
+3. *Screenshot upkeep:* approved: a manifest and shoot script in `scripts/screenshots/`, a pinned anchor date for both the seed and the browser clock (time zone `America/Los_Angeles`), and a full refresh at each production release. There is no same-PR rule: code PRs leave the guide and screenshots to the Docs Lead ("Who updates which docs" below). The optional CI "screenshots may be stale" warning would now tell the Docs Lead, not the PR author; not filed yet.
 
 **File ownership — what is claimed.** Check live before starting: `git fetch origin && git branch -r
 --sort=-committerdate | head -20` plus the open PR list. An open PR claims the files it touches.
