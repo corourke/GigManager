@@ -24,7 +24,7 @@ ${line(done, '<span class="font-medium">2 × Speaker Stand, Tripod</span> <span 
 ${line(todo, '<span class="font-medium">2 × XLR Cable, 25 ft</span> <span class="text-xs text-muted-foreground">from the loose lot</span>', '', prog(0, 2), scanned(false))}
 ${kit('XLR Cable Box', 'Container', 'CASE-02', done, newMark(2))}
 ${line('', '<span class="text-muted-foreground">Cable trunk, 30 in · Lot of 10 × XLR Cable, 25 ft · Lot of 10 × XLR Cable, 15 ft</span>', '', '<span class="text-muted-foreground">21</span>', scanned(true))}
-${kit('Small XLR Cable Box', 'Container · packed at checkout', 'CASE-03', part, newMark(3))}
+${kit('Small XLR Cable Box', 'Items', 'CASE-03', part, newMark(3))}
 ${line(done, '<span class="font-medium">10 × XLR Cable, 5 ft</span> ' + any(10), '', prog(10, 10), '<span class="text-xs text-muted-foreground">XC05-0001, -0002, -0003, -0005 … <span class="text-sky-700 font-medium">10 serials</span></span>')}
 ${line(part, '<span class="font-medium">10 × XLR Cable, 15 ft</span> ' + any(10), '', prog(7, 10), '<span class="text-xs text-amber-700">3 more to scan</span>')}
 ${line(todo, '<span class="font-medium">4 × XLR Cable, 50 ft</span> ' + any(4), '', prog(0, 4), '<span class="text-xs text-muted-foreground">Not scanned</span>')}
@@ -56,8 +56,8 @@ ${pRow(2, 'QSC K12.2 <i>(any)</i>', blanks(2))}
 ${pRow(2, 'Speaker Stand, Tripod', '<span class="font-sans">from lot</span>')}
 ${pRow(2, 'XLR Cable, 25 ft', '<span class="font-sans">from lot</span>')}
 ${pKit('XLR Cable Box', 'CASE-02')}
-${pRow(1, 'XLR Cable Box: trunk, 10 × 25 ft, 10 × 15 ft (always packed)', 'CASE-02')}
-${pKit('Small XLR Cable Box', 'CASE-03 · packed at checkout')}
+${pRow(1, 'XLR Cable Box: trunk, 10 × 25 ft, 10 × 15 ft', 'CASE-02')}
+${pKit('Small XLR Cable Box', 'CASE-03')}
 ${pRow(10, 'XLR Cable, 5 ft <i>(any)</i>', blanks(5) + '<br>' + blanks(5))}
 ${pRow(10, 'XLR Cable, 15 ft <i>(any)</i>', blanks(5) + '<br>' + blanks(5))}
 ${pRow(4, 'XLR Cable, 50 ft <i>(any)</i>', blanks(4))}
@@ -76,8 +76,8 @@ export default () => ({
     body: gigPage + frame(`<div class="bg-gray-200 p-8">${printSheet}</div>`, 'Print › Packing list (before pack-out). Ink only, ruled rows.'),
     notes: [
       '<b>“2 × QSC K12.2”</b> is one line with a progress count. The scans fill it in: under it are the units that went (DSL-0101 and DSL-0103, with serials). Lines from a lot (stands, cables) show a count only, since lot pieces have no tag.',
-      '<b>An always-packed container</b> (XLR Cable Box) is one line to check, with its contents listed underneath for reference; scanning CASE-02 covers all 21 pieces.',
-      '<b>A container packed at checkout</b> (Small XLR Cable Box) lists its “any” lines with progress, so the crew sees “3 more 15 ft cables to scan”. The box is ready when every line is full.',
+      '<b>A container</b> (XLR Cable Box) is one line to check, with its contents listed underneath for reference; scanning CASE-02 covers all 21 pieces.',
+      '<b>The Small XLR Cable Box is an Items kit</b>: its “any” lines show progress as the tagged cables are scanned, so the crew sees “3 more 15 ft cables to scan”. It is complete when every line is confirmed.',
       '<b>Print</b> keeps the packing-list print layout. Each “any” line gets a blank per piece to write the tag or serial pulled; once scanned, the blanks print filled in. Equipment (the kit table) gains a short “Holds” column.',
     ],
   }),
