@@ -3,7 +3,7 @@ title: Inventory reports
 description: Manifest, packing list, and maintenance queue.
 draft: true
 sidebar:
-  order: 5
+  order: 6
 ---
 
 ## Cover

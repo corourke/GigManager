@@ -3,7 +3,7 @@ title: Participating organizations
 description: Add venues, vendors, and acts to a gig, with their contacts.
 draft: true
 sidebar:
-  order: 5
+  order: 6
 ---
 
 ## Cover

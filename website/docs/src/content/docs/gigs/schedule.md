@@ -3,7 +3,7 @@ title: Schedule / run of day
 description: Build the timeline of a gig — load-in, soundcheck, sets, load-out.
 draft: true
 sidebar:
-  order: 6
+  order: 7
 ---
 
 ## Cover
@@ -13,7 +13,7 @@ sidebar:
 - The **"End time, date, notes"** expander: optional end time, a specific date for
   multi-day gigs, and per-entry notes.
 - Editing and removing entries; how entries are grouped by date.
-- How the schedule shows on the [calendar](/calendar/overview/) and the mobile
+- How the schedule shows on the [calendar](/gigs/calendar-view/) and the mobile
   gig detail.
 
 ## Screenshots

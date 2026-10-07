@@ -2,7 +2,7 @@
 title: Change history
 description: The audit trail of who changed what on a gig, and when.
 sidebar:
-  order: 8
+  order: 10
 ---
 
 Every gig keeps a **change history**. Open a gig and select the **History** tab.

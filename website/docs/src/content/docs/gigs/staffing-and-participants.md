@@ -3,7 +3,7 @@ title: Staffing
 description: Fill role slots on a gig and assign people.
 draft: true
 sidebar:
-  order: 4
+  order: 5
 ---
 
 ## Cover
@@ -12,7 +12,7 @@ sidebar:
   Stage, …), set **how many are needed**, add notes.
 - **Assigning people** to a slot: someone with an account, an invited member, or a
   person quick-added without a login (see
-  [Adding people without a login](/organizations/people-without-logins/)).
+  [Adding people without a login](/team/people-without-logins/)).
 - Assignment **status**: Invited → Confirmed / Declined; **Finalize All**.
 - **Rates** and **Total Staff Cost** (Finalized / Projected / Total), and how staff
   cost feeds gig profit.

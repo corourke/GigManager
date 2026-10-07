@@ -3,7 +3,7 @@ title: Conflict detection
 description: Warnings when staff, gear, or a venue is double-booked.
 draft: true
 sidebar:
-  order: 3
+  order: 9
 ---
 
 ## Cover
