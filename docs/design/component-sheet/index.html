@@ -1,0 +1,364 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GigWrangler component sheet</title>
+<!--
+  The component sheet (#39, rebuilt 2026-10-07). Every swatch and component below
+  uses the app's own tokens (copied from src/styles/globals.css) and the same
+  Tailwind class strings as the components it names, compiled in the browser by
+  Tailwind v4's CDN build. It is a picture of the app, not part of it: when a
+  shared component's look changes, change it here too. Reference: ../STYLE_GUIDE.md.
+-->
+<script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+<style type="text/tailwindcss">
+  :root {
+    --background: #ffffff;
+    --foreground: oklch(0.145 0 0);
+    --card: #ffffff;
+    --card-foreground: oklch(0.145 0 0);
+    --primary: #0284c7;
+    --primary-foreground: #ffffff;
+    --secondary: oklch(0.95 0.0058 264.53);
+    --secondary-foreground: #030213;
+    --muted: #ececf0;
+    --muted-foreground: #717182;
+    --accent: #e9ebef;
+    --accent-foreground: #030213;
+    --destructive: #d4183d;
+    --border: rgba(0, 0, 0, 0.1);
+    --input-background: #f3f3f5;
+    --ring: oklch(0.708 0 0);
+    --radius: 0.625rem;
+  }
+  @theme inline {
+    --color-background: var(--background);
+    --color-foreground: var(--foreground);
+    --color-card: var(--card);
+    --color-card-foreground: var(--card-foreground);
+    --color-primary: var(--primary);
+    --color-primary-foreground: var(--primary-foreground);
+    --color-secondary: var(--secondary);
+    --color-secondary-foreground: var(--secondary-foreground);
+    --color-muted: var(--muted);
+    --color-muted-foreground: var(--muted-foreground);
+    --color-accent: var(--accent);
+    --color-accent-foreground: var(--accent-foreground);
+    --color-destructive: var(--destructive);
+    --color-border: var(--border);
+    --color-input-background: var(--input-background);
+    --color-ring: var(--ring);
+    --radius-sm: calc(var(--radius) - 4px);
+    --radius-md: calc(var(--radius) - 2px);
+    --radius-lg: var(--radius);
+    --radius-xl: calc(var(--radius) + 4px);
+  }
+  @layer base {
+    * { @apply border-border; }
+    body { @apply bg-gray-100 text-foreground; }
+  }
+  .sheet-h2 { @apply text-lg font-bold text-gray-900 mt-12 mb-1; }
+  .sheet-note { @apply text-sm text-gray-600 mb-4 max-w-3xl; }
+  .sheet-code { @apply font-mono text-[12px] text-gray-700 bg-gray-200/70 rounded px-1; }
+  .frame { @apply rounded-xl border border-gray-300 overflow-hidden bg-gray-50 shadow-sm; }
+</style>
+</head>
+<body class="p-8">
+<!-- Lucide icons used below (same paths as lucide-react). -->
+<svg xmlns="http://www.w3.org/2000/svg" style="display:none">
+  <symbol id="i-building" viewBox="0 0 24 24"><rect x="4" y="2" width="16" height="20" rx="2"/><path d="M9 22v-4h6v4M8 6h.01M16 6h.01M12 6h.01M12 10h.01M12 14h.01M16 10h.01M16 14h.01M8 10h.01M8 14h.01"/></symbol>
+  <symbol id="i-dashboard" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></symbol>
+  <symbol id="i-calendar" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></symbol>
+  <symbol id="i-banknote" viewBox="0 0 24 24"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2"/><path d="M6 12h.01M18 12h.01"/></symbol>
+  <symbol id="i-users" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></symbol>
+  <symbol id="i-package" viewBox="0 0 24 24"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5M12 22V12"/></symbol>
+  <symbol id="i-bell" viewBox="0 0 24 24"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9M10.3 21a1.94 1.94 0 0 0 3.4 0"/></symbol>
+  <symbol id="i-arrow-left" viewBox="0 0 24 24"><path d="m12 19-7-7 7-7M19 12H5"/></symbol>
+  <symbol id="i-printer" viewBox="0 0 24 24"><path d="M6 9V2h12v7M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></symbol>
+  <symbol id="i-pencil" viewBox="0 0 24 24"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></symbol>
+  <symbol id="i-more-v" viewBox="0 0 24 24"><circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/></symbol>
+  <symbol id="i-more-h" viewBox="0 0 24 24"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M5 12h14M12 5v14"/></symbol>
+  <symbol id="i-scan" viewBox="0 0 24 24"><path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2M7 12h10"/></symbol>
+  <symbol id="i-receipt" viewBox="0 0 24 24"><path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1Z"/><path d="M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8M12 17.5v-11"/></symbol>
+  <symbol id="i-trending" viewBox="0 0 24 24"><path d="M22 7 13.5 15.5 8.5 10.5 2 17M16 7h6v6"/></symbol>
+  <symbol id="i-columns" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 3v18M15 3v18"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></symbol>
+  <symbol id="i-loader" viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></symbol>
+  <symbol id="i-alert" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></symbol>
+  <symbol id="i-list" viewBox="0 0 24 24"><path d="M3 12h.01M3 18h.01M3 6h.01M8 12h13M8 18h13M8 6h13"/></symbol>
+  <symbol id="i-barcode" viewBox="0 0 24 24"><path d="M3 5v14M8 5v14M12 5v14M17 5v14M21 5v14"/></symbol>
+  <symbol id="i-settings" viewBox="0 0 24 24"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></symbol>
+</svg>
+
+<main class="max-w-6xl mx-auto">
+  <h1 class="text-[28px] font-bold text-gray-900">GigWrangler component sheet</h1>
+  <p class="sheet-note">The real tokens and shared components, drawn with the app's own class strings. Rules for using them: <span class="sheet-code">docs/design/STYLE_GUIDE.md</span>. Ideas that aren't in the app: <span class="sheet-code">docs/design/inspiration/</span>.</p>
+
+  <!-- ───────────────────────── Tokens ───────────────────────── -->
+  <h2 class="sheet-h2">Tokens</h2>
+  <p class="sheet-note">From <span class="sheet-code">src/styles/globals.css</span>. Primary buttons don't use <span class="sheet-code">--primary</span> (sky-600): they're <span class="sheet-code">bg-sky-700</span>.</p>
+  <div class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-3">
+    <div class="rounded-lg border bg-white p-2"><div class="h-12 rounded-md bg-primary"></div><p class="mt-2 text-xs font-medium">--primary</p><p class="text-[11px] text-gray-600">#0284c7 · sky-600</p></div>
+    <div class="rounded-lg border bg-white p-2"><div class="h-12 rounded-md bg-sky-700"></div><p class="mt-2 text-xs font-medium">sky-700</p><p class="text-[11px] text-gray-600">primary buttons, active tabs</p></div>
+    <div class="rounded-lg border bg-white p-2"><div class="h-12 rounded-md bg-foreground"></div><p class="mt-2 text-xs font-medium">--foreground</p><p class="text-[11px] text-gray-600">oklch(0.145 0 0)</p></div>
+    <div class="rounded-lg border bg-white p-2"><div class="h-12 rounded-md bg-muted"></div><p class="mt-2 text-xs font-medium">--muted</p><p class="text-[11px] text-gray-600">#ececf0</p></div>
+    <div class="rounded-lg border bg-white p-2"><div class="h-12 rounded-md bg-muted-foreground"></div><p class="mt-2 text-xs font-medium">--muted-foreground</p><p class="text-[11px] text-gray-600">#717182</p></div>
+    <div class="rounded-lg border bg-white p-2"><div class="h-12 rounded-md bg-accent"></div><p class="mt-2 text-xs font-medium">--accent</p><p class="text-[11px] text-gray-600">#e9ebef · hover</p></div>
+    <div class="rounded-lg border bg-white p-2"><div class="h-12 rounded-md bg-secondary"></div><p class="mt-2 text-xs font-medium">--secondary</p><p class="text-[11px] text-gray-600">tags, secondary</p></div>
+    <div class="rounded-lg border bg-white p-2"><div class="h-12 rounded-md bg-destructive"></div><p class="mt-2 text-xs font-medium">--destructive</p><p class="text-[11px] text-gray-600">#d4183d</p></div>
+    <div class="rounded-lg border bg-white p-2"><div class="h-12 rounded-md bg-input-background"></div><p class="mt-2 text-xs font-medium">--input-background</p><p class="text-[11px] text-gray-600">#f3f3f5</p></div>
+    <div class="rounded-lg border bg-white p-2"><div class="h-12 rounded-md bg-white border-2 border-border"></div><p class="mt-2 text-xs font-medium">--border</p><p class="text-[11px] text-gray-600">rgba(0,0,0,0.1)</p></div>
+    <div class="rounded-lg border bg-white p-2"><div class="h-12 rounded-md bg-gray-50 border"></div><p class="mt-2 text-xs font-medium">bg-gray-50</p><p class="text-[11px] text-gray-600">page background</p></div>
+    <div class="rounded-lg border bg-white p-2"><div class="h-12 rounded-xl bg-white border"></div><p class="mt-2 text-xs font-medium">--radius</p><p class="text-[11px] text-gray-600">0.625rem (lg); cards xl</p></div>
+  </div>
+
+  <!-- ───────────────────────── Top bar ───────────────────────── -->
+  <h2 class="sheet-h2">Top bar · <span class="font-mono text-base">AppHeader</span> + <span class="font-mono text-base">NavigationMenu</span></h2>
+  <p class="sheet-note">One 56 px row. The section menu is a segmented control; the current section is a raised white pill with <span class="sheet-code">aria-current="page"</span>. Below <span class="sheet-code">lg</span> the labels hide (second row).</p>
+  <div class="frame">
+    <div class="bg-background border-b border-border">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="flex h-14 items-center gap-4 lg:gap-7">
+          <div class="flex min-w-0 flex-none items-center gap-2.5">
+            <div class="inline-flex h-8 w-8 flex-none items-center justify-center rounded-lg bg-primary"><svg class="h-[18px] w-[18px] text-primary-foreground" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><use href="#i-building"/></svg></div>
+            <h2 class="max-w-[14rem] truncate text-[15px] font-semibold text-foreground">Act4Audio</h2>
+            <span class="inline-flex items-center justify-center rounded-md border px-2 py-0.5 text-xs font-medium bg-purple-100 text-purple-700">Admin</span>
+          </div>
+          <div class="flex min-w-0 flex-1 justify-center">
+            <nav aria-label="Sections" class="flex items-center gap-0.5 rounded-[10px] border border-gray-200 bg-gray-100 p-[3px]">
+              <button aria-label="Dashboard" class="flex h-8 items-center gap-1.5 rounded-lg px-3 text-sm font-medium text-gray-700 hover:bg-white/60 hover:text-gray-900"><svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2"><use href="#i-dashboard"/></svg><span>Dashboard</span></button>
+              <button aria-label="Gigs" aria-current="page" class="flex h-8 items-center gap-1.5 rounded-lg px-3 text-sm bg-white font-semibold text-sky-700 shadow-sm ring-1 ring-black/5"><svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2"><use href="#i-calendar"/></svg><span>Gigs</span></button>
+              <button aria-label="Financials" class="flex h-8 items-center gap-1.5 rounded-lg px-3 text-sm font-medium text-gray-700 hover:bg-white/60 hover:text-gray-900"><svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2"><use href="#i-banknote"/></svg><span>Financials</span></button>
+              <button aria-label="Team" class="flex h-8 items-center gap-1.5 rounded-lg px-3 text-sm font-medium text-gray-700 hover:bg-white/60 hover:text-gray-900"><svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2"><use href="#i-users"/></svg><span>Team</span></button>
+              <button aria-label="Equipment" class="flex h-8 items-center gap-1.5 rounded-lg px-3 text-sm font-medium text-gray-700 hover:bg-white/60 hover:text-gray-900"><svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2"><use href="#i-package"/></svg><span>Equipment</span></button>
+            </nav>
+          </div>
+          <div class="flex flex-none items-center gap-3">
+            <button aria-label="Notifications" class="h-9 w-9 flex items-center justify-center"><svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2"><use href="#i-bell"/></svg></button>
+            <button aria-label="Account menu" class="w-9 h-9 rounded-full bg-primary/10 text-primary text-sm">CO</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="bg-background px-8 py-3 flex items-center gap-4 text-xs text-gray-600">
+      Below lg:
+      <nav aria-label="Sections, narrow" class="flex items-center gap-0.5 rounded-[10px] border border-gray-200 bg-gray-100 p-[3px]">
+        <button aria-label="Dashboard" class="flex h-8 items-center rounded-lg px-3 text-gray-700"><svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2"><use href="#i-dashboard"/></svg></button>
+        <button aria-label="Gigs" aria-current="page" class="flex h-8 items-center rounded-lg px-3 bg-white text-sky-700 shadow-sm ring-1 ring-black/5"><svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2"><use href="#i-calendar"/></svg></button>
+        <button aria-label="Financials" class="flex h-8 items-center rounded-lg px-3 text-gray-700"><svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2"><use href="#i-banknote"/></svg></button>
+        <button aria-label="Team" class="flex h-8 items-center rounded-lg px-3 text-gray-700"><svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2"><use href="#i-users"/></svg></button>
+        <button aria-label="Equipment" class="flex h-8 items-center rounded-lg px-3 text-gray-700"><svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2"><use href="#i-package"/></svg></button>
+      </nav>
+    </div>
+  </div>
+
+  <!-- ───────────────────────── Page header ───────────────────────── -->
+  <h2 class="sheet-h2">Page header · <span class="font-mono text-base">layout/PageHeader</span></h2>
+  <p class="sheet-note">The slot (32 px, always there) holds the section icon or Back; the title starts at the same place on every page. At most one row of <span class="sheet-code">PageTabs</span>, below the title. No description lines.</p>
+
+  <div class="space-y-4">
+    <!-- 1. top-level, icon -->
+    <div class="frame">
+      <p class="px-4 pt-2 text-[11px] text-gray-600 bg-gray-50">Top-level page: section icon in the slot · <span class="sheet-code">icon</span>, <span class="sheet-code">meta</span></p>
+      <div class="bg-white border-b border-gray-200"><div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="flex min-h-16 items-center gap-3 py-3">
+          <div class="flex h-8 w-8 flex-none items-center justify-center"><span class="flex h-8 w-8 items-center justify-center rounded-lg bg-sky-50 text-sky-700"><svg class="h-[18px] w-[18px]" fill="none" stroke="currentColor" stroke-width="2"><use href="#i-dashboard"/></svg></span></div>
+          <div class="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-1"><h1 class="truncate text-[22px] font-bold leading-7 text-gray-900">Dashboard</h1><div class="text-sm text-gray-600">Welcome back, Cameron!</div></div>
+        </div>
+      </div></div>
+    </div>
+
+    <!-- 2. tabs + actions -->
+    <div class="frame">
+      <p class="px-4 pt-2 text-[11px] text-gray-600 bg-gray-50">With actions and one row of tabs · Financials › Purchases</p>
+      <div class="bg-white border-b border-gray-200"><div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="flex min-h-16 items-center gap-3 py-3">
+          <div class="flex h-8 w-8 flex-none items-center justify-center"><span class="flex h-8 w-8 items-center justify-center rounded-lg bg-green-50 text-green-700"><svg class="h-[18px] w-[18px]" fill="none" stroke="currentColor" stroke-width="2"><use href="#i-banknote"/></svg></span></div>
+          <div class="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-1"><h1 class="truncate text-[22px] font-bold leading-7 text-gray-900">Financials</h1></div>
+          <div class="flex flex-none flex-wrap items-center justify-end gap-2">
+            <button class="inline-flex items-center justify-center gap-2 h-9 px-4 rounded-md text-sm font-medium border bg-background hover:bg-accent"><svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2"><use href="#i-scan"/></svg>Scan invoices<span class="ml-1.5 rounded-full bg-sky-700 text-white text-[10px] font-bold px-1.5 min-w-[18px] text-center">2</span></button>
+            <button class="inline-flex items-center justify-center gap-2 h-9 px-4 rounded-md text-sm font-medium bg-sky-700 hover:bg-sky-800 text-white"><svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2"><use href="#i-plus"/></svg>Add purchase</button>
+          </div>
+        </div>
+        <div class="-mt-1 overflow-x-auto pl-11">
+          <div role="tablist" class="flex h-10 items-stretch gap-6">
+            <button role="tab" class="inline-flex items-center gap-1.5 whitespace-nowrap border-b-2 px-0.5 text-sm border-sky-700 font-semibold text-sky-700"><svg class="size-4" fill="none" stroke="currentColor" stroke-width="2"><use href="#i-receipt"/></svg>Purchases</button>
+            <button role="tab" class="inline-flex items-center gap-1.5 whitespace-nowrap border-b-2 border-transparent px-0.5 text-sm font-medium text-gray-700 hover:text-gray-900"><svg class="size-4" fill="none" stroke="currentColor" stroke-width="2"><use href="#i-banknote"/></svg>Gig Accounting</button>
+            <button role="tab" class="inline-flex items-center gap-1.5 whitespace-nowrap border-b-2 border-transparent px-0.5 text-sm font-medium text-gray-700 hover:text-gray-900"><svg class="size-4" fill="none" stroke="currentColor" stroke-width="2"><use href="#i-trending"/></svg>Reporting</button>
+          </div>
+        </div>
+      </div></div>
+    </div>
+
+    <!-- 3. drill-down record page -->
+    <div class="frame">
+      <p class="px-4 pt-2 text-[11px] text-gray-600 bg-gray-50">Drill-down / record page: Back in the slot · <span class="sheet-code">back</span>, <span class="sheet-code">badge</span>, <span class="sheet-code">meta</span>, <span class="sheet-code">tabs</span></p>
+      <div class="bg-white border-b border-gray-200"><div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="flex min-h-16 items-center gap-3 py-3">
+          <div class="flex h-8 w-8 flex-none items-center justify-center"><button aria-label="Back to Gigs" title="Back to Gigs" class="flex h-8 w-8 items-center justify-center rounded-lg border border-gray-300 bg-white text-sky-700 hover:bg-sky-50"><svg class="h-[18px] w-[18px]" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><use href="#i-arrow-left"/></svg></button></div>
+          <div class="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-1">
+            <h1 class="truncate text-[22px] font-bold leading-7 text-gray-900">Fall Festival</h1>
+            <span class="inline-flex items-center rounded-md border px-2 py-0.5 text-xs font-medium bg-blue-100 text-blue-800 border-blue-300">Proposed</span>
+            <div class="text-sm text-gray-600"><span class="flex flex-wrap items-center gap-x-3 gap-y-1"><span>Oct 17, 2026 12:00 PM – 4:00 PM</span><span class="inline-flex items-center rounded-md border border-transparent px-2 py-0.5 text-xs font-medium bg-secondary text-secondary-foreground">Outdoor</span></span></div>
+          </div>
+          <div class="flex flex-none flex-wrap items-center justify-end gap-2">
+            <button class="inline-flex items-center gap-2 h-9 px-4 rounded-md text-sm font-medium border bg-background hover:bg-accent"><svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2"><use href="#i-printer"/></svg>Print</button>
+            <button aria-label="More actions" class="inline-flex items-center justify-center size-9 rounded-md border bg-background hover:bg-accent"><svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2"><use href="#i-more-v"/></svg></button>
+            <button class="inline-flex items-center gap-2 h-9 px-4 rounded-md text-sm font-medium bg-sky-700 hover:bg-sky-800 text-white"><svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2"><use href="#i-pencil"/></svg>Edit</button>
+          </div>
+        </div>
+        <div class="-mt-1 overflow-x-auto pl-11"><div role="tablist" class="flex h-10 items-stretch gap-6">
+          <button role="tab" class="inline-flex items-center border-b-2 px-0.5 text-sm border-sky-700 font-semibold text-sky-700">Overview</button>
+          <button role="tab" class="inline-flex items-center border-b-2 border-transparent px-0.5 text-sm font-medium text-gray-700">Equipment</button>
+          <button role="tab" class="inline-flex items-center border-b-2 border-transparent px-0.5 text-sm font-medium text-gray-700">Financials</button>
+          <button role="tab" class="inline-flex items-center border-b-2 border-transparent px-0.5 text-sm font-medium text-gray-700">History</button>
+        </div></div>
+      </div></div>
+    </div>
+
+    <!-- 4. edit mode -->
+    <div class="frame">
+      <p class="px-4 pt-2 text-[11px] text-gray-600 bg-gray-50">Edit mode: <span class="sheet-code">className="bg-sky-50 border-b-2 border-sky-700"</span>, editors in the <span class="sheet-code">heading</span> slot; Editing, the save state and Done in the actions</p>
+      <div class="bg-sky-50 border-b-2 border-sky-700"><div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="flex min-h-16 items-center gap-3 py-3">
+          <div class="flex h-8 w-8 flex-none items-center justify-center"><button aria-label="Back to Gigs" class="flex h-8 w-8 items-center justify-center rounded-lg border border-gray-300 bg-white text-sky-700"><svg class="h-[18px] w-[18px]" fill="none" stroke="currentColor" stroke-width="2"><use href="#i-arrow-left"/></svg></button></div>
+          <div class="min-w-0 flex-1"><div class="flex items-center gap-2.5 flex-wrap">
+            <input aria-label="Gig title" value="Fall Festival" class="h-9 w-72 rounded-md bg-white border px-3 text-lg font-bold">
+            <span class="h-9 inline-flex items-center rounded-md bg-white border px-3 text-sm">Proposed ▾</span>
+          </div></div>
+          <div class="flex flex-none flex-wrap items-center justify-end gap-2">
+            <span class="text-[10px] font-bold uppercase tracking-[0.1em] text-sky-800">Editing</span>
+            <span class="inline-flex items-center gap-1.5 text-sm text-green-800"><svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2"><use href="#i-check"/></svg>All changes saved</span>
+            <button class="inline-flex items-center h-9 px-4 rounded-md text-sm font-medium bg-sky-700 hover:bg-sky-800 text-white">Done</button>
+          </div>
+        </div>
+      </div></div>
+    </div>
+  </div>
+
+  <!-- ───────────────────────── Tabs ───────────────────────── -->
+  <h2 class="sheet-h2">Tabs</h2>
+  <p class="sheet-note">Page navigation is always <span class="sheet-code">PageTabs</span> (above). The boxed <span class="sheet-code">ui/tabs</span> list is only for toggles inside the content, like Upcoming / Past or Month / Week.</p>
+  <div class="frame p-4 bg-white">
+    <div class="bg-muted text-muted-foreground inline-flex h-9 w-fit items-center justify-center rounded-xl p-[3px]">
+      <button class="inline-flex h-[calc(100%-1px)] items-center justify-center rounded-xl px-2 py-1 text-sm font-medium bg-card text-foreground">Upcoming (12)</button>
+      <button class="inline-flex h-[calc(100%-1px)] items-center justify-center rounded-xl px-2 py-1 text-sm font-medium text-foreground">Past (48)</button>
+    </div>
+  </div>
+
+  <!-- ───────────────────────── Buttons ───────────────────────── -->
+  <h2 class="sheet-h2">Buttons · <span class="font-mono text-base">ui/button</span></h2>
+  <p class="sheet-note">Primary is <span class="sheet-code">bg-sky-700 hover:bg-sky-800 text-white</span>. Older screens still use <span class="sheet-code">bg-sky-500</span>; they move to sky-700 as they're touched. Sizes: sm 32, default 36, lg 40, icon 36.</p>
+  <div class="frame p-4 bg-white flex flex-wrap items-center gap-3">
+    <button class="inline-flex items-center justify-center gap-2 h-9 px-4 rounded-md text-sm font-medium bg-sky-700 hover:bg-sky-800 text-white">Primary</button>
+    <button class="inline-flex items-center justify-center gap-2 h-9 px-4 rounded-md text-sm font-medium border bg-background text-foreground hover:bg-accent">Outline</button>
+    <button class="inline-flex items-center justify-center gap-2 h-9 px-4 rounded-md text-sm font-medium bg-secondary text-secondary-foreground">Secondary</button>
+    <button class="inline-flex items-center justify-center gap-2 h-7 px-2 rounded-md text-xs font-medium text-muted-foreground hover:bg-accent"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2"><use href="#i-columns"/></svg>Columns</button>
+    <button class="inline-flex items-center justify-center gap-2 h-9 px-4 rounded-md text-sm font-medium bg-destructive text-white">Delete</button>
+    <button class="inline-flex items-center justify-center h-9 px-4 text-sm font-medium text-sky-700 hover:underline">Text link</button>
+    <button disabled class="inline-flex items-center justify-center gap-2 h-9 px-4 rounded-md text-sm font-medium bg-sky-700 text-white opacity-50 pointer-events-none">Disabled</button>
+    <button class="inline-flex items-center justify-center gap-1.5 h-8 px-3 rounded-md text-sm font-medium border bg-background hover:bg-accent">Small</button>
+    <button class="inline-flex items-center justify-center gap-2 h-10 px-6 rounded-md text-sm font-medium border bg-background hover:bg-accent">Large</button>
+  </div>
+
+  <!-- ───────────────────────── Badges ───────────────────────── -->
+  <h2 class="sheet-h2">Badges · <span class="font-mono text-base">ui/badge</span> + the <span class="font-mono text-base">*_CONFIG</span> maps</h2>
+  <div class="frame p-4 bg-white space-y-3 text-xs">
+    <div class="flex flex-wrap items-center gap-2"><span class="w-48 text-gray-600">GIG_STATUS_CONFIG</span>
+      <span class="inline-flex rounded-md border px-2 py-0.5 font-medium bg-gray-100 text-gray-800 border-gray-300">Date Hold</span>
+      <span class="inline-flex rounded-md border px-2 py-0.5 font-medium bg-blue-100 text-blue-800 border-blue-300">Proposed</span>
+      <span class="inline-flex rounded-md border px-2 py-0.5 font-medium bg-green-100 text-green-800 border-green-300">Booked</span>
+      <span class="inline-flex rounded-md border px-2 py-0.5 font-medium bg-purple-100 text-purple-800 border-purple-300">Completed</span>
+      <span class="inline-flex rounded-md border px-2 py-0.5 font-medium bg-gray-200 text-gray-500 border-gray-300">Cancelled</span>
+      <span class="inline-flex rounded-md border px-2 py-0.5 font-medium bg-indigo-100 text-indigo-800 border-indigo-300">Settled</span>
+    </div>
+    <div class="flex flex-wrap items-center gap-2"><span class="w-48 text-gray-600">ASSET_STATUS_CONFIG</span>
+      <span class="inline-flex rounded-md border px-2 py-0.5 font-medium bg-green-100 text-green-800 border-green-300">Active</span>
+      <span class="inline-flex rounded-md border px-2 py-0.5 font-medium bg-amber-100 text-amber-800 border-amber-300">Inactive</span>
+      <span class="inline-flex rounded-md border px-2 py-0.5 font-medium bg-red-100 text-red-700 border-red-300">Maintenance</span>
+      <span class="inline-flex rounded-md border px-2 py-0.5 font-medium bg-blue-100 text-blue-800 border-blue-300">Disposed</span>
+      <span class="inline-flex rounded-md border px-2 py-0.5 font-medium bg-gray-100 text-gray-700 border-gray-300">Returned</span>
+    </div>
+    <div class="flex flex-wrap items-center gap-2"><span class="w-48 text-gray-600">TRACKING_STATUS_CONFIG</span>
+      <span class="inline-flex rounded-md border px-2 py-0.5 font-medium border-sky-200 bg-sky-50 text-sky-700">Checked Out</span>
+      <span class="inline-flex rounded-md border px-2 py-0.5 font-medium border-amber-200 bg-amber-50 text-amber-700">In Transit</span>
+      <span class="inline-flex rounded-md border px-2 py-0.5 font-medium border-violet-200 bg-violet-50 text-violet-700">On Site</span>
+      <span class="inline-flex rounded-md border px-2 py-0.5 font-medium border-emerald-200 bg-emerald-50 text-emerald-700">In Warehouse</span>
+    </div>
+    <div class="flex flex-wrap items-center gap-2"><span class="w-48 text-gray-600">USER_ROLE_CONFIG</span>
+      <span class="inline-flex rounded-md border px-2 py-0.5 font-medium bg-purple-100 text-purple-700">Admin</span>
+      <span class="inline-flex rounded-md border px-2 py-0.5 font-medium bg-blue-100 text-blue-700">Manager</span>
+      <span class="inline-flex rounded-md border px-2 py-0.5 font-medium bg-gray-100 text-gray-700">Staff</span>
+      <span class="inline-flex rounded-md border px-2 py-0.5 font-medium bg-gray-50 text-gray-600">Viewer</span>
+    </div>
+    <div class="flex flex-wrap items-center gap-2"><span class="w-48 text-gray-600">Tag (secondary)</span>
+      <span class="inline-flex rounded-md border border-transparent px-2 py-0.5 font-medium bg-secondary text-secondary-foreground">Outdoor</span>
+    </div>
+  </div>
+
+  <!-- ───────────────────────── Cards ───────────────────────── -->
+  <h2 class="sheet-h2">Cards · <span class="font-mono text-base">ui/card</span>, <span class="font-mono text-base">GigSection</span></h2>
+  <div class="frame p-4 grid grid-cols-1 lg:grid-cols-3 gap-4 items-start">
+    <div class="bg-card text-card-foreground flex flex-col gap-2.5 rounded-xl border p-4 lg:col-span-2">
+      <div class="flex items-center justify-between gap-3">
+        <h2 class="text-[15px] font-semibold flex items-center gap-2">Staffing <span class="text-xs font-normal text-muted-foreground">3 of 4 filled</span></h2>
+        <button class="inline-flex items-center gap-2 h-7 px-2 rounded-md text-xs font-medium text-muted-foreground hover:bg-accent"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2"><use href="#i-columns"/></svg>Columns</button>
+      </div>
+      <div class="h-2.5 w-2/3 rounded bg-gray-100"></div><div class="h-2.5 w-1/2 rounded bg-gray-100"></div>
+    </div>
+    <div class="bg-card text-card-foreground flex flex-col gap-2.5 rounded-xl border p-4">
+      <h2 class="text-[15px] font-semibold">Venue</h2>
+      <p class="text-sm italic text-muted-foreground">No venue yet</p>
+    </div>
+  </div>
+
+  <!-- ───────────────────────── Inputs ───────────────────────── -->
+  <h2 class="sheet-h2">Inputs and validation</h2>
+  <div class="frame p-4 bg-white grid sm:grid-cols-2 gap-6 max-w-3xl">
+    <label class="flex flex-col gap-2 text-sm font-medium">Vendor
+      <input placeholder="Search vendor..." class="h-9 rounded-md border border-transparent bg-input-background px-3 text-sm font-normal outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50">
+    </label>
+    <label class="flex flex-col gap-2 text-sm font-medium">Confirm Password
+      <input type="password" value="secret12" class="h-9 rounded-md border border-destructive bg-input-background px-3 text-sm font-normal">
+      <span class="text-destructive text-[11px] font-medium -mt-1">Passwords don't match</span>
+    </label>
+  </div>
+
+  <!-- ───────────────────────── Table ───────────────────────── -->
+  <h2 class="sheet-h2">Smart table cells · <span class="font-mono text-base">SmartDataTable</span>, <span class="font-mono text-base">EditableCell</span></h2>
+  <p class="sheet-note">The selected cell gets a <span class="sheet-code">border-2 border-primary</span> overlay; Tab moves to the next cell, Enter edits. Row actions sit behind one <span class="sheet-code">MoreHorizontal</span> button.</p>
+  <div class="frame bg-white">
+    <table class="w-full text-sm">
+      <thead><tr class="border-b bg-muted/30 text-left text-muted-foreground"><th class="px-4 py-2 font-medium">Model</th><th class="px-4 py-2 font-medium">Category</th><th class="px-4 py-2 font-medium">Status</th><th class="w-12"></th></tr></thead>
+      <tbody>
+        <tr class="border-b"><td class="px-4 py-2 min-h-[40px]">[Asset name]</td><td class="relative px-4 py-2"><div class="absolute inset-0 border-2 border-primary pointer-events-none"></div>[Category]</td><td class="px-4 py-2"><span class="inline-flex rounded-md border px-2 py-0.5 text-xs font-medium bg-green-100 text-green-800 border-green-300">Active</span></td><td class="px-2"><button aria-label="Row actions" class="h-8 w-8 inline-flex items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-accent"><svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2"><use href="#i-more-h"/></svg></button></td></tr>
+        <tr><td class="px-4 py-2">[Asset name]</td><td class="px-4 py-2 text-muted-foreground"><span class="inline-flex items-center gap-1.5"><svg class="w-4 h-4 animate-spin" fill="none" stroke="currentColor" stroke-width="2"><use href="#i-loader"/></svg>saving</span></td><td class="px-4 py-2"><span class="inline-flex rounded-md border px-2 py-0.5 text-xs font-medium bg-red-100 text-red-700 border-red-300">Maintenance</span></td><td class="px-2"><button aria-label="Row actions" class="h-8 w-8 inline-flex items-center justify-center rounded-md text-muted-foreground"><svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2"><use href="#i-more-h"/></svg></button></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- ───────────────────────── Save state ───────────────────────── -->
+  <h2 class="sheet-h2">Save state · <span class="font-mono text-base">EditSaveStatus</span></h2>
+  <div class="frame p-4 bg-white flex flex-wrap gap-6">
+    <span class="inline-flex items-center gap-1.5 text-sm text-muted-foreground"><svg class="w-4 h-4 animate-spin" fill="none" stroke="currentColor" stroke-width="2"><use href="#i-loader"/></svg>Saving…</span>
+    <span class="inline-flex items-center gap-1.5 text-sm text-green-800"><svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2"><use href="#i-check"/></svg>All changes saved</span>
+    <span class="inline-flex items-center gap-1.5 text-sm text-red-700"><svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2"><use href="#i-alert"/></svg>Some changes didn't save</span>
+  </div>
+
+  <!-- ───────────────────────── Mobile ───────────────────────── -->
+  <h2 class="sheet-h2">Mobile bottom nav · <span class="font-mono text-base">MobileLayout</span></h2>
+  <p class="sheet-note">The PWA keeps its own layout (inline styles in the code). Staff get Dashboard in place of Gigs.</p>
+  <div class="frame bg-white max-w-[480px]">
+    <div style="display:flex;justify-content:space-around;align-items:center;height:56px;padding:0 8px;border-top:1px solid var(--border)">
+      <div style="display:flex;flex-direction:column;align-items:center;gap:2px;color:var(--primary)"><div style="padding:2px 12px;border-radius:999px;background-color:color-mix(in srgb, var(--primary) 10%, transparent)"><svg style="width:24px;height:24px" fill="none" stroke="currentColor" stroke-width="2.5"><use href="#i-list"/></svg></div><span style="font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase">Gigs</span></div>
+      <div style="display:flex;flex-direction:column;align-items:center;gap:2px;color:var(--muted-foreground)"><div style="padding:2px 12px"><svg style="width:24px;height:24px" fill="none" stroke="currentColor" stroke-width="2"><use href="#i-barcode"/></svg></div><span style="font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase">Scanning</span></div>
+      <div style="display:flex;flex-direction:column;align-items:center;gap:2px;color:var(--muted-foreground)"><div style="padding:2px 12px"><svg style="width:24px;height:24px" fill="none" stroke="currentColor" stroke-width="2"><use href="#i-settings"/></svg></div><span style="font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase">Settings</span></div>
+    </div>
+  </div>
+
+  <p class="mt-12 text-xs text-gray-500">Rebuilt for #39 on 2026-10-07 from the code at that date.</p>
+</main>
+</body>
+</html>
