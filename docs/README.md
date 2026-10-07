@@ -20,6 +20,9 @@ Database schema, tech stack, and setup guides
 ### 💻 [Development Documentation](./development/)
 Development plans, AI coding guides, and testing strategies
 
+### 🎨 [Design](./design/)
+The style guide and component sheet: page layout, tokens and shared components
+
 ---
 
 ## Quick Navigation
@@ -82,6 +85,16 @@ Located in [`./development/`](./development/)
 
 - **[coding-guide.md](./development/coding-guide.md)** - Coding conventions, patterns, and guidelines
 - **[testing.md](./development/testing.md)** - Testing strategy, conventions, and test utilities
+
+---
+
+## Design
+
+Located in [`./design/`](./design/)
+
+- **[STYLE_GUIDE.md](./design/STYLE_GUIDE.md)** - How the app looks and how to lay out a page: the page frame (top bar, page header, one row of tabs), tokens, buttons, badges, cards, record pages, print, tables, mobile
+- **[component-sheet/index.html](./design/component-sheet/index.html)** - The real tokens and shared components, drawn with the app's class strings (open in a browser)
+- **[inspiration/](./design/inspiration/README.md)** - Older mockups and the ideas in them. Not implemented; don't build from them without an issue
 
 ---
 

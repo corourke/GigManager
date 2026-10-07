@@ -1,6 +1,9 @@
-# GigManager Design System & Style Guide
+# GigWrangler Style Guide
 
-This document serves as the "Ground Truth" for the look and feel of the GigManager application (Web & Mobile). AI Agents and humans should refer to this guide to ensure visual consistency across the platform.
+The reference for how GigWrangler looks and how to lay out a page, web and mobile. Everything here describes the app as built (checked against the code on 2026-10-07); where the code and this guide disagree, fix one of them.
+
+- **Component sheet:** [`component-sheet/index.html`](./component-sheet/index.html) shows the real tokens and components (top bar, page header variants, tabs, buttons, badges, cards, table cells). Open it in a browser.
+- **Not in the app:** older mockups and the ideas in them are in [`inspiration/`](./inspiration/README.md). Don't build from them without an issue.
 
 ## Design Principles
 1.  **Professional & Clean**: High contrast, crisp edges, and ample whitespace.
@@ -24,10 +27,15 @@ Tokens are defined in `./src/styles/globals.css`: plain CSS variables on `:root`
 | `--muted` | `#ececf0` | `bg-muted` | Secondary backgrounds, skeletons |
 | `--muted-foreground` | `#717182` | `text-muted-foreground` | Secondary and metadata text |
 | `--accent` | `#e9ebef` | `bg-accent` | Hover background for outline and ghost buttons |
+| `--secondary` | `oklch(0.95 0.0058 264.53)` | `bg-secondary` | `Button`/`Badge` `secondary` variant |
+| `--card` | `#ffffff` | `bg-card` | `Card` background |
 | `--destructive` | `#d4183d` | `bg-destructive`, `text-destructive` | Delete actions, errors |
 | `--border` | `rgba(0, 0, 0, 0.1)` | `border-border` | Standard border |
 | `--input-background` | `#f3f3f5` | `bg-input-background` | Input fill |
+| `--ring` | `oklch(0.708 0 0)` | `ring-ring` | Focus ring on shadcn/ui components |
 | `--radius` | `0.625rem` | `rounded-md`, `rounded-lg` … | Corner radius base |
+
+`.dark` redefines the same tokens; the web app doesn't switch to dark mode today. The chart and `--sidebar-*` tokens come with shadcn/ui and aren't used by any screen.
 
 There is no `--accent-sky` token. Where a pattern needs sky it uses Tailwind's palette directly (`sky-50`, `sky-700`, `sky-800`).
 
@@ -46,21 +54,19 @@ Older screens still use `bg-sky-500 hover:bg-sky-600` or the plain default varia
 
 ## Typography & Labels
 
-### Metadata Labels (Metadata Rule)
-Use for headers of sections, field labels, or secondary status.
--   **CSS**: `text-[10px] font-bold uppercase tracking-[0.1em] text-muted-foreground` (or specific semantic color)
--   **Purpose**: Clear categorization without distracting from data.
+### Metadata Labels
+A small uppercase label above or beside data: the gig page's "Editing" label, "Show columns" in the Columns picker, print kickers.
+-   **CSS**: `text-[10px] font-bold uppercase tracking-[0.1em] text-muted-foreground` (or a semantic colour, e.g. `text-sky-800` for Editing).
+-   Most field labels are the plain shadcn `Label` (`text-sm font-medium`); use the metadata label only where a quiet category is wanted.
 
 ### Primary Data
 -   **Web**: `text-sm font-medium text-foreground`
 -   **Mobile**: `text-[14px] font-semibold text-foreground`
 
 ### Interaction States
-All interactive elements (buttons, inputs, links) must have defined states:
-- **Hover**: Subtle shift in background (e.g., `bg-muted/80`, `hover:bg-sky-800` on a primary button).
-- **Focus**: the shadcn/ui components' own ring (`focus-visible:ring-ring/50 focus-visible:ring-[3px]`); don't remove it. Custom controls match it.
-- **Active**: Slight scale down (`scale-[0.98]`) or deeper background color.
-- **Disabled**: `opacity-50 cursor-not-allowed grayscale-[0.5]`.
+- **Hover**: a background shift: `hover:bg-accent` on outline and ghost buttons, `hover:bg-sky-800` on a primary button, `hover:bg-white/60` on the section menu.
+- **Focus**: the shadcn/ui components' own ring (`focus-visible:ring-ring/50 focus-visible:ring-[3px]`); don't remove it. Custom controls (the section menu, the page header's Back, page tabs) use `focus-visible:ring-2 focus-visible:ring-sky-600`.
+- **Disabled**: `disabled:opacity-50 disabled:pointer-events-none` (from `ui/button.tsx`).
 
 ---
 
@@ -89,15 +95,22 @@ Every web screen stacks the same bands, in this order. Nothing goes above the ti
 -   **Back labels** name the destination ("Back to Assets", "Back to Select Organization"). Use a bare "Back" only when Back is history-based and the destination isn't known (Starter categories, editing an organization). Import is opened from Gigs or Assets and its Back returns there (`/import?from=assets`).
 -   **Every web screen uses the frame**, and no page has more than one row of tabs. The mobile PWA has its own layout.
 
-### 2. Inline Stats (Dashboard/Summary)
-Used for financial summaries or key metrics.
--   **Container**: `flex items-baseline gap-1`
--   **Value**: `text-2xl font-bold tracking-tight text-foreground`
--   **Label**: `text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-0.5`
+### 2. Badges
+`ui/badge.tsx` (`rounded-md border px-2 py-0.5 text-xs font-medium`), coloured from the config maps in `src/utils/supabase/constants.ts`. Use the map, never a hand-picked colour, so a status looks the same everywhere.
 
-### 3. Data Cards
--   **Class**: `rounded-xl border bg-card text-card-foreground shadow-sm`
--   **Header**: Bold title with optional icon.
+| Map | Values and classes |
+|---|---|
+| `GIG_STATUS_CONFIG` | Date Hold `bg-gray-100 text-gray-800`, Proposed `bg-blue-100 text-blue-800`, Booked `bg-green-100 text-green-800`, Completed `bg-purple-100 text-purple-800`, Cancelled `bg-gray-200 text-gray-500`, Settled `bg-indigo-100 text-indigo-800` (each with a matching `-300` border) |
+| `ASSET_STATUS_CONFIG` | Active green, Inactive amber, Maintenance red, Disposed blue, Returned gray |
+| `TRACKING_STATUS_CONFIG` | Checked Out sky, In Transit amber, On Site violet, In Warehouse emerald (`bg-*-50 text-*-700 border-*-200`) |
+| `USER_ROLE_CONFIG` | Admin purple, Manager blue, Staff gray, Viewer light gray (the top bar's role badge) |
+
+Tags are `Badge variant="secondary"`.
+
+### 3. Cards
+-   **Base**: `ui/card.tsx`, `bg-card text-card-foreground flex flex-col gap-6 rounded-xl border` (no shadow).
+-   **Sections on a record page**: `GigSection` (below), which tightens the card to `p-4 gap-2.5`.
+-   **Dashboard tiles**: `Card` with a bold muted label (`text-sm text-muted-foreground font-bold`) and label/value rows.
 
 ---
 
@@ -153,96 +166,50 @@ Printouts are separate components rendered only for print, not the screen styled
 Mobile screens live in `src/components/mobile/` and share the web app's tokens and Tailwind build.
 
 ### 1. Mobile Layout
--   **Container**: `min-h-screen bg-muted/30`
--   **Content**: Max width `max-w-md` (centered on larger screens).
+-   **Shell**: `MobileLayout.tsx` on `.mobile-layout-root` (`globals.css`): a fixed, full-height grid (`100dvh`) of header, scrolling content and the bottom nav.
+-   **Bottom nav**: 56 px, centred at `maxWidth: 480`, inline styles. Items Gigs, Scanning, Settings; Staff get Dashboard in place of Gigs. The active item is `var(--primary)` with a 10% `--primary` pill behind a 24 px icon; labels are `10px` bold uppercase.
 
 ### 2. Mobile Card Section
-Standardized section for mobile details (Participants, Staff, Times, etc.).
--   **Class**: `Card` with `className="gap-0"`
--   **Content Padding**: `p-3 pb-3`
--   **Section Label**:
-    ```tsx
-    <p className="text-[11px] font-bold flex items-center gap-1.5 text-muted-foreground uppercase tracking-widest mb-2">
-      <Icon className="w-3.5 h-3.5" />
-      LABEL
-    </p>
-    ```
+Sections on mobile details (Participants, Staff, Times, etc.).
+-   **Class**: `Card` with `className="gap-0"`, content padding `p-3 pb-3`.
+-   **Section label**: `text-[11px] font-semibold flex items-center gap-1.5` with a `w-3.5 h-3.5` icon, in `text-primary` or `text-muted-foreground` (not uppercase).
 
 ### 3. Row Items
--   **Container**: `py-2 border-b border-border/40 last:border-0 last:pb-0`
--   **Structure**: Label (top), Data (bottom).
+-   **List**: rows in a `divide-y divide-border/50` container (staff, participants, financials on the mobile gig page).
+-   **Row**: `flex items-center py-1.5 first:pt-0 last:pb-0`: an `11px` semibold label (`w-24`, coloured by its config map), then the value (`text-base font-medium`), then small action icons.
 
 ---
 
 ## UI Patterns: Common
 
 ### 1. Form Validation
-- **Inline Error**: `text-destructive text-[11px] font-medium mt-1`. Use for field-specific errors.
-- **Input State**: Error fields should have `border-destructive focus-visible:ring-destructive`.
-- **Global Feedback**: Use Toasts (Sonner) for form submission status.
-    - **Success**: Sky icon/accent.
-    - **Error**: Destructive icon/accent.
+- **Inline error**: `text-destructive text-[11px] font-medium mt-1` under the field (e.g. Sign Up's Confirm Password).
+- **Feedback**: toasts from Sonner (`ui/sonner.tsx`, its default styling): `toast.success` / `toast.error`.
 
 ### 2. Empty States
-Used when a list, dashboard, or search result has no data.
-- **Container**: `flex flex-col items-center justify-center p-12 text-center border-2 border-dashed rounded-xl bg-muted/10`
-- **Icon**: `text-muted-foreground/40 w-12 h-12 mb-4`
-- **Title**: `text-lg font-semibold text-foreground`
-- **Description**: `text-sm text-muted-foreground max-w-[300px] mb-6`
-- **CTA**: Primary button (`bg-sky-700 hover:bg-sky-800 text-white`).
+- **In a card**: a short italic muted line ("No notes", "No schedule yet"), not a panel.
+- **A whole list or report**: centred muted text, sometimes with a muted icon (e.g. "No active gigs with kit assignments found."). There's no single shared empty-state component yet (see `inspiration/` for the proposal).
 
-### 3. Loading Skeletons
-Use for progressive loading of data-heavy views.
-- **Base Class**: `animate-pulse bg-muted rounded-md`
-- **Stat Skeleton**: A `h-8 w-24` rectangle for values, `h-3 w-16` for labels.
-- **Card Skeleton**: A container with a `h-4 w-1/3` header and `h-20` body.
-
-### 4. Navigation Transitions
-- **Web**: Instant or 150ms fade-in for page content to maintain high-density speed.
-- **Mobile (PWA)**: 
-    - **Forward**: Slide from right (`duration-300`).
-    - **Backward**: Slide to left (`duration-300`).
-    - **Bottom Nav**: Persistent; icons scale or change color to `sky-500` when active.
-
----
-
-## UI Patterns: Hierarchy & Inheritance
-Specific to the GigHierarchy system.
-
-### 1. Inheritance Indicator
-- **Badge**: `text-[10px] font-bold uppercase tracking-wider bg-sky-100 text-sky-700 px-1.5 py-0.5 rounded-sm`
-- **Label**: "Inherited" or "Parent Value".
-- **Usage**: Place next to field labels or in row items.
-
-### 2. Override State
-- **Visual**: Highlight overridden fields with a subtle `border-l-2 border-sky-500 pl-2`.
-- **Action**: Provide a "Revert" button (`text-sky-600 hover:underline text-[10px] uppercase font-bold`).
+### 3. Loading
+- A centred `Loader2` spinner (`animate-spin`, `text-sky-500`/`text-muted-foreground`) for a page or panel; "Loading…" text in reports.
+- `ui/skeleton.tsx` (`animate-pulse bg-accent rounded-md`) where a layout should hold its shape, e.g. the activity feed.
 
 ---
 
 ## UI Patterns: Smart Tables & Inline Editing
-Used for high-density data management (e.g., Gig Accounting, Kit Lists).
+`src/components/tables/SmartDataTable.tsx` and `EditableCell.tsx`, used for Assets, Kits, Team, Purchases and other lists. Behaviour in detail: `docs/technical/SmartDataTable.md`.
 
 ### 1. Selection & Navigation
-- **Selected Cell**: `box-shadow: inset 0 0 0 2px #0ea5e9` (sky-500) with `bg-sky-500/10`.
-- **Keyboard**: `Tab` moves horizontally, `Enter` moves vertically.
+- **Selected cell**: a `border-2 border-primary` overlay (`absolute inset-0`), so the cell's content doesn't move.
+- **Keyboard**: `Tab` moves to the next cell (every column), `Enter` starts or commits an edit. There are no arrow-key moves.
 
 ### 2. Inline Editor
-- **Active State**: The cell becomes a borderless input. Text should not shift visually.
-- **Typography**: Matches the primary data style (`text-sm font-medium`).
-- **Saving State**: Show a small spinner (`Loader2`) if the operation takes > 200ms.
+- The cell turns into its editor in place (text, number, currency, date, select, pills); text matches the cell (`text-sm`).
+- **Saving**: a small `Loader2` spinner while the save runs; edits aren't optimistic, so the cell shows the saved value.
 
 ### 3. Row Actions
-Standardized set of actions at the end of a row.
-- **Grouped pattern**: Use a subtle container (`bg-muted`, `rounded-lg`) that reveals/becomes prominent on row hover.
-- **Dropdown pattern**: For high-density tables, keep 1-2 primary actions visible and move the rest into a `MoreHorizontal` menu.
-- **Sizing**: Use 26-28px buttons with 14px icons for a precise, professional feel.
-- **Icons**:
-    - **View**: `Eye` icon (`text-muted-foreground`, hover `text-sky-600`).
-    - **Edit**: `Edit` icon (`text-muted-foreground`, hover `text-sky-600`).
-    - **Duplicate**: `Copy` icon (`text-muted-foreground`, hover `text-sky-600`).
-    - **Notes**: `StickyNote` icon (`text-muted-foreground`, hover `text-sky-600`).
-    - **Delete**: `Trash2` icon (`text-muted-foreground`, hover `text-destructive`).
+- One `MoreHorizontal` ghost button (`h-8 w-8`, `text-muted-foreground hover:text-foreground`) at the end of the row opens a menu (`w-[160px]`).
+- Default icons by action id: View `Eye`, Edit `Edit`, Duplicate `Copy`, Delete `Trash2`.
 
 ---
 
@@ -254,11 +221,13 @@ Standardized set of actions at the end of a row.
 
 ---
 
-## Implementation Checklist for AI Agents
-- [ ] Primary buttons: `bg-sky-700 hover:bg-sky-800 text-white`. Active tabs and links: `sky-700`.
-- [ ] Ensure all metadata labels are `uppercase tracking-wider font-bold`.
-- [ ] Use `border-border/40` for subtle internal dividers.
-- [ ] Mobile: Prefer `text-[14px]` for body text and `text-[11px]` for headers.
-- [ ] Web: Use standard shadcn/ui component patterns with token overrides.
+## Checklist for a new or reworked screen
+- [ ] `AppHeader`, then `layout/PageHeader`: the slot (section icon or Back named for its destination), a title that's a name, no description line, actions on the right.
+- [ ] At most one row of tabs (`PageTabs`), below the title; route-driven tabs use `activationMode="manual"`. A "do something" is a title-row button, not a tab.
+- [ ] Content in `max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4` on `bg-gray-50`; narrow forms left-aligned with `*:max-w-*`.
+- [ ] Primary buttons `bg-sky-700 hover:bg-sky-800 text-white`; secondary `outline`. Active tabs and links `sky-700`.
+- [ ] Status colours from the `*_CONFIG` maps; tags `Badge variant="secondary"`.
 - [ ] Record pages: one Edit for the whole page, autosave, one save state in the header, Done waits for saves.
 - [ ] Printouts: a separate `print-only` component, black on white, point sizes, ruled rows, and `no-print` on screen chrome.
+- [ ] Mobile: `text-[14px]` body, `text-[11px]` section labels; the PWA keeps its own layout.
+- [ ] Update the [component sheet](./component-sheet/index.html) when a shared component's look changes.
