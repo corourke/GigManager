@@ -7,20 +7,35 @@ sidebar:
 
 An **organization** owns everything in GigWrangler: gigs, equipment, financials
 and its team. **Team** in the top nav is where you manage the people in it.
-This section covers running it.
+Everyone in the organization can open it; Admins and Managers can change it.
 
-- **Roles & permissions** — what Admin, Manager,
-  Staff, and Viewer can each do; per-organization roles; the seeded staff-role list.
-- **Inviting members** — email invites with a chosen
-  role, and managing pending invitations.
-- **Adding people without a login** —
-  quick-add crew and contacts, and the duplicate-detection picker.
-- **Member profiles & contacts** — profiles,
-  skills, and the contacts roster grouped by login status.
+- **Roles & permissions** — what Admin, Manager, Staff and Viewer mean, how to
+  change someone's role, and the job positions you assign to gig slots.
+- **Inviting members** — email invitations with a chosen role, and managing
+  pending ones.
+- **Adding people without a login** — crew and contacts who don't need to sign
+  in, with duplicate detection.
+- **Member profiles & contacts** — a member's details page, and the Contacts
+  list on an organization's edit screen.
 
 For *getting into* an organization (create / claim / request access / invitation),
 see [Getting into an organization](/getting-started/organizations/).
 
-<!-- TODO: write a short "Organization settings" topic here — name, roles, branding,
-     time zone, allowed email domains, the `claimed` state. Plan §2. -->
-<!-- 📸 Screenshot: Organization settings / edit form. -->
+## Organization settings
+
+An organization's details live on the **Edit Organization** screen, not on **Team**.
+To open it:
+
+1. Open the avatar menu (top right) → **Switch Organization**.
+2. Select **Browse All Organizations**.
+3. On the organization's row, select **Edit Organization** (pencil).
+
+You only see the pencil on organizations you can edit: your own organization if
+you're one of its Admins, or any organization that hasn't been claimed yet if
+you're an Admin of any organization. Managers can't edit organization details.
+
+The form has **Organization Name** and **Organization Roles** (required, with at
+least one role checked), then **Phone Number**, **Website URL**, **Allowed Email
+Domains**, **Description** (Markdown works), and the address. **Save Changes** turns
+on once you change something. Below the form, a **Contacts** card lists the
+organization's people (see Member profiles & contacts).
