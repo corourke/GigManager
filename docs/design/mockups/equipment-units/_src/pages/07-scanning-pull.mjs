@@ -16,8 +16,8 @@ const slot = `<div class="ml-7 mt-1 flex items-center gap-1.5 text-[11px] text-m
 // a) before
 const a = header('2 / 9 scanned') + `<div class="p-3 space-y-3 overflow-hidden">${kitCard('Main PA: K12.2 Pair', '0 / 8 pieces', 'todo',
   row('todo', '2 × QSC K12.2', `${tb('Not scanned')} <span>0 of 2 · any of 6</span>`, slot + slot) +
-  row('todo', '2 × Speaker Stand, Tripod', `${tb('Not scanned')} <span>no tags · tap to confirm</span>`) +
-  row('todo', '2 × XLR Cable, 25 ft', `${tb('Not scanned')} <span>no tags · tap to confirm</span>`))}
+  row('todo', '2 × Speaker Stand, Tripod', `${tb('Not scanned')} <span>tap to count</span>`) +
+  row('todo', '2 × XLR Cable, 25 ft', `${tb('Not scanned')} <span>tap to count</span>`))}
 ${kitCard('XLR Cable Box', `<span class="font-mono">CASE-02</span> · Container`, 'done')}
 ${kitCard('Small XLR Cable Box', `<span class="font-mono">CASE-03</span> · Items · 17 / 24`, 'part')}</div>`;
 
@@ -29,28 +29,26 @@ const b = `<div class="flex h-full flex-col bg-black text-white"><div class="fle
 // c) after, plus a maintenance warning
 const c = header('4 / 9 scanned') + `<div class="p-3 space-y-3 overflow-hidden">${kitCard('Main PA: K12.2 Pair', '2 / 8 pieces', 'part',
   row('done', '2 × QSC K12.2', `${tb('Checked Out')} <span>2 of 2</span>`, sub('DSL-0101', 'GAA213409') + sub('DSL-0103', 'GAA213422')) +
-  row('todo', '2 × Speaker Stand, Tripod', `${tb('Not scanned')} <span>no tags · tap to confirm</span>`))}
+  row('todo', '2 × Speaker Stand, Tripod', `${tb('Not scanned')} <span>tap to count</span>`))}
 <div class="rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 shadow"><div class="flex items-center gap-2 font-semibold">${icon('alert-triangle', 'h-4 w-4 text-amber-600')}DSL-0104 is in Maintenance</div><div class="mt-1 text-xs">QSC K12.2 · “woofer rattles”. Main PA already has its 2 K12.2s.</div><div class="mt-2 grid grid-cols-2 gap-2"><span class="flex h-10 items-center justify-center rounded-lg border bg-white text-sm">Don’t pull</span><span class="flex h-10 items-center justify-center rounded-lg text-sm text-white" style="background:${P}">Pull anyway</span></div></div>
 <div class="rounded-xl border bg-white p-3 text-xs text-muted-foreground">A third K12.2 scanned for this kit asks whether to <b>swap</b> it for one already pulled, or add it as extra.</div></div>`;
 
-// d) confirming a line with no tags
+// d) counting a line: the counter starts at the full amount
 const d = header('4 / 9 scanned') + `<div class="relative flex-1 p-3 space-y-3 overflow-hidden">${kitCard('Main PA: K12.2 Pair', '2 / 8 pieces', 'part', row('todo', '2 × Speaker Stand, Tripod', `${tb('Not scanned')}`))}
 <div class="absolute inset-0 bg-black/40"></div>
-<div class="absolute inset-x-0 bottom-0 rounded-t-2xl bg-white p-4 space-y-3 shadow-2xl"><div class="mx-auto h-1 w-10 rounded-full bg-gray-300"></div>
+<div class="absolute inset-x-0 bottom-0 rounded-t-2xl bg-white p-4 space-y-4 shadow-2xl"><div class="mx-auto h-1 w-10 rounded-full bg-gray-300"></div>
 <div><div class="text-base font-bold">2 × Speaker Stand, Tripod</div><div class="text-xs text-muted-foreground">Main PA: K12.2 Pair · from the lot of 6 in Warehouse, Bay 2</div></div>
-<div class="rounded-lg bg-muted/40 p-3 text-sm text-gray-700">These have no tags, so the line is confirmed as a whole. Confirming records 2 stands from the lot as Checked Out to Staging Area.</div>
-<div class="text-center text-xs font-medium text-sky-700">Only some here? Confirm fewer</div>
+<div class="flex items-center justify-center gap-6 py-2"><span class="flex h-14 w-14 items-center justify-center rounded-full border text-gray-700">${icon('minus', 'h-6 w-6')}</span><span class="w-16 text-center text-5xl font-bold tabular-nums">2</span><span class="flex h-14 w-14 items-center justify-center rounded-full border text-gray-300">${icon('plus', 'h-6 w-6')}</span></div>
 <div class="grid grid-cols-2 gap-2"><span class="flex h-11 items-center justify-center rounded-lg border text-sm">Cancel</span><span class="flex h-11 items-center justify-center rounded-lg text-sm font-medium text-white" style="background:${P}">Confirm line</span></div></div></div>`;
 
 // e) packing the Small XLR Cable Box from stock
-const serialRow = (sn) => `<div class="flex items-center gap-1.5 text-[11px]"><span class="text-emerald-600">${icon('check', 'h-3 w-3')}</span><span class="font-mono">${sn}</span></div>`;
-const e = header('17 / 24 scanned') + `<div class="p-3 space-y-3 overflow-hidden">
-<div class="rounded-xl border bg-white p-3 text-sm"><div class="flex items-center gap-2 font-semibold">${icon('layers', 'h-4 w-4 text-gray-500')}Small XLR Cable Box <span class="text-[11px] font-normal text-muted-foreground">CASE-03 · Items kit</span></div><div class="text-xs text-muted-foreground mt-0.5">Scan each tagged cable as it goes in. 17 of 24.</div></div>
-${row('done', '10 × XLR Cable, 5 ft', `${tb('Checked Out')} <span>10 of 10</span>`)}
-${row('part', '10 × XLR Cable, 15 ft', `<span class="text-amber-700 font-medium">7 of 10 · scan 3 more</span>`, `<div class="ml-7 mt-1 grid grid-cols-2 gap-x-2">${['XC15-0001', 'XC15-0002', 'XC15-0004', 'XC15-0005', 'XC15-0006', 'XC15-0008', 'XC15-0011'].map(serialRow).join('')}</div>`)}
-${row('todo', '4 × XLR Cable, 50 ft', `${tb('Not scanned')} <span>0 of 4 · 4 free</span>`)}
-<div class="rounded-xl border border-red-200 bg-red-50 p-3 text-xs text-red-800"><b>XC50-0002</b> is packed in FOH Console Package. Take it out of that kit first, or scan another 50 ft cable.</div>
-<div class="text-center text-xs text-muted-foreground">The box is complete when every line is.</div></div>`;
+const e = header('17 / 24 counted') + `<div class="p-3 space-y-3 overflow-hidden">
+<div class="rounded-xl border bg-white p-3 text-sm"><div class="flex items-center gap-2 font-semibold">${icon('layers', 'h-4 w-4 text-gray-500')}Small XLR Cable Box <span class="text-[11px] font-normal text-muted-foreground">CASE-03 · Items kit</span></div><div class="text-xs text-muted-foreground mt-0.5">Count each line as it goes in. Cables are not scanned, even tagged ones.</div></div>
+${row('done', 'Cable trunk, 24 in', `${tb('Checked Out')} <span class="font-mono">CASE-03</span> <span>scanned</span>`)}
+${row('done', '10 × XLR Cable, 5 ft', `${tb('Checked Out')} <span>10 of 10 counted</span>`)}
+${row('part', '10 × XLR Cable, 15 ft', `<span class="text-amber-700 font-medium">7 of 10 counted · 3 short</span>`)}
+${row('todo', '4 × XLR Cable, 50 ft', `${tb('Not scanned')} <span>tap to count · 4 free</span>`)}
+<div class="text-center text-xs text-muted-foreground">The box is complete when every line is. A short line stays open until it is counted again.</div></div>`;
 
 export default () => ({
   name: '07-scanning-pull',
@@ -58,13 +56,13 @@ export default () => ({
     id: '07-scanning-pull',
     body: frame(`<div class="bg-gray-100 px-6 py-8 space-y-10">
 <div class="flex justify-center gap-10">${phone(a, `<b>1.</b> Pack-out for ${GIG.title}. “2 × QSC K12.2” shows two empty slots: any K12.2 fills one.`)}${phone(b, '<b>2.</b> Scanning DSL-0101 resolves one slot. The scanner says which line it counted toward.')}${phone(c, '<b>3.</b> Both slots filled with the units that went. Scanning a unit in Maintenance warns first.')}</div>
-<div class="flex justify-center gap-10">${phone(d, '<b>4.</b> A line with no tags (stands from a lot) is confirmed as a whole.')}${phone(e, '<b>5.</b> The Small XLR Cable Box is an Items kit: each tagged cable is scanned to fill its line; a cable already in another kit is refused.')}</div>
+<div class="flex justify-center gap-10">${phone(d, '<b>4.</b> Tapping a counted line opens the counter at the full amount: confirm, or tap − first if some are missing.')}${phone(e, '<b>5.</b> The Small XLR Cable Box is an Items kit: the trunk is scanned, the cable lines are counted (one short here).')}</div>
 </div>`, 'Mobile PWA › Inventory Mode (also embedded in the web “Track a gig” dialog).'),
     notes: [
       '<b>Resolving “2 × K12.2” by scanning</b>: the line shows a slot per piece. Scanning any K12.2 fills a slot and records <i>that</i> unit on the gig, so later the system knows DSL-0101 and DSL-0103 went (and which came back).',
-      '<b>Guard rails</b>: a unit in Maintenance or booked on an overlapping gig warns before it is pulled; a third K12.2 for a kit that has its two offers a swap. A cable that is already packed in another kit is refused, with where it is.',
-      '<b>Lines with no tags are confirmed</b>, not counted piece by piece: one tap records the line’s quantity from the lot (“2 stands”). If only some are there, the line can be confirmed for fewer and stays open.',
-      '<b>No packing step</b>: the Small XLR Cable Box is an ordinary Items kit. Its “any” lines fill as tagged cables are scanned, and the kit is complete when every line is confirmed. Containers (XLR Cable Box, PA Rack) always scan as one.',
+      '<b>Guard rails</b>: a unit in Maintenance or booked on an overlapping gig warns before it is pulled; a third K12.2 for a kit that has its two offers a swap. ',
+      '<b>Counted lines</b>: an “any” line of cables or stands is counted, never scanned piece by piece, even when the pieces have tags. The counter starts at the full amount, so a full line is one tap on <b>Confirm line</b>; − records fewer and leaves the line short.',
+      '<b>No packing step</b>: the Small XLR Cable Box is an ordinary Items kit. Its trunk is scanned and its cable lines counted; the kit is complete when every line is. Containers (XLR Cable Box, PA Rack) always scan as one.',
     ],
   }),
 });

@@ -19,12 +19,12 @@ const head = `<thead><tr class="border-b bg-gray-50 text-left text-xs font-semib
 const contents = `<section class="rounded-xl border bg-white p-6 space-y-4">
 <div class="flex items-center gap-2"><h3 class="text-gray-900 font-medium">Kit Contents</h3>${newMark(1)}<span class="ml-auto">${btnOutline('Add Components', 'plus')}</span></div>
 <div class="border rounded-lg overflow-hidden"><table class="w-full">${head}<tbody>
-${kitRow(kindPill('unit'), 'Cable trunk, 24 in', `${unitChip('CASE-03')} <span class="ml-1 text-sky-800 font-medium">the container itself</span>`, 1, '$189.00', '$189.00', { fixed: true, avail: 'Specific unit' })}
-${kitRow(anyPill, 'XLR Cable, 5 ft', 'any unit · scanned when the box is packed', 10, '$9.00', '$90.00', { avail: '12 units owned · 12 free' })}
-${kitRow(anyPill, 'XLR Cable, 15 ft', 'any unit · not the lot that lives in the XLR Cable Box', 10, '$13.00', '$130.00', { avail: '12 units owned · 12 free' })}
-${kitRow(anyPill, 'XLR Cable, 50 ft', 'any unit', 4, '$25.00', '$100.00', { avail: '<span class="text-amber-700 font-medium">6 units owned · 4 free</span><div class="text-[11px] text-muted-foreground">2 are in FOH Console Package</div>' })}
+${kitRow(kindPill('unit'), 'Cable trunk, 24 in', `${unitChip('CASE-03')} <span class="ml-1 text-sky-800 font-medium">the box itself · scanned</span>`, 1, '$189.00', '$189.00', { fixed: true, avail: 'Specific unit' })}
+${kitRow(anyPill, 'XLR Cable, 5 ft', 'any unit · counted at pack-out', 10, '$9.00', '$90.00', { avail: '12 units owned · 12 free' })}
+${kitRow(anyPill, 'XLR Cable, 15 ft', 'any unit · counted · not the lot in the XLR Cable Box', 10, '$13.00', '$130.00', { avail: '12 units owned · 12 free' })}
+${kitRow(anyPill, 'XLR Cable, 50 ft', 'any unit · counted', 4, '$25.00', '$100.00', { avail: '<span class="text-amber-700 font-medium">6 units owned · 4 free</span><div class="text-[11px] text-muted-foreground">2 are in FOH Console Package</div>' })}
 </tbody></table></div>
-<div class="text-xs text-muted-foreground">“Any” entries say how many of an item, not which ones. At pack-out each line is confirmed; scanning the tagged cables records which ones went (screen 7).</div>
+<div class="text-xs text-muted-foreground">“Any” entries say how many of an item, not which ones, and are counted at pack-out. A specific unit is scanned by its tag (screen 7).</div>
 </section>`;
 
 const sidebar = `<div class="space-y-4">
@@ -33,7 +33,7 @@ const sidebar = `<div class="space-y-4">
 <div class="relative flex flex-col items-start gap-1.5 rounded-lg border-2 p-3 border-sky-500 bg-sky-50"><span class="absolute right-2 top-2 text-sky-600">${icon('check-circle', 'h-4 w-4')}</span><span class="flex items-center gap-1.5 text-sm font-semibold">${icon('layers', 'h-4 w-4')}Items</span><span class="text-xs text-gray-600">Each line is confirmed when packed</span></div>
 <div class="relative flex flex-col items-start gap-1.5 rounded-lg border-2 p-3 border-gray-200 bg-white"><span class="flex items-center gap-1.5 text-sm font-semibold">${icon('archive', 'h-4 w-4')}Container</span><span class="text-xs text-gray-600">Whole kit scanned as one unit</span></div>
 </div>
-<div class="rounded-lg border bg-gray-50 p-3 text-xs text-gray-700 space-y-1"><div><b>Items</b>: at pack-out, each line is confirmed. Pieces with a tag are scanned to fill their line; a line with no tags is confirmed as a whole. The kit is complete when every line is.</div><div><b>Container</b>: always scanned as one, by its tag (the XLR Cable Box, the PA Rack).</div></div>
+<div class="rounded-lg border bg-gray-50 p-3 text-xs text-gray-700 space-y-1"><div><b>Items</b>: at pack-out, each line is confirmed. An “any” line is counted (the counter starts at the full amount); a specific unit is scanned by its tag. The kit is complete when every line is.</div><div><b>Container</b>: always scanned as one, by its tag (the XLR Cable Box, the PA Rack).</div></div>
 </section>
 <section class="rounded-xl border bg-white p-6"><h3 class="text-gray-900 font-medium mb-3">Kit Summary</h3><div class="grid grid-cols-3 gap-2">${[['4', 'Components'], ['25', 'Pieces'], ['$509', 'Total Value']].map(([n, l]) => `<div><div class="text-2xl text-gray-900">${n}</div><div class="text-xs text-gray-600">${l}</div></div>`).join('')}</div></section>
 <section class="rounded-xl border bg-white p-6 space-y-2">${btnPrimary('Update Kit', 'check', 'w-full')}${btnOutline('Cancel', '', 'w-full')}</section>
@@ -65,11 +65,11 @@ const cBadge = (t) => badge(t, t === 'Container' ? 'bg-primary text-white border
 
 const others = `<div class="grid grid-cols-3 gap-4">
 ${tree('Main PA: K12.2 Pair', cBadge('Items'), [
-  `${anyPill}<b>2 ×</b> QSC K12.2 <span class="text-xs text-muted-foreground">of 6 · 5 free</span>`,
+  `${anyPill}<b>2 ×</b> QSC K12.2 <span class="text-xs text-muted-foreground">of 6 · 5 free · scan each</span>`,
   `${anyPill}<b>2 ×</b> Speaker Stand, Tripod <span class="text-xs text-muted-foreground">from a lot of 6</span>`,
   `${anyPill}<b>2 ×</b> XLR Cable, 25 ft <span class="text-xs text-muted-foreground">from the loose lot</span>`,
   `${anyPill}<b>2 ×</b> Edison Extension Cord, 50 ft`,
-], 'Any 2 of the 6 K12.2s will do. Which two went is recorded when they are scanned.')}
+], 'Any 2 of the 6 K12.2s will do; “scan each” records which two went (open question). The stands and cables are counted.')}
 ${tree('XLR Cable Box', cBadge('Container') + '<span class="font-mono text-xs text-muted-foreground">CASE-02</span>', [
   `${kindPill('unit')}Cable trunk, 30 in ${unitChip('CASE-02')}`,
   `${kindPill('lot')}<b>10 ×</b> XLR Cable, 25 ft ${lotChip(10)}`,
@@ -89,8 +89,8 @@ export default () => ({
     id: '05-kit-editor',
     body: editor + `<div class="grid grid-cols-[560px_1fr] gap-6 items-start"><div>${frame(`<div class="bg-slate-900/40 p-5">${addDialog}</div>`, 'Add Components, searching “xlr 15”.')}</div><div>${frame(`<div class="bg-gray-50 p-4 space-y-3"><div class="text-sm font-medium text-gray-700 flex items-center gap-2">The other examples, as their kit pages list them ${newMark(4)}</div>${others.replace('grid-cols-3', 'grid-cols-1')}</div>`, 'Kit Structure on the kit pages.')}</div></div>`,
     notes: [
-      '<b>Two kinds of entry</b>. <b>Any</b>: “10 × XLR Cable, 5 ft”, how many of an item, any unit will do. <b>Unit</b> or <b>Lot</b>: a specific one, such as the trunk the cables travel in. Availability shows how many are owned and free, and warns when a kit asks for more than are free (the 50 ft: 2 of 6 sit in FOH Console Package).',
-      '<b>Tracking type is unchanged</b>: Items or Container, nothing more. The Small XLR Cable Box is an <b>Items</b> kit: at pack-out each line is confirmed, tagged cables are scanned to fill their line, and the box is done when every line is. The XLR Cable Box and the PA Rack are <b>Containers</b>, always scanned as one.',
+      '<b>Two kinds of entry</b>. <b>Any</b>: “10 × XLR Cable, 5 ft”, how many of an item, any unit will do; it is counted at pack-out, even if the cables have tags. <b>Unit</b> or <b>Lot</b>: a specific one, such as the trunk the cables travel in. Availability shows how many are owned and free, and warns when a kit asks for more than are free (the 50 ft: 2 of 6 sit in FOH Console Package).',
+      '<b>Tracking type is unchanged</b>: Items or Container, nothing more. The Small XLR Cable Box is an <b>Items</b> kit: at pack-out each line is confirmed (the cable lines by count, the trunk by its tag), and the box is done when every line is. The XLR Cable Box and the PA Rack are <b>Containers</b>, always scanned as one.',
       '<b>Add Components</b> groups results by kind: an item (with a quantity), a specific unit or lot, or a kit. A lot that already lives in one container is greyed out for another, with the reason.',
       '<b>The other examples</b>: the PA kit asks for 2 × any K12.2; the XLR Cable Box lists its trunk and its two lots; the PA Rack lists four specific serial-numbered units. The rack’s and box’s own case is a unit in the kit, and its tag is the kit’s tag (open question).',
     ],
