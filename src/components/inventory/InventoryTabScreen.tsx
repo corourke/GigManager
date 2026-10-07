@@ -1,10 +1,12 @@
 import { useState } from 'react';
-import { Tabs, TabsList, TabsTrigger, TabsContent } from '../ui/tabs';
+import { Barcode, Printer, X } from 'lucide-react';
 import AppHeader from '../AppHeader';
 import EquipmentHeader from '../EquipmentHeader';
+import { Button } from '../ui/button';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../ui/dialog';
 import { InventorySummaryDashboard } from './InventorySummaryDashboard';
 import { LocationExplorer } from './LocationExplorer';
-import { InventoryReports } from './InventoryReports';
+import { ManifestReport, MaintenanceQueue } from './InventoryReports';
 import TrackingTab from './TrackingTab';
 import { Organization, User, UserRole } from '../../utils/supabase/types';
 import type { InventoryTab } from '../../routes/paths';
@@ -15,15 +17,20 @@ interface InventoryTabScreenProps {
   userRole?: UserRole;
   onNavigateToAssets: () => void;
   onNavigateToKits: () => void;
-  onNavigateToInventory: () => void;
-  /** The sub-tab, when the URL decides it (`/inventory/tracking`). */
+  onNavigateToInventory: (tab: InventoryTab) => void;
+  /** The tab, from the URL (`/equipment/locations`). */
   subTab?: InventoryTab;
-  onSubTabChange?: (tab: InventoryTab) => void;
   onSwitchOrganization?: () => void;
   onLogout?: () => void;
   onEditProfile?: () => void;
 }
 
+/**
+ * Equipment's tabs after Assets and Kits (#39): Out on gigs (the old Summary
+ * and Tracking), Locations (the Location Explorer, with the Manifest one click
+ * away) and Maintenance. One row of tabs, no sub-tabs. The packing list lives
+ * on the gig page.
+ */
 export default function InventoryTabScreen({
   organization,
   user,
@@ -31,15 +38,34 @@ export default function InventoryTabScreen({
   onNavigateToAssets,
   onNavigateToKits,
   onNavigateToInventory,
-  subTab: subTabProp,
-  onSubTabChange,
+  subTab = 'out-on-gigs',
   onSwitchOrganization,
   onLogout,
   onEditProfile,
 }: InventoryTabScreenProps) {
-  const [localSubTab, setLocalSubTab] = useState<InventoryTab>('summary');
-  const subTab = subTabProp ?? localSubTab;
-  const setSubTab = (t: InventoryTab) => (onSubTabChange ? onSubTabChange(t) : setLocalSubTab(t));
+  // `undefined` = closed; '' = open with no gig picked yet.
+  const [trackingGigId, setTrackingGigId] = useState<string | undefined>(undefined);
+  const [showManifest, setShowManifest] = useState(false);
+
+  const actions =
+    subTab === 'out-on-gigs' ? (
+      <Button variant="outline" onClick={() => setTrackingGigId('')}>
+        <Barcode className="w-4 h-4 mr-2" />
+        Track a gig
+      </Button>
+    ) : subTab === 'locations' ? (
+      showManifest ? (
+        <Button variant="outline" onClick={() => setShowManifest(false)}>
+          <X className="w-4 h-4 mr-2" />
+          Close manifest
+        </Button>
+      ) : (
+        <Button variant="outline" onClick={() => setShowManifest(true)}>
+          <Printer className="w-4 h-4 mr-2" />
+          Print manifest
+        </Button>
+      )
+    ) : null;
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -53,51 +79,48 @@ export default function InventoryTabScreen({
           onEditProfile={onEditProfile}
           onLogout={onLogout ?? (() => {})}
         />
-      </div>
-
-      <div className="no-print">
         <EquipmentHeader
-          activeTab="inventory"
+          activeTab={subTab}
           onNavigateToAssets={onNavigateToAssets}
           onNavigateToKits={onNavigateToKits}
           onNavigateToInventory={onNavigateToInventory}
+          actions={actions}
         />
       </div>
 
-      {/* Until #39's Equipment reorganization, Inventory keeps its own sub-tabs in the content. */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-        <Tabs value={subTab} onValueChange={(v) => setSubTab(v as typeof subTab)}>
-          <TabsList className="mb-6 no-print">
-            <TabsTrigger value="summary">Summary</TabsTrigger>
-            <TabsTrigger value="explorer">Location Explorer</TabsTrigger>
-            <TabsTrigger value="reports">Reports</TabsTrigger>
-            <TabsTrigger value="tracking">Tracking</TabsTrigger>
-          </TabsList>
+        {subTab === 'out-on-gigs' && (
+          <InventorySummaryDashboard
+            organizationId={organization.id}
+            userId={user.id}
+            userRole={userRole}
+            onTrack={(gigId) => setTrackingGigId(gigId)}
+          />
+        )}
 
-          <TabsContent value="summary">
-            <InventorySummaryDashboard
-              organizationId={organization.id}
-              userId={user.id}
-              userRole={userRole}
-            />
-          </TabsContent>
-
-          <TabsContent value="explorer">
+        {subTab === 'locations' &&
+          (showManifest ? (
+            <ManifestReport organizationId={organization.id} organizationName={organization.name} />
+          ) : (
             <LocationExplorer organizationId={organization.id} userId={user.id} userRole={userRole} />
-          </TabsContent>
+          ))}
 
-          <TabsContent value="reports">
-            <InventoryReports
-              organizationId={organization.id}
-              organizationName={organization.name}
-            />
-          </TabsContent>
-
-          <TabsContent value="tracking">
-            <TrackingTab organizationId={organization.id} />
-          </TabsContent>
-        </Tabs>
+        {subTab === 'maintenance' && (
+          <MaintenanceQueue organizationId={organization.id} organizationName={organization.name} />
+        )}
       </div>
+
+      <Dialog open={trackingGigId !== undefined} onOpenChange={(open) => { if (!open) setTrackingGigId(undefined); }}>
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Track a gig</DialogTitle>
+            <DialogDescription>Scan equipment out and back in for a gig.</DialogDescription>
+          </DialogHeader>
+          {trackingGigId !== undefined && (
+            <TrackingTab organizationId={organization.id} initialGigId={trackingGigId || undefined} />
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

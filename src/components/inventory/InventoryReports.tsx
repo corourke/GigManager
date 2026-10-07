@@ -2,7 +2,6 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { format } from 'date-fns';
 import { formatInTimeZone } from '../../utils/dateUtils';
 import { AlertTriangle, Printer, SlidersHorizontal } from 'lucide-react';
-import { Tabs, TabsList, TabsTrigger, TabsContent } from '../ui/tabs';
 import {
   Select,
   SelectContent,
@@ -419,22 +418,25 @@ interface PackingLine {
 function PackingListTab({
   organizationId,
   organizationName,
-  gigs: gigList,
-  showAllGigs,
-  onShowAllGigsChange,
+  gig: fixedGig,
   conflictFlags,
+  hidePrintButton,
+  onLoaded,
 }: {
   organizationId: string;
   organizationName: string;
-  gigs: GigOption[];
-  showAllGigs: boolean;
-  onShowAllGigsChange: (v: boolean) => void;
+  /** The gig to list (#39: the packing list lives on the gig page). */
+  gig: GigOption;
   conflictFlags: Set<string>;
+  /** The gig page prints from its own Print menu. */
+  hidePrintButton?: boolean;
+  /** Called once the rows have loaded, so a print can wait for them. */
+  onLoaded?: () => void;
 }) {
-  const [gigId, setGigId] = useState('');
-  const gigs = useGigsWithSelected(gigList, gigId);
+  const gigId = fixedGig.id;
   const [rows, setRows] = useState<PackingListRow[]>([]);
   const [loading, setLoading] = useState(false);
+  const [loaded, setLoaded] = useState(false);
   const [visibleColumns, setVisibleColumns] = useState<Set<PackingColumn>>(
     new Set(['status', 'scanned_at', 'location', 'scanned_by', 'notes'])
   );
@@ -474,8 +476,13 @@ function PackingListTab({
       setRows([]);
     } finally {
       setLoading(false);
+      setLoaded(true);
     }
   }, [organizationId, gigId]);
+
+  useEffect(() => {
+    if (loaded) onLoaded?.();
+  }, [loaded, onLoaded]);
 
   useEffect(() => {
     fetchPackingList();
@@ -511,8 +518,8 @@ function PackingListTab({
       });
   }, [rows]);
 
-  const selectedGig = gigs.find((g) => g.id === gigId);
-  const selectedGigTitle = selectedGig?.title;
+  const selectedGig = fixedGig;
+  const selectedGigTitle = selectedGig.title;
   const show = (col: PackingColumn) => visibleColumns.has(col);
 
   return (
@@ -534,25 +541,7 @@ function PackingListTab({
         </div>
       </div>
 
-      <div className="flex flex-wrap gap-3 items-end no-print">
-        <div className="flex flex-col gap-1 min-w-[220px] flex-1">
-          <label className="text-xs font-medium text-muted-foreground">
-            Gig <span className="text-red-500">*</span>
-          </label>
-          <Select value={gigId} onValueChange={setGigId}>
-            <SelectTrigger aria-label="Select gig">
-              <SelectValue placeholder="Select a gig..." />
-            </SelectTrigger>
-            <SelectContent>
-              {gigs.map((gig) => (
-                <SelectItem key={gig.id} value={gig.id}>
-                  {gig.title}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        <ShowAllGigsCheckbox id="packing-show-all-gigs" checked={showAllGigs} onChange={onShowAllGigsChange} />
+      <div className="flex flex-wrap gap-3 items-end justify-end no-print">
         <Popover>
           <PopoverTrigger asChild>
             <Button variant="outline" size="sm" className="gap-2 shrink-0">
@@ -577,16 +566,18 @@ function PackingListTab({
             </div>
           </PopoverContent>
         </Popover>
-        <Button
-          variant="outline"
-          size="sm"
-          className="gap-2 shrink-0"
-          onClick={() => window.print()}
-          disabled={!gigId || rows.length === 0}
-        >
-          <Printer className="h-4 w-4" />
-          Print
-        </Button>
+        {!hidePrintButton && (
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-2 shrink-0"
+            onClick={() => window.print()}
+            disabled={!gigId || rows.length === 0}
+          >
+            <Printer className="h-4 w-4" />
+            Print
+          </Button>
+        )}
       </div>
 
       {!gigId && (
@@ -792,14 +783,22 @@ function MaintenanceQueueTab({
   );
 }
 
-export function InventoryReports({ organizationId, organizationName }: InventoryReportsProps) {
-  const [gigs, setGigs] = useState<GigOption[]>([]);
-  const [showAllGigs, setShowAllGigs] = useState(false);
+function useConflictFlags(organizationId: string): Set<string> {
   const [conflictFlags, setConflictFlags] = useState<Set<string>>(new Set());
-
   useEffect(() => {
     getInventoryConflictFlags(organizationId).then(setConflictFlags).catch(() => {});
   }, [organizationId]);
+  return conflictFlags;
+}
+
+/**
+ * The Manifest for one location (#39: opened from Equipment › Locations'
+ * "Print manifest"). Its gig filter uses the report picker's window (#109).
+ */
+export function ManifestReport({ organizationId, organizationName }: InventoryReportsProps) {
+  const [gigs, setGigs] = useState<GigOption[]>([]);
+  const [showAllGigs, setShowAllGigs] = useState(false);
+  const conflictFlags = useConflictFlags(organizationId);
 
   useEffect(() => {
     let cancelled = false;
@@ -810,42 +809,40 @@ export function InventoryReports({ organizationId, organizationName }: Inventory
   }, [organizationId, showAllGigs]);
 
   return (
-    <Tabs defaultValue="manifest">
-      <TabsList className="no-print">
-        <TabsTrigger value="manifest">Manifest</TabsTrigger>
-        <TabsTrigger value="packing-list">Packing List</TabsTrigger>
-        <TabsTrigger value="maintenance">Maintenance Queue</TabsTrigger>
-      </TabsList>
+    <ManifestTab
+      organizationId={organizationId}
+      organizationName={organizationName}
+      gigs={gigs}
+      showAllGigs={showAllGigs}
+      onShowAllGigsChange={setShowAllGigs}
+      conflictFlags={conflictFlags}
+    />
+  );
+}
 
-      <TabsContent value="manifest" className="mt-4">
-        <ManifestTab
-          organizationId={organizationId}
-          organizationName={organizationName}
-          gigs={gigs}
-          showAllGigs={showAllGigs}
-          onShowAllGigsChange={setShowAllGigs}
-          conflictFlags={conflictFlags}
-        />
-      </TabsContent>
+/** Equipment › Maintenance (#39). */
+export function MaintenanceQueue({ organizationId, organizationName }: InventoryReportsProps) {
+  const conflictFlags = useConflictFlags(organizationId);
+  return <MaintenanceQueueTab organizationId={organizationId} organizationName={organizationName} conflictFlags={conflictFlags} />;
+}
 
-      <TabsContent value="packing-list" className="mt-4">
-        <PackingListTab
-          organizationId={organizationId}
-          organizationName={organizationName}
-          gigs={gigs}
-          showAllGigs={showAllGigs}
-          onShowAllGigsChange={setShowAllGigs}
-          conflictFlags={conflictFlags}
-        />
-      </TabsContent>
-
-      <TabsContent value="maintenance" className="mt-4">
-        <MaintenanceQueueTab
-          organizationId={organizationId}
-          organizationName={organizationName}
-          conflictFlags={conflictFlags}
-        />
-      </TabsContent>
-    </Tabs>
+/** One gig's packing list, shown on the gig page's Equipment tab and printed from its Print menu (#39). */
+export function PackingList({
+  organizationId,
+  organizationName,
+  gig,
+  hidePrintButton,
+  onLoaded,
+}: InventoryReportsProps & { gig: GigOption; hidePrintButton?: boolean; onLoaded?: () => void }) {
+  const conflictFlags = useConflictFlags(organizationId);
+  return (
+    <PackingListTab
+      organizationId={organizationId}
+      organizationName={organizationName}
+      gig={gig}
+      conflictFlags={conflictFlags}
+      hidePrintButton={hidePrintButton}
+      onLoaded={onLoaded}
+    />
   );
 }

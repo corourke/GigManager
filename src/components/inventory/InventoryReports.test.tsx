@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { InventoryReports } from './InventoryReports';
+import { ManifestReport, PackingList } from './InventoryReports';
 import type { PackingListRow } from '../../services/inventoryManagement.service';
 
 vi.mock('../../services/inventoryManagement.service', () => ({
@@ -121,14 +121,35 @@ function packingTree(): string[] {
   });
 }
 
-async function renderPackingListTab() {
-  const user = userEvent.setup();
-  render(<InventoryReports organizationId="org-1" organizationName="Test Org" />);
-  await user.click(await screen.findByRole('tab', { name: 'Packing List' }));
-  await user.click(await screen.findByRole('option', { name: 'Test Gig' }));
+const TEST_GIG = { id: 'gig-1', title: 'Test Gig', start: '2026-07-12T19:00:00Z', timezone: 'America/Los_Angeles' };
+
+async function renderPackingListTab(props: Partial<React.ComponentProps<typeof PackingList>> = {}) {
+  render(<PackingList organizationId="org-1" organizationName="Test Org" gig={TEST_GIG as any} {...props} />);
 }
 
-describe('InventoryReports — Packing List tab', () => {
+describe('PackingList (one gig, on the gig page since #39)', () => {
+  it('lists the given gig with no gig picker', async () => {
+    (getPackingListReport as any).mockResolvedValue(PACKING_ROWS);
+    await renderPackingListTab();
+    await waitFor(() => expect(getPackingListReport).toHaveBeenLastCalledWith('org-1', 'gig-1'));
+    expect(screen.queryByRole('combobox', { name: 'Select gig' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('checkbox', { name: 'Show all gigs' })).not.toBeInTheDocument();
+  });
+
+  it('tells the caller when the rows have loaded, so a print can wait for them', async () => {
+    (getPackingListReport as any).mockResolvedValue(PACKING_ROWS);
+    const onLoaded = vi.fn();
+    await renderPackingListTab({ onLoaded });
+    await waitFor(() => expect(onLoaded).toHaveBeenCalledTimes(1));
+  });
+
+  it('hides its own Print button when the page prints it', async () => {
+    (getPackingListReport as any).mockResolvedValue(PACKING_ROWS);
+    await renderPackingListTab({ hidePrintButton: true });
+    await screen.findByText('LED Par');
+    expect(screen.queryByRole('button', { name: /print/i })).not.toBeInTheDocument();
+  });
+
   it('renders every kit group inside a single table, not one table per kit', async () => {
     (getPackingListReport as any).mockResolvedValue(PACKING_ROWS);
     await renderPackingListTab();
@@ -180,7 +201,7 @@ describe('InventoryReports — Packing List tab', () => {
   });
 });
 
-describe('InventoryReports — gig picker window (#109)', () => {
+describe('ManifestReport — gig picker window (#109)', () => {
   const recent = { id: 'gig-1', title: 'Test Gig', start: '2026-07-12T19:00:00Z', timezone: 'America/Los_Angeles' };
   const old = { id: 'gig-old', title: 'Old Gig', start: '2025-01-10T19:00:00Z', timezone: 'America/Los_Angeles' };
 
@@ -190,8 +211,8 @@ describe('InventoryReports — gig picker window (#109)', () => {
     picker.mockImplementation((_org: string, opts?: { showAll?: boolean }) =>
       Promise.resolve(opts?.showAll ? [recent, old] : [recent]));
     const user = userEvent.setup();
-    render(<InventoryReports organizationId="org-1" organizationName="Test Org" />);
-    await user.click(await screen.findByRole('tab', { name: 'Packing List' }));
+    render(<ManifestReport organizationId="org-1" organizationName="Test Org" />);
+    await waitFor(() => expect(picker).toHaveBeenCalled());
 
     expect(picker).toHaveBeenLastCalledWith('org-1', { showAll: false });
     expect(screen.queryByRole('option', { name: 'Old Gig' })).not.toBeInTheDocument();
@@ -206,13 +227,10 @@ describe('InventoryReports — gig picker window (#109)', () => {
     const picker = getGigsForReportPicker as any;
     picker.mockImplementation((_org: string, opts?: { showAll?: boolean }) =>
       Promise.resolve(opts?.showAll ? [recent, old] : [recent]));
-    (getPackingListReport as any).mockResolvedValue([]);
     const user = userEvent.setup();
-    render(<InventoryReports organizationId="org-1" organizationName="Test Org" />);
-    await user.click(await screen.findByRole('tab', { name: 'Packing List' }));
-    await user.click(screen.getByRole('checkbox', { name: 'Show all gigs' }));
+    render(<ManifestReport organizationId="org-1" organizationName="Test Org" />);
+    await user.click(await screen.findByRole('checkbox', { name: 'Show all gigs' }));
     await user.click(await screen.findByRole('option', { name: 'Old Gig' }));
-    await waitFor(() => expect(getPackingListReport).toHaveBeenLastCalledWith('org-1', 'gig-old'));
 
     await user.click(screen.getByRole('checkbox', { name: 'Show all gigs' }));
 

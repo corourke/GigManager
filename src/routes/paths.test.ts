@@ -3,6 +3,7 @@ import {
   financialsPath,
   gigPath,
   inventoryPath,
+  legacyInventoryTab,
   parseFinancialsPath,
   parseGigTab,
   parseInventoryTab,
@@ -36,10 +37,20 @@ describe('route paths', () => {
     expect(parseFinancialsPath('bogus', 'scan')).toEqual({ tab: 'purchases', purchasesView: 'scan' });
   });
 
-  it('round-trips inventory sub-tabs', () => {
-    expect(inventoryPath()).toBe('/inventory');
-    expect(inventoryPath('tracking')).toBe('/inventory/tracking');
-    expect(parseInventoryTab('explorer')).toBe('explorer');
-    expect(parseInventoryTab(undefined)).toBe('summary');
+  it('gives each Equipment tab past Assets and Kits an /equipment address (#39)', () => {
+    expect(inventoryPath()).toBe('/equipment/out-on-gigs');
+    expect(inventoryPath('locations')).toBe('/equipment/locations');
+    expect(inventoryPath('maintenance')).toBe('/equipment/maintenance');
+    expect(parseInventoryTab('locations')).toBe('locations');
+    expect(parseInventoryTab(undefined)).toBe('out-on-gigs');
+    expect(parseInventoryTab('bogus')).toBe('out-on-gigs');
+  });
+
+  it('maps the old /inventory sub-tabs onto the new tabs, so old links still land', () => {
+    expect(legacyInventoryTab(undefined)).toBe('out-on-gigs');
+    expect(legacyInventoryTab('summary')).toBe('out-on-gigs');
+    expect(legacyInventoryTab('tracking')).toBe('out-on-gigs');
+    expect(legacyInventoryTab('explorer')).toBe('locations');
+    expect(legacyInventoryTab('reports')).toBe('locations');
   });
 });

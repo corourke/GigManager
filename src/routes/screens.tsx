@@ -54,7 +54,7 @@ import MobileGigDetail from '../components/mobile/MobileGigDetail';
 import MobileDashboard from '../components/mobile/MobileDashboard';
 import MobileInventoryMode from '../components/mobile/MobileInventoryMode';
 import MobileSettings from '../components/mobile/MobileSettings';
-import { financialsPath, gigPath, inventoryPath, parseFinancialsPath, parseGigTab, parseInventoryTab } from './paths';
+import { financialsPath, gigPath, inventoryPath, legacyInventoryTab, parseFinancialsPath, parseGigTab, parseInventoryTab } from './paths';
 
 /** Narrow the (nullable) auth values for org-scoped screens. */
 function useOrgScope() {
@@ -553,13 +553,19 @@ function KitDetailRoute() {
   );
 }
 
-function InventoryRoute() {
+/**
+ * Desktop: Equipment's Out on gigs / Locations / Maintenance tabs at
+ * /equipment/:tab (#39). /inventory is the mobile Scanning screen; on desktop
+ * an old /inventory/<sub-tab> link redirects to the tab that replaced it.
+ */
+function InventoryRoute({ legacy = false }: { legacy?: boolean }) {
   const { user, organization, userRole } = useOrgScope();
   const { isMobile } = useAppShell();
   const nav = useNav();
   const [params] = useSearchParams();
-  const { subTab } = useParams();
+  const { subTab, tab } = useParams();
   if (!user || !organization) return <LoadingSpinner />;
+  if (legacy && !isMobile) return <Navigate to={inventoryPath(legacyInventoryTab(subTab))} replace />;
   if (isMobile) {
     return (
       <MobileShell active="mobile-inventory">
@@ -578,8 +584,7 @@ function InventoryRoute() {
       onNavigateToAssets={nav.toAssets}
       onNavigateToKits={nav.toKits}
       onNavigateToInventory={nav.toInventory}
-      subTab={parseInventoryTab(subTab)}
-      onSubTabChange={(t) => nav.navigate(inventoryPath(t))}
+      subTab={parseInventoryTab(tab)}
     />
   );
 }
@@ -715,7 +720,8 @@ export function AppRoutes() {
           <Route path="/kits/new" element={<KitEditorRoute create />} />
           <Route path="/kits/:kitId" element={<KitDetailRoute />} />
           <Route path="/kits/:kitId/edit" element={<KitEditorRoute create={false} />} />
-          <Route path="/inventory/:subTab?" element={<InventoryRoute />} />
+          <Route path="/inventory/:subTab?" element={<InventoryRoute legacy />} />
+          <Route path="/equipment/:tab?" element={<InventoryRoute />} />
           <Route path="/settings/:tab?" element={<SettingsRoute />} />
           <Route path="/import" element={<ImportRoute />} />
           <Route path="/financials/:tab?/:sub?" element={<FinancialsRoute />} />

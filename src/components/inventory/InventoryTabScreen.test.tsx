@@ -1,22 +1,27 @@
 import { describe, it, expect, vi } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import InventoryTabScreen from './InventoryTabScreen'
 import { makeUser, makeOrganization } from '../../test/factories'
 
-// These sub-tab panels have their own dedicated tests — stub them here so
-// this file only verifies the tab wiring, including the new "Tracking" tab.
+// The panels have their own tests; stub them so this file checks the wiring.
 vi.mock('./InventorySummaryDashboard', () => ({
-  InventorySummaryDashboard: () => <div>Summary Panel</div>,
+  InventorySummaryDashboard: ({ onTrack }: { onTrack?: (gigId: string) => void }) => (
+    <div>
+      Summary Panel
+      <button onClick={() => onTrack?.('gig-7')}>Track gig-7</button>
+    </div>
+  ),
 }))
 vi.mock('./LocationExplorer', () => ({
   LocationExplorer: () => <div>Explorer Panel</div>,
 }))
 vi.mock('./InventoryReports', () => ({
-  InventoryReports: () => <div>Reports Panel</div>,
+  ManifestReport: () => <div>Manifest Panel</div>,
+  MaintenanceQueue: () => <div>Maintenance Panel</div>,
 }))
 vi.mock('./TrackingTab', () => ({
-  default: ({ organizationId }: { organizationId: string }) => <div>Tracking Panel for {organizationId}</div>,
+  default: ({ initialGigId }: { initialGigId?: string }) => <div>Tracking Panel for {initialGigId ?? 'no gig'}</div>,
 }))
 
 const mockProps = {
@@ -28,18 +33,47 @@ const mockProps = {
   onNavigateToInventory: vi.fn(),
 }
 
-describe('InventoryTabScreen', () => {
-  it('renders a Tracking tab alongside Summary/Explorer/Reports, and switches to it on click', async () => {
+describe('InventoryTabScreen (Equipment › Out on gigs, Locations, Maintenance, #39)', () => {
+  it('has exactly one row of tabs, the Equipment tabs, and no sub-tabs', () => {
+    render(<InventoryTabScreen {...mockProps} subTab="out-on-gigs" />)
+    expect(screen.getAllByRole('tablist')).toHaveLength(1)
+    expect(screen.getByRole('tab', { name: 'Out on gigs' })).toHaveAttribute('data-state', 'active')
+  })
+
+  it('Out on gigs: the summary, and Track opens the scanning panel for that gig', async () => {
     const user = userEvent.setup()
-    render(<InventoryTabScreen {...mockProps} />)
-
+    render(<InventoryTabScreen {...mockProps} subTab="out-on-gigs" />)
     expect(screen.getByText('Summary Panel')).toBeInTheDocument()
-    expect(screen.getByRole('tab', { name: 'Tracking' })).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Track gig-7' }))
+    expect(await screen.findByText('Tracking Panel for gig-7')).toBeInTheDocument()
+  })
 
-    await user.click(screen.getByRole('tab', { name: 'Tracking' }))
+  it('Out on gigs: "Track a gig" in the title row opens the panel with no gig picked', async () => {
+    const user = userEvent.setup()
+    render(<InventoryTabScreen {...mockProps} subTab="out-on-gigs" />)
+    await user.click(screen.getByRole('button', { name: 'Track a gig' }))
+    expect(await screen.findByText('Tracking Panel for no gig')).toBeInTheDocument()
+  })
 
-    await waitFor(() => {
-      expect(screen.getByText(`Tracking Panel for ${mockProps.organization.id}`)).toBeInTheDocument()
-    })
+  it('Locations: the explorer, and "Print manifest" in the title row opens the manifest', async () => {
+    const user = userEvent.setup()
+    render(<InventoryTabScreen {...mockProps} subTab="locations" />)
+    expect(screen.getByText('Explorer Panel')).toBeInTheDocument()
+    expect(screen.queryByText('Manifest Panel')).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Print manifest' }))
+    expect(await screen.findByText('Manifest Panel')).toBeInTheDocument()
+  })
+
+  it('Maintenance: the maintenance queue', () => {
+    render(<InventoryTabScreen {...mockProps} subTab="maintenance" />)
+    expect(screen.getByText('Maintenance Panel')).toBeInTheDocument()
+  })
+
+  it('switching tabs goes through the URL', async () => {
+    const onNavigateToInventory = vi.fn()
+    const user = userEvent.setup()
+    render(<InventoryTabScreen {...mockProps} subTab="out-on-gigs" onNavigateToInventory={onNavigateToInventory} />)
+    await user.click(screen.getByRole('tab', { name: 'Maintenance' }))
+    expect(onNavigateToInventory).toHaveBeenCalledWith('maintenance')
   })
 })

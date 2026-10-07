@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import { useNavigate } from 'react-router';
 import { useAuth } from '../contexts/AuthContext';
 import type { Organization } from '../utils/supabase/types';
-import { financialsPath, gigPath, inventoryPath, type GigTab } from './paths';
+import { financialsPath, gigPath, inventoryPath, type GigTab, type InventoryTab } from './paths';
 
 export interface FinancialsNavOptions {
   highlightPurchaseId?: string | null;
@@ -27,7 +27,7 @@ export function useNav() {
     toTeam: () => navigate('/team'),
     toAssets: () => navigate('/assets'),
     toKits: () => navigate('/kits'),
-    toInventory: () => navigate(inventoryPath()),
+    toInventory: (tab?: InventoryTab) => navigate(inventoryPath(tab)),
     /** Import remembers where it was opened from, for its Back button and default type. */
     toImport: (from: 'gigs' | 'assets' = 'gigs') => navigate(from === 'assets' ? '/import?from=assets' : '/import'),
     toSettings: () => navigate('/settings'),

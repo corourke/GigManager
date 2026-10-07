@@ -10,6 +10,7 @@ import { Input } from './ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import AppHeader from './AppHeader';
 import EquipmentHeader from './EquipmentHeader';
+import type { InventoryTab } from '../routes/paths';
 import { Organization, User, UserRole } from '../utils/supabase/types';
 import type { DbAsset } from '../utils/supabase/types';
 import { canManage } from '../utils/permissions';
@@ -29,7 +30,7 @@ interface AssetListScreenProps {
   onNavigateToGigs: () => void;
   onNavigateToAssets: () => void;
   onNavigateToKits: () => void;
-  onNavigateToInventory?: () => void;
+  onNavigateToInventory?: (tab: InventoryTab) => void;
   onNavigateToImport?: () => void;
   onSwitchOrganization: () => void;
   onLogout: () => void;

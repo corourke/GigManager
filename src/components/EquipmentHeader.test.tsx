@@ -16,23 +16,25 @@ describe('EquipmentHeader', () => {
     expect(screen.getByRole('heading', { level: 1, name: 'Equipment' })).toBeInTheDocument()
   })
 
-  it('renders the three tabs below the title', () => {
+  it('has one row of five tabs: Assets, Kits, Out on gigs, Locations, Maintenance (#39)', () => {
     render(<EquipmentHeader {...mockProps} />)
-    expect(screen.getByRole('tab', { name: 'Assets' })).toBeInTheDocument()
-    expect(screen.getByRole('tab', { name: 'Kits' })).toBeInTheDocument()
-    expect(screen.getByRole('tab', { name: 'Inventory' })).toBeInTheDocument()
+    expect(screen.getAllByRole('tablist')).toHaveLength(1)
+    expect(screen.getAllByRole('tab').map((t) => t.textContent)).toEqual([
+      'Assets', 'Kits', 'Out on gigs', 'Locations', 'Maintenance',
+    ])
   })
 
-  it('calls onNavigateToInventory when Inventory tab is clicked', async () => {
+  it('navigates to the clicked tab, once', async () => {
     const onNavigateToInventory = vi.fn()
     render(<EquipmentHeader {...mockProps} onNavigateToInventory={onNavigateToInventory} />)
-    await userEvent.click(screen.getByRole('tab', { name: 'Inventory' }))
+    await userEvent.click(screen.getByRole('tab', { name: 'Locations' }))
     expect(onNavigateToInventory).toHaveBeenCalledOnce()
+    expect(onNavigateToInventory).toHaveBeenCalledWith('locations')
   })
 
   it('marks the active tab', () => {
-    render(<EquipmentHeader {...mockProps} activeTab="inventory" />)
-    expect(screen.getByRole('tab', { name: 'Inventory' })).toHaveAttribute('data-state', 'active')
+    render(<EquipmentHeader {...mockProps} activeTab="maintenance" />)
+    expect(screen.getByRole('tab', { name: 'Maintenance' })).toHaveAttribute('data-state', 'active')
     expect(screen.getByRole('tab', { name: 'Assets' })).toHaveAttribute('data-state', 'inactive')
   })
 

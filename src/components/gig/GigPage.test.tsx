@@ -32,6 +32,15 @@ vi.mock('./print/GigPrintSheet', () => ({
     return <div data-testid="print-sheet" data-financials={String(includeFinancials)} />;
   },
 }));
+vi.mock('../inventory/InventoryReports', async () => {
+  const { useEffect } = await import('react');
+  return {
+    PackingList: ({ gig, onLoaded, hidePrintButton }: any) => {
+      useEffect(() => { onLoaded?.(); }, [onLoaded]);
+      return <div data-testid={onLoaded ? 'packing-print' : 'packing-list'} data-gig={gig.id} data-hide-print={String(!!hidePrintButton)} />;
+    },
+  };
+});
 vi.mock('./GigParticipantsSection', () => ({ default: () => <div data-testid="edit-participants" /> }));
 vi.mock('./GigStaffSlotsSection', () => ({ default: () => <div data-testid="edit-staffing" /> }));
 vi.mock('./GigKitAssignmentsSection', () => ({ default: () => <div data-testid="edit-equipment" /> }));
@@ -227,6 +236,13 @@ describe('GigPage (#12)', () => {
     });
   });
 
+  it('shows the packing list on the Equipment tab, printed from the page Print menu (#39)', async () => {
+    render(<GigPage {...baseProps} userRole="Manager" tab="equipment" />);
+    const list = await screen.findByTestId('packing-list');
+    expect(list.dataset.gig).toBe('g1');
+    expect(list.dataset.hidePrint).toBe('true');
+  });
+
   describe('printing', () => {
     beforeEach(() => { window.print = vi.fn(); });
 
@@ -244,13 +260,26 @@ describe('GigPage (#12)', () => {
       expect(screen.getByTestId('print-sheet').dataset.financials).toBe('false');
     });
 
-    it.each(['Staff', 'Viewer'] as const)('%s prints the gig sheet only', async (role) => {
+    it.each(['Staff', 'Viewer'] as const)('%s prints the gig sheet without financials', async (role) => {
       const user = userEvent.setup();
       render(<GigPage {...baseProps} userRole={role} />);
       await user.click(await screen.findByRole('button', { name: 'Print' }));
+      expect(screen.queryByRole('menuitem', { name: 'Gig sheet with financials' })).not.toBeInTheDocument();
+      await user.click(await screen.findByRole('menuitem', { name: 'Gig sheet' }));
       await waitFor(() => expect(window.print).toHaveBeenCalledTimes(1));
       expect(screen.getByTestId('print-sheet').dataset.financials).toBe('false');
-      expect(screen.queryByText('Gig sheet with financials')).not.toBeInTheDocument();
+    });
+
+    it.each(['Admin', 'Staff'] as const)('%s prints the packing list from the Print menu, once it has loaded (#39)', async (role) => {
+      const user = userEvent.setup();
+      render(<GigPage {...baseProps} userRole={role} />);
+      await user.click(await screen.findByRole('button', { name: 'Print' }));
+      await user.click(await screen.findByRole('menuitem', { name: 'Packing list' }));
+      const sheet = await screen.findByTestId('packing-print');
+      expect(sheet.dataset.gig).toBe('g1');
+      expect(sheet.closest('.no-print')).toBeNull();
+      await waitFor(() => expect(window.print).toHaveBeenCalledTimes(1));
+      expect(screen.queryByTestId('print-sheet')).not.toBeInTheDocument();
     });
 
     it('hides the screen page and shows only the sheet when printing', async () => {

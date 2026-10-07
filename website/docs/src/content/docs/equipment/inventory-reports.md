@@ -8,9 +8,9 @@ sidebar:
 
 ## Cover
 
-- **Manifest** — dedupes assets across kit levels; interactive checkboxes on screen.
-- **Packing list** — resolves every kit in the nested forest.
-- **Maintenance queue** — what needs service.
+- **Manifest** — **Equipment → Locations → Print manifest**. Dedupes assets across kit levels; interactive checkboxes on screen.
+- **Packing list** — on the gig: its **Equipment** tab, or **Print → Packing list**. Resolves every kit in the nested forest.
+- **Maintenance queue** — **Equipment → Maintenance**. What needs service.
 - When a field tech reaches for each.
 
 ## Screenshots

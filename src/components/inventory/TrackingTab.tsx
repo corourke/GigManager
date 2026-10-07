@@ -8,22 +8,24 @@ import MobileInventoryMode from '../mobile/MobileInventoryMode';
 
 interface TrackingTabProps {
   organizationId: string;
+  /** Opens on this gig (Equipment › Out on gigs › Track). */
+  initialGigId?: string;
 }
 
 /**
  * The web home for equipment tracking/scanning — the same experience
  * mobile users get as "Inventory Mode" (MobileInventoryMode), just reached
- * from the desktop Equipment › Inventory menu instead of the phone's nav
+ * from desktop Equipment › Out on gigs (Track) instead of the phone's nav
  * bar, and with its own gig picker since there's no mobile dashboard here
  * to select one from first.
  */
-export default function TrackingTab({ organizationId }: TrackingTabProps) {
+export default function TrackingTab({ organizationId, initialGigId }: TrackingTabProps) {
   const [gigs, setGigs] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   // '' means "no gig selected" — Select must stay controlled for its whole
   // lifetime (a `value` of `undefined` on first render, then a real string
   // once picked, trips React's uncontrolled->controlled warning).
-  const [selectedGigId, setSelectedGigId] = useState('');
+  const [selectedGigId, setSelectedGigId] = useState(initialGigId ?? '');
 
   useEffect(() => {
     let cancelled = false;
@@ -48,7 +50,7 @@ export default function TrackingTab({ organizationId }: TrackingTabProps) {
       <Card className="p-4">
         <label className="text-sm text-gray-600 mb-2 block">Gig</label>
         <Select value={selectedGigId} onValueChange={setSelectedGigId}>
-          <SelectTrigger className="w-full max-w-md">
+          <SelectTrigger className="w-full">
             {isLoading ? (
               <span className="flex items-center gap-2 text-gray-500">
                 <Loader2 className="w-3.5 h-3.5 animate-spin" /> Loading gigs...
@@ -69,7 +71,7 @@ export default function TrackingTab({ organizationId }: TrackingTabProps) {
       </Card>
 
       {selectedGigId ? (
-        <div className="max-w-md border border-gray-200 rounded-lg overflow-hidden bg-white">
+        <div className="border border-gray-200 rounded-lg overflow-hidden bg-white">
           <MobileInventoryMode gigId={selectedGigId} onSelectGig={setSelectedGigId} />
         </div>
       ) : (

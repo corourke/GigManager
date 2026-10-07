@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { ChevronDown, ChevronRight, AlertTriangle, Package } from 'lucide-react';
+import { ChevronDown, ChevronRight, AlertTriangle, Package, Barcode } from 'lucide-react';
 import { format } from 'date-fns';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '../ui/collapsible';
 import { Progress } from '../ui/progress';
@@ -16,6 +16,8 @@ import type { GigWithTracking, KitAssignmentWithTracking } from '../../services/
 import type { UserRole } from '../../utils/supabase/types';
 
 interface InventorySummaryDashboardProps {
+  /** Opens the scanning panel for a gig (Equipment › Out on gigs). */
+  onTrack?: (gigId: string) => void;
   organizationId: string;
   userId: string;
   userRole?: UserRole;
@@ -246,9 +248,10 @@ interface GigRowProps {
   conflictKitIds: Set<string>;
   canOverride: boolean;
   onOverride: (target: OverrideTarget) => void;
+  onTrack?: (gigId: string) => void;
 }
 
-function GigRow({ gig, conflictKitIds, canOverride, onOverride }: GigRowProps) {
+function GigRow({ gig, conflictKitIds, canOverride, onOverride, onTrack }: GigRowProps) {
   const [open, setOpen] = useState(false);
   const { total, onSite } = getGigProgress(gig);
   const progressPercent = total > 0 ? Math.round((onSite / total) * 100) : 0;
@@ -267,6 +270,8 @@ function GigRow({ gig, conflictKitIds, canOverride, onOverride }: GigRowProps) {
 
   return (
     <Collapsible open={open} onOpenChange={setOpen}>
+      {/* The row expands on click; Track sits beside it, not inside the expand button. */}
+      <div className="flex items-center bg-gray-50">
       <CollapsibleTrigger asChild>
         <button
           className="w-full flex items-center gap-3 px-4 py-3 bg-gray-50 hover:bg-gray-100 transition-colors text-left"
@@ -305,6 +310,19 @@ function GigRow({ gig, conflictKitIds, canOverride, onOverride }: GigRowProps) {
           </div>
         </button>
       </CollapsibleTrigger>
+      {onTrack && (
+        <Button
+          variant="outline"
+          size="sm"
+          className="mr-4 shrink-0"
+          aria-label={`Track ${gig.title}`}
+          onClick={() => onTrack(gig.id)}
+        >
+          <Barcode className="w-4 h-4 mr-1.5" />
+          Track
+        </Button>
+      )}
+      </div>
       <CollapsibleContent>
         <div className="divide-y divide-border border-t">
           {gig.kit_assignments.length === 0 ? (
@@ -331,6 +349,7 @@ export function InventorySummaryDashboard({
   organizationId,
   userId,
   userRole,
+  onTrack,
 }: InventorySummaryDashboardProps) {
   const [gigs, setGigs] = useState<GigWithTracking[]>([]);
   const [conflictKitIds, setConflictKitIds] = useState<Set<string>>(new Set());
@@ -382,6 +401,7 @@ export function InventorySummaryDashboard({
         {gigs.map((gig) => (
           <GigRow
             key={gig.id}
+            onTrack={onTrack}
             gig={gig}
             conflictKitIds={conflictKitIds}
             canOverride={canOverride}
