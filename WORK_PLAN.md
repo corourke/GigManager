@@ -103,6 +103,7 @@ order that unblocks the most work; the coordinator puts these to Cameron one at 
 meantime. The coordinator resolves each entry (decides it, or moves it into §3a) and deletes it.*
 
 - **Security findings from the 09-29 `security-scheme.md` check, urgent.** Details went to Cameron by private notification on 09-29, not here, because this repo is public. In short, some contact-management RPCs trust caller-supplied input for authorization and can grant org membership, plus several broader read exposures. The fix needs a migration, which is a contract, so it's for the coordinator. Meanwhile triage filed no public issue and held the `security-scheme.md` doc update, since correcting the doc would describe the holes publicly.
+- **#39 PR 4 was assigned twice (10-07 04:57 UTC).** The coordinator started a builder session (gigmanager-62, session_01A9VFN3YdWyWryq66iPYQZE) for PR 4, but Cameron's #39 session (session_014BFzJBjzgimLURebMXqD5z, branch `claude/admiring-keller-vorjrr`) had claimed it in §5 twenty seconds earlier (commit `1ba043f`). No PR 4 PR or branch commits existed yet, and the claimer could not be reached. Default taken: the builder stood down and built nothing, so there are no duplicate PRs on the same files. The coordinator should restart the builder if Cameron's session isn't doing PR 4 after all.
 
 ### 3c. Ready to build, nothing blocking
 
