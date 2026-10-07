@@ -22,7 +22,8 @@ supersedes that issue as the board of record.
 |---|---|---|---|---|
 | [#92](https://github.com/corourke/GigManager/issues/92) | Replace-all autosave can delete rows another user or tab added | Bug | From the 09-29 code review, confirmed by reading the code | Coordinator — not started |
 | [#135](https://github.com/corourke/GigManager/issues/135) | Audit and fix 2026 purchase data (tax treatment, equipment, gig expenses) after the code fixes | Data | Filed 10-05 | Blocked on #133, #130, #131, #125 steps 2–3 |
-| [#125](https://github.com/corourke/GigManager/issues/125) | Financials → Reporting: tax-program data export (expenses by category, assets by recovery period, disposals) | Feature / data | Plan agreed 10-05; step 0 done (PR #127); blocked on #128–#131 | Cameron: category table, 6 questions, F1–F7 approvals |
+| [#125](https://github.com/corourke/GigManager/issues/125) | Financials → Reporting: tax-program data export | Feature / data | 10-07 re-planned by Cameron: **reports first** (separate Income, Expenses and Assets reports, CSV on the same page; no OK needed unless showing a mockup). PR 1, `assets.recovery_period` (migration `20261013000000`; defaults Computer/Networking/Software/Misc 5, Vehicles and gear 7; 2024–25 left blank to fill from the returns), is WIP on `claude/epic-ramanujan-i9khnc`. PR 2 is the reports | Coordinator — building |
+| [#162](https://github.com/corourke/GigManager/issues/162) | Equipment items and units: separate what it is from what we own (serials, tags, quantities, kits); fixes #160 | Feature / schema | Filed 10-07. **Mockups of all 11 affected screens first** | Equipment Lead (mockups), then Cameron |
 | [#20](https://github.com/corourke/GigManager/issues/20) | Shared data-access layer under `src/services/` | Refactor | Pilot merged (PR #66); `attachment.service.ts` merged 09-30 (PR [#106](https://github.com/corourke/GigManager/pull/106)); 14 services remain | Released in §3c 10-07 (Cameron: do it now): 7 batches, one PR each |
 
 ---
@@ -227,6 +228,8 @@ applies migrations), edge-function API shape, anything touching production confi
 ## 5. For the daily triage routine
 
 Read this section first on each run.
+
+**Equipment Lead (since 10-07).** A separate session, "Equipment Lead: items and units (#162)" (`session_013gAYYf2hpcECG9QpxFz5Vo`, Supabase Dev environment, no prod access), owns #162. First deliverable: HTML mockups of every affected screen in a docs-only PR (`claude/equipment-units-mockups`) with a summary and numbered questions on #162. It builds nothing until Cameron approves the mockups, then proposes the sub-issues. It reports through #162 and its PRs.
 
 **Docs Lead (since 10-07).** A separate session, "GigWrangler Docs Lead", owns the look, quality and organization of the user guide (`website/docs/`) and `docs/`: its information architecture, its style guide, and screenshots taken from a demo organization in **dev**, which it has read-write access to. Prod stays off-limits. It opens docs PRs for the coordinator to merge, and files app issues (it may create GitHub issues) with §3d entries instead of building code. Triage: before a user-guide pass, check the user-docs table below for pages the Docs Lead has claimed, and skip them.
 
