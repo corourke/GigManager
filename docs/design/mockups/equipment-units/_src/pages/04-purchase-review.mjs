@@ -54,7 +54,7 @@ const trackAs = (units) => `<div class="space-y-2">${dlgLabel('Track as')}
 const unitsGrid = `<div class="rounded-md border border-slate-200">
 <div class="flex items-center gap-2 border-b border-slate-200 bg-slate-50 px-2.5 py-1.5 text-[11px]"><span class="font-semibold text-slate-700">6 units</span><span class="ml-auto inline-flex items-center gap-1 text-sky-700 font-medium">${icon('hash', 'h-3 w-3')}Number tags from DSL-0141</span><span class="inline-flex items-center gap-1 text-sky-700 font-medium">${icon('file', 'h-3 w-3')}Paste serials</span><span class="inline-flex items-center gap-1 text-sky-700 font-medium">${icon('scan', 'h-3 w-3')}Scan</span></div>
 <div class="grid grid-cols-[22px_1fr_1fr] gap-x-2 gap-y-1.5 p-2.5 text-[11px]"><span></span>${dlgLabel('Serial #')}${dlgLabel('Tag #')}
-${trioUnits.map(([s, t], i) => `<span class="self-center text-right text-slate-400">${i + 1}</span>${sIn(s, { mono: true, ph: 'serial (optional)' })}${sIn(t, { mono: true })}`).join('')}</div></div>`;
+${trioUnits.map(([s, t], i) => `<span class="self-center text-right text-slate-400">${i + 1}</span>${sIn(s, { mono: true, ph: 'serial' })}${sIn(t, { mono: true })}`).join('')}</div></div>`;
 
 const trioDialog = eqDialog({
   desc: 'Chauvet DJ Intimidator Trio · qty 6 · Depreciate',
@@ -76,7 +76,7 @@ const xlrDialog = eqDialog({
 });
 
 const partial = `<div class="space-y-3">
-${alertBox('warn', 'Units 5 and 6 have no serial number.', 'They still get tags DSL-0145 and DSL-0146, so they are units. Clear a tag too and that one becomes part of a lot.')}
+${alertBox('info', 'Each unit needs a serial number or a tag; either is enough.', 'Units 5 and 6 have tags only (DSL-0145, DSL-0146), which is fine. A row with neither can’t be saved. To track pieces without serials or tags, choose <b>A lot of 6</b> instead.')}
 ${alertBox('info', 'Saving creates 1 item and 6 units', 'Chauvet Intimidator Trio (new item) · DSL-0141 to DSL-0146 · each linked to this line, unit cost $663.17, recovery period from the line (5-year). Adds the item to Club Lighting Package as 4 × any.')}
 </div>`;
 
@@ -88,7 +88,7 @@ export default () => ({
 <div class="grid grid-cols-[560px_1fr] gap-6 items-start"><div>${frame(`<div class="bg-slate-900/40 p-5">${xlrDialog}</div>`, 'Equipment details for a cable line: an existing item, as lots.')}</div><div class="pt-6 text-sm text-gray-700 space-y-3"><p class="font-semibold text-gray-900 flex items-center gap-2">Manual purchases ${newMark(4)}</p><p>Financials › Purchases › Add purchase uses the same Equipment pill and the same Equipment details pop-up, so a manually entered line of 6 also creates 6 units.</p><p>Editing a saved purchase line shows its units (“6 units: DSL-0141 to DSL-0146”) with a link to the item. Changing the quantity of a saved line asks which units to add or remove; it never deletes a unit silently.</p></div></div>`,
     notes: [
       '<b>One line of 6 creates 6 units</b>. Cameron no longer splits the Trio purchase into six lines. The pop-up first asks <b>which item</b>: one we already have (search) or a new one (model, category, type, replacement value; it suggests close matches to avoid duplicates).',
-      '<b>Units or a lot</b>: for units, a serial and a tag per row, with helpers to number tags in sequence, paste a column of serials from the invoice, or scan them. Each unit gets the line’s unit cost and recovery period. Rows left with neither serial nor tag become a lot.',
+      '<b>Units or a lot</b>: for units, a serial and a tag per row, with helpers to number tags in sequence, paste a column of serials from the invoice, or scan them. Each unit needs a serial or a tag (either will do) and gets the line’s unit cost and recovery period. <b>Track as</b> decides units or a lot; a unit is never folded into a lot, and a lot has no serials or tags.',
       '<b>Lots</b>: the 30 cables from one line can be split into lots, and a lot can be put in a container now (10 into the XLR Cable Box). The totals must add up to the line quantity.',
       '<b>Same pop-up for manual purchases</b>. Serial # and Tag # move out of the pop-up’s single row (which assumed one record per line); replacement value moves to the item. The Kits field adds the item to a kit as “N × any”.',
     ],
