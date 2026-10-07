@@ -82,11 +82,12 @@ Every web screen stacks the same bands, in this order. Nothing goes above the ti
 -   **Title**: a name, not a sentence. No description lines under it ("Manage your equipment inventory" is gone); `meta` is only for data, such as a gig's date and venue.
 -   **Actions** go on the right of the title row. A "do something" choice (Add, Scan, Import) is a button there, not a tab.
 -   **Tabs** use `PageTabsList` / `PageTabsTrigger` (underlined; active `border-sky-700 text-sky-700`), inside the page's `Tabs` root from `ui/tabs`, wrapping both the header and the content. When each tab is a route, set `activationMode="manual"`: with automatic activation a click fires `onValueChange` twice (mousedown and focus) and pushes the route twice. A choice inside a tab is a dropdown or filter, never a second row of tabs. The boxed `ui/tabs` `TabsList` is for in-content toggles only (Upcoming/Past, Month/Week).
--   **Section headers that span several routes** share one component so the title stays put: `EquipmentHeader.tsx` titles Assets, Kits and Inventory "Equipment".
+-   **Section headers that span several routes** share one component so the title stays put: `EquipmentHeader.tsx` titles all five Equipment tabs (Assets, Kits, Out on gigs, Locations, Maintenance) "Equipment".
+-   **No second level of tabs.** When a page used to need one, the choices became title-row actions (Equipment › Locations' **Print manifest**, Out on gigs' **Track a gig**) or moved to where they're used (a gig's packing list is on the gig page). A view that prints swaps in place (Print manifest / Close manifest) rather than opening in a modal, so it prints cleanly.
 -   **Editable titles**: `heading` replaces the title, badge and meta with custom content in the same place (the gig page's edit mode).
 -   **Narrow content** (editors, Import, org screens): keep the header full width and left-align the narrower content with the title, `max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 *:max-w-4xl`, rather than centring it.
 -   **Back labels** name the destination ("Back to Assets", "Back to Select Organization"). Use a bare "Back" only when Back is history-based and the destination isn't known (Starter categories, editing an organization). Import is opened from Gigs or Assets and its Back returns there (`/import?from=assets`).
--   **Every web screen uses the frame.** Inventory's own sub-tabs stay in its content until the Equipment reorganization (#39 PR 3). The mobile PWA has its own layout.
+-   **Every web screen uses the frame**, and no page has more than one row of tabs. The mobile PWA has its own layout.
 
 ### 2. Inline Stats (Dashboard/Summary)
 Used for financial summaries or key metrics.

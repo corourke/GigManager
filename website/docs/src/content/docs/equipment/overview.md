@@ -8,15 +8,28 @@ sidebar:
 GigWrangler tracks gear as **assets** (individual, serial-numbered items) and
 **kits** (groupings that can nest inside other kits).
 
+**Equipment** has five tabs:
+
+| Tab | What's there |
+| --- | --- |
+| **Assets** | The asset library: search, filter, add, edit, import. |
+| **Kits** | Logical vs. container kits, and nested kits. |
+| **Out on gigs** | Each active gig with kits assigned, how many of its items are tracked, and each kit's status (Checked Out, In Transit, On Site, In Warehouse). **Track** on a gig, or **Track a gig** at the top, opens the scanner for it. |
+| **Locations** | Where gear is, filtered by location, gig and status. **Print manifest** opens the manifest for one location: check items off on screen as you walk it, or print it. |
+| **Maintenance** | The maintenance queue: what needs service. |
+
+A gig's **packing list** is on the gig itself: open the gig's **Equipment** tab,
+or choose **Print → Packing list** on the gig.
+
 - **[Assets](/equipment/assets/)** — the asset library: search, filter, add, edit.
 - **[Kits](/equipment/kits/)** — logical vs. container kits, and nested kits.
-- **[Location Explorer](/equipment/location-explorer/)** — where gear lives.
+- **[Location Explorer](/equipment/location-explorer/)** — where gear lives (the **Locations** tab).
 - **[Inventory reports](/equipment/inventory-reports/)** — manifest, packing list,
   maintenance queue.
 - **[Barcode & QR scanning](/equipment/barcode-scanning/)** — tags and the mobile
   scanner.
 - **[Assigning equipment to a gig](/equipment/assigning-to-a-gig/)** — kit
-  assignments and the Tracking page.
+  assignments and tracking them from **Out on gigs**.
 
 <!-- TODO: 2–3 sentence framing of assets vs kits, and when a rental house vs a
      production company would use each. Plan §4, Prompts 2 & 7. -->

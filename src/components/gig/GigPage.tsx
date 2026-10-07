@@ -24,6 +24,7 @@ import GigStaffingTable from './view/GigStaffingTable';
 import GigVenueCard from './view/GigVenueCard';
 import OrganizationDetailsDialog from './view/OrganizationDetailsDialog';
 import GigPrintSheet from './print/GigPrintSheet';
+import { PackingList } from '../inventory/InventoryReports';
 import { GigStatusField, GigTagsField, GigTitleField } from './basicInfo/GigBasicInfoFields';
 import { EditSaveStatus, GigEditForm, NotesCard, WhenAndScheduleCard } from './edit/GigEditParts';
 import { useEditSession } from '../../utils/hooks/editSession';
@@ -89,8 +90,10 @@ export default function GigPage({
   // Every autosaving section in edit mode reports here: one save state, one flush (#12).
   const session = useEditSession();
   // Printing (#12): the sheet is rendered on request, and prints once its data has loaded.
-  const [printRequest, setPrintRequest] = useState<{ financials: boolean; n: number } | null>(null);
-  const startPrint = (financials: boolean) => setPrintRequest((r) => ({ financials, n: (r?.n ?? 0) + 1 }));
+  // What the Print menu asked for: the gig sheet (with or without financials) or the packing list (#39).
+  const [printRequest, setPrintRequest] = useState<{ kind: 'sheet' | 'packing'; financials: boolean; n: number } | null>(null);
+  const startPrint = (financials: boolean, kind: 'sheet' | 'packing' = 'sheet') =>
+    setPrintRequest((r) => ({ kind, financials, n: (r?.n ?? 0) + 1 }));
   const printWhenReady = useCallback(() => window.print(), []);
   const [finishing, setFinishing] = useState(false);
 
@@ -221,19 +224,18 @@ export default function GigPage({
         ) : undefined}
         actions={(canEdit || !editing) ? (
           <>
-            {!editing && (canEdit ? (
+            {!editing && (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="outline"><Printer className="w-4 h-4 mr-1.5" />Print</Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
                   <DropdownMenuItem onSelect={() => startPrint(false)}>Gig sheet</DropdownMenuItem>
-                  <DropdownMenuItem onSelect={() => startPrint(true)}>Gig sheet with financials</DropdownMenuItem>
+                  {canEdit && <DropdownMenuItem onSelect={() => startPrint(true)}>Gig sheet with financials</DropdownMenuItem>}
+                  <DropdownMenuItem onSelect={() => startPrint(false, 'packing')}>Packing list</DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
-            ) : (
-              <Button variant="outline" onClick={() => startPrint(false)}><Printer className="w-4 h-4 mr-1.5" />Print</Button>
-            ))}
+            )}
             {!canEdit ? null : editing ? (
               <>
                 <span className="text-[10px] font-bold uppercase tracking-[0.1em] text-sky-800">Editing</span>
@@ -336,7 +338,18 @@ export default function GigPage({
                 gigTimezone={gig.timezone}
               />
             ) : (
-              <GigEquipmentTable gigId={gigId} organizationId={organization.id} showAmounts={canEdit} />
+              <div className="space-y-4">
+                <GigEquipmentTable gigId={gigId} organizationId={organization.id} showAmounts={canEdit} />
+                {/* The packing list moved here from Equipment › Inventory › Reports (#39). */}
+                <GigSection title="Packing list">
+                  <PackingList
+                    organizationId={organization.id}
+                    organizationName={organization.name}
+                    gig={{ id: gig.id, title: gig.title, start: gig.start, timezone: gig.timezone } as any}
+                    hidePrintButton
+                  />
+                </GigSection>
+              </div>
             )}
           </TabsContent>
 
@@ -366,14 +379,25 @@ export default function GigPage({
 
   const printSheet = printRequest && (
     <div className="print-only hidden">
-      <GigPrintSheet
-        key={printRequest.n}
-        gig={gig}
-        organization={organization}
-        slots={ownSlots}
-        includeFinancials={canEdit && printRequest.financials}
-        onReady={printWhenReady}
-      />
+      {printRequest.kind === 'packing' ? (
+        <PackingList
+          key={printRequest.n}
+          organizationId={organization.id}
+          organizationName={organization.name}
+          gig={{ id: gig.id, title: gig.title, start: gig.start, timezone: gig.timezone } as any}
+          hidePrintButton
+          onLoaded={printWhenReady}
+        />
+      ) : (
+        <GigPrintSheet
+          key={printRequest.n}
+          gig={gig}
+          organization={organization}
+          slots={ownSlots}
+          includeFinancials={canEdit && printRequest.financials}
+          onReady={printWhenReady}
+        />
+      )}
     </div>
   );
 

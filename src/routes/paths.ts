@@ -46,13 +46,22 @@ export function financialsPath(tab: FinancialTab = 'purchases', purchasesView: P
 
 // ─── Inventory ──────────────────────────────────────────────────────────────
 
-export const INVENTORY_TABS = ['summary', 'explorer', 'reports', 'tracking'] as const;
+/** Equipment's tabs after Assets and Kits (#39): /equipment/out-on-gigs, …/locations, …/maintenance. */
+export const INVENTORY_TABS = ['out-on-gigs', 'locations', 'maintenance'] as const;
 export type InventoryTab = (typeof INVENTORY_TABS)[number];
 
 export function parseInventoryTab(segment: string | undefined): InventoryTab {
-  return (INVENTORY_TABS as readonly string[]).includes(segment ?? '') ? (segment as InventoryTab) : 'summary';
+  return (INVENTORY_TABS as readonly string[]).includes(segment ?? '') ? (segment as InventoryTab) : 'out-on-gigs';
 }
 
-export function inventoryPath(tab: InventoryTab = 'summary'): string {
-  return tab === 'summary' ? '/inventory' : `/inventory/${tab}`;
+export function inventoryPath(tab: InventoryTab = 'out-on-gigs'): string {
+  return `/equipment/${tab}`;
+}
+
+/**
+ * Where an old desktop /inventory link lands. Summary and Tracking became
+ * Out on gigs; Location Explorer and Reports (Manifest) became Locations.
+ */
+export function legacyInventoryTab(segment: string | undefined): InventoryTab {
+  return segment === 'explorer' || segment === 'reports' ? 'locations' : 'out-on-gigs';
 }

@@ -131,6 +131,13 @@ describe('InventorySummaryDashboard', () => {
     (getInventoryConflictFlags as any).mockResolvedValue(new Set<string>());
   });
 
+  it('gives each gig a Track button that opens its scanning panel (#39)', async () => {
+    const onTrack = vi.fn();
+    render(<InventorySummaryDashboard organizationId="org-1" userId="user-1" userRole="Admin" onTrack={onTrack} />);
+    await userEvent.click(await screen.findByRole('button', { name: 'Track Summer Festival' }));
+    expect(onTrack).toHaveBeenCalledWith(mockGig.id);
+  });
+
   it('renders gig title after loading', async () => {
     render(
       <InventorySummaryDashboard

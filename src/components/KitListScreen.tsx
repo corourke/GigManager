@@ -8,6 +8,7 @@ import { Card } from './ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import AppHeader from './AppHeader';
 import EquipmentHeader from './EquipmentHeader';
+import type { InventoryTab } from '../routes/paths';
 import { Organization, User, UserRole } from '../utils/supabase/types';
 import { canManage } from '../utils/permissions';
 import { SmartDataTable, ColumnDef, RowAction } from './tables/SmartDataTable';
@@ -26,7 +27,7 @@ interface KitListScreenProps {
   onNavigateToGigs: () => void;
   onNavigateToAssets: () => void;
   onNavigateToKits: () => void;
-  onNavigateToInventory?: () => void;
+  onNavigateToInventory?: (tab: InventoryTab) => void;
   onSwitchOrganization: () => void;
   onLogout: () => void;
 }
