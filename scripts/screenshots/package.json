@@ -1,0 +1,7 @@
+{
+  "name": "gigwrangler-screenshots",
+  "private": true,
+  "type": "module",
+  "description": "Playwright harness for user guide screenshots",
+  "devDependencies": { "playwright": "^1.54.0" }
+}

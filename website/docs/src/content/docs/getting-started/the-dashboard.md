@@ -17,6 +17,8 @@ at-a-glance summary:
 - **Upcoming Gigs (Next 30 Days)** — with venue and act.
 - **Recent Activity**.
 
+
+![The Dashboard for Demo Sound & Lighting with gig, equipment, revenue and status cards above the Upcoming Gigs list](../../../assets/screenshots/getting-started/the-dashboard-overview.png)
 ## Navigation
 
 The top bar has the section menu, **Dashboard · Gigs · Financials · Team ·
@@ -39,7 +41,8 @@ The avatar menu (top-right) has **Switch Organization**, **Settings**,
 **Access Requests** there. The bell next to it shows **Notifications**, such
 as decisions on [access requests](/getting-started/organizations/).
 
+
+![The open avatar menu with Switch Organization, Settings, Edit Profile and Sign Out](../../../assets/screenshots/getting-started/the-dashboard-avatar-menu.png)
 <!-- TODO
-  - 📸 Full dashboard, populated with a couple of gigs.
-  - 📸 Avatar menu open. 📸 Notification bell dropdown.
+  - 📸 Notification bell dropdown.
 -->
