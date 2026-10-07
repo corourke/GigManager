@@ -63,8 +63,8 @@ export interface AssetRow {
   replacement_value?: string;
   retired_on?: string;
   liquidation_amt?: string;
-  service_life?: string;
-  dep_method?: string;
+  /** Depreciated equipment's tax recovery period: 5, 7 or 15 (#125). */
+  recovery_period?: string;
   status?: string;
   // Legacy aliases for backward compatibility during transition
   cost_per_item?: string;
@@ -464,8 +464,8 @@ export function validateAssetRow(row: any, rowIndex: number): ParsedRow<AssetRow
     replacement_value: row.replacement_value || row.replacement_value_per_item || '',
     retired_on: row.retired_on || '',
     liquidation_amt: row.liquidation_amt || '',
-    service_life: row.service_life || '',
-    dep_method: row.dep_method || '',
+    // An old sheet's service_life column is the recovery period (#125).
+    recovery_period: row.recovery_period || row.service_life || '',
     status: row.status || '',
     // Legacy aliases
     cost_per_item: row.cost_per_item || '',
@@ -585,7 +585,9 @@ export function validateAssetRow(row: any, rowIndex: number): ParsedRow<AssetRow
   validateNumeric('item_cost', data.item_cost, 'item cost');
   validateNumeric('replacement_value', data.replacement_value, 'replacement value');
   validateNumeric('liquidation_amt', data.liquidation_amt, 'liquidation amount');
-  validateNumeric('service_life', data.service_life, 'service life');
+  if (data.recovery_period && data.recovery_period.trim() && !['5', '7', '15'].includes(data.recovery_period.trim())) {
+    errors.push({ field: 'recovery_period', message: `Invalid recovery period "${data.recovery_period}". Must be 5, 7 or 15.` });
+  }
 
   if (data.quantity && data.quantity.trim()) {
     const qty = parseInt(data.quantity);
@@ -795,8 +797,7 @@ export function generateAssetTemplate(): string {
     'replacement_value',
     'retired_on',
     'liquidation_amt',
-    'service_life',
-    'dep_method',
+    'recovery_period',
     'status'
   ];
   const exampleInvoice = [
@@ -805,8 +806,6 @@ export function generateAssetTemplate(): string {
     'Amazon',
     '106.05',
     'Visa',
-    '',
-    '',
     '',
     '',
     '',
@@ -840,7 +839,6 @@ export function generateAssetTemplate(): string {
     '47.62',
     'PowerCon Power Cable 1M',
     'Lighting',
-    'Cables',
     'PowerCon Cable',
     'LightBox',
     '',
@@ -851,8 +849,7 @@ export function generateAssetTemplate(): string {
     '50',
     '',
     '',
-    '5',
-    'MACRS',
+    '7',
     'Active'
   ];
   const exampleExpense = [
@@ -868,8 +865,6 @@ export function generateAssetTemplate(): string {
     '10.81',
     'Gaffer Power Black Gaffers Tape 2"x30yd',
     'Supplies',
-    '',
-    '',
     '',
     '',
     '',

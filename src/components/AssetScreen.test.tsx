@@ -21,6 +21,7 @@ vi.mock('../services/asset.service', () => ({
   updateAsset: vi.fn(),
   getAssetStatusHistory: vi.fn().mockResolvedValue([]),
   getAssetInventoryTracking: vi.fn().mockResolvedValue([]),
+  getAssetDepreciatedDate: vi.fn().mockResolvedValue(null),
 }))
 
 vi.mock('../utils/hooks/useFormWithChanges', () => ({

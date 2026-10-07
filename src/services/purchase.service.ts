@@ -773,8 +773,8 @@ function mapRowToAsset(organizationId: string, data: any) {
     replacement_value: data.replacement_value ? parseFloat(data.replacement_value.toString().replace(/[^0-9.-]/g, '')) : undefined,
     retired_on: data.retired_on || undefined,
     liquidation_amt: data.liquidation_amt ? parseFloat(data.liquidation_amt.toString().replace(/[^0-9.-]/g, '')) : undefined,
-    service_life: data.service_life ? parseFloat(data.service_life.toString().replace(/[^0-9.-]/g, '')) : undefined,
-    dep_method: data.dep_method || undefined,
+    // Kept only if the line is depreciated (the purchase RPC checks, #125).
+    recovery_period: ['5', '7', '15'].includes(String(data.recovery_period ?? '').trim()) ? Number(data.recovery_period) : undefined,
     status: data.status || 'Active',
     kit: data.kit || undefined,
   };

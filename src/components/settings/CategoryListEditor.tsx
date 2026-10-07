@@ -14,6 +14,7 @@ import {
   type CategoryRow,
   type ScheduleCLine,
 } from '../../services/purchaseCategory.service';
+import { RECOVERY_PERIODS, asRecoveryPeriod } from '../../utils/recoveryPeriod';
 
 /** Shown with the equipment categories: how each item's Type is written. */
 export function TypeWritingRules() {
@@ -49,6 +50,7 @@ export default function CategoryListEditor({ kind, organizationId, canEdit }: Ca
   const [names, setNames] = useState<Record<string, string>>({});
   const [newName, setNewName] = useState('');
   const [newLine, setNewLine] = useState('27b');
+  const [newPeriod, setNewPeriod] = useState('');
   const [adding, setAdding] = useState(false);
   const isExpense = kind === 'expense';
 
@@ -89,10 +91,13 @@ export default function CategoryListEditor({ kind, organizationId, canEdit }: Ca
     setAdding(true);
     try {
       const sort_order = Math.max(0, ...rows.map(r => r.sort_order)) + 10;
-      const created = await addCategory(kind, organizationId, isExpense ? { name, schedule_c_line: newLine, sort_order } : { name, sort_order });
+      const created = await addCategory(kind, organizationId, isExpense
+        ? { name, schedule_c_line: newLine, sort_order }
+        : { name, default_recovery_period: asRecoveryPeriod(newPeriod), sort_order });
       setRows(prev => [...(prev ?? []), created]);
       setNames(prev => ({ ...prev, [created.id]: created.name }));
       setNewName('');
+      setNewPeriod('');
     } catch (err) {
       console.error(err);
       toast.error('Failed to add the category');
@@ -114,6 +119,20 @@ export default function CategoryListEditor({ kind, organizationId, canEdit }: Ca
     </select>
   );
 
+  // Equipment (#125): the recovery period depreciated equipment in the category gets; blank = ask each time.
+  const periodSelect = (value: number | null | undefined, onChange: (v: number | null) => void, label: string, disabled: boolean) => (
+    <select
+      aria-label={label}
+      value={value ?? ''}
+      disabled={disabled}
+      onChange={e => onChange(asRecoveryPeriod(e.target.value))}
+      className="h-9 w-full rounded-md border border-input bg-background px-2 text-sm disabled:opacity-60"
+    >
+      <option value="">Ask each time</option>
+      {RECOVERY_PERIODS.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
+    </select>
+  );
+
   if (rows === null) return <p className="text-sm text-muted-foreground py-4">Loading categories…</p>;
 
   return (
@@ -125,6 +144,7 @@ export default function CategoryListEditor({ kind, organizationId, canEdit }: Ca
             <tr>
               <th className="text-left font-semibold px-3 py-2">Name</th>
               {isExpense && <th className="text-left font-semibold px-3 py-2 w-[38%]">Schedule C line</th>}
+              {!isExpense && <th className="text-left font-semibold px-3 py-2 w-44">Recovery period</th>}
               {organizationId && <th className="text-right font-semibold px-3 py-2 w-20">In use</th>}
               <th className="text-center font-semibold px-3 py-2 w-16">On</th>
             </tr>
@@ -149,6 +169,11 @@ export default function CategoryListEditor({ kind, organizationId, canEdit }: Ca
                   {isExpense && (
                     <td className="px-3 py-1.5">
                       {lineSelect(row.schedule_c_line ?? '', v => save(row, { schedule_c_line: v }), `Schedule C line: ${row.name}`, !canEdit)}
+                    </td>
+                  )}
+                  {!isExpense && (
+                    <td className="px-3 py-1.5">
+                      {periodSelect(row.default_recovery_period, v => save(row, { default_recovery_period: v }), `Recovery period: ${row.name}`, !canEdit)}
                     </td>
                   )}
                   {organizationId && <td className="px-3 py-1.5 text-right tabular-nums">{inUse || '—'}</td>}
@@ -177,6 +202,7 @@ export default function CategoryListEditor({ kind, organizationId, canEdit }: Ca
             className="h-9 max-w-xs"
           />
           {isExpense && <div className="w-72">{lineSelect(newLine, setNewLine, 'New category Schedule C line', false)}</div>}
+          {!isExpense && <div className="w-44">{periodSelect(asRecoveryPeriod(newPeriod), v => setNewPeriod(v ? String(v) : ''), 'New category recovery period', false)}</div>}
           <Button size="sm" onClick={add} disabled={adding || !newName.trim()} className="bg-sky-700 hover:bg-sky-800 text-white">
             <Plus className="w-4 h-4 mr-1" />Add
           </Button>
@@ -184,6 +210,7 @@ export default function CategoryListEditor({ kind, organizationId, canEdit }: Ca
       )}
       <p className="text-xs text-muted-foreground">
         Turn a category off to hide it from the pickers; records that use it keep it.
+        {!isExpense ? ' Depreciated equipment gets its category’s recovery period; with Ask each time, the app asks for one.' : ''}
         {organizationId ? ' A category already in use can’t be renamed here.' : ''}
       </p>
     </div>

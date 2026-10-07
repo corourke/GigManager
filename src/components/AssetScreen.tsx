@@ -13,7 +13,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '.
 import AppHeader from './AppHeader';
 import { PageHeader } from './layout/PageHeader';
 import { Organization, User, UserRole } from '../utils/supabase/types';
-import { createAsset, updateAsset } from '../services/asset.service';
+import { createAsset, updateAsset, getAssetDepreciatedDate } from '../services/asset.service';
 import { useAssetData, useAssetMutations } from './asset/useAssetData';
 import type { DbInventoryTracking, ActivityLogEntry } from '../utils/supabase/types';
 import ActivityFeed from './ActivityFeed';
@@ -21,7 +21,10 @@ import { ASSET_STATUS_CONFIG } from '../utils/supabase/constants';
 import { useSimpleFormChanges } from '../utils/hooks/useSimpleFormChanges';
 import { createSubmissionPayload, normalizeFormData } from '../utils/form-utils';
 import { useAutocompleteSuggestions } from '../utils/hooks/useAutocompleteSuggestions';
-import { getEquipmentCategories } from '../services/purchaseCategory.service';
+import { getEquipmentCategories, getEquipmentCategoryPeriods } from '../services/purchaseCategory.service';
+import { getLockedTaxYears } from '../services/taxYear.service';
+import { isTaxYearLocked } from '../utils/taxTreatment';
+import { RECOVERY_PERIODS, categoryPeriod, type CategoryPeriods } from '../utils/recoveryPeriod';
 import AttachmentManager from './AttachmentManager';
 
 interface AssetScreenProps {
@@ -55,8 +58,7 @@ interface FormData {
   tag_number: string;
   status: string;
   retired_on: string;
-  service_life: string;
-  dep_method: string;
+  recovery_period: string;
   liquidation_amt: string;
   purchase_id?: string;
 }
@@ -96,8 +98,7 @@ export default function AssetScreen({
     tag_number: '',
     status: 'Active',
     retired_on: '',
-    service_life: '',
-    dep_method: '',
+    recovery_period: '',
     liquidation_amt: '',
   });
 
@@ -115,8 +116,25 @@ export default function AssetScreen({
   useEffect(() => {
     let cancelled = false;
     getEquipmentCategories(organization.id).then(c => { if (!cancelled) setEquipmentCategories(c); });
+    getEquipmentCategoryPeriods(organization.id).then(p => { if (!cancelled) setCategoryPeriods(p); });
     return () => { cancelled = true; };
   }, [organization.id]);
+
+  // Only depreciated equipment has a recovery period (#125); a filed year's,
+  // once set, stays.
+  const [categoryPeriods, setCategoryPeriods] = useState<CategoryPeriods>({});
+  const [depreciatedOn, setDepreciatedOn] = useState<string | null>(null);
+  const [lockedYears, setLockedYears] = useState<Set<number>>(new Set());
+  useEffect(() => {
+    if (!assetId) return;
+    let cancelled = false;
+    getAssetDepreciatedDate(assetId).then(d => { if (!cancelled) setDepreciatedOn(d); });
+    getLockedTaxYears(organization.id).then(y => { if (!cancelled) setLockedYears(y); });
+    return () => { cancelled = true; };
+  }, [assetId, organization.id]);
+  const depreciated = !!depreciatedOn;
+  const defaultPeriod = categoryPeriod(categoryPeriods, formData.category);
+  const periodLocked = depreciated && isTaxYearLocked(depreciatedOn, lockedYears) && !!changeDetection.originalData?.recovery_period;
 
   const typeSuggestions = useAutocompleteSuggestions({
     field: 'type',
@@ -164,8 +182,7 @@ export default function AssetScreen({
       tag_number: asset.tag_number || '',
       status: asset.status || 'Active',
       retired_on: asset.retired_on || '',
-      service_life: asset.service_life?.toString() || '',
-      dep_method: asset.dep_method || '',
+      recovery_period: asset.recovery_period?.toString() || '',
       liquidation_amt: asset.liquidation_amt?.toString() || '',
       purchase_id: asset.purchase_id,
     };
@@ -234,8 +251,8 @@ export default function AssetScreen({
       newErrors.quantity = 'Quantity must be a positive number';
     }
 
-    if (formData.service_life && (isNaN(parseInt(formData.service_life)) || parseInt(formData.service_life) < 1)) {
-      newErrors.service_life = 'Service life must be a positive whole number';
+    if (depreciated && !formData.recovery_period && !defaultPeriod) {
+      newErrors.recovery_period = 'Choose a recovery period: this equipment is depreciated';
     }
 
     if (formData.liquidation_amt && isNaN(parseFloat(formData.liquidation_amt))) {
@@ -281,10 +298,11 @@ export default function AssetScreen({
         normalizedData.quantity = parseInt(normalizedData.quantity) as any;
       }
 
-      if (normalizedData.service_life === null || normalizedData.service_life === '') {
-        normalizedData.service_life = undefined as any;
-      } else if (typeof normalizedData.service_life === 'string' && normalizedData.service_life.trim()) {
-        normalizedData.service_life = parseInt(normalizedData.service_life) as any;
+      // Depreciated: the period chosen, else the category's. Not depreciated: none.
+      if (depreciated) {
+        normalizedData.recovery_period = (formData.recovery_period ? parseInt(formData.recovery_period) : defaultPeriod) as any;
+      } else {
+        delete (normalizedData as any).recovery_period;
       }
 
       if (normalizedData.liquidation_amt === null || normalizedData.liquidation_amt === '') {
@@ -732,34 +750,36 @@ export default function AssetScreen({
                   )}
                 </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="service_life">Expected Service Life (years)</Label>
-                  <Input
-                    id="service_life"
-                    type="number"
-                    min="1"
-                    value={formData.service_life}
-                    onChange={(e) => handleChange('service_life', e.target.value)}
-                    placeholder="e.g., 10"
-                    className={errors.service_life ? 'border-red-500' : ''}
-                  />
-                  {errors.service_life && (
-                    <p className="text-sm text-red-600 flex items-center gap-1">
-                      <AlertCircle className="w-4 h-4" />
-                      {errors.service_life}
+                {depreciated && (
+                  <div className="space-y-2 md:col-span-2">
+                    <Label htmlFor="recovery_period">Recovery period</Label>
+                    <Select
+                      value={formData.recovery_period || (defaultPeriod ? String(defaultPeriod) : '')}
+                      onValueChange={(value) => handleChange('recovery_period', value)}
+                      disabled={periodLocked}
+                    >
+                      <SelectTrigger id="recovery_period" aria-label="Recovery period" className={errors.recovery_period ? 'border-red-500' : ''}>
+                        <SelectValue placeholder="Choose a recovery period" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {RECOVERY_PERIODS.map(p => (
+                          <SelectItem key={p.value} value={String(p.value)}>{p.label}: {p.examples}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-gray-500">
+                      {periodLocked ? 'Its tax year is filed, so the recovery period stays as it is.'
+                        : !formData.recovery_period && defaultPeriod ? `The default for ${formData.category}. The tax program uses it to work out depreciation.`
+                        : 'This item is depreciated. The tax program uses the period to work out depreciation.'}
                     </p>
-                  )}
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="dep_method">Depreciation Method</Label>
-                  <Input
-                    id="dep_method"
-                    value={formData.dep_method}
-                    onChange={(e) => handleChange('dep_method', e.target.value)}
-                    placeholder="e.g., Straight-Line"
-                  />
-                </div>
+                    {errors.recovery_period && (
+                      <p className="text-sm text-red-600 flex items-center gap-1">
+                        <AlertCircle className="w-4 h-4" />
+                        {errors.recovery_period}
+                      </p>
+                    )}
+                  </div>
+                )}
 
                 <div className="space-y-2">
                   <Label htmlFor="retired_on">Retired On</Label>

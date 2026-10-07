@@ -4,6 +4,10 @@ import { Button } from '../ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '../ui/dialog';
 import { getTypeUsage } from '../../services/purchaseCategory.service';
 import { getKitOptions } from '../../services/kit.service';
+import {
+  RECOVERY_PERIODS, asRecoveryPeriod, categoryPeriod, effectiveRecoveryPeriod,
+  type CategoryPeriods, type RecoveryPeriod,
+} from '../../utils/recoveryPeriod';
 
 export interface EquipmentDetails {
   category: string;
@@ -12,6 +16,8 @@ export interface EquipmentDetails {
   serial_number: string;
   tag_number: string;
   replacement_value: number;
+  /** Depreciated items only (#125): the period chosen; null follows the category's default. */
+  recovery_period?: RecoveryPeriod | null;
 }
 
 interface EquipmentDetailsDialogProps {
@@ -28,6 +34,12 @@ interface EquipmentDetailsDialogProps {
   categoryLocked?: boolean;
   /** An existing equipment record's kits are managed on its own page. */
   kitsLocked?: boolean;
+  /** The line is depreciated: ask for its recovery period (#125). */
+  depreciated?: boolean;
+  /** Each equipment category's default recovery period. */
+  categoryPeriods?: CategoryPeriods;
+  /** A filed year's recovery period, once set, stays. */
+  periodLocked?: boolean;
 }
 
 const NEW_CATEGORY = '__new__';
@@ -39,6 +51,7 @@ const NEW_CATEGORY = '__new__';
  */
 export default function EquipmentDetailsDialog({
   open, onOpenChange, organizationId, itemName, categories, value, onSave, categoryLocked, kitsLocked,
+  depreciated, categoryPeriods = {}, periodLocked,
 }: EquipmentDetailsDialogProps) {
   const [draft, setDraft] = useState<EquipmentDetails>(value);
   const [newCategory, setNewCategory] = useState(false);
@@ -69,6 +82,16 @@ export default function EquipmentDetailsDialog({
   }, [open, organizationId, kitsLocked]);
 
   const set = <K extends keyof EquipmentDetails>(k: K, v: EquipmentDetails[K]) => setDraft(d => ({ ...d, [k]: v }));
+  const setCategory = (c: string) => setDraft(d => ({
+    ...d,
+    category: c,
+    // A period that was only the old category's default follows the new category.
+    recovery_period: d.recovery_period != null && d.recovery_period === categoryPeriod(categoryPeriods, d.category) ? null : d.recovery_period,
+  }));
+
+  const period = depreciated ? effectiveRecoveryPeriod(draft.recovery_period, categoryPeriods, draft.category) : null;
+  const periodFromCategory = depreciated && draft.recovery_period == null && period != null;
+  const needsPeriod = !!depreciated && period == null;
 
   const typed = draft.type.trim();
   const shownTypes = useMemo(
@@ -100,13 +123,13 @@ export default function EquipmentDetailsDialog({
             {newCategory ? (
               <input id="eq-category" aria-label="Category" autoFocus placeholder="New category" value={draft.category}
                 className={fieldClass}
-                onChange={e => set('category', e.target.value)}
+                onChange={e => setCategory(e.target.value)}
                 onBlur={() => { if (!draft.category.trim()) setNewCategory(false); }} />
             ) : (
               <select id="eq-category" aria-label="Category" className={`${fieldClass} font-normal`} value={draft.category} disabled={categoryLocked}
                 onChange={e => {
-                  if (e.target.value === NEW_CATEGORY) { set('category', ''); setNewCategory(true); }
-                  else set('category', e.target.value);
+                  if (e.target.value === NEW_CATEGORY) { setCategory(''); setNewCategory(true); }
+                  else setCategory(e.target.value);
                 }}>
                 <option value="">Choose a category…</option>
                 {draft.category && !categories.includes(draft.category) && <option value={draft.category}>{draft.category}</option>}
@@ -115,6 +138,25 @@ export default function EquipmentDetailsDialog({
               </select>
             )}
           </div>
+
+          {depreciated && (
+            <div className={labelClass}>
+              <label htmlFor="eq-period">Recovery period</label>
+              <select id="eq-period" aria-label="Recovery period" disabled={periodLocked}
+                className={`${fieldClass} font-normal ${needsPeriod ? 'border-amber-500 bg-amber-50' : ''}`}
+                value={period ?? ''}
+                onChange={e => set('recovery_period', asRecoveryPeriod(e.target.value))}>
+                <option value="">Choose a recovery period…</option>
+                {RECOVERY_PERIODS.map(p => <option key={p.value} value={p.value}>{p.label}: {p.examples}</option>)}
+              </select>
+              <span className={`font-normal ${needsPeriod ? 'text-amber-800' : 'text-slate-500'}`}>
+                {periodLocked ? 'The tax year is filed, so the recovery period stays as it is.'
+                  : needsPeriod ? `${draft.category ? `${draft.category} has no default period.` : 'Choose a category, or pick a period.'} Choose one for the tax program.`
+                  : periodFromCategory ? `The default for ${draft.category}.`
+                  : 'For the tax program; it works out the depreciation.'}
+              </span>
+            </div>
+          )}
 
           <div className={labelClass}>
             <label htmlFor="eq-type">Type <span className="font-normal text-slate-500">General to specific, separated by commas</span></label>
@@ -219,7 +261,16 @@ export default function EquipmentDetailsDialog({
         <DialogFooter className="px-5 py-3 border-t border-slate-200 bg-slate-50">
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
           <Button className="bg-sky-700 hover:bg-sky-800 text-white"
-            onClick={() => { onSave({ ...draft, category: draft.category.trim(), type: draft.type.trim() }); onOpenChange(false); }}>
+            disabled={needsPeriod}
+            title={needsPeriod ? 'Choose a recovery period first' : undefined}
+            onClick={() => {
+              onSave({
+                ...draft, category: draft.category.trim(), type: draft.type.trim(),
+                // Only a chosen period is kept; one from the category follows the category.
+                ...(depreciated ? { recovery_period: periodFromCategory ? null : period } : {}),
+              });
+              onOpenChange(false);
+            }}>
             Done
           </Button>
         </DialogFooter>

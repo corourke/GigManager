@@ -95,4 +95,49 @@ describe('EquipmentDetailsDialog', () => {
     expect(dialog.className).toContain('grid-cols-[minmax(0,1fr)]');
     expect(screen.getByText(/U-Haul truck rental/).className).toContain('truncate');
   });
+
+  describe('recovery period (#125)', () => {
+    const periods = { power: 7, networking: null, computer: 5 } as const;
+
+    it('is not asked for an expensed item', () => {
+      open();
+      expect(screen.queryByRole('combobox', { name: 'Recovery period' })).not.toBeInTheDocument();
+    });
+
+    it('a depreciated item shows its category\'s default, which follows the category until one is chosen', async () => {
+      const onSave = open({ depreciated: true, categoryPeriods: periods, categories: ['Computer', 'Networking', 'Power'] });
+      const period = screen.getByRole('combobox', { name: 'Recovery period' }) as HTMLSelectElement;
+      expect(period.value).toBe('7');
+      expect(screen.getByText('The default for Power.')).toBeInTheDocument();
+      await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Category' }), 'Computer');
+      expect(period.value).toBe('5');
+      await userEvent.click(screen.getByRole('button', { name: 'Done' }));
+      // From the category: not stored as a choice, so it keeps following the category.
+      expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ category: 'Computer', recovery_period: null }));
+    });
+
+    it('asks when the category has no default, and Done waits for an answer', async () => {
+      const onSave = open({ depreciated: true, categoryPeriods: periods, categories: ['Networking', 'Power'], value: { ...start, category: 'Networking' } });
+      const period = screen.getByRole('combobox', { name: 'Recovery period' }) as HTMLSelectElement;
+      expect(period.value).toBe('');
+      expect(screen.getByText(/Networking has no default period/)).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Done' })).toBeDisabled();
+      await userEvent.selectOptions(period, '5');
+      await userEvent.click(screen.getByRole('button', { name: 'Done' }));
+      expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ recovery_period: 5 }));
+    });
+
+    it('a chosen period stays when the category changes', async () => {
+      const onSave = open({ depreciated: true, categoryPeriods: periods, categories: ['Computer', 'Power'], value: { ...start, recovery_period: 15 } });
+      await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Category' }), 'Computer');
+      expect((screen.getByRole('combobox', { name: 'Recovery period' }) as HTMLSelectElement).value).toBe('15');
+      await userEvent.click(screen.getByRole('button', { name: 'Done' }));
+      expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ recovery_period: 15 }));
+    });
+
+    it('a filed year keeps its period', () => {
+      open({ depreciated: true, categoryPeriods: periods, periodLocked: true, value: { ...start, recovery_period: 5 } });
+      expect(screen.getByRole('combobox', { name: 'Recovery period' })).toBeDisabled();
+    });
+  });
 });
