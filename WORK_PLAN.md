@@ -221,6 +221,7 @@ Read this section first on each run.
 | Claimed by | Files | Notes |
 |---|---|---|
 | #20 remaining services | `src/services/*.service.ts` (all but `user.service.ts` and `attachment.service.ts`) | Parked; `attachment.service.ts` released 09-30 (§3c) |
+| Docs Lead, user-guide IA restructure | all of `website/docs/` (moves, sidebar, redirects, home page) | Cameron approved the IA 10-07; PR to follow. Triage: hold user-guide passes until it merges |
 | Coordinator, #92 | not yet claimed | Not in §3c; triage leaves it alone |
 | Stray branches `claude/triage-90-org-delete-references`, `claude/triage-userguide-gigs` | none | Duplicates of PR #96's and PR #151's commits. The proxy refused the deletes; both are safe to delete |
 
