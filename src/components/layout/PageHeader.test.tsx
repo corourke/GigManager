@@ -70,6 +70,15 @@ describe('PageHeader (#39 page frame)', () => {
     expect(screen.getByRole('tab', { name: 'Kits' })).toHaveAttribute('data-state', 'inactive')
   })
 
+  it('puts a custom heading where the title goes, keeping the slot before it', () => {
+    render(<PageHeader back={{ label: 'Back to Gigs', onClick: vi.fn() }} heading={<input aria-label="Gig title" />} />)
+    const row = screen.getByTestId('page-header-title-row')
+    const slot = screen.getByTestId('page-header-slot')
+    const input = within(row).getByRole('textbox', { name: 'Gig title' })
+    expect(slot.compareDocumentPosition(input) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(screen.queryByRole('heading', { level: 1 })).toBeNull()
+  })
+
   it('renders no tab row when the page has no tabs', () => {
     render(<PageHeader title="Dashboard" />)
     expect(screen.queryByRole('tablist')).toBeNull()

@@ -17,6 +17,7 @@ import { Card } from './ui/card';
 import { Badge } from './ui/badge';
 import { Alert, AlertDescription } from './ui/alert';
 import AppHeader from './AppHeader';
+import { PageHeader } from './layout/PageHeader';
 import {
   Search,
   Plus,
@@ -156,18 +157,10 @@ export default function OrganizationSelectionScreen({
         onEditProfile={onEditProfile}
       />
 
-      {/* Main Content */}
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Page Title */}
-        <div className="mb-8">
-          <h1 className="text-gray-900 mb-2">Select Organization</h1>
-          <p className="text-gray-600">
-            {searchQuery.trim() 
-              ? 'Search results - select an organization to join or switch to it'
-              : 'Choose an organization to continue or create a new one'}
-          </p>
-        </div>
+      <PageHeader icon={Building2} title="Select Organization" />
 
+      {/* Main Content: narrower than the header, but left-aligned with the title (#39). */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 *:max-w-6xl">
         {/* Search and Actions */}
         <div className="mb-6 flex flex-col sm:flex-row gap-4">
           <div className="relative flex-1">

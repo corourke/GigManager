@@ -83,7 +83,10 @@ Every web screen stacks the same bands, in this order. Nothing goes above the ti
 -   **Actions** go on the right of the title row. A "do something" choice (Add, Scan, Import) is a button there, not a tab.
 -   **Tabs** use `PageTabsList` / `PageTabsTrigger` (underlined; active `border-sky-700 text-sky-700`), inside the page's `Tabs` root from `ui/tabs`, wrapping both the header and the content. When each tab is a route, set `activationMode="manual"`: with automatic activation a click fires `onValueChange` twice (mousedown and focus) and pushes the route twice. A choice inside a tab is a dropdown or filter, never a second row of tabs. The boxed `ui/tabs` `TabsList` is for in-content toggles only (Upcoming/Past, Month/Week).
 -   **Section headers that span several routes** share one component so the title stays put: `EquipmentHeader.tsx` titles Assets, Kits and Inventory "Equipment".
--   **Migration status**: Dashboard, Gigs, Team, Financials, Equipment and Settings use the frame. The drill-down pages (gig page, detail and edit pages, Import, org and admin screens) still use their own headers or the old `ui/PageHeader.tsx`, and move over next; Inventory's own sub-tabs stay in its content until the Equipment reorganization.
+-   **Editable titles**: `heading` replaces the title, badge and meta with custom content in the same place (the gig page's edit mode).
+-   **Narrow content** (editors, Import, org screens): keep the header full width and left-align the narrower content with the title, `max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 *:max-w-4xl`, rather than centring it.
+-   **Back labels** name the destination ("Back to Assets", "Back to Select Organization"). Use a bare "Back" only when Back is history-based and the destination isn't known (Starter categories, editing an organization). Import is opened from Gigs or Assets and its Back returns there (`/import?from=assets`).
+-   **Every web screen uses the frame.** Inventory's own sub-tabs stay in its content until the Equipment reorganization (#39 PR 3). The mobile PWA has its own layout.
 
 ### 2. Inline Stats (Dashboard/Summary)
 Used for financial summaries or key metrics.
@@ -102,10 +105,9 @@ Used for financial summaries or key metrics.
 The gig page (`src/components/gig/GigPage.tsx`) is the model for a record page: one page for viewing and editing, tabs, cards, and printouts. Mockups: the approved #12 design boards.
 
 ### 1. Page Header
--   **Back link** above the title: `text-sm text-sky-700 hover:underline` with an `ArrowLeft` icon.
--   **Title row**: `h1` `text-2xl font-bold leading-tight`, then the status `Badge`; a muted line (`text-sm text-muted-foreground`) with the date and venue; tags as `Badge variant="secondary"`.
+-   The gig page uses the shared `PageHeader` (see "Page layout" above): **Back** in the slot ("Back to Gigs", or "Back to Calendar" when opened from it), the title, the status `Badge` as `badge`, and the date, venue and tags (`Badge variant="secondary"`) as `meta`.
 -   **Actions** on the right: Print (`outline`), the primary Edit button, and a `MoreVertical` icon menu for Duplicate and Delete.
--   **Tabs** sit in the header, underlined rather than boxed: the active tab is `border-b-2 border-sky-700 text-sky-700`, with no pill background.
+-   **Tabs** (Overview, Equipment, Financials, History) are `PageTabs` in the header's `tabs` slot.
 -   **Content** width: `max-w-7xl mx-auto px-4 sm:px-6 lg:px-8`, page background `bg-gray-50`.
 
 ### 2. Cards (`GigSection`)
@@ -116,7 +118,7 @@ The gig page (`src/components/gig/GigPage.tsx`) is the model for a record page: 
 
 ### 3. Edit Mode (one edit for the whole page)
 -   One **Edit** button puts the whole page into edit mode; there are no per-card edit modes and no Save/Cancel. Every field autosaves (`useAutoSave`), and **Done** (primary) waits for pending saves, then returns to view mode.
--   **Header in edit mode**: the background becomes `bg-sky-50 border-b-2 border-sky-700`, a metadata label `Editing` (`text-sky-800`) appears above the title, and the title, status and tags become inputs in place.
+-   **Header in edit mode**: the background becomes `bg-sky-50 border-b-2 border-sky-700`, the title, status and tags become inputs in place (`PageHeader`'s `heading` slot, so the title doesn't move), and a metadata label `Editing` (`text-sky-800`) sits with the save state and Done in the actions. Nothing goes above the title.
 -   **One save state** for the page, in the header (`EditSaveStatus` in `src/components/gig/edit/GigEditParts.tsx`), announced with `aria-live="polite"`:
     - Saving: `Loader2` spinner, "Saving…", `text-muted-foreground`.
     - Saved: `Check`, "All changes saved", `text-green-800`.

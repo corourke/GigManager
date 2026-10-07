@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { ArrowLeft, Copy, Loader2, MoreVertical, Pencil, Printer, Trash2 } from 'lucide-react';
+import { Copy, Loader2, MoreVertical, Pencil, Printer, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import AppHeader from '../AppHeader';
 import AttachmentManager from '../AttachmentManager';
@@ -9,7 +9,9 @@ import { Alert, AlertDescription } from '../ui/alert';
 import { Badge } from '../ui/badge';
 import { Button } from '../ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '../ui/dropdown-menu';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
+import { Tabs, TabsContent } from '../ui/tabs';
+import { PageHeader } from '../layout/PageHeader';
+import { PageTabsList, PageTabsTrigger } from '../layout/PageTabs';
 import GigFinancialsSection from './GigFinancialsSection';
 import GigKitAssignmentsSection from './GigKitAssignmentsSection';
 import GigParticipantsSection from './GigParticipantsSection';
@@ -161,20 +163,17 @@ export default function GigPage({
     </div>
   );
 
-  const backLink = (
-    <button type="button" onClick={onBack} className="inline-flex items-center gap-1 text-sm text-sky-700 hover:underline w-fit">
-      <ArrowLeft className="w-4 h-4" />
-      {backLabel}
-    </button>
-  );
+  const back = { label: `Back to ${backLabel}`, onClick: onBack };
 
   if (loadError) {
     return shell(
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 space-y-4">
-        {backLink}
+      <>
+        <PageHeader back={back} title="Gig" />
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 space-y-4">
         <Alert variant="destructive"><AlertDescription>{loadError}</AlertDescription></Alert>
         <Button variant="outline" onClick={loadGig}>Retry</Button>
-      </div>,
+        </div>
+      </>,
     );
   }
 
@@ -195,98 +194,85 @@ export default function GigPage({
   const status = GIG_STATUS_CONFIG[gig.status];
 
   const page = (
-    <Tabs value={tab} onValueChange={setTab}>
-      <div className={editing ? 'bg-sky-50 border-b-2 border-sky-700' : 'bg-white border-b'}>
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-3 flex flex-col gap-2">
-          <div className="flex items-center justify-between">
-            {backLink}
-            {editing && <span className="text-[10px] font-bold uppercase tracking-[0.1em] text-sky-800">Editing</span>}
+    <Tabs value={tab} onValueChange={setTab} activationMode="manual" className="gap-0">
+      {/* #39: one header for view and edit; edit mode recolours the band. */}
+      <PageHeader
+        className={editing ? 'bg-sky-50 border-b-2 border-sky-700' : undefined}
+        back={back}
+        title={gig.title}
+        badge={status && <Badge className={`${status.color} border`}>{status.label}</Badge>}
+        meta={
+          <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
+            <span>
+              {formatDateTimeDisplay(gig.start, gig.end, gig.timezone)}
+              {venue?.name ? ` · ${venue.name}` : ''}
+            </span>
+            {gig.tags.map((t) => <Badge key={t} variant="secondary" className="font-medium">{t}</Badge>)}
+          </span>
+        }
+        heading={editing ? (
+          <div className="flex flex-col gap-2 min-w-0" data-gig-header>
+            <div className="flex items-center gap-2.5 flex-wrap">
+              <GigTitleField variant="header" />
+              <GigStatusField variant="header" />
+            </div>
+            <GigTagsField variant="header" />
           </div>
-          <div className="flex items-start justify-between gap-4">
-            {editing ? (
-              <div className="flex flex-col gap-2 min-w-0 flex-1" data-gig-header>
-                <div className="flex items-center gap-2.5 flex-wrap">
-                  <GigTitleField variant="header" />
-                  <GigStatusField variant="header" />
-                </div>
-                <GigTagsField variant="header" />
-              </div>
+        ) : undefined}
+        actions={(canEdit || !editing) ? (
+          <>
+            {!editing && (canEdit ? (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline"><Printer className="w-4 h-4 mr-1.5" />Print</Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onSelect={() => startPrint(false)}>Gig sheet</DropdownMenuItem>
+                  <DropdownMenuItem onSelect={() => startPrint(true)}>Gig sheet with financials</DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             ) : (
-              <div className="flex flex-col gap-1 min-w-0">
-                <div className="flex items-center gap-2.5 flex-wrap">
-                  <h1 className="text-2xl font-bold leading-tight">{gig.title}</h1>
-                  {status && <Badge className={`${status.color} border`}>{status.label}</Badge>}
-                </div>
-                <p className="text-sm text-muted-foreground">
-                  {formatDateTimeDisplay(gig.start, gig.end, gig.timezone)}
-                  {venue?.name ? ` · ${venue.name}` : ''}
-                </p>
-                {gig.tags.length > 0 && (
-                  <div className="flex flex-wrap gap-1.5 pt-0.5">
-                    {gig.tags.map((t) => <Badge key={t} variant="secondary" className="font-medium">{t}</Badge>)}
-                  </div>
-                )}
-              </div>
+              <Button variant="outline" onClick={() => startPrint(false)}><Printer className="w-4 h-4 mr-1.5" />Print</Button>
+            ))}
+            {!canEdit ? null : editing ? (
+              <>
+                <span className="text-[10px] font-bold uppercase tracking-[0.1em] text-sky-800">Editing</span>
+                <EditSaveStatus state={session.state} />
+                <Button onClick={finishEditing} disabled={finishing} className="bg-sky-700 hover:bg-sky-800 text-white">Done</Button>
+              </>
+            ) : (
+              <>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" size="icon" aria-label="More actions"><MoreVertical className="w-4 h-4" /></Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem onClick={handleDuplicate}><Copy className="w-4 h-4 mr-2" />Duplicate Gig</DropdownMenuItem>
+                    <DropdownMenuItem onClick={handleDelete} className="text-red-600 focus:text-red-600">
+                      <Trash2 className="w-4 h-4 mr-2" />Delete Gig
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+                <Button onClick={() => setEditing(true)} className="bg-sky-700 hover:bg-sky-800 text-white">
+                  <Pencil className="w-4 h-4 mr-1.5" />Edit
+                </Button>
+              </>
             )}
-            {(canEdit || !editing) && (
-              <div className="flex items-center gap-2 shrink-0">
-                {!editing && (canEdit ? (
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="outline"><Printer className="w-4 h-4 mr-1.5" />Print</Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuItem onSelect={() => startPrint(false)}>Gig sheet</DropdownMenuItem>
-                      <DropdownMenuItem onSelect={() => startPrint(true)}>Gig sheet with financials</DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                ) : (
-                  <Button variant="outline" onClick={() => startPrint(false)}><Printer className="w-4 h-4 mr-1.5" />Print</Button>
-                ))}
-                {!canEdit ? null : editing ? (
-                  <>
-                    <EditSaveStatus state={session.state} />
-                    <Button onClick={finishEditing} disabled={finishing} className="bg-sky-700 hover:bg-sky-800 text-white">Done</Button>
-                  </>
-                ) : (
-                  <>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="outline" size="icon" aria-label="More actions"><MoreVertical className="w-4 h-4" /></Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={handleDuplicate}><Copy className="w-4 h-4 mr-2" />Duplicate Gig</DropdownMenuItem>
-                        <DropdownMenuItem onClick={handleDelete} className="text-red-600 focus:text-red-600">
-                          <Trash2 className="w-4 h-4 mr-2" />Delete Gig
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                    <Button onClick={() => setEditing(true)} className="bg-sky-700 hover:bg-sky-800 text-white">
-                      <Pencil className="w-4 h-4 mr-1.5" />Edit
-                    </Button>
-                  </>
-                )}
-              </div>
-            )}
-          </div>
-          <TabsList className="bg-transparent p-0 h-auto gap-5 rounded-none">
-              {[
-                ['overview', 'Overview'],
-                ['equipment', 'Equipment'],
-                ...(canEdit ? [['financials', 'Financials']] : []),
-                ['history', 'History'],
-              ].map(([value, label]) => (
-                <TabsTrigger
-                  key={value}
-                  value={value}
-                  className="px-0 pb-2 rounded-none border-0 border-b-2 border-transparent data-[state=active]:border-sky-700 data-[state=active]:text-sky-700 data-[state=active]:shadow-none bg-transparent data-[state=active]:bg-transparent"
-                >
-                  {label}
-                </TabsTrigger>
-              ))}
-          </TabsList>
-        </div>
-      </div>
+          </>
+        ) : undefined}
+        tabs={
+          <PageTabsList aria-label="Gig sections">
+            {[
+              ['overview', 'Overview'],
+              ['equipment', 'Equipment'],
+              ...(canEdit ? [['financials', 'Financials']] : []),
+              ['history', 'History'],
+            ].map(([value, label]) => (
+              <PageTabsTrigger key={value} value={value}>{label}</PageTabsTrigger>
+            ))}
+          </PageTabsList>
+        }
+      />
 
       <main className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
         {conflicts.length > 0 && <div className="mb-4"><ConflictWarning conflicts={conflicts} showAsCard /></div>}

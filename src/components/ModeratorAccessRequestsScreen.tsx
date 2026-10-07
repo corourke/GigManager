@@ -4,7 +4,7 @@ import { Loader2, ShieldCheck, Inbox } from 'lucide-react';
 import { Button } from './ui/button';
 import { Card } from './ui/card';
 import AppHeader from './AppHeader';
-import { PageHeader } from './ui/PageHeader';
+import { PageHeader } from './layout/PageHeader';
 import { SmartDataTable } from './tables/SmartDataTable';
 import { useAccessRequestColumns, AccessRequestActions } from './team/teamColumns';
 import { useModeratorAccessRequests, useDecideAccessRequest } from '../hooks/useAccessRequests';
@@ -62,18 +62,14 @@ export default function ModeratorAccessRequestsScreen({
     <div className="min-h-screen bg-gray-50">
       <AppHeader user={user} currentRoute="dashboard" onLogout={onLogout} onEditProfile={onEditProfile} />
 
-      <div className="bg-white border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <PageHeader
-            icon={ShieldCheck}
-            title="Access Requests"
-            description="Requests to claim or elevate access on organizations with no Admin yet"
-            actions={<Button onClick={onBack} variant="outline">Back</Button>}
-          />
-        </div>
-      </div>
+      <PageHeader
+        icon={ShieldCheck}
+        back={{ label: 'Back to Select Organization', onClick: onBack }}
+        title="Access Requests"
+      />
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+        <p className="mb-4 text-sm text-gray-600">Requests to claim or elevate access on organizations with no Admin yet.</p>
         {requestsQuery.isLoading ? (
           <div className="flex items-center justify-center py-12">
             <Loader2 className="w-8 h-8 animate-spin text-sky-500" />

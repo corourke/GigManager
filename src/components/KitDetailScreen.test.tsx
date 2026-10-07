@@ -3,6 +3,7 @@ import { render, screen, waitFor, fireEvent } from '@testing-library/react'
 import KitDetailScreen from './KitDetailScreen'
 import { getKit } from '../services/kit.service'
 import { makeUser, makeOrganization } from '../test/factories'
+import { getBackInHeaderSlot } from '../test/pageFrame'
 
 // countInventoryItems/maxTreeDepth are plain, pure functions — keep the real
 // implementations so these tests actually exercise the container-aware
@@ -78,6 +79,14 @@ const mockProps = {
 }
 
 describe('KitDetailScreen', () => {
+  it('puts Back to Kits in the page header slot, left of the kit name (#39)', async () => {
+    const onBack = vi.fn()
+    render(<KitDetailScreen {...mockProps} onBack={onBack} />)
+    expect(await screen.findByRole('heading', { level: 1, name: 'Full Rack' })).toBeInTheDocument()
+    fireEvent.click(getBackInHeaderSlot('Back to Kits'))
+    expect(onBack).toHaveBeenCalledTimes(1)
+  })
+
   it('renders the flattened asset contents and the combined kit structure tree', async () => {
     render(<KitDetailScreen {...mockProps} />)
 

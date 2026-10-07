@@ -1,5 +1,5 @@
 import {useState, useEffect, useMemo } from 'react';
-import { Package, ArrowLeft, Save, Loader2, AlertCircle, Plus, X, Search, CheckCircle2, Boxes, Container, Layers } from 'lucide-react';
+import { Package, Save, Loader2, AlertCircle, Plus, X, Search, CheckCircle2, Boxes, Container, Layers } from 'lucide-react';
 import { useSimpleFormChanges } from '../utils/hooks/useSimpleFormChanges';
 import { createSubmissionPayload, normalizeFormData } from '../utils/form-utils';
 import { toast } from 'sonner';
@@ -26,7 +26,7 @@ import {
   DialogTitle,
 } from './ui/dialog';
 import AppHeader from './AppHeader';
-import { PageHeader } from './ui/PageHeader';
+import { PageHeader } from './layout/PageHeader';
 import { Organization, User, UserRole } from '../utils/supabase/types';
 import { getKit, createKit, updateKit, getKits, getKitsFlattenedSummary, getKitsThatWouldCycle, KitFlattenedSummary } from '../services/kit.service';
 import { getAssets } from '../services/asset.service';
@@ -580,19 +580,13 @@ export default function KitScreen({
         onLogout={onLogout}
       />
 
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Header */}
-        <div className="mb-8">
-          <Button variant="ghost" onClick={onCancel} className="mb-4 -ml-2">
-            <ArrowLeft className="w-4 h-4 mr-2" />
-            Back to Kits
-          </Button>
-          <PageHeader
-            icon={Package}
-            title={isEditMode ? 'Edit Kit' : 'Create New Kit'}
-            description={isEditMode ? 'Update kit information and contents' : 'Create a reusable equipment collection'}
-          />
-        </div>
+      <PageHeader
+        back={{ label: 'Back to Kits', onClick: onCancel }}
+        title={isEditMode ? 'Edit Kit' : 'Create New Kit'}
+      />
+
+      {/* Narrower than the header, but left-aligned with the title (#39). */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 *:max-w-6xl">
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Main Form */}

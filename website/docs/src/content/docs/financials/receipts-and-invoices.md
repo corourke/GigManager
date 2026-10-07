@@ -84,4 +84,4 @@ When you **edit** a saved purchase and the change also affects a linked equipmen
 
 ## Importing a spreadsheet
 
-**Equipment → Import → CSV Import** creates purchases and equipment from a spreadsheet of past purchases. Imported purchases aren't linked to gigs and have no files attached; link and attach them afterwards from the Purchases report.
+On **Equipment → Assets**, choose **Import**: the **CSV Import** page opens with **Assets** selected, and its **Back** arrow returns to Assets. It creates purchases and equipment from a spreadsheet of past purchases. Imported purchases aren't linked to gigs and have no files attached; link and attach them afterwards from the Purchases report.

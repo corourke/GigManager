@@ -92,6 +92,38 @@ describe('GigPage (#12)', () => {
     await waitFor(() => expect(screen.queryByRole('textbox', { name: 'Gig title' })).not.toBeInTheDocument());
   });
 
+  describe('page header (#39)', () => {
+    it('puts Back in the header slot, named for where it goes', async () => {
+      const onBack = vi.fn();
+      render(<GigPage {...baseProps} onBack={onBack} userRole="Manager" />);
+      await screen.findByText('Riverside Summer Series');
+      const back = within(screen.getByTestId('page-header-slot')).getByRole('button', { name: 'Back to Gigs' });
+      fireEvent.click(back);
+      expect(onBack).toHaveBeenCalledTimes(1);
+    });
+
+    it('names Back for the calendar when the gig was opened from it', async () => {
+      render(<GigPage {...baseProps} userRole="Manager" backLabel="Calendar" />);
+      await screen.findByText('Riverside Summer Series');
+      expect(screen.getByRole('button', { name: 'Back to Calendar' })).toBeInTheDocument();
+    });
+
+    it('keeps the title row first in edit mode: the Editing label is not above the title', async () => {
+      render(<GigPage {...baseProps} userRole="Admin" initialEditing />);
+      const title = await screen.findByRole('textbox', { name: 'Gig title' });
+      const row = screen.getByTestId('page-header-title-row');
+      expect(row).toContainElement(title);
+      expect(row).toContainElement(screen.getByText('Editing'));
+    });
+
+    it('puts the gig tabs in the header, below the title', async () => {
+      render(<GigPage {...baseProps} userRole="Manager" />);
+      const heading = await screen.findByRole('heading', { level: 1, name: 'Riverside Summer Series' });
+      const tablist = screen.getByRole('tablist', { name: 'Gig sections' });
+      expect(heading.compareDocumentPosition(tablist) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    });
+  });
+
   it('opens on the tab the URL names, and reports tab changes to the URL', async () => {
     const onTabChange = vi.fn();
     render(<GigPage {...baseProps} userRole="Manager" tab="financials" onTabChange={onTabChange} />);

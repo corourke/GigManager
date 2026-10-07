@@ -20,7 +20,13 @@ export interface PageHeaderBack {
 }
 
 export interface PageHeaderProps {
-  title: React.ReactNode;
+  /** The page's name, rendered as its h1. */
+  title?: React.ReactNode;
+  /**
+   * Replaces the title, badge and meta with custom content in the same place,
+   * e.g. the gig page's editable title in edit mode.
+   */
+  heading?: React.ReactNode;
   /** Section icon for top-level pages. Ignored when `back` is set. */
   icon?: LucideIcon;
   /** Slot colours for the icon; defaults to sky. */
@@ -40,6 +46,7 @@ export interface PageHeaderProps {
 
 export function PageHeader({
   title,
+  heading,
   icon: Icon,
   iconClassName,
   back,
@@ -73,11 +80,15 @@ export function PageHeader({
               </span>
             ) : null}
           </div>
-          <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-1">
-            <h1 className="truncate text-[22px] font-bold leading-7 text-gray-900">{title}</h1>
-            {badge}
-            {meta && <div className="text-sm text-gray-600">{meta}</div>}
-          </div>
+          {heading ? (
+            <div className="min-w-0 flex-1">{heading}</div>
+          ) : (
+            <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-1">
+              <h1 className="truncate text-[22px] font-bold leading-7 text-gray-900">{title}</h1>
+              {badge}
+              {meta && <div className="text-sm text-gray-600">{meta}</div>}
+            </div>
+          )}
           {actions && <div className="flex flex-none flex-wrap items-center justify-end gap-2">{actions}</div>}
         </div>
         {tabs && <div className="-mt-1 overflow-x-auto pl-11">{tabs}</div>}

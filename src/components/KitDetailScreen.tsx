@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Package, ArrowLeft, Edit2, Trash2, Copy, Loader2, Layers, Boxes, Container } from 'lucide-react';
+import { Package, Edit2, Trash2, Copy, Loader2, Layers, Boxes, Container } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from './ui/button';
 import { Card } from './ui/card';
@@ -15,6 +15,7 @@ import {
   TableRow,
 } from './ui/table';
 import AppHeader from './AppHeader';
+import { PageHeader } from './layout/PageHeader';
 import { Organization, User, UserRole, ActivityLogEntry } from '../utils/supabase/types';
 import { canManage } from '../utils/permissions';
 import {
@@ -215,11 +216,8 @@ export default function KitDetailScreen({
           onSwitchOrganization={onSwitchOrganization}
           onLogout={onLogout}
         />
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          <Button variant="ghost" onClick={onBack} className="mb-4 -ml-2">
-            <ArrowLeft className="w-4 h-4 mr-2" />
-            Back to Kits
-          </Button>
+        <PageHeader back={{ label: 'Back to Kits', onClick: onBack }} title="Kit" />
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <Alert variant="destructive">
             <AlertDescription>{loadError || 'Kit not found.'}</AlertDescription>
           </Alert>
@@ -242,78 +240,73 @@ export default function KitDetailScreen({
         onLogout={onLogout}
       />
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Header */}
-        <div className="mb-8">
-          <Button variant="ghost" onClick={onBack} className="mb-4 -ml-2">
-            <ArrowLeft className="w-4 h-4 mr-2" />
-            Back to Kits
-          </Button>
+      <PageHeader
+        back={{ label: 'Back to Kits', onClick: onBack }}
+        title={kit.name}
+        badge={
+          <>
+            {kit.category && <Badge variant="outline">{kit.category}</Badge>}
+            <Badge variant={kit.is_container ? 'default' : 'outline'} className="gap-1">
+              {kit.is_container ? <Container className="w-3 h-3" /> : <Boxes className="w-3 h-3" />}
+              {kit.is_container ? 'Container' : 'Items'}
+            </Badge>
+          </>
+        }
+        actions={
+          <>
+            {canManage(userRole) && (
+              <Button
+                variant="outline"
+                onClick={() => onEdit(kitId)}
+              >
+                <Edit2 className="w-4 h-4 mr-2" />
+                Edit
+              </Button>
+            )}
+            {canManage(userRole) && (
+              <Button
+                variant="outline"
+                onClick={handleDuplicate}
+              >
+                <Copy className="w-4 h-4 mr-2" />
+                Duplicate
+              </Button>
+            )}
+            {userRole === 'Admin' && (
+              <Button
+                variant="outline"
+                onClick={handleDelete}
+                className="text-red-600 hover:text-red-700 border-red-200 hover:bg-red-50"
+              >
+                <Trash2 className="w-4 h-4 mr-2" />
+                Delete
+              </Button>
+            )}
+          </>
+        }
+      />
 
-          <div className="flex items-start justify-between">
-            <div className="flex-1">
-              <div className="flex items-center gap-3 mb-2">
-                <Package className="w-8 h-8 text-sky-500" />
-                <h1 className="text-gray-900">{kit.name}</h1>
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+        {(kit.tag_number || kit.description || (kit.tags && kit.tags.length > 0)) && (
+          <div className="mb-6 space-y-2">
+            {kit.tag_number && (
+              <div className="text-sm text-gray-600">
+                <span className="font-medium">Tag Number:</span> {kit.tag_number}
               </div>
-              <div className="flex flex-wrap items-center gap-2 mb-2">
-                {kit.category && <Badge variant="outline">{kit.category}</Badge>}
-                <Badge variant={kit.is_container ? 'default' : 'outline'} className="gap-1">
-                  {kit.is_container ? <Container className="w-3 h-3" /> : <Boxes className="w-3 h-3" />}
-                  {kit.is_container ? 'Container' : 'Items'}
-                </Badge>
+            )}
+            {kit.description && <p className="text-gray-600">{kit.description}</p>}
+            {kit.tags && kit.tags.length > 0 && (
+              <div className="flex flex-wrap gap-2">
+                {kit.tags.map((tag: string) => (
+                  <Badge key={tag} variant="outline" className="text-xs">
+                    {tag}
+                  </Badge>
+                ))}
               </div>
-              {kit.tag_number && (
-                <div className="text-sm text-gray-600 mt-2">
-                  <span className="font-medium">Tag Number:</span> {kit.tag_number}
-                </div>
-              )}
-              {kit.description && (
-                <p className="text-gray-600 mt-2">{kit.description}</p>
-              )}
-              {kit.tags && kit.tags.length > 0 && (
-                <div className="flex flex-wrap gap-2 mt-3">
-                  {kit.tags.map((tag: string) => (
-                    <Badge key={tag} variant="outline" className="text-xs">
-                      {tag}
-                    </Badge>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            <div className="flex items-center gap-2">
-              {canManage(userRole) && (
-                <Button
-                  variant="outline"
-                  onClick={() => onEdit(kitId)}
-                >
-                  <Edit2 className="w-4 h-4 mr-2" />
-                  Edit
-                </Button>
-              )}
-              {canManage(userRole) && (
-                <Button
-                  variant="outline"
-                  onClick={handleDuplicate}
-                >
-                  <Copy className="w-4 h-4 mr-2" />
-                  Duplicate
-                </Button>
-              )}
-              {userRole === 'Admin' && (
-                <Button
-                  variant="outline"
-                  onClick={handleDelete}
-                  className="text-red-600 hover:text-red-700 border-red-200 hover:bg-red-50"
-                >
-                  <Trash2 className="w-4 h-4 mr-2" />
-                  Delete
-                </Button>
-              )}
-            </div>
+            )}
           </div>
-        </div>
+        )}
+
 
         {/* Summary Cards */}
         <div className="grid grid-cols-1 md:grid-cols-5 gap-6 mb-8">

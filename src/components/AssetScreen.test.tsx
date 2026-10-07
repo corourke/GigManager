@@ -1,9 +1,10 @@
 import type { ReactElement } from 'react'
 import { describe, it, expect, vi } from 'vitest'
-import { render as rtlRender } from '@testing-library/react'
+import { render as rtlRender, screen, fireEvent } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import AssetScreen from './AssetScreen'
 import { makeUser, makeOrganization } from '../test/factories'
+import { getBackInHeaderSlot } from '../test/pageFrame'
 
 // AssetScreen now uses TanStack Query — renders need a QueryClientProvider.
 function render(ui: ReactElement) {
@@ -61,6 +62,14 @@ const mockProps = {
 }
 
 describe('AssetScreen', () => {
+  it('puts Back to Assets in the page header slot (#39)', () => {
+    const onCancel = vi.fn()
+    render(<AssetScreen {...mockProps} onCancel={onCancel} />)
+    expect(screen.getByRole('heading', { level: 1, name: 'Add New Asset' })).toBeInTheDocument()
+    fireEvent.click(getBackInHeaderSlot('Back to Assets'))
+    expect(onCancel).toHaveBeenCalledTimes(1)
+  })
+
   it('renders without throwing errors', () => {
     expect(() => {
       render(<AssetScreen {...mockProps} />)

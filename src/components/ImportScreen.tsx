@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback } from 'react';
-import { Upload, Download, FileText, CheckCircle, XCircle, AlertCircle, Loader2, ArrowLeft, Save } from 'lucide-react';
+import { Upload, Download, FileText, CheckCircle, XCircle, AlertCircle, Loader2, Save } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -16,7 +16,7 @@ import {
 } from './ui/table';
 import { Badge } from './ui/badge';
 import AppHeader from './AppHeader';
-import { PageHeader } from './ui/PageHeader';
+import { PageHeader } from './layout/PageHeader';
 import { Organization, User, UserRole } from '../utils/supabase/types';
 import { GIG_STATUS_CONFIG } from '../utils/supabase/constants';
 import { getTimezoneOptions } from '../utils/timezones';
@@ -48,6 +48,9 @@ interface ImportScreenProps {
   user: User;
   userRole?: UserRole;
   onCancel: () => void;
+  /** Names the Back button for where Import was opened from. */
+  backLabel?: string;
+  initialImportType?: ImportType;
   onNavigateToGigs: () => void;
   onSwitchOrganization: () => void;
   onLogout: () => void;
@@ -58,11 +61,13 @@ export default function ImportScreen({
   user,
   userRole,
   onCancel,
+  backLabel = 'Back to Gigs',
+  initialImportType = 'gigs',
   onNavigateToGigs,
   onSwitchOrganization,
   onLogout,
 }: ImportScreenProps) {
-  const [importType, setImportType] = useState<ImportType>('gigs');
+  const [importType, setImportType] = useState<ImportType>(initialImportType);
 
   // Helper function to format datetime for display in import preview
 
@@ -376,23 +381,10 @@ export default function ImportScreen({
         onLogout={onLogout}
       />
 
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Header */}
-        <div className="mb-6">
-          <Button
-            variant="ghost"
-            onClick={onCancel}
-            className="mb-4 -ml-2"
-          >
-            <ArrowLeft className="w-4 h-4 mr-2" />
-            Back
-          </Button>
-          <PageHeader
-            icon={Upload}
-            title="CSV Import"
-            description={`Import ${importType === 'gigs' ? 'gigs' : 'assets'} from a CSV file`}
-          />
-        </div>
+      <PageHeader back={{ label: backLabel, onClick: onCancel }} title="CSV Import" />
+
+      {/* Narrower than the header, but left-aligned with the title (#39). */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 *:max-w-6xl">
 
         {/* Import Type Selection */}
         <Card className="p-6 mb-6">

@@ -15,7 +15,8 @@ The create form is deliberately short:
 - **Tags** — type a tag and press <kbd>Enter</kbd> to add it
 - **Notes** — supports Markdown
 
-Choose **Create Gig**. Everything else — venue, participants, staffing, financials,
+Choose **Create Gig**, or **Cancel** (or the **Back** arrow left of the page
+title) to leave without saving. Everything else — venue, participants, staffing, financials,
 equipment, schedule — is added afterward from the gig's [detail page](/gigs/overview/).
 
 :::note

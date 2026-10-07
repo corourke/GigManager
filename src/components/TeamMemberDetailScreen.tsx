@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
-import { User as UserIcon, ArrowLeft, Edit2, Trash2, Mail, Phone, MapPin, Loader2, Shield, Crown } from 'lucide-react';
+import { User as UserIcon, Edit2, Trash2, Mail, Phone, MapPin, Loader2, Shield, Crown } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from './ui/button';
 import { Card } from './ui/card';
 import { Badge } from './ui/badge';
 import AppHeader from './AppHeader';
+import { PageHeader } from './layout/PageHeader';
 import { Organization, User, UserRole } from '../utils/supabase/types';
 import { getOrganizationMember, removeMember } from '../services/organization.service';
 import { format } from 'date-fns';
@@ -117,67 +118,57 @@ export default function TeamMemberDetailScreen({
         onLogout={onLogout}
       />
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Header */}
-        <div className="mb-8">
-          <Button variant="ghost" onClick={onBack} className="mb-4 -ml-2">
-            <ArrowLeft className="w-4 h-4 mr-2" />
-            Back to Team
-          </Button>
-
-          <div className="flex items-start justify-between">
-            <div className="flex-1">
-              <div className="flex items-center gap-3 mb-2">
-                <div className="w-12 h-12 bg-sky-100 rounded-full flex items-center justify-center text-sky-600">
-                  <UserIcon className="w-6 h-6" />
-                </div>
-                <div>
-                  <h1 className="text-2xl font-bold text-gray-900">
-                    {member.user.first_name} {member.user.last_name}
-                    {isCurrentUser && <span className="ml-2 text-sm font-normal text-gray-500">(You)</span>}
-                  </h1>
-                  <div className="flex items-center gap-2 mt-1">
-                    <Badge className={getRoleBadgeColor(member.role as UserRole)}>
-                      <div className="flex items-center gap-1">
-                        {getRoleIcon(member.role as UserRole)}
-                        {member.role}
-                      </div>
-                    </Badge>
-                    {member.user.user_status === 'pending' && (
-                      <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200">
-                        Pending Invitation
-                      </Badge>
-                    )}
-                  </div>
-                </div>
+      <PageHeader
+        back={{ label: 'Back to Team', onClick: onBack }}
+        title={
+          <>
+            {member.user.first_name} {member.user.last_name}
+            {isCurrentUser && <span className="ml-2 text-sm font-normal text-gray-500">(You)</span>}
+          </>
+        }
+        badge={
+          <>
+            <Badge className={getRoleBadgeColor(member.role as UserRole)}>
+              <div className="flex items-center gap-1">
+                {getRoleIcon(member.role as UserRole)}
+                {member.role}
               </div>
-            </div>
-
-            <div className="flex items-center gap-2">
-              {canManage && (
-                <>
+            </Badge>
+            {member.user.user_status === 'pending' && (
+              <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200">
+                Pending Invitation
+              </Badge>
+            )}
+          </>
+        }
+        actions={
+          <>
+            {canManage && (
+              <>
+                <Button
+                  variant="outline"
+                  onClick={() => onEdit(member)}
+                >
+                  <Edit2 className="w-4 h-4 mr-2" />
+                  Edit
+                </Button>
+                {!isCurrentUser && (
                   <Button
                     variant="outline"
-                    onClick={() => onEdit(member)}
+                    onClick={handleRemove}
+                    className="text-red-600 hover:text-red-700 border-red-200 hover:bg-red-50"
                   >
-                    <Edit2 className="w-4 h-4 mr-2" />
-                    Edit
+                    <Trash2 className="w-4 h-4 mr-2" />
+                    Remove from Team
                   </Button>
-                  {!isCurrentUser && (
-                    <Button
-                      variant="outline"
-                      onClick={handleRemove}
-                      className="text-red-600 hover:text-red-700 border-red-200 hover:bg-red-50"
-                    >
-                      <Trash2 className="w-4 h-4 mr-2" />
-                      Remove from Team
-                    </Button>
-                  )}
-                </>
-              )}
-            </div>
-          </div>
-        </div>
+                )}
+              </>
+            )}
+          </>
+        }
+      />
+
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Contact Details */}

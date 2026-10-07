@@ -15,17 +15,6 @@ vi.mock('./AppHeader', () => ({
   default: () => <div>AppHeader</div>,
 }));
 
-// Mock PageHeader
-vi.mock('./ui/PageHeader', () => ({
-  PageHeader: ({ title, description, actions }: { title: string; description: string; actions?: React.ReactNode; icon?: any }) => (
-    <div>
-      <h1>{title}</h1>
-      <p>{description}</p>
-      {actions}
-    </div>
-  ),
-}));
-
 // Mock react-big-calendar to avoid complex setup
 vi.mock('react-big-calendar', () => ({
   Calendar: () => <div>Calendar Component</div>,
@@ -95,7 +84,7 @@ describe('CalendarScreen', () => {
 
     expect(screen.getByText('Calendar Component')).toBeInTheDocument();
     expect(screen.getByText('Calendar')).toBeInTheDocument();
-    expect(screen.getByText('View and manage your gigs in calendar format')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 1, name: 'Calendar' })).toBeInTheDocument();
   });
 
   it('displays create gig button', async () => {

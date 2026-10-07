@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from 'vitest'
 import { render, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import KitScreen from './KitScreen'
 import { makeUser, makeOrganization } from '../test/factories'
+import { getBackInHeaderSlot } from '../test/pageFrame'
 import { getKit, getKits, getKitsFlattenedSummary, getKitsThatWouldCycle } from '../services/kit.service'
 import { getAssets } from '../services/asset.service'
 
@@ -58,6 +59,14 @@ const mockProps = {
 }
 
 describe('KitScreen', () => {
+  it('puts Back to Kits in the page header slot (#39)', () => {
+    const onCancel = vi.fn()
+    render(<KitScreen {...mockProps} onCancel={onCancel} />)
+    expect(screen.getByRole('heading', { level: 1, name: 'Create New Kit' })).toBeInTheDocument()
+    fireEvent.click(getBackInHeaderSlot('Back to Kits'))
+    expect(onCancel).toHaveBeenCalledTimes(1)
+  })
+
   it('renders without throwing errors', () => {
     expect(() => {
       render(<KitScreen {...mockProps} />)

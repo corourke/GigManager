@@ -44,7 +44,8 @@ export default function GigBasicInfoSection({ gigId, onCreate, isSubmitting: ext
   return (
     <Card className="mb-6">
       <CardHeader className="flex flex-row items-center justify-between">
-        <CardTitle>{isCreateMode ? 'Create New Gig' : 'Basic Information'}</CardTitle>
+        {/* The page title says "New Gig" (#39); the card doesn't repeat it. */}
+        <CardTitle>Basic Information</CardTitle>
         <div className="flex items-center gap-2">
           {!isCreateMode && <SaveStateIndicator state={saveState} />}
         </div>
