@@ -442,6 +442,33 @@ describe('ReviewScannedDataDialog: equipment details pop-up (10-06)', () => {
     expect(assets![0]).not.toHaveProperty('equipment_type');
   });
 
+  // 10-07 (Cameron): the switch sat before the expense dropdown and the chip
+  // after it, so the two halves of one control were split apart.
+  it('the Equipment switch sits after the expense category, joined to its details', async () => {
+    render(<ReviewScannedDataDialog open onOpenChange={vi.fn()} onSuccess={vi.fn()} organizationId="org-1" file={null}
+      scannedData={{ vendor: 'Amazon', purchase_date: '2026-06-14', total_inv_amount: 100, items: [
+        { description: 'Wireless DMX', quantity: 1, item_price: 100, item_cost: 100, is_asset: true, category: 'Lighting' },
+        { description: 'Wall station', quantity: 1, item_price: 0, item_cost: 0, is_asset: false },
+      ] } as any} />);
+    const expense = screen.getByRole('combobox', { name: 'Expense category: Wireless DMX' });
+    const toggle = screen.getByRole('switch', { name: 'Track Wireless DMX as equipment' });
+    const details = chip('Wireless DMX');
+    expect(expense.compareDocumentPosition(toggle) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    // One control: the switch and its details share a group, and the details name the category.
+    const group = screen.getByRole('group', { name: 'Equipment: Wireless DMX' });
+    expect(group).toContainElement(toggle);
+    expect(group).toContainElement(details);
+    expect(within(group).queryByText('Equipment')).toBeNull();
+    expect(details).toHaveTextContent('Lighting');
+    // Off: the switch shows the plain label and there are no details to open.
+    const offGroup = screen.getByRole('group', { name: 'Equipment: Wall station' });
+    expect(within(offGroup).getByText('Equipment')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Equipment details: Wall station' })).toBeNull();
+    // Turned on without a category, the details ask for one.
+    await userEvent.click(screen.getByRole('switch', { name: 'Track Wall station as equipment' }));
+    expect(chip('Wall station')).toHaveTextContent('Choose an equipment category');
+  });
+
   it('editing an existing record\'s type proposes the change, and its kits stay on its own page', async () => {
     const svc = await import('../services/purchase.service');
     vi.mocked(svc.getPurchaseWithDetails).mockResolvedValue({

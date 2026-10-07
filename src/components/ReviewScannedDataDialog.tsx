@@ -875,31 +875,73 @@ export default function ReviewScannedDataDialog({
     );
   };
 
-  const renderEquipmentSwitch = (item: ScannedItem, index: number) => {
+  // One control (10-07): the Equipment switch, then, when it's on, the details
+  // button (Category › Type | kits) in the same pill. Off, the pill reads
+  // "Equipment"; on, the details take its place, amber until a category is chosen.
+  const renderEquipment = (item: ScannedItem, index: number) => {
     const locked = equipmentLocked(item);
-    const on = item.is_asset;
+    const on = item.is_asset || item.tax_treatment === 'depreciate';
+    const category = equipmentCategoryOf(item);
+    const type = item.equipment_type?.trim();
+    const kits = (item.kit_ids ?? []).map(id => kitNames[id] ?? 'Kit');
+    const missing = on && !category;
+    const edge = !on ? '#94a3b8' : missing ? '#f59e0b' : '#0369a1';
     return (
-      <button
-        type="button"
-        role="switch"
-        aria-checked={on}
-        aria-label={`Track ${item.description || 'item'} as equipment`}
-        title={equipmentTitle(item)}
-        disabled={locked}
-        onClick={() => handleItemChange(index, 'is_asset', !on)}
+      <div
+        role="group"
+        aria-label={`Equipment: ${item.description || 'item'}`}
         style={{
-          height: 20, padding: '0 8px 0 3px', display: 'inline-flex', alignItems: 'center', gap: 4, flexShrink: 0,
-          borderRadius: 999, border: `1.5px solid ${on ? '#0369a1' : '#94a3b8'}`, background: on ? '#e0f2fe' : 'white',
-          color: on ? '#0c4a6e' : '#475569', fontSize: 10, fontWeight: 700, cursor: locked ? 'not-allowed' : 'pointer',
+          height: 20, display: 'inline-flex', alignItems: 'stretch', maxWidth: '100%', minWidth: 0, flex: '0 1 auto',
+          borderRadius: 999, border: `1.5px solid ${edge}`, overflow: 'hidden',
+          background: !on ? 'white' : missing ? '#fffbeb' : '#f0f9ff',
           opacity: locked && !on ? 0.5 : 1,
         }}
       >
-        <span aria-hidden style={{ width: 22, height: 12, borderRadius: 999, background: on ? '#0369a1' : '#cbd5e1', position: 'relative', flexShrink: 0 }}>
-          <span style={{ position: 'absolute', top: 1, left: on ? 11 : 1, width: 10, height: 10, borderRadius: 999, background: 'white', boxShadow: '0 1px 1px rgba(0,0,0,0.3)' }} />
-        </span>
-        <Package style={{ width: 12, height: 12 }} />
-        Equipment
-      </button>
+        <button
+          type="button"
+          role="switch"
+          aria-checked={on}
+          aria-label={`Track ${item.description || 'item'} as equipment`}
+          title={equipmentTitle(item)}
+          disabled={locked}
+          onClick={() => handleItemChange(index, 'is_asset', !on)}
+          style={{
+            display: 'inline-flex', alignItems: 'center', gap: 4, flexShrink: 0, padding: on ? '0 4px 0 3px' : '0 8px 0 3px',
+            border: 'none', background: 'transparent', color: '#475569', fontSize: 10, fontWeight: 700,
+            cursor: locked ? 'not-allowed' : 'pointer',
+          }}
+        >
+          <span aria-hidden style={{ width: 22, height: 12, borderRadius: 999, background: on ? edge : '#cbd5e1', position: 'relative', flexShrink: 0 }}>
+            <span style={{ position: 'absolute', top: 1, left: on ? 11 : 1, width: 10, height: 10, borderRadius: 999, background: 'white', boxShadow: '0 1px 1px rgba(0,0,0,0.3)' }} />
+          </span>
+          {!on && <><Package style={{ width: 12, height: 12 }} />Equipment</>}
+        </button>
+        {on && (
+          <button
+            type="button"
+            aria-label={`Equipment details: ${item.description || 'item'}`}
+            title="Equipment details"
+            onClick={() => setDetailsIndex(index)}
+            style={{
+              display: 'inline-flex', alignItems: 'center', gap: 5, minWidth: 0, padding: '0 8px 0 2px',
+              border: 'none', background: 'transparent', fontSize: 10, fontWeight: 600, cursor: 'pointer',
+              color: missing ? '#92400e' : '#0c4a6e',
+            }}
+          >
+            <Package style={{ width: 11, height: 11, flexShrink: 0 }} />
+            <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              {missing ? 'Choose an equipment category' : type ? `${category} › ${type}` : category}
+            </span>
+            {kits.length > 0 && (
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, paddingLeft: 6, borderLeft: '1px solid #7dd3fc', whiteSpace: 'nowrap' }} title="Kits">
+                <Briefcase style={{ width: 11, height: 11 }} aria-label="Kits" />
+                {kits.join(', ')}
+              </span>
+            )}
+            <Pencil style={{ width: 10, height: 10, opacity: 0.7, flexShrink: 0 }} />
+          </button>
+        )}
+      </div>
     );
   };
 
@@ -924,39 +966,6 @@ export default function ReviewScannedDataDialog({
           {expenseCats.map(c => <option key={c.name} value={c.name}>{c.name}</option>)}
         </select>
       </div>
-    );
-  };
-
-  // The equipment details chip: Category › Type, then the kits after a divider.
-  // Amber until a category is chosen. Opens the Equipment details pop-up.
-  const renderEquipmentChip = (item: ScannedItem, index: number) => {
-    const category = equipmentCategoryOf(item);
-    const type = item.equipment_type?.trim();
-    const kits = (item.kit_ids ?? []).map(id => kitNames[id] ?? 'Kit');
-    const missing = !category;
-    return (
-      <button
-        type="button"
-        aria-label={`Equipment details: ${item.description || 'item'}`}
-        onClick={() => setDetailsIndex(index)}
-        style={{
-          height: 20, padding: '0 8px', display: 'inline-flex', alignItems: 'center', gap: 5, maxWidth: '100%', minWidth: 0,
-          borderRadius: 4, fontSize: 10, fontWeight: 600, cursor: 'pointer',
-          border: `1px solid ${missing ? '#fcd34d' : '#7dd3fc'}`, background: missing ? '#fffbeb' : '#f0f9ff', color: missing ? '#92400e' : '#0c4a6e',
-        }}
-      >
-        <Package style={{ width: 11, height: 11, flexShrink: 0 }} />
-        <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-          {missing ? 'Choose an equipment category' : type ? `${category} › ${type}` : category}
-        </span>
-        {kits.length > 0 && (
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, paddingLeft: 6, borderLeft: '1px solid #7dd3fc', whiteSpace: 'nowrap' }} title="Kits">
-            <Briefcase style={{ width: 11, height: 11 }} aria-label="Kits" />
-            {kits.join(', ')}
-          </span>
-        )}
-        <Pencil style={{ width: 10, height: 10, opacity: 0.7, flexShrink: 0 }} />
-      </button>
     );
   };
 
@@ -1197,9 +1206,8 @@ export default function ReviewScannedDataDialog({
                       </div>
                       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3, alignItems: 'center', marginTop: 2 }}>
                         {renderTaxChoice(item, index)}
-                        {renderEquipmentSwitch(item, index)}
                         {item.tax_treatment !== 'depreciate' && renderExpenseCategory(item, index)}
-                        {(item.is_asset || item.tax_treatment === 'depreciate') && renderEquipmentChip(item, index)}
+                        {renderEquipment(item, index)}
                       </div>
                     </div>
                   ))}
@@ -1231,7 +1239,7 @@ export default function ReviewScannedDataDialog({
               {noEquipCategory > 0 && (
                 <div role="status" style={{ padding: 6, borderRadius: 4, display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, border: '1px solid #fde68a', background: '#fffbeb', color: '#92400e' }}>
                   <AlertCircle style={{ width: 14, height: 14, flexShrink: 0, color: '#f59e0b' }} />
-                  <span>Choose an equipment category for {noEquipCategory} {noEquipCategory === 1 ? 'item' : 'items'} tracked as equipment before saving: click its amber Equipment details chip.</span>
+                  <span>Choose an equipment category for {noEquipCategory} {noEquipCategory === 1 ? 'item' : 'items'} tracked as equipment before saving: click its amber Equipment switch.</span>
                 </div>
               )}
             </div>
