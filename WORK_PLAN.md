@@ -24,7 +24,7 @@ supersedes that issue as the board of record.
 | [#135](https://github.com/corourke/GigManager/issues/135) | Audit and fix 2026 purchase data (tax treatment, equipment, gig expenses) after the code fixes | Data | Filed 10-05 | Blocked on #133, #130, #131, #125 steps 2–3 |
 | [#131](https://github.com/corourke/GigManager/issues/131) | Purchases: smaller data issues (line dates, ledger edits, dropped fields, stale import script) | Bug (checklist) | Answers from Cameron 10-07 recorded on the issue; released in §3c | Triage: build (one PR) |
 | [#125](https://github.com/corourke/GigManager/issues/125) | Financials → Reporting: tax-program data export (expenses by category, assets by recovery period, disposals) | Feature / data | Plan agreed 10-05; step 0 done (PR #127); blocked on #128–#131 | Cameron: category table, 6 questions, F1–F7 approvals |
-| [#20](https://github.com/corourke/GigManager/issues/20) | Shared data-access layer under `src/services/` | Refactor | Pilot merged (PR #66); `attachment.service.ts` merged 09-30 (PR [#106](https://github.com/corourke/GigManager/pull/106)); 14 services remain | Nothing — next service when released |
+| [#20](https://github.com/corourke/GigManager/issues/20) | Shared data-access layer under `src/services/` | Refactor | Pilot merged (PR #66); `attachment.service.ts` merged 09-30 (PR [#106](https://github.com/corourke/GigManager/pull/106)); 14 services remain | Released in §3c 10-07 (Cameron: do it now): 7 batches, one PR each |
 
 ---
 
@@ -112,6 +112,22 @@ needs approval before code changes.
 4. `duplicateAsset` clears `purchase_id` on the copy.
 5. Delete `scripts/invoice_import.py` and its mention in `scripts/README.md`.
 Frontend and services only, no migration. Update `docs/technical/purchases-assets-expenses.md` / `financials.md` and the user guide where behaviour changes.
+
+**[#20](https://github.com/corourke/GigManager/issues/20) — move the remaining services onto the shared data-access layer (released 10-07 by the coordinator, Cameron: "do it now").** The layer is `src/services/base/dataAccess.ts`; the pilots are `user.service.ts` and `attachment.service.ts`. Follow them and the issue's constraints:
+- small helpers, no domain logic;
+- RLS stays the security boundary;
+- each service's existing tests stay green, with no behaviour change.
+
+One PR per batch, in this order, the next batch only after the previous one merges:
+1. `notification`, `taxYear`, `accessRequest`, `purchaseScanQueue`, `purchaseCategory`
+2. `activityLog`, `gigKit`, `gigParticipant`, `gigParticipantContacts`, `gigSchedule`
+3. `gigStaff`, `asset`, `kit` (share one `computeFieldChanges` / tracked-fields path through the layer)
+4. `organization`, `conflictDetection`, `googleCalendar`
+5. `inventoryManagement`, `gigFinancial`
+6. `gig`: **hold until #92** (replace-all saves, coordinator) is settled
+7. `purchase`: **hold until #131's PR merges** (it changes this file)
+
+Pure refactor: no migrations, and no edge-function or UI changes. `npm run test:run`, typecheck, lint and build must pass per PR. Note in each PR which helpers were added to the layer, if any. Update `docs/technical/` (the services section) once, in batch 1.
 
 **User-guide audit, full pass (released 10-05, Cameron's request).** The user guide in `website/docs/` must be kept as current as `docs/`. Audit every page in §5's user-docs table, published pages first (they are live on docs.gigwrangler.com): check each statement against the current app code, fix what is wrong, and fill draft stubs where the feature is built. Known stale: `financials/overview.md` predates the 10-05 money-in/money-out redesign (#123, #124) and the Gig Accounting report. Deliver it as docs-only PRs, one per section (getting-started, gigs, financials…), each passing `cd website/docs && npm ci && npm run build`. Follow the user-guide rules in §5. This takes priority over the `docs/` pass until every page has a "Last verified" date.
 
