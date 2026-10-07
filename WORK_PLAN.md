@@ -24,7 +24,7 @@ supersedes that issue as the board of record.
 | [#133](https://github.com/corourke/GigManager/issues/133) | Purchases: separate "track as equipment" from tax treatment (expense / depreciate) | Feature / data | Step 1 live in prod 10-06; step 2 merged 10-06 (PR [#137](https://github.com/corourke/GigManager/pull/137): UI, report, tax-years card, migration `20261007000000`) | Leftovers only: rename `row_type` item/asset → `line` (step 3), and the locked-year guard for gig money-out rows (quick expenses, mileage, staff pay). Everything else shipped and live in prod 10-07 (#137, #138, #140, #143–#146) |
 | [#134](https://github.com/corourke/GigManager/issues/134) | Grey-zone check: expensed items with per-item cost $200–$2,500 | Report / data | Answered 10-05 (2024–25: none; 2026: SHEHDS moving heads $2,392.05) | Cameron decides the 2026 item before filing |
 | [#135](https://github.com/corourke/GigManager/issues/135) | Audit and fix 2026 purchase data (tax treatment, equipment, gig expenses) after the code fixes | Data | Filed 10-05 | Blocked on #133, #130, #131, #125 steps 2–3 |
-| [#131](https://github.com/corourke/GigManager/issues/131) | Purchases: smaller data issues (line dates, ledger edits, dropped fields, stale import script) | Bug (checklist) | Filed 10-05 | Cameron: approve; line dates first (blocks #125) |
+| [#131](https://github.com/corourke/GigManager/issues/131) | Purchases: smaller data issues (line dates, ledger edits, dropped fields, stale import script) | Bug (checklist) | Answers from Cameron 10-07 recorded on the issue; released in §3c | Triage: build (one PR) |
 | [#125](https://github.com/corourke/GigManager/issues/125) | Financials → Reporting: tax-program data export (expenses by category, assets by recovery period, disposals) | Feature / data | Plan agreed 10-05; step 0 done (PR #127); blocked on #128–#131 | Cameron: category table, 6 questions, F1–F7 approvals |
 | [#20](https://github.com/corourke/GigManager/issues/20) | Shared data-access layer under `src/services/` | Refactor | Pilot merged (PR #66); `attachment.service.ts` merged 09-30 (PR [#106](https://github.com/corourke/GigManager/pull/106)); 14 services remain | Nothing — next service when released |
 
@@ -106,6 +106,14 @@ meantime. The coordinator resolves each entry (decides it, or moves it into §3a
 *Curated by the coordinator session only.* An item here without a **BLOCKED** marker counts as approved in shape
 under AGENTS.md rule 1: the routine posts its plan on the issue and proceeds. Anything not listed here still
 needs approval before code changes.
+
+**[#131](https://github.com/corourke/GigManager/issues/131) — purchases: smaller data issues (released 10-07 by the coordinator, Cameron's answers on the issue).** One PR, with a failing test first for each item:
+1. Changing a purchase's date updates every line's `purchase_date` (in `ReviewScannedDataDialog`'s update plan and wherever else a header date is saved). A change into or out of a locked tax year is refused by the existing lock trigger; show its message.
+2. Editing a line linked to a gig expense updates that `gig_financials` row's `amount` **and** `amount_settled`, both from `line_cost` (not `item_price × quantity`).
+3. The scanned manufacturer/model fills the equipment's `manufacturer_model`, falling back to the description when the scan has none. Check what `ai-scan` returns today (no edge-function change in this PR).
+4. `duplicateAsset` clears `purchase_id` on the copy.
+5. Delete `scripts/invoice_import.py` and its mention in `scripts/README.md`.
+Frontend and services only, no migration. Update `docs/technical/purchases-assets-expenses.md` / `financials.md` and the user guide where behaviour changes.
 
 **User-guide audit, full pass (released 10-05, Cameron's request).** The user guide in `website/docs/` must be kept as current as `docs/`. Audit every page in §5's user-docs table, published pages first (they are live on docs.gigwrangler.com): check each statement against the current app code, fix what is wrong, and fill draft stubs where the feature is built. Known stale: `financials/overview.md` predates the 10-05 money-in/money-out redesign (#123, #124) and the Gig Accounting report. Deliver it as docs-only PRs, one per section (getting-started, gigs, financials…), each passing `cd website/docs && npm ci && npm run build`. Follow the user-guide rules in §5. This takes priority over the `docs/` pass until every page has a "Last verified" date.
 
