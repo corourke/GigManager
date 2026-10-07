@@ -22,11 +22,14 @@
 --
 -- People: first names start with the letter of their role (Admin = A,
 -- Manager = M, Staff = S, Viewer = V), so a screenshot shows who is who.
+-- Nothing is timestamped later than 8 AM on the anchor day: on the day itself a
+-- later seeded row would outrank what a reviewer does in the app (latest scan wins).
 -- Demo logins (all password demo1pass):
 --   demo-admin@gigwrangler.test    Alicia Hale      Admin
 --   demo-manager@gigwrangler.test  Marcus Reyes     Manager
 --   demo-staff@gigwrangler.test    Sofia Lindqvist  Staff
 --   demo-viewer@gigwrangler.test   Victor Okafor    Viewer
+--   demo-newuser@gigwrangler.test  Nina Newman      (no organization: onboarding shots)
 -- =============================================================================
 
 BEGIN;
@@ -107,10 +110,12 @@ VALUES
 CREATE TEMP TABLE _u ON COMMIT DROP AS
 SELECT * FROM (VALUES
   -- n, email, first, last, phone, city, postal, login?, last sign-in (days before anchor)
-  (1,  'demo-admin@gigwrangler.test',        'Alicia',  'Hale',      '(415) 555-0101', 'Oakland',       '94607', true,  0),
-  (2,  'demo-manager@gigwrangler.test',      'Marcus',  'Reyes',     '(415) 555-0102', 'Oakland',       '94609', true,  0),
+  (1,  'demo-admin@gigwrangler.test',        'Alicia',  'Hale',      '(415) 555-0101', 'Oakland',       '94607', true,  1),
+  (2,  'demo-manager@gigwrangler.test',      'Marcus',  'Reyes',     '(415) 555-0102', 'Oakland',       '94609', true,  1),
   (3,  'demo-staff@gigwrangler.test',        'Sofia',   'Lindqvist', '(415) 555-0103', 'Alameda',       '94501', true,  1),
   (4,  'demo-viewer@gigwrangler.test',       'Victor',  'Okafor',    '(415) 555-0104', 'Oakland',       '94610', true,  6),
+  -- signed up but in no organization yet (the onboarding screens)
+  (5,  'demo-newuser@gigwrangler.test',      'Nina',    'Newman',    '(415) 555-0105', 'San Francisco', '94110', true,  2),
   -- freelance crew without logins (Staff at Demo Sound & Lighting)
   (11, 'sam.whitfield@crew.example',         'Sam',     'Whitfield', '(510) 555-0113', 'Oakland',       '94610', false, NULL),
   (12, 'shane.park@crew.example',            'Shane',   'Park',      '(510) 555-0112', 'Berkeley',      '94703', false, NULL),
@@ -310,7 +315,7 @@ SELECT pg_temp.d(9, (w.seat - 1) * 500 + g.n * 10 + w.k), pg_temp.d(8, g.n * 10 
  WHERE st.status IS NOT NULL;
 
 -- -----------------------------------------------------------------------------
--- 7. EQUIPMENT: 26 assets, 4 kits (one nested), kit assignments, scan locations
+-- 7. EQUIPMENT: 26 assets, 6 kits (one nested, two containers), kit assignments, scan locations
 --    pur: 0 = bought outside the tracked invoices, else the purchase it came on (section 8)
 -- -----------------------------------------------------------------------------
 CREATE TEMP TABLE _a ON COMMIT DROP AS
@@ -374,13 +379,16 @@ SELECT pg_temp.d(4, a.n), pg_temp.d(1,1),
   FROM _a a
   LEFT JOIN _p p ON p.n = a.pur;
 
--- Kits. K4 is a container holding two other kits plus loose gear (nested kit).
+-- Kits. K4 is a nested kit: it holds K1, K2 and two containers. Containers (K5, K6)
+-- are cases or boxes picked up as one item, so packing lists show them as one line.
 INSERT INTO public.kits (id, organization_id, name, category, description, tags, tag_number, rental_value, created_by, updated_by, is_container)
 VALUES
   (pg_temp.d(5,1), pg_temp.d(1,1), 'FOH Console Package',           'Audio',    'Console, stage box and snake for a front-of-house position.', ARRAY['FOH'],            'KIT-001', 650.00,  pg_temp.d(2,1), pg_temp.d(2,1), false),
   (pg_temp.d(5,2), pg_temp.d(1,1), 'Main PA: 4 Top / 2 Sub',        'Audio',    'Four powered tops, two subs, cables and stands.',            ARRAY['PA'],             'KIT-002', 1100.00, pg_temp.d(2,1), pg_temp.d(2,1), false),
   (pg_temp.d(5,3), pg_temp.d(1,1), 'Club Lighting Package',         'Lighting', 'LED pars, moving heads, controller and truss.',              ARRAY['Lighting'],       'KIT-003', 900.00,  pg_temp.d(2,1), pg_temp.d(2,1), false),
-  (pg_temp.d(5,4), pg_temp.d(1,1), 'Full Band Sound Package',       'Audio',    'FOH package, main PA, monitors, mics and DIs: everything for a five-piece band.', ARRAY['Band','Sound'], 'KIT-004', 2200.00, pg_temp.d(2,1), pg_temp.d(2,1), true);
+  (pg_temp.d(5,4), pg_temp.d(1,1), 'Full Band Sound Package',       'Audio',    'FOH package, main PA, monitors, mic case and cable box: everything for a five-piece band.', ARRAY['Band','Sound'], 'KIT-004', 2200.00, pg_temp.d(2,1), pg_temp.d(2,1), false),
+  (pg_temp.d(5,5), pg_temp.d(1,1), 'Mic Case',                      'Audio',    'Road case with vocal, instrument and kick mics plus DI boxes.', ARRAY['Mics'],         'CASE-01', 150.00,  pg_temp.d(2,1), pg_temp.d(2,1), true),
+  (pg_temp.d(5,6), pg_temp.d(1,1), 'XLR Cable Box',                 'Audio',    'Tote of 25 ft and 50 ft XLR cables.',                        ARRAY['Cables'],         'CASE-02', 60.00,   pg_temp.d(2,1), pg_temp.d(2,1), true);
 
 INSERT INTO public.kit_components (kit_id, asset_id, child_kit_id, quantity, notes)
 SELECT pg_temp.d(5, c.kit), CASE WHEN c.asset IS NOT NULL THEN pg_temp.d(4, c.asset) END,
@@ -394,10 +402,14 @@ SELECT pg_temp.d(5, c.kit), CASE WHEN c.asset IS NOT NULL THEN pg_temp.d(4, c.as
     -- K3 Club Lighting
     (3, 13,   NULL, 8, NULL), (3, 14, NULL, 2, NULL), (3, 16, NULL, 1, NULL), (3, 17, NULL, 6, NULL),
     (3, 24,   NULL, 4, NULL), (3, 22, NULL, 4, NULL),
-    -- K4 Full Band Sound Package (nested: contains K1 and K2)
-    (4, NULL, 1, 1, NULL), (4, NULL, 2, 1, NULL),
-    (4, 3,    NULL, 4, 'Four monitor mixes'), (4, 7, NULL, 4, NULL), (4, 8, NULL, 2, NULL), (4, 10, NULL, 1, NULL),
-    (4, 11,   NULL, 6, NULL), (4, 12, NULL, 2, NULL), (4, 18, NULL, 16, NULL)
+    -- K5 Mic Case (container)
+    (5, 7,    NULL, 4, NULL), (5, 8, NULL, 2, NULL), (5, 10, NULL, 1, NULL),
+    (5, 11,   NULL, 6, NULL), (5, 12, NULL, 2, NULL),
+    -- K6 XLR Cable Box (container)
+    (6, 18,   NULL, 16, NULL), (6, 19, NULL, 4, NULL),
+    -- K4 Full Band Sound Package (nested: K1, K2 and both containers, plus monitors)
+    (4, NULL, 1, 1, NULL), (4, NULL, 2, 1, NULL), (4, NULL, 5, 1, NULL), (4, NULL, 6, 1, NULL),
+    (4, 3,    NULL, 4, 'Four monitor mixes')
   ) AS c(kit, asset, child, qty, notes);
 
 -- Kits per gig: band gigs get the full band package (bigger ones add lighting),
@@ -413,14 +425,14 @@ SELECT pg_temp.d(1,1), pg_temp.d(3, g.n), pg_temp.d(5, k.kit), NULL, pg_temp.d(2
  WHERE k.kit IS NOT NULL AND g.status NOT IN ('DateHold','Cancelled') AND g.fill <> 'none';
 
 -- Last known locations (Location Explorer; every scan belongs to a gig): the FOH
--- package is staged for this Saturday's gala, and the lighting kit and the wash
+-- package was staged yesterday for this Saturday's gala, and the lighting kit and the wash
 -- bars (on the repair bench) were checked in after the festival.
 INSERT INTO public.inventory_tracking (id, organization_id, gig_id, kit_id, asset_id, status, scanned_at, scanned_by, notes, location)
 SELECT pg_temp.d(12, row_number() OVER ()::int), pg_temp.d(1,1), s.gig, s.kit, pg_temp.d(4, s.asset), s.status,
        pg_temp.at(pg_temp.anchor() - s.ago, s.hr), pg_temp.d(2, s.usr), s.notes, s.location
   FROM (
     SELECT pg_temp.d(3,7) AS gig, pg_temp.d(5,1) AS kit, c.asset_id_n AS asset, 'Checked Out' AS status,
-           0 AS ago, 10.5 AS hr, 3 AS usr, NULL::text AS notes, 'Staging Area' AS location
+           1 AS ago, 16.0 AS hr, 3 AS usr, NULL::text AS notes, 'Staging Area' AS location
       FROM (VALUES (4),(5),(19),(23),(26)) AS c(asset_id_n)
     UNION ALL
     SELECT pg_temp.d(3,5), pg_temp.d(5,3), c.n, 'In Warehouse', 9, 17.0, 2, 'Checked in after the festival', 'Warehouse, Bay 2'
@@ -597,7 +609,7 @@ SELECT pg_temp.d(11, e.n), pg_temp.d(1,1), pg_temp.d(2, e.usr), e.event, e.entit
     (14,  2, 10.0, 2, 'staffing.updated',   'staffing',    7,  NULL,             '{"change_count":2,"changes":[{"role":"FOH Engineer","type":"assigned","user_name":"Sofia Lindqvist","initial_status":"Confirmed"},{"role":"Lighting Tech","type":"assigned","user_name":"Shane Park","initial_status":"Requested"}]}'),
     (15,  1, 15.0, 1, 'gig.created',        'gig',         16, NULL,             '{}'),
     (16,  1, 15.5, 1, 'financial.added',    'financial',   16, pg_temp.d(7,30),  '{"stage":"quoted","amount":15000,"direction":"in","description":"Quote for both days"}'),
-    (17,  0,  9.0, 2, 'gig.notes_updated',  'gig',         7,  NULL,             '{"notes_changed":true}')
+    (17,  0,  7.5, 2, 'gig.notes_updated',  'gig',         7,  NULL,             '{"notes_changed":true}')
   ) AS e(n, ago, hr, usr, event, entity, g, entity_id, ctx)
   JOIN public.gigs g ON g.id = pg_temp.d(3, e.g)
   JOIN public.users u ON u.id = pg_temp.d(2, e.usr);

@@ -1,0 +1,42 @@
+{
+  "getting-started/onboarding-edit-profile": {
+    "page": "getting-started/onboarding.md",
+    "user": "admin",
+    "sources": [
+      "src/components/EditUserProfileDialog.tsx"
+    ],
+    "anchor": "2026-10-07",
+    "taken": "2026-10-07",
+    "appCommit": "39173c1"
+  },
+  "getting-started/onboarding-select-organization": {
+    "page": "getting-started/onboarding.md",
+    "user": "newuser",
+    "sources": [
+      "src/components/OrganizationSelectionScreen.tsx"
+    ],
+    "anchor": "2026-10-07",
+    "taken": "2026-10-07",
+    "appCommit": "39173c1"
+  },
+  "getting-started/onboarding-sign-up": {
+    "page": "getting-started/onboarding.md",
+    "user": null,
+    "sources": [
+      "src/components/LoginScreen.tsx"
+    ],
+    "anchor": "2026-10-07",
+    "taken": "2026-10-07",
+    "appCommit": "39173c1"
+  },
+  "getting-started/the-dashboard-avatar-menu": {
+    "page": "getting-started/the-dashboard.md",
+    "user": "admin",
+    "sources": [
+      "src/components/AppHeader.tsx"
+    ],
+    "anchor": "2026-10-07",
+    "taken": "2026-10-07",
+    "appCommit": "39173c1"
+  }
+}

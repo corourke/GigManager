@@ -1,0 +1,8 @@
+{
+  "name": "gigwrangler-screenshots",
+  "private": true,
+  "type": "module",
+  "description": "Playwright script that retakes the user guide screenshots from the dev demo data",
+  "scripts": { "shoot": "node shoot.mjs" },
+  "devDependencies": { "playwright": "^1.54.0" }
+}
