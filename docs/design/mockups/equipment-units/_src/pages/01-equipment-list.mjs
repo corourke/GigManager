@@ -102,7 +102,7 @@ export default () => ({
       '<b>Rows are items</b> (what it is). <b>Owned</b> is worked out from the item’s units and lots, never typed in, so it can’t drift. Expanding an item shows its units and lots with status and location. The K12.2 shows one unit in maintenance, so 5 of 6 are available.',
       '<b>A lot</b> reads as “Lot of N” with a layers icon, in amber. It has no serial or tag. The XLR Cable Box’s lot of 10 says where it lives; the 20 loose ones are a second lot.',
       '<b>An item can have both</b>: the 15 ft cable has 12 serial-numbered units (packed into the Small XLR Cable Box at checkout) and an untagged lot of 10 that lives in the XLR Cable Box. <b>A unit</b> reads as a tag icon with its tag, and its serial in grey; its quantity is always 1.',
-      '<b>Two views</b> (an in-content toggle, not a second row of tabs): by item, or every unit and lot as its own row, which is how you find a serial or tag. Search matches serial and tag in both. The tab is renamed <b>Items</b> (was Assets): an open question.',
+      '<b>Two views</b> (an in-content toggle, not a second row of tabs): by item, or every unit and lot as its own row, which is how you find a serial or tag. Search matches serial and tag in both. The tab is renamed <b>Items</b> (was Assets).',
       '<b>Totals</b>: Total value is units × the item’s replacement value, the same figure the dashboard will show (#157). The footer counts items, units, lots and pieces.',
       '<b>Status</b> moves to the unit or lot (one K12.2 in Maintenance), so the item row shows availability instead of a single status. The Status filter filters units and lots; an item shows when any of them match.',
     ],
