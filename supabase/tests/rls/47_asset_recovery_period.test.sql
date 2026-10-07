@@ -28,14 +28,18 @@ SELECT rls_test.expect('Purchase lines no longer have one',
   (SELECT count(*)::int FROM information_schema.columns WHERE table_name = 'purchases' AND column_name = 'recovery_period'), 0);
 SELECT rls_test.expect('service_life and dep_method are gone',
   (SELECT count(*)::int FROM information_schema.columns WHERE table_name = 'assets' AND column_name IN ('service_life', 'dep_method')), 0);
-SELECT rls_test.expect('Starter categories: Computer 5, Audio 7, Networking and Software ask',
+SELECT rls_test.expect('Starter categories: Computer, Networking, Software, Misc 5; Audio, Vehicles 7',
   (SELECT count(*)::int FROM equipment_categories WHERE organization_id IS NULL AND (
-     (name = 'Computer' AND default_recovery_period = 5) OR (name = 'Audio' AND default_recovery_period = 7)
-     OR (name IN ('Networking', 'Software') AND default_recovery_period IS NULL))), 4);
+     (name IN ('Computer', 'Networking', 'Software', 'Misc') AND default_recovery_period = 5)
+     OR (name IN ('Audio', 'Vehicles and Trailers') AND default_recovery_period = 7))), 6);
+SELECT rls_test.expect('Every starter category has a default',
+  (SELECT count(*)::int FROM equipment_categories WHERE organization_id IS NULL AND default_recovery_period IS NULL), 0);
 
--- org_a gets its own lists; it changes Networking's default to 5 later.
+-- org_a gets its own lists, and sets Networking to "ask each time".
 SELECT rls_test.as_user('a_admin');
 SELECT public.ensure_org_categories(rls_test.u('org_a'));
+UPDATE equipment_categories SET default_recovery_period = NULL
+ WHERE organization_id = rls_test.u('org_a') AND name = 'Networking';
 SELECT rls_test.expect('An organization''s copy carries the defaults',
   (SELECT count(*)::int FROM equipment_categories WHERE organization_id = rls_test.u('org_a') AND name = 'Computer' AND default_recovery_period = 5), 1);
 

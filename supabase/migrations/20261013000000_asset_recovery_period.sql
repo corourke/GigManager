@@ -4,14 +4,16 @@
 --    one: equipment whose purchase line has tax_treatment 'depreciate'. It moves
 --    here from purchases.recovery_period, which nothing ever set.
 -- 2. equipment_categories.default_recovery_period: the period a category implies
---    (Computer 5, most production gear 7). When a category has none (Networking,
---    Software, Vehicles, Misc) the app asks.
+--    (Cameron, 10-07: Computer, Networking, Software and Misc 5; Vehicles and the
+--    production gear 7). A category an Admin sets to none is asked each time.
 -- 3. The period is filled in from the category whenever depreciated equipment has
 --    none: when a line is depreciated, when equipment is created for one, and when
 --    the equipment's category changes. Expensing the line clears it.
 -- 4. A filed (locked) tax year's recovery period can be filled in, not changed.
--- 5. assets.service_life is converted (5 / 7 / 15 kept, otherwise the category's
---    default), then service_life and dep_method are dropped.
+-- 5. Existing depreciated equipment gets its category's default, except in filed
+--    years: those stay blank, to be filled in from the filed returns (filling in
+--    is allowed in a filed year). service_life ("MACRS, 5" on most of it, which
+--    the returns didn't use) is not carried over; it and dep_method are dropped.
 --    create_purchase_transaction_v1 takes `recovery_period` on the asset (or, from
 --    an older app, on the line).
 
@@ -31,7 +33,8 @@ COMMENT ON COLUMN public.equipment_categories.default_recovery_period IS
 -- Starter set and every organization's copy, by name.
 UPDATE public.equipment_categories c SET default_recovery_period = d.period
   FROM (VALUES
-    ('computer', 5), ('computers', 5),
+    ('computer', 5), ('computers', 5), ('networking', 5), ('software', 5), ('misc', 5),
+    ('vehicles and trailers', 7), ('vehicles', 7),
     ('audio', 7), ('lighting', 7), ('video', 7), ('rigging and truss', 7), ('staging', 7),
     ('power', 7), ('communications', 7), ('backline', 7), ('effects', 7),
     ('cases and bags', 7), ('cases/bags', 7), ('cases', 7), ('rack', 7), ('tools', 7)
@@ -92,11 +95,9 @@ $$;
 -- Data only: no cost, date or treatment changes, so the asset triggers stay out.
 ALTER TABLE public.assets DISABLE TRIGGER USER;
 UPDATE public.assets a
-   SET recovery_period = CASE
-         WHEN a.service_life IN (5, 7, 15) THEN a.service_life::smallint
-         ELSE public.equipment_category_recovery_period(a.organization_id, a.category)
-       END
- WHERE public.asset_depreciated_line_date(a.id) IS NOT NULL;
+   SET recovery_period = public.equipment_category_recovery_period(a.organization_id, a.category)
+ WHERE public.asset_depreciated_line_date(a.id) IS NOT NULL
+   AND NOT public.tax_year_is_locked(a.organization_id, public.asset_depreciated_line_date(a.id));
 ALTER TABLE public.assets ENABLE TRIGGER USER;
 
 -- 4. Equipment: only depreciated equipment has a period; filled from the category;
