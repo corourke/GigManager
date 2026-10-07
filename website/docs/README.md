@@ -4,6 +4,8 @@ Public user guide for GigWrangler, built with [Astro](https://astro.build) +
 [Starlight](https://starlight.astro.build). Separate from the app (`/src`) and
 from the internal docs (`/docs`).
 
+> **Style guide (voice, UI labels, page structure, screenshots):** [`STYLE.md`](./STYLE.md)
+>
 > **Content outline and priorities:** [`docs/development/user-documentation-plan.md`](../../docs/development/user-documentation-plan.md)
 
 Hosting: a **Cloudflare Workers** project (Workers Builds), `gigwrangler-docs`,
