@@ -1,7 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import PurchasesSection from './PurchasesSection';
+import { useState } from 'react';
+import PurchasesSection, { PurchasesActions } from './PurchasesSection';
+import { useScanQueue } from './useScanQueue';
+import type { PurchasesView } from '../../../routes/paths';
 import { getPurchases } from '../../../services/purchase.service';
 import {
   listScanQueue, enqueueInvoice, scanQueuedInvoice, removeFromScanQueue, discardQueuedInvoice,
@@ -58,11 +61,32 @@ vi.mock('../../ReviewScannedDataDialog', () => ({
 }));
 
 const props = { organization: { id: 'org-1', name: 'Act4Audio' } as any, user: { id: 'u1' } as any };
-// A tab's name may be followed by its count ("Scan invoices 3 to review").
-const tab = (name: string) => screen.getByRole('tab', { name: new RegExp(`^${name}`) });
+
+/**
+ * Stands in for FinancialsScreen (#39): it owns the scan queue, shows
+ * PurchasesActions in the title row, and Back returns to the report.
+ */
+function Page({ userRole }: { userRole: 'Admin' | 'Manager' | 'Viewer' }) {
+  const [view, setView] = useState<PurchasesView>('report');
+  const canAdd = userRole !== 'Viewer';
+  const queue = useScanQueue('org-1', canAdd);
+  return (
+    <>
+      {view === 'report' && canAdd ? (
+        <PurchasesActions queue={queue} onAdd={() => setView('manual')} onScan={() => setView('scan')} />
+      ) : view !== 'report' ? (
+        <button type="button" onClick={() => setView('report')}>Back to Purchases</button>
+      ) : null}
+      <PurchasesSection {...props} userRole={userRole} scanQueue={queue} view={view} onViewChange={setView} />
+    </>
+  );
+}
+
+const go = (name: 'Add purchase' | 'Scan invoices' | 'Back to Purchases') =>
+  userEvent.click(screen.getByRole('button', { name: new RegExp(`^${name}`) }));
 
 async function openAsAdmin() {
-  render(<PurchasesSection {...props} userRole="Admin" />);
+  render(<Page userRole="Admin" />);
   await waitFor(() => expect(screen.getByText('Sweetwater')).toBeInTheDocument());
 }
 
@@ -75,71 +99,71 @@ describe('Purchases tabs (10-01)', () => {
     vi.mocked(scanQueuedInvoice).mockImplementation(scanLikeTheServer);
   });
 
-  it('gives Admins and Managers Report, Add manually and Scan invoices; others just the report', async () => {
-    const { unmount } = render(<PurchasesSection {...props} userRole="Manager" />);
+  it('has no sub-tabs (#39): Admins and Managers get Scan invoices and Add purchase buttons; others just the report', async () => {
+    const { unmount } = render(<Page userRole="Manager" />);
     await waitFor(() => expect(screen.getByText('Sweetwater')).toBeInTheDocument());
-    expect(screen.getAllByRole('tab').map((t) => t.textContent)).toEqual(['Report', 'Add manually', 'Scan invoices']);
+    expect(screen.queryByRole('tab')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^Scan invoices/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Add purchase' })).toBeInTheDocument();
     unmount();
 
     render(<PurchasesSection {...props} userRole="Viewer" />);
     await waitFor(() => expect(screen.getByText('Sweetwater')).toBeInTheDocument());
     expect(screen.queryByRole('tab')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Add purchase' })).not.toBeInTheDocument();
   });
 
   it('adding purchases leaves the report alone until you go back to it, then reloads it once', async () => {
-    const user = userEvent.setup();
-    await openAsAdmin();
+        await openAsAdmin();
     fireEvent.change(screen.getByPlaceholderText('Search vendor...'), { target: { value: 'sweet' } });
     expect(getPurchases).toHaveBeenCalledTimes(1);
 
-    await user.click(tab('Add manually'));
+    await go('Add purchase');
     expect(screen.getByText('Blank form')).toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: 'Save Purchase' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Save Purchase' }));
     // The form clears for the next purchase; the report hasn't reloaded.
     expect(screen.getByText('Blank form')).toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: 'Save Purchase' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Save Purchase' }));
     expect(getPurchases).toHaveBeenCalledTimes(1);
 
-    await user.click(tab('Report'));
+    await go('Back to Purchases');
     await waitFor(() => expect(getPurchases).toHaveBeenCalledTimes(2));
     // The report kept its filters.
     expect(screen.getByPlaceholderText('Search vendor...')).toHaveValue('sweet');
 
     // Back and forth without adding anything doesn't reload it again.
-    await user.click(tab('Add manually'));
-    await user.click(tab('Report'));
+    await go('Add purchase');
+    await go('Back to Purchases');
     expect(getPurchases).toHaveBeenCalledTimes(2);
   });
 
   it('queues several invoices, scans them, and shows the next one as soon as one is saved', async () => {
-    const user = userEvent.setup();
-    await openAsAdmin();
-    await user.click(tab('Scan invoices'));
+        await openAsAdmin();
+    await go('Scan invoices');
     const files = ['a.pdf', 'b.pdf', 'c.pdf'].map((n) => new File(['%PDF'], n, { type: 'application/pdf' }));
-    await user.upload(screen.getByTestId('scan-invoice-input'), files);
+    await userEvent.upload(screen.getByTestId('scan-invoice-input'), files);
 
     expect(enqueueInvoice).toHaveBeenCalledTimes(3);
     // The oldest opens for review, with the file already uploaded (no second upload on save).
     expect(await screen.findByText('Review Vendor of a.pdf from a.pdf (att-a.pdf)')).toBeInTheDocument();
     await waitFor(() => expect(scanQueuedInvoice).toHaveBeenCalledTimes(3));
-    expect(tab('Scan invoices')).toHaveTextContent('3');
+    // The ready count is on the button the queue lives behind (gone from view while scanning).
 
-    await user.click(screen.getByRole('button', { name: 'Save Purchase' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Save Purchase' }));
     expect(removeFromScanQueue).toHaveBeenCalledWith('q1');
     expect(screen.getByText(/Review Vendor of b\.pdf/)).toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: 'Save Purchase' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Save Purchase' }));
     expect(screen.getByText(/Review Vendor of c\.pdf/)).toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: 'Save Purchase' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Save Purchase' }));
     expect(screen.getByRole('button', { name: /add invoices/i })).toBeInTheDocument();
     expect(screen.queryByTestId('purchase-form')).not.toBeInTheDocument();
 
-    await user.click(tab('Report'));
+    await go('Back to Purchases');
     await waitFor(() => expect(getPurchases).toHaveBeenCalledTimes(2));
   });
 
   it('scans at most two at a time', async () => {
-    const user = userEvent.setup();
-    const releases: Array<() => void> = [];
+        const releases: Array<() => void> = [];
     vi.mocked(scanQueuedInvoice).mockImplementation((id: string) => new Promise((resolve) => {
       releases.push(() => {
         const row = queueRows.find((r) => r.id === id);
@@ -148,8 +172,8 @@ describe('Purchases tabs (10-01)', () => {
       });
     }));
     await openAsAdmin();
-    await user.click(tab('Scan invoices'));
-    await user.upload(screen.getByTestId('scan-invoice-input'), ['1.pdf', '2.pdf', '3.pdf'].map((n) => new File(['x'], n)));
+    await go('Scan invoices');
+    await userEvent.upload(screen.getByTestId('scan-invoice-input'), ['1.pdf', '2.pdf', '3.pdf'].map((n) => new File(['x'], n)));
     await waitFor(() => expect(scanQueuedInvoice).toHaveBeenCalledTimes(2));
     expect(screen.getByText(/2 scanning · 1 waiting/)).toBeInTheDocument();
     releases[0]();
@@ -158,11 +182,11 @@ describe('Purchases tabs (10-01)', () => {
 
   it('keeps unreviewed invoices: they are there, ready, when the page is opened again', async () => {
     queueRows = [{ id: 'q9', attachment_id: 'att-old', file_name: 'old.pdf', status: 'ready', scanned_data: { vendor: 'Sweetwater', items: [] }, error: null, created_at: '', updated_at: '' }];
-    const user = userEvent.setup();
-    await openAsAdmin();
+        await openAsAdmin();
     expect(listScanQueue).toHaveBeenCalledWith('org-1');
-    expect(tab('Scan invoices')).toHaveTextContent('1');
-    await user.click(tab('Scan invoices'));
+    expect(screen.getByRole('button', { name: /^Scan invoices/ })).toHaveTextContent('1');
+    expect(screen.getByRole('button', { name: /^Scan invoices/ })).toHaveAccessibleName('Scan invoices, 1 to review');
+    await go('Scan invoices');
     expect(await screen.findByText('Review Sweetwater from old.pdf (att-old)')).toBeInTheDocument();
     expect(scanQueuedInvoice).not.toHaveBeenCalled();
   });
@@ -172,24 +196,22 @@ describe('Purchases tabs (10-01)', () => {
       Object.assign(queueRows.find((r) => r.id === id), { status: 'failed', error: 'Scan limit reached (60/hour). Try again later.' });
       throw new Error('Scan limit reached (60/hour). Try again later.');
     });
-    const user = userEvent.setup();
-    await openAsAdmin();
-    await user.click(tab('Scan invoices'));
-    await user.upload(screen.getByTestId('scan-invoice-input'), new File(['x'], 'r.png', { type: 'image/png' }));
+        await openAsAdmin();
+    await go('Scan invoices');
+    await userEvent.upload(screen.getByTestId('scan-invoice-input'), new File(['x'], 'r.png', { type: 'image/png' }));
     expect(await screen.findByText(/Failed: Scan limit reached/)).toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: 'Retry' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Retry' }));
     expect(await screen.findByText(/Review Vendor of r\.png/)).toBeInTheDocument();
   });
 
   it('discarding an invoice deletes it without saving a purchase', async () => {
-    const user = userEvent.setup();
-    await openAsAdmin();
-    await user.click(tab('Scan invoices'));
-    await user.upload(screen.getByTestId('scan-invoice-input'), new File(['x'], 'r.png', { type: 'image/png' }));
-    await user.click(await screen.findByRole('button', { name: 'Discard' }));
+        await openAsAdmin();
+    await go('Scan invoices');
+    await userEvent.upload(screen.getByTestId('scan-invoice-input'), new File(['x'], 'r.png', { type: 'image/png' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Discard' }));
     expect(discardQueuedInvoice).toHaveBeenCalledWith(expect.objectContaining({ attachment_id: 'att-r.png' }));
     expect(screen.queryByTestId('purchase-form')).not.toBeInTheDocument();
-    await user.click(tab('Report'));
+    await go('Back to Purchases');
     expect(getPurchases).toHaveBeenCalledTimes(1);
   });
 });

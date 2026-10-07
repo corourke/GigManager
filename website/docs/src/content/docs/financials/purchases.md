@@ -5,7 +5,7 @@ sidebar:
   order: 3
 ---
 
-**Financials → Purchases** lists every invoice and receipt you've recorded. Admins and Managers also see two more tabs, **Add manually** and **Scan invoices** (see [Receipts and invoices](/financials/receipts-and-invoices/)).
+**Financials → Purchases** lists every invoice and receipt you've recorded. Admins and Managers also get two buttons next to the page title, **Scan invoices** and **Add purchase**. Each opens its own screen; **Back to Purchases** (the arrow left of the title) returns to the report, with your filters as you left them. See [Receipts and invoices](/financials/receipts-and-invoices/).
 
 ## The report
 

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import ReviewScannedDataDialog from '../../ReviewScannedDataDialog';
 
-/** Purchases → Add manually: the purchase form in place; saving clears it for the next one. */
+/** Purchases → Add purchase: the purchase form in place; saving clears it for the next one. */
 export default function ManualPurchaseTab({ organizationId, onSaved }: { organizationId: string; onSaved: () => void }) {
   const [formKey, setFormKey] = useState(0);
   const startOver = () => setFormKey((k) => k + 1);

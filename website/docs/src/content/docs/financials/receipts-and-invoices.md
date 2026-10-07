@@ -16,12 +16,12 @@ Scanning reads a PDF or photo and fills in the vendor, date, total and line item
 Use this for a stack of invoices.
 
 1. Click **Add invoices**, or drag files onto the page. You can add several at once.
-2. They're read in the background. Each takes 10 to 30 seconds, and you can keep working on other tabs meanwhile. The **Scan queue** shows each file as **Waiting**, **Scanning…**, **Ready to review** or **Failed**.
+2. They're read in the background. Each takes 10 to 30 seconds, and you can go back to the report or another page meanwhile. The **Scan queue** shows each file as **Waiting**, **Scanning…**, **Ready to review** or **Failed**.
 3. The first invoice that's ready opens for review. Check it, then click **Save Purchase**. The next one opens.
 
 **Discard** deletes the file and saves nothing. **Retry** tries a failed file again.
 
-The queue belongs to your organization, so another Admin or Manager can pick up where you left off. The **Scan invoices** tab shows how many invoices are waiting for review.
+The queue belongs to your organization, so another Admin or Manager can pick up where you left off. The **Scan invoices** button on Purchases shows how many invoices are waiting for review.
 
 ### 2. A gig → Financials → Upload Receipt
 
@@ -41,7 +41,7 @@ If the file can't be scanned, you're taken to manual entry.
 
 ## The review screen
 
-The same screen appears for every scan, for **Add manually**, and when you edit a saved purchase.
+The same screen appears for every scan, for **Add purchase**, and when you edit a saved purchase.
 
 - **Purchase Summary:**
   - **Vendor**, **Date**, **Description / Notes**.
@@ -79,7 +79,7 @@ When you **edit** a saved purchase and the change also affects a linked equipmen
 | An asset's page or edit form | **Asset Attachments** → **Upload** | The equipment (manuals, photos) |
 
 :::tip
-**Add manually** has no file upload. Save the purchase, then use **Attach Doc** on it in the Purchases report.
+**Add purchase** has no file upload. Save the purchase, then use **Attach Doc** on it in the Purchases report.
 :::
 
 ## Importing a spreadsheet

@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react';
-import { FileText, PencilLine, ScanLine } from 'lucide-react';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../ui/tabs';
+import { Plus, ScanLine } from 'lucide-react';
+import { Button } from '../../ui/button';
 import type { Organization, User, UserRole } from '../../../utils/supabase/types';
 import PurchasesTab from './PurchasesTab';
 import ManualPurchaseTab from './ManualPurchaseTab';
 import ScanInvoiceTab from './ScanInvoiceTab';
-import { useScanQueue } from './useScanQueue';
+import { useScanQueue, type ScanQueue } from './useScanQueue';
 
 import type { PurchasesView } from '../../../routes/paths';
 
@@ -18,15 +18,45 @@ interface PurchasesSectionProps {
   onNavigateToGigDetail?: (gigId: string) => void;
   onNavigateToAssetDetail?: (assetId: string) => void;
   onEditAsset?: (assetId: string) => void;
-  /** The sub-tab, when the URL decides it. */
+  /** Which screen: the report, Add purchase or Scan invoices (from the URL). */
   view?: PurchasesView;
   onViewChange?: (view: PurchasesView) => void;
+  /**
+   * The scan queue, owned by the page so its ready count can show in the
+   * title row and scanning carries on while you're on the report (#39).
+   */
+  scanQueue?: ScanQueue;
 }
 
 /**
- * Financials → Purchases (10-01): the report, and separate tabs for adding
- * purchases by hand or from scanned invoices. The report stays mounted, so its
- * filters survive, and reloads only after a purchase was added elsewhere.
+ * Financials › Purchases title-row actions (#39): Scan invoices, with its
+ * ready count, and Add purchase. Each opens its own screen.
+ */
+export function PurchasesActions({ queue, onAdd, onScan }: { queue: ScanQueue; onAdd: () => void; onScan: () => void }) {
+  const ready = queue.counts.ready;
+  return (
+    <>
+      <Button variant="outline" onClick={onScan} aria-label={ready > 0 ? `Scan invoices, ${ready} to review` : 'Scan invoices'}>
+        <ScanLine className="w-4 h-4 mr-2" />
+        Scan invoices
+        {ready > 0 && (
+          <span aria-hidden="true" className="ml-1.5 rounded-full bg-sky-700 text-white text-[10px] font-bold px-1.5 min-w-[18px] text-center">
+            {ready}
+          </span>
+        )}
+      </Button>
+      <Button onClick={onAdd} className="bg-sky-700 hover:bg-sky-800 text-white">
+        <Plus className="w-4 h-4 mr-2" />
+        Add purchase
+      </Button>
+    </>
+  );
+}
+
+/**
+ * Financials → Purchases: the report, and the Add purchase and Scan invoices
+ * screens (opened from the title row since #39; no sub-tabs). The report stays
+ * mounted, so its filters survive, and reloads only after a purchase was added.
  */
 export default function PurchasesSection(props: PurchasesSectionProps) {
   const { organization, userRole } = props;
@@ -35,8 +65,9 @@ export default function PurchasesSection(props: PurchasesSectionProps) {
   const view = props.view ?? localView;
   const [reloadToken, setReloadToken] = useState(0);
   const [reportIsStale, setReportIsStale] = useState(false);
-  // Lives here, not in the Scan tab, so scanning carries on while you're on the report.
-  const scanQueue = useScanQueue(organization.id, canAdd);
+  // The page normally owns the queue (see PurchasesActions); fall back to our own.
+  const ownQueue = useScanQueue(organization.id, canAdd && !props.scanQueue);
+  const scanQueue = props.scanQueue ?? ownQueue;
 
   const showView = (next: PurchasesView) => {
     if (props.onViewChange) props.onViewChange(next);
@@ -63,39 +94,11 @@ export default function PurchasesSection(props: PurchasesSectionProps) {
   if (!canAdd) return report;
 
   return (
-    <Tabs value={view} onValueChange={(v) => showView(v as PurchasesView)} className="space-y-4">
-      <TabsList className="bg-transparent p-0 h-auto gap-5 rounded-none border-b w-full justify-start">
-        {([
-          ['report', 'Report', FileText],
-          ['manual', 'Add manually', PencilLine],
-          ['scan', 'Scan invoices', ScanLine],
-        ] as const).map(([value, label, Icon]) => (
-          <TabsTrigger
-            key={value}
-            value={value}
-            className="flex-none px-0 pb-2 rounded-none border-0 border-b-2 border-transparent data-[state=active]:border-sky-700 data-[state=active]:text-sky-700 data-[state=active]:shadow-none bg-transparent data-[state=active]:bg-transparent"
-          >
-            <Icon className="w-4 h-4 mr-1.5" />
-            {label}
-            {value === 'scan' && scanQueue.counts.ready > 0 && (
-              <span className="ml-1.5 rounded-full bg-sky-700 text-white text-[10px] font-bold px-1.5 min-w-[18px] text-center" aria-label={`${scanQueue.counts.ready} to review`}>
-                {scanQueue.counts.ready}
-              </span>
-            )}
-          </TabsTrigger>
-        ))}
-      </TabsList>
-
-      {/* Kept mounted (hidden when inactive) so the report's filters and scroll survive. */}
-      <TabsContent value="report" forceMount className="mt-0 data-[state=inactive]:hidden">
-        {report}
-      </TabsContent>
-      <TabsContent value="manual" className="mt-0">
-        <ManualPurchaseTab organizationId={organization.id} onSaved={purchaseAdded} />
-      </TabsContent>
-      <TabsContent value="scan" className="mt-0">
-        <ScanInvoiceTab organizationId={organization.id} queue={scanQueue} onSaved={purchaseAdded} />
-      </TabsContent>
-    </Tabs>
+    <div className="space-y-4">
+      {/* Kept mounted (hidden on the other screens) so the report's filters and scroll survive. */}
+      <div hidden={view !== 'report'}>{report}</div>
+      {view === 'manual' && <ManualPurchaseTab organizationId={organization.id} onSaved={purchaseAdded} />}
+      {view === 'scan' && <ScanInvoiceTab organizationId={organization.id} queue={scanQueue} onSaved={purchaseAdded} />}
+    </div>
   );
 }
