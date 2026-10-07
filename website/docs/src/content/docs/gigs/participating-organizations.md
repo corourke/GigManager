@@ -20,7 +20,7 @@ Your organization is on every gig automatically, and you can't remove it or chan
 
 The row saves as you go. To swap the organization on a row, select the X next to its name to clear it, then search again.
 
-<!-- 📸 shot: gigs/participating-organizations-add — Harvest Gala Dinner & Dance in edit mode (admin), Participants card with a new row open on the "Search organizations..." list showing the Create option -->
+![The Participants card in edit mode with a new row: typing "Lumen" in the organization search shows No results found and a Create "Lumen" button](../../../assets/screenshots/gigs/participating-organizations-add.png)
 
 :::note
 The gig's venue comes from its **Venue** participant. It appears in the gig's header and in the **Venue** card, which also shows the venue's address and main contact. A gig can have more than one **Act**; the [schedule](/gigs/schedule/) lets you assign items to each.
@@ -43,7 +43,7 @@ To add one:
 
 On an existing contact, select the star to set or unset them as primary. Hover over the row and select **Remove contact** (trash), then **Remove** to confirm. This takes them off this gig only.
 
-<!-- 📸 shot: gigs/participating-organizations-contacts — Participants card in edit mode (admin), Harborlight Pavilion with Valerie Costa as primary contact and Brightwave Events with Vince Becker, plus the More actions menu open -->
+![The Participants card in edit mode, each organization with its role and primary contact, and the venue's More actions menu open on Add Contact, Notes, View Organization and Edit Organization](../../../assets/screenshots/gigs/participating-organizations-contacts.png)
 
 ## More actions
 

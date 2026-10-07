@@ -91,7 +91,7 @@ for (const shot of selected) {
     await page.waitForLoadState('networkidle');
     await page.evaluate(() => document.fonts.ready);
     await page.waitForTimeout(400);
-    let clip = shot.clip;
+    let clip = typeof shot.clip === 'function' ? await shot.clip(page) : shot.clip;
     if (!clip) {
       const targets = [shot.target(page)].flat();
       const boxes = await Promise.all(targets.map((t) => t.boundingBox()));

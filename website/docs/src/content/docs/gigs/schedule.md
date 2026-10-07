@@ -16,7 +16,7 @@ The schedule is the gig's run of day: load-in, soundcheck, doors, sets and load-
 
 A new gig's schedule starts with seven empty rows: **Load-In**, **Act Arrival**, **Soundcheck**, **Doors**, **Set**, **Load-Out** and **Return**. A row only saves once it has a start time and an item name, so rows you leave without a time are simply not kept.
 
-<!-- 📸 shot: gigs/schedule-editor — Harvest Gala Dinner & Dance in edit mode (admin), the "When & schedule" card with the table filled in for Load-In through Load-Out and one Set row assigned to Neon Orchard -->
+![The When & schedule card in edit mode: start and end date and time, time zone, and a table of Load-In, Soundcheck, Doors, Set and Load-Out with dates, times, act and notes, above Add custom item](../../../assets/screenshots/gigs/schedule-editor.png)
 
 Each row has these columns:
 

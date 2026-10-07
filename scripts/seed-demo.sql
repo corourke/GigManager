@@ -220,7 +220,10 @@ SELECT g.*, pg_temp.day(g.wk, g.dow) AS gd FROM (VALUES
   (13, 'Holiday Lights Concert',               'Booked',     9, 5, 1, 15.0, 20.0, 2, 4,    5,         6, 'band',    'open',  ARRAY[1,2,3,4],   ARRAY['Concert','Holiday'],    'Ticketed holiday show with the full lighting package.'),
   (14, 'Winter Street Fair',                   'DateHold',  10, 5, 1,  8.0, 11.0, 3, NULL, NULL,      3, 'band',    'none',  ARRAY[]::int[],   ARRAY['Outdoor'],              'Holding the date while the city street-closure permit is pending.'),
   (15, 'New Year''s Eve Countdown Ball',       'Proposed',  12, 3, 1, 14.0, 21.0, 2, 4,    NULL,      6, 'band',    'open',  ARRAY[1,2,3,4,5], ARRAY['Gala','Holiday'],      'Awaiting client sign-off on the proposal.'),
-  (16, 'Brightwave Annual Summit',             'Proposed',  14, 3, 2,  7.0,  9.0, 2, NULL, NULL,      6, 'program', 'none',  ARRAY[]::int[],   ARRAY['Corporate'],            'Two-day summit. Quoted for both days; staffing once the agenda is final.')
+  (16, 'Brightwave Annual Summit',             'Proposed',  14, 3, 2,  7.0,  9.0, 2, NULL, NULL,      6, 'program', 'none',  ARRAY[]::int[],   ARRAY['Corporate'],            'Two-day summit. Quoted for both days; staffing once the agenda is final.'),
+  -- A deliberate conflict: the same Saturday as gig 8, sharing Sam (stagehand) and the
+  -- Main PA (inside gig 8's Full Band Sound Package). For the conflict-detection shots.
+  (17, 'Brightwave Rooftop Mixer',             'Proposed',   1, 5, 1, 15.0, 19.0, 2, NULL, NULL,      6, 'program', 'near',  ARRAY[1,4],       ARRAY['Corporate'],            'Same night as the Songwriter Showcase: crew and PA need sorting before we confirm.')
 ) AS g(n, title, status, wk, dow, days, loadin, show, venue, act, act2, client, kind, fill, slots, tags, notes);
 
 INSERT INTO public.gigs (id, title, status, tags, start, "end", timezone, notes, created_by, updated_by, created_at, updated_at)
@@ -540,7 +543,9 @@ SELECT pg_temp.d(7, f.n), pg_temp.d(3, f.g), pg_temp.d(1,1), f.amount, g.gd + f.
     (28, 15,'in',  'quoted',       12000.00, -87, NULL, NULL, NULL,     'Quote for sound, lighting and crew', 6, NULL,  NULL, NULL),
     (29, 15,'out', 'requested',        NULL, -87, NULL, NULL, 'Rent or lease', 'Bid requested: extra moving heads', NULL, 'Westbay Rental Depot', NULL, NULL),
     -- 16 Annual Summit (Proposed)
-    (30, 16,'in',  'quoted',       15000.00, -99, NULL, NULL, NULL,     'Quote for both days',           6, NULL,       NULL, NULL)
+    (30, 16,'in',  'quoted',       15000.00, -99, NULL, NULL, NULL,     'Quote for both days',           6, NULL,       NULL, NULL),
+    -- 17 Rooftop Mixer (Proposed)
+    (31, 17,'in',  'quoted',        3200.00, -12, NULL, NULL, NULL,     'Quote for sound and crew',      6, NULL,       NULL, NULL)
   ) AS f(n, g, dir, stage, amount, date_off, due_off, paid_off, category, descr, cp, ext, ref, mileage)
   JOIN _g g ON g.n = f.g;
 

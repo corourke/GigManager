@@ -38,7 +38,7 @@ Each row in a slot is one person.
 
 A row with no person selected isn't saved. If you lower **Required:**, GigWrangler removes open rows first and keeps the people you've assigned.
 
-<!-- 📸 shot: gigs/staffing-assignments — Harvest Gala Dinner & Dance in edit mode (admin), Staff Assignments card with FOH Engineer (Sofia Lindqvist, Confirmed, fee) and Stage Manager (Marcus Reyes) plus an Open row, and the Total Staff Cost footer -->
+![The Staff Assignments card in edit mode: slots for Monitor Engineer, Lighting Tech, Stage Hand (two required, one open), Stage Manager and FOH Engineer, each person with a status, Fee and amount, and the Total Staff Cost footer](../../../assets/screenshots/gigs/staffing-assignments.png)
 
 ## Finalizing completed work
 

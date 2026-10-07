@@ -10,7 +10,7 @@ The gig list is where you find a gig, check its status at a glance, and open it.
 Everyone in the organization can see it. Open **Gigs** in the top nav. For what a
 gig contains, see the [Gigs overview](/gigs/overview/).
 
-<!-- 📸 shot: gigs/the-gig-list-upcoming — Admin, Gigs list on the Upcoming tab with the toolbar (tabs, All Dates, All Statuses, row count, Columns) and a few demo gigs (Harvest Gala Dinner & Dance etc.) in the table -->
+![The Upcoming tab of the gig list with the All Dates and All Statuses filters, the row count and Columns, above gigs with their start, status, venue, act and tags](../../../assets/screenshots/gigs/the-gig-list-upcoming.png)
 
 ## Upcoming and Past
 
@@ -67,7 +67,7 @@ row and choose **View**. Admins and Managers also see **Edit** (opens the gig in
 mode), **Duplicate** and **Delete** in that menu. **Delete** asks you to confirm
 before it removes the gig.
 
-<!-- 📸 shot: gigs/the-gig-list-row-menu — Admin, the ⋯ menu open on one row showing View, Edit, Duplicate and Delete -->
+![A gig row's ⋯ menu open, showing View, Edit, Duplicate and Delete](../../../assets/screenshots/gigs/the-gig-list-row-menu.png)
 
 ## Changing a gig from the list
 

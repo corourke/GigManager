@@ -16,8 +16,9 @@ and you can still save and keep working.
 Two gigs conflict when their dates overlap and they share any of these:
 
 - **Staff:** the same person is assigned to both gigs.
-- **Venue:** the same organization is a participant with the **Venue** role, or the **Act** role, on both gigs. The warning reads "Venue conflict at" followed by the organization's name, even when it is an act.
-- **Equipment:** both gigs use the same piece of equipment. GigWrangler compares the individual assets inside each kit, so two different kits that contain the same asset still conflict. For example, if "Full Band Sound Package" and "Mic Case" both contain the same microphone, assigning them to overlapping gigs is flagged.
+- **Venue or act:** the same organization is a participant with the **Venue** role, or the **Act** role, on both gigs.
+<!-- TODO: #170 — act conflicts are currently labelled as venue conflicts in the banner. -->
+- **Equipment:** both gigs use the same piece of equipment. GigWrangler compares the individual assets inside each kit, so two different kits that contain the same asset still conflict. For example, the "Full Band Sound Package" contains the "Mic Case", so assigning the package to one gig and the Mic Case to an overlapping gig is flagged.
 
 Gigs with no start time count as the whole day in the gig's time zone. **Cancelled** gigs are ignored.
 
@@ -44,7 +45,7 @@ Two other warnings don't involve a second gig:
 - In the schedule editor, an orange warning icon appears on an item that overlaps another item for the same act: "Overlaps another item for this act".
 - On the Equipment tab, "Overlapping equipment" lists kits assigned to this gig that contain the same physical equipment.
 
-<!-- 📸 shot: gigs/conflict-detection-gig-page — the gig page of "Harvest Gala Dinner & Dance" as Admin, with the "Conflicts Detected" card at the top; the demo data needs a second overlapping gig that shares Sofia Lindqvist or the kit "Full Band Sound Package" (seed a conflict) -->
+![A gig page with a Conflicts Detected card listing a staff conflict with Sam Whitfield and an equipment conflict over the Main PA kit, both with the overlapping Brightwave Rooftop Mixer](../../../assets/screenshots/gigs/conflict-detection-gig-page.png)
 
 ## Related
 

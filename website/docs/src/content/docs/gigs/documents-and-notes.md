@@ -13,15 +13,14 @@ and open the files.
 
 ## Reading notes and files
 
-Open a gig and look at **Notes & attachments** under the schedule and venue. The
-notes appear as plain text, with your line breaks kept. If nobody has written any,
+Open a gig and look at **Notes & attachments** under the schedule and venue. If nobody has written any notes,
 you see "No notes". Below the notes, each attached file shows its name and upload
 date. Select **Open** (eye) to view it in a new browser tab.
 
 Files belong to the organization that uploaded them. Another organization on the
 same gig doesn't see your files, and you don't see theirs.
 
-<!-- 📸 shot: gigs/documents-and-notes-section — the Overview tab's Notes & attachments section on "Harvest Gala Dinner & Dance" as Admin in edit mode, showing the Edit/Preview tabs and the Upload button; the demo data needs a gig with notes and at least one attachment (seed one) -->
+![The Notes & attachments card in edit mode: the notes editor with Edit and Preview tabs and Markdown hints, an Upload button, and an empty attachments area](../../../assets/screenshots/gigs/documents-and-notes-section.png)
 
 The **Gig sheet** from **Print** includes the notes and lists the attachment names. See
 the [gig overview](/gigs/overview/#the-gig-page) for the Print menu.
@@ -37,10 +36,7 @@ The editor uses Markdown. A reminder under the box shows the basics: `**bold**`,
 new tab. Changes save as you type, like the rest of the gig page; see
 [Editing a gig](/gigs/overview/#editing-a-gig).
 
-:::note
-**Preview** shows the formatted text, but the read-only gig page shows your notes as
-typed, with the Markdown symbols visible. Keep notes readable as plain text.
-:::
+<!-- TODO: #169 — the gig page shows notes as raw text, not formatted. Say how they display once it's fixed. -->
 
 ## Attaching files
 

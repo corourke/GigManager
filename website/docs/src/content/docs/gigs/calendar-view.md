@@ -11,7 +11,7 @@ date. Everyone in the organization can use it. Open **Gigs** in the top nav, the
 select **Calendar** in the **List** / **Calendar** toggle at the top right. Select
 **List** to switch back.
 
-<!-- 📸 shot: gigs/calendar-view-month — Admin, Calendar in Month view on the month with the demo gigs, mixed statuses, one gig showing the red conflict color, toolbar visible -->
+![The calendar in Month view for October 2026: gigs as colored bars by status, today highlighted, and two conflicting gigs on Saturday the 17th shown in red](../../../assets/screenshots/gigs/calendar-view-month.png)
 
 ## Month and week
 
