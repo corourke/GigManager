@@ -96,6 +96,8 @@ interface ScannedItem {
   /** The user (or a saved purchase) chose the treatment, so price changes don't re-suggest it. */
   _taxChosen?: boolean;
   is_durable?: boolean;
+  /** Make and model as read by the scan; the equipment record's Manufacturer/Model. */
+  manufacturer_model?: string;
   /** Expensed: the expense category. Depreciated: the equipment category (see utils/purchaseCategories). */
   category?: string;
   /** The equipment category of an expensed line tracked as equipment (its asset's category). */
@@ -118,7 +120,8 @@ interface UpdatePlan {
   newItems: Record<string, any>[];
   removedItemIds: string[];
   assetChanges: { assetId: string; itemDescription: string; changes: AssetFieldChange[]; data: Record<string, any> }[];
-  gigChanges: { finId: string; label: string; from: number; to: number }[];
+  /** `settle`: the row was settled, so its settled amount follows the new amount. */
+  gigChanges: { finId: string; label: string; from: number; to: number; settle?: boolean }[];
   /** Existing lines to start tracking as equipment (before their treatment is saved), with its details. */
   trackLines: { id: string; details: NewEquipmentDetails }[];
   /** The purchase is in a filed year: only descriptions and equipment links change. */
@@ -521,7 +524,8 @@ export default function ReviewScannedDataDialog({
         .filter(item => item.is_asset)
         .map(item => ({
           organization_id: organizationId,
-          manufacturer_model: item.description,
+          // What the scan read as make and model (#131), else the description.
+          manufacturer_model: item.manufacturer_model?.trim() || item.description,
           description: item.description,
           category: equipmentCategoryOf(item) || item.category || formData.category,
           type: item.equipment_type?.trim() || undefined,
@@ -670,6 +674,8 @@ export default function ReviewScannedDataDialog({
         line_cost: Number((item.item_cost * item.quantity).toFixed(4)),
         category: item.category || fd.category,
         tax_treatment: item.tax_treatment ?? 'expense',
+        // Lines take the purchase's date (#131), so none lands in the wrong tax year.
+        purchase_date: fd.purchase_date,
       };
       if (item._purchaseId) {
         presentIds.add(item._purchaseId);
@@ -680,7 +686,6 @@ export default function ReviewScannedDataDialog({
           parent_id: editPurchaseId,
           row_type: 'line',
           vendor: fd.vendor,
-          purchase_date: fd.purchase_date,
           ...lineData,
           _track: item.is_asset,
           _details: newEquipmentDetails(item),
@@ -720,9 +725,11 @@ export default function ReviewScannedDataDialog({
       if (!item._purchaseId) continue;
       const led = ledgerByPurchaseId[item._purchaseId];
       if (!led) continue;
-      const newAmt = Number((item.item_price * item.quantity).toFixed(2));
+      // The line's cost, with its share of tax and shipping (#131), not the printed price.
+      const newAmt = Number((item.item_cost * item.quantity).toFixed(2));
       if (Number(led.amount) !== newAmt) {
-        gigChanges.push({ finId: led.id, label: `${item.description || 'Line item'} → gig ledger`, from: Number(led.amount), to: newAmt });
+        gigChanges.push({ finId: led.id, label: `${item.description || 'Line item'} → gig ledger`, from: Number(led.amount), to: newAmt,
+          settle: led.amount_settled != null });
       }
     }
 
@@ -761,7 +768,9 @@ export default function ReviewScannedDataDialog({
       }
       for (const id of plan.removedItemIds) await deletePurchase(id);
       for (const a of plan.assetChanges) await updateAsset(a.assetId, a.data);
-      for (const g of plan.gigChanges) await updateGigFinancial(g.finId, { amount: g.to });
+      for (const g of plan.gigChanges) {
+        await updateGigFinancial(g.finId, g.settle ? { amount: g.to, amount_settled: g.to } : { amount: g.to });
+      }
 
       if (file) {
         try {
