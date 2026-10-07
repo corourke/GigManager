@@ -22,7 +22,7 @@ Use an invitation instead when the person should sign in.
 You see "Person added to the team", and the person appears in **Active Members**.
 They can be assigned to gigs like anyone else. Nothing is emailed.
 
-<!-- 📸 shot: team/people-without-logins-no-account-tab — Add Team Member dialog as Admin Alicia Hale, No Account tab, name Sam typed so the "possible matches" list shows existing Sam Whitfield with Use this person -->
+![The Add Team Member dialog on the No Account tab, filled in with a name and phone number, the Staff role, and the message that there is no existing match, above Add to Team](../../../assets/screenshots/team/people-without-logins-no-account-tab.png)
 
 ## Checking for duplicates
 

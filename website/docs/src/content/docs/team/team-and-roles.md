@@ -62,7 +62,7 @@ in **Edit Team Member**. The default is **None**. GigWrangler uses it as the
 starting role when you assign that person to a gig. The list of positions is shared
 by all organizations, and you can't add or rename positions in the app.
 
-<!-- 📸 shot: team/team-and-roles-members-table — Team screen as Admin Alicia Hale, Active Members table with Position and System Role columns visible, one System Role cell open to show the four roles -->
+![The Active Members table on Team: each person with email, Position, a System Role badge (Admin, Manager, Staff or Viewer) and Last Login](../../../assets/screenshots/team/team-and-roles-members-table.png)
 
 ## Related
 

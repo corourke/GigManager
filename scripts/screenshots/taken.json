@@ -178,5 +178,67 @@
     "anchor": "2026-10-07",
     "taken": "2026-10-07",
     "appCommit": "7c87dfb"
+  },
+  "team/invitations-invite-dialog": {
+    "page": "team/invitations.md",
+    "user": "admin",
+    "sources": [
+      "src/components/team/AddTeamMemberDialog.tsx"
+    ],
+    "anchor": "2026-10-07",
+    "taken": "2026-10-07",
+    "appCommit": "8afb2ca"
+  },
+  "team/invitations-pending-table": {
+    "page": "team/invitations.md",
+    "user": "admin",
+    "sources": [
+      "src/components/TeamScreen.tsx"
+    ],
+    "anchor": "2026-10-07",
+    "taken": "2026-10-07",
+    "appCommit": "8afb2ca"
+  },
+  "team/member-profiles-contacts-card": {
+    "page": "team/member-profiles.md",
+    "user": "admin",
+    "sources": [
+      "src/components/organization/OrganizationContactsSection.tsx",
+      "src/components/OrganizationScreen.tsx"
+    ],
+    "anchor": "2026-10-07",
+    "taken": "2026-10-07",
+    "appCommit": "8afb2ca"
+  },
+  "team/member-profiles-details-page": {
+    "page": "team/member-profiles.md",
+    "user": "admin",
+    "sources": [
+      "src/components/TeamMemberDetailScreen.tsx"
+    ],
+    "anchor": "2026-10-07",
+    "taken": "2026-10-07",
+    "appCommit": "8afb2ca"
+  },
+  "team/people-without-logins-no-account-tab": {
+    "page": "team/people-without-logins.md",
+    "user": "admin",
+    "sources": [
+      "src/components/team/AddTeamMemberDialog.tsx"
+    ],
+    "anchor": "2026-10-07",
+    "taken": "2026-10-07",
+    "appCommit": "8afb2ca"
+  },
+  "team/team-and-roles-members-table": {
+    "page": "team/team-and-roles.md",
+    "user": "admin",
+    "sources": [
+      "src/components/team/teamColumns.tsx",
+      "src/components/TeamScreen.tsx"
+    ],
+    "anchor": "2026-10-07",
+    "taken": "2026-10-07",
+    "appCommit": "8afb2ca"
   }
 }

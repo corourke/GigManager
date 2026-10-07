@@ -24,8 +24,9 @@ instead. It shows:
   accepted yet.
 
 Admins and Managers also see **Remove from Team** (not on their own page).
+<!-- TODO: #173 — the page's Edit button returns to Team, and Default Staff Role shows "No default role assigned" even when one is set. Document Edit here once fixed. -->
 
-<!-- 📸 shot: team/member-profiles-details-page — Member details page for Staff-role member Sofia Lindqvist as Admin Alicia Hale, all three cards visible -->
+![A team member's details page: name and role, Edit and Remove from Team, then Contact Information, Staff Details and Organization Activity](../../../assets/screenshots/team/member-profiles-details-page.png)
 
 ## Editing a member
 
@@ -54,7 +55,8 @@ Admins also see **Add Contact**, plus **Edit** and **Remove** on each row. **Edi
 Contact** changes the name, phone and title; **Remove** asks "Remove contact?" and
 only takes the person off this organization's list.
 
-<!-- 📸 shot: team/member-profiles-contacts-card — Edit Organization screen for Harborlight Pavilion as a user who can edit it (Admin), scrolled to the Contacts card showing Valerie Costa -->
+![The Contacts card on a venue's Edit Organization screen, listing its contact with title, email, phone and an edit button, above Add Contact](../../../assets/screenshots/team/member-profiles-contacts-card.png)
+<!-- TODO: #176 — retake once the Actions column isn't clipped. -->
 
 Open **Edit Organization** from **Switch Organization → Browse All Organizations**;
 see [Team](/team/overview/).

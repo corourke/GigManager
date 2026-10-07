@@ -183,6 +183,13 @@ SELECT pg_temp.d(1, m.org), pg_temp.d(2, m.usr), m.role::user_role,
     (6, 25, 'Viewer',  NULL,               true,  'Event Producer')
   ) AS m(org, usr, role, staff_role, prim, title);
 
+-- One pending invitation (Team → Pending Invitations). The address is fake;
+-- no email is sent by seeding.
+INSERT INTO public.invitations (organization_id, email, role, invited_by, status, token, expires_at, created_at, updated_at)
+VALUES (pg_temp.d(1,1), 'jordan.blake@crew.example', 'Staff', pg_temp.d(2,1), 'pending',
+        md5('demo-invitation-1'), pg_temp.at(pg_temp.anchor() + 5, 9), pg_temp.at(pg_temp.anchor() - 2, 9),
+        pg_temp.at(pg_temp.anchor() - 2, 9));
+
 -- -----------------------------------------------------------------------------
 -- 4. CATEGORIES: copy the starter sets for the primary org, as
 --    ensure_org_categories() does the first time the app needs them.

@@ -37,7 +37,7 @@ You can be an **Admin** of one organization and a **Viewer** of another. Switchi
 | Approve or reject requests for more access | ✓ | — | — | — |
 | Request a higher role | — | — | ✓ | ✓ |
 
-<!-- 📸 shot: reference/roles-and-access-team-roles — Team screen as Admin Alicia Hale, Active Members table showing the System Role column with all four roles -->
+![The Active Members table on Team, showing each person's System Role: Admin, Manager, Staff or Viewer](../../../assets/screenshots/team/team-and-roles-members-table.png)
 
 A few things the table doesn't say:
 

@@ -24,7 +24,7 @@ sent!" and the dialog closes. The person appears right away in **Active Members*
 with **Pending** under **Last Login**, so you can assign them to gigs before they
 accept. Only Admins can invite an Admin.
 
-<!-- 📸 shot: team/invitations-invite-dialog — Add Team Member dialog as Admin Alicia Hale, Invite New tab selected, fake name and email entered, Role open or set to Staff -->
+![The Add Team Member dialog on the Invite New tab, filled in with a first name, last name, email address and the Staff role, above Send Invitation](../../../assets/screenshots/team/invitations-invite-dialog.png)
 
 If the email address already belongs to an active GigWrangler user, the invitation
 is refused with a message. Use the **Existing User** tab instead.
@@ -60,7 +60,7 @@ whenever an invitation is waiting. It shows **Email**, **Role**, **Invited By** 
 Cancelling removes the invitation only. The person stays in **Active Members** until
 you remove them with **Remove from Team**.
 
-<!-- 📸 shot: team/invitations-pending-table — Team screen as Admin Alicia Hale with the Pending Invitations table showing one row (an invitation must be created first via Invite New with a fake address) -->
+![The Pending Invitations table with one invitation: the email address, the Staff role, who invited them and when it expires](../../../assets/screenshots/team/invitations-pending-table.png)
 
 ## Related
 

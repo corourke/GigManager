@@ -64,8 +64,9 @@ The columns you choose are remembered in this browser.
 
 Select a gig's title to open it. You can also open the **⋯** menu at the end of the
 row and choose **View**. Admins and Managers also see **Edit** (opens the gig in edit
-mode), **Duplicate** and **Delete** in that menu. **Delete** asks you to confirm
-before it removes the gig.
+mode) and **Duplicate** in that menu, and Admins see **Delete**, which asks you to
+confirm before it removes the gig.
+<!-- TODO: #175 — Managers currently see Delete too, and get an error. -->
 
 ![A gig row's ⋯ menu open, showing View, Edit, Duplicate and Delete](../../../assets/screenshots/gigs/the-gig-list-row-menu.png)
 
