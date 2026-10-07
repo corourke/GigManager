@@ -22,7 +22,7 @@ supersedes that issue as the board of record.
 |---|---|---|---|---|
 | [#92](https://github.com/corourke/GigManager/issues/92) | Replace-all autosave can delete rows another user or tab added | Bug | From the 09-29 code review, confirmed by reading the code | Coordinator — not started |
 | [#135](https://github.com/corourke/GigManager/issues/135) | Audit and fix 2026 purchase data (tax treatment, equipment, gig expenses) after the code fixes | Data | Filed 10-05 | Blocked on #133, #130, #131, #125 steps 2–3 |
-| [#131](https://github.com/corourke/GigManager/issues/131) | Purchases: smaller data issues (line dates, ledger edits, dropped fields, stale import script) | Bug (checklist) | Answers from Cameron 10-07 recorded on the issue; released in §3c | Triage: build (one PR) |
+| [#131](https://github.com/corourke/GigManager/issues/131) | Purchases: smaller data issues (line dates, ledger edits, dropped fields, stale import script) | Bug (checklist) | Answers from Cameron 10-07 recorded on the issue; released in §3c | Coordinator building it (10-07) |
 | [#125](https://github.com/corourke/GigManager/issues/125) | Financials → Reporting: tax-program data export (expenses by category, assets by recovery period, disposals) | Feature / data | Plan agreed 10-05; step 0 done (PR #127); blocked on #128–#131 | Cameron: category table, 6 questions, F1–F7 approvals |
 | [#20](https://github.com/corourke/GigManager/issues/20) | Shared data-access layer under `src/services/` | Refactor | Pilot merged (PR #66); `attachment.service.ts` merged 09-30 (PR [#106](https://github.com/corourke/GigManager/pull/106)); 14 services remain | Released in §3c 10-07 (Cameron: do it now): 7 batches, one PR each |
 
@@ -105,7 +105,7 @@ meantime. The coordinator resolves each entry (decides it, or moves it into §3a
 under AGENTS.md rule 1: the routine posts its plan on the issue and proceeds. Anything not listed here still
 needs approval before code changes.
 
-**[#131](https://github.com/corourke/GigManager/issues/131) — purchases: smaller data issues (released 10-07 by the coordinator, Cameron's answers on the issue).** One PR, with a failing test first for each item:
+**[#131](https://github.com/corourke/GigManager/issues/131) — purchases: smaller data issues (released 10-07 by the coordinator, Cameron's answers on the issue). CLAIMED by the coordinator 10-07 — triage skips it.** One PR, with a failing test first for each item:
 1. Changing a purchase's date updates every line's `purchase_date` (in `ReviewScannedDataDialog`'s update plan and wherever else a header date is saved). A change into or out of a locked tax year is refused by the existing lock trigger; show its message.
 2. Editing a line linked to a gig expense updates that `gig_financials` row's `amount` **and** `amount_settled`, both from `line_cost` (not `item_price × quantity`).
 3. The scanned manufacturer/model fills the equipment's `manufacturer_model`, falling back to the description when the scan has none. Check what `ai-scan` returns today (no edge-function change in this PR).
