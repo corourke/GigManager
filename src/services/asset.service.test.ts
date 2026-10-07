@@ -287,6 +287,21 @@ describe('asset.service', () => {
       expect(inserted.purchase_id ?? null).toBeNull();
     });
 
+    it('the copy has no recovery period (only depreciated equipment has one; #125)', async () => {
+      const original = { id: 'a1', manufacturer_model: 'X32', organization_id: 'org-1', purchase_id: 'p1', recovery_period: 7 };
+      let inserted: any;
+      mockSupabase.from.mockImplementation((table: string) => {
+        if (table === 'assets') {
+          const chain = makeChain({ data: original, error: null });
+          chain.insert = vi.fn((row: any) => { inserted = row; return makeChain({ data: { ...row, id: 'a2' }, error: null }); });
+          return chain;
+        }
+        return makeChain({ data: { name: 'Acme' }, error: null });
+      });
+      await duplicateAsset('a1');
+      expect(inserted.recovery_period ?? null).toBeNull();
+    });
+
     it('logs asset.created for duplicated asset', async () => {
       const assetId = 'a1';
       const originalAsset = { id: 'a1', manufacturer_model: 'Original', organization_id: 'org-1' };

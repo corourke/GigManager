@@ -43,7 +43,8 @@ import { uploadAttachment, linkAttachmentToEntity, getAttachmentUrl } from '../s
 import { updateAsset } from '../services/asset.service';
 import { addAssetToKits, getKitOptions } from '../services/kit.service';
 import EquipmentDetailsDialog, { type EquipmentDetails } from './purchases/EquipmentDetailsDialog';
-import { getExpenseCategories, getEquipmentCategories, type ExpenseCategory } from '../services/purchaseCategory.service';
+import { getExpenseCategories, getEquipmentCategories, getEquipmentCategoryPeriods, type ExpenseCategory } from '../services/purchaseCategory.service';
+import { asRecoveryPeriod, effectiveRecoveryPeriod, recoveryPeriodLabel, type CategoryPeriods, type RecoveryPeriod } from '../utils/recoveryPeriod';
 import { retargetCategories, equipmentCategoryOf, tidyAssetCategory } from '../utils/purchaseCategories';
 
 function NumericInput({ value, onChange, placeholder = '0.00', className = '', disabled = false }: {
@@ -108,6 +109,8 @@ interface ScannedItem {
   serial_number?: string;
   tag_number?: string;
   replacement_value?: number;
+  /** Depreciated lines (#125): the recovery period chosen; unset follows the equipment category's default. */
+  recovery_period?: RecoveryPeriod | null;
   // Edit-mode tracking (present only when editing an existing purchase)
   _purchaseId?: string;
   _assetId?: string | null;
@@ -137,9 +140,11 @@ interface NewEquipmentDetails {
   replacement_value: number;
   kitIds: string[];
   quantity: number;
+  /** Set once the line is depreciated (#125). */
+  recovery_period: RecoveryPeriod | null;
 }
 
-const newEquipmentDetails = (item: ScannedItem): NewEquipmentDetails => ({
+const newEquipmentDetails = (item: ScannedItem, recovery_period: RecoveryPeriod | null): NewEquipmentDetails => ({
   category: equipmentCategoryOf(item),
   type: item.equipment_type ?? '',
   serial_number: item.serial_number ?? '',
@@ -148,6 +153,7 @@ const newEquipmentDetails = (item: ScannedItem): NewEquipmentDetails => ({
   replacement_value: item.replacement_value || item.item_price || 0,
   kitIds: item.kit_ids ?? [],
   quantity: item.quantity,
+  recovery_period,
 });
 
 interface ScannedData {
@@ -208,6 +214,7 @@ export default function ReviewScannedDataDialog({
   const [lockedYears, setLockedYears] = useState<Set<number>>(new Set());
   const [expenseCats, setExpenseCats] = useState<ExpenseCategory[]>([]);
   const [equipmentCats, setEquipmentCats] = useState<string[]>([]);
+  const [categoryPeriods, setCategoryPeriods] = useState<CategoryPeriods>({});
   const [kitNames, setKitNames] = useState<Record<string, string>>({});
   /** The line whose Equipment details pop-up is open. */
   const [detailsIndex, setDetailsIndex] = useState<number | null>(null);
@@ -294,6 +301,7 @@ export default function ReviewScannedDataDialog({
     getLockedTaxYears(organizationId).then(years => { if (!cancelled) setLockedYears(years); });
     getExpenseCategories(organizationId).then(c => { if (!cancelled) setExpenseCats(c); });
     getEquipmentCategories(organizationId).then(c => { if (!cancelled) setEquipmentCats(c); });
+    getEquipmentCategoryPeriods(organizationId).then(p => { if (!cancelled) setCategoryPeriods(p); });
     getKitOptions(organizationId)
       .then(k => { if (!cancelled) setKitNames(Object.fromEntries((k ?? []).map(x => [x.id, x.name]))); })
       .catch(() => {});
@@ -344,6 +352,7 @@ export default function ReviewScannedDataDialog({
             serial_number: it.asset_id ? aById[it.asset_id]?.serial_number ?? '' : undefined,
             tag_number: it.asset_id ? aById[it.asset_id]?.tag_number ?? '' : undefined,
             replacement_value: it.asset_id ? Number(aById[it.asset_id]?.replacement_value ?? 0) : undefined,
+            recovery_period: it.asset_id ? asRecoveryPeriod(aById[it.asset_id]?.recovery_period) : null,
             _purchaseId: it.id,
             _assetId: it.asset_id || null,
             _gigId: it.gig_id || null,
@@ -418,6 +427,12 @@ export default function ReviewScannedDataDialog({
   }
 
   if (!open || !formData) return null;
+
+  // A depreciated line's recovery period (#125): chosen, else its category's default.
+  const periodOf = (item: ScannedItem): RecoveryPeriod | null =>
+    item.tax_treatment === 'depreciate'
+      ? effectiveRecoveryPeriod(item.recovery_period, categoryPeriods, equipmentCategoryOf(item))
+      : null;
 
   const ZOOM = 3;
   const MAG_R = 90;
@@ -538,6 +553,7 @@ export default function ReviewScannedDataDialog({
           tag_number: item.tag_number,
           replacement_value: item.replacement_value || item.item_price,
           kit_ids: item.kit_ids ?? [],
+          recovery_period: periodOf(item) ?? undefined,
           insurance_policy_added: false,
           status: 'Active',
         }));
@@ -598,7 +614,7 @@ export default function ReviewScannedDataDialog({
     // equipment record first, so a depreciated line always has one.
     const trackLines = fd.items
       .filter(item => item._purchaseId && !item._assetId && item.is_asset)
-      .map(item => ({ id: item._purchaseId!, details: newEquipmentDetails(item) }));
+      .map(item => ({ id: item._purchaseId!, details: newEquipmentDetails(item, periodOf(item)) }));
 
     // An existing equipment record's details edited in the pop-up. Its record
     // isn't a tax record, so this applies in a filed year too.
@@ -617,6 +633,7 @@ export default function ReviewScannedDataDialog({
       cmp('serial_number', 'Serial Number', item.serial_number);
       cmp('tag_number', 'Tag Number', item.tag_number);
       cmp('replacement_value', 'Replacement Value', item.replacement_value);
+      if (item.tax_treatment === 'depreciate') cmp('recovery_period', 'Recovery period', periodOf(item));
       return out;
     };
     const toAssetChange = (item: ScannedItem, changes: AssetFieldChange[]) => {
@@ -688,7 +705,7 @@ export default function ReviewScannedDataDialog({
           vendor: fd.vendor,
           ...lineData,
           _track: item.is_asset,
-          _details: newEquipmentDetails(item),
+          _details: newEquipmentDetails(item, periodOf(item)),
         });
       }
     }
@@ -741,6 +758,8 @@ export default function ReviewScannedDataDialog({
     setIsSubmitting(true);
     try {
       await updatePurchase(editPurchaseId, plan.headerData);
+      // Recovery periods of new equipment records: set once their lines are depreciated (#125).
+      const periods: [string, RecoveryPeriod][] = [];
       // The new equipment record starts from the line; then it gets the details
       // chosen in the pop-up and goes into its kits.
       const track = async (lineId: string, d: NewEquipmentDetails) => {
@@ -754,6 +773,7 @@ export default function ReviewScannedDataDialog({
         if (d.replacement_value) data.replacement_value = d.replacement_value;
         if (Object.keys(data).length) await updateAsset(assetId, data);
         if (d.kitIds.length) await addAssetToKits(assetId, d.kitIds, d.quantity);
+        if (d.recovery_period) periods.push([assetId, d.recovery_period]);
       };
       for (const t of plan.trackLines) await track(t.id, t.details);
       for (const u of plan.updatedItems) await updatePurchase(u.id, u.data);
@@ -767,6 +787,7 @@ export default function ReviewScannedDataDialog({
         }
       }
       for (const id of plan.removedItemIds) await deletePurchase(id);
+      for (const [assetId, recovery_period] of periods) await updateAsset(assetId, { recovery_period });
       for (const a of plan.assetChanges) await updateAsset(a.assetId, a.data);
       for (const g of plan.gigChanges) {
         await updateGigFinancial(g.finId, g.settle ? { amount: g.to, amount_settled: g.to } : { amount: g.to });
@@ -816,7 +837,9 @@ export default function ReviewScannedDataDialog({
   // New equipment records need a category (lines already tracked have one).
   const noEquipCategory = formData.items
     .filter(item => item.is_asset && !(isEditMode && item._assetId) && !equipmentCategoryOf(item).trim()).length;
-  const canSave = !isSubmitting && formData.items.length > 0 && !!formData.vendor && undecided === 0 && noEquipCategory === 0;
+  // Depreciated lines need a recovery period: their category's default, or one chosen (#125).
+  const noPeriod = formData.items.filter(item => item.tax_treatment === 'depreciate' && !periodOf(item)).length;
+  const canSave = !isSubmitting && formData.items.length > 0 && !!formData.vendor && undecided === 0 && noEquipCategory === 0 && noPeriod === 0;
   const isImage = file?.type.startsWith('image/');
   const isPdf = file?.type === 'application/pdf';
 
@@ -893,7 +916,11 @@ export default function ReviewScannedDataDialog({
     const type = item.equipment_type?.trim();
     const kits = (item.kit_ids ?? []).map(id => kitNames[id] ?? 'Kit');
     const missing = on && !category;
-    const edge = !on ? '#94a3b8' : missing ? '#f59e0b' : '#0369a1';
+    const depreciated = item.tax_treatment === 'depreciate';
+    const period = periodOf(item);
+    const noPeriodHere = depreciated && !missing && !period;
+    const amber = missing || noPeriodHere;
+    const edge = !on ? '#94a3b8' : amber ? '#f59e0b' : '#0369a1';
     return (
       <div
         role="group"
@@ -901,7 +928,7 @@ export default function ReviewScannedDataDialog({
         style={{
           height: 20, display: 'inline-flex', alignItems: 'stretch', maxWidth: '100%', minWidth: 0, flex: '0 1 auto',
           borderRadius: 999, border: `1.5px solid ${edge}`, overflow: 'hidden',
-          background: !on ? 'white' : missing ? '#fffbeb' : '#f0f9ff',
+          background: !on ? 'white' : amber ? '#fffbeb' : '#f0f9ff',
           opacity: locked && !on ? 0.5 : 1,
         }}
       >
@@ -940,6 +967,14 @@ export default function ReviewScannedDataDialog({
             <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
               {missing ? 'Choose an equipment category' : type ? `${category} › ${type}` : category}
             </span>
+            {depreciated && !missing && (
+              <span title="Recovery period" style={{
+                paddingLeft: 6, borderLeft: '1px solid #7dd3fc', whiteSpace: 'nowrap',
+                color: noPeriodHere ? '#92400e' : undefined, fontWeight: noPeriodHere ? 700 : undefined,
+              }}>
+                {period ? recoveryPeriodLabel(period) : 'Choose a recovery period'}
+              </span>
+            )}
             {kits.length > 0 && (
               <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, paddingLeft: 6, borderLeft: '1px solid #7dd3fc', whiteSpace: 'nowrap' }} title="Kits">
                 <Briefcase style={{ width: 11, height: 11 }} aria-label="Kits" />
@@ -992,6 +1027,7 @@ export default function ReviewScannedDataDialog({
         serial_number: d.serial_number,
         tag_number: d.tag_number,
         replacement_value: d.replacement_value,
+        recovery_period: d.recovery_period ?? null,
       };
       return { ...prev, items };
     });
@@ -1244,6 +1280,12 @@ export default function ReviewScannedDataDialog({
                   <span>Choose Expense or Depreciate for {undecided} {undecided === 1 ? 'item' : 'items'} between $200 and $2,500 before saving.</span>
                 </div>
               )}
+              {noPeriod > 0 && (
+                <div role="status" style={{ padding: 6, borderRadius: 4, display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, border: '1px solid #fde68a', background: '#fffbeb', color: '#92400e' }}>
+                  <AlertCircle style={{ width: 14, height: 14, flexShrink: 0, color: '#f59e0b' }} />
+                  <span>Choose a recovery period for {noPeriod} depreciated {noPeriod === 1 ? 'item' : 'items'} before saving: click its Equipment details.</span>
+                </div>
+              )}
               {noEquipCategory > 0 && (
                 <div role="status" style={{ padding: 6, borderRadius: 4, display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, border: '1px solid #fde68a', background: '#fffbeb', color: '#92400e' }}>
                   <AlertCircle style={{ width: 14, height: 14, flexShrink: 0, color: '#f59e0b' }} />
@@ -1289,7 +1331,12 @@ export default function ReviewScannedDataDialog({
           serial_number: detailsItem.serial_number ?? '',
           tag_number: detailsItem.tag_number ?? '',
           replacement_value: detailsItem.replacement_value || (detailsItem._assetId ? 0 : detailsItem.item_price) || 0,
+          recovery_period: detailsItem.recovery_period ?? null,
         }}
+        depreciated={detailsItem.tax_treatment === 'depreciate'}
+        categoryPeriods={categoryPeriods}
+        // A filed year's recovery period can be filled in, not changed.
+        periodLocked={purchaseLocked && !!detailsItem._assetId && assetsById[detailsItem._assetId]?.recovery_period != null}
         onSave={saveDetails}
         // A depreciated line's category is its tax category too, so a filed year freezes it.
         categoryLocked={purchaseLocked && detailsItem.tax_treatment === 'depreciate'}

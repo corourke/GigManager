@@ -68,7 +68,6 @@ flowchart LR
 | `quantity` | Can be fractional. |
 | `category` | Free text. An **expensed** line's `category` is an expense category (a name from `expense_categories`, §6); a **depreciated** line's is its equipment category, the same as its asset's. An expensed line tracked as equipment keeps its equipment category on the asset. Lines inherit the header's when left blank. |
 | `tax_treatment` | Lines only: `expense` or `depreciate` (§3). NULL on headers. |
-| `recovery_period` | Depreciated lines only: 5, 7 or 15 years. The tax program computes depreciation; GigWrangler only records the period. |
 | `gig_id` | Lines only: the gig this **expensed** line is a cost of. Constraints `purchases_header_no_gig` and `purchases_depreciate_no_gig` (migration 20261009000000) keep it off headers and depreciated lines. That migration moved the 10 header links onto their expensed lines. |
 | `asset_id` | The line's equipment record, if it is tracked. |
 
@@ -93,10 +92,10 @@ flowchart LR
 | `replacement_value`, `insurance_policy_added`, `insurance_class` | Insurance, per item. |
 | `status` | Free text; the UI offers Active, Inactive, Maintenance, Disposed, Returned. |
 | `retired_on`, `liquidation_amt` | Date disposed and sale proceeds (or refund). Entering an amount in the form sets the status to Disposed. |
-| `service_life`, `dep_method` | Legacy free text, to be dropped after their values move into `purchases.recovery_period` (#125 F2/F7). |
+| `recovery_period` | **Depreciated equipment only** (its line has `tax_treatment = depreciate`): 5, 7 or 15 years. The tax program computes depreciation; GigWrangler only records the period. See "Recovery period" in §3. Migration `20261013000000` moved it here from `purchases` and dropped `service_life` and `dep_method`. |
 | `purchase_id` | The purchase **header**. The line points the other way, through `purchases.asset_id`. |
 
-The equipment record has **no tax fields of its own**. Disposal is the one exception: it is a physical event, so it lives here, and reports join it back to the purchase line.
+The tax treatment and cost stay on the purchase line. The equipment record holds the two tax facts that belong to the thing itself: its **recovery period**, and its **disposal** (a physical event). Reports join both back to the line.
 
 Deleting the equipment record of a **depreciated** line is refused. Mark it disposed or returned instead, or change the line to an expense first.
 
@@ -167,7 +166,7 @@ RLS: an organization's Admins and Managers read it; only its Admins add, change 
 
 **The lock** (trigger `purchases_c_tax_year_lock`) applies to purchases dated in a locked year. A line with no date uses its invoice's date.
 - **Refused:**
-  - changes to `tax_treatment`, `recovery_period`, `row_type`, `parent_id`, `organization_id`, `purchase_date`, `total_inv_amount`, `quantity`, `item_price`, `item_cost`, `line_amount`, `line_cost` and `category`;
+  - changes to `tax_treatment`, `row_type`, `parent_id`, `organization_id`, `purchase_date`, `total_inv_amount`, `quantity`, `item_price`, `item_cost`, `line_amount`, `line_cost` and `category` (an equipment record's recovery period has its own rule: filled in, not changed; §3);
   - moving a row into or out of the year;
   - adding or deleting rows.
 - **Allowed:** `asset_id` (so expensed gear from a filed year can be tracked and put in kits), `gig_id`, `description`, `vendor` and `payment_method`.
@@ -200,7 +199,7 @@ Files live in the `attachments` table and storage bucket, joined through `entity
 |---|---|---|
 | Equipment record (`asset_id`) | optional | **required** (checked at commit) |
 | Gig expense (a `gig_financials` row pointing at the line) | optional | **not allowed** |
-| `recovery_period` | none | 5, 7 or 15 |
+| Recovery period (on the equipment record) | none | 5, 7 or 15 |
 | Headers | no `tax_treatment`, no equipment | |
 
 **How the rules are enforced** (migration `20261006000000`, tests in `supabase/tests/rls/40_tax_treatment.test.sql`):
@@ -210,7 +209,7 @@ Files live in the `attachments` table and storage bucket, joined through `entity
 - **Triggers on both tables** for "never a gig expense": one on `gig_financials` (insert, or a change of `purchase_id`), and one on `purchases` (a change to depreciate).
 
 **Writers** (migration `20261007000000`, tests in `41_tax_treatment_writers.test.sql`):
-- `create_purchase_transaction_v1` stores each line's `tax_treatment` and `recovery_period` when given, and writes every line as `row_type = 'line'`. A line sent with `track: true` gets the next entry of `p_assets` as its equipment record (the old `row_type: 'asset'` still works).
+- `create_purchase_transaction_v1` stores each line's `tax_treatment` when given (and, since #125, an equipment entry's `recovery_period`; see below), and writes every line as `row_type = 'line'`. A line sent with `track: true` gets the next entry of `p_assets` as its equipment record (the old `row_type: 'asset'` still works).
 - `track_purchase_line_as_equipment(line)` (Admins and Managers) creates the equipment record from the line and links it. It changes nothing else, so it works on lines in a locked year.
 
 **Choosing the treatment** (UI, #133 step 2: `ReviewScannedDataDialog`, `src/utils/taxTreatment.ts`). Each line on the review screen has a **Track as equipment** checkbox (column "Equip") and an **Expense | Depreciate** switch with a (?) that shows:
@@ -235,6 +234,15 @@ Files live in the `attachments` table and storage bucket, joined through `entity
 - **Tax years:** Admins lock and unlock years under **Financials → Reporting → Filed tax years** (`TaxYearsCard`, `taxYear.service.ts`); Managers see them read-only.
 
 "Track as equipment" is a separate question.
+
+**Recovery period** (#125, migration `20261013000000`, tests in `47_asset_recovery_period.test.sql`):
+- **Where:** `assets.recovery_period`, 5, 7 or 15. Only depreciated equipment has one; a trigger refuses it on anything else (no depreciated line, or no line at all).
+- **Defaults:** `equipment_categories.default_recovery_period`. The starter set (Cameron, 10-07): Computer, Networking, Software and Misc 5; Audio, Lighting, Video, Rigging and Truss, Staging, Power, Communications, Backline, Effects, Cases and Bags, Rack, Tools, and Vehicles and Trailers 7. An Admin can set a category to none ("Ask each time") in **Settings → Categories**.
+- **Filled in by the database** when depreciated equipment has none: when a line becomes depreciated, when equipment is created or linked for a depreciated line, and when the equipment's category changes. Expensing the line (or unlinking it) clears the period, unless another depreciated line still points at the record. `equipment_category_recovery_period(org, category)` reads the default (the starter set for an organization with no list yet).
+- **Asked by the app** when the category has no default: the Equipment details pop-up and the review screen won't save a depreciated line without one, and the equipment form shows a **Recovery period** picker on depreciated equipment.
+- **Writers:** `create_purchase_transaction_v1` takes `recovery_period` on the `p_assets` entry (an older app's value on the line still works) and applies it after linking, only if the line is depreciated. The review screen sets a period for equipment it creates while editing after the line is depreciated.
+- **Filed years:** a blank period can be filled in; a set one can't change until the year is unlocked.
+- **Conversion:** depreciated equipment in unfiled years took its category's default. Filed years (2024, 2025) were left blank, to be filled in from the filed returns. `service_life` ("MACRS, 5" on 150 records, which the returns didn't use) was not carried over.
 
 **Backfill.** Asset lines became `depreciate` and item lines `expense`, which reproduces the 2024 and 2025 returns as filed.
 - Production at migration time: 193 depreciate, 269 expense, 292 headers.
@@ -285,7 +293,7 @@ TOTAL COSTS   = EXPECTED OUT + PROJECTED STAFF
 NET           = EXPECTED IN − TOTAL COSTS        MARGIN = NET / EXPECTED IN
 ```
 
-**Tax year, cash basis** (Financials → Reporting, #125):
+**Tax year, cash basis** (Financials → Reporting, #125; `src/utils/taxReports.ts`, data from `src/services/taxReport.service.ts`, screen `ReportingTab`):
 
 ```
 EXPENSES  = purchase lines with tax_treatment = expense, by line date
@@ -296,6 +304,11 @@ INCOME    = amount_settled of paid money-in rows, by paid date
 ```
 
 Gig rows **with** a `purchase_id` are skipped, because the line already counts.
+
+The three reports, each for one tax year with a CSV download:
+- **Income:** every payment received (date received, gig, from, description, reference, amount).
+- **Expenses:** totals by Schedule C line, then category, then every expense. A purchase line takes its line from its expense category (`expense_categories.schedule_c_line`); a gig row from its `fin_category` (`FIN_CATEGORY_LINE`). A category that isn't on the organization's list (an older equipment-style value) has no line and is flagged. Mileage shows its miles.
+- **Assets:** depreciated lines bought in the year, with cost (the basis: the line's cost including its share of tax and shipping), category, recovery period (a missing one links to the equipment form), totals by period, and **de minimis candidates** (per-item cost of $2,500 or less). Then **disposals**: depreciated equipment with `retired_on` in the year, whenever it was bought, with sale proceeds (`liquidation_amt`), and its own CSV.
 
 ---
 

@@ -307,3 +307,17 @@ describe('Asset CSV Import: Parsing & Allocation', () => {
     });
   });
 });
+
+describe('generateAssetTemplate (#125)', () => {
+  it('has a recovery_period column, no service_life / dep_method, and every row fits the header', async () => {
+    const { generateAssetTemplate } = await import('./csvImport');
+    const Papa = (await import('papaparse')).default;
+    const rows = Papa.parse<string[]>(generateAssetTemplate()).data.filter(r => r.length > 1);
+    const [header, ...examples] = rows;
+    expect(header).toContain('recovery_period');
+    expect(header).not.toContain('service_life');
+    expect(header).not.toContain('dep_method');
+    for (const r of examples) expect(r).toHaveLength(header.length);
+    expect(examples[1][header.indexOf('recovery_period')]).toBe('7');
+  });
+});

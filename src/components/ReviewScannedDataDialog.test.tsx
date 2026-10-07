@@ -31,11 +31,13 @@ vi.mock('../services/purchaseCategory.service', () => ({
   getTypeUsage: vi.fn(async () => [{ type: 'Cable, XLR', count: 7 }]),
   getExpenseCategories: vi.fn(async () => ['Small audio parts', 'Small lighting parts', 'Supplies', 'Software subscriptions'].map(name => ({ name, schedule_c_line: '27b' }))),
   getEquipmentCategories: vi.fn(async () => ['Audio', 'Lighting', 'Misc']),
+  // Audio and Lighting imply 7 years; Misc has no default, so it is asked (#125).
+  getEquipmentCategoryPeriods: vi.fn(async () => ({ audio: 7, lighting: 7, misc: null })),
 }));
 
 // The Equipment details pop-up, opened from a line's chip.
 const chip = (desc: string) => screen.getByRole('button', { name: `Equipment details: ${desc}` });
-async function setEquipment(desc: string, fields: { category?: string; newCategory?: string; type?: string; kit?: string }) {
+async function setEquipment(desc: string, fields: { category?: string; newCategory?: string; type?: string; kit?: string; period?: string }) {
   await userEvent.click(chip(desc));
   const dialog = within(await screen.findByRole('dialog'));
   if (fields.category) await userEvent.selectOptions(dialog.getByRole('combobox', { name: 'Category' }), fields.category);
@@ -48,6 +50,7 @@ async function setEquipment(desc: string, fields: { category?: string; newCatego
     await userEvent.type(dialog.getByRole('textbox', { name: 'Search kits' }), fields.kit);
     await userEvent.click(await dialog.findByRole('option', { name: fields.kit }));
   }
+  if (fields.period) await userEvent.selectOptions(dialog.getByRole('combobox', { name: 'Recovery period' }), fields.period);
   await userEvent.click(dialog.getByRole('button', { name: 'Done' }));
 }
 
@@ -240,6 +243,19 @@ describe('ReviewScannedDataDialog: editing tax treatment and equipment (#133)', 
     return svc;
   };
 
+  it('a line tracked and depreciated while editing gets its category\'s recovery period once depreciated (#125)', async () => {
+    const svc = await openEdit('2026-03-01');
+    const assets = await import('../services/asset.service');
+    await userEvent.click(tax().getByRole('button', { name: 'Depreciate' }));
+    expect(chip('Stand')).toHaveTextContent('7-year');
+    await userEvent.click(screen.getByRole('button', { name: 'Save Changes' }));
+    await waitFor(() => expect(assets.updateAsset).toHaveBeenCalledWith('asset-new', { recovery_period: 7 }));
+    const depreciate = vi.mocked(svc.updatePurchase).mock.calls.findIndex(c => c[0] === 'l1');
+    const period = vi.mocked(assets.updateAsset).mock.calls.findIndex(c => c[1]?.recovery_period === 7);
+    expect(vi.mocked(svc.updatePurchase).mock.invocationCallOrder[depreciate])
+      .toBeLessThan(vi.mocked(assets.updateAsset).mock.invocationCallOrder[period]);
+  });
+
   it('tracks an expensed line as equipment and then depreciates it, in that order', async () => {
     const svc = await openEdit('2026-03-01');
     expect(tax().getByRole('button', { name: 'Expense' })).toHaveAttribute('aria-pressed', 'true');
@@ -351,10 +367,45 @@ describe('ReviewScannedDataDialog: categories (10-06)', () => {
     expect(chip('Amp')).toHaveTextContent('Audio');
   });
 
+  describe('recovery period (#125)', () => {
+    it('a depreciated line takes its category\'s period and saves it on the equipment', async () => {
+      await openNew();
+      expect(chip('Console')).toHaveTextContent('7-year');
+      expect(chip('Console')).not.toHaveTextContent('Choose a recovery period');
+      await userEvent.click(screen.getByRole('button', { name: 'Save Purchase' }));
+      await waitFor(() => expect(createPurchaseTransaction).toHaveBeenCalled());
+      const [, , assets] = vi.mocked(createPurchaseTransaction).mock.calls[0];
+      expect(assets![0].recovery_period).toBe(7);
+    });
+
+    it('asks when the category has no default, and won\'t save until it is answered', async () => {
+      await openNew({ ...invoice, total_inv_amount: 3000, items: [{ description: 'Hazer', quantity: 1, item_price: 3000, item_cost: 3000, is_asset: true, category: 'Misc' }] });
+      expect(chip('Hazer')).toHaveTextContent('Choose a recovery period');
+      expect(screen.getByText(/Choose a recovery period for 1 depreciated item/)).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Save Purchase' })).toBeDisabled();
+      await setEquipment('Hazer', { period: '5' });
+      expect(chip('Hazer')).toHaveTextContent('5-year');
+      await userEvent.click(screen.getByRole('button', { name: 'Save Purchase' }));
+      await waitFor(() => expect(createPurchaseTransaction).toHaveBeenCalled());
+      const [, , assets] = vi.mocked(createPurchaseTransaction).mock.calls[0];
+      expect(assets![0].recovery_period).toBe(5);
+    });
+
+    it('an expensed line has none', async () => {
+      await openNew();
+      await userEvent.click(screen.getByRole('switch', { name: 'Track Cable as equipment' }));
+      expect(chip('Cable')).not.toHaveTextContent('-year');
+      await userEvent.click(screen.getByRole('button', { name: 'Save Purchase' }));
+      await waitFor(() => expect(createPurchaseTransaction).toHaveBeenCalled());
+      const [, , assets] = vi.mocked(createPurchaseTransaction).mock.calls[0];
+      expect(assets![0].recovery_period).toBeUndefined();
+    });
+  });
+
   it('can add a new equipment category', async () => {
     await openNew({ ...invoice, total_inv_amount: 3000, items: [{ description: 'Switcher', quantity: 1, item_price: 3000, item_cost: 3000, is_asset: true }] });
     expect(chip('Switcher')).toHaveTextContent('Choose an equipment category');
-    await setEquipment('Switcher', { newCategory: 'Video' });
+    await setEquipment('Switcher', { newCategory: 'Video', period: '7' });
     expect(chip('Switcher')).toHaveTextContent('Video');
     await userEvent.click(screen.getByRole('button', { name: 'Save Purchase' }));
     await waitFor(() => expect(createPurchaseTransaction).toHaveBeenCalled());

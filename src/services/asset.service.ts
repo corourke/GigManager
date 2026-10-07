@@ -124,6 +124,28 @@ export async function getAsset(assetId: string) {
 }
 
 /**
+ * Whether an equipment record is depreciated (#125): its purchase line has tax
+ * treatment depreciate. Returns that line's date (or its invoice's), or null.
+ * Null too when the user can't read purchases.
+ */
+export async function getAssetDepreciatedDate(assetId: string): Promise<string | null> {
+  const supabase = getSupabase();
+  try {
+    const { data, error } = await (supabase.from('purchases') as any)
+      .select('purchase_date, parent:parent_id(purchase_date)')
+      .eq('asset_id', assetId)
+      .eq('tax_treatment', 'depreciate')
+      .limit(1);
+    if (error) throw error;
+    const row = (data ?? [])[0];
+    return row ? (row.purchase_date ?? row.parent?.purchase_date ?? '1900-01-01') : null;
+  } catch (err) {
+    console.error('Error checking depreciation:', err);
+    return null;
+  }
+}
+
+/**
  * Fetch change history for an asset from the unified activity_log
  */
 export async function getAssetHistory(assetId: string): Promise<ActivityLogEntry[]> {
@@ -361,6 +383,8 @@ export async function duplicateAsset(assetId: string) {
       updated_by,
       // The copy wasn't on the original's invoice (#131).
       purchase_id: _purchaseId,
+      // Nor depreciated, so it has no recovery period (#125).
+      recovery_period: _recoveryPeriod,
       ...assetData
     } = original;
 

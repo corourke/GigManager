@@ -75,12 +75,7 @@ SELECT rls_test.expect('An expense line cannot become depreciate without equipme
   rls_test.attempt(format('UPDATE purchases SET tax_treatment = %L WHERE id = %s', 'depreciate', rls_test.id('i26'))), -1);
 SELECT rls_test.expect('An expense line can be tracked as equipment',
   rls_test.attempt(format('UPDATE purchases SET asset_id = %s WHERE id = %s', rls_test.id('asset_a2'), rls_test.id('i26'))), 1);
-SELECT rls_test.expect('A recovery period goes on depreciated lines',
-  rls_test.attempt(format('UPDATE purchases SET recovery_period = 7 WHERE id = %s', rls_test.id('s26'))), 1);
-SELECT rls_test.expect('A recovery period must be 5, 7 or 15',
-  rls_test.attempt(format('UPDATE purchases SET recovery_period = 10 WHERE id = %s', rls_test.id('s26'))), -1);
-SELECT rls_test.expect('An expense line has no recovery period',
-  rls_test.attempt(format('UPDATE purchases SET recovery_period = 7 WHERE id = %s', rls_test.id('i26'))), -1);
+-- The recovery period moved to the equipment record in #125 (test 47).
 
 -- A depreciated line is never a gig expense
 SELECT rls_test.expect('A gig expense can point at an expense line',

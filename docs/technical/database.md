@@ -724,7 +724,6 @@ Handles acquisition headers and expense line items. Uses a self-referencing `par
 | description | TEXT | Line item description — item only (nullable) |
 | category | TEXT | Category — item only (nullable) |
 | tax_treatment | TEXT | Lines only: `'expense'` or `'depreciate'`; NULL on headers (CHECK). Independent of `asset_id` except that depreciate requires one (deferred check). Migration 20261006000000. |
-| recovery_period | SMALLINT | Depreciated lines only: 5, 7 or 15 years (CHECK). Migration 20261006000000. |
 | created_by | UUID | Reference to users.id (default auth.uid()) |
 | updated_by | UUID | Reference to users.id (default auth.uid()) |
 | created_at | TIMESTAMPTZ | Record creation timestamp (NOT NULL) |
@@ -739,7 +738,7 @@ Handles acquisition headers and expense line items. Uses a self-referencing `par
 - Assets acquired in a purchase reference the header row via `assets.purchase_id`.
 - Deleting a row fires `trg_cleanup_attachments` (migration 20260831000100), removing its `entity_attachments` links and any solely-owned `attachments` rows.
 - **Tax treatment (#133, migration 20261006000000)** — a line written without a `tax_treatment` is an expense (an old `row_type` `asset` / `item` from an app before 10-07 still sets depreciate / expense). A depreciated line must keep its `asset_id` and can't be pointed at by a `gig_financials` row. Rows dated in a year locked in `tax_years` can't have their tax fields changed, added or deleted — see [financials.md](financials.md) §2.5 and §3.
-- **Writers (#133 step 2, migration 20261007000000)** — `create_purchase_transaction_v1` stores each line's `tax_treatment` / `recovery_period`; `track_purchase_line_as_equipment(line)` (SECURITY DEFINER, Admins/Managers) creates and links an `assets` row for a line without changing anything else, so it works in locked years.
+- **Writers (#133 step 2, migration 20261007000000)** — `create_purchase_transaction_v1` stores each line's `tax_treatment` (the recovery period moved to `assets` in 20261013000000); `track_purchase_line_as_equipment(line)` (SECURITY DEFINER, Admins/Managers) creates and links an `assets` row for a line without changing anything else, so it works in locked years.
 - RLS is **ENABLED** on this table. Only Admins/Managers of the owning org can view or manage purchases — the member-level SELECT policy was dropped in migration 20260613000000 (Staff/Viewer have no Financials access).
 
 ---
@@ -966,8 +965,7 @@ Equipment and asset management
 | status | TEXT | Asset status (default 'Active', NOT NULL) |
 | retired_on | DATE | Date asset was retired/disposed of (nullable) |
 | liquidation_amt | NUMERIC(10,2) | Amount received on liquidation/disposal (nullable) |
-| service_life | NUMERIC | Expected service life for depreciation (nullable) |
-| dep_method | TEXT | Depreciation method (nullable) |
+| recovery_period | SMALLINT | Tax recovery period, 5, 7 or 15 years (CHECK); only on depreciated equipment (trigger `assets_recovery_period_rules`). Migration 20261013000000, which dropped `service_life` and `dep_method` |
 | created_by | UUID | Reference to users.id (informational, NOT NULL) |
 | updated_by | UUID | Reference to users.id (informational, NOT NULL) |
 | created_at | TIMESTAMPTZ | Record creation timestamp (NOT NULL) |
@@ -1214,6 +1212,7 @@ Equipment categories per organization (migration 20261010000000). Rows with `org
 | id | UUID | Primary key |
 | organization_id | UUID | Owning organization (ON DELETE CASCADE); NULL = starter set |
 | name | TEXT | Unique per organization (case-insensitive). Assets store this in `assets.category` |
+| default_recovery_period | SMALLINT | 5, 7 or 15: the recovery period depreciated equipment in this category gets; NULL = ask (migration 20261013000000) |
 | sort_order | SMALLINT | Display order |
 | active | BOOLEAN | Default true |
 | created_at | TIMESTAMPTZ | |

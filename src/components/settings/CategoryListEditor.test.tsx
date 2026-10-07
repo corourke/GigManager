@@ -74,6 +74,27 @@ describe('CategoryListEditor', () => {
     expect(screen.queryByRole('combobox', { name: /Schedule C line/ })).not.toBeInTheDocument();
   });
 
+  it('equipment categories have a default recovery period; blank means ask (#125)', async () => {
+    vi.mocked(svc.listCategories).mockResolvedValue([
+      { id: 'q1', organization_id: 'org-1', name: 'Audio', default_recovery_period: 7, sort_order: 10, active: true },
+      { id: 'q2', organization_id: 'org-1', name: 'Networking', default_recovery_period: null, sort_order: 20, active: true },
+    ] as any);
+    render(<CategoryListEditor kind="equipment" organizationId="org-1" canEdit />);
+    const audio = await screen.findByRole('combobox', { name: 'Recovery period: Audio' }) as HTMLSelectElement;
+    expect(audio.value).toBe('7');
+    const networking = screen.getByRole('combobox', { name: 'Recovery period: Networking' }) as HTMLSelectElement;
+    expect(networking.value).toBe('');
+    await userEvent.selectOptions(networking, '5');
+    expect(svc.updateCategory).toHaveBeenCalledWith('equipment', 'q2', { default_recovery_period: 5 });
+    await userEvent.selectOptions(audio, '');
+    expect(svc.updateCategory).toHaveBeenCalledWith('equipment', 'q1', { default_recovery_period: null });
+
+    await userEvent.type(screen.getByRole('textbox', { name: 'New category name' }), 'Computers');
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'New category recovery period' }), '5');
+    await userEvent.click(screen.getByRole('button', { name: 'Add' }));
+    await waitFor(() => expect(svc.addCategory).toHaveBeenCalledWith('equipment', 'org-1', { name: 'Computers', default_recovery_period: 5, sort_order: 30 }));
+  });
+
   it('the starter set has no usage counts', async () => {
     render(<CategoryListEditor kind="expense" organizationId={null} canEdit />);
     await screen.findByDisplayValue('Supplies');

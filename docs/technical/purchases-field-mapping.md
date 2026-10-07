@@ -25,8 +25,7 @@
 | U    | Replacement Value     |                                                              |                                                              | `replacement_value`                     |                          |
 | V    | Retired On            |                                                              |                                                              | `retired_on`                            |                          |
 | W    | Liquidation Amt       |                                                              |                                                              | `liquidation_amt`                       |                          |
-| X    | Expected Service Life |                                                              |                                                              | `service_life`                          |                          |
-| Y    | Depreciation Method   |                                                              |                                                              | `dep_method`                            |                          |
+| X    | Recovery Period       |                                                              |                                                              | `recovery_period` (5, 7 or 15; depreciated lines only; an old sheet's `service_life` column is read as this) |                          |
 | Z    | Status                |                                                              |                                                              | `status`                                |                          |
 
 ## 

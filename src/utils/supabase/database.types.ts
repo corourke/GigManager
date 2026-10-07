@@ -124,7 +124,6 @@ export type Database = {
           category: string
           created_at: string
           created_by: string
-          dep_method: string | null
           description: string | null
           id: string
           insurance_class: string | null
@@ -139,7 +138,7 @@ export type Database = {
           replacement_value: number | null
           retired_on: string | null
           serial_number: string | null
-          service_life: number | null
+          recovery_period: number | null
           status: string
           tag_number: string | null
           type: string | null
@@ -152,7 +151,6 @@ export type Database = {
           category: string
           created_at?: string
           created_by: string
-          dep_method?: string | null
           description?: string | null
           id?: string
           insurance_class?: string | null
@@ -167,7 +165,7 @@ export type Database = {
           replacement_value?: number | null
           retired_on?: string | null
           serial_number?: string | null
-          service_life?: number | null
+          recovery_period?: number | null
           status?: string
           tag_number?: string | null
           type?: string | null
@@ -180,7 +178,6 @@ export type Database = {
           category?: string
           created_at?: string
           created_by?: string
-          dep_method?: string | null
           description?: string | null
           id?: string
           insurance_class?: string | null
@@ -195,7 +192,7 @@ export type Database = {
           replacement_value?: number | null
           retired_on?: string | null
           serial_number?: string | null
-          service_life?: number | null
+          recovery_period?: number | null
           status?: string
           tag_number?: string | null
           type?: string | null
@@ -294,6 +291,7 @@ export type Database = {
         Row: {
           active: boolean
           created_at: string
+          default_recovery_period: number | null
           id: string
           name: string
           organization_id: string | null
@@ -302,6 +300,7 @@ export type Database = {
         Insert: {
           active?: boolean
           created_at?: string
+          default_recovery_period?: number | null
           id?: string
           name: string
           organization_id?: string | null
@@ -310,6 +309,7 @@ export type Database = {
         Update: {
           active?: boolean
           created_at?: string
+          default_recovery_period?: number | null
           id?: string
           name?: string
           organization_id?: string | null
@@ -1343,7 +1343,6 @@ export type Database = {
           payment_method: string | null
           purchase_date: string | null
           quantity: number | null
-          recovery_period: number | null
           row_type: string
           tax_treatment: string | null
           total_inv_amount: number | null
@@ -1368,7 +1367,6 @@ export type Database = {
           payment_method?: string | null
           purchase_date?: string | null
           quantity?: number | null
-          recovery_period?: number | null
           row_type: string
           tax_treatment?: string | null
           total_inv_amount?: number | null
@@ -1393,7 +1391,6 @@ export type Database = {
           payment_method?: string | null
           purchase_date?: string | null
           quantity?: number | null
-          recovery_period?: number | null
           row_type?: string
           tax_treatment?: string | null
           total_inv_amount?: number | null
