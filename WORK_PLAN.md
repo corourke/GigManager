@@ -213,6 +213,8 @@ applies migrations), edge-function API shape, anything touching production confi
 
 Read this section first on each run.
 
+**Docs Lead (since 10-07).** A separate session, "GigWrangler Docs Lead", owns the look, quality and organization of the user guide (`website/docs/`) and `docs/`: its information architecture, its style guide, and screenshots taken from a demo organization in **dev**, which it has read-write access to. Prod stays off-limits. It opens docs PRs for the coordinator to merge, and files app issues and §3b entries instead of building code. Triage: before a user-guide pass, check the user-docs table below for pages the Docs Lead has claimed, and skip them.
+
 **File ownership — what is claimed.** Check live before starting: `git fetch origin && git branch -r
 --sort=-committerdate | head -20` plus the open PR list. An open PR claims the files it touches.
 
