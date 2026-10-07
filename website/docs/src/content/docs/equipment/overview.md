@@ -21,14 +21,14 @@ GigWrangler tracks gear as **assets** (individual, serial-numbered items) and
 A gig's **packing list** is on the gig itself: open the gig's **Equipment** tab,
 or choose **Print → Packing list** on the gig.
 
-- **[Assets](/equipment/assets/)** — the asset library: search, filter, add, edit.
-- **[Kits](/equipment/kits/)** — logical vs. container kits, and nested kits.
-- **[Location Explorer](/equipment/location-explorer/)** — where gear lives (the **Locations** tab).
-- **[Inventory reports](/equipment/inventory-reports/)** — manifest, packing list,
+- **Assets** — the asset library: search, filter, add, edit.
+- **Kits** — logical vs. container kits, and nested kits.
+- **Location Explorer** — where gear lives (the **Locations** tab).
+- **Inventory reports** — manifest, packing list,
   maintenance queue.
-- **[Barcode & QR scanning](/equipment/barcode-scanning/)** — tags and the mobile
+- **Barcode & QR scanning** — tags and the mobile
   scanner.
-- **[Assigning equipment to a gig](/equipment/assigning-to-a-gig/)** — kit
+- **Assigning equipment to a gig** — kit
   assignments and tracking them from **Out on gigs**.
 
 <!-- TODO: 2–3 sentence framing of assets vs kits, and when a rental house vs a
