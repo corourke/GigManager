@@ -7,11 +7,10 @@ import { Button } from './ui/button';
 import { Card } from './ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import AppHeader from './AppHeader';
-import EquipmentTabs from './EquipmentTabs';
+import EquipmentHeader from './EquipmentHeader';
 import { Organization, User, UserRole } from '../utils/supabase/types';
 import { canManage } from '../utils/permissions';
 import { SmartDataTable, ColumnDef, RowAction } from './tables/SmartDataTable';
-import { PageHeader } from './ui/PageHeader';
 import { TAG_CONFIG } from '../utils/supabase/constants';
 import { TrackingStatusBadge } from './inventory/TrackingStatusBadge';
 
@@ -293,27 +292,20 @@ export default function KitListScreen({
         onLogout={onLogout}
       />
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Equipment Tabs */}
-        <EquipmentTabs
-          activeTab="kits"
-          onNavigateToAssets={onNavigateToAssets}
-          onNavigateToKits={onNavigateToKits}
-          onNavigateToInventory={onNavigateToInventory ?? (() => {})}
-        />
+      <EquipmentHeader
+        activeTab="kits"
+        onNavigateToAssets={onNavigateToAssets}
+        onNavigateToKits={onNavigateToKits}
+        onNavigateToInventory={onNavigateToInventory ?? (() => {})}
+        actions={canEdit ? (
+          <Button onClick={onCreateKit} className="bg-sky-500 hover:bg-sky-600 text-white">
+            <Plus className="w-4 h-4 mr-2" />
+            Create Kit
+          </Button>
+        ) : null}
+      />
 
-        {/* Header */}
-        <PageHeader 
-          icon={Package}
-          title="Equipment Kits"
-          description="Manage reusable equipment collections"
-          actions={canEdit ? (
-            <Button onClick={onCreateKit} className="bg-sky-500 hover:bg-sky-600 text-white">
-              <Plus className="w-4 h-4 mr-2" />
-              Create Kit
-            </Button>
-          ) : null}
-        />
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
 
         {/* Tracking Status Filter */}
         <div className="flex items-center gap-2 mb-4">

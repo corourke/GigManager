@@ -1,9 +1,9 @@
 import { useState } from 'react';
-import { Banknote, Receipt, TrendingUp, ArrowLeft } from 'lucide-react';
+import { Banknote, Receipt, TrendingUp } from 'lucide-react';
 import { Card } from './ui/card';
-import { PageHeader } from './ui/PageHeader';
-import { Button } from './ui/button';
-import { Tabs, TabsList, TabsTrigger, TabsContent } from './ui/tabs';
+import { PageHeader } from './layout/PageHeader';
+import { PageTabsList, PageTabsTrigger } from './layout/PageTabs';
+import { Tabs, TabsContent } from './ui/tabs';
 import AppHeader from './AppHeader';
 import TaxYearsCard from './financials/TaxYearsCard';
 import GigAccountingTab from './financials/GigAccountingTab';
@@ -60,44 +60,32 @@ export default function FinancialsScreen({
         onLogout={onLogout}
       />
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      {/* Manual activation: each tab is a route; automatic would navigate twice per click. */}
+      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as FinancialTab)} activationMode="manual" className="gap-0">
         <PageHeader
           icon={Banknote}
-          iconClassName="w-8 h-8 text-green-600"
+          iconClassName="bg-green-50 text-green-700"
           title="Financials"
-          description="Manage purchases, gig accounting, and financial reporting."
+          back={returnGigId && onNavigateToGigDetail ? { label: 'Back to Gig', onClick: () => onNavigateToGigDetail(returnGigId) } : undefined}
+          tabs={
+            <PageTabsList aria-label="Financials sections">
+              <PageTabsTrigger value="purchases">
+                <Receipt />
+                Purchases
+              </PageTabsTrigger>
+              <PageTabsTrigger value="gig-accounting">
+                <Banknote />
+                Gig Accounting
+              </PageTabsTrigger>
+              <PageTabsTrigger value="reporting">
+                <TrendingUp />
+                Reporting
+              </PageTabsTrigger>
+            </PageTabsList>
+          }
         />
 
-        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as FinancialTab)} className="space-y-6">
-          <div className="flex items-center justify-between">
-            <TabsList className="bg-white border border-gray-200 p-1">
-              <TabsTrigger value="purchases" className="flex items-center gap-2">
-                <Receipt className="w-4 h-4" />
-                Purchases
-              </TabsTrigger>
-              <TabsTrigger value="gig-accounting" className="flex items-center gap-2">
-                <Banknote className="w-4 h-4" />
-                Gig Accounting
-              </TabsTrigger>
-              <TabsTrigger value="reporting" className="flex items-center gap-2">
-                <TrendingUp className="w-4 h-4" />
-                Reporting
-              </TabsTrigger>
-            </TabsList>
-
-            {returnGigId && onNavigateToGigDetail && (
-              <Button
-                variant="outline"
-                size="sm"
-                className="flex items-center gap-2"
-                onClick={() => onNavigateToGigDetail(returnGigId)}
-              >
-                <ArrowLeft className="w-4 h-4" />
-                Back to Gig
-              </Button>
-            )}
-          </div>
-
+        <div className="max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-4">
           <TabsContent value="purchases">
             <PurchasesSection
               organization={organization}
@@ -129,8 +117,8 @@ export default function FinancialsScreen({
               <p className="text-sm">Visual reports on your organization's spending and assets.</p>
             </Card>
           </TabsContent>
-        </Tabs>
-      </div>
+        </div>
+      </Tabs>
     </div>
   );
 }

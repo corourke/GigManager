@@ -90,24 +90,30 @@ const NavigationMenu = React.memo(function NavigationMenu({
     },
   ];
 
+  // A segmented control on the top bar's row (#39). Below lg the labels hide
+  // and each button keeps its name through aria-label and a tooltip.
   return (
-    <nav className="flex items-center gap-1 h-12">
+    <nav aria-label="Sections" className="flex items-center gap-0.5 rounded-[10px] border border-gray-200 bg-gray-100 p-[3px]">
       {menuItems.map((item) => {
         const Icon = item.icon;
         const isActive = item.isActive(currentRoute);
-        
+
         return (
           <button
             key={item.id}
+            type="button"
             onClick={item.onClick}
-            className={`px-4 py-2 text-sm rounded-lg transition-colors flex items-center gap-2 ${
+            aria-label={item.label}
+            title={item.label}
+            aria-current={isActive ? 'page' : undefined}
+            className={`flex h-8 items-center gap-1.5 rounded-lg px-3 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-600 ${
               isActive
-                ? 'text-sky-600 bg-sky-50'
-                : 'text-gray-700 hover:text-gray-900 hover:bg-gray-100'
+                ? 'bg-white font-semibold text-sky-700 shadow-sm ring-1 ring-black/5'
+                : 'font-medium text-gray-700 hover:bg-white/60 hover:text-gray-900'
             }`}
           >
-            <Icon className="w-4 h-4" />
-            {item.label}
+            <Icon className="h-4 w-4" />
+            <span className="hidden lg:inline">{item.label}</span>
           </button>
         );
       })}

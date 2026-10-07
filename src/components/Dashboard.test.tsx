@@ -80,7 +80,7 @@ describe('Dashboard', () => {
 
     expect(screen.getByText('Welcome back, John!')).toBeInTheDocument()
     expect(screen.getByText('Test Production Company')).toBeInTheDocument()
-    expect(screen.getByText("Here's what's happening with Test Production Company")).toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 1, name: 'Dashboard' })).toBeInTheDocument()
   })
 
   it('displays navigation tabs', async () => {

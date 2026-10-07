@@ -9,13 +9,12 @@ import { Card } from './ui/card';
 import { Input } from './ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import AppHeader from './AppHeader';
-import EquipmentTabs from './EquipmentTabs';
+import EquipmentHeader from './EquipmentHeader';
 import { Organization, User, UserRole } from '../utils/supabase/types';
 import type { DbAsset } from '../utils/supabase/types';
 import { canManage } from '../utils/permissions';
 import { ASSET_STATUS_CONFIG } from '../utils/supabase/constants';
 import { SmartDataTable, ColumnDef, RowAction } from './tables/SmartDataTable';
-import { PageHeader } from './ui/PageHeader';
 import ReviewScannedDataDialog from './ReviewScannedDataDialog';
 import { TrackingStatusBadge } from './inventory/TrackingStatusBadge';
 
@@ -398,62 +397,55 @@ export default function AssetListScreen({
         onLogout={onLogout}
       />
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Equipment Tabs */}
-        <EquipmentTabs
-          activeTab="assets"
-          onNavigateToAssets={onNavigateToAssets}
-          onNavigateToKits={onNavigateToKits}
-          onNavigateToInventory={onNavigateToInventory ?? (() => {})}
-        />
-
-        {/* Header */}
-        <PageHeader 
-          icon={Package}
-          title="Assets"
-          description="Manage your equipment inventory"
-          actions={canEdit ? (
-            <>
-              <div className="relative overflow-hidden">
-                <input
-                  type="file"
-                  title=""
-                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
-                  onChange={handleUploadInvoice}
-                  disabled={isScanning}
-                  accept=".pdf,image/*"
-                />
-                <Button variant="outline" className="border-sky-500 text-sky-600 hover:bg-sky-50" disabled={isScanning}>
-                  {isScanning ? (
-                    <>
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      Scanning...
-                    </>
-                  ) : (
-                    <>
-                      <FileText className="w-4 h-4 mr-2" />
-                      Upload Invoice
-                    </>
-                  )}
-                </Button>
-              </div>
-              <Button onClick={onCreateAsset} className="bg-sky-500 hover:bg-sky-600 text-white">
-                <Plus className="w-4 h-4 mr-2" />
-                Add Asset
+      <EquipmentHeader
+        activeTab="assets"
+        onNavigateToAssets={onNavigateToAssets}
+        onNavigateToKits={onNavigateToKits}
+        onNavigateToInventory={onNavigateToInventory ?? (() => {})}
+        actions={canEdit ? (
+          <>
+            <div className="relative overflow-hidden">
+              <input
+                type="file"
+                title=""
+                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                onChange={handleUploadInvoice}
+                disabled={isScanning}
+                accept=".pdf,image/*"
+              />
+              <Button variant="outline" className="border-sky-500 text-sky-600 hover:bg-sky-50" disabled={isScanning}>
+                {isScanning ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Scanning...
+                  </>
+                ) : (
+                  <>
+                    <FileText className="w-4 h-4 mr-2" />
+                    Upload Invoice
+                  </>
+                )}
               </Button>
-              {onNavigateToImport && (
-                <Button
-                  onClick={onNavigateToImport}
-                  variant="outline"
-                  className="border-sky-500 text-sky-600 hover:bg-sky-50"
-                >
-                  <Upload className="w-4 h-4 mr-2" />
-                  Import
-                </Button>
-              )}
-            </>
-          ) : null}
-        />
+            </div>
+            <Button onClick={onCreateAsset} className="bg-sky-500 hover:bg-sky-600 text-white">
+              <Plus className="w-4 h-4 mr-2" />
+              Add Asset
+            </Button>
+            {onNavigateToImport && (
+              <Button
+                onClick={onNavigateToImport}
+                variant="outline"
+                className="border-sky-500 text-sky-600 hover:bg-sky-50"
+              >
+                <Upload className="w-4 h-4 mr-2" />
+                Import
+              </Button>
+            )}
+          </>
+        ) : null}
+      />
+
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
 
         {/* Filters */}
         <div className="flex flex-col md:flex-row md:items-center gap-4 mb-6">
