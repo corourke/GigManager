@@ -10,42 +10,59 @@ off it: participants, schedule, staffing, financials, equipment, and attachments
 
 ## The gig list
 
-**Gigs** in the top nav opens the list, split into **Upcoming** and **Past** tabs
-(with live counts). Filters for date, status, type, and member persist between
-visits. **Export** produces a CSV; you choose which financial columns it includes.
+**Gigs** in the top nav opens the list. Switch between **List** and **Calendar**
+with the toggle at the top right.
 
-To open a gig, use the row's **⋮ menu → View** (read-only) or **Edit**.
+The list is split into **Upcoming** and **Past** tabs, each with a live count. A gig
+stays in Upcoming until its last day is over in the gig's time zone. Next to the
+tabs, the date filter (**+7d**, **+14d**, **+30d**, **All** ahead; **-7d**, **-14d**,
+**-30d**, **All** back) and the status filter narrow the list; both are remembered in
+this browser between visits.
 
-## The gig detail view
+**Export** downloads the list as a CSV, exactly as shown: the filters, any column
+search, the sort order and the columns you've chosen with **Columns** all carry
+over. Admins and Managers also see **New Gig** and **Import**.
 
-Two tabs:
+To open a gig, click the row's **⋯** menu and choose **View**. Admins and Managers
+also get **Edit** (opens the gig in edit mode), **Duplicate** and **Delete**.
 
-- **Overview** — a summary of every section of the gig.
-- **History** — the [change history](/gigs/change-history/) for this gig.
+## The gig page
 
-From Overview, **Edit** opens the full editor. It **auto-saves** — there's no Save
-button; changes to fields, participant rows, and staff rows persist as you make
-them.
+The page header shows the gig's title, status, dates, venue and tags, with a **Back to
+Gigs** link above it (**Back to Calendar** if you opened the gig from the
+calendar). Below it are up to four tabs:
 
-## Sections of a gig
-
-| Section | What it holds |
+| Tab | What it shows |
 | --- | --- |
-| Basic Information | Title, start/end date-time, time zone, status, tags, notes. |
-| [Participants](/gigs/staffing-and-participants/) | Your org plus participating venues, vendors, and acts. |
-| [Schedule](/gigs/schedule/) | Load-in, soundcheck, sets, load-out — the run of day. |
-| Staff Assignments | Role slots, how many are needed, and who's assigned. |
-| Financials | Revenue, expenses, and per-gig profit. |
-| Equipment | Kits assigned to the gig. |
-| Attachments | Files on the gig. |
+| **Overview** | Schedule, Venue, Notes & attachments, Participants, and your organization's Staffing. |
+| **Equipment** | The kits assigned to the gig, and its packing list. |
+| **Financials** | Money in and money out for the gig — Admins and Managers only. See [Financials](/financials/overview/). |
+| **History** | The gig's [change history](/gigs/change-history/). |
+
+**Print** offers a **Gig sheet**, a **Packing list** and, for Admins and Managers,
+a **Gig sheet with financials**. The **⋮** menu next to **Edit** has **Duplicate
+Gig** and **Delete Gig**.
+
+## Editing a gig
+
+Admins and Managers choose **Edit**. The whole page switches to edit mode: the
+title, status and tags become editable in the header, and every tab's sections
+become editable in place. On Overview those are **When & schedule**,
+**Participants**, **Staff Assignments** and **Notes & attachments**; on Equipment,
+the kit assignments.
+
+There's no Save button: changes save as you make them, and the header shows the
+save state. Choose **Done** to leave edit mode; it waits for any save still in
+progress, so nothing you just typed is lost.
+
+Staff and Viewers see the gig read-only, without the Financials tab or staff pay.
 
 ## Status
 
-`Date Hold → Proposed → Booked → Completed → Settled` (plus `Cancelled`). Status
-drives what shows on the calendar and dashboard for the rest of the team.
+A gig is **Date Hold**, **Proposed**, **Booked**, **Completed**, **Settled** or
+**Cancelled**. New gigs start as Date Hold. You can set any status at any time;
+GigWrangler doesn't enforce an order.
 
 <!-- TODO
-  - 📸 Gig detail Overview tab (the section summary). 📸 The Gigs list.
-  - Confirm the status lifecycle labels and which transitions are enforced.
-  - If #12 lands (tabbed Gig Edit), rework the "sections of a gig" list.
+  - 📸 Gig page Overview tab. 📸 The Gigs list.
 -->

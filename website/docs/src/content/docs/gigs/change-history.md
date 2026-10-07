@@ -6,29 +6,36 @@ sidebar:
 ---
 
 Every gig keeps a **change history**. Open a gig and select the **History** tab.
+The newest change is at the top, so **Gig created** is at the bottom.
 
 Each entry shows:
 
 - **who** made the change and which organization they were acting for,
 - **what** changed, in plain language (for example, *"Renamed from 'Summer
-  Festival' to 'Summer Festival — Main Stage'"* or *"Rescheduled from 20 Sep 14:00
-  to 21 Sep 14:00"*),
-- **when**, as a relative time, with the creation date pinned at the bottom.
+  Festival' to 'Summer Festival — Main Stage'"* or *"Rescheduled from 20 Sep 2026
+  14:00 to 21 Sep 2026 14:00"*),
+- **when**, as a relative time ("3 days ago").
 
-The recorded name and role are a **snapshot from the moment of the change** — if
-someone's role changes later, past history entries still show what it was at the
-time.
+The name and organization are recorded **at the moment of the change**, so later
+renames don't rewrite past entries.
 
-:::note[What's tracked]
-Change history currently covers the gig's own fields (title, dates, status).
-The exact scope is still being finalized — see GitHub
-[#55](https://github.com/corourke/GigManager/issues/55). Assets and kits have their
-own history in the same style.
-:::
+## What's tracked
+
+- **The gig itself:** created, renamed, rescheduled, status changed, notes updated.
+- **Participants:** an organization added or removed, with its role.
+- **Schedule:** entries added.
+- **Staffing:** slots added or removed, people assigned or unassigned.
+- **Financials:** rows added, updated, marked paid or removed.
+
+## Who sees what
+
+Changes to the gig, its participants and its schedule are visible to everyone on
+the gig, from every participating organization. Staffing changes are visible only
+to members of the organization that made them, and financial changes only to that
+organization's Admins and Managers.
+
+Assets and kits have their own history in the same style.
 
 <!-- TODO
   - 📸 History tab with a few entries (create, rename, reschedule).
-  - Pin down the exact scope once #55 is resolved (currently gig fields only;
-    participant/staff/financial/schedule changes are NOT logged).
-  - Note #54: no-op "Rescheduled from X to X" entries can appear.
 -->
