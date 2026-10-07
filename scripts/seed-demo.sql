@@ -310,7 +310,7 @@ SELECT pg_temp.d(9, (w.seat - 1) * 500 + g.n * 10 + w.k), pg_temp.d(8, g.n * 10 
  WHERE st.status IS NOT NULL;
 
 -- -----------------------------------------------------------------------------
--- 7. EQUIPMENT: 26 assets, 4 kits (one nested), kit assignments, scan locations
+-- 7. EQUIPMENT: 26 assets, 6 kits (one nested, two containers), kit assignments, scan locations
 --    pur: 0 = bought outside the tracked invoices, else the purchase it came on (section 8)
 -- -----------------------------------------------------------------------------
 CREATE TEMP TABLE _a ON COMMIT DROP AS
@@ -374,13 +374,16 @@ SELECT pg_temp.d(4, a.n), pg_temp.d(1,1),
   FROM _a a
   LEFT JOIN _p p ON p.n = a.pur;
 
--- Kits. K4 is a container holding two other kits plus loose gear (nested kit).
+-- Kits. K4 is a nested kit: it holds K1, K2 and two containers. Containers (K5, K6)
+-- are cases or boxes picked up as one item, so packing lists show them as one line.
 INSERT INTO public.kits (id, organization_id, name, category, description, tags, tag_number, rental_value, created_by, updated_by, is_container)
 VALUES
   (pg_temp.d(5,1), pg_temp.d(1,1), 'FOH Console Package',           'Audio',    'Console, stage box and snake for a front-of-house position.', ARRAY['FOH'],            'KIT-001', 650.00,  pg_temp.d(2,1), pg_temp.d(2,1), false),
   (pg_temp.d(5,2), pg_temp.d(1,1), 'Main PA: 4 Top / 2 Sub',        'Audio',    'Four powered tops, two subs, cables and stands.',            ARRAY['PA'],             'KIT-002', 1100.00, pg_temp.d(2,1), pg_temp.d(2,1), false),
   (pg_temp.d(5,3), pg_temp.d(1,1), 'Club Lighting Package',         'Lighting', 'LED pars, moving heads, controller and truss.',              ARRAY['Lighting'],       'KIT-003', 900.00,  pg_temp.d(2,1), pg_temp.d(2,1), false),
-  (pg_temp.d(5,4), pg_temp.d(1,1), 'Full Band Sound Package',       'Audio',    'FOH package, main PA, monitors, mics and DIs: everything for a five-piece band.', ARRAY['Band','Sound'], 'KIT-004', 2200.00, pg_temp.d(2,1), pg_temp.d(2,1), true);
+  (pg_temp.d(5,4), pg_temp.d(1,1), 'Full Band Sound Package',       'Audio',    'FOH package, main PA, monitors, mic case and cable box: everything for a five-piece band.', ARRAY['Band','Sound'], 'KIT-004', 2200.00, pg_temp.d(2,1), pg_temp.d(2,1), false),
+  (pg_temp.d(5,5), pg_temp.d(1,1), 'Mic Case',                      'Audio',    'Road case with vocal, instrument and kick mics plus DI boxes.', ARRAY['Mics'],         'CASE-01', 150.00,  pg_temp.d(2,1), pg_temp.d(2,1), true),
+  (pg_temp.d(5,6), pg_temp.d(1,1), 'XLR Cable Box',                 'Audio',    'Tote of 25 ft and 50 ft XLR cables.',                        ARRAY['Cables'],         'CASE-02', 60.00,   pg_temp.d(2,1), pg_temp.d(2,1), true);
 
 INSERT INTO public.kit_components (kit_id, asset_id, child_kit_id, quantity, notes)
 SELECT pg_temp.d(5, c.kit), CASE WHEN c.asset IS NOT NULL THEN pg_temp.d(4, c.asset) END,
@@ -394,10 +397,14 @@ SELECT pg_temp.d(5, c.kit), CASE WHEN c.asset IS NOT NULL THEN pg_temp.d(4, c.as
     -- K3 Club Lighting
     (3, 13,   NULL, 8, NULL), (3, 14, NULL, 2, NULL), (3, 16, NULL, 1, NULL), (3, 17, NULL, 6, NULL),
     (3, 24,   NULL, 4, NULL), (3, 22, NULL, 4, NULL),
-    -- K4 Full Band Sound Package (nested: contains K1 and K2)
-    (4, NULL, 1, 1, NULL), (4, NULL, 2, 1, NULL),
-    (4, 3,    NULL, 4, 'Four monitor mixes'), (4, 7, NULL, 4, NULL), (4, 8, NULL, 2, NULL), (4, 10, NULL, 1, NULL),
-    (4, 11,   NULL, 6, NULL), (4, 12, NULL, 2, NULL), (4, 18, NULL, 16, NULL)
+    -- K5 Mic Case (container)
+    (5, 7,    NULL, 4, NULL), (5, 8, NULL, 2, NULL), (5, 10, NULL, 1, NULL),
+    (5, 11,   NULL, 6, NULL), (5, 12, NULL, 2, NULL),
+    -- K6 XLR Cable Box (container)
+    (6, 18,   NULL, 16, NULL), (6, 19, NULL, 4, NULL),
+    -- K4 Full Band Sound Package (nested: K1, K2 and both containers, plus monitors)
+    (4, NULL, 1, 1, NULL), (4, NULL, 2, 1, NULL), (4, NULL, 5, 1, NULL), (4, NULL, 6, 1, NULL),
+    (4, 3,    NULL, 4, 'Four monitor mixes')
   ) AS c(kit, asset, child, qty, notes);
 
 -- Kits per gig: band gigs get the full band package (bigger ones add lighting),
