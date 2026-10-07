@@ -667,7 +667,7 @@ erDiagram
         uuid organization_id FK
         uuid gig_id FK "NULLABLE"
         uuid parent_id FK "NULLABLE"
-        text row_type "header | item | asset"
+        text row_type "header | line"
         uuid asset_id FK "NULLABLE"
     }
     ASSETS {
@@ -711,7 +711,7 @@ Handles acquisition headers and expense line items. Uses a self-referencing `par
 | gig_id | UUID | Reference to gigs.id — links expenses to a gig (nullable) |
 | parent_id | UUID | Self-reference to purchases.id — links items to their header (nullable) |
 | asset_id | UUID | Reference to assets.id — links audit item rows to the asset they represent (nullable) |
-| row_type | TEXT | Discriminator: `'header'`, `'item'`, or `'asset'` (NOT NULL, CHECK constraint). `'asset'` was added in migration 20260316000001 — an `'asset'` line is an item row that also produced an `assets` record (linked via `asset_id`). |
+| row_type | TEXT | Discriminator: `'header'` or `'line'` (NOT NULL, CHECK constraint). Before migration 20261012000000 a line was `'item'` or `'asset'`; now whether it is tracked as equipment is `asset_id`, and its tax treatment is `tax_treatment`. |
 | purchase_date | DATE | Date of purchase (nullable) |
 | vendor | TEXT | Vendor name (nullable) |
 | total_inv_amount | NUMERIC(10,2) | Total invoice amount — header only (nullable) |
@@ -732,13 +732,13 @@ Handles acquisition headers and expense line items. Uses a self-referencing `par
 
 **Notes:**
 - A **header** row (`row_type = 'header'`) represents an overall purchase transaction (vendor, date, total, payment method).
-- **Item** / **asset** rows represent individual line items and reference their header via `parent_id`; an `'asset'` row also has `asset_id` set.
-- When assets are imported, the `create_purchase_transaction_v1` function creates `'asset'` line rows with `asset_id` linking back to the created asset. Each asset may carry `kit_ids`: the function checks they belong to the header's organization and adds the new asset to each (`kit_components`, migration 20261011000000). (`reclassify_expense_as_asset` was retired by 20261011000000; `track_purchase_line_as_equipment` replaces it.)
+- **Line** rows represent individual line items and reference their header via `parent_id`; a line tracked as equipment has `asset_id` set.
+- When assets are imported, the `create_purchase_transaction_v1` function creates a line for each item; a line sent with `track: true` gets `asset_id` linking back to the created asset. Each asset may carry `kit_ids`: the function checks they belong to the header's organization and adds the new asset to each (`kit_components`, migration 20261011000000). (`reclassify_expense_as_asset` was retired by 20261011000000; `track_purchase_line_as_equipment` replaces it.)
 - `gig_id` links gig-specific expenses to the relevant gig, displayed alongside `gig_financials`. Lines only, and only expensed lines (constraints `purchases_header_no_gig`, `purchases_depreciate_no_gig`, migration 20261009000000). It is set per line on the Purchases tab, or for each expensed line when a receipt is scanned on a gig — see [financials.md](financials.md) §4.
 - A gig-linked purchase does **not** automatically get a `gig_financials` ledger row: the on-gig receipt scan creates one, but CSV import and post-hoc line assignment only prompt/offer to. Without that ledger row the expense is invisible to gig profitability.
 - Assets acquired in a purchase reference the header row via `assets.purchase_id`.
 - Deleting a row fires `trg_cleanup_attachments` (migration 20260831000100), removing its `entity_attachments` links and any solely-owned `attachments` rows.
-- **Tax treatment (#133, migration 20261006000000)** — a line's `tax_treatment` is filled from `row_type` when a writer leaves it out (`asset` → depreciate, `item` → expense). A depreciated line must keep its `asset_id` and can't be pointed at by a `gig_financials` row. Rows dated in a year locked in `tax_years` can't have their tax fields changed, added or deleted — see [financials.md](financials.md) §2.5 and §3.
+- **Tax treatment (#133, migration 20261006000000)** — a line written without a `tax_treatment` is an expense (an old `row_type` `asset` / `item` from an app before 10-07 still sets depreciate / expense). A depreciated line must keep its `asset_id` and can't be pointed at by a `gig_financials` row. Rows dated in a year locked in `tax_years` can't have their tax fields changed, added or deleted — see [financials.md](financials.md) §2.5 and §3.
 - **Writers (#133 step 2, migration 20261007000000)** — `create_purchase_transaction_v1` stores each line's `tax_treatment` / `recovery_period`; `track_purchase_line_as_equipment(line)` (SECURITY DEFINER, Admins/Managers) creates and links an `assets` row for a line without changing anything else, so it works in locked years.
 - RLS is **ENABLED** on this table. Only Admins/Managers of the owning org can view or manage purchases — the member-level SELECT policy was dropped in migration 20260613000000 (Staff/Viewer have no Financials access).
 

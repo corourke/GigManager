@@ -6,7 +6,6 @@ import {
   scanInvoice,
   importPurchases,
   deletePurchase,
-  shouldPromptForLedgerEntry,
   computeAssetFieldChanges,
   purchaseLineLedgerAmount,
   buildPurchaseLineLedgerPayload,
@@ -169,6 +168,9 @@ describe('purchase.service', () => {
       const result = await importPurchases('org-1', rows);
 
       expect(mockSupabase.rpc).toHaveBeenCalledTimes(1);
+      // An equipment row (source 1) is a tracked, depreciated line (10-07: one line type).
+      const [, args] = mockSupabase.rpc.mock.calls[0];
+      expect(args.p_items[0]).toEqual(expect.objectContaining({ row_type: 'line', track: true, tax_treatment: 'depreciate' }));
       expect(result.successCount).toBe(3);
       expect(result.errors).toHaveLength(0);
     });
@@ -184,28 +186,6 @@ describe('purchase.service', () => {
     it('throws when no row was deleted (RLS denied)', async () => {
       mockSupabase.then.mockImplementation((onFulfilled: any) => onFulfilled({ data: [], error: null }));
       await expect(deletePurchase('p1')).rejects.toThrow(/permission|not found/i);
-    });
-  });
-
-  describe('shouldPromptForLedgerEntry', () => {
-    it('returns true for expense item being assigned a gig for the first time', () => {
-      expect(shouldPromptForLedgerEntry('item', null, 'gig-1')).toBe(true);
-    });
-
-    it('returns false for asset lines', () => {
-      expect(shouldPromptForLedgerEntry('asset', null, 'gig-1')).toBe(false);
-    });
-
-    it('returns false for re-assignment (already had a gig)', () => {
-      expect(shouldPromptForLedgerEntry('item', 'gig-old', 'gig-new')).toBe(false);
-    });
-
-    it('returns false when clearing gig (newGigId is null)', () => {
-      expect(shouldPromptForLedgerEntry('item', null, null)).toBe(false);
-    });
-
-    it('returns false for header row type', () => {
-      expect(shouldPromptForLedgerEntry('header', null, 'gig-1')).toBe(false);
     });
   });
 
@@ -411,9 +391,9 @@ describe('purchase → gig ledger lifecycle', () => {
   });
 
   describe('reconcileLedgerForLineGigChange', () => {
-    it('is a noop for depreciated lines (an asset row with no stored treatment)', async () => {
+    it('is a noop for depreciated lines', async () => {
       const res = await reconcileLedgerForLineGigChange({
-        item: line({ row_type: 'asset' }), previousGigId: null, newGigId: 'gig-1', organizationId: 'org-1',
+        item: line({ row_type: 'line', tax_treatment: 'depreciate' }), previousGigId: null, newGigId: 'gig-1', organizationId: 'org-1',
       });
       expect(res).toEqual({ action: 'noop' });
       expect(mockedGetByPurchase).not.toHaveBeenCalled();

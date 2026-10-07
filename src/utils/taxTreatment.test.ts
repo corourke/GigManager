@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { lineTaxTreatment, suggestedTaxTreatment, TAX_EXPENSE_BELOW, TAX_DEPRECIATE_ABOVE, taxTreatmentLabel, isTaxYearLocked } from './taxTreatment';
+import { lineTaxTreatment, suggestedTaxTreatment, TAX_EXPENSE_BELOW, TAX_DEPRECIATE_ABOVE, taxTreatmentLabel, isTaxYearLocked, lockedYearMessage } from './taxTreatment';
 
 describe('tax treatment rule (#133)', () => {
   it('expenses items under $200 per item', () => {
@@ -36,10 +36,20 @@ describe('tax treatment rule (#133)', () => {
     expect(isTaxYearLocked(null, locked)).toBe(false);
   });
 
-  it('reads a line\'s treatment, falling back to its row type', () => {
-    expect(lineTaxTreatment({ row_type: 'asset', tax_treatment: 'expense' })).toBe('expense');
-    expect(lineTaxTreatment({ row_type: 'asset', tax_treatment: null })).toBe('depreciate');
-    expect(lineTaxTreatment({ row_type: 'item' })).toBe('expense');
+  it('reads a line\'s treatment; a line without one counts as an expense (10-07: one line type)', () => {
+    expect(lineTaxTreatment({ row_type: 'line', tax_treatment: 'depreciate' })).toBe('depreciate');
+    expect(lineTaxTreatment({ row_type: 'line', tax_treatment: 'expense' })).toBe('expense');
+    expect(lineTaxTreatment({ row_type: 'line', tax_treatment: null })).toBe('expense');
     expect(lineTaxTreatment({ row_type: 'header', tax_treatment: null })).toBeNull();
+  });
+});
+
+describe('lockedYearMessage', () => {
+  it('passes on the database\'s filed-year message, and nothing else', () => {
+    const locked = { code: '42501', message: 'The 2025 tax year is locked (filed), so its gig income and expenses can\'t be deleted.' };
+    expect(lockedYearMessage(locked)).toBe(locked.message);
+    expect(lockedYearMessage({ code: '42501', message: 'Permission denied' })).toBeUndefined();
+    expect(lockedYearMessage(new Error('Failed to fetch'))).toBeUndefined();
+    expect(lockedYearMessage(null)).toBeUndefined();
   });
 });

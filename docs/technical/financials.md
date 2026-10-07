@@ -59,7 +59,7 @@ flowchart LR
 
 | Column | Meaning |
 |---|---|
-| `row_type` | `header`, or a line: `item` / `asset`. Until #133 step 3, `asset` means "tracked as equipment"; tax treatment is its own column. |
+| `row_type` | `header` or `line` (migration `20261012000000`; the old `item` / `asset` became `line`). Whether a line is tracked as equipment is `asset_id`; its tax treatment is `tax_treatment`. |
 | `parent_id` | A line's header. Deleting a header deletes its lines. |
 | `purchase_date`, `vendor`, `payment_method` | Copied onto every line when the purchase is created. |
 | `total_inv_amount` | Header only: the invoice grand total, including tax, shipping and fees. |
@@ -172,7 +172,12 @@ RLS: an organization's Admins and Managers read it; only its Admins add, change 
   - adding or deleting rows.
 - **Allowed:** `asset_id` (so expensed gear from a filed year can be tracked and put in kits), `gig_id`, `description`, `vendor` and `payment_method`.
 
-Gig money-out rows in a locked year are not locked yet (follow-up in #133).
+**Gig money in a locked year** (trigger `gig_financials_tax_year_lock`, migration `20261012000000`, tests in `46_line_type_and_gig_money_lock.test.sql`). The rows that are tax data are locked: income (`direction = 'in'`), and expenses with no `purchase_id` (quick expenses, mileage, staff pay). The year is the row's `date`.
+- **Refused:** adding or deleting such a row; changes to `organization_id`, `direction`, `stage`, `amount`, `amount_settled`, `currency`, `date`, `paid_at`, `category`, `mileage` and `purchase_id` (so a purchase-linked row can't be unlinked into tax data); moving a row into or out of the year.
+- **Allowed:** `notes`, `description`, `reference_number`, `external_entity_name`, `counterparty_id`, `due_date`, `staff_assignment_id`, `gig_id`.
+- **Not locked:** a gig expense linked to a purchase line. It is gig accounting only, and the purchase line is the tax record.
+- Deleting a gig, or an organization, that has locked gig money is refused too.
+- The app shows the database's message (`lockedYearMessage` in `src/utils/taxTreatment.ts`) instead of a generic "failed to save".
 
 ### 2.6 Attachments
 
@@ -200,12 +205,12 @@ Files live in the `attachments` table and storage bucket, joined through `entity
 
 **How the rules are enforced** (migration `20261006000000`, tests in `supabase/tests/rls/40_tax_treatment.test.sql`):
 - **Check constraints** on the values and on "lines only".
-- **Default trigger:** a line written without a treatment takes it from `row_type` (`asset` → depreciate, `item` → expense). A `row_type` change that leaves the treatment alone (the old "Reclassify as Asset") moves it too. This keeps today's app working until the UI sets the treatment itself.
+- **Default trigger:** a line written without a treatment is an expense. A row written with the old `row_type` `item` / `asset` (an app from before 10-07) is stored as `line`, taking its treatment from the old type when none is given (`asset` → depreciate, `item` → expense).
 - **Deferred constraint trigger** for "depreciate has equipment". `create_purchase_transaction_v1` inserts a line before linking its asset, so the check waits for the end of the transaction.
 - **Triggers on both tables** for "never a gig expense": one on `gig_financials` (insert, or a change of `purchase_id`), and one on `purchases` (a change to depreciate).
 
 **Writers** (migration `20261007000000`, tests in `41_tax_treatment_writers.test.sql`):
-- `create_purchase_transaction_v1` stores each line's `tax_treatment` and `recovery_period` when given. `row_type` still decides which lines get an equipment record until step 3.
+- `create_purchase_transaction_v1` stores each line's `tax_treatment` and `recovery_period` when given, and writes every line as `row_type = 'line'`. A line sent with `track: true` gets the next entry of `p_assets` as its equipment record (the old `row_type: 'asset'` still works).
 - `track_purchase_line_as_equipment(line)` (Admins and Managers) creates the equipment record from the line and links it. It changes nothing else, so it works on lines in a locked year.
 
 **Choosing the treatment** (UI, #133 step 2: `ReviewScannedDataDialog`, `src/utils/taxTreatment.ts`). Each line on the review screen has a **Track as equipment** checkbox (column "Equip") and an **Expense | Depreciate** switch with a (?) that shows:

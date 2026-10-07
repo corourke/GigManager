@@ -110,7 +110,6 @@ interface ScannedItem {
   _purchaseId?: string;
   _assetId?: string | null;
   _gigId?: string | null;
-  _rowType?: string;
 }
 
 interface UpdatePlan {
@@ -332,10 +331,10 @@ export default function ReviewScannedDataDialog({
             item_price: it.item_price || 0,
             item_cost: it.item_cost || 0,
             is_asset: !!it.asset_id,
-            tax_treatment: (it.tax_treatment as TaxTreatment | null) ?? (it.row_type === 'asset' ? 'depreciate' : 'expense'),
+            tax_treatment: lineTaxTreatment(it) ?? 'expense',
             _taxChosen: true,
             category: it.category || '',
-            asset_category: it.asset_id && it.tax_treatment !== 'depreciate' && !(it.tax_treatment == null && it.row_type === 'asset')
+            asset_category: it.asset_id && lineTaxTreatment(it) !== 'depreciate'
               ? aById[it.asset_id]?.category ?? undefined : undefined,
             // An existing equipment record's details, for the pop-up.
             equipment_type: it.asset_id ? aById[it.asset_id]?.type ?? '' : undefined,
@@ -345,7 +344,6 @@ export default function ReviewScannedDataDialog({
             _purchaseId: it.id,
             _assetId: it.asset_id || null,
             _gigId: it.gig_id || null,
-            _rowType: it.row_type,
           })),
         });
 
@@ -512,9 +510,10 @@ export default function ReviewScannedDataDialog({
         line_amount: item.item_price * item.quantity,
         line_cost: item.item_cost * item.quantity,
         category: item.category || formData.category,
-        // row_type still decides which lines get an equipment record (until #133 step 3);
-        // the tax treatment is its own choice.
-        row_type: item.is_asset ? 'asset' as const : 'item' as const,
+        // One line type (10-07); `track` asks for the equipment record, and the
+        // tax treatment is its own choice.
+        row_type: 'line' as const,
+        track: !!item.is_asset,
         tax_treatment: item.tax_treatment ?? undefined,
       }));
 
@@ -679,7 +678,7 @@ export default function ReviewScannedDataDialog({
         newItems.push({
           organization_id: organizationId,
           parent_id: editPurchaseId,
-          row_type: 'item',
+          row_type: 'line',
           vendor: fd.vendor,
           purchase_date: fd.purchase_date,
           ...lineData,

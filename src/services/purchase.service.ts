@@ -21,7 +21,7 @@ const getSupabase = () => createClient();
 export async function getPurchases(organizationId: string, filters?: {
   gig_id?: string;
   vendor?: string;
-  row_type?: 'header' | 'item';
+  row_type?: 'header' | 'line';
 }) {
   const supabase = getSupabase();
   try {
@@ -322,7 +322,8 @@ export async function importPurchases(
  */
 export async function createPurchaseTransaction(
   header: Partial<DbPurchase>,
-  items: Partial<DbPurchase>[] = [],
+  /** `track: true` gives the line an equipment record: the next entry of `assets`. */
+  items: (Partial<DbPurchase> & { track?: boolean })[] = [],
   assets: any[] = [],
   kitCache?: Map<string, string>
 ) {
@@ -449,25 +450,6 @@ export async function trackPurchaseLineAsEquipment(lineId: string): Promise<stri
   } catch (err) {
     return handleApiError(err, 'track purchase line as equipment');
   }
-}
-
-/**
- * Predicate: should we prompt the user to create a gig financial ledger entry?
- * Only fires for expense items (row_type === 'item') being assigned a gig for the first time.
- *
- * NOTE: prefer `reconcileLedgerForLineGigChange` in new code — it also handles
- * reassignment and clearing, and checks for an already-existing ledger entry so
- * the prompt is not shown when one is already linked.
- */
-export function shouldPromptForLedgerEntry(
-  rowType: string,
-  previousGigId: string | null | undefined,
-  newGigId: string | null | undefined
-): boolean {
-  if (rowType !== 'item') return false;
-  if (!newGigId) return false;
-  if (previousGigId) return false;
-  return true;
 }
 
 /** The subset of a purchase line needed to build/refresh its ledger entry. */
@@ -757,7 +739,10 @@ function mapRowToPurchaseItem(organizationId: string, data: any) {
     quantity: parsedQty,
     item_price: parsedItemPrice,
     item_cost: parsedItemCost,
-    row_type: (data.source === '1' ? 'asset' : 'item') as 'asset' | 'item',
+    // One line type (10-07): an equipment row is a tracked, depreciated line.
+    row_type: 'line' as const,
+    track: data.source === '1',
+    tax_treatment: (data.source === '1' ? 'depreciate' : 'expense') as 'depreciate' | 'expense',
   };
 }
 
