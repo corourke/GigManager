@@ -173,7 +173,7 @@ interface ReviewScannedDataDialogProps {
   onUpdated?: (purchaseId: string) => void;
   /**
    * 'dialog' (default) opens full screen over the page; 'page' renders in place,
-   * as the Add manually and Scan invoices tabs do. `onOpenChange(false)` is then Cancel.
+   * as the Add purchase and Scan invoices screens do. `onOpenChange(false)` is then Cancel.
    */
   layout?: 'dialog' | 'page';
   /** The label of the button that calls onOpenChange(false). */

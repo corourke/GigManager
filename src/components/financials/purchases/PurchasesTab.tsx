@@ -100,7 +100,7 @@ interface PurchasesTabProps {
   onEditAsset?: (assetId: string) => void;
   /** Bumped by PurchasesSection after a purchase was added on another tab; reloads the list. */
   reloadToken?: number;
-  /** Switch to the Add manually / Scan invoices tabs (offered from the empty state). */
+  /** Open the Add purchase / Scan invoices screens (offered from the empty state). */
   onAddManually?: () => void;
   onScanInvoices?: () => void;
 }
@@ -690,7 +690,7 @@ export default function PurchasesTab({
                 {onAddManually && (
                   <Button size="sm" variant="outline" onClick={onAddManually}>
                     <Plus className="w-4 h-4 mr-1.5" />
-                    Add manually
+                    Add purchase
                   </Button>
                 )}
                 {onScanInvoices && (
