@@ -41,5 +41,5 @@ GigWrangler can read an invoice or receipt for you (a PDF or a photo) and fill i
 You can also attach a file without scanning it, to a purchase, to one of a gig's money rows, or to a piece of equipment. [Receipts and invoices](/financials/receipts-and-invoices/) lists every way.
 
 :::note[Tax time]
-GigWrangler records the facts your tax program needs: what you spent, on what, when, and whether you expensed or depreciated it. It doesn't calculate tax. Once you've filed, lock the year under **Financials → Reporting**. Reports for Schedule C and Form 4562 are on the way there too.
+GigWrangler records the facts your tax program needs: what you spent, on what, when, and whether you expensed or depreciated it. It doesn't calculate tax. Once you've filed, lock the year under **Financials → Reporting**. The same tab lists a year's income, expenses and depreciated equipment, with a CSV download for your tax program.
 :::

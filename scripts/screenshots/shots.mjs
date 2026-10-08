@@ -499,6 +499,32 @@ export const shots = [
     target: (page) => [page.locator('[data-radix-popper-content-wrapper]').first(), page.locator('button[aria-label="Notifications"]')],
     pad: 8,
   },
+  {
+    id: 'financials/reporting-income',
+    page: 'financials/reporting.md',
+    user: 'admin',
+    sources: ['src/components/financials/ReportingTab.tsx'],
+    viewport: { width: 1200, height: 1400 },
+    prepare: async (page, ctx) => {
+      await page.goto(`${ctx.base}/financials/reporting`);
+      await page.getByRole('button', { name: 'Income', exact: true }).click();
+      await page.getByText('Harvest Gala Dinner & Dance').first().waitFor();
+    },
+    clip: { x: 0, y: 56, width: 1200, height: 760 },
+  },
+  {
+    id: 'financials/reporting-assets',
+    page: 'financials/reporting.md',
+    user: 'admin',
+    sources: ['src/components/financials/ReportingTab.tsx'],
+    viewport: { width: 1200, height: 1400 },
+    prepare: async (page, ctx) => {
+      await page.goto(`${ctx.base}/financials/reporting`);
+      await page.getByRole('button', { name: 'Assets', exact: true }).click();
+      await page.getByText(/7-year/).first().waitFor();
+    },
+    clip: { x: 0, y: 56, width: 1200, height: 800 },
+  },
   // Held: getting-started/the-dashboard-overview waits for #157 (the Equipment
   // card's Total Value ignores quantity), so the guide doesn't show a wrong figure.
 ];
