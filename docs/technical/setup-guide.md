@@ -57,7 +57,7 @@ PGPASSWORD=postgres psql -h 127.0.0.1 -p 54322 -U postgres -d postgres -c "SELEC
 ```
 
 ### 4. Configure Frontend
-The app automatically detects the environment. Ensure your `.env.local` (not committed)  matches the local settings provided by `supabase status`.
+The app automatically detects the environment. Ensure your `.env.development.local` (not committed) matches the local settings provided by `supabase status`.
 
 Default local settings:
 - **API URL**: `http://127.0.0.1:54321`
@@ -81,23 +81,25 @@ supabase db reset
 
 ## Environment Switching
 
-The frontend application uses environment variables to connect to the correct Supabase instance. You can switch between local and production by updating your `.env.local` file.
+The frontend application uses environment variables to connect to the correct Supabase instance. `npm run dev` reads `.env.development.local`; the production build (`./deploy_prod.sh`) reads `.env.production.local`. Both are git-ignored. Avoid `.env.local`: Vite loads it in every mode, including the production build, so a variable missing from `.env.production.local` would silently fall back to its dev value.
 
 ### 1. Local Development
 To connect to your local Docker-based Supabase instance:
 ```env
-# .env.local
+# .env.development.local
 VITE_SUPABASE_URL=http://127.0.0.1:54321
 VITE_SUPABASE_ANON_KEY=your-local-anon-key-from-supabase-status
 ```
 
-### 2. Production
-To connect to your hosted Supabase project:
+### 2. Hosted Development Project
+To run `npm run dev` against the hosted development project (`qcrzwsazasaojqoqxwnr`):
 ```env
-# .env.local
-VITE_SUPABASE_URL=https://your-project-ref.supabase.co
-VITE_SUPABASE_ANON_KEY=your-production-anon-key
+# .env.development.local
+VITE_SUPABASE_URL=https://qcrzwsazasaojqoqxwnr.supabase.co
+VITE_SUPABASE_ANON_KEY=your-dev-anon-key
 ```
+
+Production values belong only in `.env.production.local` on the machine that runs `./deploy_prod.sh` — see [deployment.md](./deployment.md#configuration-inventory).
 
 ### 3. Verification
 The application exports these values in `src/utils/supabase/info.tsx`. If these variables are missing, the app will throw an error on startup to prevent accidental connections to the wrong database.
@@ -192,7 +194,7 @@ The web app tags events with `environment` (Vite mode) and `release` (`gigwrangl
 ### Setup
 
 1. Create a Sentry organization/project at [sentry.io](https://sentry.io) — one **React** project for the web app and (optionally separate) one **Deno** project for edge functions. Copy each DSN.
-2. **Web (production)**: add `VITE_SENTRY_DSN=https://<key>@o<org>.ingest.us.sentry.io/<project>` to `.env.production.local` (git-ignored) on the machine that runs `./deploy_prod.sh`. It is a build-time variable, so it takes effect at the next `./deploy_prod.sh` run. Cloudflare Pages dashboard env vars are not used (the deploy is a direct upload of a locally built `build/`). Web (dev): `npm run dev` reads `.env.local`.
+2. **Web (production)**: add `VITE_SENTRY_DSN=https://<key>@o<org>.ingest.us.sentry.io/<project>` to `.env.production.local` (git-ignored) on the machine that runs `./deploy_prod.sh`. It is a build-time variable, so it takes effect at the next `./deploy_prod.sh` run. Cloudflare Pages dashboard env vars are not used (the deploy is a direct upload of a locally built `build/`). Web (dev): `npm run dev` reads `.env.development.local`.
 3. **Edge functions (dev first)**:
    ```bash
    cat supabase/.temp/project-ref   # verify target before setting secrets
@@ -424,7 +426,7 @@ If the CLI reset fails or you want a fresh start without local migrations:
 - [ ] Install Node.js 20.19+, Docker and the Supabase CLI.
 - [ ] Run `npm install`.
 - [ ] Run `supabase start`.
-- [ ] Create `.env.local` with `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY` from `supabase status`.
+- [ ] Create `.env.development.local` (copy `.env.example`) with `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY` from `supabase status`.
 - [ ] Run `npm run dev`, open http://localhost:3000 and sign up.
 
 ### Production Deployment

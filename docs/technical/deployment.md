@@ -220,7 +220,7 @@ Provides Postgres, Auth, Storage, and Edge Functions. Two projects, no staging:
 
 | Environment | Project Ref | Consumed by |
 |---|---|---|
-| Development | `qcrzwsazasaojqoqxwnr` | `npm run dev` via `.env.local` |
+| Development | `qcrzwsazasaojqoqxwnr` | `npm run dev` via `.env.development.local` |
 | Production | `hqnnhtxcxedisasvtbqv` | `./deploy_prod.sh` build, via `.env.production.local` |
 
 > ⚠️ **Verify the linked project before ANY remote Supabase command.** `supabase db push`, `functions deploy`, and `secrets set` all act on whatever is linked, with no confirmation of their own.
@@ -361,7 +361,9 @@ Set in the local env file the prod build reads, normally `.env.production.local`
 | `VITE_GOOGLE_CLIENT_ID` | For Calendar | Calendar integration components | Google Calendar connect flow unavailable |
 | `VITE_SENTRY_DSN` | Optional | `src/main.tsx` | Sentry no-ops; no error reporting |
 
-For development, `npm run dev` reads `.env.local` (git-ignored). [`.env.example`](../../.env.example) documents the shape with placeholder values.
+For development, put the same variables in `.env.development.local` (git-ignored), which only `npm run dev` reads. Avoid `.env.local`: Vite loads it in every mode, including the prod build, so a variable missing from `.env.production.local` would silently fall back to its dev value in the production bundle. [`.env.example`](../../.env.example) documents the shape with placeholder values.
+
+`VITE_GOOGLE_CLIENT_ID` must be the same OAuth client as the `GOOGLE_CLIENT_ID` edge-function secret in the same Supabase project: the browser obtains the authorization code with one, and the `server` function exchanges it with the other. A mismatch fails the Calendar connect flow at token exchange. Dev and prod use separate OAuth clients.
 
 ### Edge functions — Supabase secrets
 
