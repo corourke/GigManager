@@ -22,7 +22,7 @@ vi.mock('sonner', () => ({
 }));
 
 vi.mock('../../services/user.service', () => ({
-  searchAllUsers: vi.fn().mockResolvedValue([]),
+  searchPeople: vi.fn().mockResolvedValue([]),
 }));
 
 vi.mock('../../services/gigParticipantContacts.service', () => ({
@@ -105,8 +105,8 @@ describe('GigParticipantContactsList', () => {
 
   it('re-adding a person already linked as a gig contact does not error (upsert, not duplicate)', async () => {
     vi.mocked(gigParticipantContactsService.getGigParticipantContacts).mockResolvedValue([]);
-    vi.mocked(userService.searchAllUsers).mockResolvedValue([
-      { id: 'user-1', first_name: 'Cameron', last_name: 'Orourke', email: 'cam@example.com', phone: null } as any,
+    vi.mocked(userService.searchPeople).mockResolvedValue([
+      { id: 'user-1', first_name: 'Cameron', last_name: 'Orourke', email_hint: 'cam@example.com', organization_names: [], matched_on: 'name' },
     ]);
     vi.mocked(gigParticipantContactsService.addGigParticipantContact).mockResolvedValue({ id: 'gpc-1', user_id: 'user-1' } as any);
 

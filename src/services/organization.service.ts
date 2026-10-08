@@ -5,7 +5,6 @@ import {
   UserRole
 } from '../utils/supabase/types';
 import { handleApiError, handleFunctionsError } from '../utils/api-error-utils';
-import { sanitizeLikeInput } from '../utils/validation-utils';
 
 const getSupabase = () => createClient();
 
@@ -15,6 +14,15 @@ const getSupabase = () => createClient();
 export async function searchOrganizations(filters?: { type?: OrganizationRole; search?: string }): Promise<Organization[]> {
   const supabase = getSupabase();
   try {
+    // A name search matches every word, in any order, with a typo forgiven (#178).
+    if (filters?.search?.trim()) {
+      const { data, error } = await supabase
+        .rpc('search_organizations', { p_query: filters.search.trim(), p_type: filters.type })
+        .limit(20);
+      if (error) throw error;
+      return (data || []) as Organization[];
+    }
+
     let query = supabase
       .from('organizations')
       .select('*')
@@ -22,10 +30,6 @@ export async function searchOrganizations(filters?: { type?: OrganizationRole; s
 
     if (filters?.type) {
       query = query.contains('roles', [filters.type]);
-    }
-
-    if (filters?.search) {
-      query = query.ilike('name', `%${sanitizeLikeInput(filters.search)}%`);
     }
 
     const { data, error } = await query.limit(20);

@@ -21,6 +21,16 @@ export type DbUser = Tables['users']['Row'] & {
 // Aliases for core entities
 export type User = DbUser;
 
+// A system-wide person-search result (search_people): only what the picker shows.
+export type PersonMatch = {
+  id: string;
+  first_name: string;
+  last_name: string;
+  email_hint: string | null;
+  organization_names: string[];
+  matched_on: 'email' | 'phone' | 'name' | 'similar name';
+};
+
 export type DbOrganization = Tables['organizations']['Row'];
 
 export type Organization = DbOrganization;

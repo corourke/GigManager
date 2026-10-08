@@ -48,7 +48,7 @@ vi.mock('../services/organization.service', () => ({
 }));
 
 vi.mock('../services/user.service', () => ({
-  searchAllUsers: vi.fn().mockResolvedValue([]),
+  searchPeople: vi.fn().mockResolvedValue([]),
 }));
 
 vi.mock('../services/accessRequest.service', () => ({

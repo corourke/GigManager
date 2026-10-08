@@ -18,7 +18,7 @@ import { useOrganizationContactMutations } from './useOrganizationContacts';
 import { useGigParticipantContactMutations } from '../gig/useGigParticipantContacts';
 import { usePersonMatches } from './usePersonMatches';
 import PersonMatchResults from './PersonMatchResults';
-import type { User, UserRole } from '../../utils/supabase/types';
+import type { PersonMatch, UserRole } from '../../utils/supabase/types';
 
 interface AddPersonDialogProps {
   open: boolean;
@@ -41,6 +41,7 @@ interface AddPersonDialogProps {
 }
 
 const EMPTY = { firstName: '', lastName: '', email: '', phone: '', title: '' };
+const EMPTY_SEARCH = { name: '', email: '', phone: '' };
 
 /**
  * One shared "add a person" dialog used everywhere GigWrangler creates a new
@@ -48,7 +49,7 @@ const EMPTY = { firstName: '', lastName: '', email: '', phone: '', title: '' };
  * Organization Contacts tab, the Participants section (gig-scoped, via
  * GigParticipantContactsList), the Team screen's "No Account" tab, and the
  * gig staffing picker (via UserSelector). Search is system-wide (the same
- * search_users_secure path the "Add Existing User" tab already uses) — the
+ * search_people path the "Add Existing User" tab already uses) — the
  * whole point is to avoid creating a duplicate person who already exists
  * somewhere else, not just this one organization.
  */
@@ -73,7 +74,7 @@ export default function AddPersonDialog({
   // there's no existing primary to replace.
   const defaultIsPrimary = !isGigContact && hasPrimaryContact === undefined ? false : !hasPrimaryContact;
   const [isPrimary, setIsPrimary] = useState(defaultIsPrimary);
-  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState(EMPTY_SEARCH);
 
   const isPending = isGigContact
     ? gigMutations.addContact.isPending || gigMutations.createAndAddContact.isPending
@@ -83,25 +84,28 @@ export default function AddPersonDialog({
     setForm(EMPTY);
     setRole(defaultRole);
     setIsPrimary(defaultIsPrimary);
-    setDebouncedSearch('');
+    setDebouncedSearch(EMPTY_SEARCH);
   };
 
-  // Live search-as-you-type against name (falling back to email once it looks
-  // real) — system-wide, not scoped to this organization, so someone who
+  // Live search-as-you-type against name, email and phone (any one matching is
+  // enough) — system-wide, not scoped to this organization, so someone who
   // already exists elsewhere still turns up and can be linked in instead of
   // re-created.
   useEffect(() => {
     if (!open) return;
-    const emailQuery = form.email.trim();
-    const nameQuery = `${form.firstName.trim()} ${form.lastName.trim()}`.trim();
-    const search = emailQuery.length >= 3 ? emailQuery : nameQuery;
+    const search = {
+      name: `${form.firstName.trim()} ${form.lastName.trim()}`.trim(),
+      email: form.email.trim(),
+      phone: form.phone.trim(),
+    };
     const timer = setTimeout(() => setDebouncedSearch(search), 300);
     return () => clearTimeout(timer);
-  }, [open, form.firstName, form.lastName, form.email]);
+  }, [open, form.firstName, form.lastName, form.email, form.phone]);
 
-  const { data: matches = [], isFetching: isSearching, isError: matchesErrored, hasQuery } = usePersonMatches(debouncedSearch);
+  const { data: matches = [], isFetching: isSearching, isError: matchesErrored, hasQuery } =
+    usePersonMatches(debouncedSearch.name, debouncedSearch);
 
-  const handleUseExisting = async (match: User) => {
+  const handleUseExisting = async (match: PersonMatch) => {
     try {
       if (isGigContact) {
         await gigMutations.addContact.mutateAsync({ userId: match.id, isPrimary, title: form.title.trim() || undefined });

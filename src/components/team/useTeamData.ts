@@ -12,9 +12,9 @@ import {
   removeMember,
   cancelInvitation,
 } from '../../services/organization.service';
-import { searchAllUsers } from '../../services/user.service';
+import { searchPeople } from '../../services/user.service';
 import type {
-  User,
+  PersonMatch,
   UserRole,
   OrganizationMemberWithUser as OrganizationMember,
   InvitationWithInviter as Invitation,
@@ -92,10 +92,10 @@ export function useInvitations(orgId: string) {
 
 /** Debounced user search, excluding users already in the org. */
 export function useUserSearch(search: string, excludeUserIds: string[]) {
-  return useQuery<User[]>({
+  return useQuery<PersonMatch[]>({
     queryKey: ['userSearch', search],
     queryFn: async () => {
-      const results = await searchAllUsers(search);
+      const results = await searchPeople(search);
       return results.filter((u) => !excludeUserIds.includes(u.id));
     },
     enabled: search.trim().length >= 2,

@@ -1,5 +1,6 @@
 import {
   User,
+  PersonMatch,
   OrganizationMembershipWithOrg,
   UserRole,
   DbOrganization,
@@ -148,22 +149,30 @@ export async function searchUsers(search?: string, organizationIds?: string[]): 
 }
 
 /**
- * Search for all active users in the system
+ * System-wide search for an existing person (#178), to link them rather than
+ * create a duplicate. Every word of `query` counts, in any order, with a typo
+ * forgiven; `email` matches as typed and `phone` ignoring formatting. Any one
+ * match is enough. Returns only what the picker shows (search_people).
  */
-export async function searchAllUsers(search: string): Promise<User[]> {
+export async function searchPeople(
+  query: string,
+  extra: { email?: string; phone?: string } = {},
+): Promise<PersonMatch[]> {
   try {
     await getCurrentUser();
     const supabase = getSupabase();
 
-    if (!search || search.length < 2) return [];
+    const email = extra.email?.trim() || undefined;
+    const phone = extra.phone?.trim() || undefined;
+    if ((!query || query.trim().length < 2) && !email && !phone) return [];
 
     const { data, error } = await supabase
-      .rpc('search_users_secure', { search_text: search });
+      .rpc('search_people', { p_query: query?.trim() ?? '', p_email: email, p_phone: phone });
 
     if (error) throw error;
-    return data || [];
+    return (data || []) as PersonMatch[];
   } catch (err) {
-    return handleApiError(err, 'search all users');
+    return handleApiError(err, 'search people');
   }
 }
 
