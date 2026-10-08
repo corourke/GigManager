@@ -148,7 +148,7 @@ Never send `''` for `category` or the uuid and date columns; the service turns `
 | `gig_financial_id` | The ledger row created at finalize; the back-link of `gig_financials.staff_assignment_id`. |
 
 The assignment is the **plan** and the ledger row is the **actual**:
-1. **Before finalize:** the assignment counts as a projected staff cost (fee, or rate when there is no fee).
+1. **Before finalize:** a Confirmed or Requested assignment counts as a projected staff cost. A fee counts at its flat amount. A rate (`rate_unit` hour, day or half day, #171) counts as rate × units estimated from the gig (#213): per hour, the hours from the gig's start to its end, rounded to the nearest quarter hour (1 hr, labelled "(no end time)" or "(no times)", when the end is missing, not after the start, or the gig is date-only); per day, the calendar days the gig spans in its timezone, start day through end day, at least 1, with an end before 06:00 local counted to the day before so an overnight gig is one day; per half day, one per gig day. One helper, `projectedStaffCost` in `src/utils/rateEstimate.ts`, does this for the staffing footer, the read-only staffing table, the Financials tab's Projected staff costs table, the money summary, the print sheet and Gig Accounting, which show it as e.g. "est. 9 hr × $35.00 / hr = $315.00".
 2. **Finalize:** a money-out row is created, at stage `invoiced` (Owed), category Contract labor, description "Labor: {role}", amount = fee, or rate × units.
 3. **Paid:** the same row moves to `paid`.
 
@@ -287,7 +287,7 @@ DUE NOW       = the part of OWED TO YOU past its due date, or with no due date o
 EXPECTED OUT  = Σ money out at accepted or later   (paid rows at amount_settled)
 PAID OUT      = Σ amount_settled, money out, paid
 YOU OWE       = Σ amount, money out, accepted … invoiced
-PROJECTED STAFF = Σ unfinalized Confirmed/Requested assignments (fee, else rate)
+PROJECTED STAFF = Σ unfinalized Confirmed/Requested assignments (fee, else rate × units estimated from the gig)
 
 TOTAL COSTS   = EXPECTED OUT + PROJECTED STAFF
 NET           = EXPECTED IN − TOTAL COSTS        MARGIN = NET / EXPECTED IN

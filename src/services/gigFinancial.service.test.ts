@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import {
   createGigFinancial,
   getGigExportAggregates,
+  getGigProfitabilitySummary,
   recordGigFinancialPayment,
   updateGigFinancial,
 } from './gigFinancial.service';
@@ -25,12 +26,57 @@ import { logActivity } from './activityLog.service';
 // Chainable Supabase query builder stub that resolves to `result` when awaited.
 function makeChain(result: { data: any; error: any }) {
   const chain: any = {};
-  ['select', 'eq', 'in', 'is', 'or', 'order', 'limit'].forEach((m) => {
+  ['select', 'eq', 'in', 'is', 'or', 'order', 'limit', 'maybeSingle'].forEach((m) => {
     chain[m] = vi.fn().mockReturnValue(chain);
   });
   chain.then = (resolve: any, reject: any) => Promise.resolve(result).then(resolve, reject);
   return chain;
 }
+
+describe('getGigProfitabilitySummary projected staff costs (#213)', () => {
+  let mockSupabase: any;
+  // 18:00–03:00 in Los Angeles: 9 hours, one day
+  const nightGig = { start: '2026-10-11T01:00:00Z', end: '2026-10-11T10:00:00Z', timezone: 'America/Los_Angeles' };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockSupabase = { from: vi.fn() };
+    (createClient as any).mockReturnValue(mockSupabase);
+  });
+
+  function setup(assignments: any[], gig: any = nightGig) {
+    mockSupabase.from.mockImplementation((table: string) => {
+      if (table === 'gigs') return makeChain({ data: gig, error: null });
+      if (table === 'gig_staff_assignments') return makeChain({ data: assignments, error: null });
+      return makeChain({ data: [], error: null });
+    });
+  }
+
+  it('projects a $35 / hr Confirmed assignment on a 9-hour gig at $315, not $35', async () => {
+    setup([{ fee: null, rate: 35, rate_unit: 'hour', status: 'Confirmed', completed_at: null }]);
+    const summary = await getGigProfitabilitySummary('gig-1', 'org-1');
+    expect(summary.projectedStaffCosts).toBe(315);
+    expect(summary.totalCosts).toBe(315);
+  });
+
+  it('keeps a fee at its flat amount and estimates day and half-day rates by gig day', async () => {
+    setup([
+      { fee: 350, rate: null, rate_unit: 'hour', status: 'Requested', completed_at: null },
+      { fee: null, rate: 400, rate_unit: 'day', status: 'Requested', completed_at: null },
+      { fee: null, rate: 200, rate_unit: 'half_day', status: 'Confirmed', completed_at: null },
+      { fee: null, rate: 35, rate_unit: 'hour', status: 'Declined', completed_at: null },
+    ]);
+    const summary = await getGigProfitabilitySummary('gig-1', 'org-1');
+    expect(summary.projectedStaffCosts).toBe(350 + 400 + 200);
+  });
+
+  it("reads the gig's start, end and timezone", async () => {
+    setup([]);
+    await getGigProfitabilitySummary('gig-1', 'org-1');
+    const gigsChain = mockSupabase.from.mock.results.find((_r: any, i: number) => mockSupabase.from.mock.calls[i][0] === 'gigs').value;
+    expect(gigsChain.select).toHaveBeenCalledWith(expect.stringMatching(/start.*end.*timezone/));
+  });
+});
 
 describe('getGigExportAggregates', () => {
   let mockSupabase: any;

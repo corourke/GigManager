@@ -60,6 +60,7 @@ import MoneySummaryStrip from './financials/MoneySummaryStrip';
 import FinancialRowDialog from './financials/FinancialRowDialog';
 import RecordPaymentDialog, { type RecordPaymentValues } from './financials/RecordPaymentDialog';
 import { formatMoney, formatShort } from './financials/format';
+import { projectedStaffCost } from '../../utils/rateEstimate';
 
 type FinancialRow = DbGigFinancial & { counterparty?: { id: string; name: string } | null; attachment_count?: number };
 
@@ -68,8 +69,12 @@ interface GigFinancialsSectionProps {
   currentOrganizationId: string;
   userRole?: UserRole;
   gigStartDate?: string;
+  /** When the gig starts (timestamp); with gigEnd, estimates a booked rate's units (#213). */
+  gigStart?: string | null;
   /** When the gig ends; an unpaid fee with no due date is due after this. */
   gigEnd?: string | null;
+  /** The gig's timezone, for counting its days. */
+  gigTimezone?: string | null;
   /**
    * Page-wide edit mode (#12). When given, it decides whether the add / edit /
    * delete controls show, and the section's own "Edit Financials" toggle is hidden.
@@ -109,7 +114,9 @@ export default function GigFinancialsSection({
   currentOrganizationId,
   userRole,
   gigStartDate,
+  gigStart,
   gigEnd,
+  gigTimezone,
   editing,
 }: GigFinancialsSectionProps) {
   const navigation = useNavigation();
@@ -490,7 +497,9 @@ export default function GigFinancialsSection({
                         <TableCell className="py-2.5">
                           {staff.user ? `${staff.user.first_name} ${staff.user.last_name}` : 'Unassigned'}
                         </TableCell>
-                        <TableCell className="py-2.5 text-right">{formatMoney(staff.fee ?? staff.rate ?? 0)}</TableCell>
+                        <TableCell className="py-2.5 text-right">
+                          {projectedStaffCost(staff, { start: gigStart, end: gigEnd, timezone: gigTimezone }).label}
+                        </TableCell>
                         <TableCell className="py-2.5">
                           <Badge variant="secondary" className="text-[10px] font-normal">{staff.status}</Badge>
                         </TableCell>

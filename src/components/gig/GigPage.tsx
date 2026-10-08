@@ -323,7 +323,7 @@ export default function GigPage({
                   />
                 </div>
                 <div className="lg:col-span-3">
-                  <GigStaffingTable slots={ownSlots} showAmounts={canEdit} />
+                  <GigStaffingTable slots={ownSlots} showAmounts={canEdit} gig={gig} />
                 </div>
               </div>
             )}
@@ -361,6 +361,8 @@ export default function GigPage({
                 currentOrganizationId={organization.id}
                 userRole={userRole}
                 gigStartDate={gig.start?.substring(0, 10)}
+                gigStart={gig.start}
+                gigTimezone={gig.timezone}
                 gigEnd={gig.end}
                 editing={editing}
               />

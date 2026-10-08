@@ -642,6 +642,25 @@ describe('gig.service', () => {
       expect(result.totalCosts).toBe(350);
     });
 
+    it('projects a booked rate over the units the gig spans, not once (#213)', async () => {
+      // 18:00–03:00 in Los Angeles: 9 hours, one day
+      const nightGig = { ...pastGig, start: '2026-10-11T01:00:00Z', end: '2026-10-11T10:00:00Z', timezone: 'America/Los_Angeles' };
+      const slot = { gig_id: 'gig-1', organization_id: 'org-1' };
+      setupMocks({
+        participants: [{ gig_id: 'gig-1' }],
+        gigs: [nightGig],
+        assignments: [
+          { id: 'hand', fee: null, rate: 35, rate_unit: 'hour', status: 'Confirmed', completed_at: null, slot },
+          { id: 'foh', fee: 350, rate: null, rate_unit: 'hour', status: 'Requested', completed_at: null, slot },
+          // Finalized: its money-out row counts instead, at rate × units entered
+          { id: 'done', fee: null, rate: 35, rate_unit: 'hour', units_completed: 4, status: 'Confirmed', completed_at: '2026-10-12T00:00:00Z', slot },
+        ],
+      });
+
+      const [result] = await getAllGigAccountingSummaries('org-1');
+      expect(result.expectedStaffCosts).toBe(315 + 350);
+    });
+
     it('treats an invoice as not yet due until its due date, even after the gig', async () => {
       setupMocks({
         participants: [{ gig_id: 'gig-1' }],

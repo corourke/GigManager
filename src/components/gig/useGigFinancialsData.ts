@@ -40,6 +40,7 @@ export function useGigFinancialsData(
           id,
           fee,
           rate,
+          rate_unit,
           status,
           user:user_id(id, first_name, last_name),
           slot:gig_staff_slots!inner(gig_id, organization_id, role_info:staff_roles(name))

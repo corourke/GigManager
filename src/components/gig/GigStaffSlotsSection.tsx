@@ -35,6 +35,7 @@ import { useRowBaseline } from '../../utils/hooks/useRowBaseline';
 import SaveStateIndicator from './SaveStateIndicator';
 import { RotateCcw } from 'lucide-react';
 import { RATE_UNITS, formatRate, rateUnit, unitPlural, type RateUnit } from './view/staffRows';
+import { projectedStaffCost, type GigTimes } from '../../utils/rateEstimate';
 
 const staffAssignmentSchema = z.object({
   id: z.string(),
@@ -115,6 +116,8 @@ export default function GigStaffSlotsSection({
   const [showCompleteModal, setShowCompleteModal] = useState<{ slotIndex: number; assignmentIndex: number } | null>(null);
   const [completionUnits, setCompletionUnits] = useState<string>('1');
   const [deletingSlotIndex, setDeletingSlotIndex] = useState<number | null>(null);
+  // The gig's times: a booked rate's projected cost is estimated from them (#213).
+  const [gigTimes, setGigTimes] = useState<GigTimes | null>(null);
 
   const { control, handleSubmit: _handleSubmit, formState: { errors, isDirty }, watch, reset, setValue, getValues } = useForm<StaffSlotsFormData>({
     resolver: zodResolver(staffSlotsFormSchema),
@@ -132,8 +135,11 @@ export default function GigStaffSlotsSection({
   const calculateStaffCosts = () => {
     let finalized = 0;
     let projected = 0;
+    // How each booked rate's projection is reached: "est. 9 hr × $35.00 / hr = $315.00".
+    const estimates: { key: string; text: string }[] = [];
 
     fields.forEach((slot, slotIndex) => {
+      const role = watch(`slots.${slotIndex}.role`);
       const assignments = watch(`slots.${slotIndex}.assignments`) || [];
       assignments.forEach((assignment: any) => {
         const amount = parseFloat(assignment.amount) || 0;
@@ -144,15 +150,24 @@ export default function GigStaffSlotsSection({
             finalized += amount;
           }
         } else if (assignment.status === 'Confirmed' || assignment.status === 'Requested') {
-          projected += amount;
+          const isRate = assignment.compensation_type === 'rate';
+          const cost = projectedStaffCost(
+            isRate ? { rate: amount, fee: null, rate_unit: assignment.rate_unit } : { fee: amount, rate: null },
+            gigTimes,
+          );
+          projected += cost.amount;
+          if (isRate && amount > 0) {
+            const who = [role, assignment.user_name].filter(Boolean).join(' · ');
+            estimates.push({ key: assignment.id, text: who ? `${who}: ${cost.label}` : cost.label });
+          }
         }
       });
     });
 
-    return { finalized, projected };
+    return { finalized, projected, estimates };
   };
 
-  const { finalized, projected } = calculateStaffCosts();
+  const { finalized, projected, estimates } = calculateStaffCosts();
 
   // The rate assignment the Finalize dialog is asking units for.
   const completingAssignment = showCompleteModal
@@ -267,6 +282,7 @@ export default function GigStaffSlotsSection({
     setIsLoading(true);
     try {
       const gig = await getGig(gigId);
+      setGigTimes({ start: gig.start, end: gig.end, timezone: gig.timezone });
       const loadedSlots = gig.staff_slots || [];
       
       const organizationSlots = loadedSlots.filter(
@@ -818,7 +834,7 @@ export default function GigStaffSlotsSection({
             ))}
           </div>
         </CardContent>
-        <CardFooter className="bg-gray-50 border-t py-3">
+        <CardFooter className="bg-gray-50 border-t py-3 flex-col items-stretch gap-1">
           <div className="w-full flex justify-between items-center text-sm">
             <div className="text-gray-500">
               Total Staff Cost
@@ -831,6 +847,11 @@ export default function GigStaffSlotsSection({
               <span>Total: ${ (finalized + projected).toFixed(2) }</span>
             </div>
           </div>
+          {estimates.length > 0 && (
+            <ul className="w-full text-xs text-gray-500 text-right" aria-label="Projected rate estimates">
+              {estimates.map((e) => <li key={e.key}>{e.text}</li>)}
+            </ul>
+          )}
         </CardFooter>
       </Card>
 

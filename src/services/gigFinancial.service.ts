@@ -5,6 +5,7 @@ import { getSupabase } from './gigService.shared';
 import { logActivity } from './activityLog.service';
 import type { ActivityEventType } from '../utils/activityLog.events';
 import { expectedAmount, summarizeMoney, type MoneyRow, type MoneySummary } from '../utils/moneyFlow';
+import { projectedStaffCost } from '../utils/rateEstimate';
 
 /**
  * Gig financial / bid operations (Phase 7, Step 4 — extracted from
@@ -52,7 +53,8 @@ export async function getGigFinancials(gigId: string, organizationId?: string) {
 /**
  * Money summary for one gig and organization: what is expected, received and
  * owed in each direction (see utils/moneyFlow), plus projected costs of staff
- * who are booked but not yet finalized.
+ * who are booked but not yet finalized: a fee at its amount, a rate times the
+ * units estimated from the gig's times (utils/rateEstimate, #213).
  */
 export async function getGigProfitabilitySummary(gigId: string, organizationId: string) {
   const supabase = getSupabase();
@@ -65,7 +67,7 @@ export async function getGigProfitabilitySummary(gigId: string, organizationId: 
 
     if (finError) throw finError;
 
-    const { data: gig } = await supabase.from('gigs').select('end').eq('id', gigId).maybeSingle();
+    const { data: gig } = await supabase.from('gigs').select('start, end, timezone').eq('id', gigId).maybeSingle();
 
     // Uncompleted staff assignments: projected costs until they are finalized
     // into a money-out row.
@@ -74,6 +76,7 @@ export async function getGigProfitabilitySummary(gigId: string, organizationId: 
       .select(`
         fee,
         rate,
+        rate_unit,
         status,
         completed_at,
         slot:gig_staff_slots!inner(gig_id, organization_id)
@@ -89,8 +92,7 @@ export async function getGigProfitabilitySummary(gigId: string, organizationId: 
     let projectedStaffCosts = 0;
     (assignments || []).forEach(a => {
       if (a.status === 'Confirmed' || a.status === 'Requested') {
-        const amount = a.fee !== null ? Number(a.fee) : (a.rate !== null ? Number(a.rate) : 0);
-        projectedStaffCosts += amount;
+        projectedStaffCosts += projectedStaffCost(a, gig).amount;
       }
     });
 
