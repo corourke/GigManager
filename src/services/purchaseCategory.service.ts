@@ -6,7 +6,7 @@
  * (organization_id NULL) are seen and edited only by platform moderators.
  * See docs/technical/financials.md §6.
  */
-import { requireAuth } from '../utils/supabase/auth-utils';
+import { getCurrentUser, getSupabase } from './base/dataAccess';
 import { EXPENSE_HEADINGS, tidyAssetCategory } from '../utils/purchaseCategories';
 import { getDistinctAssetValues } from './asset.service';
 import { asRecoveryPeriod, type CategoryPeriods } from '../utils/recoveryPeriod';
@@ -48,7 +48,8 @@ const TABLE: Record<CategoryKind, 'expense_categories' | 'equipment_categories'>
 
 /** Copy the starter sets into the organization if it has no lists yet. */
 export async function ensureOrgCategories(organizationId: string): Promise<void> {
-  const { supabase } = await requireAuth();
+  await getCurrentUser();
+  const supabase = getSupabase();
   const { error } = await supabase.rpc('ensure_org_categories' as any, { p_org: organizationId } as any);
   if (error) throw error;
 }
@@ -57,7 +58,8 @@ export async function ensureOrgCategories(organizationId: string): Promise<void>
 export async function getExpenseCategories(organizationId: string): Promise<ExpenseCategory[]> {
   try {
     await ensureOrgCategories(organizationId);
-    const { supabase } = await requireAuth();
+    await getCurrentUser();
+    const supabase = getSupabase();
     const { data, error } = await (supabase.from('expense_categories') as any)
       .select('id, name, schedule_c_line, sort_order')
       .eq('organization_id', organizationId)
@@ -78,7 +80,8 @@ export async function getExpenseCategories(organizationId: string): Promise<Expe
 export async function getEquipmentCategories(organizationId: string): Promise<string[]> {
   try {
     await ensureOrgCategories(organizationId);
-    const { supabase } = await requireAuth();
+    await getCurrentUser();
+    const supabase = getSupabase();
     const { data, error } = await (supabase.from('equipment_categories') as any)
       .select('name')
       .eq('organization_id', organizationId)
@@ -104,7 +107,8 @@ export async function getEquipmentCategories(organizationId: string): Promise<st
 export async function getEquipmentCategoryPeriods(organizationId: string): Promise<CategoryPeriods> {
   try {
     await ensureOrgCategories(organizationId);
-    const { supabase } = await requireAuth();
+    await getCurrentUser();
+    const supabase = getSupabase();
     const { data, error } = await (supabase.from('equipment_categories') as any)
       .select('name, default_recovery_period')
       .eq('organization_id', organizationId);
@@ -123,7 +127,8 @@ export async function getEquipmentCategoryPeriods(organizationId: string): Promi
 /** Every category in a list, active or not: an organization's (`organizationId`) or the starter set (`null`). */
 export async function listCategories(kind: CategoryKind, organizationId: string | null): Promise<CategoryRow[]> {
   if (organizationId) await ensureOrgCategories(organizationId);
-  const { supabase } = await requireAuth();
+  await getCurrentUser();
+  const supabase = getSupabase();
   const cols = kind === 'expense' ? 'id, organization_id, name, schedule_c_line, sort_order, active' : 'id, organization_id, name, default_recovery_period, sort_order, active';
   let q = (supabase.from(TABLE[kind]) as any).select(cols);
   q = organizationId ? q.eq('organization_id', organizationId) : q.is('organization_id', null);
@@ -137,7 +142,8 @@ export async function addCategory(
   organizationId: string | null,
   fields: { name: string; schedule_c_line?: string | null; default_recovery_period?: number | null; sort_order: number },
 ): Promise<CategoryRow> {
-  const { supabase } = await requireAuth();
+  await getCurrentUser();
+  const supabase = getSupabase();
   const row: Record<string, unknown> = { organization_id: organizationId, name: fields.name.trim(), sort_order: fields.sort_order };
   if (kind === 'expense') row.schedule_c_line = fields.schedule_c_line ?? null;
   else row.default_recovery_period = fields.default_recovery_period ?? null;
@@ -151,13 +157,15 @@ export async function updateCategory(
   id: string,
   patch: Partial<Pick<CategoryRow, 'name' | 'schedule_c_line' | 'default_recovery_period' | 'active' | 'sort_order'>>,
 ): Promise<void> {
-  const { supabase } = await requireAuth();
+  await getCurrentUser();
+  const supabase = getSupabase();
   const { error } = await (supabase.from(TABLE[kind]) as any).update(patch).eq('id', id);
   if (error) throw error;
 }
 
 export async function getScheduleCLines(): Promise<ScheduleCLine[]> {
-  const { supabase } = await requireAuth();
+  await getCurrentUser();
+  const supabase = getSupabase();
   const { data, error } = await (supabase.from('schedule_c_lines') as any).select('code, label').order('sort_order');
   if (error) throw error;
   return (data ?? []) as ScheduleCLine[];
@@ -169,7 +177,8 @@ export async function getScheduleCLines(): Promise<ScheduleCLine[]> {
  * A category in use isn't renamed here, since records store the name.
  */
 export async function getCategoryUsage(kind: CategoryKind, organizationId: string): Promise<Record<string, number>> {
-  const { supabase } = await requireAuth();
+  await getCurrentUser();
+  const supabase = getSupabase();
   let q: any;
   if (kind === 'expense') {
     q = (supabase.from('purchases') as any).select('category')
@@ -191,7 +200,8 @@ export async function getCategoryUsage(kind: CategoryKind, organizationId: strin
 export async function getTypeUsage(organizationId: string, category: string): Promise<{ type: string; count: number }[]> {
   if (!category) return [];
   try {
-    const { supabase } = await requireAuth();
+    await getCurrentUser();
+    const supabase = getSupabase();
     const { data, error } = await (supabase.from('assets') as any)
       .select('type')
       .eq('organization_id', organizationId)

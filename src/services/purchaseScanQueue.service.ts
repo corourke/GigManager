@@ -1,4 +1,4 @@
-import { createClient } from '../utils/supabase/client';
+import { getSupabase } from './base/dataAccess';
 import { handleApiError, handleFunctionsError } from '../utils/api-error-utils';
 import { uploadAttachment, deleteAttachment, getAttachmentUrl } from './attachment.service';
 
@@ -22,7 +22,6 @@ export interface ScanQueueItem {
   attachments?: { file_path: string } | null;
 }
 
-const getSupabase = () => createClient();
 const COLUMNS = 'id, organization_id, attachment_id, file_name, status, scanned_data, error, created_at, updated_at, attachments(file_path)';
 
 /** The org's queue, oldest first, so invoices are reviewed in the order they were added. */

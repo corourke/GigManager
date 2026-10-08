@@ -1,8 +1,6 @@
-import { createClient } from '../utils/supabase/client';
+import { getSupabase } from './base/dataAccess';
 import { AccessRequestWithRelations } from '../utils/supabase/types';
 import { handleFunctionsError } from '../utils/api-error-utils';
-
-const getSupabase = () => createClient();
 
 export type RequestableRole = 'Manager' | 'Admin';
 
