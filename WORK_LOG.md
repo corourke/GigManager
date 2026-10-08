@@ -5,6 +5,8 @@ Append new entries at the top of each section; never edit an old entry to descri
 
 ## Shipped (newest first)
 
+- **#92, PR #200** (coordinator's sub-agent, merged 10-08 evening): autosave in participants, schedule, staff, gig kits and kit components deletes only rows the form loaded and the user removed (`useRowBaseline`; services take `loadedIds`, nothing deleted without it); inserted rows' ids are written back. Deletes and inserts are still not one transaction.
+
 - **PR #199** (coordinator's sub-agent, merged 10-08 evening): #174 frontend: Managers aren't offered Admin anywhere (shared `canAssignRole`), an Admin's role is read-only for Managers, your own role cell is read-only, a failed invite email no longer says "Invitation sent!". Left open: the database function's wrong tab name (needs a migration).
 
 - **PR #198** (coordinator's sub-agents, merged 10-08 evening): #158, #159, #168, #169 (with `remark-breaks`: 13 of 19 prod notes use single line breaks), #170, #171 (delete confirmation only), #173 (incl. the server dropping timezone), #176, #188, #193 (screens on demand: main bundle 2,097,245 → 1,949,126 bytes), #194, and overnight gigs on Google Calendar. `server` deployed to dev (v42). Also merged 10-08: PR #197 (Gig Accounting: Booked; Owed to you on Completed gigs only) and PR #190 (Equipment Lead, #157 dashboard total; `server` on dev v41).

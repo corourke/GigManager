@@ -9,7 +9,7 @@
 
 This file lives on `main`. Land updates there promptly: a run that starts from `main` won't see edits parked on a feature branch.
 
-- **Last updated:** 2026-10-08 evening (coordinator: PR #198 merged and `server` on dev; #174 UI and #92 in progress)
+- **Last updated:** 2026-10-08 evening (coordinator: PRs #199 and #200 merged; Grey zone report in PR #201)
 
 ---
 
@@ -22,7 +22,6 @@ This file lives on `main`. Land updates there promptly: a run that starts from `
 | [#181](https://github.com/corourke/GigManager/issues/181) | Data grouping review for Cameron | #180 is in prod (158 items); regrouping is now a data change. Coordinator supplies prod data | Equipment Lead |
 | [#182](https://github.com/corourke/GigManager/issues/182)–[#186](https://github.com/corourke/GigManager/issues/186) | Items screens: (a) Items tab, item page, unit/lot form, dashboard total (closes #157); (b) purchases, CSV import; (c) kit editor, overlap; (d) packing list, gig equipment, scanning; (e) locations, override, maintenance (closes #160) | (a) can start (#180 on dev 10-08); b and c after a; d after c; e after d | Equipment Lead |
 | [#135](https://github.com/corourke/GigManager/issues/135) | Audit and fix 2026 purchase data | Unblocked once the reports are on dev; they show what needs fixing | Coordinator with Cameron; each prod data fix needs his go |
-| [#92](https://github.com/corourke/GigManager/issues/92) | Replace-all autosave can delete rows another user or tab added | Confirmed by reading the code (09-29 review) | Coordinator, not started |
 | [#20](https://github.com/corourke/GigManager/issues/20) | Shared data-access layer under `src/services/` | Released in §3c (7 batches) | Triage, batch 1 next |
 | [#175](https://github.com/corourke/GigManager/issues/175) | Delete gig offered to Managers, but Admin-only | Cameron 10-07: another participating org's Admin must never delete; direction "cancel only when other orgs participate" | Needs a design pass (coordinator) |
 | [#174](https://github.com/corourke/GigManager/issues/174) | Team roles and invitations: UI offers what the server refuses | Cameron 10-07: a Manager must never be able to make anyone an Admin, by any path | Coordinator; the server side is the private finding in §2 |
@@ -30,9 +29,10 @@ This file lives on `main`. Land updates there promptly: a run that starts from `
 ## 2. Waiting on Cameron
 
 1. **Dev mail catcher** (Cameron, 10-08: Mailtrap): create a free Mailtrap Email Testing inbox and send its SMTP host, port, user and password. The coordinator then points dev's Supabase Auth at it and checks the invitation, sign-up confirmation and password-reset flows with the demo `.test` logins.
-2. **#171 rate unit:** a staff rate always shows "/ hr", but nothing in the schema says whether a rate is hourly, daily or flat. Either add a unit (a migration on `gig_staff_assignments`, plus a picker), or show a neutral "/ unit". Which? (The delete confirmation half of #171 shipped in PR #198.)
-3. **Dev deploy access:** this session's Supabase token gets 403 on the dev project's details (prod's are readable), so `supabase link` and `./deploy_dev.sh` fail; functions deploy fine with `--project-ref qcrzwsazasaojqoqxwnr`. Migrations to dev still need you, or a project-level role fix on dev.
-4. **Sentry secrets** (optional): `SENTRY_API_TOKEN`, `SENTRY_ORG_SLUG`, `SENTRY_PROJECT_SLUG`; the health check reports "not configured" until set.
+2. **Check #92 on dev before the next prod deploy** (PR #200 changed how every gig section's autosave deletes rows). The two-tab steps are in the PR body.
+3. **#171 rate unit:** a staff rate always shows "/ hr", but nothing in the schema says whether a rate is hourly, daily or flat. Either add a unit (a migration on `gig_staff_assignments`, plus a picker), or show a neutral "/ unit". Which? (The delete confirmation half of #171 shipped in PR #198.)
+4. **Dev deploy access:** this session's Supabase token gets 403 on the dev project's details (prod's are readable), so `supabase link` and `./deploy_dev.sh` fail; functions deploy fine with `--project-ref qcrzwsazasaojqoqxwnr`. Migrations to dev still need you, or a project-level role fix on dev.
+5. **Sentry secrets** (optional): `SENTRY_API_TOKEN`, `SENTRY_ORG_SLUG`, `SENTRY_PROJECT_SLUG`; the health check reports "not configured" until set.
 
 **Decided 10-08, recorded here until done:**
 - The Docs Lead's corrected membership report (private; reported to Cameron directly): no path lets a Manager make anyone an Admin. The remaining backstop gaps are **parked** (Cameron: later). Partner organizations on a shared gig may keep adding, editing and removing each other's no-login contacts (intended). Person-search privacy is fixed by #178 (in prod 10-08).
@@ -62,12 +62,12 @@ This file lives on `main`. Land updates there promptly: a run that starts from `
 3. `gigStaff`, `asset`, `kit` (one shared `computeFieldChanges` path)
 4. `organization`, `conflictDetection`, `googleCalendar`
 5. `inventoryManagement`, `gigFinancial`, `taxReport`
-6. `gig`: **hold until #92 is settled**
+6. `gig` (#92 is fixed, PR #200)
 7. `purchase`
 
 Pure refactor: no migrations, no edge-function or UI changes. Tests, typecheck, lint and build pass per PR.
 
-Not released: #175 (needs a design pass). **Coordinator, 10-08 evening (sub-agents): #92 (replace-all saves delete only rows the form loaded and removed).** #174's UI half shipped in PR #199; its remaining item (the already-active error names the tab "Add Existing User") is in a database function and waits for the next membership migration.
+Not released: #175 (needs a design pass). #174's UI half shipped in PR #199; its remaining item (the already-active error names the tab "Add Existing User") is in a database function and waits for the next membership migration.
 
 **Never pre-approved:** migrations or any RLS/policy change (Cameron applies migrations), edge-function API shape, production config or `deploy_prod.sh`.
 
