@@ -5,6 +5,8 @@ Append new entries at the top of each section; never edit an old entry to descri
 
 ## Shipped (newest first)
 
+- **#213, PR #218** (coordinator's sub-agent, merged 10-08): a booked, unfinalized rate projects rate × units estimated from the gig (hours start→end to the nearest ¼ hr; days in the gig's timezone, an end before 06:00 counting to the day before; one half day per day), via `src/utils/rateEstimate.ts`, in the staffing footer, view-mode staffing table, Financials → Projected staff costs, money summary, print sheet and Gig Accounting ("est. 9.5 hr × $35.00 / hr = $332.50"). Same PR: the dev env file is named `.env.development.local` in `info.tsx`, the screenshots README and setup-guide. Future considerations: the gig CSV export (`getGigExportAggregates` costOfStaff) still counts each rate once; the Financials tab doesn't refetch after the gig's times change on the page.
+
 - **#183 piece A, PR #216** (Equipment Lead, merged by the coordinator 10-08): migration `20261017000000_purchase_line_units` (on dev, applied by Cameron): `create_purchase_transaction_v2` and `add_purchase_line_units` make one record per unit (or one lot) linked by `purchase_line_id`; depreciation and recovery period follow each unit's own line; `purchases.asset_id` stays as the "tracked" marker; v1 kept for old builds. RLS test 51; mockups 3 and 4 updated. No screen uses it yet (pieces B, C, D).
 
 - **User guide for #206, PR #217** (Docs Lead, merged 10-08): Edit on a member's page changes their role.
