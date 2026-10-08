@@ -46,6 +46,8 @@ interface DashboardStats {
     totalAssetValue: number;
     totalInsuredValue: number;
     totalRentalValue: number;
+    ownedItems?: number;
+    ownedPieces?: number;
   };
   revenue: {
     thisMonth: number;
@@ -223,6 +225,12 @@ export default function Dashboard({
                     <p className="text-xs text-muted-foreground">Rental Value</p>
                     <p className="text-foreground">{formatCurrency(stats.assetValues.totalRentalValue)}</p>
                   </div>
+                  {stats.assetValues.ownedItems != null && (
+                    <div className="flex items-baseline justify-between">
+                      <p className="text-xs text-muted-foreground">Owned</p>
+                      <p className="text-foreground">{`${stats.assetValues.ownedItems} items · ${stats.assetValues.ownedPieces ?? 0} pieces`}</p>
+                    </div>
+                  )}
                 </div>
               </Card>
 
