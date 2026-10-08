@@ -18,15 +18,13 @@ sidebar:
 
 ![The Sign Up tab filled in with a first name, last name, email and password, rated Fair, above the Create Account and Continue with Google buttons](../../../assets/screenshots/getting-started/onboarding-sign-up.png)
 
-You're signed in and taken to the **Select Organization** screen — your account
-exists, but it isn't part of any organization yet. That's the next step:
+You see "Please check your email to confirm your account before signing in."
+GigWrangler emails you a link to confirm your address. Follow it: you're signed in
+and taken to the **Select Organization** screen. Your account exists, but it isn't
+part of any organization yet. That's the next step:
 [Getting into an organization](/getting-started/organizations/).
 
 ![The Select Organization screen for a new account: "No organizations yet", a search box, and Create New Organization and Create Your First Organization buttons](../../../assets/screenshots/getting-started/onboarding-select-organization.png)
-
-If you instead see "Please check your email to confirm your account before
-signing in.", follow the link in the confirmation email, then sign in on the
-**Sign In** tab.
 
 You can also **Continue with Google** instead of email/password.
 
@@ -53,4 +51,13 @@ and **Sign Out**.
 ## Forgot your password?
 
 On the **Sign In** tab, choose **Forgot password?**, enter your email and select
-**Send reset link**. Follow the emailed link to set a new password.
+**Send reset link**. You see "If an account exists for {your email}, a password reset
+link has been sent. Check your email."
+
+Follow the emailed link. On **Reset your password**, enter a **New Password** (at
+least 6 characters), type it again in **Confirm Password**, and select **Update
+password**. You see "Your password has been updated. Please sign in with your new
+password.", and you sign in on the **Sign In** tab. If the link has expired, request
+a new one.
+
+![The Reset your password screen: New Password with "Minimum 6 characters" under it, Confirm Password, and Update password](../../../assets/screenshots/getting-started/onboarding-reset-password.png)
