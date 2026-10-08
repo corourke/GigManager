@@ -30,7 +30,7 @@ This file lives on `main`. Land updates there promptly: a run that starts from `
 
 1. **Dev email flows:** custom SMTP (Mailtrap) is set on dev. Check that an invitation, a sign-up confirmation and a password reset arrive in the Mailtrap inbox (only Cameron can see it), then the Docs Lead can take its held screenshots.
 2. **Prod deploy held (Cameron, 10-08)** until the equipment refactor (#183–#186) is complete. Main is on dev (PR #205 deployed to dev 10-08; dev migrated to `20261016000000` 10-08). The held deploy carries migration `20261016000000_staff_rate_unit.sql` (#171) and everything merged after PR #204; run it with `deploy_prod.sh` (migration before frontend).
-3. **Sentry secrets** (optional): `SENTRY_API_TOKEN`, `SENTRY_ORG_SLUG`, `SENTRY_PROJECT_SLUG`; the health check reports "not configured" until set.
+3. **Sentry:** (a) add `VITE_SENTRY_DSN` (React project DSN) to `.env.production.local` before the held prod deploy; the live web app has none baked in (see `docs/technical/deployment.md`, PR #208). (b) Optional: `SENTRY_API_TOKEN`, `SENTRY_ORG_SLUG`, `SENTRY_PROJECT_SLUG` on prod for the health check's Sentry check (reports "not configured" until set). Edge-function `SENTRY_DSN` / `SENTRY_ENVIRONMENT` are set on both projects.
 
 **Decided 10-08, recorded here until done:**
 - The Docs Lead's corrected membership report (private; reported to Cameron directly): no path lets a Manager make anyone an Admin. The remaining backstop gaps are **parked** (Cameron: later). Partner organizations on a shared gig may keep adding, editing and removing each other's no-login contacts (intended). Person-search privacy is fixed by #178 (in prod 10-08).

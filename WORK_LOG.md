@@ -5,6 +5,8 @@ Append new entries at the top of each section; never edit an old entry to descri
 
 ## Shipped (newest first)
 
+- **Deployment docs, PR #208** (coordinator's sub-agent, merged 10-08): `VITE_*` build values (incl. `VITE_SENTRY_DSN`) come from `.env.production.local` on the machine running `deploy_prod.sh`; Cloudflare dashboard env vars are not used (direct upload). The prod bundle had no Sentry DSN for that reason; Cameron to add it locally before the held deploy.
+
 - **Coordinator handover (10-08 evening):** new coordinator session `session_01XTmXKhviMSkyy5PqcRAfUn` (Supabase Prod env, prod read-only). Routine `trig_013iEPNzrK1NR8j2Qih9jzJy` replaces `trig_01JWAcm3QHRpyaQXGNVA8w8m` (disabled, not deleted). Start-up checks passed: both tokens scoped to one project each; prod at `20261015000000`; dev at `20261016000000` (applied 10-08); 1,436 unit tests, lint (0 errors), build (main bundle 1,946,151 bytes), RLS suite incl. 49 and 50.
 
 - **#171, PR #205** (coordinator's sub-agent, merged by Cameron 10-08): each staff rate stores its time unit (`rate_unit`: hour / day / half_day, default hour; migration `20261016000000`, which also adds `rate_unit` to the staff self-edit guard). Editor picker, Finalize asks hours/days/half days, Staffing card and print sheet show the unit.
