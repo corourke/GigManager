@@ -9,7 +9,7 @@
 
 This file lives on `main`. Land updates there promptly: a run that starts from `main` won't see edits parked on a feature branch.
 
-- **Last updated:** 2026-10-08 (coordinator: #179–#186 added; #179 and #180 are the coordinator's, #181–#186 the Equipment Lead's)
+- **Last updated:** 2026-10-08 (coordinator: #178 built, waiting on the dev migration; check-ins every 4 hours through 10-17)
 
 ---
 
@@ -26,7 +26,7 @@ This file lives on `main`. Land updates there promptly: a run that starts from `
 | [#20](https://github.com/corourke/GigManager/issues/20) | Shared data-access layer under `src/services/` | Released in §3c (7 batches) | Triage, batch 1 next |
 | [#175](https://github.com/corourke/GigManager/issues/175) | Delete gig offered to Managers, but Admin-only | Cameron 10-07: another participating org's Admin must never delete; direction "cancel only when other orgs participate" | Needs a design pass (coordinator) |
 | [#174](https://github.com/corourke/GigManager/issues/174) | Team roles and invitations: UI offers what the server refuses | Cameron 10-07: a Manager must never be able to make anyone an Admin, by any path | Coordinator; the server side is the private finding in §2 |
-| [#178](https://github.com/corourke/GigManager/issues/178) | Duplicate check misses full names; org search is a plain substring | Taken back from triage 10-08 (Cameron): fixed together with a private person-search privacy issue (Docs Lead report, 10-08) | **Coordinator** |
+| [#178](https://github.com/corourke/GigManager/issues/178) | Duplicate check misses full names; org search is a plain substring | Built 10-08 on `claude/epic-ramanujan-i9khnc` (migration `20261015000000_person_and_org_search.sql`, RLS test 49, dialogs search by name, email and phone together). Also fixes the private person-search finding. Waiting on Cameron to apply the migration to dev (§2); PR after a dev check | **Coordinator** |
 | [#157](https://github.com/corourke/GigManager/issues/157) | Dashboard Equipment total should be replacement value × quantity | Rule decided by Cameron 10-07 | Done in #182 |
 | [#158](https://github.com/corourke/GigManager/issues/158), [#168](https://github.com/corourke/GigManager/issues/168) | Staff/Viewers see $0 money cards (dashboard) and money columns (gig list) | Filed by the Docs Lead 10-07 | Released to triage (§3c) |
 | [#159](https://github.com/corourke/GigManager/issues/159), [#169](https://github.com/corourke/GigManager/issues/169), [#170](https://github.com/corourke/GigManager/issues/170), [#171](https://github.com/corourke/GigManager/issues/171), [#173](https://github.com/corourke/GigManager/issues/173), [#176](https://github.com/corourke/GigManager/issues/176) | Small UI bugs: © year, Markdown notes, conflict banner, staff slot delete/rates, member details page, org settings path | Filed by the Docs Lead 10-07 | Released to triage (§3c) |
@@ -34,7 +34,8 @@ This file lives on `main`. Land updates there promptly: a run that starts from `
 ## 2. Waiting on Cameron
 
 1. **Dev mail catcher** (Cameron, 10-08: Mailtrap): create a free Mailtrap Email Testing inbox and send its SMTP host, port, user and password. The coordinator then points dev's Supabase Auth at it and checks the invitation, sign-up confirmation and password-reset flows with the demo `.test` logins.
-2. **Sentry secrets** (optional): `SENTRY_API_TOKEN`, `SENTRY_ORG_SLUG`, `SENTRY_PROJECT_SLUG`; the health check reports "not configured" until set.
+2. **#178 migration on dev:** apply `supabase/migrations/20261015000000_person_and_org_search.sql` (from branch `claude/epic-ramanujan-i9khnc`) to dev, then say so. It adds `search_people` and `search_organizations` and drops `search_users_secure`, so the Add Person search on localhost needs this branch's code once it's applied.
+3. **Sentry secrets** (optional): `SENTRY_API_TOKEN`, `SENTRY_ORG_SLUG`, `SENTRY_PROJECT_SLUG`; the health check reports "not configured" until set.
 
 **Decided 10-08, recorded here until done:**
 - The Docs Lead's corrected membership report (private; reported to Cameron directly): no path lets a Manager make anyone an Admin. The remaining backstop gaps are **parked** (Cameron: later). Partner organizations on a shared gig may keep adding, editing and removing each other's no-login contacts (intended). Person-search privacy is fixed with #178 (coordinator).
@@ -97,9 +98,10 @@ Not released, staying with the coordinator: #174, #175 (needs a design pass) and
 - **Dev schema is ahead of main (Docs Lead, 10-08).** Dev has migration `20261014000000` from #180 (equipment units) applied, and its rule (tagged equipment must have quantity 1) broke the demo seed. PR #189 fixes the seed. The seed's equipment will need a fuller rework when #180 merges, and the Equipment pages wait for that too.
 
 - **Correction to the private membership finding (§2 item 3), Docs Lead, 10-08.** Tested on dev as the demo Manager, the escalation I reported on 10-07 is **not exploitable**: the `guard_organization_membership` trigger (`20260929000000`) blocks it on every path tried. What remains are low-severity defence-in-depth gaps. The full write-up (paths, test results, suggested fixes) went to Cameron privately on 10-08 to pass on. No migration is urgent; fold the fixes into the next membership or security migration.
-- **Second private security finding (Docs Lead, 10-07): privacy, in the person search behind the duplicate check (#178).** Details went to Cameron directly, as the repo is public. Cameron (10-08) asked for it to go on the private security list with the membership-RPC finding (§2 item 3). It touches the same search #178 changes, so plan the two together.
 
 ## 4. Agents and documentation
+
+**Pace through 10-17 (Cameron, 10-08):** keep triage and the leads busy. The coordinator checks in at least every 4 hours (Routine `trig_01JWAcm3QHRpyaQXGNVA8w8m`, which disables itself after 10-17) to queue work, review ready PRs and ask Cameron about blockers.
 
 **Equipment Lead** (`session_013gAYYf2hpcECG9QpxFz5Vo`, Supabase Dev environment, no prod access) owns #181–#186, the grouping review and the items screens, and reviews #180 from the screens side. The coordinator owns #179 and #180 and supplies prod data the Lead can't reach. It reports on #162 and each sub-issue.
 
