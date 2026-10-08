@@ -80,7 +80,16 @@ Not released: #175 (needs a design pass). **#171 rate unit:** Cameron 10-08: sto
 
 ## 4. Agents and documentation
 
-**Supabase tokens (Cameron, 10-08):** two tokens, each scoped to one project (checked read-only 10-08 from a fresh session). `SUPABASE_DEV_ACCESS_TOKEN` reaches **dev only**: use it for dev deploys and migrations, e.g. `SUPABASE_ACCESS_TOKEN=$SUPABASE_DEV_ACCESS_TOKEN ./deploy_dev.sh`. `SUPABASE_ACCESS_TOKEN` reaches **prod only**: read-only queries, never writes or deploys. New environment secrets reach new sessions only. Dev Auth sends email through a Mailtrap sandbox (Cameron set custom SMTP 10-08).
+**Secrets and access tokens (setup notes for Cameron; checked 10-08).**
+- **Where:** in a session's title bar, open the cloud environment menu → **Edit**. Secrets go in as **environment variables** or **Network secrets** (shown as *API credentials* in older app versions). Never paste a token into a chat.
+- **When they apply:** only to sessions started **after** you save. A running session (and its sub-agents) keeps the environment it started with; start a new session to pick up a change.
+- **What works today (keep it this way):** one Supabase personal access token per project, each as an environment variable:
+  - `SUPABASE_DEV_ACCESS_TOKEN`: a token whose account can reach **only the dev project** (`qcrzwsazasaojqoqxwnr`). Agents use it for dev deploys and migrations: `SUPABASE_ACCESS_TOKEN=$SUPABASE_DEV_ACCESS_TOKEN ./deploy_dev.sh`.
+  - `SUPABASE_ACCESS_TOKEN`: reaches **only prod** (`hqnnhtxcxedisasvtbqv`). Agents use it read-only (queries), never to write or deploy; prod deploys stay with you.
+  - To check a new or rotated token without exposing it, ask the coordinator for a read-only access test in a fresh session (GET requests only, status codes only).
+- **Network secrets (optional, not needed now):** the proxy attaches a network secret only to requests whose host **and path prefix** match. The 10-08 one was set for `/api/v1/qcrzwsazasaojqoqxwnr`, which matches nothing, because the Management API paths are `/v1/projects/<ref>/…`. If you use one for dev, set host `api.supabase.com`, path prefix `/v1/projects/qcrzwsazasaojqoqxwnr`, header `Authorization: Bearer <dev token>`. Don't add one for prod, and don't use a host-wide prefix: it would attach to every Supabase call, including prod's. Otherwise delete the unused one.
+- **Rotating:** create the new token in the Supabase dashboard (Account → Access Tokens), replace the variable's value, start a new session, run the access test, then revoke the old token.
+- Dev Auth sends email through a Mailtrap sandbox (custom SMTP set by Cameron 10-08). The SMTP password lives only in the Supabase dashboard, not in the environment or the repo.
 
 **Pace through 10-17 (Cameron, 10-08):** keep triage and the leads busy. Cameron (10-08 evening): sub-agents do the coordinator's builds; the coordinator reviews, merges and may deploy to **dev** with `./deploy_dev.sh` (never prod). The coordinator checks in at least every 4 hours (Routine `trig_01JWAcm3QHRpyaQXGNVA8w8m`, which disables itself after 10-17) to queue work, review ready PRs and ask Cameron about blockers.
 
