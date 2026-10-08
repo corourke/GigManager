@@ -144,4 +144,26 @@ describe('activityLog.service', () => {
       expect(chain.eq).toHaveBeenCalledWith('entity_id', 'asset-456');
     });
   });
+
+  // Pinned to current behaviour when the service moved onto base/dataAccess (#20).
+  describe('reads (auth and errors)', () => {
+    it('rejects and queries nothing when no one is signed in', async () => {
+      const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+      (requireAuth as any).mockRejectedValue(new Error('Not authenticated'));
+
+      await expect(getRecentActivity()).rejects.toThrow('Not authenticated');
+      await expect(getEntityActivity('asset', 'asset-456')).rejects.toThrow('Not authenticated');
+      await expect(getGigActivity('gig-123')).rejects.toThrow('Not authenticated');
+      expect(mockSupabase.from).not.toHaveBeenCalled();
+      consoleError.mockRestore();
+    });
+
+    it('words a network failure with its own action, not a generic one', async () => {
+      mockSupabase.from.mockReturnValue(makeChain({ data: null, error: { message: 'Failed to fetch' } }));
+
+      await expect(getRecentActivity()).rejects.toThrow('Network error: Unable to fetch recent activity. Please check your internet connection.');
+      await expect(getEntityActivity('asset', 'asset-456')).rejects.toThrow('Network error: Unable to fetch entity activity.');
+      await expect(getGigActivity('gig-123')).rejects.toThrow('Network error: Unable to fetch gig activity.');
+    });
+  });
 });

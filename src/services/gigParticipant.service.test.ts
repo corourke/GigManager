@@ -1,14 +1,17 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { updateGigParticipants } from './gigParticipant.service';
-import { requireAuth } from '../utils/supabase/auth-utils';
+import { getCurrentUser, getSupabase } from './base/dataAccess';
 
-vi.mock('../utils/supabase/client', () => ({
-  createClient: vi.fn(),
+vi.mock('./base/dataAccess', () => ({
+  getCurrentUser: vi.fn(),
+  getSupabase: vi.fn(),
 }));
 
-vi.mock('../utils/supabase/auth-utils', () => ({
-  requireAuth: vi.fn(),
-}));
+/** Signs `user` in and hands the service `supabase` as the shared client. */
+function signIn(supabase: any, user: any) {
+  (getSupabase as any).mockReturnValue(supabase);
+  (getCurrentUser as any).mockResolvedValue(user);
+}
 
 vi.mock('./activityLog.service', () => ({
   logActivity: vi.fn().mockResolvedValue(undefined),
@@ -45,10 +48,7 @@ describe('updateGigParticipants (issue #55 — logs adds even without an explici
   beforeEach(() => {
     vi.clearAllMocks();
     mockSupabase = { from: vi.fn() };
-    (requireAuth as any).mockResolvedValue({
-      supabase: mockSupabase,
-      user: { id: 'user-1', email: 'jane@example.com', user_metadata: { first_name: 'Jane', last_name: 'Doe' } },
-    });
+    signIn(mockSupabase, { id: 'user-1', email: 'jane@example.com', user_metadata: { first_name: 'Jane', last_name: 'Doe' } });
   });
 
   it('still logs correctly when an explicit activityCtx is passed (gig.service#updateGig path)', async () => {
@@ -178,10 +178,7 @@ describe('updateGigParticipants activity log organization (issue #103)', () => {
 
   const useDb = (rows: Parameters<typeof makeDb>[0]) => {
     db = makeDb(rows);
-    (requireAuth as any).mockResolvedValue({
-      supabase: { from: db.from },
-      user: { id: 'user-1', email: 'jane@example.com', user_metadata: { first_name: 'Jane', last_name: 'Doe' } },
-    });
+    signIn({ from: db.from }, { id: 'user-1', email: 'jane@example.com', user_metadata: { first_name: 'Jane', last_name: 'Doe' } });
   };
 
   beforeEach(() => {
@@ -266,7 +263,7 @@ describe('updateGigParticipants deletes only rows the caller loaded and removed 
       ],
       organizations: { 'org-2': 'Venue Co', 'org-3': 'The Act' },
     });
-    (requireAuth as any).mockResolvedValue({ supabase: { from: db.from }, user: { id: 'user-1', user_metadata: {} } });
+    signIn({ from: db.from }, { id: 'user-1', user_metadata: {} });
   });
   const deletedIds = () => db.calls
     .filter(c => c.table === 'gig_participants' && c.ops.some(o => o.method === 'delete'))
@@ -289,5 +286,15 @@ describe('updateGigParticipants deletes only rows the caller loaded and removed 
     await updateGigParticipants('gig-1', [mine], ctx);
 
     expect(deletedIds()).toEqual([]);
+  });
+
+  // Pinned to current behaviour when the service moved onto base/dataAccess (#20).
+  it('rejects and touches nothing when no one is signed in', async () => {
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+    (getCurrentUser as any).mockRejectedValue(new Error('Not authenticated'));
+
+    await expect(updateGigParticipants('gig-1', [mine], ctx, [MINE, REMOVED])).rejects.toThrow('Not authenticated');
+    expect(db.from).not.toHaveBeenCalled();
+    consoleError.mockRestore();
   });
 });

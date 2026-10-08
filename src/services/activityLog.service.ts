@@ -1,5 +1,4 @@
-import { createClient } from '../utils/supabase/client';
-import { requireAuth } from '../utils/supabase/auth-utils';
+import { getCurrentUser, getSupabase } from './base/dataAccess';
 import { handleApiError } from '../utils/api-error-utils';
 import type { ActivityEventType } from '../utils/activityLog.events';
 import type { ActivityLogContext, ActivityLogEntry } from '../utils/supabase/types';
@@ -12,7 +11,7 @@ export async function logActivity(entry: {
   gig_id?: string | null;
   context: ActivityLogContext;
 }): Promise<void> {
-  const supabase = createClient();
+  const supabase = getSupabase();
   const { error } = await supabase.rpc('log_activity', {
     p_organization_id: entry.organization_id,
     p_event_type: entry.event_type,
@@ -30,7 +29,8 @@ export async function getRecentActivity(options?: {
   eventTypes?: ActivityEventType[];
 }): Promise<ActivityLogEntry[]> {
   try {
-    const { supabase } = await requireAuth();
+    await getCurrentUser();
+    const supabase = getSupabase();
     const limit = options?.limit ?? 50;
     const daysCutoff = options?.daysCutoff ?? 30;
     const cutoffDate = new Date(Date.now() - daysCutoff * 24 * 60 * 60 * 1000).toISOString();
@@ -58,7 +58,8 @@ export async function getEntityActivity(
   entityId: string
 ): Promise<ActivityLogEntry[]> {
   try {
-    const { supabase } = await requireAuth();
+    await getCurrentUser();
+    const supabase = getSupabase();
     const { data, error } = await (supabase.from('activity_log') as any)
       .select('*')
       .eq('entity_type', entityType)
@@ -73,7 +74,8 @@ export async function getEntityActivity(
 
 export async function getGigActivity(gigId: string): Promise<ActivityLogEntry[]> {
   try {
-    const { supabase } = await requireAuth();
+    await getCurrentUser();
+    const supabase = getSupabase();
     const { data, error } = await (supabase.from('activity_log') as any)
       .select('*')
       .eq('gig_id', gigId)

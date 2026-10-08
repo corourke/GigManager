@@ -1,14 +1,17 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { updateGigScheduleEntries } from './gigSchedule.service';
-import { requireAuth } from '../utils/supabase/auth-utils';
+import { getCurrentUser, getSupabase } from './base/dataAccess';
 
-vi.mock('../utils/supabase/client', () => ({
-  createClient: vi.fn(),
+vi.mock('./base/dataAccess', () => ({
+  getCurrentUser: vi.fn(),
+  getSupabase: vi.fn(),
 }));
 
-vi.mock('../utils/supabase/auth-utils', () => ({
-  requireAuth: vi.fn(),
-}));
+/** Signs `user` in and hands the service `supabase` as the shared client. */
+function signIn(supabase: any, user: any) {
+  (getSupabase as any).mockReturnValue(supabase);
+  (getCurrentUser as any).mockResolvedValue(user);
+}
 
 vi.mock('./activityLog.service', () => ({
   logActivity: vi.fn().mockResolvedValue(undefined),
@@ -32,10 +35,7 @@ describe('updateGigScheduleEntries (issue #55 — add-only history events)', () 
   beforeEach(() => {
     vi.clearAllMocks();
     mockSupabase = { from: vi.fn() };
-    (requireAuth as any).mockResolvedValue({
-      supabase: mockSupabase,
-      user: { id: 'user-1', email: 'jane@example.com', user_metadata: { first_name: 'Jane', last_name: 'Doe' } },
-    });
+    signIn(mockSupabase, { id: 'user-1', email: 'jane@example.com', user_metadata: { first_name: 'Jane', last_name: 'Doe' } });
   });
 
   it('does NOT log when only updating an existing entry', async () => {
@@ -112,10 +112,7 @@ describe('updateGigScheduleEntries activity log organization (issue #103)', () =
   const newEntry = { activity_type: 'Load-in', label: null, start_time: '2026-09-20T14:00:00.000Z' } as any;
 
   const useDb = (rows: Parameters<typeof makeDb>[0]) => {
-    (requireAuth as any).mockResolvedValue({
-      supabase: { from: makeDb(rows) },
-      user: { id: 'user-1', email: 'jane@example.com', user_metadata: { first_name: 'Jane', last_name: 'Doe' } },
-    });
+    signIn({ from: makeDb(rows) }, { id: 'user-1', email: 'jane@example.com', user_metadata: { first_name: 'Jane', last_name: 'Doe' } });
   };
 
   beforeEach(() => {
@@ -192,7 +189,7 @@ describe('updateGigScheduleEntries deletes only rows the caller loaded and remov
       chain.then = (resolve: any, reject: any) => Promise.resolve(answer()).then(resolve, reject);
       return chain;
     });
-    (requireAuth as any).mockResolvedValue({ supabase: { from }, user: { id: 'user-1', user_metadata: {} } });
+    signIn({ from }, { id: 'user-1', user_metadata: {} });
   });
   const deletedIds = () => calls
     .filter(ops => ops.some(o => o.method === 'delete'))
@@ -216,5 +213,15 @@ describe('updateGigScheduleEntries deletes only rows the caller loaded and remov
     const result = await updateGigScheduleEntries('gig-1', [added, mine], undefined, [MINE]);
 
     expect(result).toEqual({ ids: ['new-1', MINE] });
+  });
+
+  // Pinned to current behaviour when the service moved onto base/dataAccess (#20).
+  it('rejects and touches nothing when no one is signed in', async () => {
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+    (getCurrentUser as any).mockRejectedValue(new Error('Not authenticated'));
+
+    await expect(updateGigScheduleEntries('gig-1', [mine], undefined, [MINE, REMOVED])).rejects.toThrow('Not authenticated');
+    expect(calls).toEqual([]);
+    consoleError.mockRestore();
   });
 });
