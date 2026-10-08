@@ -1,299 +1,115 @@
-# Work Plan — Issue Triage Board
+# Work Plan
 
-**Living reference for the daily issue-triage routine ("GitWrangler issue triage", 09:00 UTC) and the
-GigWrangler Coordinator session. Edit this file in place; it is not an append-only log.**
+**What is current, and nothing else.** The board of record for open issues, decisions waiting on Cameron, work released to build, and the rules the agents follow. When something ships or is settled, take it out of here and add a line to [WORK_LOG.md](./WORK_LOG.md). Keep this file short.
 
-**Who writes what.** The triage routine keeps §1, §2, §4 and §5 current and may add entries to
-[§3b](#3b-raised-by-triage-for-the-coordinator). Only the coordinator session writes
-[§3a](#3a-waiting-on-cameron) and [§3c](#3c-ready-to-build-nothing-blocking), and only the coordinator asks
-Cameron questions.
+**Who writes what.**
+- The triage routine keeps §1 current and may add entries to §3b.
+- Only the coordinator writes §2 and §3c, and only the coordinator asks Cameron questions, one at a time.
+- The Docs Lead writes §3d and the user-docs table in §4.
 
-Migrated from GitHub issue [#41](https://github.com/corourke/GigManager/issues/41) on 2026-09-22. This file now
-supersedes that issue as the board of record.
+This file lives on `main`. Land updates there promptly: a run that starts from `main` won't see edits parked on a feature branch.
 
-- **Last updated:** 2026-10-07 (coordinator: #39 done — PRs #144, #147–#150 merged and live in dev and prod, verified; #39 and #129 closed as completed; open-issue review)
-- **State verified:** 2026-10-07 09:15 UTC by triage (9 open issues: #20, #39, #92, #125, #129, #131, #133, #134, #135; open PR: #151 (triage user-guide pass, gigs))
+- **Last updated:** 2026-10-08 (coordinator: board rewritten to current state; history moved to WORK_LOG.md)
 
 ---
 
-## 1. Status at a glance
+## 1. Open issues
 
-| # | Item | Type | State | Waiting on |
-|---|---|---|---|---|
-| [#92](https://github.com/corourke/GigManager/issues/92) | Replace-all autosave can delete rows another user or tab added | Bug | From the 09-29 code review, confirmed by reading the code | Coordinator — not started |
-| [#135](https://github.com/corourke/GigManager/issues/135) | Audit and fix 2026 purchase data (tax treatment, equipment, gig expenses) after the code fixes | Data | Filed 10-05 | Blocked on #133, #130, #131, #125 steps 2–3 |
-| [#125](https://github.com/corourke/GigManager/issues/125) | Financials → Reporting: tax-program data export | Feature / data | 10-07 re-planned by Cameron: **reports first** (separate Income, Expenses and Assets reports, CSV on the same page; no OK needed unless showing a mockup). **PR #167 merged 10-07:** `assets.recovery_period` (migration `20261013000000`; defaults Computer/Networking/Software/Misc 5, Vehicles and gear 7; 2024–25 left blank to fill from the returns) and the Income / Expenses / Assets reports with CSV. Still open: Schedule C summary, Needs attention, Grey zone, mileage rates (F1) | Cameron: apply `20261013000000` to dev, deploy, check Financials → Reporting |
-| [#162](https://github.com/corourke/GigManager/issues/162) | Equipment items and units: separate what it is from what we own (serials, tags, quantities, kits); fixes #160 | Feature / schema | Filed 10-07. **Mockups of all 11 affected screens first** | Equipment Lead (mockups), then Cameron |
-| [#20](https://github.com/corourke/GigManager/issues/20) | Shared data-access layer under `src/services/` | Refactor | Pilot merged (PR #66); `attachment.service.ts` merged 09-30 (PR [#106](https://github.com/corourke/GigManager/pull/106)); 14 services remain | Released in §3c 10-07 (Cameron: do it now): 7 batches, one PR each |
+| # | Item | State | Next / owner |
+|---|---|---|---|
+| [#125](https://github.com/corourke/GigManager/issues/125) | Financials → Reporting: tax-program data export | Part 1 merged (PR #167): recovery period on equipment, and Income / Expenses / Assets reports with CSV | Cameron: apply `20261013000000` to dev and check. Then coordinator: mileage rates (F1); Schedule C summary, Needs attention and Grey zone if wanted |
+| [#162](https://github.com/corourke/GigManager/issues/162) | Equipment items and units (serials, tags, quantities, kits); fixes #160 | Mockups in review with Cameron (round 4, 10-07); PR #165 holds them | Equipment Lead. Nothing is built until Cameron approves the mockups |
+| [#160](https://github.com/corourke/GigManager/issues/160) | Location tracking ignores quantity | Fixed by #162's design | Closes with #162 |
+| [#135](https://github.com/corourke/GigManager/issues/135) | Audit and fix 2026 purchase data | Unblocked once the reports are on dev; they show what needs fixing | Coordinator with Cameron; each prod data fix needs his go |
+| [#92](https://github.com/corourke/GigManager/issues/92) | Replace-all autosave can delete rows another user or tab added | Confirmed by reading the code (09-29 review) | Coordinator, not started |
+| [#20](https://github.com/corourke/GigManager/issues/20) | Shared data-access layer under `src/services/` | Released in §3c (7 batches) | Triage, batch 1 next |
+| [#175](https://github.com/corourke/GigManager/issues/175) | Delete gig offered to Managers, but Admin-only | Cameron 10-07: another participating org's Admin must never delete; direction "cancel only when other orgs participate" | Needs a design pass (coordinator) |
+| [#174](https://github.com/corourke/GigManager/issues/174) | Team roles and invitations: UI offers what the server refuses | Cameron 10-07: a Manager must never be able to make anyone an Admin, by any path | Coordinator; the server side is the private finding in §2 |
+| [#178](https://github.com/corourke/GigManager/issues/178) | Duplicate check misses full names; org search is a plain substring | Cameron 10-07: avoid duplicates, so search thoroughly | Not released |
+| [#157](https://github.com/corourke/GigManager/issues/157) | Dashboard Equipment total should be replacement value × quantity | Rule decided by Cameron 10-07 | Not released |
+| [#158](https://github.com/corourke/GigManager/issues/158), [#168](https://github.com/corourke/GigManager/issues/168) | Staff/Viewers see $0 money cards (dashboard) and money columns (gig list) | Filed by the Docs Lead 10-07 | Not released |
+| [#159](https://github.com/corourke/GigManager/issues/159), [#169](https://github.com/corourke/GigManager/issues/169), [#170](https://github.com/corourke/GigManager/issues/170), [#171](https://github.com/corourke/GigManager/issues/171), [#173](https://github.com/corourke/GigManager/issues/173), [#176](https://github.com/corourke/GigManager/issues/176) | Small UI bugs: © year, Markdown notes, conflict banner, staff slot delete/rates, member details page, org settings path | Filed by the Docs Lead 10-07 | Not released |
 
----
+## 2. Waiting on Cameron
 
-## 2. Open items in detail
+1. **Apply migration `20261013000000_asset_recovery_period.sql` to dev** (PR #167), deploy the frontend, and check Financials → Reporting. Prod later, with the usual backup.
+2. **#162 mockups:** approve, or send the next round (on the issue or to the Equipment Lead).
+3. **Private security finding in the membership RPCs** (Docs Lead, 10-07): details went to Cameron directly, because this repo is public. Needs a migration (coordinator) once he gives the go. Until then, hold the `docs/technical/security-scheme.md` update.
+4. **2024 and 2025 recovery periods:** fill in from the filed returns (they're blank by design; filling in a blank is allowed in a filed year). The Assets report lists them.
+5. **Small bugs from the Docs Lead** (#157–#159, #168–#171, #173, #176, #178): release them to triage?
+6. **Email simulation on dev** (Docs Lead): Cameron wants to show the invitation, sign-up and password-reset flows with the demo `.test` logins. Hosted dev sends real mail. Options: a dev-only SMTP catcher (e.g. Mailpit) behind the dev project's custom SMTP, or a dev-only "generate link" admin route.
+7. **Organization delete by its own Admin:** `DELETE /organizations/:id` counts the calling Admin as a member, so a claimed org can never be deleted from the app. Ignore the caller's own membership, or keep it impossible?
+8. **Overnight gigs on Google Calendar:** a 9 PM–1:30 AM gig shows on both days. Show a gig ending before 6 AM on its start day only?
+9. **Sentry secrets** (optional): `SENTRY_API_TOKEN`, `SENTRY_ORG_SLUG`, `SENTRY_PROJECT_SLUG`; the health check reports "not configured" until set.
 
-### Bugs
+## 3. Ready work and agent lanes
 
-#102 and #103 were fixed by PRs #104 and #107, merged 09-30, and #109 by PR #120, merged 10-04 (see §4). #107 put the shared lookup in `resolveGigActivityCtx` (`gigService.shared.ts`); `GigScheduleEditor` and `updateGig` still rely on the membership fallback.
+### 3a. Pull requests
 
-### Features
-
-*(#111 and #117 shipped 10-04 in PRs #122 and #121; see §4.)*
-
-### Financials UX
-
-*(#75, one edit mode for the whole gig on web, was folded into #12 on 09-26.)*
-
-### Security
-
-*(#61 closed 09-25: every leak fixed in PR #76; the migration was applied to dev and prod on 09-26. Any new org-private
-table or policy change needs a test in `supabase/tests/rls/`; CI runs it as the `rls` job.)*
-
-### Diagnostics / ops
-
-*(#52 closed 09-25 — health check live on dev and prod; see §4.)*
-
-### Gig list / detail UX
-
-*(#12 closed 10-01 at Cameron's request: all five PRs merged; see §4.)*
-
-### UI/UX — in design scoping
-
-**[#39](https://github.com/corourke/GigManager/issues/39) — "Too many menu levels".**
-10-06: Cameron leaned to Variant 1 without breadcrumbs, and asked for less vertical space, a title that always lands in the same place, Back always in the same place, and a flatter Equipment menu. Round 2 is in the issue (comment 10-06). Next: his pick, then a work plan, then build. Same pattern as #12.
-
-### Refactor
-
-**[#20](https://github.com/corourke/GigManager/issues/20) — Shared data-access layer under `src/services/`.**
-Base module + `user.service.ts` pilot **merged (PR #66, 09-22)**. The pattern is now settled — the remaining
-~15 services are intentionally left for later, migrated service-by-service, one at a time. 09-30: Cameron asked
-for more triage work, so the coordinator released `attachment.service.ts` as the next one (§3c); PR #106 moved it, merged 09-30. `deleteAttachment` keeps its own queries, because it needs the deleted rows to detect a delete that RLS blocked.
-
-### Auth / session
-
-*(#32 closed 09-30 by PR #105; see §4.)*
-
----
-
-## 3. Decisions and ready work
-
-### 3a. Waiting on Cameron
-
-*Curated by the coordinator session only.* Nothing below can move without a reply. Listed roughly in the
-order that unblocks the most work; the coordinator puts these to Cameron one at a time.
-
-1. **Gig financials redesign: done.** #123 and #124 merged; migration `20261005000000` is in prod (verified read-only 10-05: 125 rows converted, 80 in / 45 out).
-1. **Financials → Reporting ([#125](https://github.com/corourke/GigManager/issues/125)), 10-05:** plan agreed and kept in the issue (tax-program data export; no tax calculation). Step 0 done: `docs/technical/purchases-assets-expenses.md` (docs PR [#127](https://github.com/corourke/GigManager/pull/127), to merge). It found bugs that must be fixed before the reports can be trusted, now filed as **#128 (urgent: $0 costs on edit), #129, #130, #131**; the revised order of work and the report counting rule are in #125. **Waiting on Cameron:** approve the fixes for #129–#131 (each built test-first; #128 is in PR #132); the expense-category table and 6 open questions in #125 (including how returns refunded as store credit are recorded); each prod data fix F1–F7 needs his approval.
-   - **Deploy #128's fix** (PR #132, merged 10-05; frontend only): dev first, then prod. Check: open IDJ Now 2025-01-20 ($131.58); lines show $84.92 and $46.66 and saving leaves them unchanged. Until then, avoid editing CSV-imported purchases.
-   - **2025 reconciliation** (10-05): assets match the filed Form 4562 list item for item; expenses match the filed $11,977 once Excellines ($314.30, expensed on the return, made an asset in GigWrangler 06-11) and Reimbursable ($47.16, not deducted) are accounted for. Cameron is answering 10 questions in the private worksheet artifact https://claude.ai/artifact/PSgmQjps6rGT5bFWSw4uNo (answers stored in its db; the coordinator reads them with ArtifactData). Its expense-line split section is not loaded yet (optional).
-   - **2025 data fixes: applied to prod 10-05 ~22:24 UTC with Cameron's go.** Covered the Amazon line moves, the 9/20 → 9/20 + 10/26 split, the four returns (date + net refund), a −$83.42 return line for the Gator 1U shelf, and IDJ 2/23 spread over $214.00. Verified read-only: all 13 touched invoices equal their lines. 2025 expense lines are now $11,790.63 and asset lines $42,470.86. Pre-change rows were backed up (coordinator scratchpad `backup/`). Excellines set to expense (asset kept) and 2024 + 2025 locked in `tax_years` 10-06 with Cameron's go. Still open for 2025: categories (#125 F3). The four return/order PDFs are not attached in the app yet (Cameron).
-2. **Deploy migration `20260929000000_tighten_membership_and_rpc_authorization.sql`** ([#95](https://github.com/corourke/GigManager/pull/95), merged 09-29): `./deploy_dev.sh`, then `./deploy_prod.sh`. That applies the migration and redeploys the `server` edge function, which also ships #90's and #91's fixes (PRs #96, #97). If you deployed before 04:19 UTC on 09-30, run it once more for those two. Then, as an Admin: add and remove a contact on your own org, add a contact to a venue you created, and invite a Staff member. Urgent.
-3. **[#39](https://github.com/corourke/GigManager/issues/39)**: "keep top nav" (09-26) rules out the sidebar (Option B). It follows #12's redesign, since the gig screen is the deepest page and the two need one consistent header.
-4. **Deploy Purchases to prod** ([#116](https://github.com/corourke/GigManager/pull/116) merged 10-03; tested on dev by Cameron): `./deploy_prod.sh` applies migration `20261002000000_purchase_scan_queue.sql` and deploys `ai-scan` (scan queue + Sonnet 5.5, #113) and the frontend (#114–#116). Purchases saved during the dev test with OK on the old "Discard?" prompt lost their invoice file; re-attach with Attach Doc if needed.
-5. **Deploy #117 (all-day Google Calendar events, PR #121 merged 10-04):** redeploy the `server` edge function and the frontend together, dev first (both sync paths changed). On dev, re-sync a gig that was synced with times and check it becomes all-day with the times and venue at the top of the description. `./deploy_prod.sh` covers prod, together with item 3. **Question:** a gig from 9 PM to 1:30 AM now shows on both days; should a gig that ends in the early morning (say before 6 AM) show only on its start day?
-6. **Organization delete by the org's own Admin** (raised by triage while fixing #90). `DELETE /organizations/:id` refuses while the org has members, and the Admin doing the delete counts as one, so an org's own Admin always gets "still has members". In practice only an unclaimed org with no data can be deleted. Should the check ignore the caller's own membership (the org still has to be free of gigs, assets and other data), or is deleting a claimed org meant to stay impossible from the app? Not urgent; a small server change either way.
-7. **Sentry secrets** — `SENTRY_API_TOKEN`, `SENTRY_ORG_SLUG`, `SENTRY_PROJECT_SLUG` for the health check's Sentry round-trip. Optional; it reports "not configured" until set.
+- **Open a PR only when the work is ready to merge.** Work under review (mockups, drafts awaiting a decision) is shown through an artifact or issue comments, or kept as a **draft** PR, and marked ready only when Cameron has approved it. A PR's CI and review should be the last step, not the review channel.
+- The coordinator reviews and merges once CI is green and Cameron has OK'd it.
+- Every PR body ends with **"User-visible changes"**: what a user now sees or does differently, with exact labels, or "None".
 
 ### 3b. Raised by triage, for the coordinator
 
-*The triage routine adds entries here instead of asking Cameron directly — the question, and what it did in the
-meantime. The coordinator resolves each entry (decides it, or moves it into §3a) and deletes it.*
+*Triage adds entries here instead of asking Cameron. The coordinator resolves each one and deletes it.*
 
-- **Security findings from the 09-29 `security-scheme.md` check, urgent.** Details went to Cameron by private notification on 09-29, not here, because this repo is public. In short, some contact-management RPCs trust caller-supplied input for authorization and can grant org membership, plus several broader read exposures. The fix needs a migration, which is a contract, so it's for the coordinator. Meanwhile triage filed no public issue and held the `security-scheme.md` doc update, since correcting the doc would describe the holes publicly.
-
-### 3d. Raised by the Docs Lead, for the coordinator
-
-*The Docs Lead's own lane (separate from triage's §3b). It adds app problems it finds while documenting and decisions it needs from the coordinator. It files app bugs as GitHub issues itself and links them here. The coordinator triages each entry (release to §3c, decide, or take it to Cameron) and deletes it when settled.*
-
-- **From the Docs Lead (10-07, Gigs drafts): four app issues filed.** **#168**, the gig list offers Revenue/Expenses/Profit columns to Staff and Viewers, who see $0 (same pattern as #158). **#169**, the gig page shows notes as raw text, so Markdown isn't rendered. **#170**, the conflict banner on the list and calendar shows an empty equipment detail, labels act conflicts as venue conflicts, and its list View button sets **Back to Calendar**. **#171**, deleting a staff slot doesn't ask for confirmation, and rates always show "/ hr". All four are small, UI-only changes. The guide's draft pages carry TODOs pointing at #169 and #170.
-- **From the Docs Lead (10-07): app issues from screenshotting the dev demo org.** Cameron reviewed them 10-07 and authorized filing: **#157** (dashboard Equipment total should be replacement value × quantity, as on the asset list), **#158** (Staff dashboard shows $0 cards instead of hiding them) and **#159** (hard-coded © 2025 on Sign Up). Also **#160** (location tracking ignores quantity, so an asset split across kits and containers has one location and the override can't move part of it; needs a design call and probably a migration). Not a bug: the Assets table at 1440px (users choose columns and widths). The nested-kit packing list is correct behavior, because containers don't list their contents; the demo seed had wrongly made a whole sound package a container. Cameron suspects bugs in the **Out on Gigs** and **Locations** reports and is testing them himself. The dev-only CORS port item was dropped.
-- **From the Docs Lead (10-07): simulating email delivery.** Cameron wants a way to simulate email delivery so invitation, sign-up confirmation and password-reset flows can be shown with the demo `.test` logins. Hosted dev sends real mail through Supabase Auth, so this needs a decision (for example a dev-only SMTP catcher such as Mailpit behind the dev project's custom SMTP, or a dev-only admin "generate link" route).
+(none)
 
 ### 3c. Ready to build, nothing blocking
 
-*Curated by the coordinator session only.* An item here without a **BLOCKED** marker counts as approved in shape
-under AGENTS.md rule 1: the routine posts its plan on the issue and proceeds. Anything not listed here still
-needs approval before code changes.
+*Coordinator only.* An item here counts as approved in shape (AGENTS.md rule 1): post the plan on the issue, then build. Anything not here needs approval first.
 
-**[#20](https://github.com/corourke/GigManager/issues/20) — move the remaining services onto the shared data-access layer (released 10-07 by the coordinator, Cameron: "do it now").** The layer is `src/services/base/dataAccess.ts`; the pilots are `user.service.ts` and `attachment.service.ts`. Follow them and the issue's constraints:
-- small helpers, no domain logic;
-- RLS stays the security boundary;
-- each service's existing tests stay green, with no behaviour change.
-
-One PR per batch, in this order, the next batch only after the previous one merges:
-1. `notification`, `taxYear`, `accessRequest`, `purchaseScanQueue`, `purchaseCategory`
+**[#20](https://github.com/corourke/GigManager/issues/20): move the remaining services onto `src/services/base/dataAccess.ts`** (released 10-07, Cameron: "do it now"). Follow the pilots (`user.service.ts`, `attachment.service.ts`): small helpers, no domain logic, RLS stays the security boundary, no behaviour change. One PR per batch, the next only after the previous merges:
+1. `notification`, `taxYear`, `accessRequest`, `purchaseScanQueue`, `purchaseCategory` (also update the services section of `docs/technical/` once)
 2. `activityLog`, `gigKit`, `gigParticipant`, `gigParticipantContacts`, `gigSchedule`
-3. `gigStaff`, `asset`, `kit` (share one `computeFieldChanges` / tracked-fields path through the layer)
+3. `gigStaff`, `asset`, `kit` (one shared `computeFieldChanges` path)
 4. `organization`, `conflictDetection`, `googleCalendar`
-5. `inventoryManagement`, `gigFinancial`
-6. `gig`: **hold until #92** (replace-all saves, coordinator) is settled
-7. `purchase`: **hold until #131's PR merges** (it changes this file)
+5. `inventoryManagement`, `gigFinancial`, `taxReport`
+6. `gig`: **hold until #92 is settled**
+7. `purchase`
 
-Pure refactor: no migrations, and no edge-function or UI changes ("User-visible changes: None"). `npm run test:run`, typecheck, lint and build must pass per PR. Note in each PR which helpers were added to the layer, if any. Update `docs/technical/` (the services section) once, in batch 1.
+Pure refactor: no migrations, no edge-function or UI changes. Tests, typecheck, lint and build pass per PR.
 
-**User-guide audit** (released 10-05) is handed to the Docs Lead (10-07); triage no longer works on `website/docs/`.
+**Never pre-approved:** migrations or any RLS/policy change (Cameron applies migrations), edge-function API shape, production config or `deploy_prod.sh`.
 
-Released to the triage routine 10-03 (the 09-30 batch, #102, #103, #32 and #20's `attachment.service.ts`, all
-shipped; see §4). Each is its own PR, with a failing test first. Open the PR and don't merge it; the coordinator
-reviews and merges once CI is green. None needs a migration. Of `supabase/functions/server/routes/`, only
-`calendar.ts` is open (#117); `organizations.ts` and `users.ts` stay with the coordinator's next security PR.
-Don't restructure the replace-all save logic in the gig services (#92, coordinator).
+### 3d. Raised by the Docs Lead, for the coordinator
 
-- **[#109](https://github.com/corourke/GigManager/issues/109) — the gig picker on the inventory reports lists every gig.**
-  Give `getGigsForReportPicker` (`src/services/inventoryManagement.service.ts`) a window of 30 days back to 30
-  days ahead of today, on `start`, filtered in the query. "Today" is the user's local date; that's what the
-  picker is about, so no per-gig time zone. The Packing List and the Location Manifest share the list, and
-  both get the window. Add a **Show all gigs** checkbox next to the picker for older or later gigs, and keep
-  the gig that's already selected in the list even when it falls outside the window. Tests pin the window
-  edges (day −30 and day +30 included, −31 and +31 excluded) and the checkbox. Frontend only.
+*The Docs Lead adds app problems and decisions it needs; it files app bugs as issues itself and links them here. The coordinator settles each entry and deletes it.*
 
-- **[#111](https://github.com/corourke/GigManager/issues/111) — Google Places lookup when adding an organization from a gig.**
-  Move the Places search out of `OrganizationScreen.tsx` (`handleSearchPlaces` and the place-details call)
-  into a shared hook or component, use it in `OrganizationScreen` unchanged, and add it to
-  `QuickCreateOrganizationDialog.tsx` for every organization type, as an optional "Search Google Places"
-  field above the form. Picking a place fills name, address, phone and website; the user can still edit them
-  or skip the search. Update the dialog's header comment, which says the lookup was left out on purpose. Uses
-  the existing `server/integrations/google-places` endpoints. Tests: picking a place fills the fields; the
-  dialog still works with no search. Frontend only.
+(none open: the 10-07 entries are filed as #157–#160, #168–#171, #173–#176 and #178, and their decisions are in §1 and §2)
 
-- **[#117](https://github.com/corourke/GigManager/issues/117) — Google Calendar entries are always all-day.**
-  In `supabase/functions/server/routes/calendar.ts`, send every gig as an all-day event. Dates are the gig's
-  local dates in `gigs.timezone` (not the UTC date the current all-day branch uses): start date to end date
-  inclusive, so Google's exclusive `end.date` is the day after. Put the times and the venue at the top of the
-  event description, for example "7:00 PM – 11:30 PM PDT" and "Riverside Amphitheater, 1200 Waterfront Dr,
-  Portland", then the gig notes and the GigWrangler link; keep the `location` field too. Events already synced
-  with times must become all-day on their next sync: when patching, clear `dateTime` and `timeZone` alongside
-  the new `date` (check against Google's API that the patch converts the event). Move the date and description
-  building into a pure helper under `server/lib/pure/` and test it with Vitest: a one-day gig, a gig past
-  midnight local time, a multi-day gig, a gig whose UTC date differs from its local date, and a gig with no
-  venue. Edge function only: after merging, the coordinator adds "redeploy `server`" to §3a.
+- **Second private security finding (Docs Lead, 10-07): privacy, in the person search behind the duplicate check (#178).** Details went to Cameron directly, as the repo is public. Cameron (10-08) asked for it to go on the private security list with the membership-RPC finding (§2 item 3). It touches the same search #178 changes, so plan the two together.
 
-**Always a contract, never pre-approved:** new migrations or any RLS/policy change (AGENTS.md rule 4 — Cameron
-applies migrations), edge-function API shape, anything touching production config or `deploy_prod.sh`.
+## 4. Agents and documentation
 
----
+**Equipment Lead** (`session_013gAYYf2hpcECG9QpxFz5Vo`, Supabase Dev environment, no prod access) owns #162. Mockups first, revised with Cameron; after approval it proposes sub-issues and builds nothing until he says so. It reports on #162.
 
-## 4. Recently shipped (context, not open work)
+**Docs Lead** ("GigWrangler Docs Lead", Supabase Dev environment, no prod access) owns the user guide (`website/docs/`) and its screenshots, from the demo organization in dev. It may create GitHub issues. Its decisions so far: visual style A (app match); the demo data and seed (`scripts/seed-demo.sql`, logins in `scripts/README.md`; dev holds only demo data since 10-07); screenshots from `scripts/screenshots/` at a pinned date, refreshed at each production release.
 
-| Work | Shipped in | Notes |
-|---|---|---|
-| #131 ([Purchases: smaller data issues](https://github.com/corourke/GigManager/issues/131)): line dates follow the purchase, gig rows use line cost (+ settled), scanned make/model kept, duplicates drop the purchase link, `invoice_import.py` retired | PR #156 (10-07) | Live in dev and prod 10-07 (verified); closed |
-| #133 ([Purchases: separate "track as equipment" from tax treatment](https://github.com/corourke/GigManager/issues/133)): tax treatment + filed-year locks, per-org categories, gig links on lines, equipment details, one line type, filed-year lock on gig income and expenses | PRs #137, #138, #140, #143–#146, #152 | Closed 10-07. #152 live in dev and prod 10-07 (prod verified: migration `20261012000000` applied, 464 lines all `line`, gig money lock trigger present) |
-| #134 ([Grey-zone check](https://github.com/corourke/GigManager/issues/134)): answered; the SHEHDS decision moved to #135, the Grey zone report to #125 | — | Closed 10-07 |
-| #39 ([Too many menu levels](https://github.com/corourke/GigManager/issues/39)): one-row top bar, shared page header with Back in a fixed slot, Equipment 4 → 2 levels (five tabs; packing list on the gig page), Financials 3 → 2 levels (Add purchase / Scan invoices as title-row buttons), design docs rebuilt | PRs #144, #147, #148, #149, #150 (10-07) | Merged and live in dev and prod 10-07 (bundle verified); closed 10-07 |
-| #129 ([Moving a purchase line between expense and asset](https://github.com/corourke/GigManager/issues/129)): superseded by #133 — tax treatment and "track as equipment" are separate two-way settings, reclassify RPC dropped, gig links on lines with a depreciate guard | PRs #140, #143 (10-06/07) | Closed 10-07 as completed |
-| #130 ([Scan on a gig page books the whole invoice as one gig expense](https://github.com/corourke/GigManager/issues/130)): gig links live on purchase lines, not the header | PR #140 (10-06) | Merged and closed 10-06; migrations `20261009000000`–`20261010000000` live on dev and prod |
-| Docs: user guide `gigs/` published pages (overview, creating-a-gig, change-history) checked against the app: four-tab gig page, page-wide edit mode, real list filters, exact form labels, what History logs and who sees it | PR [#151](https://github.com/corourke/GigManager/pull/151) (10-07) | Merged 14:59 UTC; docs only, from the §3c user-guide audit |
-| #111 ([Use Google Places lookup on ad hoc org adds](https://github.com/corourke/GigManager/issues/111)): the quick-create organization dialog has an optional Google Places search that fills editable phone, website and address fields; the search moved to `src/hooks/useGooglePlacesSearch.ts` (shared with `OrganizationScreen`); `createOrganization` sends the real columns `phone_number`/`url` | PR #122 (10-04) | Merged 15:24 UTC; #111 closed. Frontend only, ships with the next frontend deploy |
-| #117 ([Google Cal Entries make All-Day only](https://github.com/corourke/GigManager/issues/117)): every synced gig is an all-day event in its local dates, times and venue at the top of the description; pure `buildCalendarEvent` (`server/lib/pure/calendarEvent.ts`) shared by the server's `sync-gig-all-users` and the browser's per-user sync | PR #121 (10-04) | Merged 15:23 UTC; #117 closed. Needs a `server` redeploy **and** a frontend deploy together; then check on dev that a previously timed event turns all-day on its next sync (updates are `PUT`) |
-| #109 ([The Gig Selector on Packing List showing too many Gigs](https://github.com/corourke/GigManager/issues/109)): both report gig pickers list gigs from 30 days back to 30 days ahead (`reportPickerWindow`, filtered in the query), with a shared **Show all gigs** checkbox; a selected gig stays listed | PR #120 (10-04) | Merged 15:22 UTC; #109 closed. Frontend only, ships with the next frontend deploy |
-| Org-ownership / access control | PR #48, PR #49 | Merged |
-| Change history (gig audit trail) | PR #57, PR #58 | Merged |
-| WebAuthn Sentry safety net + packing list | PR #60 (09-14) | Merged; closed #50 |
-| Google Places friendly error | PR #62 (09-14) | Merged; closed #29 |
-| `gig_financials` RLS leak fix | PR #63 (09-14) | Merged; #61 stays open for the 4 remaining leaks |
-| #52 phase 1 — generic `notifications` table | PR #64 (09-16) | Merged |
-| #20 — shared data-access base module + `user.service.ts` pilot | PR #66 (09-22) | Merged; ~15 services remain, one at a time |
-| #52 phase 2 — Supabase/Google Places/Sentry health checks + daily cron | PR #65 (09-23) | Merged; Sentry check reports "not configured" until secrets land |
-| #61 — staffing, kit assignments, inventory scans and their History made org-private; shared-tenant decision recorded; RLS test suite + CI job | PR #76 (09-25) | Merged; migration applied to dev and prod 09-26. #61 closed |
-| #52 fix — health check moved to its own `health-check` function (`verify_jwt = false`) | PR #73 (09-25) | Merged; setup done on dev + prod 09-25, verified by curl. #52 closed |
-| Docs refresh: `testing.md` (PR #67), `setup-guide.md` + one line of `deployment.md` (PR #68) | PR #67, PR #68 (09-23) | Merged; docs only, from triage docs passes |
-| #71 — non-expense financial records save `category: null`; Add dialog stays open until saved; failed autosave no longer retries in a loop (`useAutoSave.saveNow`) | PR #77 (09-26) | Merged; #71 closed. Frontend only, ships with the next frontend deploy |
-| #81 — web packing list groups rows under the kit they're packed in; every assigned kit, a lone container included, gets its own heading | PR #82 (09-27) | Merged, but a lone container then showed twice (heading + row); Cameron reopened #81 on 09-28 |
-| #12 ([Reorganize Gig Edit into tabbed sections](https://github.com/corourke/GigManager/issues/12)) — closed 10-01 at Cameron's request | PRs #79, #80, #89, #100, #101 (09-26 to 09-30) | All five PRs merged; rows for PRs 3–5 below |
-| #12 PR 3 — one edit mode for the whole gig page: header fields, one save state, Done waits for saves; When & schedule with a dated table in the gig's time zone; the gig widens to cover its schedule | PR #89 (09-29) | Merged. Frontend only; no migration |
-| #84 — attachments open the file instead of a blank tab (`window.open` without `noopener`, opener cut by hand); first `AttachmentManager` tests | PR #87 (09-28) | Merged; #84 closed. Deployed to dev + prod 09-29 |
-| #81 rework — packing list is an indented list: kits A to Z marked Items/Container, an Items kit's contents indented under it, a lone container one line (approved mockup, board 7) | PR #86 (09-28) | Merged; Cameron confirmed it on the live gig 09-29, #81 closed. Frontend only |
-| #74 — gig lists keep a gig in Upcoming until its last calendar day is over in the gig's timezone (`isGigPast` in `src/utils/gigTimeframe.ts`, web and mobile) | PR #85 (09-28) | Merged; #74 closed. Frontend only, ships with the next frontend deploy |
-| #69 — participants autosave keeps the database id after the first insert, so later autosaves update the row instead of deleting and re-inserting it (no more repeated added/removed History entries or unlinked schedule acts) | PR #83 (09-28) | Merged; #69 closed. Frontend only, ships with the next frontend deploy. Cameron to check a new participant's History after deploy |
-| #90 ([Deleting an organization always fails](https://github.com/corourke/GigManager/issues/90)): dropped the `gig_bids` delete-guard entry; a new test checks the guard against the tables the migrations create | PR #96 (09-30) | Merged; #90 closed. Needs a `server` redeploy |
-| #91 ([Dashboard asset and insured values always $0](https://github.com/corourke/GigManager/issues/91)): totals read `item_cost` through `lib/pure/dashboard.ts`, and query errors are returned | PR #97 (09-30) | Merged; #91 closed. The same `server` redeploy covers it |
-| #93 ([Some financial record dates use UTC](https://github.com/corourke/GigManager/issues/93)): import payment, completed labor and the purchase fallback are dated in the gig's time zone (`toDateInTimeZone`) | PR #98 (09-30) | Merged; #93 closed. Frontend only |
-| #94 ([A failed profile load looks like "no organizations"](https://github.com/corourke/GigManager/issues/94)): `getCompleteUserData` throws; `RequireAuth` shows "We couldn't load your account" with a retry | PR #99 (09-30) | Merged; #94 closed. Frontend only |
-| #12 PR 4 — printing: the gig page's Print button makes a gig sheet (venue, schedule, participants, crew contacts, notes, attachment names), and Admins and Managers can add a financials page; the packing list prints with a header (org, gig, date, counts) | PR #100 (09-30) | Merged. Frontend only |
-| Follow-up to #107: a new participant was inserted and logged "added" several times because autosaves overlapped; `useAutoSave` now runs one save at a time (all autosaving sections) | PR #108 (09-30) | Merged. Frontend only; Cameron to re-check adding a participant after the next deploy and remove any duplicate rows from earlier testing |
-| #12 PR 5 — style guide: record-page, one-edit-mode, Columns picker and print patterns; primary buttons `sky-700`; stale tokens, header height and Tailwind setup corrected | PR #101 (09-30) | Merged. Docs only |
-| Purchases scan queue: choose or drop many invoices; they scan in the background two at a time and are reviewed one by one (Save Purchase shows the next); unreviewed invoices persist in `purchase_scan_queue`; `ai-scan` queue mode; scan limit 60/hour | PR #116 (10-03) | Merged after a dev test. Needs the migration and an `ai-scan` deploy on prod |
-| Purchases (approved 10-01): report opens on the last 30 days with date presets, Clear all filters, filtered and all-time totals (PR 1); Report / Add manually / Scan invoices tabs, report no longer reloaded on every save (PR 2). Invoice scanning moved to Claude Sonnet 5.5 at `low` effort | PRs #113, #114, #115 (10-02) | Merged. #113 needs an `ai-scan` deploy; #114/#115 frontend only |
-| Docs: `server-endpoint-inventory.md` re-pointed at `routes/` and checked row by row (includes #95's route changes); one line each of `docs/README.md` and `tech-stack.md` | PR #88 (09-30) | Merged by the coordinator; docs only |
-| #102 ([Duplicate Gig fails when the gig has crew slots](https://github.com/corourke/GigManager/issues/102)): `duplicateGig` sends each slot's role name as `role`, as `create_gig_complex` reads it; copied slots start unstaffed | PR #104 (09-30) | Merged; #102 closed. Frontend only |
-| #32 ([Sign Up: no confirm-password field](https://github.com/corourke/GigManager/issues/32)): Confirm password field that must match, plus a Weak/Fair/Strong hint (`getPasswordStrength`) that advises only; minimum stays 6 | PR #105 (09-30) | Merged; #32 closed. Frontend only |
-| #20 slice: `attachment.service.ts` table reads/writes on `base/dataAccess.ts`; storage calls and `deleteAttachment`'s queries unchanged | PR #106 (09-30) | Merged; #20 stays open, 14 services remain. Frontend only |
-| #103 ([History logged with no organization](https://github.com/corourke/GigManager/issues/103)): participant and schedule History logged against the acting org (passed in `activityCtx`, else the user's Admin/Manager membership on the gig); no more `primary_organization_id` select; lookup errors surface | PR #107 (09-30) | Merged; #103 closed. Frontend only |
-| Tightened authorization on membership, contact, invitation and purchase functions; unused `POST /gigs` and `PUT /gigs/:id` removed | PR #95 (09-29) | Merged. Needs migration `20260929000000` and a `server` redeploy on dev and prod (§3a item 1) |
-| Docs: user guide `getting-started/` (4 published pages) checked against the app: profile-completion step, email confirmation, Viewer/Staff domain-join buttons, Staff sees the Dashboard, exact labels | PR #139 (10-06) | Merged 16:43 UTC; docs only, from the §3c user-guide audit |
-| Docs: `SmartDataTable.md` matches the component (Tab visits every column, no arrow keys, edits wait for the save, widths persist; missing props and column options added) | PR #126 (10-05) | Merged 17:21 UTC; docs only, from a triage docs pass |
-| Docs: `deployment.md` lists CI's `rls` job; rebuild steps point to the health-check setup | PR #110 (10-01) | Merged; docs only, from a triage docs pass |
-| Docs refresh: `docs/README.md` index (PR #70), `database.md` reconciled with migrations (PR #72) | PR #70, PR #72 (09-25) | Merged; docs only, from triage docs passes |
+**Triage routine** (daily, ~09:00 UTC). Each run:
+1. Check CI and mergeability on its own open PRs; fix a red or conflicted one by merging `main` in, never by rebasing.
+2. Build what §3c releases that has no PR yet: plan comment on the issue, failing test first.
+3. On a quiet run, do one `docs/` pass (technical and development docs; next candidate: `docs/technical/conflict-detection.md`). Leave `website/docs/` to the Docs Lead.
+4. Don't manufacture activity: if nothing changed, commit nothing and post nothing.
 
----
-
-## 5. For the daily triage routine
-
-Read this section first on each run.
-
-**Equipment Lead (since 10-07).** A separate session, "Equipment Lead: items and units (#162)" (`session_013gAYYf2hpcECG9QpxFz5Vo`, Supabase Dev environment, no prod access), owns #162. First deliverable: HTML mockups of every affected screen in a docs-only PR (`claude/equipment-units-mockups`) with a summary and numbered questions on #162. It builds nothing until Cameron approves the mockups, then proposes the sub-issues. It reports through #162 and its PRs.
-
-**Docs Lead (since 10-07).** A separate session, "GigWrangler Docs Lead", owns the look, quality and organization of the user guide (`website/docs/`): its information architecture, its style guide, and screenshots taken from a demo organization in **dev**, which it has read-write access to. Prod stays off-limits. It opens docs PRs for the coordinator to merge, and files app issues (it may create GitHub issues) with §3d entries instead of building code. Triage: before a user-guide pass, check the user-docs table below for pages the Docs Lead has claimed, and skip them. **Scope (Cameron, 10-07): the Docs Lead works only on the user guide and the user testing that comes with it, not on `docs/`.** It may still note `docs/` problems here or in §3d; `docs/` passes stay with triage and the coordinator.
-
-**Docs Lead decisions, 10-07 (Cameron).** **Coordinator, please note:**
-1. *Visual style:* option A, the app match (sky-blue accent, neutral greys, system font). The Docs Lead builds it in its own PR.
-2. *Demo data:* approved with the review-pack fixes plus Cameron's own: role-initial first names (Admin Alicia, Manager Marcus, Staff Sofia, Viewer Victor), gigs mostly on Friday and Saturday evenings, password `demo1pass`. Revised seed pushed to PR #155 and applied to dev. **Cameron also approved deleting all other data in dev**, so on 10-07 every non-demo organization, gig, purchase, asset, activity row and test login was removed. Cameron's own logins (`cameron*` addresses) were kept but now belong to no organization. A JSON copy of the deleted rows is in the Docs Lead session's scratchpad. Anyone testing on dev should use the demo logins (`scripts/README.md`) or create fresh data.
-3. *Screenshot upkeep:* approved: a manifest and shoot script in `scripts/screenshots/`, a pinned anchor date for both the seed and the browser clock (time zone `America/Los_Angeles`), and a full refresh at each production release. There is no same-PR rule: code PRs leave the guide and screenshots to the Docs Lead ("Who updates which docs" below). The optional CI "screenshots may be stale" warning would now tell the Docs Lead, not the PR author; not filed yet.
-
-**File ownership — what is claimed.** Check live before starting: `git fetch origin && git branch -r
---sort=-committerdate | head -20` plus the open PR list. An open PR claims the files it touches.
-
-| Claimed by | Files | Notes |
-|---|---|---|
-| #20 remaining services | `src/services/*.service.ts` (all but `user.service.ts` and `attachment.service.ts`) | Parked; `attachment.service.ts` released 09-30 (§3c) |
-| Docs Lead, user-guide IA restructure | all of `website/docs/` (moves, sidebar, redirects, home page) | Cameron approved the IA 10-07; PR to follow. Triage: hold user-guide passes until it merges |
-| Coordinator, #92 | not yet claimed | Not in §3c; triage leaves it alone |
-| Stray branches `claude/triage-90-org-delete-references`, `claude/triage-userguide-gigs` | none | Duplicates of PR #96's and PR #151's commits. The proxy refused the deletes; both are safe to delete |
-
-**Dependencies.** #39 follows #12's gig-page redesign, now done (#12 closed 10-01), so the header stays consistent with it. #52's health check is live on dev and prod (09-25); its Sentry check additionally needs the Sentry secrets (§3a item 7). The tenant model is decided (hosted, shared DB, 09-25).
-
-**Where things stand.** 09-28: PRs #83 (#69) and #85 (#74) merged ~14:31 UTC; both issues closed.
-Urgent bug #84 approved by Cameron and fixed by the coordinator in PR #87 (merged 09-28). #81 reworked in PR #86; Cameron confirmed it 09-29 and it is closed. Nothing in §3c is left unbuilt. #71 and #81 merged earlier (see §4). 09-29: #12 PR 3 merged (#89) and code-review bugs #90–#94 filed by the coordinator; security PR #95 merged (deploy waits on Cameron, §3a). 09-30: the coordinator released #90, #91, #93 and #94 in §3c; triage built all four as PRs #96–#99, merged 04:19 UTC, and merged `main` into docs PR #88 to clear its conflict. #90 and #91 need a `server` redeploy. The coordinator merged docs PR #88 and moved triage's org-delete question to §3a. §3c is empty. Later on 09-30 the coordinator filed #102 and #103 and released them, #32 and `attachment.service.ts` (#20) in §3c. The 09:00 triage run built all four: PRs #104 (#102), #105 (#32), #106 (#20) and #107 (#103), each with a plan comment on its issue, a test written first and a mutation check. Nothing in §3c is left unbuilt. 10-01: Cameron filed #109 (packing-list picker); triage found the cause and raised it in §3b, and ran the docs pass on `deployment.md` (PR #110, merged 15:03 UTC). Cameron closed #12 the same day. 10-02: Cameron filed #111 and #117 (both raised in §3b, nothing built); the docs pass covered `tech-stack.md` (PR #118). 10-03: quiet, with no new issues or replies; the docs pass covered `coding-guide.md` (PR #119). Later that day the coordinator released #109, #111 and #117. 10-04: triage built all three, each with a plan comment on its issue, tests written first and mutation checks: PRs #120 (#109), #121 (#117) and #122 (#111). Nothing in §3c is left unbuilt. No docs pass this run. 10-05: quiet for triage. #125 is new (coordinator, waiting on Cameron) and #124 is green, so there was nothing to build. The docs pass covered `SmartDataTable.md` (PR #126). 10-06: no new issues; #138 green. The §3c user-guide audit began with the getting-started section (PR #139, merged 16:43 UTC). 10-07: no open PRs at the start; #130 found closed (PR #140) and moved to §4. The gigs published pages went into PR #151 (merged 14:59 UTC).
-
-On 09-23 every item was blocked or parked, so the run moved on to docs. Docs-only PR
-[#67](https://github.com/corourke/GigManager/pull/67) refreshed `docs/development/testing.md`: suite size,
-the actual Supabase mock pattern, the finished March coverage plan replaced with the gaps that remain, and a CI
-section that matches `ci.yml`. A second run the same day opened docs-only PR
-[#68](https://github.com/corourke/GigManager/pull/68), which corrected `setup-guide.md`. Both merged 09-23 18:20 UTC. The fixes: Node 20.19+
-instead of 18, a supported Supabase CLI install, the full migration set instead of pasting only
-`initial_schema.sql`, deploying both edge functions, a seed check that works, and removing the `ai-scan`
-`x-diagnostic` test that was dropped in June (also fixed in `deployment.md`).
-
-**Docs covered by triage runs:** `docs/development/testing.md` (09-23), `docs/technical/setup-guide.md`
-(09-23; build and dev server tried; `supabase start` not tried because the sandbox has no Docker daemon),
-`docs/README.md` (09-24, PR #70: all links resolve; indexed `gig-financials.md`, `purchases-field-mapping.md` and
-`server-endpoint-inventory.md`, the last marked historical). `database.md`'s "single initialization file" line turned
-out to be a dated 02-09 changelog entry, not stale. `docs/technical/database.md` body (09-25, PR #72: reconciled with every
-migration through `20260919000000` — dropped status-history tables, `kit_components` rename, six new tables, new columns).
-`docs/technical/server-endpoint-inventory.md` (09-29, PR #88, merged 09-30: re-pointed at `routes/`, every row checked against the
-middleware; `DELETE /gigs/:id` is Admin-only; access-request and notification routes added). `docs/technical/security-scheme.md` (09-29: checked against every policy, the RLS tests and the three edge functions; the update is **held** until the §3b security entry is resolved, then document helpers, gig UPDATE/DELETE and participant write rules, the full CORS list, `requireOrgRole` options and the `health-check` gate). `docs/technical/deployment.md` (10-01, PR #110, merged 10-01: checked against both deploy scripts, `ci.yml`, `vite.config.ts`, `config.toml` and every env read; added the `rls` CI job and the health-check step to the rebuild. Scripts only `bash -n`-checked. `deploy_prod.sh` has no `--help` and starts its gates on any run, so don't run it). `docs/technical/tech-stack.md` (10-02, PR #118, merged 10-03: checked against `package.json`, `supabase/functions/`, migrations and `ci.yml`; added `health-check` and `notifications.ts`, corrected storage to the one `attachments` bucket). `docs/development/coding-guide.md` (10-03, PR #119, merged 10-03: schema section aligned with AGENTS.md rule 4 (it said to hand DDL to the SQL Editor), the `dataAccess.ts` base added, `build` added to the gates, lint debt recounted, the done `App.tsx` split retired). `docs/technical/SmartDataTable.md` (10-05, PR #126, merged 10-05: checked against `SmartDataTable.tsx`, `EditableCell.tsx` and `useTableState.ts`. Tab visits every column, there are no arrow keys, edits aren't optimistic, and widths persist. The missing props and column options were added.) Next candidate: `docs/technical/conflict-detection.md` (PR #124, which changed `conflictDetection.service.ts`, has merged).
-
-**Who updates which docs (Cameron, 10-07).** These rules win over the routine's prompt wherever it says to put the user guide in the same PR.
-- **Code PRs** (triage, coordinator) keep the **technical docs** in `docs/` in step with the code, in the same PR: schema, data model, services, deployment.
-- **Code PRs don't touch the user guide** (`website/docs/`) **or screenshots.** Instead, the PR body ends with a **"User-visible changes"** section: what a user now sees or does differently, with exact on-screen labels and the screens affected, or "None".
-- **The Docs Lead owns the user guide and screenshots.** It reads that section on merged PRs and decides what to update and how, as documentation work in its own PRs.
-- Triage's user-guide passes are retired. Leave `website/docs/` to the Docs Lead, apart from the user-docs table below, which the Docs Lead now keeps.
-
-**User guide (`website/docs/`), rules for the Docs Lead.**
-- Check every statement against the current app code, not older docs. Use the exact on-screen labels, and call the product "GigWrangler". Outline and priorities: `docs/development/user-documentation-plan.md`; editing rules: `website/docs/README.md`.
+**Who updates which docs** (Cameron, 10-07):
+- Code PRs keep the technical docs in `docs/` in step with the code, in the same PR.
+- Code PRs don't touch the user guide or screenshots; they end with "User-visible changes" (§3a).
+- The Docs Lead reads that section on merged PRs and updates the guide in its own PRs.
+- Publishing: drafts keep `draft: true` until complete and verified; the coordinator publishes with Cameron.
 - PRs touching `website/docs/` must pass `cd website/docs && npm ci && npm run build`.
-- **Publishing is not triage's call.** Fill in and correct drafts but keep `draft: true`; when one is complete and verified, set its row below to "ready to publish". The coordinator publishes with Cameron. On an already-published page, fix errors directly; if one can't be fixed in a single PR, add a `:::caution` note saying what is out of date and record it below.
-- Triage: on a quiet run, do a `docs/` pass (technical and development docs) only.
 
-**User-docs table** (one row per page; the Docs Lead keeps it current):
+**User-docs table** (the Docs Lead keeps it current):
 
 | Page (`website/docs/src/content/docs/`) | Status | Last verified | Still wrong |
 |---|---|---|---|
 | `calendar/google-calendar.md` | published | — | not audited |
 | `equipment/overview.md` | published | — | not audited |
 | `financials/overview.md` | published | 2026-10-06 (coordinator, PR #136) | — |
-| `financials/receipts-and-invoices.md` | published (new) | 2026-10-06 (coordinator, PR #136) | — |
-| `financials/gig-accounting.md` | published (new) | 2026-10-06 (coordinator, PR #136) | — |
-| `financials/tax-treatment.md` | published (PR #137, merged) | 2026-10-06 (coordinator) | — |
+| `financials/receipts-and-invoices.md` | published | 2026-10-06 (coordinator, PR #136) | — |
+| `financials/gig-accounting.md` | published | 2026-10-06 (coordinator, PR #136) | — |
+| `financials/tax-treatment.md` | published | 2026-10-06 (coordinator) | — |
 | `getting-started/onboarding.md` | published | 2026-10-06 (triage, PR #139) | — |
 | `getting-started/organizations.md` | published | 2026-10-06 (triage, PR #139) | — |
 | `getting-started/the-dashboard.md` | published | 2026-10-06 (triage, PR #139) | — |
@@ -303,8 +119,8 @@ middleware; `DELETE /gigs/:id` is Admin-only; access-request and notification ro
 | `gigs/overview.md` | published | 2026-10-07 (triage, PR #151); screenshots PR #166 | — |
 | `import/overview.md` | published | — | not audited |
 | `index.mdx` | published | — | not audited |
-| `organizations/overview.md` | published | — | not audited |
-| `reference/roles-and-access.md` | published | — | not audited |
+| `team/overview.md` | published | 2026-10-07 (Docs Lead, PR #177) | corrections go live when #177 merges |
+| `reference/roles-and-access.md` | published | 2026-10-07 (Docs Lead, PR #177) | corrections go live when #177 merges |
 | `calendar/conflict-detection.md` | draft | — | not audited |
 | `calendar/overview.md` | draft | — | not audited |
 | `equipment/assets.md` | draft | — | not audited |
@@ -313,9 +129,9 @@ middleware; `DELETE /gigs/:id` is Admin-only; access-request and notification ro
 | `equipment/inventory-reports.md` | draft | — | not audited |
 | `equipment/kits.md` | draft | — | not audited |
 | `equipment/location-explorer.md` | draft | — | not audited |
-| `financials/cost-allocation.md` | published (was draft) | 2026-10-06 (coordinator, PR #136) | — |
-| `financials/gig-expenses.md` | published (was draft) | 2026-10-06 (coordinator, PR #136) | — |
-| `financials/purchases.md` | published (was draft) | 2026-10-06 (coordinator, PR #136) | — |
+| `financials/cost-allocation.md` | published | 2026-10-06 (coordinator, PR #136) | — |
+| `financials/gig-expenses.md` | published | 2026-10-06 (coordinator, PR #136) | — |
+| `financials/purchases.md` | published | 2026-10-06 (coordinator, PR #136) | — |
 | `gigs/calendar-view.md` | draft, written (PR #172) | 2026-10-07 (Docs Lead) | ready to publish once #172 merges |
 | `gigs/conflict-detection.md` | draft, written (PR #172) | 2026-10-07 (Docs Lead) | ready to publish once #172 merges |
 | `gigs/documents-and-notes.md` | draft, written (PR #172) | 2026-10-07 (Docs Lead) | ready to publish once #172 merges |
@@ -329,47 +145,22 @@ middleware; `DELETE /gigs/:id` is Admin-only; access-request and notification ro
 | `mobile/field-inventory.md` | draft | — | not audited |
 | `mobile/offline-access.md` | draft | — | not audited |
 | `mobile/overview.md` | draft | — | not audited |
-| `organizations/invitations.md` | draft | — | not audited |
-| `organizations/member-profiles.md` | draft | — | not audited |
-| `organizations/people-without-logins.md` | draft | — | not audited |
-| `organizations/team-and-roles.md` | draft | — | not audited |
-| `reference/access-requests-and-moderation.md` | draft | — | not audited |
-| `reference/glossary.md` | draft | — | not audited |
+| `team/invitations.md` | draft, written (PR #177) | 2026-10-07 (Docs Lead) | ready to publish once #177 merges |
+| `team/member-profiles.md` | draft, written (PR #177) | 2026-10-07 (Docs Lead) | ready to publish once #177 merges |
+| `team/people-without-logins.md` | draft, written (PR #177) | 2026-10-07 (Docs Lead) | ready to publish once #177 merges |
+| `team/team-and-roles.md` | draft, written (PR #177) | 2026-10-07 (Docs Lead) | ready to publish once #177 merges |
+| `reference/access-requests-and-moderation.md` | draft, written (PR #177) | 2026-10-07 (Docs Lead) | ready to publish once #177 merges |
+| `reference/glossary.md` | draft, written (PR #177) | 2026-10-07 (Docs Lead) | ready to publish once #177 merges |
 
-**Future considerations (not open work).** Left over from #61 (closed 09-25): gig attachments are invisible
-to the other orgs on a gig (needs a sharing flag plus a storage-policy change), and prod has an extra
-`fin_category` value `'Production'` that no migration creates. Found while fixing #61 (the first two filed 09-30 as #102 and #103): Staff/Viewers can read
-their own org's staff `rate`/`fee`. Tenant model decided 09-25: hosted, shared DB. New private tables need a test
-in `supabase/tests/rls/` (CI job `rls`). Found while building #111: `createOrganization`'s parameter type still lists `email` and `place_id`, which aren't `organizations` columns, so sending either would fail the insert. No caller sends them. Found in the 10-06 user-guide audit: after a first Google sign-in the profile-completion screen requires **Set Password** (written for invitations) and doesn't prefill the Google name, because only `first_name`/`last_name` metadata is read.
+**Project rules that bite** ([AGENTS.md](./AGENTS.md)): approval before going from plan to code (rule 1); a failing test before a bug fix (rule 3); never edit a committed migration, and Cameron applies new ones (rule 4); list manual deploy and verification steps (rule 7). Prod is read-only for agents unless Cameron approves a specific change.
 
- Supabase CLI 2.117 warns that `[inbucket]` in
-`supabase/config.toml` is deprecated in favour of `[local_smtp]`. This is local-only config, so nothing is
-broken yet.
+## 5. Future considerations (not open work)
 
-**Financial transaction types (coordinator, 10-04; loop back when read-only DB access exists).** Cameron wants the 25 `fin_type` values radically simplified *before* the Gig Accounting report is reworked; the change also drives how the gig's Financials tab displays. Direction proposed 10-04: five types (Fee agreed, Client payment, Refund to client, Expense, Sub-contract), with paid/due carried by `paid_at` / `due_date`, and three report sections (Needs Attention, Upcoming, Settled), each gig in exactly one. Cameron says many rows lack faithful `paid_at` / `due_date`, so the mapping must come from the raw rows, not counts. Prod is readable with `SUPABASE_ACCESS_TOKEN` (set 10-04; it can write, so read-only unless Cameron approves a change):
-`curl -sS -X POST "https://api.supabase.com/v1/projects/hqnnhtxcxedisasvtbqv/database/query/read-only" -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" -H "Content-Type: application/json" -d '{"query":"select ... from gig_financials ..."}'`
-Never call `/database/query` (the read-write endpoint), `supabase db push`, `functions deploy` or any other write without Cameron's go-ahead for that specific change. Findings 10-04: only 5 types in use (Payment Received 70, Expense Incurred 45, Informal Terms 24, Invoice Issued 4, Bid Accepted 1). Then: read every `gig_financials` row with its gig (title, status, start, end), propose the old-to-new mapping per row pattern to Cameron, then the migration and UI. Triage doesn't touch this.
-
-**Order of checks each run.**
-
-1. Check CI and mergeability on open PRs (list live; #151 merged 10-07). Fix a red or conflicted triage PR by merging `main` into it, never by rebasing.
-2. #39 — check for a reply. If a variant is picked → work plan → post → wait for approval → implement.
-3. §3c — build what is released there that has no PR yet. The user-guide audit moved to the Docs Lead 10-07; skip `website/docs/`.
-4. Check §3b for unresolved entries the coordinator hasn't cleared yet.
-
-**Don't manufacture activity.** #39 already has exactly one open question on record.
-If a run finds everything still quiet, that is a legitimate no-op: do **not** re-post the same "still waiting"
-comments — daily repetition is noise. Speak up only when something actually changes (a new reply, CI going
-red, a new review comment, a new issue).
-
-**Project rules that bite here.** From [AGENTS.md](./AGENTS.md): never go from requirements → spec → plan →
-implementation without approval first (rule 1); write a failing test before fixing a bug (rule 3); never edit
-a committed migration, and ask Cameron to apply new ones to the remote Supabase database, then wait for
-confirmation (rule 4); enumerate any manual deploy/verification steps after implementing (rule 7); keep
-project documents — including this file — updated as work completes (rule 8).
-
-**Maintaining this file.** This file is maintained on `main` — the triage routine reads and writes it there,
-so board-only updates should land on `main` promptly rather than sitting on a feature branch, where a run that
-starts from `main` will not see them. Update it in place; on a quiet day, commit only if something actually
-changed. Keep §1 and §3 accurate first — they are what gets read at a glance. Move finished work into §4
-rather than deleting it, so the history of what shipped stays available without digging through closed PRs.
+- Gig attachments are invisible to the other organizations on a gig (needs a sharing flag and a storage-policy change).
+- Prod has a `fin_category` value `'Production'` that no migration creates.
+- Staff and Viewers can read their own org's staff `rate` / `fee`.
+- `createOrganization`'s parameter type lists `email` and `place_id`, which aren't columns; no caller sends them.
+- After a first Google sign-in, profile completion requires **Set Password** and doesn't prefill the Google name.
+- Supabase CLI warns that `[inbucket]` in `supabase/config.toml` is deprecated in favour of `[local_smtp]` (local config only).
+- The main JS bundle is about 30 KB under the 2 MiB PWA precache limit; split more routes before it trips `npm run build` again.
+- Stray branches `claude/triage-90-org-delete-references` and `claude/triage-userguide-gigs` duplicate merged work and are safe to delete.
