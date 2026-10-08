@@ -1,12 +1,12 @@
 ---
 title: Reporting
-description: Income, Expenses and Assets reports for each tax year, with CSV downloads to hand to your tax program or accountant.
+description: Income, Expenses, Assets and Grey zone reports for each tax year, with CSV downloads to hand to your tax program or accountant.
 draft: true
 sidebar:
   order: 8
 ---
 
-**Financials → Reporting** gathers a tax year's figures into three reports: **Income**, **Expenses** and **Assets**. Each one downloads as a CSV file you can give to your tax program or accountant. Admins and Managers can open it. GigWrangler doesn't calculate tax; it lists what you received, spent and bought.
+**Financials → Reporting** gathers a tax year's figures into four reports: **Income**, **Expenses**, **Assets** and **Grey zone**. Each one downloads as a CSV file you can give to your tax program or accountant. Admins and Managers can open it. GigWrangler doesn't calculate tax; it lists what you received, spent and bought.
 
 The reports use the cash basis. Money counts in the year it was received or paid, and equipment counts in the year it was bought.
 
@@ -14,7 +14,7 @@ The reports use the cash basis. Money counts in the year it was received or paid
 
 1. Open **Financials → Reporting**.
 2. Choose a year in **Tax year**. The list holds this year and every year in which you have purchases, paid gig money or equipment you sold or retired.
-3. Select **Income**, **Expenses** or **Assets**.
+3. Select **Income**, **Expenses**, **Assets** or **Grey zone**.
 
 If an Admin has marked the year as filed, a **{year} is filed** badge appears beside the report buttons. See [Filing a year](#filing-a-year).
 
@@ -65,6 +65,18 @@ If you bought no depreciated equipment, you'll see "No depreciated equipment was
 **Disposed of in {year}** lists depreciated equipment you sold or retired in the year, whenever you bought it. It shows **Description**, **Date bought**, **Cost**, **Date disposed**, **Sale proceeds** and **Status**. Select **Download disposals CSV** to save it.
 
 ![The Assets report for 2026: Tax year, the Income, Expenses and Assets buttons, Download CSV, totals for equipment bought, items and de minimis candidates, the 7-year total, and a table of depreciated equipment with cost and recovery period](../../../assets/screenshots/financials/reporting-assets.png)
+
+## The Grey zone report
+
+The Grey zone report lists the equipment you bought in the year that cost from $200 to $2,500 each, including its share of tax and shipping. Items in that range can be expensed or depreciated, and the choice is yours, so this is the list to check before you file. Equipment means items filed under an equipment category, or tracked as equipment. Both treatments are listed.
+
+The boxes at the top show **Grey zone in {year}**, and how many are **Expensed** and **Depreciated**. The table has **Date bought**, **Description**, **Category**, **Qty**, **Cost each**, **Cost** and **Treatment** (**Expense** or **Depreciate**), with a **Total**.
+
+To change an item's treatment, select **Change…** beside it. The purchase opens for editing; choose **Expense** or **Depreciate** on the line and select **Save Changes**. The report updates when you save. In a filed year the report is read-only and **Change…** doesn't appear. See [Tax treatment and equipment](/financials/tax-treatment/).
+
+If nothing falls in the range, you'll see "No equipment costing $200 to $2,500 each was bought in {year}."
+
+The CSV adds the vendor and a **Tracked as equipment** column.
 
 ## Filing a year
 

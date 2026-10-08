@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
 import { AlertCircle, Download, Lock } from 'lucide-react';
 import { toast } from 'sonner';
 import { Card } from '../ui/card';
@@ -8,17 +8,22 @@ import { Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, Table
 import { getTaxReportData, type TaxReportData } from '../../services/taxReport.service';
 import { getLockedTaxYears } from '../../services/taxYear.service';
 import {
-  buildIncomeReport, buildExpenseReport, buildAssetReport,
-  incomeCsv, expensesCsv, assetsCsv, disposalsCsv, reportFilename, downloadCsv, dayOf,
+  buildIncomeReport, buildExpenseReport, buildAssetReport, buildGreyZoneReport,
+  incomeCsv, expensesCsv, assetsCsv, disposalsCsv, greyZoneCsv, reportFilename, downloadCsv, dayOf,
 } from '../../utils/taxReports';
 import { recoveryPeriodLabel } from '../../utils/recoveryPeriod';
+import { taxTreatmentLabel } from '../../utils/taxTreatment';
 
-export type ReportKind = 'income' | 'expenses' | 'assets';
+// The purchase editor, where a line's treatment is changed; loaded when first opened.
+const ReviewScannedDataDialog = lazy(() => import('../ReviewScannedDataDialog'));
+
+export type ReportKind = 'income' | 'expenses' | 'assets' | 'grey-zone';
 
 const REPORTS: { kind: ReportKind; label: string }[] = [
   { kind: 'income', label: 'Income' },
   { kind: 'expenses', label: 'Expenses' },
   { kind: 'assets', label: 'Assets' },
+  { kind: 'grey-zone', label: 'Grey zone' },
 ];
 
 const usd = (n: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n);
@@ -44,8 +49,8 @@ interface ReportingTabProps {
 }
 
 /**
- * Tax-year reports (#125): Income, Expenses and Assets, cash basis, each with a
- * CSV download for the tax program. The counting is in utils/taxReports.
+ * Tax-year reports (#125): Income, Expenses, Assets and Grey zone, cash basis,
+ * each with a CSV download for the tax program. The counting is in utils/taxReports.
  */
 export default function ReportingTab({ organizationId, organizationName, onEditAsset }: ReportingTabProps) {
   const thisYear = new Date().getFullYear();
@@ -53,19 +58,22 @@ export default function ReportingTab({ organizationId, organizationName, onEditA
   const [kind, setKind] = useState<ReportKind>('income');
   const [data, setData] = useState<TaxReportData | null>(null);
   const [locked, setLocked] = useState<Set<number>>(new Set());
+  // The purchase open in the editor (Grey zone), and a bump to reload after it's saved.
+  const [editPurchaseId, setEditPurchaseId] = useState<string | null>(null);
+  const [reload, setReload] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
-    setData(null);
+    if (!reload) setData(null);
     getTaxReportData(organizationId)
       .then(d => { if (!cancelled) setData(d); })
       .catch(err => {
         console.error('Error loading report data:', err);
-        if (!cancelled) { toast.error('Failed to load the reports'); setData({ lines: [], gigRows: [], categories: [], scheduleC: [] }); }
+        if (!cancelled) { toast.error('Failed to load the reports'); setData({ lines: [], gigRows: [], categories: [], scheduleC: [], equipmentCategories: [] }); }
       });
     getLockedTaxYears(organizationId).then(y => { if (!cancelled) setLocked(y); }).catch(() => {});
     return () => { cancelled = true; };
-  }, [organizationId]);
+  }, [organizationId, reload]);
 
   // Every year with data, and this year. Disposals count too, as the Assets report lists them (#194).
   const years = useMemo(() => {
@@ -81,10 +89,12 @@ export default function ReportingTab({ organizationId, organizationName, onEditA
   const income = useMemo(() => data && buildIncomeReport(data.gigRows, year), [data, year]);
   const expenses = useMemo(() => data && buildExpenseReport(data.lines, data.gigRows, data.categories, data.scheduleC, year), [data, year]);
   const assets = useMemo(() => data && buildAssetReport(data.lines, year), [data, year]);
+  const greyZone = useMemo(() => data && buildGreyZoneReport(data.lines, data.equipmentCategories ?? [], year), [data, year]);
 
   const download = () => {
     if (!data) return;
-    const csv = kind === 'income' ? incomeCsv(income!) : kind === 'expenses' ? expensesCsv(expenses!, data.scheduleC) : assetsCsv(assets!);
+    const csv = kind === 'income' ? incomeCsv(income!) : kind === 'expenses' ? expensesCsv(expenses!, data.scheduleC)
+      : kind === 'assets' ? assetsCsv(assets!) : greyZoneCsv(greyZone!);
     downloadCsv(csv, reportFilename(organizationName, kind, year));
   };
 
@@ -124,9 +134,19 @@ export default function ReportingTab({ organizationId, organizationName, onEditA
         <IncomeView report={income!} year={year} />
       ) : kind === 'expenses' ? (
         <ExpensesView report={expenses!} year={year} />
-      ) : (
+      ) : kind === 'assets' ? (
         <AssetsView report={assets!} year={year} onEditAsset={onEditAsset}
           onDownloadDisposals={() => downloadCsv(disposalsCsv(assets!), reportFilename(organizationName, 'disposals', year))} />
+      ) : (
+        <GreyZoneView report={greyZone!} year={year} onEditPurchase={locked.has(year) ? undefined : setEditPurchaseId} />
+      )}
+
+      {editPurchaseId && (
+        <Suspense fallback={null}>
+          <ReviewScannedDataDialog open onOpenChange={o => { if (!o) setEditPurchaseId(null); }}
+            organizationId={organizationId} scannedData={null} file={null} editPurchaseId={editPurchaseId}
+            onSuccess={() => {}} onUpdated={() => setReload(n => n + 1)} />
+        </Suspense>
       )}
     </Card>
   );
@@ -340,6 +360,60 @@ function AssetsView({ report, year, onEditAsset, onDownloadDisposals }: {
             ))}
           </TableBody>
         </Table>
+      )}
+    </div>
+  );
+}
+
+/** A filed year passes no onEditPurchase: its rows are read-only. */
+function GreyZoneView({ report, year, onEditPurchase }: {
+  report: ReturnType<typeof buildGreyZoneReport>; year: number; onEditPurchase?: (purchaseId: string) => void;
+}) {
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap gap-3">
+        <Metric label={`Grey zone in ${year}`} value={usd(report.total)} />
+        <Metric label="Expensed" value={String(report.expensed)} />
+        <Metric label="Depreciated" value={String(report.depreciated)} />
+      </div>
+      {report.rows.length === 0 ? <Empty>No equipment costing $200 to $2,500 each was bought in {year}.</Empty> : (
+        <>
+          <p className="text-xs text-muted-foreground">
+            Equipment costing $200 to $2,500 each, including its share of tax and shipping, can be expensed or depreciated:
+            it’s your choice. Check each one before you file.{onEditPurchase && ' Select Change… to edit the purchase.'}
+          </p>
+          <Table aria-label="Grey zone">
+            <TableHeader>
+              <TableRow>
+                <TableHead>Date bought</TableHead><TableHead>Description</TableHead><TableHead>Category</TableHead>
+                <TableHead className="text-right">Qty</TableHead><TableHead className="text-right">Cost each</TableHead>
+                <TableHead className="text-right">Cost</TableHead><TableHead>Treatment</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {report.rows.map(r => (
+                <TableRow key={r.id}>
+                  <TableCell className="tabular-nums">{r.date}</TableCell>
+                  <TableCell className="max-w-[280px] truncate" title={r.description}>{r.description}</TableCell>
+                  <TableCell>{r.category}</TableCell>
+                  <TableCell className="text-right tabular-nums">{r.quantity}</TableCell>
+                  <TableCell className="text-right tabular-nums">{usd(r.itemCost)}</TableCell>
+                  <TableCell className="text-right tabular-nums">{usd(r.cost)}</TableCell>
+                  <TableCell>
+                    <span>{taxTreatmentLabel(r.treatment)}</span>
+                    {r.purchaseId && onEditPurchase && (
+                      <button type="button" className="ml-2 text-sky-700 font-medium underline" onClick={() => onEditPurchase(r.purchaseId!)}
+                        aria-label={`Change the treatment: ${r.description}`}>Change…</button>
+                    )}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+            <TableFooter>
+              <TableRow><TableCell colSpan={5}>Total</TableCell><TableCell className="text-right tabular-nums">{usd(report.total)}</TableCell><TableCell /></TableRow>
+            </TableFooter>
+          </Table>
+        </>
       )}
     </div>
   );

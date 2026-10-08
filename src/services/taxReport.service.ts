@@ -13,6 +13,8 @@ export interface TaxReportData {
   gigRows: ReportGigRow[];
   categories: ReportExpenseCategory[];
   scheduleC: ScheduleCLineLabel[];
+  /** Every equipment category name, active or not (the Grey zone report's scope). */
+  equipmentCategories: string[];
 }
 
 const PAGE = 1000;
@@ -30,9 +32,9 @@ async function all<T>(query: (from: number, to: number) => PromiseLike<{ data: T
 
 export async function getTaxReportData(organizationId: string): Promise<TaxReportData> {
   const { supabase } = await requireAuth();
-  const [lines, gigRows, categories, scheduleC] = await Promise.all([
+  const [lines, gigRows, categories, scheduleC, equipmentCategories] = await Promise.all([
     all<ReportPurchaseLine>((from, to) => (supabase.from('purchases') as any)
-      .select('id, purchase_date, vendor, description, category, quantity, item_cost, line_cost, tax_treatment, asset_id, '
+      .select('id, purchase_date, vendor, description, category, quantity, item_cost, line_cost, tax_treatment, asset_id, parent_id, '
         + 'parent:parent_id(purchase_date, vendor), '
         + 'asset:asset_id(id, manufacturer_model, category, recovery_period, retired_on, liquidation_amt, status)')
       .eq('organization_id', organizationId)
@@ -58,6 +60,12 @@ export async function getTaxReportData(organizationId: string): Promise<TaxRepor
       if (error) throw error;
       return (data ?? []) as ScheduleCLineLabel[];
     })(),
+    (async () => {
+      const { data, error } = await (supabase.from('equipment_categories') as any)
+        .select('name').eq('organization_id', organizationId);
+      if (error) throw error;
+      return ((data ?? []) as { name: string }[]).map(r => r.name);
+    })(),
   ]);
-  return { lines, gigRows, categories, scheduleC };
+  return { lines, gigRows, categories, scheduleC, equipmentCategories };
 }

@@ -1,6 +1,6 @@
 /**
- * Tax-year reports under Financials → Reporting (#125): Income, Expenses and
- * Assets, cash basis. GigWrangler supplies the data a tax program asks for; it
+ * Tax-year reports under Financials → Reporting (#125): Income, Expenses,
+ * Assets and Grey zone, cash basis. GigWrangler supplies the data a tax program asks for; it
  * doesn't calculate tax. The counting rules are in docs/technical/financials.md §5:
  *
  *   INCOME      = amount_settled of paid money-in gig rows, by paid date
@@ -8,11 +8,14 @@
  *               + paid money-out gig rows with no purchase_id, by paid date
  *   ASSETS      = purchase lines with tax_treatment = depreciate, by line date
  *   DISPOSALS   = depreciated equipment retired in the year
+ *   GREY ZONE   = equipment lines costing $200 to $2,500 each, by line date,
+ *                 whichever treatment was chosen
  *
  * A gig row with a purchase_id is skipped: its purchase line already counts.
  */
 import Papa from 'papaparse';
-import { TAX_DEPRECIATE_ABOVE } from './taxTreatment';
+import { TAX_DEPRECIATE_ABOVE, lineTaxTreatment, suggestedTaxTreatment, taxTreatmentLabel, type TaxTreatment } from './taxTreatment';
+import { tidyAssetCategory } from './purchaseCategories';
 import { asRecoveryPeriod, type RecoveryPeriod } from './recoveryPeriod';
 
 // ---- Inputs, as loaded by services/taxReport.service ---------------------------
@@ -28,6 +31,8 @@ export interface ReportPurchaseLine {
   line_cost: number | null;
   tax_treatment: string | null;
   asset_id: string | null;
+  /** The invoice the line belongs to: where its treatment is edited. */
+  parent_id: string | null;
   parent: { purchase_date: string | null; vendor: string | null } | null;
   asset: {
     id: string;
@@ -365,6 +370,75 @@ export function buildAssetReport(lines: ReportPurchaseLine[], year: number): Ass
   };
 }
 
+// ---- Grey zone -------------------------------------------------------------------
+
+export interface GreyZoneRow {
+  id: string;
+  /** The invoice to open to change the treatment; null for a line without one. */
+  purchaseId: string | null;
+  date: string;
+  description: string;
+  vendor: string;
+  category: string;
+  quantity: number;
+  itemCost: number;
+  cost: number;
+  treatment: TaxTreatment;
+  /** Tracked as equipment (has an equipment record). */
+  tracked: boolean;
+}
+
+export interface GreyZoneReport {
+  rows: GreyZoneRow[];
+  total: number;
+  expensed: number;
+  depreciated: number;
+}
+
+/**
+ * Equipment lines in the year whose per-item cost (after tax and shipping) is
+ * from $200 to $2,500, both included: the range where the treatment is the
+ * user's call (`suggestedTaxTreatment` pre-sets nothing). Equipment means
+ * depreciated, tracked as equipment, or filed under an equipment category.
+ */
+export function buildGreyZoneReport(lines: ReportPurchaseLine[], equipmentCategories: string[], year: number): GreyZoneReport {
+  const equipment = new Set(equipmentCategories.map(c => tidyAssetCategory(c.trim()).toLowerCase()));
+  const rows: GreyZoneRow[] = [];
+  for (const l of lines) {
+    const day = lineDay(l);
+    if (!inYear(day, year)) continue;
+    const treatment = lineTaxTreatment(l)!;
+    const tracked = !!(l.asset_id ?? l.asset);
+    const isEquipment = treatment === 'depreciate' || tracked
+      || equipment.has(tidyAssetCategory((l.category ?? '').trim()).toLowerCase());
+    if (!isEquipment) continue;
+    const quantity = Number(l.quantity ?? 1) || 1;
+    const cost = lineCost(l);
+    const itemCost = money(l.item_cost != null ? Number(l.item_cost) : cost / quantity);
+    if (suggestedTaxTreatment(itemCost) !== null) continue;
+    rows.push({
+      id: l.id,
+      purchaseId: l.parent_id ?? null,
+      date: day!,
+      description: l.asset?.manufacturer_model || l.description || '',
+      vendor: l.vendor ?? l.parent?.vendor ?? '',
+      category: l.asset?.category ?? l.category ?? '',
+      quantity,
+      itemCost,
+      cost,
+      treatment,
+      tracked,
+    });
+  }
+  rows.sort((a, b) => a.date.localeCompare(b.date) || a.description.localeCompare(b.description));
+  return {
+    rows,
+    total: money(rows.reduce((s, r) => s + r.cost, 0)),
+    expensed: rows.filter(r => r.treatment === 'expense').length,
+    depreciated: rows.filter(r => r.treatment === 'depreciate').length,
+  };
+}
+
 // ---- CSV -------------------------------------------------------------------------
 
 export function incomeCsv(r: IncomeReport): string {
@@ -399,6 +473,16 @@ export function disposalsCsv(r: AssetReport): string {
   return Papa.unparse({
     fields: ['Description', 'Date placed in service', 'Cost (basis)', 'Date disposed', 'Sale proceeds', 'Status'],
     data: r.disposals.map(x => [x.description, x.bought, x.cost.toFixed(2), x.disposed, x.proceeds?.toFixed(2) ?? '', x.status]),
+  });
+}
+
+export function greyZoneCsv(r: GreyZoneReport): string {
+  return Papa.unparse({
+    fields: ['Date bought', 'Description', 'Vendor', 'Category', 'Quantity', 'Cost per item', 'Cost', 'Treatment', 'Tracked as equipment'],
+    data: r.rows.map(x => [
+      x.date, x.description, x.vendor, x.category, x.quantity, x.itemCost.toFixed(2), x.cost.toFixed(2),
+      taxTreatmentLabel(x.treatment), x.tracked ? 'Yes' : 'No',
+    ]),
   });
 }
 
