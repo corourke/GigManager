@@ -5,6 +5,8 @@ Append new entries at the top of each section; never edit an old entry to descri
 
 ## Shipped (newest first)
 
+- **#20 batch 2, PR #204** (coordinator's sub-agent, merged 10-08): activityLog, gigKit, gigParticipant, gigParticipantContacts, gigSchedule on `base/dataAccess.ts`; no behaviour change; 8 new tests.
+
 - **#20 batch 1, PR #203** (triage, merged 10-08): `notification`, `taxYear`, `accessRequest`, `purchaseScanQueue`, `purchaseCategory` now use `getSupabase` / `getCurrentUser` from the data-access base; new tests for `taxYear`, `accessRequest`, `notification`. Issue stays open (batches 2–7).
 
 - **#182, PR #192** (Equipment Lead, merged by the coordinator 10-08): Equipment › Items tab (one row per item, units and lots beneath, Every unit & lot toggle), item page, unit/lot form; screens lazy-loaded, default 2 MiB cache limit kept.
