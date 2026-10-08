@@ -17,6 +17,13 @@ at-a-glance summary:
 - **Upcoming Gigs (Next 30 Days)** — with venue and act.
 - **Recent Activity**.
 
+![An Admin's dashboard: the Gigs, Equipment, Revenue and Status Summary cards, then Upcoming Gigs (Next 30 Days) listing five gigs with their date, status, venue and act](../../../assets/screenshots/getting-started/the-dashboard-overview.png)
+
+Staff see the **Gigs** and **Status Summary** cards, and an **Equipment** card with
+only **Owned**:
+
+![The Gigs card with booked, proposed and date-hold counts, beside an Equipment card that shows only Owned: 26 items and 150 pieces](../../../assets/screenshots/getting-started/the-dashboard-staff-cards.png)
+
 ## Navigation
 
 The top bar has the section menu, **Dashboard · Gigs · Financials · Team ·
@@ -41,7 +48,3 @@ as decisions on [access requests](/getting-started/organizations/), with a count
 unread ones on the bell.
 
 ![The open avatar menu, showing the signed-in name and email above Switch Organization, Settings, Edit Profile and Sign Out](../../../assets/screenshots/getting-started/the-dashboard-avatar-menu.png)
-
-<!-- TODO
-  - 📸 Dashboard cards and Upcoming Gigs: held until #157 fixes the Equipment card's Total Value.
--->

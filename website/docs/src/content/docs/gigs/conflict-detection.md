@@ -23,8 +23,11 @@ Gigs with no start time count as the whole day in the gig's time zone. **Cancell
 
 ## Where warnings appear
 
-- **The gig list and calendar.** A banner above the list reads "N Conflicts Detected", with one line per conflict and a **View** button that opens that gig. **Back** on the gig page returns you to the list or the calendar, whichever you came from. In the calendar, gigs with a conflict are drawn in red. See [The gig list](/gigs/the-gig-list/) and [Calendar view](/gigs/calendar-view/).
-- **A gig's page.** A "Conflicts Detected" card at the top lists the other gigs that overlap this one, with the names of the people, the venue or act, or the kits and assets involved.
+- **The gig list and calendar.** A banner above the list reads "N Conflicts Detected", with one line per conflict and a **View** button that opens that gig. On the gig page, **Back to Gigs** or **Back to Calendar** returns you to where you came from. In the calendar, gigs with a conflict are drawn in red. See [The gig list](/gigs/the-gig-list/) and [Calendar view](/gigs/calendar-view/).
+- **A gig's page.** A "Conflicts Detected" card at the top lists the other gigs that overlap this one, with the names of the people, the venue or act, or the kits and assets involved. **View Gig** opens the other gig.
+
+  ![The gig list's conflict banner, "4 Conflicts Detected": staff conflicts with Sam Whitfield and equipment conflicts over the Main PA kit, between Brightwave Rooftop Mixer and Cedar Hall Fall Songwriter Showcase, each with a View button](../../../assets/screenshots/gigs/conflict-detection-banner.png)
+
 - **The Equipment tab in edit mode.** The equipment check also lists gigs that fall within four hours of this one, without overlapping. Warnings update after each change to the gig's kits.
 
 The gig list and calendar compare only the gigs in your list. The gig page and

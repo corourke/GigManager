@@ -9,6 +9,17 @@
     "taken": "2026-10-08",
     "appCommit": "b7d1b24"
   },
+  "financials/reporting-grey-zone": {
+    "page": "financials/reporting.md",
+    "user": "admin",
+    "sources": [
+      "src/components/financials/ReportingTab.tsx",
+      "src/utils/taxReports.ts"
+    ],
+    "anchor": "2026-10-07",
+    "taken": "2026-10-08",
+    "appCommit": "c8ce9b5"
+  },
   "financials/reporting-income": {
     "page": "financials/reporting.md",
     "user": "admin",
@@ -100,6 +111,27 @@
     "taken": "2026-10-07",
     "appCommit": "39173c1"
   },
+  "getting-started/the-dashboard-overview": {
+    "page": "getting-started/the-dashboard.md",
+    "user": "admin",
+    "sources": [
+      "src/components/Dashboard.tsx",
+      "supabase/functions/server/lib/pure/dashboard.ts"
+    ],
+    "anchor": "2026-10-07",
+    "taken": "2026-10-08",
+    "appCommit": "c8ce9b5"
+  },
+  "getting-started/the-dashboard-staff-cards": {
+    "page": "getting-started/the-dashboard.md",
+    "user": "staff",
+    "sources": [
+      "src/components/Dashboard.tsx"
+    ],
+    "anchor": "2026-10-07",
+    "taken": "2026-10-08",
+    "appCommit": "c8ce9b5"
+  },
   "gigs/calendar-view-month": {
     "page": "gigs/calendar-view.md",
     "user": "admin",
@@ -121,6 +153,17 @@
     "taken": "2026-10-07",
     "appCommit": "7c87dfb"
   },
+  "gigs/conflict-detection-banner": {
+    "page": "gigs/conflict-detection.md",
+    "user": "admin",
+    "sources": [
+      "src/components/ConflictWarning.tsx",
+      "src/components/GigListScreen.tsx"
+    ],
+    "anchor": "2026-10-07",
+    "taken": "2026-10-08",
+    "appCommit": "c8ce9b5"
+  },
   "gigs/conflict-detection-gig-page": {
     "page": "gigs/conflict-detection.md",
     "user": "admin",
@@ -129,8 +172,8 @@
       "src/services/conflictDetection.service.ts"
     ],
     "anchor": "2026-10-07",
-    "taken": "2026-10-07",
-    "appCommit": "7c87dfb"
+    "taken": "2026-10-08",
+    "appCommit": "c8ce9b5"
   },
   "gigs/creating-a-gig-form": {
     "page": "gigs/creating-a-gig.md",
@@ -309,8 +352,8 @@
       "src/components/OrganizationScreen.tsx"
     ],
     "anchor": "2026-10-07",
-    "taken": "2026-10-07",
-    "appCommit": "8afb2ca"
+    "taken": "2026-10-08",
+    "appCommit": "0d403f9"
   },
   "team/member-profiles-details-page": {
     "page": "team/member-profiles.md",
@@ -319,8 +362,8 @@
       "src/components/TeamMemberDetailScreen.tsx"
     ],
     "anchor": "2026-10-07",
-    "taken": "2026-10-07",
-    "appCommit": "8afb2ca"
+    "taken": "2026-10-08",
+    "appCommit": "0d403f9"
   },
   "team/people-without-logins-no-account-tab": {
     "page": "team/people-without-logins.md",

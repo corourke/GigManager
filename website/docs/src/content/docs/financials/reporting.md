@@ -43,7 +43,7 @@ The boxes at the top show **Expenses in {year}** and the number of **Items**. Th
 
 Below it, **Every expense** lists each item with **Date paid**, **Source** (**Purchase** or **Gig**), **Payee**, **Description**, **Category**, **Line** and **Amount**. Mileage shows its miles beside the description. A purchase's amount includes its share of tax and shipping (see [Cost allocation](/financials/cost-allocation/)).
 
-An item whose category isn't on your expense list, or has none, can't be placed on a Schedule C line. An amber **Need a category** box counts them, and the category shows in amber. For a purchase, edit the purchase to choose a category; for a gig's own cost, choose it on the gig's [Financials tab](/financials/gig-expenses/). Your lists are under [Expense and equipment categories](/settings/categories/).
+An item whose category isn't on your expense list, or has none, can't be placed on a Schedule C line. An amber **Need a category** box counts them, and the category shows in amber. For a purchase, edit the purchase to choose a category; for a gig's own cost, edit the gig, then on its [Financials tab](/financials/gig-expenses/) open the cost's **⋯** menu → **Edit** and choose a **Category**. A gig cost only needs a category when it has none. Your lists are under [Expense and equipment categories](/settings/categories/).
 
 The CSV adds the line number and name, the gig and the miles as separate columns.
 
@@ -77,6 +77,8 @@ To change an item's treatment, select **Change…** beside it. The purchase open
 If nothing falls in the range, you'll see "No equipment costing $200 to $2,500 each was bought in {year}."
 
 The CSV adds the vendor and a **Tracked as equipment** column.
+
+![The Grey zone report for 2026: the total, 1 expensed and 2 depreciated, then a stage box and four moving heads set to Depreciate and a lighting controller set to Expense, each with Change…](../../../assets/screenshots/financials/reporting-grey-zone.png)
 
 ## Filing a year
 
