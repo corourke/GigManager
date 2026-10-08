@@ -190,6 +190,7 @@ Not released: #175 (needs a design pass). #174's UI half shipped in PR #199; its
 
 ## 5. Future considerations (not open work)
 
+- **`deploy_prod.sh` env preflight** (Cameron 10-08: track here; not released, since `deploy_prod.sh` is never pre-approved). The prod bundle's `VITE_*` values come only from the deploying machine's git-ignored `.env.production.local`, and nothing checks them. Before `npm run build`, fail if that file is missing, if `VITE_SUPABASE_URL` doesn't contain `$PROD_REF`, or if `VITE_SUPABASE_ANON_KEY` / `VITE_GOOGLE_CLIENT_ID` is empty.
 - *Noticed by tonight's sub-agents (10-08), not built:*
   - The Vitest suite runs close to the 5 s per-test timeout; under load (several runs in parallel) purchases, scan-review and staff tests time out. CI is fine today; a higher global `testTimeout` or faster tests would make it robust.
   - `src/components/CalendarScreen.tsx` looks unused (the calendar is `GigListScreen` in calendar mode).
