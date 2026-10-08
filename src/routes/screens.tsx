@@ -1,4 +1,4 @@
-import { ReactNode } from 'react';
+import { lazy, ReactNode, Suspense } from 'react';
 import {
   Routes,
   Route,
@@ -31,9 +31,7 @@ import GigPage from '../components/gig/GigPage';
 import TeamScreen from '../components/TeamScreen';
 import TeamMemberDetailScreen from '../components/TeamMemberDetailScreen';
 import AssetListScreen from '../components/AssetListScreen';
-import AssetScreen from '../components/AssetScreen';
 import AssetDetailScreen from '../components/AssetDetailScreen';
-import ItemDetailScreen from '../components/ItemDetailScreen';
 import KitListScreen from '../components/KitListScreen';
 import KitScreen from '../components/KitScreen';
 import KitDetailScreen from '../components/KitDetailScreen';
@@ -56,6 +54,10 @@ import MobileDashboard from '../components/mobile/MobileDashboard';
 import MobileInventoryMode from '../components/mobile/MobileInventoryMode';
 import MobileSettings from '../components/mobile/MobileSettings';
 import { financialsPath, gigPath, inventoryPath, legacyInventoryTab, parseFinancialsPath, parseGigTab, parseInventoryTab } from './paths';
+
+// Loaded on demand to keep the main bundle under the offline cache's 2 MiB limit (#193).
+const ItemDetailScreen = lazy(() => import('../components/ItemDetailScreen'));
+const AssetScreen = lazy(() => import('../components/AssetScreen'));
 
 /** Narrow the (nullable) auth values for org-scoped screens. */
 function useOrgScope() {
@@ -443,19 +445,21 @@ function ItemDetailRoute() {
   if (!user || !organization || !itemId) return <LoadingSpinner />;
   if (isMobile) return <Navigate to="/gigs" replace />;
   return (
-    <ItemDetailScreen
-      organization={organization}
-      user={user}
-      userRole={userRole}
-      itemId={itemId}
-      onBack={nav.toAssets}
-      onViewAsset={nav.viewAsset}
-      onAddRecord={nav.createAsset}
-      onViewKit={nav.viewKit}
-      onSwitchOrganization={nav.switchOrganization}
-      onEditProfile={openEditProfile}
-      onLogout={nav.logoutAndHome}
-    />
+    <Suspense fallback={<LoadingSpinner />}>
+      <ItemDetailScreen
+        organization={organization}
+        user={user}
+        userRole={userRole}
+        itemId={itemId}
+        onBack={nav.toAssets}
+        onViewAsset={nav.viewAsset}
+        onAddRecord={nav.createAsset}
+        onViewKit={nav.viewKit}
+        onSwitchOrganization={nav.switchOrganization}
+        onEditProfile={openEditProfile}
+        onLogout={nav.logoutAndHome}
+      />
+    </Suspense>
   );
 }
 
@@ -494,23 +498,25 @@ function AssetEditorRoute({ create }: { create: boolean }) {
   if (!user || !organization) return <LoadingSpinner />;
   if (isMobile) return <Navigate to="/gigs" replace />;
   return (
-    <AssetScreen
-      organization={organization}
-      user={user}
-      userRole={userRole}
-      assetId={create ? null : (assetId ?? null)}
-      itemId={create ? params.get('item') : null}
-      onBackToItem={nav.viewItem}
-      onCancel={nav.toAssets}
-      onAssetCreated={() => nav.toAssets()}
-      onAssetUpdated={nav.toAssets}
-      onNavigateToPurchases={(purchaseId) =>
-        nav.toFinancials({ highlightPurchaseId: purchaseId || null })
-      }
-      onSwitchOrganization={nav.switchOrganization}
-      onEditProfile={openEditProfile}
-      onLogout={nav.logoutAndHome}
-    />
+    <Suspense fallback={<LoadingSpinner />}>
+      <AssetScreen
+        organization={organization}
+        user={user}
+        userRole={userRole}
+        assetId={create ? null : (assetId ?? null)}
+        itemId={create ? params.get('item') : null}
+        onBackToItem={nav.viewItem}
+        onCancel={nav.toAssets}
+        onAssetCreated={() => nav.toAssets()}
+        onAssetUpdated={nav.toAssets}
+        onNavigateToPurchases={(purchaseId) =>
+          nav.toFinancials({ highlightPurchaseId: purchaseId || null })
+        }
+        onSwitchOrganization={nav.switchOrganization}
+        onEditProfile={openEditProfile}
+        onLogout={nav.logoutAndHome}
+      />
+    </Suspense>
   );
 }
 

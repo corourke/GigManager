@@ -69,6 +69,16 @@ describe('equipmentItem.service', () => {
       expect(assetChain.eq).toHaveBeenCalledWith('equipment_item_id', 'k12');
     });
 
+    it('says the units and lots weren’t updated when copying onto them fails', async () => {
+      const itemChain = makeChain({ data: { id: 'k12' }, error: null });
+      const assetChain = makeChain({ data: null, error: { code: '42501', message: 'permission denied for table assets' } });
+      supabase.from.mockImplementation((t: string) => (t === 'equipment_items' ? itemChain : assetChain));
+
+      await expect(updateItem('k12', { manufacturer_model: 'QSC K12.3' })).rejects.toThrow(
+        'The item was saved, but its units and lots weren’t updated (permission denied for table assets). Try the change again.',
+      );
+    });
+
     it('saves a cleared optional field as empty (null), not as a blank string', async () => {
       const itemChain = makeChain({ data: { id: 'k12' }, error: null });
       const assetChain = makeChain({ data: null, error: null });

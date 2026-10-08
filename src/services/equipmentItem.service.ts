@@ -77,7 +77,10 @@ export async function updateItem(itemId: string, fields: ItemFields): Promise<Db
       const { error: recordsError } = await (supabase.from('assets') as any)
         .update({ ...shared, updated_by: user.id })
         .eq('equipment_item_id', itemId);
-      if (recordsError) throw recordsError;
+      // The item is already saved; say so, so the error isn't read as nothing saved.
+      if (recordsError) {
+        throw new Error(`The item was saved, but its units and lots weren’t updated (${recordsError.message}). Try the change again.`);
+      }
     }
     return data;
   } catch (err) {
