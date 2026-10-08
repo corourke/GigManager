@@ -38,7 +38,7 @@ Each row in a slot is one person.
 
 A row with no person selected isn't saved. If you lower **Required:**, GigWrangler removes open rows first and keeps the people you've assigned.
 
-![The Staff Assignments card in edit mode: slots for Monitor Engineer, Lighting Tech, Stage Hand (two required, one open), Stage Manager and FOH Engineer, each person with a status, Fee and amount, and the Total Staff Cost footer](../../../assets/screenshots/gigs/staffing-assignments.png)
+![The Staff Assignments card in edit mode: slots for FOH Engineer, Monitor Engineer, Lighting Tech, Stage Hand (two required, one open) and Stage Manager, each person with a status and pay: fees for FOH and monitors, and rates per day, per hour and per half day for the others, then the Total Staff Cost footer](../../../assets/screenshots/gigs/staffing-assignments.png)
 
 ## Finalizing completed work
 
@@ -56,13 +56,16 @@ The footer shows **Total Staff Cost** in three parts:
 
 - **Finalized**: finalized assignments (rate times units, or the fee).
 - **Projected**: **Confirmed** and **Requested** assignments not yet finalized. A rate counts as one of its unit until it's finalized.
+<!-- TODO: #213 — projected rates count one unit (one hour for $35 / hr). Update once Cameron picks a fix. -->
 - **Total**: the two added together.
 
 ## Viewing staffing
 
-Everyone in your organization who can open the gig sees a read-only **Staffing** card, headed with a summary such as "3 of 4 filled · 2 confirmed". Each row shows the role, the person (or **Open**), and a status badge. **Columns** adds phone, email and notes.
+Everyone in your organization who can open the gig sees a read-only **Staffing** card, headed with a summary such as "3 of 4 filled · 2 confirmed". Each row shows the role, the person (or **Open**), their phone and email, a status badge and any notes. Use **Columns** to hide the ones you don't need; the choice is remembered in this browser.
 
-The **Rate / Fee** column shows a rate with its unit, such as "$400 / day", and a fee as "$450 fee". On the printed financials page, **Staff costs** shows how each rate's amount was reached, such as "3 days × $400 / day". **Rate / Fee** and the staff cost line are for Admins and Managers only. Staff and Viewers don't see pay.
+The **Rate / Fee** column shows a rate with its unit, such as "$400 / day", and a fee as "$350 fee". A **Staff cost** line under the table gives the finalized, projected and total amounts. On the printed financials page, **Staff costs** shows how each rate's amount was reached, such as "3 days × $400 / day". **Rate / Fee** and the staff cost line are for Admins and Managers only. Staff and Viewers don't see pay.
+
+![The read-only Staffing card: "5 of 6 filled · 4 confirmed", each role with the person, phone, email, status and pay, such as $350 fee, $400 / day, $35 / hr and $200 / ½ day, an open Stage Hand place, and the Staff cost line](../../../assets/screenshots/gigs/staffing-view-card.png)
 
 ## Related
 

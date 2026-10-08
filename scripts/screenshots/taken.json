@@ -257,8 +257,19 @@
       "src/components/gig/GigStaffSlotsSection.tsx"
     ],
     "anchor": "2026-10-07",
-    "taken": "2026-10-07",
-    "appCommit": "7c87dfb"
+    "taken": "2026-10-08",
+    "appCommit": "6302a25"
+  },
+  "gigs/staffing-view-card": {
+    "page": "gigs/staffing-and-participants.md",
+    "user": "admin",
+    "sources": [
+      "src/components/gig/view/GigStaffingTable.tsx",
+      "src/components/gig/view/staffRows.ts"
+    ],
+    "anchor": "2026-10-07",
+    "taken": "2026-10-08",
+    "appCommit": "6302a25"
   },
   "gigs/the-gig-list-row-menu": {
     "page": "gigs/the-gig-list.md",

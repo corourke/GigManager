@@ -69,10 +69,10 @@ The **…** menu on any row offers **Edit**, **Set stage** and **Remove**.
 
 ## Staff pay
 
-Staff booked on the gig show under **Projected staff costs** until you finalize them in the gig's staffing section (**Finalize Assignment** or **Finalize All**).
+Staff booked on the gig show under **Projected staff costs** until you finalize them in the gig's staffing section (**Finalize Assignment** or **Finalize All**). A fee shows in full. A rate counts as one of its unit (one hour, day or half day) until it's finalized.
 
 - **Finalizing** adds the pay to money out as **Owed**, labelled "Labor: {role}" and marked **Staff**.
-- **Hourly or per-unit pay** asks how many units were worked.
+- **A rate** asks how many of its unit were worked (hours, days or half days), and the amount is the rate times that number.
 - **Undo Finalize** takes the row back out.
 
 ## Where a cost came from
