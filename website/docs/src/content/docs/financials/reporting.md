@@ -30,6 +30,8 @@ The boxes at the top show **Received in {year}** and the number of **Payments**.
 
 If nothing was received, you'll see "No gig payments were received in {year}."
 
+![The Income report for 2026: the total received, the number of payments, and a table of payments with the date received, gig, payer, description, reference and amount](../../../assets/screenshots/financials/reporting-income.png)
+
 ## The Expenses report
 
 The Expenses report lists what you paid in the year, from two places:
@@ -60,11 +62,11 @@ The table has **Date bought**, **Description**, **Category**, **Qty**, **Cost ea
 
 If you bought no depreciated equipment, you'll see "No depreciated equipment was bought in {year}."
 
+![The Assets report for 2026: Tax year, the four report buttons, Download CSV, totals for equipment bought, items and de minimis candidates, the 7-year total, and a table of depreciated equipment with cost and recovery period](../../../assets/screenshots/financials/reporting-assets.png)
+
 ### Disposed of in {year}
 
 **Disposed of in {year}** lists depreciated equipment you sold or retired in the year, whenever you bought it. It shows **Description**, **Date bought**, **Cost**, **Date disposed**, **Sale proceeds** and **Status**. Select **Download disposals CSV** to save it.
-
-![The Assets report for 2026: Tax year, the Income, Expenses and Assets buttons, Download CSV, totals for equipment bought, items and de minimis candidates, the 7-year total, and a table of depreciated equipment with cost and recovery period](../../../assets/screenshots/financials/reporting-assets.png)
 
 ## The Grey zone report
 
@@ -83,8 +85,6 @@ The CSV adds the vendor and a **Tracked as equipment** column.
 ## Filing a year
 
 Below the reports, **Filed tax years** shows which years are locked. An Admin locks a year after filing; Managers can see the list. Locking, and what it protects, is explained in [Tax treatment and equipment](/financials/tax-treatment/#filed-years-are-locked).
-
-![The Income report for 2026: the total received, the number of payments, and a table of payments with the date received, gig, payer, description, reference and amount](../../../assets/screenshots/financials/reporting-income.png)
 
 ## Related
 
