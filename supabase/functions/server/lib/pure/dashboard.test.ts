@@ -2,9 +2,9 @@ import { describe, it, expect } from 'vitest';
 import { DASHBOARD_ASSET_COLUMNS, sumAssetValues } from './dashboard';
 
 describe('DASHBOARD_ASSET_COLUMNS', () => {
-  it('selects what the totals need: quantity, replacement value, insured flag and item (#157)', () => {
+  it('selects what the totals need: quantity, replacement value, insured flag, item and status (#157)', () => {
     const columns = DASHBOARD_ASSET_COLUMNS.split(',').map((c) => c.trim());
-    expect(columns).toEqual(['quantity', 'replacement_value', 'insurance_policy_added', 'equipment_item_id']);
+    expect(columns).toEqual(['quantity', 'replacement_value', 'insurance_policy_added', 'equipment_item_id', 'status']);
   });
 });
 
@@ -41,6 +41,20 @@ describe('sumAssetValues', () => {
       { equipment_item_id: 'xlr25', quantity: 20 },
     ];
     expect(sumAssetValues(rows)).toMatchObject({ ownedItems: 2, ownedPieces: 32 });
+  });
+
+  it('leaves out Disposed and Returned equipment, as the Items tab does (#190)', () => {
+    const rows = [
+      { equipment_item_id: 'k12', replacement_value: 999, quantity: 1, status: 'Active', insurance_policy_added: true },
+      { equipment_item_id: 'k12', replacement_value: 999, quantity: 1, status: 'Maintenance' },
+      { equipment_item_id: 'xlr25', replacement_value: 16, quantity: 10, status: 'Inactive' },
+      { equipment_item_id: 'xlr25', replacement_value: 16, quantity: 1, status: null },
+      { equipment_item_id: 'trio', replacement_value: 500, quantity: 1, status: 'Disposed', insurance_policy_added: true },
+      { equipment_item_id: 'trio', replacement_value: 500, quantity: 2, status: 'Returned', insurance_policy_added: true },
+    ];
+    expect(sumAssetValues(rows)).toEqual({
+      totalAssetValue: 999 * 2 + 16 * 11, totalInsuredValue: 999, ownedItems: 2, ownedPieces: 13,
+    });
   });
 
   it('reports zero for no assets', () => {
