@@ -24,3 +24,14 @@ export function canEditOrganization(
   if (isAdminOfThisOrg) return true;
   return !org.claimed && isAdminOfAnyOrg;
 }
+
+/**
+ * Whether a member with `actorRole` may give someone `targetRole` in the same
+ * organization: Admins any role, Managers any but Admin, nobody else. Mirrors
+ * the server's canAssignRole so role pickers only offer what will succeed.
+ */
+export function canAssignRole(actorRole: UserRole | undefined | null, targetRole: UserRole): boolean {
+  if (actorRole === 'Admin') return true;
+  if (actorRole === 'Manager') return targetRole !== 'Admin';
+  return false;
+}

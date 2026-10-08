@@ -16,13 +16,18 @@ Member**. If the person doesn't need to sign in at all, see
 1. Open **Team** and select **Add Team Member**.
 2. Select the **Invite New** tab.
 3. Enter an **Email Address**. **First Name** and **Last Name** are optional.
-4. Choose a **Role**: **Admin**, **Manager**, **Staff** or **Viewer**.
+4. Choose a **Role**: **Admin**, **Manager**, **Staff** or **Viewer**. Managers
+   aren't offered **Admin**.
 5. Select **Send Invitation**.
 
 GigWrangler sends an email to that address with a link to join. You see "Invitation
 sent!" and the dialog closes. The person appears right away in **Active Members**
 with **Pending** under **Last Login**, so you can assign them to gigs before they
-accept. Only Admins can invite an Admin.
+accept.
+
+If the email can't be sent, you see "Invitation created, but the email couldn't be
+sent" instead. The person is still on the team. Ask them to sign up for GigWrangler
+with that address; they join the team when they do.
 
 ![The Add Team Member dialog on the Invite New tab, filled in with a first name, last name, email address and the Staff role, above Send Invitation](../../../assets/screenshots/team/invitations-invite-dialog.png)
 
@@ -42,7 +47,7 @@ complete their profile first (see
 2. Enter at least two characters in **Search Users** (name or email).
 3. Choose the person from the results. People already in your organization don't
    appear.
-4. Choose a **Role**, then select **Add User**.
+4. Choose a **Role** (Managers aren't offered **Admin**), then select **Add User**.
 
 They're added straight away, with no email and nothing to accept.
 

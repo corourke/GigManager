@@ -6,6 +6,9 @@ import { Button } from '../ui/button';
 import { ColumnDef } from '../tables/SmartDataTable';
 import type { UserRole, AccessRequestWithRelations } from '../../utils/supabase/types';
 import type { OrganizationMember, Invitation } from './useTeamData';
+import { canAssignRole } from '../../utils/permissions';
+
+const SYSTEM_ROLES: UserRole[] = ['Admin', 'Manager', 'Staff', 'Viewer'];
 
 export function getRoleIcon(role: UserRole) {
   switch (role) {
@@ -34,6 +37,7 @@ interface MemberColumnsArgs {
   staffRoleOptions: Array<{ label: string; value: string }>;
   timezoneOptions: Array<{ label: string; value: string }>;
   currentUserId: string;
+  currentUserRole?: UserRole;
   canManageTeam: boolean;
   onViewMember?: (memberId: string) => void;
 }
@@ -43,6 +47,7 @@ export function useMemberColumns({
   staffRoleOptions,
   timezoneOptions,
   currentUserId,
+  currentUserRole,
   canManageTeam,
   onViewMember,
 }: MemberColumnsArgs): ColumnDef<OrganizationMember>[] {
@@ -102,13 +107,12 @@ export function useMemberColumns({
       sortable: true,
       filterable: true,
       editable: canManageTeam,
+      // Not your own role, and only roles the server lets you change.
+      isEditable: (row) => row.user?.id !== currentUserId && canAssignRole(currentUserRole, row.role as UserRole),
       type: 'select',
-      options: [
-        { label: 'Admin', value: 'Admin' },
-        { label: 'Manager', value: 'Manager' },
-        { label: 'Staff', value: 'Staff' },
-        { label: 'Viewer', value: 'Viewer' },
-      ],
+      options: SYSTEM_ROLES
+        .filter((role) => canAssignRole(currentUserRole, role))
+        .map((role) => ({ label: role, value: role })),
       render: (val) => (
         <Badge className={getRoleBadgeColor(val as UserRole)}>
           <div className="flex items-center gap-1">
@@ -156,7 +160,7 @@ export function useMemberColumns({
         );
       },
     },
-  ], [staffRoleMap, staffRoleOptions, timezoneOptions, currentUserId, canManageTeam, onViewMember]);
+  ], [staffRoleMap, staffRoleOptions, timezoneOptions, currentUserId, currentUserRole, canManageTeam, onViewMember]);
 }
 
 export function useInvitationColumns(): ColumnDef<Invitation>[] {

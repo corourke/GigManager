@@ -39,8 +39,9 @@ Admins and Managers can change a role two ways:
   **Edit Team Member**, and select **Save Changes**.
 
 Only Admins can make someone an Admin, change an Admin's role, or remove an Admin.
-If a Manager tries, GigWrangler shows an error and nothing changes. **Edit Team
-Member** doesn't show the role fields for your own row.
+Managers aren't offered **Admin**, and an Admin's role can't be changed by a
+Manager. You can't change your own role: your **System Role** cell can't be
+edited, and **Edit Team Member** doesn't show the role fields for your own row.
 
 ## Removing a member
 
