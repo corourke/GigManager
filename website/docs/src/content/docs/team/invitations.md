@@ -26,8 +26,8 @@ with **Pending** under **Last Login**, so you can assign them to gigs before the
 accept.
 
 If the email can't be sent, you see "Invitation created, but the email couldn't be
-sent" instead. The person is still on the team. Invite the same address again to
-retry, or ask them to sign up for GigWrangler with that address.
+sent" instead. The person is still on the team. Ask them to sign up for GigWrangler
+with that address; they join the team when they do.
 
 ![The Add Team Member dialog on the Invite New tab, filled in with a first name, last name, email address and the Staff role, above Send Invitation](../../../assets/screenshots/team/invitations-invite-dialog.png)
 

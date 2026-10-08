@@ -150,8 +150,8 @@ export default function AddTeamMemberDialog({
           <div className="space-y-2">
             <p className="font-medium">Invitation created, but the email couldn't be sent</p>
             <p className="text-sm text-gray-600">
-              {email} is on the team and can be assigned to gigs. Invite the same email again to retry,
-              or ask them to sign up for GigWrangler with that address.
+              {email} is on the team and can be assigned to gigs. Ask them to sign up for GigWrangler
+              with that address; they'll join the team when they do.
             </p>
           </div>,
           { duration: 10000 },
