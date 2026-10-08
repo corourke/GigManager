@@ -35,10 +35,8 @@ This file lives on `main`. Land updates there promptly: a run that starts from `
 1. **Dev mail catcher** (Cameron, 10-08: Mailtrap): create a free Mailtrap Email Testing inbox and send its SMTP host, port, user and password. The coordinator then points dev's Supabase Auth at it and checks the invitation, sign-up confirmation and password-reset flows with the demo `.test` logins.
 2. **Sentry secrets** (optional): `SENTRY_API_TOKEN`, `SENTRY_ORG_SLUG`, `SENTRY_PROJECT_SLUG`; the health check reports "not configured" until set.
 
-**Prod release waiting:** #178 (PR #195, merged 10-08) needs migration `20261015000000_person_and_org_search.sql` and a frontend deploy together (`deploy_prod.sh`); the old search function is dropped, so ship both in one run. Say when.
-
 **Decided 10-08, recorded here until done:**
-- The Docs Lead's corrected membership report (private; reported to Cameron directly): no path lets a Manager make anyone an Admin. The remaining backstop gaps are **parked** (Cameron: later). Partner organizations on a shared gig may keep adding, editing and removing each other's no-login contacts (intended). Person-search privacy is fixed by #178 (merged; prod release above).
+- The Docs Lead's corrected membership report (private; reported to Cameron directly): no path lets a Manager make anyone an Admin. The remaining backstop gaps are **parked** (Cameron: later). Partner organizations on a shared gig may keep adding, editing and removing each other's no-login contacts (intended). Person-search privacy is fixed by #178 (in prod 10-08).
 - An organization's own Admin still can't delete a claimed organization from the app (kept as is; no change).
 - Overnight gigs: released to triage (§3c).
 
@@ -71,7 +69,7 @@ This file lives on `main`. Land updates there promptly: a run that starts from `
 
 Pure refactor: no migrations, no edge-function or UI changes. Tests, typecheck, lint and build pass per PR.
 
-**Small bugs from the Docs Lead** (released 10-08 by Cameron). One PR per issue, a failing test first, frontend only. The issue describes the fix; if one turns out to need a migration, a server change or a design decision, stop and add a §3b entry instead.
+**Small bugs from the Docs Lead** (released 10-08 by Cameron). **Taken by the coordinator 10-08 evening (built by its sub-agents, with #188, #194 and the overnight-gigs change): triage, skip these and work #20.** One PR per issue, a failing test first, frontend only. The issue describes the fix; if one turns out to need a migration, a server change or a design decision, stop and add a §3b entry instead.
 - [#158](https://github.com/corourke/GigManager/issues/158): the Staff dashboard shows $0 Equipment and Revenue cards. Hide the money cards from roles that can't see the figures.
 - [#168](https://github.com/corourke/GigManager/issues/168): the gig list offers Revenue, Expenses and Profit columns to Staff and Viewers. Hide them, same rule as #158.
 - [#159](https://github.com/corourke/GigManager/issues/159): the Sign Up footer shows a hard-coded © 2025. Use the current year.
@@ -101,7 +99,7 @@ Not released, staying with the coordinator: #174, #175 (needs a design pass).
 
 ## 4. Agents and documentation
 
-**Pace through 10-17 (Cameron, 10-08):** keep triage and the leads busy. The coordinator checks in at least every 4 hours (Routine `trig_01JWAcm3QHRpyaQXGNVA8w8m`, which disables itself after 10-17) to queue work, review ready PRs and ask Cameron about blockers.
+**Pace through 10-17 (Cameron, 10-08):** keep triage and the leads busy. Cameron (10-08 evening): sub-agents do the coordinator's builds; the coordinator reviews, merges and may deploy to **dev** with `./deploy_dev.sh` (never prod). The coordinator checks in at least every 4 hours (Routine `trig_01JWAcm3QHRpyaQXGNVA8w8m`, which disables itself after 10-17) to queue work, review ready PRs and ask Cameron about blockers.
 
 **Equipment Lead** (`session_013gAYYf2hpcECG9QpxFz5Vo`, Supabase Dev environment, no prod access) owns #181–#186, the grouping review and the items screens, and reviews #180 from the screens side. The coordinator owns #179 and #180 and supplies prod data the Lead can't reach. It reports on #162 and each sub-issue.
 
