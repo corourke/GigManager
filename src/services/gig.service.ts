@@ -17,6 +17,7 @@ import { updateGigStaffSlots } from './gigStaff.service';
 import { logActivity } from './activityLog.service';
 import { toDateInTimeZone } from '../utils/dateUtils';
 import { summarizeMoney, moneyInBadge, type MoneyRow } from '../utils/moneyFlow';
+import { projectedStaffCost } from '../utils/rateEstimate';
 
 // Kit-assignment operations live in gigKit.service.ts (Step 4 split); re-export
 // them here so existing `services/gig.service` imports keep working.
@@ -797,7 +798,7 @@ export async function getAllGigAccountingSummaries(
 
     const { data: gigs, error: gigsError } = await supabase
       .from('gigs')
-      .select('id, title, status, start, end')
+      .select('id, title, status, start, end, timezone')
       .in('id', gigIds);
 
     if (gigsError) throw gigsError;
@@ -816,6 +817,7 @@ export async function getAllGigAccountingSummaries(
         id,
         fee,
         rate,
+        rate_unit,
         status,
         completed_at,
         slot:gig_staff_slots!inner(gig_id, organization_id)
@@ -831,6 +833,7 @@ export async function getAllGigAccountingSummaries(
       id: string;
       fee: number | null;
       rate: number | null;
+      rate_unit: string | null;
       status: string;
       completed_at: string | null;
       slot: { gig_id: string; organization_id: string };
@@ -852,17 +855,18 @@ export async function getAllGigAccountingSummaries(
     }
 
     const now = new Date();
-    return (gigs || []).map((gig: { id: string; title: string; status: string; start: string; end: string }) => {
+    return (gigs || []).map((gig: { id: string; title: string; status: string; start: string; end: string; timezone?: string | null }) => {
       const gigFinancials = financialsByGig.get(gig.id) ?? [];
       const gigAssignments = assignmentsByGig.get(gig.id) ?? [];
       const money = summarizeMoney(gigFinancials, gig.end, now);
 
       // Staff booked but not yet finalized; a finalized assignment is a
-      // money-out row (owed until marked paid) and already in `money`.
+      // money-out row (owed until marked paid) and already in `money`. A rate
+      // is estimated over the gig's hours or days (#213).
       let expectedStaffCosts = 0;
       for (const a of gigAssignments) {
         if ((a.status === 'Confirmed' || a.status === 'Requested') && !a.completed_at) {
-          expectedStaffCosts += a.fee !== null ? Number(a.fee) : (a.rate !== null ? Number(a.rate) : 0);
+          expectedStaffCosts += projectedStaffCost(a, gig).amount;
         }
       }
 

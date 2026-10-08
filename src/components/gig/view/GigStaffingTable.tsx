@@ -1,6 +1,7 @@
 import { Badge } from '../../ui/badge';
 import type { GigStaffSlotView } from '../../../utils/supabase/types';
 import { assignmentCost, money, staffRows } from './staffRows';
+import { projectedStaffCost, type GigTimes } from '../../../utils/rateEstimate';
 import ColumnsPicker from './ColumnsPicker';
 import GigSection from './GigSection';
 import { useColumnVisibility, type ColumnDef } from './useColumnVisibility';
@@ -16,10 +17,12 @@ interface GigStaffingTableProps {
   slots: GigStaffSlotView[];
   /** Rates, fees and staff cost are Admin/Manager only (#12). */
   showAmounts: boolean;
+  /** The gig's times: a booked rate's projected cost is estimated from them (#213). */
+  gig?: GigTimes;
 }
 
 /** Read-only staffing for the viewer's own organization (#12). */
-export default function GigStaffingTable({ slots, showAmounts }: GigStaffingTableProps) {
+export default function GigStaffingTable({ slots, showAmounts, gig }: GigStaffingTableProps) {
   const columns: ColumnDef[] = [
     { key: 'role', label: 'Role', required: true },
     { key: 'person', label: 'Person', required: true },
@@ -37,7 +40,7 @@ export default function GigStaffingTable({ slots, showAmounts }: GigStaffingTabl
   const finalized = allAssignments.filter((a) => a.completed_at).reduce((t, a) => t + assignmentCost(a), 0);
   const projected = allAssignments
     .filter((a) => !a.completed_at && (a.status === 'Confirmed' || a.status === 'Requested'))
-    .reduce((t, a) => t + assignmentCost(a), 0);
+    .reduce((t, a) => t + projectedStaffCost(a, gig).amount, 0);
 
   return (
     <GigSection
