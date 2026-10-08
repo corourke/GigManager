@@ -51,6 +51,11 @@
           // back to index.html instead of being silently rejected by the SW's
           // navigation-fallback route — only exclude actual API/asset requests.
           navigateFallbackAllowlist: [/^(?!\/api\/).*/],
+          // The app ships as one JS bundle, now just over workbox's 2 MiB
+          // default; precaching it is what makes the app work offline, so
+          // raise the limit rather than drop it. Code-splitting the routes
+          // would bring the bundle back down.
+          maximumFileSizeToCacheInBytes: 3 * 1024 * 1024,
         },
         devOptions: {
           enabled: true,
