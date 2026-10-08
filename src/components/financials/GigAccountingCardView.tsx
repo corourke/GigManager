@@ -7,7 +7,7 @@ import { Button } from '../ui/button';
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '../ui/collapsible';
 import { cn } from '../ui/utils';
 import { GigAccountingSummary, GigStatus } from '../../utils/supabase/types';
-import { gigStatusText, STATUS_TONE, type AccountingSectionId } from '../../utils/gigAccountingSections';
+import { gigStatusText, owedToYou, STATUS_TONE, type AccountingSectionId } from '../../utils/gigAccountingSections';
 import { GIG_STATUS_CONFIG } from '../../utils/supabase/constants';
 import type { GigSection } from './GigAccountingTable';
 
@@ -130,7 +130,7 @@ function GigCard({
         </div>
 
         <div className="text-xs text-gray-500 px-0.5">
-          Received {formatCurrency(gig.received)} · Owed to you {formatCurrency(gig.outstandingRevenue)} · You owe {formatCurrency(gig.paymentsToMake)}
+          Received {formatCurrency(gig.received)} · Owed to you {formatCurrency(owedToYou(gig))} · You owe {formatCurrency(gig.paymentsToMake)}
         </div>
 
         <div className="mt-auto pt-1">

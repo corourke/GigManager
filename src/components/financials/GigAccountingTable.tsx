@@ -5,7 +5,7 @@ import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '../ui/colla
 import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from '../ui/table';
 import { Badge } from '../ui/badge';
 import { GigAccountingSummary, GigStatus } from '../../utils/supabase/types';
-import { gigStatusText, STATUS_TONE, type AccountingSectionId } from '../../utils/gigAccountingSections';
+import { gigStatusText, owedToYou, STATUS_TONE, type AccountingSectionId } from '../../utils/gigAccountingSections';
 import { cn } from '../ui/utils';
 import { GIG_STATUS_CONFIG } from '../../utils/supabase/constants';
 import GigAccountingRowDetail from './GigAccountingRowDetail';
@@ -85,7 +85,7 @@ function GigTableRow({
         <TableCell>
           <div className="font-medium text-gray-900">{formatCurrency(gig.contractAmount)}</div>
           <div className="text-xs text-gray-500 mt-0.5">
-            Received {formatCurrency(gig.received)} · Owed {formatCurrency(gig.outstandingRevenue)}
+            Received {formatCurrency(gig.received)} · Owed {formatCurrency(owedToYou(gig))}
           </div>
         </TableCell>
 

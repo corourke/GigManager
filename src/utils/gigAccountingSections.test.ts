@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import type { GigAccountingSummary } from './supabase/types';
-import { classifyGig, gigStatusText, inTimeframe, timeframeRange } from './gigAccountingSections';
+import { classifyGig, gigStatusText, inTimeframe, owedToYou, timeframeRange } from './gigAccountingSections';
 
 const now = new Date(2026, 9, 5, 12, 0); // Oct 5, 2026, local noon
 
@@ -85,5 +85,18 @@ describe('timeframes', () => {
     expect(inTimeframe(g, { from: '2026-10-01', to: '2026-10-31' })).toBe(true);
     expect(inTimeframe(g, { from: '2026-10-04', to: '' })).toBe(false);
     expect(inTimeframe(g, { from: '', to: '' })).toBe(true);
+  });
+});
+
+describe('owedToYou (Cameron, 10-08)', () => {
+  const base = { outstandingRevenue: 1200 };
+  it('is what is still owed on a Completed or Settled gig', () => {
+    expect(owedToYou({ ...base, gigStatus: 'Completed' })).toBe(1200);
+    expect(owedToYou({ ...base, gigStatus: 'Settled' })).toBe(1200);
+  });
+  it("is nothing on a gig that hasn't been completed", () => {
+    for (const gigStatus of ['DateHold', 'Proposed', 'Booked', 'Cancelled'] as const) {
+      expect(owedToYou({ ...base, gigStatus })).toBe(0);
+    }
   });
 });

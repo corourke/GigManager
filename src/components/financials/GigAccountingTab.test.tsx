@@ -204,6 +204,15 @@ describe('GigAccountingTab', () => {
     expect(screen.queryAllByText('$10,000')).toHaveLength(0);
   });
 
+  it("shows nothing owed on a gig that hasn't been completed yet (Cameron, 10-08)", async () => {
+    vi.mocked(gigService.getAllGigAccountingSummaries).mockResolvedValue(defaultSummaries);
+    renderTab();
+    await showAllTime();
+    const row = (await screen.findByText('Booked ahead')).closest('tr')!;
+    expect(row).toHaveTextContent('Received $3,000 · Owed $0');
+    expect((screen.getByText('Played, unpaid')).closest('tr')!).toHaveTextContent('Received $3,000 · Owed $2,000');
+  });
+
   it('clicking a row calls onNavigateToGigDetail with correct gigId', async () => {
     const onNavigateToGigDetail = vi.fn();
     vi.mocked(gigService.getAllGigAccountingSummaries).mockResolvedValue([

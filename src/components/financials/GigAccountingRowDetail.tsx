@@ -7,6 +7,7 @@ import { getGigFinancials } from '../../services/gig.service';
 import { GigAccountingSummary, FinDirection, FinStage } from '../../utils/supabase/types';
 import { settledAmount, stageLabel } from '../../utils/moneyFlow';
 import { DetailLine } from './purchases/DetailLine';
+import { owedToYou } from '../../utils/gigAccountingSections';
 
 interface GigAccountingRowDetailProps {
   gig: GigAccountingSummary;
@@ -109,7 +110,7 @@ export default function GigAccountingRowDetail({
                   <DetailLine key={r.id} label={label(r)} value={value(r)} secondary={secondary(r)} />
                 ))}
                 <div className="mt-2 pt-2 border-t border-gray-200">
-                  <DetailLine label="Owed to you" value={formatCurrency(gig.outstandingRevenue)} />
+                  <DetailLine label="Owed to you" value={formatCurrency(owedToYou(gig))} />
                 </div>
               </div>
 
