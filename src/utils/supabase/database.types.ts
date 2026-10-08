@@ -120,6 +120,8 @@ export type Database = {
       }
       assets: {
         Row: {
+          equipment_item_id: string
+          purchase_line_id: string | null
           acquisition_date: string
           category: string
           created_at: string
@@ -147,6 +149,8 @@ export type Database = {
           vendor: string | null
         }
         Insert: {
+          equipment_item_id?: string
+          purchase_line_id?: string | null
           acquisition_date: string
           category: string
           created_at?: string
@@ -174,6 +178,8 @@ export type Database = {
           vendor?: string | null
         }
         Update: {
+          equipment_item_id?: string
+          purchase_line_id?: string | null
           acquisition_date?: string
           category?: string
           created_at?: string
@@ -314,6 +320,48 @@ export type Database = {
           name?: string
           organization_id?: string | null
           sort_order?: number
+        }
+        Relationships: []
+      }
+      equipment_items: {
+        Row: {
+          category: string
+          created_at: string
+          created_by: string | null
+          description: string | null
+          id: string
+          insurance_class: string | null
+          manufacturer_model: string
+          organization_id: string
+          type: string | null
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          category: string
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          insurance_class?: string | null
+          manufacturer_model: string
+          organization_id: string
+          type?: string | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          category?: string
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          insurance_class?: string | null
+          manufacturer_model?: string
+          organization_id?: string
+          type?: string | null
+          updated_at?: string
+          updated_by?: string | null
         }
         Relationships: []
       }
@@ -911,6 +959,7 @@ export type Database = {
       }
       inventory_tracking: {
         Row: {
+          quantity: number
           asset_id: string | null
           created_at: string
           gig_id: string
@@ -924,6 +973,7 @@ export type Database = {
           status: string
         }
         Insert: {
+          quantity?: number
           asset_id?: string | null
           created_at?: string
           gig_id: string
@@ -937,6 +987,7 @@ export type Database = {
           status: string
         }
         Update: {
+          quantity?: number
           asset_id?: string | null
           created_at?: string
           gig_id?: string
@@ -1056,6 +1107,7 @@ export type Database = {
       }
       kit_components: {
         Row: {
+          equipment_item_id: string | null
           asset_id: string | null
           child_kit_id: string | null
           created_at: string
@@ -1065,6 +1117,7 @@ export type Database = {
           quantity: number
         }
         Insert: {
+          equipment_item_id?: string | null
           asset_id?: string | null
           child_kit_id?: string | null
           created_at?: string
@@ -1074,6 +1127,7 @@ export type Database = {
           quantity?: number
         }
         Update: {
+          equipment_item_id?: string | null
           asset_id?: string | null
           child_kit_id?: string | null
           created_at?: string
@@ -1105,6 +1159,27 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      kit_flattened_item_cache: {
+        Row: {
+          equipment_item_id: string
+          kit_id: string
+          total_quantity: number
+          updated_at: string
+        }
+        Insert: {
+          equipment_item_id: string
+          kit_id: string
+          total_quantity: number
+          updated_at?: string
+        }
+        Update: {
+          equipment_item_id?: string
+          kit_id?: string
+          total_quantity?: number
+          updated_at?: string
+        }
+        Relationships: []
       }
       kit_flattened_cache: {
         Row: {
