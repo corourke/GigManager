@@ -245,8 +245,12 @@ export const shots = [
       await page.goto(`${ctx.base}/gigs/${HARVEST_GALA}`);
       await page.getByText(/ filled · /).first().waitFor();
     },
-    // The read-only Staffing card on the gig's Overview tab.
-    target: (page) => page.getByText(/ filled · /).first().locator('xpath=ancestor::div[contains(@class,"rounded-xl")][1]'),
+    // The read-only Staffing card on the gig's Overview tab, down to the table: its
+    // Staff cost line drops a trailing zero ("$1,582.5", #219), so it's left out until that's fixed.
+    target: (page) => {
+      const card = page.getByText(/ filled · /).first().locator('xpath=ancestor::div[contains(@class,"rounded-xl")][1]');
+      return [card.locator('h2').first(), card.locator('table')];
+    },
     pad: 6,
   },
   {

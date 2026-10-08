@@ -69,7 +69,7 @@ The **…** menu on any row offers **Edit**, **Set stage** and **Remove**.
 
 ## Staff pay
 
-Staff booked on the gig show under **Projected staff costs** until you finalize them in the gig's staffing section (**Finalize Assignment** or **Finalize All**). A fee shows in full. A rate counts as one of its unit (one hour, day or half day) until it's finalized.
+Staff booked on the gig show under **Projected staff costs** until you finalize them in the gig's staffing section (**Finalize Assignment** or **Finalize All**). A fee shows in full. A rate shows an estimate from the gig's times, such as "est. 9.5 hr × $35.00 / hr = $332.50": hours from start to end for an hourly rate, the gig's days for a day rate, and one per gig day for a half-day rate. The same estimate is in **staff booked** at the top of the tab, on the printed sheet and in [Gig Accounting](/financials/gig-accounting/).
 
 - **Finalizing** adds the pay to money out as **Owed**, labelled "Labor: {role}" and marked **Staff**.
 - **A rate** asks how many of its unit were worked (hours, days or half days), and the amount is the rate times that number.
