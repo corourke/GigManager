@@ -619,6 +619,7 @@ function SettingsRoute() {
       onSwitchOrganization={nav.switchOrganization}
       onLogout={nav.logoutAndHome}
       onEditProfile={openEditProfile}
+      onEditOrganization={() => nav.editOrg(organization)}
     />
   );
 }

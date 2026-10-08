@@ -86,4 +86,24 @@ describe('OrganizationContactsSection', () => {
     expect(screen.queryByRole('heading', { name: 'Team Members', level: 3 })).not.toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Contacts', level: 3 })).toBeInTheDocument();
   });
+
+  it('keeps each row\'s Edit and Remove in view when the table is wider than the card (#176)', async () => {
+    vi.mocked(organizationService.getOrganizationContacts).mockResolvedValue([
+      { id: 'm1', organization_id: 'org-1', user_id: 'u1', role: 'Staff', contact_title: 'Production Manager', is_primary_contact: false, created_at: '2026-01-01', user: { id: 'u1', first_name: 'Sam', last_name: 'Roadie', email: 'sam.roadie.production@a-very-long-domain-name.example.com', phone: '555-123-4567', user_status: 'active' } },
+    ] as any);
+
+    render(<OrganizationContactsSection {...defaultProps} />);
+
+    await waitFor(() => expect(screen.getByText('Sam Roadie')).toBeInTheDocument());
+    const row = screen.getByText('Sam Roadie').closest('tr') as HTMLElement;
+    const actionsCell = within(row).getByTitle('Edit').closest('td') as HTMLElement;
+    expect(within(row).getByTitle('Remove').closest('td')).toBe(actionsCell);
+    // jsdom has no layout, so check the CSS that keeps the actions in view: the
+    // Actions column is pinned to the right edge of the scrolling table, and
+    // the long text columns wrap instead of forcing the table wider.
+    expect(actionsCell).toHaveClass('sticky', 'right-0');
+    expect(screen.getByRole('columnheader', { name: 'Actions' })).toHaveClass('sticky', 'right-0');
+    const emailCell = screen.getByText(/sam\.roadie\.production@/).closest('td') as HTMLElement;
+    expect(emailCell).not.toHaveClass('whitespace-nowrap');
+  });
 });
