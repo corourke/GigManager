@@ -5,6 +5,10 @@ Append new entries at the top of each section; never edit an old entry to descri
 
 ## Shipped (newest first)
 
+- **User guide, PRs #207, #209–#212** (Docs Lead, merged 10-08): pages edited by #197–#201 verified (six fixes) with new dashboard, conflict-banner and Grey zone shots (#207); Financials → Reporting written (#209) and published (#211); demo seed reworked for equipment items (#210, dev reseeded); onboarding and invitations cover the email-link screens, with Cameron's hand-taken shots (#212).
+
+- **Dev email flows (10-08):** invitation, sign-up confirmation (Confirm email now on in dev and prod) and password reset all arrive in Mailtrap and their links work (Docs Lead ran them, Cameron confirmed). Dev `site_url` and redirect list are `http://localhost:3000` only, so dev email links open localhost.
+
 - **Deployment docs, PR #208** (coordinator's sub-agent, merged 10-08): `VITE_*` build values (incl. `VITE_SENTRY_DSN`) come from `.env.production.local` on the machine running `deploy_prod.sh`; Cloudflare dashboard env vars are not used (direct upload). The prod bundle had no Sentry DSN for that reason; Cameron to add it locally before the held deploy.
 
 - **Coordinator handover (10-08 evening):** new coordinator session `session_01XTmXKhviMSkyy5PqcRAfUn` (Supabase Prod env, prod read-only). Routine `trig_013iEPNzrK1NR8j2Qih9jzJy` replaces `trig_01JWAcm3QHRpyaQXGNVA8w8m` (disabled, not deleted). Start-up checks passed: both tokens scoped to one project each; prod at `20261015000000`; dev at `20261016000000` (applied 10-08); 1,436 unit tests, lint (0 errors), build (main bundle 1,946,151 bytes), RLS suite incl. 49 and 50.
