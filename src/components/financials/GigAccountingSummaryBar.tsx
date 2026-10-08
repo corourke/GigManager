@@ -36,7 +36,9 @@ export default function GigAccountingSummaryBar({ summaries }: GigAccountingSumm
     for (const s of summaries) {
       contractAmount += s.contractAmount;
       received += s.received;
-      outstandingRevenue += s.outstandingRevenue;
+      // Owed only once the gig is done (Cameron, 10-08): money committed for a
+      // gig that hasn't happened yet isn't owed.
+      if (s.gigStatus === 'Completed' || s.gigStatus === 'Settled') outstandingRevenue += s.outstandingRevenue;
       totalCosts += s.totalCosts;
       paymentsToMake += s.paymentsToMake;
       profit += s.profit;
@@ -47,7 +49,7 @@ export default function GigAccountingSummaryBar({ summaries }: GigAccountingSumm
 
   return (
     <div className="flex flex-wrap gap-3">
-      <MetricCard label="Expected" value={totals.contractAmount} />
+      <MetricCard label="Booked" value={totals.contractAmount} />
       <MetricCard label="Received" value={totals.received} />
       <MetricCard
         label="Owed to you"

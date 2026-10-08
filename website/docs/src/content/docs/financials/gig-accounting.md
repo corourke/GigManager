@@ -26,7 +26,7 @@ Turn sections on and off with the buttons that show each section's count. Cancel
 ## The figures
 
 The bar at the top totals the gigs on screen:
-- **Expected**, **Received** and **Owed to you** for money in;
+- **Booked**, **Received** and **Owed to you** for money in. **Owed to you** counts only gigs marked Completed, so money for a gig that hasn't happened yet isn't in it;
 - **Costs** and **You owe** for money out;
 - **Net**.
 
