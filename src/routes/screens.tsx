@@ -403,7 +403,6 @@ function TeamMemberDetailRoute() {
       userRole={userRole}
       memberId={memberId}
       onBack={nav.toTeam}
-      onEdit={() => nav.toTeam()}
       onSwitchOrganization={nav.switchOrganization}
       onLogout={nav.logoutAndHome}
     />

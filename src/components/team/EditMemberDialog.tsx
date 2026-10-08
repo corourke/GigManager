@@ -21,6 +21,8 @@ interface EditMemberDialogProps {
   member: OrganizationMember | null;
   currentUserId: string;
   staffRoles: Array<{ id: string; name: string }>;
+  /** Called after a successful save, e.g. to reload a screen that holds its own copy. */
+  onSaved?: () => void;
 }
 
 const EMPTY_FORM: UserProfileFormData = {
@@ -36,6 +38,7 @@ export default function EditMemberDialog({
   member,
   currentUserId,
   staffRoles,
+  onSaved,
 }: EditMemberDialogProps) {
   const { updateMember } = useTeamMutations(orgId);
   const [editForm, setEditForm] = useState<UserProfileFormData>(EMPTY_FORM);
@@ -76,6 +79,7 @@ export default function EditMemberDialog({
     try {
       await updateMember.mutateAsync({ memberId: member.id, data: updateData as Record<string, any> });
       onOpenChange(false);
+      onSaved?.();
       toast.success('Member updated successfully');
     } catch (error: any) {
       console.error('Error updating member:', error);
