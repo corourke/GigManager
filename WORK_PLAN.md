@@ -18,8 +18,8 @@ This file lives on `main`. Land updates there promptly: a run that starts from `
 | # | Item | State | Next / owner |
 |---|---|---|---|
 | [#125](https://github.com/corourke/GigManager/issues/125) | Financials → Reporting: tax-program data export | Part 1 merged (PR #167): recovery period on equipment, and Income / Expenses / Assets reports with CSV | Cameron: apply `20261013000000` to dev and check. Then coordinator: mileage rates (F1); Schedule C summary, Needs attention and Grey zone if wanted |
-| [#162](https://github.com/corourke/GigManager/issues/162) | Equipment items and units (serials, tags, quantities, kits); parent of #179–#186 | Mockups approved 10-08 (PR #165, ready to merge); split into sub-issues | See the rows below |
-| [#179](https://github.com/corourke/GigManager/issues/179) | Equipment categories sweep before the items migration | Prod swept read-only 10-08: categories consistent; 2 calls for Cameron (truss → Rigging and Truss? casters/covers record) | **Coordinator**; Cameron confirms each fix |
+| [#162](https://github.com/corourke/GigManager/issues/162) | Equipment items and units (serials, tags, quantities, kits); parent of #179–#186 | Mockups approved and merged 10-08 (PR #165, `docs/design/mockups/equipment-units/`); split into sub-issues | See the rows below |
+| [#179](https://github.com/corourke/GigManager/issues/179) | Equipment categories sweep before the items migration | 10-08: Rigging and Truss category added, 24 records moved, N/A serials cleared, pack quantities fixed (Cameron ran the SQL). Open: pack-size text in 13 names | **Coordinator**; Cameron confirms each fix |
 | [#180](https://github.com/corourke/GigManager/issues/180) | Items migration: `equipment_items`, units and lots, kit lines, scan quantities | Schema decided on #162 | **Coordinator**: tests first; Cameron applies to dev |
 | [#181](https://github.com/corourke/GigManager/issues/181) | Data grouping review for Cameron | Needs #179; before #180 runs on prod. Coordinator supplies the prod data | Equipment Lead |
 | [#182](https://github.com/corourke/GigManager/issues/182)–[#186](https://github.com/corourke/GigManager/issues/186) | Items screens: (a) Items tab, item page, unit/lot form, dashboard total (closes #157); (b) purchases, CSV import; (c) kit editor, overlap; (d) packing list, gig equipment, scanning; (e) locations, override, maintenance (closes #160) | (a) starts once #180 is on dev; b and c after a; d after c; e after d | Equipment Lead |
@@ -36,7 +36,7 @@ This file lives on `main`. Land updates there promptly: a run that starts from `
 ## 2. Waiting on Cameron
 
 1. **Apply migration `20261013000000_asset_recovery_period.sql` to dev** (PR #167), deploy the frontend, and check Financials → Reporting. Prod later, with the usual backup.
-2. **#179 category calls:** move the 24 rigging and truss records out of Lighting into a new Rigging and Truss category? And where the "Casters for Subs and Covers for NX-932s" record belongs.
+2. **#179 pack-size names:** approve the rename list for 13 records (sent in chat 10-08), and the Gator stands' per-stand replacement value.
 3. **Private security finding in the membership RPCs** (Docs Lead, 10-07): details went to Cameron directly, because this repo is public. Needs a migration (coordinator) once he gives the go. Until then, hold the `docs/technical/security-scheme.md` update.
 4. **2024 and 2025 recovery periods:** fill in from the filed returns (they're blank by design; filling in a blank is allowed in a filed year). The Assets report lists them.
 5. **Small bugs from the Docs Lead** (#158, #159, #168–#171, #173, #176, #178): release them to triage?
