@@ -164,6 +164,16 @@ Not released: #175 (needs a design pass). #174's UI half shipped in PR #199; its
 
 ## 5. Future considerations (not open work)
 
+- *Noticed by tonight's sub-agents (10-08), not built:*
+  - The Vitest suite runs close to the 5 s per-test timeout; under load (several runs in parallel) purchases, scan-review and staff tests time out. CI is fine today; a higher global `testTimeout` or faster tests would make it robust.
+  - `src/components/CalendarScreen.tsx` looks unused (the calendar is `GigListScreen` in calendar mode).
+  - `GigListScreen` still fetches the money aggregates for Staff and Viewers, though nothing shows them now (#168).
+  - With the money cards hidden, the Staff dashboard's card row leaves empty slots on wide screens.
+  - `TeamScreen` has an outdated invitations-migration banner (mentions `APPLY_INVITATIONS_TABLE.md`).
+  - The asset page's Notes render Markdown without the shared `MarkdownContent` styling (#169).
+  - Editing an existing mileage row's miles or date doesn't re-price it; only **Record Mileage** prices.
+  - Mobile Settings has no **Edit Organization** entry (#176 added it on desktop Settings).
+  - The already-active error names the tab "Add Existing User" (#174); it lives in a database function, so fix it in the next membership migration.
 - Gig attachments are invisible to the other organizations on a gig (needs a sharing flag and a storage-policy change).
 - Prod has a `fin_category` value `'Production'` that no migration creates.
 - Staff and Viewers can read their own org's staff `rate` / `fee`.
