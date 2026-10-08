@@ -210,13 +210,15 @@ export default function Dashboard({
                 </div>
               </Card>
 
-              {showFinancials && (
+              {/* Staff see what is owned; the money rows stay Admin/Manager only. */}
+              {(showFinancials || stats.assetValues.ownedItems != null) && (
               <Card className="p-4 cursor-pointer hover:shadow-lg transition-shadow" onClick={onNavigateToAssets}>
                 <div className="flex items-center justify-between mb-[4px] mt-[0px] mr-[0px] ml-[0px]">
                   <p className="text-sm text-muted-foreground font-bold">Equipment</p>
                   <Package className="w-5 h-5 text-purple-500" />
                 </div>
                 <div className="space-y-1">
+                  {showFinancials && (<>
                   <div className="flex items-baseline justify-between">
                     <p className="text-xs text-muted-foreground">Total Value</p>
                     <p className="text-foreground">{formatCurrency(stats.assetValues.totalAssetValue)}</p>
@@ -229,6 +231,7 @@ export default function Dashboard({
                     <p className="text-xs text-muted-foreground">Rental Value</p>
                     <p className="text-foreground">{formatCurrency(stats.assetValues.totalRentalValue)}</p>
                   </div>
+                  </>)}
                   {stats.assetValues.ownedItems != null && (
                     <div className="flex items-baseline justify-between">
                       <p className="text-xs text-muted-foreground">Owned</p>
