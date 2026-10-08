@@ -179,6 +179,27 @@
     "taken": "2026-10-07",
     "appCommit": "7c87dfb"
   },
+  "settings/categories-equipment": {
+    "page": "settings/categories.md",
+    "user": "admin",
+    "sources": [
+      "src/components/settings/CategoryListEditor.tsx",
+      "src/components/settings/CategoriesSettings.tsx"
+    ],
+    "anchor": "2026-10-07",
+    "taken": "2026-10-08",
+    "appCommit": "d70f3d9"
+  },
+  "settings/google-calendar-connect": {
+    "page": "settings/google-calendar.md",
+    "user": "admin",
+    "sources": [
+      "src/components/CalendarIntegrationSettings.tsx"
+    ],
+    "anchor": "2026-10-07",
+    "taken": "2026-10-08",
+    "appCommit": "d70f3d9"
+  },
   "team/invitations-invite-dialog": {
     "page": "team/invitations.md",
     "user": "admin",

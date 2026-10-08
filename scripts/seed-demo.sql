@@ -382,9 +382,11 @@ SELECT pg_temp.d(4, a.n), pg_temp.d(1,1),
        a.vendor,
        round(a.price * COALESCE(p.factor, 1), 2),
        a.category, (a.price * a.qty >= 1000), a.model, a.type,
-       CASE WHEN a.qty <= 2 THEN 'DSL' || lpad(a.n::text, 3, '0') || '-' || (24000 + a.n * 37)::text END,
+       CASE WHEN a.qty = 1 THEN 'DSL' || lpad(a.n::text, 3, '0') || '-' || (24000 + a.n * 37)::text END,
        a.descr, round(a.price * 1.15), a.qty, pg_temp.d(2,1), pg_temp.d(2,1),
-       'DSL-' || lpad(a.n::text, 4, '0'), a.status, a.price,
+       -- Only single items carry a serial or tag: dev's equipment rules (#180) say
+       -- tagged equipment is one item, and untagged quantities are counted lots.
+       CASE WHEN a.qty = 1 THEN 'DSL-' || lpad(a.n::text, 4, '0') END, a.status, a.price,
        CASE WHEN a.pur > 0 THEN pg_temp.d(6, a.pur) END
   FROM _a a
   LEFT JOIN _p p ON p.n = a.pur;
@@ -453,18 +455,18 @@ SELECT pg_temp.d(12, row_number() OVER ()::int), pg_temp.d(1,1), s.gig, s.kit, p
 
 -- -----------------------------------------------------------------------------
 -- 8. PURCHASES: lines for the assets above plus a few expensed lines
---    Live dev schema uses row_type header|item|asset (the 'line' rename in
---    migration 20261012 is not applied there yet).
+--    Lines are row_type 'line' (migration 20261012). Recovery periods live on the
+--    equipment record (20261013), not the purchase line.
 -- -----------------------------------------------------------------------------
 INSERT INTO public.purchases
   (id, organization_id, parent_id, row_type, purchase_date, vendor, payment_method, line_amount, line_cost, quantity,
-   item_price, item_cost, description, category, created_by, updated_by, asset_id, tax_treatment, recovery_period)
-SELECT pg_temp.d(6, 100 + a.n), pg_temp.d(1,1), pg_temp.d(6, a.pur), 'asset',
+   item_price, item_cost, description, category, created_by, updated_by, asset_id, tax_treatment)
+SELECT pg_temp.d(6, 100 + a.n), pg_temp.d(1,1), pg_temp.d(6, a.pur), 'line',
        h.purchase_date, h.vendor, h.payment_method,
        a.price * a.qty, round(a.price * p.factor, 2) * a.qty, a.qty,
        a.price, round(a.price * p.factor, 2),
        a.model, a.category, h.created_by, h.created_by, pg_temp.d(4, a.n),
-       p.treatment, p.years
+       p.treatment
   FROM _a a
   JOIN _p p ON p.n = a.pur
   JOIN public.purchases h ON h.id = pg_temp.d(6, a.pur);
@@ -474,7 +476,7 @@ INSERT INTO public.purchases
   (id, organization_id, parent_id, gig_id, row_type, purchase_date, vendor, payment_method, line_amount, line_cost, quantity,
    item_price, item_cost, description, category, created_by, updated_by, tax_treatment)
 SELECT pg_temp.d(6, l.n), pg_temp.d(1,1), pg_temp.d(6, l.hdr), CASE WHEN l.gig IS NOT NULL THEN pg_temp.d(3, l.gig) END,
-       'item', h.purchase_date, h.vendor, h.payment_method,
+       'line', h.purchase_date, h.vendor, h.payment_method,
        l.price * l.qty, round(l.price * p.factor, 2) * l.qty, l.qty, l.price, round(l.price * p.factor, 2),
        l.descr, l.category, h.created_by, h.created_by, 'expense'
   FROM (VALUES
@@ -484,6 +486,14 @@ SELECT pg_temp.d(6, l.n), pg_temp.d(1,1), pg_temp.d(6, l.hdr), CASE WHEN l.gig I
   ) AS l(n, hdr, gig, price, qty, descr, category)
   JOIN _p p ON p.n = l.hdr
   JOIN public.purchases h ON h.id = pg_temp.d(6, l.hdr);
+
+-- Depreciated equipment gets its recovery period once its purchase line exists
+-- (the database checks the line is set to Depreciate).
+UPDATE public.assets a
+   SET recovery_period = p.years
+  FROM _a x
+  JOIN _p p ON p.n = x.pur
+ WHERE a.id = pg_temp.d(4, x.n) AND p.treatment = 'depreciate';
 
 -- Invoice totals = sum of the burdened line costs.
 UPDATE public.purchases h
