@@ -236,6 +236,20 @@ export const shots = [
     target: (page) => cardOf(page, 'Staff Assignments'),
   },
   {
+    id: 'gigs/staffing-view-card',
+    page: 'gigs/staffing-and-participants.md',
+    user: 'admin',
+    sources: ['src/components/gig/view/GigStaffingTable.tsx', 'src/components/gig/view/staffRows.ts'],
+    viewport: { width: 1200, height: 1600 },
+    prepare: async (page, ctx) => {
+      await page.goto(`${ctx.base}/gigs/${HARVEST_GALA}`);
+      await page.getByText(/ filled · /).first().waitFor();
+    },
+    // The read-only Staffing card on the gig's Overview tab.
+    target: (page) => page.getByText(/ filled · /).first().locator('xpath=ancestor::div[contains(@class,"rounded-xl")][1]'),
+    pad: 6,
+  },
+  {
     id: 'gigs/participating-organizations-add',
     page: 'gigs/participating-organizations.md',
     user: 'admin',

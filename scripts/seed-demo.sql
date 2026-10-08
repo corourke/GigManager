@@ -350,11 +350,15 @@ SELECT * FROM (VALUES (1,1,0),(2,1,13),(3,1,12),(4,1,11),(4,2,15),(5,1,2)) AS t(
 -- Status by fill: full = all Confirmed; near = all but lighting and the second
 -- stagehand Confirmed (lighting Requested, second stagehand open);
 -- early = FOH and monitors Requested, rest open; open/none = nobody yet.
-INSERT INTO public.gig_staff_assignments (id, slot_id, user_id, status, fee, notes, assigned_at, confirmed_at)
+-- Pay (#171): FOH and monitors get a flat fee; the lighting tech $400 / day, stagehands
+-- $35 / hr and the stage manager $200 / half day.
+INSERT INTO public.gig_staff_assignments (id, slot_id, user_id, status, fee, rate, rate_unit, notes, assigned_at, confirmed_at)
 SELECT pg_temp.d(9, (w.seat - 1) * 500 + g.n * 10 + w.k), pg_temp.d(8, g.n * 10 + w.k),
        pg_temp.d(2, CASE WHEN w.k = 1 THEN CASE WHEN g.n % 2 = 1 THEN 3 ELSE 14 END ELSE w.usr END),
        st.status,
-       CASE w.k WHEN 1 THEN 350 WHEN 2 THEN 300 WHEN 3 THEN 275 WHEN 4 THEN 150 ELSE 325 END,
+       CASE w.k WHEN 1 THEN 350 WHEN 2 THEN 300 END,
+       CASE w.k WHEN 3 THEN 400 WHEN 4 THEN 35 WHEN 5 THEN 200 END,
+       CASE w.k WHEN 3 THEN 'day' WHEN 5 THEN 'half_day' ELSE 'hour' END,
        NULL,
        pg_temp.at(LEAST(g.gd - 21, pg_temp.anchor() - 2), 10),
        CASE WHEN st.status = 'Confirmed' THEN pg_temp.at(LEAST(g.gd - 14, pg_temp.anchor() - 1), 16) END
@@ -681,25 +685,28 @@ SELECT pg_temp.d(7, x.n), p.gig_id, p.organization_id, p.line_cost, p.purchase_d
 INSERT INTO public.gig_financials
   (id, gig_id, organization_id, amount, date, created_by, category, currency, description, due_date, paid_at,
    direction, stage, amount_settled, staff_assignment_id, external_entity_name)
-SELECT pg_temp.d(7, 1000 + (substring(a.id::text from 29)::int)), s.gig_id, pg_temp.d(1,1), a.fee,
+SELECT pg_temp.d(7, 1000 + (substring(a.id::text from 29)::int)), s.gig_id, pg_temp.d(1,1), COALESCE(a.fee, a.rate * wk.units),
        gg.gd, pg_temp.d(2,2), 'Contract labor'::fin_category, 'USD',
        sr.name || ': ' || u.first_name || ' ' || u.last_name,
        CASE WHEN gg.n = 5 THEN pg_temp.anchor() + 7 END,
        CASE WHEN gg.n <> 5 THEN pg_temp.at(gg.gd + 5, 11) END,
        'out',
        CASE WHEN gg.n = 5 THEN 'invoiced' ELSE 'paid' END::fin_stage,
-       CASE WHEN gg.n <> 5 THEN a.fee END,
+       CASE WHEN gg.n <> 5 THEN COALESCE(a.fee, a.rate * wk.units) END,
        a.id, u.first_name || ' ' || u.last_name
   FROM public.gig_staff_assignments a
   JOIN public.gig_staff_slots s ON s.id = a.slot_id
   JOIN _g gg ON pg_temp.d(3, gg.n) = s.gig_id
   JOIN public.staff_roles sr ON sr.id = s.staff_role_id
   JOIN public.users u ON u.id = a.user_id
+  -- Units worked on a rate: 9 hours, or one day or half day per gig day.
+ CROSS JOIN LATERAL (SELECT CASE a.rate_unit WHEN 'hour' THEN 9 ELSE gg.days END AS units) wk
  WHERE gg.status IN ('Completed','Settled');
 
 UPDATE public.gig_staff_assignments a
    SET gig_financial_id = pg_temp.d(7, 1000 + (substring(a.id::text from 29)::int)),
-       completed_at = pg_temp.at(g.gd + g.days, 10)
+       completed_at = pg_temp.at(g.gd + g.days, 10),
+       units_completed = CASE WHEN a.rate IS NOT NULL THEN CASE a.rate_unit WHEN 'hour' THEN 9 ELSE g.days END END
   FROM public.gig_staff_slots s
   JOIN _g g ON pg_temp.d(3, g.n) = s.gig_id
  WHERE s.id = a.slot_id AND g.status IN ('Completed','Settled');
