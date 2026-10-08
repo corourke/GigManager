@@ -9,7 +9,7 @@
 
 This file lives on `main`. Land updates there promptly: a run that starts from `main` won't see edits parked on a feature branch.
 
-- **Last updated:** 2026-10-08 (coordinator: #179–#186 added; #179 and #180 are the coordinator's, #181–#186 the Equipment Lead's)
+- **Last updated:** 2026-10-08 (coordinator: PRs #189 and #191 merged; #178 built, waiting on the dev migration; check-ins every 4 hours through 10-17)
 
 ---
 
@@ -26,7 +26,7 @@ This file lives on `main`. Land updates there promptly: a run that starts from `
 | [#20](https://github.com/corourke/GigManager/issues/20) | Shared data-access layer under `src/services/` | Released in §3c (7 batches) | Triage, batch 1 next |
 | [#175](https://github.com/corourke/GigManager/issues/175) | Delete gig offered to Managers, but Admin-only | Cameron 10-07: another participating org's Admin must never delete; direction "cancel only when other orgs participate" | Needs a design pass (coordinator) |
 | [#174](https://github.com/corourke/GigManager/issues/174) | Team roles and invitations: UI offers what the server refuses | Cameron 10-07: a Manager must never be able to make anyone an Admin, by any path | Coordinator; the server side is the private finding in §2 |
-| [#178](https://github.com/corourke/GigManager/issues/178) | Duplicate check misses full names; org search is a plain substring | Taken back from triage 10-08 (Cameron): fixed together with a private person-search privacy issue (Docs Lead report, 10-08) | **Coordinator** |
+| [#178](https://github.com/corourke/GigManager/issues/178) | Duplicate check misses full names; org search is a plain substring | Built 10-08 on `claude/epic-ramanujan-i9khnc` (migration `20261015000000_person_and_org_search.sql`, RLS test 49, dialogs search by name, email and phone together). Also fixes the private person-search finding. Waiting on Cameron to apply the migration to dev (§2); PR after a dev check | **Coordinator** |
 | [#157](https://github.com/corourke/GigManager/issues/157) | Dashboard Equipment total should be replacement value × quantity | Rule decided by Cameron 10-07 | Done in #182 |
 | [#158](https://github.com/corourke/GigManager/issues/158), [#168](https://github.com/corourke/GigManager/issues/168) | Staff/Viewers see $0 money cards (dashboard) and money columns (gig list) | Filed by the Docs Lead 10-07 | Released to triage (§3c) |
 | [#159](https://github.com/corourke/GigManager/issues/159), [#169](https://github.com/corourke/GigManager/issues/169), [#170](https://github.com/corourke/GigManager/issues/170), [#171](https://github.com/corourke/GigManager/issues/171), [#173](https://github.com/corourke/GigManager/issues/173), [#176](https://github.com/corourke/GigManager/issues/176) | Small UI bugs: © year, Markdown notes, conflict banner, staff slot delete/rates, member details page, org settings path | Filed by the Docs Lead 10-07 | Released to triage (§3c) |
@@ -34,7 +34,8 @@ This file lives on `main`. Land updates there promptly: a run that starts from `
 ## 2. Waiting on Cameron
 
 1. **Dev mail catcher** (Cameron, 10-08: Mailtrap): create a free Mailtrap Email Testing inbox and send its SMTP host, port, user and password. The coordinator then points dev's Supabase Auth at it and checks the invitation, sign-up confirmation and password-reset flows with the demo `.test` logins.
-2. **Sentry secrets** (optional): `SENTRY_API_TOKEN`, `SENTRY_ORG_SLUG`, `SENTRY_PROJECT_SLUG`; the health check reports "not configured" until set.
+2. **#178 migration on dev:** apply `supabase/migrations/20261015000000_person_and_org_search.sql` (from branch `claude/epic-ramanujan-i9khnc`) to dev, then say so. It adds `search_people` and `search_organizations` and drops `search_users_secure`, so the Add Person search on localhost needs this branch's code once it's applied.
+3. **Sentry secrets** (optional): `SENTRY_API_TOKEN`, `SENTRY_ORG_SLUG`, `SENTRY_PROJECT_SLUG`; the health check reports "not configured" until set.
 
 **Decided 10-08, recorded here until done:**
 - The Docs Lead's corrected membership report (private; reported to Cameron directly): no path lets a Manager make anyone an Admin. The remaining backstop gaps are **parked** (Cameron: later). Partner organizations on a shared gig may keep adding, editing and removing each other's no-login contacts (intended). Person-search privacy is fixed with #178 (coordinator).
@@ -92,13 +93,15 @@ Not released, staying with the coordinator: #174, #175 (needs a design pass) and
 
 (none open: the 10-07 entries are filed as #157–#160, #168–#171, #173–#176 and #178, and their decisions are in §1 and §2)
 
+- **From the Docs Lead (10-08, Financials → Reporting, PR #191): #194**, a year with only disposals isn't offered in Tax year, and the needs-category hint can't always be followed. Small, UI only.
 - **From the Docs Lead (10-08, Settings, PR #189): #188**, Google Calendar shows "System-Wide Bulk Re-sync (Repair)", with developer copy, to every user, and the category type-rules box says "will offer". Small, UI only.
-- **Dev schema is ahead of main (Docs Lead, 10-08).** Dev has migration `20261014000000` from #180 (equipment units) applied, and its rule (tagged equipment must have quantity 1) broke the demo seed. PR #189 fixes the seed. The seed's equipment will need a fuller rework when #180 merges, and the Equipment pages wait for that too.
+- **Demo seed vs equipment items (coordinator, 10-08).** #180 is merged and #189 made the seed run on it. The seed's equipment still needs a fuller rework for equipment items before the Equipment pages are shot.
 
 - **Correction to the private membership finding (§2 item 3), Docs Lead, 10-08.** Tested on dev as the demo Manager, the escalation I reported on 10-07 is **not exploitable**: the `guard_organization_membership` trigger (`20260929000000`) blocks it on every path tried. What remains are low-severity defence-in-depth gaps. The full write-up (paths, test results, suggested fixes) went to Cameron privately on 10-08 to pass on. No migration is urgent; fold the fixes into the next membership or security migration.
-- **Second private security finding (Docs Lead, 10-07): privacy, in the person search behind the duplicate check (#178).** Details went to Cameron directly, as the repo is public. Cameron (10-08) asked for it to go on the private security list with the membership-RPC finding (§2 item 3). It touches the same search #178 changes, so plan the two together.
 
 ## 4. Agents and documentation
+
+**Pace through 10-17 (Cameron, 10-08):** keep triage and the leads busy. The coordinator checks in at least every 4 hours (Routine `trig_01JWAcm3QHRpyaQXGNVA8w8m`, which disables itself after 10-17) to queue work, review ready PRs and ask Cameron about blockers.
 
 **Equipment Lead** (`session_013gAYYf2hpcECG9QpxFz5Vo`, Supabase Dev environment, no prod access) owns #181–#186, the grouping review and the items screens, and reviews #180 from the screens side. The coordinator owns #179 and #180 and supplies prod data the Lead can't reach. It reports on #162 and each sub-issue.
 
@@ -132,12 +135,13 @@ Not released, staying with the coordinator: #174, #175 (needs a design pass) and
 | `financials/cost-allocation.md` | published | 2026-10-06 (coordinator, PR #136) | — |
 | `financials/gig-accounting.md` | published | 2026-10-06 (coordinator, PR #136) | held: #125 money-type rework |
 | `financials/gig-expenses.md` | published | 2026-10-06 (coordinator, PR #136) | — |
-| `financials/overview.md` | published | 2026-10-06 (coordinator, PR #136) | — |
+| `financials/overview.md` | published | 2026-10-08 (Docs Lead, PR #191, merged) | Tax time note updated |
 | `financials/purchases.md` | published | 2026-10-06 (coordinator, PR #136) | — |
+| `financials/reporting.md` | draft, written (PR #191, merged) | 2026-10-08 (Docs Lead) | new page; ready to publish, then link it from overview and tax treatment |
 | `financials/receipts-and-invoices.md` | published | 2026-10-06 (coordinator, PR #136) | — |
-| `financials/tax-treatment.md` | published | 2026-10-06 (coordinator) | recovery periods now exist (PR #167); recheck |
+| `financials/tax-treatment.md` | published | 2026-10-08 (Docs Lead, PR #191, merged) | recovery periods documented |
 | `getting-started/onboarding.md` | published | 2026-10-06 (triage, PR #139); screenshots PR #163 | — |
-| `getting-started/organizations.md` | published | 2026-10-08 (Docs Lead, PR #191) | fixes and screenshots go live when #191 merges |
+| `getting-started/organizations.md` | published | 2026-10-08 (Docs Lead, PR #191, merged) | fixes and screenshots in |
 | `getting-started/the-dashboard.md` | published | 2026-10-06 (triage, PR #139); screenshot PR #163 | dashboard shot held for #157 |
 | `getting-started/what-is-gigwrangler.md` | published | 2026-10-07 (Docs Lead, PR #164) | — |
 | `gigs/calendar-view.md` | draft, written (PR #172, merged) | 2026-10-07 (Docs Lead) | ready to publish |
@@ -150,17 +154,17 @@ Not released, staying with the coordinator: #174, #175 (needs a design pass) and
 | `gigs/schedule.md` | draft, written (PR #172, merged) | 2026-10-07 (Docs Lead) | ready to publish |
 | `gigs/staffing-and-participants.md` | draft, written (PR #172, merged) | 2026-10-07 (Docs Lead) | ready to publish |
 | `gigs/the-gig-list.md` | draft, written (PR #172, merged) | 2026-10-07 (Docs Lead) | ready to publish |
-| `index.mdx` | published | 2026-10-08 (Docs Lead, PR #191) | fixes go live when #191 merges |
+| `index.mdx` | published | 2026-10-08 (Docs Lead, PR #191, merged) | fixes in |
 | `mobile/biometric-unlock.md` | draft | — | held |
 | `mobile/field-inventory.md` | draft | — | held: equipment rework (#162/#180) |
 | `mobile/offline-access.md` | draft | — | held |
 | `mobile/overview.md` | draft | — | held |
-| `reference/access-requests-and-moderation.md` | draft, written (PR #177, merged) | 2026-10-07 (Docs Lead) | ready to publish |
+| `reference/access-requests-and-moderation.md` | draft, written (PR #177, merged) | 2026-10-07 (Docs Lead); screenshots PR #191 | ready to publish |
 | `reference/glossary.md` | draft, written (PR #177) | 2026-10-07 (Docs Lead) | publish after the pages it links to |
 | `reference/roles-and-access.md` | published | 2026-10-07 (Docs Lead, PR #177, merged) | — |
-| `settings/categories.md` | published | 2026-10-08 (Docs Lead, PR #189) | corrections go live when #189 merges |
-| `settings/google-calendar.md` | published | 2026-10-08 (Docs Lead, PR #189) | rewritten in #189; connected-state shot needs a Google account |
-| `settings/overview.md` | published | 2026-10-08 (Docs Lead, PR #189) | corrections go live when #189 merges |
+| `settings/categories.md` | published | 2026-10-08 (Docs Lead, PR #189, merged) | corrections in |
+| `settings/google-calendar.md` | published | 2026-10-08 (Docs Lead, PR #189, merged) | rewritten in #189; connected-state shot needs a Google account |
+| `settings/overview.md` | published | 2026-10-08 (Docs Lead, PR #189, merged) | corrections in |
 | `team/invitations.md` | draft, written (PR #177, merged) | 2026-10-07 (Docs Lead) | ready to publish |
 | `team/member-profiles.md` | draft, written (PR #177, merged) | 2026-10-07 (Docs Lead) | ready to publish |
 | `team/overview.md` | published | 2026-10-07 (Docs Lead, PR #177, merged) | — |

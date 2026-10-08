@@ -25,15 +25,40 @@ The first time your organization needs a list, GigWrangler gives it a starter se
 
 ## Changing a list
 
-- **Add:** type the name at the bottom of the list. For an expense category, also pick its Schedule C line. Then click **Add**.
-- **Turn off:** switch a category off to hide it from the pickers. Purchases and equipment that already use it keep it.
-- **Rename:** edit the name and press Enter. A category that's already in use can't be renamed here, because each purchase and piece of equipment stores the name. The **In use** column shows how many records use each one.
+Open the **Expense categories** or **Equipment categories** tab. Each list is a table
+with the category's **Name**, its **Schedule C line** (expense categories) or
+**Recovery period** (equipment categories), **In use** and **On**.
+
+- **Add:** type the name in **New category** at the bottom of the list. For an
+  expense category, also pick its Schedule C line; for an equipment category,
+  optionally its recovery period. Then select **Add**.
+- **Change the Schedule C line or recovery period:** pick a new one in the row. It
+  saves straight away.
+- **Turn off:** switch **On** off to hide the category from the pickers. Purchases
+  and equipment that already use it keep it.
+- **Rename:** edit the name and press <kbd>Enter</kbd>. A category that's already in
+  use can't be renamed here, because each purchase and piece of equipment stores the
+  name. **In use** shows how many records use each one.
+
+## Recovery periods for equipment
+
+Equipment you depreciate for tax has a recovery period: **5-year** (computers,
+phones, office machines), **7-year** (most production gear: audio, lighting, video,
+rigging, cases, tools) or **15-year** (building out a leased shop or studio). See
+[Tax treatment and equipment](/financials/tax-treatment/).
+
+An equipment category's **Recovery period** is the default for depreciated
+equipment in that category. Choose **Ask each time** if the category mixes kinds,
+and GigWrangler asks for a period when you record depreciated equipment in it.
+
+![The Equipment categories tab in Settings: the rules for writing types, then the list of categories with a Recovery period choice, how many records use each, and an On switch](../../../assets/screenshots/settings/categories-equipment.png)
 
 ## How the types are written
 
-Inside a category, each piece of equipment has a **Type** that says what it is:
+Inside a category, each piece of equipment has a **Type** that says what it is. The
+**Equipment categories** tab shows these rules above the list:
 
 - The first word says what it is, as a singular noun: Cable, Microphone, Fixture, Stand, Case.
 - Each word after narrows it: Microphone, Vocal, Dynamic; Fixture, Moving Head, Wash.
 - Brand, model, size and length stay in the name, not the type.
-- The dropdown in the app will offer the types already in use for that category, so the list stays consistent.
+- When you enter a type, GigWrangler suggests the types already used in that category, so the list stays consistent.

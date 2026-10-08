@@ -36,7 +36,7 @@ Per-item cost is the item's cost after tax and shipping (see [Cost allocation](/
 | Track as equipment | Optional | Always |
 | Count it as a cost of a gig | Optional | Never |
 | Category | An expense heading (and an equipment category if it's equipment) | An equipment category |
-| Recovery period (5, 7 or 15 years) | — | Yes (you'll set it with the tax reports, coming soon) |
+| Recovery period (5, 7 or 15 years) | — | Yes, set on the equipment record (see [Recovery period](#recovery-period)) |
 
 A cable bought for one show can be that gig's cost **and** go in a kit. Depreciated gear belongs to the business, not to one gig.
 
@@ -45,6 +45,16 @@ A cable bought for one show can be that gig's cost **and** go in a kit. Deprecia
 - To start tracking something you bought earlier, open its line in **Financials → Purchases** and click **Track as equipment**.
 
 Your gig costs and your tax figures never double-count. A purchase linked to a gig shows in the gig's money out so you can see the gig's profit, but for tax it's counted once, from the purchase.
+
+## Recovery period
+
+Depreciated equipment also needs a recovery period: **5-year** (computers and office machines), **7-year** (most production gear) or **15-year** (building out a leased shop or studio). Your tax program uses it to work out the depreciation, and the **Assets** report under **Financials → Reporting** lists it for each item.
+
+Choose it in the equipment details on the purchase line, or in the equipment's own form, in **Recovery period**.
+
+- **From the category:** if the equipment category has a default (set in **Settings → Categories**), you'll see "The default for" that category. Change it for an item if you need to.
+- **No default:** the field turns amber and you'll see a note to choose one. The field shows **Choose a recovery period…**, and **Done** in the equipment details (and saving the equipment form) waits until you pick one.
+- **Filed year:** once the year is filed, the period stays as it is.
 
 ## Filed years are locked
 

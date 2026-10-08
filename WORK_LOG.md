@@ -5,6 +5,8 @@ Append new entries at the top of each section; never edit an old entry to descri
 
 ## Shipped (newest first)
 
+- **PR #189 and PR #191** (Docs Lead, merged 10-08 by the coordinator with Cameron's go): Settings, Google Calendar, home page, organizations and access-request docs checked against the app with new screenshots; the Reporting page (draft); the demo seed runs on the 20261012–14 schema and seeds a moderator, a claim request and notifications.
+
 | Work | Shipped in | Notes |
 |---|---|---|
 | Prod deploy (10-08, Cameron): migrations `20261013000000` (recovery period) and `20261014000000` (equipment items: 197 records → 158 items); 2024–25 recovery periods set to 7-year by SQL (144 records) | — | Verified read-only: every depreciated item has a period, none on non-depreciated |
@@ -89,6 +91,8 @@ Covered: `docs/development/testing.md` (09-23, PR #67), `docs/technical/setup-gu
 
 ## Settled decisions and closed threads
 
+- **Docs Lead security findings** (10-08): the membership report and the person-search finding went to Cameron privately. The membership backstops are parked; the person search is fixed by #178 (§1).
+- **Busy pace through 10-17** (10-08): Cameron asked the coordinator to keep the agents busy, checking in at least every 5 hours; a 4-hourly Routine does it.
 - **2024–25 recovery periods vs the filed returns** (10-08): both years' Form 4562s put all equipment in the 7-year class (2025: $42,155, half-year; 2024: $1,838, $500 under Section 179 and $1,338 mid-quarter, bonus elected out). 2024 basis gap of $310.37 against GigWrangler accepted by Cameron: the 2024 invoices and the pre-GigWrangler spreadsheet ($1,287.70 of assets, Waves expensed) don't rebuild the return's figure. Waves plugins stay depreciated. The returns, invoices and extracts were deleted after reading.
 - **Gig financials redesign** (10-04 to 10-05): done; #123 and #124 merged; migration `20261005000000` in prod (125 rows converted). The note that preceded it:
   **Financial transaction types (coordinator, 10-04; loop back when read-only DB access exists).** Cameron wants the 25 `fin_type` values radically simplified *before* the Gig Accounting report is reworked; the change also drives how the gig's Financials tab displays. Direction proposed 10-04: five types (Fee agreed, Client payment, Refund to client, Expense, Sub-contract), with paid/due carried by `paid_at` / `due_date`, and three report sections (Needs Attention, Upcoming, Settled), each gig in exactly one. Cameron says many rows lack faithful `paid_at` / `due_date`, so the mapping must come from the raw rows, not counts. Prod is readable with `SUPABASE_ACCESS_TOKEN` (set 10-04; it can write, so read-only unless Cameron approves a change):
