@@ -1,8 +1,6 @@
-import { createClient } from '../utils/supabase/client';
+import { getSupabase } from './base/dataAccess';
 import { Notification } from '../utils/supabase/types';
 import { handleFunctionsError } from '../utils/api-error-utils';
-
-const getSupabase = () => createClient();
 
 /** The caller's unread notifications, most recent first — powers the notification bell. */
 export async function getMyNotifications(): Promise<Notification[]> {

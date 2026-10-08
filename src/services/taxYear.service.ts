@@ -4,7 +4,7 @@
  * read; only Admins add, change or remove years.
  */
 import { handleApiError } from '../utils/api-error-utils';
-import { requireAuth } from '../utils/supabase/auth-utils';
+import { getCurrentUser, getSupabase } from './base/dataAccess';
 
 export interface TaxYear {
   organization_id: string;
@@ -16,7 +16,8 @@ export interface TaxYear {
 
 export async function getTaxYears(organizationId: string): Promise<TaxYear[]> {
   try {
-    const { supabase } = await requireAuth();
+    await getCurrentUser();
+    const supabase = getSupabase();
     const { data, error } = await (supabase.from('tax_years') as any)
       .select('organization_id, year, locked, filed_on, notes')
       .eq('organization_id', organizationId)
@@ -45,7 +46,8 @@ export async function saveTaxYear(
   values: { locked: boolean; filed_on?: string | null; notes?: string | null },
 ): Promise<TaxYear> {
   try {
-    const { supabase } = await requireAuth();
+    await getCurrentUser();
+    const supabase = getSupabase();
     const { data, error } = await (supabase.from('tax_years') as any)
       .upsert({ organization_id: organizationId, year, ...values }, { onConflict: 'organization_id,year' })
       .select('organization_id, year, locked, filed_on, notes')
@@ -59,7 +61,8 @@ export async function saveTaxYear(
 
 export async function deleteTaxYear(organizationId: string, year: number): Promise<void> {
   try {
-    const { supabase } = await requireAuth();
+    await getCurrentUser();
+    const supabase = getSupabase();
     const { error } = await (supabase.from('tax_years') as any)
       .delete()
       .eq('organization_id', organizationId)

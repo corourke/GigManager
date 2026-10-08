@@ -9,8 +9,9 @@ const q: any = new Proxy({}, {
     : (...args: any[]) => { calls.push([prop, ...args]); return q; },
 });
 const rpc = vi.fn(async () => ({ error: null }));
-vi.mock('../utils/supabase/auth-utils', () => ({
-  requireAuth: vi.fn(async () => ({ supabase: { from: (t: string) => { calls.push(['from', t]); return q; }, rpc } })),
+vi.mock('./base/dataAccess', () => ({
+  getCurrentUser: vi.fn(async () => ({ id: 'u1' })),
+  getSupabase: () => ({ from: (t: string) => { calls.push(['from', t]); return q; }, rpc }),
 }));
 vi.mock('./asset.service', () => ({ getDistinctAssetValues: vi.fn(async () => ['Lighting', 'Cases', 'Cases/Bags', 'Small Parts', 'Audio']) }));
 
