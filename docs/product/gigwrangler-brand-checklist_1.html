@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GigWrangler — Brand Securing Checklist</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f5f4f1; color: #1a1a18; padding: 2rem 1rem; }
+  .container { max-width: 720px; margin: 0 auto; }
+  h1 { font-size: 22px; font-weight: 600; margin-bottom: 4px; }
+  .subtitle { font-size: 13px; color: #666; margin-bottom: 1.5rem; }
+  .progress-label { font-size: 12px; color: #888; margin-bottom: 6px; }
+  .progress-bar { height: 5px; background: #e2e0d8; border-radius: 3px; margin-bottom: 1.5rem; overflow: hidden; }
+  .progress-fill { height: 100%; background: #2d7a4f; border-radius: 3px; transition: width 0.3s; }
+  .tip-box { background: #e8f0fb; border-radius: 8px; padding: 10px 14px; margin-bottom: 1.75rem; font-size: 13px; color: #1a4a8a; line-height: 1.5; }
+  .section { margin-bottom: 2rem; }
+  .section-header { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; padding-bottom: 8px; border-bottom: 1px solid #e0ded6; }
+  .section-num { width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 600; flex-shrink: 0; }
+  .section-title { font-size: 15px; font-weight: 600; }
+  .section-sub { font-size: 12px; color: #888; margin-left: auto; }
+  .item { display: flex; align-items: flex-start; gap: 10px; padding: 9px 10px; border-radius: 7px; cursor: pointer; transition: background 0.1s; margin-bottom: 2px; background: #fff; border: 0.5px solid #e8e6de; }
+  .item:hover { background: #f0ede6; }
+  .item.done { opacity: 0.45; }
+  .item.done .item-title { text-decoration: line-through; }
+  .cb { width: 17px; height: 17px; border-radius: 4px; border: 1.5px solid #bbb; flex-shrink: 0; margin-top: 2px; display: flex; align-items: center; justify-content: center; transition: all 0.15s; }
+  .item.done .cb { background: #2d7a4f; border-color: #2d7a4f; }
+  .check { display: none; }
+  .item.done .check { display: block; }
+  .item-body { flex: 1; }
+  .item-title-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+  .item-title { font-size: 14px; line-height: 1.4; }
+  .badge { font-size: 11px; font-weight: 600; padding: 2px 7px; border-radius: 20px; }
+  .b-now { background: #fde8e8; color: #9b2626; }
+  .b-today { background: #fef0d8; color: #7a4a0a; }
+  .b-week { background: #e4f2da; color: #2d6010; }
+  .item-note { font-size: 12px; color: #666; margin-top: 4px; line-height: 1.5; }
+  .item-url { font-size: 12px; color: #1a4a8a; margin-top: 3px; }
+  .footer { font-size: 12px; color: #999; border-top: 1px solid #e0ded6; padding-top: 1rem; margin-top: 1rem; }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <h1>GigWrangler — Brand Securing Checklist</h1>
+  <p class="subtitle">Domain, email, social handles, and trademark. Do in order.</p>
+
+  <p class="progress-label" id="prog-label">0 of 22 completed</p>
+  <div class="progress-bar"><div class="progress-fill" id="prog-fill" style="width:0%"></div></div>
+
+  <div class="tip-box">⚡ Do the domain and all primary social handles in one sitting — ideally within the hour. Squatters monitor WHOIS lookups and will act fast once a name surfaces publicly.</div>
+
+  <!-- SECTION 1 -->
+  <div class="section">
+    <div class="section-header">
+      <div class="section-num" style="background:#fde8e8;color:#9b2626;">1</div>
+      <span class="section-title">Domain registration</span>
+      <span class="section-sub">Do first — everything depends on this</span>
+    </div>
+
+    <div class="item" onclick="toggle(this)">
+      <div class="cb"><svg class="check" width="11" height="11" viewBox="0 0 11 11"><polyline points="1.5,5.5 4.5,8.5 9.5,2.5" stroke="#fff" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+      <div class="item-body">
+        <div class="item-title-row"><span class="item-title">Register <strong>gigwrangler.com</strong></span><span class="badge b-now">do now</span></div>
+        <div class="item-note">Preferred: Cloudflare Registrar (at-cost, no markup) or Namecheap. Avoid GoDaddy — their upsell flow and pricing are aggressive.</div>
+        <div class="item-url">cloudflare.com/products/registrar &nbsp;·&nbsp; namecheap.com</div>
+      </div>
+    </div>
+
+    <div class="item" onclick="toggle(this)">
+      <div class="cb"><svg class="check" width="11" height="11" viewBox="0 0 11 11"><polyline points="1.5,5.5 4.5,8.5 9.5,2.5" stroke="#fff" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+      <div class="item-body">
+        <div class="item-title-row"><span class="item-title">Register <strong>gigwrangler.io</strong> as a secondary</span><span class="badge b-today">today</span></div>
+        <div class="item-note">Defensive registration — .io is the default fallback for dev/SaaS audiences. Point it to .com via a 301 redirect. ~$35/yr.</div>
+      </div>
+    </div>
+
+    <div class="item" onclick="toggle(this)">
+      <div class="cb"><svg class="check" width="11" height="11" viewBox="0 0 11 11"><polyline points="1.5,5.5 4.5,8.5 9.5,2.5" stroke="#fff" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+      <div class="item-body">
+        <div class="item-title-row"><span class="item-title">Enable WHOIS privacy / domain privacy on all registrations</span><span class="badge b-now">do now</span></div>
+        <div class="item-note">Turn on at registration time — prevents your contact info from appearing in WHOIS and triggering squatter alert services. Most registrars include this free.</div>
+      </div>
+    </div>
+
+    <div class="item" onclick="toggle(this)">
+      <div class="cb"><svg class="check" width="11" height="11" viewBox="0 0 11 11"><polyline points="1.5,5.5 4.5,8.5 9.5,2.5" stroke="#fff" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+      <div class="item-body">
+        <div class="item-title-row"><span class="item-title">Enable auto-renew on all registered domains</span><span class="badge b-now">do now</span></div>
+        <div class="item-note">Squatters run automated tools watching for expired domains. A lapsed registration on a live brand is a nightmare scenario.</div>
+      </div>
+    </div>
+
+    <div class="item" onclick="toggle(this)">
+      <div class="cb"><svg class="check" width="11" height="11" viewBox="0 0 11 11"><polyline points="1.5,5.5 4.5,8.5 9.5,2.5" stroke="#fff" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+      <div class="item-body">
+        <div class="item-title-row"><span class="item-title">Register for at least 5 years, not 1</span><span class="badge b-today">today</span></div>
+        <div class="item-note">Google uses registration duration as a minor trust signal. Reduces annual renewal risk and saves a bit on multi-year pricing at Namecheap.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SECTION 2 -->
+  <div class="section">
+    <div class="section-header">
+      <div class="section-num" style="background:#fef0d8;color:#7a4a0a;">2</div>
+      <span class="section-title">Email foundation</span>
+      <span class="section-sub">Set up before claiming social handles</span>
+    </div>
+
+    <div class="item" onclick="toggle(this)">
+      <div class="cb"><svg class="check" width="11" height="11" viewBox="0 0 11 11"><polyline points="1.5,5.5 4.5,8.5 9.5,2.5" stroke="#fff" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+      <div class="item-body">
+        <div class="item-title-row"><span class="item-title">Set up <strong>hello@gigwrangler.com</strong></span><span class="badge b-today">today</span></div>
+        <div class="item-note">Options: Google Workspace ($6/mo, recommended for calendar/docs integration) or Cloudflare Email Routing (free, just forwards to your personal address — good enough for now). You need a brand email to register social accounts cleanly.</div>
+      </div>
+    </div>
+
+    <div class="item" onclick="toggle(this)">
+      <div class="cb"><svg class="check" width="11" height="11" viewBox="0 0 11 11"><polyline points="1.5,5.5 4.5,8.5 9.5,2.5" stroke="#fff" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+      <div class="item-body">
+        <div class="item-title-row"><span class="item-title">Create a dedicated GigWrangler folder/vault in your password manager</span><span class="badge b-today">today</span></div>
+        <div class="item-note">Do this before you start registering handles. Use 1Password or Bitwarden. Generate a unique strong password for every account — no reuse.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SECTION 3 -->
+  <div class="section">
+    <div class="section-header">
+      <div class="section-num" style="background:#e4f2da;color:#2d6010;">3</div>
+      <span class="section-title">Primary social handles</span>
+      <span class="section-sub">Claim @gigwrangler on all platforms</span>
+    </div>
+
+    <div class="item" onclick="toggle(this)">
+      <div class="cb"><svg class="check" width="11" height="11" viewBox="0 0 11 11"><polyline points="1.5,5.5 4.5,8.5 9.5,2.5" stroke="#fff" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+      <div class="item-body">
+        <div class="item-title-row"><span class="item-title">X / Twitter: <strong>@gigwrangler</strong></span><span class="badge b-now">do now</span></div>
+        <div class="item-note">Most at-risk platform for squatting. Claim immediately. Register with hello@gigwrangler.com. Add a placeholder bio and profile photo — a bare account is less likely to be flagged as inactive.</div>
+        <div class="item-url">x.com</div>
+      </div>
+    </div>
+
+    <div class="item" onclick="toggle(this)">
+      <div class="cb"><svg class="check" width="11" height="11" viewBox="0 0 11 11"><polyline points="1.5,5.5 4.5,8.5 9.5,2.5" stroke="#fff" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+      <div class="item-body">
+        <div class="item-title-row"><span class="item-title">Instagram: <strong>@gigwrangler</strong></span><span class="badge b-now">do now</span></div>
+        <div class="item-note">Set a profile photo and a line of bio text. Instagram has been known to reclaim completely empty accounts.</div>
+        <div class="item-url">instagram.com</div>
+      </div>
+    </div>
+
+    <div class="item" onclick="toggle(this)">
+      <div class="cb"><svg class="check" width="11" height="11" viewBox="0 0 11 11"><polyline points="1.5,5.5 4.5,8.5 9.5,2.5" stroke="#fff" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+      <div class="item-body">
+        <div class="item-title-row"><span class="item-title">LinkedIn: company page <strong>gigwrangler</strong></span><span class="badge b-today">today</span></div>
+        <div class="item-note">Create a Company Page (not a personal profile). The URL slug will be linkedin.com/company/gigwrangler. You'll need at least a logo and a one-line description to complete setup.</div>
+        <div class="item-url">linkedin.com/company/setup/new</div>
+      </div>
+    </div>
+
+    <div class="item" onclick="toggle(this)">
+      <div class="cb"><svg class="check" width="11" height="11" viewBox="0 0 11 11"><polyline points="1.5,5.5 4.5,8.5 9.5,2.5" stroke="#fff" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+      <div class="item-body">
+        <div class="item-title-row"><span class="item-title">Facebook: page <strong>GigWrangler</strong></span><span class="badge b-today">today</span></div>
+        <div class="item-note">Even if you don't plan to use it — claim defensively. After creating the page, set the vanity URL to gigwrangler under Settings > Page Info. Requires 25 followers before the vanity URL option appears — get a few friends to like it.</div>
+        <div class="item-url">facebook.com/pages/create</div>
+      </div>
+    </div>
+
+    <div class="item" onclick="toggle(this)">
+      <div class="cb"><svg class="check" width="11" height="11" viewBox="0 0 11 11"><polyline points="1.5,5.5 4.5,8.5 9.5,2.5" stroke="#fff" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+      <div class="item-body">
+        <div class="item-title-row"><span class="item-title">YouTube: <strong>@gigwrangler</strong> channel</span><span class="badge b-today">today</span></div>
+        <div class="item-note">Create via a Google account. Claim the handle @gigwrangler under Settings > Channel > Customization. Relevant for product demos, tutorials, and live event content later.</div>
+        <div class="item-url">youtube.com</div>
+      </div>
+    </div>
+
+    <div class="item" onclick="toggle(this)">
+      <div class="cb"><svg class="check" width="11" height="11" viewBox="0 0 11 11"><polyline points="1.5,5.5 4.5,8.5 9.5,2.5" stroke="#fff" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+      <div class="item-body">
+        <div class="item-title-row"><span class="item-title">TikTok: <strong>@gigwrangler</strong></span><span class="badge b-week">this week</span></div>
+        <div class="item-note">Secondary priority — but the live events and music production audience skews younger and is active here. Claim defensively even if you won't post for a while.</div>
+        <div class="item-url">tiktok.com</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SECTION 4 -->
+  <div class="section">
+    <div class="section-header">
+      <div class="section-num" style="background:#e8f0fb;color:#1a4a8a;">4</div>
+      <span class="section-title">Developer & community handles</span>
+      <span class="section-sub">Relevant for a PWA / SaaS product</span>
+    </div>
+
+    <div class="item" onclick="toggle(this)">
+      <div class="cb"><svg class="check" width="11" height="11" viewBox="0 0 11 11"><polyline points="1.5,5.5 4.5,8.5 9.5,2.5" stroke="#fff" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+      <div class="item-body">
+        <div class="item-title-row"><span class="item-title">GitHub: organization <strong>gigwrangler</strong></span><span class="badge b-today">today</span></div>
+        <div class="item-note">Create a GitHub Organization (not just a personal repo) so future contributors and repos live under the brand. Repo URLs will be github.com/gigwrangler/... Free for public repos.</div>
+        <div class="item-url">github.com/organizations/new</div>
+      </div>
+    </div>
+
+    <div class="item" onclick="toggle(this)">
+      <div class="cb"><svg class="check" width="11" height="11" viewBox="0 0 11 11"><polyline points="1.5,5.5 4.5,8.5 9.5,2.5" stroke="#fff" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+      <div class="item-body">
+        <div class="item-title-row"><span class="item-title">Product Hunt: claim maker profile and product name <strong>GigWrangler</strong></span><span class="badge b-week">this week</span></div>
+        <div class="item-note">Create a maker profile and submit an upcoming product page. Critical for launch day visibility — established maker profiles get more traction. Don't wait until launch to do this.</div>
+        <div class="item-url">producthunt.com</div>
+      </div>
+    </div>
+
+    <div class="item" onclick="toggle(this)">
+      <div class="cb"><svg class="check" width="11" height="11" viewBox="0 0 11 11"><polyline points="1.5,5.5 4.5,8.5 9.5,2.5" stroke="#fff" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+      <div class="item-body">
+        <div class="item-title-row"><span class="item-title">npm: reserve package name <strong>gigwrangler</strong></span><span class="badge b-week">this week</span></div>
+        <div class="item-note">If you plan any CLI tooling or SDK down the road. Publish a minimal placeholder package (package.json + README) to hold the name. Free. npm publish gigwrangler.</div>
+        <div class="item-url">npmjs.com</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SECTION 5 -->
+  <div class="section">
+    <div class="section-header">
+      <div class="section-num" style="background:#eeedfe;color:#534ab7;">5</div>
+      <span class="section-title">Trademark</span>
+      <span class="section-sub">Protect the name legally</span>
+    </div>
+
+    <div class="item" onclick="toggle(this)">
+      <div class="cb"><svg class="check" width="11" height="11" viewBox="0 0 11 11"><polyline points="1.5,5.5 4.5,8.5 9.5,2.5" stroke="#fff" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+      <div class="item-body">
+        <div class="item-title-row"><span class="item-title">Run a USPTO TESS search for "GigWrangler" in classes 41 and 42</span><span class="badge b-today">today</span></div>
+        <div class="item-note">Class 42 = software/SaaS. Class 41 = entertainment services — relevant given your audience. Free search, takes 5 minutes. Look for any live filings with "Wrangler" in the mark.</div>
+        <div class="item-url">tmsearch.uspto.gov</div>
+      </div>
+    </div>
+
+    <div class="item" onclick="toggle(this)">
+      <div class="cb"><svg class="check" width="11" height="11" viewBox="0 0 11 11"><polyline points="1.5,5.5 4.5,8.5 9.5,2.5" stroke="#fff" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+      <div class="item-body">
+        <div class="item-title-row"><span class="item-title">Search for "Wrangler" standalone in class 42 to assess Kontoor Brands exposure</span><span class="badge b-today">today</span></div>
+        <div class="item-note">Wrangler jeans is registered in apparel (class 25). Software is a different class — but confirm there's no class 42 filing before investing heavily in the brand. A clean result here is a green light.</div>
+      </div>
+    </div>
+
+    <div class="item" onclick="toggle(this)">
+      <div class="cb"><svg class="check" width="11" height="11" viewBox="0 0 11 11"><polyline points="1.5,5.5 4.5,8.5 9.5,2.5" stroke="#fff" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+      <div class="item-body">
+        <div class="item-title-row"><span class="item-title">File a USPTO trademark application for GigWrangler (class 42)</span><span class="badge b-week">this week</span></div>
+        <div class="item-note">Use TEAS Plus application ($250/class). You can file an intent-to-use (ITU) application before the product launches — priority date is set on filing day, not launch day. Consider Trademark Engine ($199 + fees) or an IP attorney if you want help. Also consider filing class 41 simultaneously.</div>
+        <div class="item-url">USPTO.gov/trademarks/apply</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="footer">
+    Click any item to mark it complete. &nbsp;·&nbsp; Print or save this page for offline reference.
+  </div>
+
+</div>
+
+<script>
+  const items = document.querySelectorAll('.item');
+  const fill = document.getElementById('prog-fill');
+  const label = document.getElementById('prog-label');
+  const total = items.length;
+
+  function toggle(el) {
+    el.classList.toggle('done');
+    update();
+  }
+
+  function update() {
+    const done = document.querySelectorAll('.item.done').length;
+    const pct = Math.round((done / total) * 100);
+    fill.style.width = pct + '%';
+    label.textContent = done + ' of ' + total + ' completed';
+  }
+</script>
+</body>
+</html>
