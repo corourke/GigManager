@@ -1,14 +1,14 @@
 import { describe, it, expect } from 'vitest';
 import Papa from 'papaparse';
 import {
-  buildIncomeReport, buildExpenseReport, buildAssetReport,
-  incomeCsv, expensesCsv, assetsCsv, disposalsCsv, reportFilename,
+  buildIncomeReport, buildExpenseReport, buildAssetReport, buildGreyZoneReport,
+  incomeCsv, expensesCsv, assetsCsv, disposalsCsv, greyZoneCsv, reportFilename,
   type ReportPurchaseLine, type ReportGigRow,
 } from './taxReports';
 
 const line = (o: Partial<ReportPurchaseLine>): ReportPurchaseLine => ({
   id: 'l', purchase_date: '2026-03-01', vendor: 'Sweetwater', description: 'item', category: 'Supplies',
-  quantity: 1, item_cost: 10, line_cost: 10, tax_treatment: 'expense', asset_id: null,
+  quantity: 1, item_cost: 10, line_cost: 10, tax_treatment: 'expense', asset_id: null, parent_id: 'h1',
   parent: { purchase_date: '2026-03-01', vendor: 'Sweetwater' }, asset: null, ...o,
 });
 const gigRow = (o: Partial<ReportGigRow>): ReportGigRow => ({
@@ -127,6 +127,45 @@ describe('Assets report (#125)', () => {
     expect(a[2]).toEqual(['2026-03-01', 'Midas M32', 'Sweetwater', 'Audio', '1', '3200.00', '3200.00', '7', 'No']);
     const d = Papa.parse<string[]>(disposalsCsv(r)).data;
     expect(d[1]).toEqual(['Sennheiser XSW IEM', '2025-02-01', '600.00', '2026-05-20', '350.00', 'Disposed']);
+  });
+});
+
+describe('Grey zone report (#125)', () => {
+  const tracked = { id: 'a5', manufacturer_model: 'Shure ULXD4', category: 'Audio', recovery_period: null, retired_on: null, liquidation_amt: null, status: 'Active' };
+  const equipment = ['Audio', 'Lighting', 'Cases/Bags'];
+  const lines = [
+    line({ id: 'low', category: 'Audio', item_cost: 199.99, line_cost: 199.99 }),                        // under $200: expensed outright
+    line({ id: 'at200', category: 'Audio', item_cost: 200, line_cost: 200, description: 'DI box' }),      // $200 counts
+    line({ id: 'at2500', category: 'Lighting', item_cost: 2500, line_cost: 5000, quantity: 2, tax_treatment: 'depreciate', description: 'Mover' }),
+    line({ id: 'high', category: 'Lighting', item_cost: 2500.01, line_cost: 2500.01, tax_treatment: 'depreciate' }), // over $2,500
+    line({ id: 'notequip', category: 'Software subscriptions', item_cost: 600, line_cost: 600 }),        // an expense category
+    line({ id: 'tracked', category: 'Small audio parts', item_cost: 900, line_cost: 900, asset_id: 'a5', asset: tracked, description: 'Receiver' }),
+    line({ id: 'oldcat', category: 'Cases', item_cost: 350, line_cost: 350, description: 'Rack case' }), // old name of Cases/Bags
+    line({ id: 'lastyear', category: 'Audio', item_cost: 800, line_cost: 800, purchase_date: '2025-11-01' }),
+  ];
+  const r = buildGreyZoneReport(lines, equipment, 2026);
+
+  it('lists the year\'s equipment lines costing $200 to $2,500 each, both ends included', () => {
+    expect(r.rows.map(x => x.id).sort()).toEqual(['at200', 'at2500', 'oldcat', 'tracked']);
+    expect(buildGreyZoneReport(lines, equipment, 2025).rows.map(x => x.id)).toEqual(['lastyear']);
+  });
+
+  it('counts a line as equipment by its category, or because it is tracked as equipment', () => {
+    expect(r.rows.find(x => x.id === 'tracked')).toMatchObject({ description: 'Shure ULXD4', category: 'Audio', tracked: true });
+    expect(r.rows.find(x => x.id === 'oldcat')).toMatchObject({ category: 'Cases', tracked: false });
+  });
+
+  it('shows the treatment chosen, the cost each, and the purchase to edit', () => {
+    expect(r.rows.find(x => x.id === 'at200')).toMatchObject({ treatment: 'expense', itemCost: 200, cost: 200, purchaseId: 'h1' });
+    expect(r.rows.find(x => x.id === 'at2500')).toMatchObject({ treatment: 'depreciate', quantity: 2, itemCost: 2500, cost: 5000 });
+    expect(r).toMatchObject({ expensed: 3, depreciated: 1, total: 6450 });
+  });
+
+  it('exports every row with its treatment', () => {
+    const rows = Papa.parse<string[]>(greyZoneCsv(r)).data;
+    expect(rows[0]).toEqual(['Date bought', 'Description', 'Vendor', 'Category', 'Quantity', 'Cost per item', 'Cost', 'Treatment', 'Tracked as equipment']);
+    expect(rows).toHaveLength(5);
+    expect(rows.find(x => x[1] === 'Mover')).toEqual(['2026-03-01', 'Mover', 'Sweetwater', 'Lighting', '2', '2500.00', '5000.00', 'Depreciate', 'No']);
   });
 });
 

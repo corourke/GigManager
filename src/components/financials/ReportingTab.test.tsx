@@ -1,11 +1,20 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
+import { render, screen, within, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import ReportingTab from './ReportingTab';
 import { getTaxReportData } from '../../services/taxReport.service';
 
 const downloadCsv = vi.fn();
 vi.mock('../../utils/taxReports', async (orig) => ({ ...(await orig<any>()), downloadCsv: (...a: any[]) => downloadCsv(...a) }));
+// The purchase editor stands in for ReviewScannedDataDialog: it shows which purchase it edits, and saves.
+vi.mock('../ReviewScannedDataDialog', () => ({
+  default: (p: any) => p.open ? (
+    <div role="dialog" aria-label="Edit purchase">
+      {p.editPurchaseId}
+      <button type="button" onClick={() => { p.onUpdated?.(p.editPurchaseId); p.onOpenChange(false); }}>Save Changes</button>
+    </div>
+  ) : null,
+}));
 vi.mock('../../services/taxYear.service', () => ({ getLockedTaxYears: vi.fn(async () => new Set([2025])) }));
 
 const asset = { id: 'a1', manufacturer_model: 'Midas M32', category: 'Audio', recovery_period: null, retired_on: null, liquidation_amt: null, status: 'Active' };
@@ -18,6 +27,10 @@ vi.mock('../../services/taxReport.service', () => ({
         tax_treatment: 'depreciate', asset_id: 'a1', parent: null, asset },
       { id: 'p3', purchase_date: '2025-05-01', vendor: 'Amazon', description: 'Old cable', category: 'Supplies', quantity: 1, item_cost: 9, line_cost: 9,
         tax_treatment: 'expense', asset_id: null, parent: null, asset: null },
+      { id: 'p4', purchase_date: '2026-06-01', vendor: 'Sweetwater', description: 'Wireless receiver', category: 'Audio', quantity: 1, item_cost: 900, line_cost: 900,
+        tax_treatment: 'expense', asset_id: null, parent_id: 'h4', parent: null, asset: null },
+      { id: 'p6', purchase_date: '2025-06-01', vendor: 'Sweetwater', description: 'Hazer', category: 'Lighting', quantity: 1, item_cost: 450, line_cost: 450,
+        tax_treatment: 'depreciate', asset_id: null, parent_id: 'h6', parent: null, asset: null },
     ],
     gigRows: [
       { id: 'g1', gig_id: 'x', direction: 'in', stage: 'paid', amount_settled: 1500, paid_at: '2026-04-02', description: 'Balance', category: null,
@@ -26,6 +39,7 @@ vi.mock('../../services/taxReport.service', () => ({
     ],
     categories: [{ name: 'Supplies', schedule_c_line: '22' }],
     scheduleC: [{ code: '22', label: 'Supplies' }],
+    equipmentCategories: ['Audio', 'Lighting'],
   })),
 }));
 
@@ -34,7 +48,7 @@ const gigOut = (o: Record<string, unknown>) => ({ gig_id: 'x', direction: 'out',
   staff_assignment_id: null, external_entity_name: 'City lot', reference_number: null, counterparty: null, gig: { title: 'Spring Gala', start: '2026-04-01' }, ...o });
 /** Only these rows, with the default category lists (issue #194). */
 const onlyRows = (lines: unknown[], gigRows: unknown[] = []) => vi.mocked(getTaxReportData).mockResolvedValueOnce({
-  lines, gigRows, categories: [{ name: 'Supplies', schedule_c_line: '22' }], scheduleC: [{ code: '22', label: 'Supplies' }],
+  lines, gigRows, categories: [{ name: 'Supplies', schedule_c_line: '22' }], scheduleC: [{ code: '22', label: 'Supplies' }], equipmentCategories: ['Audio'],
 } as any);
 
 describe('ReportingTab (#125)', () => {
@@ -82,6 +96,48 @@ describe('ReportingTab (#125)', () => {
     expect(onEditAsset).toHaveBeenCalledWith('a1');
     await userEvent.click(screen.getByRole('button', { name: /Download CSV/ }));
     expect(downloadCsv).toHaveBeenCalledWith(expect.stringContaining('Midas M32'), 'act4-audio-assets-2026.csv');
+  });
+
+  describe('the Grey zone report', () => {
+    it('lists equipment costing $200 to $2,500 each, with its treatment, and links to the purchase to change it', async () => {
+      await open();
+      await userEvent.click(screen.getByRole('button', { name: 'Grey zone' }));
+      const table = screen.getByRole('table', { name: 'Grey zone' });
+      const row = within(table).getByText('Wireless receiver').closest('tr')!;
+      expect(within(row).getByText('Expense')).toBeInTheDocument();
+      expect(within(table).queryByText('Console')).not.toBeInTheDocument();     // over $2,500
+      expect(within(table).queryByText('Gaff tape')).not.toBeInTheDocument();   // under $200
+      expect(within(table).queryByText('Hazer')).not.toBeInTheDocument();       // another year
+
+      await userEvent.click(within(row).getByRole('button', { name: 'Change the treatment: Wireless receiver' }));
+      const dialog = await screen.findByRole('dialog', { name: 'Edit purchase' });
+      expect(dialog).toHaveTextContent('h4');
+      await userEvent.click(within(dialog).getByRole('button', { name: 'Save Changes' }));
+      await waitFor(() => expect(getTaxReportData).toHaveBeenCalledTimes(2));   // reloaded after the save
+    });
+
+    it('is read-only in a filed year', async () => {
+      await open();
+      await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Tax year' }), '2025');
+      await userEvent.click(screen.getByRole('button', { name: 'Grey zone' }));
+      const row = within(screen.getByRole('table', { name: 'Grey zone' })).getByText('Hazer').closest('tr')!;
+      expect(within(row).getByText('Depreciate')).toBeInTheDocument();
+      expect(within(row).queryByRole('button')).not.toBeInTheDocument();
+    });
+
+    it('downloads as CSV', async () => {
+      await open();
+      await userEvent.click(screen.getByRole('button', { name: 'Grey zone' }));
+      await userEvent.click(screen.getByRole('button', { name: /Download CSV/ }));
+      expect(downloadCsv).toHaveBeenCalledWith(expect.stringContaining('Wireless receiver'), 'act4-audio-grey-zone-2026.csv');
+    });
+
+    it('says so when there is nothing in the grey zone', async () => {
+      onlyRows([]);
+      await open();
+      await userEvent.click(screen.getByRole('button', { name: 'Grey zone' }));
+      expect(screen.getByText('No equipment costing $200 to $2,500 each was bought in 2026.')).toBeInTheDocument();
+    });
   });
 
   it('marks a filed year', async () => {
