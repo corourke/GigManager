@@ -147,6 +147,9 @@ Markdown path so Astro optimizes them:
   with `scripts/screenshots/shoot.mjs` (see its README). Never add a hand-taken
   screenshot. Code PRs don't retake shots; the Docs Lead retakes them when the UI
   they show changes, and runs a full refresh at each production release.
+  The one exception is a screen that only opens from a link in an email (accepting an
+  invitation, resetting a password): the script can't reach it, so Cameron supplies
+  those shots. They're listed at the end of `shots.mjs` under "Supplied by hand".
 - **Format and size:** PNG, under about 300 KB each after optimizing.
 
 ## Drafts and TODOs

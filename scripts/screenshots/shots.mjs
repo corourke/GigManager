@@ -585,4 +585,9 @@ export const shots = [
     target: (page) => page.getByText(/Conflicts? Detected/).first().locator('xpath=ancestor::div[contains(@class,"rounded")][1]'),
     pad: 8,
   },
+  // Supplied by hand (Cameron, 10-08): these screens open only from a link in an
+  // email, which the script can't follow, so they aren't taken here. Retake them by
+  // hand from a dev email (Mailtrap) when the screen changes.
+  //   team/invitations-accepted              src/components/AcceptInvitationScreen.tsx
+  //   getting-started/onboarding-reset-password  src/components/ResetPasswordScreen.tsx
 ];
