@@ -19,6 +19,7 @@
 --   0001 organization    0002 user           0003 gig            0004 asset
 --   0005 kit             0006 purchase row   0007 gig_financial  0008 staff slot
 --   0009 staff assign    0010 gig participant 0011 activity      0012 inventory scan
+--   0013 access request  0014 notification  0015 equipment item
 --
 -- People: first names start with the letter of their role (Admin = A,
 -- Manager = M, Staff = S, Viewer = V), so a screenshot shows who is who.
@@ -73,6 +74,11 @@ DELETE FROM public.purchases
 -- Gigs cascade to participants, schedule, slots, assignments, kit assignments,
 -- financials, participant contacts, inventory tracking.
 DELETE FROM public.gigs WHERE id::text LIKE 'de000000-0000-4000-8000-%';
+-- Kit lines and equipment records point at equipment items with ON DELETE RESTRICT,
+-- so they go first: the organization's cascade doesn't order them before the items.
+DELETE FROM public.kit_components
+ WHERE kit_id IN (SELECT id FROM public.kits WHERE organization_id::text LIKE 'de000000-0000-4000-8000-%');
+DELETE FROM public.assets WHERE organization_id::text LIKE 'de000000-0000-4000-8000-%';
 -- Organizations cascade to members, assets, kits (and components), categories,
 -- attachments, invitations, access requests, tax years.
 DELETE FROM public.organizations WHERE id::text LIKE 'de000000-0000-4000-8000-%';
@@ -364,7 +370,8 @@ SELECT pg_temp.d(9, (w.seat - 1) * 500 + g.n * 10 + w.k), pg_temp.d(8, g.n * 10 
  WHERE st.status IS NOT NULL;
 
 -- -----------------------------------------------------------------------------
--- 7. EQUIPMENT: 26 assets, 6 kits (one nested, two containers), kit assignments, scan locations
+-- 7. EQUIPMENT: 26 items; serialized gear as tagged units, the rest as counted lots;
+--    6 kits (one nested, two containers); kit assignments; scan locations.
 --    pur: 0 = bought outside the tracked invoices, else the purchase it came on (section 8)
 -- -----------------------------------------------------------------------------
 CREATE TEMP TABLE _a ON COMMIT DROP AS
@@ -383,7 +390,7 @@ SELECT * FROM (VALUES
   (12, 'Linebacker ADI-2 Active DI Box',            'DI Box, Active',                  'Audio',            129.00,  4, 'Stagecraft Supply Co.', 0, 'Active',      NULL),
   (13, 'Fennimore LED Par 64 RGBW',                 'Light Fixture, LED Par',          'Lighting',         129.00, 12, 'Brightline Lighting',   4, 'Active',      'RGBW wash par, DMX'),
   (14, 'Fennimore Spot 150 Moving Head',            'Light Fixture, Moving Head, Spot','Lighting',         549.00,  4, 'Brightline Lighting',   4, 'Active',      '150 W LED moving head spot'),
-  (15, 'Fennimore Wash Bar 8',                      'Light Fixture, LED Bar',          'Lighting',         219.00,  4, 'Brightline Lighting',   0, 'Maintenance', 'Two units have a failing DMX input'),
+  (15, 'Fennimore Wash Bar 8',                      'Light Fixture, LED Bar',          'Lighting',         219.00,  4, 'Brightline Lighting',   0, 'Active',      'Eight-cell RGBW LED wash bar'),
   (16, 'Brightforge Cue-Pro 512 Lighting Controller','Lighting Console, DMX',          'Lighting',         699.00,  1, 'Brightline Lighting',   4, 'Active',      '512-channel DMX controller'),
   (17, 'DMX Cable 5-pin, 25 ft',                    'Cable, DMX',                      'Lighting',          19.00, 12, 'Cablesmith Direct',     0, 'Active',      NULL),
   (18, 'XLR Cable, 25 ft',                          'Cable, XLR',                      'Audio',             14.00, 30, 'Cablesmith Direct',     2, 'Active',      NULL),
@@ -398,14 +405,14 @@ SELECT * FROM (VALUES
 ) AS t(n, model, type, category, price, qty, vendor, pur, status, descr);
 
 -- Purchase headers: (n, days before anchor, vendor, buyer, description, sales-tax factor,
--- tax treatment, recovery years). Totals are filled in after the lines exist.
+-- recovery years for its depreciated lines). Totals are filled in after the lines exist.
 CREATE TEMP TABLE _p ON COMMIT DROP AS
 SELECT * FROM (VALUES
-  (1, 200, 'Stagecraft Supply Co.', 1, 'Invoice SS-20418: console, stage box, mics and DI boxes', 1.0875, 'depreciate', 7),
-  (2,  75, 'Cablesmith Direct',     1, 'Order CD-77231: cables and consumables',                 1.07,   'expense',    NULL::int),
-  (3,  12, 'Harbor Truck Rental',   2, 'Rental agreement HT-5509: festival load-in truck',       1.10,   'expense',    NULL),
-  (4, 140, 'Brightline Lighting',   1, 'Invoice BL-3172: LED pars, moving heads and controller', 1.09,   'depreciate', 7)
-) AS t(n, ago, vendor, usr, descr, factor, treatment, years);
+  (1, 200, 'Stagecraft Supply Co.', 1, 'Invoice SS-20418: console, stage box, mics and DI boxes', 1.0875, 7),
+  (2,  75, 'Cablesmith Direct',     1, 'Order CD-77231: cables and consumables',                 1.07,   NULL::int),
+  (3,  12, 'Harbor Truck Rental',   2, 'Rental agreement HT-5509: festival load-in truck',       1.10,   NULL),
+  (4, 140, 'Brightline Lighting',   1, 'Invoice BL-3172: LED pars, moving heads and controller', 1.09,   7)
+) AS t(n, ago, vendor, usr, descr, factor, years);
 
 INSERT INTO public.purchases
   (id, organization_id, row_type, purchase_date, vendor, total_inv_amount, payment_method, description, created_by, updated_by)
@@ -413,22 +420,42 @@ SELECT pg_temp.d(6, p.n), pg_temp.d(1,1), 'header', pg_temp.anchor() - p.ago, p.
        pg_temp.d(2, p.usr), pg_temp.d(2, p.usr)
   FROM _p p;
 
-INSERT INTO public.assets
-  (id, organization_id, acquisition_date, vendor, item_cost, category, insurance_policy_added, manufacturer_model,
-   type, serial_number, description, replacement_value, quantity, created_by, updated_by, tag_number, status, item_price, purchase_id)
-SELECT pg_temp.d(4, a.n), pg_temp.d(1,1),
-       COALESCE(pg_temp.anchor() - p.ago, pg_temp.anchor() - (260 + a.n * 23)),
-       a.vendor,
-       round(a.price * COALESCE(p.factor, 1), 2),
-       a.category, (a.price * a.qty >= 1000), a.model, a.type,
-       CASE WHEN a.qty = 1 THEN 'DSL' || lpad(a.n::text, 3, '0') || '-' || (24000 + a.n * 37)::text END,
-       a.descr, round(a.price * 1.15), a.qty, pg_temp.d(2,1), pg_temp.d(2,1),
-       -- Only single items carry a serial or tag: dev's equipment rules (#180) say
-       -- tagged equipment is one item, and untagged quantities are counted lots.
-       CASE WHEN a.qty = 1 THEN 'DSL-' || lpad(a.n::text, 4, '0') END, a.status, a.price,
-       CASE WHEN a.pur > 0 THEN pg_temp.d(6, a.pur) END
+-- What each piece of equipment IS (#180): one item per model (ID kind 0015).
+INSERT INTO public.equipment_items (id, organization_id, category, manufacturer_model, type, description, created_by, updated_by)
+SELECT pg_temp.d(15, a.n), pg_temp.d(1,1), a.category, a.model, a.type, a.descr, pg_temp.d(2,1), pg_temp.d(2,1)
+  FROM _a a;
+
+-- What we OWN: serialized gear as tagged units (quantity 1 each), everything else as
+-- one counted lot with no serial or tag. Unit k of item n is asset d(4, n*100 + k);
+-- a lot is d(4, n*100). Two of the four wash bars are on the repair bench.
+CREATE TEMP TABLE _own ON COMMIT DROP AS
+SELECT a.*, k.k AS unit_no, CASE WHEN k.k = 0 THEN a.qty ELSE 1 END AS own_qty,
+       CASE WHEN a.n = 15 AND k.k IN (3, 4) THEN 'Maintenance' ELSE a.status END AS own_status
   FROM _a a
-  LEFT JOIN _p p ON p.n = a.pur;
+ CROSS JOIN LATERAL (
+   SELECT generate_series(1, a.qty) AS k WHERE a.n IN (1, 2, 3, 4, 5, 6, 9, 14, 15, 16, 21)
+   UNION ALL
+   SELECT 0 WHERE a.n NOT IN (1, 2, 3, 4, 5, 6, 9, 14, 15, 16, 21)
+ ) k;
+
+INSERT INTO public.assets
+  (id, organization_id, equipment_item_id, acquisition_date, vendor, item_cost, category, insurance_policy_added,
+   manufacturer_model, type, serial_number, description, replacement_value, quantity, created_by, updated_by,
+   tag_number, status, item_price, purchase_id)
+SELECT pg_temp.d(4, o.n * 100 + o.unit_no), pg_temp.d(1,1), pg_temp.d(15, o.n),
+       COALESCE(pg_temp.anchor() - p.ago, pg_temp.anchor() - (260 + o.n * 23)),
+       o.vendor,
+       round(o.price * COALESCE(p.factor, 1), 2),
+       o.category, (o.price * o.own_qty >= 500), o.model, o.type,
+       CASE WHEN o.unit_no > 0 THEN 'DSL' || lpad(o.n::text, 3, '0') || '-' || (24000 + o.n * 37 + o.unit_no)::text END,
+       CASE WHEN o.n = 15 AND o.unit_no IN (3, 4) THEN 'DMX input drops out; on the repair bench' END,
+       round(o.price * 1.15), o.own_qty, pg_temp.d(2,1), pg_temp.d(2,1),
+       -- A serial or tag means one physical thing (#180): only units carry them.
+       CASE WHEN o.unit_no > 0 THEN 'DSL-' || lpad((o.n * 10 + o.unit_no)::text, 4, '0') END,
+       o.own_status, o.price,
+       CASE WHEN o.pur > 0 THEN pg_temp.d(6, o.pur) END
+  FROM _own o
+  LEFT JOIN _p p ON p.n = o.pur;
 
 -- Kits. K4 is a nested kit: it holds K1, K2 and two containers. Containers (K5, K6)
 -- are cases or boxes picked up as one item, so packing lists show them as one line.
@@ -441,27 +468,33 @@ VALUES
   (pg_temp.d(5,5), pg_temp.d(1,1), 'Mic Case',                      'Audio',    'Road case with vocal, instrument and kick mics plus DI boxes.', ARRAY['Mics'],         'CASE-01', 150.00,  pg_temp.d(2,1), pg_temp.d(2,1), true),
   (pg_temp.d(5,6), pg_temp.d(1,1), 'XLR Cable Box',                 'Audio',    'Tote of 25 ft and 50 ft XLR cables.',                        ARRAY['Cables'],         'CASE-02', 60.00,   pg_temp.d(2,1), pg_temp.d(2,1), true);
 
-INSERT INTO public.kit_components (kit_id, asset_id, child_kit_id, quantity, notes)
-SELECT pg_temp.d(5, c.kit), CASE WHEN c.asset IS NOT NULL THEN pg_temp.d(4, c.asset) END,
+-- A kit line is one of three things (#180): a specific unit or lot (item, unit; unit 0
+-- = the lot), "N x any" unit of an item (any), or another kit (child).
+INSERT INTO public.kit_components (kit_id, asset_id, equipment_item_id, child_kit_id, quantity, notes)
+SELECT pg_temp.d(5, c.kit),
+       CASE WHEN c.item IS NOT NULL THEN pg_temp.d(4, c.item * 100 + c.unit) END,
+       CASE WHEN c.anyof IS NOT NULL THEN pg_temp.d(15, c.anyof) END,
        CASE WHEN c.child IS NOT NULL THEN pg_temp.d(5, c.child) END, c.qty, c.notes
   FROM (VALUES
-    -- K1 FOH Console Package
-    (1, 4,    NULL::int, 1, NULL::text), (1, 5, NULL, 1, NULL), (1, 19, NULL, 2, 'Console to stage box'),
-    (1, 23,   NULL, 1, NULL), (1, 26, NULL, 1, NULL),
-    -- K2 Main PA
-    (2, 1,    NULL, 4, NULL), (2, 2, NULL, 2, NULL), (2, 20, NULL, 6, NULL), (2, 25, NULL, 4, NULL), (2, 21, NULL, 1, NULL),
-    -- K3 Club Lighting
-    (3, 13,   NULL, 8, NULL), (3, 14, NULL, 2, NULL), (3, 16, NULL, 1, NULL), (3, 17, NULL, 6, NULL),
-    (3, 24,   NULL, 4, NULL), (3, 22, NULL, 4, NULL),
+    -- K1 FOH Console Package: this console and stage box, plus cables, rack and switch
+    (1, 4,    1,    NULL::int, NULL::int, 1, NULL::text), (1, 5, 1, NULL, NULL, 1, NULL),
+    (1, 19,   0,    NULL, NULL, 2, 'Console to stage box'), (1, 23, 0, NULL, NULL, 1, NULL), (1, 26, 0, NULL, NULL, 1, NULL),
+    -- K2 Main PA: any four tops and two subs, with their cables, stands and power
+    (2, NULL, NULL, 1,    NULL, 4, NULL), (2, NULL, NULL, 2, NULL, 2, NULL),
+    (2, 20,   0,    NULL, NULL, 6, NULL), (2, 25, 0, NULL, NULL, 4, NULL), (2, 21, 1, NULL, NULL, 1, NULL),
+    -- K3 Club Lighting: pars, any two moving heads, this controller, cables, truss and power
+    (3, 13,   0,    NULL, NULL, 8, NULL), (3, NULL, NULL, 14, NULL, 2, NULL), (3, 16, 1, NULL, NULL, 1, NULL),
+    (3, 17,   0,    NULL, NULL, 6, NULL), (3, 24, 0, NULL, NULL, 4, NULL), (3, 22, 0, NULL, NULL, 4, NULL),
     -- K5 Mic Case (container)
-    (5, 7,    NULL, 4, NULL), (5, 8, NULL, 2, NULL), (5, 10, NULL, 1, NULL),
-    (5, 11,   NULL, 6, NULL), (5, 12, NULL, 2, NULL),
+    (5, 7,    0,    NULL, NULL, 4, NULL), (5, 8, 0, NULL, NULL, 2, NULL), (5, 10, 0, NULL, NULL, 1, NULL),
+    (5, 11,   0,    NULL, NULL, 6, NULL), (5, 12, 0, NULL, NULL, 2, NULL),
     -- K6 XLR Cable Box (container)
-    (6, 18,   NULL, 16, NULL), (6, 19, NULL, 4, NULL),
-    -- K4 Full Band Sound Package (nested: K1, K2 and both containers, plus monitors)
-    (4, NULL, 1, 1, NULL), (4, NULL, 2, 1, NULL), (4, NULL, 5, 1, NULL), (4, NULL, 6, 1, NULL),
-    (4, 3,    NULL, 4, 'Four monitor mixes')
-  ) AS c(kit, asset, child, qty, notes);
+    (6, 18,   0,    NULL, NULL, 16, NULL), (6, 19, 0, NULL, NULL, 4, NULL),
+    -- K4 Full Band Sound Package (nested: K1, K2 and both containers, plus any four wedges)
+    (4, NULL, NULL, NULL, 1, 1, NULL), (4, NULL, NULL, NULL, 2, 1, NULL),
+    (4, NULL, NULL, NULL, 5, 1, NULL), (4, NULL, NULL, NULL, 6, 1, NULL),
+    (4, NULL, NULL, 3,    NULL, 4, 'Four monitor mixes')
+  ) AS c(kit, item, unit, anyof, child, qty, notes);
 
 -- Kits per gig: band gigs get the full band package (bigger ones add lighting),
 -- program gigs the PA only.
@@ -475,40 +508,69 @@ SELECT pg_temp.d(1,1), pg_temp.d(3, g.n), pg_temp.d(5, k.kit), NULL, pg_temp.d(2
  ) AS k(kit)
  WHERE k.kit IS NOT NULL AND g.status NOT IN ('DateHold','Cancelled') AND g.fill <> 'none';
 
--- Last known locations (Location Explorer; every scan belongs to a gig): the FOH
--- package was staged yesterday for this Saturday's gala, and the lighting kit and the wash
--- bars (on the repair bench) were checked in after the festival.
-INSERT INTO public.inventory_tracking (id, organization_id, gig_id, kit_id, asset_id, status, scanned_at, scanned_by, notes, location)
-SELECT pg_temp.d(12, row_number() OVER ()::int), pg_temp.d(1,1), s.gig, s.kit, pg_temp.d(4, s.asset), s.status,
-       pg_temp.at(pg_temp.anchor() - s.ago, s.hr), pg_temp.d(2, s.usr), s.notes, s.location
+-- Last known locations (Location Explorer; every scan belongs to a gig). A unit scans
+-- as one; a lot scans as a count (quantity). The FOH package was staged yesterday for
+-- this Saturday's gala, the lighting kit was checked in after the festival, and two wash
+-- bars went to the repair bench. (item, unit, count); unit 0 = the lot.
+INSERT INTO public.inventory_tracking (id, organization_id, gig_id, kit_id, asset_id, quantity, status, scanned_at, scanned_by, notes, location)
+SELECT pg_temp.d(12, row_number() OVER ()::int), pg_temp.d(1,1), s.gig, s.kit, pg_temp.d(4, s.item * 100 + s.unit), s.cnt,
+       s.status, pg_temp.at(pg_temp.anchor() - s.ago, s.hr), pg_temp.d(2, s.usr), s.notes, s.location
   FROM (
-    SELECT pg_temp.d(3,7) AS gig, pg_temp.d(5,1) AS kit, c.asset_id_n AS asset, 'Checked Out' AS status,
+    -- Scans of a nested (non-container) kit's gear belong to the top kit assigned to the
+    -- gig, as the scanner records them: the FOH package rides in the Full Band package (K4).
+    SELECT pg_temp.d(3,7) AS gig, pg_temp.d(5,4) AS kit, c.item, c.unit, c.cnt, 'Checked Out' AS status,
            1 AS ago, 16.0 AS hr, 3 AS usr, NULL::text AS notes, 'Staging Area' AS location
-      FROM (VALUES (4),(5),(19),(23),(26)) AS c(asset_id_n)
+      FROM (VALUES (4,1,1),(5,1,1),(19,0,2),(23,0,1),(26,0,1)) AS c(item, unit, cnt)
     UNION ALL
-    SELECT pg_temp.d(3,5), pg_temp.d(5,3), c.n, 'In Warehouse', 9, 17.0, 2, 'Checked in after the festival', 'Warehouse, Bay 2'
-      FROM (VALUES (13),(14),(16),(17),(24)) AS c(n)
+    SELECT pg_temp.d(3,5), pg_temp.d(5,3), c.item, c.unit, c.cnt, 'In Warehouse', 9, 17.0, 2, 'Checked in after the festival', 'Warehouse, Bay 2'
+      FROM (VALUES (13,0,8),(14,1,1),(14,2,1),(16,1,1),(17,0,6),(24,0,4),(22,0,4)) AS c(item, unit, cnt)
     UNION ALL
-    SELECT pg_temp.d(3,5), NULL, 15, 'In Warehouse', 8, 14.0, 2, 'Two units have a failing DMX input', 'Repair Bench'
+    SELECT pg_temp.d(3,5), NULL, 15, c.unit, 1, 'In Warehouse', 8, 14.0, 2, 'DMX input drops out', 'Repair Bench'
+      FROM (VALUES (3),(4)) AS c(unit)
   ) s;
 
 -- -----------------------------------------------------------------------------
--- 8. PURCHASES: lines for the assets above plus a few expensed lines
---    Lines are row_type 'line' (migration 20261012). Recovery periods live on the
---    equipment record (20261013), not the purchase line.
+-- 8. PURCHASES: a line per item bought (with its units or lot) plus a few expensed lines.
+--    Lines are row_type 'line' (migration 20261012). Treatment follows the per-item cost:
+--    under $200 Expense, over $2,500 Depreciate, and in the grey zone the controller is
+--    expensed and the rest depreciated. Recovery periods live on the equipment (20261013).
 -- -----------------------------------------------------------------------------
+CREATE TEMP TABLE _pl ON COMMIT DROP AS
+SELECT a.*, p.factor, round(a.price * p.factor, 2) AS cost_each,
+       CASE WHEN round(a.price * p.factor, 2) < 200 THEN 'expense'
+            WHEN round(a.price * p.factor, 2) > 2500 THEN 'depreciate'
+            WHEN a.n = 16 THEN 'expense'
+            ELSE 'depreciate' END AS treatment,
+       -- the line's asset: the first unit, or the lot
+       pg_temp.d(4, a.n * 100 + CASE WHEN a.n IN (1, 2, 3, 4, 5, 6, 9, 14, 15, 16, 21) THEN 1 ELSE 0 END) AS line_asset
+  FROM _a a
+  JOIN _p p ON p.n = a.pur;
+
+-- A depreciated line is filed under the equipment category; an expensed one under the
+-- expense heading for small gear (the equipment record keeps its equipment category).
 INSERT INTO public.purchases
   (id, organization_id, parent_id, row_type, purchase_date, vendor, payment_method, line_amount, line_cost, quantity,
    item_price, item_cost, description, category, created_by, updated_by, asset_id, tax_treatment)
-SELECT pg_temp.d(6, 100 + a.n), pg_temp.d(1,1), pg_temp.d(6, a.pur), 'line',
+SELECT pg_temp.d(6, 100 + l.n), pg_temp.d(1,1), pg_temp.d(6, l.pur), 'line',
        h.purchase_date, h.vendor, h.payment_method,
-       a.price * a.qty, round(a.price * p.factor, 2) * a.qty, a.qty,
-       a.price, round(a.price * p.factor, 2),
-       a.model, a.category, h.created_by, h.created_by, pg_temp.d(4, a.n),
-       p.treatment
-  FROM _a a
-  JOIN _p p ON p.n = a.pur
-  JOIN public.purchases h ON h.id = pg_temp.d(6, a.pur);
+       l.price * l.qty, l.cost_each * l.qty, l.qty,
+       l.price, l.cost_each,
+       l.model,
+       CASE WHEN l.treatment = 'depreciate' THEN l.category
+            WHEN l.category = 'Audio' THEN 'Small audio parts'
+            WHEN l.category IN ('Lighting', 'Rigging and Truss') THEN 'Small lighting parts'
+            WHEN l.category IN ('Power', 'Networking') THEN 'Small power and networking parts'
+            WHEN l.category = 'Cases and Bags' THEN 'Cases and bags'
+            ELSE 'Expendables and supplies' END,
+       h.created_by, h.created_by, l.line_asset, l.treatment
+  FROM _pl l
+  JOIN public.purchases h ON h.id = pg_temp.d(6, l.pur);
+
+-- Every unit bought on a line points at it (the database mirrors only the line's own asset).
+UPDATE public.assets a
+   SET purchase_line_id = pg_temp.d(6, 100 + o.n)
+  FROM _own o
+ WHERE o.pur > 0 AND a.id = pg_temp.d(4, o.n * 100 + o.unit_no);
 
 -- Expensed lines: gaffer tape (gig 4) and batteries (no gig) on purchase 2; truck rental (gig 5) on purchase 3.
 INSERT INTO public.purchases
@@ -527,12 +589,12 @@ SELECT pg_temp.d(6, l.n), pg_temp.d(1,1), pg_temp.d(6, l.hdr), CASE WHEN l.gig I
   JOIN public.purchases h ON h.id = pg_temp.d(6, l.hdr);
 
 -- Depreciated equipment gets its recovery period once its purchase line exists
--- (the database checks the line is set to Depreciate).
+-- (the database checks the line is set to Depreciate, so only each line's own asset).
 UPDATE public.assets a
    SET recovery_period = p.years
-  FROM _a x
-  JOIN _p p ON p.n = x.pur
- WHERE a.id = pg_temp.d(4, x.n) AND p.treatment = 'depreciate';
+  FROM _pl l
+  JOIN _p p ON p.n = l.pur
+ WHERE a.id = l.line_asset AND l.treatment = 'depreciate';
 
 -- Invoice totals = sum of the burdened line costs.
 UPDATE public.purchases h
@@ -716,6 +778,7 @@ SELECT jsonb_pretty(jsonb_build_object(
   'gig_schedule_entries', (SELECT count(*) FROM public.gig_schedule_entries WHERE gig_id::text LIKE 'de000000-0000-4000-8000-%'),
   'gig_staff_slots',      (SELECT count(*) FROM public.gig_staff_slots WHERE gig_id::text LIKE 'de000000-0000-4000-8000-%'),
   'gig_staff_assignments',(SELECT count(*) FROM public.gig_staff_assignments WHERE id::text LIKE 'de000000-0000-4000-8000-%'),
+  'equipment_items',      (SELECT count(*) FROM public.equipment_items WHERE organization_id::text LIKE 'de000000-0000-4000-8000-%'),
   'assets',               (SELECT count(*) FROM public.assets WHERE organization_id::text LIKE 'de000000-0000-4000-8000-%'),
   'kits',                 (SELECT count(*) FROM public.kits WHERE organization_id::text LIKE 'de000000-0000-4000-8000-%'),
   'kit_components',       (SELECT count(*) FROM public.kit_components WHERE kit_id::text LIKE 'de000000-0000-4000-8000-%'),
