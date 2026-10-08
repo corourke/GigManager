@@ -34,6 +34,7 @@
                     │  _redirects → SPA      │   HTTPS + custom domain
                     └───────────┬────────────┘
                                 │  VITE_* baked in at BUILD time
+                                │  (from the local env file)
                                 ▼
                     ┌────────────────────────┐
                     │  Supabase (prod)       │   ref: hqnnhtxcxedisasvtbqv
@@ -199,9 +200,9 @@ npm run build
 npx wrangler pages deploy build/ --project-name gigwrangler
 ```
 
-**There is no committed `wrangler.toml`.** All Pages configuration — build settings, environment variables, custom domain — lives in the Cloudflare dashboard. See [Known Gaps](#known-gaps).
+**There is no committed `wrangler.toml`.** The Pages configuration that matters (custom domain, project settings) lives in the Cloudflare dashboard. See [Known Gaps](#known-gaps).
 
-Environment variables are set in **dashboard → Settings → Environment variables**. Because Vite inlines `VITE_*` values at build time, **changing one requires a redeploy** to take effect. See the [Configuration Inventory](#configuration-inventory) for the full list.
+**The dashboard's build settings and environment variables are not used by this pipeline.** `wrangler pages deploy` is a *direct upload* of the `build/` directory that `deploy_prod.sh` has already built on the deploying machine; Cloudflare never runs a build, so dashboard env vars never reach the bundle. `VITE_*` values are inlined by Vite at build time from the local env files (`.env`, `.env.local`, `.env.production`, `.env.production.local`) and the shell environment of that machine. Put them in `.env.production.local` (git-ignored); **a change takes effect at the next `./deploy_prod.sh` run**. See the [Configuration Inventory](#configuration-inventory) for the full list.
 
 #### Why Cloudflare Pages
 
@@ -220,7 +221,7 @@ Provides Postgres, Auth, Storage, and Edge Functions. Two projects, no staging:
 | Environment | Project Ref | Consumed by |
 |---|---|---|
 | Development | `qcrzwsazasaojqoqxwnr` | `npm run dev` via `.env.local` |
-| Production | `hqnnhtxcxedisasvtbqv` | Cloudflare Pages via dashboard env vars |
+| Production | `hqnnhtxcxedisasvtbqv` | `./deploy_prod.sh` build, via `.env.production.local` |
 
 > ⚠️ **Verify the linked project before ANY remote Supabase command.** `supabase db push`, `functions deploy`, and `secrets set` all act on whatever is linked, with no confirmation of their own.
 >
@@ -267,7 +268,7 @@ The web app tags events with `environment` (Vite mode) and `release` (`gigwrangl
 
 #### Activating it
 
-**Web app** — add `VITE_SENTRY_DSN` (React project DSN) in the Cloudflare Pages dashboard → Settings → Environment variables → Production. It is baked into the bundle at build time, so **a new deploy is required** before it takes effect; run `./deploy_prod.sh`. Do not put it in `.env.production.local` — that file is local-only and never reaches the deploy.
+**Web app** — add `VITE_SENTRY_DSN=https://<key>@o<org>.ingest.us.sentry.io/<project>` (React project DSN) to `.env.production.local` on the machine that runs `./deploy_prod.sh`. It is baked into the bundle at build time, so **a new deploy is required** before it takes effect; run `./deploy_prod.sh`. Do not set it in the Cloudflare Pages dashboard — deploys are a direct upload of a locally built `build/`, so dashboard env vars never reach the bundle.
 
 **Edge functions** — use the Deno project DSN:
 
@@ -280,7 +281,7 @@ Secrets take effect immediately; no function redeploy is needed. Without `SENTRY
 
 #### Verifying
 
-On the deployed site, open DevTools → Network and filter for `sentry.io`; a session request should appear within seconds. `window.__SENTRY__` being defined in the console confirms init. For a real end-to-end check, run `throw new Error("Sentry test — delete me")` in the console and confirm it lands in **Issues** within ~30s, then delete it.
+To confirm a `VITE_*` value was baked in, search the deployed bundle for the Sentry ingest host from your DSN: find the script path with `curl -s https://gigwrangler.com/ | grep -o 'assets/[^"]*\.js'`, then `curl -s https://gigwrangler.com/<path> | grep -c '<org>.ingest'` (0 matches in every script means the value did not make it in). Or, on the deployed site, open DevTools → Network and filter for `sentry.io`; a session request should appear within seconds. `window.__SENTRY__` being defined in the console confirms init. For a real end-to-end check, run `throw new Error("Sentry test — delete me")` in the console and confirm it lands in **Issues** within ~30s, then delete it.
 
 #### What is and isn't captured
 
@@ -351,7 +352,7 @@ Derived from the code that actually reads each value, not from any prior checkli
 
 ### Frontend — build-time (`VITE_*`)
 
-Set in **Cloudflare Pages → Settings → Environment variables**. Inlined by Vite at build time; **a change requires a redeploy.**
+Set in the local env file the prod build reads, normally `.env.production.local` (git-ignored), on the machine that runs `./deploy_prod.sh`. Inlined by Vite at build time; **a change takes effect at the next `./deploy_prod.sh` run.** Cloudflare Pages dashboard env vars are not used (direct upload).
 
 | Variable | Required | Read by | Effect if missing |
 |---|---|---|---|
@@ -360,7 +361,7 @@ Set in **Cloudflare Pages → Settings → Environment variables**. Inlined by V
 | `VITE_GOOGLE_CLIENT_ID` | For Calendar | Calendar integration components | Google Calendar connect flow unavailable |
 | `VITE_SENTRY_DSN` | Optional | `src/main.tsx` | Sentry no-ops; no error reporting |
 
-Local equivalents live in `.env.local` (git-ignored). [`.env.example`](../../.env.example) documents the shape with placeholder values.
+For development, `npm run dev` reads `.env.local` (git-ignored). [`.env.example`](../../.env.example) documents the shape with placeholder values.
 
 ### Edge functions — Supabase secrets
 
@@ -572,7 +573,7 @@ The one-time bring-up, should production ever need to be recreated. This section
 
 **3. Cloudflare Pages**
 - Create project `gigwrangler`; build command `npm run build`, output directory `build`
-- Add all four `VITE_*` variables from the [inventory](#frontend--build-time-vite_)
+- Put all four `VITE_*` variables from the [inventory](#frontend--build-time-vite_) in `.env.production.local` on the deploying machine (not in the dashboard — direct uploads ignore dashboard env vars)
 - Add custom domain `gigwrangler.com`; verify HTTPS is active. DNS is already managed in the same Cloudflare account, so no external nameserver change is needed and the certificate issues automatically
 
 **4. First deploy**
@@ -595,7 +596,7 @@ Tracked here rather than lost. None of these block a deploy today; all of them w
 
 | Gap | Impact |
 |---|---|
-| **Cloudflare dashboard config is not in the repo** — no `wrangler.toml`, no record of which env vars are actually set | Rebuilding the Pages project means reconstructing settings from this doc and hoping it is current. Drift between dashboard and doc is undetectable. |
+| **Cloudflare dashboard config is not in the repo** — no `wrangler.toml`; and the prod `VITE_*` values live only in the deploying machine's git-ignored `.env.production.local` | Rebuilding the Pages project or switching deploy machines means reconstructing settings from this doc and hoping it is current. Drift is undetectable. |
 | **`RP_ID` / `ORIGIN` missing from prod** — confirmed 2026-09-08 | Passkeys are broken in production and produce no error anywhere. Fix in [Audit results](#audit-results--2026-09-08). |
 | **Dev and prod share one Resend key and sender** | Dev test sends go out as production-branded mail on the same quota and sending reputation |
 | **Single-account blast radius** — hosting, DNS, and TLS all live in one Cloudflare account | Loss of access to that account takes the site down with no independent recovery path |

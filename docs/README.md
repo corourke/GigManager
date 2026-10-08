@@ -218,7 +218,7 @@ See [requirements.md](./product/requirements.md) for complete feature requiremen
 A human runs `./deploy_prod.sh` from `main`. See [deployment.md](./technical/deployment.md) for the full pipeline, service reference, and rollback procedures.
 
 ### Where do I set an environment variable or API key for production?
-Frontend `VITE_*` values go in the Cloudflare Pages dashboard; edge-function secrets go through `supabase secrets set`. See the [configuration inventory](./technical/deployment.md#configuration-inventory) for the complete list of both.
+Frontend `VITE_*` values go in `.env.production.local` on the machine that runs `./deploy_prod.sh` (they are baked in at build time; Cloudflare dashboard env vars are not used because the deploy is a direct upload); edge-function secrets go through `supabase secrets set`. See the [configuration inventory](./technical/deployment.md#configuration-inventory) for the complete list of both.
 
 ---
 
