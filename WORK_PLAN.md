@@ -76,30 +76,15 @@ Not released: #175 (needs a design pass). #174's UI half shipped in PR #199; its
 (none open: the 10-07 entries are filed as #157–#160, #168–#171, #173–#176 and #178, and their decisions are in §1 and §2)
 
 - **Docs Lead queue, status 10-08 evening.**
-  - Items 1–2 are in PR #207. All pages checked; six wording fixes; dashboard, conflict-banner and Grey zone screenshots taken.
-  - Item 3 is in PR #209, stacked on #207. It links Reporting from Overview and Tax treatment. **Flip `draft: true` to `false` on `financials/reporting.md` before merging, or the new links 404.**
-  - Item 4 is in PR #210: the seed with items, units, lots, "N × any" kit lines and per-line tax treatment, as Cameron chose 10-08. Dev is reseeded.
-- **Dev email flows run, 2026-10-08 (Docs Lead, for the coordinator; Cameron to check the Mailtrap inbox against this list).** All three ran from the app against dev, in a browser at `http://localhost:3000`.
-  1. **Invitation**
-     - Sent 18:52:10 UTC to `docs-invite-1008@example.com`, Staff. Sender: demo Admin Alicia Hale, from Demo Sound & Lighting.
-     - The request was `POST /functions/v1/server/organizations/<org>/invitations`, which answered 200. The invitation expires 10-15.
-     - The screen showed "Invitation sent! An email has been sent to docs-invite-1008@example.com with a link to join the organization. The user can now be assigned to gigs." That is the success toast; when `email_sent` is false the app shows a warning instead.
-  2. **Sign-up confirmation: no email is sent on dev.**
-     - Signed up `docs-signup-1008@example.com` at 18:52:16 UTC. `POST /auth/v1/signup` answered 200 with an access token, and the app went straight to "Select Organization" ("No organizations yet").
-     - The cause: dev Auth has `mailer_autoconfirm: true` ("Confirm email" off), so Supabase confirms the address immediately and sends nothing.
-     - To test the email, Cameron turns on Authentication → Sign In / Providers → Email → **Confirm email** on dev; then I'll re-run this flow.
-     - Worth checking prod's setting too: the guide (team/invitations) says an invitee joins once they confirm their email.
-  3. **Password reset**
-     - Requested at 18:52:25 UTC for `demo-viewer@gigwrangler.test`. `POST /auth/v1/recover` answered 200.
-     - The screen showed "If an account exists for demo-viewer@gigwrangler.test, a password reset link has been sent. Check your email."
-  - **Dev Auth settings (read 18:55 UTC):**
-    - SMTP host `sandbox.smtp.mailtrap.io`, sender "GigWrangler" <no-reply@gigwrangler.test>.
-    - `site_url` and the redirect allow list are `http://localhost:3000` only, so the links in the emails point at localhost.
-  - **Auth logs:** not confirmed. The Management API's `logs.all` endpoint is gone, and I couldn't find the auth source name for the new `/analytics/endpoints/logs` endpoint. The dashboard's Auth logs show the sends.
-  - **Landing-page screenshots** (accept invitation, set new password, confirmed sign-up) need a real link, which I can't make: `auth.admin.generateLink` needs the service-role key, which I don't use. Either:
-    - Cameron opens a link from the Mailtrap email, copies it and passes it on, and I take the shot before it expires (reset links last one hour by default); or
-    - Cameron allows a server-side `generateLink` run with the dev service key held as an environment secret.
-  - **Cleanup:** the two test users (`docs-invite-1008@`, `docs-signup-1008@example.com`) stay on dev until Cameron has checked the inbox. Re-seeding removes the invitee's demo-org membership but not the users.
+  - Items 1–2: PR #207, merged. All pages checked; six wording fixes; dashboard, conflict-banner and Grey zone screenshots taken.
+  - Item 3: PR #209 merged; PR #211 publishes the page (Cameron, 10-08). Until #211 merges, the Overview and Tax treatment links 404.
+  - Item 4: PR #210, merged: the seed with items, units, lots, "N × any" kit lines and per-line tax treatment, as Cameron chose 10-08. Dev is reseeded.
+- **Dev email flows, 2026-10-08 (Docs Lead): all three work on dev.**
+  - **Invitation:** sent 18:52 UTC to `docs-invite-1008@example.com`. It arrived in Mailtrap, and Cameron accepted it ("Invitation Accepted! … You're all set, Ingrid!").
+  - **Password reset:** sent 18:52 UTC to `demo-viewer@gigwrangler.test`. It arrived, and the link opened "Reset your password".
+  - **Sign-up confirmation:** dev had "Confirm email" off (`mailer_autoconfirm: true`), so the first try sent nothing. Cameron turned it on for dev and prod. The re-run at 19:34 UTC for `docs-signup2-1008@example.com` returned `confirmation_sent_at` 19:34:28, and the app showed "Please check your email to confirm your account before signing in." **Cameron: please check the Mailtrap inbox for this one.** I'll delete that account once it's confirmed; the other two test accounts are already deleted, and dev is reseeded.
+  - **Landing-page screenshots** (accept invitation, set new password, confirmed sign-up) need a live link from the email. `auth.admin.generateLink` would need the service-role key, which the Docs Lead doesn't use. They stay held until Cameron passes a fresh link, or allows a server-side `generateLink` run.
+  - **Links in the emails:** dev's `site_url` and redirect allow list are `http://localhost:3000` only, so the links open localhost.
 - **Member page Edit has no Organization Role (#206, Docs Lead, 10-08).** The details page doesn't pass `currentUserRole` to `EditMemberDialog`. A one-line fix; the guide points role changes at Team → Edit Permissions until then.
 - **Units from one multi-quantity depreciated purchase line (Docs Lead, 10-08; for #183).**
   - The database finds a unit's depreciated line by `purchases.asset_id`, so only one unit per line counts as depreciated or can hold a recovery period. Its siblings (same `purchase_line_id`) count as not depreciated.
@@ -167,7 +152,7 @@ Not released: #175 (needs a design pass). #174's UI half shipped in PR #199; its
 | `financials/gig-expenses.md` | published | 2026-10-06 (coordinator, PR #136) | — |
 | `financials/overview.md` | published | 2026-10-08 (Docs Lead, PR #209) | links Reporting (merge with its publish) |
 | `financials/purchases.md` | published | 2026-10-06 (coordinator, PR #136) | — |
-| `financials/reporting.md` | draft, ready (PR #209) | 2026-10-08 (Docs Lead, PRs #207/#209) | Grey zone checked and shot; publish with PR #209 |
+| `financials/reporting.md` | published (PR #211) | 2026-10-08 (Docs Lead, PRs #207/#209) | — |
 | `financials/receipts-and-invoices.md` | published | 2026-10-06 (coordinator, PR #136) | — |
 | `financials/tax-treatment.md` | published | 2026-10-08 (Docs Lead, PR #209) | links Grey zone and Assets reports |
 | `getting-started/onboarding.md` | published | 2026-10-06 (triage, PR #139); screenshots PR #163 | — |
