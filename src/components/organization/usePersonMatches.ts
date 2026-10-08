@@ -1,13 +1,13 @@
 import { useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { searchAllUsers } from '../../services/user.service';
-import type { User } from '../../utils/supabase/types';
+import { searchPeople } from '../../services/user.service';
+import type { PersonMatch } from '../../utils/supabase/types';
 
 /**
- * Debounced, system-wide search for an existing person by name or email —
- * the same search_users_secure path the Team screen's "Add Existing User"
- * tab already uses. Deliberately NOT scoped to one organization's members:
+ * Debounced, system-wide search for an existing person by name, email or
+ * phone (any one is enough) — the same search_people path the Team screen's
+ * "Add Existing User" tab uses. Deliberately NOT scoped to one organization's members:
  * the point is to avoid creating duplicate people anywhere in the system,
  * so someone who's only a member of a different organization must still
  * turn up here (they then get linked into the current org instead of
@@ -20,11 +20,13 @@ import type { User } from '../../utils/supabase/types';
  * isError/error, instead of letting callers default data to [] and quietly
  * treat a failure as a clean search.
  */
-export function usePersonMatches(search: string) {
-  const hasQuery = search.trim().length >= 2;
-  const query = useQuery<User[]>({
-    queryKey: ['personSearch', search],
-    queryFn: () => searchAllUsers(search),
+export function usePersonMatches(search: string, extra: { email?: string; phone?: string } = {}) {
+  const email = extra.email?.trim() ?? '';
+  const phone = extra.phone?.trim() ?? '';
+  const hasQuery = search.trim().length >= 2 || email.length >= 3 || phone.replace(/\D/g, '').length >= 7;
+  const query = useQuery<PersonMatch[]>({
+    queryKey: ['personSearch', search, email, phone],
+    queryFn: () => searchPeople(search, { email, phone }),
     enabled: hasQuery,
     retry: false,
   });

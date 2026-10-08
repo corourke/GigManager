@@ -15,11 +15,11 @@ import {
   DialogHeader,
   DialogTitle,
 } from '../ui/dialog';
-import type { User, UserRole } from '../../utils/supabase/types';
+import type { PersonMatch, UserRole } from '../../utils/supabase/types';
 import { useUserSearch, useTeamMutations } from './useTeamData';
 import { useOrganizationContactMutations } from '../organization/useOrganizationContacts';
 import { usePersonMatches } from '../organization/usePersonMatches';
-import PersonMatchResults from '../organization/PersonMatchResults';
+import PersonMatchResults, { personMatchDetail } from '../organization/PersonMatchResults';
 
 interface AddTeamMemberDialogProps {
   open: boolean;
@@ -43,7 +43,7 @@ export default function AddTeamMemberDialog({
   // Existing-user search
   const [userSearchQuery, setUserSearchQuery] = useState('');
   const [debouncedQuery, setDebouncedQuery] = useState('');
-  const [selectedUser, setSelectedUser] = useState<User | null>(null);
+  const [selectedUser, setSelectedUser] = useState<PersonMatch | null>(null);
   const [selectedUserRole, setSelectedUserRole] = useState<UserRole>('Staff');
 
   // Invite new user
@@ -55,7 +55,7 @@ export default function AddTeamMemberDialog({
   // Quick-add without an account (no login, user_status = 'contact')
   const [quickAddForm, setQuickAddForm] = useState({ firstName: '', lastName: '', email: '', phone: '' });
   const [quickAddRole, setQuickAddRole] = useState<UserRole>('Staff');
-  const [quickAddDebouncedSearch, setQuickAddDebouncedSearch] = useState('');
+  const [quickAddDebouncedSearch, setQuickAddDebouncedSearch] = useState({ name: '', email: '', phone: '' });
 
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedQuery(userSearchQuery), 300);
@@ -63,15 +63,17 @@ export default function AddTeamMemberDialog({
   }, [userSearchQuery]);
 
   useEffect(() => {
-    // Search-as-you-type against name, falling back to email once it looks
-    // real — system-wide (usePersonMatches), same as the Existing User tab,
-    // so someone who's only a member of a different org still turns up.
-    const emailQuery = quickAddForm.email.trim();
-    const nameQuery = `${quickAddForm.firstName.trim()} ${quickAddForm.lastName.trim()}`.trim();
-    const search = emailQuery.length >= 3 ? emailQuery : nameQuery;
+    // Search-as-you-type against name, email and phone (any one is enough) —
+    // system-wide (usePersonMatches), same as the Existing User tab, so
+    // someone who's only a member of a different org still turns up.
+    const search = {
+      name: `${quickAddForm.firstName.trim()} ${quickAddForm.lastName.trim()}`.trim(),
+      email: quickAddForm.email.trim(),
+      phone: quickAddForm.phone.trim(),
+    };
     const timer = setTimeout(() => setQuickAddDebouncedSearch(search), 300);
     return () => clearTimeout(timer);
-  }, [quickAddForm.firstName, quickAddForm.lastName, quickAddForm.email]);
+  }, [quickAddForm.firstName, quickAddForm.lastName, quickAddForm.email, quickAddForm.phone]);
 
   const { data: searchResults = [], isFetching: isSearching } = useUserSearch(
     debouncedQuery,
@@ -79,7 +81,7 @@ export default function AddTeamMemberDialog({
   );
 
   const { data: quickAddMatches = [], isFetching: isQuickAddSearching, isError: quickAddMatchesErrored, hasQuery: hasQuickAddQuery } =
-    usePersonMatches(quickAddDebouncedSearch);
+    usePersonMatches(quickAddDebouncedSearch.name, quickAddDebouncedSearch);
 
   const resetExisting = () => {
     setSelectedUser(null);
@@ -96,7 +98,7 @@ export default function AddTeamMemberDialog({
   const resetQuickAdd = () => {
     setQuickAddForm({ firstName: '', lastName: '', email: '', phone: '' });
     setQuickAddRole('Staff');
-    setQuickAddDebouncedSearch('');
+    setQuickAddDebouncedSearch({ name: '', email: '', phone: '' });
   };
 
   const handleAddExistingUser = async () => {
@@ -148,7 +150,7 @@ export default function AddTeamMemberDialog({
     }
   };
 
-  const handleUseExistingQuickAdd = async (match: User) => {
+  const handleUseExistingQuickAdd = async (match: PersonMatch) => {
     try {
       await linkQuickAddPerson.mutateAsync({ userId: match.id, role: quickAddRole });
       onOpenChange(false);
@@ -240,7 +242,7 @@ export default function AddTeamMemberDialog({
                       <div className="flex items-center justify-between">
                         <div>
                           <p className="text-sm">{result.first_name} {result.last_name}</p>
-                          <p className="text-xs text-gray-500">{result.email}</p>
+                          <p className="text-xs text-gray-500">{personMatchDetail(result)}</p>
                         </div>
                         {selectedUser?.id === result.id && (
                           <Badge variant="outline" className="text-sky-600 border-sky-600">Selected</Badge>

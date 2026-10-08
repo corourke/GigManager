@@ -1966,34 +1966,50 @@ export type Database = {
         Args: { p_actor_id?: string; p_member_id: string }
         Returns: undefined
       }
-      search_users_secure: {
-        Args: { search_text: string }
+      search_name_rank: {
+        Args: { p_name: string; p_query: string }
+        Returns: number
+      }
+      search_organizations: {
+        Args: {
+          p_query: string
+          p_type?: Database["public"]["Enums"]["organization_role"]
+        }
         Returns: {
           address_line1: string | null
           address_line2: string | null
-          avatar_url: string | null
+          allowed_domains: string | null
           city: string | null
+          claimed: boolean
           country: string | null
           created_at: string
-          email: string
-          first_name: string
+          description: string | null
           id: string
-          last_name: string
-          phone: string | null
-          platform_moderator: boolean
+          name: string
+          phone_number: string | null
           postal_code: string | null
-          role_hint: string | null
+          roles: Database["public"]["Enums"]["organization_role"][]
           state: string | null
-          timezone: string | null
           updated_at: string
-          user_status: string | null
+          url: string | null
         }[]
         SetofOptions: {
           from: "*"
-          to: "users"
+          to: "organizations"
           isOneToOne: false
           isSetofReturn: true
         }
+      }
+      search_people: {
+        Args: { p_email?: string; p_phone?: string; p_query: string }
+        Returns: {
+          email_hint: string
+          first_name: string
+          id: string
+          last_name: string
+          matched_on: string
+          organization_names: string[]
+        }[]
       }
       set_gig_participant_contact_primary: {
         Args: {
