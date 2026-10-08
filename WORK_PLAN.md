@@ -9,7 +9,7 @@
 
 This file lives on `main`. Land updates there promptly: a run that starts from `main` won't see edits parked on a feature branch.
 
-- **Last updated:** 2026-10-08 evening (coordinator: PR #198 has the small bugs, #193 and overnight gigs; #174 UI and #92 in progress)
+- **Last updated:** 2026-10-08 evening (coordinator: PR #198 merged and `server` on dev; #174 UI and #92 in progress)
 
 ---
 
@@ -26,14 +26,11 @@ This file lives on `main`. Land updates there promptly: a run that starts from `
 | [#20](https://github.com/corourke/GigManager/issues/20) | Shared data-access layer under `src/services/` | Released in §3c (7 batches) | Triage, batch 1 next |
 | [#175](https://github.com/corourke/GigManager/issues/175) | Delete gig offered to Managers, but Admin-only | Cameron 10-07: another participating org's Admin must never delete; direction "cancel only when other orgs participate" | Needs a design pass (coordinator) |
 | [#174](https://github.com/corourke/GigManager/issues/174) | Team roles and invitations: UI offers what the server refuses | Cameron 10-07: a Manager must never be able to make anyone an Admin, by any path | Coordinator; the server side is the private finding in §2 |
-| [#157](https://github.com/corourke/GigManager/issues/157) | Dashboard Equipment total should be replacement value × quantity | Rule decided by Cameron 10-07 | PR #190 (Equipment Lead): coordinator asked 10-08 to leave out Disposed and Returned equipment |
-| [#158](https://github.com/corourke/GigManager/issues/158), [#168](https://github.com/corourke/GigManager/issues/168) | Staff/Viewers see $0 money cards (dashboard) and money columns (gig list) | Filed by the Docs Lead 10-07 | Released to triage (§3c) |
-| [#159](https://github.com/corourke/GigManager/issues/159), [#169](https://github.com/corourke/GigManager/issues/169), [#170](https://github.com/corourke/GigManager/issues/170), [#171](https://github.com/corourke/GigManager/issues/171), [#173](https://github.com/corourke/GigManager/issues/173), [#176](https://github.com/corourke/GigManager/issues/176) | Small UI bugs: © year, Markdown notes, conflict banner, staff slot delete/rates, member details page, org settings path | Filed by the Docs Lead 10-07 | Released to triage (§3c) |
 
 ## 2. Waiting on Cameron
 
 1. **Dev mail catcher** (Cameron, 10-08: Mailtrap): create a free Mailtrap Email Testing inbox and send its SMTP host, port, user and password. The coordinator then points dev's Supabase Auth at it and checks the invitation, sign-up confirmation and password-reset flows with the demo `.test` logins.
-2. **#171 rate unit:** a staff rate always shows "/ hr", but nothing in the schema says whether a rate is hourly, daily or flat. Either add a unit (a migration on `gig_staff_assignments`, plus a picker), or show a neutral "/ unit". Which? (The delete confirmation half of #171 is in PR #198.)
+2. **#171 rate unit:** a staff rate always shows "/ hr", but nothing in the schema says whether a rate is hourly, daily or flat. Either add a unit (a migration on `gig_staff_assignments`, plus a picker), or show a neutral "/ unit". Which? (The delete confirmation half of #171 shipped in PR #198.)
 3. **Dev deploy access:** this session's Supabase token gets 403 on the dev project's details (prod's are readable), so `supabase link` and `./deploy_dev.sh` fail; functions deploy fine with `--project-ref qcrzwsazasaojqoqxwnr`. Migrations to dev still need you, or a project-level role fix on dev.
 4. **Sentry secrets** (optional): `SENTRY_API_TOKEN`, `SENTRY_ORG_SLUG`, `SENTRY_PROJECT_SLUG`; the health check reports "not configured" until set.
 
@@ -71,19 +68,7 @@ This file lives on `main`. Land updates there promptly: a run that starts from `
 
 Pure refactor: no migrations, no edge-function or UI changes. Tests, typecheck, lint and build pass per PR.
 
-**Small bugs from the Docs Lead** (released 10-08 by Cameron). **Taken by the coordinator 10-08 evening (built by its sub-agents, with #188, #194 and the overnight-gigs change): triage, skip these and work #20.** One PR per issue, a failing test first, frontend only. The issue describes the fix; if one turns out to need a migration, a server change or a design decision, stop and add a §3b entry instead.
-- [#158](https://github.com/corourke/GigManager/issues/158): the Staff dashboard shows $0 Equipment and Revenue cards. Hide the money cards from roles that can't see the figures.
-- [#168](https://github.com/corourke/GigManager/issues/168): the gig list offers Revenue, Expenses and Profit columns to Staff and Viewers. Hide them, same rule as #158.
-- [#159](https://github.com/corourke/GigManager/issues/159): the Sign Up footer shows a hard-coded © 2025. Use the current year.
-- [#169](https://github.com/corourke/GigManager/issues/169): gig notes show as raw text. Render them as Markdown, the way other notes are rendered.
-- [#170](https://github.com/corourke/GigManager/issues/170): the conflict banner on the gig list and calendar shows an empty equipment detail, labels an Act conflict as a venue conflict, and its View button sets the wrong Back link.
-- [#171](https://github.com/corourke/GigManager/issues/171): deleting a staff slot doesn't ask for confirmation, and rates always show "/ hr".
-- [#173](https://github.com/corourke/GigManager/issues/173): a member's details page. Edit goes nowhere, the default role isn't shown, and timezone edits are dropped.
-- [#176](https://github.com/corourke/GigManager/issues/176): there's no direct path to your own organization's settings, and the Contacts card clips its actions.
-
-Not released: #175 (needs a design pass). **Coordinator, 10-08 evening (sub-agents): #174's UI half (Managers aren't offered Admin; own role cell; invitation-sent message; tab name) and #92 (replace-all saves delete only rows the form loaded and removed).** The batch above is in PR #198.
-
-**Overnight gigs on Google Calendar** (released 10-08, Cameron). A gig that ends before 6 AM on the day after it starts shows on its start day only; its real times stay at the top of the event description. The dates come from `buildCalendarEvent` in `supabase/functions/server/lib/pure/calendarEvent.ts`, shared by the server and the browser sync, so change it there with tests: a 9 PM–1:30 AM gig is one day, a gig ending at 6:00 or later shows both days, multi-day gigs are unchanged, and the cutoff is in the gig's time zone. Needs a `server` redeploy and a frontend deploy; list both in the PR.
+Not released: #175 (needs a design pass). **Coordinator, 10-08 evening (sub-agents): #174's UI half (Managers aren't offered Admin; own role cell; invitation-sent message; tab name) and #92 (replace-all saves delete only rows the form loaded and removed).**
 
 **Never pre-approved:** migrations or any RLS/policy change (Cameron applies migrations), edge-function API shape, production config or `deploy_prod.sh`.
 
@@ -93,8 +78,6 @@ Not released: #175 (needs a design pass). **Coordinator, 10-08 evening (sub-agen
 
 (none open: the 10-07 entries are filed as #157–#160, #168–#171, #173–#176 and #178, and their decisions are in §1 and §2)
 
-- **From the Docs Lead (10-08, Financials → Reporting, PR #191): #194**, a year with only disposals isn't offered in Tax year, and the needs-category hint can't always be followed. Small, UI only.
-- **From the Docs Lead (10-08, Settings, PR #189): #188**, Google Calendar shows "System-Wide Bulk Re-sync (Repair)", with developer copy, to every user, and the category type-rules box says "will offer". Small, UI only.
 - **Demo seed vs equipment items (coordinator, 10-08).** #180 is merged and #189 made the seed run on it. The seed's equipment still needs a fuller rework for equipment items before the Equipment pages are shot.
 
 - **Correction to the private membership finding (§2 item 3), Docs Lead, 10-08.** Tested on dev as the demo Manager, the escalation I reported on 10-07 is **not exploitable**: the `guard_organization_membership` trigger (`20260929000000`) blocks it on every path tried. What remains are low-severity defence-in-depth gaps. The full write-up (paths, test results, suggested fixes) went to Cameron privately on 10-08 to pass on. No migration is urgent; fold the fixes into the next membership or security migration.
