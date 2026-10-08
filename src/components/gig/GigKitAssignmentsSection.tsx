@@ -17,6 +17,7 @@ import { getKits, getKitsFlattenedSummary } from '../../services/kit.service';
 import { checkEquipmentConflicts, Conflict } from '../../services/conflictDetection.service';
 import { ConflictWarning } from '../ConflictWarning';
 import { useAutoSave } from '../../utils/hooks/useAutoSave';
+import { useRowBaseline } from '../../utils/hooks/useRowBaseline';
 import SaveStateIndicator from './SaveStateIndicator';
 
 /**
@@ -102,7 +103,7 @@ export default function GigKitAssignmentsSection({
   const [sameGigOverlaps, setSameGigOverlaps] = useState<SameGigOverlap[]>([]);
   const [crossGigConflicts, setCrossGigConflicts] = useState<Conflict[]>([]);
 
-  const { control, reset, watch, setValue, formState: { isDirty, errors } } = useForm<KitFormData>({
+  const { control, reset, watch, setValue, getValues, formState: { isDirty, errors } } = useForm<KitFormData>({
     resolver: zodResolver(kitFormSchema),
     mode: 'onChange',
     defaultValues: {
@@ -116,17 +117,29 @@ export default function GigKitAssignmentsSection({
   });
   const kitName = (kitId: string) => fields.find((f) => f.kit_id === kitId)?.kit?.name || 'Unknown Kit';
 
+  // The rows this form loaded or last saved: a save deletes only those the user removed (#92).
+  const baseline = useRowBaseline();
+
   const handleSave = useCallback(async (data: KitFormData) => {
-    await updateGigKitAssignments(
+    const { ids } = await updateGigKitAssignments(
       gigId,
       currentOrganizationId,
       data.assignments.map(a => ({
-        id: a.id.startsWith('temp-') ? undefined : a.id,
+        id: a.id.startsWith('temp-') ? baseline.insertedId(a.id) : a.id,
         kit_id: a.kit_id,
         notes: a.notes || null,
-      }))
+      })),
+      baseline.ids()
     );
-  }, [gigId, currentOrganizationId]);
+    baseline.saved(data.assignments.map((a, i) => [a.id, ids[i]]));
+
+    // Give rows this save inserted their database id, so the next save
+    // updates them instead of inserting them again.
+    getValues('assignments').forEach((a, index) => {
+      const i = data.assignments.findIndex(d => d.id === a.id);
+      if (i >= 0 && ids[i] && ids[i] !== a.id) setValue(`assignments.${index}.id`, ids[i]!);
+    });
+  }, [gigId, currentOrganizationId, baseline, getValues, setValue]);
 
   const checkCrossGigConflicts = useCallback(async () => {
     if (!gigStart || !gigEnd) return;
@@ -205,6 +218,7 @@ export default function GigKitAssignmentsSection({
         (k: any) => k.organization_id === currentOrganizationId
       );
 
+      baseline.loaded(formattedAssignments.map((a: any) => a.id));
       reset({ assignments: formattedAssignments });
       setAvailableKits(organizationKits);
     } catch (error: any) {

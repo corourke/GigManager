@@ -588,6 +588,7 @@ export async function updateGig(gigId: string, gigData: {
       }
     }
 
+    // These pass no loaded ids, so they add and update rows but delete none (#92).
     if (participants !== undefined && Array.isArray(participants)) {
       await updateGigParticipants(gigId, participants, { organization_id: primary_organization_id, actor_display_name: actorDisplayName, actor_org_name: actorOrgName, gig_title: (preGig as any)?.title ?? '' });
     }

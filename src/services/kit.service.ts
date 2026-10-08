@@ -241,7 +241,12 @@ export async function createKit(kitData: {
 }
 
 /**
- * Update an existing kit and its components (assets and/or sub-kits)
+ * Update an existing kit and its components (assets and/or sub-kits).
+ *
+ * `loadedComponentIds` are the ids of the components the caller loaded. Only
+ * those no longer in `components` are deleted: a component someone else added
+ * since is left alone, and with no `loadedComponentIds` nothing is deleted
+ * (issue #92).
  */
 export async function updateKit(kitId: string, kitData: {
   name?: string;
@@ -253,7 +258,7 @@ export async function updateKit(kitId: string, kitData: {
   is_container?: boolean;
   organization_id?: string;
   components?: KitComponentInput[];
-}) {
+}, loadedComponentIds: string[] = []) {
   try {
     const { supabase, user } = await requireAuth();
 
@@ -313,7 +318,7 @@ export async function updateKit(kitId: string, kitData: {
       const existingIds = existingComponents?.map((c: any) => c.id) || [];
       const incomingIds = components.filter(c => c.id).map(c => c.id!);
 
-      const idsToDelete = existingIds.filter((id: string) => !incomingIds.includes(id));
+      const idsToDelete = existingIds.filter((id: string) => loadedComponentIds.includes(id) && !incomingIds.includes(id));
 
       if (idsToDelete.length > 0) {
         const removed = (existingComponents ?? []).filter((c: any) => idsToDelete.includes(c.id));

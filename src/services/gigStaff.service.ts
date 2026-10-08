@@ -11,7 +11,16 @@ import { toDateInTimeZone } from '../utils/dateUtils';
  */
 
 /**
- * Update staff slots for a gig
+ * Update staff slots for a gig.
+ *
+ * `loadedIds` are the ids of the slots and assignments the caller loaded (or
+ * last saved). Only those no longer in `staff_slots` are deleted: rows someone
+ * else added since are left alone, and with no `loadedIds` nothing is deleted
+ * (issue #92).
+ *
+ * Returns `slotIds` and `assignmentIds`, parallel to `staff_slots` and each
+ * slot's `assignments`: each row's database id, including the ids of rows
+ * this call inserted (undefined for a row that was skipped).
  */
 export async function updateGigStaffSlots(
   gigId: string,
@@ -35,7 +44,8 @@ export async function updateGigStaffSlots(
     actor_display_name: string;
     actor_org_name: string;
     gig_title: string;
-  }
+  },
+  loadedIds: string[] = []
 ) {
   try {
     const { supabase, user } = await requireAuth();
@@ -73,7 +83,7 @@ export async function updateGigStaffSlots(
       .map(s => s.id);
     const incomingSlotIds = staff_slots.filter(s => s.id).map(s => s.id!);
 
-    const slotIdsToDelete = existingSlotIds.filter(id => !incomingSlotIds.includes(id));
+    const slotIdsToDelete = existingSlotIds.filter(id => loadedIds.includes(id) && !incomingSlotIds.includes(id));
 
     const staffingChanges: StaffingChange[] = [];
 
@@ -87,7 +97,12 @@ export async function updateGigStaffSlots(
       await supabase.from('gig_staff_slots').delete().in('id', slotIdsToDelete);
     }
 
+    const slotIds: Array<string | undefined> = [];
+    const assignmentIds: Array<Array<string | undefined>> = [];
     for (const slot of staff_slots) {
+      const savedAssignmentIds: Array<string | undefined> = [];
+      slotIds.push(undefined);
+      assignmentIds.push(savedAssignmentIds);
       let staffRoleId: string | null = null;
       const { data: existingRole } = await supabase.from('staff_roles').select('id').eq('name', slot.role).maybeSingle();
 
@@ -122,13 +137,14 @@ export async function updateGigStaffSlots(
       }
 
       if (!slotId) continue;
+      slotIds[slotIds.length - 1] = slotId;
 
       if (slot.assignments) {
         const { data: existingAssignments } = await supabase.from('gig_staff_assignments').select('id, user_id').eq('slot_id', slotId);
         const existingAssignmentIds = existingAssignments?.map(a => a.id) || [];
         const incomingAssignmentIds = slot.assignments.filter(a => a.id).map(a => a.id!);
 
-        const assignmentIdsToDelete = existingAssignmentIds.filter(id => !incomingAssignmentIds.includes(id));
+        const assignmentIdsToDelete = existingAssignmentIds.filter(id => loadedIds.includes(id) && !incomingAssignmentIds.includes(id));
 
         if (assignmentIdsToDelete.length > 0) {
           const removedUserIds = (existingAssignments ?? [])
@@ -167,9 +183,14 @@ export async function updateGigStaffSlots(
 
           if (assignment.id && existingAssignmentIds.includes(assignment.id)) {
             await supabase.from('gig_staff_assignments').update(assignmentData).eq('id', assignment.id);
+            savedAssignmentIds.push(assignment.id);
           } else if (assignment.user_id) {
-            await supabase.from('gig_staff_assignments').insert({ slot_id: slotId, ...assignmentData });
+            const { data: newAssignment } = await supabase.from('gig_staff_assignments')
+              .insert({ slot_id: slotId, ...assignmentData }).select('id').single();
+            savedAssignmentIds.push(newAssignment?.id);
             staffingChanges.push({ type: 'assigned', role: slot.role, user_name: newUserNameMap.get(assignment.user_id) ?? '', initial_status: assignmentData.status });
+          } else {
+            savedAssignmentIds.push(undefined);
           }
         }
       }
@@ -215,7 +236,7 @@ export async function updateGigStaffSlots(
       } catch (e) { console.error('Activity log failed:', e); }
     }
 
-    return { success: true };
+    return { success: true, slotIds, assignmentIds };
   } catch (err) {
     return handleApiError(err, 'update staff slots');
   }

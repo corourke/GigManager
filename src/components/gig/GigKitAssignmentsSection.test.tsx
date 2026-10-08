@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import GigKitAssignmentsSection from './GigKitAssignmentsSection';
-import { getGigKits } from '../../services/gig.service';
+import { getGigKits, updateGigKitAssignments } from '../../services/gig.service';
 import { getKitsFlattenedSummary } from '../../services/kit.service';
 import { checkEquipmentConflicts } from '../../services/conflictDetection.service';
 
@@ -45,6 +45,19 @@ vi.mock('../../services/kit.service', () => ({
     },
   ]),
   getKitsFlattenedSummary: vi.fn().mockResolvedValue(new Map()),
+}));
+
+// Radix Select doesn't open in jsdom; a native <select> lets tests assign a kit.
+vi.mock('../ui/select', () => ({
+  Select: ({ onValueChange, disabled, children }: any) => (
+    <select aria-label="Assign kit" value="" disabled={disabled} onChange={(e) => onValueChange(e.target.value)}>
+      {children}
+    </select>
+  ),
+  SelectTrigger: ({ children }: any) => <>{children}</>,
+  SelectValue: ({ placeholder }: any) => <option value="">{placeholder}</option>,
+  SelectContent: ({ children }: any) => <>{children}</>,
+  SelectItem: ({ value, children }: any) => <option value={value}>{children}</option>,
 }));
 
 vi.mock('../../services/conflictDetection.service', () => ({
@@ -209,5 +222,56 @@ describe('GigKitAssignmentsSection', () => {
       expect(screen.getByText('Select kit to assign...')).toBeInTheDocument();
     });
     expect(checkEquipmentConflicts).not.toHaveBeenCalled();
+  });
+});
+
+describe('GigKitAssignmentsSection deletes only rows it loaded (#92)', () => {
+  const mockProps = { gigId: 'test-gig-id', currentOrganizationId: 'current-org-id' };
+  const kit = (id: string, name: string) => ({ id, name, tag_number: null, category: 'Sound', rental_value: '1', organization_id: 'current-org-id' });
+  const calls = () => vi.mocked(updateGigKitAssignments).mock.calls;
+  const removeButtons = (container: HTMLElement) => [...container.querySelectorAll('tbody button.text-red-600')] as HTMLElement[];
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(getGigKits).mockResolvedValue([
+      { id: 'assignment-1', kit_id: 'kit-1', notes: '', kit: kit('kit-1', 'Test Kit') },
+      { id: 'assignment-2', kit_id: 'kit-2', notes: '', kit: kit('kit-2', 'Another Kit') },
+    ] as any);
+    vi.mocked(updateGigKitAssignments).mockImplementation(async (_gigId, _orgId, assignments) => ({
+      success: true,
+      ids: assignments.map((a) => a.id ?? 'assignment-new'),
+    }));
+  });
+
+  it('passes the rows it loaded, so a removed one is deleted and rows added elsewhere are not', async () => {
+    const { container } = render(<GigKitAssignmentsSection {...mockProps} />);
+    await waitFor(() => expect(screen.getByText('Another Kit')).toBeInTheDocument());
+
+    fireEvent.click(removeButtons(container)[0]);
+
+    await waitFor(() => expect(updateGigKitAssignments).toHaveBeenCalledTimes(1), { timeout: 3000 });
+    expect(calls()[0][2].map((a) => a.id)).toEqual(['assignment-2']);
+    expect(calls()[0][3]).toEqual(['assignment-1', 'assignment-2']);
+  });
+
+  it('gives a new row the id its save returned, and deletes it if it is then removed', async () => {
+    vi.mocked(getGigKits).mockResolvedValue([
+      { id: 'assignment-1', kit_id: 'kit-1', notes: '', kit: kit('kit-1', 'Test Kit') },
+    ] as any);
+    const { container } = render(<GigKitAssignmentsSection {...mockProps} />);
+    await waitFor(() => expect(screen.getByText('Test Kit')).toBeInTheDocument());
+
+    fireEvent.change(screen.getByLabelText('Assign kit'), { target: { value: 'kit-2' } });
+    await waitFor(() => expect(updateGigKitAssignments).toHaveBeenCalledTimes(1), { timeout: 3000 });
+    expect(calls()[0][2].find((a) => a.kit_id === 'kit-2')?.id).toBeUndefined();
+
+    await waitFor(() => expect(removeButtons(container)).toHaveLength(2));
+    await waitFor(() => expect(removeButtons(container)[1]).not.toBeDisabled());
+    fireEvent.click(removeButtons(container)[1]);
+
+    await waitFor(() => expect(calls().at(-1)![2].map((a) => a.kit_id)).toEqual(['kit-1']), { timeout: 3000 });
+    expect(calls().at(-1)![3]).toEqual(['assignment-1', 'assignment-new']);
+    // No save after the first inserted kit-2 again.
+    expect(calls().slice(1).some((c) => c[2].some((a) => a.kit_id === 'kit-2' && !a.id))).toBe(false);
   });
 });
