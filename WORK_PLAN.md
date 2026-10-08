@@ -92,6 +92,7 @@ Not released, staying with the coordinator: #174 (its server side is the private
 - **From the Docs Lead (10-08, Settings, PR #189): #188**, Google Calendar shows "System-Wide Bulk Re-sync (Repair)", with developer copy, to every user, and the category type-rules box says "will offer". Small, UI only.
 - **Dev schema is ahead of main (Docs Lead, 10-08).** Dev has migration `20261014000000` from #180 (equipment units) applied, and its rule (tagged equipment must have quantity 1) broke the demo seed. PR #189 fixes the seed. The seed's equipment will need a fuller rework when #180 merges, and the Equipment pages wait for that too.
 
+- **Correction to the private membership finding (§2 item 3), Docs Lead, 10-08.** Tested on dev as the demo Manager, the escalation I reported on 10-07 is **not exploitable**: the `guard_organization_membership` trigger (`20260929000000`) blocks it on every path tried. What remains are low-severity defence-in-depth gaps. The full write-up (paths, test results, suggested fixes) went to Cameron privately on 10-08 to pass on. No migration is urgent; fold the fixes into the next membership or security migration.
 - **Second private security finding (Docs Lead, 10-07): privacy, in the person search behind the duplicate check (#178).** Details went to Cameron directly, as the repo is public. Cameron (10-08) asked for it to go on the private security list with the membership-RPC finding (§2 item 3). It touches the same search #178 changes, so plan the two together.
 
 ## 4. Agents and documentation
