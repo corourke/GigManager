@@ -609,10 +609,24 @@ SELECT pg_temp.d(11, e.n), pg_temp.d(1,1), pg_temp.d(2, e.usr), e.event, e.entit
     (14,  2, 10.0, 2, 'staffing.updated',   'staffing',    7,  NULL,             '{"change_count":2,"changes":[{"role":"FOH Engineer","type":"assigned","user_name":"Sofia Lindqvist","initial_status":"Confirmed"},{"role":"Lighting Tech","type":"assigned","user_name":"Shane Park","initial_status":"Requested"}]}'),
     (15,  1, 15.0, 1, 'gig.created',        'gig',         16, NULL,             '{}'),
     (16,  1, 15.5, 1, 'financial.added',    'financial',   16, pg_temp.d(7,30),  '{"stage":"quoted","amount":15000,"direction":"in","description":"Quote for both days"}'),
-    (17,  0,  7.5, 2, 'gig.notes_updated',  'gig',         7,  NULL,             '{"notes_changed":true}')
+    (17,  0,  7.5, 2, 'gig.notes_updated',  'gig',         7,  NULL,             '{"notes_changed":true}'),
+    -- Harvest Gala's earlier history, for the History tab screenshot
+    (18, 40, 11.5, 2, 'participant.added',  'participant', 7,  pg_temp.d(10,72), '{"role":"Act","organization_name":"Neon Orchard"}'),
+    (19, 35, 15.0, 1, 'gig.status_changed', 'gig',         7,  NULL,             '{"from_status":"Proposed","to_status":"Booked"}')
   ) AS e(n, ago, hr, usr, event, entity, g, entity_id, ctx)
   JOIN public.gigs g ON g.id = pg_temp.d(3, e.g)
   JOIN public.users u ON u.id = pg_temp.d(2, e.usr);
+
+-- Every gig's "Gig created" entry, at the gig's created_at, by its creator.
+INSERT INTO public.activity_log (id, organization_id, actor_id, event_type, entity_type, entity_id, gig_id, context, occurred_at)
+SELECT pg_temp.d(11, 100 + g.n), pg_temp.d(1,1), gg.created_by, 'gig.created', 'gig', gg.id, gg.id,
+       jsonb_build_object('gig_title', gg.title, 'actor_org_name', 'Demo Sound & Lighting',
+                          'actor_display_name', u.first_name || ' ' || u.last_name, 'context_version', 1),
+       gg.created_at
+  FROM _g g
+  JOIN public.gigs gg ON gg.id = pg_temp.d(3, g.n)
+  JOIN public.users u ON u.id = gg.created_by
+ WHERE g.n NOT IN (12, 16);  -- these two have a dated entry above
 
 -- The reschedule entry carries the real from/to: Saturday moved to Friday.
 UPDATE public.activity_log l

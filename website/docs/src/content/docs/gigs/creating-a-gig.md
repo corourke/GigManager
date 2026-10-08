@@ -19,6 +19,8 @@ The **New Gig** form is deliberately short:
   tags are suggested as you type
 - **Notes** — supports Markdown
 
+![The New Gig form filled in: Gig Title, start and end date and time, Pacific Time, Date Hold, and two tags, Gala and Holiday, above an empty Notes box](../../../assets/screenshots/gigs/creating-a-gig-form.png)
+
 Choose **Create Gig**. The gig opens in edit mode, where you add everything else —
 venue, participants, schedule, staffing, equipment and financials (see the
 [Gigs overview](/gigs/overview/)). **Cancel**, or **Back to Gigs** above the
@@ -31,7 +33,3 @@ The gig's **venue** isn't set on this form. Add a participating organization wit
 the **Venue** role, and it shows as the gig's venue in the page header and the
 **Venue** card.
 :::
-
-<!-- TODO
-  - 📸 New Gig form. 📸 The tag field after pressing Enter.
--->
