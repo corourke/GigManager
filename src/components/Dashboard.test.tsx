@@ -5,9 +5,12 @@ import { createClient } from '../utils/supabase/client'
 import { makeUser, makeOrganization } from '../test/factories'
 import { Organization, User } from '../utils/supabase/types'
 
+const { mockInvoke } = vi.hoisted(() => ({ mockInvoke: vi.fn() }))
+
 // Mock the createClient function
 vi.mock('../utils/supabase/client', () => ({
   createClient: vi.fn(() => ({
+    functions: { invoke: mockInvoke },
     auth: {
       signOut: vi.fn().mockResolvedValue({}),
       getSession: vi.fn().mockResolvedValue({
@@ -21,6 +24,10 @@ vi.mock('../utils/supabase/client', () => ({
       }),
     },
   })),
+}))
+
+vi.mock('../services/activityLog.service', () => ({
+  getRecentActivity: vi.fn().mockResolvedValue([]),
 }))
 
 // Mock the info module
@@ -44,6 +51,13 @@ describe('Dashboard', () => {
     onBackToSelection: vi.fn(),
     onLogout: vi.fn(),
     onNavigateToGigs: vi.fn(),
+  }
+
+  const dashboardStats = {
+    gigsByStatus: { Booked: 1, Proposed: 0, DateHold: 0, Completed: 0, Cancelled: 0, Settled: 0 },
+    assetValues: { totalAssetValue: 0, totalInsuredValue: 0, totalRentalValue: 0 },
+    revenue: { thisMonth: 0, lastMonth: 0, thisYear: 0 },
+    upcomingGigs: [],
   }
 
   beforeEach(() => {
@@ -74,6 +88,7 @@ describe('Dashboard', () => {
         recentActivity: [],
       }),
     })
+    mockInvoke.mockResolvedValue({ data: dashboardStats, error: null })
   })
 
   it('shows the equipment total and what is owned (#157)', async () => {
@@ -186,5 +201,23 @@ describe('Dashboard', () => {
       // If button doesn't exist (due to error state), just verify component rendered
       expect(screen.getByText('Welcome back, John!')).toBeInTheDocument()
     }
+  })
+
+  // Issue #158: the server zeroes money figures for non-Admin/Manager roles,
+  // so those roles must not see the Equipment and Revenue cards at all.
+  it.each(['Admin', 'Manager'] as const)('shows Equipment and Revenue cards to %s', async (role) => {
+    render(<Dashboard {...mockProps} userRole={role} />)
+
+    expect(await screen.findByText('Status Summary')).toBeInTheDocument()
+    expect(screen.getByText('Equipment')).toBeInTheDocument()
+    expect(screen.getByText('Revenue')).toBeInTheDocument()
+  })
+
+  it.each(['Staff', 'Viewer'] as const)('hides Equipment and Revenue cards from %s', async (role) => {
+    render(<Dashboard {...mockProps} userRole={role} />)
+
+    expect(await screen.findByText('Status Summary')).toBeInTheDocument()
+    expect(screen.queryByText('Equipment')).not.toBeInTheDocument()
+    expect(screen.queryByText('Revenue')).not.toBeInTheDocument()
   })
 })

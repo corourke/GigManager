@@ -11,8 +11,8 @@ it's selected for you. The dashboard opens with "Welcome back" and an
 at-a-glance summary:
 
 - **Gigs** — counts by status (Booked, Proposed, Date Hold).
-- **Equipment** — Total Value, Insured and Rental Value.
-- **Revenue** — This Month, Last Month, This Year.
+- **Equipment** — Total Value, Insured and Rental Value (Admins and Managers).
+- **Revenue** — This Month, Last Month, This Year (Admins and Managers).
 - **Status Summary** — Completed, Settled, Cancelled.
 - **Upcoming Gigs (Next 30 Days)** — with venue and act.
 - **Recent Activity**.
