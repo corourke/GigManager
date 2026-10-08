@@ -37,7 +37,6 @@ This file lives on `main`. Land updates there promptly: a run that starts from `
 **Decided 10-08, recorded here until done:**
 - The Docs Lead's corrected membership report (private; reported to Cameron directly): no path lets a Manager make anyone an Admin. The remaining backstop gaps are **parked** (Cameron: later). Partner organizations on a shared gig may keep adding, editing and removing each other's no-login contacts (intended). Person-search privacy is fixed by #178 (in prod 10-08).
 - An organization's own Admin still can't delete a claimed organization from the app (kept as is; no change).
-- Overnight gigs: released to triage (§3c).
 
 ## 3. Ready work and agent lanes
 
