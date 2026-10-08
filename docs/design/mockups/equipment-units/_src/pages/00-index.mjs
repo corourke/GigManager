@@ -3,8 +3,8 @@ import { icon, kindPill, badge, PAGES } from '../lib.mjs';
 const BLURB = {
   '01-equipment-list': 'Items with their units and lots, worked-out counts, availability, and a flat view for finding a serial or tag.',
   '02-item-page': 'Shared fields once; the units and lots table; which kits use the item and how.',
-  '03-unit-lot-form': 'Unit or lot first; serial or tag locks quantity to 1; purchase link; recovery period when depreciated.',
-  '04-purchase-review': 'One line of 6 Trios creates 6 units: pick or create the item, enter serials or tags, or keep a lot.',
+  '03-unit-lot-form': 'Add Item, Add unit or lot, and editing one unit, from three shared sections; quantity sets the serial/tag rows.',
+  '04-purchase-review': 'Equipment details uses the same three sections: one line of 6 Trios creates 6 units, or keeps a lot. No kits here.',
   '05-kit-editor': '“N × any” or a specific unit or lot; Items kits confirm each line, containers scan as one.',
   '06-packing-list': '“2 × QSC K12.2” filled in by scans, container progress, and the printout with write-in blanks.',
   '07-scanning-pull': 'Tagged items are scanned (the K12.2s); untagged ones are counted, with a counter that starts full.',
