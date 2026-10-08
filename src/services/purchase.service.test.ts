@@ -3,6 +3,9 @@ import {
   getPurchases,
   createPurchase,
   createPurchaseTransaction,
+  createPurchaseWithUnits,
+  addLineUnits,
+  getLineUnits,
   scanInvoice,
   importPurchases,
   deletePurchase,
@@ -118,6 +121,48 @@ describe('purchase.service', () => {
         p_assets: assets
       });
       expect(result?.id).toBe('h1');
+    });
+  });
+
+  describe('createPurchaseWithUnits (#183)', () => {
+    it('saves the purchase, its lines and one record per unit through create_purchase_transaction_v2', async () => {
+      const header = { organization_id: 'org-1', vendor: 'Sweetwater' };
+      const items = [{ organization_id: 'org-1', description: 'QSC K12.2', quantity: 2 }];
+      const units = [
+        { organization_id: 'org-1', line_index: 0, manufacturer_model: 'QSC K12.2', category: 'Audio', serial_number: 'GAA1', tag_number: null, quantity: 1 },
+        { organization_id: 'org-1', line_index: 0, manufacturer_model: 'QSC K12.2', category: 'Audio', serial_number: null, tag_number: 'DSL-0102', quantity: 1 },
+      ];
+      mockSupabase.rpc.mockResolvedValue({ data: { id: 'h1', line_ids: ['l1'], unit_ids: ['u1', 'u2'] }, error: null });
+
+      const result = await createPurchaseWithUnits(header, items, units);
+
+      expect(mockSupabase.rpc).toHaveBeenCalledWith('create_purchase_transaction_v2', { p_header: header, p_items: items, p_units: units });
+      expect(result).toEqual({ id: 'h1', line_ids: ['l1'], unit_ids: ['u1', 'u2'] });
+    });
+
+    it('passes the database’s refusal on', async () => {
+      mockSupabase.rpc.mockResolvedValue({ data: null, error: { message: 'Each unit must name a line of this purchase' } });
+      await expect(createPurchaseWithUnits({ organization_id: 'org-1' }, [], [])).rejects.toMatchObject({ message: 'Each unit must name a line of this purchase' });
+    });
+  });
+
+  describe('addLineUnits (#183)', () => {
+    it('adds units to a saved line through add_purchase_line_units', async () => {
+      const units = [{ organization_id: 'org-1', manufacturer_model: 'QSC K12.2', category: 'Audio', serial_number: null, tag_number: 'DSL-0104', quantity: 1 }];
+      mockSupabase.rpc.mockResolvedValue({ data: ['u4'], error: null });
+
+      expect(await addLineUnits('line-1', units)).toEqual(['u4']);
+      expect(mockSupabase.rpc).toHaveBeenCalledWith('add_purchase_line_units', { p_line_id: 'line-1', p_units: units });
+    });
+  });
+
+  describe('getLineUnits (#183)', () => {
+    it('reads the units or lot of a line through their purchase_line_id', async () => {
+      mockSupabase.then.mockImplementation((onFulfilled: any) => onFulfilled({ data: [{ id: 'u1' }, { id: 'u2' }], error: null }));
+
+      expect(await getLineUnits('line-1')).toEqual([{ id: 'u1' }, { id: 'u2' }]);
+      expect(mockSupabase.from).toHaveBeenCalledWith('assets');
+      expect(mockSupabase.eq).toHaveBeenCalledWith('purchase_line_id', 'line-1');
     });
   });
 

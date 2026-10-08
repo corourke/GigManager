@@ -1,7 +1,8 @@
 import { createClient } from '../utils/supabase/client';
 import { handleApiError, handleFunctionsError } from '../utils/api-error-utils';
 import { requireAuth } from '../utils/supabase/auth-utils';
-import type { DbPurchase, PurchaseWithItems, DbGigFinancial } from '../utils/supabase/types';
+import type { DbPurchase, PurchaseWithItems, DbGigFinancial, DbAsset } from '../utils/supabase/types';
+import type { LineUnitInput } from '../utils/lineUnits';
 import type { AssetRow } from '../utils/csvImport';
 import { toFinCategory } from '../utils/supabase/constants';
 import { toDateInTimeZone } from '../utils/dateUtils';
@@ -449,6 +450,62 @@ export async function trackPurchaseLineAsEquipment(lineId: string): Promise<stri
     return data as string;
   } catch (err) {
     return handleApiError(err, 'track purchase line as equipment');
+  }
+}
+
+/**
+ * Record a purchase atomically (#183): the header, its lines, and one record per unit
+ * (or one lot) for each tracked line. Each unit names its line by `line_index`; build
+ * them with `buildLineUnits`. The line's first unit (or its lot) marks it tracked.
+ */
+export async function createPurchaseWithUnits(
+  header: Partial<DbPurchase>,
+  items: Partial<DbPurchase>[],
+  units: LineUnitInput[],
+): Promise<{ id: string; line_ids: string[]; unit_ids: string[] }> {
+  try {
+    const { supabase } = await requireAuth();
+    const { data, error } = await (supabase.rpc as any)('create_purchase_transaction_v2', {
+      p_header: header,
+      p_items: items,
+      p_units: units,
+    });
+    if (error) throw error;
+    if (!data?.id) throw new Error('Purchase transaction returned no result');
+    return data;
+  } catch (err) {
+    return handleApiError(err, 'create purchase transaction');
+  }
+}
+
+/**
+ * Add units (or a lot) to a saved purchase line (#183): tracking it for the first time,
+ * or more units when its quantity goes up. Fields not sent come from the line and its
+ * invoice. Returns the new records' ids.
+ */
+export async function addLineUnits(lineId: string, units: Omit<LineUnitInput, 'line_index'>[]): Promise<string[]> {
+  try {
+    const { supabase } = await requireAuth();
+    const { data, error } = await (supabase.rpc as any)('add_purchase_line_units', { p_line_id: lineId, p_units: units });
+    if (error) throw error;
+    return (data ?? []) as string[];
+  } catch (err) {
+    return handleApiError(err, 'add equipment to purchase line');
+  }
+}
+
+/** The units, or the lot, a purchase line made (#183). */
+export async function getLineUnits(lineId: string): Promise<DbAsset[]> {
+  const supabase = getSupabase();
+  try {
+    const { data, error } = await (supabase.from('assets') as any)
+      .select('*')
+      .eq('purchase_line_id', lineId)
+      .order('created_at', { ascending: true });
+    if (error) throw error;
+    return (data ?? []) as DbAsset[];
+  } catch (err) {
+    return handleApiError(err, 'fetch purchase line equipment');
   }
 }
 
