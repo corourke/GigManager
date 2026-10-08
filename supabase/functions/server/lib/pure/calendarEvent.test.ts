@@ -25,7 +25,7 @@ describe('buildCalendarEvent', () => {
     );
   });
 
-  it('runs a gig that ends past midnight local time through its end date', () => {
+  it('shows an overnight gig that ends before 6 AM the next day on its start day only', () => {
     // 9:00 PM Oct 3 to 1:30 AM Oct 4, Los Angeles.
     const event = buildCalendarEvent(
       { title: 'Late Set', start: '2026-10-04T04:00:00Z', end: '2026-10-04T08:30:00Z', timezone: LA },
@@ -34,8 +34,46 @@ describe('buildCalendarEvent', () => {
     );
 
     expect(event.start).toEqual({ date: '2026-10-03' });
-    expect(event.end).toEqual({ date: '2026-10-05' });
+    expect(event.end).toEqual({ date: '2026-10-04' });
     expect(event.description.split('\n')[0]).toBe('Oct 3, 9:00 PM – Oct 4, 1:30 AM PDT');
+  });
+
+  it('shows both days when an overnight gig ends at 6:00 AM or later the next day', () => {
+    // 9:00 PM Oct 3 to exactly 6:00 AM Oct 4, then to 8:00 AM Oct 4, Los Angeles.
+    for (const end of ['2026-10-04T13:00:00Z', '2026-10-04T15:00:00Z']) {
+      const event = buildCalendarEvent(
+        { title: 'Dawn Set', start: '2026-10-04T04:00:00Z', end, timezone: LA },
+        null,
+        LINK,
+      );
+
+      expect(event.start).toEqual({ date: '2026-10-03' });
+      expect(event.end).toEqual({ date: '2026-10-05' });
+    }
+  });
+
+  it("applies the 6 AM cutoff in the gig's time zone, not UTC", () => {
+    // 9:00 PM Oct 3 to 5:30 AM Oct 4, Los Angeles: 04:00 to 12:30 on Oct 4 in UTC.
+    const event = buildCalendarEvent(
+      { title: 'All Nighter', start: '2026-10-04T04:00:00Z', end: '2026-10-04T12:30:00Z', timezone: LA },
+      null,
+      LINK,
+    );
+
+    expect(event.start).toEqual({ date: '2026-10-03' });
+    expect(event.end).toEqual({ date: '2026-10-04' });
+  });
+
+  it('keeps an early-morning gig that starts and ends on the same local day on that day', () => {
+    // 1:00 AM to 4:00 AM Oct 4, Los Angeles.
+    const event = buildCalendarEvent(
+      { title: 'After Hours', start: '2026-10-04T08:00:00Z', end: '2026-10-04T11:00:00Z', timezone: LA },
+      null,
+      LINK,
+    );
+
+    expect(event.start).toEqual({ date: '2026-10-04' });
+    expect(event.end).toEqual({ date: '2026-10-05' });
   });
 
   it('does not spill into the next day when a gig ends at exactly midnight', () => {
@@ -60,6 +98,18 @@ describe('buildCalendarEvent', () => {
     expect(event.start).toEqual({ date: '2026-10-09' });
     expect(event.end).toEqual({ date: '2026-10-12' });
     expect(event.description.split('\n')[0]).toBe('Oct 9, 10:00 AM – Oct 11, 6:00 PM PDT');
+  });
+
+  it('keeps every day of a multi-day gig that ends before 6 AM on its last day', () => {
+    // Fri Oct 9 8:00 PM to Sun Oct 11 2:00 AM, Los Angeles.
+    const event = buildCalendarEvent(
+      { title: 'Weekender', start: '2026-10-10T03:00:00Z', end: '2026-10-11T09:00:00Z', timezone: LA },
+      null,
+      LINK,
+    );
+
+    expect(event.start).toEqual({ date: '2026-10-09' });
+    expect(event.end).toEqual({ date: '2026-10-12' });
   });
 
   it('uses the local date when it differs from the UTC date', () => {

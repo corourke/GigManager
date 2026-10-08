@@ -4,6 +4,7 @@
 //
 // Every gig is sent as an all-day event covering its local dates in the gig's
 // time zone; the times and venue go at the top of the description instead.
+// An overnight gig ending before 6 AM the next day shows on its start day only.
 
 export interface CalendarGig {
   title: string;
@@ -45,6 +46,14 @@ function localDate(date: Date, timeZone: string): string {
   const p = parts(date, timeZone, { year: 'numeric', month: '2-digit', day: '2-digit' });
   return `${p.year}-${p.month}-${p.day}`;
 }
+
+// Local 24-hour "HH:MM", comparable as a string.
+function localTime(date: Date, timeZone: string): string {
+  const p = parts(date, timeZone, { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
+  return `${p.hour}:${p.minute}`;
+}
+
+const OVERNIGHT_CUTOFF = '06:00';
 
 function addDays(isoDate: string, days: number): string {
   const d = new Date(`${isoDate}T00:00:00Z`);
@@ -93,6 +102,10 @@ export function buildCalendarEvent(
     startDate = localDate(start, timeZone);
     // A gig ending at exactly local midnight ends on the day before.
     lastDate = end ? localDate(new Date(end.getTime() - 1), timeZone) : startDate;
+    // An overnight gig ending before 6 AM the next day shows on its start day only.
+    if (end && localDate(end, timeZone) === addDays(startDate, 1) && localTime(end, timeZone) < OVERNIGHT_CUTOFF) {
+      lastDate = startDate;
+    }
     if (!end) {
       timesLine = `${time(start, timeZone)} ${zoneName(start, timeZone)}`;
     } else if (localDate(end, timeZone) === startDate) {
