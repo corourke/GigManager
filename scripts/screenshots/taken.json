@@ -18,7 +18,7 @@
     ],
     "anchor": "2026-10-07",
     "taken": "2026-10-08",
-    "appCommit": "0d403f9"
+    "appCommit": "c8ce9b5"
   },
   "financials/reporting-income": {
     "page": "financials/reporting.md",
@@ -120,7 +120,7 @@
     ],
     "anchor": "2026-10-07",
     "taken": "2026-10-08",
-    "appCommit": "0d403f9"
+    "appCommit": "c8ce9b5"
   },
   "getting-started/the-dashboard-staff-cards": {
     "page": "getting-started/the-dashboard.md",
@@ -130,7 +130,7 @@
     ],
     "anchor": "2026-10-07",
     "taken": "2026-10-08",
-    "appCommit": "0d403f9"
+    "appCommit": "c8ce9b5"
   },
   "gigs/calendar-view-month": {
     "page": "gigs/calendar-view.md",
@@ -162,7 +162,7 @@
     ],
     "anchor": "2026-10-07",
     "taken": "2026-10-08",
-    "appCommit": "0d403f9"
+    "appCommit": "c8ce9b5"
   },
   "gigs/conflict-detection-gig-page": {
     "page": "gigs/conflict-detection.md",
@@ -172,8 +172,8 @@
       "src/services/conflictDetection.service.ts"
     ],
     "anchor": "2026-10-07",
-    "taken": "2026-10-07",
-    "appCommit": "7c87dfb"
+    "taken": "2026-10-08",
+    "appCommit": "c8ce9b5"
   },
   "gigs/creating-a-gig-form": {
     "page": "gigs/creating-a-gig.md",
