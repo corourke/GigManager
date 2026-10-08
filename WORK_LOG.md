@@ -5,6 +5,8 @@ Append new entries at the top of each section; never edit an old entry to descri
 
 ## Shipped (newest first)
 
+- **PR #189 and PR #191** (Docs Lead, merged 10-08 by the coordinator with Cameron's go): Settings, Google Calendar, home page, organizations and access-request docs checked against the app with new screenshots; the Reporting page (draft); the demo seed runs on the 20261012–14 schema and seeds a moderator, a claim request and notifications.
+
 | Work | Shipped in | Notes |
 |---|---|---|
 | Prod deploy (10-08, Cameron): migrations `20261013000000` (recovery period) and `20261014000000` (equipment items: 197 records → 158 items); 2024–25 recovery periods set to 7-year by SQL (144 records) | — | Verified read-only: every depreciated item has a period, none on non-depreciated |
