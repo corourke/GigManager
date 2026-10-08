@@ -5,6 +5,8 @@ Append new entries at the top of each section; never edit an old entry to descri
 
 ## Shipped (newest first)
 
+- **PR #199** (coordinator's sub-agent, merged 10-08 evening): #174 frontend: Managers aren't offered Admin anywhere (shared `canAssignRole`), an Admin's role is read-only for Managers, your own role cell is read-only, a failed invite email no longer says "Invitation sent!". Left open: the database function's wrong tab name (needs a migration).
+
 - **PR #198** (coordinator's sub-agents, merged 10-08 evening): #158, #159, #168, #169 (with `remark-breaks`: 13 of 19 prod notes use single line breaks), #170, #171 (delete confirmation only), #173 (incl. the server dropping timezone), #176, #188, #193 (screens on demand: main bundle 2,097,245 → 1,949,126 bytes), #194, and overnight gigs on Google Calendar. `server` deployed to dev (v42). Also merged 10-08: PR #197 (Gig Accounting: Booked; Owed to you on Completed gigs only) and PR #190 (Equipment Lead, #157 dashboard total; `server` on dev v41).
 
 - **Prod deploy (10-08 evening, Cameron):** main at PR #196, with migration `20261015000000` (#178 person and organization search) and the `npm audit fix` lockfile (PR #196). Verified read-only: `search_people` and `search_organizations` exist, `search_users_secure` is gone.

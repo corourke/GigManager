@@ -67,7 +67,7 @@ This file lives on `main`. Land updates there promptly: a run that starts from `
 
 Pure refactor: no migrations, no edge-function or UI changes. Tests, typecheck, lint and build pass per PR.
 
-Not released: #175 (needs a design pass). **Coordinator, 10-08 evening (sub-agents): #174's UI half (Managers aren't offered Admin; own role cell; invitation-sent message; tab name) and #92 (replace-all saves delete only rows the form loaded and removed).**
+Not released: #175 (needs a design pass). **Coordinator, 10-08 evening (sub-agents): #92 (replace-all saves delete only rows the form loaded and removed).** #174's UI half shipped in PR #199; its remaining item (the already-active error names the tab "Add Existing User") is in a database function and waits for the next membership migration.
 
 **Never pre-approved:** migrations or any RLS/policy change (Cameron applies migrations), edge-function API shape, production config or `deploy_prod.sh`.
 
