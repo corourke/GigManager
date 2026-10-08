@@ -5,6 +5,8 @@ Append new entries at the top of each section; never edit an old entry to descri
 
 ## Shipped (newest first)
 
+- **#182, PR #192** (Equipment Lead, merged by the coordinator 10-08): Equipment › Items tab (one row per item, units and lots beneath, Every unit & lot toggle), item page, unit/lot form; screens lazy-loaded, default 2 MiB cache limit kept.
+
 - **#125 mileage rates, PR #202** (coordinator's sub-agent, merged 10-08 evening): date-ranged IRS rates (2023 65.5¢ … 2026-07-01 76¢), priced by the trip's date; F1 SQL for the 19 existing rows posted on #125 for Cameron.
 
 - **#125 Grey zone report, PR #201** (coordinator's sub-agent, merged 10-08 evening): Financials → Reporting → Grey zone lists equipment lines costing $200–$2,500 each in the year with their treatment; Change… opens the purchase editor in unlocked years; CSV.

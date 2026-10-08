@@ -9,7 +9,7 @@
 
 This file lives on `main`. Land updates there promptly: a run that starts from `main` won't see edits parked on a feature branch.
 
-- **Last updated:** 2026-10-08 evening (coordinator: PRs #197–#202 merged; #192 waits on the Equipment Lead's merge of main)
+- **Last updated:** 2026-10-08 (coordinator: PRs #192 and #197–#202 merged)
 
 ---
 
@@ -86,7 +86,7 @@ Not released: #175 (needs a design pass). #174's UI half shipped in PR #199; its
 
 **Pace through 10-17 (Cameron, 10-08):** keep triage and the leads busy. Cameron (10-08 evening): sub-agents do the coordinator's builds; the coordinator reviews, merges and may deploy to **dev** with `./deploy_dev.sh` (never prod). The coordinator checks in at least every 4 hours (Routine `trig_01JWAcm3QHRpyaQXGNVA8w8m`, which disables itself after 10-17) to queue work, review ready PRs and ask Cameron about blockers.
 
-**Equipment Lead** (next: merge `main` into PR #192, which conflicts only in `src/routes/screens.tsx`; the coordinator merges it on green; then #183) (`session_013gAYYf2hpcECG9QpxFz5Vo`, Supabase Dev environment, no prod access) owns #181–#186, the grouping review and the items screens, and reviews #180 from the screens side. The coordinator owns #179 and #180 and supplies prod data the Lead can't reach. It reports on #162 and each sub-issue.
+**Equipment Lead** (next: #183; PR #192 (#182) merged 10-08) (`session_013gAYYf2hpcECG9QpxFz5Vo`, Supabase Dev environment, no prod access) owns #181–#186, the grouping review and the items screens, and reviews #180 from the screens side. The coordinator owns #179 and #180 and supplies prod data the Lead can't reach. It reports on #162 and each sub-issue.
 
 **Docs Lead** ("GigWrangler Docs Lead", Supabase Dev environment, no prod access) owns the user guide (`website/docs/`) and its screenshots, from the demo organization in dev. It may create GitHub issues. Its decisions so far: visual style A (app match); the demo data and seed (`scripts/seed-demo.sql`, logins in `scripts/README.md`; dev holds only demo data since 10-07); screenshots from `scripts/screenshots/` at a pinned date, refreshed at each production release.
 
@@ -94,7 +94,7 @@ Not released: #175 (needs a design pass). #174's UI half shipped in PR #199; its
 1. **Check the pages tonight's PRs edited** (#197–#201; their sub-agents wrote the sentences, so verify each against dev and fix the wording): `financials/gig-accounting.md` (Booked; Owed to you only on Completed gigs), `getting-started/the-dashboard.md` (Staff see Owned only), `gigs/documents-and-notes.md` (Markdown notes), `gigs/conflict-detection.md`, `gigs/staffing-and-participants.md` (delete confirmation), `gigs/the-gig-list.md`, `team/member-profiles.md` (Edit, Timezone), `team/invitations.md`, `team/team-and-roles.md`, `reference/roles-and-access.md`, `settings/overview.md` (Edit Organization button), `settings/google-calendar.md` (overnight gigs), `financials/reporting.md` (Grey zone, disposal-only years).
 2. **Screenshots now unblocked:** the dashboard cards (#157 is fixed), `team/member-profiles` (the Contacts card no longer clips, #176), the conflict banner, and the Reporting tab's Grey zone.
 3. **Publish `financials/reporting.md`** and link it from the Financials overview and Tax treatment pages.
-4. The demo seed's equipment rework for equipment items (§3d) when #192 merges.
+4. The demo seed's equipment rework for equipment items (§3d): #192 has merged, so this can start.
 
 **Triage routine** (daily, ~09:00 UTC). Each run:
 1. Check CI and mergeability on its own open PRs; fix a red or conflicted one by merging `main` in, never by rebasing.
