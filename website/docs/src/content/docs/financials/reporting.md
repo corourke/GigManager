@@ -1,7 +1,6 @@
 ---
 title: Reporting
 description: Income, Expenses, Assets and Grey zone reports for each tax year, with CSV downloads to hand to your tax program or accountant.
-draft: true
 sidebar:
   order: 8
 ---

@@ -9,7 +9,7 @@
 
 This file lives on `main`. Land updates there promptly: a run that starts from `main` won't see edits parked on a feature branch.
 
-- **Last updated:** 2026-10-08 (prod deploy held until the equipment refactor is done; main on dev)
+- **Last updated:** 2026-10-08 20:15 UTC (coordinator check-in: PRs #211, #212 merged; #175 decisions in progress)
 
 ---
 
@@ -28,9 +28,8 @@ This file lives on `main`. Land updates there promptly: a run that starts from `
 
 ## 2. Waiting on Cameron
 
-1. **Dev email flows:** custom SMTP (Mailtrap) is set on dev. Check that an invitation, a sign-up confirmation and a password reset arrive in the Mailtrap inbox (only Cameron can see it), then the Docs Lead can take its held screenshots.
-2. **Prod deploy held (Cameron, 10-08)** until the equipment refactor (#183–#186) is complete. Main is on dev (PR #205 deployed to dev 10-08; dev migrated to `20261016000000` 10-08). The held deploy carries migration `20261016000000_staff_rate_unit.sql` (#171) and everything merged after PR #204; run it with `deploy_prod.sh` (migration before frontend).
-3. **Sentry:** (a) add `VITE_SENTRY_DSN` (React project DSN) to `.env.production.local` before the held prod deploy; the live web app has none baked in (see `docs/technical/deployment.md`, PR #208). (b) Optional: `SENTRY_API_TOKEN`, `SENTRY_ORG_SLUG`, `SENTRY_PROJECT_SLUG` on prod for the health check's Sentry check (reports "not configured" until set). Edge-function `SENTRY_DSN` / `SENTRY_ENVIRONMENT` are set on both projects.
+1. **Prod deploy held (Cameron, 10-08)** until the equipment refactor (#183–#186) is complete. Main is on dev (PR #205 deployed to dev 10-08; dev migrated to `20261016000000` 10-08). The held deploy carries migration `20261016000000_staff_rate_unit.sql` (#171) and everything merged after PR #204; run it with `deploy_prod.sh` (migration before frontend).
+2. **Sentry:** (a) add `VITE_SENTRY_DSN` (React project DSN) to `.env.production.local` before the held prod deploy; the live web app has none baked in (see `docs/technical/deployment.md`, PR #208). (b) Optional: `SENTRY_API_TOKEN`, `SENTRY_ORG_SLUG`, `SENTRY_PROJECT_SLUG` on prod for the health check's Sentry check (reports "not configured" until set). Edge-function `SENTRY_DSN` / `SENTRY_ENVIRONMENT` are set on both projects.
 
 **Decided 10-08, recorded here until done:**
 - The Docs Lead's corrected membership report (private; reported to Cameron directly): no path lets a Manager make anyone an Admin. The remaining backstop gaps are **parked** (Cameron: later). Partner organizations on a shared gig may keep adding, editing and removing each other's no-login contacts (intended). Person-search privacy is fixed by #178 (in prod 10-08).
@@ -75,16 +74,6 @@ Not released: #175 (needs a design pass). #174's UI half shipped in PR #199; its
 
 (none open: the 10-07 entries are filed as #157–#160, #168–#171, #173–#176 and #178, and their decisions are in §1 and §2)
 
-- **Docs Lead queue, status 10-08 evening.**
-  - Items 1–2: PR #207, merged. All pages checked; six wording fixes; dashboard, conflict-banner and Grey zone screenshots taken.
-  - Item 3: PR #209 merged; PR #211 publishes the page (Cameron, 10-08). Until #211 merges, the Overview and Tax treatment links 404.
-  - Item 4: PR #210, merged: the seed with items, units, lots, "N × any" kit lines and per-line tax treatment, as Cameron chose 10-08. Dev is reseeded.
-- **Dev email flows, 2026-10-08 (Docs Lead): all three work on dev.**
-  - **Invitation:** sent 18:52 UTC to `docs-invite-1008@example.com`. It arrived in Mailtrap, and Cameron accepted it ("Invitation Accepted! … You're all set, Ingrid!").
-  - **Password reset:** sent 18:52 UTC to `demo-viewer@gigwrangler.test`. It arrived, and the link opened "Reset your password".
-  - **Sign-up confirmation:** dev had "Confirm email" off (`mailer_autoconfirm: true`), so the first try sent nothing. Cameron turned it on for dev and prod. The re-run at 19:34 UTC for `docs-signup2-1008@example.com` returned `confirmation_sent_at` 19:34:28, and the app showed "Please check your email to confirm your account before signing in." **Cameron: please check the Mailtrap inbox for this one.** I'll delete that account once it's confirmed; the other two test accounts are already deleted, and dev is reseeded.
-  - **Landing-page screenshots** (accept invitation, set new password, confirmed sign-up) need a live link from the email. `auth.admin.generateLink` would need the service-role key, which the Docs Lead doesn't use. They stay held until Cameron passes a fresh link, or allows a server-side `generateLink` run.
-  - **Links in the emails:** dev's `site_url` and redirect allow list are `http://localhost:3000` only, so the links open localhost.
 - **Member page Edit has no Organization Role (#206, Docs Lead, 10-08).** The details page doesn't pass `currentUserRole` to `EditMemberDialog`. A one-line fix; the guide points role changes at Team → Edit Permissions until then.
 - **Units from one multi-quantity depreciated purchase line (Docs Lead, 10-08; for #183).**
   - The database finds a unit's depreciated line by `purchases.asset_id`, so only one unit per line counts as depreciated or can hold a recovery period. Its siblings (same `purchase_line_id`) count as not depreciated.

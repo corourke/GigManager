@@ -39,7 +39,11 @@ is refused with a message. Use the **Existing User** tab instead.
 The invitee follows the link in the email. If they're new to GigWrangler, they
 complete their profile first (see
 [Getting into an organization](/getting-started/organizations/)). They then see
-"Invitation Accepted!" and a **Go to Dashboard** button.
+"Invitation Accepted!", with "You've successfully joined" your organization, and
+a **Go to Dashboard** button. If the link has expired, they see "Link Expired or
+Invalid"; invite them again to send a new one.
+
+![The Invitation Accepted screen: "You're all set, Ingrid! You've successfully joined Demo Sound & Lighting." above Go to Dashboard](../../../assets/screenshots/team/invitations-accepted.png)
 
 ## Adding someone who already has an account
 
