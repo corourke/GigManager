@@ -73,6 +73,7 @@ vi.mock('../services/conflictDetection.service', () => ({
 
 import { getGigsForOrganization } from '../services/gig.service';
 import { downloadGigCsv } from '../utils/gigExport';
+import { checkAllConflictsForGigs } from '../services/conflictDetection.service';
 
 const organization = { id: 'org-1', name: 'Test Org' } as any;
 const user = { id: 'user-1', name: 'Test User' } as any;
@@ -297,6 +298,59 @@ describe('GigListScreen', () => {
       for (const name of moneyColumns) {
         expect(headerRow).not.toContain(name);
       }
+    });
+  });
+
+  describe('the conflict banner View button (#170)', () => {
+    const conflict = {
+      level: 'conflict' as const, type: 'staff' as const,
+      gig_id: 'gig-future', gig_title: 'Upcoming Show',
+      start: futureGig.start, end: futureGig.end,
+      details: { conflicting_staff: [{ user_id: 'u-1', name: 'Sam Whitfield' }] },
+    };
+
+    const renderScreen = (viewMode: 'list' | 'calendar', onViewGig: (id: string, fromCalendar?: boolean) => void) =>
+      render(
+        <GigListScreen
+          organization={organization}
+          user={user}
+          userRole="Admin"
+          viewMode={viewMode}
+          onBack={noop}
+          onCreateGig={noop}
+          onViewGig={onViewGig}
+          onEditGig={noop}
+          onNavigateToDashboard={noop}
+          onNavigateToGigs={noop}
+          onNavigateToAssets={noop}
+          onSwitchOrganization={noop}
+          onLogout={noop}
+        />
+      );
+
+    beforeEach(() => {
+      vi.mocked(checkAllConflictsForGigs).mockResolvedValue([conflict]);
+    });
+
+    it('from the list, opens the gig with Back to Gigs', async () => {
+      const ue = userEvent.setup();
+      const onViewGig = vi.fn();
+      renderScreen('list', onViewGig);
+
+      await ue.click(await screen.findByRole('button', { name: 'View' }));
+
+      expect(onViewGig).toHaveBeenCalledWith('gig-future');
+      expect(onViewGig.mock.calls[0][1]).toBeFalsy();
+    });
+
+    it('from the calendar, opens the gig with Back to Calendar', async () => {
+      const ue = userEvent.setup();
+      const onViewGig = vi.fn();
+      renderScreen('calendar', onViewGig);
+
+      await ue.click(await screen.findByRole('button', { name: 'View' }));
+
+      expect(onViewGig).toHaveBeenCalledWith('gig-future', true);
     });
   });
 });

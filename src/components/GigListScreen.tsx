@@ -746,8 +746,7 @@ export default function GigListScreen({
                   <div className="mb-4">
                     <ConflictWarning
                       conflicts={conflicts}
-                      onViewGig={(id) => onViewGig(id, true)}
-
+                      onViewGig={(id) => onViewGig(id)}
                     />
                   </div>
                 )}

@@ -424,6 +424,52 @@ describe('conflictDetection.service', () => {
       expect(equipConflicts[0].details.conflicting_asset_ids).toContain('shared-asset');
     });
 
+    it('regression (#170): names the kits and shared assets, as the banner expects', async () => {
+      const gigs = [
+        { id: 'gig-1', title: 'Gig A', start: '2026-03-01T18:00:00Z', end: '2026-03-01T22:00:00Z' },
+        { id: 'gig-2', title: 'Gig B', start: '2026-03-01T20:00:00Z', end: '2026-03-02T00:00:00Z' },
+      ];
+
+      mockSupabase = createBatchMock([
+        { table: 'gig_staff_slots', response: { data: [], error: null } },
+        { table: 'gig_participants', response: { data: [], error: null } },
+        {
+          table: 'gig_kit_assignments',
+          response: {
+            data: [
+              { gig_id: 'gig-1', kit_id: 'kit-mine', kit: { id: 'kit-mine', name: 'Main PA' } },
+              { gig_id: 'gig-2', kit_id: 'kit-theirs', kit: { id: 'kit-theirs', name: 'Mic Case' } },
+            ],
+            error: null,
+          },
+        },
+        {
+          table: 'kit_flattened_cache',
+          response: {
+            data: [
+              { kit_id: 'kit-mine', asset_id: 'shared-asset', asset: { manufacturer_model: 'Shure SM58', tag_number: 'M-12' } },
+              { kit_id: 'kit-mine', asset_id: 'only-mine', asset: { manufacturer_model: 'QSC K12', tag_number: null } },
+              { kit_id: 'kit-theirs', asset_id: 'shared-asset', asset: { manufacturer_model: 'Shure SM58', tag_number: 'M-12' } },
+            ],
+            error: null,
+          },
+        },
+      ]);
+      (createClient as any).mockReturnValue(mockSupabase);
+      const { checkAllConflictsForGigs } = await import('./conflictDetection.service');
+
+      const result = await checkAllConflictsForGigs(gigs);
+      // Each entry names its own gig's kits, as the single-gig check does.
+      const onGigA = result.find(c => c.type === 'equipment' && c.gig_id === 'gig-1');
+      const onGigB = result.find(c => c.type === 'equipment' && c.gig_id === 'gig-2');
+      expect(onGigA?.details.conflicting_kits).toEqual([
+        { kit_id: 'kit-mine', kit_name: 'Main PA', shared_assets: ['Shure SM58 (#M-12)'] },
+      ]);
+      expect(onGigB?.details.conflicting_kits).toEqual([
+        { kit_id: 'kit-theirs', kit_name: 'Mic Case', shared_assets: ['Shure SM58 (#M-12)'] },
+      ]);
+    });
+
     it('should NOT detect conflicts for non-overlapping gigs', async () => {
       const gigs = [
         { id: 'gig-1', title: 'Gig A', start: '2026-03-01T10:00:00Z', end: '2026-03-01T12:00:00Z' },
