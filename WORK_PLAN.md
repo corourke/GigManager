@@ -17,9 +17,9 @@ This file lives on `main`. Land updates there promptly: a run that starts from `
 
 | # | Item | State | Next / owner |
 |---|---|---|---|
-| [#125](https://github.com/corourke/GigManager/issues/125) | Financials → Reporting: tax-program data export | Part 1 merged (PR #167): recovery period on equipment, and Income / Expenses / Assets reports with CSV | Cameron: apply `20261013000000` to dev and check. Then coordinator: mileage rates (F1); Schedule C summary, Needs attention and Grey zone if wanted |
+| [#125](https://github.com/corourke/GigManager/issues/125) | Financials → Reporting: tax-program data export | Part 1 merged (PR #167): recovery period on equipment, and Income / Expenses / Assets reports with CSV | In dev and prod 10-08 (2024–25 set to 7-year per the filed returns). Next, coordinator: mileage rates (F1); Schedule C summary, Needs attention and Grey zone if wanted |
 | [#162](https://github.com/corourke/GigManager/issues/162) | Equipment items and units (serials, tags, quantities, kits); parent of #179–#186 | Mockups approved and merged 10-08 (PR #165, `docs/design/mockups/equipment-units/`); split into sub-issues | See the rows below |
-| [#181](https://github.com/corourke/GigManager/issues/181) | Data grouping review for Cameron | Needs #179; before #180 runs on prod. Coordinator supplies the prod data | Equipment Lead |
+| [#181](https://github.com/corourke/GigManager/issues/181) | Data grouping review for Cameron | #180 is in prod (158 items); regrouping is now a data change. Coordinator supplies prod data | Equipment Lead |
 | [#182](https://github.com/corourke/GigManager/issues/182)–[#186](https://github.com/corourke/GigManager/issues/186) | Items screens: (a) Items tab, item page, unit/lot form, dashboard total (closes #157); (b) purchases, CSV import; (c) kit editor, overlap; (d) packing list, gig equipment, scanning; (e) locations, override, maintenance (closes #160) | (a) can start (#180 on dev 10-08); b and c after a; d after c; e after d | Equipment Lead |
 | [#135](https://github.com/corourke/GigManager/issues/135) | Audit and fix 2026 purchase data | Unblocked once the reports are on dev; they show what needs fixing | Coordinator with Cameron; each prod data fix needs his go |
 | [#92](https://github.com/corourke/GigManager/issues/92) | Replace-all autosave can delete rows another user or tab added | Confirmed by reading the code (09-29 review) | Coordinator, not started |
@@ -33,14 +33,12 @@ This file lives on `main`. Land updates there promptly: a run that starts from `
 
 ## 2. Waiting on Cameron
 
-1. **Apply migration `20261013000000_asset_recovery_period.sql` to dev** (PR #167), deploy the frontend, and check Financials → Reporting. Prod later, with the usual backup.
-2. **Private security finding in the membership RPCs** (Docs Lead, 10-07): details went to Cameron directly, because this repo is public. Needs a migration (coordinator) once he gives the go. Until then, hold the `docs/technical/security-scheme.md` update.
-3. **After `20261013000000` reaches prod: set the 2024 and 2025 recovery periods to 7 years** (144 records). The filed Form 4562s (read 10-08, then deleted) put all of both years' property in the 7-year class. SQL: `update assets a set recovery_period = 7, updated_at = now() where a.recovery_period is null and exists (select 1 from purchases l left join purchases h on h.id = l.parent_id where l.asset_id = a.id and l.tax_treatment = 'depreciate' and extract(year from coalesce(l.purchase_date, h.purchase_date)) in (2024, 2025));` Filling a blank period is allowed in a filed year. Settled 10-08 (Cameron): 2024's return has $1,838 of equipment, GigWrangler $1,527.63; the gap is accepted (it can't be rebuilt from the invoices or the old spreadsheet, and the recovery period is 7-year either way). The Waves plugins stay depreciated. 2025 matches ($42,155 vs $42,156.57).
-4. **Small bugs from the Docs Lead** (#158, #159, #168–#171, #173, #176, #178): release them to triage?
-5. **Email simulation on dev** (Docs Lead): Cameron wants to show the invitation, sign-up and password-reset flows with the demo `.test` logins. Hosted dev sends real mail. Options: a dev-only SMTP catcher (e.g. Mailpit) behind the dev project's custom SMTP, or a dev-only "generate link" admin route.
-6. **Organization delete by its own Admin:** `DELETE /organizations/:id` counts the calling Admin as a member, so a claimed org can never be deleted from the app. Ignore the caller's own membership, or keep it impossible?
-7. **Overnight gigs on Google Calendar:** a 9 PM–1:30 AM gig shows on both days. Show a gig ending before 6 AM on its start day only?
-8. **Sentry secrets** (optional): `SENTRY_API_TOKEN`, `SENTRY_ORG_SLUG`, `SENTRY_PROJECT_SLUG`; the health check reports "not configured" until set.
+1. **Private security finding in the membership RPCs** (Docs Lead, 10-07): details went to Cameron directly, because this repo is public. Needs a migration (coordinator) once he gives the go. Until then, hold the `docs/technical/security-scheme.md` update.
+2. **Small bugs from the Docs Lead** (#158, #159, #168–#171, #173, #176, #178): release them to triage?
+3. **Email simulation on dev** (Docs Lead): Cameron wants to show the invitation, sign-up and password-reset flows with the demo `.test` logins. Hosted dev sends real mail. Options: a dev-only SMTP catcher (e.g. Mailpit) behind the dev project's custom SMTP, or a dev-only "generate link" admin route.
+4. **Organization delete by its own Admin:** `DELETE /organizations/:id` counts the calling Admin as a member, so a claimed org can never be deleted from the app. Ignore the caller's own membership, or keep it impossible?
+5. **Overnight gigs on Google Calendar:** a 9 PM–1:30 AM gig shows on both days. Show a gig ending before 6 AM on its start day only?
+6. **Sentry secrets** (optional): `SENTRY_API_TOKEN`, `SENTRY_ORG_SLUG`, `SENTRY_PROJECT_SLUG`; the health check reports "not configured" until set.
 
 ## 3. Ready work and agent lanes
 

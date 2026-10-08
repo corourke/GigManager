@@ -7,6 +7,7 @@ Append new entries at the top of each section; never edit an old entry to descri
 
 | Work | Shipped in | Notes |
 |---|---|---|
+| Prod deploy (10-08, Cameron): migrations `20261013000000` (recovery period) and `20261014000000` (equipment items: 197 records → 158 items); 2024–25 recovery periods set to 7-year by SQL (144 records) | — | Verified read-only: every depreciated item has a period, none on non-depreciated |
 | #180 (Equipment items migration): `equipment_items`, units and lots, kit item lines with `kit_flattened_item_cache`, scan quantities, purchase-line mirror | PR #187 (10-08) | On dev 10-08 (26 records → 26 items). Prod later via `deploy_prod.sh`, after #181 |
 | #179 (Equipment categories sweep): Rigging and Truss category, 24 records moved; N/A serials cleared; pack quantities and costs fixed; 14 names cleaned; 197 records → 158 items | Prod SQL run by Cameron (10-08) | Closed 10-08; backup of the 24 moved rows in the coordinator scratchpad |
 | #125, part 1 ([Financials → Reporting](https://github.com/corourke/GigManager/issues/125)): recovery period on equipment records (`assets.recovery_period`, category defaults, `service_life`/`dep_method` dropped); Income, Expenses and Assets reports with CSV | PR #167 (10-07) | Merged. Needs migration `20261013000000` on dev, then prod |
