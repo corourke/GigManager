@@ -74,6 +74,11 @@ Not released: #175 (needs a design pass). #174's UI half shipped in PR #199; its
 
 (none open: the 10-07 entries are filed as #157–#160, #168–#171, #173–#176 and #178, and their decisions are in §1 and §2)
 
+- **Docs Lead, 10-08 late: coordinator's next queue.**
+  - **Item 1, staff rate units (#171):** in PR #214, which adds demo rates per hour, day and half day, retakes the staffing shots and fixes the wording.
+  - **Item 2, Equipment Items pages: held.** Cameron chose to keep holding all of Equipment until #183–#186 land.
+  - **Item 3, #206:** the guide keeps pointing role changes at Team → Edit Permissions.
+- **Projected staff cost counts a rate as one unit (#213, Docs Lead, 10-08).** A $35 / hr stagehand projects as $35. This hits the staffing footer, the Financials tab's Projected staff costs and Gig Accounting. Options are in the issue for Cameron.
 - **Member page Edit has no Organization Role (#206, Docs Lead, 10-08).** The details page doesn't pass `currentUserRole` to `EditMemberDialog`. A one-line fix; the guide points role changes at Team → Edit Permissions until then.
 - **Units from one multi-quantity depreciated purchase line (Docs Lead, 10-08; for #183).**
   - The database finds a unit's depreciated line by `purchases.asset_id`, so only one unit per line counts as depreciated or can hold a recovery period. Its siblings (same `purchase_line_id`) count as not depreciated.
@@ -156,7 +161,7 @@ Not released: #175 (needs a design pass). #174's UI half shipped in PR #199; its
 | `gigs/overview.md` | published | 2026-10-07 (Docs Lead, PR #166/#177) | Delete is Admin-only fix lands with #177 |
 | `gigs/participating-organizations.md` | draft, written (PR #172, merged) | 2026-10-07 (Docs Lead) | ready to publish |
 | `gigs/schedule.md` | draft, written (PR #172, merged) | 2026-10-07 (Docs Lead) | ready to publish |
-| `gigs/staffing-and-participants.md` | draft, written (PR #172, merged) | 2026-10-08 (Docs Lead; rate units #171 checked) | ready to publish |
+| `gigs/staffing-and-participants.md` | draft, written (PR #172, merged) | 2026-10-08 (Docs Lead, PR #214) | ready to publish; #213 TODO on projected rates |
 | `gigs/the-gig-list.md` | draft, written (PR #172, merged) | 2026-10-08 (Docs Lead) | ready to publish |
 | `index.mdx` | published | 2026-10-08 (Docs Lead, PR #191, merged) | fixes in |
 | `mobile/biometric-unlock.md` | draft | — | held |
