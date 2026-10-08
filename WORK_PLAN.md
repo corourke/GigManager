@@ -28,7 +28,7 @@ This file lives on `main`. Land updates there promptly: a run that starts from `
 
 ## 2. Waiting on Cameron
 
-1. **Prod deploy held (Cameron, 10-08)** until the equipment refactor (#183–#186) is complete. Main is on dev (PR #205 deployed to dev 10-08; dev migrated to `20261016000000` 10-08). The held deploy carries migrations `20261016000000_staff_rate_unit.sql` (#171) and `20261017000000_purchase_line_units.sql` (#183 piece A, PR #216; on dev 10-08), and everything merged after PR #204; run it with `deploy_prod.sh` (migration before frontend).
+1. **Prod deploy held (Cameron, 10-08)** until the equipment refactor (#183–#186) is complete. Main is on dev (functions deployed from main `571b636` at 23:58 UTC 10-08 — server v46, ai-scan v34, health-check v6; dev migrations match the repo through `20261017000000`). The held deploy carries migrations `20261016000000_staff_rate_unit.sql` (#171) and `20261017000000_purchase_line_units.sql` (#183 piece A, PR #216; on dev 10-08), and everything merged after PR #204; run it with `deploy_prod.sh` (migration before frontend).
 2. **Sentry:** (a) add `VITE_SENTRY_DSN` (React project DSN) to `.env.production.local` before the held prod deploy; the live web app has none baked in (see `docs/technical/deployment.md`, PR #208). (b) Optional: `SENTRY_API_TOKEN`, `SENTRY_ORG_SLUG`, `SENTRY_PROJECT_SLUG` on prod for the health check's Sentry check (reports "not configured" until set). Edge-function `SENTRY_DSN` / `SENTRY_ENVIRONMENT` are set on both projects.
 
 **Decided 10-08, recorded here until done:**
