@@ -29,7 +29,8 @@ This file lives on `main`. Land updates there promptly: a run that starts from `
 ## 2. Waiting on Cameron
 
 1. **Dev email flows:** custom SMTP (Mailtrap) is set on dev. Check that an invitation, a sign-up confirmation and a password reset arrive in the Mailtrap inbox (only Cameron can see it), then the Docs Lead can take its held screenshots.
-2. **Sentry secrets** (optional): `SENTRY_API_TOKEN`, `SENTRY_ORG_SLUG`, `SENTRY_PROJECT_SLUG`; the health check reports "not configured" until set.
+2. **Apply migration `20261016000000_staff_rate_unit.sql` to dev** (#171, [PR #205](https://github.com/corourke/GigManager/pull/205)): adds the rate's time unit. The coordinator merges #205 once it's on dev. (A new coordinator session can apply it with `SUPABASE_DEV_ACCESS_TOKEN` instead.)
+3. **Sentry secrets** (optional): `SENTRY_API_TOKEN`, `SENTRY_ORG_SLUG`, `SENTRY_PROJECT_SLUG`; the health check reports "not configured" until set.
 
 **Decided 10-08, recorded here until done:**
 - The Docs Lead's corrected membership report (private; reported to Cameron directly): no path lets a Manager make anyone an Admin. The remaining backstop gaps are **parked** (Cameron: later). Partner organizations on a shared gig may keep adding, editing and removing each other's no-login contacts (intended). Person-search privacy is fixed by #178 (in prod 10-08).
@@ -64,7 +65,7 @@ This file lives on `main`. Land updates there promptly: a run that starts from `
 
 Pure refactor: no migrations, no edge-function or UI changes. Tests, typecheck, lint and build pass per PR.
 
-Not released: #175 (needs a design pass). **#171 rate unit:** Cameron 10-08: store a time unit on each rate (Hr, Day, ½ Day); a fee is flat. Coordinator (sub-agent) building it, with migration `20261016000000` for Cameron to apply. #174's UI half shipped in PR #199; its remaining item (the already-active error names the tab "Add Existing User") is in a database function and waits for the next membership migration.
+Not released: #175 (needs a design pass). **#171 rate unit:** Cameron 10-08: store a time unit on each rate (Hr, Day, ½ Day); a fee is flat. Built: PR #205, waiting on migration `20261016000000` on dev (§2). #174's UI half shipped in PR #199; its remaining item (the already-active error names the tab "Add Existing User") is in a database function and waits for the next membership migration.
 
 **Never pre-approved:** migrations or any RLS/policy change (Cameron applies migrations), edge-function API shape, production config or `deploy_prod.sh`.
 
