@@ -23,7 +23,7 @@ For tax purposes, each item is either an **expense** (deducted in the year you b
 
 - **Under $200 per item:** set to **Expense** for you.
 - **Over $2,500:** set to **Depreciate**.
-- **In between:** you choose. Until you do, the choice is outlined in amber and **Save Purchase** waits, with a note saying how many items still need a choice.
+- **In between:** you choose. Until you do, the choice is outlined in amber and **Save Purchase** waits, with a note saying how many items still need a choice. The [Grey zone report](/financials/reporting/#the-grey-zone-report) lists a year's in-between equipment, so you can check your choices before you file.
 
 You can change it until you file that year's taxes: **Edit** the purchase in **Financials → Purchases**. Whether you elect the de minimis safe harbor is decided when you file, so GigWrangler never forces it.
 
@@ -48,7 +48,7 @@ Your gig costs and your tax figures never double-count. A purchase linked to a g
 
 ## Recovery period
 
-Depreciated equipment also needs a recovery period: **5-year** (computers and office machines), **7-year** (most production gear) or **15-year** (building out a leased shop or studio). Your tax program uses it to work out the depreciation, and the **Assets** report under **Financials → Reporting** lists it for each item.
+Depreciated equipment also needs a recovery period: **5-year** (computers and office machines), **7-year** (most production gear) or **15-year** (building out a leased shop or studio). Your tax program uses it to work out the depreciation, and the [Assets report](/financials/reporting/#the-assets-report) under **Financials → Reporting** lists it for each item.
 
 Choose it in the equipment details on the purchase line, or in the equipment's own form, in **Recovery period**.
 
