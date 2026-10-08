@@ -134,7 +134,7 @@ Not released, staying with the coordinator: #174 (its server side is the private
 | `financials/receipts-and-invoices.md` | published | 2026-10-06 (coordinator, PR #136) | — |
 | `financials/tax-treatment.md` | published | 2026-10-06 (coordinator) | recovery periods now exist (PR #167); recheck |
 | `getting-started/onboarding.md` | published | 2026-10-06 (triage, PR #139); screenshots PR #163 | — |
-| `getting-started/organizations.md` | published | 2026-10-06 (triage, PR #139) | — |
+| `getting-started/organizations.md` | published | 2026-10-08 (Docs Lead, PR #191) | fixes and screenshots go live when #191 merges |
 | `getting-started/the-dashboard.md` | published | 2026-10-06 (triage, PR #139); screenshot PR #163 | dashboard shot held for #157 |
 | `getting-started/what-is-gigwrangler.md` | published | 2026-10-07 (Docs Lead, PR #164) | — |
 | `gigs/calendar-view.md` | draft, written (PR #172, merged) | 2026-10-07 (Docs Lead) | ready to publish |
@@ -147,22 +147,22 @@ Not released, staying with the coordinator: #174 (its server side is the private
 | `gigs/schedule.md` | draft, written (PR #172, merged) | 2026-10-07 (Docs Lead) | ready to publish |
 | `gigs/staffing-and-participants.md` | draft, written (PR #172, merged) | 2026-10-07 (Docs Lead) | ready to publish |
 | `gigs/the-gig-list.md` | draft, written (PR #172, merged) | 2026-10-07 (Docs Lead) | ready to publish |
-| `index.mdx` | published | — | not audited |
+| `index.mdx` | published | 2026-10-08 (Docs Lead, PR #191) | fixes go live when #191 merges |
 | `mobile/biometric-unlock.md` | draft | — | held |
 | `mobile/field-inventory.md` | draft | — | held: equipment rework (#162/#180) |
 | `mobile/offline-access.md` | draft | — | held |
 | `mobile/overview.md` | draft | — | held |
-| `reference/access-requests-and-moderation.md` | draft, written (PR #177) | 2026-10-07 (Docs Lead) | ready to publish once #177 merges |
+| `reference/access-requests-and-moderation.md` | draft, written (PR #177, merged) | 2026-10-07 (Docs Lead) | ready to publish |
 | `reference/glossary.md` | draft, written (PR #177) | 2026-10-07 (Docs Lead) | publish after the pages it links to |
-| `reference/roles-and-access.md` | published | 2026-10-07 (Docs Lead, PR #177) | corrections go live when #177 merges |
+| `reference/roles-and-access.md` | published | 2026-10-07 (Docs Lead, PR #177, merged) | — |
 | `settings/categories.md` | published | 2026-10-08 (Docs Lead, PR #189) | corrections go live when #189 merges |
 | `settings/google-calendar.md` | published | 2026-10-08 (Docs Lead, PR #189) | rewritten in #189; connected-state shot needs a Google account |
 | `settings/overview.md` | published | 2026-10-08 (Docs Lead, PR #189) | corrections go live when #189 merges |
-| `team/invitations.md` | draft, written (PR #177) | 2026-10-07 (Docs Lead) | ready to publish once #177 merges |
-| `team/member-profiles.md` | draft, written (PR #177) | 2026-10-07 (Docs Lead) | ready to publish once #177 merges |
-| `team/overview.md` | published | 2026-10-07 (Docs Lead, PR #177) | corrections go live when #177 merges |
-| `team/people-without-logins.md` | draft, written (PR #177) | 2026-10-07 (Docs Lead) | ready to publish once #177 merges |
-| `team/team-and-roles.md` | draft, written (PR #177) | 2026-10-07 (Docs Lead) | ready to publish once #177 merges |
+| `team/invitations.md` | draft, written (PR #177, merged) | 2026-10-07 (Docs Lead) | ready to publish |
+| `team/member-profiles.md` | draft, written (PR #177, merged) | 2026-10-07 (Docs Lead) | ready to publish |
+| `team/overview.md` | published | 2026-10-07 (Docs Lead, PR #177, merged) | — |
+| `team/people-without-logins.md` | draft, written (PR #177, merged) | 2026-10-07 (Docs Lead) | ready to publish |
+| `team/team-and-roles.md` | draft, written (PR #177, merged) | 2026-10-07 (Docs Lead) | ready to publish |
 
 **Project rules that bite** ([AGENTS.md](./AGENTS.md)): approval before going from plan to code (rule 1); a failing test before a bug fix (rule 3); never edit a committed migration, and Cameron applies new ones (rule 4); list manual deploy and verification steps (rule 7). Prod is read-only for agents unless Cameron approves a specific change.
 
