@@ -5,6 +5,8 @@ Append new entries at the top of each section; never edit an old entry to descri
 
 ## Shipped (newest first)
 
+- **#171, PR #205** (coordinator's sub-agent, merged by Cameron 10-08): each staff rate stores its time unit (`rate_unit`: hour / day / half_day, default hour; migration `20261016000000`, which also adds `rate_unit` to the staff self-edit guard). Editor picker, Finalize asks hours/days/half days, Staffing card and print sheet show the unit.
+
 - **Prod deploy (10-08, Cameron):** main through PR #204 (frontend and `server` v33, 15:32 UTC; no new migrations). #92 checked on dev first. **F1 run on prod:** 19 mileage rows repriced, $882.90 → $982.32, notes updated (verified read-only).
 
 - **#20 batch 2, PR #204** (coordinator's sub-agent, merged 10-08): activityLog, gigKit, gigParticipant, gigParticipantContacts, gigSchedule on `base/dataAccess.ts`; no behaviour change; 8 new tests.
