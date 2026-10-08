@@ -5,6 +5,8 @@ Append new entries at the top of each section; never edit an old entry to descri
 
 ## Shipped (newest first)
 
+- **#206, PR #215** (coordinator's sub-agent, merged 10-08): a member's details page **Edit** now shows **Organization Role**, following `canAssignRole` like Team → Edit Permissions; test first.
+
 - **User guide, PRs #207, #209–#212** (Docs Lead, merged 10-08): pages edited by #197–#201 verified (six fixes) with new dashboard, conflict-banner and Grey zone shots (#207); Financials → Reporting written (#209) and published (#211); demo seed reworked for equipment items (#210, dev reseeded); onboarding and invitations cover the email-link screens, with Cameron's hand-taken shots (#212).
 
 - **Dev email flows (10-08):** invitation, sign-up confirmation (Confirm email now on in dev and prod) and password reset all arrive in Mailtrap and their links work (Docs Lead ran them, Cameron confirmed). Dev `site_url` and redirect list are `http://localhost:3000` only, so dev email links open localhost.
