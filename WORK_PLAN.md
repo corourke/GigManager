@@ -75,7 +75,19 @@ Not released: #175 (needs a design pass). #174's UI half shipped in PR #199; its
 
 (none open: the 10-07 entries are filed as #157–#160, #168–#171, #173–#176 and #178, and their decisions are in §1 and §2)
 
-- **Demo seed vs equipment items (coordinator, 10-08).** #180 is merged and #189 made the seed run on it. The seed's equipment still needs a fuller rework for equipment items before the Equipment pages are shot.
+- **Docs Lead queue, status 10-08 evening.**
+  - Items 1–2 are in PR #207. All pages checked; six wording fixes; dashboard, conflict-banner and Grey zone screenshots taken.
+  - Item 3 is in PR #209, stacked on #207. It links Reporting from Overview and Tax treatment. **Flip `draft: true` to `false` on `financials/reporting.md` before merging, or the new links 404.**
+  - Item 4 is in PR #210: the seed with items, units, lots, "N × any" kit lines and per-line tax treatment, as Cameron chose 10-08. Dev is reseeded.
+- **Member page Edit has no Organization Role (#206, Docs Lead, 10-08).** The details page doesn't pass `currentUserRole` to `EditMemberDialog`. A one-line fix; the guide points role changes at Team → Edit Permissions until then.
+- **Units from one multi-quantity depreciated purchase line (Docs Lead, 10-08; for #183).**
+  - The database finds a unit's depreciated line by `purchases.asset_id`, so only one unit per line counts as depreciated or can hold a recovery period. Its siblings (same `purchase_line_id`) count as not depreciated.
+  - Seen in the demo seed: 4 moving heads on one line.
+  - Worth settling when #183 moves the purchase screens to `purchase_line_id`.
+- **"N × any" kit lines before #184–#185 (Docs Lead, 10-08).** These are expected gaps; they're listed so the Equipment Lead sees them in the demo data:
+  - The kit page shows them as "Unknown Kit × N" and leaves them out of its totals.
+  - The packing list omits them.
+  - Conflict detection doesn't count two overlapping gigs that each need any 4 of the 4 PA tops.
 
 - **Correction to the private membership finding (§2 item 3), Docs Lead, 10-08.** Tested on dev as the demo Manager, the escalation I reported on 10-07 is **not exploitable**: the `guard_organization_membership` trigger (`20260929000000`) blocks it on every path tried. What remains are low-severity defence-in-depth gaps. The full write-up (paths, test results, suggested fixes) went to Cameron privately on 10-08 to pass on. No migration is urgent; fold the fixes into the next membership or security migration.
 
@@ -130,27 +142,27 @@ Not released: #175 (needs a design pass). #174's UI half shipped in PR #199; its
 | `equipment/location-explorer.md` | draft | — | held: equipment rework (#162/#180) |
 | `equipment/overview.md` | published | — | held: equipment rework (#162/#180) |
 | `financials/cost-allocation.md` | published | 2026-10-06 (coordinator, PR #136) | — |
-| `financials/gig-accounting.md` | published | 2026-10-06 (coordinator, PR #136) | held: #125 money-type rework |
+| `financials/gig-accounting.md` | published | 2026-10-08 (Docs Lead, PR #207) | Owed to you: Completed or Settled; held: #125 money-type rework |
 | `financials/gig-expenses.md` | published | 2026-10-06 (coordinator, PR #136) | — |
-| `financials/overview.md` | published | 2026-10-08 (Docs Lead, PR #191, merged) | Tax time note updated |
+| `financials/overview.md` | published | 2026-10-08 (Docs Lead, PR #209) | links Reporting (merge with its publish) |
 | `financials/purchases.md` | published | 2026-10-06 (coordinator, PR #136) | — |
-| `financials/reporting.md` | draft, written (PR #191, merged) | 2026-10-08 (Docs Lead) | new page; ready to publish, then link it from overview and tax treatment |
+| `financials/reporting.md` | draft, ready (PR #209) | 2026-10-08 (Docs Lead, PRs #207/#209) | Grey zone checked and shot; publish with PR #209 |
 | `financials/receipts-and-invoices.md` | published | 2026-10-06 (coordinator, PR #136) | — |
-| `financials/tax-treatment.md` | published | 2026-10-08 (Docs Lead, PR #191, merged) | recovery periods documented |
+| `financials/tax-treatment.md` | published | 2026-10-08 (Docs Lead, PR #209) | links Grey zone and Assets reports |
 | `getting-started/onboarding.md` | published | 2026-10-06 (triage, PR #139); screenshots PR #163 | — |
 | `getting-started/organizations.md` | published | 2026-10-08 (Docs Lead, PR #191, merged) | fixes and screenshots in |
-| `getting-started/the-dashboard.md` | published | 2026-10-06 (triage, PR #139); screenshot PR #163 | dashboard shot held for #157 |
+| `getting-started/the-dashboard.md` | published | 2026-10-08 (Docs Lead, PR #207) | dashboard and Staff cards shots in |
 | `getting-started/what-is-gigwrangler.md` | published | 2026-10-07 (Docs Lead, PR #164) | — |
 | `gigs/calendar-view.md` | draft, written (PR #172, merged) | 2026-10-07 (Docs Lead) | ready to publish |
 | `gigs/change-history.md` | published | 2026-10-07 (triage, PR #151); screenshots PR #166 | — |
-| `gigs/conflict-detection.md` | draft, written (PR #172, merged) | 2026-10-07 (Docs Lead) | ready to publish |
+| `gigs/conflict-detection.md` | draft, written (PR #172, merged) | 2026-10-08 (Docs Lead, PR #207) | ready to publish; banner shot added |
 | `gigs/creating-a-gig.md` | published | 2026-10-07 (triage, PR #151); screenshots PR #166 | — |
-| `gigs/documents-and-notes.md` | draft, written (PR #172, merged) | 2026-10-07 (Docs Lead) | ready to publish |
+| `gigs/documents-and-notes.md` | draft, written (PR #172, merged) | 2026-10-08 (Docs Lead) | ready to publish |
 | `gigs/overview.md` | published | 2026-10-07 (Docs Lead, PR #166/#177) | Delete is Admin-only fix lands with #177 |
 | `gigs/participating-organizations.md` | draft, written (PR #172, merged) | 2026-10-07 (Docs Lead) | ready to publish |
 | `gigs/schedule.md` | draft, written (PR #172, merged) | 2026-10-07 (Docs Lead) | ready to publish |
-| `gigs/staffing-and-participants.md` | draft, written (PR #172, merged) | 2026-10-07 (Docs Lead) | ready to publish |
-| `gigs/the-gig-list.md` | draft, written (PR #172, merged) | 2026-10-07 (Docs Lead) | ready to publish |
+| `gigs/staffing-and-participants.md` | draft, written (PR #172, merged) | 2026-10-08 (Docs Lead; rate units #171 checked) | ready to publish |
+| `gigs/the-gig-list.md` | draft, written (PR #172, merged) | 2026-10-08 (Docs Lead) | ready to publish |
 | `index.mdx` | published | 2026-10-08 (Docs Lead, PR #191, merged) | fixes in |
 | `mobile/biometric-unlock.md` | draft | — | held |
 | `mobile/field-inventory.md` | draft | — | held: equipment rework (#162/#180) |
@@ -158,15 +170,15 @@ Not released: #175 (needs a design pass). #174's UI half shipped in PR #199; its
 | `mobile/overview.md` | draft | — | held |
 | `reference/access-requests-and-moderation.md` | draft, written (PR #177, merged) | 2026-10-07 (Docs Lead); screenshots PR #191 | ready to publish |
 | `reference/glossary.md` | draft, written (PR #177) | 2026-10-07 (Docs Lead) | publish after the pages it links to |
-| `reference/roles-and-access.md` | published | 2026-10-07 (Docs Lead, PR #177, merged) | — |
+| `reference/roles-and-access.md` | published | 2026-10-08 (Docs Lead, PR #207) | Add Item, not Add Asset |
 | `settings/categories.md` | published | 2026-10-08 (Docs Lead, PR #189, merged) | corrections in |
-| `settings/google-calendar.md` | published | 2026-10-08 (Docs Lead, PR #189, merged) | rewritten in #189; connected-state shot needs a Google account |
-| `settings/overview.md` | published | 2026-10-08 (Docs Lead, PR #189, merged) | corrections in |
-| `team/invitations.md` | draft, written (PR #177, merged) | 2026-10-07 (Docs Lead) | ready to publish |
-| `team/member-profiles.md` | draft, written (PR #177, merged) | 2026-10-07 (Docs Lead) | ready to publish |
+| `settings/google-calendar.md` | published | 2026-10-08 (Docs Lead, overnight rule checked) | connected-state shot needs a Google account |
+| `settings/overview.md` | published | 2026-10-08 (Docs Lead, Edit Organization button checked) | — |
+| `team/invitations.md` | draft, written (PR #177, merged) | 2026-10-08 (Docs Lead, PR #207) | ready to publish |
+| `team/member-profiles.md` | draft, written (PR #177, merged) | 2026-10-08 (Docs Lead, PR #207) | ready to publish; role edit via Team until #206 |
 | `team/overview.md` | published | 2026-10-07 (Docs Lead, PR #177, merged) | — |
 | `team/people-without-logins.md` | draft, written (PR #177, merged) | 2026-10-07 (Docs Lead) | ready to publish |
-| `team/team-and-roles.md` | draft, written (PR #177, merged) | 2026-10-07 (Docs Lead) | ready to publish |
+| `team/team-and-roles.md` | draft, written (PR #177, merged) | 2026-10-08 (Docs Lead) | ready to publish |
 
 **Project rules that bite** ([AGENTS.md](./AGENTS.md)): approval before going from plan to code (rule 1); a failing test before a bug fix (rule 3); never edit a committed migration, and Cameron applies new ones (rule 4); list manual deploy and verification steps (rule 7). Prod is read-only for agents unless Cameron approves a specific change.
 
