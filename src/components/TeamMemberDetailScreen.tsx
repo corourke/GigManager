@@ -267,6 +267,7 @@ export default function TeamMemberDetailScreen({
         orgId={organization.id}
         member={member}
         currentUserId={user.id}
+        currentUserRole={userRole}
         staffRoles={staffRoles}
         onSaved={loadMember}
       />
