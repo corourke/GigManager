@@ -526,7 +526,7 @@ export default function LoginScreen() {
 
         {/* Footer */}
         <div className="mt-6 text-center text-sm text-gray-600">
-          <p>© 2025 GigWrangler. All rights reserved.</p>
+          <p>© {new Date().getFullYear()} GigWrangler. All rights reserved.</p>
         </div>
       </div>
     </div>
