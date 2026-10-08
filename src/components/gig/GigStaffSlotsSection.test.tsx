@@ -116,4 +116,29 @@ describe('GigStaffSlotsSection', () => {
       expect(screen.getAllByPlaceholderText('Search for user...')).toHaveLength(before + 1);
     });
   });
+
+  it('asks before deleting a staff slot, naming its assigned people (#171)', async () => {
+    render(<GigStaffSlotsSection {...mockProps} />);
+
+    const deleteButton = await screen.findByRole('button', { name: 'Delete staff slot' });
+    const rows = screen.getAllByPlaceholderText('Search for user...').length;
+    fireEvent.click(deleteButton);
+
+    // The slot is still there until the deletion is confirmed.
+    const dialog = await screen.findByRole('alertdialog');
+    expect(dialog).toHaveTextContent('Delete staff slot?');
+    expect(dialog).toHaveTextContent('Sound Engineer');
+    expect(dialog).toHaveTextContent('John Doe');
+    expect(screen.getAllByPlaceholderText('Search for user...')).toHaveLength(rows);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument());
+    expect(screen.getAllByPlaceholderText('Search for user...')).toHaveLength(rows);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Delete staff slot' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Delete' }));
+    await waitFor(() => {
+      expect(screen.queryAllByPlaceholderText('Search for user...')).toHaveLength(0);
+    });
+  });
 });
