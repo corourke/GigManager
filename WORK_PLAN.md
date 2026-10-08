@@ -29,9 +29,8 @@ This file lives on `main`. Land updates there promptly: a run that starts from `
 ## 2. Waiting on Cameron
 
 1. **Dev mail catcher** (Cameron, 10-08: Mailtrap): create a free Mailtrap Email Testing inbox and send its SMTP host, port, user and password. The coordinator then points dev's Supabase Auth at it and checks the invitation, sign-up confirmation and password-reset flows with the demo `.test` logins.
-2. **#171 rate unit:** a staff rate always shows "/ hr", but nothing in the schema says whether a rate is hourly, daily or flat. Either add a unit (a migration on `gig_staff_assignments`, plus a picker), or show a neutral "/ unit". Which? (The delete confirmation half of #171 shipped in PR #198.)
-3. **Dev deploy access:** this session's Supabase token gets 403 on the dev project's details (prod's are readable), so `supabase link` and `./deploy_dev.sh` fail; functions deploy fine with `--project-ref qcrzwsazasaojqoqxwnr`. Migrations to dev still need you, or a project-level role fix on dev.
-4. **Sentry secrets** (optional): `SENTRY_API_TOKEN`, `SENTRY_ORG_SLUG`, `SENTRY_PROJECT_SLUG`; the health check reports "not configured" until set.
+2. **Dev deploy access:** since 10-08 ~16:00 this session's token gets 403 on every dev-project call (prod still works), so the coordinator can't deploy to dev. Cameron added a new dev secret 10-08; environment secrets reach new sessions only, so it needs a new coordinator session (and its variable name).
+3. **Sentry secrets** (optional): `SENTRY_API_TOKEN`, `SENTRY_ORG_SLUG`, `SENTRY_PROJECT_SLUG`; the health check reports "not configured" until set.
 
 **Decided 10-08, recorded here until done:**
 - The Docs Lead's corrected membership report (private; reported to Cameron directly): no path lets a Manager make anyone an Admin. The remaining backstop gaps are **parked** (Cameron: later). Partner organizations on a shared gig may keep adding, editing and removing each other's no-login contacts (intended). Person-search privacy is fixed by #178 (in prod 10-08).
@@ -66,7 +65,7 @@ This file lives on `main`. Land updates there promptly: a run that starts from `
 
 Pure refactor: no migrations, no edge-function or UI changes. Tests, typecheck, lint and build pass per PR.
 
-Not released: #175 (needs a design pass). #174's UI half shipped in PR #199; its remaining item (the already-active error names the tab "Add Existing User") is in a database function and waits for the next membership migration.
+Not released: #175 (needs a design pass). **#171 rate unit:** Cameron 10-08: store a time unit on each rate (Hr, Day, ½ Day); a fee is flat. Coordinator (sub-agent) building it, with migration `20261016000000` for Cameron to apply. #174's UI half shipped in PR #199; its remaining item (the already-active error names the tab "Add Existing User") is in a database function and waits for the next membership migration.
 
 **Never pre-approved:** migrations or any RLS/policy change (Cameron applies migrations), edge-function API shape, production config or `deploy_prod.sh`.
 
