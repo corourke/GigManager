@@ -16,11 +16,11 @@ describe('EquipmentHeader', () => {
     expect(screen.getByRole('heading', { level: 1, name: 'Equipment' })).toBeInTheDocument()
   })
 
-  it('has one row of five tabs: Assets, Kits, Out on gigs, Locations, Maintenance (#39)', () => {
+  it('has one row of five tabs: Items, Kits, Out on gigs, Locations, Maintenance (#39, #162)', () => {
     render(<EquipmentHeader {...mockProps} />)
     expect(screen.getAllByRole('tablist')).toHaveLength(1)
     expect(screen.getAllByRole('tab').map((t) => t.textContent)).toEqual([
-      'Assets', 'Kits', 'Out on gigs', 'Locations', 'Maintenance',
+      'Items', 'Kits', 'Out on gigs', 'Locations', 'Maintenance',
     ])
   })
 
@@ -35,7 +35,7 @@ describe('EquipmentHeader', () => {
   it('marks the active tab', () => {
     render(<EquipmentHeader {...mockProps} activeTab="maintenance" />)
     expect(screen.getByRole('tab', { name: 'Maintenance' })).toHaveAttribute('data-state', 'active')
-    expect(screen.getByRole('tab', { name: 'Assets' })).toHaveAttribute('data-state', 'inactive')
+    expect(screen.getByRole('tab', { name: 'Items' })).toHaveAttribute('data-state', 'inactive')
   })
 
   it('shows the page actions on the title row', () => {

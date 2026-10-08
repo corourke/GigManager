@@ -25,20 +25,26 @@ const props = {
   onLogout: vi.fn(),
 }
 
-describe('AssetDetailScreen page header (#39)', () => {
-  it('puts Back to Assets in the header slot, left of the model name', async () => {
-    vi.mocked(getAsset).mockResolvedValue({ id: 'asset-1', manufacturer_model: 'Shure SM58', category: 'Audio', status: 'Active' } as any)
-    const onBack = vi.fn()
-    render(<AssetDetailScreen {...props} onBack={onBack} />)
+describe('AssetDetailScreen page header (#39, #182)', () => {
+  it('goes Back to its item, named, from the header slot', async () => {
+    vi.mocked(getAsset).mockResolvedValue({ id: 'asset-1', equipment_item_id: 'item-1', manufacturer_model: 'Shure SM58', category: 'Audio', status: 'Active' } as any)
+    const onBackToItem = vi.fn()
+    render(<AssetDetailScreen {...props} onBackToItem={onBackToItem} />)
     expect(await screen.findByRole('heading', { level: 1, name: 'Shure SM58' })).toBeInTheDocument()
-    fireEvent.click(getBackInHeaderSlot('Back to Assets'))
-    expect(onBack).toHaveBeenCalledTimes(1)
+    fireEvent.click(getBackInHeaderSlot('Back to Shure SM58'))
+    expect(onBackToItem).toHaveBeenCalledWith('item-1')
+  })
+
+  it('says whether it is a unit or a lot', async () => {
+    vi.mocked(getAsset).mockResolvedValue({ id: 'asset-1', equipment_item_id: 'item-1', manufacturer_model: 'XLR Cable, 25 ft', category: 'Audio', status: 'Active', quantity: 20 } as any)
+    render(<AssetDetailScreen {...props} />)
+    expect(await screen.findByText('Lot of 20')).toBeInTheDocument()
   })
 
   it('keeps Back in the same place when the asset fails to load', async () => {
     vi.mocked(getAsset).mockRejectedValue(new Error('Asset not found.'))
     render(<AssetDetailScreen {...props} />)
     expect(await screen.findByText('Asset not found.')).toBeInTheDocument()
-    expect(getBackInHeaderSlot('Back to Assets')).toBeInTheDocument()
+    expect(getBackInHeaderSlot('Back to Items')).toBeInTheDocument()
   })
 })

@@ -383,6 +383,7 @@ export async function duplicateAsset(assetId: string) {
       updated_by,
       // The copy wasn't on the original's invoice (#131).
       purchase_id: _purchaseId,
+      purchase_line_id: _purchaseLineId,
       // Nor depreciated, so it has no recovery period (#125).
       recovery_period: _recoveryPeriod,
       ...assetData

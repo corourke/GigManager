@@ -1,7 +1,11 @@
 import {useState, useEffect, useMemo } from 'react';
 import {Package, Plus, Search, Loader2, AlertCircle, Upload, FileText, X } from 'lucide-react';
 import { toast } from 'sonner';
-import { getAssets, deleteAsset, duplicateAsset, updateAsset } from '../services/asset.service';
+import { deleteAsset, duplicateAsset, updateAsset } from '../services/asset.service';
+import { getItems, getContainerPieces, type EquipmentItemWithRecords } from '../services/equipmentItem.service';
+import { itemMatchesSearch } from '../utils/equipmentItems';
+import ItemsTable from './equipment/ItemsTable';
+import { Tabs, TabsList, TabsTrigger } from './ui/tabs';
 import { getAssetTrackingSummary } from '../services/inventoryManagement.service';
 import { scanInvoice } from '../services/purchase.service';
 import { Button } from './ui/button';
@@ -24,8 +28,10 @@ interface AssetListScreenProps {
   user: User;
   userRole?: UserRole;
   onBack: () => void;
-  onCreateAsset: () => void;
+  /** Add a unit or lot, to a given item or (with no item) choosing one. */
+  onCreateAsset: (itemId?: string) => void;
   onViewAsset: (assetId: string) => void;
+  onViewItem: (itemId: string) => void;
   onNavigateToDashboard: () => void;
   onNavigateToGigs: () => void;
   onNavigateToAssets: () => void;
@@ -44,6 +50,7 @@ export default function AssetListScreen({
   onBack,
   onCreateAsset,
   onViewAsset,
+  onViewItem,
   onNavigateToDashboard,
   onNavigateToGigs,
   onNavigateToAssets,
@@ -54,11 +61,11 @@ export default function AssetListScreen({
   onLogout,
   onEditProfile,
 }: AssetListScreenProps) {
-  // Memoize filters to prevent infinite re-renders
-  const _assetFilters = useMemo(() => ({ organization_id: organization.id }), [organization.id]);
-
-  // Asset list data
-  const [allAssets, setAllAssets] = useState<DbAsset[]>([]);
+  // Items (what it is), each with its units and lots (what we own) — #182
+  const [items, setItems] = useState<EquipmentItemWithRecords[]>([]);
+  const [containerPieces, setContainerPieces] = useState<Map<string, number>>(new Map());
+  const [view, setView] = useState<'items' | 'records'>('items');
+  const allAssets = useMemo<DbAsset[]>(() => items.flatMap((i) => i.records), [items]);
   const [filteredAssets, setFilteredAssets] = useState<DbAsset[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -75,14 +82,16 @@ export default function AssetListScreen({
     try {
       setIsLoading(true);
       setError(null);
-      const [assets, trackingSummary] = await Promise.all([
-        getAssets(organization.id),
+      const [loadedItems, trackingSummary] = await Promise.all([
+        getItems(organization.id),
         getAssetTrackingSummary(organization.id),
       ]);
-      setAllAssets(assets);
+      setItems(loadedItems);
       setAssetTrackingSummary(trackingSummary);
+      const assetItem = new Map(loadedItems.flatMap((i) => i.records.map((r) => [r.id, i.id] as const)));
+      setContainerPieces(await getContainerPieces(organization.id, assetItem));
     } catch (err: any) {
-      setError(err.message || 'Failed to load assets');
+      setError(err.message || 'Failed to load equipment');
     } finally {
       setIsLoading(false);
     }
@@ -95,7 +104,7 @@ export default function AssetListScreen({
   const handleUpdateAsset = async (id: string, updates: Partial<DbAsset>) => {
     try {
       await updateAsset(id, updates);
-      setAllAssets(prev => prev.map(a => a.id === id ? { ...a, ...updates } : a));
+      setItems(prev => prev.map(i => ({ ...i, records: i.records.map(a => a.id === id ? { ...a, ...updates } : a) })));
       toast.success('Asset updated');
     } catch (err: any) {
       toast.error(err.message || 'Failed to update asset');
@@ -199,6 +208,17 @@ export default function AssetListScreen({
 
     return filtered;
   }, [allAssets, deletedAssetIds, trackingStatusFilter, assetTrackingSummary, searchQuery]);
+
+  // By item: an item shows when it matches the search (its own fields or any
+  // record's serial, tag or vendor) and, with a tracking filter, when any of
+  // its records matches it.
+  const visibleItems = useMemo(() => {
+    const visibleIds = new Set(activeAssets.map((a) => a.id));
+    return items
+      .map((i) => ({ ...i, records: i.records.filter((r) => !deletedAssetIds.has(r.id)) }))
+      .filter((i) => itemMatchesSearch(i, i.records, searchQuery))
+      .filter((i) => trackingStatusFilter === 'All' || i.records.some((r) => visibleIds.has(r.id)));
+  }, [items, activeAssets, deletedAssetIds, searchQuery, trackingStatusFilter]);
 
   const categories = useMemo(() => 
     Array.from(new Set(allAssets.map(a => a.category).filter(Boolean))),
@@ -428,9 +448,9 @@ export default function AssetListScreen({
                 )}
               </Button>
             </div>
-            <Button onClick={onCreateAsset} className="bg-sky-500 hover:bg-sky-600 text-white">
+            <Button onClick={() => onCreateAsset()} className="bg-sky-700 hover:bg-sky-800 text-white">
               <Plus className="w-4 h-4 mr-2" />
-              Add Asset
+              Add Item
             </Button>
             {onNavigateToImport && (
               <Button
@@ -470,7 +490,7 @@ export default function AssetListScreen({
           <div className="relative flex-1 max-w-md">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
-              placeholder="Search by model, category, serial, etc..."
+              placeholder="Search model, type, serial or tag…"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="pl-9 h-9"
@@ -486,12 +506,20 @@ export default function AssetListScreen({
           </div>
         </div>
 
-        {/* Assets Table */}
+        {/* By item, or every unit and lot as its own row (#182) */}
+        <Tabs value={view} onValueChange={(v) => setView(v as 'items' | 'records')} className="mb-3">
+          <TabsList aria-label="View">
+            <TabsTrigger value="items">By item</TabsTrigger>
+            <TabsTrigger value="records">Every unit &amp; lot</TabsTrigger>
+          </TabsList>
+        </Tabs>
+
+        {/* Equipment table */}
         <Card className="p-6">
           {error ? (
             <div className="text-center py-12">
               <AlertCircle className="w-16 h-16 text-red-400 mx-auto mb-4" />
-              <h3 className="text-gray-900 mb-2">Error loading assets</h3>
+              <h3 className="text-gray-900 mb-2">Error loading equipment</h3>
               <p className="text-gray-600 mb-6">{error}</p>
               <Button onClick={refresh} variant="outline">
                 Try Again
@@ -500,17 +528,32 @@ export default function AssetListScreen({
           ) : activeAssets.length === 0 && !isLoading ? (
             <div className="text-center py-12">
               <Package className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-              <h3 className="text-gray-900 mb-2">No assets found</h3>
+              <h3 className="text-gray-900 mb-2">No equipment found</h3>
               <p className="text-gray-600 mb-6">
-                {canEdit ? 'Get started by adding your first asset' : 'No assets to display'}
+                {canEdit ? 'Get started by adding your first item' : 'No equipment to display'}
               </p>
               {canEdit && (
-                <Button onClick={onCreateAsset} className="bg-sky-500 hover:bg-sky-600 text-white">
+                <Button onClick={() => onCreateAsset()} className="bg-sky-700 hover:bg-sky-800 text-white">
                   <Plus className="w-4 h-4 mr-2" />
-                  Add Your First Asset
+                  Add Your First Item
                 </Button>
               )}
             </div>
+          ) : view === 'items' ? (
+            isLoading ? (
+              <div className="flex justify-center py-12"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
+            ) : visibleItems.length === 0 ? (
+              <p className="py-12 text-center text-muted-foreground">No items match your filters</p>
+            ) : (
+              <ItemsTable
+                items={visibleItems}
+                containerPieces={containerPieces}
+                tracking={assetTrackingSummary}
+                onViewItem={onViewItem}
+                onViewAsset={onViewAsset}
+                onAddRecord={canEdit ? (itemId) => onCreateAsset(itemId) : undefined}
+              />
+            )
           ) : (
             <SmartDataTable
               tableId="assets-table"
@@ -525,7 +568,7 @@ export default function AssetListScreen({
           )}
 
           {/* Summary */}
-          {!isLoading && !error && activeAssets.length > 0 && (
+          {view === 'records' && !isLoading && !error && activeAssets.length > 0 && (
             <div className="mt-6 pt-6 border-t border-gray-200">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>

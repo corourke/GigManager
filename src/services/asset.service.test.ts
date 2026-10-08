@@ -272,7 +272,7 @@ describe('asset.service', () => {
 
   describe('duplicateAsset', () => {
     it('the copy has no purchase link (it was not on that invoice; #131)', async () => {
-      const original = { id: 'a1', manufacturer_model: 'SM58', organization_id: 'org-1', purchase_id: 'p1' };
+      const original = { id: 'a1', manufacturer_model: 'SM58', organization_id: 'org-1', purchase_id: 'p1', purchase_line_id: 'line-1' };
       let inserted: any;
       mockSupabase.from.mockImplementation((table: string) => {
         if (table === 'assets') {
@@ -285,6 +285,8 @@ describe('asset.service', () => {
       await duplicateAsset('a1');
       expect(inserted).toBeDefined();
       expect(inserted.purchase_id ?? null).toBeNull();
+      // Nor on its purchase line (#180's assets.purchase_line_id)
+      expect(inserted.purchase_line_id ?? null).toBeNull();
     });
 
     it('the copy has no recovery period (only depreciated equipment has one; #125)', async () => {

@@ -88,7 +88,7 @@ Every web screen stacks the same bands, in this order. Nothing goes above the ti
 -   **Title**: a name, not a sentence. No description lines under it ("Manage your equipment inventory" is gone); `meta` is only for data, such as a gig's date and venue.
 -   **Actions** go on the right of the title row. A "do something" choice (Add, Scan, Import) is a button there, not a tab.
 -   **Tabs** use `PageTabsList` / `PageTabsTrigger` (underlined; active `border-sky-700 text-sky-700`), inside the page's `Tabs` root from `ui/tabs`, wrapping both the header and the content. When each tab is a route, set `activationMode="manual"`: with automatic activation a click fires `onValueChange` twice (mousedown and focus) and pushes the route twice. A choice inside a tab is a dropdown or filter, never a second row of tabs. The boxed `ui/tabs` `TabsList` is for in-content toggles only (Upcoming/Past, Month/Week).
--   **Section headers that span several routes** share one component so the title stays put: `EquipmentHeader.tsx` titles all five Equipment tabs (Assets, Kits, Out on gigs, Locations, Maintenance) "Equipment".
+-   **Section headers that span several routes** share one component so the title stays put: `EquipmentHeader.tsx` titles all five Equipment tabs (Items, Kits, Out on gigs, Locations, Maintenance) "Equipment". Items (#182) is grouped by item: a row per item, expanding to its units and lots, with a toggle for one row per unit and lot.
 -   **No second level of tabs.** When a page used to need one, the choices became title-row actions (Equipment › Locations' **Print manifest**, Out on gigs' **Track a gig**, Financials › Purchases' **Scan invoices** and **Add purchase**, which open their own screens with **Back to Purchases**) or moved to where they're used (a gig's packing list is on the gig page). A view that prints swaps in place (Print manifest / Close manifest) rather than opening in a modal, so it prints cleanly.
 -   **Editable titles**: `heading` replaces the title, badge and meta with custom content in the same place (the gig page's edit mode).
 -   **Narrow content** (editors, Import, org screens): keep the header full width and left-align the narrower content with the title, `max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 *:max-w-4xl`, rather than centring it.
@@ -197,7 +197,7 @@ Sections on mobile details (Participants, Staff, Times, etc.).
 ---
 
 ## UI Patterns: Smart Tables & Inline Editing
-`src/components/tables/SmartDataTable.tsx` and `EditableCell.tsx`, used for Assets, Kits, Team, Purchases and other lists. Behaviour in detail: `docs/technical/SmartDataTable.md`.
+`src/components/tables/SmartDataTable.tsx` and `EditableCell.tsx`, used for Kits, Team, Purchases, the Items tab's "Every unit & lot" view and other lists. Behaviour in detail: `docs/technical/SmartDataTable.md`.
 
 ### 1. Selection & Navigation
 - **Selected cell**: a `border-2 border-primary` overlay (`absolute inset-0`), so the cell's content doesn't move.

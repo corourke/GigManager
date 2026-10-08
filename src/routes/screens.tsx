@@ -31,7 +31,6 @@ import GigPage from '../components/gig/GigPage';
 import TeamScreen from '../components/TeamScreen';
 import TeamMemberDetailScreen from '../components/TeamMemberDetailScreen';
 import AssetListScreen from '../components/AssetListScreen';
-import AssetScreen from '../components/AssetScreen';
 import AssetDetailScreen from '../components/AssetDetailScreen';
 import KitListScreen from '../components/KitListScreen';
 import KitScreen from '../components/KitScreen';
@@ -50,6 +49,8 @@ const AdminOrganizationsScreen = lazy(() => import('../components/AdminOrganizat
 const ModeratorAccessRequestsScreen = lazy(() => import('../components/ModeratorAccessRequestsScreen'));
 const StarterCategoriesScreen = lazy(() => import('../components/StarterCategoriesScreen'));
 const DevTableDemoScreen = lazy(() => import('../components/dev/DevTableDemoScreen'));
+const ItemDetailScreen = lazy(() => import('../components/ItemDetailScreen'));
+const AssetScreen = lazy(() => import('../components/AssetScreen'));
 
 // Mobile screens
 import MobileLayout from '../components/mobile/MobileLayout';
@@ -423,12 +424,37 @@ function AssetListRoute() {
       onBack={nav.toDashboard}
       onCreateAsset={nav.createAsset}
       onViewAsset={nav.viewAsset}
+      onViewItem={nav.viewItem}
       onNavigateToDashboard={nav.toDashboard}
       onNavigateToGigs={nav.toGigs}
       onNavigateToAssets={nav.toAssets}
       onNavigateToKits={nav.toKits}
       onNavigateToInventory={nav.toInventory}
       onNavigateToImport={() => nav.toImport('assets')}
+      onSwitchOrganization={nav.switchOrganization}
+      onEditProfile={openEditProfile}
+      onLogout={nav.logoutAndHome}
+    />
+  );
+}
+
+function ItemDetailRoute() {
+  const { user, organization, userRole } = useOrgScope();
+  const { isMobile, openEditProfile } = useAppShell();
+  const nav = useNav();
+  const { itemId } = useParams();
+  if (!user || !organization || !itemId) return <LoadingSpinner />;
+  if (isMobile) return <Navigate to="/gigs" replace />;
+  return (
+    <ItemDetailScreen
+      organization={organization}
+      user={user}
+      userRole={userRole}
+      itemId={itemId}
+      onBack={nav.toAssets}
+      onViewAsset={nav.viewAsset}
+      onAddRecord={nav.createAsset}
+      onViewKit={nav.viewKit}
       onSwitchOrganization={nav.switchOrganization}
       onEditProfile={openEditProfile}
       onLogout={nav.logoutAndHome}
@@ -450,6 +476,7 @@ function AssetDetailRoute() {
       userRole={userRole}
       assetId={assetId}
       onBack={nav.toAssets}
+      onBackToItem={nav.viewItem}
       onEdit={nav.editAsset}
       onSwitchOrganization={nav.switchOrganization}
       onEditProfile={openEditProfile}
@@ -466,6 +493,7 @@ function AssetEditorRoute({ create }: { create: boolean }) {
   const { isMobile, openEditProfile } = useAppShell();
   const nav = useNav();
   const { assetId } = useParams();
+  const [params] = useSearchParams();
   if (!user || !organization) return <LoadingSpinner />;
   if (isMobile) return <Navigate to="/gigs" replace />;
   return (
@@ -474,6 +502,8 @@ function AssetEditorRoute({ create }: { create: boolean }) {
       user={user}
       userRole={userRole}
       assetId={create ? null : (assetId ?? null)}
+      itemId={create ? params.get('item') : null}
+      onBackToItem={nav.viewItem}
       onCancel={nav.toAssets}
       onAssetCreated={() => nav.toAssets()}
       onAssetUpdated={nav.toAssets}
@@ -638,7 +668,7 @@ function ImportRoute() {
       user={user}
       userRole={userRole}
       onCancel={fromAssets ? nav.toAssets : nav.toGigs}
-      backLabel={fromAssets ? 'Back to Assets' : 'Back to Gigs'}
+      backLabel={fromAssets ? 'Back to Items' : 'Back to Gigs'}
       initialImportType={fromAssets ? 'assets' : 'gigs'}
       onNavigateToGigs={nav.toGigs}
       onSwitchOrganization={nav.switchOrganization}
@@ -721,6 +751,7 @@ export function AppRoutes() {
             <Route path="/assets/new" element={<AssetEditorRoute create />} />
             <Route path="/assets/:assetId" element={<AssetDetailRoute />} />
             <Route path="/assets/:assetId/edit" element={<AssetEditorRoute create={false} />} />
+            <Route path="/items/:itemId" element={<ItemDetailRoute />} />
             <Route path="/kits" element={<KitListRoute />} />
             <Route path="/kits/new" element={<KitEditorRoute create />} />
             <Route path="/kits/:kitId" element={<KitDetailRoute />} />

@@ -17,6 +17,8 @@ import { getAsset, deleteAsset, duplicateAsset, getAssetHistory, getAssetInvento
 import type { DbInventoryTracking, ActivityLogEntry } from '../utils/supabase/types';
 import ActivityFeed from './ActivityFeed';
 import { ASSET_STATUS_CONFIG } from '../utils/supabase/constants';
+import { KindPill } from './equipment/ItemsTable';
+import { recordKind } from '../utils/equipmentItems';
 
 interface AssetDetailScreenProps {
   organization: Organization;
@@ -24,6 +26,8 @@ interface AssetDetailScreenProps {
   userRole?: UserRole;
   assetId: string;
   onBack: () => void;
+  /** Back to the item this unit or lot belongs to (#182). */
+  onBackToItem?: (itemId: string) => void;
   onEdit: (assetId: string) => void;
   onSwitchOrganization: () => void;
   onEditProfile?: () => void;
@@ -37,6 +41,7 @@ export default function AssetDetailScreen({
   userRole,
   assetId,
   onBack,
+  onBackToItem,
   onEdit,
   onSwitchOrganization,
   onEditProfile,
@@ -127,7 +132,7 @@ export default function AssetDetailScreen({
           onEditProfile={onEditProfile}
           onLogout={onLogout}
         />
-        <PageHeader back={{ label: 'Back to Assets', onClick: onBack }} title="Asset" />
+        <PageHeader back={{ label: 'Back to Items', onClick: onBack }} title="Equipment" />
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <Alert variant="destructive">
             <AlertDescription>{loadError || 'Asset not found.'}</AlertDescription>
@@ -153,10 +158,14 @@ export default function AssetDetailScreen({
       />
 
       <PageHeader
-        back={{ label: 'Back to Assets', onClick: onBack }}
+        back={asset.equipment_item_id && onBackToItem
+          ? { label: `Back to ${asset.manufacturer_model}`, onClick: () => onBackToItem(asset.equipment_item_id) }
+          : { label: 'Back to Items', onClick: onBack }}
         title={asset.manufacturer_model}
         badge={
           <>
+            <KindPill kind={recordKind(asset)} />
+            {recordKind(asset) === 'lot' && <span className="text-sm text-gray-600">{`Lot of ${asset.quantity ?? 1}`}</span>}
             {asset.category && <Badge variant="secondary">{asset.category}</Badge>}
             {asset.type && (
               <Badge variant="outline" className="bg-sky-50 text-sky-700 border-sky-200">
