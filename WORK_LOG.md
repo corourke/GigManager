@@ -5,6 +5,8 @@ Append new entries at the top of each section; never edit an old entry to descri
 
 ## Shipped (newest first)
 
+- **#20 batch 1, PR #203** (triage, merged 10-08): `notification`, `taxYear`, `accessRequest`, `purchaseScanQueue`, `purchaseCategory` now use `getSupabase` / `getCurrentUser` from the data-access base; new tests for `taxYear`, `accessRequest`, `notification`. Issue stays open (batches 2–7).
+
 - **#182, PR #192** (Equipment Lead, merged by the coordinator 10-08): Equipment › Items tab (one row per item, units and lots beneath, Every unit & lot toggle), item page, unit/lot form; screens lazy-loaded, default 2 MiB cache limit kept.
 
 - **#125 mileage rates, PR #202** (coordinator's sub-agent, merged 10-08 evening): date-ranged IRS rates (2023 65.5¢ … 2026-07-01 76¢), priced by the trip's date; F1 SQL for the 19 existing rows posted on #125 for Cameron.
