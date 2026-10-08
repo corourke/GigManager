@@ -359,20 +359,20 @@ export const shots = [
     sources: ['src/components/TeamMemberDetailScreen.tsx'],
     prepare: async (page, ctx) => {
       await page.goto(`${ctx.base}/team`);
-      await page.getByText('Sofia Lindqvist').first().click();
-      await page.waitForURL(/\/team\/.+/);
+      // In the members table; her access request above it also names her.
+      await page.getByRole('cell', { name: 'Sofia Lindqvist' }).first().click();
+      await page.waitForURL(/\/team\/.+/, { waitUntil: 'commit' });
       await page.locator('.animate-spin').first().waitFor({ state: 'hidden' }).catch(() => {});
       await page.getByRole('heading', { name: /Sofia Lindqvist/ }).first().waitFor();
     },
-    clip: { x: 0, y: 56, width: 1200, height: 640 },
+    clip: { x: 0, y: 56, width: 1200, height: 445 },
   },
   {
     id: 'team/member-profiles-contacts-card',
     page: 'team/member-profiles.md',
     user: 'admin',
     sources: ['src/components/organization/OrganizationContactsSection.tsx', 'src/components/OrganizationScreen.tsx'],
-    // Wider than usual: at 1200px the card's Actions column is cut off.
-    viewport: { width: 1440, height: 2400 },
+    viewport: { width: 1200, height: 2400 },
     prepare: async (page, ctx) => {
       await page.goto(`${ctx.base}/admin/orgs`);
       const row = page.getByText('Harborlight Pavilion', { exact: true }).first().locator('xpath=ancestor::tr[1]');
@@ -525,6 +525,64 @@ export const shots = [
     },
     clip: { x: 0, y: 56, width: 1200, height: 800 },
   },
-  // Held: getting-started/the-dashboard-overview waits for #157 (the Equipment
-  // card's Total Value ignores quantity), so the guide doesn't show a wrong figure.
+  {
+    id: 'financials/reporting-grey-zone',
+    page: 'financials/reporting.md',
+    user: 'admin',
+    sources: ['src/components/financials/ReportingTab.tsx', 'src/utils/taxReports.ts'],
+    viewport: { width: 1200, height: 1400 },
+    prepare: async (page, ctx) => {
+      await page.goto(`${ctx.base}/financials/reporting`);
+      await page.getByRole('button', { name: 'Grey zone', exact: true }).click();
+      await page.getByRole('table', { name: 'Grey zone' }).waitFor();
+    },
+    // From Tax year down through the table.
+    clip: async (page) => {
+      const t = await box(page.getByRole('table', { name: 'Grey zone' }));
+      return { x: 0, y: 56, width: 1200, height: Math.min(t.y + t.height + 24, 1300) - 56 };
+    },
+  },
+  {
+    id: 'getting-started/the-dashboard-overview',
+    page: 'getting-started/the-dashboard.md',
+    user: 'admin',
+    sources: ['src/components/Dashboard.tsx', 'supabase/functions/server/lib/pure/dashboard.ts'],
+    viewport: { width: 1200, height: 1600 },
+    prepare: async (page, ctx) => {
+      await page.goto(`${ctx.base}/dashboard`);
+      await page.getByText('Upcoming Gigs (Next 30 Days)').waitFor();
+      await page.getByText('Harvest Gala Dinner & Dance').first().waitFor();
+      await page.locator('.animate-spin').first().waitFor({ state: 'hidden' }).catch(() => {});
+    },
+    // The summary cards and the upcoming gigs, above Recent Activity.
+    clip: async (page) => {
+      const up = await box(cardOf(page, 'Upcoming Gigs (Next 30 Days)'));
+      return { x: 0, y: 56, width: 1200, height: up.y + up.height + 16 - 56 };
+    },
+  },
+  {
+    id: 'getting-started/the-dashboard-staff-cards',
+    page: 'getting-started/the-dashboard.md',
+    user: 'staff',
+    sources: ['src/components/Dashboard.tsx'],
+    prepare: async (page, ctx) => {
+      await page.goto(`${ctx.base}/dashboard`);
+      await page.getByText('Owned', { exact: true }).waitFor();
+    },
+    // The row of summary cards a Staff member sees.
+    target: (page) => [cardOf(page, 'Date Hold'), cardOf(page, 'Owned')],
+    pad: 8,
+  },
+  {
+    id: 'gigs/conflict-detection-banner',
+    page: 'gigs/conflict-detection.md',
+    user: 'admin',
+    sources: ['src/components/ConflictWarning.tsx', 'src/components/GigListScreen.tsx'],
+    prepare: async (page, ctx) => {
+      await page.goto(`${ctx.base}/gigs`);
+      await page.getByText(/Conflicts? Detected/).first().waitFor();
+    },
+    target: (page) => page.getByText(/Conflicts? Detected/).first().locator('xpath=ancestor::div[contains(@class,"rounded")][1]'),
+    pad: 8,
+  },
 ];
