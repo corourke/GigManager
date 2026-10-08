@@ -79,12 +79,11 @@ Not released: #175 (needs a design pass). #174's UI half shipped in PR #199; its
   - Items 1–2: PR #207, merged. All pages checked; six wording fixes; dashboard, conflict-banner and Grey zone screenshots taken.
   - Item 3: PR #209 merged; PR #211 publishes the page (Cameron, 10-08). Until #211 merges, the Overview and Tax treatment links 404.
   - Item 4: PR #210, merged: the seed with items, units, lots, "N × any" kit lines and per-line tax treatment, as Cameron chose 10-08. Dev is reseeded.
-- **Dev email flows, 2026-10-08 (Docs Lead): all three work on dev.**
-  - **Invitation:** sent 18:52 UTC to `docs-invite-1008@example.com`. It arrived in Mailtrap, and Cameron accepted it ("Invitation Accepted! … You're all set, Ingrid!").
-  - **Password reset:** sent 18:52 UTC to `demo-viewer@gigwrangler.test`. It arrived, and the link opened "Reset your password".
-  - **Sign-up confirmation:** dev had "Confirm email" off (`mailer_autoconfirm: true`), so the first try sent nothing. Cameron turned it on for dev and prod. The re-run at 19:34 UTC for `docs-signup2-1008@example.com` returned `confirmation_sent_at` 19:34:28, and the app showed "Please check your email to confirm your account before signing in." **Cameron: please check the Mailtrap inbox for this one.** I'll delete that account once it's confirmed; the other two test accounts are already deleted, and dev is reseeded.
-  - **Landing-page screenshots** (accept invitation, set new password, confirmed sign-up) need a live link from the email. `auth.admin.generateLink` would need the service-role key, which the Docs Lead doesn't use. They stay held until Cameron passes a fresh link, or allows a server-side `generateLink` run.
-  - **Links in the emails:** dev's `site_url` and redirect allow list are `http://localhost:3000` only, so the links open localhost.
+- **Dev email flows, 2026-10-08 (Docs Lead): all three confirmed by Cameron in Mailtrap.**
+  - Invitation, password reset and the sign-up confirmation (with Confirm email now on in dev and prod) all arrive, and their links work.
+  - The landing-page screenshots are Cameron's, supplied by hand, and go in with PR #212.
+  - The test accounts are deleted from dev.
+  - Dev's `site_url` and redirect allow list are `http://localhost:3000` only, so email links open localhost.
 - **Member page Edit has no Organization Role (#206, Docs Lead, 10-08).** The details page doesn't pass `currentUserRole` to `EditMemberDialog`. A one-line fix; the guide points role changes at Team → Edit Permissions until then.
 - **Units from one multi-quantity depreciated purchase line (Docs Lead, 10-08; for #183).**
   - The database finds a unit's depreciated line by `purchases.asset_id`, so only one unit per line counts as depreciated or can hold a recovery period. Its siblings (same `purchase_line_id`) count as not depreciated.
