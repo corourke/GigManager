@@ -383,6 +383,148 @@ export const shots = [
   },
   // Held: reference/access-requests-* need a seeded access request and a platform
   // moderator login; the access-requests page is still a draft.
+  {
+    id: 'settings/categories-equipment',
+    page: 'settings/categories.md',
+    user: 'admin',
+    sources: ['src/components/settings/CategoryListEditor.tsx', 'src/components/settings/CategoriesSettings.tsx'],
+    viewport: { width: 1200, height: 2200 },
+    prepare: async (page, ctx) => {
+      await page.goto(`${ctx.base}/settings?tab=categories`);
+      await page.getByRole('tab', { name: 'Categories' }).click().catch(() => {});
+      await page.getByRole('tab', { name: 'Equipment categories' }).click();
+      await page.getByText('How the types are written').waitFor();
+    },
+    // The card's top: the tabs, the type-writing rules and the first rows of the list.
+    clip: async (page) => {
+      const card = await box(page.getByText('How the types are written').locator('xpath=ancestor::div[contains(@class,"rounded-xl") or contains(@class,"rounded-lg")][2]'));
+      return { x: card.x, y: card.y, width: card.width, height: 600 };
+    },
+  },
+  {
+    id: 'settings/google-calendar-connect',
+    page: 'settings/google-calendar.md',
+    user: 'admin',
+    sources: ['src/components/CalendarIntegrationSettings.tsx'],
+    prepare: async (page, ctx) => {
+      await page.goto(`${ctx.base}/settings`);
+      await page.getByRole('button', { name: 'Connect Google Calendar' }).waitFor();
+    },
+    clip: { x: 0, y: 56, width: 1200, height: 420 },
+  },
+  {
+    id: 'getting-started/organizations-search-result',
+    page: 'getting-started/organizations.md',
+    user: 'newuser',
+    sources: ['src/components/OrganizationSelectionScreen.tsx'],
+    prepare: async (page, ctx) => {
+      // Searches only; never joins.
+      await page.goto(`${ctx.base}/org-selection`);
+      await page.getByPlaceholder(/Search all organizations/).fill('Cedar');
+      await page.getByRole('button', { name: 'Join as Viewer' }).first().waitFor();
+    },
+    clip: { x: 0, y: 56, width: 1200, height: 290 },
+  },
+  {
+    id: 'getting-started/organizations-create-form',
+    page: 'getting-started/organizations.md',
+    user: 'newuser',
+    sources: ['src/components/OrganizationScreen.tsx'],
+    viewport: { width: 1200, height: 1800 },
+    prepare: async (page, ctx) => {
+      // Fills the form but never creates the organization.
+      await page.goto(`${ctx.base}/create-org`);
+      await page.getByText('Skip search and enter details manually').click();
+      await page.getByPlaceholder('Enter organization name').fill('Bayline Audio');
+      await page.locator('#role-Sound').click();
+      await page.locator('#role-Rentals').click();
+      await page.getByPlaceholder('+1 (555) 123-4567').fill('(510) 555-0188');
+      await page.evaluate(() => document.activeElement?.blur());
+    },
+    // From Basic Information down to Allowed Email Domains.
+    clip: async (page) => {
+      const card = await box(page.getByText('Organization Roles').locator('xpath=ancestor::div[contains(@class,"rounded-xl") or contains(@class,"rounded-lg")][last()]'));
+      return { x: card.x, y: card.y, width: card.width, height: 480 };
+    },
+  },
+  {
+    id: 'getting-started/organizations-request-access',
+    page: 'getting-started/organizations.md',
+    user: 'viewer',
+    sources: ['src/components/team/RequestAccessDialog.tsx', 'src/components/TeamScreen.tsx'],
+    prepare: async (page, ctx) => {
+      // Opens the dialog; never submits.
+      await page.goto(`${ctx.base}/team`);
+      await page.getByRole('button', { name: 'Request Access' }).click();
+      await page.getByPlaceholder('Why do you need this access?').fill('I handle the books and need to see Financials.');
+      await page.evaluate(() => document.activeElement?.blur());
+    },
+    target: (page) => page.getByRole('dialog'),
+  },
+  {
+    id: 'reference/access-requests-pending-card',
+    page: 'reference/access-requests-and-moderation.md',
+    user: 'admin',
+    sources: ['src/components/TeamScreen.tsx'],
+    viewport: { width: 1200, height: 2400 },
+    prepare: async (page, ctx) => {
+      await page.goto(`${ctx.base}/team`);
+      await page.getByText('Pending Access Requests').waitFor();
+      await page.getByText(/running FOH/).waitFor();
+    },
+    target: (page) => page.getByText('Pending Access Requests').locator('xpath=ancestor::div[contains(@class,"rounded-xl") or contains(@class,"rounded-lg")][1]'),
+  },
+  {
+    id: 'reference/access-requests-moderator-queue',
+    page: 'reference/access-requests-and-moderation.md',
+    user: 'moderator',
+    sources: ['src/components/ModeratorAccessRequestsScreen.tsx'],
+    prepare: async (page, ctx) => {
+      await page.goto(`${ctx.base}/admin/access-requests`);
+      await page.getByText('Vera Holm').first().waitFor();
+    },
+    clip: { x: 0, y: 56, width: 1200, height: 320 },
+  },
+  {
+    id: 'getting-started/organizations-notification',
+    page: 'getting-started/organizations.md',
+    user: 'viewer',
+    sources: ['src/components/NotificationBell.tsx'],
+    prepare: async (page, ctx) => {
+      await page.goto(`${ctx.base}/gigs`);
+      await page.getByRole('button', { name: 'Notifications' }).click();
+      await page.getByText(/was\s+rejected/).waitFor();
+    },
+    // The open panel plus the bell above it (the bell is aria-hidden while the panel is open).
+    target: (page) => [page.locator('[data-radix-popper-content-wrapper]').first(), page.locator('button[aria-label="Notifications"]')],
+    pad: 8,
+  },
+  {
+    id: 'financials/reporting-income',
+    page: 'financials/reporting.md',
+    user: 'admin',
+    sources: ['src/components/financials/ReportingTab.tsx'],
+    viewport: { width: 1200, height: 1400 },
+    prepare: async (page, ctx) => {
+      await page.goto(`${ctx.base}/financials/reporting`);
+      await page.getByRole('button', { name: 'Income', exact: true }).click();
+      await page.getByText('Harvest Gala Dinner & Dance').first().waitFor();
+    },
+    clip: { x: 0, y: 56, width: 1200, height: 760 },
+  },
+  {
+    id: 'financials/reporting-assets',
+    page: 'financials/reporting.md',
+    user: 'admin',
+    sources: ['src/components/financials/ReportingTab.tsx'],
+    viewport: { width: 1200, height: 1400 },
+    prepare: async (page, ctx) => {
+      await page.goto(`${ctx.base}/financials/reporting`);
+      await page.getByRole('button', { name: 'Assets', exact: true }).click();
+      await page.getByText(/7-year/).first().waitFor();
+    },
+    clip: { x: 0, y: 56, width: 1200, height: 800 },
+  },
   // Held: getting-started/the-dashboard-overview waits for #157 (the Equipment
   // card's Total Value ignores quantity), so the guide doesn't show a wrong figure.
 ];

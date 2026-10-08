@@ -9,7 +9,7 @@
 
 This file lives on `main`. Land updates there promptly: a run that starts from `main` won't see edits parked on a feature branch.
 
-- **Last updated:** 2026-10-08 (coordinator: #179–#186 added; #179 and #180 are the coordinator's, #181–#186 the Equipment Lead's)
+- **Last updated:** 2026-10-08 (coordinator: #178 merged in PR #195, prod release waiting; #190 and #192 reviewed; check-ins every 4 hours through 10-17)
 
 ---
 
@@ -17,30 +17,30 @@ This file lives on `main`. Land updates there promptly: a run that starts from `
 
 | # | Item | State | Next / owner |
 |---|---|---|---|
-| [#125](https://github.com/corourke/GigManager/issues/125) | Financials → Reporting: tax-program data export | Part 1 merged (PR #167): recovery period on equipment, and Income / Expenses / Assets reports with CSV | Cameron: apply `20261013000000` to dev and check. Then coordinator: mileage rates (F1); Schedule C summary, Needs attention and Grey zone if wanted |
+| [#125](https://github.com/corourke/GigManager/issues/125) | Financials → Reporting: tax-program data export | Part 1 merged (PR #167): recovery period on equipment, and Income / Expenses / Assets reports with CSV | In dev and prod 10-08 (2024–25 set to 7-year per the filed returns). Next, coordinator: mileage rates (F1); Schedule C summary, Needs attention and Grey zone if wanted |
 | [#162](https://github.com/corourke/GigManager/issues/162) | Equipment items and units (serials, tags, quantities, kits); parent of #179–#186 | Mockups approved and merged 10-08 (PR #165, `docs/design/mockups/equipment-units/`); split into sub-issues | See the rows below |
-| [#181](https://github.com/corourke/GigManager/issues/181) | Data grouping review for Cameron | Needs #179; before #180 runs on prod. Coordinator supplies the prod data | Equipment Lead |
+| [#181](https://github.com/corourke/GigManager/issues/181) | Data grouping review for Cameron | #180 is in prod (158 items); regrouping is now a data change. Coordinator supplies prod data | Equipment Lead |
 | [#182](https://github.com/corourke/GigManager/issues/182)–[#186](https://github.com/corourke/GigManager/issues/186) | Items screens: (a) Items tab, item page, unit/lot form, dashboard total (closes #157); (b) purchases, CSV import; (c) kit editor, overlap; (d) packing list, gig equipment, scanning; (e) locations, override, maintenance (closes #160) | (a) can start (#180 on dev 10-08); b and c after a; d after c; e after d | Equipment Lead |
 | [#135](https://github.com/corourke/GigManager/issues/135) | Audit and fix 2026 purchase data | Unblocked once the reports are on dev; they show what needs fixing | Coordinator with Cameron; each prod data fix needs his go |
 | [#92](https://github.com/corourke/GigManager/issues/92) | Replace-all autosave can delete rows another user or tab added | Confirmed by reading the code (09-29 review) | Coordinator, not started |
 | [#20](https://github.com/corourke/GigManager/issues/20) | Shared data-access layer under `src/services/` | Released in §3c (7 batches) | Triage, batch 1 next |
 | [#175](https://github.com/corourke/GigManager/issues/175) | Delete gig offered to Managers, but Admin-only | Cameron 10-07: another participating org's Admin must never delete; direction "cancel only when other orgs participate" | Needs a design pass (coordinator) |
 | [#174](https://github.com/corourke/GigManager/issues/174) | Team roles and invitations: UI offers what the server refuses | Cameron 10-07: a Manager must never be able to make anyone an Admin, by any path | Coordinator; the server side is the private finding in §2 |
-| [#178](https://github.com/corourke/GigManager/issues/178) | Duplicate check misses full names; org search is a plain substring | Cameron 10-07: avoid duplicates, so search thoroughly | Released to triage (§3c) |
-| [#157](https://github.com/corourke/GigManager/issues/157) | Dashboard Equipment total should be replacement value × quantity | Rule decided by Cameron 10-07 | Done in #182 |
+| [#157](https://github.com/corourke/GigManager/issues/157) | Dashboard Equipment total should be replacement value × quantity | Rule decided by Cameron 10-07 | PR #190 (Equipment Lead): coordinator asked 10-08 to leave out Disposed and Returned equipment |
 | [#158](https://github.com/corourke/GigManager/issues/158), [#168](https://github.com/corourke/GigManager/issues/168) | Staff/Viewers see $0 money cards (dashboard) and money columns (gig list) | Filed by the Docs Lead 10-07 | Released to triage (§3c) |
 | [#159](https://github.com/corourke/GigManager/issues/159), [#169](https://github.com/corourke/GigManager/issues/169), [#170](https://github.com/corourke/GigManager/issues/170), [#171](https://github.com/corourke/GigManager/issues/171), [#173](https://github.com/corourke/GigManager/issues/173), [#176](https://github.com/corourke/GigManager/issues/176) | Small UI bugs: © year, Markdown notes, conflict banner, staff slot delete/rates, member details page, org settings path | Filed by the Docs Lead 10-07 | Released to triage (§3c) |
 
 ## 2. Waiting on Cameron
 
-1. **Apply migration `20261013000000_asset_recovery_period.sql` to dev** (PR #167), deploy the frontend, and check Financials → Reporting. Prod later, with the usual backup.
-2. **Private security finding in the membership RPCs** (Docs Lead, 10-07): details went to Cameron directly, because this repo is public. Needs a migration (coordinator) once he gives the go. Until then, hold the `docs/technical/security-scheme.md` update.
-3. **After `20261013000000` reaches prod: set the 2024 and 2025 recovery periods to 7 years** (144 records). The filed Form 4562s (read 10-08, then deleted) put all of both years' property in the 7-year class. SQL: `update assets a set recovery_period = 7, updated_at = now() where a.recovery_period is null and exists (select 1 from purchases l left join purchases h on h.id = l.parent_id where l.asset_id = a.id and l.tax_treatment = 'depreciate' and extract(year from coalesce(l.purchase_date, h.purchase_date)) in (2024, 2025));` Filling a blank period is allowed in a filed year. Settled 10-08 (Cameron): 2024's return has $1,838 of equipment, GigWrangler $1,527.63; the gap is accepted (it can't be rebuilt from the invoices or the old spreadsheet, and the recovery period is 7-year either way). The Waves plugins stay depreciated. 2025 matches ($42,155 vs $42,156.57).
-4. **Small bugs from the Docs Lead** (#158, #159, #168–#171, #173, #176, #178): release them to triage?
-5. **Email simulation on dev** (Docs Lead): Cameron wants to show the invitation, sign-up and password-reset flows with the demo `.test` logins. Hosted dev sends real mail. Options: a dev-only SMTP catcher (e.g. Mailpit) behind the dev project's custom SMTP, or a dev-only "generate link" admin route.
-6. **Organization delete by its own Admin:** `DELETE /organizations/:id` counts the calling Admin as a member, so a claimed org can never be deleted from the app. Ignore the caller's own membership, or keep it impossible?
-7. **Overnight gigs on Google Calendar:** a 9 PM–1:30 AM gig shows on both days. Show a gig ending before 6 AM on its start day only?
-8. **Sentry secrets** (optional): `SENTRY_API_TOKEN`, `SENTRY_ORG_SLUG`, `SENTRY_PROJECT_SLUG`; the health check reports "not configured" until set.
+1. **Dev mail catcher** (Cameron, 10-08: Mailtrap): create a free Mailtrap Email Testing inbox and send its SMTP host, port, user and password. The coordinator then points dev's Supabase Auth at it and checks the invitation, sign-up confirmation and password-reset flows with the demo `.test` logins.
+2. **Sentry secrets** (optional): `SENTRY_API_TOKEN`, `SENTRY_ORG_SLUG`, `SENTRY_PROJECT_SLUG`; the health check reports "not configured" until set.
+
+**Prod release waiting:** #178 (PR #195, merged 10-08) needs migration `20261015000000_person_and_org_search.sql` and a frontend deploy together (`deploy_prod.sh`); the old search function is dropped, so ship both in one run. Say when.
+
+**Decided 10-08, recorded here until done:**
+- The Docs Lead's corrected membership report (private; reported to Cameron directly): no path lets a Manager make anyone an Admin. The remaining backstop gaps are **parked** (Cameron: later). Partner organizations on a shared gig may keep adding, editing and removing each other's no-login contacts (intended). Person-search privacy is fixed by #178 (merged; prod release above).
+- An organization's own Admin still can't delete a claimed organization from the app (kept as is; no change).
+- Overnight gigs: released to triage (§3c).
 
 ## 3. Ready work and agent lanes
 
@@ -80,9 +80,10 @@ Pure refactor: no migrations, no edge-function or UI changes. Tests, typecheck, 
 - [#171](https://github.com/corourke/GigManager/issues/171): deleting a staff slot doesn't ask for confirmation, and rates always show "/ hr".
 - [#173](https://github.com/corourke/GigManager/issues/173): a member's details page. Edit goes nowhere, the default role isn't shown, and timezone edits are dropped.
 - [#176](https://github.com/corourke/GigManager/issues/176): there's no direct path to your own organization's settings, and the Contacts card clips its actions.
-- [#178](https://github.com/corourke/GigManager/issues/178): the duplicate check misses people typed by full name, and organization search is a plain substring match. Cameron: avoid duplicates, so search thoroughly.
 
-Not released, staying with the coordinator: #174 (its server side is the private finding) and #175 (needs a design pass).
+Not released, staying with the coordinator: #174, #175 (needs a design pass).
+
+**Overnight gigs on Google Calendar** (released 10-08, Cameron). A gig that ends before 6 AM on the day after it starts shows on its start day only; its real times stay at the top of the event description. The dates come from `buildCalendarEvent` in `supabase/functions/server/lib/pure/calendarEvent.ts`, shared by the server and the browser sync, so change it there with tests: a 9 PM–1:30 AM gig is one day, a gig ending at 6:00 or later shows both days, multi-day gigs are unchanged, and the cutoff is in the gig's time zone. Needs a `server` redeploy and a frontend deploy; list both in the PR.
 
 **Never pre-approved:** migrations or any RLS/policy change (Cameron applies migrations), edge-function API shape, production config or `deploy_prod.sh`.
 
@@ -92,9 +93,15 @@ Not released, staying with the coordinator: #174 (its server side is the private
 
 (none open: the 10-07 entries are filed as #157–#160, #168–#171, #173–#176 and #178, and their decisions are in §1 and §2)
 
-- **Second private security finding (Docs Lead, 10-07): privacy, in the person search behind the duplicate check (#178).** Details went to Cameron directly, as the repo is public. Cameron (10-08) asked for it to go on the private security list with the membership-RPC finding (§2 item 3). It touches the same search #178 changes, so plan the two together.
+- **From the Docs Lead (10-08, Financials → Reporting, PR #191): #194**, a year with only disposals isn't offered in Tax year, and the needs-category hint can't always be followed. Small, UI only.
+- **From the Docs Lead (10-08, Settings, PR #189): #188**, Google Calendar shows "System-Wide Bulk Re-sync (Repair)", with developer copy, to every user, and the category type-rules box says "will offer". Small, UI only.
+- **Demo seed vs equipment items (coordinator, 10-08).** #180 is merged and #189 made the seed run on it. The seed's equipment still needs a fuller rework for equipment items before the Equipment pages are shot.
+
+- **Correction to the private membership finding (§2 item 3), Docs Lead, 10-08.** Tested on dev as the demo Manager, the escalation I reported on 10-07 is **not exploitable**: the `guard_organization_membership` trigger (`20260929000000`) blocks it on every path tried. What remains are low-severity defence-in-depth gaps. The full write-up (paths, test results, suggested fixes) went to Cameron privately on 10-08 to pass on. No migration is urgent; fold the fixes into the next membership or security migration.
 
 ## 4. Agents and documentation
+
+**Pace through 10-17 (Cameron, 10-08):** keep triage and the leads busy. The coordinator checks in at least every 4 hours (Routine `trig_01JWAcm3QHRpyaQXGNVA8w8m`, which disables itself after 10-17) to queue work, review ready PRs and ask Cameron about blockers.
 
 **Equipment Lead** (`session_013gAYYf2hpcECG9QpxFz5Vo`, Supabase Dev environment, no prod access) owns #181–#186, the grouping review and the items screens, and reviews #180 from the screens side. The coordinator owns #179 and #180 and supplies prod data the Lead can't reach. It reports on #162 and each sub-issue.
 
@@ -115,55 +122,54 @@ Not released, staying with the coordinator: #174 (its server side is the private
 
 **User-docs table** (the Docs Lead keeps it current):
 
-| Page (`website/docs/src/content/docs/`) | Status | Last verified | Still wrong |
+| Page (`website/docs/src/content/docs/`) | Status | Last verified | Still wrong / next |
 |---|---|---|---|
-| `calendar/google-calendar.md` | published | — | not audited |
-| `equipment/overview.md` | published | — | not audited |
-| `financials/overview.md` | published | 2026-10-06 (coordinator, PR #136) | — |
-| `financials/receipts-and-invoices.md` | published | 2026-10-06 (coordinator, PR #136) | — |
-| `financials/gig-accounting.md` | published | 2026-10-06 (coordinator, PR #136) | — |
-| `financials/tax-treatment.md` | published | 2026-10-06 (coordinator) | — |
-| `getting-started/onboarding.md` | published | 2026-10-06 (triage, PR #139) | — |
-| `getting-started/organizations.md` | published | 2026-10-06 (triage, PR #139) | — |
-| `getting-started/the-dashboard.md` | published | 2026-10-06 (triage, PR #139) | — |
-| `getting-started/what-is-gigwrangler.md` | published | 2026-10-06 (triage, PR #139) | — |
-| `gigs/change-history.md` | published | 2026-10-07 (triage, PR #151); screenshots PR #166 | — |
-| `gigs/creating-a-gig.md` | published | 2026-10-07 (triage, PR #151); screenshots PR #166 | — |
-| `gigs/overview.md` | published | 2026-10-07 (triage, PR #151); screenshots PR #166 | — |
-| `import/overview.md` | published | — | not audited |
-| `index.mdx` | published | — | not audited |
-| `team/overview.md` | published | 2026-10-07 (Docs Lead, PR #177) | corrections go live when #177 merges |
-| `reference/roles-and-access.md` | published | 2026-10-07 (Docs Lead, PR #177) | corrections go live when #177 merges |
-| `calendar/conflict-detection.md` | draft | — | not audited |
-| `calendar/overview.md` | draft | — | not audited |
-| `equipment/assets.md` | draft | — | not audited |
-| `equipment/assigning-to-a-gig.md` | draft | — | not audited |
-| `equipment/barcode-scanning.md` | draft | — | not audited |
-| `equipment/inventory-reports.md` | draft | — | not audited |
-| `equipment/kits.md` | draft | — | not audited |
-| `equipment/location-explorer.md` | draft | — | not audited |
+| `equipment/assets.md` | draft | — | held: equipment rework (#162/#180) |
+| `equipment/assigning-to-a-gig.md` | draft | — | held: equipment rework (#162/#180) |
+| `equipment/barcode-scanning.md` | draft | — | held: equipment rework (#162/#180) |
+| `equipment/csv-asset-import.md` | draft | — | held: equipment rework (#162/#180) |
+| `equipment/inventory-reports.md` | draft | — | held: equipment rework (#162/#180) |
+| `equipment/kits.md` | draft | — | held: equipment rework (#162/#180) |
+| `equipment/location-explorer.md` | draft | — | held: equipment rework (#162/#180) |
+| `equipment/overview.md` | published | — | held: equipment rework (#162/#180) |
 | `financials/cost-allocation.md` | published | 2026-10-06 (coordinator, PR #136) | — |
+| `financials/gig-accounting.md` | published | 2026-10-06 (coordinator, PR #136) | held: #125 money-type rework |
 | `financials/gig-expenses.md` | published | 2026-10-06 (coordinator, PR #136) | — |
+| `financials/overview.md` | published | 2026-10-08 (Docs Lead, PR #191, merged) | Tax time note updated |
 | `financials/purchases.md` | published | 2026-10-06 (coordinator, PR #136) | — |
-| `gigs/calendar-view.md` | draft, written (PR #172) | 2026-10-07 (Docs Lead) | ready to publish once #172 merges |
-| `gigs/conflict-detection.md` | draft, written (PR #172) | 2026-10-07 (Docs Lead) | ready to publish once #172 merges |
-| `gigs/documents-and-notes.md` | draft, written (PR #172) | 2026-10-07 (Docs Lead) | ready to publish once #172 merges |
-| `gigs/participating-organizations.md` | draft, written (PR #172) | 2026-10-07 (Docs Lead) | ready to publish once #172 merges |
-| `gigs/schedule.md` | draft, written (PR #172) | 2026-10-07 (Docs Lead) | ready to publish once #172 merges |
-| `gigs/staffing-and-participants.md` | draft, written (PR #172) | 2026-10-07 (Docs Lead) | ready to publish once #172 merges |
-| `gigs/the-gig-list.md` | draft, written (PR #172) | 2026-10-07 (Docs Lead) | ready to publish once #172 merges |
-| `import/ai-receipt-scanning.md` | draft | — | not audited |
-| `import/csv-asset-import.md` | draft | — | not audited |
-| `mobile/biometric-unlock.md` | draft | — | not audited |
-| `mobile/field-inventory.md` | draft | — | not audited |
-| `mobile/offline-access.md` | draft | — | not audited |
-| `mobile/overview.md` | draft | — | not audited |
-| `team/invitations.md` | draft, written (PR #177) | 2026-10-07 (Docs Lead) | ready to publish once #177 merges |
-| `team/member-profiles.md` | draft, written (PR #177) | 2026-10-07 (Docs Lead) | ready to publish once #177 merges |
-| `team/people-without-logins.md` | draft, written (PR #177) | 2026-10-07 (Docs Lead) | ready to publish once #177 merges |
-| `team/team-and-roles.md` | draft, written (PR #177) | 2026-10-07 (Docs Lead) | ready to publish once #177 merges |
-| `reference/access-requests-and-moderation.md` | draft, written (PR #177) | 2026-10-07 (Docs Lead) | ready to publish once #177 merges |
-| `reference/glossary.md` | draft, written (PR #177) | 2026-10-07 (Docs Lead) | ready to publish once #177 merges |
+| `financials/reporting.md` | draft, written (PR #191, merged) | 2026-10-08 (Docs Lead) | new page; ready to publish, then link it from overview and tax treatment |
+| `financials/receipts-and-invoices.md` | published | 2026-10-06 (coordinator, PR #136) | — |
+| `financials/tax-treatment.md` | published | 2026-10-08 (Docs Lead, PR #191, merged) | recovery periods documented |
+| `getting-started/onboarding.md` | published | 2026-10-06 (triage, PR #139); screenshots PR #163 | — |
+| `getting-started/organizations.md` | published | 2026-10-08 (Docs Lead, PR #191, merged) | fixes and screenshots in |
+| `getting-started/the-dashboard.md` | published | 2026-10-06 (triage, PR #139); screenshot PR #163 | dashboard shot held for #157 |
+| `getting-started/what-is-gigwrangler.md` | published | 2026-10-07 (Docs Lead, PR #164) | — |
+| `gigs/calendar-view.md` | draft, written (PR #172, merged) | 2026-10-07 (Docs Lead) | ready to publish |
+| `gigs/change-history.md` | published | 2026-10-07 (triage, PR #151); screenshots PR #166 | — |
+| `gigs/conflict-detection.md` | draft, written (PR #172, merged) | 2026-10-07 (Docs Lead) | ready to publish |
+| `gigs/creating-a-gig.md` | published | 2026-10-07 (triage, PR #151); screenshots PR #166 | — |
+| `gigs/documents-and-notes.md` | draft, written (PR #172, merged) | 2026-10-07 (Docs Lead) | ready to publish |
+| `gigs/overview.md` | published | 2026-10-07 (Docs Lead, PR #166/#177) | Delete is Admin-only fix lands with #177 |
+| `gigs/participating-organizations.md` | draft, written (PR #172, merged) | 2026-10-07 (Docs Lead) | ready to publish |
+| `gigs/schedule.md` | draft, written (PR #172, merged) | 2026-10-07 (Docs Lead) | ready to publish |
+| `gigs/staffing-and-participants.md` | draft, written (PR #172, merged) | 2026-10-07 (Docs Lead) | ready to publish |
+| `gigs/the-gig-list.md` | draft, written (PR #172, merged) | 2026-10-07 (Docs Lead) | ready to publish |
+| `index.mdx` | published | 2026-10-08 (Docs Lead, PR #191, merged) | fixes in |
+| `mobile/biometric-unlock.md` | draft | — | held |
+| `mobile/field-inventory.md` | draft | — | held: equipment rework (#162/#180) |
+| `mobile/offline-access.md` | draft | — | held |
+| `mobile/overview.md` | draft | — | held |
+| `reference/access-requests-and-moderation.md` | draft, written (PR #177, merged) | 2026-10-07 (Docs Lead); screenshots PR #191 | ready to publish |
+| `reference/glossary.md` | draft, written (PR #177) | 2026-10-07 (Docs Lead) | publish after the pages it links to |
+| `reference/roles-and-access.md` | published | 2026-10-07 (Docs Lead, PR #177, merged) | — |
+| `settings/categories.md` | published | 2026-10-08 (Docs Lead, PR #189, merged) | corrections in |
+| `settings/google-calendar.md` | published | 2026-10-08 (Docs Lead, PR #189, merged) | rewritten in #189; connected-state shot needs a Google account |
+| `settings/overview.md` | published | 2026-10-08 (Docs Lead, PR #189, merged) | corrections in |
+| `team/invitations.md` | draft, written (PR #177, merged) | 2026-10-07 (Docs Lead) | ready to publish |
+| `team/member-profiles.md` | draft, written (PR #177, merged) | 2026-10-07 (Docs Lead) | ready to publish |
+| `team/overview.md` | published | 2026-10-07 (Docs Lead, PR #177, merged) | — |
+| `team/people-without-logins.md` | draft, written (PR #177, merged) | 2026-10-07 (Docs Lead) | ready to publish |
+| `team/team-and-roles.md` | draft, written (PR #177, merged) | 2026-10-07 (Docs Lead) | ready to publish |
 
 **Project rules that bite** ([AGENTS.md](./AGENTS.md)): approval before going from plan to code (rule 1); a failing test before a bug fix (rule 3); never edit a committed migration, and Cameron applies new ones (rule 4); list manual deploy and verification steps (rule 7). Prod is read-only for agents unless Cameron approves a specific change.
 

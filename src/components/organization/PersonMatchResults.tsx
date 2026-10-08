@@ -1,11 +1,11 @@
 import { AlertTriangle, Loader2, User as UserIcon } from 'lucide-react';
-import type { User } from '../../utils/supabase/types';
+import type { PersonMatch } from '../../utils/supabase/types';
 
 interface PersonMatchResultsProps {
-  matches: User[];
+  matches: PersonMatch[];
   isLoading: boolean;
   hasQuery: boolean;
-  onSelect: (match: User) => void;
+  onSelect: (match: PersonMatch) => void;
   emptyHint?: string;
   /** True when the search itself failed — must render distinctly from "no matches found", since those mean very different things. */
   isError?: boolean;
@@ -72,7 +72,7 @@ export default function PersonMatchResults({
             <div className="min-w-0 flex-1">
               <p className="text-sm truncate">{m.first_name} {m.last_name}</p>
               <p className="text-xs text-gray-500 truncate">
-                {[m.email, m.phone].filter(Boolean).join(' · ')}
+                {personMatchDetail(m)}
               </p>
             </div>
             <span className="text-xs text-amber-700 font-medium shrink-0">Use this person</span>
@@ -81,4 +81,10 @@ export default function PersonMatchResults({
       </div>
     </div>
   );
+}
+
+/** The line under a match's name: masked email, their organizations, and why it matched when that isn't obvious. */
+export function personMatchDetail(m: PersonMatch): string {
+  const why = m.matched_on === 'phone' ? 'same phone' : m.matched_on === 'similar name' ? 'similar name' : null;
+  return [m.email_hint, m.organization_names.join(', '), why].filter(Boolean).join(' · ');
 }

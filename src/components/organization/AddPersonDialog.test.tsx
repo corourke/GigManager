@@ -23,7 +23,7 @@ vi.mock('sonner', () => ({
 }));
 
 vi.mock('../../services/user.service', () => ({
-  searchAllUsers: vi.fn(),
+  searchPeople: vi.fn(),
 }));
 
 vi.mock('../../services/organization.service', () => ({
@@ -46,7 +46,7 @@ const defaultProps = {
 describe('AddPersonDialog', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.mocked(userService.searchAllUsers).mockResolvedValue([]);
+    vi.mocked(userService.searchPeople).mockResolvedValue([]);
   });
 
   it('does not require an email to add a new person (issue #5)', async () => {
@@ -78,8 +78,8 @@ describe('AddPersonDialog', () => {
   });
 
   it('searches system-wide for a match — not scoped to the current organization', async () => {
-    vi.mocked(userService.searchAllUsers).mockResolvedValue([
-      { id: 'existing-user-1', first_name: 'Jane', last_name: 'Doe', email: 'jane@example.com', phone: null } as any,
+    vi.mocked(userService.searchPeople).mockResolvedValue([
+      { id: 'existing-user-1', first_name: 'Jane', last_name: 'Doe', email_hint: 'jane@example.com', organization_names: [], matched_on: 'name' },
     ]);
     vi.mocked(organizationService.linkExistingPersonToOrganization).mockResolvedValue({ user_id: 'existing-user-1', member: {} } as any);
 
@@ -88,7 +88,7 @@ describe('AddPersonDialog', () => {
     fireEvent.change(screen.getByLabelText('First Name *'), { target: { value: 'Jane' } });
     fireEvent.change(screen.getByLabelText('Last Name *'), { target: { value: 'Doe' } });
 
-    await waitFor(() => expect(userService.searchAllUsers).toHaveBeenCalledWith('Jane Doe'));
+    await waitFor(() => expect(userService.searchPeople).toHaveBeenCalledWith('Jane Doe', { email: '', phone: '' }));
     await waitFor(() => expect(screen.getByText(/Found a possible match/)).toBeInTheDocument());
     fireEvent.click(screen.getByText('Use this person'));
 
@@ -102,9 +102,23 @@ describe('AddPersonDialog', () => {
     expect(organizationService.addOrganizationContact).not.toHaveBeenCalled();
   });
 
+  it('also looks for a match by phone, and shows the masked email and organizations, never the full email (#178)', async () => {
+    vi.mocked(userService.searchPeople).mockResolvedValue([
+      { id: 'existing-user-1', first_name: 'Jane', last_name: 'Doe', email_hint: 'j***@example.com',
+        organization_names: ['Hotel Del', 'Act4 Audio'], matched_on: 'phone' },
+    ]);
+
+    render(<AddPersonDialog {...defaultProps} />);
+
+    fireEvent.change(screen.getByLabelText('Phone'), { target: { value: '(555) 123-4567' } });
+
+    await waitFor(() => expect(userService.searchPeople).toHaveBeenCalledWith('', { email: '', phone: '(555) 123-4567' }));
+    expect(await screen.findByText('j***@example.com · Hotel Del, Act4 Audio · same phone')).toBeInTheDocument();
+  });
+
   it('creates a new person anyway when the user ignores a suggested match', async () => {
-    vi.mocked(userService.searchAllUsers).mockResolvedValue([
-      { id: 'existing-user-1', first_name: 'Jane', last_name: 'Doe', email: null, phone: null } as any,
+    vi.mocked(userService.searchPeople).mockResolvedValue([
+      { id: 'existing-user-1', first_name: 'Jane', last_name: 'Doe', email_hint: null, organization_names: [], matched_on: 'name' },
     ]);
     vi.mocked(organizationService.addOrganizationContact).mockResolvedValue({ user_id: 'new-user-1', member: {} } as any);
 
@@ -161,8 +175,8 @@ describe('AddPersonDialog', () => {
     });
 
     it('links an existing match via addGigParticipantContact, not addOrganizationContact/linkExistingPersonToOrganization', async () => {
-      vi.mocked(userService.searchAllUsers).mockResolvedValue([
-        { id: 'existing-user-1', first_name: 'Jane', last_name: 'Doe', email: 'jane@example.com', phone: null } as any,
+      vi.mocked(userService.searchPeople).mockResolvedValue([
+        { id: 'existing-user-1', first_name: 'Jane', last_name: 'Doe', email_hint: 'jane@example.com', organization_names: [], matched_on: 'name' },
       ]);
       vi.mocked(gigParticipantContactsService.addGigParticipantContact).mockResolvedValue({ id: 'gpc-1', user_id: 'existing-user-1' } as any);
 

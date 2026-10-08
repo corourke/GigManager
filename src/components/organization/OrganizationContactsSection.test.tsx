@@ -18,7 +18,7 @@ vi.mock('sonner', () => ({
 }));
 
 vi.mock('../../services/user.service', () => ({
-  searchAllUsers: vi.fn().mockResolvedValue([]),
+  searchPeople: vi.fn().mockResolvedValue([]),
 }));
 
 vi.mock('../../services/gigParticipantContacts.service', () => ({
@@ -45,7 +45,7 @@ const defaultProps = {
 describe('OrganizationContactsSection', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.mocked(userService.searchAllUsers).mockResolvedValue([]);
+    vi.mocked(userService.searchPeople).mockResolvedValue([]);
   });
 
   it('lists every organization member, grouped by whether they have a login (regression: no longer filtered out)', async () => {

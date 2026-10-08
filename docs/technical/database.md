@@ -1382,7 +1382,9 @@ These functions are defined with `SECURITY DEFINER` to bypass RLS when necessary
 - `get_complete_user_data(user_uuid)`: Returns user profile and organization memberships as JSONB.
 - `get_user_profile_secure(user_uuid)`: Returns user profile row securely.
 - `get_user_organizations_secure(user_uuid)`: Returns user's organization memberships securely.
-- `search_users_secure(search_text)`: Searches users by name/email (excludes inactive users).
+- `search_people(p_query, p_email, p_phone)`: System-wide search for an existing person before adding a new one (#178). Every word of `p_query` must match the name, in any order, with one typo forgiven per word (two in words of 7+ letters); `p_email` matches as typed; `p_phone` matches ignoring formatting (last 10 digits, or 7 for a local number). Any one match is enough; inactive people are left out. Returns only `id`, `first_name`, `last_name`, `email_hint` (masked, e.g. `j***@crew.example`), `organization_names` and `matched_on`. Signed-in callers only.
+- `search_organizations(p_query, p_type)`: The same word matching for organization names, optionally by type. Runs as the caller.
+- `search_name_rank(p_name, p_query)`: Helper for both: 0 = every word is part of the name, 1 = a typo was forgiven, NULL = no match.
 - `convert_pending_user_to_active(p_email, p_auth_user_id)`: Converts a pending user to active on first login.
 - `invite_user_to_organization(...)`: Creates an invitation and pending user record.
 - `create_gig_complex(p_gig_data, p_participants, p_staff_slots)`: Transactionally creates a gig with participants and staff slots. Since migration 20260613000000 it requires `p_gig_data.primary_organization_id` and that the caller is Admin/Manager of that org; it is the only gig-creation path (no gigs INSERT policy).

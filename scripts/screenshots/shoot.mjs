@@ -29,6 +29,7 @@ const USERS = {
   staff: 'demo-staff@gigwrangler.test',
   viewer: 'demo-viewer@gigwrangler.test',
   newuser: 'demo-newuser@gigwrangler.test',
+  moderator: 'demo-moderator@gigwrangler.test',
 };
 
 const args = process.argv.slice(2);

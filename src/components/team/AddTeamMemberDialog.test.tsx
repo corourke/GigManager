@@ -22,7 +22,7 @@ vi.mock('sonner', () => ({
 }));
 
 vi.mock('../../services/user.service', () => ({
-  searchAllUsers: vi.fn().mockResolvedValue([]),
+  searchPeople: vi.fn().mockResolvedValue([]),
 }));
 
 vi.mock('../../services/organization.service', () => ({
@@ -49,7 +49,7 @@ const defaultProps = {
 describe('AddTeamMemberDialog', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.mocked(userService.searchAllUsers).mockResolvedValue([]);
+    vi.mocked(userService.searchPeople).mockResolvedValue([]);
   });
 
   it('renders all three tabs, including the new quick-add tab', () => {
@@ -89,10 +89,10 @@ describe('AddTeamMemberDialog', () => {
 
   it('searches system-wide (not scoped to this org) so a match on another org still surfaces', async () => {
     // Regression: this used to call a per-organization RPC that missed people who
-    // are only members of a DIFFERENT organization — the same searchAllUsers path
+    // are only members of a DIFFERENT organization — the same searchPeople path
     // the Existing User tab already uses must find them too.
-    vi.mocked(userService.searchAllUsers).mockResolvedValue([
-      { id: 'existing-1', first_name: 'Cameron', last_name: 'Orourke', email: 'cam@example.com', phone: null } as any,
+    vi.mocked(userService.searchPeople).mockResolvedValue([
+      { id: 'existing-1', first_name: 'Cameron', last_name: 'Orourke', email_hint: 'cam@example.com', organization_names: [], matched_on: 'name' },
     ]);
     vi.mocked(organizationService.linkExistingPersonToOrganization).mockResolvedValue({ user_id: 'existing-1', member: {} } as any);
 
@@ -101,7 +101,7 @@ describe('AddTeamMemberDialog', () => {
     fireEvent.mouseDown(screen.getByText('No Account'));
     fireEvent.change(screen.getByLabelText('First Name *'), { target: { value: 'Cam' } });
 
-    await waitFor(() => expect(userService.searchAllUsers).toHaveBeenCalledWith('Cam'));
+    await waitFor(() => expect(userService.searchPeople).toHaveBeenCalledWith('Cam', { email: '', phone: '' }));
     await waitFor(() => expect(screen.getByText(/Found a possible match/)).toBeInTheDocument());
     fireEvent.click(screen.getByText('Use this person'));
 
