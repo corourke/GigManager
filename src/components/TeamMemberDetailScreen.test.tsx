@@ -79,3 +79,29 @@ describe('TeamMemberDetailScreen (#173)', () => {
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
   })
 })
+
+describe('TeamMemberDetailScreen Edit dialog: Organization Role (#206)', () => {
+  async function openEdit(props: { userRole: 'Admin' | 'Manager' }) {
+    render(<TeamMemberDetailScreen {...baseProps} {...props} onBack={vi.fn()} />)
+    await screen.findByRole('heading', { level: 1, name: /Dana Reyes/ })
+    fireEvent.click(screen.getByRole('button', { name: /^Edit$/ }))
+    await screen.findByRole('dialog', { name: 'Edit Team Member' })
+  }
+
+  it('shows Organization Role when an Admin edits a Staff member', async () => {
+    await openEdit({ userRole: 'Admin' })
+    expect(screen.getByText(/Organization Role/)).toBeInTheDocument()
+  })
+
+  it('hides Organization Role when a Manager edits an Admin (canAssignRole says no)', async () => {
+    vi.mocked(getOrganizationMember).mockResolvedValueOnce({
+      id: 'm1',
+      created_at: '2026-01-15T00:00:00Z',
+      role: 'Admin',
+      default_staff_role_id: 'sr-foh',
+      user: { id: 'other-user', first_name: 'Dana', last_name: 'Reyes', email: 'dana@example.com', user_status: 'active', timezone: 'America/Chicago' },
+    } as any)
+    await openEdit({ userRole: 'Manager' })
+    expect(screen.queryByText(/Organization Role/)).not.toBeInTheDocument()
+  })
+})
