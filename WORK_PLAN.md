@@ -180,10 +180,10 @@ Not released: #174's UI half shipped in PR #199; its remaining item (the already
 | `settings/google-calendar.md` | published | 2026-10-08 (Docs Lead, overnight rule checked) | connected-state shot needs a Google account |
 | `settings/overview.md` | published | 2026-10-08 (Docs Lead, Edit Organization button checked) | — |
 | `team/invitations.md` | draft, written (PR #177, merged) | 2026-10-08 (Docs Lead, PR #207) | ready to publish |
-| `team/member-profiles.md` | draft, written (PR #177, merged) | 2026-10-08 (Docs Lead, PR #207) | ready to publish; role edit via Team until #206 |
+| `team/member-profiles.md` | draft, written (PR #177, merged) | 2026-10-08 (Docs Lead, PR #217) | ready to publish; #206 workaround removed |
 | `team/overview.md` | published | 2026-10-07 (Docs Lead, PR #177, merged) | — |
 | `team/people-without-logins.md` | draft, written (PR #177, merged) | 2026-10-07 (Docs Lead) | ready to publish |
-| `team/team-and-roles.md` | draft, written (PR #177, merged) | 2026-10-08 (Docs Lead) | ready to publish |
+| `team/team-and-roles.md` | draft, written (PR #177, merged) | 2026-10-08 (Docs Lead, PR #217) | ready to publish |
 
 **Project rules that bite** ([AGENTS.md](./AGENTS.md)): approval before going from plan to code (rule 1); a failing test before a bug fix (rule 3); never edit a committed migration, and Cameron applies new ones (rule 4); list manual deploy and verification steps (rule 7). Prod is read-only for agents unless Cameron approves a specific change.
 
