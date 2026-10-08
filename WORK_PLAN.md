@@ -92,6 +92,7 @@ Not released, staying with the coordinator: #174, #175 (needs a design pass) and
 
 (none open: the 10-07 entries are filed as #157–#160, #168–#171, #173–#176 and #178, and their decisions are in §1 and §2)
 
+- **From the Docs Lead (10-08, Financials → Reporting, PR #191): #194**, a year with only disposals isn't offered in Tax year, and the needs-category hint can't always be followed. Small, UI only.
 - **From the Docs Lead (10-08, Settings, PR #189): #188**, Google Calendar shows "System-Wide Bulk Re-sync (Repair)", with developer copy, to every user, and the category type-rules box says "will offer". Small, UI only.
 - **Dev schema is ahead of main (Docs Lead, 10-08).** Dev has migration `20261014000000` from #180 (equipment units) applied, and its rule (tagged equipment must have quantity 1) broke the demo seed. PR #189 fixes the seed. The seed's equipment will need a fuller rework when #180 merges, and the Equipment pages wait for that too.
 
@@ -132,10 +133,11 @@ Not released, staying with the coordinator: #174, #175 (needs a design pass) and
 | `financials/cost-allocation.md` | published | 2026-10-06 (coordinator, PR #136) | — |
 | `financials/gig-accounting.md` | published | 2026-10-06 (coordinator, PR #136) | held: #125 money-type rework |
 | `financials/gig-expenses.md` | published | 2026-10-06 (coordinator, PR #136) | — |
-| `financials/overview.md` | published | 2026-10-06 (coordinator, PR #136) | — |
+| `financials/overview.md` | published | 2026-10-08 (Docs Lead, PR #191) | Tax time note updated; live when #191 merges |
 | `financials/purchases.md` | published | 2026-10-06 (coordinator, PR #136) | — |
+| `financials/reporting.md` | draft, written (PR #191) | 2026-10-08 (Docs Lead) | new page; ready to publish once #191 merges, then link it from overview and tax treatment |
 | `financials/receipts-and-invoices.md` | published | 2026-10-06 (coordinator, PR #136) | — |
-| `financials/tax-treatment.md` | published | 2026-10-06 (coordinator) | recovery periods now exist (PR #167); recheck |
+| `financials/tax-treatment.md` | published | 2026-10-08 (Docs Lead, PR #191) | recovery periods documented; live when #191 merges |
 | `getting-started/onboarding.md` | published | 2026-10-06 (triage, PR #139); screenshots PR #163 | — |
 | `getting-started/organizations.md` | published | 2026-10-08 (Docs Lead, PR #191) | fixes and screenshots go live when #191 merges |
 | `getting-started/the-dashboard.md` | published | 2026-10-06 (triage, PR #139); screenshot PR #163 | dashboard shot held for #157 |
@@ -155,7 +157,7 @@ Not released, staying with the coordinator: #174, #175 (needs a design pass) and
 | `mobile/field-inventory.md` | draft | — | held: equipment rework (#162/#180) |
 | `mobile/offline-access.md` | draft | — | held |
 | `mobile/overview.md` | draft | — | held |
-| `reference/access-requests-and-moderation.md` | draft, written (PR #177, merged) | 2026-10-07 (Docs Lead) | ready to publish |
+| `reference/access-requests-and-moderation.md` | draft, written (PR #177, merged) | 2026-10-07 (Docs Lead); screenshots PR #191 | ready to publish |
 | `reference/glossary.md` | draft, written (PR #177) | 2026-10-07 (Docs Lead) | publish after the pages it links to |
 | `reference/roles-and-access.md` | published | 2026-10-07 (Docs Lead, PR #177, merged) | — |
 | `settings/categories.md` | published | 2026-10-08 (Docs Lead, PR #189) | corrections go live when #189 merges |
