@@ -5,6 +5,8 @@ Append new entries at the top of each section; never edit an old entry to descri
 
 ## Shipped (newest first)
 
+- **#178, PR #195** (coordinator, merged 10-08): person search (`search_people`) matches every word in any order with a typo forgiven, email as typed and phone ignoring formatting, and returns only the picker's fields; organization search matches the same way. Migration `20261015000000` on dev (Cameron tested); prod waiting. Also: a `node_modules` symlink committed to main in cfdbd5e was removed in 6759f7b, and `.gitignore` now ignores it in any form.
+
 - **PR #189 and PR #191** (Docs Lead, merged 10-08 by the coordinator with Cameron's go): Settings, Google Calendar, home page, organizations and access-request docs checked against the app with new screenshots; the Reporting page (draft); the demo seed runs on the 20261012–14 schema and seeds a moderator, a claim request and notifications.
 
 | Work | Shipped in | Notes |

@@ -9,7 +9,7 @@
 
 This file lives on `main`. Land updates there promptly: a run that starts from `main` won't see edits parked on a feature branch.
 
-- **Last updated:** 2026-10-08 (coordinator: PRs #189 and #191 merged; #178 built, waiting on the dev migration; check-ins every 4 hours through 10-17)
+- **Last updated:** 2026-10-08 (coordinator: #178 merged in PR #195, prod release waiting; #190 and #192 reviewed; check-ins every 4 hours through 10-17)
 
 ---
 
@@ -26,7 +26,6 @@ This file lives on `main`. Land updates there promptly: a run that starts from `
 | [#20](https://github.com/corourke/GigManager/issues/20) | Shared data-access layer under `src/services/` | Released in §3c (7 batches) | Triage, batch 1 next |
 | [#175](https://github.com/corourke/GigManager/issues/175) | Delete gig offered to Managers, but Admin-only | Cameron 10-07: another participating org's Admin must never delete; direction "cancel only when other orgs participate" | Needs a design pass (coordinator) |
 | [#174](https://github.com/corourke/GigManager/issues/174) | Team roles and invitations: UI offers what the server refuses | Cameron 10-07: a Manager must never be able to make anyone an Admin, by any path | Coordinator; the server side is the private finding in §2 |
-| [#178](https://github.com/corourke/GigManager/issues/178) | Duplicate check misses full names; org search is a plain substring | [PR #195](https://github.com/corourke/GigManager/pull/195): migration `20261015000000` applied to dev and tested by Cameron 10-08. Also fixes the private person-search finding. Merge on CI green and Cameron's OK | **Coordinator** |
 | [#157](https://github.com/corourke/GigManager/issues/157) | Dashboard Equipment total should be replacement value × quantity | Rule decided by Cameron 10-07 | PR #190 (Equipment Lead): coordinator asked 10-08 to leave out Disposed and Returned equipment |
 | [#158](https://github.com/corourke/GigManager/issues/158), [#168](https://github.com/corourke/GigManager/issues/168) | Staff/Viewers see $0 money cards (dashboard) and money columns (gig list) | Filed by the Docs Lead 10-07 | Released to triage (§3c) |
 | [#159](https://github.com/corourke/GigManager/issues/159), [#169](https://github.com/corourke/GigManager/issues/169), [#170](https://github.com/corourke/GigManager/issues/170), [#171](https://github.com/corourke/GigManager/issues/171), [#173](https://github.com/corourke/GigManager/issues/173), [#176](https://github.com/corourke/GigManager/issues/176) | Small UI bugs: © year, Markdown notes, conflict banner, staff slot delete/rates, member details page, org settings path | Filed by the Docs Lead 10-07 | Released to triage (§3c) |
@@ -36,8 +35,10 @@ This file lives on `main`. Land updates there promptly: a run that starts from `
 1. **Dev mail catcher** (Cameron, 10-08: Mailtrap): create a free Mailtrap Email Testing inbox and send its SMTP host, port, user and password. The coordinator then points dev's Supabase Auth at it and checks the invitation, sign-up confirmation and password-reset flows with the demo `.test` logins.
 2. **Sentry secrets** (optional): `SENTRY_API_TOKEN`, `SENTRY_ORG_SLUG`, `SENTRY_PROJECT_SLUG`; the health check reports "not configured" until set.
 
+**Prod release waiting:** #178 (PR #195, merged 10-08) needs migration `20261015000000_person_and_org_search.sql` and a frontend deploy together (`deploy_prod.sh`); the old search function is dropped, so ship both in one run. Say when.
+
 **Decided 10-08, recorded here until done:**
-- The Docs Lead's corrected membership report (private; reported to Cameron directly): no path lets a Manager make anyone an Admin. The remaining backstop gaps are **parked** (Cameron: later). Partner organizations on a shared gig may keep adding, editing and removing each other's no-login contacts (intended). Person-search privacy is fixed with #178 (coordinator).
+- The Docs Lead's corrected membership report (private; reported to Cameron directly): no path lets a Manager make anyone an Admin. The remaining backstop gaps are **parked** (Cameron: later). Partner organizations on a shared gig may keep adding, editing and removing each other's no-login contacts (intended). Person-search privacy is fixed by #178 (merged; prod release above).
 - An organization's own Admin still can't delete a claimed organization from the app (kept as is; no change).
 - Overnight gigs: released to triage (§3c).
 
@@ -80,7 +81,7 @@ Pure refactor: no migrations, no edge-function or UI changes. Tests, typecheck, 
 - [#173](https://github.com/corourke/GigManager/issues/173): a member's details page. Edit goes nowhere, the default role isn't shown, and timezone edits are dropped.
 - [#176](https://github.com/corourke/GigManager/issues/176): there's no direct path to your own organization's settings, and the Contacts card clips its actions.
 
-Not released, staying with the coordinator: #174, #175 (needs a design pass) and #178 (fixed with a private search issue).
+Not released, staying with the coordinator: #174, #175 (needs a design pass).
 
 **Overnight gigs on Google Calendar** (released 10-08, Cameron). A gig that ends before 6 AM on the day after it starts shows on its start day only; its real times stay at the top of the event description. The dates come from `buildCalendarEvent` in `supabase/functions/server/lib/pure/calendarEvent.ts`, shared by the server and the browser sync, so change it there with tests: a 9 PM–1:30 AM gig is one day, a gig ending at 6:00 or later shows both days, multi-day gigs are unchanged, and the cutoff is in the gig's time zone. Needs a `server` redeploy and a frontend deploy; list both in the PR.
 
