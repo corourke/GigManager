@@ -34,11 +34,10 @@ This file lives on `main`. Land updates there promptly: a run that starts from `
 ## 2. Waiting on Cameron
 
 1. **Private security finding in the membership RPCs** (Docs Lead, 10-07): details went to Cameron directly, because this repo is public. Needs a migration (coordinator) once he gives the go. Until then, hold the `docs/technical/security-scheme.md` update.
-2. **Small bugs from the Docs Lead** (#158, #159, #168–#171, #173, #176, #178): release them to triage?
-3. **Email simulation on dev** (Docs Lead): Cameron wants to show the invitation, sign-up and password-reset flows with the demo `.test` logins. Hosted dev sends real mail. Options: a dev-only SMTP catcher (e.g. Mailpit) behind the dev project's custom SMTP, or a dev-only "generate link" admin route.
-4. **Organization delete by its own Admin:** `DELETE /organizations/:id` counts the calling Admin as a member, so a claimed org can never be deleted from the app. Ignore the caller's own membership, or keep it impossible?
-5. **Overnight gigs on Google Calendar:** a 9 PM–1:30 AM gig shows on both days. Show a gig ending before 6 AM on its start day only?
-6. **Sentry secrets** (optional): `SENTRY_API_TOKEN`, `SENTRY_ORG_SLUG`, `SENTRY_PROJECT_SLUG`; the health check reports "not configured" until set.
+2. **Email simulation on dev** (Docs Lead): Cameron wants to show the invitation, sign-up and password-reset flows with the demo `.test` logins. Hosted dev sends real mail. Options: a dev-only SMTP catcher (e.g. Mailpit) behind the dev project's custom SMTP, or a dev-only "generate link" admin route.
+3. **Organization delete by its own Admin:** `DELETE /organizations/:id` counts the calling Admin as a member, so a claimed org can never be deleted from the app. Ignore the caller's own membership, or keep it impossible?
+4. **Overnight gigs on Google Calendar:** a 9 PM–1:30 AM gig shows on both days. Show a gig ending before 6 AM on its start day only?
+5. **Sentry secrets** (optional): `SENTRY_API_TOKEN`, `SENTRY_ORG_SLUG`, `SENTRY_PROJECT_SLUG`; the health check reports "not configured" until set.
 
 ## 3. Ready work and agent lanes
 
