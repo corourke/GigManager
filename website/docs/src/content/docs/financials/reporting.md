@@ -78,7 +78,7 @@ If nothing falls in the range, you'll see "No equipment costing $200 to $2,500 e
 
 The CSV adds the vendor and a **Tracked as equipment** column.
 
-![The Grey zone report for 2026: the total, 0 expensed and 3 depreciated, then a stage box, a lighting controller and four moving heads with their cost each and treatment, each with Change…](../../../assets/screenshots/financials/reporting-grey-zone.png)
+![The Grey zone report for 2026: the total, 1 expensed and 2 depreciated, then a stage box and four moving heads set to Depreciate and a lighting controller set to Expense, each with Change…](../../../assets/screenshots/financials/reporting-grey-zone.png)
 
 ## Filing a year
 
