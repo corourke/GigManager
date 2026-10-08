@@ -228,16 +228,16 @@ The `server` edge function requires a `GOOGLE_PLACES_API_KEY` to perform place s
 Set up the Google Cloud API key here: `https://console.cloud.google.com/`
 
 #### Local Development
-Edge Functions do not automatically read from your root `.env.local`. You must provide the key specifically to the functions runtime:
+Edge Functions do not automatically read from your root `.env.development.local`. You must provide the key specifically to the functions runtime:
 
-1. Create a file at `supabase/functions/server/.env` (or use the root `.env.local`).
+1. Create a file at `supabase/functions/server/.env` (or use the root `.env.development.local`). `--env-file` accepts any path.
 2. Add your key:
    ```env
    GOOGLE_PLACES_API_KEY=your_actual_google_places_key
    ```
 3. When running functions locally, use the `--env-file` flag:
    ```bash
-   supabase functions serve server --env-file .env.local
+   supabase functions serve server --env-file .env.development.local
    ```
 
 #### Production
@@ -271,13 +271,13 @@ The `ai-scan` edge function uses Anthropic's Claude models to extract structured
    - **Success**: Returns a JSON message object.
    - **Failure**: Returns a `404` error (model not found) or `400` (bad request), confirming the model is unavailable for your current configuration.
 
-5. **Local Development**: Add the key to your `.env.local`:
+5. **Local Development**: Add the key to your `.env.development.local`:
    ```env
    ANTHROPIC_API_KEY=your_anthropic_key
    ```
    Run the function locally:
    ```bash
-   supabase functions serve ai-scan --env-file .env.local
+   supabase functions serve ai-scan --env-file .env.development.local
    ```
 6. **Production**: Set the secret in Supabase:
    ```bash
@@ -302,7 +302,7 @@ The Google Calendar integration requires OAuth 2.0 credentials and specific Edge
 #### Environment Variables
 Add the client ID to your frontend environment variables:
 ```env
-# .env.local
+# .env.development.local
 VITE_GOOGLE_CLIENT_ID=your-google-client-id
 ```
 

@@ -14,7 +14,7 @@ and how to crop are in [`website/docs/STYLE.md`](../../website/docs/STYLE.md#scr
 
 1. Seed the demo data: `scripts/seed-demo.sh` (see `scripts/README.md`). It creates the
    demo logins, all with the password `demo1pass`.
-2. Put the dev `VITE_SUPABASE_URL` and the **anon** key in `.env.local` at the repo root.
+2. Put the dev `VITE_SUPABASE_URL` and the **anon** key in `.env.development.local` at the repo root.
    Never use the service_role key.
 3. Start the app: `npm run dev` (port 3000), or set `SHOT_BASE_URL`.
 4. Install once: `cd scripts/screenshots && PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 npm install`.

@@ -1,5 +1,5 @@
 // Supabase configuration - update these with your own values
-// For local development, create a .env.local file with:
+// For local development, create a .env.development.local file with:
 // VITE_SUPABASE_URL=your-supabase-url
 // VITE_SUPABASE_ANON_KEY=your-supabase-anon-key
 
@@ -9,7 +9,7 @@ export const publicAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
 if (!supabaseUrl || !publicAnonKey) {
   throw new Error(
-    'Missing Supabase environment variables. Please create a .env.local file with VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY.'
+    'Missing Supabase environment variables. Please create a .env.development.local file with VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY.'
   );
 }
 
