@@ -9,7 +9,7 @@
 
 This file lives on `main`. Land updates there promptly: a run that starts from `main` won't see edits parked on a feature branch.
 
-- **Last updated:** 2026-10-08 evening (coordinator: PRs #199 and #200 merged; Grey zone report in PR #201)
+- **Last updated:** 2026-10-08 evening (coordinator: PRs #197–#201 merged; #192 waits on the Equipment Lead's merge of main)
 
 ---
 

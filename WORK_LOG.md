@@ -5,6 +5,8 @@ Append new entries at the top of each section; never edit an old entry to descri
 
 ## Shipped (newest first)
 
+- **#125 Grey zone report, PR #201** (coordinator's sub-agent, merged 10-08 evening): Financials → Reporting → Grey zone lists equipment lines costing $200–$2,500 each in the year with their treatment; Change… opens the purchase editor in unlocked years; CSV.
+
 - **#92, PR #200** (coordinator's sub-agent, merged 10-08 evening): autosave in participants, schedule, staff, gig kits and kit components deletes only rows the form loaded and the user removed (`useRowBaseline`; services take `loadedIds`, nothing deleted without it); inserted rows' ids are written back. Deletes and inserts are still not one transaction.
 
 - **PR #199** (coordinator's sub-agent, merged 10-08 evening): #174 frontend: Managers aren't offered Admin anywhere (shared `canAssignRole`), an Admin's role is read-only for Managers, your own role cell is read-only, a failed invite email no longer says "Invitation sent!". Left open: the database function's wrong tab name (needs a migration).
