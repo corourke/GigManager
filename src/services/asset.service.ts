@@ -126,14 +126,20 @@ export async function getAsset(assetId: string) {
 /**
  * Whether an equipment record is depreciated (#125): its purchase line has tax
  * treatment depreciate. Returns that line's date (or its invoice's), or null.
- * Null too when the user can't read purchases.
+ * Null too when the user can't read purchases. The line is the record's own
+ * (`purchase_line_id`, #183), or one that still names it in `asset_id`.
  */
 export async function getAssetDepreciatedDate(assetId: string): Promise<string | null> {
   const supabase = getSupabase();
   try {
+    const { data: asset } = await (supabase.from('assets') as any)
+      .select('purchase_line_id')
+      .eq('id', assetId)
+      .maybeSingle();
+    const lineId: string | null = asset?.purchase_line_id ?? null;
     const { data, error } = await (supabase.from('purchases') as any)
       .select('purchase_date, parent:parent_id(purchase_date)')
-      .eq('asset_id', assetId)
+      .or(lineId ? `id.eq.${lineId},asset_id.eq.${assetId}` : `asset_id.eq.${assetId}`)
       .eq('tax_treatment', 'depreciate')
       .limit(1);
     if (error) throw error;

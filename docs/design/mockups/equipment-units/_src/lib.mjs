@@ -203,7 +203,7 @@ export const phone = (inner, caption = '') => `<figure class="flex flex-col item
 export const PAGES = [
   ['01-equipment-list', 'Equipment list'],
   ['02-item-page', 'Item page'],
-  ['03-unit-lot-form', 'Unit / lot form'],
+  ['03-unit-lot-form', 'Add Item and unit / lot forms'],
   ['04-purchase-review', 'Purchase review'],
   ['05-kit-editor', 'Kit editor'],
   ['06-packing-list', 'Packing list and gig equipment'],

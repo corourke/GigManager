@@ -17,7 +17,7 @@ vi.mock('./activityLog.service', () => ({
 }));
 
 import { logActivity } from './activityLog.service';
-import { duplicateAsset } from './asset.service';
+import { duplicateAsset, getAssetDepreciatedDate } from './asset.service';
 
 function makeChain(result: { data: any; error: any }) {
   const chain: any = {};
@@ -329,6 +329,29 @@ describe('asset.service', () => {
           asset_model: 'Original (Copy)'
         })
       }));
+    });
+  });
+
+  describe('getAssetDepreciatedDate (#183)', () => {
+    it('finds a second unit’s depreciated line through its purchase_line_id, not the line’s asset_id', async () => {
+      const assetChain = makeChain({ data: { purchase_line_id: 'line-1' }, error: null });
+      const lineChain = makeChain({ data: [{ purchase_date: '2026-06-01', parent: null }], error: null });
+      mockSupabase.from.mockImplementation((t: string) => (t === 'assets' ? assetChain : lineChain));
+
+      expect(await getAssetDepreciatedDate('unit-2')).toBe('2026-06-01');
+      expect(lineChain.or).toHaveBeenCalledWith('id.eq.line-1,asset_id.eq.unit-2');
+      expect(lineChain.eq).toHaveBeenCalledWith('tax_treatment', 'depreciate');
+    });
+
+    it('uses the invoice’s date when the line has none, and null when nothing is depreciated', async () => {
+      const assetChain = makeChain({ data: { purchase_line_id: null }, error: null });
+      const lineChain = makeChain({ data: [{ purchase_date: null, parent: { purchase_date: '2026-05-30' } }], error: null });
+      mockSupabase.from.mockImplementation((t: string) => (t === 'assets' ? assetChain : lineChain));
+      expect(await getAssetDepreciatedDate('a1')).toBe('2026-05-30');
+      expect(lineChain.or).toHaveBeenCalledWith('asset_id.eq.a1');
+
+      mockSupabase.from.mockImplementation((t: string) => (t === 'assets' ? assetChain : makeChain({ data: [], error: null })));
+      expect(await getAssetDepreciatedDate('a1')).toBeNull();
     });
   });
 });
