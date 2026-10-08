@@ -81,7 +81,12 @@ Not released: #174's UI half shipped in PR #199; its remaining item (the already
 - **Docs Lead, 10-08 late: coordinator's next queue.**
   - **Item 1, staff rate units (#171):** PR #214 (merged), which added demo rates per hour, day and half day, retakes the staffing shots and fixes the wording.
   - **Item 2, Equipment Items pages: held.** Cameron chose to keep holding all of Equipment until #183–#186 land.
-  - **Item 3, #206:** the guide keeps pointing role changes at Team → Edit Permissions.
+  - **Item 3, #206:** fixed in PR #215; the guide follows in PR #217.
+  - **#213:** merged in PR #218; the guide follows in PR #220.
+- **#213 follow-ups (#219, Docs Lead, 10-08).**
+  - The print sheet's **Staff costs** rows still count an unfinalized rate as one unit ("1 hr × $35 / hr", $35); its summary line uses the estimate.
+  - The read-only Staffing card's footer shows "$1,582.5".
+  - Both are small. The guide's Staffing-card shot leaves the footer out until this is fixed.
 - **Units from one multi-quantity depreciated purchase line (Docs Lead, 10-08; for #183).**
   - The database finds a unit's depreciated line by `purchases.asset_id`, so only one unit per line counts as depreciated or can hold a recovery period. Its siblings (same `purchase_line_id`) count as not depreciated.
   - Seen in the demo seed: 4 moving heads on one line.
@@ -145,7 +150,7 @@ Not released: #174's UI half shipped in PR #199; its remaining item (the already
 | `equipment/overview.md` | published | — | held: equipment rework (#162/#180) |
 | `financials/cost-allocation.md` | published | 2026-10-06 (coordinator, PR #136) | — |
 | `financials/gig-accounting.md` | published | 2026-10-08 (Docs Lead, PR #207) | Owed to you: Completed or Settled; held: #125 money-type rework |
-| `financials/gig-expenses.md` | published | 2026-10-08 (Docs Lead, PR #214, merged) | update projected staff costs when #213 ships |
+| `financials/gig-expenses.md` | published | 2026-10-08 (Docs Lead, PR #220) | projected staff estimate documented |
 | `financials/overview.md` | published | 2026-10-08 (Docs Lead, PR #209) | links Reporting (merge with its publish) |
 | `financials/purchases.md` | published | 2026-10-06 (coordinator, PR #136) | — |
 | `financials/reporting.md` | published (PR #211) | 2026-10-08 (Docs Lead, PRs #207/#209) | — |
@@ -163,7 +168,7 @@ Not released: #174's UI half shipped in PR #199; its remaining item (the already
 | `gigs/overview.md` | published | 2026-10-07 (Docs Lead, PR #166/#177) | Delete is Admin-only fix lands with #177 |
 | `gigs/participating-organizations.md` | draft, written (PR #172, merged) | 2026-10-07 (Docs Lead) | ready to publish |
 | `gigs/schedule.md` | draft, written (PR #172, merged) | 2026-10-07 (Docs Lead) | ready to publish |
-| `gigs/staffing-and-participants.md` | draft, written (PR #172, merged) | 2026-10-08 (Docs Lead, PR #214, merged) | ready to publish; #213 TODO on projected rates |
+| `gigs/staffing-and-participants.md` | draft, written (PR #172, merged) | 2026-10-08 (Docs Lead, PR #220) | ready to publish; #213 estimates documented; #219 TODOs |
 | `gigs/the-gig-list.md` | draft, written (PR #172, merged) | 2026-10-08 (Docs Lead) | ready to publish |
 | `index.mdx` | published | 2026-10-08 (Docs Lead, PR #191, merged) | fixes in |
 | `mobile/biometric-unlock.md` | draft | — | held |
