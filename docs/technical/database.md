@@ -939,15 +939,41 @@ erDiagram
     GIGS ||--o{ INVENTORY_TRACKING : tracks
 ```
 
+### equipment_items
+
+What a piece of equipment **is** (#162, migration 20261014000000): one row per organization per manufacturer & model + category. The units and lots that are owned are rows in `assets`, each pointing here.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| id | UUID | Primary key |
+| organization_id | UUID | Owning organization (NOT NULL, CASCADE delete) |
+| category | TEXT | Equipment category name (NOT NULL) |
+| manufacturer_model | TEXT | Manufacturer and model, whitespace tidied (NOT NULL) |
+| type | TEXT | Comma path from general to specific (nullable) |
+| description | TEXT | (nullable) |
+| insurance_class | TEXT | (nullable) |
+| created_by / updated_by | UUID | Reference to users.id (nullable) |
+| created_at / updated_at | TIMESTAMPTZ | (NOT NULL) |
+
+**Notes:**
+- Unique index `equipment_items_org_model_category_key` on (organization_id, `equipment_match_key(manufacturer_model)`, `equipment_match_key(category)`): two records are the same item when model and category match, ignoring case and whitespace (Cameron, 10-08). Type doesn't count.
+- `equipment_item_for(org, model, category, …)` (SECURITY DEFINER, not callable by clients) returns the matching item, creating it if needed.
+- RLS: the organization's members read; its Admins and Managers write.
+- The backfill created one item per model + category from the existing records, named after the earliest.
+
+---
+
 ### assets
 
-Equipment and asset management
+Equipment we own: a **unit** (one physical item, with a serial number or tag) or a **lot** (no serial or tag; any quantity). See `equipment_items` for what each one is.
 
 | Field | Type | Description |
 |-------|------|-------------|
 | id | UUID | Primary key |
 | organization_id | UUID | Reference to organizations.id (tenant that owns this asset) (NOT NULL) |
 | purchase_id | UUID | Reference to purchases.id — links to acquisition header (nullable) |
+| equipment_item_id | UUID | Reference to equipment_items.id: what this unit or lot is (NOT NULL, RESTRICT). Migration 20261014000000 |
+| purchase_line_id | UUID | Reference to purchases.id: the purchase line it came from (nullable, SET NULL). Mirrors `purchases.asset_id` until #183 moves the writers |
 | acquisition_date | DATE | Date asset was acquired (NOT NULL) |
 | vendor | TEXT | Vendor from which asset was purchased (nullable) |
 | item_price | NUMERIC(10,2) | Unit purchase price (nullable) |
@@ -956,7 +982,7 @@ Equipment and asset management
 | insurance_policy_added | BOOLEAN | Whether asset has been added to insurance policy (default false, NOT NULL) |
 | manufacturer_model | TEXT | Manufacturer and model information (NOT NULL) |
 | type | TEXT | Asset type (nullable) |
-| serial_number | TEXT | Asset serial number (nullable) |
+| serial_number | TEXT | Asset serial number (nullable). With a serial number or tag, quantity must be 1 (trigger `assets_unit_quantity_rule`, checked when the serial, tag or quantity changes) |
 | tag_number | TEXT | Physical tag number for identification (nullable) |
 | description | TEXT | Long text description of asset (Markdown-formatted, nullable) |
 | replacement_value | NUMERIC(10,2) | Replacement value for insurance purposes (nullable) |
@@ -979,6 +1005,7 @@ Equipment and asset management
 - Status changes are recorded in `activity_log` (`event_type = 'asset.status_changed'`) by the application via `log_activity`; the former status-history trigger was dropped in migration 20260615000000
 - Deleting an asset fires `trg_cleanup_attachments` (migration 20260831000100)
 - RLS is **ENABLED** on this table. Users can view assets for organizations they belong to; Admins/Managers can manage.
+- **Transition (#162):** `category`, `manufacturer_model`, `type`, `description` and `insurance_class` now belong to the item. They stay on `assets` until the screens move (#182–#186), and the trigger `assets_a_link_equipment_item` links a record to its item from its model and category (finding or creating it), so writers that don't know about items keep working. Changing a record's model or category moves it to that item; an item set directly is kept if it's the same organization's.
 
 ---
 
@@ -1012,7 +1039,7 @@ Reusable collections of equipment assets
 
 ### kit_components
 
-Junction table linking a kit to its components — either an asset or a nested child kit (hierarchical kits, migration 20260826000000; formerly the asset-only junction table, renamed in that migration).
+Junction table linking a kit to its components — a specific unit or lot (`asset_id`), N × any unit of an item (`equipment_item_id`, since migration 20261014000000), or a nested child kit (hierarchical kits, migration 20260826000000; formerly the asset-only junction table, renamed in that migration).
 
 | Field | Type | Description |
 |-------|------|-------------|
@@ -1020,15 +1047,16 @@ Junction table linking a kit to its components — either an asset or a nested c
 | kit_id | UUID | Reference to kits.id — the parent kit (NOT NULL) |
 | asset_id | UUID | Reference to assets.id (nullable; CASCADE delete) |
 | child_kit_id | UUID | Reference to kits.id — a nested kit (nullable; CASCADE delete) |
+| equipment_item_id | UUID | Reference to equipment_items.id — N × any unit of this item, N = quantity (nullable; RESTRICT). Must be the kit's organization's item (trigger `kit_components_item_same_org`) |
 | quantity | INTEGER | Number of this asset/child kit in the kit (default 1, NOT NULL) |
 | notes | TEXT | Notes about this component in the kit context (nullable) |
 | created_at | TIMESTAMPTZ | Record creation timestamp (NOT NULL) |
 
 **Notes:**
-- CHECK `kit_components_exactly_one_target`: exactly one of `asset_id` / `child_kit_id` is set. CHECK `kit_components_no_self_reference`: `child_kit_id <> kit_id`.
-- Partial unique indexes `kit_components_kit_asset_key` (kit_id, asset_id) WHERE asset_id IS NOT NULL and `kit_components_kit_childkit_key` (kit_id, child_kit_id) WHERE child_kit_id IS NOT NULL prevent duplicate components.
+- CHECK `kit_components_exactly_one_target`: exactly one of `asset_id` / `equipment_item_id` / `child_kit_id` is set. CHECK `kit_components_no_self_reference`: `child_kit_id <> kit_id`.
+- Partial unique indexes `kit_components_kit_asset_key` (kit_id, asset_id) WHERE asset_id IS NOT NULL and `kit_components_kit_childkit_key` (kit_id, child_kit_id) WHERE child_kit_id IS NOT NULL prevent duplicate components; `kit_components_kit_item_key` does the same for item lines.
 - Cycles are blocked by the `kit_components_prevent_cycle` BEFORE INSERT/UPDATE trigger (`prevent_kit_hierarchy_cycle` → `kit_would_create_cycle`), raising SQLSTATE 23514.
-- Every write fires `kit_components_refresh_cache` (AFTER INSERT/UPDATE/DELETE), which rebuilds `kit_flattened_cache` for the kit and all its ancestors.
+- Every write fires `kit_components_refresh_cache` (AFTER INSERT/UPDATE/DELETE), which rebuilds `kit_flattened_cache` (units) and `kit_flattened_item_cache` (item lines) for the kit and all its ancestors.
 - Quantity allows specifying multiples (e.g., 2 mains, 2 subs); nested quantities multiply through the hierarchy.
 - RLS is **ENABLED**. SELECT for members of the parent kit's org; ALL for Admin/Manager of the parent kit's org **and**, when `child_kit_id` is set, Admin/Manager of the child kit's org.
 
@@ -1043,6 +1071,8 @@ Write-time-maintained flattened contents of each kit: total quantity of every as
 | kit_id | UUID | Reference to kits.id (PK part, NOT NULL, CASCADE delete) |
 | asset_id | UUID | Reference to assets.id (PK part, NOT NULL, CASCADE delete) |
 | total_quantity | INTEGER | Total quantity of the asset in the kit including nested kits (NOT NULL) |
+
+`kit_flattened_item_cache` (migration 20261014000000) holds the same for "N × any of an item" lines: `kit_id`, `equipment_item_id` (PK together), `total_quantity`, `updated_at`; same RLS. It's a separate table because the readers of `kit_flattened_cache` key on `asset_id`.
 | updated_at | TIMESTAMPTZ | When the row was last rebuilt (default now(), NOT NULL) |
 
 **Notes:**
@@ -1088,6 +1118,7 @@ Tracks equipment check-in/check-out status at gigs.
 | status | TEXT | Tracking status (NOT NULL) |
 | scanned_at | TIMESTAMPTZ | When the scan occurred (NOT NULL) |
 | scanned_by | UUID | Reference to public.users(id) (nullable, SET NULL on delete; re-pointed from auth.users in migration 20260530000000) |
+| quantity | INTEGER | How many were scanned: 1 for a unit, N from a lot (default 1, CHECK > 0). Migration 20261014000000 |
 | notes | TEXT | Notes about this tracking event (nullable) |
 | location | TEXT | Free-text location for the tracking event (nullable; migration 20260529000000) |
 | created_at | TIMESTAMPTZ | Record creation timestamp (NOT NULL) |
