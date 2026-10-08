@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import CategoryListEditor from './CategoryListEditor';
+import CategoryListEditor, { TypeWritingRules } from './CategoryListEditor';
 import * as svc from '../../services/purchaseCategory.service';
 
 vi.mock('../../services/purchaseCategory.service', () => ({
@@ -101,5 +101,11 @@ describe('CategoryListEditor', () => {
     expect(svc.listCategories).toHaveBeenCalledWith('expense', null);
     expect(svc.getCategoryUsage).not.toHaveBeenCalled();
     expect(screen.getByRole('textbox', { name: 'Name: Supplies' })).toBeEnabled();
+  });
+
+  it('the type rules describe the suggestions the app already gives (issue #188)', () => {
+    render(<TypeWritingRules />);
+    expect(screen.getByText(/suggests the types already used in that category/i)).toBeInTheDocument();
+    expect(screen.queryByText(/will offer/i)).not.toBeInTheDocument();
   });
 });

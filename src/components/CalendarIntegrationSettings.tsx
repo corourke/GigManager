@@ -41,6 +41,8 @@ interface CalendarIntegrationSettingsProps {
   organizationId?: string;
   onSettingsChanged?: () => void;
   onStartAuth?: () => void;
+  /** Shows the system-wide repair tool, which only platform moderators may use (issue #188). */
+  isPlatformModerator?: boolean;
 }
 
 interface CalendarOption {
@@ -72,6 +74,7 @@ export default function CalendarIntegrationSettings({
   organizationId,
   onSettingsChanged,
   onStartAuth,
+  isPlatformModerator = false,
 }: CalendarIntegrationSettingsProps) {
 
   // sync_filters is stored as Json — narrow it to an object for reads/spreads
@@ -684,35 +687,36 @@ export default function CalendarIntegrationSettings({
             </CardContent>
           </Card>
 
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-base text-amber-600 dark:text-amber-400">
-                <RefreshCw className="h-4 w-4 animate-pulse" />
-                System-Wide Bulk Re-sync (Repair)
-              </CardTitle>
-              <CardDescription>
-                Re-sync all existing gigs server-side to update all participants' Google Calendar events. Use this to repair incorrectly formatted events (such as all-day events displaying as 5 AM-6 AM).
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="flex flex-col gap-2">
-                <div>
-                  <Button
-                    onClick={handleServerBulkSync}
-                    disabled={serverSyncing}
-                    variant="outline"
-                    className="border-amber-500 text-amber-700 hover:bg-amber-50 hover:text-amber-800 dark:border-amber-600 dark:text-amber-400 dark:hover:bg-amber-950 dark:hover:text-amber-300"
-                  >
-                    {serverSyncing ? (
-                      <>
-                        <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                        {serverSyncProgress || 'Re-syncing...'}
-                      </>
-                    ) : (
-                      <>
-                        <RefreshCw className="h-4 w-4 mr-2" />
-                        Bulk Re-sync All Gigs Server-Side
-                      </>
+          {isPlatformModerator && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-base text-amber-600 dark:text-amber-400">
+                  <RefreshCw className="h-4 w-4 animate-pulse" />
+                  System-Wide Bulk Re-sync (Repair)
+                </CardTitle>
+                <CardDescription>
+                  Re-sync all existing gigs server-side to update all participants' Google Calendar events. Use this to repair incorrectly formatted events (such as all-day events displaying as 5 AM-6 AM).
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="flex flex-col gap-2">
+                  <div>
+                    <Button
+                      onClick={handleServerBulkSync}
+                      disabled={serverSyncing}
+                      variant="outline"
+                      className="border-amber-500 text-amber-700 hover:bg-amber-50 hover:text-amber-800 dark:border-amber-600 dark:text-amber-400 dark:hover:bg-amber-950 dark:hover:text-amber-300"
+                    >
+                      {serverSyncing ? (
+                        <>
+                          <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                          {serverSyncProgress || 'Re-syncing...'}
+                        </>
+                      ) : (
+                        <>
+                          <RefreshCw className="h-4 w-4 mr-2" />
+                          Bulk Re-sync All Gigs Server-Side
+                        </>
                     )}
                   </Button>
                 </div>
@@ -722,6 +726,7 @@ export default function CalendarIntegrationSettings({
               </div>
             </CardContent>
           </Card>
+          )}
 
           <Card>
             <CardHeader>

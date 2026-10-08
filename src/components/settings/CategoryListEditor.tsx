@@ -25,7 +25,7 @@ export function TypeWritingRules() {
         <li>The first word says what it is, as a singular noun: Cable, Microphone, Fixture, Stand, Case.</li>
         <li>Each word after narrows it: Microphone, Vocal, Dynamic; Fixture, Moving Head, Wash.</li>
         <li>Brand, model, size and length stay in the name, not the type.</li>
-        <li>The dropdown in the app will offer the types already in use for that category, so the list stays consistent.</li>
+        <li>When you enter a type, the app suggests the types already used in that category, so the list stays consistent.</li>
       </ul>
     </div>
   );

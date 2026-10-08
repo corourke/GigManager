@@ -78,6 +78,7 @@ export default function SettingsScreen({
           <TabsContent value="calendar" className="max-w-3xl">
             <CalendarIntegrationSettings
               userId={user.id}
+              isPlatformModerator={user.platform_moderator}
               organizationId={organization.id}
               onSettingsChanged={() => {}}
             />
