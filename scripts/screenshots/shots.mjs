@@ -294,6 +294,95 @@ export const shots = [
       return { x: 0, y: 56, width: 1200, height: card.y + card.height + 12 - 56 };
     },
   },
+  {
+    id: 'team/team-and-roles-members-table',
+    page: 'team/team-and-roles.md',
+    user: 'admin',
+    sources: ['src/components/team/teamColumns.tsx', 'src/components/TeamScreen.tsx'],
+    prepare: async (page, ctx) => {
+      await page.goto(`${ctx.base}/team`);
+      await page.getByText('Sofia Lindqvist').first().waitFor();
+    },
+    target: (page) => cardOf(page, 'Active Members'),
+  },
+  {
+    id: 'team/invitations-invite-dialog',
+    page: 'team/invitations.md',
+    user: 'admin',
+    sources: ['src/components/team/AddTeamMemberDialog.tsx'],
+    prepare: async (page, ctx) => {
+      // Fills the form but never sends the invitation.
+      await page.goto(`${ctx.base}/team`);
+      await page.getByRole('button', { name: 'Add Team Member' }).click();
+      await page.getByRole('tab', { name: 'Invite New' }).click();
+      await page.locator('#invite_first_name').fill('Sasha');
+      await page.locator('#invite_last_name').fill('Ortiz');
+      await page.locator('#invite_email').fill('sasha.ortiz@crew.example');
+      await page.evaluate(() => document.activeElement?.blur());
+    },
+    target: (page) => page.getByRole('dialog'),
+  },
+  {
+    id: 'team/invitations-pending-table',
+    page: 'team/invitations.md',
+    user: 'admin',
+    sources: ['src/components/TeamScreen.tsx'],
+    viewport: { width: 1200, height: 1600 },
+    prepare: async (page, ctx) => {
+      await page.goto(`${ctx.base}/team`);
+      await page.getByText('jordan.blake@crew.example').waitFor();
+    },
+    target: (page) => cardOf(page, 'Pending Invitations'),
+  },
+  {
+    id: 'team/people-without-logins-no-account-tab',
+    page: 'team/people-without-logins.md',
+    user: 'admin',
+    sources: ['src/components/team/AddTeamMemberDialog.tsx'],
+    prepare: async (page, ctx) => {
+      // Fills in a new freelancer; never selects Add to Team.
+      await page.goto(`${ctx.base}/team`);
+      await page.getByRole('button', { name: 'Add Team Member' }).click();
+      await page.getByRole('tab', { name: 'No Account' }).click();
+      await page.locator('#quick_add_first_name').fill('Jamie');
+      await page.locator('#quick_add_last_name').fill('Tran');
+      await page.locator('#quick_add_phone').fill('(510) 555-0131');
+      await page.getByText(/No existing match/).waitFor();
+      await page.evaluate(() => document.activeElement?.blur());
+    },
+    target: (page) => page.getByRole('dialog'),
+  },
+  {
+    id: 'team/member-profiles-details-page',
+    page: 'team/member-profiles.md',
+    user: 'admin',
+    sources: ['src/components/TeamMemberDetailScreen.tsx'],
+    prepare: async (page, ctx) => {
+      await page.goto(`${ctx.base}/team`);
+      await page.getByText('Sofia Lindqvist').first().click();
+      await page.waitForURL(/\/team\/.+/);
+      await page.locator('.animate-spin').first().waitFor({ state: 'hidden' }).catch(() => {});
+      await page.getByRole('heading', { name: /Sofia Lindqvist/ }).first().waitFor();
+    },
+    clip: { x: 0, y: 56, width: 1200, height: 640 },
+  },
+  {
+    id: 'team/member-profiles-contacts-card',
+    page: 'team/member-profiles.md',
+    user: 'admin',
+    sources: ['src/components/organization/OrganizationContactsSection.tsx', 'src/components/OrganizationScreen.tsx'],
+    // Wider than usual: at 1200px the card's Actions column is cut off.
+    viewport: { width: 1440, height: 2400 },
+    prepare: async (page, ctx) => {
+      await page.goto(`${ctx.base}/admin/orgs`);
+      const row = page.getByText('Harborlight Pavilion', { exact: true }).first().locator('xpath=ancestor::tr[1]');
+      await row.getByRole('button', { name: /Edit/ }).first().click();
+      await page.getByText('Valerie Costa').first().waitFor();
+    },
+    target: (page) => cardOf(page, 'Contacts'),
+  },
+  // Held: reference/access-requests-* need a seeded access request and a platform
+  // moderator login; the access-requests page is still a draft.
   // Held: getting-started/the-dashboard-overview waits for #157 (the Equipment
   // card's Total Value ignores quantity), so the guide doesn't show a wrong figure.
 ];
