@@ -16,3 +16,8 @@ tabs:
 
 Your own name, phone, time zone and avatar are under the avatar menu →
 **Edit Profile**. See [Signing up](/getting-started/onboarding/#your-profile).
+
+Your organization's own details (name, roles, contact details, allowed email domains)
+aren't under **Settings**. Admins edit them on **Edit Organization**: see
+[Organization settings](/team/overview/#organization-settings).
+<!-- TODO: #176 — link from Settings once the app adds a direct path. -->

@@ -383,6 +383,35 @@ export const shots = [
   },
   // Held: reference/access-requests-* need a seeded access request and a platform
   // moderator login; the access-requests page is still a draft.
+  {
+    id: 'settings/categories-equipment',
+    page: 'settings/categories.md',
+    user: 'admin',
+    sources: ['src/components/settings/CategoryListEditor.tsx', 'src/components/settings/CategoriesSettings.tsx'],
+    viewport: { width: 1200, height: 2200 },
+    prepare: async (page, ctx) => {
+      await page.goto(`${ctx.base}/settings?tab=categories`);
+      await page.getByRole('tab', { name: 'Categories' }).click().catch(() => {});
+      await page.getByRole('tab', { name: 'Equipment categories' }).click();
+      await page.getByText('How the types are written').waitFor();
+    },
+    // The card's top: the tabs, the type-writing rules and the first rows of the list.
+    clip: async (page) => {
+      const card = await box(page.getByText('How the types are written').locator('xpath=ancestor::div[contains(@class,"rounded-xl") or contains(@class,"rounded-lg")][2]'));
+      return { x: card.x, y: card.y, width: card.width, height: 600 };
+    },
+  },
+  {
+    id: 'settings/google-calendar-connect',
+    page: 'settings/google-calendar.md',
+    user: 'admin',
+    sources: ['src/components/CalendarIntegrationSettings.tsx'],
+    prepare: async (page, ctx) => {
+      await page.goto(`${ctx.base}/settings`);
+      await page.getByRole('button', { name: 'Connect Google Calendar' }).waitFor();
+    },
+    clip: { x: 0, y: 56, width: 1200, height: 420 },
+  },
   // Held: getting-started/the-dashboard-overview waits for #157 (the Equipment
   // card's Total Value ignores quantity), so the guide doesn't show a wrong figure.
 ];
