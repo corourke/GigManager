@@ -152,6 +152,9 @@ export default function GigListScreen({
   const [conflicts, setConflicts] = useState<Conflict[]>([]);
 
   const canEdit = canManage(userRole);
+  // Money columns are Admin/Manager only: gig_financials RLS hides the figures
+  // from Staff/Viewers, and they can't see staff pay either (#168).
+  const showFinancials = canManage(userRole);
 
   useEffect(() => {
     loadGigs();
@@ -389,46 +392,48 @@ export default function GigListScreen({
       readOnly: true,
       type: 'number',
     },
-    {
-      id: 'costOfStaff',
-      header: 'Cost of Staff',
-      accessor: (row) => roundMoney(getGigFinancials(row.id).costOfStaff),
-      sortable: true,
-      optional: true,
-      readOnly: true,
-      type: 'currency',
-    },
-    {
-      id: 'revenue',
-      header: 'Revenue',
-      accessor: (row) => roundMoney(getGigFinancials(row.id).revenue),
-      sortable: true,
-      optional: true,
-      readOnly: true,
-      type: 'currency',
-    },
-    {
-      id: 'expenses',
-      header: 'Expenses',
-      accessor: (row) => roundMoney(getGigFinancials(row.id).expenses),
-      sortable: true,
-      optional: true,
-      readOnly: true,
-      type: 'currency',
-    },
-    {
-      id: 'profit',
-      header: 'Profit',
-      accessor: (row) => {
-        const f = getGigFinancials(row.id);
-        return roundMoney(f.revenue - f.costOfStaff - f.expenses);
+    ...(showFinancials ? ([
+      {
+        id: 'costOfStaff',
+        header: 'Cost of Staff',
+        accessor: (row) => roundMoney(getGigFinancials(row.id).costOfStaff),
+        sortable: true,
+        optional: true,
+        readOnly: true,
+        type: 'currency',
       },
-      sortable: true,
-      optional: true,
-      readOnly: true,
-      type: 'currency',
-    },
-  ], [canEdit, getGigFinancials, onViewGig]);
+      {
+        id: 'revenue',
+        header: 'Revenue',
+        accessor: (row) => roundMoney(getGigFinancials(row.id).revenue),
+        sortable: true,
+        optional: true,
+        readOnly: true,
+        type: 'currency',
+      },
+      {
+        id: 'expenses',
+        header: 'Expenses',
+        accessor: (row) => roundMoney(getGigFinancials(row.id).expenses),
+        sortable: true,
+        optional: true,
+        readOnly: true,
+        type: 'currency',
+      },
+      {
+        id: 'profit',
+        header: 'Profit',
+        accessor: (row) => {
+          const f = getGigFinancials(row.id);
+          return roundMoney(f.revenue - f.costOfStaff - f.expenses);
+        },
+        sortable: true,
+        optional: true,
+        readOnly: true,
+        type: 'currency',
+      },
+    ] as ColumnDef<Gig>[]) : []),
+  ], [canEdit, showFinancials, getGigFinancials, onViewGig]);
 
   // Fallback for the (rare) case Export is clicked before SmartDataTable's
   // mount effect has reported which columns are visible: mirrors its own

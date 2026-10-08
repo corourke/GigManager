@@ -62,11 +62,17 @@ vi.mock('../services/gig.service', () => ({
   getGigExportAggregates: vi.fn().mockResolvedValue(new Map()),
 }));
 
+vi.mock('../utils/gigExport', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../utils/gigExport')>()),
+  downloadGigCsv: vi.fn(),
+}));
+
 vi.mock('../services/conflictDetection.service', () => ({
   checkAllConflictsForGigs: vi.fn().mockResolvedValue([]),
 }));
 
 import { getGigsForOrganization } from '../services/gig.service';
+import { downloadGigCsv } from '../utils/gigExport';
 
 const organization = { id: 'org-1', name: 'Test Org' } as any;
 const user = { id: 'user-1', name: 'Test User' } as any;
@@ -223,5 +229,74 @@ describe('GigListScreen', () => {
     await ue.click(screen.getByText('Upcoming Show'));
 
     expect(onViewGig).toHaveBeenCalledWith('gig-future');
+  });
+
+  // Issue #168: money columns are Admin/Manager only (gig_financials RLS, and
+  // Staff/Viewers can't see pay), so they aren't offered or exported to others.
+  describe('financial columns (#168)', () => {
+    const moneyColumns = ['Cost of Staff', 'Revenue', 'Expenses', 'Profit'];
+
+    const renderAs = (userRole: 'Admin' | 'Manager' | 'Staff' | 'Viewer') =>
+      render(
+        <GigListScreen
+          organization={organization}
+          user={user}
+          userRole={userRole}
+          onBack={noop}
+          onCreateGig={noop}
+          onViewGig={noop}
+          onEditGig={noop}
+          onNavigateToDashboard={noop}
+          onNavigateToGigs={noop}
+          onNavigateToAssets={noop}
+          onSwitchOrganization={noop}
+          onLogout={noop}
+        />
+      );
+
+    it.each(['Admin', 'Manager'] as const)('offers the money columns to %s', async (role) => {
+      const ue = userEvent.setup();
+      renderAs(role);
+      await screen.findByText('Upcoming Show');
+
+      await ue.click(screen.getByRole('button', { name: /columns/i }));
+
+      expect(screen.getByRole('menuitemcheckbox', { name: 'Number of Staff' })).toBeInTheDocument();
+      for (const name of moneyColumns) {
+        expect(screen.getByRole('menuitemcheckbox', { name })).toBeInTheDocument();
+      }
+    });
+
+    it.each(['Staff', 'Viewer'] as const)('does not offer the money columns to %s', async (role) => {
+      const ue = userEvent.setup();
+      renderAs(role);
+      await screen.findByText('Upcoming Show');
+
+      await ue.click(screen.getByRole('button', { name: /columns/i }));
+
+      expect(screen.getByRole('menuitemcheckbox', { name: 'Number of Staff' })).toBeInTheDocument();
+      for (const name of moneyColumns) {
+        expect(screen.queryByRole('menuitemcheckbox', { name })).not.toBeInTheDocument();
+      }
+    });
+
+    it('does not export money columns for Staff, even if they were turned on in this browser', async () => {
+      const ue = userEvent.setup();
+      localStorage.setItem('table-state-gig-list', JSON.stringify({
+        columnVisibility: { staffCount: true, costOfStaff: true, revenue: true, expenses: true, profit: true },
+      }));
+      renderAs('Staff');
+      await screen.findByText('Upcoming Show');
+
+      await ue.click(screen.getByRole('button', { name: /export/i }));
+      await ue.click(await screen.findByRole('button', { name: 'Continue' }));
+
+      expect(downloadGigCsv).toHaveBeenCalledTimes(1);
+      const headerRow = vi.mocked(downloadGigCsv).mock.calls[0][0].split(/\r?\n/)[0];
+      expect(headerRow).toContain('Number of Staff');
+      for (const name of moneyColumns) {
+        expect(headerRow).not.toContain(name);
+      }
+    });
   });
 });
