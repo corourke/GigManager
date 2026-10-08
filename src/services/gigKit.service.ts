@@ -67,13 +67,21 @@ export async function updateGigKitAssignment(assignmentId: string, updates: { no
 }
 
 /**
- * Update all kit assignments for a gig
+ * Update all kit assignments for a gig.
+ *
+ * `loadedIds` are the ids of the assignments the caller loaded (or last
+ * saved). Only those no longer in `assignments` are deleted: a row someone
+ * else added since is left alone, and with no `loadedIds` nothing is deleted
+ * (issue #92).
+ *
+ * Returns `ids`, parallel to `assignments`: each row's database id, including
+ * the ids of rows this call inserted.
  */
 export async function updateGigKitAssignments(gigId: string, organizationId: string, assignments: Array<{
   id?: string;
   kit_id: string;
   notes?: string | null;
-}>) {
+}>, loadedIds: string[] = []) {
   try {
     const { supabase, user } = await requireAuth();
 
@@ -88,11 +96,12 @@ export async function updateGigKitAssignments(gigId: string, organizationId: str
     const existingIds = existingAssignments?.map(a => a.id) || [];
     const incomingIds = assignments.filter(a => a.id && UUID_REGEX.test(a.id)).map(a => a.id!);
 
-    const assignmentIdsToDelete = existingIds.filter(id => !incomingIds.includes(id));
+    const assignmentIdsToDelete = existingIds.filter(id => loadedIds.includes(id) && !incomingIds.includes(id));
     if (assignmentIdsToDelete.length > 0) {
       await supabase.from('gig_kit_assignments').delete().in('id', assignmentIdsToDelete);
     }
 
+    const ids: Array<string | undefined> = [];
     for (const assignment of assignments) {
       const isDbId = assignment.id && UUID_REGEX.test(assignment.id);
       const assignmentData = {
@@ -104,12 +113,15 @@ export async function updateGigKitAssignments(gigId: string, organizationId: str
 
       if (isDbId) {
         await supabase.from('gig_kit_assignments').update(assignmentData).eq('id', assignment.id!);
+        ids.push(assignment.id);
       } else {
-        await supabase.from('gig_kit_assignments').insert({ ...assignmentData, assigned_by: user.id });
+        const { data: inserted } = await supabase.from('gig_kit_assignments')
+          .insert({ ...assignmentData, assigned_by: user.id }).select('id').single();
+        ids.push(inserted?.id);
       }
     }
 
-    return { success: true };
+    return { success: true, ids };
   } catch (err) {
     return handleApiError(err, 'update gig kit assignments');
   }

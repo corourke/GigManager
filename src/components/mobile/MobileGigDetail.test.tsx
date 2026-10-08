@@ -370,8 +370,30 @@ describe('MobileGigDetail', () => {
 
       await waitFor(() => {
         // History is logged against the org the user is working as (#103).
-        expect(updateGigParticipants).toHaveBeenCalledWith('gig-1', expect.any(Array), { organization_id: 'org-1', actor_org_name: 'Org One' })
+        expect(updateGigParticipants).toHaveBeenCalledWith('gig-1', expect.any(Array), { organization_id: 'org-1', actor_org_name: 'Org One' }, ['p1', 'p2'])
       })
+    })
+
+    it('passes the participants it loaded, so only a removed one is deleted (#92)', async () => {
+      mockUseAuth.mockReturnValue({
+        user: { id: 'user-1' },
+        userRole: 'Admin',
+        selectedOrganization: { id: 'org-1', name: 'Org One' },
+      })
+      render(<MobileGigDetail gigId="gig-1" onBack={vi.fn()} onViewPackingList={vi.fn()} />)
+      await waitFor(() => expect(screen.getByText('Summer Festival')).toBeInTheDocument())
+      fireEvent.click(screen.getByRole('button', { name: /edit gig/i }))
+      await waitFor(() => expect(screen.getByPlaceholderText('Gig title')).toBeInTheDocument())
+
+      // The gig gained a participant elsewhere after this screen loaded it.
+      vi.mocked(getGig).mockResolvedValue({
+        ...mockGig,
+        participants: [...mockGig.participants, { id: 'p3', role: 'Production', organization: { id: 'org-3', name: 'Other Co' } }],
+      } as unknown as Awaited<ReturnType<typeof getGig>>)
+      fireEvent.click(screen.getByText('Save'))
+
+      await waitFor(() => expect(updateGigParticipants).toHaveBeenCalled())
+      expect(vi.mocked(updateGigParticipants).mock.calls[0][3]).toEqual(['p1', 'p2'])
     })
 
     it('shows toast error and stays in edit mode when updateGig rejects', async () => {

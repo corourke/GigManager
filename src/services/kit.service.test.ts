@@ -342,8 +342,8 @@ describe('kit.service', () => {
       });
       (requireAuth as any).mockResolvedValue({ supabase: mockSupabase, user: { id: 'u1' } });
 
-      // Empty incoming components list — the one existing sub-kit component gets removed.
-      await updateKit(kitId, { components: [] });
+      // Empty incoming components list — the one loaded sub-kit component gets removed.
+      await updateKit(kitId, { components: [] }, ['kc-1']);
 
       expect(logActivity).toHaveBeenCalledWith(expect.objectContaining({
         event_type: 'kit.subkit_removed',
@@ -367,6 +367,48 @@ describe('kit.service', () => {
       expect(logActivity).not.toHaveBeenCalledWith(expect.objectContaining({
         event_type: 'kit.updated'
       }));
+    });
+
+    describe('deletes only components the caller loaded and removed (issue #92)', () => {
+      let componentChains: any[];
+
+      beforeEach(() => {
+        componentChains = [];
+        mockSupabase.from.mockImplementation((table: string) => {
+          if (table === 'kits') return makeChain({ data: { id: 'k1', name: 'Rack', organization_id: 'org-1' }, error: null });
+          if (table === 'kit_components') {
+            // kc-theirs was added in another tab after this form loaded.
+            const chain = makeChain({
+              data: [
+                { id: 'kc-mine', asset_id: 'asset-1', child_kit_id: null },
+                { id: 'kc-removed', asset_id: 'asset-2', child_kit_id: null },
+                { id: 'kc-theirs', asset_id: 'asset-3', child_kit_id: null },
+              ],
+              error: null,
+            });
+            componentChains.push(chain);
+            return chain;
+          }
+          return makeChain({ data: {}, error: null });
+        });
+        (requireAuth as any).mockResolvedValue({ supabase: mockSupabase, user: { id: 'u1' } });
+      });
+      const deletedIds = () => componentChains
+        .filter((c) => c.delete.mock.calls.length > 0)
+        .flatMap((c) => c.in.mock.calls.map((call: any[]) => call[1]).flat());
+      const mine = { id: 'kc-mine', asset_id: 'asset-1', quantity: 1 };
+
+      it('leaves a component the form never loaded alone', async () => {
+        await updateKit('k1', { components: [mine] }, ['kc-mine']);
+
+        expect(deletedIds()).not.toContain('kc-theirs');
+      });
+
+      it('deletes a component the form loaded and the user removed', async () => {
+        await updateKit('k1', { components: [mine] }, ['kc-mine', 'kc-removed']);
+
+        expect(deletedIds()).toEqual(['kc-removed']);
+      });
     });
   });
 

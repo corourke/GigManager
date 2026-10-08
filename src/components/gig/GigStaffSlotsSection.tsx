@@ -31,6 +31,7 @@ import {
   unfinalizeStaffAssignment
 } from '../../services/gig.service';
 import { useAutoSave } from '../../utils/hooks/useAutoSave';
+import { useRowBaseline } from '../../utils/hooks/useRowBaseline';
 import SaveStateIndicator from './SaveStateIndicator';
 import { RotateCcw } from 'lucide-react';
 
@@ -150,19 +151,24 @@ export default function GigStaffSlotsSection({
 
   const { finalized, projected } = calculateStaffCosts();
 
+  // The slots and assignments this form loaded or last saved: a save deletes
+  // only those the user removed (#92).
+  const baseline = useRowBaseline();
+
   const handleSave = useCallback(async (data: StaffSlotsFormData) => {
-    const slotsData = data.slots
+    const slotsToSave = data.slots
       .filter(s => s.role && s.role.trim() !== '')
+      .map(s => ({ ...s, assignments: (s.assignments || []).filter(a => a.user_id && a.user_id.trim() !== '') }));
+    const slotsData = slotsToSave
       .map(s => ({
-        id: s.id.startsWith('temp-') || !s.id.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i) ? undefined : s.id,
+        id: s.id.startsWith('temp-') || !s.id.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i) ? baseline.insertedId(s.id) : s.id,
         organization_id: currentOrganizationId,
         role: s.role,
         count: s.count,
         notes: s.notes || null,
-        assignments: (s.assignments || [])
-          .filter(a => a.user_id && a.user_id.trim() !== '')
+        assignments: s.assignments
           .map(a => ({
-            id: a.id.startsWith('temp-') || !a.id.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i) ? undefined : a.id,
+            id: a.id.startsWith('temp-') || !a.id.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i) ? baseline.insertedId(a.id) : a.id,
             user_id: a.user_id,
             status: a.status,
             rate: a.compensation_type === 'rate' ? (a.amount ? parseFloat(a.amount) : null) : null,
@@ -173,8 +179,25 @@ export default function GigStaffSlotsSection({
           })),
       }));
 
-    await updateGigStaffSlots(gigId, slotsData);
-  }, [gigId, currentOrganizationId]);
+    const { slotIds, assignmentIds } = await updateGigStaffSlots(gigId, slotsData, undefined, baseline.ids());
+    const saved = new Map<string, string>();
+    slotsToSave.forEach((s, i) => {
+      if (slotIds[i]) saved.set(s.id, slotIds[i]!);
+      s.assignments.forEach((a, j) => { if (assignmentIds[i]?.[j]) saved.set(a.id, assignmentIds[i][j]!); });
+    });
+    baseline.saved([...saved]);
+
+    // Give rows this save inserted their database ids, so the next save
+    // updates them instead of inserting them again.
+    getValues('slots').forEach((s, i) => {
+      const slotId = saved.get(s.id);
+      if (slotId && slotId !== s.id) setValue(`slots.${i}.id`, slotId);
+      s.assignments.forEach((a, j) => {
+        const assignmentId = saved.get(a.id);
+        if (assignmentId && assignmentId !== a.id) setValue(`slots.${i}.assignments.${j}.id`, assignmentId);
+      });
+    });
+  }, [gigId, currentOrganizationId, baseline, getValues, setValue]);
 
   const handleSaveSuccess = useCallback((data: StaffSlotsFormData) => {
     reset(data, { keepDirty: false, keepValues: true });
@@ -282,6 +305,7 @@ export default function GigStaffSlotsSection({
         };
       });
       
+      baseline.loaded(organizationSlots.flatMap((slot: any) => [slot.id, ...(slot.staff_assignments || []).map((a: any) => a.id)]));
       reset({ slots: formattedSlots });
     } catch (error: any) {
       console.error('Error loading staff slots:', error);

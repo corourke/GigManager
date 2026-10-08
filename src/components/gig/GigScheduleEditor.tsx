@@ -99,6 +99,8 @@ export default function GigScheduleEditor({ gigId, gigStart, timeZone, actPartic
   const pendingRef = useRef(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const inFlightRef = useRef<Promise<void> | null>(null);
+  // Ids of the entries loaded or last saved: a save deletes only those the user removed (#92).
+  const loadedIdsRef = useRef<string[]>([]);
   const onEntriesChangeRef = useRef(onEntriesChange);
   onEntriesChangeRef.current = onEntriesChange;
 
@@ -118,7 +120,7 @@ export default function GigScheduleEditor({ gigId, gigStart, timeZone, actPartic
     setSaving(true);
     setSaveFailed(false);
     try {
-      await updateGigScheduleEntries(
+      const { ids } = await updateGigScheduleEntries(
         gigId,
         toSave.map(({ row, times }) => ({
           id: row.id,
@@ -129,11 +131,13 @@ export default function GigScheduleEditor({ gigId, gigStart, timeZone, actPartic
           act_participant_id: row.act || null,
           notes: row.notes || null,
         })) as any,
+        undefined,
+        loadedIdsRef.current,
       );
-      // Saved rows come back in the order sent; give new rows their ids.
-      const fresh = await getGigScheduleEntries(gigId);
-      const ids = new Map(toSave.map(({ row }, i) => [row.key, fresh[i]?.id]));
-      setAll(rowsRef.current.map((row) => (ids.get(row.key) ? { ...row, id: ids.get(row.key) } : row)));
+      // Give new rows their ids.
+      loadedIdsRef.current = ids.filter((id): id is string => !!id);
+      const byKey = new Map(toSave.map(({ row }, i) => [row.key, ids[i]]));
+      setAll(rowsRef.current.map((row) => (byKey.get(row.key) ? { ...row, id: byKey.get(row.key) } : row)));
     } catch (err: any) {
       setSaveFailed(true);
       toast.error(err.message || 'Failed to save schedule');
@@ -167,6 +171,7 @@ export default function GigScheduleEditor({ gigId, gigStart, timeZone, actPartic
       .then((data) => {
         if (cancelled) return;
         const tz = timeZoneRef.current;
+        loadedIdsRef.current = data.map((e) => e.id);
         setAll(data.length ? data.map((e) => entryToRow(e, tz)) : SCHEDULE_DEFAULT_ITEMS.map((item) => blankRow(gigDate, item)));
       })
       .catch((err: any) => toast.error(err.message || 'Failed to load schedule'))

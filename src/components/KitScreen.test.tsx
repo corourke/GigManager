@@ -3,7 +3,7 @@ import { render, fireEvent, screen, waitFor, within } from '@testing-library/rea
 import KitScreen from './KitScreen'
 import { makeUser, makeOrganization } from '../test/factories'
 import { getBackInHeaderSlot } from '../test/pageFrame'
-import { getKit, getKits, getKitsFlattenedSummary, getKitsThatWouldCycle } from '../services/kit.service'
+import { getKit, getKits, getKitsFlattenedSummary, getKitsThatWouldCycle, updateKit } from '../services/kit.service'
 import { getAssets } from '../services/asset.service'
 
 // Mock all dependencies
@@ -118,6 +118,32 @@ describe('KitScreen', () => {
     })
     // The other row survives untouched — this is the actual regression check.
     expect(screen.getByDisplayValue('7')).toBeInTheDocument()
+  })
+
+  // #92: the save passes the components this screen loaded, so it deletes the
+  // one the user removed and leaves alone any added elsewhere meanwhile.
+  it('passes the components it loaded to the save', async () => {
+    vi.mocked(getKit).mockResolvedValue({
+      id: 'kit-1',
+      name: 'Cable Bag',
+      kit_components: [
+        { id: 'kc-1', asset_id: 'asset-1', quantity: 3, asset: { id: 'asset-1', manufacturer_model: 'DMX Cable' } },
+        { id: 'kc-2', asset_id: 'asset-2', quantity: 7, asset: { id: 'asset-2', manufacturer_model: 'XLR Cable' } },
+      ],
+    } as any)
+    vi.mocked(updateKit).mockResolvedValue({} as any)
+
+    render(<KitScreen {...mockProps} kitId="kit-1" />)
+    const three = await screen.findByDisplayValue('3')
+    fireEvent.click(within(three.closest('tr')!).getByRole('button'))
+    await waitFor(() => expect(screen.queryByDisplayValue('3')).not.toBeInTheDocument())
+
+    fireEvent.click(screen.getByRole('button', { name: /update kit/i }))
+
+    await waitFor(() => expect(updateKit).toHaveBeenCalled())
+    const [, kitData, loadedIds] = vi.mocked(updateKit).mock.calls[0]
+    expect(kitData.components!.map((c) => c.id)).toEqual(['kc-2'])
+    expect(loadedIds).toEqual(['kc-1', 'kc-2'])
   })
 
   // A kit is a singular entity — its row in the contents table shows a fixed

@@ -21,6 +21,7 @@ import {
 } from '../../utils/supabase/types';
 import { ORG_ROLE_CONFIG } from '../../utils/supabase/constants';
 import { useAutoSave } from '../../utils/hooks/useAutoSave';
+import { useRowBaseline } from '../../utils/hooks/useRowBaseline';
 import SaveStateIndicator from './SaveStateIndicator';
 
 const participantSchema = z.object({
@@ -88,12 +89,15 @@ export default function GigParticipantsSection({
     name: 'participants',
   });
 
+  // The rows this form loaded or last saved: a save deletes only those the user removed (#92).
+  const baseline = useRowBaseline();
+
   const handleSave = useCallback(async (data: ParticipantsFormData) => {
     const rowsToSave = data.participants
       .filter(p => p.organization_id && p.organization_id.trim() !== '' && p.role && p.role.trim() !== '');
     const participantsData = rowsToSave
       .map(p => ({
-        id: p.id.startsWith('temp-') || p.id === 'current-org' || !p.id.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i) ? undefined : p.id,
+        id: p.id.startsWith('temp-') || p.id === 'current-org' || !p.id.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i) ? baseline.insertedId(p.id) : p.id,
         organization_id: p.organization_id,
         role: p.role as OrganizationRole, // Select restricts values to ORG_ROLE_CONFIG keys
         notes: p.notes || null,
@@ -104,7 +108,8 @@ export default function GigParticipantsSection({
     const { ids } = await updateGigParticipants(gigId, participantsData, {
       organization_id: currentOrganizationId,
       actor_org_name: currentOrganizationName,
-    });
+    }, baseline.ids());
+    baseline.saved(rowsToSave.map((p, i) => [p.id, ids[i]]));
 
     // Rows inserted by this save still carry a client-side id (temp-…,
     // current-org). Swap in the database id, so the next autosave updates the
@@ -112,7 +117,7 @@ export default function GigParticipantsSection({
     // client id rather than the index: the form may have changed meanwhile.
     const savedIds = new Map<string, string>();
     rowsToSave.forEach((p, i) => {
-      if (participantsData[i].id === undefined && ids[i]) savedIds.set(p.id, ids[i]!);
+      if (ids[i] && ids[i] !== p.id) savedIds.set(p.id, ids[i]!);
     });
     if (savedIds.size > 0) {
       getValues('participants').forEach((p, index) => {
@@ -120,7 +125,7 @@ export default function GigParticipantsSection({
         if (dbId) setValue(`participants.${index}.id`, dbId);
       });
     }
-  }, [gigId, currentOrganizationId, currentOrganizationName, getValues, setValue]);
+  }, [gigId, currentOrganizationId, currentOrganizationName, getValues, setValue, baseline]);
 
   const handleSaveSuccess = useCallback((data: ParticipantsFormData) => {
     reset(data, { keepDirty: false, keepValues: true });
@@ -206,10 +211,12 @@ export default function GigParticipantsSection({
         ];
       }
 
+      baseline.loaded(loadedParticipants.map((p: any) => p.id));
       reset({ participants: initialParticipants });
     } catch (error: any) {
       console.error('Error loading participants:', error);
       toast.error('Failed to load participants');
+      baseline.loaded([]);
       const allCurrentOrgRoles = currentOrganizationRoles && currentOrganizationRoles.length > 0
         ? currentOrganizationRoles
         : [currentOrganizationRole];

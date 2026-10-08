@@ -163,3 +163,58 @@ describe('updateGigScheduleEntries activity log organization (issue #103)', () =
     consoleError.mockRestore();
   });
 });
+
+describe('updateGigScheduleEntries deletes only rows the caller loaded and removed (issue #92)', () => {
+  const MINE = '44444444-4444-4444-8444-444444444444';
+  const REMOVED = '55555555-5555-4555-8555-555555555555';
+  const THEIRS = '66666666-6666-4666-8666-666666666666';
+  const mine = { id: MINE, activity_type: 'Load-in', start_time: '2026-09-20T14:00:00.000Z' } as any;
+  let calls: Op[][];
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    calls = [];
+    // gig_schedule_entries holds MINE, REMOVED and THEIRS (added by someone
+    // else after this form loaded); an insert answers with the new rows' ids.
+    const from = vi.fn((table: string) => {
+      const ops: Op[] = [];
+      if (table === 'gig_schedule_entries') calls.push(ops);
+      const chain: any = {};
+      ['select', 'insert', 'update', 'delete', 'upsert', 'eq', 'in', 'is', 'or', 'order', 'limit'].forEach((m) => {
+        chain[m] = vi.fn((...args: any[]) => { ops.push({ method: m, args }); return chain; });
+      });
+      const answer = () => {
+        if (table !== 'gig_schedule_entries') return { data: [], error: null };
+        const insert = ops.find(o => o.method === 'insert');
+        if (insert) return { data: insert.args[0].map((_: any, i: number) => ({ id: `new-${i + 1}` })), error: null };
+        return { data: [{ id: MINE }, { id: REMOVED }, { id: THEIRS }], error: null };
+      };
+      chain.then = (resolve: any, reject: any) => Promise.resolve(answer()).then(resolve, reject);
+      return chain;
+    });
+    (requireAuth as any).mockResolvedValue({ supabase: { from }, user: { id: 'user-1', user_metadata: {} } });
+  });
+  const deletedIds = () => calls
+    .filter(ops => ops.some(o => o.method === 'delete'))
+    .flatMap(ops => ops.find(o => o.method === 'in')?.args[1] ?? []);
+
+  it('leaves a row the form never loaded alone', async () => {
+    await updateGigScheduleEntries('gig-1', [mine], undefined, [MINE]);
+
+    expect(deletedIds()).not.toContain(THEIRS);
+  });
+
+  it('deletes a row the form loaded and the user removed', async () => {
+    await updateGigScheduleEntries('gig-1', [mine], undefined, [MINE, REMOVED]);
+
+    expect(deletedIds()).toEqual([REMOVED]);
+  });
+
+  it('returns the id of every saved entry, including inserted ones, in the order sent', async () => {
+    const added = { activity_type: 'Doors', start_time: '2026-09-20T13:00:00.000Z' } as any;
+
+    const result = await updateGigScheduleEntries('gig-1', [added, mine], undefined, [MINE]);
+
+    expect(result).toEqual({ ids: ['new-1', MINE] });
+  });
+});

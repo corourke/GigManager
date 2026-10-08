@@ -224,7 +224,7 @@ describe('updateGigParticipants activity log organization (issue #103)', () => {
   it('logs removals against the acting org too', async () => {
     useDb(baseRows);
 
-    await updateGigParticipants('gig-1', [incoming[1]]);
+    await updateGigParticipants('gig-1', [incoming[1]], undefined, [VENUE_ROW, PROD_ROW]);
 
     expect(logActivity).toHaveBeenCalledWith(expect.objectContaining({
       event_type: 'participant.removed',
@@ -244,5 +244,50 @@ describe('updateGigParticipants activity log organization (issue #103)', () => {
     expect(logActivity).not.toHaveBeenCalled();
     expect(consoleError).toHaveBeenCalled();
     consoleError.mockRestore();
+  });
+});
+
+describe('updateGigParticipants deletes only rows the caller loaded and removed (issue #92)', () => {
+  const MINE = '44444444-4444-4444-8444-444444444444';
+  const REMOVED = '55555555-5555-4555-8555-555555555555';
+  const THEIRS = '66666666-6666-4666-8666-666666666666';
+  const ctx = { organization_id: 'org-1', actor_display_name: 'Jane', actor_org_name: 'Org 1', gig_title: 'Gig' };
+  const mine = { id: MINE, organization_id: 'org-1', role: 'Production' as const };
+  let db: ReturnType<typeof makeDb>;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    db = makeDb({
+      gig_participants: [
+        { id: MINE, organization_id: 'org-1', role: 'Production' },
+        { id: REMOVED, organization_id: 'org-2', role: 'Venue' },
+        // Added by someone else after this form loaded.
+        { id: THEIRS, organization_id: 'org-3', role: 'Act' },
+      ],
+      organizations: { 'org-2': 'Venue Co', 'org-3': 'The Act' },
+    });
+    (requireAuth as any).mockResolvedValue({ supabase: { from: db.from }, user: { id: 'user-1', user_metadata: {} } });
+  });
+  const deletedIds = () => db.calls
+    .filter(c => c.table === 'gig_participants' && c.ops.some(o => o.method === 'delete'))
+    .flatMap(c => c.ops.find(o => o.method === 'in')?.args[1] ?? []);
+
+  it('leaves a row the form never loaded alone', async () => {
+    await updateGigParticipants('gig-1', [mine], ctx, [MINE]);
+
+    expect(deletedIds()).not.toContain(THEIRS);
+    expect(logActivity).not.toHaveBeenCalledWith(expect.objectContaining({ entity_id: THEIRS }));
+  });
+
+  it('deletes a row the form loaded and the user removed', async () => {
+    await updateGigParticipants('gig-1', [mine], ctx, [MINE, REMOVED]);
+
+    expect(deletedIds()).toEqual([REMOVED]);
+  });
+
+  it('deletes nothing when the caller passes no loaded ids', async () => {
+    await updateGigParticipants('gig-1', [mine], ctx);
+
+    expect(deletedIds()).toEqual([]);
   });
 });

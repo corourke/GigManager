@@ -266,3 +266,58 @@ describe('GigParticipantsSection', () => {
     expect(events).toEqual(['added org-2']);
   }, 30000);
 });
+
+describe('GigParticipantsSection deletes only rows it loaded (#92)', () => {
+  const MINE = '11111111-1111-4111-8111-111111111111';
+  const OTHER = '22222222-2222-4222-8222-222222222222';
+  const NEW = '33333333-3333-4333-8333-333333333333';
+  const props = {
+    gigId: 'test-gig-id',
+    currentOrganizationId: 'org-1',
+    currentOrganizationName: 'Test Org',
+    currentOrganizationRole: 'Production' as const,
+  };
+  const calls = () => vi.mocked(updateGigParticipants).mock.calls;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(getGig).mockResolvedValue({
+      participants: [
+        { id: MINE, organization_id: 'org-1', organization_name: 'Test Org', role: 'Production', notes: '', is_client: false },
+        { id: OTHER, organization_id: 'org-3', organization_name: 'Venue Co', role: 'Venue', notes: '', is_client: false },
+      ],
+    } as any);
+    vi.mocked(updateGigParticipants).mockImplementation(async (_gigId, participants) => ({
+      success: true,
+      ids: participants.map((p) => p.id ?? NEW),
+    }));
+  });
+
+  it('passes the rows it loaded, so a removed one is deleted and rows added elsewhere are not', async () => {
+    render(<GigParticipantsSection {...props} />);
+    await waitFor(() => expect(screen.getByText('Venue Co')).toBeInTheDocument());
+
+    fireEvent.click(screen.getAllByTitle('Remove participant')[1]);
+
+    await waitFor(() => expect(updateGigParticipants).toHaveBeenCalledTimes(1), { timeout: 3000 });
+    expect(calls()[0][1].map((p) => p.id)).toEqual([MINE]);
+    expect(calls()[0][3]).toEqual([MINE, OTHER]);
+  });
+
+  it('deletes a row it added on an earlier save once the user removes it', async () => {
+    render(<GigParticipantsSection {...props} />);
+    await waitFor(() => expect(screen.getByText('Venue Co')).toBeInTheDocument());
+
+    fireEvent.click(screen.getByText('Add Participant'));
+    fireEvent.click(await screen.findByText('Mock Select Org'));
+    const roleSelects = screen.getAllByLabelText('Role');
+    fireEvent.change(roleSelects[roleSelects.length - 1], { target: { value: 'Act' } });
+    await waitFor(() => expect(updateGigParticipants).toHaveBeenCalledTimes(1), { timeout: 3000 });
+
+    const removes = screen.getAllByTitle('Remove participant');
+    fireEvent.click(removes[removes.length - 1]);
+
+    await waitFor(() => expect(calls().at(-1)![1].map((p) => p.id)).toEqual([MINE, OTHER]), { timeout: 3000 });
+    expect(calls().at(-1)![3]).toEqual([MINE, OTHER, NEW]);
+  });
+});
