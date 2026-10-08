@@ -7,6 +7,7 @@ Append new entries at the top of each section; never edit an old entry to descri
 
 | Work | Shipped in | Notes |
 |---|---|---|
+| #179 (Equipment categories sweep): Rigging and Truss category, 24 records moved; N/A serials cleared; pack quantities and costs fixed; 14 names cleaned; 197 records → 158 items | Prod SQL run by Cameron (10-08) | Closed 10-08; backup of the 24 moved rows in the coordinator scratchpad |
 | #125, part 1 ([Financials → Reporting](https://github.com/corourke/GigManager/issues/125)): recovery period on equipment records (`assets.recovery_period`, category defaults, `service_life`/`dep_method` dropped); Income, Expenses and Assets reports with CSV | PR #167 (10-07) | Merged. Needs migration `20261013000000` on dev, then prod |
 | #131 ([Purchases: smaller data issues](https://github.com/corourke/GigManager/issues/131)): line dates follow the purchase, gig rows use line cost (+ settled), scanned make/model kept, duplicates drop the purchase link, `invoice_import.py` retired | PR #156 (10-07) | Live in dev and prod 10-07 (verified); closed |
 | #133 ([Purchases: separate "track as equipment" from tax treatment](https://github.com/corourke/GigManager/issues/133)): tax treatment + filed-year locks, per-org categories, gig links on lines, equipment details, one line type, filed-year lock on gig income and expenses | PRs #137, #138, #140, #143–#146, #152 | Closed 10-07. #152 live in dev and prod 10-07 (prod verified: migration `20261012000000` applied, 464 lines all `line`, gig money lock trigger present) |
