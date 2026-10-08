@@ -74,6 +74,11 @@ DELETE FROM public.purchases
 -- Gigs cascade to participants, schedule, slots, assignments, kit assignments,
 -- financials, participant contacts, inventory tracking.
 DELETE FROM public.gigs WHERE id::text LIKE 'de000000-0000-4000-8000-%';
+-- Kit lines and equipment records point at equipment items with ON DELETE RESTRICT,
+-- so they go first: the organization's cascade doesn't order them before the items.
+DELETE FROM public.kit_components
+ WHERE kit_id IN (SELECT id FROM public.kits WHERE organization_id::text LIKE 'de000000-0000-4000-8000-%');
+DELETE FROM public.assets WHERE organization_id::text LIKE 'de000000-0000-4000-8000-%';
 -- Organizations cascade to members, assets, kits (and components), categories,
 -- attachments, invitations, access requests, tax years.
 DELETE FROM public.organizations WHERE id::text LIKE 'de000000-0000-4000-8000-%';
@@ -511,7 +516,9 @@ INSERT INTO public.inventory_tracking (id, organization_id, gig_id, kit_id, asse
 SELECT pg_temp.d(12, row_number() OVER ()::int), pg_temp.d(1,1), s.gig, s.kit, pg_temp.d(4, s.item * 100 + s.unit), s.cnt,
        s.status, pg_temp.at(pg_temp.anchor() - s.ago, s.hr), pg_temp.d(2, s.usr), s.notes, s.location
   FROM (
-    SELECT pg_temp.d(3,7) AS gig, pg_temp.d(5,1) AS kit, c.item, c.unit, c.cnt, 'Checked Out' AS status,
+    -- Scans of a nested (non-container) kit's gear belong to the top kit assigned to the
+    -- gig, as the scanner records them: the FOH package rides in the Full Band package (K4).
+    SELECT pg_temp.d(3,7) AS gig, pg_temp.d(5,4) AS kit, c.item, c.unit, c.cnt, 'Checked Out' AS status,
            1 AS ago, 16.0 AS hr, 3 AS usr, NULL::text AS notes, 'Staging Area' AS location
       FROM (VALUES (4,1,1),(5,1,1),(19,0,2),(23,0,1),(26,0,1)) AS c(item, unit, cnt)
     UNION ALL
