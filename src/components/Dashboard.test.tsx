@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import Dashboard from './Dashboard'
+import { createClient } from '../utils/supabase/client'
 import { makeUser, makeOrganization } from '../test/factories'
 import { Organization, User } from '../utils/supabase/types'
 
@@ -73,6 +74,29 @@ describe('Dashboard', () => {
         recentActivity: [],
       }),
     })
+  })
+
+  it('shows the equipment total and what is owned (#157)', async () => {
+    const stats = {
+      gigsByStatus: { Booked: 0, Proposed: 0, DateHold: 0, Completed: 0, Cancelled: 0, Settled: 0 },
+      assetValues: { totalAssetValue: 71286, totalInsuredValue: 64210, totalRentalValue: 5310, ownedItems: 38, ownedPieces: 339 },
+      revenue: { thisMonth: 0, lastMonth: 0, thisYear: 0 },
+      upcomingGigs: [],
+    }
+    const defaultClient = vi.mocked(createClient).getMockImplementation()
+    vi.mocked(createClient).mockReturnValue({
+      auth: { getSession: vi.fn().mockResolvedValue({ data: { session: { access_token: 't', user: { id: 'user-1' } } } }) },
+      functions: { invoke: vi.fn().mockResolvedValue({ data: stats, error: null }) },
+    } as any)
+    try {
+      render(<Dashboard {...mockProps} />)
+
+      expect(await screen.findByText('$71.3K')).toBeInTheDocument()
+      expect(screen.getByText('Owned')).toBeInTheDocument()
+      expect(screen.getByText('38 items · 339 pieces')).toBeInTheDocument()
+    } finally {
+      vi.mocked(createClient).mockImplementation(defaultClient!)
+    }
   })
 
   it('renders dashboard with organization and user info', () => {
