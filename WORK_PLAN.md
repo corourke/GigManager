@@ -26,10 +26,10 @@ This file lives on `main`. Land updates there promptly: a run that starts from `
 | [#20](https://github.com/corourke/GigManager/issues/20) | Shared data-access layer under `src/services/` | Released in §3c (7 batches) | Triage, batch 1 next |
 | [#175](https://github.com/corourke/GigManager/issues/175) | Delete gig offered to Managers, but Admin-only | Cameron 10-07: another participating org's Admin must never delete; direction "cancel only when other orgs participate" | Needs a design pass (coordinator) |
 | [#174](https://github.com/corourke/GigManager/issues/174) | Team roles and invitations: UI offers what the server refuses | Cameron 10-07: a Manager must never be able to make anyone an Admin, by any path | Coordinator; the server side is the private finding in §2 |
-| [#178](https://github.com/corourke/GigManager/issues/178) | Duplicate check misses full names; org search is a plain substring | Cameron 10-07: avoid duplicates, so search thoroughly | Not released |
+| [#178](https://github.com/corourke/GigManager/issues/178) | Duplicate check misses full names; org search is a plain substring | Cameron 10-07: avoid duplicates, so search thoroughly | Released to triage (§3c) |
 | [#157](https://github.com/corourke/GigManager/issues/157) | Dashboard Equipment total should be replacement value × quantity | Rule decided by Cameron 10-07 | Done in #182 |
-| [#158](https://github.com/corourke/GigManager/issues/158), [#168](https://github.com/corourke/GigManager/issues/168) | Staff/Viewers see $0 money cards (dashboard) and money columns (gig list) | Filed by the Docs Lead 10-07 | Not released |
-| [#159](https://github.com/corourke/GigManager/issues/159), [#169](https://github.com/corourke/GigManager/issues/169), [#170](https://github.com/corourke/GigManager/issues/170), [#171](https://github.com/corourke/GigManager/issues/171), [#173](https://github.com/corourke/GigManager/issues/173), [#176](https://github.com/corourke/GigManager/issues/176) | Small UI bugs: © year, Markdown notes, conflict banner, staff slot delete/rates, member details page, org settings path | Filed by the Docs Lead 10-07 | Not released |
+| [#158](https://github.com/corourke/GigManager/issues/158), [#168](https://github.com/corourke/GigManager/issues/168) | Staff/Viewers see $0 money cards (dashboard) and money columns (gig list) | Filed by the Docs Lead 10-07 | Released to triage (§3c) |
+| [#159](https://github.com/corourke/GigManager/issues/159), [#169](https://github.com/corourke/GigManager/issues/169), [#170](https://github.com/corourke/GigManager/issues/170), [#171](https://github.com/corourke/GigManager/issues/171), [#173](https://github.com/corourke/GigManager/issues/173), [#176](https://github.com/corourke/GigManager/issues/176) | Small UI bugs: © year, Markdown notes, conflict banner, staff slot delete/rates, member details page, org settings path | Filed by the Docs Lead 10-07 | Released to triage (§3c) |
 
 ## 2. Waiting on Cameron
 
@@ -70,6 +70,19 @@ This file lives on `main`. Land updates there promptly: a run that starts from `
 7. `purchase`
 
 Pure refactor: no migrations, no edge-function or UI changes. Tests, typecheck, lint and build pass per PR.
+
+**Small bugs from the Docs Lead** (released 10-08 by Cameron). One PR per issue, a failing test first, frontend only. The issue describes the fix; if one turns out to need a migration, a server change or a design decision, stop and add a §3b entry instead.
+- [#158](https://github.com/corourke/GigManager/issues/158): the Staff dashboard shows $0 Equipment and Revenue cards. Hide the money cards from roles that can't see the figures.
+- [#168](https://github.com/corourke/GigManager/issues/168): the gig list offers Revenue, Expenses and Profit columns to Staff and Viewers. Hide them, same rule as #158.
+- [#159](https://github.com/corourke/GigManager/issues/159): the Sign Up footer shows a hard-coded © 2025. Use the current year.
+- [#169](https://github.com/corourke/GigManager/issues/169): gig notes show as raw text. Render them as Markdown, the way other notes are rendered.
+- [#170](https://github.com/corourke/GigManager/issues/170): the conflict banner on the gig list and calendar shows an empty equipment detail, labels an Act conflict as a venue conflict, and its View button sets the wrong Back link.
+- [#171](https://github.com/corourke/GigManager/issues/171): deleting a staff slot doesn't ask for confirmation, and rates always show "/ hr".
+- [#173](https://github.com/corourke/GigManager/issues/173): a member's details page. Edit goes nowhere, the default role isn't shown, and timezone edits are dropped.
+- [#176](https://github.com/corourke/GigManager/issues/176): there's no direct path to your own organization's settings, and the Contacts card clips its actions.
+- [#178](https://github.com/corourke/GigManager/issues/178): the duplicate check misses people typed by full name, and organization search is a plain substring match. Cameron: avoid duplicates, so search thoroughly.
+
+Not released, staying with the coordinator: #174 (its server side is the private finding) and #175 (needs a design pass).
 
 **Never pre-approved:** migrations or any RLS/policy change (Cameron applies migrations), edge-function API shape, production config or `deploy_prod.sh`.
 
