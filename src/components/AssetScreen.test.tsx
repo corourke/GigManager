@@ -1,6 +1,6 @@
 import type { ReactElement } from 'react'
-import { describe, it, expect, vi } from 'vitest'
-import { render as rtlRender, screen, fireEvent, waitFor } from '@testing-library/react'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { render as rtlRender, screen, fireEvent, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import AssetScreen from './AssetScreen'
@@ -28,6 +28,7 @@ vi.mock('../services/equipmentItem.service', () => ({
 vi.mock('../services/asset.service', () => ({
   getAsset: vi.fn().mockResolvedValue({}),
   createAsset: vi.fn().mockResolvedValue({ id: 'new-1', equipment_item_id: 'item-k12' }),
+  createAssets: vi.fn().mockResolvedValue([{ id: 'new-1', equipment_item_id: 'item-k12' }]),
   updateAsset: vi.fn(),
   getAssetStatusHistory: vi.fn().mockResolvedValue([]),
   getAssetInventoryTracking: vi.fn().mockResolvedValue([]),
@@ -49,6 +50,12 @@ vi.mock('../utils/hooks/useAutocompleteSuggestions', () => ({
     isLoading: false,
     error: null,
   })),
+}))
+
+vi.mock('../services/purchaseCategory.service', () => ({
+  getEquipmentCategories: vi.fn().mockResolvedValue(['Audio', 'Lighting']),
+  getEquipmentCategoryPeriods: vi.fn().mockResolvedValue({}),
+  getTypeUsage: vi.fn().mockResolvedValue([]),
 }))
 
 vi.mock('../contexts/NavigationContext', () => ({
@@ -73,18 +80,14 @@ const mockProps = {
 }
 
 describe('AssetScreen', () => {
-  it('puts Back to Items in the page header slot when no item is chosen yet (#39, #182)', () => {
+  beforeEach(() => vi.clearAllMocks())
+
+  it('is Add Item when opened from Equipment, with Back to Items in the header slot (#39, #183)', () => {
     const onCancel = vi.fn()
     render(<AssetScreen {...mockProps} onCancel={onCancel} />)
-    expect(screen.getByRole('heading', { level: 1, name: 'Add unit or lot' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 1, name: 'Add Item' })).toBeInTheDocument()
     fireEvent.click(getBackInHeaderSlot('Back to Items'))
     expect(onCancel).toHaveBeenCalledTimes(1)
-  })
-
-  it('renders without throwing errors', () => {
-    expect(() => {
-      render(<AssetScreen {...mockProps} />)
-    }).not.toThrow()
   })
 
   it('renders in edit mode without throwing errors', () => {
@@ -93,52 +96,104 @@ describe('AssetScreen', () => {
     }).not.toThrow()
   })
 
-  describe('unit or lot (#182)', () => {
+  describe('Add Item (#183)', () => {
+    it('a new item takes its insurance class and description in What it is, and has no Lifecycle', () => {
+      render(<AssetScreen {...mockProps} />)
+      const whatItIs = screen.getByRole('region', { name: 'What it is' })
+      expect(within(whatItIs).getByLabelText('Insurance Class')).toBeInTheDocument()
+      expect(within(whatItIs).getByLabelText('Description')).toBeInTheDocument()
+      expect(screen.queryByRole('region', { name: 'Lifecycle' })).not.toBeInTheDocument()
+      expect(screen.queryByLabelText('Status')).not.toBeInTheDocument()
+    })
+
+    it('adds a new item with 3 units in one form: one record per serial/tag row', async () => {
+      const ue = userEvent.setup()
+      const { createAssets } = await import('../services/asset.service')
+      const onBackToItem = vi.fn()
+      render(<AssetScreen {...mockProps} onBackToItem={onBackToItem} />)
+      await ue.type(screen.getByLabelText(/Manufacturer and Model/), 'Shure ULXD2/SM58')
+      await ue.selectOptions(screen.getByLabelText(/^Category/), 'Audio')
+      await ue.type(screen.getByLabelText('Insurance Class'), 'Class B')
+      const qty = screen.getByLabelText('Quantity')
+      await ue.clear(qty)
+      await ue.type(qty, '3')
+      await ue.type(screen.getByLabelText('Serial number, unit 1'), 'SN1')
+      await ue.type(screen.getByLabelText('Inventory tag, unit 2'), 'DSL-0152')
+      await ue.type(screen.getByLabelText('Serial number, unit 3'), 'SN3')
+      await ue.type(screen.getByLabelText('Replacement Value'), '1099')
+      fireEvent.change(screen.getByLabelText(/Acquisition Date/), { target: { value: '2026-10-02' } })
+      await ue.click(screen.getByRole('button', { name: 'Add Item and 3 Units' }))
+
+      await waitFor(() => expect(createAssets).toHaveBeenCalledTimes(1))
+      const records = vi.mocked(createAssets).mock.calls[0][0] as any[]
+      expect(records.map((r) => [r.serial_number, r.tag_number, r.quantity])).toEqual([['SN1', null, 1], [null, 'DSL-0152', 1], ['SN3', null, 1]])
+      expect(records.every((r) => r.manufacturer_model === 'Shure ULXD2/SM58' && r.category === 'Audio'
+        && r.insurance_class === 'Class B' && r.replacement_value === 1099 && r.acquisition_date === '2026-10-02')).toBe(true)
+      expect(onBackToItem).toHaveBeenCalledWith('item-k12')
+    })
+
+    it('won’t save a unit with neither a serial nor a tag', async () => {
+      const ue = userEvent.setup()
+      const { createAssets } = await import('../services/asset.service')
+      render(<AssetScreen {...mockProps} itemId="item-k12" />)
+      await screen.findByText('Audio · Speaker, Powered, Full-Range · Class B')
+      const qty = screen.getByLabelText('Quantity')
+      await ue.clear(qty)
+      await ue.type(qty, '2')
+      await ue.type(screen.getByLabelText('Inventory tag, unit 1'), 'DSL-0107')
+      fireEvent.change(screen.getByLabelText(/Acquisition Date/), { target: { value: '2025-05-02' } })
+      await ue.click(screen.getByRole('button', { name: 'Add 2 Units' }))
+      expect(screen.getAllByText('Unit 2 needs a serial number or a tag (either will do).').length).toBeGreaterThan(0)
+      expect(createAssets).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('Add unit or lot (#182, #183)', () => {
     it('adds to an item: shows what it is, and Back goes to the item', async () => {
       const onBackToItem = vi.fn()
       render(<AssetScreen {...mockProps} itemId="item-k12" onBackToItem={onBackToItem} />)
-      expect(await screen.findByText('Audio · Speaker, Powered, Full-Range')).toBeInTheDocument()
+      expect(screen.getByRole('heading', { level: 1, name: 'Add unit or lot' })).toBeInTheDocument()
+      expect(await screen.findByText('Audio · Speaker, Powered, Full-Range · Class B')).toBeInTheDocument()
       fireEvent.click(getBackInHeaderSlot('Back to QSC K12.2'))
       expect(onBackToItem).toHaveBeenCalledWith('item-k12')
     })
 
-    it('a unit has quantity 1 and needs a serial number or a tag', async () => {
+    it('adds a unit of the item, named by the item', async () => {
       const ue = userEvent.setup()
-      const { createAsset } = await import('../services/asset.service')
+      const { createAssets } = await import('../services/asset.service')
       render(<AssetScreen {...mockProps} itemId="item-k12" />)
-      await screen.findByText('Audio · Speaker, Powered, Full-Range')
-
-      expect(screen.getByLabelText('Quantity')).toBeDisabled()
-      expect(screen.getByLabelText('Quantity')).toHaveValue(1)
+      await screen.findByText('Audio · Speaker, Powered, Full-Range · Class B')
+      await ue.type(screen.getByLabelText('Inventory tag'), 'DSL-0107')
       fireEvent.change(screen.getByLabelText(/Acquisition Date/), { target: { value: '2025-05-02' } })
       await ue.click(screen.getByRole('button', { name: 'Add Unit' }))
-      expect(await screen.findByText('A unit needs a serial number or a tag (either will do).')).toBeInTheDocument()
-      expect(createAsset).not.toHaveBeenCalled()
-
-      await ue.type(screen.getByLabelText('Inventory Tag ID'), 'DSL-0107')
-      await ue.click(screen.getByRole('button', { name: 'Add Unit' }))
-      await waitFor(() => expect(createAsset).toHaveBeenCalledWith(expect.objectContaining({
-        manufacturer_model: 'QSC K12.2', category: 'Audio', tag_number: 'DSL-0107', quantity: 1,
-      })))
+      await waitFor(() => expect(createAssets).toHaveBeenCalledWith([expect.objectContaining({
+        equipment_item_id: 'item-k12', manufacturer_model: 'QSC K12.2', category: 'Audio', tag_number: 'DSL-0107', quantity: 1,
+      })]))
     })
 
-    it('a lot has a quantity and no serial number or tag', async () => {
+    it('a lot is one record of its quantity, with no serial or tag', async () => {
       const ue = userEvent.setup()
+      const { createAssets } = await import('../services/asset.service')
       render(<AssetScreen {...mockProps} itemId="item-k12" />)
-      await screen.findByText('Audio · Speaker, Powered, Full-Range')
+      await screen.findByText('Audio · Speaker, Powered, Full-Range · Class B')
       await ue.click(screen.getByRole('radio', { name: /Lot/ }))
-
       expect(screen.getByLabelText('Serial Number')).toBeDisabled()
-      expect(screen.getByLabelText('Inventory Tag ID')).toBeDisabled()
-      expect(screen.getByLabelText('Quantity')).toBeEnabled()
-      expect(screen.getByRole('button', { name: 'Add Lot' })).toBeInTheDocument()
+      const qty = screen.getByLabelText('Quantity')
+      await ue.clear(qty)
+      await ue.type(qty, '10')
+      fireEvent.change(screen.getByLabelText(/Acquisition Date/), { target: { value: '2025-05-02' } })
+      await ue.click(screen.getByRole('button', { name: 'Add Lot' }))
+      await waitFor(() => expect(createAssets).toHaveBeenCalledWith([expect.objectContaining({
+        quantity: 10, serial_number: null, tag_number: null,
+      })]))
     })
 
     it('picks an existing item when none is given', async () => {
       const ue = userEvent.setup()
       render(<AssetScreen {...mockProps} />)
+      await ue.click(screen.getByRole('radio', { name: /An item we already have/ }))
       await ue.selectOptions(await screen.findByLabelText('Item'), 'item-k12')
-      expect(await screen.findByText('Audio · Speaker, Powered, Full-Range')).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Add Unit' })).toBeInTheDocument()
     })
   })
 })

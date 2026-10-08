@@ -1,19 +1,17 @@
-import { useState, useEffect } from 'react';
-import { Save, Loader2, AlertCircle, History, CreditCard, ExternalLink, Box, Layers, Tag } from 'lucide-react';
+import { useState, useEffect, type ReactNode } from 'react';
+import { Save, Loader2, AlertCircle, History, CreditCard, ExternalLink } from 'lucide-react';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Card } from './ui/card';
-import { Checkbox } from './ui/checkbox';
-import { Textarea } from './ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './ui/table';
 import AppHeader from './AppHeader';
 import { PageHeader } from './layout/PageHeader';
 import { Organization, User, UserRole } from '../utils/supabase/types';
-import { createAsset, updateAsset, getAssetDepreciatedDate } from '../services/asset.service';
+import { updateAsset, getAssetDepreciatedDate } from '../services/asset.service';
 import { useAssetData, useAssetMutations } from './asset/useAssetData';
 import type { DbInventoryTracking, ActivityLogEntry } from '../utils/supabase/types';
 import ActivityFeed from './ActivityFeed';
@@ -26,9 +24,12 @@ import { getLockedTaxYears } from '../services/taxYear.service';
 import { isTaxYearLocked } from '../utils/taxTreatment';
 import { RECOVERY_PERIODS, categoryPeriod, type CategoryPeriods } from '../utils/recoveryPeriod';
 import AttachmentManager from './AttachmentManager';
-import { getItem, getItems, type EquipmentItemWithRecords } from '../services/equipmentItem.service';
-import { recordKind, type RecordKind } from '../utils/equipmentItems';
-import { cn } from './ui/utils';
+import { getItem, getItems } from '../services/equipmentItem.service';
+import { recordKind } from '../utils/equipmentItems';
+import { buildLineUnits, resizeUnitRows, unitRowProblems, type ItemChoice } from '../utils/lineUnits';
+import ItemSection, { emptyItemDraft, itemDraftErrors, type ItemDraft, type ItemOption } from './equipment/form/ItemSection';
+import UnitOrLotSection, { type FormUnitRow, type UnitOrLot } from './equipment/form/UnitOrLotSection';
+import InsuranceSection from './equipment/form/InsuranceSection';
 
 interface AssetScreenProps {
   organization: Organization;
@@ -48,7 +49,9 @@ interface AssetScreenProps {
   onLogout: () => void;
 }
 
+/** The fields of one record being edited, plus the financial fields of a new one. */
 interface FormData {
+  equipment_item_id: string;
   category: string;
   manufacturer_model: string;
   serial_number: string;
@@ -70,7 +73,27 @@ interface FormData {
   purchase_id?: string;
 }
 
+const toOption = (i: { id: string; manufacturer_model: string; category: string; type?: string | null; insurance_class?: string | null; description?: string | null }): ItemOption => ({
+  id: i.id, manufacturer_model: i.manufacturer_model, category: i.category,
+  type: i.type ?? null, insurance_class: i.insurance_class ?? null, description: i.description ?? null,
+});
+const num = (v: string) => (v.trim() === '' ? null : parseFloat(v));
 
+/** A titled form section; its title names it for assistive tech. */
+function FormSection({ id, title, first, children }: { id: string; title: string; first?: boolean; children: ReactNode }) {
+  return (
+    <section aria-labelledby={id} className={first ? '' : 'border-t border-gray-100 pt-4'}>
+      <h3 id={id} className="text-gray-900 mb-2">{title}</h3>
+      {children}
+    </section>
+  );
+}
+
+/**
+ * Add Item, Add unit or lot, and editing one unit or lot (#182, #183): the same
+ * three sections as the purchase Equipment details pop-up (What it is, Unit or
+ * lot, Insurance), plus Financial Information, and Lifecycle when editing.
+ */
 export default function AssetScreen({
   organization,
   user,
@@ -89,8 +112,8 @@ export default function AssetScreen({
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [totalCost, setTotalCost] = useState<string>(''); // Helper field, not saved
 
-  // Form state with change detection
   const [formData, setFormData] = useState<FormData>({
+    equipment_item_id: '',
     category: '',
     manufacturer_model: '',
     serial_number: '',
@@ -111,61 +134,55 @@ export default function AssetScreen({
     liquidation_amt: '',
   });
 
-  // What it is (#182): the item this unit or lot belongs to. Picked from the
-  // organization's items, or "a new item" typed in (the database finds or
-  // creates the item from model + category).
-  const [item, setItem] = useState<EquipmentItemWithRecords | null>(null);
-  const [itemOptions, setItemOptions] = useState<EquipmentItemWithRecords[]>([]);
-  const [choosingItem, setChoosingItem] = useState(false);
-  // Unit (serial or tag, quantity 1) or lot (neither, a quantity).
-  const [kind, setKind] = useState<RecordKind>('unit');
-  const [loadedLotQuantity, setLoadedLotQuantity] = useState<number | null>(null);
+  const isEditMode = !!assetId;
 
-  // Change detection hook (simplified for manual state)
+  // What it is (#183): an item we already have, or a new one.
+  const [itemDraft, setItemDraft] = useState<ItemDraft>(emptyItemDraft());
+  const [items, setItems] = useState<ItemOption[]>([]);
+  // Unit or lot. Adding: the quantity sets the serial/tag rows, one per unit.
+  const [kind, setKind] = useState<UnitOrLot>('units');
+  const [quantity, setQuantity] = useState(1);
+  const [rows, setRows] = useState<FormUnitRow[]>([{ serial_number: '', tag_number: '' }]);
+  const [loadedLotQuantity, setLoadedLotQuantity] = useState<number | null>(null);
+  const [showProblems, setShowProblems] = useState(false);
+
   const changeDetection = useSimpleFormChanges({
     currentData: formData,
     initialData: {},
   });
 
-  const isEditMode = !!assetId;
-
-  // Categories come from the organization's list (Settings → Categories);
-  // types are suggested from those already used in the chosen category.
   const [equipmentCategories, setEquipmentCategories] = useState<string[]>([]);
   useEffect(() => {
     let cancelled = false;
     getEquipmentCategories(organization.id).then(c => { if (!cancelled) setEquipmentCategories(c); });
     getEquipmentCategoryPeriods(organization.id).then(p => { if (!cancelled) setCategoryPeriods(p); });
+    getItems(organization.id).then((list) => { if (!cancelled) setItems(list.map(toOption)); }).catch(() => {});
     return () => { cancelled = true; };
   }, [organization.id]);
 
-  const applyItem = (picked: EquipmentItemWithRecords) => {
-    setItem(picked);
-    setChoosingItem(false);
-    setFormData((prev) => ({
-      ...prev,
-      manufacturer_model: picked.manufacturer_model,
-      category: picked.category,
-      type: picked.type ?? '',
-      description: picked.description ?? '',
-      insurance_class: picked.insurance_class ?? '',
-    }));
-  };
-
+  // Adding to a given item: start from it.
   useEffect(() => {
     if (assetId || !itemId) return;
     let cancelled = false;
-    getItem(itemId).then((i) => { if (!cancelled) applyItem(i); }).catch(() => {});
+    getItem(itemId).then((i) => { if (!cancelled) setItemDraft(emptyItemDraft({ mode: 'existing', existing: toOption(i) })); }).catch(() => {});
     return () => { cancelled = true; };
   }, [assetId, itemId]);
 
-  const needsPicker = !item && !assetId && !itemId;
-  useEffect(() => {
-    if (!needsPicker && !choosingItem) return;
-    let cancelled = false;
-    getItems(organization.id).then((list) => { if (!cancelled) setItemOptions(list); }).catch(() => {});
-    return () => { cancelled = true; };
-  }, [needsPicker, choosingItem, organization.id]);
+  // Editing: choosing another item moves the record to it.
+  const changeItem = (next: ItemDraft) => {
+    setItemDraft(next);
+    if (!isEditMode || !next.existing) return;
+    const it = next.existing;
+    setFormData((prev) => ({
+      ...prev,
+      equipment_item_id: it.id,
+      manufacturer_model: it.manufacturer_model,
+      category: it.category,
+      type: it.type ?? '',
+      description: it.description ?? '',
+      insurance_class: it.insurance_class ?? '',
+    }));
+  };
 
   // Only depreciated equipment has a recovery period (#125); a filed year's,
   // once set, stays.
@@ -183,14 +200,6 @@ export default function AssetScreen({
   const defaultPeriod = categoryPeriod(categoryPeriods, formData.category);
   const periodLocked = depreciated && isTaxYearLocked(depreciatedOn, lockedYears) && !!changeDetection.originalData?.recovery_period;
 
-  const typeSuggestions = useAutocompleteSuggestions({
-    field: 'type',
-    organizationId: organization.id,
-    sourceTable: 'assets',
-    filterByCategory: formData.category || undefined,
-    enabled: !!formData.category,
-  });
-
   const vendorSuggestions = useAutocompleteSuggestions({
     field: 'vendor',
     organizationId: organization.id,
@@ -202,7 +211,7 @@ export default function AssetScreen({
   const { assetQuery, inventoryTrackingQuery, activityQuery } = useAssetData(assetId);
   const assetMutations = useAssetMutations(organization.id);
   const isLoading = assetQuery.isLoading;
-  const isSaving = assetMutations.createAsset.isPending || assetMutations.updateAsset.isPending;
+  const isSaving = assetMutations.createAssets.isPending || assetMutations.updateAsset.isPending;
   const inventoryTracking = (inventoryTrackingQuery.data ?? []) as DbInventoryTracking[];
   const assetActivity = (activityQuery.data ?? []) as ActivityLogEntry[];
   const isLoadingHistory = inventoryTrackingQuery.isLoading || activityQuery.isLoading;
@@ -213,6 +222,7 @@ export default function AssetScreen({
     const asset = assetQuery.data;
     if (!asset) return;
     const loadedData: FormData = {
+      equipment_item_id: asset.equipment_item_id || '',
       category: asset.category || '',
       manufacturer_model: asset.manufacturer_model || '',
       serial_number: asset.serial_number || '',
@@ -235,11 +245,11 @@ export default function AssetScreen({
     };
     setFormData(loadedData);
     changeDetection.loadInitialData(loadedData);
-    const loadedKind = recordKind(asset);
+    const loadedKind = recordKind(asset) === 'unit' ? 'units' : 'lot';
     setKind(loadedKind);
     setLoadedLotQuantity(loadedKind === 'lot' ? (asset.quantity ?? 1) : null);
     if (asset.equipment_item_id) {
-      getItem(asset.equipment_item_id).then(setItem).catch(() => {});
+      getItem(asset.equipment_item_id).then((i) => setItemDraft(emptyItemDraft({ mode: 'existing', existing: toOption(i) }))).catch(() => {});
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [assetQuery.data]);
@@ -263,7 +273,6 @@ export default function AssetScreen({
       }
       return next;
     });
-    // Clear error for this field
     if (errors[field]) {
       setErrors((prev) => {
         const newErrors = { ...prev };
@@ -273,51 +282,88 @@ export default function AssetScreen({
     }
   };
 
+  // Editing one record: its serial and tag are the one row; a lot's quantity is its own.
+  const editRows: FormUnitRow[] = [{ serial_number: formData.serial_number, tag_number: formData.tag_number }];
+  const unitRows = isEditMode ? editRows : rows;
+  const unitProblems = kind === 'units' ? unitRowProblems(unitRows) : [];
+  const shownItem = itemDraft.mode === 'existing' ? itemDraft.existing : null;
+  const newItem = !isEditMode && itemDraft.mode === 'new';
+
   const validate = (): boolean => {
     const newErrors: Record<string, string> = {};
-
-    if (!formData.category.trim()) {
-      newErrors.category = item ? 'Category is required' : 'Choose an item, or enter a new one';
-    }
-
-    if (!formData.manufacturer_model.trim()) {
-      newErrors.manufacturer_model = 'Manufacturer/Model is required';
-    }
-
-    if (!formData.acquisition_date) {
-      newErrors.acquisition_date = 'Acquisition date is required';
-    }
-
-    if (formData.item_price && isNaN(parseFloat(formData.item_price))) {
-      newErrors.item_price = 'Item price must be a valid number';
-    }
-
-    if (formData.item_cost && isNaN(parseFloat(formData.item_cost))) {
-      newErrors.item_cost = 'Item cost must be a valid number';
-    }
-
-    if (formData.replacement_value && isNaN(parseFloat(formData.replacement_value))) {
-      newErrors.replacement_value = 'Replacement value must be a valid number';
-    }
-
-    if (kind === 'unit' && !formData.serial_number.trim() && !formData.tag_number.trim()) {
-      newErrors.unit = 'A unit needs a serial number or a tag (either will do).';
-    }
-
-    if (kind === 'lot' && formData.quantity && (isNaN(parseInt(formData.quantity)) || parseInt(formData.quantity) < 1)) {
+    if (!isEditMode) Object.assign(newErrors, itemDraftErrors(itemDraft));
+    if (!formData.acquisition_date) newErrors.acquisition_date = 'Acquisition date is required';
+    if (formData.item_price && isNaN(parseFloat(formData.item_price))) newErrors.item_price = 'Item price must be a valid number';
+    if (formData.item_cost && isNaN(parseFloat(formData.item_cost))) newErrors.item_cost = 'Item cost must be a valid number';
+    if (formData.replacement_value && isNaN(parseFloat(formData.replacement_value))) newErrors.replacement_value = 'Replacement value must be a valid number';
+    if (unitProblems.length) newErrors.unit = unitProblems[0];
+    if (kind === 'lot' && isEditMode && formData.quantity && (isNaN(parseInt(formData.quantity)) || parseInt(formData.quantity) < 1)) {
       newErrors.quantity = 'Quantity must be a positive number';
     }
-
     if (depreciated && !formData.recovery_period && !defaultPeriod) {
       newErrors.recovery_period = 'Choose a recovery period: this equipment is depreciated';
     }
-
     if (formData.liquidation_amt && isNaN(parseFloat(formData.liquidation_amt))) {
       newErrors.liquidation_amt = 'Disposal or salvage amount must be a valid number';
     }
-
     setErrors(newErrors);
+    setShowProblems(true);
     return Object.keys(newErrors).length === 0;
+  };
+
+  // Adding: one record per unit row, or one lot, all saved together.
+  const createRecords = async () => {
+    const d = itemDraft;
+    const item: ItemChoice = d.mode === 'existing' && d.existing
+      ? { equipment_item_id: d.existing.id, manufacturer_model: d.existing.manufacturer_model, category: d.existing.category,
+          type: d.existing.type, insurance_class: d.existing.insurance_class, description: d.existing.description }
+      : { manufacturer_model: d.manufacturer_model, category: d.category, type: d.type, insurance_class: d.insurance_class, description: d.description };
+    const built = buildLineUnits(organization.id, 0, kind === 'units' ? rows.length : quantity, {
+      item, kind, units: rows, replacement_value: num(formData.replacement_value), insured: formData.insurance_policy_added,
+    });
+    const records = built.map(({ line_index: _drop, ...r }) => ({
+      ...r,
+      acquisition_date: formData.acquisition_date,
+      vendor: formData.vendor.trim() || null,
+      item_price: num(formData.item_price),
+      item_cost: num(formData.item_cost),
+      status: 'Active',
+    }));
+    const saved = await assetMutations.createAssets.mutateAsync(records as Parameters<typeof assetMutations.createAssets.mutateAsync>[0]);
+    toast.success(kind === 'lot' ? 'Lot added' : records.length === 1 ? 'Unit added' : `${records.length} units added`);
+    const newItemId = saved[0]?.equipment_item_id ?? shownItem?.id;
+    if (newItemId && onBackToItem) onBackToItem(newItemId); else if (saved[0]) onAssetCreated(saved[0].id);
+  };
+
+  const updateRecord = async () => {
+    // A unit is one thing (quantity 1); a lot has no serial number or tag.
+    const shaped: FormData = kind === 'units'
+      ? { ...formData, quantity: '1' }
+      : { ...formData, serial_number: '', tag_number: '', quantity: formData.quantity || '1' };
+    const normalizedData = normalizeFormData(shaped) as Record<string, any>;
+    for (const f of ['item_price', 'item_cost', 'replacement_value', 'liquidation_amt'] as const) {
+      const v = normalizedData[f];
+      normalizedData[f] = v === null || v === '' ? undefined : typeof v === 'string' ? parseFloat(v) : v;
+    }
+    const q = normalizedData.quantity;
+    normalizedData.quantity = q === null || q === '' ? undefined : typeof q === 'string' ? parseInt(q) : q;
+    // Depreciated: the period chosen, else the category's. Not depreciated: none.
+    if (depreciated) {
+      normalizedData.recovery_period = formData.recovery_period ? parseInt(formData.recovery_period) : defaultPeriod;
+    } else {
+      delete normalizedData.recovery_period;
+    }
+    const changed = changeDetection.hasChanges
+      ? createSubmissionPayload(normalizedData, changeDetection.originalData)
+      : normalizedData;
+    await assetMutations.updateAsset.mutateAsync({
+      id: assetId as string,
+      data: { ...changed, organization_id: organization.id } as Parameters<typeof updateAsset>[1],
+    });
+    changeDetection.markAsSaved(normalizedData);
+    toast.success(kind === 'units' ? 'Unit updated' : 'Lot updated');
+    const backTo = shownItem?.id;
+    if (backTo && onBackToItem) onBackToItem(backTo); else onAssetUpdated();
   };
 
   const handleSubmit = async () => {
@@ -325,95 +371,18 @@ export default function AssetScreen({
       toast.error('Please fix the errors before submitting');
       return;
     }
-
     try {
-      // A unit is one thing (quantity 1); a lot has no serial number or tag.
-      const shaped: FormData = kind === 'unit'
-        ? { ...formData, quantity: '1' }
-        : { ...formData, serial_number: '', tag_number: '', quantity: formData.quantity || '1' };
-
-      // Normalize form data first
-      const normalizedData = normalizeFormData(shaped);
-
-      // Convert numeric string fields: empty/null -> undefined, non-empty -> parse to number
-      if (normalizedData.item_price === null || normalizedData.item_price === '') {
-        normalizedData.item_price = undefined as any;
-      } else if (typeof normalizedData.item_price === 'string' && normalizedData.item_price.trim()) {
-        normalizedData.item_price = parseFloat(normalizedData.item_price) as any;
-      }
-
-      if (normalizedData.item_cost === null || normalizedData.item_cost === '') {
-        normalizedData.item_cost = undefined as any;
-      } else if (typeof normalizedData.item_cost === 'string' && normalizedData.item_cost.trim()) {
-        normalizedData.item_cost = parseFloat(normalizedData.item_cost) as any;
-      }
-
-      if (normalizedData.replacement_value === null || normalizedData.replacement_value === '') {
-        normalizedData.replacement_value = undefined as any;
-      } else if (typeof normalizedData.replacement_value === 'string' && normalizedData.replacement_value.trim()) {
-        normalizedData.replacement_value = parseFloat(normalizedData.replacement_value) as any;
-      }
-
-      if (normalizedData.quantity === null || normalizedData.quantity === '') {
-        normalizedData.quantity = undefined as any;
-      } else if (typeof normalizedData.quantity === 'string' && normalizedData.quantity.trim()) {
-        normalizedData.quantity = parseInt(normalizedData.quantity) as any;
-      }
-
-      // Depreciated: the period chosen, else the category's. Not depreciated: none.
-      if (depreciated) {
-        normalizedData.recovery_period = (formData.recovery_period ? parseInt(formData.recovery_period) : defaultPeriod) as any;
-      } else {
-        delete (normalizedData as any).recovery_period;
-      }
-
-      if (normalizedData.liquidation_amt === null || normalizedData.liquidation_amt === '') {
-        normalizedData.liquidation_amt = undefined as any;
-      } else if (typeof normalizedData.liquidation_amt === 'string' && normalizedData.liquidation_amt.trim()) {
-        normalizedData.liquidation_amt = parseFloat(normalizedData.liquidation_amt) as any;
-      }
-
-      const submissionData = isEditMode && changeDetection.hasChanges
-        ? createSubmissionPayload(normalizedData, changeDetection.originalData)
-        : {
-            organization_id: organization.id,
-            ...normalizedData,
-          };
-
-      if (isEditMode && assetId) {
-        // For updates, only send changed fields + required organization_id
-        const updateData = {
-          ...submissionData,
-          organization_id: organization.id, // Always include for RLS
-        };
-        // The in-place normalization above converts string form fields to the
-        // column types; the cast reflects that runtime conversion (refactor
-        // tracked for the Phase 7 component split)
-        await assetMutations.updateAsset.mutateAsync({
-          id: assetId,
-          data: updateData as Parameters<typeof updateAsset>[1],
-        });
-        changeDetection.markAsSaved(normalizedData);
-        toast.success(kind === 'unit' ? 'Unit updated' : 'Lot updated');
-        if (item && onBackToItem) onBackToItem(item.id); else onAssetUpdated();
-      } else {
-        // For creates, send all data
-        const createData = {
-          organization_id: organization.id,
-          ...normalizedData,
-        };
-        const newAsset = await assetMutations.createAsset.mutateAsync(
-          createData as unknown as Parameters<typeof createAsset>[0],
-        );
-        toast.success(kind === 'unit' ? 'Unit added' : 'Lot added');
-        const newItemId = (newAsset as { equipment_item_id?: string }).equipment_item_id ?? item?.id;
-        if (newItemId && onBackToItem) onBackToItem(newItemId); else onAssetCreated(newAsset.id);
-      }
+      if (isEditMode && assetId) await updateRecord(); else await createRecords();
     } catch (error: any) {
       console.error('Error saving asset:', error);
       toast.error(error.message || 'Failed to save asset');
     }
   };
+
+  const count = kind === 'units' ? unitRows.length : 1;
+  const saveLabel = isEditMode
+    ? (kind === 'units' ? 'Update Unit' : 'Update Lot')
+    : `Add ${newItem ? 'Item and ' : ''}${kind === 'lot' ? 'Lot' : count === 1 ? 'Unit' : `${count} Units`}`;
 
   if (isLoading) {
     return (
@@ -436,208 +405,78 @@ export default function AssetScreen({
       />
 
       <PageHeader
-        back={item && onBackToItem
-          ? { label: `Back to ${item.manufacturer_model}`, onClick: () => onBackToItem(item.id) }
+        back={shownItem && onBackToItem && (isEditMode || itemId)
+          ? { label: `Back to ${shownItem.manufacturer_model}`, onClick: () => onBackToItem(shownItem.id) }
           : { label: 'Back to Items', onClick: onCancel }}
         title={isEditMode
           ? (formData.tag_number || (formData.serial_number ? `SN ${formData.serial_number}` : `Lot of ${formData.quantity || 1}`))
-          : 'Add unit or lot'}
-        meta={item ? item.manufacturer_model : undefined}
+          : itemId ? 'Add unit or lot' : 'Add Item'}
+        meta={(isEditMode || itemId) && shownItem ? shownItem.manufacturer_model : undefined}
       />
 
       {/* Narrower than the header, but left-aligned with the title (#39). */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 *:max-w-4xl">
-
-        {/* Form */}
         <Card className="p-4">
           <div className="space-y-4">
-            {/* What it is (#182) */}
-            <div>
-              <h3 className="text-gray-900 mb-2">What it is</h3>
-              {item && !choosingItem ? (
-                <div className="flex items-center gap-3 rounded-lg border bg-gray-50 px-3 py-2.5">
-                  <span className="flex h-8 w-8 items-center justify-center rounded-md border bg-white text-gray-600"><Box className="h-4 w-4" aria-hidden /></span>
-                  <div className="min-w-0 flex-1">
-                    <div className="text-sm font-semibold">{item.manufacturer_model}</div>
-                    <div className="text-xs text-muted-foreground">{[item.category, item.type].filter(Boolean).join(' · ')}</div>
-                  </div>
-                  <Button type="button" variant="ghost" size="sm" className="text-sky-700" onClick={() => setChoosingItem(true)}>Change item</Button>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="item_choice">Item</Label>
-                    <select
-                      id="item_choice"
-                      value=""
-                      onChange={(e) => {
-                        const picked = itemOptions.find((i) => i.id === e.target.value);
-                        if (picked) applyItem(picked);
-                      }}
-                      className="h-9 w-full rounded-md border border-input bg-input-background px-3 text-base md:text-sm outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]"
-                    >
-                      <option value="">An item we already have…</option>
-                      {itemOptions.map((i) => (
-                        <option key={i.id} value={i.id}>{`${i.manufacturer_model} · ${i.category}`}</option>
-                      ))}
-                    </select>
-                    <p className="text-xs text-gray-500">Or enter a new item below: the same manufacturer &amp; model and category always means the same item.</p>
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="md:col-span-2 space-y-2">
-                  <Label htmlFor="manufacturer_model">
-                    Manufacturer and Model <span className="text-red-500">*</span>
-                  </Label>
-                  <Input
-                    id="manufacturer_model"
-                    value={formData.manufacturer_model}
-                    onChange={(e) => handleChange('manufacturer_model', e.target.value)}
-                    placeholder="e.g., Shure SM58, Martin MAC Aura"
-                    className={errors.manufacturer_model ? 'border-red-500' : ''}
-                  />
-                  {errors.manufacturer_model && (
-                    <p className="text-sm text-red-600 flex items-center gap-1">
-                      <AlertCircle className="w-4 h-4" />
-                      {errors.manufacturer_model}
-                    </p>
-                  )}
-                </div>
+            <FormSection id="section-what" title="What it is" first>
+              <ItemSection
+                idPrefix="item"
+                organizationId={organization.id}
+                value={itemDraft}
+                onChange={changeItem}
+                categories={equipmentCategories}
+                items={items}
+                fixed={isEditMode || !!itemId}
+                errors={showProblems && !isEditMode ? itemDraftErrors(itemDraft) : {}}
+              />
+            </FormSection>
 
-                <div className="space-y-2">
-                  <Label htmlFor="category">
-                    Category <span className="text-red-500">*</span>
-                  </Label>
-                  <select
-                    id="category"
-                    value={formData.category}
-                    onChange={(e) => handleChange('category', e.target.value)}
-                    className={`h-9 w-full rounded-md border bg-input-background px-3 text-base md:text-sm outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] ${errors.category ? 'border-red-500' : 'border-input'}`}
-                  >
-                    <option value="">Choose a category…</option>
-                    {formData.category && !equipmentCategories.includes(formData.category) && (
-                      <option value={formData.category}>{formData.category}</option>
-                    )}
-                    {equipmentCategories.map((cat) => (
-                      <option key={cat} value={cat}>{cat}</option>
-                    ))}
-                  </select>
-                  {errors.category && (
-                    <p className="text-sm text-red-600 flex items-center gap-1">
-                      <AlertCircle className="w-4 h-4" />
-                      {errors.category}
-                    </p>
-                  )}
-                </div>
+            <FormSection id="section-units" title="Unit or lot">
+              <UnitOrLotSection
+                idPrefix="units"
+                kind={kind}
+                onKindChange={(k) => {
+                  setKind(k);
+                  if (isEditMode && k === 'lot') handleChange('quantity', formData.quantity || '1');
+                }}
+                quantity={isEditMode ? (kind === 'units' ? 1 : parseInt(formData.quantity) || 1) : kind === 'units' ? rows.length : quantity}
+                onQuantityChange={(n) => {
+                  if (isEditMode) handleChange('quantity', String(n));
+                  else setQuantity(n);
+                }}
+                quantityLocked={isEditMode && kind === 'units'}
+                quantityNote={isEditMode && kind === 'units' ? 'This page edits one unit.' : undefined}
+                rows={unitRows}
+                onRowsChange={(next) => {
+                  if (isEditMode) {
+                    setFormData((prev) => ({ ...prev, serial_number: next[0]?.serial_number ?? '', tag_number: next[0]?.tag_number ?? '' }));
+                  } else {
+                    setRows(next);
+                    setQuantity(next.length);
+                  }
+                }}
+                problems={showProblems ? unitProblems : []}
+                helpers={!isEditMode}
+                unitBlocked={(loadedLotQuantity ?? 0) > 1
+                  ? `A lot of ${loadedLotQuantity} can’t become one unit here. Splitting a lot comes with the maintenance work (#186).` : undefined}
+                lotError={errors.quantity}
+              />
+            </FormSection>
 
-                
-
-                <div className="space-y-2">
-                  <Label htmlFor="type">Type</Label>
-                  <Input
-                    id="type"
-                    list="types"
-                    value={formData.type}
-                    onChange={(e) => handleChange('type', e.target.value)}
-                    placeholder="e.g., Microphone, Vocal, Dynamic"
-                  />
-                  <datalist id="types">
-                    {typeSuggestions.suggestions.map((type, index) => (
-                      <option key={`type-${index}-${type}`} value={type} />
-                    ))}
-                  </datalist>
-                  <p className="text-xs text-gray-500">
-                    General to specific, separated by commas. Suggestions are the types already used in this category.
-                  </p>
-                </div>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Unit or lot (#182) */}
-            <div className="border-t border-gray-100 pt-4">
-              <h3 className="text-gray-900 mb-2">Unit or lot</h3>
-              <div role="radiogroup" aria-label="Unit or lot" className="grid grid-cols-2 gap-2">
-                {([
-                  ['unit', 'Unit', Tag, 'One physical thing with a serial number or tag. Quantity is always 1.'],
-                  ['lot', 'Lot', Layers, 'Several identical things with no serial or tag, counted together.'],
-                ] as const).map(([value, label, Icon, help]) => {
-                  const blocked = value === 'unit' && (loadedLotQuantity ?? 0) > 1;
-                  return (
-                    <button
-                      key={value}
-                      type="button"
-                      role="radio"
-                      aria-checked={kind === value}
-                      disabled={blocked}
-                      onClick={() => setKind(value)}
-                      className={cn('flex flex-col items-start gap-1 rounded-lg border-2 p-3 text-left disabled:opacity-50',
-                        kind === value ? 'border-sky-500 bg-sky-50' : 'border-gray-200 bg-white')}
-                    >
-                      <span className="flex items-center gap-1.5 text-sm font-semibold"><Icon className="h-4 w-4" aria-hidden />{label}</span>
-                      <span className="text-xs text-gray-600">{help}</span>
-                    </button>
-                  );
-                })}
-              </div>
-              {(loadedLotQuantity ?? 0) > 1 && (
-                <p className="mt-2 text-xs text-gray-500">A lot of {loadedLotQuantity} can’t become one unit here. Splitting a lot comes with the maintenance work (#186).</p>
-              )}
-              <div className="mt-3 grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="serial_number">Serial Number</Label>
-                  <Input
-                    id="serial_number"
-                    value={kind === 'lot' ? '' : formData.serial_number}
-                    onChange={(e) => handleChange('serial_number', e.target.value)}
-                    placeholder={kind === 'lot' ? 'Not for a lot' : 'Serial number'}
-                    disabled={kind === 'lot'}
-                    className="font-mono"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="tag_number">Inventory Tag ID</Label>
-                  <Input
-                    id="tag_number"
-                    value={kind === 'lot' ? '' : formData.tag_number}
-                    onChange={(e) => handleChange('tag_number', e.target.value)}
-                    placeholder={kind === 'lot' ? 'Not for a lot' : 'e.g., TAG-001'}
-                    disabled={kind === 'lot'}
-                    className="font-mono"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="quantity">Quantity</Label>
-                  <Input
-                    id="quantity"
-                    type="number"
-                    min="1"
-                    value={kind === 'unit' ? '1' : formData.quantity}
-                    onChange={(e) => handleChange('quantity', e.target.value)}
-                    placeholder="1"
-                    disabled={kind === 'unit'}
-                    className={errors.quantity ? 'border-red-500' : ''}
-                  />
-                  {kind === 'unit' && <p className="text-xs text-gray-500">Always 1 for a unit.</p>}
-                  {errors.quantity && (
-                    <p className="text-sm text-red-600 flex items-center gap-1">
-                      <AlertCircle className="w-4 h-4" />
-                      {errors.quantity}
-                    </p>
-                  )}
-                </div>
-              </div>
-              {errors.unit && (
-                <p className="mt-2 text-sm text-red-600 flex items-center gap-1">
-                  <AlertCircle className="w-4 h-4" />
-                  {errors.unit}
-                </p>
-              )}
-            </div>
+            <FormSection id="section-insurance" title="Insurance">
+              <InsuranceSection
+                idPrefix="value"
+                replacementValue={formData.replacement_value}
+                onReplacementValueChange={(v) => handleChange('replacement_value', v)}
+                insured={formData.insurance_policy_added}
+                onInsuredChange={(v) => handleChange('insurance_policy_added', v)}
+                count={count}
+                error={errors.replacement_value}
+              />
+            </FormSection>
 
             {/* Financial Information */}
-            <div className="border-t border-gray-100 pt-4">
-              <h3 className="text-gray-900 mb-2">Financial Information</h3>
+            <FormSection id="section-financial" title="Financial Information">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="acquisition_date">
@@ -693,14 +532,9 @@ export default function AssetScreen({
                       value={totalCost}
                       onChange={(e) => setTotalCost(e.target.value)}
                       onBlur={() => {
-                        if (totalCost && formData.quantity) {
-                          const total = parseFloat(totalCost);
-                          const qty = parseInt(formData.quantity) || 1;
-                          if (!isNaN(total) && qty > 0) {
-                            const itemCost = (total / qty).toFixed(2);
-                            handleChange('item_cost', itemCost);
-                          }
-                        }
+                        const qty = isEditMode ? parseInt(formData.quantity) || 1 : kind === 'units' ? rows.length : quantity;
+                        const total = parseFloat(totalCost);
+                        if (totalCost && !isNaN(total) && qty > 0) handleChange('item_cost', (total / qty).toFixed(2));
                       }}
                       placeholder="0.00"
                       className="pl-7"
@@ -712,7 +546,7 @@ export default function AssetScreen({
                   <Label htmlFor="item_price">
                     Item Price
                     <span className="text-xs text-gray-400 font-normal ml-2">
-                      (Selling price per item)
+                      {count > 1 ? `(Each, for all ${count})` : '(Selling price per item)'}
                     </span>
                   </Label>
                   <div className="relative">
@@ -742,7 +576,7 @@ export default function AssetScreen({
                   <Label htmlFor="item_cost">
                     Item Cost
                     <span className="text-xs text-gray-400 font-normal ml-2">
-                      (Burdened cost per item)
+                      {count > 1 ? `(Each, for all ${count})` : '(Burdened cost per item)'}
                     </span>
                   </Label>
                   <div className="relative">
@@ -783,79 +617,11 @@ export default function AssetScreen({
                   </div>
                 )}
               </div>
-            </div>
+            </FormSection>
 
-            {/* Insurance */}
-            <div className="border-t border-gray-100 pt-4">
-              <h3 className="text-gray-900 mb-2">Insurance</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label className="text-sm font-normal">Insured</Label>
-                  <div className="flex items-center space-x-2">
-                    <Checkbox
-                      id="insurance_policy_added"
-                      checked={formData.insurance_policy_added}
-                      onCheckedChange={(checked) =>
-                        handleChange('insurance_policy_added', !!checked)
-                      }
-                    />
-                    <Label
-                      htmlFor="insurance_policy_added"
-                      className="text-sm font-normal cursor-pointer"
-                    >{kind === 'unit' ? 'This unit has been added to an insurance policy.' : 'This lot has been added to an insurance policy.'}</Label>
-                  </div>
-                </div>
-
-                {!item && (
-                <div className="space-y-2">
-                  <Label htmlFor="insurance_class">Insurance Class</Label>
-                  <Input
-                    id="insurance_class"
-                    value={formData.insurance_class}
-                    onChange={(e) => handleChange('insurance_class', e.target.value)}
-                    placeholder="e.g., Class A, Premium Coverage"
-                  />
-                  <p className="text-xs text-gray-500">
-                    The category used by your insurance company.
-                  </p>
-                </div>
-                )}
-
-                <div className="space-y-2">
-                  <Label htmlFor="replacement_value">
-                    Replacement Value
-                    <span className="text-xs text-gray-400 font-normal ml-2">
-                      (Per item)
-                    </span>
-                  </Label>
-                  <div className="relative">
-                    <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500">
-                      $
-                    </span>
-                    <Input
-                      id="replacement_value"
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      value={formData.replacement_value}
-                      onChange={(e) => handleChange('replacement_value', e.target.value)}
-                      placeholder="0.00"
-                      className={`pl-7 ${errors.replacement_value ? 'border-red-500' : ''}`}
-                    />
-                  </div>
-                  {errors.replacement_value && (
-                    <p className="text-sm text-red-600 flex items-center gap-1">
-                      <AlertCircle className="w-4 h-4" />
-                      {errors.replacement_value}
-                    </p>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            {/* Asset Lifecycle */}
-            <div className="border-t border-gray-100 pt-4">
-              <h3 className="text-gray-900 mb-2">Lifecycle</h3>
+            {/* Lifecycle: only when editing; new equipment is Active. */}
+            {isEditMode && (
+            <FormSection id="section-lifecycle" title="Lifecycle">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="status">Status</Label>
@@ -960,41 +726,19 @@ export default function AssetScreen({
                   )}
                 </div>
               </div>
-            </div>
+            </FormSection>
+            )}
 
-            {/* Description (the item's, when it is a new item) and attachments */}
-            {(!item || (isEditMode && assetId)) && (
-            <div className="border-t border-gray-100 pt-4">
-              <h3 className="text-gray-900 mb-2">Additional Details</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {!item && (
-                <div className="space-y-2">
-                  <Label htmlFor="description">Description</Label>
-                  <Textarea
-                    id="description"
-                    value={formData.description}
-                    onChange={(e) => handleChange('description', e.target.value)}
-                    placeholder="What this item is, and how to handle it…"
-                    rows={6}
-                  />
-                  <p className="text-xs text-gray-500">
-                    Supports Markdown formatting
-                  </p>
-                </div>
-                )}
-
-                {isEditMode && assetId && (
-                  <div className="space-y-2">
-                    <AttachmentManager
-                      organizationId={organization.id}
-                      entityType="asset"
-                      entityId={assetId}
-                      title="Asset Attachments"
-                    />
-                  </div>
-                )}
-              </div>
-            </div>
+            {/* Attachments: only once the record exists */}
+            {isEditMode && assetId && (
+              <FormSection id="section-attachments" title="Attachments">
+                <AttachmentManager
+                  organizationId={organization.id}
+                  entityType="asset"
+                  entityId={assetId}
+                  title="Asset Attachments"
+                />
+              </FormSection>
             )}
 
             {/* Read-only History Tables — Edit Mode Only */}
@@ -1092,7 +836,7 @@ export default function AssetScreen({
                 ) : (
                   <>
                     <Save className="w-4 h-4 mr-2" />
-                    {isEditMode ? (kind === 'unit' ? 'Update Unit' : 'Update Lot') : (kind === 'unit' ? 'Add Unit' : 'Add Lot')}
+                    {saveLabel}
                   </>
                 )}
               </Button>

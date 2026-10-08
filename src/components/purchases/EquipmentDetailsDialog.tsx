@@ -1,22 +1,26 @@
-import { useEffect, useMemo, useState } from 'react';
-import { Briefcase, X } from 'lucide-react';
+import { useEffect, useState } from 'react';
 import { Button } from '../ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '../ui/dialog';
-import { getTypeUsage } from '../../services/purchaseCategory.service';
-import { getKitOptions } from '../../services/kit.service';
+import { Label } from '../ui/label';
 import {
   RECOVERY_PERIODS, asRecoveryPeriod, categoryPeriod, effectiveRecoveryPeriod,
   type CategoryPeriods, type RecoveryPeriod,
 } from '../../utils/recoveryPeriod';
+import { resizeUnitRows, unitRowProblems } from '../../utils/lineUnits';
+import ItemSection, { draftCategory, itemDraftErrors, type ItemDraft, type ItemOption } from '../equipment/form/ItemSection';
+import UnitOrLotSection, { type FormUnitRow, type UnitOrLot } from '../equipment/form/UnitOrLotSection';
+import InsuranceSection from '../equipment/form/InsuranceSection';
 
+/** A purchase line's equipment (#183): what it is, units or a lot, and its value. */
 export interface EquipmentDetails {
-  category: string;
-  type: string;
-  kitIds: string[];
-  serial_number: string;
-  tag_number: string;
-  replacement_value: number;
-  /** Depreciated items only (#125): the period chosen; null follows the category's default. */
+  item: ItemDraft;
+  kind: UnitOrLot;
+  /** One row per unit; a saved unit's row carries its id. */
+  units: FormUnitRow[];
+  /** Each, copied to every unit or the lot. */
+  replacement_value: string;
+  insured: boolean;
+  /** Depreciated lines only (#125): the period chosen; null follows the category's default. */
   recovery_period?: RecoveryPeriod | null;
 }
 
@@ -26,236 +30,147 @@ interface EquipmentDetailsDialogProps {
   organizationId: string;
   /** The line's description, shown under the title. */
   itemName: string;
+  /** The line's quantity: how many units, or the lot's size. */
+  quantity: number;
   /** The organization's active equipment categories. */
   categories: string[];
+  /** The organization's items, to pick from and to suggest. */
+  items: ItemOption[];
   value: EquipmentDetails;
   onSave: (value: EquipmentDetails) => void;
   /** A depreciated line in a filed year keeps its category. */
   categoryLocked?: boolean;
-  /** An existing equipment record's kits are managed on its own page. */
-  kitsLocked?: boolean;
   /** The line is depreciated: ask for its recovery period (#125). */
   depreciated?: boolean;
   /** Each equipment category's default recovery period. */
   categoryPeriods?: CategoryPeriods;
   /** A filed year's recovery period, once set, stays. */
   periodLocked?: boolean;
+  /** The line's equipment is saved: its item and Unit/Lot stay; units can be edited and added. */
+  saved?: boolean;
 }
 
-const NEW_CATEGORY = '__new__';
+/** A saved line keeps its saved units, plus empty rows up to the quantity; a new one follows the quantity. */
+const rowsFor = (units: FormUnitRow[], quantity: number, saved?: boolean) => {
+  if (!saved) return resizeUnitRows(units, quantity);
+  const kept = units.filter((u) => u.id);
+  const extra = Math.max(0, quantity - kept.length);
+  return [...kept, ...Array.from({ length: extra }, () => ({ serial_number: '', tag_number: '' }))];
+};
 
 /**
- * The equipment details of a purchase line (10-06 design): category, type
- * (suggested from the types already used in that category), kits, serial,
- * tag and replacement value. Changes apply on Done; Cancel drops them.
+ * The equipment details of a purchase line (#183, mockup screen 4): the same three
+ * sections as Add Item (What it is, Unit or lot, Insurance), plus the recovery
+ * period of a depreciated line. Kits are set in the kit editor. Changes apply on
+ * Done; Cancel drops them.
  */
 export default function EquipmentDetailsDialog({
-  open, onOpenChange, organizationId, itemName, categories, value, onSave, categoryLocked, kitsLocked,
-  depreciated, categoryPeriods = {}, periodLocked,
+  open, onOpenChange, organizationId, itemName, quantity, categories, items, value, onSave,
+  categoryLocked, depreciated, categoryPeriods = {}, periodLocked, saved,
 }: EquipmentDetailsDialogProps) {
   const [draft, setDraft] = useState<EquipmentDetails>(value);
-  const [newCategory, setNewCategory] = useState(false);
-  const [types, setTypes] = useState<{ type: string; count: number }[]>([]);
-  const [typeOpen, setTypeOpen] = useState(false);
-  const [kits, setKits] = useState<{ id: string; name: string }[]>([]);
-  const [kitQuery, setKitQuery] = useState('');
+  const [showProblems, setShowProblems] = useState(false);
 
-  // Start from the line's values each time it opens (not on every render:
-  // callers pass a fresh object).
+  // Start from the line's values each time it opens (callers pass a fresh object).
   useEffect(() => {
-    if (open) { setDraft(value); setNewCategory(false); setKitQuery(''); setTypeOpen(false); }
+    if (open) {
+      setDraft({ ...value, units: value.kind === 'units' ? rowsFor(value.units, quantity, saved) : value.units });
+      setShowProblems(false);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
-  useEffect(() => {
-    if (!open) return;
-    let cancelled = false;
-    getTypeUsage(organizationId, draft.category).then(t => { if (!cancelled) setTypes(t); });
-    return () => { cancelled = true; };
-  }, [open, organizationId, draft.category]);
-
-  useEffect(() => {
-    if (!open || kitsLocked) return;
-    let cancelled = false;
-    getKitOptions(organizationId).then(k => { if (!cancelled) setKits(k); }).catch(() => {});
-    return () => { cancelled = true; };
-  }, [open, organizationId, kitsLocked]);
-
-  const set = <K extends keyof EquipmentDetails>(k: K, v: EquipmentDetails[K]) => setDraft(d => ({ ...d, [k]: v }));
-  const setCategory = (c: string) => setDraft(d => ({
-    ...d,
-    category: c,
+  const category = draftCategory(draft.item);
+  const setItem = (item: ItemDraft) => setDraft((d) => {
+    const before = draftCategory(d.item);
+    const after = draftCategory(item);
     // A period that was only the old category's default follows the new category.
-    recovery_period: d.recovery_period != null && d.recovery_period === categoryPeriod(categoryPeriods, d.category) ? null : d.recovery_period,
-  }));
+    const followed = d.recovery_period != null && d.recovery_period === categoryPeriod(categoryPeriods, before) && before !== after;
+    return { ...d, item, recovery_period: followed ? null : d.recovery_period };
+  });
 
-  const period = depreciated ? effectiveRecoveryPeriod(draft.recovery_period, categoryPeriods, draft.category) : null;
+  const period = depreciated ? effectiveRecoveryPeriod(draft.recovery_period, categoryPeriods, category) : null;
   const periodFromCategory = depreciated && draft.recovery_period == null && period != null;
   const needsPeriod = !!depreciated && period == null;
 
-  const typed = draft.type.trim();
-  const shownTypes = useMemo(
-    () => types.filter(t => !typed || t.type.toLowerCase().includes(typed.toLowerCase())),
-    [types, typed],
-  );
-  const isNewType = !!typed && !types.some(t => t.type.toLowerCase() === typed.toLowerCase());
+  const itemErrors = itemDraftErrors(draft.item);
+  const problems = draft.kind === 'units' ? unitRowProblems(draft.units) : [];
+  const savedUnits = draft.units.filter((u) => u.id).length;
 
-  const kitName = (id: string) => kits.find(k => k.id === id)?.name ?? 'Kit';
-  const kitMatches = kitQuery.trim()
-    ? kits.filter(k => !draft.kitIds.includes(k.id) && k.name.toLowerCase().includes(kitQuery.trim().toLowerCase())).slice(0, 8)
-    : [];
-
-  const fieldClass = 'h-9 w-full rounded-md border border-slate-300 bg-white px-2.5 text-sm text-slate-900 outline-none focus-visible:border-sky-700 focus-visible:ring-sky-700/30 focus-visible:ring-[3px] disabled:opacity-60';
-  const labelClass = 'flex flex-col gap-1 text-xs font-semibold text-slate-700';
+  const done = () => {
+    if (Object.keys(itemErrors).length || problems.length) { setShowProblems(true); return; }
+    onSave({
+      ...draft,
+      item: draft.item.mode === 'new'
+        ? { ...draft.item, manufacturer_model: draft.item.manufacturer_model.trim(), category: draft.item.category.trim(), type: draft.item.type.trim() }
+        : draft.item,
+      // Only a chosen period is kept; one from the category follows the category.
+      ...(depreciated ? { recovery_period: periodFromCategory ? null : period } : {}),
+    });
+    onOpenChange(false);
+  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       {/* grid-cols-[minmax(0,1fr)]: a long item name truncates instead of widening the pop-up. */}
-      <DialogContent className="sm:max-w-[520px] p-0 gap-0 grid-cols-[minmax(0,1fr)] overflow-hidden">
+      <DialogContent className="sm:max-w-[680px] p-0 gap-0 grid-cols-[minmax(0,1fr)] overflow-hidden max-h-[92vh]">
         <DialogHeader className="min-w-0 px-5 py-4 pr-12 border-b border-slate-200 gap-0.5 text-left">
           <DialogTitle className="text-base font-bold">Equipment details</DialogTitle>
-          <DialogDescription className="truncate text-xs text-slate-500" title={itemName}>{itemName || 'New item'}</DialogDescription>
+          <DialogDescription className="truncate text-xs text-slate-500" title={itemName}>
+            {itemName || 'New item'} · qty {quantity}{depreciated ? ' · Depreciate' : ''}
+          </DialogDescription>
         </DialogHeader>
 
-        <div className="min-w-0 px-5 py-4 flex flex-col gap-3.5">
-          <div className={labelClass}>
-            <label htmlFor="eq-category">Category</label>
-            {newCategory ? (
-              <input id="eq-category" aria-label="Category" autoFocus placeholder="New category" value={draft.category}
-                className={fieldClass}
-                onChange={e => setCategory(e.target.value)}
-                onBlur={() => { if (!draft.category.trim()) setNewCategory(false); }} />
-            ) : (
-              <select id="eq-category" aria-label="Category" className={`${fieldClass} font-normal`} value={draft.category} disabled={categoryLocked}
-                onChange={e => {
-                  if (e.target.value === NEW_CATEGORY) { setCategory(''); setNewCategory(true); }
-                  else setCategory(e.target.value);
-                }}>
-                <option value="">Choose a category…</option>
-                {draft.category && !categories.includes(draft.category) && <option value={draft.category}>{draft.category}</option>}
-                {categories.map(c => <option key={c} value={c}>{c}</option>)}
-                <option value={NEW_CATEGORY}>Add new category…</option>
-              </select>
-            )}
-          </div>
+        <div className="min-w-0 overflow-y-auto px-5 py-4 space-y-4">
+          <section aria-labelledby="eq-what">
+            <h3 id="eq-what" className="text-gray-900 mb-2">What it is</h3>
+            <ItemSection idPrefix="eq_item" organizationId={organizationId} value={draft.item} onChange={setItem}
+              categories={categories} items={items} fixed={saved} locked={saved} categoryLocked={categoryLocked}
+              errors={showProblems ? itemErrors : {}} />
+          </section>
+
+          <section aria-labelledby="eq-units" className="border-t border-gray-100 pt-4">
+            <h3 id="eq-units" className="text-gray-900 mb-2">Unit or lot</h3>
+            <UnitOrLotSection idPrefix="eq_units" kind={draft.kind}
+              onKindChange={(kind) => setDraft((d) => ({ ...d, kind }))}
+              quantity={quantity} quantityLocked
+              quantityNote={saved && draft.kind === 'units' && savedUnits > quantity
+                ? `This line has ${quantity}, and ${savedUnits} units are saved on it. Saving the purchase asks what to do with the others.`
+                : 'From the purchase line. Change it on the line.'}
+              rows={draft.units} onRowsChange={(units) => setDraft((d) => ({ ...d, units }))}
+              problems={showProblems ? problems : []}
+              unitBlocked={saved && draft.kind === 'lot' ? 'This line’s equipment is saved as a lot. Splitting a lot into units comes with #186.' : undefined} />
+            {saved && draft.kind === 'units' && <p className="mt-2 text-xs text-muted-foreground">Rows with a serial or tag already saved are this line’s units; new rows add units when the purchase is saved.</p>}
+          </section>
+
+          <section aria-labelledby="eq-insurance" className="border-t border-gray-100 pt-4">
+            <h3 id="eq-insurance" className="text-gray-900 mb-2">Insurance</h3>
+            <InsuranceSection idPrefix="eq_value" replacementValue={draft.replacement_value}
+              onReplacementValueChange={(replacement_value) => setDraft((d) => ({ ...d, replacement_value }))}
+              insured={draft.insured} onInsuredChange={(insured) => setDraft((d) => ({ ...d, insured }))}
+              count={draft.kind === 'units' ? draft.units.length : 1} />
+          </section>
 
           {depreciated && (
-            <div className={labelClass}>
-              <label htmlFor="eq-period">Recovery period</label>
-              <select id="eq-period" aria-label="Recovery period" disabled={periodLocked}
-                className={`${fieldClass} font-normal ${needsPeriod ? 'border-amber-500 bg-amber-50' : ''}`}
-                value={period ?? ''}
-                onChange={e => set('recovery_period', asRecoveryPeriod(e.target.value))}>
-                <option value="">Choose a recovery period…</option>
-                {RECOVERY_PERIODS.map(p => <option key={p.value} value={p.value}>{p.label}: {p.examples}</option>)}
-              </select>
-              <span className={`font-normal ${needsPeriod ? 'text-amber-800' : 'text-slate-500'}`}>
-                {periodLocked ? 'The tax year is filed, so the recovery period stays as it is.'
-                  : needsPeriod ? `${draft.category ? `${draft.category} has no default period.` : 'Choose a category, or pick a period.'} Choose one for the tax program.`
-                  : periodFromCategory ? `The default for ${draft.category}.`
-                  : 'For the tax program; it works out the depreciation.'}
-              </span>
+            <div className="border-t border-gray-100 pt-4">
+              <div className="space-y-2">
+                <Label htmlFor="eq-period-select">Recovery period</Label>
+                <select id="eq-period-select" disabled={periodLocked}
+                  className={`h-9 w-full rounded-md border bg-input-background px-3 text-sm ${needsPeriod ? 'border-amber-500 bg-amber-50' : 'border-input'}`}
+                  value={period ?? ''}
+                  onChange={(e) => setDraft((d) => ({ ...d, recovery_period: asRecoveryPeriod(e.target.value) }))}>
+                  <option value="">Choose a recovery period…</option>
+                  {RECOVERY_PERIODS.map((p) => <option key={p.value} value={p.value}>{p.label}: {p.examples}</option>)}
+                </select>
+                <p className={`text-xs ${needsPeriod ? 'text-amber-800' : 'text-muted-foreground'}`}>
+                  {periodLocked ? 'The tax year is filed, so the recovery period stays as it is.'
+                    : needsPeriod ? `${category ? `${category} has no default period.` : 'Choose a category, or pick a period.'} Choose one for the tax program.`
+                    : periodFromCategory ? `The default for ${category}. Shown because the line is depreciated.`
+                    : 'For the tax program; it works out the depreciation.'}
+                </p>
+              </div>
             </div>
           )}
-
-          <div className={labelClass}>
-            <label htmlFor="eq-type">Type <span className="font-normal text-slate-500">General to specific, separated by commas</span></label>
-            <input
-              id="eq-type"
-              role="combobox"
-              aria-label="Type"
-              aria-expanded={typeOpen}
-              aria-controls="eq-type-list"
-              autoComplete="off"
-              className={`${fieldClass} font-normal`}
-              placeholder={draft.category ? 'e.g. Cable, XLR' : 'Choose a category first'}
-              value={draft.type}
-              onFocus={() => setTypeOpen(true)}
-              onChange={e => { set('type', e.target.value); setTypeOpen(true); }}
-              onKeyDown={e => { if (e.key === 'Escape') setTypeOpen(false); }}
-            />
-            {typeOpen && draft.category && (shownTypes.length > 0 || isNewType) && (
-              <div className="rounded-md border border-slate-300 bg-white shadow-md font-normal overflow-hidden">
-                <div className="px-2.5 py-1.5 text-[10px] uppercase tracking-wider text-slate-500 bg-slate-50">Types used in {draft.category}</div>
-                <div id="eq-type-list" role="listbox" aria-label={`Types used in ${draft.category}`} className="max-h-48 overflow-y-auto text-sm">
-                  {shownTypes.map(t => {
-                    const cut = t.type.lastIndexOf(',') + 1;
-                    const selected = t.type === draft.type;
-                    return (
-                      <div key={t.type} role="option" aria-selected={selected} tabIndex={-1}
-                        onMouseDown={e => e.preventDefault()}
-                        onClick={() => { set('type', t.type); setTypeOpen(false); }}
-                        className={`flex justify-between gap-3 px-2.5 py-1.5 cursor-pointer hover:bg-sky-50 ${selected ? 'bg-sky-100' : ''}`}>
-                        <span className="min-w-0 truncate"><span className="text-slate-500">{t.type.slice(0, cut)}</span><strong className="text-slate-900">{t.type.slice(cut)}</strong></span>
-                        <span className="text-xs text-slate-400 tabular-nums">{t.count}</span>
-                      </div>
-                    );
-                  })}
-                  {isNewType && (
-                    <div role="option" aria-selected={false} tabIndex={-1}
-                      onMouseDown={e => e.preventDefault()}
-                      onClick={() => setTypeOpen(false)}
-                      className="px-2.5 py-1.5 cursor-pointer text-sky-700 border-t border-slate-200 hover:bg-sky-50">
-                      + Use "{typed}" as a new type
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-          </div>
-
-          <div className={labelClass}>
-            <label htmlFor="eq-kits">Kits</label>
-            {kitsLocked ? (
-              <p className="font-normal text-slate-500">This item is already equipment. Manage its kits on the equipment page.</p>
-            ) : (
-              <>
-                <div className="flex flex-wrap items-center gap-1.5 rounded-md border border-slate-300 bg-white p-1.5 min-h-9">
-                  {draft.kitIds.map(id => (
-                    <span key={id} className="inline-flex items-center gap-1 rounded-full bg-sky-100 text-sky-900 px-2 py-0.5 text-xs font-semibold">
-                      <Briefcase className="w-3 h-3" />{kitName(id)}
-                      <button type="button" aria-label={`Remove ${kitName(id)}`} className="hover:text-red-600"
-                        onClick={() => set('kitIds', draft.kitIds.filter(k => k !== id))}>
-                        <X className="w-3 h-3" />
-                      </button>
-                    </span>
-                  ))}
-                  <input id="eq-kits" aria-label="Search kits" placeholder="Search kits…" value={kitQuery}
-                    onChange={e => setKitQuery(e.target.value)}
-                    className="flex-1 min-w-[8rem] bg-transparent text-sm font-normal outline-none px-1" />
-                </div>
-                {kitMatches.length > 0 && (
-                  <div role="listbox" aria-label="Kits" className="max-h-40 overflow-y-auto rounded-md border border-slate-300 bg-white shadow-md text-sm font-normal">
-                    {kitMatches.map(k => (
-                      <div key={k.id} role="option" aria-selected={false} tabIndex={-1}
-                        onClick={() => { set('kitIds', [...draft.kitIds, k.id]); setKitQuery(''); }}
-                        className="px-2.5 py-1.5 cursor-pointer hover:bg-sky-50">{k.name}</div>
-                    ))}
-                  </div>
-                )}
-                <span className="font-normal text-slate-500">
-                  {kits.length > 0 ? `Picks from your ${kits.length} kits. ` : ''}Saving the purchase puts the item in these kits.
-                </span>
-              </>
-            )}
-          </div>
-
-          <div className="grid grid-cols-3 gap-2.5">
-            <div className={labelClass}>
-              <label htmlFor="eq-serial">Serial #</label>
-              <input id="eq-serial" aria-label="Serial #" className={`${fieldClass} font-normal`} value={draft.serial_number} onChange={e => set('serial_number', e.target.value)} />
-            </div>
-            <div className={labelClass}>
-              <label htmlFor="eq-tag">Tag #</label>
-              <input id="eq-tag" aria-label="Tag #" className={`${fieldClass} font-normal`} value={draft.tag_number} onChange={e => set('tag_number', e.target.value)} />
-            </div>
-            <div className={labelClass}>
-              <label htmlFor="eq-replace">Replacement value</label>
-              <input id="eq-replace" aria-label="Replacement value" inputMode="decimal" className={`${fieldClass} font-normal text-right`}
-                value={draft.replacement_value ? String(draft.replacement_value) : ''}
-                onChange={e => set('replacement_value', Number(e.target.value.replace(/[^0-9.]/g, '')) || 0)} />
-            </div>
-          </div>
         </div>
 
         <DialogFooter className="px-5 py-3 border-t border-slate-200 bg-slate-50">
@@ -263,14 +178,7 @@ export default function EquipmentDetailsDialog({
           <Button className="bg-sky-700 hover:bg-sky-800 text-white"
             disabled={needsPeriod}
             title={needsPeriod ? 'Choose a recovery period first' : undefined}
-            onClick={() => {
-              onSave({
-                ...draft, category: draft.category.trim(), type: draft.type.trim(),
-                // Only a chosen period is kept; one from the category follows the category.
-                ...(depreciated ? { recovery_period: periodFromCategory ? null : period } : {}),
-              });
-              onOpenChange(false);
-            }}>
+            onClick={done}>
             Done
           </Button>
         </DialogFooter>
