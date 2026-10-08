@@ -33,11 +33,10 @@ default role assigned" when none is set.
 
 Select **Edit** on the member's page, or on **Team** open the member's **⋯** menu →
 **Edit Permissions**. Then update **Edit Team Member**: **First Name**, **Last Name**,
-**Default Staffing Role**, **Phone Number**, **Avatar URL**, the address, and
+**Default Staffing Role**, **Phone Number**, **Timezone**, **Avatar URL**, the address, and
 **Organization Role**. Select
 **Save Changes**. The email address can't be changed. Only Admins and Managers can
 edit other members.
-<!-- TODO: #173 — Timezone changes to another member are dropped by the server; document Timezone here once fixed. -->
 
 You edit your own details from the avatar menu (top right) → **Edit Profile**. See
 [Onboarding](/getting-started/onboarding/#your-profile).

@@ -366,6 +366,7 @@ export async function updateMemberDetails(
     state?: string;
     postal_code?: string;
     country?: string;
+    timezone?: string | null;
     role?: 'Admin' | 'Manager' | 'Staff' | 'Viewer';
     default_staff_role_id?: string;
   }
