@@ -1,4 +1,5 @@
 import ReactMarkdown from 'react-markdown';
+import remarkBreaks from 'remark-breaks';
 
 interface MarkdownContentProps {
   children: string;
@@ -8,10 +9,13 @@ interface MarkdownContentProps {
  * Renders Markdown notes with the app's styling. Shared by the MarkdownEditor
  * Preview tab and the read-only views of the same notes, so they look alike.
  * Raw HTML in the source is not rendered (react-markdown's default, no rehype-raw).
+ * A single line break stays a line break (remark-breaks): most notes were
+ * written as plain text before they were rendered as Markdown.
  */
 export default function MarkdownContent({ children }: MarkdownContentProps) {
   return (
     <ReactMarkdown
+      remarkPlugins={[remarkBreaks]}
       components={{
         // Style headings
         h1: ({ node, ...props }) => <h1 className="text-gray-900 mt-6 mb-4" {...props} />,
