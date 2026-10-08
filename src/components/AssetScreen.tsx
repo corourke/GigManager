@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Save, Loader2, AlertCircle, History, CreditCard, ExternalLink } from 'lucide-react';
+import { Save, Loader2, AlertCircle, History, CreditCard, ExternalLink, Box, Layers, Tag } from 'lucide-react';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { Button } from './ui/button';
@@ -26,12 +26,19 @@ import { getLockedTaxYears } from '../services/taxYear.service';
 import { isTaxYearLocked } from '../utils/taxTreatment';
 import { RECOVERY_PERIODS, categoryPeriod, type CategoryPeriods } from '../utils/recoveryPeriod';
 import AttachmentManager from './AttachmentManager';
+import { getItem, getItems, type EquipmentItemWithRecords } from '../services/equipmentItem.service';
+import { recordKind, type RecordKind } from '../utils/equipmentItems';
+import { cn } from './ui/utils';
 
 interface AssetScreenProps {
   organization: Organization;
   user: User;
   userRole?: UserRole;
   assetId?: string | null; // If provided, edit mode
+  /** Adding to this item (#182). In edit mode the record's own item is used. */
+  itemId?: string | null;
+  /** Back and after saving: the item page, once the item is known. */
+  onBackToItem?: (itemId: string) => void;
   onCancel: () => void;
   onAssetCreated: (assetId: string) => void;
   onAssetUpdated: () => void;
@@ -69,6 +76,8 @@ export default function AssetScreen({
   user,
   userRole,
   assetId,
+  itemId,
+  onBackToItem,
   onCancel,
   onAssetCreated,
   onAssetUpdated,
@@ -102,6 +111,16 @@ export default function AssetScreen({
     liquidation_amt: '',
   });
 
+  // What it is (#182): the item this unit or lot belongs to. Picked from the
+  // organization's items, or "a new item" typed in (the database finds or
+  // creates the item from model + category).
+  const [item, setItem] = useState<EquipmentItemWithRecords | null>(null);
+  const [itemOptions, setItemOptions] = useState<EquipmentItemWithRecords[]>([]);
+  const [choosingItem, setChoosingItem] = useState(false);
+  // Unit (serial or tag, quantity 1) or lot (neither, a quantity).
+  const [kind, setKind] = useState<RecordKind>('unit');
+  const [loadedLotQuantity, setLoadedLotQuantity] = useState<number | null>(null);
+
   // Change detection hook (simplified for manual state)
   const changeDetection = useSimpleFormChanges({
     currentData: formData,
@@ -119,6 +138,34 @@ export default function AssetScreen({
     getEquipmentCategoryPeriods(organization.id).then(p => { if (!cancelled) setCategoryPeriods(p); });
     return () => { cancelled = true; };
   }, [organization.id]);
+
+  const applyItem = (picked: EquipmentItemWithRecords) => {
+    setItem(picked);
+    setChoosingItem(false);
+    setFormData((prev) => ({
+      ...prev,
+      manufacturer_model: picked.manufacturer_model,
+      category: picked.category,
+      type: picked.type ?? '',
+      description: picked.description ?? '',
+      insurance_class: picked.insurance_class ?? '',
+    }));
+  };
+
+  useEffect(() => {
+    if (assetId || !itemId) return;
+    let cancelled = false;
+    getItem(itemId).then((i) => { if (!cancelled) applyItem(i); }).catch(() => {});
+    return () => { cancelled = true; };
+  }, [assetId, itemId]);
+
+  const needsPicker = !item && !assetId && !itemId;
+  useEffect(() => {
+    if (!needsPicker && !choosingItem) return;
+    let cancelled = false;
+    getItems(organization.id).then((list) => { if (!cancelled) setItemOptions(list); }).catch(() => {});
+    return () => { cancelled = true; };
+  }, [needsPicker, choosingItem, organization.id]);
 
   // Only depreciated equipment has a recovery period (#125); a filed year's,
   // once set, stays.
@@ -188,6 +235,12 @@ export default function AssetScreen({
     };
     setFormData(loadedData);
     changeDetection.loadInitialData(loadedData);
+    const loadedKind = recordKind(asset);
+    setKind(loadedKind);
+    setLoadedLotQuantity(loadedKind === 'lot' ? (asset.quantity ?? 1) : null);
+    if (asset.equipment_item_id) {
+      getItem(asset.equipment_item_id).then(setItem).catch(() => {});
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [assetQuery.data]);
 
@@ -224,7 +277,7 @@ export default function AssetScreen({
     const newErrors: Record<string, string> = {};
 
     if (!formData.category.trim()) {
-      newErrors.category = 'Category is required';
+      newErrors.category = item ? 'Category is required' : 'Choose an item, or enter a new one';
     }
 
     if (!formData.manufacturer_model.trim()) {
@@ -247,7 +300,11 @@ export default function AssetScreen({
       newErrors.replacement_value = 'Replacement value must be a valid number';
     }
 
-    if (formData.quantity && (isNaN(parseInt(formData.quantity)) || parseInt(formData.quantity) < 1)) {
+    if (kind === 'unit' && !formData.serial_number.trim() && !formData.tag_number.trim()) {
+      newErrors.unit = 'A unit needs a serial number or a tag (either will do).';
+    }
+
+    if (kind === 'lot' && formData.quantity && (isNaN(parseInt(formData.quantity)) || parseInt(formData.quantity) < 1)) {
       newErrors.quantity = 'Quantity must be a positive number';
     }
 
@@ -270,8 +327,13 @@ export default function AssetScreen({
     }
 
     try {
+      // A unit is one thing (quantity 1); a lot has no serial number or tag.
+      const shaped: FormData = kind === 'unit'
+        ? { ...formData, quantity: '1' }
+        : { ...formData, serial_number: '', tag_number: '', quantity: formData.quantity || '1' };
+
       // Normalize form data first
-      const normalizedData = normalizeFormData(formData);
+      const normalizedData = normalizeFormData(shaped);
 
       // Convert numeric string fields: empty/null -> undefined, non-empty -> parse to number
       if (normalizedData.item_price === null || normalizedData.item_price === '') {
@@ -332,8 +394,8 @@ export default function AssetScreen({
           data: updateData as Parameters<typeof updateAsset>[1],
         });
         changeDetection.markAsSaved(normalizedData);
-        toast.success('Asset updated successfully');
-        onAssetUpdated();
+        toast.success(kind === 'unit' ? 'Unit updated' : 'Lot updated');
+        if (item && onBackToItem) onBackToItem(item.id); else onAssetUpdated();
       } else {
         // For creates, send all data
         const createData = {
@@ -343,8 +405,9 @@ export default function AssetScreen({
         const newAsset = await assetMutations.createAsset.mutateAsync(
           createData as unknown as Parameters<typeof createAsset>[0],
         );
-        toast.success('Asset created successfully');
-        onAssetCreated(newAsset.id);
+        toast.success(kind === 'unit' ? 'Unit added' : 'Lot added');
+        const newItemId = (newAsset as { equipment_item_id?: string }).equipment_item_id ?? item?.id;
+        if (newItemId && onBackToItem) onBackToItem(newItemId); else onAssetCreated(newAsset.id);
       }
     } catch (error: any) {
       console.error('Error saving asset:', error);
@@ -373,8 +436,13 @@ export default function AssetScreen({
       />
 
       <PageHeader
-        back={{ label: 'Back to Assets', onClick: onCancel }}
-        title={isEditMode ? 'Edit Asset' : 'Add New Asset'}
+        back={item && onBackToItem
+          ? { label: `Back to ${item.manufacturer_model}`, onClick: () => onBackToItem(item.id) }
+          : { label: 'Back to Items', onClick: onCancel }}
+        title={isEditMode
+          ? (formData.tag_number || (formData.serial_number ? `SN ${formData.serial_number}` : `Lot of ${formData.quantity || 1}`))
+          : 'Add unit or lot'}
+        meta={item ? item.manufacturer_model : undefined}
       />
 
       {/* Narrower than the header, but left-aligned with the title (#39). */}
@@ -383,11 +451,40 @@ export default function AssetScreen({
         {/* Form */}
         <Card className="p-4">
           <div className="space-y-4">
-            {/* Basic Information */}
+            {/* What it is (#182) */}
             <div>
-              <h3 className="text-gray-900 mb-2">Basic Information</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="md:col-span-2 space-y-2">
+              <h3 className="text-gray-900 mb-2">What it is</h3>
+              {item && !choosingItem ? (
+                <div className="flex items-center gap-3 rounded-lg border bg-gray-50 px-3 py-2.5">
+                  <span className="flex h-8 w-8 items-center justify-center rounded-md border bg-white text-gray-600"><Box className="h-4 w-4" aria-hidden /></span>
+                  <div className="min-w-0 flex-1">
+                    <div className="text-sm font-semibold">{item.manufacturer_model}</div>
+                    <div className="text-xs text-muted-foreground">{[item.category, item.type].filter(Boolean).join(' · ')}</div>
+                  </div>
+                  <Button type="button" variant="ghost" size="sm" className="text-sky-700" onClick={() => setChoosingItem(true)}>Change item</Button>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="item_choice">Item</Label>
+                    <select
+                      id="item_choice"
+                      value=""
+                      onChange={(e) => {
+                        const picked = itemOptions.find((i) => i.id === e.target.value);
+                        if (picked) applyItem(picked);
+                      }}
+                      className="h-9 w-full rounded-md border border-input bg-input-background px-3 text-base md:text-sm outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]"
+                    >
+                      <option value="">An item we already have…</option>
+                      {itemOptions.map((i) => (
+                        <option key={i.id} value={i.id}>{`${i.manufacturer_model} · ${i.category}`}</option>
+                      ))}
+                    </select>
+                    <p className="text-xs text-gray-500">Or enter a new item below: the same manufacturer &amp; model and category always means the same item.</p>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="md:col-span-2 space-y-2">
                   <Label htmlFor="manufacturer_model">
                     Manufacturer and Model <span className="text-red-500">*</span>
                   </Label>
@@ -432,16 +529,7 @@ export default function AssetScreen({
                   )}
                 </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="serial_number">Serial Number</Label>
-                  <Input
-                    id="serial_number"
-                    value={formData.serial_number}
-                    onChange={(e) => handleChange('serial_number', e.target.value)}
-                    placeholder="Unique serial number"
-                    className="font-mono"
-                  />
-                </div>
+                
 
                 <div className="space-y-2">
                   <Label htmlFor="type">Type</Label>
@@ -461,8 +549,90 @@ export default function AssetScreen({
                     General to specific, separated by commas. Suggestions are the types already used in this category.
                   </p>
                 </div>
+                  </div>
+                </div>
+              )}
+            </div>
 
+            {/* Unit or lot (#182) */}
+            <div className="border-t border-gray-100 pt-4">
+              <h3 className="text-gray-900 mb-2">Unit or lot</h3>
+              <div role="radiogroup" aria-label="Unit or lot" className="grid grid-cols-2 gap-2">
+                {([
+                  ['unit', 'Unit', Tag, 'One physical thing with a serial number or tag. Quantity is always 1.'],
+                  ['lot', 'Lot', Layers, 'Several identical things with no serial or tag, counted together.'],
+                ] as const).map(([value, label, Icon, help]) => {
+                  const blocked = value === 'unit' && (loadedLotQuantity ?? 0) > 1;
+                  return (
+                    <button
+                      key={value}
+                      type="button"
+                      role="radio"
+                      aria-checked={kind === value}
+                      disabled={blocked}
+                      onClick={() => setKind(value)}
+                      className={cn('flex flex-col items-start gap-1 rounded-lg border-2 p-3 text-left disabled:opacity-50',
+                        kind === value ? 'border-sky-500 bg-sky-50' : 'border-gray-200 bg-white')}
+                    >
+                      <span className="flex items-center gap-1.5 text-sm font-semibold"><Icon className="h-4 w-4" aria-hidden />{label}</span>
+                      <span className="text-xs text-gray-600">{help}</span>
+                    </button>
+                  );
+                })}
               </div>
+              {(loadedLotQuantity ?? 0) > 1 && (
+                <p className="mt-2 text-xs text-gray-500">A lot of {loadedLotQuantity} can’t become one unit here. Splitting a lot comes with the maintenance work (#186).</p>
+              )}
+              <div className="mt-3 grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="serial_number">Serial Number</Label>
+                  <Input
+                    id="serial_number"
+                    value={kind === 'lot' ? '' : formData.serial_number}
+                    onChange={(e) => handleChange('serial_number', e.target.value)}
+                    placeholder={kind === 'lot' ? 'Not for a lot' : 'Serial number'}
+                    disabled={kind === 'lot'}
+                    className="font-mono"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="tag_number">Inventory Tag ID</Label>
+                  <Input
+                    id="tag_number"
+                    value={kind === 'lot' ? '' : formData.tag_number}
+                    onChange={(e) => handleChange('tag_number', e.target.value)}
+                    placeholder={kind === 'lot' ? 'Not for a lot' : 'e.g., TAG-001'}
+                    disabled={kind === 'lot'}
+                    className="font-mono"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="quantity">Quantity</Label>
+                  <Input
+                    id="quantity"
+                    type="number"
+                    min="1"
+                    value={kind === 'unit' ? '1' : formData.quantity}
+                    onChange={(e) => handleChange('quantity', e.target.value)}
+                    placeholder="1"
+                    disabled={kind === 'unit'}
+                    className={errors.quantity ? 'border-red-500' : ''}
+                  />
+                  {kind === 'unit' && <p className="text-xs text-gray-500">Always 1 for a unit.</p>}
+                  {errors.quantity && (
+                    <p className="text-sm text-red-600 flex items-center gap-1">
+                      <AlertCircle className="w-4 h-4" />
+                      {errors.quantity}
+                    </p>
+                  )}
+                </div>
+              </div>
+              {errors.unit && (
+                <p className="mt-2 text-sm text-red-600 flex items-center gap-1">
+                  <AlertCircle className="w-4 h-4" />
+                  {errors.unit}
+                </p>
+              )}
             </div>
 
             {/* Financial Information */}
@@ -502,28 +672,6 @@ export default function AssetScreen({
                       <option key={`vendor-${index}-${vendor}`} value={vendor} />
                     ))}
                   </datalist>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="quantity">Quantity</Label>
-                  <Input
-                    id="quantity"
-                    type="number"
-                    min="1"
-                    value={formData.quantity}
-                    onChange={(e) => handleChange('quantity', e.target.value)}
-                    placeholder="1"
-                    className={errors.quantity ? 'border-red-500' : ''}
-                  />
-                  <p className="text-xs text-gray-500">
-                    For bulk assets that don't have unique serial numbers
-                  </p>
-                  {errors.quantity && (
-                    <p className="text-sm text-red-600 flex items-center gap-1">
-                      <AlertCircle className="w-4 h-4" />
-                      {errors.quantity}
-                    </p>
-                  )}
                 </div>
 
                 <div className="space-y-2">
@@ -654,10 +802,11 @@ export default function AssetScreen({
                     <Label
                       htmlFor="insurance_policy_added"
                       className="text-sm font-normal cursor-pointer"
-                    >This asset has been added to an insurance policy.</Label>
+                    >{kind === 'unit' ? 'This unit has been added to an insurance policy.' : 'This lot has been added to an insurance policy.'}</Label>
                   </div>
                 </div>
 
+                {!item && (
                 <div className="space-y-2">
                   <Label htmlFor="insurance_class">Insurance Class</Label>
                   <Input
@@ -670,6 +819,7 @@ export default function AssetScreen({
                     The category used by your insurance company.
                   </p>
                 </div>
+                )}
 
                 <div className="space-y-2">
                   <Label htmlFor="replacement_value">
@@ -705,19 +855,8 @@ export default function AssetScreen({
 
             {/* Asset Lifecycle */}
             <div className="border-t border-gray-100 pt-4">
-              <h3 className="text-gray-900 mb-2">Asset Lifecycle</h3>
+              <h3 className="text-gray-900 mb-2">Lifecycle</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="tag_number">Inventory Tag ID</Label>
-                  <Input
-                    id="tag_number"
-                    value={formData.tag_number}
-                    onChange={(e) => handleChange('tag_number', e.target.value)}
-                    placeholder="e.g., TAG-001"
-                    className="font-mono"
-                  />
-                </div>
-
                 <div className="space-y-2">
                   <Label htmlFor="status">Status</Label>
                   <Select
@@ -823,24 +962,27 @@ export default function AssetScreen({
               </div>
             </div>
 
-            {/* Description and Attachments */}
+            {/* Description (the item's, when it is a new item) and attachments */}
+            {(!item || (isEditMode && assetId)) && (
             <div className="border-t border-gray-100 pt-4">
               <h3 className="text-gray-900 mb-2">Additional Details</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {!item && (
                 <div className="space-y-2">
                   <Label htmlFor="description">Description</Label>
                   <Textarea
                     id="description"
                     value={formData.description}
                     onChange={(e) => handleChange('description', e.target.value)}
-                    placeholder="Additional notes about this asset..."
+                    placeholder="What this item is, and how to handle it…"
                     rows={6}
                   />
                   <p className="text-xs text-gray-500">
                     Supports Markdown formatting
                   </p>
                 </div>
-                
+                )}
+
                 {isEditMode && assetId && (
                   <div className="space-y-2">
                     <AttachmentManager
@@ -853,6 +995,7 @@ export default function AssetScreen({
                 )}
               </div>
             </div>
+            )}
 
             {/* Read-only History Tables — Edit Mode Only */}
             {isEditMode && (
@@ -949,7 +1092,7 @@ export default function AssetScreen({
                 ) : (
                   <>
                     <Save className="w-4 h-4 mr-2" />
-                    {isEditMode ? 'Update Asset' : 'Create Asset'}
+                    {isEditMode ? (kind === 'unit' ? 'Update Unit' : 'Update Lot') : (kind === 'unit' ? 'Add Unit' : 'Add Lot')}
                   </>
                 )}
               </Button>

@@ -38,8 +38,9 @@ export function useNav() {
       navigate(`${gigPath(gigId, { tab })}${fromCalendar ? '?from=calendar' : ''}`),
     editGig: (gigId: string) => navigate(`/gigs/${gigId}/edit`),
 
-    // Assets
-    createAsset: () => navigate('/assets/new'),
+    // Equipment items (#182) and their units and lots (assets)
+    viewItem: (itemId: string) => navigate(`/items/${itemId}`),
+    createAsset: (itemId?: string) => navigate(itemId ? `/assets/new?item=${itemId}` : '/assets/new'),
     viewAsset: (assetId: string) => navigate(`/assets/${assetId}`),
     editAsset: (assetId: string) => navigate(`/assets/${assetId}/edit`),
 

@@ -98,6 +98,8 @@ export type Notification = DbNotification & {
 
 export type DbAsset = Tables['assets']['Row'];
 
+export type DbEquipmentItem = Tables['equipment_items']['Row'];
+
 export type DbPurchase = Tables['purchases']['Row'];
 
 export type DbAttachment = Tables['attachments']['Row'];

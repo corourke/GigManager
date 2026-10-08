@@ -18,7 +18,8 @@ interface EquipmentHeaderProps {
 
 /**
  * The Equipment section's page header (#39): the title stays "Equipment" on
- * every tab and the tabs sit below it, one row, no sub-tabs: Assets, Kits,
+ * every tab and the tabs sit below it, one row, no sub-tabs: Items (#162;
+ * the route is still /assets), Kits,
  * Out on gigs, Locations, Maintenance. Each tab is its own route, so the
  * tabs only navigate; the page renders its own content.
  */
@@ -46,7 +47,7 @@ export default function EquipmentHeader({
         actions={actions}
         tabs={
           <PageTabsList aria-label="Equipment sections">
-            <PageTabsTrigger value="assets">Assets</PageTabsTrigger>
+            <PageTabsTrigger value="assets">Items</PageTabsTrigger>
             <PageTabsTrigger value="kits">Kits</PageTabsTrigger>
             <PageTabsTrigger value="out-on-gigs">Out on gigs</PageTabsTrigger>
             <PageTabsTrigger value="locations">Locations</PageTabsTrigger>
