@@ -193,6 +193,8 @@ describe('GigStaffSlotsSection deletes only rows it loaded (#92)', () => {
     await waitFor(() => expect(removeSlotButtons(container)).toHaveLength(2));
 
     fireEvent.click(removeSlotButtons(container)[1]);
+    // Deleting a slot asks first (#171).
+    fireEvent.click(await screen.findByRole('button', { name: 'Delete' }));
 
     await waitFor(() => expect(updateGigStaffSlots).toHaveBeenCalledTimes(1), { timeout: 3000 });
     expect(calls()[0][1].map((s) => s.id)).toEqual([SLOT_A]);
@@ -215,6 +217,8 @@ describe('GigStaffSlotsSection deletes only rows it loaded (#92)', () => {
     expect(calls()[0][1][2].id).toBeUndefined();
 
     fireEvent.click(removeSlotButtons(container)[2]);
+    // Deleting a slot asks first (#171).
+    fireEvent.click(await screen.findByRole('button', { name: 'Delete' }));
 
     await waitFor(() => expect(calls().at(-1)![1].map((s) => s.id)).toEqual([SLOT_A, SLOT_B]), { timeout: 3000 });
     expect(calls().at(-1)![3]).toContain(NEW_SLOT);
