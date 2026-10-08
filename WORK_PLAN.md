@@ -92,6 +92,9 @@ Not released, staying with the coordinator: #174 (its server side is the private
 
 (none open: the 10-07 entries are filed as #157–#160, #168–#171, #173–#176 and #178, and their decisions are in §1 and §2)
 
+- **From the Docs Lead (10-08, Settings, PR #189): #188**, Google Calendar shows "System-Wide Bulk Re-sync (Repair)", with developer copy, to every user, and the category type-rules box says "will offer". Small, UI only.
+- **Dev schema is ahead of main (Docs Lead, 10-08).** Dev has migration `20261014000000` from #180 (equipment units) applied, and its rule (tagged equipment must have quantity 1) broke the demo seed. PR #189 fixes the seed. The seed's equipment will need a fuller rework when #180 merges, and the Equipment pages wait for that too.
+
 - **Second private security finding (Docs Lead, 10-07): privacy, in the person search behind the duplicate check (#178).** Details went to Cameron directly, as the repo is public. Cameron (10-08) asked for it to go on the private security list with the membership-RPC finding (§2 item 3). It touches the same search #178 changes, so plan the two together.
 
 ## 4. Agents and documentation
@@ -115,55 +118,53 @@ Not released, staying with the coordinator: #174 (its server side is the private
 
 **User-docs table** (the Docs Lead keeps it current):
 
-| Page (`website/docs/src/content/docs/`) | Status | Last verified | Still wrong |
+| Page (`website/docs/src/content/docs/`) | Status | Last verified | Still wrong / next |
 |---|---|---|---|
-| `calendar/google-calendar.md` | published | — | not audited |
-| `equipment/overview.md` | published | — | not audited |
-| `financials/overview.md` | published | 2026-10-06 (coordinator, PR #136) | — |
-| `financials/receipts-and-invoices.md` | published | 2026-10-06 (coordinator, PR #136) | — |
-| `financials/gig-accounting.md` | published | 2026-10-06 (coordinator, PR #136) | — |
-| `financials/tax-treatment.md` | published | 2026-10-06 (coordinator) | — |
-| `getting-started/onboarding.md` | published | 2026-10-06 (triage, PR #139) | — |
-| `getting-started/organizations.md` | published | 2026-10-06 (triage, PR #139) | — |
-| `getting-started/the-dashboard.md` | published | 2026-10-06 (triage, PR #139) | — |
-| `getting-started/what-is-gigwrangler.md` | published | 2026-10-06 (triage, PR #139) | — |
-| `gigs/change-history.md` | published | 2026-10-07 (triage, PR #151); screenshots PR #166 | — |
-| `gigs/creating-a-gig.md` | published | 2026-10-07 (triage, PR #151); screenshots PR #166 | — |
-| `gigs/overview.md` | published | 2026-10-07 (triage, PR #151); screenshots PR #166 | — |
-| `import/overview.md` | published | — | not audited |
-| `index.mdx` | published | — | not audited |
-| `team/overview.md` | published | 2026-10-07 (Docs Lead, PR #177) | corrections go live when #177 merges |
-| `reference/roles-and-access.md` | published | 2026-10-07 (Docs Lead, PR #177) | corrections go live when #177 merges |
-| `calendar/conflict-detection.md` | draft | — | not audited |
-| `calendar/overview.md` | draft | — | not audited |
-| `equipment/assets.md` | draft | — | not audited |
-| `equipment/assigning-to-a-gig.md` | draft | — | not audited |
-| `equipment/barcode-scanning.md` | draft | — | not audited |
-| `equipment/inventory-reports.md` | draft | — | not audited |
-| `equipment/kits.md` | draft | — | not audited |
-| `equipment/location-explorer.md` | draft | — | not audited |
+| `equipment/assets.md` | draft | — | held: equipment rework (#162/#180) |
+| `equipment/assigning-to-a-gig.md` | draft | — | held: equipment rework (#162/#180) |
+| `equipment/barcode-scanning.md` | draft | — | held: equipment rework (#162/#180) |
+| `equipment/csv-asset-import.md` | draft | — | held: equipment rework (#162/#180) |
+| `equipment/inventory-reports.md` | draft | — | held: equipment rework (#162/#180) |
+| `equipment/kits.md` | draft | — | held: equipment rework (#162/#180) |
+| `equipment/location-explorer.md` | draft | — | held: equipment rework (#162/#180) |
+| `equipment/overview.md` | published | — | held: equipment rework (#162/#180) |
 | `financials/cost-allocation.md` | published | 2026-10-06 (coordinator, PR #136) | — |
+| `financials/gig-accounting.md` | published | 2026-10-06 (coordinator, PR #136) | held: #125 money-type rework |
 | `financials/gig-expenses.md` | published | 2026-10-06 (coordinator, PR #136) | — |
+| `financials/overview.md` | published | 2026-10-06 (coordinator, PR #136) | — |
 | `financials/purchases.md` | published | 2026-10-06 (coordinator, PR #136) | — |
-| `gigs/calendar-view.md` | draft, written (PR #172) | 2026-10-07 (Docs Lead) | ready to publish once #172 merges |
-| `gigs/conflict-detection.md` | draft, written (PR #172) | 2026-10-07 (Docs Lead) | ready to publish once #172 merges |
-| `gigs/documents-and-notes.md` | draft, written (PR #172) | 2026-10-07 (Docs Lead) | ready to publish once #172 merges |
-| `gigs/participating-organizations.md` | draft, written (PR #172) | 2026-10-07 (Docs Lead) | ready to publish once #172 merges |
-| `gigs/schedule.md` | draft, written (PR #172) | 2026-10-07 (Docs Lead) | ready to publish once #172 merges |
-| `gigs/staffing-and-participants.md` | draft, written (PR #172) | 2026-10-07 (Docs Lead) | ready to publish once #172 merges |
-| `gigs/the-gig-list.md` | draft, written (PR #172) | 2026-10-07 (Docs Lead) | ready to publish once #172 merges |
-| `import/ai-receipt-scanning.md` | draft | — | not audited |
-| `import/csv-asset-import.md` | draft | — | not audited |
-| `mobile/biometric-unlock.md` | draft | — | not audited |
-| `mobile/field-inventory.md` | draft | — | not audited |
-| `mobile/offline-access.md` | draft | — | not audited |
-| `mobile/overview.md` | draft | — | not audited |
+| `financials/receipts-and-invoices.md` | published | 2026-10-06 (coordinator, PR #136) | — |
+| `financials/tax-treatment.md` | published | 2026-10-06 (coordinator) | recovery periods now exist (PR #167); recheck |
+| `getting-started/onboarding.md` | published | 2026-10-06 (triage, PR #139); screenshots PR #163 | — |
+| `getting-started/organizations.md` | published | 2026-10-06 (triage, PR #139) | — |
+| `getting-started/the-dashboard.md` | published | 2026-10-06 (triage, PR #139); screenshot PR #163 | dashboard shot held for #157 |
+| `getting-started/what-is-gigwrangler.md` | published | 2026-10-07 (Docs Lead, PR #164) | — |
+| `gigs/calendar-view.md` | draft, written (PR #172, merged) | 2026-10-07 (Docs Lead) | ready to publish |
+| `gigs/change-history.md` | published | 2026-10-07 (triage, PR #151); screenshots PR #166 | — |
+| `gigs/conflict-detection.md` | draft, written (PR #172, merged) | 2026-10-07 (Docs Lead) | ready to publish |
+| `gigs/creating-a-gig.md` | published | 2026-10-07 (triage, PR #151); screenshots PR #166 | — |
+| `gigs/documents-and-notes.md` | draft, written (PR #172, merged) | 2026-10-07 (Docs Lead) | ready to publish |
+| `gigs/overview.md` | published | 2026-10-07 (Docs Lead, PR #166/#177) | Delete is Admin-only fix lands with #177 |
+| `gigs/participating-organizations.md` | draft, written (PR #172, merged) | 2026-10-07 (Docs Lead) | ready to publish |
+| `gigs/schedule.md` | draft, written (PR #172, merged) | 2026-10-07 (Docs Lead) | ready to publish |
+| `gigs/staffing-and-participants.md` | draft, written (PR #172, merged) | 2026-10-07 (Docs Lead) | ready to publish |
+| `gigs/the-gig-list.md` | draft, written (PR #172, merged) | 2026-10-07 (Docs Lead) | ready to publish |
+| `index.mdx` | published | — | not audited |
+| `mobile/biometric-unlock.md` | draft | — | held |
+| `mobile/field-inventory.md` | draft | — | held: equipment rework (#162/#180) |
+| `mobile/offline-access.md` | draft | — | held |
+| `mobile/overview.md` | draft | — | held |
+| `reference/access-requests-and-moderation.md` | draft, written (PR #177) | 2026-10-07 (Docs Lead) | ready to publish once #177 merges |
+| `reference/glossary.md` | draft, written (PR #177) | 2026-10-07 (Docs Lead) | publish after the pages it links to |
+| `reference/roles-and-access.md` | published | 2026-10-07 (Docs Lead, PR #177) | corrections go live when #177 merges |
+| `settings/categories.md` | published | 2026-10-08 (Docs Lead, PR #189) | corrections go live when #189 merges |
+| `settings/google-calendar.md` | published | 2026-10-08 (Docs Lead, PR #189) | rewritten in #189; connected-state shot needs a Google account |
+| `settings/overview.md` | published | 2026-10-08 (Docs Lead, PR #189) | corrections go live when #189 merges |
 | `team/invitations.md` | draft, written (PR #177) | 2026-10-07 (Docs Lead) | ready to publish once #177 merges |
 | `team/member-profiles.md` | draft, written (PR #177) | 2026-10-07 (Docs Lead) | ready to publish once #177 merges |
+| `team/overview.md` | published | 2026-10-07 (Docs Lead, PR #177) | corrections go live when #177 merges |
 | `team/people-without-logins.md` | draft, written (PR #177) | 2026-10-07 (Docs Lead) | ready to publish once #177 merges |
 | `team/team-and-roles.md` | draft, written (PR #177) | 2026-10-07 (Docs Lead) | ready to publish once #177 merges |
-| `reference/access-requests-and-moderation.md` | draft, written (PR #177) | 2026-10-07 (Docs Lead) | ready to publish once #177 merges |
-| `reference/glossary.md` | draft, written (PR #177) | 2026-10-07 (Docs Lead) | ready to publish once #177 merges |
 
 **Project rules that bite** ([AGENTS.md](./AGENTS.md)): approval before going from plan to code (rule 1); a failing test before a bug fix (rule 3); never edit a committed migration, and Cameron applies new ones (rule 4); list manual deploy and verification steps (rule 7). Prod is read-only for agents unless Cameron approves a specific change.
 
