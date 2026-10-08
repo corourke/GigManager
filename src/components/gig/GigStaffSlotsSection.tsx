@@ -34,6 +34,7 @@ import { useAutoSave } from '../../utils/hooks/useAutoSave';
 import { useRowBaseline } from '../../utils/hooks/useRowBaseline';
 import SaveStateIndicator from './SaveStateIndicator';
 import { RotateCcw } from 'lucide-react';
+import { RATE_UNITS, formatRate, rateUnit, unitPlural, type RateUnit } from './view/staffRows';
 
 const staffAssignmentSchema = z.object({
   id: z.string(),
@@ -41,6 +42,7 @@ const staffAssignmentSchema = z.object({
   user_name: z.string(),
   status: z.enum(['Open', 'Requested', 'Confirmed', 'Declined']),
   compensation_type: z.enum(['rate', 'fee']),
+  rate_unit: z.enum(['hour', 'day', 'half_day']),
   amount: z.string().refine((val) => {
     if (!val.trim()) return true;
     const num = parseFloat(val);
@@ -72,6 +74,7 @@ interface StaffAssignmentData {
   user_name: string;
   status: 'Open' | 'Requested' | 'Confirmed' | 'Declined';
   compensation_type: 'rate' | 'fee';
+  rate_unit: RateUnit;
   amount: string;
   notes: string;
   completed_at?: string | null;
@@ -151,6 +154,14 @@ export default function GigStaffSlotsSection({
 
   const { finalized, projected } = calculateStaffCosts();
 
+  // The rate assignment the Finalize dialog is asking units for.
+  const completingAssignment = showCompleteModal
+    ? watch(`slots.${showCompleteModal.slotIndex}.assignments.${showCompleteModal.assignmentIndex}`)
+    : undefined;
+  const completingRate = completingAssignment?.amount && !isNaN(parseFloat(completingAssignment.amount))
+    ? parseFloat(completingAssignment.amount)
+    : null;
+
   // The slots and assignments this form loaded or last saved: a save deletes
   // only those the user removed (#92).
   const baseline = useRowBaseline();
@@ -172,6 +183,7 @@ export default function GigStaffSlotsSection({
             user_id: a.user_id,
             status: a.status,
             rate: a.compensation_type === 'rate' ? (a.amount ? parseFloat(a.amount) : null) : null,
+            rate_unit: a.rate_unit,
             fee: a.compensation_type === 'fee' ? (a.amount ? parseFloat(a.amount) : null) : null,
             notes: a.notes || null,
             completed_at: a.completed_at || null,
@@ -268,6 +280,7 @@ export default function GigStaffSlotsSection({
           user_name: `${assignment.user?.first_name || ''} ${assignment.user?.last_name || ''}`.trim(),
           status: (assignment.status as any) || 'Open',
           compensation_type: assignment.rate !== null ? 'rate' : 'fee',
+          rate_unit: rateUnit(assignment.rate_unit),
           amount: assignment.rate !== null ? assignment.rate.toString() : (assignment.fee !== null ? assignment.fee.toString() : ''),
           notes: assignment.notes || '',
           completed_at: assignment.completed_at,
@@ -287,6 +300,7 @@ export default function GigStaffSlotsSection({
               user_name: '',
               status: 'Open',
               compensation_type: 'rate',
+              rate_unit: 'hour',
               amount: '',
               notes: '',
               completed_at: null,
@@ -332,6 +346,7 @@ export default function GigStaffSlotsSection({
           user_name: '',
           status: 'Open',
           compensation_type: 'rate',
+          rate_unit: 'hour',
           amount: '',
           notes: '',
           completed_at: null,
@@ -432,6 +447,7 @@ export default function GigStaffSlotsSection({
           user_name: '',
           status: 'Open',
           compensation_type: 'rate',
+          rate_unit: 'hour',
           amount: '',
           notes: '',
         });
@@ -725,6 +741,28 @@ export default function GigStaffSlotsSection({
                               )}
                             />
                           </div>
+                          {assignment.compensation_type === 'rate' && (
+                            <Controller
+                              name={`slots.${slotIndex}.assignments.${assignmentIndex}.rate_unit`}
+                              control={control}
+                              render={({ field: unitField }) => (
+                                <Select
+                                  value={unitField.value}
+                                  onValueChange={unitField.onChange}
+                                  disabled={isCompleted}
+                                >
+                                  <SelectTrigger className="w-24 bg-white" aria-label="Rate unit">
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {RATE_UNITS.map((u) => (
+                                      <SelectItem key={u.value} value={u.value}>{u.label}</SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              )}
+                            />
+                          )}
                           <div className="flex items-center gap-1">
                             <Button
                               type="button"
@@ -806,11 +844,14 @@ export default function GigStaffSlotsSection({
           <DialogHeader>
             <DialogTitle>Finalize Rate-based Labor</DialogTitle>
             <DialogDescription>
-              Enter the actual units completed (e.g., hours or days) for this assignment.
+              Enter the actual {unitPlural(completingAssignment?.rate_unit)} completed for this assignment
+              {completingRate != null && <>, paid at {formatRate(completingRate, completingAssignment?.rate_unit)}</>}.
             </DialogDescription>
           </DialogHeader>
           <div className="py-4">
-            <Label htmlFor="units" className="mb-2 block">Units Completed</Label>
+            <Label htmlFor="units" className="mb-2 block">
+              {unitPlural(completingAssignment?.rate_unit).replace(/^./, (c) => c.toUpperCase())} completed
+            </Label>
             <Input
               id="units"
               type="number"

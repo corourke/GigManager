@@ -481,6 +481,7 @@ export async function updateGig(gigId: string, gigData: {
       user_id: string;
       status?: string;
       rate?: number | null;
+      rate_unit?: string;
       fee?: number | null;
       notes?: string | null;
     }>;

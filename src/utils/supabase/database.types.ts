@@ -735,6 +735,7 @@ export type Database = {
           id: string
           notes: string | null
           rate: number | null
+          rate_unit: string
           slot_id: string
           status: string
           units_completed: number | null
@@ -749,6 +750,7 @@ export type Database = {
           id?: string
           notes?: string | null
           rate?: number | null
+          rate_unit?: string
           slot_id: string
           status: string
           units_completed?: number | null
@@ -763,6 +765,7 @@ export type Database = {
           id?: string
           notes?: string | null
           rate?: number | null
+          rate_unit?: string
           slot_id?: string
           status?: string
           units_completed?: number | null

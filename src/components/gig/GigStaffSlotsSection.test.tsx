@@ -225,3 +225,63 @@ describe('GigStaffSlotsSection deletes only rows it loaded (#92)', () => {
     // It waits through two real autosave debounces, so it needs more than the 5s default under load.
   }, 15000);
 });
+
+describe('GigStaffSlotsSection rate units (#171)', () => {
+  const SLOT = '66666666-6666-4666-8666-666666666666';
+  const ASG = '77777777-7777-4777-8777-777777777777';
+  const ASG_FEE = '88888888-8888-4888-8888-888888888888';
+  const mockProps = {
+    gigId: 'test-gig-id',
+    currentOrganizationId: 'current-org-id',
+    participantOrganizationIds: ['current-org-id'],
+  };
+  const unitPickers = () => screen.queryAllByRole('combobox')
+    .filter((s) => [...(s as HTMLSelectElement).options].some((o) => o.text === '/ day')) as HTMLSelectElement[];
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(getGig).mockResolvedValue({
+      staff_slots: [{
+        id: SLOT, organization_id: 'current-org-id', role: 'Sound Engineer', count: 2, notes: '',
+        staff_assignments: [
+          { id: ASG, user_id: 'user-a', user: { first_name: 'Ana', last_name: 'Ray' }, status: 'Confirmed', rate: 400, rate_unit: 'day', fee: null, notes: '' },
+          { id: ASG_FEE, user_id: 'user-b', user: { first_name: 'Bo', last_name: 'Li' }, status: 'Requested', rate: null, rate_unit: 'hour', fee: 300, notes: '' },
+        ],
+      }],
+    } as any);
+    vi.mocked(updateGigStaffSlots).mockImplementation(async (_gigId, slots) => ({
+      success: true,
+      slotIds: slots.map((s) => s.id),
+      assignmentIds: slots.map((s) => (s.assignments ?? []).map((a) => a.id)),
+    }));
+  });
+
+  it("shows a unit picker next to a rate, set to the assignment's unit, and none for a fee", async () => {
+    render(<GigStaffSlotsSection {...mockProps} />);
+    await waitFor(() => expect(unitPickers()).toHaveLength(1));
+    const picker = unitPickers()[0];
+    expect(picker.value).toBe('day');
+    // (The mocked SelectValue adds an empty placeholder option.)
+    expect([...picker.options].map((o) => o.text).filter(Boolean)).toEqual(['/ hr', '/ day', '/ ½ day']);
+  });
+
+  it('saves the unit with the assignment', async () => {
+    render(<GigStaffSlotsSection {...mockProps} />);
+    await waitFor(() => expect(unitPickers()).toHaveLength(1));
+
+    fireEvent.change(unitPickers()[0], { target: { value: 'half_day' } });
+
+    await waitFor(() => expect(updateGigStaffSlots).toHaveBeenCalledTimes(1), { timeout: 3000 });
+    const saved = vi.mocked(updateGigStaffSlots).mock.calls[0][1][0].assignments!;
+    expect(saved.find((a) => a.id === ASG)).toEqual(expect.objectContaining({ rate: 400, rate_unit: 'half_day', fee: null }));
+    expect(saved.find((a) => a.id === ASG_FEE)).toEqual(expect.objectContaining({ fee: 300, rate: null }));
+  });
+
+  it("asks for units completed in the rate's unit when finalizing", async () => {
+    render(<GigStaffSlotsSection {...mockProps} />);
+    fireEvent.click(await screen.findByTitle('Finalize Assignment'));
+    const dialog = await screen.findByRole('dialog');
+    expect(dialog).toHaveTextContent('Days completed');
+    expect(dialog).toHaveTextContent('$400 / day');
+  });
+});
