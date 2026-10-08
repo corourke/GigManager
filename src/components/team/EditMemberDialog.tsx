@@ -13,6 +13,7 @@ import {
 import UserProfileForm, { UserProfileFormData } from '../UserProfileForm';
 import type { UserRole } from '../../utils/supabase/types';
 import { useTeamMutations, type OrganizationMember } from './useTeamData';
+import { canAssignRole } from '../../utils/permissions';
 
 interface EditMemberDialogProps {
   open: boolean;
@@ -20,6 +21,7 @@ interface EditMemberDialogProps {
   orgId: string;
   member: OrganizationMember | null;
   currentUserId: string;
+  currentUserRole?: UserRole;
   staffRoles: Array<{ id: string; name: string }>;
   /** Called after a successful save, e.g. to reload a screen that holds its own copy. */
   onSaved?: () => void;
@@ -37,6 +39,7 @@ export default function EditMemberDialog({
   orgId,
   member,
   currentUserId,
+  currentUserRole,
   staffRoles,
   onSaved,
 }: EditMemberDialogProps) {
@@ -65,6 +68,8 @@ export default function EditMemberDialog({
   }, [member]);
 
   const isSelf = member ? member.user.id === currentUserId : false;
+  // Managers can't change an Admin's role, so it isn't shown to them.
+  const canEditRole = !isSelf && !!member && canAssignRole(currentUserRole, member.role as UserRole);
 
   const handleSave = async () => {
     if (!member) return;
@@ -72,10 +77,10 @@ export default function EditMemberDialog({
       toast.error('Please fill in all required fields');
       return;
     }
-    // Don't allow role changes for the current user.
+    // Don't allow role changes for the current user, or where the role is hidden.
     const updateData = isSelf
       ? { ...editForm, role: undefined, default_staff_role_id: undefined }
-      : editForm;
+      : canEditRole ? editForm : { ...editForm, role: undefined };
     try {
       await updateMember.mutateAsync({ memberId: member.id, data: updateData as Record<string, any> });
       onOpenChange(false);
@@ -102,7 +107,8 @@ export default function EditMemberDialog({
           onChange={(field, value) => setEditForm({ ...editForm, [field]: value })}
           disabled={updateMember.isPending}
           emailReadOnly={true}
-          showRole={!isSelf}
+          showRole={canEditRole}
+          allowAdminRole={canAssignRole(currentUserRole, 'Admin')}
           showDefaultStaffRole={!isSelf}
           staffRoles={staffRoles}
           requiredFields={['first_name', 'last_name', 'email']}

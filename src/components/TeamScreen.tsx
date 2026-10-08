@@ -108,6 +108,7 @@ export default function TeamScreen({
     staffRoleOptions,
     timezoneOptions,
     currentUserId: user.id,
+    currentUserRole: userRole,
     canManageTeam,
     onViewMember,
   });
@@ -356,6 +357,7 @@ export default function TeamScreen({
         orgId={orgId}
         organizationName={organization.name}
         excludeUserIds={excludeUserIds}
+        userRole={userRole}
       />
 
       <RequestAccessDialog
@@ -373,6 +375,7 @@ export default function TeamScreen({
         orgId={orgId}
         member={memberToEdit}
         currentUserId={user.id}
+        currentUserRole={userRole}
         staffRoles={staffRoles}
       />
 

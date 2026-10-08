@@ -57,6 +57,8 @@ export interface ColumnDef<T> {
   sortable?: boolean;
   filterable?: boolean;
   editable?: boolean;
+  /** Per-row override for `editable`: returning false makes that row's cell read-only. */
+  isEditable?: (row: T) => boolean;
   required?: boolean;
   optional?: boolean;
   readOnly?: boolean;
@@ -667,7 +669,7 @@ export function SmartDataTable<T extends { id: string }>({
                       <EditableCell
                         key={column.id}
                         value={value}
-                        column={column}
+                        column={column.isEditable && !column.isEditable(row) ? { ...column, editable: false } : column}
                         row={row}
                         onSave={(newValue) => (newRowIds.has(row.id) ? handleCellSaveForNewRow : handleCellSave)(row.id, column.id, newValue)}
                         isSelected={isSelected}

@@ -22,9 +22,10 @@ vi.mock('../../utils/hooks/useTableState', () => ({
 
 // Mock EditableCell to simplify testing of SmartDataTable itself
 vi.mock('./EditableCell', () => ({
-  EditableCell: ({ value, onSave, onSelect, isSelected }: any) => (
-    <TableCell 
-      data-testid="editable-cell" 
+  EditableCell: ({ value, column, onSave, onSelect, isSelected }: any) => (
+    <TableCell
+      data-testid="editable-cell"
+      data-editable={String(!!column.editable)}
       onClick={onSelect}
       className={isSelected ? 'selected' : ''}
     >
@@ -83,6 +84,16 @@ describe('SmartDataTable', () => {
     expect(screen.getByText('Name')).toBeInTheDocument();
     expect(screen.getByText('Age')).toBeInTheDocument();
     expect(screen.getByText('Status')).toBeInTheDocument();
+  });
+
+  it("turns off editing on rows a column's isEditable rejects", () => {
+    const cols: ColumnDef<TestData>[] = [
+      { id: 'name', header: 'Name', accessor: 'name', editable: true, isEditable: (row) => row.id !== '2' },
+    ];
+    render(<SmartDataTable tableId="test-table" data={data} columns={cols} onRowUpdate={onRowUpdate} />);
+
+    const editable = screen.getAllByTestId('editable-cell').map((c) => c.getAttribute('data-editable'));
+    expect(editable).toEqual(['true', 'false', 'true']);
   });
 
   it('shows loading state', () => {
