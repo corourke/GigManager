@@ -37,11 +37,11 @@ just left of the title. If a page has tabs, they're right below the title.
 The avatar menu (top-right) has **Switch Organization**, **Settings**,
 **Edit Profile**, and **Sign Out**. Platform moderators also see
 **Access Requests** there. The bell next to it shows **Notifications**, such
-as decisions on [access requests](/getting-started/organizations/).
+as decisions on [access requests](/getting-started/organizations/), with a count of
+unread ones on the bell.
 
 ![The open avatar menu, showing the signed-in name and email above Switch Organization, Settings, Edit Profile and Sign Out](../../../assets/screenshots/getting-started/the-dashboard-avatar-menu.png)
 
 <!-- TODO
   - 📸 Dashboard cards and Upcoming Gigs: held until #157 fixes the Equipment card's Total Value.
-  - 📸 Notification bell dropdown (needs a seeded notification).
 -->

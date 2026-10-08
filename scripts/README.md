@@ -70,7 +70,7 @@ The `ai-scan` Edge Function requires an Anthropic API key to process PDFs.
 
 - **Idempotent.** The SQL first deletes every row belonging to the demo organizations and users (fixed UUIDs of the form `de000000-0000-4000-8000-<kind><n>`), then re-inserts. Rows without a demo UUID are never touched.
 - **Pinned dates.** Every date hangs off an anchor date, the demo world's "today" (default `2026-10-07`; pass another as `./scripts/seed-demo.sh 2027-01-15` or `SEED_DEMO_ANCHOR`). Screenshots freeze the browser clock to the same date and use the `America/Los_Angeles` time zone, so Upcoming/Past and "next 30 days" don't drift. Move the anchor only for a full screenshot refresh. Gigs are placed by week and weekday, so they stay on Friday and Saturday evenings.
-- **Contents.** "Demo Sound & Lighting" plus five partner orgs (Harborlight Pavilion and Cedar Hall, venues; Neon Orchard and Paper Lanterns, acts; Brightwave Events, the main client); 5 logins (one per role, plus one in no organization) and 10 people without logins; 17 gigs from about 8 weeks back to 14 weeks ahead across all statuses (two of them two-day, and two that deliberately conflict), with participants, day-of contacts, schedules, staffing and kit assignments; 26 assets, 6 kits (a nested band package holding two kits and two containers, a mic case and an XLR cable box) and last-scanned locations; 4 purchases; a gig ledger with paid, invoiced, overdue, contracted and quoted rows; and three weeks of activity history.
+- **Contents.** "Demo Sound & Lighting" plus five partner orgs (Harborlight Pavilion and Cedar Hall, venues; Neon Orchard and Paper Lanterns, acts; Brightwave Events, the main client); 7 logins (one per role, one in no organization, a platform moderator, and a venue contact) and 10 people without logins; 17 gigs from about 8 weeks back to 14 weeks ahead across all statuses (two of them two-day, and two that deliberately conflict), with participants, day-of contacts, schedules, staffing and kit assignments; 26 assets, 6 kits (a nested band package holding two kits and two containers, a mic case and an XLR cable box) and last-scanned locations; 4 purchases; a gig ledger with paid, invoiced, overdue, contracted and quoted rows; and three weeks of activity history.
 - **People.** First names start with the letter of their role (Admin **A**licia, Manager **M**arcus, Staff **S**ofia and the freelance crew, Viewer **V**ictor and the partner contacts), so a screenshot shows who is who. Avatars stay as initials.
 - **Demo logins** (password `demo1pass`):
 
@@ -81,6 +81,8 @@ The `ai-scan` Edge Function requires an Anthropic API key to process PDFs.
   | `demo-staff@gigwrangler.test` | Sofia Lindqvist | Staff |
   | `demo-viewer@gigwrangler.test` | Victor Okafor | Viewer |
   | `demo-newuser@gigwrangler.test` | Nina Newman | none: signed up, no organization yet (onboarding screenshots) |
+  | `demo-moderator@gigwrangler.test` | Petra Lund | none: a platform moderator (reviews requests on unclaimed organizations) |
+  | `vera.holm@cedar-hall.example` | Vera Holm | none here: a Viewer at Cedar Hall who has asked to claim it |
 
   The `.test` addresses receive no mail, so flows that send email (invitations, sign-up confirmation, password reset) can't be completed with them yet. Screenshotting those needs a way to simulate email delivery (noted in WORK_PLAN.md §5).
 - **Run:** `./scripts/seed-demo.sh` (prints per-table row counts on success).

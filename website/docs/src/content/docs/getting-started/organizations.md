@@ -23,6 +23,8 @@ From **Select Organization**, choose **Create New Organization** (or
   address.
 - Choose **Create and Join**. You become the organization's **Admin**.
 
+![The new-organization form: Organization Name, the Organization Roles checkboxes with Sound Company and Rental Company ticked, Phone Number, Website URL and Allowed Email Domains](../../../assets/screenshots/getting-started/organizations-create-form.png)
+
 :::note[Create without Joining]
 There's also a **Create without Joining** option, for registering a partner
 organization — a venue or vendor you work with but aren't part of. That
@@ -38,9 +40,16 @@ participant), you don't create a duplicate — you get access to the real one.
    **Search all organizations...**. (Once you're in an organization, the avatar
    menu's **Switch Organization** takes you back to this screen.)
 2. On its card, choose **Join as Viewer**. You're now a read-only member.
-3. Open that organization → **Team** → **Request Access** (top-right).
+
+   ![Select Organization with "Cedar" in the search box and one result, Cedar Hall, a Venue in Berkeley, with a Join as Viewer button](../../../assets/screenshots/getting-started/organizations-search-result.png)
+
+3. Open that organization → **Team** → **Request Access** (top-right). Viewers and
+   Staff see this button.
 4. Pick the **Requested role** — **Manager** or **Admin** — add an optional
    message, and select **Submit Request**.
+
+   ![The Request Access dialog: Requested role with Manager selected or Admin, an optional message, and Submit Request](../../../assets/screenshots/getting-started/organizations-request-access.png)
+
 
 What happens next depends on the organization:
 
@@ -50,6 +59,8 @@ What happens next depends on the organization:
 
 You're notified of the decision by email and by the in-app notification bell
 (top-right). If approved, your role changes automatically.
+
+![The notification bell open on a decision: a request for Admin was rejected, with the Admin's reply below it](../../../assets/screenshots/getting-started/organizations-notification.png)
 
 ## 3. Accept an invitation
 
@@ -70,7 +81,3 @@ away. Use **Request Access** from the Team page if you need Manager or Admin.
 
 Once you're in, head to [the dashboard](/getting-started/the-dashboard/).
 
-<!-- TODO
-  - 📸 Create New Organization (manual form). 📸 Select Organization search result card.
-  - 📸 Team → "Request Access" dialog. 📸 Notification bell after a decision.
--->
