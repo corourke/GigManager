@@ -85,9 +85,12 @@ export function registerGigs(app: App) {
       console.error('Error fetching assets for dashboard:', assetsError);
       return c.json({ error: assetsError.message }, 500);
     }
+    const equipment = sumAssetValues(assets);
+    // Values are for Admins and Managers; what is owned is shown to Staff too.
     const { totalAssetValue, totalInsuredValue } = isAdminOrManager
-      ? sumAssetValues(assets)
+      ? equipment
       : { totalAssetValue: 0, totalInsuredValue: 0 };
+    const { ownedItems, ownedPieces } = equipment;
 
     const { data: kits, error: kitsError } = await supabaseAdmin.from('kits').select('rental_value').eq('organization_id', orgId);
     if (kitsError) {
@@ -172,7 +175,7 @@ export function registerGigs(app: App) {
 
     return c.json({
       gigsByStatus: statusCounts,
-      assetValues: { totalAssetValue, totalInsuredValue, totalRentalValue },
+      assetValues: { totalAssetValue, totalInsuredValue, totalRentalValue, ownedItems, ownedPieces },
       revenue: { thisMonth: revenueThisMonth, lastMonth: revenueLastMonth, thisYear: revenueThisYear },
       upcomingGigs,
     });

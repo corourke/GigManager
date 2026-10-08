@@ -274,4 +274,25 @@ describe('CalendarIntegrationSettings', () => {
     expect(screen.queryByText('Sync Status')).not.toBeInTheDocument();
     expect(screen.queryByText('Sync Log')).not.toBeInTheDocument();
   });
+
+  it('shows the system-wide repair tool only to platform moderators (issue #188)', async () => {
+    (calService.getUserGoogleCalendarSettings as ReturnType<typeof vi.fn>).mockResolvedValue(mockSettings);
+    (calService.getUserCalendars as ReturnType<typeof vi.fn>).mockResolvedValue(mockCalendars);
+    (calService.getSyncLogs as ReturnType<typeof vi.fn>).mockResolvedValue(mockSyncLogs);
+    (calService.getSyncStatusSummary as ReturnType<typeof vi.fn>).mockResolvedValue(mockSyncSummary);
+
+    const { unmount } = render(<CalendarIntegrationSettings userId="user-1" organizationId="org-1" />);
+    await waitFor(() => {
+      expect(screen.getByText('Connected to Google Calendar')).toBeInTheDocument();
+    });
+    expect(screen.queryByText(/System-Wide Bulk Re-sync/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /bulk re-sync/i })).not.toBeInTheDocument();
+    unmount();
+
+    render(<CalendarIntegrationSettings userId="user-1" organizationId="org-1" isPlatformModerator />);
+    await waitFor(() => {
+      expect(screen.getByText('Connected to Google Calendar')).toBeInTheDocument();
+    });
+    expect(screen.getByText(/System-Wide Bulk Re-sync/i)).toBeInTheDocument();
+  });
 });

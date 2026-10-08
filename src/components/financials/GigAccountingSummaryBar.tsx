@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { Card } from '../ui/card';
 import { GigAccountingSummary } from '../../utils/supabase/types';
+import { owedToYou } from '../../utils/gigAccountingSections';
 
 interface GigAccountingSummaryBarProps {
   summaries: GigAccountingSummary[];
@@ -36,7 +37,7 @@ export default function GigAccountingSummaryBar({ summaries }: GigAccountingSumm
     for (const s of summaries) {
       contractAmount += s.contractAmount;
       received += s.received;
-      outstandingRevenue += s.outstandingRevenue;
+      outstandingRevenue += owedToYou(s);
       totalCosts += s.totalCosts;
       paymentsToMake += s.paymentsToMake;
       profit += s.profit;
@@ -47,7 +48,7 @@ export default function GigAccountingSummaryBar({ summaries }: GigAccountingSumm
 
   return (
     <div className="flex flex-wrap gap-3">
-      <MetricCard label="Expected" value={totals.contractAmount} />
+      <MetricCard label="Booked" value={totals.contractAmount} />
       <MetricCard label="Received" value={totals.received} />
       <MetricCard
         label="Owed to you"

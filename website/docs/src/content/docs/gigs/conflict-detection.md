@@ -17,14 +17,13 @@ Two gigs conflict when their dates overlap and they share any of these:
 
 - **Staff:** the same person is assigned to both gigs.
 - **Venue or act:** the same organization is a participant with the **Venue** role, or the **Act** role, on both gigs.
-<!-- TODO: #170 — act conflicts are currently labelled as venue conflicts in the banner. -->
 - **Equipment:** both gigs use the same piece of equipment. GigWrangler compares the individual assets inside each kit, so two different kits that contain the same asset still conflict. For example, the "Full Band Sound Package" contains the "Mic Case", so assigning the package to one gig and the Mic Case to an overlapping gig is flagged.
 
 Gigs with no start time count as the whole day in the gig's time zone. **Cancelled** gigs are ignored.
 
 ## Where warnings appear
 
-- **The gig list and calendar.** A banner above the list reads "N Conflicts Detected", with one line per conflict and a **View** button that opens the other gig. In the calendar, gigs with a conflict are drawn in red. See [The gig list](/gigs/the-gig-list/) and [Calendar view](/gigs/calendar-view/).
+- **The gig list and calendar.** A banner above the list reads "N Conflicts Detected", with one line per conflict and a **View** button that opens that gig. **Back** on the gig page returns you to the list or the calendar, whichever you came from. In the calendar, gigs with a conflict are drawn in red. See [The gig list](/gigs/the-gig-list/) and [Calendar view](/gigs/calendar-view/).
 - **A gig's page.** A "Conflicts Detected" card at the top lists the other gigs that overlap this one, with the names of the people, the venue or act, or the kits and assets involved.
 - **The Equipment tab in edit mode.** The equipment check also lists gigs that fall within four hours of this one, without overlapping. Warnings update after each change to the gig's kits.
 

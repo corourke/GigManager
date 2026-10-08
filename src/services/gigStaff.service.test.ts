@@ -98,3 +98,104 @@ describe('updateGigStaffSlots (#61 — only touches slots owned by orgs the call
     expect(slotChains.some((c) => c.delete.mock.calls.length > 0)).toBe(false);
   });
 });
+
+describe('updateGigStaffSlots deletes only rows the caller loaded and removed (issue #92)', () => {
+  const ctx = { organization_id: 'org-1', actor_display_name: 'x', actor_org_name: 'A', gig_title: 'g' };
+  let slotChains: any[];
+  let assignmentChains: any[];
+
+  const useDb = (slots: any[], assignments: any[]) => {
+    slotChains = [];
+    assignmentChains = [];
+    const mockSupabase: any = {
+      from: vi.fn((table: string) => {
+        if (table === 'gig_participants') return makeChain({ data: [{ organization_id: 'org-1' }] });
+        if (table === 'organization_members') return makeChain({ data: [{ organization_id: 'org-1', role: 'Admin' }] });
+        if (table === 'staff_roles') return makeChain({ maybeSingleData: { id: 'role-1' } });
+        if (table === 'gig_staff_slots') {
+          const c = makeChain({ data: slots, singleData: { id: 'slot-new' } });
+          slotChains.push(c);
+          return c;
+        }
+        if (table === 'gig_staff_assignments') {
+          const c = makeChain({ data: assignments, singleData: { id: 'asg-new' } });
+          assignmentChains.push(c);
+          return c;
+        }
+        return makeChain({ data: [] });
+      }),
+    };
+    (requireAuth as any).mockResolvedValue({ supabase: mockSupabase, user: { id: 'user-1', user_metadata: {} } });
+  };
+  const deleted = (chains: any[]) => chains
+    .filter((c) => c.delete.mock.calls.length > 0)
+    .flatMap((c) => c.in.mock.calls.map((call: any[]) => call[1]).flat());
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('leaves a slot the form never loaded alone', async () => {
+    useDb([
+      { id: 'slot-mine', organization_id: 'org-1' },
+      { id: 'slot-theirs', organization_id: 'org-1' }, // added in another tab after this form loaded
+    ], []);
+
+    await updateGigStaffSlots('gig-1', [{ id: 'slot-mine', organization_id: 'org-1', role: 'FOH', assignments: [] }], ctx, ['slot-mine']);
+
+    expect(deleted(slotChains)).not.toContain('slot-theirs');
+  });
+
+  it('deletes a slot the form loaded and the user removed', async () => {
+    useDb([
+      { id: 'slot-mine', organization_id: 'org-1' },
+      { id: 'slot-removed', organization_id: 'org-1' },
+    ], []);
+
+    await updateGigStaffSlots('gig-1', [{ id: 'slot-mine', organization_id: 'org-1', role: 'FOH', assignments: [] }], ctx, ['slot-mine', 'slot-removed']);
+
+    expect(deleted(slotChains)).toEqual(['slot-removed']);
+  });
+
+  it('leaves an assignment the form never loaded alone', async () => {
+    useDb([{ id: 'slot-mine', organization_id: 'org-1' }], [
+      { id: 'asg-mine', user_id: 'u-1' },
+      { id: 'asg-theirs', user_id: 'u-2' },
+    ]);
+
+    await updateGigStaffSlots('gig-1', [{
+      id: 'slot-mine', organization_id: 'org-1', role: 'FOH',
+      assignments: [{ id: 'asg-mine', user_id: 'u-1' }],
+    }], ctx, ['slot-mine', 'asg-mine']);
+
+    expect(deleted(assignmentChains)).not.toContain('asg-theirs');
+  });
+
+  it('deletes an assignment the form loaded and the user removed', async () => {
+    useDb([{ id: 'slot-mine', organization_id: 'org-1' }], [
+      { id: 'asg-mine', user_id: 'u-1' },
+      { id: 'asg-removed', user_id: 'u-2' },
+    ]);
+
+    await updateGigStaffSlots('gig-1', [{
+      id: 'slot-mine', organization_id: 'org-1', role: 'FOH',
+      assignments: [{ id: 'asg-mine', user_id: 'u-1' }],
+    }], ctx, ['slot-mine', 'asg-mine', 'asg-removed']);
+
+    expect(deleted(assignmentChains)).toEqual(['asg-removed']);
+  });
+
+  it('returns the ids of saved slots and assignments, including inserted ones', async () => {
+    useDb([{ id: 'slot-mine', organization_id: 'org-1' }], [{ id: 'asg-mine', user_id: 'u-1' }]);
+
+    const result = await updateGigStaffSlots('gig-1', [
+      { id: 'slot-mine', organization_id: 'org-1', role: 'FOH', assignments: [{ id: 'asg-mine', user_id: 'u-1' }, { user_id: 'u-2' }] },
+      { organization_id: 'org-1', role: 'Monitors', assignments: [] },
+    ], ctx, ['slot-mine', 'asg-mine']);
+
+    expect(result).toEqual(expect.objectContaining({
+      slotIds: ['slot-mine', 'slot-new'],
+      assignmentIds: [['asg-mine', 'asg-new'], []],
+    }));
+  });
+});

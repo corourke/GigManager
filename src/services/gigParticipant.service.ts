@@ -13,6 +13,11 @@ import { logActivity } from './activityLog.service';
 /**
  * Update gig participants.
  *
+ * `loadedIds` are the ids of the rows the caller loaded (or last saved). Only
+ * those that are no longer in `participants` are deleted: a row someone else
+ * added since is left alone, and with no `loadedIds` nothing is deleted
+ * (issue #92).
+ *
  * Returns `ids`, parallel to `participants`: each row's database id, including
  * the id of any row inserted by this call (undefined for a row that was
  * skipped). Callers that keep editing the same rows (autosave) must write
@@ -28,7 +33,8 @@ export async function updateGigParticipants(
     notes?: string | null;
     is_client?: boolean;
   }>,
-  activityCtx?: GigActivityCtxInput
+  activityCtx?: GigActivityCtxInput,
+  loadedIds: string[] = []
 ) {
   try {
     const { supabase, user } = await requireAuth();
@@ -59,7 +65,7 @@ export async function updateGigParticipants(
       .filter(p => p.id && UUID_REGEX.test(p.id))
       .map(p => p.id!);
 
-    const idsToDelete = existingIds.filter(id => !incomingIds.includes(id));
+    const idsToDelete = existingIds.filter(id => loadedIds.includes(id) && !incomingIds.includes(id));
 
     if (idsToDelete.length > 0 && effectiveCtx) {
       const removedRows = (existingParticipants ?? []).filter(p => idsToDelete.includes(p.id));

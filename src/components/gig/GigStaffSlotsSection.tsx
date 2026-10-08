@@ -11,6 +11,16 @@ import { Label } from '../ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '../ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '../ui/dialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '../ui/alert-dialog';
 import { Textarea } from '../ui/textarea';
 import UserSelector from '../UserSelector';
 import { 
@@ -21,6 +31,7 @@ import {
   unfinalizeStaffAssignment
 } from '../../services/gig.service';
 import { useAutoSave } from '../../utils/hooks/useAutoSave';
+import { useRowBaseline } from '../../utils/hooks/useRowBaseline';
 import SaveStateIndicator from './SaveStateIndicator';
 import { RotateCcw } from 'lucide-react';
 
@@ -100,6 +111,7 @@ export default function GigStaffSlotsSection({
   const [isCompleting, setIsCompleting] = useState<string | null>(null);
   const [showCompleteModal, setShowCompleteModal] = useState<{ slotIndex: number; assignmentIndex: number } | null>(null);
   const [completionUnits, setCompletionUnits] = useState<string>('1');
+  const [deletingSlotIndex, setDeletingSlotIndex] = useState<number | null>(null);
 
   const { control, handleSubmit: _handleSubmit, formState: { errors, isDirty }, watch, reset, setValue, getValues } = useForm<StaffSlotsFormData>({
     resolver: zodResolver(staffSlotsFormSchema),
@@ -139,19 +151,24 @@ export default function GigStaffSlotsSection({
 
   const { finalized, projected } = calculateStaffCosts();
 
+  // The slots and assignments this form loaded or last saved: a save deletes
+  // only those the user removed (#92).
+  const baseline = useRowBaseline();
+
   const handleSave = useCallback(async (data: StaffSlotsFormData) => {
-    const slotsData = data.slots
+    const slotsToSave = data.slots
       .filter(s => s.role && s.role.trim() !== '')
+      .map(s => ({ ...s, assignments: (s.assignments || []).filter(a => a.user_id && a.user_id.trim() !== '') }));
+    const slotsData = slotsToSave
       .map(s => ({
-        id: s.id.startsWith('temp-') || !s.id.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i) ? undefined : s.id,
+        id: s.id.startsWith('temp-') || !s.id.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i) ? baseline.insertedId(s.id) : s.id,
         organization_id: currentOrganizationId,
         role: s.role,
         count: s.count,
         notes: s.notes || null,
-        assignments: (s.assignments || [])
-          .filter(a => a.user_id && a.user_id.trim() !== '')
+        assignments: s.assignments
           .map(a => ({
-            id: a.id.startsWith('temp-') || !a.id.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i) ? undefined : a.id,
+            id: a.id.startsWith('temp-') || !a.id.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i) ? baseline.insertedId(a.id) : a.id,
             user_id: a.user_id,
             status: a.status,
             rate: a.compensation_type === 'rate' ? (a.amount ? parseFloat(a.amount) : null) : null,
@@ -162,8 +179,25 @@ export default function GigStaffSlotsSection({
           })),
       }));
 
-    await updateGigStaffSlots(gigId, slotsData);
-  }, [gigId, currentOrganizationId]);
+    const { slotIds, assignmentIds } = await updateGigStaffSlots(gigId, slotsData, undefined, baseline.ids());
+    const saved = new Map<string, string>();
+    slotsToSave.forEach((s, i) => {
+      if (slotIds[i]) saved.set(s.id, slotIds[i]!);
+      s.assignments.forEach((a, j) => { if (assignmentIds[i]?.[j]) saved.set(a.id, assignmentIds[i][j]!); });
+    });
+    baseline.saved([...saved]);
+
+    // Give rows this save inserted their database ids, so the next save
+    // updates them instead of inserting them again.
+    getValues('slots').forEach((s, i) => {
+      const slotId = saved.get(s.id);
+      if (slotId && slotId !== s.id) setValue(`slots.${i}.id`, slotId);
+      s.assignments.forEach((a, j) => {
+        const assignmentId = saved.get(a.id);
+        if (assignmentId && assignmentId !== a.id) setValue(`slots.${i}.assignments.${j}.id`, assignmentId);
+      });
+    });
+  }, [gigId, currentOrganizationId, baseline, getValues, setValue]);
 
   const handleSaveSuccess = useCallback((data: StaffSlotsFormData) => {
     reset(data, { keepDirty: false, keepValues: true });
@@ -271,6 +305,7 @@ export default function GigStaffSlotsSection({
         };
       });
       
+      baseline.loaded(organizationSlots.flatMap((slot: any) => [slot.id, ...(slot.staff_assignments || []).map((a: any) => a.id)]));
       reset({ slots: formattedSlots });
     } catch (error: any) {
       console.error('Error loading staff slots:', error);
@@ -422,6 +457,17 @@ export default function GigStaffSlotsSection({
     remove(index);
   };
 
+  /** What the delete confirmation says will go: the slot, plus anyone assigned to it. */
+  const describeSlotDeletion = (index: number) => {
+    const slot = getValues(`slots.${index}`);
+    if (!slot) return '';
+    const subject = slot.role ? `The ${slot.role} slot` : 'This slot';
+    const people = (slot.assignments ?? []).filter((a) => a.user_id).map((a) => a.user_name || 'Unnamed');
+    if (people.length === 0) return `${subject} will be removed from this gig.`;
+    const noun = people.length === 1 ? 'person' : 'people';
+    return `${subject} will be removed from this gig, along with ${people.length} assigned ${noun}: ${people.join(', ')}.`;
+  };
+
   const handleOpenSlotNotes = (index: number) => {
     const slot = fields[index];
     setCurrentSlotNotes(slot.notes || '');
@@ -571,8 +617,10 @@ export default function GigStaffSlotsSection({
                     type="button"
                     variant="ghost"
                     size="sm"
-                    onClick={() => handleRemoveStaffSlot(slotIndex)}
+                    onClick={() => setDeletingSlotIndex(slotIndex)}
                     className="text-red-600"
+                    aria-label="Delete staff slot"
+                    title="Delete staff slot"
                   >
                     <Trash2 className="w-4 h-4" />
                   </Button>
@@ -791,6 +839,29 @@ export default function GigStaffSlotsSection({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={deletingSlotIndex !== null} onOpenChange={(open) => { if (!open) setDeletingSlotIndex(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete staff slot?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {deletingSlotIndex !== null && describeSlotDeletion(deletingSlotIndex)}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (deletingSlotIndex !== null) handleRemoveStaffSlot(deletingSlotIndex);
+                setDeletingSlotIndex(null);
+              }}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <Dialog open={showSlotNotes !== null} onOpenChange={(open) => {
         if (!open) {

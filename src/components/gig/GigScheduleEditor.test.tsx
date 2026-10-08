@@ -133,3 +133,44 @@ describe('GigScheduleEditor saving (#12)', () => {
     expect(lastSaved().find((e) => e.id === 'e1')).toEqual(expect.objectContaining({ notes: 'Dock B' }));
   });
 });
+
+describe('GigScheduleEditor deletes only rows it loaded (#92)', () => {
+  const lastLoadedIds = () => vi.mocked(updateGigScheduleEntries).mock.calls.at(-1)![3];
+
+  it('passes the rows it loaded, so a removed one is deleted and rows added elsewhere are not', async () => {
+    const view = renderEditor();
+    const [, rehearsal] = await rows();
+    fireEvent.click(within(rehearsal).getByRole('button', { name: 'Remove Rehearsal' }));
+    view.unmount();
+    expect(lastSaved().map((e) => e.id)).toEqual(['e1', 'e3']);
+    expect(lastLoadedIds()).toEqual(['e1', 'e2', 'e3']);
+  });
+
+  it('gives a new row the id its save returned, and deletes it if it is then removed', async () => {
+    vi.mocked(updateGigScheduleEntries).mockImplementation(async (_gigId, entries) => ({
+      ids: entries.map((e) => e.id ?? 'new-1'),
+    }));
+    const view = renderEditor();
+    await rows();
+    fireEvent.click(screen.getByRole('button', { name: /add custom item/i }));
+    const added = (await rows())[3];
+    fireEvent.change(cell(added, 'Item'), { target: { value: 'Interview' } });
+    fireEvent.change(cell(added, 'Start'), { target: { value: '18:00' } });
+    await vi.waitFor(() => expect(updateGigScheduleEntries).toHaveBeenCalledTimes(1), { timeout: 3000 });
+    expect(lastSaved().find((e) => e.activity_type === 'Interview').id).toBeUndefined();
+    // The schedule now also holds a row someone else added; the editor must not take its id.
+    vi.mocked(getGigScheduleEntries).mockResolvedValue([
+      entry({ id: 'theirs', activity_type: 'Doors', start_time: '2026-07-12T15:00:00Z' }),
+      ...EXISTING,
+      entry({ id: 'new-1', activity_type: 'Interview', start_time: '2026-07-12T22:00:00Z' }),
+    ] as any);
+
+    await act(async () => { await new Promise((r) => setTimeout(r, 0)); });
+    const interview = (await rows()).find((r) => cell(r, 'Item').value === 'Interview')!;
+    fireEvent.click(within(interview).getByRole('button', { name: 'Remove Interview' }));
+    view.unmount();
+    expect(lastSaved().map((e) => e.id)).toEqual(['e1', 'e2', 'e3']);
+    expect(lastLoadedIds()).toEqual(expect.arrayContaining(['e1', 'e2', 'e3', 'new-1']));
+    expect(lastLoadedIds()).not.toContain('theirs');
+  });
+});

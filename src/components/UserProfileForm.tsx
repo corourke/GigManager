@@ -28,6 +28,8 @@ interface UserProfileFormProps {
   disabled?: boolean;
   emailReadOnly?: boolean;
   showRole?: boolean;
+  /** Offer Admin in the role picker. Off for Managers, who can't make someone an Admin. */
+  allowAdminRole?: boolean;
   showDefaultStaffRole?: boolean;
   staffRoles?: Array<{ id: string; name: string }>;
   requiredFields?: (keyof UserProfileFormData)[];
@@ -39,6 +41,7 @@ export default function UserProfileForm({
   disabled = false,
   emailReadOnly = false,
   showRole = false,
+  allowAdminRole = true,
   showDefaultStaffRole = false,
   staffRoles = [],
   requiredFields = [],
@@ -301,7 +304,7 @@ export default function UserProfileForm({
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="Admin">Admin - Full access</SelectItem>
+              {allowAdminRole && <SelectItem value="Admin">Admin - Full access</SelectItem>}
               <SelectItem value="Manager">Manager - Can manage gigs and team</SelectItem>
               <SelectItem value="Staff">Staff - Can be assigned to gigs</SelectItem>
               <SelectItem value="Viewer">Viewer - Read-only access</SelectItem>

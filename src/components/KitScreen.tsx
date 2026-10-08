@@ -1,4 +1,4 @@
-import {useState, useEffect, useMemo } from 'react';
+import {useState, useEffect, useMemo, useRef } from 'react';
 import { Package, Save, Loader2, AlertCircle, Plus, X, Search, CheckCircle2, Boxes, Container, Layers } from 'lucide-react';
 import { useSimpleFormChanges } from '../utils/hooks/useSimpleFormChanges';
 import { createSubmissionPayload, normalizeFormData } from '../utils/form-utils';
@@ -177,6 +177,9 @@ export default function KitScreen({
     });
   }, [kitComponents, childKitSummaries]);
 
+  // Ids of the components loaded: a save deletes only those the user removed (#92).
+  const loadedComponentIdsRef = useRef<string[]>([]);
+
   const loadKit = async () => {
     if (!kitId) return;
 
@@ -204,6 +207,7 @@ export default function KitScreen({
         childKit: kc.child_kit ?? undefined,
         quantity: kc.quantity,
       }));
+      loadedComponentIdsRef.current = (kit.kit_components || []).map((kc: any) => kc.id);
       setKitComponents(mappedComponents);
 
       // Load initial data for change detection (including kit components and tracking type)
@@ -506,7 +510,7 @@ export default function KitScreen({
       }));
 
       if (isEditMode && kitId) {
-        await updateKit(kitId, kitData);
+        await updateKit(kitId, kitData, loadedComponentIdsRef.current);
         toast.success('Kit updated successfully');
 
         // Mark as saved for change detection

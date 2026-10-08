@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, type ReactNode } from 'react';
 import { toast } from 'sonner';
 import { Loader2, Mail, Shield, Crown, User as UserIcon, Search, UserPlus, Send, UserCog } from 'lucide-react';
 import { Button } from '../ui/button';
@@ -20,6 +20,14 @@ import { useUserSearch, useTeamMutations } from './useTeamData';
 import { useOrganizationContactMutations } from '../organization/useOrganizationContacts';
 import { usePersonMatches } from '../organization/usePersonMatches';
 import PersonMatchResults, { personMatchDetail } from '../organization/PersonMatchResults';
+import { canAssignRole } from '../../utils/permissions';
+
+const ROLE_OPTIONS: Array<{ value: UserRole; label: string; icon: ReactNode }> = [
+  { value: 'Admin', label: 'Admin - Full access', icon: <Crown className="w-4 h-4 text-amber-600" /> },
+  { value: 'Manager', label: 'Manager - Can manage gigs and team', icon: <Shield className="w-4 h-4 text-blue-600" /> },
+  { value: 'Staff', label: 'Staff - Can be assigned to gigs', icon: <UserIcon className="w-4 h-4 text-gray-600" /> },
+  { value: 'Viewer', label: 'Viewer - Read-only access', icon: <UserIcon className="w-4 h-4 text-gray-500" /> },
+];
 
 interface AddTeamMemberDialogProps {
   open: boolean;
@@ -28,6 +36,8 @@ interface AddTeamMemberDialogProps {
   organizationName: string;
   /** Members already in the org — excluded from search results. */
   excludeUserIds: string[];
+  /** The caller's role here; Managers aren't offered Admin. */
+  userRole?: UserRole;
 }
 
 export default function AddTeamMemberDialog({
@@ -36,7 +46,9 @@ export default function AddTeamMemberDialog({
   orgId,
   organizationName,
   excludeUserIds,
+  userRole,
 }: AddTeamMemberDialogProps) {
+  const roleOptions = ROLE_OPTIONS.filter((option) => canAssignRole(userRole, option.value));
   const { addExistingUser, inviteUser } = useTeamMutations(orgId);
   const { addContact: addQuickAddPerson, linkExisting: linkQuickAddPerson } = useOrganizationContactMutations(orgId);
 
@@ -132,6 +144,20 @@ export default function AddTeamMemberDialog({
       onOpenChange(false);
       const email = inviteEmail;
       resetInvite();
+      if (!result.email_sent) {
+        // The person is on the team, but the email didn't go out.
+        toast.warning(
+          <div className="space-y-2">
+            <p className="font-medium">Invitation created, but the email couldn't be sent</p>
+            <p className="text-sm text-gray-600">
+              {email} is on the team and can be assigned to gigs. Ask them to sign up for GigWrangler
+              with that address; they'll join the team when they do.
+            </p>
+          </div>,
+          { duration: 10000 },
+        );
+        return;
+      }
       toast.success(
         <div className="space-y-2">
           <p className="font-medium">{result.resend ? 'Invitation resent!' : 'Invitation sent!'}</p>
@@ -268,30 +294,14 @@ export default function AddTeamMemberDialog({
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="Admin">
-                      <div className="flex items-center gap-2">
-                        <Crown className="w-4 h-4 text-amber-600" />
-                        Admin - Full access
-                      </div>
-                    </SelectItem>
-                    <SelectItem value="Manager">
-                      <div className="flex items-center gap-2">
-                        <Shield className="w-4 h-4 text-blue-600" />
-                        Manager - Can manage gigs and team
-                      </div>
-                    </SelectItem>
-                    <SelectItem value="Staff">
-                      <div className="flex items-center gap-2">
-                        <UserIcon className="w-4 h-4 text-gray-600" />
-                        Staff - Can be assigned to gigs
-                      </div>
-                    </SelectItem>
-                    <SelectItem value="Viewer">
-                      <div className="flex items-center gap-2">
-                        <UserIcon className="w-4 h-4 text-gray-500" />
-                        Viewer - Read-only access
-                      </div>
-                    </SelectItem>
+                    {roleOptions.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        <div className="flex items-center gap-2">
+                          {option.icon}
+                          {option.label}
+                        </div>
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
@@ -328,7 +338,7 @@ export default function AddTeamMemberDialog({
             <div className="space-y-4">
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
                 <p className="text-sm text-blue-800">
-                  <strong>Note:</strong> The user will be created immediately and can be assigned to gigs. In production, an invitation email will be sent to the user with a link to accept and set up their account.
+                  <strong>Note:</strong> They're added to the team right away and can be assigned to gigs. We'll email them a link to join and set up their account.
                 </p>
               </div>
 
@@ -375,30 +385,14 @@ export default function AddTeamMemberDialog({
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="Admin">
-                      <div className="flex items-center gap-2">
-                        <Crown className="w-4 h-4 text-amber-600" />
-                        Admin - Full access
-                      </div>
-                    </SelectItem>
-                    <SelectItem value="Manager">
-                      <div className="flex items-center gap-2">
-                        <Shield className="w-4 h-4 text-blue-600" />
-                        Manager - Can manage gigs and team
-                      </div>
-                    </SelectItem>
-                    <SelectItem value="Staff">
-                      <div className="flex items-center gap-2">
-                        <UserIcon className="w-4 h-4 text-gray-600" />
-                        Staff - Can be assigned to gigs
-                      </div>
-                    </SelectItem>
-                    <SelectItem value="Viewer">
-                      <div className="flex items-center gap-2">
-                        <UserIcon className="w-4 h-4 text-gray-500" />
-                        Viewer - Read-only access
-                      </div>
-                    </SelectItem>
+                    {roleOptions.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        <div className="flex items-center gap-2">
+                          {option.icon}
+                          {option.label}
+                        </div>
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>

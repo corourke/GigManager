@@ -8,6 +8,8 @@ import AppHeader from './AppHeader';
 import { PageHeader } from './layout/PageHeader';
 import { Organization, User, UserRole } from '../utils/supabase/types';
 import { getOrganizationMember, removeMember } from '../services/organization.service';
+import EditMemberDialog from './team/EditMemberDialog';
+import { useStaffRoles } from './team/useTeamData';
 import { format } from 'date-fns';
 
 interface TeamMemberDetailScreenProps {
@@ -16,7 +18,6 @@ interface TeamMemberDetailScreenProps {
   userRole?: UserRole;
   memberId: string;
   onBack: () => void;
-  onEdit: (member: any) => void;
   onSwitchOrganization: () => void;
   onLogout: () => void;
 }
@@ -27,12 +28,13 @@ export default function TeamMemberDetailScreen({
   userRole,
   memberId,
   onBack,
-  onEdit,
   onSwitchOrganization,
   onLogout,
 }: TeamMemberDetailScreenProps) {
   const [member, setMember] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isEditOpen, setIsEditOpen] = useState(false);
+  const staffRoles = useStaffRoles(organization.id).data ?? [];
 
   useEffect(() => {
     loadMember();
@@ -106,6 +108,8 @@ export default function TeamMemberDetailScreen({
 
   const isCurrentUser = member.user.id === user.id;
   const canManage = userRole === 'Admin' || userRole === 'Manager';
+  // The member row carries only the role id; resolve its name like the Team table does.
+  const defaultStaffRoleName = staffRoles.find((r) => r.id === member.default_staff_role_id)?.name;
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -147,7 +151,7 @@ export default function TeamMemberDetailScreen({
               <>
                 <Button
                   variant="outline"
-                  onClick={() => onEdit(member)}
+                  onClick={() => setIsEditOpen(true)}
                 >
                   <Edit2 className="w-4 h-4 mr-2" />
                   Edit
@@ -232,7 +236,7 @@ export default function TeamMemberDetailScreen({
                 <div>
                   <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">Default Staff Role</p>
                   <p className="mt-1 text-gray-900 font-medium">
-                    {member.default_staff_role?.name || 'No default role assigned'}
+                    {defaultStaffRoleName || 'No default role assigned'}
                   </p>
                 </div>
                 <div>
@@ -256,6 +260,16 @@ export default function TeamMemberDetailScreen({
           </div>
         </div>
       </div>
+
+      <EditMemberDialog
+        open={isEditOpen}
+        onOpenChange={setIsEditOpen}
+        orgId={organization.id}
+        member={member}
+        currentUserId={user.id}
+        staffRoles={staffRoles}
+        onSaved={loadMember}
+      />
     </div>
   );
 }

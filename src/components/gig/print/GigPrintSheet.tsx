@@ -8,6 +8,7 @@ import { getGigFinancials, getGigProfitabilitySummary } from '../../../services/
 import { GIG_STATUS_CONFIG, ORG_ROLE_CONFIG, SCHEDULE_ACTIVITY_CONFIG } from '../../../utils/supabase/constants';
 import { formatDateTimeDisplay, formatInTimeZone } from '../../../utils/dateUtils';
 import type { Gig, GigStaffSlotView, Organization } from '../../../utils/supabase/types';
+import MarkdownContent from '../../MarkdownContent';
 import { assignmentCost, money, staffRows } from '../view/staffRows';
 import { settledAmount, stageLabel } from '../../../utils/moneyFlow';
 
@@ -206,7 +207,7 @@ export default function GigPrintSheet({ gig, organization, slots, includeFinanci
 
         <div>
           <h2 className={H2}>Notes</h2>
-          <div className="whitespace-pre-wrap">{gig.notes || 'No notes'}</div>
+          <div>{gig.notes ? <MarkdownContent>{gig.notes}</MarkdownContent> : 'No notes'}</div>
           <div className="text-[8.5pt] mt-1">
             {(attachments.data ?? []).length > 0 && <>Attachments: {(attachments.data ?? []).map((a: any) => a.file_name).join(' · ')} · </>}
             Equipment: see the packing list.

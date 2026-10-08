@@ -122,6 +122,18 @@ describe('LoginScreen', () => {
     expect(screen.getByRole('tab', { name: /sign up/i })).toBeTruthy()
   })
 
+  it('shows the current year in the footer copyright (#159)', () => {
+    // Fake only Date so the async auth mocks keep using real timers.
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2031-03-01T12:00:00Z'))
+    try {
+      render(<LoginScreen />)
+      expect(screen.getByText('© 2031 GigWrangler. All rights reserved.')).toBeTruthy()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   describe('Sign Up password fields', () => {
     const openSignUp = () => {
       render(<LoginScreen />)

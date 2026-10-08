@@ -36,15 +36,21 @@ import KitListScreen from '../components/KitListScreen';
 import KitScreen from '../components/KitScreen';
 import KitDetailScreen from '../components/KitDetailScreen';
 import InventoryTabScreen from '../components/inventory/InventoryTabScreen';
-import SettingsScreen from '../components/SettingsScreen';
-import ImportScreen from '../components/ImportScreen';
-import FinancialsScreen from '../components/FinancialsScreen';
 import OrganizationSelectionScreen from '../components/OrganizationSelectionScreen';
 import OrganizationScreen from '../components/OrganizationScreen';
-import AdminOrganizationsScreen from '../components/AdminOrganizationsScreen';
-import ModeratorAccessRequestsScreen from '../components/ModeratorAccessRequestsScreen';
-import StarterCategoriesScreen from '../components/StarterCategoriesScreen';
-import DevTableDemoScreen from '../components/dev/DevTableDemoScreen';
+
+// Larger or rarely opened screens load on demand, keeping the main bundle under
+// the offline cache's 2 MiB per-file limit (#193). The service worker still
+// precaches their chunks, so they work offline too.
+const SettingsScreen = lazy(() => import('../components/SettingsScreen'));
+const ImportScreen = lazy(() => import('../components/ImportScreen'));
+const FinancialsScreen = lazy(() => import('../components/FinancialsScreen'));
+const AdminOrganizationsScreen = lazy(() => import('../components/AdminOrganizationsScreen'));
+const ModeratorAccessRequestsScreen = lazy(() => import('../components/ModeratorAccessRequestsScreen'));
+const StarterCategoriesScreen = lazy(() => import('../components/StarterCategoriesScreen'));
+const DevTableDemoScreen = lazy(() => import('../components/dev/DevTableDemoScreen'));
+const ItemDetailScreen = lazy(() => import('../components/ItemDetailScreen'));
+const AssetScreen = lazy(() => import('../components/AssetScreen'));
 
 // Mobile screens
 import MobileLayout from '../components/mobile/MobileLayout';
@@ -54,10 +60,6 @@ import MobileDashboard from '../components/mobile/MobileDashboard';
 import MobileInventoryMode from '../components/mobile/MobileInventoryMode';
 import MobileSettings from '../components/mobile/MobileSettings';
 import { financialsPath, gigPath, inventoryPath, legacyInventoryTab, parseFinancialsPath, parseGigTab, parseInventoryTab } from './paths';
-
-// Loaded on demand to keep the main bundle under the offline cache's 2 MiB limit (#193).
-const ItemDetailScreen = lazy(() => import('../components/ItemDetailScreen'));
-const AssetScreen = lazy(() => import('../components/AssetScreen'));
 
 /** Narrow the (nullable) auth values for org-scoped screens. */
 function useOrgScope() {
@@ -402,7 +404,6 @@ function TeamMemberDetailRoute() {
       userRole={userRole}
       memberId={memberId}
       onBack={nav.toTeam}
-      onEdit={() => nav.toTeam()}
       onSwitchOrganization={nav.switchOrganization}
       onLogout={nav.logoutAndHome}
     />
@@ -445,21 +446,19 @@ function ItemDetailRoute() {
   if (!user || !organization || !itemId) return <LoadingSpinner />;
   if (isMobile) return <Navigate to="/gigs" replace />;
   return (
-    <Suspense fallback={<LoadingSpinner />}>
-      <ItemDetailScreen
-        organization={organization}
-        user={user}
-        userRole={userRole}
-        itemId={itemId}
-        onBack={nav.toAssets}
-        onViewAsset={nav.viewAsset}
-        onAddRecord={nav.createAsset}
-        onViewKit={nav.viewKit}
-        onSwitchOrganization={nav.switchOrganization}
-        onEditProfile={openEditProfile}
-        onLogout={nav.logoutAndHome}
-      />
-    </Suspense>
+    <ItemDetailScreen
+      organization={organization}
+      user={user}
+      userRole={userRole}
+      itemId={itemId}
+      onBack={nav.toAssets}
+      onViewAsset={nav.viewAsset}
+      onAddRecord={nav.createAsset}
+      onViewKit={nav.viewKit}
+      onSwitchOrganization={nav.switchOrganization}
+      onEditProfile={openEditProfile}
+      onLogout={nav.logoutAndHome}
+    />
   );
 }
 
@@ -498,25 +497,23 @@ function AssetEditorRoute({ create }: { create: boolean }) {
   if (!user || !organization) return <LoadingSpinner />;
   if (isMobile) return <Navigate to="/gigs" replace />;
   return (
-    <Suspense fallback={<LoadingSpinner />}>
-      <AssetScreen
-        organization={organization}
-        user={user}
-        userRole={userRole}
-        assetId={create ? null : (assetId ?? null)}
-        itemId={create ? params.get('item') : null}
-        onBackToItem={nav.viewItem}
-        onCancel={nav.toAssets}
-        onAssetCreated={() => nav.toAssets()}
-        onAssetUpdated={nav.toAssets}
-        onNavigateToPurchases={(purchaseId) =>
-          nav.toFinancials({ highlightPurchaseId: purchaseId || null })
-        }
-        onSwitchOrganization={nav.switchOrganization}
-        onEditProfile={openEditProfile}
-        onLogout={nav.logoutAndHome}
-      />
-    </Suspense>
+    <AssetScreen
+      organization={organization}
+      user={user}
+      userRole={userRole}
+      assetId={create ? null : (assetId ?? null)}
+      itemId={create ? params.get('item') : null}
+      onBackToItem={nav.viewItem}
+      onCancel={nav.toAssets}
+      onAssetCreated={() => nav.toAssets()}
+      onAssetUpdated={nav.toAssets}
+      onNavigateToPurchases={(purchaseId) =>
+        nav.toFinancials({ highlightPurchaseId: purchaseId || null })
+      }
+      onSwitchOrganization={nav.switchOrganization}
+      onEditProfile={openEditProfile}
+      onLogout={nav.logoutAndHome}
+    />
   );
 }
 
@@ -652,6 +649,7 @@ function SettingsRoute() {
       onSwitchOrganization={nav.switchOrganization}
       onLogout={nav.logoutAndHome}
       onEditProfile={openEditProfile}
+      onEditOrganization={() => nav.editOrg(organization)}
     />
   );
 }
@@ -718,55 +716,57 @@ function DevDemoRoute() {
 /** The full route table. Rendered inside <BrowserRouter> by App. */
 export function AppRoutes() {
   return (
-    <Routes>
-      {/* Special flows — available regardless of the normal auth landing */}
-      <Route path="/reset-password" element={<ResetPasswordRoute />} />
-      <Route path="/accept-invitation" element={<AcceptInvitationRoute />} />
-      <Route path="/auth/google-calendar/callback" element={<CalendarCallbackRoute />} />
-      <Route path="/logout" element={<LogoutRoute />} />
-      {import.meta.env.DEV && <Route path="/dev-demo" element={<DevDemoRoute />} />}
+    <Suspense fallback={<LoadingSpinner />}>
+      <Routes>
+        {/* Special flows — available regardless of the normal auth landing */}
+        <Route path="/reset-password" element={<ResetPasswordRoute />} />
+        <Route path="/accept-invitation" element={<AcceptInvitationRoute />} />
+        <Route path="/auth/google-calendar/callback" element={<CalendarCallbackRoute />} />
+        <Route path="/logout" element={<LogoutRoute />} />
+        {import.meta.env.DEV && <Route path="/dev-demo" element={<DevDemoRoute />} />}
 
-      {/* Authenticated area */}
-      <Route element={<RequireAuth />}>
-        <Route path="/org-selection" element={<OrgSelectionRoute />} />
-        <Route path="/create-org" element={<CreateOrgRoute />} />
-        <Route path="/admin/orgs" element={<AdminOrgsRoute />} />
-        <Route path="/admin/orgs/:orgId/edit" element={<EditOrgRoute />} />
-        <Route path="/admin/access-requests" element={<ModeratorAccessRequestsRoute />} />
-        <Route path="/admin/starter-categories" element={<StarterCategoriesRoute />} />
+        {/* Authenticated area */}
+        <Route element={<RequireAuth />}>
+          <Route path="/org-selection" element={<OrgSelectionRoute />} />
+          <Route path="/create-org" element={<CreateOrgRoute />} />
+          <Route path="/admin/orgs" element={<AdminOrgsRoute />} />
+          <Route path="/admin/orgs/:orgId/edit" element={<EditOrgRoute />} />
+          <Route path="/admin/access-requests" element={<ModeratorAccessRequestsRoute />} />
+          <Route path="/admin/starter-categories" element={<StarterCategoriesRoute />} />
 
-        {/* Org-scoped app */}
-        <Route element={<RequireOrg />}>
-          <Route path="/" element={<LandingRedirect />} />
-          <Route path="/dashboard" element={<DashboardRoute />} />
-          <Route path="/gigs" element={<GigListRoute />} />
-          <Route path="/calendar" element={<GigListRoute view="calendar" />} />
-          <Route path="/gigs/new" element={<GigCreateRoute />} />
-          <Route path="/gigs/:gigId" element={<GigDetailRoute />} />
-          <Route path="/gigs/:gigId/edit" element={<GigDetailRoute editing />} />
-          <Route path="/gigs/:gigId/edit/:tab" element={<GigDetailRoute editing />} />
-          <Route path="/gigs/:gigId/:tab" element={<GigDetailRoute />} />
-          <Route path="/team" element={<TeamRoute />} />
-          <Route path="/team/:memberId" element={<TeamMemberDetailRoute />} />
-          <Route path="/assets" element={<AssetListRoute />} />
-          <Route path="/assets/new" element={<AssetEditorRoute create />} />
-          <Route path="/assets/:assetId" element={<AssetDetailRoute />} />
-          <Route path="/assets/:assetId/edit" element={<AssetEditorRoute create={false} />} />
-          <Route path="/items/:itemId" element={<ItemDetailRoute />} />
-          <Route path="/kits" element={<KitListRoute />} />
-          <Route path="/kits/new" element={<KitEditorRoute create />} />
-          <Route path="/kits/:kitId" element={<KitDetailRoute />} />
-          <Route path="/kits/:kitId/edit" element={<KitEditorRoute create={false} />} />
-          <Route path="/inventory/:subTab?" element={<InventoryRoute legacy />} />
-          <Route path="/equipment/:tab?" element={<InventoryRoute />} />
-          <Route path="/settings/:tab?" element={<SettingsRoute />} />
-          <Route path="/import" element={<ImportRoute />} />
-          <Route path="/financials/:tab?/:sub?" element={<FinancialsRoute />} />
+          {/* Org-scoped app */}
+          <Route element={<RequireOrg />}>
+            <Route path="/" element={<LandingRedirect />} />
+            <Route path="/dashboard" element={<DashboardRoute />} />
+            <Route path="/gigs" element={<GigListRoute />} />
+            <Route path="/calendar" element={<GigListRoute view="calendar" />} />
+            <Route path="/gigs/new" element={<GigCreateRoute />} />
+            <Route path="/gigs/:gigId" element={<GigDetailRoute />} />
+            <Route path="/gigs/:gigId/edit" element={<GigDetailRoute editing />} />
+            <Route path="/gigs/:gigId/edit/:tab" element={<GigDetailRoute editing />} />
+            <Route path="/gigs/:gigId/:tab" element={<GigDetailRoute />} />
+            <Route path="/team" element={<TeamRoute />} />
+            <Route path="/team/:memberId" element={<TeamMemberDetailRoute />} />
+            <Route path="/assets" element={<AssetListRoute />} />
+            <Route path="/assets/new" element={<AssetEditorRoute create />} />
+            <Route path="/assets/:assetId" element={<AssetDetailRoute />} />
+            <Route path="/assets/:assetId/edit" element={<AssetEditorRoute create={false} />} />
+            <Route path="/items/:itemId" element={<ItemDetailRoute />} />
+            <Route path="/kits" element={<KitListRoute />} />
+            <Route path="/kits/new" element={<KitEditorRoute create />} />
+            <Route path="/kits/:kitId" element={<KitDetailRoute />} />
+            <Route path="/kits/:kitId/edit" element={<KitEditorRoute create={false} />} />
+            <Route path="/inventory/:subTab?" element={<InventoryRoute legacy />} />
+            <Route path="/equipment/:tab?" element={<InventoryRoute />} />
+            <Route path="/settings/:tab?" element={<SettingsRoute />} />
+            <Route path="/import" element={<ImportRoute />} />
+            <Route path="/financials/:tab?/:sub?" element={<FinancialsRoute />} />
+          </Route>
         </Route>
-      </Route>
 
-      {/* Unknown paths → role/device-aware landing */}
-      <Route path="*" element={<Navigate to="/" replace />} />
-    </Routes>
+        {/* Unknown paths → role/device-aware landing */}
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </Suspense>
   );
 }

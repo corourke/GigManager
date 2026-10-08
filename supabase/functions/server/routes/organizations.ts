@@ -2,6 +2,7 @@ import type { App } from '../lib/types.ts';
 import { requireUser } from '../lib/auth.ts';
 import { requireOrgRole, verifyOrgMembership } from '../lib/orgRole.ts';
 import { canAssignRole, emailDomainMatches, ORGANIZATION_DELETE_REFERENCES, describeOrganizationDeleteBlockers } from '../lib/pure/authz.ts';
+import { pickProfileUpdates } from '../lib/pure/memberUpdate.ts';
 import { supabaseAdmin } from '../lib/supabaseAdmin.ts';
 
 const ORG_UPDATE_FIELDS = [
@@ -237,13 +238,8 @@ export function registerOrganizations(app: App) {
     }
 
     // 1. User profile fields
-    const userFields = ['first_name', 'last_name', 'phone', 'avatar_url', 'address_line1', 'address_line2', 'city', 'state', 'postal_code', 'country'];
-    const userUpdates: any = {};
-    let hasUserUpdates = false;
-    for (const field of userFields) {
-      if (body[field] !== undefined) { userUpdates[field] = body[field]; hasUserUpdates = true; }
-    }
-    if (hasUserUpdates) {
+    const userUpdates = pickProfileUpdates(body);
+    if (Object.keys(userUpdates).length > 0) {
       const { error: userUpdateError } = await supabaseAdmin
         .from('users').update(userUpdates).eq('id', targetMember.user_id);
       if (userUpdateError) {

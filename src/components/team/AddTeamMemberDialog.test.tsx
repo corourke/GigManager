@@ -17,9 +17,22 @@ function render(ui: ReactElement) {
 vi.mock('sonner', () => ({
   toast: {
     success: vi.fn(),
+    warning: vi.fn(),
     error: vi.fn(),
   },
 }));
+
+// Radix Select doesn't open under jsdom; render its items flat so the role
+// options offered on each tab can be read directly.
+vi.mock('../ui/select', () => ({
+  Select: ({ children }: any) => <div>{children}</div>,
+  SelectTrigger: ({ children }: any) => <div>{children}</div>,
+  SelectValue: () => null,
+  SelectContent: ({ children }: any) => <div>{children}</div>,
+  SelectItem: ({ value, children }: any) => <div role="option" aria-selected={false} data-value={value}>{children}</div>,
+}));
+
+const offeredRoles = () => screen.queryAllByRole('option').map((o) => o.getAttribute('data-value'));
 
 vi.mock('../../services/user.service', () => ({
   searchPeople: vi.fn().mockResolvedValue([]),
@@ -110,5 +123,79 @@ describe('AddTeamMemberDialog', () => {
       role: 'Staff',
     }));
     expect(organizationService.addOrganizationContact).not.toHaveBeenCalled();
+  });
+
+  describe('role options', () => {
+    const selectExistingUser = async () => {
+      vi.mocked(userService.searchPeople).mockResolvedValue([
+        { id: 'existing-1', first_name: 'Cameron', last_name: 'Orourke', email_hint: 'cam@example.com', organization_names: [], matched_on: 'name' },
+      ]);
+      fireEvent.change(screen.getByLabelText('Search Users'), { target: { value: 'Cam' } });
+      fireEvent.click(await screen.findByText('Cameron Orourke'));
+    };
+
+    it('does not offer Admin to a Manager on the Existing User tab', async () => {
+      render(<AddTeamMemberDialog {...defaultProps} userRole="Manager" />);
+      await selectExistingUser();
+      expect(offeredRoles()).toEqual(['Manager', 'Staff', 'Viewer']);
+    });
+
+    it('does not offer Admin to a Manager on the Invite New tab', () => {
+      render(<AddTeamMemberDialog {...defaultProps} userRole="Manager" />);
+      fireEvent.mouseDown(screen.getByText('Invite New'));
+      expect(offeredRoles()).toEqual(['Manager', 'Staff', 'Viewer']);
+    });
+
+    it('offers Admin to an Admin on both tabs', async () => {
+      render(<AddTeamMemberDialog {...defaultProps} userRole="Admin" />);
+      await selectExistingUser();
+      expect(offeredRoles()).toEqual(['Admin', 'Manager', 'Staff', 'Viewer']);
+      fireEvent.mouseDown(screen.getByText('Invite New'));
+      expect(offeredRoles()).toEqual(['Admin', 'Manager', 'Staff', 'Viewer']);
+    });
+
+    it('offers only Staff and Viewer on the No Account tab', () => {
+      render(<AddTeamMemberDialog {...defaultProps} userRole="Admin" />);
+      fireEvent.mouseDown(screen.getByText('No Account'));
+      expect(offeredRoles()).toEqual(['Staff', 'Viewer']);
+    });
+  });
+
+  describe('Invite New', () => {
+    const sendInvite = () => {
+      fireEvent.mouseDown(screen.getByText('Invite New'));
+      fireEvent.change(screen.getByLabelText('Email Address *'), { target: { value: 'new@example.com' } });
+      fireEvent.click(screen.getByText('Send Invitation'));
+    };
+
+    it('does not show developer copy about production', () => {
+      render(<AddTeamMemberDialog {...defaultProps} userRole="Admin" />);
+      fireEvent.mouseDown(screen.getByText('Invite New'));
+      expect(screen.queryByText(/In production/)).not.toBeInTheDocument();
+      expect(screen.getByText(/We'll email them a link to join/)).toBeInTheDocument();
+    });
+
+    it('says "Invitation sent!" when the email went out', async () => {
+      vi.mocked(organizationService.inviteUserToOrganization).mockResolvedValue({ invitation: {}, user: {}, email_sent: true });
+      render(<AddTeamMemberDialog {...defaultProps} userRole="Admin" />);
+      sendInvite();
+
+      await waitFor(() => expect(toast.success).toHaveBeenCalled());
+      render(vi.mocked(toast.success).mock.calls[0][0] as ReactElement);
+      expect(screen.getByText('Invitation sent!')).toBeInTheDocument();
+    });
+
+    it('does not claim the invitation was sent when the email failed', async () => {
+      vi.mocked(organizationService.inviteUserToOrganization).mockResolvedValue({ invitation: {}, user: {}, email_sent: false });
+      render(<AddTeamMemberDialog {...defaultProps} userRole="Admin" />);
+      sendInvite();
+
+      await waitFor(() => expect(toast.warning).toHaveBeenCalled());
+      expect(toast.success).not.toHaveBeenCalled();
+      render(vi.mocked(toast.warning).mock.calls[0][0] as ReactElement);
+      expect(screen.queryByText(/Invitation (re)?sent!/)).not.toBeInTheDocument();
+      expect(screen.getByText("Invitation created, but the email couldn't be sent")).toBeInTheDocument();
+      expect(screen.getByText(/new@example\.com/)).toBeInTheDocument();
+    });
   });
 });

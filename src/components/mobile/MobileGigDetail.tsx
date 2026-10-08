@@ -219,7 +219,9 @@ export default function MobileGigDetail({ gigId, onBack, onViewPackingList }: Mo
         gigId,
         editParticipants.map(p => ({ id: p.id, organization_id: p.organization_id, role: p.role as OrganizationRole })),
         // Log History against the org the user is working as (issue #103).
-        selectedOrganization ? { organization_id: selectedOrganization.id, actor_org_name: selectedOrganization.name } : undefined
+        selectedOrganization ? { organization_id: selectedOrganization.id, actor_org_name: selectedOrganization.name } : undefined,
+        // Only rows this screen loaded can be removed by it (#92).
+        (gig.participants || []).map((p: any) => p.id)
       );
       toast.success('Gig updated');
       await loadGig();

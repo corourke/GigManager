@@ -32,15 +32,21 @@ export async function getGigScheduleEntries(gigId: string): Promise<GigScheduleE
 }
 
 /**
- * Full-replace update for schedule entries on a gig.
- * Entries with existing IDs are updated, entries without IDs are inserted,
- * entries in the DB but not in the payload are deleted.
+ * Save the schedule entries on a gig.
+ * Entries with existing IDs are updated, entries without IDs are inserted.
+ * Of `loadedIds` (the entries the caller loaded or last saved), those no longer
+ * in the payload are deleted; entries someone else added since are left alone,
+ * and with no `loadedIds` nothing is deleted (issue #92).
+ *
+ * Returns `ids`, parallel to `entries`: each entry's database id, including
+ * the ids of entries this call inserted.
  */
 export async function updateGigScheduleEntries(
   gigId: string,
   entries: Array<Partial<GigScheduleEntry>>,
-  activityCtx?: GigActivityCtxInput
-): Promise<void> {
+  activityCtx?: GigActivityCtxInput,
+  loadedIds: string[] = []
+): Promise<{ ids: Array<string | undefined> }> {
   try {
     const { supabase, user } = await requireAuth();
 
@@ -52,7 +58,7 @@ export async function updateGigScheduleEntries(
     const existingIds = existing?.map(e => e.id) || [];
     const incomingIds = entries.filter(e => e.id).map(e => e.id!);
 
-    const idsToDelete = existingIds.filter(id => !incomingIds.includes(id));
+    const idsToDelete = existingIds.filter(id => loadedIds.includes(id) && !incomingIds.includes(id));
     if (idsToDelete.length > 0) {
       await supabase.from('gig_schedule_entries').delete().in('id', idsToDelete);
     }
@@ -95,11 +101,18 @@ export async function updateGigScheduleEntries(
       if (upsertError) throw upsertError;
     }
 
+    const ids: Array<string | undefined> = entries.map(e => (e.id && existingIds.includes(e.id) ? e.id : undefined));
     if (toInsert.length > 0) {
-      const { error: insertError } = await supabase
+      const { data: inserted, error: insertError } = await supabase
         .from('gig_schedule_entries')
-        .insert(toInsert);
+        .insert(toInsert)
+        .select('id');
       if (insertError) throw insertError;
+      // Inserted rows come back in the order sent.
+      let next = 0;
+      entries.forEach((e, i) => {
+        if (!e.id || !existingIds.includes(e.id)) ids[i] = inserted?.[next++]?.id;
+      });
 
       try {
         const scheduleChanges: ScheduleChange[] = toInsert.map(e => ({
@@ -126,6 +139,8 @@ export async function updateGigScheduleEntries(
         });
       } catch (e) { console.error('Activity log failed:', e); }
     }
+
+    return { ids };
   } catch (err) {
     return handleApiError(err, 'update schedule entries') as never;
   }

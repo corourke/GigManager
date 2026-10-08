@@ -1,10 +1,20 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
+import { render, screen, within, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import ReportingTab from './ReportingTab';
+import { getTaxReportData } from '../../services/taxReport.service';
 
 const downloadCsv = vi.fn();
 vi.mock('../../utils/taxReports', async (orig) => ({ ...(await orig<any>()), downloadCsv: (...a: any[]) => downloadCsv(...a) }));
+// The purchase editor stands in for ReviewScannedDataDialog: it shows which purchase it edits, and saves.
+vi.mock('../ReviewScannedDataDialog', () => ({
+  default: (p: any) => p.open ? (
+    <div role="dialog" aria-label="Edit purchase">
+      {p.editPurchaseId}
+      <button type="button" onClick={() => { p.onUpdated?.(p.editPurchaseId); p.onOpenChange(false); }}>Save Changes</button>
+    </div>
+  ) : null,
+}));
 vi.mock('../../services/taxYear.service', () => ({ getLockedTaxYears: vi.fn(async () => new Set([2025])) }));
 
 const asset = { id: 'a1', manufacturer_model: 'Midas M32', category: 'Audio', recovery_period: null, retired_on: null, liquidation_amt: null, status: 'Active' };
@@ -17,6 +27,10 @@ vi.mock('../../services/taxReport.service', () => ({
         tax_treatment: 'depreciate', asset_id: 'a1', parent: null, asset },
       { id: 'p3', purchase_date: '2025-05-01', vendor: 'Amazon', description: 'Old cable', category: 'Supplies', quantity: 1, item_cost: 9, line_cost: 9,
         tax_treatment: 'expense', asset_id: null, parent: null, asset: null },
+      { id: 'p4', purchase_date: '2026-06-01', vendor: 'Sweetwater', description: 'Wireless receiver', category: 'Audio', quantity: 1, item_cost: 900, line_cost: 900,
+        tax_treatment: 'expense', asset_id: null, parent_id: 'h4', parent: null, asset: null },
+      { id: 'p6', purchase_date: '2025-06-01', vendor: 'Sweetwater', description: 'Hazer', category: 'Lighting', quantity: 1, item_cost: 450, line_cost: 450,
+        tax_treatment: 'depreciate', asset_id: null, parent_id: 'h6', parent: null, asset: null },
     ],
     gigRows: [
       { id: 'g1', gig_id: 'x', direction: 'in', stage: 'paid', amount_settled: 1500, paid_at: '2026-04-02', description: 'Balance', category: null,
@@ -25,8 +39,17 @@ vi.mock('../../services/taxReport.service', () => ({
     ],
     categories: [{ name: 'Supplies', schedule_c_line: '22' }],
     scheduleC: [{ code: '22', label: 'Supplies' }],
+    equipmentCategories: ['Audio', 'Lighting'],
   })),
 }));
+
+const purchaseLine = (o: Record<string, unknown>) => ({ vendor: 'Sweetwater', quantity: 1, asset_id: null, parent: null, asset: null, ...o });
+const gigOut = (o: Record<string, unknown>) => ({ gig_id: 'x', direction: 'out', stage: 'paid', description: 'Parking', mileage: null, purchase_id: null,
+  staff_assignment_id: null, external_entity_name: 'City lot', reference_number: null, counterparty: null, gig: { title: 'Spring Gala', start: '2026-04-01' }, ...o });
+/** Only these rows, with the default category lists (issue #194). */
+const onlyRows = (lines: unknown[], gigRows: unknown[] = []) => vi.mocked(getTaxReportData).mockResolvedValueOnce({
+  lines, gigRows, categories: [{ name: 'Supplies', schedule_c_line: '22' }], scheduleC: [{ code: '22', label: 'Supplies' }], equipmentCategories: ['Audio'],
+} as any);
 
 describe('ReportingTab (#125)', () => {
   beforeEach(() => vi.clearAllMocks());
@@ -75,9 +98,99 @@ describe('ReportingTab (#125)', () => {
     expect(downloadCsv).toHaveBeenCalledWith(expect.stringContaining('Midas M32'), 'act4-audio-assets-2026.csv');
   });
 
+  describe('the Grey zone report', () => {
+    it('lists equipment costing $200 to $2,500 each, with its treatment, and links to the purchase to change it', async () => {
+      await open();
+      await userEvent.click(screen.getByRole('button', { name: 'Grey zone' }));
+      const table = screen.getByRole('table', { name: 'Grey zone' });
+      const row = within(table).getByText('Wireless receiver').closest('tr')!;
+      expect(within(row).getByText('Expense')).toBeInTheDocument();
+      expect(within(table).queryByText('Console')).not.toBeInTheDocument();     // over $2,500
+      expect(within(table).queryByText('Gaff tape')).not.toBeInTheDocument();   // under $200
+      expect(within(table).queryByText('Hazer')).not.toBeInTheDocument();       // another year
+
+      await userEvent.click(within(row).getByRole('button', { name: 'Change the treatment: Wireless receiver' }));
+      const dialog = await screen.findByRole('dialog', { name: 'Edit purchase' });
+      expect(dialog).toHaveTextContent('h4');
+      await userEvent.click(within(dialog).getByRole('button', { name: 'Save Changes' }));
+      await waitFor(() => expect(getTaxReportData).toHaveBeenCalledTimes(2));   // reloaded after the save
+    });
+
+    it('is read-only in a filed year', async () => {
+      await open();
+      await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Tax year' }), '2025');
+      await userEvent.click(screen.getByRole('button', { name: 'Grey zone' }));
+      const row = within(screen.getByRole('table', { name: 'Grey zone' })).getByText('Hazer').closest('tr')!;
+      expect(within(row).getByText('Depreciate')).toBeInTheDocument();
+      expect(within(row).queryByRole('button')).not.toBeInTheDocument();
+    });
+
+    it('downloads as CSV', async () => {
+      await open();
+      await userEvent.click(screen.getByRole('button', { name: 'Grey zone' }));
+      await userEvent.click(screen.getByRole('button', { name: /Download CSV/ }));
+      expect(downloadCsv).toHaveBeenCalledWith(expect.stringContaining('Wireless receiver'), 'act4-audio-grey-zone-2026.csv');
+    });
+
+    it('says so when there is nothing in the grey zone', async () => {
+      onlyRows([]);
+      await open();
+      await userEvent.click(screen.getByRole('button', { name: 'Grey zone' }));
+      expect(screen.getByText('No equipment costing $200 to $2,500 each was bought in 2026.')).toBeInTheDocument();
+    });
+  });
+
   it('marks a filed year', async () => {
     await open();
     await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Tax year' }), '2025');
     expect(screen.getByText('2025 is filed')).toBeInTheDocument();
+  });
+
+  it('offers a year whose only activity is a disposal, and shows it there (issue #194)', async () => {
+    onlyRows([purchaseLine({ id: 'p9', purchase_date: '2019-06-01', description: 'Old amp', category: 'Audio', item_cost: 900, line_cost: 900,
+      tax_treatment: 'depreciate', asset_id: 'a9',
+      asset: { ...asset, id: 'a9', manufacturer_model: 'Crown XLS', retired_on: '2023-08-15', liquidation_amt: 200, status: 'Sold' } })]);
+    render(<ReportingTab organizationId="org-1" organizationName="Act4 Audio" />);
+    await screen.findByRole('group', { name: 'Report' });
+    const select = await screen.findByRole('combobox', { name: 'Tax year' });
+    await within(select).findByRole('option', { name: '2019' });
+    expect(within(select).getAllByRole('option').map(o => o.textContent)).toContain('2023');
+    await userEvent.selectOptions(select, '2023');
+    await userEvent.click(screen.getByRole('button', { name: 'Assets' }));
+    expect(screen.getByText('Disposed of in 2023')).toBeInTheDocument();
+    expect(screen.getByText('Crown XLS')).toBeInTheDocument();
+  });
+
+  describe('the "Need a category" hint says where to choose one (issue #194)', () => {
+    const unlistedPurchase = purchaseLine({ id: 'p5', purchase_date: '2026-03-05', description: 'Strings', category: 'Gear', item_cost: 12, line_cost: 12, tax_treatment: 'expense' });
+    const uncategorizedGigCost = gigOut({ id: 'g5', amount_settled: 20, paid_at: '2026-04-02', category: null });
+    const hint = async () => {
+      await open();
+      await userEvent.click(screen.getByRole('button', { name: 'Expenses' }));
+      return screen.getByRole('status').textContent ?? '';
+    };
+
+    it('a purchase: edit the purchase', async () => {
+      onlyRows([unlistedPurchase]);
+      const text = await hint();
+      expect(text).toMatch(/Edit the purchase to choose one\./);
+      expect(text).not.toMatch(/Financials tab/);
+    });
+
+    it('a gig cost that didn\'t come from a purchase: the gig\'s Financials tab', async () => {
+      onlyRows([], [uncategorizedGigCost]);
+      const text = await hint();
+      expect(text).toMatch(/1 item has no category, or one that isn’t on your expense list/);
+      expect(text).toMatch(/Choose one on the gig’s Financials tab\./);
+      expect(text).not.toMatch(/Edit the purchase/);
+    });
+
+    it('both: each is counted with its own fix', async () => {
+      onlyRows([unlistedPurchase], [uncategorizedGigCost, gigOut({ id: 'g6', amount_settled: 5, paid_at: '2026-05-02', category: null })]);
+      const text = await hint();
+      expect(text).toMatch(/3 items have no category/);
+      expect(text).toMatch(/1 from a purchase: edit the purchase\./);
+      expect(text).toMatch(/2 from gigs: choose one on the gig’s Financials tab\./);
+    });
   });
 });

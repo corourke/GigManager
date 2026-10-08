@@ -9,7 +9,7 @@
 
 This file lives on `main`. Land updates there promptly: a run that starts from `main` won't see edits parked on a feature branch.
 
-- **Last updated:** 2026-10-08 (coordinator: #178 merged in PR #195, prod release waiting; #190 and #192 reviewed; check-ins every 4 hours through 10-17)
+- **Last updated:** 2026-10-08 evening (coordinator: PRs #197–#202 merged; #192 waits on the Equipment Lead's merge of main)
 
 ---
 
@@ -17,30 +17,27 @@ This file lives on `main`. Land updates there promptly: a run that starts from `
 
 | # | Item | State | Next / owner |
 |---|---|---|---|
-| [#125](https://github.com/corourke/GigManager/issues/125) | Financials → Reporting: tax-program data export | Part 1 merged (PR #167): recovery period on equipment, and Income / Expenses / Assets reports with CSV | In dev and prod 10-08 (2024–25 set to 7-year per the filed returns). Next, coordinator: mileage rates (F1); Schedule C summary, Needs attention and Grey zone if wanted |
+| [#125](https://github.com/corourke/GigManager/issues/125) | Financials → Reporting: tax-program data export | Part 1 merged (PR #167): recovery period on equipment, and Income / Expenses / Assets reports with CSV | In dev and prod 10-08 (2024–25 set to 7-year per the filed returns). Grey zone merged (PR #201); date-ranged mileage rates merged (PR #202), F1 SQL waiting on Cameron (§2). Next if wanted: Schedule C summary, Needs attention |
 | [#162](https://github.com/corourke/GigManager/issues/162) | Equipment items and units (serials, tags, quantities, kits); parent of #179–#186 | Mockups approved and merged 10-08 (PR #165, `docs/design/mockups/equipment-units/`); split into sub-issues | See the rows below |
 | [#181](https://github.com/corourke/GigManager/issues/181) | Data grouping review for Cameron | #180 is in prod (158 items); regrouping is now a data change. Coordinator supplies prod data | Equipment Lead |
 | [#182](https://github.com/corourke/GigManager/issues/182)–[#186](https://github.com/corourke/GigManager/issues/186) | Items screens: (a) Items tab, item page, unit/lot form, dashboard total (closes #157); (b) purchases, CSV import; (c) kit editor, overlap; (d) packing list, gig equipment, scanning; (e) locations, override, maintenance (closes #160) | (a) can start (#180 on dev 10-08); b and c after a; d after c; e after d | Equipment Lead |
 | [#135](https://github.com/corourke/GigManager/issues/135) | Audit and fix 2026 purchase data | Unblocked once the reports are on dev; they show what needs fixing | Coordinator with Cameron; each prod data fix needs his go |
-| [#92](https://github.com/corourke/GigManager/issues/92) | Replace-all autosave can delete rows another user or tab added | Confirmed by reading the code (09-29 review) | Coordinator, not started |
 | [#20](https://github.com/corourke/GigManager/issues/20) | Shared data-access layer under `src/services/` | Released in §3c (7 batches) | Triage, batch 1 next |
 | [#175](https://github.com/corourke/GigManager/issues/175) | Delete gig offered to Managers, but Admin-only | Cameron 10-07: another participating org's Admin must never delete; direction "cancel only when other orgs participate" | Needs a design pass (coordinator) |
 | [#174](https://github.com/corourke/GigManager/issues/174) | Team roles and invitations: UI offers what the server refuses | Cameron 10-07: a Manager must never be able to make anyone an Admin, by any path | Coordinator; the server side is the private finding in §2 |
-| [#157](https://github.com/corourke/GigManager/issues/157) | Dashboard Equipment total should be replacement value × quantity | Rule decided by Cameron 10-07 | PR #190 (Equipment Lead): coordinator asked 10-08 to leave out Disposed and Returned equipment |
-| [#158](https://github.com/corourke/GigManager/issues/158), [#168](https://github.com/corourke/GigManager/issues/168) | Staff/Viewers see $0 money cards (dashboard) and money columns (gig list) | Filed by the Docs Lead 10-07 | Released to triage (§3c) |
-| [#159](https://github.com/corourke/GigManager/issues/159), [#169](https://github.com/corourke/GigManager/issues/169), [#170](https://github.com/corourke/GigManager/issues/170), [#171](https://github.com/corourke/GigManager/issues/171), [#173](https://github.com/corourke/GigManager/issues/173), [#176](https://github.com/corourke/GigManager/issues/176) | Small UI bugs: © year, Markdown notes, conflict banner, staff slot delete/rates, member details page, org settings path | Filed by the Docs Lead 10-07 | Released to triage (§3c) |
 
 ## 2. Waiting on Cameron
 
 1. **Dev mail catcher** (Cameron, 10-08: Mailtrap): create a free Mailtrap Email Testing inbox and send its SMTP host, port, user and password. The coordinator then points dev's Supabase Auth at it and checks the invitation, sign-up confirmation and password-reset flows with the demo `.test` logins.
-2. **Sentry secrets** (optional): `SENTRY_API_TOKEN`, `SENTRY_ORG_SLUG`, `SENTRY_PROJECT_SLUG`; the health check reports "not configured" until set.
-
-**Prod release waiting:** #178 (PR #195, merged 10-08) needs migration `20261015000000_person_and_org_search.sql` and a frontend deploy together (`deploy_prod.sh`); the old search function is dropped, so ship both in one run. Say when.
+2. **Check #92 on dev before the next prod deploy** (PR #200 changed how every gig section's autosave deletes rows). The two-tab steps are in the PR body.
+3. **Run F1 on prod (mileage amounts):** the SQL is on [#125](https://github.com/corourke/GigManager/issues/125#issuecomment-6056007859). Dry run checked read-only 10-08: 19 rows, 1,308 mi, $882.90 → $982.32; 2026 isn't locked. Independent of the code deploy (PR #202, merged, prices new rows).
+4. **#171 rate unit:** a staff rate always shows "/ hr", but nothing in the schema says whether a rate is hourly, daily or flat. Either add a unit (a migration on `gig_staff_assignments`, plus a picker), or show a neutral "/ unit". Which? (The delete confirmation half of #171 shipped in PR #198.)
+5. **Dev deploy access:** this session's Supabase token gets 403 on the dev project's details (prod's are readable), so `supabase link` and `./deploy_dev.sh` fail; functions deploy fine with `--project-ref qcrzwsazasaojqoqxwnr`. Migrations to dev still need you, or a project-level role fix on dev.
+6. **Sentry secrets** (optional): `SENTRY_API_TOKEN`, `SENTRY_ORG_SLUG`, `SENTRY_PROJECT_SLUG`; the health check reports "not configured" until set.
 
 **Decided 10-08, recorded here until done:**
-- The Docs Lead's corrected membership report (private; reported to Cameron directly): no path lets a Manager make anyone an Admin. The remaining backstop gaps are **parked** (Cameron: later). Partner organizations on a shared gig may keep adding, editing and removing each other's no-login contacts (intended). Person-search privacy is fixed by #178 (merged; prod release above).
+- The Docs Lead's corrected membership report (private; reported to Cameron directly): no path lets a Manager make anyone an Admin. The remaining backstop gaps are **parked** (Cameron: later). Partner organizations on a shared gig may keep adding, editing and removing each other's no-login contacts (intended). Person-search privacy is fixed by #178 (in prod 10-08).
 - An organization's own Admin still can't delete a claimed organization from the app (kept as is; no change).
-- Overnight gigs: released to triage (§3c).
 
 ## 3. Ready work and agent lanes
 
@@ -66,24 +63,12 @@ This file lives on `main`. Land updates there promptly: a run that starts from `
 3. `gigStaff`, `asset`, `kit` (one shared `computeFieldChanges` path)
 4. `organization`, `conflictDetection`, `googleCalendar`
 5. `inventoryManagement`, `gigFinancial`, `taxReport`
-6. `gig`: **hold until #92 is settled**
+6. `gig` (#92 is fixed, PR #200)
 7. `purchase`
 
 Pure refactor: no migrations, no edge-function or UI changes. Tests, typecheck, lint and build pass per PR.
 
-**Small bugs from the Docs Lead** (released 10-08 by Cameron). One PR per issue, a failing test first, frontend only. The issue describes the fix; if one turns out to need a migration, a server change or a design decision, stop and add a §3b entry instead.
-- [#158](https://github.com/corourke/GigManager/issues/158): the Staff dashboard shows $0 Equipment and Revenue cards. Hide the money cards from roles that can't see the figures.
-- [#168](https://github.com/corourke/GigManager/issues/168): the gig list offers Revenue, Expenses and Profit columns to Staff and Viewers. Hide them, same rule as #158.
-- [#159](https://github.com/corourke/GigManager/issues/159): the Sign Up footer shows a hard-coded © 2025. Use the current year.
-- [#169](https://github.com/corourke/GigManager/issues/169): gig notes show as raw text. Render them as Markdown, the way other notes are rendered.
-- [#170](https://github.com/corourke/GigManager/issues/170): the conflict banner on the gig list and calendar shows an empty equipment detail, labels an Act conflict as a venue conflict, and its View button sets the wrong Back link.
-- [#171](https://github.com/corourke/GigManager/issues/171): deleting a staff slot doesn't ask for confirmation, and rates always show "/ hr".
-- [#173](https://github.com/corourke/GigManager/issues/173): a member's details page. Edit goes nowhere, the default role isn't shown, and timezone edits are dropped.
-- [#176](https://github.com/corourke/GigManager/issues/176): there's no direct path to your own organization's settings, and the Contacts card clips its actions.
-
-Not released, staying with the coordinator: #174, #175 (needs a design pass).
-
-**Overnight gigs on Google Calendar** (released 10-08, Cameron). A gig that ends before 6 AM on the day after it starts shows on its start day only; its real times stay at the top of the event description. The dates come from `buildCalendarEvent` in `supabase/functions/server/lib/pure/calendarEvent.ts`, shared by the server and the browser sync, so change it there with tests: a 9 PM–1:30 AM gig is one day, a gig ending at 6:00 or later shows both days, multi-day gigs are unchanged, and the cutoff is in the gig's time zone. Needs a `server` redeploy and a frontend deploy; list both in the PR.
+Not released: #175 (needs a design pass). #174's UI half shipped in PR #199; its remaining item (the already-active error names the tab "Add Existing User") is in a database function and waits for the next membership migration.
 
 **Never pre-approved:** migrations or any RLS/policy change (Cameron applies migrations), edge-function API shape, production config or `deploy_prod.sh`.
 
@@ -93,19 +78,23 @@ Not released, staying with the coordinator: #174, #175 (needs a design pass).
 
 (none open: the 10-07 entries are filed as #157–#160, #168–#171, #173–#176 and #178, and their decisions are in §1 and §2)
 
-- **From the Docs Lead (10-08, Financials → Reporting, PR #191): #194**, a year with only disposals isn't offered in Tax year, and the needs-category hint can't always be followed. Small, UI only.
-- **From the Docs Lead (10-08, Settings, PR #189): #188**, Google Calendar shows "System-Wide Bulk Re-sync (Repair)", with developer copy, to every user, and the category type-rules box says "will offer". Small, UI only.
 - **Demo seed vs equipment items (coordinator, 10-08).** #180 is merged and #189 made the seed run on it. The seed's equipment still needs a fuller rework for equipment items before the Equipment pages are shot.
 
 - **Correction to the private membership finding (§2 item 3), Docs Lead, 10-08.** Tested on dev as the demo Manager, the escalation I reported on 10-07 is **not exploitable**: the `guard_organization_membership` trigger (`20260929000000`) blocks it on every path tried. What remains are low-severity defence-in-depth gaps. The full write-up (paths, test results, suggested fixes) went to Cameron privately on 10-08 to pass on. No migration is urgent; fold the fixes into the next membership or security migration.
 
 ## 4. Agents and documentation
 
-**Pace through 10-17 (Cameron, 10-08):** keep triage and the leads busy. The coordinator checks in at least every 4 hours (Routine `trig_01JWAcm3QHRpyaQXGNVA8w8m`, which disables itself after 10-17) to queue work, review ready PRs and ask Cameron about blockers.
+**Pace through 10-17 (Cameron, 10-08):** keep triage and the leads busy. Cameron (10-08 evening): sub-agents do the coordinator's builds; the coordinator reviews, merges and may deploy to **dev** with `./deploy_dev.sh` (never prod). The coordinator checks in at least every 4 hours (Routine `trig_01JWAcm3QHRpyaQXGNVA8w8m`, which disables itself after 10-17) to queue work, review ready PRs and ask Cameron about blockers.
 
-**Equipment Lead** (`session_013gAYYf2hpcECG9QpxFz5Vo`, Supabase Dev environment, no prod access) owns #181–#186, the grouping review and the items screens, and reviews #180 from the screens side. The coordinator owns #179 and #180 and supplies prod data the Lead can't reach. It reports on #162 and each sub-issue.
+**Equipment Lead** (next: merge `main` into PR #192, which conflicts only in `src/routes/screens.tsx`; the coordinator merges it on green; then #183) (`session_013gAYYf2hpcECG9QpxFz5Vo`, Supabase Dev environment, no prod access) owns #181–#186, the grouping review and the items screens, and reviews #180 from the screens side. The coordinator owns #179 and #180 and supplies prod data the Lead can't reach. It reports on #162 and each sub-issue.
 
 **Docs Lead** ("GigWrangler Docs Lead", Supabase Dev environment, no prod access) owns the user guide (`website/docs/`) and its screenshots, from the demo organization in dev. It may create GitHub issues. Its decisions so far: visual style A (app match); the demo data and seed (`scripts/seed-demo.sql`, logins in `scripts/README.md`; dev holds only demo data since 10-07); screenshots from `scripts/screenshots/` at a pinned date, refreshed at each production release.
+
+*Docs Lead, next (queued by the coordinator, 10-08 evening):*
+1. **Check the pages tonight's PRs edited** (#197–#201; their sub-agents wrote the sentences, so verify each against dev and fix the wording): `financials/gig-accounting.md` (Booked; Owed to you only on Completed gigs), `getting-started/the-dashboard.md` (Staff see Owned only), `gigs/documents-and-notes.md` (Markdown notes), `gigs/conflict-detection.md`, `gigs/staffing-and-participants.md` (delete confirmation), `gigs/the-gig-list.md`, `team/member-profiles.md` (Edit, Timezone), `team/invitations.md`, `team/team-and-roles.md`, `reference/roles-and-access.md`, `settings/overview.md` (Edit Organization button), `settings/google-calendar.md` (overnight gigs), `financials/reporting.md` (Grey zone, disposal-only years).
+2. **Screenshots now unblocked:** the dashboard cards (#157 is fixed), `team/member-profiles` (the Contacts card no longer clips, #176), the conflict banner, and the Reporting tab's Grey zone.
+3. **Publish `financials/reporting.md`** and link it from the Financials overview and Tax treatment pages.
+4. The demo seed's equipment rework for equipment items (§3d) when #192 merges.
 
 **Triage routine** (daily, ~09:00 UTC). Each run:
 1. Check CI and mergeability on its own open PRs; fix a red or conflicted one by merging `main` in, never by rebasing.
@@ -175,6 +164,16 @@ Not released, staying with the coordinator: #174, #175 (needs a design pass).
 
 ## 5. Future considerations (not open work)
 
+- *Noticed by tonight's sub-agents (10-08), not built:*
+  - The Vitest suite runs close to the 5 s per-test timeout; under load (several runs in parallel) purchases, scan-review and staff tests time out. CI is fine today; a higher global `testTimeout` or faster tests would make it robust.
+  - `src/components/CalendarScreen.tsx` looks unused (the calendar is `GigListScreen` in calendar mode).
+  - `GigListScreen` still fetches the money aggregates for Staff and Viewers, though nothing shows them now (#168).
+  - With the money cards hidden, the Staff dashboard's card row leaves empty slots on wide screens.
+  - `TeamScreen` has an outdated invitations-migration banner (mentions `APPLY_INVITATIONS_TABLE.md`).
+  - The asset page's Notes render Markdown without the shared `MarkdownContent` styling (#169).
+  - Editing an existing mileage row's miles or date doesn't re-price it; only **Record Mileage** prices.
+  - Mobile Settings has no **Edit Organization** entry (#176 added it on desktop Settings).
+  - The already-active error names the tab "Add Existing User" (#174); it lives in a database function, so fix it in the next membership migration.
 - Gig attachments are invisible to the other organizations on a gig (needs a sharing flag and a storage-policy change).
 - Prod has a `fin_category` value `'Production'` that no migration creates.
 - Staff and Viewers can read their own org's staff `rate` / `fee`.

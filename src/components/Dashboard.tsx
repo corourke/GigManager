@@ -17,6 +17,7 @@ import GigTable from './tables/GigTable';
 import { PageHeader } from './layout/PageHeader';
 import { getRecentActivity } from '../services/activityLog.service';
 import ActivityFeed from './ActivityFeed';
+import { canManage } from '../utils/permissions';
 
 interface DashboardProps {
   organization: Organization;
@@ -46,6 +47,8 @@ interface DashboardStats {
     totalAssetValue: number;
     totalInsuredValue: number;
     totalRentalValue: number;
+    ownedItems?: number;
+    ownedPieces?: number;
   };
   revenue: {
     thisMonth: number;
@@ -91,6 +94,8 @@ export default function Dashboard({
   const [error, setError] = useState<string | null>(null);
   const [recentActivity, setRecentActivity] = useState<ActivityLogEntry[]>([]);
   const [activityLoading, setActivityLoading] = useState(false);
+  // Money figures are Admin/Manager only; the server returns 0 for everyone else.
+  const showFinancials = canManage(userRole);
 
   useEffect(() => {
     fetchDashboardStats();
@@ -205,12 +210,15 @@ export default function Dashboard({
                 </div>
               </Card>
 
+              {/* Staff see what is owned; the money rows stay Admin/Manager only. */}
+              {(showFinancials || stats.assetValues.ownedItems != null) && (
               <Card className="p-4 cursor-pointer hover:shadow-lg transition-shadow" onClick={onNavigateToAssets}>
                 <div className="flex items-center justify-between mb-[4px] mt-[0px] mr-[0px] ml-[0px]">
                   <p className="text-sm text-muted-foreground font-bold">Equipment</p>
                   <Package className="w-5 h-5 text-purple-500" />
                 </div>
                 <div className="space-y-1">
+                  {showFinancials && (<>
                   <div className="flex items-baseline justify-between">
                     <p className="text-xs text-muted-foreground">Total Value</p>
                     <p className="text-foreground">{formatCurrency(stats.assetValues.totalAssetValue)}</p>
@@ -223,9 +231,18 @@ export default function Dashboard({
                     <p className="text-xs text-muted-foreground">Rental Value</p>
                     <p className="text-foreground">{formatCurrency(stats.assetValues.totalRentalValue)}</p>
                   </div>
+                  </>)}
+                  {stats.assetValues.ownedItems != null && (
+                    <div className="flex items-baseline justify-between">
+                      <p className="text-xs text-muted-foreground">Owned</p>
+                      <p className="text-foreground">{`${stats.assetValues.ownedItems} items · ${stats.assetValues.ownedPieces ?? 0} pieces`}</p>
+                    </div>
+                  )}
                 </div>
               </Card>
+              )}
 
+              {showFinancials && (
               <Card className="p-4">
                 <div className="flex items-center justify-between mb-[4px] mt-[0px] mr-[0px] ml-[0px]">
                   <p className="text-sm text-muted-foreground font-bold">Revenue</p>
@@ -246,6 +263,7 @@ export default function Dashboard({
                   </div>
                 </div>
               </Card>
+              )}
 
               <Card className="p-4">
                 <div className="flex items-center justify-between mb-[4px] mt-[0px] mr-[0px] ml-[0px]">

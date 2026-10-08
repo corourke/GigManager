@@ -3,6 +3,7 @@ import { Copy, Loader2, MoreVertical, Pencil, Printer, Trash2 } from 'lucide-rea
 import { toast } from 'sonner';
 import AppHeader from '../AppHeader';
 import AttachmentManager from '../AttachmentManager';
+import MarkdownContent from '../MarkdownContent';
 import ActivityFeed from '../ActivityFeed';
 import { ConflictWarning } from '../ConflictWarning';
 import { Alert, AlertDescription } from '../ui/alert';
@@ -307,7 +308,7 @@ export default function GigPage({
                 <GigVenueCard gigId={gigId} venue={venue} />
                 <GigSection title="Notes & attachments" className="lg:col-span-3">
                   {gig.notes ? (
-                    <p className="text-sm whitespace-pre-wrap leading-relaxed">{gig.notes}</p>
+                    <div className="text-sm prose prose-sm max-w-none"><MarkdownContent>{gig.notes}</MarkdownContent></div>
                   ) : (
                     <p className="text-sm text-muted-foreground italic">No notes</p>
                   )}

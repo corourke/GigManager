@@ -382,6 +382,7 @@ export default function CalendarScreen({
         <div className="mt-6">
           <CalendarIntegrationSettings
             userId={user.id}
+            isPlatformModerator={user.platform_moderator}
             onSettingsChanged={() => {
               // Could refresh calendar data if needed
             }}

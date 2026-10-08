@@ -18,7 +18,7 @@ A slot is one role and the number of people you need in it.
 4. Next to **Required:**, enter how many people you need. Each place appears as its own row below.
 5. To add a note for the whole slot, select **Notes**, enter it and select **Save Notes**.
 
-To delete a slot, select the trash button at the right of its header. There's no confirmation.
+To delete a slot, select **Delete staff slot** (trash) at the right of its header, then **Delete** to confirm. The confirmation names anyone assigned to the slot; they come off the gig with it.
 
 The role list is the same for every organization. Changes save as you make them.
 

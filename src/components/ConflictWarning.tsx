@@ -1,5 +1,5 @@
 import { format } from 'date-fns';
-import { AlertTriangle, Users, MapPin, Package } from 'lucide-react';
+import { AlertTriangle, Users, MapPin, Music, Package } from 'lucide-react';
 import { Alert, AlertTitle, AlertDescription } from './ui/alert';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
@@ -27,12 +27,18 @@ export function ConflictWarning({
 }: ConflictWarningProps) {
   if (conflicts.length === 0) return null;
 
-  const getConflictIcon = (type: Conflict['type']) => {
-    switch (type) {
+  // Venue and Act participant conflicts share the 'venue' type; the role tells them apart.
+  const isActConflict = (conflict: Conflict) => conflict.type === 'venue' && conflict.details.role === 'Act';
+
+  const getConflictLabel = (conflict: Conflict) =>
+    isActConflict(conflict) ? 'Act' : conflict.type.charAt(0).toUpperCase() + conflict.type.slice(1);
+
+  const getConflictIcon = (conflict: Conflict) => {
+    switch (conflict.type) {
       case 'staff':
         return <Users className="h-4 w-4" />;
       case 'venue':
-        return <MapPin className="h-4 w-4" />;
+        return isActConflict(conflict) ? <Music className="h-4 w-4" /> : <MapPin className="h-4 w-4" />;
       case 'equipment':
         return <Package className="h-4 w-4" />;
       default:
@@ -59,6 +65,7 @@ export function ConflictWarning({
         const staffNames = conflict.details.conflicting_staff?.map((s: any) => s.name).join(', ') || '';
         return `Staff conflict with: ${staffNames}`;
       case 'venue':
+        if (isActConflict(conflict)) return `Act conflict with: ${conflict.details.venue_name || 'Unknown act'}`;
         return `Venue conflict at: ${conflict.details.venue_name || 'Unknown venue'}`;
       case 'equipment':
         const kitNames = conflict.details.conflicting_kits
@@ -73,12 +80,12 @@ export function ConflictWarning({
   const ConflictItem = ({ conflict }: { conflict: Conflict }) => (
     <div className="flex items-start gap-3 p-3 rounded-lg border bg-white">
       <div className={`p-1 rounded ${getConflictColor(conflict.type)}`}>
-        {getConflictIcon(conflict.type)}
+        {getConflictIcon(conflict)}
       </div>
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 mb-1">
           <Badge variant="outline" className={getConflictColor(conflict.type)}>
-            {conflict.type.charAt(0).toUpperCase() + conflict.type.slice(1)} Conflict
+            {getConflictLabel(conflict)} Conflict
           </Badge>
           <span className="text-sm font-medium text-gray-900 truncate">
             {conflict.gig_title}
@@ -132,7 +139,7 @@ export function ConflictWarning({
         <div className="space-y-2 mt-2">
           {conflicts.map((conflict, index) => (
             <div key={`${conflict.type}-${conflict.gig_id}-${index}`} className="flex items-center gap-2">
-              {getConflictIcon(conflict.type)}
+              {getConflictIcon(conflict)}
               <span className="text-sm">
                 <strong>{conflict.gig_title}</strong>
                 {conflict.start ? ` (${formatGigDate(conflict.start)})` : ''} - {formatConflictDetails(conflict)}

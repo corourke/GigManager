@@ -53,6 +53,9 @@ function ContactsGroup({ heading, hint, contacts, canManage, onTogglePrimary, on
         <Badge variant="outline" className="h-5 px-1.5 text-[10px]">{contacts.length}</Badge>
         <span className="text-xs text-gray-400">{hint}</span>
       </div>
+      {/* The card is max-w-3xl and table cells default to nowrap, so long
+          emails pushed Actions past the right edge (#176). Text columns wrap,
+          and Actions stays pinned to the right if the table still scrolls. */}
       <div className="overflow-x-auto border rounded-lg">
         <Table>
           <TableHeader>
@@ -62,7 +65,7 @@ function ContactsGroup({ heading, hint, contacts, canManage, onTogglePrimary, on
               <TableHead>Title</TableHead>
               <TableHead>Email</TableHead>
               <TableHead>Phone</TableHead>
-              {canManage && <TableHead className="w-[100px]">Actions</TableHead>}
+              {canManage && <TableHead className="sticky right-0 w-[100px] bg-card">Actions</TableHead>}
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -83,16 +86,16 @@ function ContactsGroup({ heading, hint, contacts, canManage, onTogglePrimary, on
                     />
                   </button>
                 </TableCell>
-                <TableCell>
+                <TableCell className="whitespace-normal">
                   <span className="text-sm text-gray-900">
                     {contact.user.first_name} {contact.user.last_name}
                   </span>
                 </TableCell>
-                <TableCell className="text-sm text-gray-600">{contact.contact_title || '—'}</TableCell>
-                <TableCell className="text-sm text-gray-600">
+                <TableCell className="text-sm text-gray-600 whitespace-normal">{contact.contact_title || '—'}</TableCell>
+                <TableCell className="text-sm text-gray-600 whitespace-normal [overflow-wrap:anywhere]">
                   {contact.user.email ? (
                     <a href={`mailto:${contact.user.email}`} className="flex items-center gap-1 hover:text-sky-600">
-                      <Mail className="w-3 h-3" />
+                      <Mail className="w-3 h-3 shrink-0" />
                       {contact.user.email}
                     </a>
                   ) : '—'}
@@ -106,7 +109,7 @@ function ContactsGroup({ heading, hint, contacts, canManage, onTogglePrimary, on
                   ) : '—'}
                 </TableCell>
                 {canManage && (
-                  <TableCell>
+                  <TableCell className="sticky right-0 bg-card">
                     <div className="flex items-center gap-1">
                       <Button type="button" variant="outline" size="sm" onClick={() => onEdit(contact)} title="Edit">
                         <Pencil className="w-4 h-4" />
