@@ -9,7 +9,7 @@ import { GIG_STATUS_CONFIG, ORG_ROLE_CONFIG, SCHEDULE_ACTIVITY_CONFIG } from '..
 import { formatDateTimeDisplay, formatInTimeZone } from '../../../utils/dateUtils';
 import type { Gig, GigStaffSlotView, Organization } from '../../../utils/supabase/types';
 import MarkdownContent from '../../MarkdownContent';
-import { assignmentCost, money, staffRows } from '../view/staffRows';
+import { assignmentCost, money, rateBasis, staffRows } from '../view/staffRows';
 import { settledAmount, stageLabel } from '../../../utils/moneyFlow';
 
 interface GigPrintSheetProps {
@@ -275,7 +275,7 @@ export default function GigPrintSheet({ gig, organization, slots, includeFinanci
                 {staffCosts.map(({ id, role, name, a }) => (
                   <tr key={id}>
                     <td>{role}</td><td>{name}</td>
-                    <td>{a.fee != null ? 'Fee' : a.rate != null ? `${a.units_completed ?? 1} × ${money(Number(a.rate))}` : ''}</td>
+                    <td>{rateBasis(a)}</td>
                     <td>{a.status}</td><td className="text-right">{money(assignmentCost(a))}</td>
                   </tr>
                 ))}

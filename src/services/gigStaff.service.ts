@@ -35,6 +35,8 @@ export async function updateGigStaffSlots(
       user_id: string;
       status?: string;
       rate?: number | null;
+      /** 'hour', 'day' or 'half_day'. Left out, an insert is hourly and an update keeps the stored unit. */
+      rate_unit?: string;
       fee?: number | null;
       notes?: string | null;
     }>;
@@ -175,6 +177,7 @@ export async function updateGigStaffSlots(
             user_id: assignment.user_id,
             status: assignment.status || 'Requested',
             rate: assignment.rate || null,
+            ...(assignment.rate_unit ? { rate_unit: assignment.rate_unit } : {}),
             fee: assignment.fee || null,
             notes: assignment.notes || null,
             completed_at: (assignment as any).completed_at || null,

@@ -111,4 +111,13 @@ describe('GigPrintSheet (#12)', () => {
     expect(within(staff).getByText('Jordan Lee')).toBeInTheDocument();
     expect(within(staff).getByText('$450')).toBeInTheDocument();
   });
+
+  it("prints a rate's basis in its unit (#171)", async () => {
+    const daySlots = [{ ...slots[0], staff_assignments: [{ ...slots[0].staff_assignments[0], fee: null, rate: 400, rate_unit: 'day', units_completed: 3 }] }];
+    const { onReady } = renderSheet({ includeFinancials: true, slots: daySlots as any });
+    await waitFor(() => expect(onReady).toHaveBeenCalledTimes(1));
+    const staff = within(page(/financials/i)).getByRole('table', { name: 'Staff costs' });
+    expect(within(staff).getByText('3 days × $400 / day')).toBeInTheDocument();
+    expect(within(staff).getByText('$1,200')).toBeInTheDocument();
+  });
 });

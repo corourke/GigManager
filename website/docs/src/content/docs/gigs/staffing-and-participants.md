@@ -33,7 +33,7 @@ Each row in a slot is one person.
    - **Requested**: you've asked them.
    - **Confirmed**: they're booked.
    - **Declined**: they said no. A declined person no longer fills a place, so an open row appears for a replacement.
-4. Choose **Rate** or **Fee**, then enter the amount. A rate is per unit, such as hours or days. A fee is a flat amount.
+4. Choose **Rate** or **Fee**, then enter the amount. For a rate, choose its unit next to the amount: **/ hr**, **/ day** or **/ ½ day**. A new rate starts at **/ hr**. A fee is a flat amount, so it has no unit.
 5. To keep a note on the person, select the notes button (document icon) at the end of the row.
 
 A row with no person selected isn't saved. If you lower **Required:**, GigWrangler removes open rows first and keeps the people you've assigned.
@@ -44,7 +44,7 @@ A row with no person selected isn't saved. If you lower **Required:**, GigWrangl
 
 When the work is done, finalize each assignment so it counts as a cost.
 
-- For a **Confirmed** person, select **Finalize Assignment** (the green check). For a **Rate**, a **Finalize Rate-based Labor** dialog asks for **Units Completed**, such as the hours worked. Enter them and select **Finalize**.
+- For a **Confirmed** person, select **Finalize Assignment** (the green check). For a **Rate**, a **Finalize Rate-based Labor** dialog asks how many of the rate's unit were worked: **Hours completed**, **Days completed** or **Half days completed**. Enter the number and select **Finalize**. The amount is the rate times that number.
 - To finalize every confirmed fee in one step, select **Finalize All**. It skips rates, because it can't know the units.
 - To reverse one, select **Undo Finalize**.
 
@@ -55,14 +55,14 @@ Finalizing adds a money-out entry for the gig (category Contract labor, descript
 The footer shows **Total Staff Cost** in three parts:
 
 - **Finalized**: finalized assignments (rate times units, or the fee).
-- **Projected**: **Confirmed** and **Requested** assignments not yet finalized.
+- **Projected**: **Confirmed** and **Requested** assignments not yet finalized. A rate counts as one of its unit until it's finalized.
 - **Total**: the two added together.
 
 ## Viewing staffing
 
 Everyone in your organization who can open the gig sees a read-only **Staffing** card, headed with a summary such as "3 of 4 filled · 2 confirmed". Each row shows the role, the person (or **Open**), and a status badge. **Columns** adds phone, email and notes.
 
-**Rate / Fee** and the staff cost line are for Admins and Managers only. Staff and Viewers don't see pay.
+The **Rate / Fee** column shows a rate with its unit, such as "$400 / day", and a fee as "$450 fee". On the printed financials page, **Staff costs** shows how each rate's amount was reached, such as "3 days × $400 / day". **Rate / Fee** and the staff cost line are for Admins and Managers only. Staff and Viewers don't see pay.
 
 ## Related
 

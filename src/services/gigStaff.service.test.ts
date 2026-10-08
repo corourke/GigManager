@@ -198,4 +198,23 @@ describe('updateGigStaffSlots deletes only rows the caller loaded and removed (i
       assignmentIds: [['asg-mine', 'asg-new'], []],
     }));
   });
+
+  it("writes an assignment's rate unit when given, and leaves it to the database when not (#171)", async () => {
+    useDb([{ id: 'slot-mine', organization_id: 'org-1' }], [{ id: 'asg-mine', user_id: 'u-1' }]);
+
+    await updateGigStaffSlots('gig-1', [{
+      id: 'slot-mine', organization_id: 'org-1', role: 'FOH',
+      assignments: [
+        { id: 'asg-mine', user_id: 'u-1', rate: 400, rate_unit: 'day' },
+        { user_id: 'u-2', rate: 225, rate_unit: 'half_day' },
+        { user_id: 'u-3', fee: 300 },
+      ],
+    }], ctx, ['slot-mine', 'asg-mine']);
+
+    const updates = assignmentChains.flatMap((c) => c.update.mock.calls.map((call: any[]) => call[0]));
+    const inserts = assignmentChains.flatMap((c) => c.insert.mock.calls.map((call: any[]) => call[0]));
+    expect(updates).toEqual([expect.objectContaining({ rate: 400, rate_unit: 'day' })]);
+    expect(inserts[0]).toEqual(expect.objectContaining({ user_id: 'u-2', rate: 225, rate_unit: 'half_day' }));
+    expect(inserts[1]).not.toHaveProperty('rate_unit');
+  });
 });
