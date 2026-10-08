@@ -1,5 +1,5 @@
 import { handleApiError } from '../utils/api-error-utils';
-import { getSupabase } from './gigService.shared';
+import { getSupabase } from './base/dataAccess';
 
 /**
  * Contacts for one participating organization on one specific gig —

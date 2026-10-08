@@ -1,14 +1,17 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { updateGigKitAssignments } from './gigKit.service';
-import { requireAuth } from '../utils/supabase/auth-utils';
+import { assignKitToGig, updateGigKitAssignments } from './gigKit.service';
+import { getCurrentUser, getSupabase } from './base/dataAccess';
 
-vi.mock('../utils/supabase/client', () => ({
-  createClient: vi.fn(),
+vi.mock('./base/dataAccess', () => ({
+  getCurrentUser: vi.fn(),
+  getSupabase: vi.fn(),
 }));
 
-vi.mock('../utils/supabase/auth-utils', () => ({
-  requireAuth: vi.fn(),
-}));
+/** Signs `user` in and hands the service `supabase` as the shared client. */
+function signIn(supabase: any, user: any) {
+  (getSupabase as any).mockReturnValue(supabase);
+  (getCurrentUser as any).mockResolvedValue(user);
+}
 
 function makeChain(data: any, singleData: any) {
   const chain: any = {};
@@ -36,7 +39,7 @@ describe('updateGigKitAssignments deletes only rows the caller loaded and remove
       chains.push(c);
       return c;
     });
-    (requireAuth as any).mockResolvedValue({ supabase: { from }, user: { id: 'user-1' } });
+    signIn({ from }, { id: 'user-1' });
   });
   const deletedIds = () => chains
     .filter((c) => c.delete.mock.calls.length > 0)
@@ -58,5 +61,50 @@ describe('updateGigKitAssignments deletes only rows the caller loaded and remove
     const result = await updateGigKitAssignments('gig-1', 'org-1', [{ id: MINE, kit_id: 'k-1' }, { kit_id: 'k-4' }], [MINE]);
 
     expect(result).toEqual({ success: true, ids: [MINE, 'new-1'] });
+  });
+
+  it('stamps inserted rows with the signed-in user', async () => {
+    await updateGigKitAssignments('gig-1', 'org-1', [{ kit_id: 'k-4' }], []);
+
+    const insert = chains.find((c) => c.insert.mock.calls.length > 0);
+    expect(insert.insert).toHaveBeenCalledWith({ gig_id: 'gig-1', kit_id: 'k-4', organization_id: 'org-1', notes: null, assigned_by: 'user-1' });
+  });
+});
+
+// Pinned to current behaviour when the service moved onto base/dataAccess (#20).
+describe('assignKitToGig', () => {
+  let chain: any;
+  const from = vi.fn();
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    chain = makeChain(null, { id: 'a-1', kit_id: 'k-1' });
+    from.mockReturnValue(chain);
+    signIn({ from }, { id: 'user-1' });
+  });
+
+  it('inserts the assignment as the signed-in user and returns the row', async () => {
+    const row = await assignKitToGig('gig-1', 'k-1', 'org-1', 'front of house');
+
+    expect(from).toHaveBeenCalledWith('gig_kit_assignments');
+    expect(chain.insert).toHaveBeenCalledWith({
+      gig_id: 'gig-1', kit_id: 'k-1', organization_id: 'org-1', notes: 'front of house', assigned_by: 'user-1',
+    });
+    expect(row).toEqual({ id: 'a-1', kit_id: 'k-1' });
+  });
+
+  it('rejects and writes nothing when no one is signed in', async () => {
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+    (getCurrentUser as any).mockRejectedValue(new Error('Not authenticated'));
+
+    await expect(assignKitToGig('gig-1', 'k-1', 'org-1')).rejects.toThrow('Not authenticated');
+    expect(chain.insert).not.toHaveBeenCalled();
+    consoleError.mockRestore();
+  });
+
+  it('words a network failure with its own action', async () => {
+    chain.single.mockResolvedValue({ data: null, error: { message: 'Failed to fetch' } });
+
+    await expect(assignKitToGig('gig-1', 'k-1', 'org-1')).rejects.toThrow('Network error: Unable to assign kit to gig.');
   });
 });

@@ -1,7 +1,6 @@
 import { handleApiError } from '../utils/api-error-utils';
-import { requireAuth } from '../utils/supabase/auth-utils';
 import { UUID_REGEX } from '../utils/validation-utils';
-import { getSupabase } from './gigService.shared';
+import { getCurrentUser, getSupabase } from './base/dataAccess';
 
 /**
  * Kit-assignment operations for gigs (Phase 7, Step 4 — extracted from
@@ -13,7 +12,8 @@ import { getSupabase } from './gigService.shared';
  */
 export async function assignKitToGig(gigId: string, kitId: string, organizationId: string, notes?: string) {
   try {
-    const { supabase, user } = await requireAuth();
+    const user = await getCurrentUser();
+    const supabase = getSupabase();
 
     const { data, error } = await supabase
       .from('gig_kit_assignments')
@@ -83,7 +83,8 @@ export async function updateGigKitAssignments(gigId: string, organizationId: str
   notes?: string | null;
 }>, loadedIds: string[] = []) {
   try {
-    const { supabase, user } = await requireAuth();
+    const user = await getCurrentUser();
+    const supabase = getSupabase();
 
     const { data: existingAssignments, error: fetchError } = await supabase
       .from('gig_kit_assignments')

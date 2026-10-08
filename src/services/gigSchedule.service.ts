@@ -1,6 +1,6 @@
 import { handleApiError } from '../utils/api-error-utils';
-import { requireAuth } from '../utils/supabase/auth-utils';
-import { getSupabase, resolveGigActivityCtx, type GigActivityCtxInput } from './gigService.shared';
+import { getCurrentUser, getSupabase } from './base/dataAccess';
+import { resolveGigActivityCtx, type GigActivityCtxInput } from './gigService.shared';
 import { logActivity } from './activityLog.service';
 import type { GigScheduleEntry, ScheduleChange } from '../utils/supabase/types';
 
@@ -48,7 +48,8 @@ export async function updateGigScheduleEntries(
   loadedIds: string[] = []
 ): Promise<{ ids: Array<string | undefined> }> {
   try {
-    const { supabase, user } = await requireAuth();
+    const user = await getCurrentUser();
+    const supabase = getSupabase();
 
     const { data: existing } = await supabase
       .from('gig_schedule_entries')

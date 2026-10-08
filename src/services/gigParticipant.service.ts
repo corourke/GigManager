@@ -1,8 +1,8 @@
 import { OrganizationRole } from '../utils/supabase/types';
 import { handleApiError } from '../utils/api-error-utils';
-import { requireAuth } from '../utils/supabase/auth-utils';
 import { UUID_REGEX } from '../utils/validation-utils';
-import { getSupabase, resolveGigActivityCtx, type GigActivityCtx, type GigActivityCtxInput } from './gigService.shared';
+import { getCurrentUser, getSupabase } from './base/dataAccess';
+import { resolveGigActivityCtx, type GigActivityCtx, type GigActivityCtxInput } from './gigService.shared';
 import { logActivity } from './activityLog.service';
 
 /**
@@ -37,7 +37,8 @@ export async function updateGigParticipants(
   loadedIds: string[] = []
 ) {
   try {
-    const { supabase, user } = await requireAuth();
+    const user = await getCurrentUser();
+    const supabase = getSupabase();
 
     const { data: existingParticipants, error: fetchError } = await supabase
       .from('gig_participants')
