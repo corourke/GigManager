@@ -79,6 +79,27 @@ Not released: #175 (needs a design pass). #174's UI half shipped in PR #199; its
   - Items 1–2 are in PR #207. All pages checked; six wording fixes; dashboard, conflict-banner and Grey zone screenshots taken.
   - Item 3 is in PR #209, stacked on #207. It links Reporting from Overview and Tax treatment. **Flip `draft: true` to `false` on `financials/reporting.md` before merging, or the new links 404.**
   - Item 4 is in PR #210: the seed with items, units, lots, "N × any" kit lines and per-line tax treatment, as Cameron chose 10-08. Dev is reseeded.
+- **Dev email flows run, 2026-10-08 (Docs Lead, for the coordinator; Cameron to check the Mailtrap inbox against this list).** All three ran from the app against dev, in a browser at `http://localhost:3000`.
+  1. **Invitation**
+     - Sent 18:52:10 UTC to `docs-invite-1008@example.com`, Staff. Sender: demo Admin Alicia Hale, from Demo Sound & Lighting.
+     - The request was `POST /functions/v1/server/organizations/<org>/invitations`, which answered 200. The invitation expires 10-15.
+     - The screen showed "Invitation sent! An email has been sent to docs-invite-1008@example.com with a link to join the organization. The user can now be assigned to gigs." That is the success toast; when `email_sent` is false the app shows a warning instead.
+  2. **Sign-up confirmation: no email is sent on dev.**
+     - Signed up `docs-signup-1008@example.com` at 18:52:16 UTC. `POST /auth/v1/signup` answered 200 with an access token, and the app went straight to "Select Organization" ("No organizations yet").
+     - The cause: dev Auth has `mailer_autoconfirm: true` ("Confirm email" off), so Supabase confirms the address immediately and sends nothing.
+     - To test the email, Cameron turns on Authentication → Sign In / Providers → Email → **Confirm email** on dev; then I'll re-run this flow.
+     - Worth checking prod's setting too: the guide (team/invitations) says an invitee joins once they confirm their email.
+  3. **Password reset**
+     - Requested at 18:52:25 UTC for `demo-viewer@gigwrangler.test`. `POST /auth/v1/recover` answered 200.
+     - The screen showed "If an account exists for demo-viewer@gigwrangler.test, a password reset link has been sent. Check your email."
+  - **Dev Auth settings (read 18:55 UTC):**
+    - SMTP host `sandbox.smtp.mailtrap.io`, sender "GigWrangler" <no-reply@gigwrangler.test>.
+    - `site_url` and the redirect allow list are `http://localhost:3000` only, so the links in the emails point at localhost.
+  - **Auth logs:** not confirmed. The Management API's `logs.all` endpoint is gone, and I couldn't find the auth source name for the new `/analytics/endpoints/logs` endpoint. The dashboard's Auth logs show the sends.
+  - **Landing-page screenshots** (accept invitation, set new password, confirmed sign-up) need a real link, which I can't make: `auth.admin.generateLink` needs the service-role key, which I don't use. Either:
+    - Cameron opens a link from the Mailtrap email, copies it and passes it on, and I take the shot before it expires (reset links last one hour by default); or
+    - Cameron allows a server-side `generateLink` run with the dev service key held as an environment secret.
+  - **Cleanup:** the two test users (`docs-invite-1008@`, `docs-signup-1008@example.com`) stay on dev until Cameron has checked the inbox. Re-seeding removes the invitee's demo-org membership but not the users.
 - **Member page Edit has no Organization Role (#206, Docs Lead, 10-08).** The details page doesn't pass `currentUserRole` to `EditMemberDialog`. A one-line fix; the guide points role changes at Team → Edit Permissions until then.
 - **Units from one multi-quantity depreciated purchase line (Docs Lead, 10-08; for #183).**
   - The database finds a unit's depreciated line by `purchases.asset_id`, so only one unit per line counts as depreciated or can hold a recovery period. Its siblings (same `purchase_line_id`) count as not depreciated.
