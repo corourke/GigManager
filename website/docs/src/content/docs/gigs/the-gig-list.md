@@ -57,6 +57,7 @@ Select **Columns** to turn columns on or off. By default the list shows **Title*
 - **End** and **Notes**
 - **Number of Staff**, **Cost of Staff**, **Revenue**, **Expenses** and **Profit**,
   which total up your organization's numbers for each gig. These are read-only.
+  Staff and Viewers get **Number of Staff** only.
 
 The columns you choose are remembered in this browser.
 

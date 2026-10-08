@@ -382,7 +382,7 @@ export async function checkAllConflictsForGigs(gigs: GigForConflictCheck[]): Pro
         .in('role', PARTICIPANT_CONFLICT_ROLES),
       supabase
         .from('gig_kit_assignments')
-        .select('gig_id, kit_id')
+        .select('gig_id, kit_id, kit:kits(id, name)')
         .in('gig_id', gigIds),
     ]);
 
@@ -395,16 +395,18 @@ export async function checkAllConflictsForGigs(gigs: GigForConflictCheck[]): Pro
     // different kits sharing a physical asset must conflict.
     const allKitIds = Array.from(new Set((kitData.data || []).map((k: any) => k.kit_id)));
     const assetsByKit = new Map<string, Set<string>>();
+    const labels = new Map<string, string>();
     if (allKitIds.length > 0) {
       const { data: flattenedRows, error: flattenError } = await supabase
         .from('kit_flattened_cache')
-        .select('kit_id, asset_id')
+        .select('kit_id, asset_id, asset:assets(manufacturer_model, tag_number)')
         .in('kit_id', allKitIds);
       if (flattenError) throw flattenError;
       for (const row of (flattenedRows || []) as any[]) {
         const set = assetsByKit.get(row.kit_id) ?? new Set<string>();
         set.add(row.asset_id);
         assetsByKit.set(row.kit_id, set);
+        if (row.asset) labels.set(row.asset_id, assetLabel(row.asset));
       }
     }
 
@@ -434,11 +436,28 @@ export async function checkAllConflictsForGigs(gigs: GigForConflictCheck[]): Pro
 
     // Per gig, the union of flattened asset IDs across all of its assigned kits.
     const assetsByGig = new Map<string, Set<string>>();
+    const kitsByGig = new Map<string, { kit_id: string; kit_name: string }[]>();
     for (const k of (kitData.data || []) as any[]) {
       const gigAssets = assetsByGig.get(k.gig_id) ?? new Set<string>();
       for (const assetId of assetsByKit.get(k.kit_id) ?? []) gigAssets.add(assetId);
       assetsByGig.set(k.gig_id, gigAssets);
+      const gigKits = kitsByGig.get(k.gig_id) ?? [];
+      gigKits.push({ kit_id: k.kit_id, kit_name: k.kit?.name });
+      kitsByGig.set(k.gig_id, gigKits);
     }
+
+    // The gig's kits that hold any of the shared assets, in the same shape the
+    // single-gig check produces, so the banner can name the kits and assets.
+    const kitsSharing = (gigId: string, shared: Set<string>) =>
+      (kitsByGig.get(gigId) ?? [])
+        .map((k) => ({
+          ...k,
+          shared_assets: [...(assetsByKit.get(k.kit_id) ?? [])]
+            .filter((assetId) => shared.has(assetId))
+            .map((assetId) => labels.get(assetId) ?? 'Unnamed item')
+            .sort(),
+        }))
+        .filter((k) => k.shared_assets.length > 0);
 
     const conflicts: Conflict[] = [];
 
@@ -495,17 +514,18 @@ export async function checkAllConflictsForGigs(gigs: GigForConflictCheck[]): Pro
 
         const overlappingAssetIds = [...assetsA].filter(id => assetsB.has(id));
         if (overlappingAssetIds.length > 0) {
+          const shared = new Set(overlappingAssetIds);
           conflicts.push({
             level: 'conflict', type: 'equipment',
             gig_id: gigB.id, gig_title: gigB.title,
             start: gigB.start, end: gigB.end,
-            details: { conflicting_asset_ids: overlappingAssetIds, other_gig_id: gigA.id, other_gig_title: gigA.title }
+            details: { conflicting_asset_ids: overlappingAssetIds, conflicting_kits: kitsSharing(gigB.id, shared), other_gig_id: gigA.id, other_gig_title: gigA.title }
           });
           conflicts.push({
             level: 'conflict', type: 'equipment',
             gig_id: gigA.id, gig_title: gigA.title,
             start: gigA.start, end: gigA.end,
-            details: { conflicting_asset_ids: overlappingAssetIds, other_gig_id: gigB.id, other_gig_title: gigB.title }
+            details: { conflicting_asset_ids: overlappingAssetIds, conflicting_kits: kitsSharing(gigA.id, shared), other_gig_id: gigB.id, other_gig_title: gigB.title }
           });
         }
       }

@@ -82,4 +82,29 @@ describe('ConflictWarning', () => {
     render(<ConflictWarning conflicts={[mockConflicts[0]]} showAsCard={true} />);
     expect(screen.queryByText('View Gig')).not.toBeInTheDocument();
   });
+
+  describe('an Act participant conflict (#170)', () => {
+    const actConflict: Conflict = {
+      level: 'conflict',
+      type: 'venue',
+      gig_id: 'gig-3',
+      gig_title: 'Test Gig 3',
+      start: '2024-01-01T14:00:00Z',
+      end: '2024-01-01T16:00:00Z',
+      details: { venue_id: 'org-act', venue_name: 'Neon Orchard', role: 'Act' },
+    };
+
+    it('is labelled as an act on the card', () => {
+      render(<ConflictWarning conflicts={[actConflict]} showAsCard={true} />);
+      expect(screen.getByText('Act Conflict')).toBeInTheDocument();
+      expect(screen.getByText('Act conflict with: Neon Orchard')).toBeInTheDocument();
+      expect(screen.queryByText(/Venue/)).not.toBeInTheDocument();
+    });
+
+    it('is labelled as an act in the banner', () => {
+      render(<ConflictWarning conflicts={[actConflict]} />);
+      expect(screen.getByText(/Act conflict with: Neon Orchard/)).toBeInTheDocument();
+      expect(screen.queryByText(/Venue conflict/)).not.toBeInTheDocument();
+    });
+  });
 });

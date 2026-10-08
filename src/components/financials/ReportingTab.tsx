@@ -67,10 +67,13 @@ export default function ReportingTab({ organizationId, organizationName, onEditA
     return () => { cancelled = true; };
   }, [organizationId]);
 
-  // Every year with data, and this year.
+  // Every year with data, and this year. Disposals count too, as the Assets report lists them (#194).
   const years = useMemo(() => {
     const ys = new Set<number>([thisYear]);
-    for (const l of data?.lines ?? []) { const d = dayOf(l.purchase_date ?? l.parent?.purchase_date); if (d) ys.add(Number(d.slice(0, 4))); }
+    for (const l of data?.lines ?? []) {
+      const d = dayOf(l.purchase_date ?? l.parent?.purchase_date); if (d) ys.add(Number(d.slice(0, 4)));
+      const gone = l.tax_treatment === 'depreciate' ? dayOf(l.asset?.retired_on) : null; if (gone) ys.add(Number(gone.slice(0, 4)));
+    }
     for (const r of data?.gigRows ?? []) { const d = dayOf(r.paid_at); if (d) ys.add(Number(d.slice(0, 4))); }
     return [...ys].sort((a, b) => b - a);
   }, [data, thisYear]);
@@ -165,6 +168,16 @@ function IncomeView({ report, year }: { report: ReturnType<typeof buildIncomeRep
   );
 }
 
+/** Where to choose the missing categories: on the purchase, or on the gig's own cost (#194). */
+function needsCategoryFix(rows: ReturnType<typeof buildExpenseReport>['rows']): string {
+  const purchases = rows.filter(r => r.unlisted && r.source === 'Purchase').length;
+  const gigs = rows.filter(r => r.unlisted && r.source === 'Gig').length;
+  if (!gigs) return 'Edit the purchase to choose one.';
+  if (!purchases) return 'Choose one on the gig’s Financials tab.';
+  return `${purchases} from ${purchases === 1 ? 'a purchase' : 'purchases'}: edit the purchase. `
+    + `${gigs} from ${gigs === 1 ? 'a gig' : 'gigs'}: choose one on the gig’s Financials tab.`;
+}
+
 function ExpensesView({ report, year }: { report: ReturnType<typeof buildExpenseReport>; year: number }) {
   return (
     <div className="space-y-4">
@@ -178,8 +191,8 @@ function ExpensesView({ report, year }: { report: ReturnType<typeof buildExpense
           {report.needsCategory > 0 && (
             <p role="status" className="flex items-center gap-2 text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-md px-3 py-2">
               <AlertCircle className="w-4 h-4 shrink-0" />
-              {report.needsCategory} {report.needsCategory === 1 ? 'item has a category' : 'items have categories'} that aren’t on your expense list,
-              so {report.needsCategory === 1 ? 'it has' : 'they have'} no Schedule C line. Edit the purchase to choose one.
+              {report.needsCategory} {report.needsCategory === 1 ? 'item has' : 'items have'} no category, or one that isn’t on your expense list,
+              so {report.needsCategory === 1 ? 'it has' : 'they have'} no Schedule C line. {needsCategoryFix(report.rows)}
             </p>
           )}
           <Table aria-label="Expenses by Schedule C line">

@@ -24,7 +24,8 @@ see [Getting into an organization](/getting-started/organizations/).
 ## Organization settings
 
 An organization's details live on the **Edit Organization** screen, not on **Team**.
-To open it:
+If you're an Admin, the quickest way there is the avatar menu → **Settings** →
+**Edit Organization** (top right). To edit another organization:
 
 1. Open the avatar menu (top right) → **Switch Organization**.
 2. Select **Browse All Organizations**.

@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import ReportingTab from './ReportingTab';
+import { getTaxReportData } from '../../services/taxReport.service';
 
 const downloadCsv = vi.fn();
 vi.mock('../../utils/taxReports', async (orig) => ({ ...(await orig<any>()), downloadCsv: (...a: any[]) => downloadCsv(...a) }));
@@ -27,6 +28,14 @@ vi.mock('../../services/taxReport.service', () => ({
     scheduleC: [{ code: '22', label: 'Supplies' }],
   })),
 }));
+
+const purchaseLine = (o: Record<string, unknown>) => ({ vendor: 'Sweetwater', quantity: 1, asset_id: null, parent: null, asset: null, ...o });
+const gigOut = (o: Record<string, unknown>) => ({ gig_id: 'x', direction: 'out', stage: 'paid', description: 'Parking', mileage: null, purchase_id: null,
+  staff_assignment_id: null, external_entity_name: 'City lot', reference_number: null, counterparty: null, gig: { title: 'Spring Gala', start: '2026-04-01' }, ...o });
+/** Only these rows, with the default category lists (issue #194). */
+const onlyRows = (lines: unknown[], gigRows: unknown[] = []) => vi.mocked(getTaxReportData).mockResolvedValueOnce({
+  lines, gigRows, categories: [{ name: 'Supplies', schedule_c_line: '22' }], scheduleC: [{ code: '22', label: 'Supplies' }],
+} as any);
 
 describe('ReportingTab (#125)', () => {
   beforeEach(() => vi.clearAllMocks());
@@ -79,5 +88,53 @@ describe('ReportingTab (#125)', () => {
     await open();
     await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Tax year' }), '2025');
     expect(screen.getByText('2025 is filed')).toBeInTheDocument();
+  });
+
+  it('offers a year whose only activity is a disposal, and shows it there (issue #194)', async () => {
+    onlyRows([purchaseLine({ id: 'p9', purchase_date: '2019-06-01', description: 'Old amp', category: 'Audio', item_cost: 900, line_cost: 900,
+      tax_treatment: 'depreciate', asset_id: 'a9',
+      asset: { ...asset, id: 'a9', manufacturer_model: 'Crown XLS', retired_on: '2023-08-15', liquidation_amt: 200, status: 'Sold' } })]);
+    render(<ReportingTab organizationId="org-1" organizationName="Act4 Audio" />);
+    await screen.findByRole('group', { name: 'Report' });
+    const select = await screen.findByRole('combobox', { name: 'Tax year' });
+    await within(select).findByRole('option', { name: '2019' });
+    expect(within(select).getAllByRole('option').map(o => o.textContent)).toContain('2023');
+    await userEvent.selectOptions(select, '2023');
+    await userEvent.click(screen.getByRole('button', { name: 'Assets' }));
+    expect(screen.getByText('Disposed of in 2023')).toBeInTheDocument();
+    expect(screen.getByText('Crown XLS')).toBeInTheDocument();
+  });
+
+  describe('the "Need a category" hint says where to choose one (issue #194)', () => {
+    const unlistedPurchase = purchaseLine({ id: 'p5', purchase_date: '2026-03-05', description: 'Strings', category: 'Gear', item_cost: 12, line_cost: 12, tax_treatment: 'expense' });
+    const uncategorizedGigCost = gigOut({ id: 'g5', amount_settled: 20, paid_at: '2026-04-02', category: null });
+    const hint = async () => {
+      await open();
+      await userEvent.click(screen.getByRole('button', { name: 'Expenses' }));
+      return screen.getByRole('status').textContent ?? '';
+    };
+
+    it('a purchase: edit the purchase', async () => {
+      onlyRows([unlistedPurchase]);
+      const text = await hint();
+      expect(text).toMatch(/Edit the purchase to choose one\./);
+      expect(text).not.toMatch(/Financials tab/);
+    });
+
+    it('a gig cost that didn\'t come from a purchase: the gig\'s Financials tab', async () => {
+      onlyRows([], [uncategorizedGigCost]);
+      const text = await hint();
+      expect(text).toMatch(/1 item has no category, or one that isn’t on your expense list/);
+      expect(text).toMatch(/Choose one on the gig’s Financials tab\./);
+      expect(text).not.toMatch(/Edit the purchase/);
+    });
+
+    it('both: each is counted with its own fix', async () => {
+      onlyRows([unlistedPurchase], [uncategorizedGigCost, gigOut({ id: 'g6', amount_settled: 5, paid_at: '2026-05-02', category: null })]);
+      const text = await hint();
+      expect(text).toMatch(/3 items have no category/);
+      expect(text).toMatch(/1 from a purchase: edit the purchase\./);
+      expect(text).toMatch(/2 from gigs: choose one on the gig’s Financials tab\./);
+    });
   });
 });

@@ -62,11 +62,18 @@ vi.mock('../services/gig.service', () => ({
   getGigExportAggregates: vi.fn().mockResolvedValue(new Map()),
 }));
 
+vi.mock('../utils/gigExport', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../utils/gigExport')>()),
+  downloadGigCsv: vi.fn(),
+}));
+
 vi.mock('../services/conflictDetection.service', () => ({
   checkAllConflictsForGigs: vi.fn().mockResolvedValue([]),
 }));
 
 import { getGigsForOrganization } from '../services/gig.service';
+import { downloadGigCsv } from '../utils/gigExport';
+import { checkAllConflictsForGigs } from '../services/conflictDetection.service';
 
 const organization = { id: 'org-1', name: 'Test Org' } as any;
 const user = { id: 'user-1', name: 'Test User' } as any;
@@ -223,5 +230,127 @@ describe('GigListScreen', () => {
     await ue.click(screen.getByText('Upcoming Show'));
 
     expect(onViewGig).toHaveBeenCalledWith('gig-future');
+  });
+
+  // Issue #168: money columns are Admin/Manager only (gig_financials RLS, and
+  // Staff/Viewers can't see pay), so they aren't offered or exported to others.
+  describe('financial columns (#168)', () => {
+    const moneyColumns = ['Cost of Staff', 'Revenue', 'Expenses', 'Profit'];
+
+    const renderAs = (userRole: 'Admin' | 'Manager' | 'Staff' | 'Viewer') =>
+      render(
+        <GigListScreen
+          organization={organization}
+          user={user}
+          userRole={userRole}
+          onBack={noop}
+          onCreateGig={noop}
+          onViewGig={noop}
+          onEditGig={noop}
+          onNavigateToDashboard={noop}
+          onNavigateToGigs={noop}
+          onNavigateToAssets={noop}
+          onSwitchOrganization={noop}
+          onLogout={noop}
+        />
+      );
+
+    it.each(['Admin', 'Manager'] as const)('offers the money columns to %s', async (role) => {
+      const ue = userEvent.setup();
+      renderAs(role);
+      await screen.findByText('Upcoming Show');
+
+      await ue.click(screen.getByRole('button', { name: /columns/i }));
+
+      expect(screen.getByRole('menuitemcheckbox', { name: 'Number of Staff' })).toBeInTheDocument();
+      for (const name of moneyColumns) {
+        expect(screen.getByRole('menuitemcheckbox', { name })).toBeInTheDocument();
+      }
+    });
+
+    it.each(['Staff', 'Viewer'] as const)('does not offer the money columns to %s', async (role) => {
+      const ue = userEvent.setup();
+      renderAs(role);
+      await screen.findByText('Upcoming Show');
+
+      await ue.click(screen.getByRole('button', { name: /columns/i }));
+
+      expect(screen.getByRole('menuitemcheckbox', { name: 'Number of Staff' })).toBeInTheDocument();
+      for (const name of moneyColumns) {
+        expect(screen.queryByRole('menuitemcheckbox', { name })).not.toBeInTheDocument();
+      }
+    });
+
+    it('does not export money columns for Staff, even if they were turned on in this browser', async () => {
+      const ue = userEvent.setup();
+      localStorage.setItem('table-state-gig-list', JSON.stringify({
+        columnVisibility: { staffCount: true, costOfStaff: true, revenue: true, expenses: true, profit: true },
+      }));
+      renderAs('Staff');
+      await screen.findByText('Upcoming Show');
+
+      await ue.click(screen.getByRole('button', { name: /export/i }));
+      await ue.click(await screen.findByRole('button', { name: 'Continue' }));
+
+      expect(downloadGigCsv).toHaveBeenCalledTimes(1);
+      const headerRow = vi.mocked(downloadGigCsv).mock.calls[0][0].split(/\r?\n/)[0];
+      expect(headerRow).toContain('Number of Staff');
+      for (const name of moneyColumns) {
+        expect(headerRow).not.toContain(name);
+      }
+    });
+  });
+
+  describe('the conflict banner View button (#170)', () => {
+    const conflict = {
+      level: 'conflict' as const, type: 'staff' as const,
+      gig_id: 'gig-future', gig_title: 'Upcoming Show',
+      start: futureGig.start, end: futureGig.end,
+      details: { conflicting_staff: [{ user_id: 'u-1', name: 'Sam Whitfield' }] },
+    };
+
+    const renderScreen = (viewMode: 'list' | 'calendar', onViewGig: (id: string, fromCalendar?: boolean) => void) =>
+      render(
+        <GigListScreen
+          organization={organization}
+          user={user}
+          userRole="Admin"
+          viewMode={viewMode}
+          onBack={noop}
+          onCreateGig={noop}
+          onViewGig={onViewGig}
+          onEditGig={noop}
+          onNavigateToDashboard={noop}
+          onNavigateToGigs={noop}
+          onNavigateToAssets={noop}
+          onSwitchOrganization={noop}
+          onLogout={noop}
+        />
+      );
+
+    beforeEach(() => {
+      vi.mocked(checkAllConflictsForGigs).mockResolvedValue([conflict]);
+    });
+
+    it('from the list, opens the gig with Back to Gigs', async () => {
+      const ue = userEvent.setup();
+      const onViewGig = vi.fn();
+      renderScreen('list', onViewGig);
+
+      await ue.click(await screen.findByRole('button', { name: 'View' }));
+
+      expect(onViewGig).toHaveBeenCalledWith('gig-future');
+      expect(onViewGig.mock.calls[0][1]).toBeFalsy();
+    });
+
+    it('from the calendar, opens the gig with Back to Calendar', async () => {
+      const ue = userEvent.setup();
+      const onViewGig = vi.fn();
+      renderScreen('calendar', onViewGig);
+
+      await ue.click(await screen.findByRole('button', { name: 'View' }));
+
+      expect(onViewGig).toHaveBeenCalledWith('gig-future', true);
+    });
   });
 });

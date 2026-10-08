@@ -70,7 +70,8 @@ were **Synced**, **Removed** or **Failed**.
 
 Each gig becomes an all-day event on the gig's dates, in the gig's own time zone, so a
 gig never lands on the wrong day. The event's description carries the gig's times,
-its venue and its notes, plus a link back to the gig in GigWrangler.
+its venue and its notes, plus a link back to the gig in GigWrangler. A gig that runs
+overnight and ends before 6 AM the next day shows on its start day only.
 
 :::caution
 Edit gigs in GigWrangler, not in Google Calendar. Changes you make to the event in

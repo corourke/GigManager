@@ -13,7 +13,7 @@ The reports use the cash basis. Money counts in the year it was received or paid
 ## Choosing a year and a report
 
 1. Open **Financials → Reporting**.
-2. Choose a year in **Tax year**. The list holds this year and every year in which you have purchases or paid gig money.
+2. Choose a year in **Tax year**. The list holds this year and every year in which you have purchases, paid gig money or equipment you sold or retired.
 3. Select **Income**, **Expenses** or **Assets**.
 
 If an Admin has marked the year as filed, a **{year} is filed** badge appears beside the report buttons. See [Filing a year](#filing-a-year).
@@ -43,7 +43,7 @@ The boxes at the top show **Expenses in {year}** and the number of **Items**. Th
 
 Below it, **Every expense** lists each item with **Date paid**, **Source** (**Purchase** or **Gig**), **Payee**, **Description**, **Category**, **Line** and **Amount**. Mileage shows its miles beside the description. A purchase's amount includes its share of tax and shipping (see [Cost allocation](/financials/cost-allocation/)).
 
-An item whose category isn't on your expense list, or has none, can't be placed on a Schedule C line. An amber **Need a category** box counts them, and the category shows in amber. Edit the purchase to choose a category. Your lists are under [Expense and equipment categories](/settings/categories/).
+An item whose category isn't on your expense list, or has none, can't be placed on a Schedule C line. An amber **Need a category** box counts them, and the category shows in amber. For a purchase, edit the purchase to choose a category; for a gig's own cost, choose it on the gig's [Financials tab](/financials/gig-expenses/). Your lists are under [Expense and equipment categories](/settings/categories/).
 
 The CSV adds the line number and name, the gig and the miles as separate columns.
 

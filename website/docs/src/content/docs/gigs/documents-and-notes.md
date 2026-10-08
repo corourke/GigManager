@@ -36,7 +36,8 @@ The editor uses Markdown. A reminder under the box shows the basics: `**bold**`,
 new tab. Changes save as you type, like the rest of the gig page; see
 [Editing a gig](/gigs/overview/#editing-a-gig).
 
-<!-- TODO: #169 — the gig page shows notes as raw text, not formatted. Say how they display once it's fixed. -->
+Outside edit mode, the gig page and the printed **Gig sheet** show the notes
+formatted, the same as the **Preview** tab.
 
 ## Attaching files
 

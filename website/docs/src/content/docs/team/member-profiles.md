@@ -23,16 +23,18 @@ instead. It shows:
 - Their role as a badge at the top, plus **Pending Invitation** if they haven't
   accepted yet.
 
-Admins and Managers also see **Remove from Team** (not on their own page).
-<!-- TODO: #173 — the page's Edit button returns to Team, and Default Staff Role shows "No default role assigned" even when one is set. Document Edit here once fixed. -->
+Admins and Managers also see **Edit**, which opens **Edit Team Member**, and
+**Remove from Team** (not on their own page). **Default Staff Role** reads "No
+default role assigned" when none is set.
 
 ![A team member's details page: name and role, Edit and Remove from Team, then Contact Information, Staff Details and Organization Activity](../../../assets/screenshots/team/member-profiles-details-page.png)
 
 ## Editing a member
 
-Go back to **Team**, open the member's **⋯** menu → **Edit Permissions**, and update
-**Edit Team Member**: **First Name**, **Last Name**, **Default Staffing Role**,
-**Phone Number**, **Avatar URL**, the address, and **Organization Role**. Select
+Select **Edit** on the member's page, or on **Team** open the member's **⋯** menu →
+**Edit Permissions**. Then update **Edit Team Member**: **First Name**, **Last Name**,
+**Default Staffing Role**, **Phone Number**, **Timezone**, **Avatar URL**, the address, and
+**Organization Role**. Select
 **Save Changes**. The email address can't be changed. Only Admins and Managers can
 edit other members.
 

@@ -86,6 +86,15 @@ describe('GigPrintSheet (#12)', () => {
     expect(getGigParticipantContacts).toHaveBeenCalledWith('g1', 'o-venue');
   });
 
+  it('prints the notes as Markdown, without raw HTML (#169)', async () => {
+    const { onReady } = renderSheet({ gig: { ...gig, notes: '**Load in** at noon\n\n- Dock B\n\n<img src="x" onerror="alert(1)">' } as any });
+    await waitFor(() => expect(onReady).toHaveBeenCalledTimes(1));
+    const sheet = page(/gig sheet/i);
+    expect(within(sheet).getByText('Load in').tagName).toBe('STRONG');
+    expect(within(sheet).getByRole('listitem').textContent).toBe('Dock B');
+    expect(sheet.querySelector('img')).toBeNull();
+  });
+
   it('adds the financials page when asked', async () => {
     const { onReady } = renderSheet({ includeFinancials: true });
     await waitFor(() => expect(onReady).toHaveBeenCalledTimes(1));

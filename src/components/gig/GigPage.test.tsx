@@ -91,6 +91,19 @@ describe('GigPage (#12)', () => {
     expect(screen.queryByTestId('edit-staffing')).not.toBeInTheDocument();
   });
 
+  it('renders the notes as Markdown on the overview, without raw HTML (#169)', async () => {
+    vi.mocked(getGig).mockResolvedValue({
+      ...gig, notes: '**Load in** at noon\n\n- Dock B\n- Lot C\n\n<img src="x" onerror="alert(1)">',
+    } as any);
+    render(<GigPage {...baseProps} userRole="Admin" />);
+    const notes = await screen.findByRole('heading', { name: 'Notes & attachments' });
+    const card = notes.closest('[data-slot="card"]') as HTMLElement;
+    expect(within(card).getByText('Load in').tagName).toBe('STRONG');
+    expect(within(card).getAllByRole('listitem').map((li) => li.textContent)).toEqual(['Dock B', 'Lot C']);
+    expect(card.querySelector('img')).toBeNull();
+    expect(card.textContent).not.toContain('**');
+  });
+
   it('gives Admins one Edit for the whole gig, then Done', async () => {
     render(<GigPage {...baseProps} userRole="Admin" />);
     fireEvent.click(await screen.findByRole('button', { name: /edit/i }));
