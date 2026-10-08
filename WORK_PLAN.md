@@ -9,7 +9,7 @@
 
 This file lives on `main`. Land updates there promptly: a run that starts from `main` won't see edits parked on a feature branch.
 
-- **Last updated:** 2026-10-08 (coordinator: #178 merged in PR #195, prod release waiting; #190 and #192 reviewed; check-ins every 4 hours through 10-17)
+- **Last updated:** 2026-10-08 evening (coordinator: PR #198 has the small bugs, #193 and overnight gigs; #174 UI and #92 in progress)
 
 ---
 
@@ -33,7 +33,9 @@ This file lives on `main`. Land updates there promptly: a run that starts from `
 ## 2. Waiting on Cameron
 
 1. **Dev mail catcher** (Cameron, 10-08: Mailtrap): create a free Mailtrap Email Testing inbox and send its SMTP host, port, user and password. The coordinator then points dev's Supabase Auth at it and checks the invitation, sign-up confirmation and password-reset flows with the demo `.test` logins.
-2. **Sentry secrets** (optional): `SENTRY_API_TOKEN`, `SENTRY_ORG_SLUG`, `SENTRY_PROJECT_SLUG`; the health check reports "not configured" until set.
+2. **#171 rate unit:** a staff rate always shows "/ hr", but nothing in the schema says whether a rate is hourly, daily or flat. Either add a unit (a migration on `gig_staff_assignments`, plus a picker), or show a neutral "/ unit". Which? (The delete confirmation half of #171 is in PR #198.)
+3. **Dev deploy access:** this session's Supabase token gets 403 on the dev project's details (prod's are readable), so `supabase link` and `./deploy_dev.sh` fail; functions deploy fine with `--project-ref qcrzwsazasaojqoqxwnr`. Migrations to dev still need you, or a project-level role fix on dev.
+4. **Sentry secrets** (optional): `SENTRY_API_TOKEN`, `SENTRY_ORG_SLUG`, `SENTRY_PROJECT_SLUG`; the health check reports "not configured" until set.
 
 **Decided 10-08, recorded here until done:**
 - The Docs Lead's corrected membership report (private; reported to Cameron directly): no path lets a Manager make anyone an Admin. The remaining backstop gaps are **parked** (Cameron: later). Partner organizations on a shared gig may keep adding, editing and removing each other's no-login contacts (intended). Person-search privacy is fixed by #178 (in prod 10-08).
@@ -79,7 +81,7 @@ Pure refactor: no migrations, no edge-function or UI changes. Tests, typecheck, 
 - [#173](https://github.com/corourke/GigManager/issues/173): a member's details page. Edit goes nowhere, the default role isn't shown, and timezone edits are dropped.
 - [#176](https://github.com/corourke/GigManager/issues/176): there's no direct path to your own organization's settings, and the Contacts card clips its actions.
 
-Not released, staying with the coordinator: #174, #175 (needs a design pass).
+Not released: #175 (needs a design pass). **Coordinator, 10-08 evening (sub-agents): #174's UI half (Managers aren't offered Admin; own role cell; invitation-sent message; tab name) and #92 (replace-all saves delete only rows the form loaded and removed).** The batch above is in PR #198.
 
 **Overnight gigs on Google Calendar** (released 10-08, Cameron). A gig that ends before 6 AM on the day after it starts shows on its start day only; its real times stay at the top of the event description. The dates come from `buildCalendarEvent` in `supabase/functions/server/lib/pure/calendarEvent.ts`, shared by the server and the browser sync, so change it there with tests: a 9 PM–1:30 AM gig is one day, a gig ending at 6:00 or later shows both days, multi-day gigs are unchanged, and the cutoff is in the gig's time zone. Needs a `server` redeploy and a frontend deploy; list both in the PR.
 
