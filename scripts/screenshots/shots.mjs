@@ -412,6 +412,55 @@ export const shots = [
     },
     clip: { x: 0, y: 56, width: 1200, height: 420 },
   },
+  {
+    id: 'getting-started/organizations-search-result',
+    page: 'getting-started/organizations.md',
+    user: 'newuser',
+    sources: ['src/components/OrganizationSelectionScreen.tsx'],
+    prepare: async (page, ctx) => {
+      // Searches only; never joins.
+      await page.goto(`${ctx.base}/org-selection`);
+      await page.getByPlaceholder(/Search all organizations/).fill('Cedar');
+      await page.getByRole('button', { name: 'Join as Viewer' }).first().waitFor();
+    },
+    clip: { x: 0, y: 56, width: 1200, height: 290 },
+  },
+  {
+    id: 'getting-started/organizations-create-form',
+    page: 'getting-started/organizations.md',
+    user: 'newuser',
+    sources: ['src/components/OrganizationScreen.tsx'],
+    viewport: { width: 1200, height: 1800 },
+    prepare: async (page, ctx) => {
+      // Fills the form but never creates the organization.
+      await page.goto(`${ctx.base}/create-org`);
+      await page.getByText('Skip search and enter details manually').click();
+      await page.getByPlaceholder('Enter organization name').fill('Bayline Audio');
+      await page.locator('#role-Sound').click();
+      await page.locator('#role-Rentals').click();
+      await page.getByPlaceholder('+1 (555) 123-4567').fill('(510) 555-0188');
+      await page.evaluate(() => document.activeElement?.blur());
+    },
+    // From Basic Information down to Allowed Email Domains.
+    clip: async (page) => {
+      const card = await box(page.getByText('Organization Roles').locator('xpath=ancestor::div[contains(@class,"rounded-xl") or contains(@class,"rounded-lg")][last()]'));
+      return { x: card.x, y: card.y, width: card.width, height: 480 };
+    },
+  },
+  {
+    id: 'getting-started/organizations-request-access',
+    page: 'getting-started/organizations.md',
+    user: 'viewer',
+    sources: ['src/components/team/RequestAccessDialog.tsx', 'src/components/TeamScreen.tsx'],
+    prepare: async (page, ctx) => {
+      // Opens the dialog; never submits.
+      await page.goto(`${ctx.base}/team`);
+      await page.getByRole('button', { name: 'Request Access' }).click();
+      await page.getByPlaceholder('Why do you need this access?').fill('I handle the books and need to see Financials.');
+      await page.evaluate(() => document.activeElement?.blur());
+    },
+    target: (page) => page.getByRole('dialog'),
+  },
   // Held: getting-started/the-dashboard-overview waits for #157 (the Equipment
   // card's Total Value ignores quantity), so the guide doesn't show a wrong figure.
 ];

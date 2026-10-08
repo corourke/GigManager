@@ -29,6 +29,37 @@
     "taken": "2026-10-07",
     "appCommit": "39173c1"
   },
+  "getting-started/organizations-create-form": {
+    "page": "getting-started/organizations.md",
+    "user": "newuser",
+    "sources": [
+      "src/components/OrganizationScreen.tsx"
+    ],
+    "anchor": "2026-10-07",
+    "taken": "2026-10-08",
+    "appCommit": "397d3c6"
+  },
+  "getting-started/organizations-request-access": {
+    "page": "getting-started/organizations.md",
+    "user": "viewer",
+    "sources": [
+      "src/components/team/RequestAccessDialog.tsx",
+      "src/components/TeamScreen.tsx"
+    ],
+    "anchor": "2026-10-07",
+    "taken": "2026-10-08",
+    "appCommit": "397d3c6"
+  },
+  "getting-started/organizations-search-result": {
+    "page": "getting-started/organizations.md",
+    "user": "newuser",
+    "sources": [
+      "src/components/OrganizationSelectionScreen.tsx"
+    ],
+    "anchor": "2026-10-07",
+    "taken": "2026-10-08",
+    "appCommit": "397d3c6"
+  },
   "getting-started/the-dashboard-avatar-menu": {
     "page": "getting-started/the-dashboard.md",
     "user": "admin",
