@@ -5,6 +5,8 @@ Append new entries at the top of each section; never edit an old entry to descri
 
 ## Shipped (newest first)
 
+- **Prod deploy (10-08, Cameron):** main through PR #204 (frontend and `server` v33, 15:32 UTC; no new migrations). #92 checked on dev first. **F1 run on prod:** 19 mileage rows repriced, $882.90 → $982.32, notes updated (verified read-only).
+
 - **#20 batch 2, PR #204** (coordinator's sub-agent, merged 10-08): activityLog, gigKit, gigParticipant, gigParticipantContacts, gigSchedule on `base/dataAccess.ts`; no behaviour change; 8 new tests.
 
 - **#20 batch 1, PR #203** (triage, merged 10-08): `notification`, `taxYear`, `accessRequest`, `purchaseScanQueue`, `purchaseCategory` now use `getSupabase` / `getCurrentUser` from the data-access base; new tests for `taxYear`, `accessRequest`, `notification`. Issue stays open (batches 2–7).
