@@ -82,7 +82,6 @@ Not released: #174's UI half shipped in PR #199; its remaining item (the already
   - **Item 1, staff rate units (#171):** PR #214 (merged), which added demo rates per hour, day and half day, retakes the staffing shots and fixes the wording.
   - **Item 2, Equipment Items pages: held.** Cameron chose to keep holding all of Equipment until #183–#186 land.
   - **Item 3, #206:** the guide keeps pointing role changes at Team → Edit Permissions.
-- **Projected staff cost counts a rate as one unit (#213, Docs Lead, 10-08).** A $35 / hr stagehand projects as $35. This hits the staffing footer, the Financials tab's Projected staff costs and Gig Accounting. **Cameron chose option 1 (10-08):** estimate the units from the gig (hours start to end, gig days, one half day per day) and show the estimate, e.g. "est. 9 hr × $35 / hr". Ready for the coordinator to schedule. Details are on the issue.
 - **Units from one multi-quantity depreciated purchase line (Docs Lead, 10-08; for #183).**
   - The database finds a unit's depreciated line by `purchases.asset_id`, so only one unit per line counts as depreciated or can hold a recovery period. Its siblings (same `purchase_line_id`) count as not depreciated.
   - Seen in the demo seed: 4 moving heads on one line.
