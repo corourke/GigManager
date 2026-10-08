@@ -120,6 +120,35 @@ describe('ItemDetailScreen (#182)', () => {
     await ue.type(field, 'Class A')
     await ue.click(screen.getByRole('button', { name: 'Done' }))
     await waitFor(() => expect(updateItem).toHaveBeenCalledWith('item-k12', expect.objectContaining({ insurance_class: 'Class A' })))
+    // Typing is debounced into one save, not one per keystroke.
+    expect(updateItem).toHaveBeenCalledTimes(1)
+  })
+
+  it('stays in edit mode when the save fails, so the change isn’t read as saved', async () => {
+    let failing = true
+    vi.mocked(updateItem).mockImplementation(async () => {
+      if (failing) throw new Error('The item was saved, but its units and lots weren’t updated (boom). Try the change again.')
+      return {} as any
+    })
+    const ue = userEvent.setup()
+    render(<ItemDetailScreen {...props} />)
+    await screen.findByText('DSL-0101')
+    await ue.click(screen.getByRole('button', { name: 'Edit' }))
+    const field = screen.getByLabelText('Insurance class')
+    await ue.clear(field)
+    await ue.type(field, 'Class A')
+    await ue.click(screen.getByRole('button', { name: 'Done' }))
+    await waitFor(() => expect(updateItem).toHaveBeenCalled())
+    expect(screen.getByRole('button', { name: 'Done' })).toBeInTheDocument()
+    expect(screen.getByLabelText('Insurance class')).toHaveValue('Class A')
+
+    // Done again tries the save again, and leaves edit mode once it works.
+    failing = false
+    vi.mocked(updateItem).mockClear()
+    await ue.click(screen.getByRole('button', { name: 'Done' }))
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Edit' })).toBeInTheDocument())
+    expect(updateItem).toHaveBeenCalledTimes(1)
+    expect(updateItem).toHaveBeenCalledWith('item-k12', expect.objectContaining({ insurance_class: 'Class A' }))
   })
 
   it('hides editing from read-only roles', async () => {

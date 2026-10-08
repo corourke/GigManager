@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Check, Layers, Loader2, Pencil, Plus, Tag } from 'lucide-react';
 import { toast } from 'sonner';
 import AppHeader from './AppHeader';
@@ -110,15 +110,22 @@ export default function ItemDetailScreen({
 
   useEffect(() => { load(); }, [load]);
 
-  const { saveState, triggerSave, flushAsync } = useAutoSave<Required<ItemFields>>({
+  // Whether the latest save failed; Done keeps the page in edit mode if so.
+  const saveFailedRef = useRef(false);
+  // Stable, as useAutoSave needs: a new onSave each render makes it send the
+  // pending save on every render, skipping the debounce.
+  const saveItem = useCallback(async (fields: Required<ItemFields>) => {
+    saveFailedRef.current = true;
+    if (!fields.manufacturer_model.trim() || !fields.category.trim()) {
+      throw new Error('An item needs a manufacturer & model and a category.');
+    }
+    await updateItem(itemId, fields);
+    saveFailedRef.current = false;
+    setItem((prev) => (prev ? { ...prev, ...fields } : prev));
+  }, [itemId]);
+  const { saveState, triggerSave, flushAsync, saveNow } = useAutoSave<Required<ItemFields>>({
     gigId: itemId,
-    onSave: async (fields) => {
-      if (!fields.manufacturer_model.trim() || !fields.category.trim()) {
-        throw new Error('An item needs a manufacturer & model and a category.');
-      }
-      await updateItem(itemId, fields);
-      setItem((prev) => (prev ? { ...prev, ...fields } : prev));
-    },
+    onSave: saveItem,
   });
 
   const startEditing = () => {
@@ -139,7 +146,14 @@ export default function ItemDetailScreen({
   };
   const done = async () => {
     try {
-      await flushAsync();
+      if (saveFailedRef.current) {
+        // An earlier save failed: Done tries it again.
+        if (!(await saveNow(form)).ok) return;
+      } else {
+        await flushAsync();
+        // The failed save has already shown its message; stay, so Done can try again.
+        if (saveFailedRef.current) return;
+      }
       setEditing(false);
     } catch (err: any) {
       toast.error(err.message || 'Some changes didn’t save');
