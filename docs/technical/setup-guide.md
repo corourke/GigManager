@@ -192,14 +192,14 @@ The web app tags events with `environment` (Vite mode) and `release` (`gigwrangl
 ### Setup
 
 1. Create a Sentry organization/project at [sentry.io](https://sentry.io) — one **React** project for the web app and (optionally separate) one **Deno** project for edge functions. Copy each DSN.
-2. **Web (production)**: in the Cloudflare Pages dashboard → gigwrangler project → Settings → Environment variables, add `VITE_SENTRY_DSN`. Redeploy for it to take effect (build-time variable).
+2. **Web (production)**: add `VITE_SENTRY_DSN=https://<key>@o<org>.ingest.us.sentry.io/<project>` to `.env.production.local` (git-ignored) on the machine that runs `./deploy_prod.sh`. It is a build-time variable, so it takes effect at the next `./deploy_prod.sh` run. Cloudflare Pages dashboard env vars are not used (the deploy is a direct upload of a locally built `build/`). Web (dev): `npm run dev` reads `.env.local`.
 3. **Edge functions (dev first)**:
    ```bash
    cat supabase/.temp/project-ref   # verify target before setting secrets
    supabase secrets set SENTRY_DSN=<dsn> SENTRY_ENVIRONMENT=development
    ```
    Repeat against prod with `SENTRY_ENVIRONMENT=production` when ready.
-4. Verify: throw a test error (e.g. temporarily `throw new Error('sentry test')` in a button handler, or trigger a 500 in a function) and confirm the event appears in Sentry.
+4. Verify: after a prod deploy, search the deployed bundle for your Sentry ingest host (see [deployment.md → Verifying](./deployment.md#verifying)) to confirm the DSN was baked in. Then throw a test error (e.g. temporarily `throw new Error('sentry test')` in a button handler, or trigger a 500 in a function) and confirm the event appears in Sentry.
 
 ---
 

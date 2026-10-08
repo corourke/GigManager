@@ -19,7 +19,7 @@ Two separate Supabase projects are in use. Use `supabase link` to switch targets
 | Environment | Project Ref | Used by |
 |---|---|---|
 | **Development** | `qcrzwsazasaojqoqxwnr` | `npm run dev` via `.env.local` |
-| **Production** | `hqnnhtxcxedisasvtbqv` | Cloudflare Pages via dashboard env vars |
+| **Production** | `hqnnhtxcxedisasvtbqv` | `./deploy_prod.sh` build, via `.env.production.local` (Cloudflare dashboard env vars are not used) |
 
 ### ⚠️ MANDATORY: Verify linked project before ANY remote Supabase command
 
