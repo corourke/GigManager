@@ -33,13 +33,13 @@ default role assigned" when none is set.
 
 Select **Edit** on the member's page, or on **Team** open the member's **⋯** menu →
 **Edit Permissions**. Then update **Edit Team Member**: **First Name**, **Last Name**,
-**Default Staffing Role**, **Phone Number**, **Timezone**, **Avatar URL** and the
-address. Select **Save Changes**. The email address can't be changed. Only Admins and
-Managers can edit other members.
+**Default Staffing Role**, **Phone Number**, **Timezone**, **Avatar URL**, the
+address and **Organization Role**. Select **Save Changes**. The email address can't be
+changed. Only Admins and Managers can edit other members.
 
-To change someone's role, use **Edit Permissions** on **Team**: it adds
-**Organization Role** to the form. See [Changing a role](/team/team-and-roles/#changing-a-role).
-<!-- TODO: #206 — Edit on the member's page doesn't show Organization Role yet. Once fixed, say either way works. -->
+**Organization Role** follows the same rules either way: Managers aren't offered
+**Admin**, and it doesn't appear on your own page or, for a Manager, on an Admin's. See
+[Changing a role](/team/team-and-roles/#changing-a-role).
 
 You edit your own details from the avatar menu (top right) → **Edit Profile**. See
 [Onboarding](/getting-started/onboarding/#your-profile).

@@ -32,11 +32,13 @@ Everyone can open the screen. What else you see depends on your role:
 
 ## Changing a role
 
-Admins and Managers can change a role two ways:
+Admins and Managers can change a role three ways:
 
 - In the table, select a **System Role** cell and choose a role.
 - Open the row's **⋯** menu → **Edit Permissions**, choose **Organization Role** in
   **Edit Team Member**, and select **Save Changes**.
+- On the member's details page, select **Edit**, then do the same. See
+  [Member profiles](/team/member-profiles/).
 
 Only Admins can make someone an Admin, change an Admin's role, or remove an Admin.
 Managers aren't offered **Admin**, and an Admin's role can't be changed by a
