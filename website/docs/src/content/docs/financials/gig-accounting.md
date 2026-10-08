@@ -31,7 +31,7 @@ The bar at the top totals the gigs on screen:
 - **Net**.
 
 Each gig shows:
-- **Money in**: received and owed.
+- **Money in**: received and owed. Like the bar, a gig shows money owed only once it's marked Completed.
 - **Costs**: paid, owed, and staff booked.
 - **Net**, with its margin.
 - A **Status**, such as "No money in recorded" or "You owe $X now".

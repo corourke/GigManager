@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { Card } from '../ui/card';
 import { GigAccountingSummary } from '../../utils/supabase/types';
+import { owedToYou } from '../../utils/gigAccountingSections';
 
 interface GigAccountingSummaryBarProps {
   summaries: GigAccountingSummary[];
@@ -36,9 +37,7 @@ export default function GigAccountingSummaryBar({ summaries }: GigAccountingSumm
     for (const s of summaries) {
       contractAmount += s.contractAmount;
       received += s.received;
-      // Owed only once the gig is done (Cameron, 10-08): money committed for a
-      // gig that hasn't happened yet isn't owed.
-      if (s.gigStatus === 'Completed' || s.gigStatus === 'Settled') outstandingRevenue += s.outstandingRevenue;
+      outstandingRevenue += owedToYou(s);
       totalCosts += s.totalCosts;
       paymentsToMake += s.paymentsToMake;
       profit += s.profit;

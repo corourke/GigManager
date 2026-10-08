@@ -103,3 +103,12 @@ export function inTimeframe(gig: GigAccountingSummary, range: { from: string; to
   if (range.to && day > range.to) return false;
   return true;
 }
+
+/**
+ * What a gig still owes you (Cameron, 10-08): money in committed but not yet
+ * received, counted only once the gig is Completed (or Settled). Money for a
+ * gig that hasn't happened yet isn't owed.
+ */
+export function owedToYou(gig: Pick<GigAccountingSummary, 'gigStatus' | 'outstandingRevenue'>): number {
+  return gig.gigStatus === 'Completed' || gig.gigStatus === 'Settled' ? gig.outstandingRevenue : 0;
+}
