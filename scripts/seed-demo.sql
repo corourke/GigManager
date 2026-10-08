@@ -30,6 +30,8 @@
 --   demo-staff@gigwrangler.test    Sofia Lindqvist  Staff
 --   demo-viewer@gigwrangler.test   Victor Okafor    Viewer
 --   demo-newuser@gigwrangler.test  Nina Newman      (no organization: onboarding shots)
+--   demo-moderator@gigwrangler.test Petra Lund      platform moderator, no organization
+--   vera.holm@cedar-hall.example   Vera Holm        Viewer at Cedar Hall (asks to claim it)
 -- =============================================================================
 
 BEGIN;
@@ -60,6 +62,8 @@ DELETE FROM public.ai_scan_usage
  WHERE organization_id::text LIKE 'de000000-0000-4000-8000-%'
     OR user_id::text         LIKE 'de000000-0000-4000-8000-%';
 DELETE FROM public.inventory_tracking WHERE organization_id::text LIKE 'de000000-0000-4000-8000-%';
+DELETE FROM public.notifications WHERE recipient_id::text LIKE 'de000000-0000-4000-8000-%';
+DELETE FROM public.access_requests WHERE requester_id::text LIKE 'de000000-0000-4000-8000-%';
 -- Purchase lines before headers, and all purchases before assets, so the
 -- "depreciated line must keep its equipment record" check never sees a half-delete.
 DELETE FROM public.purchases
@@ -116,6 +120,8 @@ SELECT * FROM (VALUES
   (4,  'demo-viewer@gigwrangler.test',       'Victor',  'Okafor',    '(415) 555-0104', 'Oakland',       '94610', true,  6),
   -- signed up but in no organization yet (the onboarding screens)
   (5,  'demo-newuser@gigwrangler.test',      'Nina',    'Newman',    '(415) 555-0105', 'San Francisco', '94110', true,  2),
+  -- platform moderator (P for platform): reviews requests on unclaimed organizations
+  (6,  'demo-moderator@gigwrangler.test',    'Petra',   'Lund',      '(415) 555-0106', 'San Francisco', '94103', true,  3),
   -- freelance crew without logins (Staff at Demo Sound & Lighting)
   (11, 'sam.whitfield@crew.example',         'Sam',     'Whitfield', '(510) 555-0113', 'Oakland',       '94610', false, NULL),
   (12, 'shane.park@crew.example',            'Shane',   'Park',      '(510) 555-0112', 'Berkeley',      '94703', false, NULL),
@@ -124,7 +130,8 @@ SELECT * FROM (VALUES
   (15, 'skye.morgan@crew.example',           'Skye',    'Morgan',    '(510) 555-0115', 'Emeryville',    '94608', false, NULL),
   -- partner-org contacts (Viewers at their own org)
   (21, 'valerie.costa@harborlight.example',  'Valerie', 'Costa',     '(415) 555-0143', 'San Francisco', '94111', false, NULL),
-  (22, 'vera.holm@cedar-hall.example',       'Vera',    'Holm',      '(510) 555-0178', 'Berkeley',      '94704', false, NULL),
+  -- Vera has a login: she asks to take over Cedar Hall (an unclaimed venue)
+  (22, 'vera.holm@cedar-hall.example',       'Vera',    'Holm',      '(510) 555-0178', 'Berkeley',      '94704', true,  4),
   (23, 'vivian.chen@neon-orchard.example',   'Vivian',  'Chen',      '(510) 555-0120', 'Oakland',       '94612', false, NULL),
   (24, 'vaughn.ellis@paperlanterns.example', 'Vaughn',  'Ellis',     '(415) 555-0164', 'San Rafael',    '94901', false, NULL),
   (25, 'vince.becker@brightwave.example',    'Vince',   'Becker',    '(415) 555-0156', 'San Francisco', '94105', false, NULL)
@@ -156,7 +163,7 @@ INSERT INTO public.users
   (id, email, first_name, last_name, phone, avatar_url, address_line1, address_line2, city, state,
    postal_code, country, user_status, timezone, platform_moderator)
 SELECT pg_temp.d(2, u.n), u.email, u.first_name, u.last_name, u.phone, '', '', '', u.city, 'CA',
-       u.postal, 'US', CASE WHEN u.login THEN 'active' ELSE 'contact' END, 'America/Los_Angeles', false
+       u.postal, 'US', CASE WHEN u.login THEN 'active' ELSE 'contact' END, 'America/Los_Angeles', u.n = 6
   FROM _u u;
 
 -- Memberships. Crew without logins are Staff (the Add Team Member default);
@@ -189,6 +196,38 @@ INSERT INTO public.invitations (organization_id, email, role, invited_by, status
 VALUES (pg_temp.d(1,1), 'jordan.blake@crew.example', 'Staff', pg_temp.d(2,1), 'pending',
         md5('demo-invitation-1'), pg_temp.at(pg_temp.anchor() + 5, 9), pg_temp.at(pg_temp.anchor() - 2, 9),
         pg_temp.at(pg_temp.anchor() - 2, 9));
+
+-- Access requests (ID kind 0013) and the notifications they send (kind 0014),
+-- in the shape supabase/functions/server/routes/accessRequests.ts writes them:
+--   1 Sofia (Staff) asks for Manager at Demo Sound & Lighting: pending, for Alicia.
+--   2 Victor (Viewer) asked for Admin: rejected by Alicia, with a reply.
+--   3 Vera asks for Admin of Cedar Hall, which no one has claimed: pending, for
+--     the platform moderator.
+INSERT INTO public.access_requests (id, organization_id, requester_id, requested_role, message, status, handled_by, handled_at, response_message, created_at)
+VALUES
+  (pg_temp.d(13,1), pg_temp.d(1,1), pg_temp.d(2,3), 'Manager', 'I''m running FOH on most of our gigs now and would like to set up staffing myself.',
+     'pending', NULL, NULL, NULL, pg_temp.at(pg_temp.anchor() - 1, 7)),
+  (pg_temp.d(13,2), pg_temp.d(1,1), pg_temp.d(2,4), 'Admin', 'I need to see Financials to do the books.',
+     'rejected', pg_temp.d(2,1), pg_temp.at(pg_temp.anchor() - 3, 9), 'Admin is more than you need. Let''s talk about Manager, which includes Financials.',
+     pg_temp.at(pg_temp.anchor() - 4, 16)),
+  (pg_temp.d(13,3), pg_temp.d(1,3), pg_temp.d(2,22), 'Admin', 'I''m the house manager at Cedar Hall and would like to manage our listing.',
+     'pending', NULL, NULL, NULL, pg_temp.at(pg_temp.anchor() - 2, 11));
+
+INSERT INTO public.notifications (id, recipient_id, type, payload, read_at, created_at)
+VALUES
+  (pg_temp.d(14,1), pg_temp.d(2,1), 'access_request.created',
+     jsonb_build_object('access_request_id', pg_temp.d(13,1), 'organization_id', pg_temp.d(1,1), 'organization_name', 'Demo Sound & Lighting',
+                        'requester_name', 'Sofia Lindqvist', 'requested_role', 'Manager'),
+     NULL, pg_temp.at(pg_temp.anchor() - 1, 7)),
+  (pg_temp.d(14,2), pg_temp.d(2,4), 'access_request.outcome',
+     jsonb_build_object('access_request_id', pg_temp.d(13,2), 'organization_id', pg_temp.d(1,1), 'organization_name', 'Demo Sound & Lighting',
+                        'requested_role', 'Admin', 'status', 'rejected',
+                        'response_message', 'Admin is more than you need. Let''s talk about Manager, which includes Financials.'),
+     NULL, pg_temp.at(pg_temp.anchor() - 3, 9)),
+  (pg_temp.d(14,3), pg_temp.d(2,6), 'access_request.created',
+     jsonb_build_object('access_request_id', pg_temp.d(13,3), 'organization_id', pg_temp.d(1,3), 'organization_name', 'Cedar Hall',
+                        'requester_name', 'Vera Holm', 'requested_role', 'Admin'),
+     NULL, pg_temp.at(pg_temp.anchor() - 2, 11));
 
 -- -----------------------------------------------------------------------------
 -- 4. CATEGORIES: copy the starter sets for the primary org, as

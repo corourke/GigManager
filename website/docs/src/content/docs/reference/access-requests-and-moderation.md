@@ -61,9 +61,9 @@ Moderators get a notification in the bell for each new request, and selecting it
 
 If the request was for **Admin** on an unclaimed organization, approving it makes the person the organization's first Admin, and the organization becomes **claimed**. From then on its own Admins decide requests. Approving **Manager** on an unclaimed organization changes the person's role but leaves the organization unclaimed.
 
-<!-- TODO 📸 held: reference/access-requests-pending-card — Team screen as Admin Alicia Hale, Pending Access Requests card with one request (seed: Victor Okafor requests Manager with a message; no pending requests exist now) -->
+![The Pending Access Requests card on Team: a Staff member asking for Manager, with their message, the date, and Approve and Reject buttons](../../../assets/screenshots/reference/access-requests-pending-card.png)
 
-<!-- TODO 📸 held: reference/access-requests-moderator-queue — Access Requests queue as a platform moderator (needs a user with the moderator flag and one pending request on an unclaimed organization; neither exists in the demo data) -->
+![The platform moderator's Access Requests page: a venue contact asking to become Admin of an organization with no Admin yet, with Approve and Reject](../../../assets/screenshots/reference/access-requests-moderator-queue.png)
 
 ## Related
 

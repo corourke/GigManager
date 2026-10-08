@@ -60,6 +60,8 @@ What happens next depends on the organization:
 You're notified of the decision by email and by the in-app notification bell
 (top-right). If approved, your role changes automatically.
 
+![The notification bell open on a decision: a request for Admin was rejected, with the Admin's reply below it](../../../assets/screenshots/getting-started/organizations-notification.png)
+
 ## 3. Accept an invitation
 
 An Admin or Manager can invite you by email (**Team** → **Add Team Member** →
@@ -79,4 +81,3 @@ away. Use **Request Access** from the Team page if you need Manager or Admin.
 
 Once you're in, head to [the dashboard](/getting-started/the-dashboard/).
 
-<!-- TODO: 📸 the notification bell after a decision (needs a seeded access-request decision). -->
