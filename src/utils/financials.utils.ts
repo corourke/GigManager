@@ -1,41 +1,44 @@
 /**
- * Official IRS Standard Mileage Rates
+ * Official IRS standard mileage rates (business use), by the date of the trip.
+ * Ranges are inclusive calendar dates (YYYY-MM-DD); the last range is open-ended.
  * References:
- * - 2024: 67 cents per mile (Notice 2024-08)
- * - 2025: 67.5 cents per mile (Notice 2024-86)
- * - 2026: 67.5 cents per mile (assuming continuation of 2025 rate until updated)
+ * - 2023: 65.5 cents per mile
+ * - 2024: 67 cents per mile
+ * - 2025: 70 cents per mile
+ * - 2026-01-01 to 2026-06-30: 72.5 cents per mile (IR-2025-128)
+ * - 2026-07-01 onward: 76 cents per mile (IR-2026-29, mid-year increase)
  */
-export const IRS_MILEAGE_RATES: Record<number, number> = {
-  2024: 0.67,
-  2025: 0.675,
-  2026: 0.675,
-};
+export const IRS_MILEAGE_RATES: ReadonlyArray<{ from: string; to: string | null; rate: number }> = [
+  { from: '2023-01-01', to: '2023-12-31', rate: 0.655 },
+  { from: '2024-01-01', to: '2024-12-31', rate: 0.67 },
+  { from: '2025-01-01', to: '2025-12-31', rate: 0.70 },
+  { from: '2026-01-01', to: '2026-06-30', rate: 0.725 },
+  { from: '2026-07-01', to: null, rate: 0.76 },
+];
 
 /**
- * Gets the IRS mileage rate for a specific year.
- * Defaults to the latest known rate if the year is not found.
+ * Gets the IRS mileage rate for a trip on a calendar date (YYYY-MM-DD).
+ * The date is compared as text, never parsed as a UTC instant, so a June 30
+ * trip stays in June in every timezone. Before the first range the first rate
+ * applies; after the last, the last (open-ended) rate.
  */
-export function getMileageRateForYear(year: number): number {
-  if (year in IRS_MILEAGE_RATES) {
-    return IRS_MILEAGE_RATES[year];
-  }
-  
-  const years = Object.keys(IRS_MILEAGE_RATES).map(Number).sort((a, b) => b - a);
-  if (year < years[years.length - 1]) {
-    return IRS_MILEAGE_RATES[years[years.length - 1]];
-  }
-  return IRS_MILEAGE_RATES[years[0]];
+export function getMileageRateForDate(date: string): number {
+  const day = date.slice(0, 10);
+  if (day < IRS_MILEAGE_RATES[0].from) return IRS_MILEAGE_RATES[0].rate;
+  const range = IRS_MILEAGE_RATES.find((r) => day >= r.from && (r.to === null || day <= r.to));
+  return (range ?? IRS_MILEAGE_RATES[IRS_MILEAGE_RATES.length - 1]).rate;
 }
 
 /**
  * Calculates the total mileage expense amount.
  * @param distance Distance in miles
- * @param year Year of the travel to determine rate
- * @returns Total amount in dollars
+ * @param date Calendar date of the travel (YYYY-MM-DD) to determine rate
+ * @returns Total amount in dollars, rounded to the cent (half a cent rounds up)
  */
-export function calculateMileageAmount(distance: number, year: number): number {
-  const rate = getMileageRateForYear(year);
-  return Number((distance * rate).toFixed(2));
+export function calculateMileageAmount(distance: number, date: string): number {
+  const rate = getMileageRateForDate(date);
+  // toFixed(6) clears float noise first, so 1 mi x $0.725 rounds to 0.73 as in SQL ROUND().
+  return Math.round(Number((distance * rate * 100).toFixed(6))) / 100;
 }
 
 /**

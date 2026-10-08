@@ -86,8 +86,49 @@ describe('QuickActionButtons', () => {
     expect(defaultProps.onOther).toHaveBeenCalled();
   });
 
+  async function openMileage(gigStartDate: string) {
+    render(<QuickActionButtons {...defaultProps} gigStartDate={gigStartDate} />);
+    fireEvent.click(screen.getByText('Expense / Mileage'));
+    await waitFor(() => {
+      expect(screen.getByText('Mileage', { selector: 'div.font-semibold' })).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByText('Mileage', { selector: 'div.font-semibold' }));
+    await waitFor(() => {
+      expect(screen.getByLabelText(/Miles Driven/)).toBeInTheDocument();
+    });
+  }
+
+  it.each([
+    ['2026-06-30', 72.5, '$0.725', '100 miles @ $0.725/mile'],
+    ['2026-07-01', 76, '$0.76', '100 miles @ $0.76/mile'],
+  ])('prices mileage on %s by the rate for that date', async (date, amount, shownRate, notes) => {
+    vi.mocked(gigService.createGigFinancial).mockResolvedValue({ id: 'fin-new' } as any);
+    await openMileage(date);
+    fireEvent.change(screen.getByLabelText(/Miles Driven/), { target: { value: '100' } });
+    expect(screen.getByText((_, el) => el?.tagName === 'P' && el.textContent === `@ ${shownRate}/mi = $${amount.toFixed(2)}`)).toBeInTheDocument();
+    fireEvent.click(screen.getByText('Save Mileage'));
+
+    await waitFor(() => {
+      expect(gigService.createGigFinancial).toHaveBeenCalledWith(expect.objectContaining({
+        mileage: 100,
+        amount,
+        date,
+        notes,
+      }));
+    });
+  });
+
+  it('updates the shown rate when the travel date changes', async () => {
+    await openMileage('2026-07-01');
+    fireEvent.change(screen.getByLabelText(/Miles Driven/), { target: { value: '100' } });
+    fireEvent.change(screen.getByLabelText('Date of Travel'), { target: { value: '2026-06-30' } });
+    await waitFor(() => {
+      expect(screen.getByText((_, el) => el?.tagName === 'P' && el.textContent === '@ $0.725/mi = $72.50')).toBeInTheDocument();
+    });
+  });
+
   it('calculates mileage correctly from distance', async () => {
-    render(<QuickActionButtons {...defaultProps} />);
+    render(<QuickActionButtons {...defaultProps} gigStartDate="2025-03-01" />);
     
     // Open choice modal
     fireEvent.click(screen.getByText('Expense / Mileage'));
@@ -111,7 +152,7 @@ describe('QuickActionButtons', () => {
     await waitFor(() => {
       expect(gigService.createGigFinancial).toHaveBeenCalledWith(expect.objectContaining({
         mileage: 100,
-        amount: 67.5, // 100 * 0.675 (for 2026 default in utils)
+        amount: 70, // 100 * 0.70 (2025 rate)
         direction: 'out',
         stage: 'paid',
         category: 'Car and truck expenses'
@@ -147,7 +188,7 @@ describe('QuickActionButtons', () => {
       await waitFor(() => {
         expect(gigService.createGigFinancial).toHaveBeenCalledWith(expect.objectContaining({
           mileage: 100,
-          amount: 67.5, // 2025 rate (0.675/mi). The pre-fix bug computed year 2024 (0.67/mi -> 67).
+          amount: 70, // 2025 rate (0.70/mi). The pre-fix bug computed year 2024 (0.67/mi -> 67).
         }));
       });
     } finally {
@@ -156,7 +197,7 @@ describe('QuickActionButtons', () => {
   });
 
   it('calculates mileage correctly from odometer readings', async () => {
-    render(<QuickActionButtons {...defaultProps} />);
+    render(<QuickActionButtons {...defaultProps} gigStartDate="2025-03-01" />);
     
     fireEvent.click(screen.getByText('Expense / Mileage'));
     
@@ -177,7 +218,7 @@ describe('QuickActionButtons', () => {
     await waitFor(() => {
       expect(gigService.createGigFinancial).toHaveBeenCalledWith(expect.objectContaining({
         mileage: 50,
-        amount: 33.75,
+        amount: 35, // 50 * 0.70 (2025 rate)
       }));
     });
   });

@@ -222,5 +222,6 @@ describe('GigStaffSlotsSection deletes only rows it loaded (#92)', () => {
 
     await waitFor(() => expect(calls().at(-1)![1].map((s) => s.id)).toEqual([SLOT_A, SLOT_B]), { timeout: 3000 });
     expect(calls().at(-1)![3]).toContain(NEW_SLOT);
-  });
+    // It waits through two real autosave debounces, so it needs more than the 5s default under load.
+  }, 15000);
 });

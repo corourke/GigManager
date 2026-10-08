@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useForm, useWatch } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { format, parseISO } from 'date-fns';
+import { format } from 'date-fns';
 import { toast } from 'sonner';
 import { 
   FileText, 
@@ -24,7 +24,7 @@ import { createGigFinancial } from '../../services/gig.service';
 import { uploadAttachment, linkAttachmentToEntity } from '../../services/attachment.service';
 import { FinCategory, UserRole } from '../../utils/supabase/types';
 import { STAGE_LABELS, stagePickerLabel } from '../../utils/moneyFlow';
-import { calculateMileageAmount, formatMileageNotes, getMileageRateForYear } from '../../utils/financials.utils';
+import { calculateMileageAmount, formatMileageNotes, getMileageRateForDate } from '../../utils/financials.utils';
 import { lockedYearMessage } from '../../utils/taxTreatment';
 
 const commonSchema = {
@@ -150,9 +150,9 @@ export default function QuickActionButtons({
     return 0;
   })();
 
-  const computedYear = milDate ? parseISO(milDate).getFullYear() : new Date().getFullYear();
-  const computedRate = getMileageRateForYear(computedYear);
-  const computedAmount = computedDistance > 0 ? calculateMileageAmount(computedDistance, computedYear) : 0;
+  const computedDate = milDate || format(new Date(), 'yyyy-MM-dd');
+  const computedRate = getMileageRateForDate(computedDate);
+  const computedAmount = computedDistance > 0 ? calculateMileageAmount(computedDistance, computedDate) : 0;
 
   const handleClose = () => {
     setActiveModal(null);
@@ -236,9 +236,8 @@ export default function QuickActionButtons({
         return;
       }
 
-      const year = parseISO(data.date).getFullYear();
-      const amount = calculateMileageAmount(distance, year);
-      const rate = getMileageRateForYear(year);
+      const amount = calculateMileageAmount(distance, data.date);
+      const rate = getMileageRateForDate(data.date);
       const autoNotes = formatMileageNotes(distance, rate);
       const combinedNotes = data.notes ? `${autoNotes}\n\n${data.notes}` : autoNotes;
 
