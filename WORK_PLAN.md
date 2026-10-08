@@ -79,6 +79,8 @@ Pure refactor: no migrations, no edge-function or UI changes. Tests, typecheck, 
 
 (none open: the 10-07 entries are filed as #157–#160, #168–#171, #173–#176 and #178, and their decisions are in §1 and §2)
 
+- **Second private security finding (Docs Lead, 10-07): privacy, in the person search behind the duplicate check (#178).** Details went to Cameron directly, as the repo is public. Cameron (10-08) asked for it to go on the private security list with the membership-RPC finding (§2 item 3). It touches the same search #178 changes, so plan the two together.
+
 ## 4. Agents and documentation
 
 **Equipment Lead** (`session_013gAYYf2hpcECG9QpxFz5Vo`, Supabase Dev environment, no prod access) owns #162. Mockups first, revised with Cameron; after approval it proposes sub-issues and builds nothing until he says so. It reports on #162.
