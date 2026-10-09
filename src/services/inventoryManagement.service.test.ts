@@ -141,6 +141,18 @@ describe('inventoryManagement.service', () => {
       ]);
     });
 
+    it('a logical kit with nothing to move (only "any" lines) is refused, not silently saved as nothing', async () => {
+      const { createManualTrackingRecord } = await import('./inventoryManagement.service');
+      const chain = makeQueryChain({ data: [], error: null });
+      mockSupabase.from.mockReturnValue(chain);
+
+      await expect(createManualTrackingRecord({
+        organizationId: 'org-1', gigId: 'gig-1', kitId: 'kit-1', status: 'On Site', createdBy: 'user-1',
+        isContainerKit: false, assetIds: [],
+      })).rejects.toThrow(/no specific units or lots/);
+      expect(chain.insert).not.toHaveBeenCalled();
+    });
+
     it('records N of a lot (#185: quantity is how many are there)', async () => {
       const { createManualTrackingRecord } = await import('./inventoryManagement.service');
       const chain = makeQueryChain({ data: { id: 't-1' }, error: null });
@@ -636,7 +648,12 @@ describe('inventoryManagement.service', () => {
       const { getPackingListReport } = await import('./inventoryManagement.service');
       anyKit({
         ...base,
-        assets: { data: [{ equipment_item_id: 'item-k12' }], error: null },   // K12s have tags; the cables don't
+        // K12s have tags. The cables' only "tags" are a blank one and one on a disposed record: counted.
+        assets: { data: [
+          { equipment_item_id: 'item-k12', tag_number: 'DSL-0101', status: 'Active', retired_on: null },
+          { equipment_item_id: 'item-xlr', tag_number: '  ', status: 'Active', retired_on: null },
+          { equipment_item_id: 'item-xlr', tag_number: 'OLD-1', status: 'Disposed', retired_on: '2025-01-01' },
+        ], error: null },
         inventory_tracking: { data: [
           scan('k1', 'item-k12', { asset: { equipment_item_id: 'item-k12', tag_number: 'DSL-0101', serial_number: 'S1', manufacturer_model: 'QSC K12.2' } }),
           scan('k3', 'item-k12', { status: 'In Warehouse', asset: { equipment_item_id: 'item-k12', tag_number: 'DSL-0103', serial_number: null, manufacturer_model: 'QSC K12.2' } }),
@@ -650,6 +667,38 @@ describe('inventoryManagement.service', () => {
       expect(k12.packed_units).toEqual([{ asset_id: 'k1', tag_number: 'DSL-0101', serial_number: 'S1', quantity: 1 }]);
       expect(rows.find((r) => r.item_id === 'item-xlr')).toMatchObject({ kind: 'any', quantity: 10, packed: 7, counted: true });
       expect(rows.find((r) => r.asset_id === 'stands')).toMatchObject({ kind: 'lot', lot_of: 6, quantity: 2, packed: 2 });
+    });
+
+    // #240 review: lines are filed under the owning kit, so the same item or lot in two of its
+    // sub-kits must add up, not collapse into one line.
+    it('sums the same "any" item and the same lot across sub-kits of one kit', async () => {
+      const { getPackingListReport } = await import('./inventoryManagement.service');
+      mockSupabase.rpc = vi.fn().mockResolvedValue({ data: [
+        { parent_kit_id: 'band', child_kit_id: 'drums', quantity: 1, depth: 1 },
+        { parent_kit_id: 'band', child_kit_id: 'guitars', quantity: 1, depth: 1 },
+      ], error: null });
+      const sm57 = { id: 'item-sm57', manufacturer_model: 'SM57', category: 'Audio' };
+      const cables = { id: 'cables', manufacturer_model: 'XLR Cable', tag_number: null, serial_number: null, quantity: 20 };
+      mockSupabase.from.mockImplementation((table: string) => makeQueryChain(({
+        gig_kit_assignments: { data: [{ kit_id: 'band', kit: { id: 'band', name: 'Band', is_container: false, tag_number: null, organization_id: 'org-1' } }], error: null },
+        kits: { data: [
+          { id: 'band', name: 'Band', category: null, is_container: false, tag_number: null },
+          { id: 'drums', name: 'Drum mics', category: null, is_container: false, tag_number: null },
+          { id: 'guitars', name: 'Guitar mics', category: null, is_container: false, tag_number: null },
+        ], error: null },
+        kit_components: { data: [
+          { kit_id: 'band', asset_id: null, child_kit_id: 'drums', quantity: 1, asset: null },
+          { kit_id: 'band', asset_id: null, child_kit_id: 'guitars', quantity: 1, asset: null },
+          { kit_id: 'drums', asset_id: null, equipment_item_id: 'item-sm57', child_kit_id: null, quantity: 3, item: sm57 },
+          { kit_id: 'drums', asset_id: 'cables', child_kit_id: null, quantity: 4, asset: cables },
+          { kit_id: 'guitars', asset_id: null, equipment_item_id: 'item-sm57', child_kit_id: null, quantity: 2, item: sm57 },
+          { kit_id: 'guitars', asset_id: 'cables', child_kit_id: null, quantity: 3, asset: cables },
+        ], error: null },
+      } as Record<string, any>)[table] ?? { data: [], error: null }));
+
+      const rows = await getPackingListReport('org-1', 'gig-1');
+      expect(rows.filter((r) => r.item_id === 'item-sm57').map((r) => r.quantity)).toEqual([5]);
+      expect(rows.filter((r) => r.asset_id === 'cables').map((r) => r.quantity)).toEqual([7]);
     });
 
     // Regression: the old query embedded kit_components -> assets directly

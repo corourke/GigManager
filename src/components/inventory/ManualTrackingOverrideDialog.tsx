@@ -98,8 +98,8 @@ export function ManualTrackingOverrideDialog({
       setNotes('');
       setMarkForMaintenance(false);
       onSuccess();
-    } catch {
-      toast.error('Failed to update tracking record');
+    } catch (error) {
+      toast.error(error instanceof Error && error.message ? error.message : 'Failed to update tracking record');
     } finally {
       setSubmitting(false);
     }
