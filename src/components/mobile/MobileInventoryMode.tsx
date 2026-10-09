@@ -147,6 +147,8 @@ export default function MobileInventoryMode({ gigId }: MobileInventoryModeProps)
   const [noteDialog, setNoteDialog] = useState<NoteDialogState>({ open: false, note: '', maintenanceRequired: false });
   const [counter, setCounter] = useState<CounterState | null>(null);
   const [shortReturn, setShortReturn] = useState<ShortReturnState | null>(null);
+  // Finish unload (#185): what's still out, and which of it to mark missing.
+  const [finishing, setFinishing] = useState<{ kit_id: string; asset_id: string | null; quantity: number; name: string; missing: boolean }[] | null>(null);
 
   const refreshPackingList = useCallback(async (id: string) => {
     const updated = await idbStore.getPackingList(id);
@@ -361,6 +363,71 @@ export default function MobileInventoryMode({ gigId }: MobileInventoryModeProps)
     }
     await loadPackingList(gigId);
   }, [gigId, shortReturn]);
+
+  const openFinishUnload = useCallback(() => {
+    if (!packingList) return;
+    const names = new Map<string, string>();
+    for (const assignment of packingList.kits || []) {
+      const kit = assignment.kit;
+      if (!kit) continue;
+      names.set(`kit:${kit.id}`, kit.name || 'Kit');
+      for (const a of [...(kit.assets || []), ...(kit.direct_assets || [])]) {
+        const asset = a.asset || {};
+        const id = a.asset_id || asset.id;
+        if (id && asset.manufacturer_model && !names.has(id)) names.set(id, asset.manufacturer_model);
+      }
+      for (const line of kit.any_lines || []) {
+        for (const r of packingList.item_records?.[line.item_id] || []) {
+          names.set(r.id, r.tag_number ? `${line.item_name} (${r.tag_number})` : line.item_name);
+        }
+      }
+    }
+    setFinishing(inventoryTrackingService.getStillOut(packingList).map((t: { kit_id: string; asset_id: string | null; quantity: number }) => ({
+      ...t,
+      name: t.asset_id ? names.get(t.asset_id) ?? 'Item' : names.get(`kit:${t.kit_id}`) ?? 'Kit',
+      missing: false,
+    })));
+  }, [packingList]);
+
+  // Each item left at the gig gets a Not Returned row with what's still out (a container as a
+  // whole); each marked missing is written off. Write-offs need a connection and Admin or Manager.
+  const finishUnload = useCallback(async () => {
+    if (!finishing || !gigId || !selectedOrganization || !user) return;
+    const items = finishing;
+    setFinishing(null);
+    let missingFailed = 0;
+    for (const item of items) {
+      if (item.missing && item.asset_id) {
+        try {
+          await writeOffPieces({ assetId: item.asset_id, quantity: item.quantity, gigId, kitId: item.kit_id, stillOut: 0 });
+        } catch (error) {
+          console.error('Write-off failed:', error);
+          missingFailed += 1;
+        }
+        continue;
+      }
+      await inventoryTrackingService.submitScan({
+        gigId,
+        kitId: item.kit_id,
+        assetId: item.asset_id ?? undefined,
+        quantity: item.asset_id ? item.quantity : undefined,
+        status: NOT_RETURNED_STATUS,
+        organizationId: selectedOrganization.id,
+        scannedBy: user.id,
+        location: locationInput || null,
+      });
+    }
+    if (items.some((i) => i.missing)) {
+      await loadPackingList(gigId);
+    } else {
+      await refreshPackingList(gigId);
+    }
+    if (missingFailed > 0) {
+      toast.error(`${missingFailed} could not be marked missing. They're still listed as out.`);
+    } else if (items.length > 0) {
+      toast.success('Unload finished');
+    }
+  }, [finishing, gigId, locationInput, refreshPackingList, selectedOrganization, user]);
 
   // An "any" line (#185): checking it fills it from what the kit holds, then lots at home (most
   // at home first, no prompt); un-checking deletes the rows that filled it in this mode.
@@ -698,6 +765,9 @@ export default function MobileInventoryMode({ gigId }: MobileInventoryModeProps)
                 <option key={label} value={label} />
               ))}
             </datalist>
+            {selectedMode.resultingStatus === RETURNED_STATUS ? (
+              <Button variant="outline" className="mt-2 w-full h-10" onClick={openFinishUnload}>Finish unload</Button>
+            ) : null}
           </div>
         </div>
 
@@ -991,6 +1061,45 @@ export default function MobileInventoryMode({ gigId }: MobileInventoryModeProps)
               <Button variant="outline" className="h-11" onClick={() => void markMissing()}>Mark missing</Button>
             ) : null}
             <Button className="h-11" onClick={() => void leaveAtGig()}>Leave at the gig</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={finishing !== null} onOpenChange={(open) => (!open ? setFinishing(null) : undefined)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Finish unload</DialogTitle>
+          </DialogHeader>
+          {finishing && finishing.length > 0 ? (
+            <div className="space-y-2">
+              <p className="text-sm font-medium">{finishing.length} still out</p>
+              <p className="text-sm text-muted-foreground">
+                What isn't marked missing stays at the gig until it comes back.
+              </p>
+              <div className="max-h-72 overflow-y-auto space-y-1.5">
+                {finishing.map((item, index) => (
+                  <div key={`${item.kit_id}|${item.asset_id ?? ''}`} className="flex items-center justify-between gap-3 rounded-lg border border-border/70 px-3 py-2">
+                    <span className="text-sm truncate">{item.name} · {item.quantity}</span>
+                    {item.asset_id && canManage(userRole) && navigator.onLine ? (
+                      <label className="flex items-center gap-2 text-xs text-muted-foreground shrink-0">
+                        <Checkbox
+                          aria-label={`${item.name} missing`}
+                          checked={item.missing}
+                          onCheckedChange={(checked) => setFinishing((current) => current?.map((c, i) => (i === index ? { ...c, missing: checked === true } : c)) ?? null)}
+                        />
+                        Missing
+                      </label>
+                    ) : null}
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">Everything is back.</p>
+          )}
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button variant="outline" className="h-11" onClick={() => setFinishing(null)}>Cancel</Button>
+            <Button className="h-11" onClick={() => void finishUnload()}>Done</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

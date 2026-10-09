@@ -270,6 +270,32 @@ const getScanProgress = (packingList: any, status: string) =>
 /** One kit's progress in pieces: what toggling it as a whole covers. */
 const getKitProgress = (packingList: any, kitId: string, status: string) => progressUnder(packingList, [kitId], status);
 
+/**
+ * What's still out at the gig (#185), for Finish unload: every unit and lot whose newest row in
+ * its kit isn't a return or a partial return, with what that row says is there. A container is
+ * one sealed unit (its own row), so its contents aren't listed apart from it.
+ */
+const getStillOut = (packingList: any): CascadeTarget[] => {
+  const roots: string[] = packingList?.top_level_kit_ids?.length
+    ? packingList.top_level_kit_ids
+    : (packingList?.kits || []).map((a: any) => a.kit?.id).filter(Boolean);
+  const tracking = packingList?.tracking || [];
+  const seen = new Set<string>();
+  const out: CascadeTarget[] = [];
+  for (const root of roots) {
+    for (const t of [...getCascadeTargets(packingList, root), ...getAnySlotTargets(packingList, root)]) {
+      if (t.asset_id && getKitAssignment(packingList, t.kit_id)?.kit?.is_container) continue;
+      const key = `${t.kit_id}|${t.asset_id ?? ''}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      const latest = getLatestTrackingRecord(tracking, t.kit_id, t.asset_id ?? undefined);
+      if (!latest || latest.status === RETURNED_STATUS || latest.status === NOT_RETURNED_STATUS) continue;
+      out.push({ kit_id: t.kit_id, asset_id: t.asset_id, quantity: Math.max(1, Number(latest.quantity ?? t.quantity) || 1) });
+    }
+  }
+  return out;
+};
+
 const appendTrackingEntries = (packingList: any, entries: TrackingRecord[]) => {
   if (!packingList) {
     return packingList;
@@ -393,6 +419,7 @@ export const inventoryTrackingService = {
   getAnySlotFills,
   getScanProgress,
   getKitProgress,
+  getStillOut,
 
   async matchTag(tagNumber: string) {
     const trimmed = tagNumber.trim();

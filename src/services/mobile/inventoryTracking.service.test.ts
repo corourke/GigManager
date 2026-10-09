@@ -547,4 +547,36 @@ describe('inventoryTrackingService', () => {
     await inventoryTrackingService.clearTracking({ gigId: 'gig-1', kitId: 'top' })
     expect(vi.mocked(offlineSyncService.queueTrackingUpdate).mock.calls.map((c: any) => c[0].record_id)).toEqual(['r1', 'r2'])
   })
+
+  // #185: Finish unload lists what's still out at the gig: units and lots by kit, a container
+  // as one sealed unit, nothing already back or already left at the gig.
+  it('getStillOut lists what is out and not yet back or left', () => {
+    const row = (kit_id: string, asset_id: string | null, status: string, quantity: number) =>
+      ({ gig_id: 'gig-1', kit_id, asset_id, status, quantity, scanned_at: '2026-10-09T10:00:00.000Z', scanned_by: 'u' })
+    const packingList = {
+      top_level_kit_ids: ['top'],
+      hierarchy_edges: [{ parent_kit_id: 'top', child_kit_id: 'case', quantity: 1 }],
+      kits: [
+        { kit: { id: 'top', is_container: false, direct_assets: [{ asset_id: 'k12', quantity: 1 }, { asset_id: 'xlr', quantity: 10 }, { asset_id: 'sub', quantity: 1 }, { asset_id: 'di', quantity: 1 }],
+          any_lines: [{ item_id: 'item-clip', item_name: 'Clip', quantity: 4 }] } },
+        { kit: { id: 'case', is_container: true, assets: [{ asset_id: 'mic', quantity: 2 }] } },
+      ],
+      item_records: { 'item-clip': [{ id: 'clip-lot', quantity: 9 }] },
+      tracking: [
+        row('top', 'k12', 'On Site', 1),
+        row('top', 'xlr', 'In Transit', 8),
+        row('top', 'sub', 'In Warehouse', 1),
+        row('top', 'di', 'Not Returned', 1),
+        row('case', null, 'On Site', 1),
+        row('case', 'mic', 'On Site', 2),
+        row('top', 'clip-lot', 'On Site', 4),
+      ],
+    }
+    expect(inventoryTrackingService.getStillOut(packingList)).toEqual([
+      { kit_id: 'top', asset_id: 'k12', quantity: 1 },
+      { kit_id: 'top', asset_id: 'xlr', quantity: 8 },
+      { kit_id: 'case', asset_id: null, quantity: 1 },
+      { kit_id: 'top', asset_id: 'clip-lot', quantity: 4 },
+    ])
+  })
 })
