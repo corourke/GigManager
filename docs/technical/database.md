@@ -1118,13 +1118,19 @@ Tracks equipment check-in/check-out status at gigs.
 | status | TEXT | Tracking status (NOT NULL) |
 | scanned_at | TIMESTAMPTZ | When the scan occurred (NOT NULL) |
 | scanned_by | UUID | Reference to public.users(id) (nullable, SET NULL on delete; re-pointed from auth.users in migration 20260530000000) |
-| quantity | INTEGER | How many were scanned: 1 for a unit, N from a lot (default 1, CHECK > 0). Migration 20261014000000 |
+| quantity | INTEGER | State, not a delta: how many of this unit or lot are at this gig under this kit as of this row. 1 for a unit, N of a lot (default 1, CHECK > 0). Migration 20261014000000 |
 | notes | TEXT | Notes about this tracking event (nullable) |
 | location | TEXT | Free-text location for the tracking event (nullable; migration 20260529000000) |
 | created_at | TIMESTAMPTZ | Record creation timestamp (NOT NULL) |
 
 **Notes:**
 - Composite index on (gig_id, kit_id, asset_id, scanned_at DESC) for efficient lookups.
+- **Append-only history.** The unique index from 20260305000000 was dropped in 20260309000000. Every scan or manual move inserts a row. Undo deletes the newest row, and a note edit updates the newest row in place.
+- **Reading it (`src/utils/locations.ts`, #186).** The newest row wins, ordered by scanned_at, then created_at, then id. Times are compared as instants.
+  - A unit is where its newest row says.
+  - A lot's count at a gig is the sum, over kits, of the newest row per (gig_id, kit_id, asset_id). A no-kit manual move is its own bucket.
+  - Pieces stay at a gig until a row with status `In Warehouse` returns them. The rest are at home.
+- Today every write path records `quantity` 1. Recording N for lots is part of #185.
 - RLS is **ENABLED** on this table. Users with gig access can manage inventory tracking.
 
 ---
