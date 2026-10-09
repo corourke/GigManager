@@ -10,6 +10,7 @@ import ResetPasswordScreen from '../components/ResetPasswordScreen';
 import InvitationErrorScreen from '../components/InvitationErrorScreen';
 import CalendarAuthCallback from '../components/CalendarAuthCallback';
 import { Button } from '../components/ui/button';
+import { canManage } from '../utils/permissions';
 import type { User } from '../utils/supabase/types';
 
 export function LoadingSpinner() {
@@ -111,6 +112,17 @@ export function RequireOrg() {
   if (organizations.length === 1) return <LoadingSpinner />; // auto-selecting
   // Remember where they were going, so picking an org continues there.
   return <Navigate to="/org-selection" replace state={{ from: `${location.pathname}${location.search}` }} />;
+}
+
+/**
+ * Admin/Manager-only routes (#226). Staff and Viewer opening one by URL are
+ * sent to their landing page, the same `canManage` rule the menus use, before
+ * the screen renders.
+ */
+export function RequireManager() {
+  const { userRole } = useAuth();
+  if (!canManage(userRole)) return <Navigate to="/" replace />;
+  return <Outlet />;
 }
 
 /** Root landing: role- and device-aware. */
