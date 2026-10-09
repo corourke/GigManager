@@ -1,7 +1,6 @@
 ---
 title: Staffing
 description: Add staff slots for the roles you need, assign people, track their status and pay, and finalize completed work.
-draft: true
 sidebar:
   order: 5
 ---

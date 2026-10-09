@@ -151,32 +151,32 @@ Not released: #174's UI half shipped in PR #199; its remaining item (the already
 | `getting-started/organizations.md` | published | 2026-10-08 (Docs Lead, PR #191, merged) | fixes and screenshots in |
 | `getting-started/the-dashboard.md` | published | 2026-10-08 (Docs Lead, PR #207) | dashboard and Staff cards shots in |
 | `getting-started/what-is-gigwrangler.md` | published | 2026-10-07 (Docs Lead, PR #164) | — |
-| `gigs/calendar-view.md` | draft, written (PR #172, merged) | 2026-10-07 (Docs Lead) | ready to publish |
+| `gigs/calendar-view.md` | published (PR #222) | 2026-10-07 (Docs Lead) | — |
 | `gigs/change-history.md` | published | 2026-10-07 (triage, PR #151); screenshots PR #166 | — |
-| `gigs/conflict-detection.md` | draft, written (PR #172, merged) | 2026-10-08 (Docs Lead, PR #207) | ready to publish; banner shot added |
+| `gigs/conflict-detection.md` | published (PR #222) | 2026-10-08 (Docs Lead, PR #207) | banner shot added |
 | `gigs/creating-a-gig.md` | published | 2026-10-07 (triage, PR #151); screenshots PR #166 | — |
-| `gigs/documents-and-notes.md` | draft, written (PR #172, merged) | 2026-10-08 (Docs Lead) | ready to publish |
+| `gigs/documents-and-notes.md` | published (PR #222) | 2026-10-08 (Docs Lead) | — |
 | `gigs/overview.md` | published | 2026-10-07 (Docs Lead, PR #166/#177) | Delete is Admin-only fix lands with #177 |
-| `gigs/participating-organizations.md` | draft, written (PR #172, merged) | 2026-10-07 (Docs Lead) | ready to publish |
-| `gigs/schedule.md` | draft, written (PR #172, merged) | 2026-10-07 (Docs Lead) | ready to publish |
-| `gigs/staffing-and-participants.md` | draft, written (PR #172, merged) | 2026-10-08 (Docs Lead, PR #220) | ready to publish; #213 estimates documented; #219 TODOs |
-| `gigs/the-gig-list.md` | draft, written (PR #172, merged) | 2026-10-08 (Docs Lead) | ready to publish |
+| `gigs/participating-organizations.md` | published (PR #222) | 2026-10-07 (Docs Lead) | — |
+| `gigs/schedule.md` | published (PR #222) | 2026-10-07 (Docs Lead) | — |
+| `gigs/staffing-and-participants.md` | published (PR #222) | 2026-10-08 (Docs Lead, PR #220) | #213 estimates documented; #219 TODOs |
+| `gigs/the-gig-list.md` | published (PR #222) | 2026-10-08 (Docs Lead) | — |
 | `index.mdx` | published | 2026-10-08 (Docs Lead, PR #191, merged) | fixes in |
 | `mobile/biometric-unlock.md` | draft | — | held |
 | `mobile/field-inventory.md` | draft | — | held: equipment rework (#162/#180) |
 | `mobile/offline-access.md` | draft | — | held |
 | `mobile/overview.md` | draft | — | held |
-| `reference/access-requests-and-moderation.md` | draft, written (PR #177, merged) | 2026-10-07 (Docs Lead); screenshots PR #191 | ready to publish |
-| `reference/glossary.md` | draft, written (PR #177) | 2026-10-07 (Docs Lead) | publish after the pages it links to |
+| `reference/access-requests-and-moderation.md` | published (PR #222) | 2026-10-07 (Docs Lead); screenshots PR #191 | — |
+| `reference/glossary.md` | published (PR #222) | 2026-10-07 (Docs Lead) | equipment terms (Asset, Kit, Container, Packing list) to revise with the Equipment pages |
 | `reference/roles-and-access.md` | published | 2026-10-08 (Docs Lead, PR #207) | Add Item, not Add Asset |
 | `settings/categories.md` | published | 2026-10-08 (Docs Lead, PR #189, merged) | corrections in |
 | `settings/google-calendar.md` | published | 2026-10-08 (Docs Lead, overnight rule checked) | connected-state shot needs a Google account |
 | `settings/overview.md` | published | 2026-10-08 (Docs Lead, Edit Organization button checked) | — |
-| `team/invitations.md` | draft, written (PR #177, merged) | 2026-10-08 (Docs Lead, PR #207) | ready to publish |
-| `team/member-profiles.md` | draft, written (PR #177, merged) | 2026-10-08 (Docs Lead, PR #217) | ready to publish; #206 workaround removed |
+| `team/invitations.md` | published (PR #222) | 2026-10-08 (Docs Lead, PR #207) | — |
+| `team/member-profiles.md` | published (PR #222) | 2026-10-08 (Docs Lead, PR #217) | #206 workaround removed |
 | `team/overview.md` | published | 2026-10-07 (Docs Lead, PR #177, merged) | — |
-| `team/people-without-logins.md` | draft, written (PR #177, merged) | 2026-10-07 (Docs Lead) | ready to publish |
-| `team/team-and-roles.md` | draft, written (PR #177, merged) | 2026-10-08 (Docs Lead, PR #217) | ready to publish |
+| `team/people-without-logins.md` | published (PR #222) | 2026-10-07 (Docs Lead) | — |
+| `team/team-and-roles.md` | published (PR #222) | 2026-10-08 (Docs Lead, PR #217) | — |
 
 **Project rules that bite** ([AGENTS.md](./AGENTS.md)): approval before going from plan to code (rule 1); a failing test before a bug fix (rule 3); never edit a committed migration, and Cameron applies new ones (rule 4); list manual deploy and verification steps (rule 7). Prod is read-only for agents unless Cameron approves a specific change.
 

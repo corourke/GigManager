@@ -1,7 +1,6 @@
 ---
 title: Roles & permissions
 description: What each role can do on the Team screen, how to change a role, and how job positions work.
-draft: true
 sidebar:
   order: 2
 ---

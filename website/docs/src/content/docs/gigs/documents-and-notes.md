@@ -1,7 +1,6 @@
 ---
 title: Documents & notes
 description: Add show notes and file attachments to a gig, and see who can open them.
-draft: true
 sidebar:
   order: 8
 ---
