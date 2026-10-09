@@ -17,7 +17,7 @@ Two gigs conflict when their times overlap, including gigs where one ends just a
 - **Staff:** the same person is assigned to both gigs.
 - **Venue or act:** the same organization is a participant with the **Venue** role, or the **Act** role, on both gigs.
 - **Equipment:** the gigs need more of an item than you have free. GigWrangler counts how many of each item the kits on each gig ask for, whether specific units or "any" lines such as "4 × any Halden HX-12P Powered Speaker", and adds up the gigs that are on at the same moment. If that's more than you have free, it's flagged. **Free** means units that are Active and not retired, not counting any packed inside a container kit. Only your own organization's kits count.
-- **The same unit:** a specific unit booked on two gigs is flagged too, even when it comes in different kits. For example, the "Full Band Sound Package" contains the "Main PA" kit, so assigning the package to one gig and the Main PA to an overlapping gig flags the PA's power distro, DSL-0211.
+- **Equipment shared by both kits:** equipment that both gigs' kits include is flagged too, even when it comes in different kits. For example, the "Full Band Sound Package" contains the "Main PA" kit, so assigning the package to one gig and the Main PA to an overlapping gig flags the PA's cables, stands and power distro.
 
 Gigs with no start time count as the whole day in the gig's time zone. **Cancelled** gigs are ignored.
 
@@ -37,7 +37,7 @@ A gig's **Equipment** tab shows **Equipment needed on {day}**: one row for each 
 - **This gig** and **Overlapping:** how many this gig needs, and the most the overlapping gigs need at any one moment.
 - **Needed:** the two together.
 - **Owned**, **In maintenance** and **Free:** what you have. Free leaves out units in maintenance, retired ones, and any packed in a container kit.
-- A status: **Enough**, **none spare** (needed equals free), or **{n} short** in red.
+- A status: **Enough**, **none spare** (needed equals free), or **{n} short** in red. **none spare · {n} are in container kits** means some of the item is packed in a container kit, so it isn't counted as free.
 
 Items that are short come first. For a gig over several days, the table is titled with its first day and covers the whole gig.
 
