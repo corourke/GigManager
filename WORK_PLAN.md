@@ -9,7 +9,7 @@
 
 This file lives on `main`. Land updates there promptly: a run that starts from `main` won't see edits parked on a feature branch.
 
-- **Last updated:** 2026-10-08 21:20 UTC (#20 paused until #186; #175 approved, after #186)
+- **Last updated:** 2026-10-09 00:15 UTC (coordinator check-in: PR #220 merged; #219 building)
 
 ---
 
@@ -66,6 +66,8 @@ This file lives on `main`. Land updates there promptly: a run that starts from `
 
 Pure refactor: no migrations, no edge-function or UI changes. Tests, typecheck, lint and build pass per PR.
 
+**[#219](https://github.com/corourke/GigManager/issues/219): #213 follow-ups** (part of #213's approval; released 10-09). The print sheet's Staff costs rows use the estimate; money shows two decimals and thousands separators. Coordinator, by sub-agent: building.
+
 **[#175](https://github.com/corourke/GigManager/issues/175): gig owner organization; delete, cancel, leave and Inactive** (approved by Cameron 10-08; start only after #186 merges). Coordinator only, by sub-agents, 3 PRs in order: (1) migration `gigs.owner_organization_id` + `gig_participants.inactive`, delete/status/participant rules, RLS test 62 (migration to dev by the coordinator; prod rides the next prod deploy); (2) services: calendar cleanup after a successful delete (test first), duplicate uses the owner, remove/inactivate calls, Inactive left out of conflict checks and calendar sync, unused `DELETE /gigs/:id` removed; (3) UI: Delete Gig / Cancel Gig / Leave Gig / Mark Inactive, participant Remove / Mark Inactive / Reactivate, Inactive banner, status read-only for non-owners. The detailed plan is with the coordinator.
 
 Not released: #174's UI half shipped in PR #199; its remaining item (the already-active error names the tab "Add Existing User") is in a database function and waits for the next membership migration.
@@ -83,18 +85,7 @@ Not released: #174's UI half shipped in PR #199; its remaining item (the already
   - **Item 2, Equipment Items pages: held.** Cameron chose to keep holding all of Equipment until #183–#186 land.
   - **Item 3, #206:** fixed in PR #215; the guide follows in PR #217.
   - **#213:** merged in PR #218; the guide follows in PR #220.
-- **#213 follow-ups (#219, Docs Lead, 10-08).**
-  - The print sheet's **Staff costs** rows still count an unfinalized rate as one unit ("1 hr × $35 / hr", $35); its summary line uses the estimate.
-  - The read-only Staffing card's footer shows "$1,582.5".
-  - Both are small. The guide's Staffing-card shot leaves the footer out until this is fixed.
-- **Units from one multi-quantity depreciated purchase line (Docs Lead, 10-08; for #183).**
-  - The database finds a unit's depreciated line by `purchases.asset_id`, so only one unit per line counts as depreciated or can hold a recovery period. Its siblings (same `purchase_line_id`) count as not depreciated.
-  - Seen in the demo seed: 4 moving heads on one line.
-  - Worth settling when #183 moves the purchase screens to `purchase_line_id`.
-- **"N × any" kit lines before #184–#185 (Docs Lead, 10-08).** These are expected gaps; they're listed so the Equipment Lead sees them in the demo data:
-  - The kit page shows them as "Unknown Kit × N" and leaves them out of its totals.
-  - The packing list omits them.
-  - Conflict detection doesn't count two overlapping gigs that each need any 4 of the 4 PA tops.
+- **"N × any" kit lines before #184–#185 (Docs Lead, 10-08):** expected gaps in the demo data (kit page "Unknown Kit × N", packing list omits them, overlap check ignores them); passed to the Equipment Lead 10-09 for #184/#185.
 
 - **Correction to the private membership finding (§2 item 3), Docs Lead, 10-08.** Tested on dev as the demo Manager, the escalation I reported on 10-07 is **not exploitable**: the `guard_organization_membership` trigger (`20260929000000`) blocks it on every path tried. What remains are low-severity defence-in-depth gaps. The full write-up (paths, test results, suggested fixes) went to Cameron privately on 10-08 to pass on. No migration is urgent; fold the fixes into the next membership or security migration.
 
