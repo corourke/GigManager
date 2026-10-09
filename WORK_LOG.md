@@ -5,6 +5,10 @@ Append new entries at the top of each section; never edit an old entry to descri
 
 ## Shipped (newest first)
 
+- **#184 PR 2, PR #230** (Equipment Lead, merged by the coordinator 10-09): per-item overlap check: "any" lines and specific units count toward their item across overlapping gigs; needed = peak concurrent demand; free = Active, not retired, not in a container; Equipment needed table on the gig's Equipment tab; conflict wording names the item, needed, available and short; gig timezone used for the check. Two review rounds (peak vs sum, empty batch entries, container free count, org scoping, timezones, load-error line).
+
+- **#226 item 8, PR #233** (triage, merged 10-09): Staff and Viewer opening `/assets/new`, `/assets/:id/edit` or `/financials` by URL are redirected to their landing page.
+
 - **#125 closed: Schedule C summary and Needs attention, PR #232** (coordinator's sub-agent, merged 10-09): Schedule C rolls the Income and Expenses reports up by line (line 9 mileage shown in miles and at the IRS rate on each trip's date, counted once; Reimbursable shown below the net and not in the total); Needs attention lists missing categories, recovery periods, costs, disposal dates and invoices that don't add up, with edit links. Both have CSVs. No migration. Future: `isReconciled` compares unrounded numbers (an exact 1-cent difference reads as a mismatch).
 
 - **User guide screenshot refresh, PR #229** (Docs Lead, merged 10-09): all 38 shots retaken for the 10-09 prod release, 14 changed.
