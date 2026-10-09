@@ -1,13 +1,15 @@
 import { useEffect, useState } from 'react';
 import { getGigKits } from '../../../services/gig.service';
+import { getKitsFlattenedSummary } from '../../../services/kit.service';
 import ColumnsPicker from './ColumnsPicker';
 import GigSection from './GigSection';
 import { useColumnVisibility, type ColumnDef } from './useColumnVisibility';
 
 interface KitRow {
   id: string;
+  kit_id?: string;
   notes?: string | null;
-  kit?: { name?: string; tag_number?: string | null; category?: string | null; rental_value?: number | string | null } | null;
+  kit?: { id?: string; name?: string; tag_number?: string | null; category?: string | null; rental_value?: number | string | null } | null;
 }
 
 interface GigEquipmentTableProps {
@@ -20,10 +22,12 @@ interface GigEquipmentTableProps {
 /** Read-only list of the organization's kits assigned to this gig (#12). */
 export default function GigEquipmentTable({ gigId, organizationId, showAmounts }: GigEquipmentTableProps) {
   const [rows, setRows] = useState<KitRow[] | null>(null);
+  const [holds, setHolds] = useState<Map<string, number>>(new Map());
   const columns: ColumnDef[] = [
     { key: 'name', label: 'Kit', required: true },
     { key: 'tag', label: 'Tag #' },
     { key: 'category', label: 'Category' },
+    { key: 'holds', label: 'Holds' },
     ...(showAmounts ? [{ key: 'value', label: 'Rental value' }] : []),
     { key: 'notes', label: 'Notes' },
   ];
@@ -32,7 +36,15 @@ export default function GigEquipmentTable({ gigId, organizationId, showAmounts }
   useEffect(() => {
     let cancelled = false;
     getGigKits(gigId, organizationId)
-      .then((data: KitRow[]) => { if (!cancelled) setRows(data); })
+      .then((data: KitRow[]) => {
+        if (cancelled) return;
+        setRows(data);
+        // How many pieces each kit holds, "any" lines included (#185).
+        const kitIds = data.map((r) => r.kit_id ?? r.kit?.id).filter((id): id is string => !!id);
+        getKitsFlattenedSummary(kitIds)
+          .then((summary) => { if (!cancelled) setHolds(new Map([...summary].map(([id, s]) => [id, s.totalItems]))); })
+          .catch(() => {});
+      })
       .catch(() => { if (!cancelled) setRows([]); });
     return () => { cancelled = true; };
   }, [gigId, organizationId]);
@@ -58,6 +70,10 @@ export default function GigEquipmentTable({ gigId, organizationId, showAmounts }
                 <td className="py-1.5 pr-3 font-semibold">{r.kit?.name}</td>
                 {cols.isVisible('tag') && <td className="py-1.5 pr-3">{r.kit?.tag_number}</td>}
                 {cols.isVisible('category') && <td className="py-1.5 pr-3 text-muted-foreground">{r.kit?.category}</td>}
+                {cols.isVisible('holds') && (() => {
+                  const n = holds.get(r.kit_id ?? r.kit?.id ?? '');
+                  return <td className="py-1.5 pr-3 tabular-nums text-muted-foreground">{n != null ? `${n} piece${n === 1 ? '' : 's'}` : ''}</td>;
+                })()}
                 {showAmounts && cols.isVisible('value') && (
                   <td className="py-1.5 pr-3 text-right tabular-nums">
                     {r.kit?.rental_value != null ? `$${Number(r.kit.rental_value).toFixed(2)}` : '-'}
