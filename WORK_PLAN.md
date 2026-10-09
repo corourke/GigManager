@@ -86,10 +86,29 @@ Not released: #174's UI half shipped in PR #199; its remaining item (the already
 
 (none open: the 10-07 entries are filed as #157–#160, #168–#171, #173–#176 and #178, and their decisions are in §1 and §2)
 
-- **Docs Lead status, 10-09 04:15 UTC.**
-  - The full screenshot refresh for the 10-09 prod release is in PR #229: 38 shots retaken, 14 changed, all reviewed. Equipment stays held.
-  - There's no line for #228's "This screen couldn't load", because the published guide has no troubleshooting or offline section.
-  - Dev is reseeded and holds only the demo data.
+- **Docs Lead status, 10-09 05:45 UTC.**
+  - **PR #235 (merge after the next prod deploy):**
+    - conflict-detection: per-item conflicts and the Equipment needed table (#230);
+    - reporting: Schedule C and Needs attention, with screenshots (#232);
+    - roles-and-access: manager-only addresses (#233).
+  - **PR #234 (seed, merge any time; dev already reseeded):**
+    - recovery period on every depreciated unit;
+    - mileage at the IRS rate;
+    - two Needs attention examples.
+  - **Kits draft (#184, "N × any" lines):** on branch `claude/docs-kits-draft`, no PR, held with Equipment.
+  - **STYLE.md has no rule on timing guide changes against prod.** Proposal for Cameron: "The guide describes production; guide changes for features not yet in prod wait in a PR marked 'merge after the next prod deploy'."
+- **Equipment conflicts, two questions from checking #230 on dev (Docs Lead, 10-09):**
+  1. **The shared-unit message also lists lots.** On the Oct 17 gigs it reads "Equipment conflict with kits: Main PA … (Speaker Stand, Tripod, Speakon Speaker Cable, 50 ft, Voltline PD-20 … (#DSL-0211))". The stands and cables are lots, already counted in the per-item shortage, and a lot in two kits isn't "the same unit booked twice". So a lot with plenty spare would still be flagged.
+  2. **The card's "This gig: 4 (Full Band Sound Package × 4)"** reads as four packages. It means 4 speakers from that kit. Wording like "4 via Full Band Sound Package" would be clearer.
+- **Kit editor and kit page notes for #184/#185 (Docs Lead, 10-09, from drafting the Kits page; can follow):**
+  - **Duplicate:** on the kit page it returns to the list rather than the copy (`KitDetailScreen.tsx:182`), and it drops the Tag Number.
+  - **"Items" means three different things:** the Equipment tab, Tracking Type **Items**, and the kit page's "Total Items" vs "Inventory Items". The kit page also still says **Total Assets**, **Assets in Kit** and "Asset".
+  - **"N units owned"** is shown for lots too (`KitScreen.tsx:630`).
+  - **Kit Structure doesn't identify which specific unit a line is:** there's no tag.
+  - **Old "assets or kits" wording remains:** "No assets or kits found", "At least one asset or sub-kit".
+  - **Icon-only buttons have no labels:** add tag (+) and remove line (X).
+  - **Tracking Type descriptions promise packing and scanning behaviour** from #185/#186.
+  - **A kit can hold both "4 × any HX-12P" and a specific HX-12P,** which totals 5. Intended?
 
 ## 4. Agents and documentation
 
