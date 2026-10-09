@@ -6,8 +6,8 @@
       "src/components/financials/ReportingTab.tsx"
     ],
     "anchor": "2026-10-07",
-    "taken": "2026-10-08",
-    "appCommit": "6ec971c"
+    "taken": "2026-10-09",
+    "appCommit": "6a60b24"
   },
   "financials/reporting-grey-zone": {
     "page": "financials/reporting.md",
@@ -17,8 +17,8 @@
       "src/utils/taxReports.ts"
     ],
     "anchor": "2026-10-07",
-    "taken": "2026-10-08",
-    "appCommit": "c8ce9b5"
+    "taken": "2026-10-09",
+    "appCommit": "6a60b24"
   },
   "financials/reporting-income": {
     "page": "financials/reporting.md",
@@ -27,8 +27,8 @@
       "src/components/financials/ReportingTab.tsx"
     ],
     "anchor": "2026-10-07",
-    "taken": "2026-10-08",
-    "appCommit": "6ec971c"
+    "taken": "2026-10-09",
+    "appCommit": "6a60b24"
   },
   "getting-started/onboarding-edit-profile": {
     "page": "getting-started/onboarding.md",
@@ -37,8 +37,8 @@
       "src/components/EditUserProfileDialog.tsx"
     ],
     "anchor": "2026-10-07",
-    "taken": "2026-10-07",
-    "appCommit": "39173c1"
+    "taken": "2026-10-09",
+    "appCommit": "6a60b24"
   },
   "getting-started/onboarding-select-organization": {
     "page": "getting-started/onboarding.md",
@@ -47,8 +47,8 @@
       "src/components/OrganizationSelectionScreen.tsx"
     ],
     "anchor": "2026-10-07",
-    "taken": "2026-10-07",
-    "appCommit": "39173c1"
+    "taken": "2026-10-09",
+    "appCommit": "6a60b24"
   },
   "getting-started/onboarding-sign-up": {
     "page": "getting-started/onboarding.md",
@@ -57,8 +57,8 @@
       "src/components/LoginScreen.tsx"
     ],
     "anchor": "2026-10-07",
-    "taken": "2026-10-07",
-    "appCommit": "39173c1"
+    "taken": "2026-10-09",
+    "appCommit": "6a60b24"
   },
   "getting-started/organizations-create-form": {
     "page": "getting-started/organizations.md",
@@ -67,8 +67,8 @@
       "src/components/OrganizationScreen.tsx"
     ],
     "anchor": "2026-10-07",
-    "taken": "2026-10-08",
-    "appCommit": "397d3c6"
+    "taken": "2026-10-09",
+    "appCommit": "6a60b24"
   },
   "getting-started/organizations-notification": {
     "page": "getting-started/organizations.md",
@@ -77,8 +77,8 @@
       "src/components/NotificationBell.tsx"
     ],
     "anchor": "2026-10-07",
-    "taken": "2026-10-08",
-    "appCommit": "242810a"
+    "taken": "2026-10-09",
+    "appCommit": "6a60b24"
   },
   "getting-started/organizations-request-access": {
     "page": "getting-started/organizations.md",
@@ -88,8 +88,8 @@
       "src/components/TeamScreen.tsx"
     ],
     "anchor": "2026-10-07",
-    "taken": "2026-10-08",
-    "appCommit": "397d3c6"
+    "taken": "2026-10-09",
+    "appCommit": "6a60b24"
   },
   "getting-started/organizations-search-result": {
     "page": "getting-started/organizations.md",
@@ -98,8 +98,8 @@
       "src/components/OrganizationSelectionScreen.tsx"
     ],
     "anchor": "2026-10-07",
-    "taken": "2026-10-08",
-    "appCommit": "397d3c6"
+    "taken": "2026-10-09",
+    "appCommit": "6a60b24"
   },
   "getting-started/the-dashboard-avatar-menu": {
     "page": "getting-started/the-dashboard.md",
@@ -108,8 +108,8 @@
       "src/components/AppHeader.tsx"
     ],
     "anchor": "2026-10-07",
-    "taken": "2026-10-07",
-    "appCommit": "39173c1"
+    "taken": "2026-10-09",
+    "appCommit": "6a60b24"
   },
   "getting-started/the-dashboard-overview": {
     "page": "getting-started/the-dashboard.md",
@@ -119,8 +119,8 @@
       "supabase/functions/server/lib/pure/dashboard.ts"
     ],
     "anchor": "2026-10-07",
-    "taken": "2026-10-08",
-    "appCommit": "c8ce9b5"
+    "taken": "2026-10-09",
+    "appCommit": "6a60b24"
   },
   "getting-started/the-dashboard-staff-cards": {
     "page": "getting-started/the-dashboard.md",
@@ -129,8 +129,8 @@
       "src/components/Dashboard.tsx"
     ],
     "anchor": "2026-10-07",
-    "taken": "2026-10-08",
-    "appCommit": "c8ce9b5"
+    "taken": "2026-10-09",
+    "appCommit": "6a60b24"
   },
   "gigs/calendar-view-month": {
     "page": "gigs/calendar-view.md",
@@ -139,8 +139,8 @@
       "src/components/GigListScreen.tsx"
     ],
     "anchor": "2026-10-07",
-    "taken": "2026-10-07",
-    "appCommit": "7c87dfb"
+    "taken": "2026-10-09",
+    "appCommit": "6a60b24"
   },
   "gigs/change-history-history-tab": {
     "page": "gigs/change-history.md",
@@ -150,8 +150,8 @@
       "src/services/activityLog.service.ts"
     ],
     "anchor": "2026-10-07",
-    "taken": "2026-10-07",
-    "appCommit": "7c87dfb"
+    "taken": "2026-10-09",
+    "appCommit": "6a60b24"
   },
   "gigs/conflict-detection-banner": {
     "page": "gigs/conflict-detection.md",
@@ -161,8 +161,8 @@
       "src/components/GigListScreen.tsx"
     ],
     "anchor": "2026-10-07",
-    "taken": "2026-10-08",
-    "appCommit": "c8ce9b5"
+    "taken": "2026-10-09",
+    "appCommit": "6a60b24"
   },
   "gigs/conflict-detection-gig-page": {
     "page": "gigs/conflict-detection.md",
@@ -172,8 +172,8 @@
       "src/services/conflictDetection.service.ts"
     ],
     "anchor": "2026-10-07",
-    "taken": "2026-10-08",
-    "appCommit": "c8ce9b5"
+    "taken": "2026-10-09",
+    "appCommit": "6a60b24"
   },
   "gigs/creating-a-gig-form": {
     "page": "gigs/creating-a-gig.md",
@@ -183,8 +183,8 @@
       "src/components/TagsInput.tsx"
     ],
     "anchor": "2026-10-07",
-    "taken": "2026-10-07",
-    "appCommit": "7c87dfb"
+    "taken": "2026-10-09",
+    "appCommit": "6a60b24"
   },
   "gigs/documents-and-notes-section": {
     "page": "gigs/documents-and-notes.md",
@@ -194,8 +194,8 @@
       "src/components/AttachmentManager.tsx"
     ],
     "anchor": "2026-10-07",
-    "taken": "2026-10-07",
-    "appCommit": "7c87dfb"
+    "taken": "2026-10-09",
+    "appCommit": "6a60b24"
   },
   "gigs/overview-gig-list": {
     "page": "gigs/overview.md",
@@ -205,8 +205,8 @@
       "src/components/tables/SmartDataTable.tsx"
     ],
     "anchor": "2026-10-07",
-    "taken": "2026-10-07",
-    "appCommit": "7c87dfb"
+    "taken": "2026-10-09",
+    "appCommit": "6a60b24"
   },
   "gigs/overview-gig-page": {
     "page": "gigs/overview.md",
@@ -216,8 +216,8 @@
       "src/components/layout/PageHeader.tsx"
     ],
     "anchor": "2026-10-07",
-    "taken": "2026-10-07",
-    "appCommit": "7c87dfb"
+    "taken": "2026-10-09",
+    "appCommit": "6a60b24"
   },
   "gigs/participating-organizations-add": {
     "page": "gigs/participating-organizations.md",
@@ -226,8 +226,8 @@
       "src/components/gig/GigParticipantsSection.tsx"
     ],
     "anchor": "2026-10-07",
-    "taken": "2026-10-07",
-    "appCommit": "7c87dfb"
+    "taken": "2026-10-09",
+    "appCommit": "6a60b24"
   },
   "gigs/participating-organizations-contacts": {
     "page": "gigs/participating-organizations.md",
@@ -236,8 +236,8 @@
       "src/components/gig/GigParticipantsSection.tsx"
     ],
     "anchor": "2026-10-07",
-    "taken": "2026-10-07",
-    "appCommit": "7c87dfb"
+    "taken": "2026-10-09",
+    "appCommit": "6a60b24"
   },
   "gigs/schedule-editor": {
     "page": "gigs/schedule.md",
@@ -247,8 +247,8 @@
       "src/components/gig/basicInfo/GigBasicInfoFields.tsx"
     ],
     "anchor": "2026-10-07",
-    "taken": "2026-10-07",
-    "appCommit": "7c87dfb"
+    "taken": "2026-10-09",
+    "appCommit": "6a60b24"
   },
   "gigs/staffing-assignments": {
     "page": "gigs/staffing-and-participants.md",
@@ -258,7 +258,7 @@
     ],
     "anchor": "2026-10-07",
     "taken": "2026-10-09",
-    "appCommit": "bb04b74"
+    "appCommit": "6a60b24"
   },
   "gigs/staffing-view-card": {
     "page": "gigs/staffing-and-participants.md",
@@ -269,7 +269,7 @@
     ],
     "anchor": "2026-10-07",
     "taken": "2026-10-09",
-    "appCommit": "bb04b74"
+    "appCommit": "6a60b24"
   },
   "gigs/the-gig-list-row-menu": {
     "page": "gigs/the-gig-list.md",
@@ -279,8 +279,8 @@
       "src/components/tables/SmartDataTable.tsx"
     ],
     "anchor": "2026-10-07",
-    "taken": "2026-10-07",
-    "appCommit": "7c87dfb"
+    "taken": "2026-10-09",
+    "appCommit": "6a60b24"
   },
   "gigs/the-gig-list-upcoming": {
     "page": "gigs/the-gig-list.md",
@@ -291,8 +291,8 @@
       "src/components/gigs/GigDateFilterDropdown.tsx"
     ],
     "anchor": "2026-10-07",
-    "taken": "2026-10-07",
-    "appCommit": "7c87dfb"
+    "taken": "2026-10-09",
+    "appCommit": "6a60b24"
   },
   "reference/access-requests-moderator-queue": {
     "page": "reference/access-requests-and-moderation.md",
@@ -301,8 +301,8 @@
       "src/components/ModeratorAccessRequestsScreen.tsx"
     ],
     "anchor": "2026-10-07",
-    "taken": "2026-10-08",
-    "appCommit": "242810a"
+    "taken": "2026-10-09",
+    "appCommit": "6a60b24"
   },
   "reference/access-requests-pending-card": {
     "page": "reference/access-requests-and-moderation.md",
@@ -311,8 +311,8 @@
       "src/components/TeamScreen.tsx"
     ],
     "anchor": "2026-10-07",
-    "taken": "2026-10-08",
-    "appCommit": "242810a"
+    "taken": "2026-10-09",
+    "appCommit": "6a60b24"
   },
   "settings/categories-equipment": {
     "page": "settings/categories.md",
@@ -322,8 +322,8 @@
       "src/components/settings/CategoriesSettings.tsx"
     ],
     "anchor": "2026-10-07",
-    "taken": "2026-10-08",
-    "appCommit": "d70f3d9"
+    "taken": "2026-10-09",
+    "appCommit": "6a60b24"
   },
   "settings/google-calendar-connect": {
     "page": "settings/google-calendar.md",
@@ -332,8 +332,8 @@
       "src/components/CalendarIntegrationSettings.tsx"
     ],
     "anchor": "2026-10-07",
-    "taken": "2026-10-08",
-    "appCommit": "d70f3d9"
+    "taken": "2026-10-09",
+    "appCommit": "6a60b24"
   },
   "team/invitations-invite-dialog": {
     "page": "team/invitations.md",
@@ -342,8 +342,8 @@
       "src/components/team/AddTeamMemberDialog.tsx"
     ],
     "anchor": "2026-10-07",
-    "taken": "2026-10-07",
-    "appCommit": "8afb2ca"
+    "taken": "2026-10-09",
+    "appCommit": "6a60b24"
   },
   "team/invitations-pending-table": {
     "page": "team/invitations.md",
@@ -352,8 +352,8 @@
       "src/components/TeamScreen.tsx"
     ],
     "anchor": "2026-10-07",
-    "taken": "2026-10-07",
-    "appCommit": "8afb2ca"
+    "taken": "2026-10-09",
+    "appCommit": "6a60b24"
   },
   "team/member-profiles-contacts-card": {
     "page": "team/member-profiles.md",
@@ -363,8 +363,8 @@
       "src/components/OrganizationScreen.tsx"
     ],
     "anchor": "2026-10-07",
-    "taken": "2026-10-08",
-    "appCommit": "0d403f9"
+    "taken": "2026-10-09",
+    "appCommit": "6a60b24"
   },
   "team/member-profiles-details-page": {
     "page": "team/member-profiles.md",
@@ -373,8 +373,8 @@
       "src/components/TeamMemberDetailScreen.tsx"
     ],
     "anchor": "2026-10-07",
-    "taken": "2026-10-08",
-    "appCommit": "0d403f9"
+    "taken": "2026-10-09",
+    "appCommit": "6a60b24"
   },
   "team/people-without-logins-no-account-tab": {
     "page": "team/people-without-logins.md",
@@ -383,8 +383,8 @@
       "src/components/team/AddTeamMemberDialog.tsx"
     ],
     "anchor": "2026-10-07",
-    "taken": "2026-10-07",
-    "appCommit": "8afb2ca"
+    "taken": "2026-10-09",
+    "appCommit": "6a60b24"
   },
   "team/team-and-roles-members-table": {
     "page": "team/team-and-roles.md",
@@ -394,7 +394,7 @@
       "src/components/TeamScreen.tsx"
     ],
     "anchor": "2026-10-07",
-    "taken": "2026-10-07",
-    "appCommit": "8afb2ca"
+    "taken": "2026-10-09",
+    "appCommit": "6a60b24"
   }
 }
