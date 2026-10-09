@@ -90,12 +90,12 @@ const isKitFullyScanned = (tracking: TrackingRecord[], packingList: any, kit: an
   if (kit.is_container) {
     return getDisplayedTrackingRecord(tracking, kit.id)?.status === targetStatus;
   }
-  const targets = inventoryTrackingService.getCascadeTargets(packingList, kit.id);
-  if (targets.length === 0) return false;
-  return targets.every((target: { kit_id: string; asset_id: string | null }) =>
-    getDisplayedTrackingRecord(tracking, target.kit_id, target.asset_id ?? undefined)?.status === targetStatus
-  );
+  // Every piece, "any" lines included (#185): 7 of a line of 10 isn't packed yet.
+  const { done, total } = inventoryTrackingService.getKitProgress({ ...packingList, tracking }, kit.id, targetStatus);
+  return total > 0 && done === total;
 };
+
+type AnySlot = { kit_id: string; item_id: string; item_name: string; quantity: number };
 
 const formatScannedBy = (trackingRecord?: TrackingRecord | null) => {
   if (!trackingRecord) {
@@ -286,6 +286,48 @@ export default function MobileInventoryMode({ gigId }: MobileInventoryModeProps)
     toast.success('Item checked');
   }, [gigId, locationInput, packingList, refreshPackingList, selectedMode, selectedOrganization, user]);
 
+  // An "any" line (#185): checking it fills it from what the kit holds, then lots at home (most
+  // at home first, no prompt); un-checking deletes the rows that filled it in this mode.
+  const handleAnyToggle = useCallback(async (slot: AnySlot) => {
+    if (!gigId || !packingList || !selectedOrganization || !user) {
+      return;
+    }
+    const status = selectedMode.resultingStatus;
+    const tracking = packingList.tracking || [];
+    const records: { id: string }[] = packingList.item_records?.[slot.item_id] || [];
+
+    if (inventoryTrackingService.getAnySlotFilled(packingList, slot, status) >= slot.quantity) {
+      for (const r of records) {
+        if (getLatestTrackingRecordForItem(tracking, slot.kit_id, r.id)?.status === status) {
+          await inventoryTrackingService.clearTracking({ gigId, kitId: slot.kit_id, assetId: r.id });
+        }
+      }
+      await refreshPackingList(gigId);
+      toast('Item unchecked');
+      return;
+    }
+
+    const { fills, short } = inventoryTrackingService.getAnySlotFills(packingList, slot, status, gigId);
+    for (const fill of fills) {
+      await inventoryTrackingService.submitScan({
+        gigId,
+        kitId: slot.kit_id,
+        assetId: fill.asset_id,
+        quantity: fill.quantity,
+        status,
+        organizationId: selectedOrganization.id,
+        scannedBy: user.id,
+        location: locationInput || null,
+      });
+    }
+    await refreshPackingList(gigId);
+    if (short > 0) {
+      toast.warning(`${slot.item_name}: ${short} short. Scan tagged ones to fill the rest.`);
+    } else {
+      toast.success('Item checked');
+    }
+  }, [gigId, locationInput, packingList, refreshPackingList, selectedMode, selectedOrganization, user]);
+
   const handleSaveNote = useCallback(async () => {
     if (!gigId || !selectedOrganization || !user || !noteDialog.kitId) {
       return;
@@ -359,8 +401,21 @@ export default function MobileInventoryMode({ gigId }: MobileInventoryModeProps)
         }
       }
     }
+    // A tagged unit of an "any" line's item fills a slot under the line's kit (#185): the first
+    // line of that item that isn't full yet in this mode.
+    const roots: string[] = packingList.top_level_kit_ids?.length
+      ? packingList.top_level_kit_ids
+      : packingList.kits.map((a: any) => a.kit_id);
+    const slots: AnySlot[] = roots.flatMap((root) => inventoryTrackingService.getAnySlots(packingList, root));
+    for (const slot of slots) {
+      const unit = (packingList.item_records?.[slot.item_id] || []).find((r: any) => r.tag_number === tag);
+      if (!unit) continue;
+      const open = slots.find((s) => s.item_id === slot.item_id
+        && inventoryTrackingService.getAnySlotFilled(packingList, s, selectedMode.resultingStatus) < s.quantity) ?? slot;
+      return { type: 'asset' as const, kitId: open.kit_id, assetId: unit.id, label: slot.item_name };
+    }
     return null;
-  }, [packingList]);
+  }, [packingList, selectedMode]);
 
   const handleScan = async (tagNumber: string) => {
     if (!gigId || !packingList || !selectedOrganization || !user) {
@@ -395,42 +450,11 @@ export default function MobileInventoryMode({ gigId }: MobileInventoryModeProps)
     }
   };
 
-  const stats = useMemo(() => {
-    if (!packingList?.kits) {
-      return { total: 0, scanned: 0 };
-    }
-
-    let total = 0;
-    let scanned = 0;
-
-    packingList.kits.forEach((assignment: any) => {
-      const kit = assignment.kit;
-      if (!kit) {
-        return;
-      }
-
-      // A non-container kit never gets its own tracking record (nothing
-      // physical to scan) — only count it as its own checkable unit when
-      // it's a container.
-      if (kit.is_container) {
-        total += 1;
-        if (getDisplayedTrackingRecord(packingList.tracking || [], kit.id)?.status === selectedMode.resultingStatus) {
-          scanned += 1;
-        }
-      }
-
-      (kit.assets || []).forEach((assetAssignment: any) => {
-        const asset = assetAssignment.asset || assetAssignment;
-        const assetId = assetAssignment.asset_id || asset.id || assetAssignment.id;
-        total += 1;
-        if (getDisplayedTrackingRecord(packingList.tracking || [], kit.id, assetId)?.status === selectedMode.resultingStatus) {
-          scanned += 1;
-        }
-      });
-    });
-
-    return { total, scanned };
-  }, [packingList, selectedMode]);
+  // In pieces, each counted once however the kits nest (#185).
+  const stats = useMemo(
+    () => inventoryTrackingService.getScanProgress(packingList, selectedMode.resultingStatus),
+    [packingList, selectedMode]
+  );
 
   const filteredKits = useMemo(() => {
     if (!packingList?.kits) {
@@ -473,23 +497,23 @@ export default function MobileInventoryMode({ gigId }: MobileInventoryModeProps)
   // that don't themselves match needing to be synthesized into the results.
   const treeRows = useMemo(() => {
     if (!packingList?.kits) {
-      return [] as { assignment: any; depth: number; assetsSource: 'direct' | 'flattened' }[];
+      return [] as { assignment: any; depth: number; assetsSource: 'direct' | 'flattened'; rootId: string; multiplier: number }[];
     }
     if (searchQuery.trim()) {
       // Flattened, not direct — the search filter above matches against
       // every nested asset too, so the expanded list needs to be able to
       // show a match that lives inside a nested sub-kit that didn't itself
       // match by name/tag.
-      return filteredKits.map((assignment: any) => ({ assignment, depth: 0, assetsSource: 'flattened' as const }));
+      return filteredKits.map((assignment: any) => ({ assignment, depth: 0, assetsSource: 'flattened' as const, rootId: assignment.kit_id, multiplier: 1 }));
     }
 
     const byId = new Map<string, any>(packingList.kits.map((a: any) => [a.kit_id, a]));
-    const childrenOf = new Map<string, string[]>();
+    const childrenOf = new Map<string, { id: string; quantity: number }[]>();
     for (const edge of packingList.hierarchy_edges || []) {
       const parentAssignment = byId.get(edge.parent_kit_id);
       if (!parentAssignment?.kit || parentAssignment.kit.is_container) continue;
       const list = childrenOf.get(edge.parent_kit_id) ?? [];
-      list.push(edge.child_kit_id);
+      list.push({ id: edge.child_kit_id, quantity: Math.max(1, Number(edge.quantity ?? 1) || 1) });
       childrenOf.set(edge.parent_kit_id, list);
     }
 
@@ -499,20 +523,22 @@ export default function MobileInventoryMode({ gigId }: MobileInventoryModeProps)
       ? packingList.top_level_kit_ids
       : packingList.kits.map((a: any) => a.kit_id);
 
-    const rows: { assignment: any; depth: number; assetsSource: 'direct' | 'flattened' }[] = [];
+    const rows: { assignment: any; depth: number; assetsSource: 'direct' | 'flattened'; rootId: string; multiplier: number }[] = [];
     const visited = new Set<string>();
-    const visit = (kitId: string, depth: number) => {
+    // rootId and multiplier: whose rows a nested kit's "any" lines are tracked under, and how
+    // many copies of it the top kit holds (#185).
+    const visit = (kitId: string, depth: number, rootId: string, multiplier: number) => {
       if (visited.has(kitId)) return;
       visited.add(kitId);
       const assignment = byId.get(kitId);
       if (!assignment?.kit) return;
       // Direct assets only — a nested sub-kit gets its own row below (when
       // expanded), so folding its assets in here too would show them twice.
-      rows.push({ assignment, depth, assetsSource: 'direct' });
+      rows.push({ assignment, depth, assetsSource: 'direct', rootId, multiplier });
       if (!expandedKits.has(kitId)) return;
-      for (const childId of childrenOf.get(kitId) ?? []) visit(childId, depth + 1);
+      for (const child of childrenOf.get(kitId) ?? []) visit(child.id, depth + 1, rootId, multiplier * child.quantity);
     };
-    for (const rootId of rootIds) visit(rootId, 0);
+    for (const rootId of rootIds) visit(rootId, 0, rootId, 1);
     return rows;
   }, [packingList, expandedKits, searchQuery, filteredKits]);
 
@@ -538,7 +564,7 @@ export default function MobileInventoryMode({ gigId }: MobileInventoryModeProps)
               <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                 <span className="font-medium truncate" style={{ color: '#0284c7' }}>{gigTitle || 'Select a gig'}</span>
                 <span>·</span>
-                <span>{stats.scanned} / {stats.total} scanned</span>
+                <span>{stats.done} / {stats.total} pieces</span>
               </div>
             </div>
             <button
@@ -615,7 +641,7 @@ export default function MobileInventoryMode({ gigId }: MobileInventoryModeProps)
             </Card>
           ) : (
             <div className="space-y-3">
-              {treeRows.map(({ assignment, depth, assetsSource }: { assignment: any; depth: number; assetsSource: 'direct' | 'flattened' }) => {
+              {treeRows.map(({ assignment, depth, assetsSource, rootId, multiplier }: { assignment: any; depth: number; assetsSource: 'direct' | 'flattened'; rootId: string; multiplier: number }) => {
                 const kit = assignment.kit;
                 if (!kit) {
                   return null;
@@ -634,10 +660,16 @@ export default function MobileInventoryMode({ gigId }: MobileInventoryModeProps)
                 // container boundaries — not the raw flattened asset list,
                 // which would count a nested container's contents as this
                 // kit's own even though scanning it doesn't touch them.
-                const cascadeTargets = isLogicalKit && packingList ? inventoryTrackingService.getCascadeTargets(packingList, kit.id) : [];
-                const logicalKitScanned = cascadeTargets.filter((target: { kit_id: string; asset_id: string | null }) =>
-                  getDisplayedTrackingRecord(packingList?.tracking || [], target.kit_id, target.asset_id ?? undefined)?.status === selectedMode.resultingStatus
-                ).length;
+                const kitProgress = isLogicalKit && packingList
+                  ? inventoryTrackingService.getKitProgress(packingList, kit.id, selectedMode.resultingStatus)
+                  : { done: 0, total: 0 };
+                // This kit's own "any" lines, under the kit their pieces are tracked in (#185).
+                const anySlots: AnySlot[] = (kit.any_lines || []).map((line: any) => ({
+                  kit_id: kit.is_container ? kit.id : rootId,
+                  item_id: line.item_id,
+                  item_name: line.item_name,
+                  quantity: Math.max(1, Number(line.quantity ?? 1) || 1) * (kit.is_container ? 1 : multiplier),
+                }));
 
                 return (
                   <div
@@ -673,8 +705,8 @@ export default function MobileInventoryMode({ gigId }: MobileInventoryModeProps)
                             {kitTracking?.notes ? (
                               <p className="mt-1 text-[11px] text-muted-foreground leading-snug truncate">Note: {kitTracking.notes}</p>
                             ) : null}
-                            {isLogicalKit && cascadeTargets.length > 0 ? (
-                              <p className="mt-1 text-[10px] text-muted-foreground">{logicalKitScanned} / {cascadeTargets.length} items {selectedMode.resultingStatus}</p>
+                            {isLogicalKit && kitProgress.total > 0 ? (
+                              <p className="mt-1 text-[10px] text-muted-foreground">{kitProgress.done} / {kitProgress.total} pieces {selectedMode.resultingStatus}</p>
                             ) : null}
                           </div>
                           <div className="flex items-stretch shrink-0 border-l border-border/50">
@@ -761,6 +793,27 @@ export default function MobileInventoryMode({ gigId }: MobileInventoryModeProps)
                               >
                                 <FileText className="w-3.5 h-3.5" />
                               </button>
+                            </div>
+                          );
+                        })}
+                        {anySlots.map((slot) => {
+                          const filled = packingList ? inventoryTrackingService.getAnySlotFilled(packingList, slot, selectedMode.resultingStatus) : 0;
+                          const isFull = filled >= slot.quantity;
+                          return (
+                            <div key={`any-${slot.item_id}`} className={cn('flex items-stretch rounded-lg border text-sm transition-all', isFull ? 'bg-emerald-50/50 border-emerald-100' : 'bg-muted/20 border-border/50')}>
+                              <button
+                                aria-label={`${isFull ? 'Uncheck' : 'Check'} ${slot.item_name}`}
+                                className="w-10 flex items-center justify-center shrink-0 active:scale-90 transition-transform"
+                                onClick={() => void handleAnyToggle(slot)}
+                              >
+                                <div className={cn(isFull ? 'text-emerald-500' : 'text-muted-foreground')}>
+                                  {isFull ? <CheckCircle2 className="w-5 h-5" /> : <Circle className="w-5 h-5" />}
+                                </div>
+                              </button>
+                              <div className="flex-1 min-w-0 py-2.5 pr-2.5">
+                                <p className="font-medium leading-tight truncate">{slot.item_name}</p>
+                                <span className="text-[10px] text-muted-foreground">Any · {Math.min(filled, slot.quantity)} / {slot.quantity}</span>
+                              </div>
                             </div>
                           );
                         })}
