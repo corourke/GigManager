@@ -710,7 +710,7 @@ Handles acquisition headers and expense line items. Uses a self-referencing `par
 | organization_id | UUID | Reference to organizations.id (NOT NULL) |
 | gig_id | UUID | Reference to gigs.id — links expenses to a gig (nullable) |
 | parent_id | UUID | Self-reference to purchases.id — links items to their header (nullable) |
-| asset_id | UUID | Reference to assets.id — links audit item rows to the asset they represent (nullable) |
+| asset_id | UUID | Reference to assets.id: marks a line as tracked as equipment, pointing at its lot or its first unit (nullable). The full set of a line's units is `assets.purchase_line_id` |
 | row_type | TEXT | Discriminator: `'header'` or `'line'` (NOT NULL, CHECK constraint). Before migration 20261012000000 a line was `'item'` or `'asset'`; now whether it is tracked as equipment is `asset_id`, and its tax treatment is `tax_treatment`. |
 | purchase_date | DATE | Date of purchase (nullable) |
 | vendor | TEXT | Vendor name (nullable) |
@@ -973,7 +973,7 @@ Equipment we own: a **unit** (one physical item, with a serial number or tag) or
 | organization_id | UUID | Reference to organizations.id (tenant that owns this asset) (NOT NULL) |
 | purchase_id | UUID | Reference to purchases.id — links to acquisition header (nullable) |
 | equipment_item_id | UUID | Reference to equipment_items.id: what this unit or lot is (NOT NULL, RESTRICT). Migration 20261014000000 |
-| purchase_line_id | UUID | Reference to purchases.id: the purchase line it came from (nullable, SET NULL). Mirrors `purchases.asset_id` until #183 moves the writers |
+| purchase_line_id | UUID | Reference to purchases.id: the purchase line it came from (nullable, SET NULL). Every unit on a line, or its lot, points here; the purchase screens write it through `create_purchase_transaction_v2` and `add_purchase_line_units` (#183), and depreciation and recovery periods are found through it |
 | acquisition_date | DATE | Date asset was acquired (NOT NULL) |
 | vendor | TEXT | Vendor from which asset was purchased (nullable) |
 | item_price | NUMERIC(10,2) | Unit purchase price (nullable) |

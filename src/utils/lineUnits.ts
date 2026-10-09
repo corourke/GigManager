@@ -10,7 +10,7 @@ export interface UnitRow {
 
 /** An item we already have (its model and category fill the transition columns), or a new one. */
 export type ItemChoice =
-  | { equipment_item_id: string; manufacturer_model: string; category: string }
+  | { equipment_item_id: string; manufacturer_model: string; category: string; type?: string | null; insurance_class?: string | null; description?: string | null }
   | { equipment_item_id?: undefined; manufacturer_model: string; category: string; type?: string | null; insurance_class?: string | null; description?: string | null };
 
 export interface LineEquipment {
@@ -76,7 +76,9 @@ export function buildLineUnits(organizationId: string, lineIndex: number, quanti
   const picked = eq.item.equipment_item_id;
   const fresh = eq.item as Extract<ItemChoice, { equipment_item_id?: undefined }>;
   const item = picked
-    ? { equipment_item_id: picked, manufacturer_model: eq.item.manufacturer_model, category: eq.item.category }
+    // The item's fields go on the records too, while assets still carries them (#180).
+    ? { equipment_item_id: picked, manufacturer_model: eq.item.manufacturer_model, category: eq.item.category,
+        type: eq.item.type ?? null, insurance_class: eq.item.insurance_class ?? null, description: eq.item.description ?? null }
     : {
         manufacturer_model: fresh.manufacturer_model.trim(),
         category: fresh.category.trim(),

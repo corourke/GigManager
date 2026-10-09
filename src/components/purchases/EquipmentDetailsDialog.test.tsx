@@ -2,142 +2,148 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import EquipmentDetailsDialog, { type EquipmentDetails } from './EquipmentDetailsDialog';
+import { emptyItemDraft, type ItemOption } from '../equipment/form/itemDraft';
 
 const getTypeUsage = vi.fn(async (_org: string, category: string) =>
   category === 'Power'
     ? [{ type: 'Distribution, PowerCon', count: 1 }, { type: 'Distribution, PowerCon Breakout', count: 1 }, { type: 'Conditioner, Rack', count: 2 }]
     : [{ type: 'Cable, XLR', count: 7 }]);
 vi.mock('../../services/purchaseCategory.service', () => ({ getTypeUsage: (...a: any[]) => getTypeUsage(...(a as [string, string])) }));
-vi.mock('../../services/kit.service', () => ({
-  getKitOptions: vi.fn(async () => [{ id: 'k1', name: 'Power Box' }, { id: 'k2', name: 'Lighting Rack' }, { id: 'k3', name: 'Stage Snakes' }]),
-}));
 
-const start: EquipmentDetails = { category: 'Power', type: '', kitIds: [], serial_number: '', tag_number: '', replacement_value: 69.99 };
+const items: ItemOption[] = [
+  { id: 'xlr25', manufacturer_model: 'XLR Cable, 25 ft', category: 'Audio', type: 'Cable, XLR' },
+  { id: 'spot', manufacturer_model: 'Chauvet Intimidator Spot 360', category: 'Lighting' },
+];
+const start: EquipmentDetails = {
+  item: emptyItemDraft({ manufacturer_model: 'PowerCON breakout box', category: 'Power' }),
+  kind: 'units', units: [], replacement_value: '69.99', insured: false,
+};
 
 const open = (props: Partial<React.ComponentProps<typeof EquipmentDetailsDialog>> = {}) => {
   const onSave = vi.fn();
+  const onOpenChange = vi.fn();
   render(
-    <EquipmentDetailsDialog open onOpenChange={vi.fn()} organizationId="org-1" itemName="PowerCON breakout box"
-      categories={['Audio', 'Lighting', 'Power']} value={start} onSave={onSave} {...props} />,
+    <EquipmentDetailsDialog open onOpenChange={onOpenChange} organizationId="org-1" itemName="PowerCON breakout box"
+      quantity={1} categories={['Audio', 'Lighting', 'Power']} items={items} value={start} onSave={onSave} {...props} />,
   );
-  return onSave;
+  return { onSave, onOpenChange };
 };
+const dialog = () => within(screen.getByRole('dialog'));
 
-describe('EquipmentDetailsDialog', () => {
+describe('EquipmentDetailsDialog (#183)', () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it('suggests only the types used in the chosen category, narrowing as you type', async () => {
+  it('has the same three sections as Add Item, and no Kits field', () => {
     open();
-    const type = screen.getByRole('combobox', { name: 'Type' });
-    await userEvent.click(type);
+    for (const name of ['What it is', 'Unit or lot', 'Insurance']) expect(dialog().getByRole('region', { name })).toBeInTheDocument();
+    expect(dialog().queryByText('Kits')).not.toBeInTheDocument();
+    expect(dialog().getByLabelText('Insurance Class')).toBeInTheDocument();
+  });
+
+  it('shows one serial/tag row per unit on the line; the quantity comes from the line', () => {
+    open({ quantity: 6 });
+    expect(dialog().getAllByLabelText(/^Serial number, unit/)).toHaveLength(6);
+    expect(dialog().getByLabelText('Quantity')).toBeDisabled();
+    expect(dialog().getByText('From the purchase line. Change it on the line.')).toBeInTheDocument();
+    expect(dialog().getByText('Each, copied to all 6 units')).toBeInTheDocument();
+  });
+
+  it('Done saves the item, a serial or tag per unit, and the value; Cancel saves nothing', async () => {
+    const ue = userEvent.setup();
+    const { onSave } = open({ quantity: 2 });
+    await ue.type(dialog().getByLabelText('Inventory tag, unit 1'), 'DSL-0141');
+    await ue.type(dialog().getByLabelText('Serial number, unit 2'), 'IT2');
+    await ue.click(dialog().getByRole('button', { name: 'Done' }));
+    expect(onSave).toHaveBeenCalledWith(expect.objectContaining({
+      kind: 'units',
+      units: [{ serial_number: '', tag_number: 'DSL-0141' }, { serial_number: 'IT2', tag_number: '' }],
+      replacement_value: '69.99',
+      item: expect.objectContaining({ mode: 'new', manufacturer_model: 'PowerCON breakout box', category: 'Power' }),
+    }));
+  });
+
+  it('won’t finish while a unit has neither a serial nor a tag', async () => {
+    const ue = userEvent.setup();
+    const { onSave } = open({ quantity: 2 });
+    await ue.type(dialog().getByLabelText('Inventory tag, unit 1'), 'DSL-0141');
+    await ue.click(dialog().getByRole('button', { name: 'Done' }));
+    expect(onSave).not.toHaveBeenCalled();
+    expect(dialog().getByText('Unit 2 needs a serial number or a tag (either will do).')).toBeInTheDocument();
+  });
+
+  it('keeps a lot as a lot of the line’s quantity', async () => {
+    const ue = userEvent.setup();
+    const { onSave } = open({ quantity: 30 });
+    await ue.click(dialog().getByRole('radio', { name: /Lot/ }));
+    expect(dialog().getByLabelText('Quantity')).toHaveValue(30);
+    await ue.click(dialog().getByRole('button', { name: 'Done' }));
+    expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ kind: 'lot' }));
+  });
+
+  it('can use an item we already have', async () => {
+    const ue = userEvent.setup();
+    const { onSave } = open({ value: { ...start, kind: 'lot' } });
+    await ue.click(dialog().getByRole('radio', { name: /An item we already have/ }));
+    await ue.selectOptions(dialog().getByLabelText('Item'), 'xlr25');
+    await ue.click(dialog().getByRole('button', { name: 'Done' }));
+    expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ item: expect.objectContaining({ mode: 'existing', existing: items[0] }) }));
+  });
+
+  it('suggests the types used in the item’s category', async () => {
+    const ue = userEvent.setup();
+    open();
+    await ue.click(dialog().getByRole('combobox', { name: 'Type' }));
     const list = await screen.findByRole('listbox', { name: 'Types used in Power' });
     expect(within(list).getAllByRole('option')).toHaveLength(3);
-    expect(within(list).queryByText('Cable, XLR')).not.toBeInTheDocument();
-    await userEvent.type(type, 'Distribution, Power');
-    // the two matching types, plus the offer to use what was typed as a new one
-    expect(within(list).getAllByRole('option').map(o => o.textContent)).toEqual([
-      'Distribution, PowerCon1', 'Distribution, PowerCon Breakout1', '+ Use "Distribution, Power" as a new type']);
-    await userEvent.click(within(list).getByRole('option', { name: /PowerCon Breakout/ }));
-    expect(type).toHaveValue('Distribution, PowerCon Breakout');
   });
 
-  it('lets you use a new type', async () => {
-    open();
-    const type = screen.getByRole('combobox', { name: 'Type' });
-    await userEvent.type(type, 'Distribution, Cam-Lok');
-    expect(screen.getByRole('option', { name: /Use "Distribution, Cam-Lok" as a new type/ })).toBeInTheDocument();
+  it('a saved line keeps its item and its units, and adds rows for more', () => {
+    open({
+      saved: true, quantity: 3,
+      value: { ...start, item: emptyItemDraft({ mode: 'existing', existing: items[1] }),
+        units: [{ id: 'u1', serial_number: 'S1', tag_number: '' }, { id: 'u2', serial_number: '', tag_number: 'T2' }] },
+    });
+    expect(dialog().getByText('Chauvet Intimidator Spot 360')).toBeInTheDocument();
+    expect(dialog().queryByRole('button', { name: 'Change item' })).not.toBeInTheDocument();
+    expect(dialog().getByLabelText('Serial number, unit 1')).toHaveValue('S1');
+    expect(dialog().getByLabelText('Inventory tag, unit 2')).toHaveValue('T2');
+    expect(dialog().getByLabelText('Serial number, unit 3')).toHaveValue('');
   });
 
-  it('changing the category changes the suggestions', async () => {
-    open();
-    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Category' }), 'Audio');
-    await userEvent.click(screen.getByRole('combobox', { name: 'Type' }));
-    expect(await screen.findByRole('listbox', { name: 'Types used in Audio' })).toHaveTextContent('Cable, XLR');
-    expect(getTypeUsage).toHaveBeenLastCalledWith('org-1', 'Audio');
+  it('a saved line keeps Unit or Lot as saved', () => {
+    open({ saved: true, quantity: 2, value: { ...start, units: [{ id: 'u1', serial_number: 'S1', tag_number: '' }, { id: 'u2', serial_number: 'S2', tag_number: '' }] } });
+    expect(dialog().getByRole('radio', { name: /Lot/ })).toBeDisabled();
   });
 
-  it('picks kits from a searchable list, and removes them', async () => {
-    open();
-    await userEvent.type(screen.getByRole('textbox', { name: 'Search kits' }), 'pow');
-    await userEvent.click(await screen.findByRole('option', { name: 'Power Box' }));
-    expect(screen.getByRole('button', { name: 'Remove Power Box' })).toBeInTheDocument();
-    expect(screen.queryByRole('option', { name: 'Lighting Rack' })).not.toBeInTheDocument();
-    await userEvent.click(screen.getByRole('button', { name: 'Remove Power Box' }));
-    expect(screen.queryByRole('button', { name: 'Remove Power Box' })).not.toBeInTheDocument();
-  });
-
-  it('Done saves everything; Cancel saves nothing', async () => {
-    const onSave = open();
-    await userEvent.type(screen.getByRole('combobox', { name: 'Type' }), 'Distribution, PowerCon Breakout');
-    await userEvent.type(screen.getByRole('textbox', { name: 'Search kits' }), 'Power');
-    await userEvent.click(await screen.findByRole('option', { name: 'Power Box' }));
-    await userEvent.type(screen.getByRole('textbox', { name: 'Serial #' }), 'SN1');
-    await userEvent.click(screen.getByRole('button', { name: 'Done' }));
-    expect(onSave).toHaveBeenCalledWith({ ...start, type: 'Distribution, PowerCon Breakout', kitIds: ['k1'], serial_number: 'SN1' });
-  });
-
-  it('kits can be locked (an existing record\'s kits are managed on its page)', async () => {
-    open({ kitsLocked: true, value: { ...start, kitIds: [] } });
-    expect(screen.queryByRole('textbox', { name: 'Search kits' })).not.toBeInTheDocument();
-    expect(screen.getByText(/Manage its kits on the equipment page/)).toBeInTheDocument();
-  });
-
-  it('the category can be locked (a depreciated line in a filed year)', () => {
-    open({ categoryLocked: true });
-    expect(screen.getByRole('combobox', { name: 'Category' })).toBeDisabled();
-  });
-
-  // 10-06 on dev: a long item name widened the dialog's grid track, pushing the
-  // fields and the Cancel/Done buttons past the dialog's right edge.
   it('a long item name truncates instead of widening the pop-up', () => {
-    open({ itemName: 'U-Haul truck rental, in-town return, 10/3/2026 9:25 AM to 10/4/2026 7:44 AM, 16.4 miles at $1.39/mi' });
-    const dialog = screen.getByRole('dialog');
-    expect(dialog.className).toContain('grid-cols-[minmax(0,1fr)]');
-    expect(screen.getByText(/U-Haul truck rental/).className).toContain('truncate');
+    open({ itemName: 'A very long item name '.repeat(10) });
+    expect(screen.getByText(/A very long item name/)).toHaveClass('truncate');
   });
 
   describe('recovery period (#125)', () => {
-    const periods = { power: 7, networking: null, computer: 5 } as const;
-
-    it('is not asked for an expensed item', () => {
+    it('is not asked for an expensed line', () => {
       open();
-      expect(screen.queryByRole('combobox', { name: 'Recovery period' })).not.toBeInTheDocument();
+      expect(dialog().queryByLabelText('Recovery period')).not.toBeInTheDocument();
     });
 
-    it('a depreciated item shows its category\'s default, which follows the category until one is chosen', async () => {
-      const onSave = open({ depreciated: true, categoryPeriods: periods, categories: ['Computer', 'Networking', 'Power'] });
-      const period = screen.getByRole('combobox', { name: 'Recovery period' }) as HTMLSelectElement;
-      expect(period.value).toBe('7');
-      expect(screen.getByText('The default for Power.')).toBeInTheDocument();
-      await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Category' }), 'Computer');
-      expect(period.value).toBe('5');
-      await userEvent.click(screen.getByRole('button', { name: 'Done' }));
-      // From the category: not stored as a choice, so it keeps following the category.
-      expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ category: 'Computer', recovery_period: null }));
+    it('a depreciated line shows its category’s default', () => {
+      open({ depreciated: true, categoryPeriods: { power: 7 } as any });
+      expect(dialog().getByLabelText('Recovery period')).toHaveValue('7');
+      expect(dialog().getByText('The default for Power. Shown because the line is depreciated.')).toBeInTheDocument();
     });
 
     it('asks when the category has no default, and Done waits for an answer', async () => {
-      const onSave = open({ depreciated: true, categoryPeriods: periods, categories: ['Networking', 'Power'], value: { ...start, category: 'Networking' } });
-      const period = screen.getByRole('combobox', { name: 'Recovery period' }) as HTMLSelectElement;
-      expect(period.value).toBe('');
-      expect(screen.getByText(/Networking has no default period/)).toBeInTheDocument();
-      expect(screen.getByRole('button', { name: 'Done' })).toBeDisabled();
-      await userEvent.selectOptions(period, '5');
-      await userEvent.click(screen.getByRole('button', { name: 'Done' }));
+      const ue = userEvent.setup();
+      const { onSave } = open({ depreciated: true, value: { ...start, kind: 'lot' } });
+      expect(dialog().getByRole('button', { name: 'Done' })).toBeDisabled();
+      await ue.selectOptions(dialog().getByLabelText('Recovery period'), '5');
+      await ue.click(dialog().getByRole('button', { name: 'Done' }));
       expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ recovery_period: 5 }));
     });
 
-    it('a chosen period stays when the category changes', async () => {
-      const onSave = open({ depreciated: true, categoryPeriods: periods, categories: ['Computer', 'Power'], value: { ...start, recovery_period: 15 } });
-      await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Category' }), 'Computer');
-      expect((screen.getByRole('combobox', { name: 'Recovery period' }) as HTMLSelectElement).value).toBe('15');
-      await userEvent.click(screen.getByRole('button', { name: 'Done' }));
-      expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ recovery_period: 15 }));
-    });
-
     it('a filed year keeps its period', () => {
-      open({ depreciated: true, categoryPeriods: periods, periodLocked: true, value: { ...start, recovery_period: 5 } });
-      expect(screen.getByRole('combobox', { name: 'Recovery period' })).toBeDisabled();
+      open({ depreciated: true, periodLocked: true, value: { ...start, recovery_period: 5 } });
+      expect(dialog().getByLabelText('Recovery period')).toBeDisabled();
     });
   });
 });

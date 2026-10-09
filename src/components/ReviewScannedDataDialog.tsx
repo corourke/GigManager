@@ -10,7 +10,8 @@ import {
   FileIcon,
   Search,
   Maximize2,
-  Briefcase,
+  Layers,
+  Tag,
   Pencil,
   HelpCircle,
   Package,
@@ -20,13 +21,13 @@ import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
 import {
-  createPurchaseTransaction,
+  createPurchaseWithUnits,
+  addLineUnits,
   getPurchaseWithDetails,
   updatePurchase,
   createPurchase,
   deletePurchase,
   computeAssetFieldChanges,
-  trackPurchaseLineAsEquipment,
   createLedgerEntryForPurchaseLine,
   type AssetFieldChange,
 } from '../services/purchase.service';
@@ -40,9 +41,12 @@ import {
 } from '../utils/taxTreatment';
 import { getGigFinancials, updateGigFinancial } from '../services/gig.service';
 import { uploadAttachment, linkAttachmentToEntity, getAttachmentUrl } from '../services/attachment.service';
-import { updateAsset } from '../services/asset.service';
-import { addAssetToKits, getKitOptions } from '../services/kit.service';
+import { updateAsset, deleteAsset } from '../services/asset.service';
+import { getItems } from '../services/equipmentItem.service';
 import EquipmentDetailsDialog, { type EquipmentDetails } from './purchases/EquipmentDetailsDialog';
+import type { FormUnitRow } from './equipment/form/UnitOrLotSection';
+import { emptyItemDraft, draftCategory, type ItemOption } from './equipment/form/itemDraft';
+import { buildLineUnits, resizeUnitRows, unitRowProblems, type ItemChoice, type LineUnitInput } from '../utils/lineUnits';
 import { getExpenseCategories, getEquipmentCategories, getEquipmentCategoryPeriods, type ExpenseCategory } from '../services/purchaseCategory.service';
 import { asRecoveryPeriod, effectiveRecoveryPeriod, recoveryPeriodLabel, type CategoryPeriods, type RecoveryPeriod } from '../utils/recoveryPeriod';
 import { retargetCategories, equipmentCategoryOf, tidyAssetCategory } from '../utils/purchaseCategories';
@@ -103,18 +107,22 @@ interface ScannedItem {
   category?: string;
   /** The equipment category of an expensed line tracked as equipment (its asset's category). */
   asset_category?: string;
-  /** Equipment details, edited in the pop-up: the asset's Type, kits, serial, tag, replacement value. */
-  equipment_type?: string;
-  kit_ids?: string[];
-  serial_number?: string;
-  tag_number?: string;
-  replacement_value?: number;
-  /** Depreciated lines (#125): the recovery period chosen; unset follows the equipment category's default. */
-  recovery_period?: RecoveryPeriod | null;
+  /**
+   * Equipment details, edited in the pop-up (#183): the item, units (a serial or tag
+   * each) or a lot, the value, and a depreciated line's chosen recovery period.
+   * Unset until the pop-up is used: a lot of the line's quantity.
+   */
+  equipment?: EquipmentDetails;
   // Edit-mode tracking (present only when editing an existing purchase)
   _purchaseId?: string;
   _assetId?: string | null;
   _gigId?: string | null;
+  /** The units, or the lot, the saved line already has (#183). */
+  _records?: any[];
+  /** The line's quantity as loaded. */
+  _loadedQuantity?: number;
+  /** The equipment as loaded: per-unit values are sent only when the pop-up changed them. */
+  _savedEquipment?: EquipmentDetails;
 }
 
 interface UpdatePlan {
@@ -125,36 +133,59 @@ interface UpdatePlan {
   assetChanges: { assetId: string; itemDescription: string; changes: AssetFieldChange[]; data: Record<string, any> }[];
   /** `settle`: the row was settled, so its settled amount follows the new amount. */
   gigChanges: { finId: string; label: string; from: number; to: number; settle?: boolean }[];
-  /** Existing lines to start tracking as equipment (before their treatment is saved), with its details. */
-  trackLines: { id: string; details: NewEquipmentDetails }[];
+  /** Existing lines to start tracking as equipment (before their treatment is saved), with their units. */
+  trackLines: { id: string; units: LineUnitInput[]; period: RecoveryPeriod | null }[];
+  /** Saved lines getting more units: the rows filled in for them (#183). */
+  addUnits: { lineId: string; description: string; units: LineUnitInput[] }[];
+  /** Saved lines whose quantity no longer matches their equipment: update it, or leave it (#183). */
+  mismatches: LineMismatch[];
   /** The purchase is in a filed year: only descriptions and equipment links change. */
   locked: boolean;
 }
 
-/** What a newly tracked line's equipment record gets once it exists. */
-interface NewEquipmentDetails {
-  category: string;
-  type: string;
-  serial_number: string;
-  tag_number: string;
-  replacement_value: number;
-  kitIds: string[];
-  quantity: number;
-  /** Set once the line is depreciated (#125). */
-  recovery_period: RecoveryPeriod | null;
+/** A saved line's quantity now differs from its equipment (#183). */
+/** What to do with a line's equipment when its quantity changed (#183). */
+interface LineDecision {
+  mode: 'update' | 'leave';
+  /** Units ticked to come off the line. */
+  remove: string[];
+  /** Asked each time (Cameron, 10-09): delete them, or keep them as Inactive, off the line. */
+  how?: 'delete' | 'inactive';
 }
 
-const newEquipmentDetails = (item: ScannedItem, recovery_period: RecoveryPeriod | null): NewEquipmentDetails => ({
-  category: equipmentCategoryOf(item),
-  type: item.equipment_type ?? '',
-  serial_number: item.serial_number ?? '',
-  tag_number: item.tag_number ?? '',
-  // Like a new purchase's equipment: the printed price unless one was entered.
-  replacement_value: item.replacement_value || item.item_price || 0,
-  kitIds: item.kit_ids ?? [],
-  quantity: item.quantity,
-  recovery_period,
-});
+interface LineMismatch {
+  lineId: string;
+  description: string;
+  kind: 'units' | 'lot';
+  /** The line's quantity now. */
+  quantity: number;
+  /** Units: the saved units, by label. Lot: the lot, with its saved quantity. */
+  records: { id: string; label: string; quantity: number }[];
+  /** The record the line points at (purchases.asset_id). */
+  markerId: string | null;
+  /** Saved like this before (the line wasn't changed here): left as it is then. */
+  leftBefore: boolean;
+}
+
+const recordLabel = (r: any) =>
+  r.tag_number?.trim() || (r.serial_number?.trim() ? `SN ${r.serial_number}` : `Lot of ${r.quantity ?? 1}`);
+
+/** A saved line's equipment as the pop-up shows it (#183): its item, units or lot, and value. */
+function savedEquipment(records: any[]): EquipmentDetails {
+  const first = records[0];
+  const isLot = records.some((r) => !(r.serial_number?.trim() || r.tag_number?.trim()));
+  return {
+    item: emptyItemDraft({ mode: 'existing', existing: {
+      id: first.equipment_item_id, manufacturer_model: first.manufacturer_model, category: first.category,
+      type: first.type ?? null, insurance_class: first.insurance_class ?? null, description: first.description ?? null,
+    } }),
+    kind: isLot ? 'lot' : 'units',
+    units: isLot ? [] : records.map((r) => ({ id: r.id, serial_number: r.serial_number ?? '', tag_number: r.tag_number ?? '' })),
+    replacement_value: first.replacement_value != null ? String(first.replacement_value) : '',
+    insured: !!first.insurance_policy_added,
+    recovery_period: asRecoveryPeriod(first.recovery_period),
+  };
+}
 
 interface ScannedData {
   vendor: string;
@@ -215,7 +246,10 @@ export default function ReviewScannedDataDialog({
   const [expenseCats, setExpenseCats] = useState<ExpenseCategory[]>([]);
   const [equipmentCats, setEquipmentCats] = useState<string[]>([]);
   const [categoryPeriods, setCategoryPeriods] = useState<CategoryPeriods>({});
-  const [kitNames, setKitNames] = useState<Record<string, string>>({});
+  /** The organization's items, for the Equipment details pop-up (#183). */
+  const [itemOptions, setItemOptions] = useState<ItemOption[]>([]);
+  /** Per saved line whose quantity changed: update its equipment (and which units go), or leave it (#183). */
+  const [lineDecisions, setLineDecisions] = useState<Record<string, LineDecision>>({});
   /** The line whose Equipment details pop-up is open. */
   const [detailsIndex, setDetailsIndex] = useState<number | null>(null);
   const [originalDate, setOriginalDate] = useState<string | null>(null);
@@ -302,8 +336,11 @@ export default function ReviewScannedDataDialog({
     getExpenseCategories(organizationId).then(c => { if (!cancelled) setExpenseCats(c); });
     getEquipmentCategories(organizationId).then(c => { if (!cancelled) setEquipmentCats(c); });
     getEquipmentCategoryPeriods(organizationId).then(p => { if (!cancelled) setCategoryPeriods(p); });
-    getKitOptions(organizationId)
-      .then(k => { if (!cancelled) setKitNames(Object.fromEntries((k ?? []).map(x => [x.id, x.name]))); })
+    getItems(organizationId)
+      .then(list => { if (!cancelled) setItemOptions((list ?? []).map(i => ({
+        id: i.id, manufacturer_model: i.manufacturer_model, category: i.category,
+        type: i.type ?? null, insurance_class: i.insurance_class ?? null, description: i.description ?? null,
+      }))); })
       .catch(() => {});
     return () => { cancelled = true; };
   }, [open, organizationId]);
@@ -336,27 +373,30 @@ export default function ReviewScannedDataDialog({
           payment_method: details.payment_method || undefined,
           description: details.description || '',
           category: details.category || undefined,
-          items: items.map((it) => ({
-            description: it.description || '',
-            quantity: it.quantity || 1,
-            item_price: it.item_price || 0,
-            item_cost: it.item_cost || 0,
-            is_asset: !!it.asset_id,
-            tax_treatment: lineTaxTreatment(it) ?? 'expense',
-            _taxChosen: true,
-            category: it.category || '',
-            asset_category: it.asset_id && lineTaxTreatment(it) !== 'depreciate'
-              ? aById[it.asset_id]?.category ?? undefined : undefined,
-            // An existing equipment record's details, for the pop-up.
-            equipment_type: it.asset_id ? aById[it.asset_id]?.type ?? '' : undefined,
-            serial_number: it.asset_id ? aById[it.asset_id]?.serial_number ?? '' : undefined,
-            tag_number: it.asset_id ? aById[it.asset_id]?.tag_number ?? '' : undefined,
-            replacement_value: it.asset_id ? Number(aById[it.asset_id]?.replacement_value ?? 0) : undefined,
-            recovery_period: it.asset_id ? asRecoveryPeriod(aById[it.asset_id]?.recovery_period) : null,
-            _purchaseId: it.id,
-            _assetId: it.asset_id || null,
-            _gigId: it.gig_id || null,
-          })),
+          items: items.map((it) => {
+            // The line's units or lot (#183): its own records, or the one it names.
+            const own = (details.assets || []).filter((a: any) => a.purchase_line_id === it.id);
+            const records: any[] = own.length ? own : it.asset_id && aById[it.asset_id] ? [aById[it.asset_id]] : [];
+            return {
+              description: it.description || '',
+              quantity: it.quantity || 1,
+              item_price: it.item_price || 0,
+              item_cost: it.item_cost || 0,
+              is_asset: !!it.asset_id,
+              tax_treatment: lineTaxTreatment(it) ?? 'expense',
+              _taxChosen: true,
+              category: it.category || '',
+              asset_category: it.asset_id && lineTaxTreatment(it) !== 'depreciate'
+                ? aById[it.asset_id]?.category ?? undefined : undefined,
+              equipment: records.length ? savedEquipment(records) : undefined,
+              _savedEquipment: records.length ? savedEquipment(records) : undefined,
+              _records: records.length ? records : undefined,
+              _purchaseId: it.id,
+              _assetId: it.asset_id || null,
+              _loadedQuantity: it.quantity || 1,
+              _gigId: it.gig_id || null,
+            };
+          }),
         });
 
         // Gig ledger rows linked by purchase_id, across every distinct linked gig.
@@ -431,8 +471,59 @@ export default function ReviewScannedDataDialog({
   // A depreciated line's recovery period (#125): chosen, else its category's default.
   const periodOf = (item: ScannedItem): RecoveryPeriod | null =>
     item.tax_treatment === 'depreciate'
-      ? effectiveRecoveryPeriod(item.recovery_period, categoryPeriods, equipmentCategoryOf(item))
+      ? effectiveRecoveryPeriod(item.equipment?.recovery_period, categoryPeriods, equipmentCategoryOf(item))
       : null;
+
+  // ---- A line's equipment (#183) ----
+  /** Its details; until the pop-up is used, a lot of the line's quantity, named from the line. */
+  const equipmentOf = (item: ScannedItem): EquipmentDetails => item.equipment ?? {
+    // A new item, named by the scan's make and model (#131) else the line, described by the line.
+    item: emptyItemDraft({ manufacturer_model: item.manufacturer_model?.trim() || item.description, category: equipmentCategoryOf(item),
+      description: item.description }),
+    kind: 'lot', units: [], replacement_value: '', insured: false, recovery_period: null,
+  };
+  /** How many pieces a saved line's equipment already has. */
+  const savedPieces = (item: ScannedItem) => (item._records ?? []).reduce((n, r) => n + (Number(r.quantity) || 1), 0);
+  /**
+   * Its unit rows: a new line's follow its quantity; a saved line keeps its units and
+   * gets a row for each piece it doesn't have yet. Rows without an id are new units.
+   */
+  const unitRowsOf = (item: ScannedItem) => {
+    const eq = equipmentOf(item);
+    if (!item._records?.length) return resizeUnitRows(eq.units, item.quantity) as FormUnitRow[];
+    const fresh = eq.units.filter(u => !u.id);
+    const extra = Math.max(0, item.quantity - savedPieces(item));
+    return [...eq.units.filter(u => u.id), ...Array.from({ length: extra }, (_, i): FormUnitRow => fresh[i] ?? { serial_number: '', tag_number: '' })];
+  };
+  /** Why its units can't be saved yet (a unit with neither a serial nor a tag, or one used twice). */
+  const unitProblemOf = (item: ScannedItem): string | null => {
+    if (!item.is_asset && item.tax_treatment !== 'depreciate') return null;
+    if (equipmentOf(item).kind !== 'units') return null;
+    return unitRowProblems(unitRowsOf(item))[0] ?? null;
+  };
+  const itemChoiceOf = (item: ScannedItem, eq: EquipmentDetails): ItemChoice => {
+    const ex = eq.item.mode === 'existing' ? eq.item.existing : null;
+    return ex
+      ? { equipment_item_id: ex.id, manufacturer_model: ex.manufacturer_model, category: ex.category,
+          type: ex.type, insurance_class: ex.insurance_class, description: ex.description }
+      : { manufacturer_model: eq.item.manufacturer_model.trim() || item.manufacturer_model?.trim() || item.description,
+          category: equipmentCategoryOf(item) || eq.item.category || item.category || formData.category || '',
+          type: eq.item.type, insurance_class: eq.item.insurance_class, description: eq.item.description };
+  };
+  /** The new records a line makes: one per new unit row, or its lot. */
+  const newUnitsOf = (item: ScannedItem, lineIndex: number): LineUnitInput[] => {
+    const eq = equipmentOf(item);
+    const rows = unitRowsOf(item).filter(r => !r.id);
+    const n = eq.kind === 'units' ? rows.length : item.quantity;
+    if (n < 1) return [];
+    return buildLineUnits(organizationId, lineIndex, n, {
+      item: itemChoiceOf(item, eq), kind: eq.kind, units: rows,
+      // Like the line's printed price unless one was entered.
+      replacement_value: eq.replacement_value.trim() ? parseFloat(eq.replacement_value) : (item.item_price || null),
+      insured: eq.insured, recovery_period: periodOf(item),
+    });
+  };
+  const withoutIndex = (units: LineUnitInput[]) => units.map(({ line_index: _i, ...u }) => u);
 
   const ZOOM = 3;
   const MAG_R = 90;
@@ -528,37 +619,15 @@ export default function ReviewScannedDataDialog({
         line_amount: item.item_price * item.quantity,
         line_cost: item.item_cost * item.quantity,
         category: item.category || formData.category,
-        // One line type (10-07); `track` asks for the equipment record, and the
-        // tax treatment is its own choice.
+        // One line type (10-07); the tax treatment is its own choice, and a tracked
+        // line's equipment is in `units`.
         row_type: 'line' as const,
-        track: !!item.is_asset,
         tax_treatment: item.tax_treatment ?? undefined,
       }));
 
-      const assets = formData.items
-        .filter(item => item.is_asset)
-        .map(item => ({
-          organization_id: organizationId,
-          // What the scan read as make and model (#131), else the description.
-          manufacturer_model: item.manufacturer_model?.trim() || item.description,
-          description: item.description,
-          category: equipmentCategoryOf(item) || item.category || formData.category,
-          type: item.equipment_type?.trim() || undefined,
-          quantity: item.quantity,
-          item_price: item.item_price,
-          item_cost: item.item_cost,
-          acquisition_date: formData.purchase_date,
-          vendor: formData.vendor,
-          serial_number: item.serial_number,
-          tag_number: item.tag_number,
-          replacement_value: item.replacement_value || item.item_price,
-          kit_ids: item.kit_ids ?? [],
-          recovery_period: periodOf(item) ?? undefined,
-          insurance_policy_added: false,
-          status: 'Active',
-        }));
-
-      const result = await createPurchaseTransaction(header, items, assets);
+      // One record per unit, or one lot, for each tracked line (#183).
+      const units = formData.items.flatMap((item, i) => (item.is_asset ? newUnitsOf(item, i) : []));
+      const result = await createPurchaseWithUnits(header, items, units);
 
       // Scanned on a gig: each expensed line is a cost of the gig, with its own
       // money-out row. The purchase itself, and depreciated equipment, are not (#130, #133).
@@ -608,39 +677,57 @@ export default function ReviewScannedDataDialog({
   };
 
   // Build the set of DB writes implied by the current edit, including proposed
-  // changes to linked assets and gig ledger entries (surfaced for confirmation).
+  // changes to linked equipment and gig ledger entries (surfaced for confirmation).
   const buildUpdatePlan = (fd: ScannedData): UpdatePlan => {
-    // Existing lines newly ticked "Track as equipment" (or depreciated) get an
-    // equipment record first, so a depreciated line always has one.
+    // Existing lines newly ticked "Track as equipment" (or depreciated) get their
+    // units first, so a depreciated line always has equipment.
     const trackLines = fd.items
       .filter(item => item._purchaseId && !item._assetId && item.is_asset)
-      .map(item => ({ id: item._purchaseId!, details: newEquipmentDetails(item, periodOf(item)) }));
+      .map(item => ({ id: item._purchaseId!, units: withoutIndex(newUnitsOf(item, 0)), period: periodOf(item) }));
 
-    // An existing equipment record's details edited in the pop-up. Its record
+    // A saved line's units filled in for its new pieces (#183).
+    const addUnits = fd.items
+      .filter(item => item._purchaseId && item._records?.length && equipmentOf(item).kind === 'units')
+      .map(item => ({ lineId: item._purchaseId!, description: item.description || '(item)', units: withoutIndex(newUnitsOf(item, 0)) }))
+      .filter(a => a.units.length > 0);
+
+    // The pop-up's changes to a saved line's equipment, record by record. Equipment
     // isn't a tax record, so this applies in a filed year too.
-    const detailChanges = (item: ScannedItem): AssetFieldChange[] => {
-      const asset = item._assetId ? assetsById[item._assetId] : null;
-      if (!asset) return [];
+    const detailChanges = (item: ScannedItem, record: any): AssetFieldChange[] => {
+      if (!item.equipment) return [];
+      const eq = item.equipment;
       const norm = (v: unknown) => (v === undefined || v === null || v === '' ? null : v);
       const out: AssetFieldChange[] = [];
       const cmp = (field: string, label: string, to: unknown) => {
-        if (to === undefined) return;
-        const from = field === 'replacement_value' ? (asset[field] == null ? null : Number(asset[field])) : norm(asset[field]);
-        const next = field === 'replacement_value' ? (to ? Number(to) : null) : norm(typeof to === 'string' ? to.trim() : to);
+        const from = field === 'replacement_value' ? (record[field] == null ? null : Number(record[field])) : norm(record[field]);
+        const next = field === 'replacement_value' ? (to === '' || to == null ? null : Number(to)) : norm(typeof to === 'string' ? to.trim() : to);
         if (from !== next) out.push({ field, label, from, to: next });
       };
-      cmp('type', 'Type', item.equipment_type);
-      cmp('serial_number', 'Serial Number', item.serial_number);
-      cmp('tag_number', 'Tag Number', item.tag_number);
-      cmp('replacement_value', 'Replacement Value', item.replacement_value);
-      if (item.tax_treatment === 'depreciate') cmp('recovery_period', 'Recovery period', periodOf(item));
+      const row = eq.units.find(u => u.id === record.id);
+      if (row) {
+        cmp('serial_number', 'Serial Number', row.serial_number);
+        cmp('tag_number', 'Tag Number', row.tag_number);
+      }
+      // The pop-up shows the first unit's values; a unit edited on its own keeps its own
+      // unless the pop-up changed them (#183).
+      const was = item._savedEquipment;
+      if (!was || eq.replacement_value !== was.replacement_value) cmp('replacement_value', 'Replacement Value', eq.replacement_value);
+      if ((!was || eq.insured !== was.insured) && !!record.insurance_policy_added !== eq.insured) {
+        out.push({ field: 'insurance_policy_added', label: 'Insured', from: !!record.insurance_policy_added, to: eq.insured });
+      }
+      // A period chosen in the pop-up, or a unit with none yet (a line newly depreciated).
+      if (item.tax_treatment === 'depreciate' && (!was || eq.recovery_period !== was.recovery_period || record.recovery_period == null)) {
+        cmp('recovery_period', 'Recovery period', periodOf(item));
+      }
       return out;
     };
-    const toAssetChange = (item: ScannedItem, changes: AssetFieldChange[]) => {
+    const toAssetChange = (item: ScannedItem, record: any, changes: AssetFieldChange[]) => {
       const data: Record<string, any> = {};
       changes.forEach(c => { data[c.field] = c.to; });
-      return { assetId: item._assetId!, itemDescription: item.description || '(item)', changes, data };
+      const many = (item._records?.length ?? 0) > 1;
+      return { assetId: record.id, itemDescription: `${item.description || '(item)'}${many ? ` · ${recordLabel(record)}` : ''}`, changes, data };
     };
+    const recordsOf = (item: ScannedItem): any[] => item._records ?? (item._assetId && assetsById[item._assetId] ? [assetsById[item._assetId]] : []);
 
     // A filed year: only descriptions (and equipment links) may change (#133).
     if (purchaseLocked) {
@@ -651,19 +738,14 @@ export default function ReviewScannedDataDialog({
           .map(item => ({ id: item._purchaseId!, data: { description: item.description } })),
         newItems: [],
         removedItemIds: [],
-        assetChanges: fd.items
-          .map(item => {
-            // An expensed line's equipment category is the asset's, not a tax field.
-            const changes = detailChanges(item);
-            const asset = item._assetId ? assetsById[item._assetId] : null;
-            if (asset && item.tax_treatment !== 'depreciate' && item.asset_category && item.asset_category !== asset.category) {
-              changes.unshift({ field: 'category', label: 'Category', from: asset.category, to: item.asset_category });
-            }
-            return changes.length ? toAssetChange(item, changes) : null;
-          })
-          .filter((c): c is NonNullable<typeof c> => !!c),
+        assetChanges: fd.items.flatMap(item => recordsOf(item).map(record => {
+          const changes = detailChanges(item, record);
+          return changes.length ? toAssetChange(item, record, changes) : null;
+        })).filter((c): c is NonNullable<typeof c> => !!c),
         gigChanges: [],
         trackLines,
+        addUnits,
+        mismatches: [],
         locked: true,
       };
     }
@@ -705,32 +787,41 @@ export default function ReviewScannedDataDialog({
           vendor: fd.vendor,
           ...lineData,
           _track: item.is_asset,
-          _details: newEquipmentDetails(item, periodOf(item)),
+          _units: item.is_asset ? withoutIndex(newUnitsOf(item, 0)) : [],
+          _period: periodOf(item),
         });
       }
     }
 
     const removedItemIds = originalItemIds.filter(id => !presentIds.has(id));
 
-    // Asset changes — only for existing lines linked to an asset.
+    // Equipment changes: the line's price, cost, vendor and date reach each of its
+    // records, with the pop-up's changes. Its name and category are the item's (#183).
     const assetChanges: UpdatePlan['assetChanges'] = [];
     for (const item of fd.items) {
-      if (item._assetId && assetsById[item._assetId]) {
+      for (const record of recordsOf(item)) {
         const changes = computeAssetFieldChanges(
-          {
-            description: item.description,
-            category: equipmentCategoryOf(item) || assetsById[item._assetId].category,
-            quantity: item.quantity,
-            item_price: item.item_price,
-            item_cost: item.item_cost,
-            vendor: fd.vendor,
-            purchase_date: fd.purchase_date,
-          },
-          assetsById[item._assetId]
-        ).concat(detailChanges(item));
-        if (changes.length > 0) assetChanges.push(toAssetChange(item, changes));
+          { item_price: item.item_price, item_cost: item.item_cost, vendor: fd.vendor, purchase_date: fd.purchase_date },
+          record,
+        ).concat(detailChanges(item, record));
+        if (changes.length > 0) assetChanges.push(toAssetChange(item, record, changes));
       }
     }
+
+    // A saved line's quantity that no longer matches its equipment: fewer units, or a lot of another size.
+    const mismatches: LineMismatch[] = fd.items.flatMap((item): LineMismatch[] => {
+      const records = recordsOf(item);
+      if (!item._purchaseId || !records.length) return [];
+      const lot = equipmentOf(item).kind === 'lot';
+      const have = records.reduce((n, r) => n + (Number(r.quantity) || 1), 0);
+      if (lot ? have === item.quantity : have <= item.quantity) return [];
+      return [{
+        lineId: item._purchaseId, description: item.description || '(item)', kind: lot ? 'lot' : 'units', quantity: item.quantity,
+        records: records.map(r => ({ id: r.id, label: recordLabel(r), quantity: Number(r.quantity) || 1 })),
+        markerId: item._assetId ?? null,
+        leftBefore: item._loadedQuantity === item.quantity,
+      }];
+    });
 
     // Gig ledger changes — header total and any per-line linked ledger amounts.
     const gigChanges: UpdatePlan['gigChanges'] = [];
@@ -750,45 +841,61 @@ export default function ReviewScannedDataDialog({
       }
     }
 
-    return { headerData, updatedItems, newItems, removedItemIds, assetChanges, gigChanges, trackLines, locked: false };
+    return { headerData, updatedItems, newItems, removedItemIds, assetChanges, gigChanges, trackLines, addUnits, mismatches, locked: false };
   };
+
+  /** Each mismatch's choice is made: leave it, or update it (for units, exactly the extra ones ticked). */
+  const mismatchesDecided = (plan: UpdatePlan) => plan.mismatches.every(m => {
+    const d = lineDecisions[m.lineId];
+    if (!d) return false;
+    if (d.mode === 'leave' || m.kind === 'lot') return true;
+    return d.remove.length === m.records.length - m.quantity && !!d.how;
+  });
 
   const commitUpdate = async (plan: UpdatePlan) => {
     if (!editPurchaseId) return;
     setIsSubmitting(true);
     try {
+      // Quantities that no longer match their equipment, as chosen (#183). These go first: if the
+      // database refuses one, nothing else is saved yet.
+      for (const m of plan.mismatches) {
+        const d = lineDecisions[m.lineId];
+        if (!d || d.mode === 'leave') continue;
+        if (m.kind === 'lot') { await updateAsset(m.records[0].id, { quantity: m.quantity }); continue; }
+        // A depreciated line must keep an equipment record: point it at a unit that stays first.
+        if (m.markerId && d.remove.includes(m.markerId)) {
+          const kept = m.records.find(r => !d.remove.includes(r.id));
+          if (kept) await updatePurchase(m.lineId, { asset_id: kept.id });
+        }
+        for (const id of d.remove) {
+          if (d.how === 'inactive') await updateAsset(id, { status: 'Inactive', purchase_line_id: null });
+          else await deleteAsset(id);
+        }
+      }
       await updatePurchase(editPurchaseId, plan.headerData);
-      // Recovery periods of new equipment records: set once their lines are depreciated (#125).
+      // Chosen recovery periods of new units: set once their lines are depreciated (#125).
       const periods: [string, RecoveryPeriod][] = [];
-      // The new equipment record starts from the line; then it gets the details
-      // chosen in the pop-up and goes into its kits.
-      const track = async (lineId: string, d: NewEquipmentDetails) => {
-        const assetId = await trackPurchaseLineAsEquipment(lineId);
-        if (!assetId) return;
-        const data: Record<string, any> = {};
-        if (d.category) data.category = d.category;
-        if (d.type.trim()) data.type = d.type.trim();
-        if (d.serial_number.trim()) data.serial_number = d.serial_number.trim();
-        if (d.tag_number.trim()) data.tag_number = d.tag_number.trim();
-        if (d.replacement_value) data.replacement_value = d.replacement_value;
-        if (Object.keys(data).length) await updateAsset(assetId, data);
-        if (d.kitIds.length) await addAssetToKits(assetId, d.kitIds, d.quantity);
-        if (d.recovery_period) periods.push([assetId, d.recovery_period]);
+      const track = async (lineId: string, units: LineUnitInput[], period: RecoveryPeriod | null) => {
+        if (!units.length) return;
+        const ids = await addLineUnits(lineId, units);
+        if (period) ids.forEach(id => periods.push([id, period]));
       };
-      for (const t of plan.trackLines) await track(t.id, t.details);
+      for (const t of plan.trackLines) await track(t.id, t.units, t.period);
       for (const u of plan.updatedItems) await updatePurchase(u.id, u.data);
-      for (const { _track, _details, ...n } of plan.newItems) {
-        // A depreciated line needs its equipment record before it is depreciated.
+      for (const { _track, _units, _period, ...n } of plan.newItems) {
+        // A depreciated line needs its equipment before it is depreciated.
         const wanted = n.tax_treatment;
         const created: any = await createPurchase({ ...n, tax_treatment: _track ? 'expense' : wanted });
         if (_track && created?.id) {
-          await track(created.id, _details);
+          await track(created.id, _units, _period);
           if (wanted === 'depreciate') await updatePurchase(created.id, { tax_treatment: 'depreciate' });
         }
       }
+      for (const a of plan.addUnits) await addLineUnits(a.lineId, a.units);
       for (const id of plan.removedItemIds) await deletePurchase(id);
       for (const [assetId, recovery_period] of periods) await updateAsset(assetId, { recovery_period });
-      for (const a of plan.assetChanges) await updateAsset(a.assetId, a.data);
+      const removed = new Set(plan.mismatches.flatMap(m => lineDecisions[m.lineId]?.mode === 'update' ? lineDecisions[m.lineId].remove : []));
+      for (const a of plan.assetChanges) if (!removed.has(a.assetId)) await updateAsset(a.assetId, a.data);
       for (const g of plan.gigChanges) {
         await updateGigFinancial(g.finId, g.settle ? { amount: g.to, amount_settled: g.to } : { amount: g.to });
       }
@@ -821,7 +928,9 @@ export default function ReviewScannedDataDialog({
   const handleUpdate = () => {
     if (!formData) return;
     const plan = buildUpdatePlan(formData);
-    if (plan.assetChanges.length > 0 || plan.gigChanges.length > 0) {
+    if (plan.assetChanges.length > 0 || plan.gigChanges.length > 0 || plan.mismatches.length > 0) {
+      // A line left as it is on an earlier save starts at Leave, so one click can't remove units.
+      setLineDecisions(Object.fromEntries(plan.mismatches.filter(m => m.leftBefore).map(m => [m.lineId, { mode: 'leave' as const, remove: [] }])));
       setPendingPlan(plan); // show confirmation first
     } else {
       commitUpdate(plan);
@@ -839,7 +948,9 @@ export default function ReviewScannedDataDialog({
     .filter(item => item.is_asset && !(isEditMode && item._assetId) && !equipmentCategoryOf(item).trim()).length;
   // Depreciated lines need a recovery period: their category's default, or one chosen (#125).
   const noPeriod = formData.items.filter(item => item.tax_treatment === 'depreciate' && !periodOf(item)).length;
-  const canSave = !isSubmitting && formData.items.length > 0 && !!formData.vendor && undecided === 0 && noEquipCategory === 0 && noPeriod === 0;
+  // Units need a serial or a tag each (#183).
+  const noUnits = formData.items.filter(item => unitProblemOf(item)).length;
+  const canSave = !isSubmitting && formData.items.length > 0 && !!formData.vendor && undecided === 0 && noEquipCategory === 0 && noPeriod === 0 && noUnits === 0;
   const isImage = file?.type.startsWith('image/');
   const isPdf = file?.type === 'application/pdf';
 
@@ -913,13 +1024,15 @@ export default function ReviewScannedDataDialog({
     const locked = equipmentLocked(item);
     const on = item.is_asset || item.tax_treatment === 'depreciate';
     const category = equipmentCategoryOf(item);
-    const type = item.equipment_type?.trim();
-    const kits = (item.kit_ids ?? []).map(id => kitNames[id] ?? 'Kit');
+    const eq = equipmentOf(item);
+    const type = (eq.item.mode === 'existing' ? eq.item.existing?.type ?? '' : eq.item.type).trim();
     const missing = on && !category;
     const depreciated = item.tax_treatment === 'depreciate';
     const period = periodOf(item);
     const noPeriodHere = depreciated && !missing && !period;
-    const amber = missing || noPeriodHere;
+    const noUnitsHere = on && !missing && !!unitProblemOf(item);
+    const amber = missing || noPeriodHere || noUnitsHere;
+    const count = eq.kind === 'units' ? unitRowsOf(item).length : item.quantity;
     const edge = !on ? '#94a3b8' : amber ? '#f59e0b' : '#0369a1';
     return (
       <div
@@ -975,10 +1088,11 @@ export default function ReviewScannedDataDialog({
                 {period ? recoveryPeriodLabel(period) : 'Choose a recovery period'}
               </span>
             )}
-            {kits.length > 0 && (
-              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, paddingLeft: 6, borderLeft: '1px solid #7dd3fc', whiteSpace: 'nowrap' }} title="Kits">
-                <Briefcase style={{ width: 11, height: 11 }} aria-label="Kits" />
-                {kits.join(', ')}
+            {!missing && (
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, paddingLeft: 6, borderLeft: '1px solid #7dd3fc', whiteSpace: 'nowrap',
+                color: noUnitsHere ? '#92400e' : undefined, fontWeight: noUnitsHere ? 700 : undefined }}>
+                {eq.kind === 'units' ? <Tag style={{ width: 10, height: 10 }} aria-hidden /> : <Layers style={{ width: 10, height: 10 }} aria-hidden />}
+                {noUnitsHere ? 'Serials or tags needed' : eq.kind === 'units' ? `${count} ${count === 1 ? 'unit' : 'units'}` : `lot of ${count}`}
               </span>
             )}
             <Pencil style={{ width: 10, height: 10, opacity: 0.7, flexShrink: 0 }} />
@@ -1016,22 +1130,14 @@ export default function ReviewScannedDataDialog({
   const saveDetails = (d: EquipmentDetails) => {
     if (detailsIndex === null || !detailsItem) return;
     const field: keyof ScannedItem = detailsItem.tax_treatment === 'depreciate' ? 'category' : 'asset_category';
+    const category = draftCategory(d.item);
     setFormData(prev => {
       if (!prev) return prev;
       const items = [...prev.items];
-      items[detailsIndex] = {
-        ...items[detailsIndex],
-        [field]: d.category,
-        equipment_type: d.type,
-        kit_ids: d.kitIds,
-        serial_number: d.serial_number,
-        tag_number: d.tag_number,
-        replacement_value: d.replacement_value,
-        recovery_period: d.recovery_period ?? null,
-      };
+      items[detailsIndex] = { ...items[detailsIndex], ...(category ? { [field]: category } : {}), equipment: d };
       return { ...prev, items };
     });
-    if (d.category && !equipmentCats.includes(d.category)) setEquipmentCats(c => [...c, d.category]);
+    if (category && !equipmentCats.includes(category)) setEquipmentCats(c => [...c, category]);
   };
 
   const panel = (
@@ -1286,6 +1392,12 @@ export default function ReviewScannedDataDialog({
                   <span>Choose a recovery period for {noPeriod} depreciated {noPeriod === 1 ? 'item' : 'items'} before saving: click its Equipment details.</span>
                 </div>
               )}
+              {noUnits > 0 && (
+                <div role="status" style={{ padding: 6, borderRadius: 4, display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, border: '1px solid #fde68a', background: '#fffbeb', color: '#92400e' }}>
+                  <AlertCircle style={{ width: 14, height: 14, flexShrink: 0, color: '#f59e0b' }} />
+                  <span>Enter a serial number or tag for each unit of {noUnits} {noUnits === 1 ? 'item' : 'items'} before saving: click its Equipment details.</span>
+                </div>
+              )}
               {noEquipCategory > 0 && (
                 <div role="status" style={{ padding: 6, borderRadius: 4, display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, border: '1px solid #fde68a', background: '#fffbeb', color: '#92400e' }}>
                   <AlertCircle style={{ width: 14, height: 14, flexShrink: 0, color: '#f59e0b' }} />
@@ -1323,34 +1435,89 @@ export default function ReviewScannedDataDialog({
         onOpenChange={o => { if (!o) setDetailsIndex(null); }}
         organizationId={organizationId}
         itemName={detailsItem.description}
+        // A saved line: its units, plus a row for each piece it doesn't have yet.
+        quantity={detailsItem._records?.length && equipmentOf(detailsItem).kind === 'units' ? unitRowsOf(detailsItem).length : detailsItem.quantity}
         categories={equipmentCats}
-        value={{
-          category: equipmentCategoryOf(detailsItem),
-          type: detailsItem.equipment_type ?? '',
-          kitIds: detailsItem.kit_ids ?? [],
-          serial_number: detailsItem.serial_number ?? '',
-          tag_number: detailsItem.tag_number ?? '',
-          replacement_value: detailsItem.replacement_value || (detailsItem._assetId ? 0 : detailsItem.item_price) || 0,
-          recovery_period: detailsItem.recovery_period ?? null,
-        }}
+        items={itemOptions}
+        value={(() => {
+          const eq = equipmentOf(detailsItem);
+          return {
+            ...eq,
+            units: eq.kind === 'units' ? unitRowsOf(detailsItem) : eq.units,
+            replacement_value: eq.replacement_value || (detailsItem._records?.length ? '' : detailsItem.item_price ? String(detailsItem.item_price) : ''),
+          };
+        })()}
         depreciated={detailsItem.tax_treatment === 'depreciate'}
         categoryPeriods={categoryPeriods}
         // A filed year's recovery period can be filled in, not changed.
-        periodLocked={purchaseLocked && !!detailsItem._assetId && assetsById[detailsItem._assetId]?.recovery_period != null}
+        periodLocked={purchaseLocked && !!detailsItem._records?.some(r => r.recovery_period != null)}
         onSave={saveDetails}
         // A depreciated line's category is its tax category too, so a filed year freezes it.
         categoryLocked={purchaseLocked && detailsItem.tax_treatment === 'depreciate'}
-        kitsLocked={isEditMode && !!detailsItem._assetId}
+        saved={!!detailsItem._records?.length}
       />
     )}
-    {pendingPlan && (pendingPlan.assetChanges.length > 0 || pendingPlan.gigChanges.length > 0) && (
+    {pendingPlan && (pendingPlan.assetChanges.length > 0 || pendingPlan.gigChanges.length > 0 || pendingPlan.mismatches.length > 0) && (
       <div style={{ position: 'fixed', inset: 0, zIndex: 150, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-        <div style={{ background: 'white', borderRadius: 8, boxShadow: '0 10px 40px rgba(0,0,0,0.3)', width: 540, maxWidth: '100%', maxHeight: '85vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+        <div role="dialog" aria-modal="true" aria-labelledby="linked-updates-title" style={{ background: 'white', borderRadius: 8, boxShadow: '0 10px 40px rgba(0,0,0,0.3)', width: 540, maxWidth: '100%', maxHeight: '85vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
           <div style={{ padding: '12px 16px', borderBottom: '1px solid #e5e7eb' }}>
-            <h3 style={{ fontSize: 14, fontWeight: 700, color: '#111827' }}>Confirm linked record updates</h3>
+            <h3 id="linked-updates-title" style={{ fontSize: 14, fontWeight: 700, color: '#111827' }}>Confirm linked record updates</h3>
             <p style={{ fontSize: 11, color: '#6b7280', marginTop: 2 }}>Your edits also affect these linked records. Review and confirm before saving.</p>
           </div>
           <div style={{ padding: '12px 16px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 14 }}>
+            {pendingPlan.mismatches.length > 0 && (
+              <div>
+                <h4 style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#b45309', marginBottom: 6 }}>Quantity changed</h4>
+                {pendingPlan.mismatches.map(m => {
+                  const d = lineDecisions[m.lineId];
+                  const have = m.records.reduce((n, r) => n + r.quantity, 0);
+                  const extra = have - m.quantity;
+                  const decide = (next: LineDecision) => setLineDecisions(prev => ({ ...prev, [m.lineId]: next }));
+                  return (
+                    <fieldset key={m.lineId} style={{ marginBottom: 8, border: '1px solid #fde68a', background: '#fffbeb', borderRadius: 6, padding: '6px 8px' }}>
+                      <legend style={{ fontSize: 11, fontWeight: 600, color: '#374151', padding: '0 4px' }}>{m.description}</legend>
+                      <p style={{ fontSize: 11, color: '#92400e', marginBottom: 6 }}>
+                        {m.kind === 'lot'
+                          ? `The line is now ${m.quantity}; its lot is ${have}.`
+                          : `The line is now ${m.quantity}; it has ${have} units.`}
+                      </p>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11 }}>
+                        <input type="radio" name={`mm-${m.lineId}`} checked={d?.mode === 'update'} onChange={() => decide({ mode: 'update', remove: [] })} />
+                        {m.kind === 'lot' ? `Update the equipment: make the lot ${m.quantity}` : `Update the equipment: remove ${extra} ${extra === 1 ? 'unit' : 'units'}`}
+                      </label>
+                      {m.kind === 'units' && d?.mode === 'update' && (
+                        <div role="group" aria-label={`Units to remove: ${m.description}`} style={{ margin: '4px 0 4px 22px', display: 'flex', flexWrap: 'wrap', gap: '2px 12px' }}>
+                          {m.records.map(r => (
+                            <label key={r.id} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, fontFamily: 'monospace' }}>
+                              <input type="checkbox" checked={d.remove.includes(r.id)}
+                                onChange={e => decide({ ...d, remove: e.target.checked ? [...d.remove, r.id] : d.remove.filter(x => x !== r.id) })} />
+                              {r.label}
+                            </label>
+                          ))}
+                          <span style={{ fontSize: 10, color: '#92400e', width: '100%' }}>Tick {extra}.</span>
+                        </div>
+                      )}
+                      {m.kind === 'units' && d?.mode === 'update' && d.remove.length > 0 && (
+                        <div role="radiogroup" aria-label={`Removed units: ${m.description}`} style={{ margin: '2px 0 4px 22px', display: 'flex', flexDirection: 'column', gap: 2 }}>
+                          <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11 }}>
+                            <input type="radio" name={`mm-how-${m.lineId}`} checked={d.how === 'delete'} onChange={() => decide({ ...d, how: 'delete' })} />
+                            Delete them: their kits and scan history go with them
+                          </label>
+                          <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11 }}>
+                            <input type="radio" name={`mm-how-${m.lineId}`} checked={d.how === 'inactive'} onChange={() => decide({ ...d, how: 'inactive' })} />
+                            Mark Inactive: kept, with their kits and scans, and no longer on this purchase
+                          </label>
+                        </div>
+                      )}
+                      <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11 }}>
+                        <input type="radio" name={`mm-${m.lineId}`} checked={d?.mode === 'leave'} onChange={() => decide({ mode: 'leave', remove: [] })} />
+                        Leave the equipment as it is
+                      </label>
+                    </fieldset>
+                  );
+                })}
+              </div>
+            )}
             {pendingPlan.assetChanges.length > 0 && (
               <div>
                 <h4 style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#0284c7', marginBottom: 6 }}>Asset updates</h4>
@@ -1397,8 +1564,8 @@ export default function ReviewScannedDataDialog({
             </Button>
             <button
               onClick={() => commitUpdate(pendingPlan)}
-              disabled={isSubmitting}
-              style={{ height: 28, padding: '0 16px', fontSize: 12, fontWeight: 600, borderRadius: 4, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#0284c7', color: 'white', border: 'none', cursor: 'pointer', opacity: isSubmitting ? 0.5 : 1 }}
+              disabled={isSubmitting || !mismatchesDecided(pendingPlan)}
+              style={{ height: 28, padding: '0 16px', fontSize: 12, fontWeight: 600, borderRadius: 4, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#0284c7', color: 'white', border: 'none', cursor: 'pointer', opacity: isSubmitting || !mismatchesDecided(pendingPlan) ? 0.5 : 1 }}
             >
               {isSubmitting && <Loader2 style={{ width: 14, height: 14, marginRight: 6 }} className="animate-spin" />}
               Confirm &amp; Save
