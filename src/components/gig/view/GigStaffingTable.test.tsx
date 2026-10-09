@@ -22,4 +22,13 @@ describe('GigStaffingTable staff cost (#213)', () => {
     );
     expect(screen.getByText('Staff cost · Finalized $140 · Projected $315 · Total $455')).toBeInTheDocument();
   });
+
+  it('shows cents in the footer: $1,582.50, not $1,582.5 (#219)', () => {
+    const big = [{
+      id: 'slot-2', role: 'Stage Hand', count: 1,
+      staff_assignments: [{ id: 'a3', user_id: 'u3', status: 'Confirmed', fee: 1582.5, rate: null, user: { first_name: 'Bo', last_name: 'Li' } }],
+    }] as any;
+    render(<GigStaffingTable slots={big} showAmounts />);
+    expect(screen.getByText('Staff cost · Finalized $0 · Projected $1,582.50 · Total $1,582.50')).toBeInTheDocument();
+  });
 });

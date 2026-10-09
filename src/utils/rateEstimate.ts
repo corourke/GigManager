@@ -39,7 +39,7 @@ const COUNT_NAMES: Record<RateUnit, [string, string]> = {
 const count = (n: number, unit: RateUnit) => `${n} ${COUNT_NAMES[unit][n === 1 ? 0 : 1]}`;
 
 /** "$1,234.50": two decimals, like the staffing footer and the Financials tab. */
-const dollars = (n: number) => `$${n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+export const dollars = (n: number) => `$${n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 /** Minutes past local midnight of `date` in `timeZone` (browser local when unset or invalid). */
 function localMinutes(date: Date, timeZone?: string | null): number {
@@ -111,6 +111,8 @@ export interface ProjectedStaffCost {
   amount: number;
   /** "est. 9 hr × $35.00 / hr = $315.00" for a rate; the amount for a fee. */
   label: string;
+  /** How the amount is reached, without the amount: "est. 9 hr × $35.00 / hr" for a rate, "Fee" for a fee. */
+  basis: string;
 }
 
 /**
@@ -124,12 +126,13 @@ export function projectedStaffCost(
 ): ProjectedStaffCost {
   if (a.fee != null) {
     const fee = Number(a.fee) || 0;
-    return { amount: fee, label: dollars(fee) };
+    return { amount: fee, label: dollars(fee), basis: 'Fee' };
   }
-  if (a.rate == null) return { amount: 0, label: dollars(0) };
+  if (a.rate == null) return { amount: 0, label: dollars(0), basis: '' };
   const rate = Number(a.rate) || 0;
   const estimate = estimateRateUnits(gig, a.rate_unit);
   const amount = Math.round(rate * estimate.units * 100) / 100;
   const per = RATE_UNITS.find((r) => r.value === rateUnit(a.rate_unit))!.label;
-  return { amount, label: `est. ${estimate.label} × ${dollars(rate)} ${per} = ${dollars(amount)}` };
+  const basis = `est. ${estimate.label} × ${dollars(rate)} ${per}`;
+  return { amount, label: `${basis} = ${dollars(amount)}`, basis };
 }

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { formatRate, formatUnits, rateBasis, staffRows } from './staffRows';
+import { formatRate, formatUnits, money, rateBasis, staffRows } from './staffRows';
 
 const slot = (assignment: Record<string, unknown>) => ({
   id: 's1', role: 'A1', count: 1,
@@ -36,5 +36,15 @@ describe('rate units (#171)', () => {
     expect(rateBasis({ rate: 50, units_completed: null })).toBe('1 hour × $50 / hr');
     expect(rateBasis({ fee: 450, rate_unit: 'day' })).toBe('Fee');
     expect(rateBasis({})).toBe('');
+  });
+});
+
+describe('money (#219)', () => {
+  it('shows two decimals whenever there are cents, and whole dollars otherwise', () => {
+    expect(money(1582.5)).toBe('$1,582.50');
+    expect(money(332.5)).toBe('$332.50');
+    expect(money(17.55)).toBe('$17.55');
+    expect(money(1500)).toBe('$1,500');
+    expect(money(0)).toBe('$0');
   });
 });

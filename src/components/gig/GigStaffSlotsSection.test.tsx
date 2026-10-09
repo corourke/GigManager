@@ -317,4 +317,17 @@ describe('GigStaffSlotsSection projected staff cost (#213)', () => {
     expect(screen.getByText('$140.00')).toBeInTheDocument(); // finalized: 4 hr × $35
     expect(screen.getByText(/Total: \$805\.00/)).toBeInTheDocument();
   });
+
+  it('groups thousands in the footer amounts, like the Financials tab (#219)', async () => {
+    vi.mocked(getGig).mockResolvedValue({
+      start: '2026-10-11T01:00:00Z', end: '2026-10-11T10:00:00Z', timezone: 'America/Los_Angeles',
+      staff_slots: [{
+        id: SLOT, organization_id: 'current-org-id', role: 'Stage Hand', count: 1, notes: '',
+        staff_assignments: [{ id: 'a-big', user_id: 'user-a', user: { first_name: 'Sam', last_name: 'Rivera' }, status: 'Confirmed', rate: null, rate_unit: 'hour', fee: 1582.5, notes: '' }],
+      }],
+    } as any);
+    render(<GigStaffSlotsSection {...mockProps} />);
+    expect(await screen.findByText(/Total: \$1,582\.50/)).toBeInTheDocument();
+    expect(screen.getByText('$1,582.50')).toBeInTheDocument(); // projected
+  });
 });

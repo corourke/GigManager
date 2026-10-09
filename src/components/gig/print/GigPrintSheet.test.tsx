@@ -3,6 +3,7 @@ import { render, screen, waitFor, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import GigPrintSheet from './GigPrintSheet';
 import { getGigParticipantContacts } from '../../../services/gigParticipantContacts.service';
+import { getGigProfitabilitySummary } from '../../../services/gigFinancial.service';
 
 vi.mock('../../../services/gigParticipantContacts.service', () => ({
   getGigParticipantContacts: vi.fn(async (_gig: string, orgId: string) => ({
@@ -113,11 +114,52 @@ describe('GigPrintSheet (#12)', () => {
   });
 
   it("prints a rate's basis in its unit (#171)", async () => {
-    const daySlots = [{ ...slots[0], staff_assignments: [{ ...slots[0].staff_assignments[0], fee: null, rate: 400, rate_unit: 'day', units_completed: 3 }] }];
+    const daySlots = [{ ...slots[0], staff_assignments: [{ ...slots[0].staff_assignments[0], fee: null, rate: 400, rate_unit: 'day', units_completed: 3, completed_at: '2026-07-14T00:00:00Z' }] }];
     const { onReady } = renderSheet({ includeFinancials: true, slots: daySlots as any });
     await waitFor(() => expect(onReady).toHaveBeenCalledTimes(1));
     const staff = within(page(/financials/i)).getByRole('table', { name: 'Staff costs' });
     expect(within(staff).getByText('3 days × $400 / day')).toBeInTheDocument();
     expect(within(staff).getByText('$1,200')).toBeInTheDocument();
+  });
+  describe('staff costs use the estimate (#219)', () => {
+    // 14:00-23:30 in Los Angeles: 9.5 hours
+    const longGig = { ...gig, start: '2026-10-11T21:00:00Z', end: '2026-10-12T06:30:00Z' };
+    const rateSlots = (assignment: Record<string, unknown>) => [{
+      id: 'sl2', organization_id: 'org-1', role: 'Stage Hand', count: 1,
+      staff_assignments: [{ id: 'a9', user_id: 'u9', status: 'Confirmed', fee: null, rate: 35, rate_unit: 'hour', user: { first_name: 'Sam', last_name: 'Whitfield' }, ...assignment }],
+    }];
+    const amountOf = (text: string | null) => Number((text ?? '').replace(/[^0-9.]/g, ''));
+
+    it('shows a booked rate with the estimated basis and amount, and the rows add up to the summary Staff figure', async () => {
+      vi.mocked(getGigProfitabilitySummary).mockResolvedValueOnce({
+        expectedIn: 0, receivedIn: 0, outstandingIn: 0, dueIn: 0, expectedOut: 0, paidOut: 0,
+        outstandingOut: 0, dueOut: 0, net: 0, projectedStaffCosts: 332.5, totalCosts: 332.5, profit: -332.5, margin: 0,
+      });
+      const { onReady } = renderSheet({ includeFinancials: true, gig: longGig as any, slots: rateSlots({}) as any });
+      await waitFor(() => expect(onReady).toHaveBeenCalledTimes(1));
+      const fin = page(/financials/i);
+      const staff = within(fin).getByRole('table', { name: 'Staff costs' });
+      expect(within(staff).getByText('est. 9.5 hr × $35.00 / hr')).toBeInTheDocument();
+      expect(within(staff).getByText('$332.50')).toBeInTheDocument();
+      const total = within(staff).getAllByRole('row').slice(1).reduce((t, r) => t + amountOf(r.lastElementChild!.textContent), 0);
+      expect(within(fin).getByText(/Staff \$332\.50/).textContent).toContain(`Staff $${total.toFixed(2)}`);
+    });
+
+    it('keeps the units entered for a finalized rate, and a fee as it is', async () => {
+      const both = [{
+        id: 'sl2', organization_id: 'org-1', role: 'Stage Hand', count: 2,
+        staff_assignments: [
+          { ...rateSlots({})[0].staff_assignments[0], completed_at: '2026-10-13T00:00:00Z', units_completed: 4 },
+          { id: 'a10', user_id: 'u10', status: 'Confirmed', fee: 450, rate: null, user: { first_name: 'Jordan', last_name: 'Lee' } },
+        ],
+      }];
+      const { onReady } = renderSheet({ includeFinancials: true, gig: longGig as any, slots: both as any });
+      await waitFor(() => expect(onReady).toHaveBeenCalledTimes(1));
+      const staff = within(page(/financials/i)).getByRole('table', { name: 'Staff costs' });
+      expect(within(staff).getByText('4 hours × $35 / hr')).toBeInTheDocument();
+      expect(within(staff).getByText('$140')).toBeInTheDocument();
+      expect(within(staff).getByText('Fee')).toBeInTheDocument();
+      expect(within(staff).getByText('$450')).toBeInTheDocument();
+    });
   });
 });

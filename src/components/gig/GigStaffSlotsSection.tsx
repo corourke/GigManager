@@ -35,7 +35,7 @@ import { useRowBaseline } from '../../utils/hooks/useRowBaseline';
 import SaveStateIndicator from './SaveStateIndicator';
 import { RotateCcw } from 'lucide-react';
 import { RATE_UNITS, formatRate, rateUnit, unitPlural, type RateUnit } from './view/staffRows';
-import { projectedStaffCost, type GigTimes } from '../../utils/rateEstimate';
+import { dollars, projectedStaffCost, type GigTimes } from '../../utils/rateEstimate';
 
 const staffAssignmentSchema = z.object({
   id: z.string(),
@@ -840,11 +840,11 @@ export default function GigStaffSlotsSection({
               Total Staff Cost
             </div>
             <div className="font-medium space-x-3">
-              <span>Finalized: <span className="text-green-600">${finalized.toFixed(2)}</span></span>
+              <span>Finalized: <span className="text-green-600">{dollars(finalized)}</span></span>
               <span className="text-gray-300">|</span>
-              <span>Projected: <span className="text-amber-600">${projected.toFixed(2)}</span></span>
+              <span>Projected: <span className="text-amber-600">{dollars(projected)}</span></span>
               <span className="text-gray-300">|</span>
-              <span>Total: ${ (finalized + projected).toFixed(2) }</span>
+              <span>Total: {dollars(finalized + projected)}</span>
             </div>
           </div>
           {estimates.length > 0 && (

@@ -110,23 +110,25 @@ describe('projectedStaffCost (#213)', () => {
     expect(projectedStaffCost({ rate: 35, fee: null, rate_unit: 'hour' }, gig)).toEqual({
       amount: 315,
       label: 'est. 9 hr × $35.00 / hr = $315.00',
+      basis: 'est. 9 hr × $35.00 / hr',
     });
     expect(projectedStaffCost({ rate: 400, fee: null, rate_unit: 'day' }, gig).label).toBe('est. 1 day × $400.00 / day = $400.00');
     expect(projectedStaffCost({ rate: 200, fee: null, rate_unit: 'half_day' }, gig).label).toBe('est. 1 half day × $200.00 / ½ day = $200.00');
   });
 
   it('keeps a fee at its flat amount', () => {
-    expect(projectedStaffCost({ rate: null, fee: 350, rate_unit: 'hour' }, gig)).toEqual({ amount: 350, label: '$350.00' });
+    expect(projectedStaffCost({ rate: null, fee: 350, rate_unit: 'hour' }, gig)).toEqual({ amount: 350, label: '$350.00', basis: 'Fee' });
   });
 
   it('is zero with neither', () => {
-    expect(projectedStaffCost({ rate: null, fee: null }, gig)).toEqual({ amount: 0, label: '$0.00' });
+    expect(projectedStaffCost({ rate: null, fee: null }, gig)).toEqual({ amount: 0, label: '$0.00', basis: '' });
   });
 
   it('shows the placeholder when the gig has no end', () => {
     expect(projectedStaffCost({ rate: 35, fee: null, rate_unit: 'hour' }, { ...gig, end: null })).toEqual({
       amount: 35,
       label: 'est. 1 hr (no end time) × $35.00 / hr = $35.00',
+      basis: 'est. 1 hr (no end time) × $35.00 / hr',
     });
   });
 
