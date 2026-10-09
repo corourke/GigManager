@@ -1,6 +1,10 @@
 import type { GigStaffSlotView } from '../../../utils/supabase/types';
 
-export const money = (n: number) => `$${n.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
+/** "$1,500" for whole dollars, "$1,582.50" whenever there are cents. */
+export const money = (n: number) => {
+  const cents = Math.round(n * 100) % 100 !== 0;
+  return `$${n.toLocaleString('en-US', { minimumFractionDigits: cents ? 2 : 0, maximumFractionDigits: 2 })}`;
+};
 
 /** The time unit a rate is paid per (#171). A fee is flat and has none. */
 export type RateUnit = 'hour' | 'day' | 'half_day';
