@@ -4,7 +4,8 @@ import { Alert, AlertTitle, AlertDescription } from './ui/alert';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
 import { Card } from './ui/card';
-import { Conflict } from '../services/conflictDetection.service';
+import type { Conflict, ItemShort } from '../services/conflictDetection.service';
+import { formatDateDisplay } from '../utils/dateUtils';
 
 const formatGigDate = (iso: string) => {
   try {
@@ -13,6 +14,14 @@ const formatGigDate = (iso: string) => {
     return iso;
   }
 };
+
+/** "4 (Club Lighting Package × 4)": how many a gig asks for, and from which kits. */
+const askedFor = (need: ItemShort['this_gig']) =>
+  `${need.total} (${need.kits.map((k) => `${k.kit_name} × ${k.quantity}`).join(', ')})`;
+
+/** Every gig adding to the peak: "This gig: 2 (…) · A: 2 (…) · B: 2 (…)". */
+const contributors = (i: ItemShort) =>
+  [`This gig: ${askedFor(i.this_gig)}`, ...i.others.map((o) => `${o.gig_title}: ${askedFor(o.need)}`)].join(' · ');
 
 interface ConflictWarningProps {
   conflicts: Conflict[];
@@ -67,11 +76,22 @@ export function ConflictWarning({
       case 'venue':
         if (isActConflict(conflict)) return `Act conflict with: ${conflict.details.venue_name || 'Unknown act'}`;
         return `Venue conflict at: ${conflict.details.venue_name || 'Unknown venue'}`;
-      case 'equipment':
-        const kitNames = conflict.details.conflicting_kits
-          ?.map((k: any) => (k.shared_assets?.length ? `${k.kit_name} (${k.shared_assets.join(', ')})` : k.kit_name))
-          .join('; ') || '';
-        return `Equipment conflict with kits: ${kitNames}`;
+      case 'equipment': {
+        const parts: string[] = [];
+        const short: ItemShort[] = conflict.details.items_short ?? [];
+        if (short.length) {
+          parts.push(`Not enough equipment: ${short.map((i) => `${i.item_name} (${i.needed} needed, ${i.available} available)`).join('; ')}`);
+        }
+        const kits = (conflict.details.conflicting_kits ?? []).filter((k: any) => k.shared_assets?.length || !short.length);
+        // Never "Equipment conflict with kits:" with nothing after it.
+        if (kits.length) {
+          const kitNames = kits
+            .map((k: any) => (k.shared_assets?.length ? `${k.kit_name} (${k.shared_assets.join(', ')})` : k.kit_name))
+            .join('; ');
+          parts.push(`Equipment conflict with kits: ${kitNames}`);
+        }
+        return parts.join('. ') || 'Equipment conflict';
+      }
       default:
         return 'Unknown conflict type';
     }
@@ -92,9 +112,30 @@ export function ConflictWarning({
             {conflict.start ? ` (${formatGigDate(conflict.start)})` : ''}
           </span>
         </div>
-        <p className="text-sm text-gray-600 mb-2">
-          {formatConflictDetails(conflict)}
-        </p>
+        {conflict.type === 'equipment' && conflict.details.items_short?.length ? (
+          <div className="mb-2 space-y-1.5">
+            {(conflict.details.items_short as ItemShort[]).map((i) => (
+              <div key={i.item_id}>
+                <p className="text-sm text-gray-700">
+                  <strong>{i.item_name}</strong>: {i.needed} needed on {formatDateDisplay(i.peak_at, i.timezone)}, {i.available} available.{' '}
+                  <strong className="text-red-700">{i.short} short.</strong>
+                </p>
+                <p className="text-xs text-gray-500">{contributors(i)}</p>
+              </div>
+            ))}
+            {conflict.details.conflicting_kits?.some((k: any) => k.shared_assets?.length) && (
+              <p className="text-sm text-gray-600">
+                {`Equipment conflict with kits: ${conflict.details.conflicting_kits
+                  .filter((k: any) => k.shared_assets?.length)
+                  .map((k: any) => `${k.kit_name} (${k.shared_assets.join(', ')})`).join('; ')}`}
+              </p>
+            )}
+          </div>
+        ) : (
+          <p className="text-sm text-gray-600 mb-2">
+            {formatConflictDetails(conflict)}
+          </p>
+        )}
         <div className="flex items-center gap-2">
           {onViewGig && (
             <Button

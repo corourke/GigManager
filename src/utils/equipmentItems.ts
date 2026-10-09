@@ -40,6 +40,16 @@ export function isAvailable(r: Pick<ItemRecord, 'status' | 'retired_on'>): boole
   return (r.status ?? 'Active') === 'Active' && !filled(r.retired_on);
 }
 
+/** Record id → item id for the records that are available, the only pieces in
+ *  container kits that "free" subtracts (a unit in maintenance isn't counted twice). */
+export function availableRecordItems(
+  items: ReadonlyArray<{ id: string; records?: ReadonlyArray<ItemRecord> | null }>,
+): Map<string, string> {
+  const map = new Map<string, string>();
+  for (const i of items) for (const r of i.records ?? []) if (isAvailable(r)) map.set(r.id, i.id);
+  return map;
+}
+
 const num = (v: number | string | null | undefined): number => {
   const n = v == null ? NaN : parseFloat(String(v));
   return Number.isFinite(n) ? n : 0;

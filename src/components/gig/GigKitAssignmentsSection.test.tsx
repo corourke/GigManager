@@ -60,6 +60,8 @@ vi.mock('../ui/select', () => ({
   SelectItem: ({ value, children }: any) => <option value={value}>{children}</option>,
 }));
 
+vi.mock('./EquipmentNeededTable', () => ({ default: () => <div data-testid="equipment-needed" /> }));
+
 vi.mock('../../services/conflictDetection.service', () => ({
   checkEquipmentConflicts: vi.fn().mockResolvedValue({ conflicts: [], warnings: [] }),
 }));
@@ -207,7 +209,7 @@ describe('GigKitAssignmentsSection', () => {
     render(<GigKitAssignmentsSection {...mockProps} gigStart="2024-02-01T00:00:00Z" gigEnd="2024-02-01T04:00:00Z" />);
 
     await waitFor(() => {
-      expect(checkEquipmentConflicts).toHaveBeenCalledWith('test-gig-id', '2024-02-01T00:00:00Z', '2024-02-01T04:00:00Z', undefined);
+      expect(checkEquipmentConflicts).toHaveBeenCalledWith('test-gig-id', '2024-02-01T00:00:00Z', '2024-02-01T04:00:00Z', undefined, 'current-org-id');
     });
     await waitFor(() => {
       expect(screen.getByText(/Other Show/)).toBeInTheDocument();

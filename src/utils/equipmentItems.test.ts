@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  isRetired, isAvailable, pieceValue,
+  isRetired, isAvailable, pieceValue, availableRecordItems,
   recordKind,
   isInService,
   summarizeItem,
@@ -172,5 +172,16 @@ describe('retired records and piece value (#184)', () => {
       { id: 'c', quantity: 1, replacement_value: 999, status: 'Disposed' },
     ])).toBe(40);
     expect(pieceValue([{ id: 'a', quantity: 2, replacement_value: null }])).toBe(0);
+  });
+});
+
+describe('availableRecordItems (#230 review)', () => {
+  it('maps only Active, not-retired records to their item, so a unit in maintenance in a case isn\'t subtracted again', () => {
+    const map = availableRecordItems([
+      { id: 'item-a', records: [unit({ id: 'a1' }), unit({ id: 'a2', status: 'Maintenance' }), unit({ id: 'a3', retired_on: '2026-09-01' })] },
+      { id: 'item-b', records: [lot(10, { id: 'b1' }), lot(4, { id: 'b2', status: 'Inactive' })] },
+      { id: 'item-c' },
+    ]);
+    expect([...map.entries()]).toEqual([['a1', 'item-a'], ['b1', 'item-b']]);
   });
 });

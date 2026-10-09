@@ -31,7 +31,7 @@ import { Organization, User, UserRole } from '../utils/supabase/types';
 import { getKit, createKit, updateKit, getKits, getKitsFlattenedSummary, getKitsThatWouldCycle, KitFlattenedSummary } from '../services/kit.service';
 import { getAssets } from '../services/asset.service';
 import { getItems, getContainerPieces } from '../services/equipmentItem.service';
-import { isAvailable, isRetired, itemMatchesSearch, pieceValue, recordKind, summarizeItem, type ItemRecord } from '../utils/equipmentItems';
+import { availableRecordItems, isAvailable, isRetired, itemMatchesSearch, pieceValue, recordKind, summarizeItem, type ItemRecord } from '../utils/equipmentItems';
 import type { DbAsset } from '../utils/supabase/types';
 import { useAutocompleteSuggestions } from '../utils/hooks/useAutocompleteSuggestions';
 
@@ -187,9 +187,7 @@ export default function KitScreen({
         const list = ((await getItems(organization.id)) ?? []) as KitItem[];
         if (!live) return;
         setItems(new Map(list.map((i) => [i.id, { ...i, records: i.records ?? [] }])));
-        const assetItem = new Map<string, string>();
-        for (const i of list) for (const r of i.records ?? []) assetItem.set(r.id, i.id);
-        const pieces = await getContainerPieces(organization.id, assetItem, kitId);
+        const pieces = await getContainerPieces(organization.id, availableRecordItems(list), kitId);
         if (live) setContainerPieces(pieces ?? new Map());
       } catch (error) {
         console.error('Error loading equipment items:', error);

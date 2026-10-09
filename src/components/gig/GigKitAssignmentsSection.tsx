@@ -16,6 +16,7 @@ import { getGigKits, updateGigKitAssignments } from '../../services/gig.service'
 import { getKits, getKitsFlattenedSummary } from '../../services/kit.service';
 import { checkEquipmentConflicts, Conflict } from '../../services/conflictDetection.service';
 import { ConflictWarning } from '../ConflictWarning';
+import EquipmentNeededTable from './EquipmentNeededTable';
 import { useAutoSave } from '../../utils/hooks/useAutoSave';
 import { useRowBaseline } from '../../utils/hooks/useRowBaseline';
 import SaveStateIndicator from './SaveStateIndicator';
@@ -102,6 +103,8 @@ export default function GigKitAssignmentsSection({
   const [currentNotes, setCurrentNotes] = useState('');
   const [sameGigOverlaps, setSameGigOverlaps] = useState<SameGigOverlap[]>([]);
   const [crossGigConflicts, setCrossGigConflicts] = useState<Conflict[]>([]);
+  // Bumped after each save, so the Equipment needed table reloads (#184).
+  const [savedCount, setSavedCount] = useState(0);
 
   const { control, reset, watch, setValue, getValues, formState: { isDirty, errors } } = useForm<KitFormData>({
     resolver: zodResolver(kitFormSchema),
@@ -144,16 +147,17 @@ export default function GigKitAssignmentsSection({
   const checkCrossGigConflicts = useCallback(async () => {
     if (!gigStart || !gigEnd) return;
     try {
-      const result = await checkEquipmentConflicts(gigId, gigStart, gigEnd, gigTimezone);
+      const result = await checkEquipmentConflicts(gigId, gigStart, gigEnd, gigTimezone, currentOrganizationId);
       setCrossGigConflicts([...result.conflicts, ...result.warnings]);
     } catch {
       // Non-critical — leave whatever conflicts were already shown.
     }
-  }, [gigId, gigStart, gigEnd, gigTimezone]);
+  }, [gigId, gigStart, gigEnd, gigTimezone, currentOrganizationId]);
 
   const handleSaveSuccess = useCallback((data: KitFormData) => {
     reset(data, { keepDirty: false, keepValues: true });
     checkCrossGigConflicts();
+    setSavedCount((n) => n + 1);
   }, [reset, checkCrossGigConflicts]);
 
   const { saveState, triggerSave } = useAutoSave<KitFormData>({
@@ -401,6 +405,9 @@ export default function GigKitAssignmentsSection({
             
             {availableKits.length === 0 && (
               <p className="text-sm text-gray-500">No kits available to assign</p>
+            )}
+            {gigStart && gigEnd && (
+              <EquipmentNeededTable gigId={gigId} gigStart={gigStart} gigEnd={gigEnd} gigTimezone={gigTimezone} organizationId={currentOrganizationId} refreshKey={savedCount} />
             )}
           </div>
         </CardContent>
