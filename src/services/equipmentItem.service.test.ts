@@ -115,8 +115,8 @@ describe('equipmentItem.service', () => {
         kits, kit_components: comps, kit_flattened_cache: unitCache, kit_flattened_item_cache: itemCache,
       } as any)[t]);
 
-      const counts = await getContainerPieces('org-1', new Map([['trunk', 'trunk-item']]));
-      expect(Object.fromEntries(counts)).toEqual({ 'trunk-item': 1, xlr25: 10 });
+      const counts = await getContainerPieces('org-1', [{ id: 'trunk-item', records: [{ id: 'trunk', status: 'Active' }] }]);
+      expect(Object.fromEntries(counts.all)).toEqual({ 'trunk-item': 1, xlr25: 10 });
       expect(kits.eq).toHaveBeenCalledWith('is_container', true);
     });
 
@@ -132,14 +132,32 @@ describe('equipmentItem.service', () => {
         kits, kit_components: comps, kit_flattened_cache: unitCache, kit_flattened_item_cache: itemCache,
       } as any)[t]);
 
-      const counts = await getContainerPieces('org-1', new Map(), 'case');
-      expect(Object.fromEntries(counts)).toEqual({ sm58: 2 });
+      const counts = await getContainerPieces('org-1', [], 'case');
+      expect(Object.fromEntries(counts.all)).toEqual({ sm58: 2 });
       expect(itemCache.in).toHaveBeenCalledWith('kit_id', ['box']);
+    });
+
+    it('counts every piece in containers, and separately the available ones (#230 follow-up)', async () => {
+      const kits = makeChain({ data: [{ id: 'case' }], error: null });
+      const comps = makeChain({ data: [], error: null });
+      const unitCache = makeChain({ data: [
+        { kit_id: 'case', asset_id: 'k1', total_quantity: 1 },
+        { kit_id: 'case', asset_id: 'k-maint', total_quantity: 1 },
+      ], error: null });
+      const itemCache = makeChain({ data: [{ kit_id: 'case', equipment_item_id: 'k12', total_quantity: 1 }], error: null });
+      supabase.from.mockImplementation((t: string) => ({
+        kits, kit_components: comps, kit_flattened_cache: unitCache, kit_flattened_item_cache: itemCache,
+      } as any)[t]);
+
+      const items = [{ id: 'k12', records: [{ id: 'k1', status: 'Active' }, { id: 'k-maint', status: 'Maintenance' }, { id: 'k2', status: 'Active' }] }];
+      const pieces = await getContainerPieces('org-1', items);
+      expect(Object.fromEntries(pieces.all)).toEqual({ k12: 3 });
+      expect(Object.fromEntries(pieces.active)).toEqual({ k12: 2 });
     });
 
     it('asks for nothing more when there are no container kits', async () => {
       supabase.from.mockReturnValue(makeChain({ data: [], error: null }));
-      expect((await getContainerPieces('org-1', new Map())).size).toBe(0);
+      expect((await getContainerPieces('org-1', [])).all.size).toBe(0);
       expect(supabase.from).toHaveBeenCalledTimes(1);
     });
   });

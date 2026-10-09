@@ -23,7 +23,7 @@ vi.mock('../services/asset.service', () => ({
 
 vi.mock('../services/equipmentItem.service', () => ({
   getItems: vi.fn().mockResolvedValue([]),
-  getContainerPieces: vi.fn().mockResolvedValue(new Map()),
+  getContainerPieces: vi.fn().mockResolvedValue({ all: new Map(), active: new Map() }),
 }))
 
 vi.mock('../utils/hooks/useFormWithChanges', () => ({
@@ -441,7 +441,7 @@ describe('KitScreen: "any" lines and availability (#184)', () => {
   })
   const reset = () => {
     vi.mocked(getItems).mockResolvedValue([k12] as any)
-    vi.mocked(getContainerPieces).mockResolvedValue(new Map())
+    vi.mocked(getContainerPieces).mockResolvedValue({ all: new Map(), active: new Map() })
     vi.mocked(getAssets).mockResolvedValue([])
     vi.mocked(getKits).mockResolvedValue([])
     vi.mocked(getKitsFlattenedSummary).mockResolvedValue(new Map())
@@ -458,18 +458,19 @@ describe('KitScreen: "any" lines and availability (#184)', () => {
     expect(within(row).getByText('$1,000.00')).toBeInTheDocument()
   })
 
-  it('counts only available pieces in container kits against the kit (#230 review)', async () => {
+  it('shows every piece in container kits, but subtracts only the available ones (#230 follow-up)', async () => {
     reset()
+    vi.mocked(getContainerPieces).mockResolvedValue({ all: new Map([['item-k12', 2]]), active: new Map([['item-k12', 1]]) })
     vi.mocked(getKit).mockResolvedValue(anyLine(2) as any)
     render(<KitScreen {...mockProps} kitId="kit-1" />)
-    await waitFor(() => expect(getContainerPieces).toHaveBeenCalled())
-    const assetItem = vi.mocked(getContainerPieces).mock.calls.at(-1)![1]
-    expect([...assetItem.keys()]).toEqual(['k1', 'k2', 'k3', 'k4'])
+    const row = (await screen.findByText('QSC K12.2')).closest('tr')!
+    expect(await within(row).findByText('6 units owned · 3 available')).toBeInTheDocument()
+    expect(vi.mocked(getContainerPieces).mock.calls.at(-1)![2]).toBe('kit-1')
   })
 
   it('warns when a line asks for more than are available, saying why', async () => {
     reset()
-    vi.mocked(getContainerPieces).mockResolvedValue(new Map([['item-k12', 1]]))
+    vi.mocked(getContainerPieces).mockResolvedValue({ all: new Map([['item-k12', 1]]), active: new Map([['item-k12', 1]]) })
     vi.mocked(getKit).mockResolvedValue(anyLine(5) as any)
     render(<KitScreen {...mockProps} kitId="kit-1" />)
     const row = (await screen.findByText('QSC K12.2')).closest('tr')!

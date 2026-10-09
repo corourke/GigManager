@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  isRetired, isAvailable, pieceValue, availableRecordItems,
+  isRetired, isAvailable, pieceValue, recordItemMaps,
   recordKind,
   isInService,
   summarizeItem,
@@ -68,6 +68,17 @@ describe('summarizeItem', () => {
   it('leaves Disposed and Returned records out of every count', () => {
     const records = [unit({ id: 'a' }), unit({ id: 'b', status: 'Disposed' }), lot(4, { status: 'Returned' })];
     expect(summarizeItem(records)).toMatchObject({ owned: 1, units: 1, lots: 0, available: 1, totalValue: 999 });
+  });
+
+  it('shows every piece in container kits, but takes only the Active ones out of available (#230 follow-up)', () => {
+    const records = [unit({ id: 'a' }), unit({ id: 'b' }), unit({ id: 'c' }), unit({ id: 'm', status: 'Maintenance' })];
+    // a and m sit in a case: 2 in containers, 1 of them Active.
+    expect(summarizeItem(records, 2, 1)).toMatchObject({ owned: 4, inMaintenance: 1, inContainers: 2, available: 2 });
+  });
+
+  it('counts missing pieces apart: out of owned and available (#185)', () => {
+    const records = [lot(9, { id: 'cables' }), lot(1, { id: 'gone', status: 'Missing', retired_on: '2026-10-09' }), unit({ id: 'k', status: 'Missing', retired_on: '2026-10-09' })];
+    expect(summarizeItem(records)).toMatchObject({ owned: 9, available: 9, missing: 2, totalValue: 16 * 9 });
   });
 
   it('never reports fewer than zero available', () => {
@@ -175,13 +186,14 @@ describe('retired records and piece value (#184)', () => {
   });
 });
 
-describe('availableRecordItems (#230 review)', () => {
-  it('maps only Active, not-retired records to their item, so a unit in maintenance in a case isn\'t subtracted again', () => {
-    const map = availableRecordItems([
+describe('recordItemMaps (#230 review)', () => {
+  it('maps every record to its item, and separately only the Active, not-retired ones', () => {
+    const { all, available } = recordItemMaps([
       { id: 'item-a', records: [unit({ id: 'a1' }), unit({ id: 'a2', status: 'Maintenance' }), unit({ id: 'a3', retired_on: '2026-09-01' })] },
       { id: 'item-b', records: [lot(10, { id: 'b1' }), lot(4, { id: 'b2', status: 'Inactive' })] },
       { id: 'item-c' },
     ]);
-    expect([...map.entries()]).toEqual([['a1', 'item-a'], ['b1', 'item-b']]);
+    expect([...all.keys()]).toEqual(['a1', 'a2', 'a3', 'b1', 'b2']);
+    expect([...available.entries()]).toEqual([['a1', 'item-a'], ['b1', 'item-b']]);
   });
 });

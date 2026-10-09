@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table';
 import { getEquipmentNeeded } from '../../services/conflictDetection.service';
 import type { ItemNeedRow } from '../../utils/equipmentNeeds';
-import { formatDateDisplay } from '../../utils/dateUtils';
+import { formatGigDay } from '../../utils/dateUtils';
 
 interface EquipmentNeededTableProps {
   gigId: string;
@@ -10,7 +10,7 @@ interface EquipmentNeededTableProps {
   gigEnd: string;
   gigTimezone?: string;
   /** The viewing organization: only its kits count. */
-  organizationId?: string;
+  organizationId: string;
   /** Change it to reload, e.g. after the gig's kits are saved. */
   refreshKey?: number;
 }
@@ -51,7 +51,7 @@ export default function EquipmentNeededTable({ gigId, gigStart, gigEnd, gigTimez
   return (
     <section aria-labelledby="equipment-needed" className="space-y-2">
       <div>
-        <h3 id="equipment-needed" className="text-sm font-semibold text-gray-900">Equipment needed on {formatDateDisplay(gigStart, gigTimezone)}</h3>
+        <h3 id="equipment-needed" className="text-sm font-semibold text-gray-900">Equipment needed on {formatGigDay(gigStart, gigTimezone)}</h3>
         <p className="text-xs text-gray-500">
           {others ? `this gig and the ${others} that ${others === 1 ? 'overlaps' : 'overlap'} it` : 'no other gig overlaps this one'}
         </p>

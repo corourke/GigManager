@@ -1,3 +1,4 @@
+import type { ReportAsset } from './taxSummaryReports';
 import { describe, it, expect } from 'vitest';
 import Papa from 'papaparse';
 import {
@@ -178,3 +179,53 @@ describe('CSV helpers', () => {
     expect(reportFilename('Act4 Audio, LLC', 'expenses', 2026)).toBe('act4-audio-llc-expenses-2026.csv');
   });
 });
+
+// #185: a write-off is a disposal with no proceeds, piece by piece (Cameron, 10-09). Disposals come
+// from each record on a depreciated line, at the line's cost per piece × the record's quantity.
+describe('Disposals by record (#185)', () => {
+  const lineAsset = (id: string) => ({ id, manufacturer_model: 'x', category: 'Audio', recovery_period: 7, retired_on: null, liquidation_amt: null, status: 'Active' });
+  const lines = [
+    line({ id: 'cables', tax_treatment: 'depreciate', description: 'XLR Cable, 50 ft', quantity: 10, item_cost: 20, line_cost: 200, asset_id: 'lot', asset: lineAsset('lot') }),
+    line({ id: 'k12s', tax_treatment: 'depreciate', description: 'QSC K12.2', quantity: 3, item_cost: 900, line_cost: 2700, asset_id: 'u1', asset: lineAsset('u1') }),
+  ];
+  const rec = (o: Partial<ReportAsset>): ReportAsset => ({
+    id: 'r', manufacturer_model: 'x', description: null, category: 'Audio', acquisition_date: '2026-03-01', item_cost: 20,
+    status: 'Active', retired_on: null, recovery_period: 7, purchase_line_id: null, quantity: 1, liquidation_amt: null, ...o,
+  });
+  const assets = [
+    rec({ id: 'lot', manufacturer_model: 'XLR Cable, 50 ft', quantity: 9, purchase_line_id: 'cables' }),
+    rec({ id: 'm1', manufacturer_model: 'XLR Cable, 50 ft', quantity: 1, purchase_line_id: 'cables', status: 'Missing', retired_on: '2026-10-09' }),
+    rec({ id: 'u1', manufacturer_model: 'QSC K12.2', item_cost: 900, purchase_line_id: 'k12s' }),
+    rec({ id: 'u2', manufacturer_model: 'QSC K12.2', item_cost: 900, purchase_line_id: 'k12s' }),
+    rec({ id: 'u3', manufacturer_model: 'QSC K12.2', item_cost: 900, purchase_line_id: 'k12s', status: 'Missing', retired_on: '2026-10-09' }),
+  ];
+
+  it('lists each written-off record at its own cost, not the whole line', () => {
+    expect(buildAssetReport(lines, 2026, assets).disposals).toEqual([
+      { id: 'u3', assetId: 'u3', description: 'QSC K12.2', bought: '2026-03-01', cost: 900, disposed: '2026-10-09', proceeds: null, status: 'Missing' },
+      { id: 'm1', assetId: 'm1', description: 'XLR Cable, 50 ft', bought: '2026-03-01', cost: 20, disposed: '2026-10-09', proceeds: null, status: 'Missing' },
+    ]);
+  });
+
+  it('the split-off piece doesn\'t change what was depreciated', () => {
+    const r = buildAssetReport(lines, 2026, assets);
+    expect(r.rows.map(x => [x.id, x.quantity, x.cost])).toEqual([['cables', 10, 200], ['k12s', 3, 2700]]);
+    expect(r.total).toBe(2900);
+  });
+
+  it('pieces of a line add up to the line\'s cost, however it divides', () => {
+    const tri = [line({ id: 'tri', tax_treatment: 'depreciate', description: 'DI Box', quantity: 3, item_cost: 33.33, line_cost: 100, asset_id: 't1', asset: lineAsset('t1') })];
+    const gone = ['t1', 't2', 't3'].map((id) => rec({ id, manufacturer_model: 'DI Box', item_cost: 33.33, purchase_line_id: 'tri', status: 'Missing', retired_on: '2026-10-09' }));
+    const costs = buildAssetReport(tri, 2026, gone).disposals.map(d => d.cost);
+    expect(costs.reduce((a, b) => a + b, 0)).toBeCloseTo(100, 10);
+  });
+
+  it('a line with no records falls back to its linked equipment', () => {
+    const old = [line({ id: 'd3', tax_treatment: 'depreciate', purchase_date: '2025-02-01', line_cost: 600, item_cost: 600, asset_id: 'a3',
+      asset: { ...lineAsset('a3'), manufacturer_model: 'Sennheiser XSW IEM', retired_on: '2026-05-20', liquidation_amt: 350, status: 'Disposed' } })];
+    expect(buildAssetReport(old, 2026, []).disposals).toEqual([
+      { id: 'd3', assetId: 'a3', description: 'Sennheiser XSW IEM', bought: '2025-02-01', cost: 600, disposed: '2026-05-20', proceeds: 350, status: 'Disposed' },
+    ]);
+  });
+});
+

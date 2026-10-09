@@ -47,6 +47,7 @@ vi.mock('./GigKitAssignmentsSection', () => ({ default: () => <div data-testid="
 vi.mock('./GigFinancialsSection', () => ({ default: ({ editing }: { editing?: boolean }) => <div data-testid="financials" data-editing={String(editing)} /> }));
 vi.mock('../../services/activityLog.service', () => ({ getGigActivity: vi.fn().mockResolvedValue([]) }));
 vi.mock('../../services/conflictDetection.service', () => ({ checkAllConflicts: vi.fn().mockResolvedValue({ conflicts: [] }) }));
+vi.mock('./NotReturnedSection', () => ({ default: () => null }));
 vi.mock('./EquipmentNeededTable', () => ({ default: ({ gigId }: { gigId: string }) => <div data-testid="equipment-needed" data-gig={gigId} /> }));
 
 const gig = {

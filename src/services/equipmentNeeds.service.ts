@@ -1,5 +1,5 @@
 import { createClient } from '../utils/supabase/client';
-import { containerPiecesByItem, isAvailable, summarizeItem } from '../utils/equipmentItems';
+import { containerPiecesByItem, recordItemMaps, summarizeItem } from '../utils/equipmentItems';
 import { gigNeeds, type ItemCounts, type ItemNeed, type KitLine, type KitMeta, type NeedsContext } from '../utils/equipmentNeeds';
 
 const getSupabase = () => createClient();
@@ -59,14 +59,7 @@ export async function loadEquipmentNeeds(kitIds: readonly string[], organization
 
   // Pieces inside container kits are never free for others. Only Active ones
   // come off what's free: a unit in Maintenance isn't free anyway (#184 review).
-  const recordItem = new Map<string, string>();
-  const availableRecords = new Map<string, string>();
-  for (const i of items ?? []) {
-    for (const r of i.records ?? []) {
-      recordItem.set(r.id, i.id);
-      if (isAvailable(r)) availableRecords.set(r.id, i.id);
-    }
-  }
+  const { all: recordItem, available: availableRecords } = recordItemMaps(items ?? []);
   // The viewing organization's containers; without one, each kit's organization's.
   const orgIds = organizationId ? [organizationId]
     : Array.from(new Set([...kits.values()].map((k) => k.organization_id).filter((id): id is string => !!id)));

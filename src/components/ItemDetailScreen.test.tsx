@@ -3,7 +3,7 @@ import { render, screen, within, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import ItemDetailScreen from './ItemDetailScreen'
 import { makeUser, makeOrganization } from '../test/factories'
-import { updateItem } from '../services/equipmentItem.service'
+import { updateItem, getContainerPieces, getItem } from '../services/equipmentItem.service'
 
 const unit = (n: number, over: Record<string, unknown> = {}) => ({
   id: `k12-${n}`,
@@ -36,7 +36,7 @@ const item = {
 
 vi.mock('../services/equipmentItem.service', () => ({
   getItem: vi.fn(() => Promise.resolve(item)),
-  getContainerPieces: vi.fn(() => Promise.resolve(new Map())),
+  getContainerPieces: vi.fn(() => Promise.resolve({ all: new Map(), active: new Map() })),
   getItemKitLines: vi.fn(() => Promise.resolve([
     { id: 'l1', quantity: 2, asset_id: null, equipment_item_id: 'item-k12', kit: { id: 'pa', name: 'Main PA: K12.2 Pair', tag_number: 'KIT-005', is_container: false } },
     { id: 'l2', quantity: 1, asset_id: 'k12-5', equipment_item_id: null, kit: { id: 'side', name: 'Monitor Pair, Side Fill', tag_number: 'KIT-007', is_container: false } },
@@ -78,6 +78,28 @@ describe('ItemDetailScreen (#182)', () => {
     expect(within(inventory).getByTestId('available')).toHaveTextContent('5')
     expect(within(inventory).getByTestId('in-maintenance')).toHaveTextContent('1')
     expect(within(inventory).getByText('$6,094.00')).toBeInTheDocument()
+  })
+
+  it('shows every piece in container kits, but takes only the Active ones out of available (#230 follow-up)', async () => {
+    vi.mocked(getContainerPieces).mockResolvedValueOnce({ all: new Map([['item-k12', 2]]), active: new Map([['item-k12', 1]]) })
+    render(<ItemDetailScreen {...props} />)
+    const inventory = (await screen.findByRole('heading', { name: 'Inventory' })).closest('section')!
+    await waitFor(() => expect(within(inventory).getByTestId('available')).toHaveTextContent('4'))
+    expect(within(inventory).getByText('In container kits').nextSibling).toHaveTextContent('2')
+  })
+
+  it('shows missing pieces: a Missing badge, their own lot row, and "N missing" by the counts (#185)', async () => {
+    vi.mocked(getItem).mockResolvedValueOnce({
+      ...item,
+      records: [...item.records,
+        { ...item.records[0], id: 'split', tag_number: null, serial_number: null, quantity: 2, status: 'Missing', retired_on: '2026-10-09' }],
+    } as any)
+    render(<ItemDetailScreen {...props} />)
+    const inventory = (await screen.findByRole('heading', { name: 'Inventory' })).closest('section')!
+    expect(within(inventory).getByTestId('owned')).toHaveTextContent('6')
+    expect(within(inventory).getByText('2 missing')).toBeInTheDocument()
+    expect(screen.getByText('Lot of 2 · Missing')).toBeInTheDocument()
+    expect(screen.getAllByText('Missing').length).toBeGreaterThan(0)
   })
 
   it('lists the units with tag, serial, status and replacement value, and opens one', async () => {

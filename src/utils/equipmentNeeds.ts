@@ -44,6 +44,21 @@ export function kitNeeds(kitId: string, ctx: NeedsContext, seen: ReadonlySet<str
   return out;
 }
 
+/**
+ * Every container kit a kit reaches, itself included when it is one, through nested kits and
+ * containers alike. A container is one physical case, so two gigs reaching it share it.
+ */
+export function containersIn(kitId: string, ctx: NeedsContext, seen: ReadonlySet<string> = new Set()): Set<string> {
+  const out = new Set<string>();
+  if (seen.has(kitId)) return out;
+  if (ctx.kits.get(kitId)?.is_container) out.add(kitId);
+  const path = new Set(seen).add(kitId);
+  for (const line of ctx.lines.get(kitId) ?? []) {
+    if (line.child_kit_id) for (const id of containersIn(line.child_kit_id, ctx, path)) out.add(id);
+  }
+  return out;
+}
+
 export interface ItemNeed {
   total: number;
   /** Which of the gig's kits ask for how many. */
@@ -101,8 +116,13 @@ export interface ItemNeedRow {
   status: NeedStatus;
   /** When the peak starts (ms), and the other gigs that add to it. */
   peakAt: number;
-  peakGigs: { id: string; title: string; need: ItemNeed }[];
+  peakGigs: NeedingGig[];
+  /** Every moment this gig is short, with the gigs running then (#230 follow-up). */
+  shortMoments: ShortMoment[];
 }
+
+export interface NeedingGig { id: string; title: string; need: ItemNeed }
+export interface ShortMoment { at: number; needed: number; short: number; gigs: NeedingGig[] }
 
 /**
  * The "Equipment needed" rows: each item this gig needs, against what's free.
@@ -124,10 +144,14 @@ export function itemNeedRows(
     let peakAt = thisGig.start;
     let peakGigs: GigNeeds[] = [];
     let overlapping = 0;
+    const shortMoments: ShortMoment[] = [];
+    const needing = (g: GigNeeds): NeedingGig => ({ id: g.id, title: g.title, need: g.needs.get(itemId)! });
     for (const t of moments) {
       const running = others.filter((o) => o.start <= t && o.end >= t && o.needs.has(itemId));
       const sum = running.reduce((n, o) => n + (o.needs.get(itemId)?.total ?? 0), 0);
       if (sum > overlapping) { overlapping = sum; peakAt = t; peakGigs = running; }
+      const short = need.total + sum - c.available;
+      if (short > 0 && running.length) shortMoments.push({ at: t, needed: need.total + sum, short, gigs: running.map(needing) });
     }
     const needed = need.total + overlapping;
     const short = Math.max(0, needed - c.available);
@@ -135,7 +159,7 @@ export function itemNeedRows(
       itemId, name: c.name, thisGig: need.total, overlapping, needed,
       owned: c.owned, inMaintenance: c.inMaintenance, inContainers: c.inContainers, free: c.available, short,
       status: short > 0 ? 'short' : needed === c.available ? 'none-spare' : 'enough',
-      peakAt, peakGigs: peakGigs.map((g) => ({ id: g.id, title: g.title, need: g.needs.get(itemId)! })),
+      peakAt, peakGigs: peakGigs.map(needing), shortMoments,
     });
   }
   return rows;

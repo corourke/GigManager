@@ -240,3 +240,39 @@ describe('offlineSyncService — INVENTORY_CLEAR handler (bulk, no record_id)', 
     ).rejects.toEqual({ message: 'query failed' })
   })
 })
+
+// #239 review: a status change the database refuses (e.g. Staff bringing back Disposed or
+// written-off equipment) won't succeed on a retry. It's dropped with a message, not retried silently.
+vi.mock('sonner', () => ({ toast: Object.assign(vi.fn(), { error: vi.fn(), success: vi.fn() }) }))
+
+describe('offlineSyncService — ASSET_STATUS_UPDATE refused', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('drops a refused status change and says why', async () => {
+    const { idbStore } = await import('../../utils/idb/store')
+    const { toast } = await import('sonner')
+    const item = { ...outboxItem('ASSET_STATUS_UPDATE', { asset_id: 'a1', status: 'Active' }), id: 7 }
+    vi.mocked(idbStore.getOutbox).mockResolvedValueOnce([item])
+    mockRpc.mockResolvedValue({ error: { code: '42501', message: 'This equipment was written off as missing. Undo the write-off to bring it back.' } })
+
+    await offlineSyncService.processOutbox()
+
+    expect(idbStore.removeFromOutbox).toHaveBeenCalledWith(7)
+    expect(idbStore.updateOutboxItem).not.toHaveBeenCalled()
+    expect(toast.error).toHaveBeenCalledWith(expect.stringContaining('written off as missing'))
+  })
+
+  it('a network failure is still retried', async () => {
+    const { idbStore } = await import('../../utils/idb/store')
+    const item = { ...outboxItem('ASSET_STATUS_UPDATE', { asset_id: 'a1', status: 'Maintenance' }), id: 8 }
+    vi.mocked(idbStore.getOutbox).mockResolvedValueOnce([item])
+    mockRpc.mockResolvedValue({ error: { message: 'Failed to fetch' } })
+
+    await offlineSyncService.processOutbox()
+
+    expect(idbStore.removeFromOutbox).not.toHaveBeenCalled()
+    expect(idbStore.updateOutboxItem).toHaveBeenCalled()
+  })
+})

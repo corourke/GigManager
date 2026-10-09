@@ -7,7 +7,7 @@
     ],
     "anchor": "2026-10-07",
     "taken": "2026-10-09",
-    "appCommit": "6a60b24"
+    "appCommit": "d08e96574d9defbef576a49bdd18cc50bd44b377"
   },
   "financials/reporting-grey-zone": {
     "page": "financials/reporting.md",
@@ -18,7 +18,7 @@
     ],
     "anchor": "2026-10-07",
     "taken": "2026-10-09",
-    "appCommit": "6a60b24"
+    "appCommit": "d08e96574d9defbef576a49bdd18cc50bd44b377"
   },
   "financials/reporting-income": {
     "page": "financials/reporting.md",
@@ -28,7 +28,29 @@
     ],
     "anchor": "2026-10-07",
     "taken": "2026-10-09",
-    "appCommit": "6a60b24"
+    "appCommit": "d08e96574d9defbef576a49bdd18cc50bd44b377"
+  },
+  "financials/reporting-needs-attention": {
+    "page": "financials/reporting.md",
+    "user": "admin",
+    "sources": [
+      "src/components/financials/NeedsAttentionView.tsx",
+      "src/utils/taxSummaryReports.ts"
+    ],
+    "anchor": "2026-10-07",
+    "taken": "2026-10-09",
+    "appCommit": "d08e96574d9defbef576a49bdd18cc50bd44b377"
+  },
+  "financials/reporting-schedule-c": {
+    "page": "financials/reporting.md",
+    "user": "admin",
+    "sources": [
+      "src/components/financials/ScheduleCView.tsx",
+      "src/utils/taxSummaryReports.ts"
+    ],
+    "anchor": "2026-10-07",
+    "taken": "2026-10-09",
+    "appCommit": "d08e96574d9defbef576a49bdd18cc50bd44b377"
   },
   "getting-started/onboarding-edit-profile": {
     "page": "getting-started/onboarding.md",
@@ -162,7 +184,18 @@
     ],
     "anchor": "2026-10-07",
     "taken": "2026-10-09",
-    "appCommit": "6a60b24"
+    "appCommit": "d08e96574d9defbef576a49bdd18cc50bd44b377"
+  },
+  "gigs/conflict-detection-equipment-needed": {
+    "page": "gigs/conflict-detection.md",
+    "user": "admin",
+    "sources": [
+      "src/components/gig/EquipmentNeededTable.tsx",
+      "src/utils/equipmentNeeds.ts"
+    ],
+    "anchor": "2026-10-07",
+    "taken": "2026-10-09",
+    "appCommit": "d08e96574d9defbef576a49bdd18cc50bd44b377"
   },
   "gigs/conflict-detection-gig-page": {
     "page": "gigs/conflict-detection.md",
@@ -173,7 +206,7 @@
     ],
     "anchor": "2026-10-07",
     "taken": "2026-10-09",
-    "appCommit": "6a60b24"
+    "appCommit": "d08e96574d9defbef576a49bdd18cc50bd44b377"
   },
   "gigs/creating-a-gig-form": {
     "page": "gigs/creating-a-gig.md",

@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   isNoonUTC,
+  formatGigDay,
   formatInTimeZone,
   formatDateTimeDisplay,
   parseLocalToUTC,
@@ -292,5 +293,16 @@ describe('toDateInTimeZone (#93)', () => {
     expect(toDateInTimeZone(d)).toBe(local);
     expect(toDateInTimeZone(d, null)).toBe(local);
     expect(toDateInTimeZone(d, 'Not/AZone')).toBe(local);
+  });
+});
+
+describe('formatGigDay (#230 follow-up)', () => {
+  it('a date-only gig (noon UTC) is its calendar date in any time zone', () => {
+    expect(formatGigDay('2026-10-10T12:00:00.000Z', 'Pacific/Auckland')).toBe('Oct 10, 2026');
+    expect(formatGigDay('2026-10-10T12:00:00.000Z', 'Pacific/Honolulu')).toBe('Oct 10, 2026');
+  });
+
+  it('a timed gig is the day it starts in its time zone', () => {
+    expect(formatGigDay('2026-10-11T03:00:00Z', 'America/Los_Angeles')).toBe('Oct 10, 2026');
   });
 });

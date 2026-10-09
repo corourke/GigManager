@@ -3,8 +3,9 @@ import { handleApiError } from '../utils/api-error-utils';
 import { isNoonUTC } from '../utils/dateUtils';
 import type { OrganizationRole } from '../utils/supabase/types';
 import { assetLabel } from './kit.service';
+import { recordKind } from '../utils/equipmentItems';
 import { loadEquipmentNeeds, needsOf } from './equipmentNeeds.service';
-import { itemNeedRows, type GigNeeds, type ItemNeed, type ItemNeedRow } from '../utils/equipmentNeeds';
+import { containersIn, itemNeedRows, type GigNeeds, type ItemNeed, type ItemNeedRow, type NeedsContext, type ShortMoment } from '../utils/equipmentNeeds';
 
 const getSupabase = () => createClient();
 
@@ -99,16 +100,50 @@ export interface ItemShort {
   others: { gig_title: string; need: ItemNeed }[];
 }
 
-/** Items short on `rows` (one gig's view) where the other gig adds to the peak. */
+/** Items short on `rows` (one gig's view) while the other gig is running: the
+ *  worst such moment for each, not only the peak's gigs (#230 follow-up). */
 function itemsShort(rows: readonly ItemNeedRow[], thisNeeds: ReadonlyMap<string, ItemNeed>, otherId: string, timezone?: string): ItemShort[] {
-  return rows
-    .filter((r) => r.short > 0 && r.peakGigs.some((g) => g.id === otherId))
-    .map((r) => ({
-      item_id: r.itemId, item_name: r.name, needed: r.needed, available: r.free, short: r.short,
-      peak_at: new Date(r.peakAt).toISOString(), timezone,
+  const out: ItemShort[] = [];
+  for (const r of rows) {
+    let worst: ShortMoment | undefined;
+    for (const m of r.shortMoments) if (m.gigs.some((g) => g.id === otherId) && (!worst || m.short > worst.short)) worst = m;
+    if (!worst) continue;
+    out.push({
+      item_id: r.itemId, item_name: r.name, needed: worst.needed, available: r.free, short: worst.short,
+      peak_at: new Date(worst.at).toISOString(), timezone,
       this_gig: thisNeeds.get(r.itemId)!,
-      others: r.peakGigs.map((g) => ({ gig_title: g.title, need: g.need })),
-    }));
+      others: worst.gigs.map((g) => ({ gig_title: g.title, need: g.need })),
+    });
+  }
+  return out;
+}
+
+/**
+ * The same-unit check names only tracked units: one piece with a serial or
+ * tag (Cameron, 10-09). A lot on two gigs isn't a conflict in itself; the
+ * per-item check says whether there are enough. A row whose asset can't be
+ * read is kept, so a hidden unit still warns.
+ */
+function isTrackedUnit(asset: { serial_number?: string | null; tag_number?: string | null; quantity?: number | string | null } | null | undefined): boolean {
+  return !asset || (recordKind(asset) === 'unit' && Number(asset.quantity ?? 1) === 1);
+}
+
+/** The same-unit key for a container kit: the case itself is one unit (#238 review). */
+const CONTAINER_KEY = 'kit:';
+
+/**
+ * Add each kit's containers to its same-unit set, named by the container. Their contents are
+ * often lots, which the unit check leaves out, so the case is what two gigs can't both have.
+ */
+function addContainerUnits(kitIds: readonly string[], ctx: NeedsContext, assetsByKit: Map<string, Set<string>>, labels: Map<string, string>) {
+  for (const kitId of kitIds) {
+    for (const containerId of containersIn(kitId, ctx)) {
+      const set = assetsByKit.get(kitId) ?? new Set<string>();
+      set.add(CONTAINER_KEY + containerId);
+      assetsByKit.set(kitId, set);
+      labels.set(CONTAINER_KEY + containerId, ctx.kits.get(containerId)?.name ?? 'Unnamed container');
+    }
+  }
 }
 
 /** A gig's needs with its effective time range, for the peak. */
@@ -117,9 +152,9 @@ function timedNeeds(gig: { id: string; title?: string; start: string; end: strin
   return { id: gig.id, title: gig.title ?? 'This gig', start: effectiveStart.getTime(), end: effectiveEnd.getTime(), needs };
 }
 
-/** Kit assignment rows of the given organization only (all when none is given). */
-const ofOrg = <T extends { organization_id?: string | null }>(rows: readonly T[], organizationId?: string) =>
-  organizationId ? rows.filter((r) => r.organization_id === organizationId) : [...rows];
+/** Kit assignment rows of the given organization only. */
+const ofOrg = <T extends { organization_id?: string | null }>(rows: readonly T[], organizationId: string) =>
+  rows.filter((r) => r.organization_id === organizationId);
 
 /** Per-item counts, or none if they can't be loaded: the other checks still run. */
 async function loadNeedsSafely(kitIds: string[], organizationId?: string) {
@@ -282,7 +317,7 @@ export async function checkParticipantConflicts(gigId: string, startTime: string
   }
 }
 
-export async function checkEquipmentConflicts(gigId: string, startTime: string, endTime: string, timezone?: string, organizationId?: string): Promise<ConflictResult> {
+export async function checkEquipmentConflicts(gigId: string, startTime: string, endTime: string, timezone: string | undefined, organizationId: string): Promise<ConflictResult> {
   const supabase = getSupabase();
   try {
     const { data: assigned, error: currentError } = await supabase
@@ -324,18 +359,22 @@ export async function checkEquipmentConflicts(gigId: string, startTime: string, 
 
     const { data: flattenedRows, error: flattenError } = await supabase
       .from('kit_flattened_cache')
-      .select('kit_id, asset_id, asset:assets(manufacturer_model, tag_number)')
+      .select('kit_id, asset_id, asset:assets(manufacturer_model, tag_number, serial_number, quantity)')
       .in('kit_id', allKitIds);
     if (flattenError) throw flattenError;
 
     const assetsByKit = new Map<string, Set<string>>();
     const labels = new Map<string, string>();
     for (const row of (flattenedRows || []) as any[]) {
+      if (!isTrackedUnit(row.asset)) continue;
       const set = assetsByKit.get(row.kit_id) ?? new Set<string>();
       set.add(row.asset_id);
       assetsByKit.set(row.kit_id, set);
       if (row.asset) labels.set(row.asset_id, assetLabel(row.asset));
     }
+
+    const needsData = await loadNeedsSafely(allKitIds, organizationId);
+    addContainerUnits(allKitIds, needsData.ctx, assetsByKit, labels);
 
     const currentAssetIds = new Set<string>();
     for (const kitId of kitIds) {
@@ -347,7 +386,6 @@ export async function checkEquipmentConflicts(gigId: string, startTime: string, 
       const { effectiveStart: gigStart, effectiveEnd: gigEnd } = getEffectiveRange(gig.start, gig.end, gig.timezone);
       return [gig.id, classifyOverlap(currentStart, currentEnd, gigStart, gigEnd)];
     }));
-    const needsData = await loadNeedsSafely(allKitIds, organizationId);
     const thisNeeds = needsOf(kitIds, needsData);
     const gigKitIds = (gig: any) => (gig.kit_assignments || []).map((a: any) => a.kit_id as string);
     const overlapping = candidateGigs.filter((gig: any) => levels.get(gig.id) === 'conflict');
@@ -402,7 +440,7 @@ const STATUS_ORDER = { short: 0, 'none-spare': 1, enough: 2 } as const;
  * What a gig needs per item, against what's free when it and the gigs
  * overlapping it all happen (#184, the gig's "Equipment needed" table).
  */
-export async function getEquipmentNeeded(gigId: string, startTime: string, endTime: string, timezone?: string, organizationId?: string): Promise<{ overlapping: number; rows: ItemNeedRow[] }> {
+export async function getEquipmentNeeded(gigId: string, startTime: string, endTime: string, timezone: string | undefined, organizationId: string): Promise<{ overlapping: number; rows: ItemNeedRow[] }> {
   const supabase = getSupabase();
   try {
     const { data: currentGigKits, error: currentError } = await supabase.from('gig_kit_assignments').select('kit_id, organization_id').eq('gig_id', gigId);
@@ -441,7 +479,7 @@ export async function getEquipmentNeeded(gigId: string, startTime: string, endTi
   }
 }
 
-export async function checkAllConflicts(gigId: string, startTime: string, endTime: string, timezone?: string, organizationId?: string): Promise<ConflictResult> {
+export async function checkAllConflicts(gigId: string, startTime: string, endTime: string, timezone: string | undefined, organizationId: string): Promise<ConflictResult> {
   try {
     const [staffResult, participantResult, equipmentResult] = await Promise.all([
       checkStaffConflicts(gigId, startTime, endTime, timezone),
@@ -477,7 +515,7 @@ interface GigForConflictCheck {
   status?: string;
 }
 
-export async function checkAllConflictsForGigs(gigs: GigForConflictCheck[], organizationId?: string): Promise<Conflict[]> {
+export async function checkAllConflictsForGigs(gigs: GigForConflictCheck[], organizationId: string): Promise<Conflict[]> {
   const activeGigs = gigs.filter(g => !g.status || !EXCLUDED_STATUSES.includes(g.status));
   if (activeGigs.length === 0) return [];
 
@@ -504,20 +542,23 @@ export async function checkAllConflictsForGigs(gigs: GigForConflictCheck[], orga
     if (staffData.error) throw staffData.error;
     if (participantData.error) throw participantData.error;
     if (kitData.error) throw kitData.error;
+    // Only the viewing organization's kits count, for units and per item (org scoping).
+    const ownKits = ofOrg((kitData.data || []) as any[], organizationId);
 
     // Resolve every assigned kit to its flattened asset set in one query, so
     // "the same equipment" means shared assets, not shared kit rows — two
     // different kits sharing a physical asset must conflict.
-    const allKitIds = Array.from(new Set((kitData.data || []).map((k: any) => k.kit_id)));
+    const allKitIds = Array.from(new Set(ownKits.map((k) => k.kit_id)));
     const assetsByKit = new Map<string, Set<string>>();
     const labels = new Map<string, string>();
     if (allKitIds.length > 0) {
       const { data: flattenedRows, error: flattenError } = await supabase
         .from('kit_flattened_cache')
-        .select('kit_id, asset_id, asset:assets(manufacturer_model, tag_number)')
+        .select('kit_id, asset_id, asset:assets(manufacturer_model, tag_number, serial_number, quantity)')
         .in('kit_id', allKitIds);
       if (flattenError) throw flattenError;
       for (const row of (flattenedRows || []) as any[]) {
+        if (!isTrackedUnit(row.asset)) continue;
         const set = assetsByKit.get(row.kit_id) ?? new Set<string>();
         set.add(row.asset_id);
         assetsByKit.set(row.kit_id, set);
@@ -549,10 +590,15 @@ export async function checkAllConflictsForGigs(gigs: GigForConflictCheck[], orga
       participantsByGig.set(p.gig_id, list);
     }
 
+    // Per item (#184): each gig's needs. The kit tree also gives each kit's containers.
+    const ownKitIds = (gigId: string) => ownKits.filter((k) => k.gig_id === gigId).map((k) => k.kit_id as string);
+    const needsData = await loadNeedsSafely(Array.from(new Set(activeGigs.flatMap((g) => ownKitIds(g.id)))), organizationId);
+    addContainerUnits(allKitIds, needsData.ctx, assetsByKit, labels);
+
     // Per gig, the union of flattened asset IDs across all of its assigned kits.
     const assetsByGig = new Map<string, Set<string>>();
     const kitsByGig = new Map<string, { kit_id: string; kit_name: string }[]>();
-    for (const k of (kitData.data || []) as any[]) {
+    for (const k of ownKits) {
       const gigAssets = assetsByGig.get(k.gig_id) ?? new Set<string>();
       for (const assetId of assetsByKit.get(k.kit_id) ?? []) gigAssets.add(assetId);
       assetsByGig.set(k.gig_id, gigAssets);
@@ -574,10 +620,7 @@ export async function checkAllConflictsForGigs(gigs: GigForConflictCheck[], orga
         }))
         .filter((k) => k.shared_assets.length > 0);
 
-    // Per item (#184): each gig's needs, and its rows against every gig overlapping it.
-    // Only the viewing organization's kits count per item (#184 review).
-    const ownKitIds = (gigId: string) => ofOrg(((kitData.data || []) as any[]).filter((k) => k.gig_id === gigId), organizationId).map((k) => k.kit_id as string);
-    const needsData = await loadNeedsSafely(Array.from(new Set(activeGigs.flatMap((g) => ownKitIds(g.id)))), organizationId);
+    // Each gig's rows against every gig overlapping it.
     const timed = new Map(activeGigs.map((g) => [g.id, timedNeeds(g, needsOf(ownKitIds(g.id), needsData))]));
     const rowsByGig = new Map(activeGigs.map((g) => {
       const t = timed.get(g.id)!;
@@ -645,12 +688,14 @@ export async function checkAllConflictsForGigs(gigs: GigForConflictCheck[], orga
         const shortB = shortFor(gigB.id, gigA.id);
         // Each side gets an entry only for its own shortage, or the units both book.
         const shared = new Set(overlappingAssetIds);
+        // Records only: a shared container is named in conflicting_kits.
+        const sharedRecordIds = overlappingAssetIds.filter((id) => !id.startsWith(CONTAINER_KEY));
         if (overlappingAssetIds.length > 0 || shortB.length > 0) {
           conflicts.push({
             level: 'conflict', type: 'equipment',
             gig_id: gigB.id, gig_title: gigB.title,
             start: gigB.start, end: gigB.end,
-            details: { conflicting_asset_ids: overlappingAssetIds, conflicting_kits: kitsSharing(gigB.id, shared), items_short: shortB, other_gig_id: gigA.id, other_gig_title: gigA.title }
+            details: { conflicting_asset_ids: sharedRecordIds, conflicting_kits: kitsSharing(gigB.id, shared), items_short: shortB, other_gig_id: gigA.id, other_gig_title: gigA.title }
           });
         }
         if (overlappingAssetIds.length > 0 || shortA.length > 0) {
@@ -658,7 +703,7 @@ export async function checkAllConflictsForGigs(gigs: GigForConflictCheck[], orga
             level: 'conflict', type: 'equipment',
             gig_id: gigA.id, gig_title: gigA.title,
             start: gigA.start, end: gigA.end,
-            details: { conflicting_asset_ids: overlappingAssetIds, conflicting_kits: kitsSharing(gigA.id, shared), items_short: shortA, other_gig_id: gigB.id, other_gig_title: gigB.title }
+            details: { conflicting_asset_ids: sharedRecordIds, conflicting_kits: kitsSharing(gigA.id, shared), items_short: shortA, other_gig_id: gigB.id, other_gig_title: gigB.title }
           });
         }
       }

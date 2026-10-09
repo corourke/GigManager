@@ -21,9 +21,12 @@ Two gigs conflict on participants when the same organization appears in `gig_par
 **Configurable roles**: The constant `PARTICIPANT_CONFLICT_ROLES = ['Venue', 'Act']` controls which participant roles trigger conflict detection. The conflict `type` field remains `'venue'` for UI compatibility, with `details.role` indicating the actual role.
 
 ### Equipment Conflicts
-Two gigs conflict on equipment when the same kit is assigned (via `gig_kit_assignments`) to both gigs during overlapping times.
+Two overlapping gigs conflict on equipment in two ways. Both checks count only the viewing organization's kits.
 
-**Data path**: `gigs → gig_kit_assignments → kits`
+- **The same unit on both gigs.** Every assigned kit is resolved to its records through `kit_flattened_cache`, so two different kits that share a physical unit conflict. Only **tracked units** count: records with quantity 1 and a serial or tag (`isTrackedUnit`; Cameron, 10-09). A lot on both gigs (cables, stands) isn't a conflict by itself; the per-item check below says whether there are enough. A **container kit counts as one unit** too: the same case on both gigs, or a kit holding it on one gig and the case itself on the other, is a conflict named by the container (`containersIn`, from the kit tree the per-item check loads). Its contents are often lots, which the unit check leaves out. The conflict lists the kits and the shared units, e.g. "Main PA (PD-20 (#DSL-0211))".
+- **Not enough of an item (#184).** Per item, the peak concurrent demand from this gig's kits plus the kits of the gigs running at the same moment, against what's free (Active, not retired, not inside a container kit). "Any" lines, specific units and lots all count toward their item. Every pair of gigs that is short together is reported, at the worst moment they share (`itemsShort`).
+
+**Data path**: `gigs → gig_kit_assignments → kits → kit_flattened_cache / kit_flattened_item_cache → assets → equipment_items`
 
 ## Date-Only Gig Handling
 

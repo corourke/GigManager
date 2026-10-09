@@ -114,6 +114,42 @@ describe('AssetScreen', () => {
     vi.mocked(svc.getAsset).mockResolvedValue({} as any)
   })
 
+  it('a written-off record\'s status can\'t be changed by hand: it says where to undo (#185)', async () => {
+    const svc = await import('../services/asset.service')
+    vi.mocked(svc.getAsset).mockResolvedValue({
+      id: 'u1', organization_id: 'org-1', equipment_item_id: 'item-k12', manufacturer_model: 'QSC K12.2', category: 'Audio',
+      serial_number: 'S1', tag_number: 'T1', quantity: 1, status: 'Missing', retired_on: '2026-10-09', acquisition_date: '2026-03-01',
+    } as any)
+    render(<AssetScreen {...mockProps} assetId="u1" />)
+    expect(await screen.findByText(/Written off as missing/)).toBeInTheDocument()
+    expect(screen.getByRole('combobox', { name: 'Status' })).toBeDisabled()
+    vi.mocked(svc.getAsset).mockResolvedValue({} as any)
+  })
+
+  it('clearing a money field on a unit saves null, not nothing (#226)', async () => {
+    const svc = await import('../services/asset.service')
+    vi.mocked(svc.getAsset).mockResolvedValue({
+      id: 'u1', organization_id: 'org-1', equipment_item_id: 'item-k12', manufacturer_model: 'QSC K12.2', category: 'Audio',
+      serial_number: 'S1', tag_number: 'T1', quantity: 1, status: 'Disposed', acquisition_date: '2026-03-01',
+      item_price: 500, item_cost: 400, replacement_value: 900, liquidation_amt: 150,
+    } as any)
+    vi.mocked(svc.updateAsset).mockResolvedValue({ id: 'u1' } as any)
+    const ue = userEvent.setup()
+    render(<AssetScreen {...mockProps} assetId="u1" />)
+    expect(await screen.findByDisplayValue('S1')).toBeInTheDocument()
+    for (const id of ['item_price', 'item_cost', 'liquidation_amt']) {
+      await ue.clear(document.getElementById(id) as HTMLElement)
+    }
+    await ue.clear(screen.getByLabelText('Replacement Value'))
+    await ue.click(screen.getByRole('button', { name: /Update Unit/ }))
+    await waitFor(() => expect(svc.updateAsset).toHaveBeenCalled())
+    const payload = vi.mocked(svc.updateAsset).mock.calls[0][1] as Record<string, unknown>
+    for (const f of ['item_price', 'item_cost', 'replacement_value', 'liquidation_amt']) {
+      expect(payload, f).toHaveProperty(f, null)
+    }
+    vi.mocked(svc.getAsset).mockResolvedValue({} as any)
+  })
+
   describe('Add Item (#183)', () => {
     it('a new item takes its insurance class and description in What it is, and has no Lifecycle', () => {
       render(<AssetScreen {...mockProps} />)

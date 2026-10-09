@@ -344,7 +344,7 @@ export default function AssetScreen({
     const normalizedData = normalizeFormData(shaped) as Record<string, any>;
     for (const f of ['item_price', 'item_cost', 'replacement_value', 'liquidation_amt'] as const) {
       const v = normalizedData[f];
-      normalizedData[f] = v === null || v === '' ? undefined : typeof v === 'string' ? parseFloat(v) : v;
+      normalizedData[f] = v === null || v === '' ? null : typeof v === 'string' ? parseFloat(v) : v;
     }
     const q = normalizedData.quantity;
     normalizedData.quantity = q === null || q === '' ? undefined : typeof q === 'string' ? parseInt(q) : q;
@@ -632,6 +632,7 @@ export default function AssetScreen({
                   <Select
                     value={formData.status}
                     onValueChange={(value) => handleChange('status', value)}
+                    disabled={formData.status === 'Missing'}
                   >
                     <SelectTrigger id="status">
                       {formData.status in ASSET_STATUS_CONFIG ? (
@@ -643,7 +644,7 @@ export default function AssetScreen({
                       )}
                     </SelectTrigger>
                     <SelectContent>
-                      {Object.entries(ASSET_STATUS_CONFIG).map(([key, cfg]) => (
+                      {Object.entries(ASSET_STATUS_CONFIG).filter(([key]) => key !== 'Missing').map(([key, cfg]) => (
                         <SelectItem key={key} value={key}>
                           <span className={`inline-flex items-center rounded-md border px-2 py-0.5 text-xs font-medium ${cfg.color}`}>
                             {cfg.label}
@@ -652,6 +653,11 @@ export default function AssetScreen({
                       ))}
                     </SelectContent>
                   </Select>
+                  {formData.status === 'Missing' && (
+                    <p className="text-xs text-rose-700">
+                      Written off as missing. To bring it back, use Undo in the gig's Not returned list.
+                    </p>
+                  )}
                   {formData.status === 'Disposed' && (
                     <p className="text-xs text-amber-600">
                       This asset is marked as disposed. Enter a Disposal or Salvage Amount below if applicable.
