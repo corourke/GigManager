@@ -38,7 +38,7 @@ GigWrangler can read an invoice or receipt for you (a PDF or a photo) and fill i
 
 1. **Financials → Purchases → Scan invoices**: drop in several files at once.
 2. **A gig → Financials → Upload Receipt**: one receipt, recorded as a cost of that gig.
-3. **Equipment → Upload Invoice** (on the asset list): one invoice for new equipment.
+3. **Equipment → Upload Invoice** (on the Items tab): one invoice for new equipment.
 
 You can also attach a file without scanning it, to a purchase, to one of a gig's money rows, or to a piece of equipment. [Receipts and invoices](/financials/receipts-and-invoices/) lists every way.
 

@@ -139,11 +139,11 @@ Not released: #174's UI half shipped in PR #199; its remaining item (the already
 | `financials/cost-allocation.md` | published | 2026-10-06 (coordinator, PR #136) | — |
 | `financials/gig-accounting.md` | published | 2026-10-08 (Docs Lead, PR #207) | Owed to you: Completed or Settled; held: #125 money-type rework |
 | `financials/gig-expenses.md` | published | 2026-10-08 (Docs Lead, PR #220) | projected staff estimate documented |
-| `financials/overview.md` | published | 2026-10-08 (Docs Lead, PR #209) | links Reporting (merge with its publish) |
-| `financials/purchases.md` | published | 2026-10-06 (coordinator, PR #136) | — |
+| `financials/overview.md` | published | 2026-10-09 (Docs Lead, PR #227) | Upload Invoice is on the Items tab |
+| `financials/purchases.md` | published | 2026-10-09 (Docs Lead, PR #227) | Track as equipment makes a lot |
 | `financials/reporting.md` | published (PR #211) | 2026-10-08 (Docs Lead, PRs #207/#209) | — |
-| `financials/receipts-and-invoices.md` | published | 2026-10-06 (coordinator, PR #136) | — |
-| `financials/tax-treatment.md` | published | 2026-10-08 (Docs Lead, PR #209) | links Grey zone and Assets reports |
+| `financials/receipts-and-invoices.md` | published | 2026-10-09 (Docs Lead, PR #227) | purchase form updated for #216/#221 (units/lots, Equipment details, quantity changes) |
+| `financials/tax-treatment.md` | published | 2026-10-09 (Docs Lead, PR #227) | equipment records and filed-year wording updated for #221 |
 | `getting-started/onboarding.md` | published | 2026-10-06 (triage, PR #139); screenshots PR #163 | — |
 | `getting-started/organizations.md` | published | 2026-10-08 (Docs Lead, PR #191, merged) | fixes and screenshots in |
 | `getting-started/the-dashboard.md` | published | 2026-10-08 (Docs Lead, PR #207) | dashboard and Staff cards shots in |

@@ -11,7 +11,7 @@ Both questions appear on every line of the purchase screen, whether you scan an 
 
 ## 1. Track as equipment?
 
-Turn on the **Equipment** switch under the line for gear you'll look after: cables, stands, fixtures, cases. It gets an equipment record, so you can tag it and put it in kits, and you pick its equipment category (Audio, Lighting, …).
+Turn on the **Equipment** switch under the line for gear you'll look after: cables, stands, fixtures, cases. It gets equipment records (one for each unit, or one for a lot), so you can tag it and put it in kits. In its **Equipment details** you say what item it is, with its equipment category (Audio, Lighting, …).
 
 Leave it off for things you use up, like tape, batteries and software.
 
@@ -63,8 +63,8 @@ Once you've filed a year's taxes, an Admin locks that year under **Financials �
 - **Locked:** you can't change that year's purchases' costs, dates, categories or tax treatment, or add or delete purchases dated in it.
 - **Gig money is locked too:** a gig's income, and its expenses that didn't come from a purchase (quick expenses, mileage, staff pay), dated in that year. Their amounts, dates, categories and status can't change, and you can't add or remove them. Their notes and descriptions still can. A gig expense that came from a purchase stays editable on the gig, because the purchase is what counts for tax.
 - A change that a locked year refuses shows a message naming the year.
-- **Still allowed:** tracking an item as equipment (and choosing its equipment category), putting it in kits, and editing descriptions.
+- **Still allowed:** tracking an item as equipment (and choosing its equipment category), putting it in kits, editing descriptions, and editing its equipment details: serials, tags, replacement value, insurance, and a recovery period that hasn't been set. Quantities and lines are locked, so units can't be added or removed.
 
-Editing a purchase from a locked year shows a note saying so, and only its descriptions can change.
+Editing a purchase from a locked year shows a note saying so: "The {year} tax year is filed, so this purchase's costs, dates, categories and tax treatment can't change. You can still edit descriptions and track items as equipment."
 
 If you need to amend a return, an Admin can **Unlock** the year. Managers can see which years are locked.

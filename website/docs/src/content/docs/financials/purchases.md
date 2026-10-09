@@ -42,7 +42,7 @@ Click a line to open it. You'll see its price and cost figures, and these action
 - **Asset Details**: the equipment record, with **Edit Asset** and **Open Asset**.
 - **Gig Details**: the linked gig, with **Open Gig**.
 - **Delete Item**: removes the line. Its equipment record, if any, is kept.
-- **Track as equipment** (lines that aren't yet): creates an equipment record for the item so you can tag it and put it in kits. Its tax treatment doesn't change, and if it's a gig's expense it stays one. This works for purchases from filed years too.
+- **Track as equipment** (lines that aren't yet): creates one equipment record holding the line's whole quantity (a lot), so you can tag it and put it in kits. Its tax treatment doesn't change, and if it's a gig's expense it stays one. This works for purchases from filed years too.
 
 To change a line's tax treatment, **Edit** the purchase.
 

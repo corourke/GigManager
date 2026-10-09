@@ -51,22 +51,33 @@ The same screen appears for every scan, for **Add purchase**, and when you edit 
   - **Add Item** adds a line; the trash icon removes one.
 - **Two questions on every line** (see [Tax treatment and equipment](/financials/tax-treatment/)):
   - **Expense | Depreciate:** how the item counts for tax. It's set for you from the item's cost: **Expense** under $200, **Depreciate** over $2,500. Between those you choose; the **(?)** explains. **Save Purchase** waits until every line has one.
-  - **Equipment:** the switch at the end of the line's second row, after the expense category. Turn it on for gear you look after; saving then creates an equipment record. Once it's on, the word **Equipment** gives way to the item's details: Category › Type, then the kits it goes in. Until it has a category the switch is amber and reads **Choose an equipment category**. Click the details to set them; see below.
+  - **Equipment:** the switch at the end of the line's second row, after the expense category. Turn it on for gear you look after. Saving creates its equipment: one record for each unit, or one record for a lot. A lot is the default until you choose otherwise in the Equipment details. Once it's on, the word **Equipment** gives way to the item's details: Category › Type, the recovery period if it's depreciated, and how many units it has (or **lot of** that many). Click the details to change them; see below.
+  - The details turn amber when something is missing: **Choose an equipment category**, **Choose a recovery period** for a depreciated item, or **Serials or tags needed** when a unit has neither.
 - **Categories**, picked from your organization's lists (an Admin edits them under **Settings → Categories**; see [Expense and equipment categories](/settings/categories/)):
   - **Expense:** for an expensed item, the heading it goes under at tax time (Small audio parts, Supplies, Software subscriptions, Insurance, …).
-  - **Equipment category:** for anything tracked as equipment, chosen in the Equipment details pop-up (Audio, Lighting, Cases/Bags, …). **Save Purchase** waits until every new piece of equipment has one; a switch without one is amber.
+  - **Equipment category:** for anything tracked as equipment, chosen in the Equipment details pop-up (Audio, Lighting, Cases/Bags, …). **Save Purchase** waits until every new piece of equipment has one.
   - A depreciated item has only the equipment category. An expensed item tracked as equipment has both.
-- **Equipment details pop-up** (click the details next to a line's Equipment switch):
-  - **Category:** from your organization's equipment categories. **Add new category…** at the bottom lets you type a new one.
-  - **Type:** what the item is, from general to specific, separated by commas (Cable, XLR or Microphone, Vocal, Dynamic). The list offers the types your equipment in that category already uses, with how many items use each. Type a new one if none fits.
-  - **Kits:** search for a kit by name to put the item in it; it can go in several. For something already saved as equipment, manage its kits on its equipment page.
-  - **Serial #**, **Tag #** and **Replacement value** (it starts at the item price).
-  - **Done** keeps the changes; they're saved with the purchase.
+- **Equipment details** pop-up (click the details next to a line's Equipment switch):
+  - **What it is:** pick **An item we already have**, or describe **A new item**: **Manufacturer and Model**, **Category** (from your organization's equipment categories; **Add new category…** lets you type a new one), **Type**, **Insurance Class** and **Description**. **Type** goes from general to specific, separated by commas (Cable, XLR or Microphone, Vocal, Dynamic); the list offers the types already used in that category, with how many items use each. If a new item looks like one you already have, GigWrangler suggests it.
+  - **Unit or lot:** **Unit** gives each piece its own row for a **Serial Number** or **Inventory Tag ID**, and every unit needs one of the two. **Number tags**, **Paste serials** and **Scan** fill the rows quickly. **Lot** counts identical pieces together, with no serial or tag. The quantity comes from the line; change it there.
+  - **Insurance:** **Replacement Value** (it starts at the item price, and is copied to each unit) and whether it's been added to an insurance policy.
+  - **Recovery period:** for a depreciated item only. See [Recovery period](/financials/tax-treatment/#recovery-period).
+  - **Done** keeps the changes; they're saved with the purchase. It waits until every unit has a serial or tag and no tag is used twice.
+  - Kits aren't set here. Once the purchase is saved, add the equipment to a kit from the kit.
+  - Once a line's equipment is saved, its item and whether it's units or a lot can't be changed here. You can still edit serials, tags, value and insurance.
+- **Saving** (**Save Purchase**, or **Save Changes** when you edit) also waits until every depreciated item has a recovery period and every unit has a serial number or tag. A note under the lines says which items still need one.
 - **Reconciled / Mismatch:** at the bottom, GigWrangler compares the lines with the invoice total. **Mismatch** means they differ by more than 5¢. Fix the total or the lines before saving.
 
 The scan suggests which lines are equipment and suggests categories; for expensed items it picks the matching heading (a scanned "Audio" becomes **Small audio parts**). Change anything that's wrong.
 
-When you **edit** a saved purchase and the change also affects a linked equipment record or a gig's money out, GigWrangler lists those changes first and asks you to **Confirm & Save**.
+When you **edit** a saved purchase and the change also affects linked equipment or a gig's money out, GigWrangler lists those changes in **Confirm linked record updates** and asks you to **Confirm & Save**.
+
+If you change a saved line's quantity, it also asks what to do with that line's equipment:
+
+- **Update the equipment:** for a lot, the lot becomes the line's new quantity. For units, when the quantity goes down, tick which units come off, then choose **Delete them** (their kits and scan history go with them) or **Mark Inactive** (kept, with their kits and scans, but no longer on this purchase).
+- **Leave the equipment as it is:** only the line changes.
+
+**Confirm & Save** waits until you've decided for each line. Raising the quantity of a line with units adds rows in its Equipment details for the new units' serials or tags.
 
 ## Attaching a file without scanning
 
@@ -84,4 +95,4 @@ When you **edit** a saved purchase and the change also affects a linked equipmen
 
 ## Importing a spreadsheet
 
-On **Equipment → Assets**, choose **Import**: the **CSV Import** page opens with **Assets** selected, and its **Back** arrow returns to Assets. It creates purchases and equipment from a spreadsheet of past purchases. Imported purchases aren't linked to gigs and have no files attached; link and attach them afterwards from the Purchases report.
+On **Equipment → Items**, choose **Import**: the **CSV Import** page opens with **Assets** selected, and its **Back** arrow returns to Items. It creates purchases and equipment from a spreadsheet of past purchases. Imported purchases aren't linked to gigs and have no files attached; link and attach them afterwards from the Purchases report.
