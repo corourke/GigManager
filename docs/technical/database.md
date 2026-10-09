@@ -1130,7 +1130,19 @@ Tracks equipment check-in/check-out status at gigs.
   - A unit is where its newest row says.
   - A lot's count at a gig is the sum, over kits, of the newest row per (gig_id, kit_id, asset_id). A no-kit manual move is its own bucket.
   - Pieces stay at a gig until a row with status `In Warehouse` returns them. The rest are at home.
-- Today every write path records `quantity` 1. Recording N for lots is part of #185.
+  - `bucketsAt(rows, record, gig)` lists what is still out at one gig, kit by kit. The gig's "Not returned" list uses it.
+- **Writing it (#185):**
+  - **A return goes in the bucket the pieces went out in.** It is written under the same (gig, kit). A no-kit `In Warehouse` row doesn't close a kit's bucket. A lot out under two kits needs two return rows.
+  - **A partial return** ("leave the rest at the gig") is one non-return row in the bucket: status `Not Returned`, with quantity = what is still out. It is never a return row with a smaller N, because a return closes the whole bucket. Example: 4 out under FOH and 3 back gives FOH `Not Returned` q=1, so the gig shows 1 and home shows lot − 1.
+  - **Moving a lot to another gig** writes a return row in each of the first gig's buckets, then the row at the new gig. Otherwise the lot counts at both. A unit doesn't need this: it is wherever its newest row says.
+  - **Home has no location** until every bucket of the lot is closed by a return. Home takes the newest return row's status and location.
+- **Writing off missing pieces** (`write_off_pieces` / `undo_write_off`, migration 20261018000000):
+  - A whole unit or lot becomes `status = 'Missing'`, `retired_on` = today.
+  - Part of a lot is split off into its own Missing record with the lot's values, and the lot's quantity drops. The bucket gets a closing row: `In Warehouse`, or `Not Returned` with what is still out.
+  - Undo merges a split-off piece back into its lot. It is refused once the write-off's tax year is locked.
+  - Only Admins and Managers can write off or undo. Both write an `activity_log` entry: `asset.written_off` / `asset.write_off_undone`.
+- **Data integrity.** A tracking row's `asset_id` and `kit_id`, when set, belong to the row's `organization_id`. This is checked in the write policy.
+- Today every write path records `quantity` 1. Recording N for lots is #185 PR 2 (the scan flows).
 - RLS is **ENABLED** on this table. Users with gig access can manage inventory tracking.
 
 ---

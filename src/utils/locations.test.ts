@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { placementOf, type TrackingRow } from './locations';
+import { bucketsAt, placementOf, type TrackingRow } from './locations';
 import { RETURNED_STATUS } from '../config/inventoryWorkflow';
 
 // #186 / #185: where a unit or lot is, from the append-only tracking history.
@@ -164,3 +164,40 @@ describe('placementOf (#186)', () => {
     expect(placementOf([row({ asset_id: 'other' })], unit)).toEqual([{ gig_id: null, quantity: 1, status: null, location: null }]);
   });
 });
+
+// #185: "Leave the rest at the gig" is one non-return row with what's still out (quantity is state).
+describe('partial returns and what is still out at a gig (#185)', () => {
+  const out4 = row({ asset_id: 'lot', kit_id: 'foh', quantity: 4, status: 'On Site', scanned_at: '2026-10-01T10:00:00Z' });
+  const left1 = row({ asset_id: 'lot', kit_id: 'foh', quantity: 1, status: 'Not Returned', scanned_at: '2026-10-02T10:00:00Z' });
+
+  it('4 out, 3 back, 1 left: 1 at the gig, 9 at home', () => {
+    expect(placementOf([out4, left1], lot)).toEqual([
+      { gig_id: null, quantity: 9, status: null, location: null },
+      { gig_id: 'gig-a', quantity: 1, status: 'Not Returned', location: null },
+    ]);
+  });
+
+  it('a later return in that bucket brings the last one home', () => {
+    const back = row({ asset_id: 'lot', kit_id: 'foh', quantity: 1, status: RETURNED_STATUS, location: 'Warehouse', scanned_at: '2026-10-03T10:00:00Z' });
+    expect(placementOf([out4, left1, back], lot)).toEqual([{ gig_id: null, quantity: 10, status: RETURNED_STATUS, location: 'Warehouse' }]);
+    expect(bucketsAt([out4, left1, back], lot, 'gig-a')).toEqual([]);
+  });
+
+  it('bucketsAt: what is still out at the gig, kit by kit', () => {
+    const cableBox = row({ asset_id: 'lot', kit_id: 'box', quantity: 2, status: 'On Site', location: 'Stage left', scanned_at: '2026-10-01T11:00:00Z' });
+    const elsewhere = row({ asset_id: 'lot', gig_id: 'gig-b', kit_id: 'foh', quantity: 3 });
+    expect(bucketsAt([out4, left1, cableBox, elsewhere], lot, 'gig-a')).toEqual([
+      { kit_id: 'box', quantity: 2, status: 'On Site', location: 'Stage left' },
+      { kit_id: 'foh', quantity: 1, status: 'Not Returned', location: null },
+    ]);
+  });
+
+  it('bucketsAt: a unit is out at the gig only if its newest row anywhere says so', () => {
+    const here = row({ asset_id: 'u1', kit_id: 'pa', status: 'On Site', scanned_at: '2026-10-01T10:00:00Z' });
+    expect(bucketsAt([here], unit, 'gig-a')).toEqual([{ kit_id: 'pa', quantity: 1, status: 'On Site', location: null }]);
+    const movedOn = row({ asset_id: 'u1', gig_id: 'gig-b', status: 'Checked Out', scanned_at: '2026-10-02T10:00:00Z' });
+    expect(bucketsAt([here, movedOn], unit, 'gig-a')).toEqual([]);
+    expect(bucketsAt([here], { ...unit, status: 'Missing', retired_on: '2026-10-09' }, 'gig-a')).toEqual([]);
+  });
+});
+

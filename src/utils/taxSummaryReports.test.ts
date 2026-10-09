@@ -219,3 +219,29 @@ describe('Needs attention (#125)', () => {
     expect(rows).toContainEqual(['Invoices that don’t add up', 'Amazon: Cables', '2026-04-01', '100.00', 'Lines total $99.98; the invoice total is $100.00 (off by $0.02)']);
   });
 });
+
+// #185: a lot's split-off Missing piece shares its lot's purchase line and values, so it isn't
+// flagged a second time for the lot's problem.
+describe('Needs attention: written-off pieces (#185)', () => {
+  const rec = (o: Partial<ReportAsset>): ReportAsset => ({
+    id: 'r', manufacturer_model: 'Speaker Stand', description: null, category: 'Audio', acquisition_date: '2026-03-01',
+    item_cost: 50, status: 'Active', retired_on: null, recovery_period: null, purchase_line_id: 'stands',
+    quantity: 1, serial_number: null, tag_number: null, equipment_item_id: 'item-stand', ...o,
+  });
+  const lines = [line({ id: 'stands', parent_id: 'h', tax_treatment: 'depreciate', description: 'Speaker stands', quantity: 6, item_cost: 50, line_cost: 300, asset_id: 'lot' })];
+  const assets = [
+    rec({ id: 'lot', quantity: 5 }),
+    rec({ id: 'm1', quantity: 1, status: 'Missing', retired_on: '2026-10-09' }),
+    rec({ id: 'free-lot', purchase_line_id: null, equipment_item_id: 'item-box', item_cost: 0, quantity: 4, manufacturer_model: 'Cable box' }),
+    rec({ id: 'free-m', purchase_line_id: null, equipment_item_id: 'item-box', item_cost: 0, quantity: 1, manufacturer_model: 'Cable box', status: 'Missing', retired_on: '2026-10-09' }),
+    rec({ id: 'gone-unit', tag_number: 'T-1', purchase_line_id: null, equipment_item_id: 'item-mic', item_cost: 0, status: 'Missing', retired_on: '2026-10-09' }),
+  ];
+  const r = buildNeedsAttentionReport({ lines, assets, invoices: [], expenses: { rows: [] } as any }, 2026);
+  const ids = (k: string) => r.groups.find(g => g.key === k)?.rows.map(x => x.id) ?? [];
+
+  it('flags the lot, not its split-off piece too', () => {
+    expect(ids('no-recovery-period')).toEqual(['lot']);
+    expect(ids('no-cost')).toEqual(['free-lot', 'gone-unit']);
+  });
+});
+

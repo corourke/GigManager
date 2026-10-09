@@ -16,6 +16,7 @@ import { PageTabsList, PageTabsTrigger } from '../layout/PageTabs';
 import GigFinancialsSection from './GigFinancialsSection';
 import GigKitAssignmentsSection from './GigKitAssignmentsSection';
 import EquipmentNeededTable from './EquipmentNeededTable';
+import NotReturnedSection from './NotReturnedSection';
 import GigParticipantsSection from './GigParticipantsSection';
 import GigStaffSlotsSection from './GigStaffSlotsSection';
 import GigEquipmentTable from './view/GigEquipmentTable';
@@ -343,6 +344,7 @@ export default function GigPage({
               <div className="space-y-4">
                 <GigEquipmentTable gigId={gigId} organizationId={organization.id} showAmounts={canEdit} />
                 <EquipmentNeededTable gigId={gigId} gigStart={gig.start} gigEnd={gig.end} gigTimezone={gig.timezone} organizationId={organization.id} />
+                <NotReturnedSection organizationId={organization.id} gigId={gigId} gigEnd={gig.end} canEdit={canEdit} />
                 {/* The packing list moved here from Equipment › Inventory › Reports (#39). */}
                 <GigSection title="Packing list">
                   <PackingList

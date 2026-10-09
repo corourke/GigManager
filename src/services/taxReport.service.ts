@@ -72,7 +72,8 @@ export async function getTaxReportData(organizationId: string): Promise<TaxRepor
       return ((data ?? []) as { name: string }[]).map(r => r.name);
     })(),
     all<ReportAsset>((from, to) => (supabase.from('assets') as any)
-      .select('id, manufacturer_model, description, category, acquisition_date, item_cost, status, retired_on, recovery_period, purchase_line_id')
+      .select('id, manufacturer_model, description, category, acquisition_date, item_cost, status, retired_on, recovery_period, purchase_line_id, '
+        + 'quantity, liquidation_amt, serial_number, tag_number, equipment_item_id')
       .eq('organization_id', organizationId)
       .order('id')
       .range(from, to)),

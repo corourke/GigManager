@@ -143,6 +143,24 @@ export interface ReportAsset {
   retired_on: string | null;
   recovery_period: number | null;
   purchase_line_id: string | null;
+  quantity?: number | null;
+  liquidation_amt?: number | null;
+  serial_number?: string | null;
+  tag_number?: string | null;
+  equipment_item_id?: string | null;
+}
+
+const blank = (s: string | null | undefined) => !s || s.trim() === '';
+/**
+ * Pieces split off a lot when written off (#185): a Missing lot record whose lot (same item,
+ * purchase line and date) is still on hand. The lot already answers for them, so they aren't
+ * flagged a second time.
+ */
+export function isSplitOffPiece(a: ReportAsset, all: readonly ReportAsset[]): boolean {
+  if (a.status !== 'Missing' || !blank(a.serial_number) || !blank(a.tag_number)) return false;
+  return all.some(o => o.id !== a.id && o.status !== 'Missing' && blank(o.serial_number) && blank(o.tag_number)
+    && o.equipment_item_id === a.equipment_item_id && (o.purchase_line_id ?? null) === (a.purchase_line_id ?? null)
+    && o.acquisition_date === a.acquisition_date);
 }
 
 /** A purchase's invoice (its header row). */
@@ -187,7 +205,7 @@ export const ATTENTION_TITLES: Record<AttentionKey, string> = {
   'invoice-mismatch': 'Invoices that don’t add up',
 };
 
-const DISPOSED_STATUSES = new Set(['Disposed', 'Returned']);
+const DISPOSED_STATUSES = new Set(['Disposed', 'Returned', 'Missing']);
 const byDate = (a: AttentionRow, b: AttentionRow) => a.date.localeCompare(b.date);
 const assetName = (a: ReportAsset) => a.manufacturer_model || a.description || '(equipment)';
 const withVendor = (what: string, vendor: string | null | undefined) => vendor ? `${what} (${vendor})` : what;
@@ -225,7 +243,7 @@ export function buildNeedsAttentionReport(
       });
     }
     for (const a of units) {
-      if (a.recovery_period != null || noPeriod.some(x => x.id === a.id)) continue;
+      if (a.recovery_period != null || noPeriod.some(x => x.id === a.id) || isSplitOffPiece(a, assets)) continue;
       noPeriod.push({
         id: a.id, item: assetName(a), date: lineDay(l)!,
         amount: a.item_cost != null ? money(Number(a.item_cost)) : null,
@@ -236,7 +254,7 @@ export function buildNeedsAttentionReport(
 
   // 3. Equipment bought in the year with no cost.
   const noCost: AttentionRow[] = assets
-    .filter(a => inYear(dayOf(a.acquisition_date), year) && !Number(a.item_cost ?? 0))
+    .filter(a => inYear(dayOf(a.acquisition_date), year) && !Number(a.item_cost ?? 0) && !isSplitOffPiece(a, assets))
     .map(a => ({
       id: a.id, item: assetName(a), date: dayOf(a.acquisition_date)!,
       amount: a.item_cost != null ? 0 : null, problem: 'No cost', assetId: a.id,

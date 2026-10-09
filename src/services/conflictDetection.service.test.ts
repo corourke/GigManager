@@ -190,18 +190,18 @@ describe('conflictDetection.service', () => {
       (createClient as any).mockReturnValue(mockSupabase);
       const { checkEquipmentConflicts } = await import('./conflictDetection.service');
 
-      const result = await checkEquipmentConflicts('gig-1', '2026-03-01T18:00:00Z', '2026-03-01T22:00:00Z');
+      const result = await checkEquipmentConflicts('gig-1', '2026-03-01T18:00:00Z', '2026-03-01T22:00:00Z', undefined, 'org-1');
       expect(result).toEqual({ conflicts: [], warnings: [] });
     });
 
     it('should detect equipment conflict when same kit assigned to overlapping gigs', async () => {
       const tableResponses: Record<string, any> = {
-        gig_kit_assignments: { data: [{ kit_id: 'kit-1' }], error: null },
+        gig_kit_assignments: { data: [{ kit_id: 'kit-1', organization_id: 'org-1' }], error: null },
         gigs: {
           data: [{
             id: 'gig-2', title: 'Other Gig',
             start: '2026-03-01T19:00:00Z', end: '2026-03-01T23:00:00Z',
-            kit_assignments: [{ kit_id: 'kit-1', kit: { id: 'kit-1', name: 'PA System' } }]
+            kit_assignments: [{ kit_id: 'kit-1', organization_id: 'org-1', kit: { id: 'kit-1', name: 'PA System' } }]
           }],
           error: null,
         },
@@ -215,7 +215,7 @@ describe('conflictDetection.service', () => {
       (createClient as any).mockReturnValue(mockSupabase);
       const { checkEquipmentConflicts } = await import('./conflictDetection.service');
 
-      const result = await checkEquipmentConflicts('gig-1', '2026-03-01T18:00:00Z', '2026-03-01T22:00:00Z');
+      const result = await checkEquipmentConflicts('gig-1', '2026-03-01T18:00:00Z', '2026-03-01T22:00:00Z', undefined, 'org-1');
       expect(result.conflicts.length).toBe(1);
       expect(result.conflicts[0].type).toBe('equipment');
       expect(result.conflicts[0].details.conflicting_kits[0].kit_name).toBe('PA System');
@@ -226,12 +226,12 @@ describe('conflictDetection.service', () => {
       // IDs instead of resolving to assets meant two different kits sharing
       // an asset produced zero conflict warning.
       const tableResponses: Record<string, any> = {
-        gig_kit_assignments: { data: [{ kit_id: 'kit-mine' }], error: null },
+        gig_kit_assignments: { data: [{ kit_id: 'kit-mine', organization_id: 'org-1' }], error: null },
         gigs: {
           data: [{
             id: 'gig-2', title: 'Other Gig',
             start: '2026-03-01T19:00:00Z', end: '2026-03-01T23:00:00Z',
-            kit_assignments: [{ kit_id: 'kit-theirs', kit: { id: 'kit-theirs', name: 'Different Kit' } }]
+            kit_assignments: [{ kit_id: 'kit-theirs', organization_id: 'org-1', kit: { id: 'kit-theirs', name: 'Different Kit' } }]
           }],
           error: null,
         },
@@ -253,7 +253,7 @@ describe('conflictDetection.service', () => {
       (createClient as any).mockReturnValue(mockSupabase);
       const { checkEquipmentConflicts } = await import('./conflictDetection.service');
 
-      const result = await checkEquipmentConflicts('gig-1', '2026-03-01T18:00:00Z', '2026-03-01T22:00:00Z');
+      const result = await checkEquipmentConflicts('gig-1', '2026-03-01T18:00:00Z', '2026-03-01T22:00:00Z', undefined, 'org-1');
       expect(result.conflicts.length).toBe(1);
       expect(result.conflicts[0].details.conflicting_kits[0].kit_name).toBe('Different Kit');
       // names exactly what is shared
@@ -262,12 +262,12 @@ describe('conflictDetection.service', () => {
 
     it('should NOT conflict when two different kits share no assets', async () => {
       const tableResponses: Record<string, any> = {
-        gig_kit_assignments: { data: [{ kit_id: 'kit-mine' }], error: null },
+        gig_kit_assignments: { data: [{ kit_id: 'kit-mine', organization_id: 'org-1' }], error: null },
         gigs: {
           data: [{
             id: 'gig-2', title: 'Other Gig',
             start: '2026-03-01T19:00:00Z', end: '2026-03-01T23:00:00Z',
-            kit_assignments: [{ kit_id: 'kit-theirs', kit: { id: 'kit-theirs', name: 'Different Kit' } }]
+            kit_assignments: [{ kit_id: 'kit-theirs', organization_id: 'org-1', kit: { id: 'kit-theirs', name: 'Different Kit' } }]
           }],
           error: null,
         },
@@ -287,7 +287,7 @@ describe('conflictDetection.service', () => {
       (createClient as any).mockReturnValue(mockSupabase);
       const { checkEquipmentConflicts } = await import('./conflictDetection.service');
 
-      const result = await checkEquipmentConflicts('gig-1', '2026-03-01T18:00:00Z', '2026-03-01T22:00:00Z');
+      const result = await checkEquipmentConflicts('gig-1', '2026-03-01T18:00:00Z', '2026-03-01T22:00:00Z', undefined, 'org-1');
       expect(result.conflicts.length).toBe(0);
     });
   });
@@ -298,7 +298,7 @@ describe('conflictDetection.service', () => {
       (createClient as any).mockReturnValue(mockSupabase);
       const { checkAllConflictsForGigs } = await import('./conflictDetection.service');
 
-      const result = await checkAllConflictsForGigs([]);
+      const result = await checkAllConflictsForGigs([], 'org-1');
       expect(result).toEqual([]);
     });
 
@@ -325,7 +325,7 @@ describe('conflictDetection.service', () => {
       (createClient as any).mockReturnValue(mockSupabase);
       const { checkAllConflictsForGigs } = await import('./conflictDetection.service');
 
-      const result = await checkAllConflictsForGigs(gigs);
+      const result = await checkAllConflictsForGigs(gigs, 'org-1');
       const staffConflicts = result.filter(c => c.type === 'staff');
       expect(staffConflicts.length).toBe(2);
       expect(staffConflicts.some(c => c.gig_id === 'gig-1')).toBe(true);
@@ -355,7 +355,7 @@ describe('conflictDetection.service', () => {
       (createClient as any).mockReturnValue(mockSupabase);
       const { checkAllConflictsForGigs } = await import('./conflictDetection.service');
 
-      const result = await checkAllConflictsForGigs(gigs);
+      const result = await checkAllConflictsForGigs(gigs, 'org-1');
       const venueConflicts = result.filter(c => c.type === 'venue');
       expect(venueConflicts.length).toBe(2);
       expect(venueConflicts[0].details.venue_name).toBe('The Club');
@@ -374,8 +374,8 @@ describe('conflictDetection.service', () => {
           table: 'gig_kit_assignments',
           response: {
             data: [
-              { gig_id: 'gig-1', kit_id: 'kit-1' },
-              { gig_id: 'gig-2', kit_id: 'kit-1' },
+              { gig_id: 'gig-1', kit_id: 'kit-1', organization_id: 'org-1' },
+              { gig_id: 'gig-2', kit_id: 'kit-1', organization_id: 'org-1' },
             ],
             error: null,
           },
@@ -388,7 +388,7 @@ describe('conflictDetection.service', () => {
       (createClient as any).mockReturnValue(mockSupabase);
       const { checkAllConflictsForGigs } = await import('./conflictDetection.service');
 
-      const result = await checkAllConflictsForGigs(gigs);
+      const result = await checkAllConflictsForGigs(gigs, 'org-1');
       const equipConflicts = result.filter(c => c.type === 'equipment');
       expect(equipConflicts.length).toBe(2);
       expect(equipConflicts[0].details.conflicting_asset_ids).toContain('asset-1');
@@ -407,8 +407,8 @@ describe('conflictDetection.service', () => {
           table: 'gig_kit_assignments',
           response: {
             data: [
-              { gig_id: 'gig-1', kit_id: 'kit-mine' },
-              { gig_id: 'gig-2', kit_id: 'kit-theirs' },
+              { gig_id: 'gig-1', kit_id: 'kit-mine', organization_id: 'org-1' },
+              { gig_id: 'gig-2', kit_id: 'kit-theirs', organization_id: 'org-1' },
             ],
             error: null,
           },
@@ -427,7 +427,7 @@ describe('conflictDetection.service', () => {
       (createClient as any).mockReturnValue(mockSupabase);
       const { checkAllConflictsForGigs } = await import('./conflictDetection.service');
 
-      const result = await checkAllConflictsForGigs(gigs);
+      const result = await checkAllConflictsForGigs(gigs, 'org-1');
       const equipConflicts = result.filter(c => c.type === 'equipment');
       expect(equipConflicts.length).toBe(2);
       expect(equipConflicts[0].details.conflicting_asset_ids).toContain('shared-asset');
@@ -446,8 +446,8 @@ describe('conflictDetection.service', () => {
           table: 'gig_kit_assignments',
           response: {
             data: [
-              { gig_id: 'gig-1', kit_id: 'kit-mine', kit: { id: 'kit-mine', name: 'Main PA' } },
-              { gig_id: 'gig-2', kit_id: 'kit-theirs', kit: { id: 'kit-theirs', name: 'Mic Case' } },
+              { gig_id: 'gig-1', kit_id: 'kit-mine', organization_id: 'org-1', kit: { id: 'kit-mine', name: 'Main PA' } },
+              { gig_id: 'gig-2', kit_id: 'kit-theirs', organization_id: 'org-1', kit: { id: 'kit-theirs', name: 'Mic Case' } },
             ],
             error: null,
           },
@@ -467,7 +467,7 @@ describe('conflictDetection.service', () => {
       (createClient as any).mockReturnValue(mockSupabase);
       const { checkAllConflictsForGigs } = await import('./conflictDetection.service');
 
-      const result = await checkAllConflictsForGigs(gigs);
+      const result = await checkAllConflictsForGigs(gigs, 'org-1');
       // Each entry names its own gig's kits, as the single-gig check does.
       const onGigA = result.find(c => c.type === 'equipment' && c.gig_id === 'gig-1');
       const onGigB = result.find(c => c.type === 'equipment' && c.gig_id === 'gig-2');
@@ -502,7 +502,7 @@ describe('conflictDetection.service', () => {
       (createClient as any).mockReturnValue(mockSupabase);
       const { checkAllConflictsForGigs } = await import('./conflictDetection.service');
 
-      const result = await checkAllConflictsForGigs(gigs);
+      const result = await checkAllConflictsForGigs(gigs, 'org-1');
       expect(result.length).toBe(0);
     });
 
@@ -529,7 +529,7 @@ describe('conflictDetection.service', () => {
       (createClient as any).mockReturnValue(mockSupabase);
       const { checkAllConflictsForGigs } = await import('./conflictDetection.service');
 
-      const result = await checkAllConflictsForGigs(gigs);
+      const result = await checkAllConflictsForGigs(gigs, 'org-1');
       const staffConflicts = result.filter(c => c.type === 'staff');
       expect(staffConflicts.length).toBe(2);
     });
@@ -557,7 +557,7 @@ describe('conflictDetection.service', () => {
       (createClient as any).mockReturnValue(mockSupabase);
       const { checkAllConflictsForGigs } = await import('./conflictDetection.service');
 
-      const result = await checkAllConflictsForGigs(gigs);
+      const result = await checkAllConflictsForGigs(gigs, 'org-1');
       const staffConflicts = result.filter(c => c.type === 'staff');
       expect(staffConflicts.length).toBe(2);
     });
@@ -585,7 +585,7 @@ describe('conflictDetection.service', () => {
       (createClient as any).mockReturnValue(mockSupabase);
       const { checkAllConflictsForGigs } = await import('./conflictDetection.service');
 
-      const result = await checkAllConflictsForGigs(gigs);
+      const result = await checkAllConflictsForGigs(gigs, 'org-1');
       expect(result.length).toBe(0);
     });
 
@@ -620,8 +620,8 @@ describe('conflictDetection.service', () => {
           table: 'gig_kit_assignments',
           response: {
             data: [
-              { gig_id: 'gig-1', kit_id: 'kit-1' },
-              { gig_id: 'gig-2', kit_id: 'kit-1' },
+              { gig_id: 'gig-1', kit_id: 'kit-1', organization_id: 'org-1' },
+              { gig_id: 'gig-2', kit_id: 'kit-1', organization_id: 'org-1' },
             ],
             error: null,
           },
@@ -634,7 +634,7 @@ describe('conflictDetection.service', () => {
       (createClient as any).mockReturnValue(mockSupabase);
       const { checkAllConflictsForGigs } = await import('./conflictDetection.service');
 
-      const result = await checkAllConflictsForGigs(gigs);
+      const result = await checkAllConflictsForGigs(gigs, 'org-1');
       const types = new Set(result.map(c => c.type));
       expect(types.has('staff')).toBe(true);
       expect(types.has('venue')).toBe(true);
@@ -669,7 +669,7 @@ describe('conflictDetection.service', () => {
       (createClient as any).mockReturnValue(mockSupabase);
       const { checkAllConflictsForGigs } = await import('./conflictDetection.service');
 
-      const result = await checkAllConflictsForGigs(gigs);
+      const result = await checkAllConflictsForGigs(gigs, 'org-1');
       const staffConflicts = result.filter(c => c.type === 'staff');
       expect(staffConflicts.length).toBe(2);
     });
@@ -687,7 +687,7 @@ describe('conflictDetection.service', () => {
       (createClient as any).mockReturnValue(mockSupabase);
       const { checkAllConflictsForGigs } = await import('./conflictDetection.service');
 
-      const result = await checkAllConflictsForGigs(gigs);
+      const result = await checkAllConflictsForGigs(gigs, 'org-1');
       expect(result).toEqual([]);
     });
 
@@ -714,7 +714,7 @@ describe('conflictDetection.service', () => {
       (createClient as any).mockReturnValue(mockSupabase);
       const { checkAllConflictsForGigs } = await import('./conflictDetection.service');
 
-      const result = await checkAllConflictsForGigs(gigs);
+      const result = await checkAllConflictsForGigs(gigs, 'org-1');
       const venueConflicts = result.filter(c => c.type === 'venue');
       expect(venueConflicts.length).toBe(2);
       expect(venueConflicts[0].details.venue_name).toBe('The Band');
@@ -746,7 +746,7 @@ describe('conflictDetection.service', () => {
       (createClient as any).mockReturnValue(mockSupabase);
       const { checkAllConflictsForGigs } = await import('./conflictDetection.service');
 
-      const result = await checkAllConflictsForGigs(gigs);
+      const result = await checkAllConflictsForGigs(gigs, 'org-1');
       const staffConflicts = result.filter(c => c.type === 'staff');
       expect(staffConflicts.length).toBe(2);
       expect(staffConflicts.some(c => c.gig_id === 'gig-1')).toBe(true);
@@ -775,15 +775,15 @@ describe('per-item equipment conflicts (#184)', () => {
   it('checkEquipmentConflicts: names the item, how many are needed and available, and how many short', async () => {
     needs.load.mockResolvedValue(trioNeeds(['light-a', 'light-b']));
     const tableResponses: Record<string, any> = {
-      gig_kit_assignments: { data: [{ kit_id: 'light-a' }], error: null },
+      gig_kit_assignments: { data: [{ kit_id: 'light-a', organization_id: 'org-1' }], error: null },
       gigs: { data: [{ id: 'gig-2', title: 'Other Gig', start: '2026-10-10T18:00:00Z', end: '2026-10-10T23:00:00Z',
-        kit_assignments: [{ kit_id: 'light-b', kit: { id: 'light-b', name: 'Club Lighting B' } }] }], error: null },
+        kit_assignments: [{ kit_id: 'light-b', organization_id: 'org-1', kit: { id: 'light-b', name: 'Club Lighting B' } }] }], error: null },
       kit_flattened_cache: { data: [], error: null },
     };
     (createClient as any).mockReturnValue({ from: vi.fn((t: string) => createQueryBuilder(tableResponses[t] || { data: [], error: null })) });
     const { checkEquipmentConflicts } = await import('./conflictDetection.service');
 
-    const result = await checkEquipmentConflicts('gig-1', '2026-10-10T19:00:00Z', '2026-10-10T23:00:00Z');
+    const result = await checkEquipmentConflicts('gig-1', '2026-10-10T19:00:00Z', '2026-10-10T23:00:00Z', undefined, 'org-1');
     expect(result.conflicts).toHaveLength(1);
     expect(result.conflicts[0].details.items_short).toEqual([{
       item_id: 'trio', item_name: 'Chauvet Intimidator Trio', needed: 8, available: 6, short: 2,
@@ -799,14 +799,14 @@ describe('per-item equipment conflicts (#184)', () => {
     enough.counts.get('trio')!.available = 8;
     needs.load.mockResolvedValue(enough);
     const tableResponses: Record<string, any> = {
-      gig_kit_assignments: { data: [{ kit_id: 'light-a' }], error: null },
+      gig_kit_assignments: { data: [{ kit_id: 'light-a', organization_id: 'org-1' }], error: null },
       gigs: { data: [{ id: 'gig-2', title: 'Other Gig', start: '2026-10-10T18:00:00Z', end: '2026-10-10T23:00:00Z',
-        kit_assignments: [{ kit_id: 'light-b', kit: { id: 'light-b', name: 'Club Lighting B' } }] }], error: null },
+        kit_assignments: [{ kit_id: 'light-b', organization_id: 'org-1', kit: { id: 'light-b', name: 'Club Lighting B' } }] }], error: null },
     };
     (createClient as any).mockReturnValue({ from: vi.fn((t: string) => createQueryBuilder(tableResponses[t] || { data: [], error: null })) });
     const { checkEquipmentConflicts } = await import('./conflictDetection.service');
 
-    const result = await checkEquipmentConflicts('gig-1', '2026-10-10T19:00:00Z', '2026-10-10T23:00:00Z');
+    const result = await checkEquipmentConflicts('gig-1', '2026-10-10T19:00:00Z', '2026-10-10T23:00:00Z', undefined, 'org-1');
     expect(result.conflicts).toHaveLength(0);
   });
 
@@ -814,8 +814,8 @@ describe('per-item equipment conflicts (#184)', () => {
     needs.load.mockResolvedValue(trioNeeds(['light-a', 'light-b']));
     (createClient as any).mockReturnValue(createBatchMock([
       { table: 'gig_kit_assignments', response: { data: [
-        { gig_id: 'gig-1', kit_id: 'light-a', kit: { id: 'light-a', name: 'Club Lighting Package' } },
-        { gig_id: 'gig-2', kit_id: 'light-b', kit: { id: 'light-b', name: 'Club Lighting B' } },
+        { gig_id: 'gig-1', kit_id: 'light-a', organization_id: 'org-1', kit: { id: 'light-a', name: 'Club Lighting Package' } },
+        { gig_id: 'gig-2', kit_id: 'light-b', organization_id: 'org-1', kit: { id: 'light-b', name: 'Club Lighting B' } },
       ], error: null } },
     ]));
     const { checkAllConflictsForGigs } = await import('./conflictDetection.service');
@@ -823,7 +823,7 @@ describe('per-item equipment conflicts (#184)', () => {
     const result = await checkAllConflictsForGigs([
       { id: 'gig-1', title: 'Gig A', start: '2026-10-10T18:00:00Z', end: '2026-10-10T22:00:00Z' },
       { id: 'gig-2', title: 'Gig B', start: '2026-10-10T20:00:00Z', end: '2026-10-11T00:00:00Z' },
-    ]);
+    ], 'org-1');
     const equipment = result.filter((c) => c.type === 'equipment');
     expect(equipment.map((c) => c.gig_id).sort()).toEqual(['gig-1', 'gig-2']);
     expect(equipment[0].details.items_short[0]).toMatchObject({ item_name: 'Chauvet Intimidator Trio', needed: 8, available: 6, short: 2 });
@@ -853,17 +853,17 @@ describe('getEquipmentNeeded (#184)', () => {
       ]),
     });
     const tableResponses: Record<string, any> = {
-      gig_kit_assignments: { data: [{ kit_id: 'light-a' }], error: null },
+      gig_kit_assignments: { data: [{ kit_id: 'light-a', organization_id: 'org-1' }], error: null },
       gigs: { data: [
-        { id: 'gig-2', start: '2026-10-10T18:00:00Z', end: '2026-10-10T23:00:00Z', kit_assignments: [{ kit_id: 'light-b' }] },
+        { id: 'gig-2', start: '2026-10-10T18:00:00Z', end: '2026-10-10T23:00:00Z', kit_assignments: [{ kit_id: 'light-b', organization_id: 'org-1' }] },
         // Ends two hours before this gig starts: a warning elsewhere, but not counted here.
-        { id: 'gig-3', start: '2026-10-10T11:00:00Z', end: '2026-10-10T17:00:00Z', kit_assignments: [{ kit_id: 'pa' }] },
+        { id: 'gig-3', start: '2026-10-10T11:00:00Z', end: '2026-10-10T17:00:00Z', kit_assignments: [{ kit_id: 'pa', organization_id: 'org-1' }] },
       ], error: null },
     };
     (createClient as any).mockReturnValue({ from: vi.fn((t: string) => createQueryBuilder(tableResponses[t] || { data: [], error: null })) });
     const { getEquipmentNeeded } = await import('./conflictDetection.service');
 
-    const result = await getEquipmentNeeded('gig-1', '2026-10-10T19:00:00Z', '2026-10-10T23:00:00Z');
+    const result = await getEquipmentNeeded('gig-1', '2026-10-10T19:00:00Z', '2026-10-10T23:00:00Z', undefined, 'org-1');
     expect(result.overlapping).toBe(1);
     expect(result.rows.map((r) => [r.name, r.thisGig, r.overlapping, r.needed, r.free, r.status])).toEqual([
       ['Chauvet Intimidator Trio', 4, 4, 8, 6, 'short'],

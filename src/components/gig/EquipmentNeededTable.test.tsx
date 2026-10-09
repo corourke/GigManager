@@ -34,19 +34,19 @@ describe('EquipmentNeededTable (#184)', () => {
   it('a date-only gig is headed with its own day, even at UTC+12 or later (#230 follow-up)', async () => {
     vi.mocked(getEquipmentNeeded).mockResolvedValue({ overlapping: 0, rows: [row({})] } as any);
     // Date-only gigs are stored at noon UTC: midnight next day in Auckland (UTC+13 in October).
-    render(<EquipmentNeededTable gigId="g1" gigStart="2026-10-10T12:00:00.000Z" gigEnd="2026-10-10T12:00:00.000Z" gigTimezone="Pacific/Auckland" />);
+    render(<EquipmentNeededTable organizationId="org-1" gigId="g1" gigStart="2026-10-10T12:00:00.000Z" gigEnd="2026-10-10T12:00:00.000Z" gigTimezone="Pacific/Auckland" />);
     expect(await screen.findByText('Equipment needed on Oct 10, 2026')).toBeInTheDocument();
   });
 
   it('says so when the counts can\'t be loaded, instead of hiding the table', async () => {
     vi.mocked(getEquipmentNeeded).mockRejectedValue(new Error('network'));
-    render(<EquipmentNeededTable gigId="g1" gigStart="2026-10-10T18:00:00" gigEnd="2026-10-10T23:00:00" />);
+    render(<EquipmentNeededTable organizationId="org-1" gigId="g1" gigStart="2026-10-10T18:00:00" gigEnd="2026-10-10T23:00:00" />);
     expect(await screen.findByText("Couldn't load equipment counts.")).toBeInTheDocument();
   });
 
   it('shows nothing when the gig needs no equipment', async () => {
     vi.mocked(getEquipmentNeeded).mockResolvedValue({ overlapping: 0, rows: [] });
-    const { container } = render(<EquipmentNeededTable gigId="g1" gigStart="2026-10-10T18:00:00" gigEnd="2026-10-10T23:00:00" />);
+    const { container } = render(<EquipmentNeededTable organizationId="org-1" gigId="g1" gigStart="2026-10-10T18:00:00" gigEnd="2026-10-10T23:00:00" />);
     await new Promise((r) => setTimeout(r, 0));
     expect(container).toBeEmptyDOMElement();
   });

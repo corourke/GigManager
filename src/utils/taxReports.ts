@@ -8,7 +8,7 @@
  *   EXPENSES    = purchase lines with tax_treatment = expense, by line date
  *               + paid money-out gig rows with no purchase_id, by paid date
  *   ASSETS      = purchase lines with tax_treatment = depreciate, by line date
- *   DISPOSALS   = depreciated equipment retired in the year
+ *   DISPOSALS   = depreciated equipment retired in the year, record by record (#185)
  *   GREY ZONE   = equipment lines costing $200 to $2,500 each, by line date,
  *                 whichever treatment was chosen
  *
@@ -18,6 +18,7 @@ import Papa from 'papaparse';
 import { TAX_DEPRECIATE_ABOVE, lineTaxTreatment, suggestedTaxTreatment, taxTreatmentLabel, type TaxTreatment } from './taxTreatment';
 import { tidyAssetCategory } from './purchaseCategories';
 import { asRecoveryPeriod, type RecoveryPeriod } from './recoveryPeriod';
+import type { ReportAsset } from './taxSummaryReports';
 
 // ---- Inputs, as loaded by services/taxReport.service ---------------------------
 
@@ -315,7 +316,12 @@ export interface AssetReport {
   disposals: DisposalRow[];
 }
 
-export function buildAssetReport(lines: ReportPurchaseLine[], year: number): AssetReport {
+/**
+ * `assets`: the records, so a disposal is each record retired in the year at the line's cost
+ * per piece × its quantity (#185: part of a lot, or one unit of a line, can be written off).
+ * A line with no records falls back to its linked equipment.
+ */
+export function buildAssetReport(lines: ReportPurchaseLine[], year: number, assets: readonly ReportAsset[] = []): AssetReport {
   const depreciated = lines.filter(l => l.tax_treatment === 'depreciate');
   const rows: AssetRow[] = depreciated
     .filter(l => inYear(lineDay(l), year))
@@ -349,8 +355,25 @@ export function buildAssetReport(lines: ReportPurchaseLine[], year: number): Ass
   }
   const byPeriod = [...periods.values()].sort((a, b) => (a.period ?? 99) - (b.period ?? 99));
 
+  const recordsOf = (l: ReportPurchaseLine) => assets.filter(a => a.purchase_line_id === l.id || a.id === l.asset_id);
+  const byRecord: DisposalRow[] = depreciated.flatMap(l => {
+    const quantity = Number(l.quantity ?? 1) || 1;
+    const perPiece = l.item_cost != null ? Number(l.item_cost) : lineCost(l) / quantity;
+    return recordsOf(l)
+      .filter(a => inYear(dayOf(a.retired_on), year))
+      .map(a => ({
+        id: a.id,
+        assetId: a.id,
+        description: a.manufacturer_model || l.description || '',
+        bought: lineDay(l) ?? '',
+        cost: money(perPiece * (Number(a.quantity ?? 1) || 1)),
+        disposed: dayOf(a.retired_on)!,
+        proceeds: a.liquidation_amt != null ? money(Number(a.liquidation_amt)) : null,
+        status: a.status ?? '',
+      }));
+  });
   const disposals: DisposalRow[] = depreciated
-    .filter(l => l.asset && inYear(dayOf(l.asset.retired_on), year))
+    .filter(l => recordsOf(l).length === 0 && l.asset && inYear(dayOf(l.asset.retired_on), year))
     .map(l => ({
       id: l.id,
       assetId: l.asset!.id,
@@ -361,7 +384,8 @@ export function buildAssetReport(lines: ReportPurchaseLine[], year: number): Ass
       proceeds: l.asset!.liquidation_amt != null ? money(Number(l.asset!.liquidation_amt)) : null,
       status: l.asset!.status ?? '',
     }))
-    .sort((a, b) => a.disposed.localeCompare(b.disposed));
+    .concat(byRecord)
+    .sort((a, b) => a.disposed.localeCompare(b.disposed) || a.description.localeCompare(b.description));
 
   return {
     rows,

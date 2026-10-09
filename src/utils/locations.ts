@@ -96,3 +96,41 @@ export function placementOf(rows: readonly TrackingRow[], record: ItemRecord): P
   const atHome = Math.max(0, Number(record.quantity ?? 1) - out.reduce((n, p) => n + p.quantity, 0));
   return atHome > 0 ? [home(atHome, lastReturn), ...out] : out;
 }
+
+export interface Bucket {
+  /** null: a no-kit manual move. */
+  kit_id: string | null;
+  quantity: number;
+  status: string;
+  location: string | null;
+}
+
+/**
+ * What of a record is still out at one gig, kit by kit (#185): the gig's "Not returned" list
+ * and its write-offs act on these buckets. A unit is out at the gig only if its newest row
+ * anywhere is there and isn't a return; a lot's bucket is its newest row per kit at the gig.
+ */
+export function bucketsAt(rows: readonly TrackingRow[], record: ItemRecord, gigId: string): Bucket[] {
+  if (isRetired(record)) return [];
+  const mine = rows.filter((r) => r.asset_id != null && r.asset_id === record.id);
+  const bucket = (r: TrackingRow, quantity: number): Bucket =>
+    ({ kit_id: r.kit_id ?? null, quantity, status: r.status, location: r.location ?? null });
+
+  if (recordKind(record) === 'unit') {
+    let latest: TrackingRow | undefined;
+    for (const r of mine) if (newer(r, latest)) latest = r;
+    return latest && latest.gig_id === gigId && latest.status !== RETURNED_STATUS ? [bucket(latest, 1)] : [];
+  }
+
+  const byKit = new Map<string, TrackingRow>();
+  for (const r of mine) {
+    if (r.gig_id !== gigId) continue;
+    const key = r.kit_id ?? '';
+    if (newer(r, byKit.get(key))) byKit.set(key, r);
+  }
+  return [...byKit.values()]
+    .filter((r) => r.status !== RETURNED_STATUS)
+    .map((r) => bucket(r, Math.max(0, Number(r.quantity ?? 1))))
+    .sort((a, b) => (a.kit_id ?? '').localeCompare(b.kit_id ?? ''));
+}
+

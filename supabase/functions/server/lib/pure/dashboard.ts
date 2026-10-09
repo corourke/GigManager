@@ -13,7 +13,7 @@ export interface DashboardAssetRow {
 }
 
 /**
- * Statuses for equipment we still own; Disposed and Returned are gone. The
+ * Statuses for equipment we still own; Disposed, Returned and Missing are gone. The
  * same rule as the Items tab (`IN_SERVICE_STATUSES` in
  * src/utils/equipmentItems.ts), so both show one figure.
  */

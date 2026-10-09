@@ -57,6 +57,14 @@ describe('sumAssetValues', () => {
     });
   });
 
+  it('leaves out Missing (written-off) equipment from value and insured value (#185)', () => {
+    const rows = [
+      { equipment_item_id: 'xlr', replacement_value: 16, quantity: 9, status: 'Active', insurance_policy_added: true },
+      { equipment_item_id: 'xlr', replacement_value: 16, quantity: 1, status: 'Missing', insurance_policy_added: true },
+    ];
+    expect(sumAssetValues(rows)).toEqual({ totalAssetValue: 144, totalInsuredValue: 144, ownedItems: 1, ownedPieces: 9 });
+  });
+
   it('reports zero for no assets', () => {
     const zero = { totalAssetValue: 0, totalInsuredValue: 0, ownedItems: 0, ownedPieces: 0 };
     expect(sumAssetValues([])).toEqual(zero);

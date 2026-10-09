@@ -76,6 +76,11 @@ describe('summarizeItem', () => {
     expect(summarizeItem(records, 2, 1)).toMatchObject({ owned: 4, inMaintenance: 1, inContainers: 2, available: 2 });
   });
 
+  it('counts missing pieces apart: out of owned and available (#185)', () => {
+    const records = [lot(9, { id: 'cables' }), lot(1, { id: 'gone', status: 'Missing', retired_on: '2026-10-09' }), unit({ id: 'k', status: 'Missing', retired_on: '2026-10-09' })];
+    expect(summarizeItem(records)).toMatchObject({ owned: 9, available: 9, missing: 2, totalValue: 16 * 9 });
+  });
+
   it('never reports fewer than zero available', () => {
     expect(summarizeItem([lot(4, { status: 'Inactive' })], 4).available).toBe(0);
   });
