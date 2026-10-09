@@ -41,7 +41,7 @@ You can be an **Admin** of one organization and a **Viewer** of another. Switchi
 
 A few things the table doesn't say:
 
-- **Controls are hidden, not greyed out.** Staff and Viewers don't see **New Gig**, **Edit**, **Add Item** or **Add Team Member**.
+- **Controls are hidden, not greyed out.** Staff and Viewers don't see **New Gig**, **Edit**, **Add Item** or **Add Team Member**. If they open a page for Admins and Managers by its address, such as **Financials** or an equipment form, GigWrangler takes them to their starting page instead.
 - **Managers see Delete on a gig** but can't complete it: GigWrangler tells you that you don't have permission. Ask an Admin.
 - **Managers aren't offered Admin** in the role lists, and can't change an Admin's role.
 - **You can't remove yourself** from the team.
