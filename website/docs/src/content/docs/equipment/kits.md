@@ -84,7 +84,7 @@ A specific line names one unit or one lot. Its **Kind** is **Unit** or **Lot**, 
 
 - A unit line is always 1. A lot line can be up to the lot's count; the picker shows it as "… in stock".
 - A unit in maintenance or inactive shows in amber, such as "In maintenance: not available now".
-- A unit that's no longer owned shows in red: "Retired: no longer owned. Remove it from the kit." (or **Disposed** or **Returned**).
+- A unit that's no longer owned shows in red: "Retired: no longer owned. Remove it from the kit." (or **Disposed**, **Returned** or **Missing**, for a unit [written off at a gig](/equipment/assigning-to-a-gig/#writing-off-missing-equipment)).
 - The same unit or lot can't be in a kit twice, even through a nested kit. The picker says "Already in this kit via FOH Console Package", for example.
 
 ### Which to use
