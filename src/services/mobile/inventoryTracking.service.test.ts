@@ -579,4 +579,40 @@ describe('inventoryTrackingService', () => {
       { kit_id: 'top', asset_id: 'clip-lot', quantity: 4 },
     ])
   })
+
+  // #185 (Cameron, 10-09): a unit that isn't on the list can be added as an extra, or swapped
+  // for a unit of the same item that is; the swapped-out unit gets an In Warehouse row.
+  describe('extras and swaps', () => {
+    const row = (asset_id: string, status: string, minute = 0) =>
+      ({ gig_id: 'gig-1', kit_id: 'top', asset_id, status, quantity: 1, scanned_at: `2026-10-09T10:0${minute}:00.000Z`, scanned_by: 'u' })
+    const list = (tracking: any[]) => ({
+      top_level_kit_ids: ['top'],
+      hierarchy_edges: [],
+      kits: [{ kit: { id: 'top', is_container: false,
+        direct_assets: [{ asset_id: 'k12-1', quantity: 1, asset: { id: 'k12-1', equipment_item_id: 'item-k12', tag_number: 'K12-1' } }] } }],
+      extra_assets: { 'k12-2': { id: 'k12-2', equipment_item_id: 'item-k12', tag_number: 'K12-2' }, 'sub-9': { id: 'sub-9', equipment_item_id: 'item-sub', tag_number: 'SUB-9' } },
+      tracking,
+    })
+
+    it('getExtras lists what is tracked at the gig but not on the list', () => {
+      expect(inventoryTrackingService.getExtras(list([row('k12-1', 'Checked Out'), row('k12-2', 'Checked Out'), row('sub-9', 'Checked Out')])))
+        .toEqual([{ kit_id: 'top', asset_id: 'k12-2' }, { kit_id: 'top', asset_id: 'sub-9' }])
+    })
+
+    it('a swapped-out line follows the unit swapped in for it', () => {
+      const swapped = [row('k12-1', 'In Warehouse'), row('k12-2', 'Checked Out')]
+      expect(inventoryTrackingService.getSwapFor(list(swapped), 'top', 'k12-1')).toBe('k12-2')
+      expect(inventoryTrackingService.getScanProgress(list(swapped), 'Checked Out')).toEqual({ done: 1, total: 1 })
+      expect(inventoryTrackingService.getScanProgress(list([row('k12-1', 'In Warehouse'), row('k12-2', 'On Site')]), 'In Warehouse')).toEqual({ done: 0, total: 1 })
+    })
+
+    it('an extra of the same item is not a swap while the listed unit is out too', () => {
+      expect(inventoryTrackingService.getSwapFor(list([row('k12-1', 'Checked Out'), row('k12-2', 'Checked Out')]), 'top', 'k12-1')).toBeNull()
+    })
+
+    it('Finish unload lists extras still out', () => {
+      expect(inventoryTrackingService.getStillOut(list([row('k12-1', 'In Warehouse'), row('k12-2', 'On Site')])))
+        .toEqual([{ kit_id: 'top', asset_id: 'k12-2', quantity: 1 }])
+    })
+  })
 })
