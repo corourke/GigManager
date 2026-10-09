@@ -40,14 +40,23 @@ export function isAvailable(r: Pick<ItemRecord, 'status' | 'retired_on'>): boole
   return (r.status ?? 'Active') === 'Active' && !filled(r.retired_on);
 }
 
-/** Record id → item id for the records that are available, the only pieces in
- *  container kits that "free" subtracts (a unit in maintenance isn't counted twice). */
-export function availableRecordItems(
+/** Record id → item id: for every record, and for the available ones only. */
+export function recordItemMaps(
   items: ReadonlyArray<{ id: string; records?: ReadonlyArray<ItemRecord> | null }>,
-): Map<string, string> {
-  const map = new Map<string, string>();
-  for (const i of items) for (const r of i.records ?? []) if (isAvailable(r)) map.set(r.id, i.id);
-  return map;
+): { all: Map<string, string>; available: Map<string, string> } {
+  const all = new Map<string, string>();
+  const available = new Map<string, string>();
+  for (const i of items) for (const r of i.records ?? []) {
+    all.set(r.id, i.id);
+    if (isAvailable(r)) available.set(r.id, i.id);
+  }
+  return { all, available };
+}
+
+/** Pieces of each item inside container kits: all of them, and the available ones. */
+export interface ContainerPieces {
+  all: Map<string, number>;
+  active: Map<string, number>;
 }
 
 const num = (v: number | string | null | undefined): number => {
@@ -75,7 +84,9 @@ export interface ItemSummary {
  * Owned, available and value for one item's records. `inContainers` is how
  * many of its pieces sit inside container kits (never free for other kits).
  */
-export function summarizeItem(records: readonly ItemRecord[], inContainers = 0): ItemSummary {
+/** `inContainers`: every piece inside container kits (shown). `activeInContainers`:
+ *  the Active, not-retired ones among them, the only ones "available" loses. */
+export function summarizeItem(records: readonly ItemRecord[], inContainers = 0, activeInContainers = inContainers): ItemSummary {
   let owned = 0, units = 0, lots = 0, active = 0, inMaintenance = 0, totalValue = 0;
   let minValue: number | null = null;
   let maxValue: number | null = null;
@@ -96,7 +107,7 @@ export function summarizeItem(records: readonly ItemRecord[], inContainers = 0):
   }
   return {
     owned, units, lots, inMaintenance, inContainers, totalValue, minValue, maxValue,
-    available: Math.max(0, active - inContainers),
+    available: Math.max(0, active - activeInContainers),
   };
 }
 

@@ -2,7 +2,7 @@ import { createClient } from '../utils/supabase/client';
 import { handleApiError } from '../utils/api-error-utils';
 import { requireAuth } from '../utils/supabase/auth-utils';
 import type { DbAsset, DbEquipmentItem } from '../utils/supabase/types';
-import { containerPiecesByItem } from '../utils/equipmentItems';
+import { containerPiecesByItem, recordItemMaps, type ContainerPieces, type ItemRecord } from '../utils/equipmentItems';
 
 // Equipment items (#162, #182): what a piece of equipment is. Its units and
 // lots are rows in `assets`, each pointing at its item (migration 20261014000000).
@@ -90,14 +90,15 @@ export async function updateItem(itemId: string, fields: ItemFields): Promise<Db
 
 /**
  * How many pieces of each item sit inside container kits, which are never
- * free for other kits (#162 Q8). `assetItem` maps each record to its item.
+ * free for other kits (#162 Q8): all of them (shown as "in container kits"),
+ * and the available ones (the only ones "available" loses, #230).
  */
 export async function getContainerPieces(
   organizationId: string,
-  assetItem: ReadonlyMap<string, string>,
+  items: ReadonlyArray<{ id: string; records?: ReadonlyArray<ItemRecord> | null }>,
   /** A kit being edited: its own contents aren't counted against it (#184). */
   excludeKitId?: string | null,
-): Promise<Map<string, number>> {
+): Promise<ContainerPieces> {
   const supabase = getSupabase();
   try {
     const { data: kits, error } = await (supabase.from('kits') as any)
@@ -107,7 +108,7 @@ export async function getContainerPieces(
     if (error) throw error;
     const containerKitIds = new Set<string>((kits ?? []).map((k: { id: string }) => k.id));
     if (excludeKitId) containerKitIds.delete(excludeKitId);
-    if (containerKitIds.size === 0) return new Map();
+    if (containerKitIds.size === 0) return { all: new Map(), active: new Map() };
     const ids = [...containerKitIds];
 
     const [components, unitCache, itemCache] = await Promise.all([
@@ -122,11 +123,13 @@ export async function getContainerPieces(
         .map((c: { child_kit_id: string }) => c.child_kit_id)
         .filter((id: string) => containerKitIds.has(id)),
     );
-    return containerPiecesByItem({
+    const maps = recordItemMaps(items);
+    const count = (assetItem: ReadonlyMap<string, string>) => containerPiecesByItem({
       containerKitIds, nestedContainerIds, assetItem,
       unitCache: unitCache.data ?? [],
       itemCache: itemCache.data ?? [],
     });
+    return { all: count(maps.all), active: count(maps.available) };
   } catch (err) {
     return handleApiError(err, 'count equipment in containers');
   }

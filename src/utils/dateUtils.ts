@@ -84,6 +84,14 @@ export const formatDateDisplay = (date: string | Date, timeZone?: string): strin
 };
 
 /**
+ * The day a gig is on (e.g. "Oct 10, 2026"). A date-only gig is stored at
+ * noon UTC and is that calendar date wherever it is; a timed gig's day is
+ * its start in the gig's time zone.
+ */
+export const formatGigDay = (start: string, timeZone?: string): string =>
+  formatDateDisplay(start, isNoonUTC(start) ? 'UTC' : timeZone);
+
+/**
  * Formats a date with full month name and weekday (e.g., "Saturday, January 31, 2026")
  */
 export const formatDateLong = (date: string | Date, timeZone?: string): string => {
