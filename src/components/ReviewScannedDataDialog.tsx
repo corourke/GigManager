@@ -148,6 +148,8 @@ interface LineMismatch {
   quantity: number;
   /** Units: the saved units, by label. Lot: the lot, with its saved quantity. */
   records: { id: string; label: string; quantity: number }[];
+  /** The record the line points at (purchases.asset_id). */
+  markerId: string | null;
 }
 
 const recordLabel = (r: any) =>
@@ -793,6 +795,7 @@ export default function ReviewScannedDataDialog({
       return [{
         lineId: item._purchaseId, description: item.description || '(item)', kind: lot ? 'lot' : 'units', quantity: item.quantity,
         records: records.map(r => ({ id: r.id, label: recordLabel(r), quantity: Number(r.quantity) || 1 })),
+        markerId: item._assetId ?? null,
       }];
     });
 
@@ -829,6 +832,19 @@ export default function ReviewScannedDataDialog({
     if (!editPurchaseId) return;
     setIsSubmitting(true);
     try {
+      // Quantities that no longer match their equipment, as chosen (#183). These go first: if the
+      // database refuses one, nothing else is saved yet.
+      for (const m of plan.mismatches) {
+        const d = lineDecisions[m.lineId];
+        if (!d || d.mode === 'leave') continue;
+        if (m.kind === 'lot') { await updateAsset(m.records[0].id, { quantity: m.quantity }); continue; }
+        // A depreciated line must keep an equipment record: point it at a unit that stays first.
+        if (m.markerId && d.remove.includes(m.markerId)) {
+          const kept = m.records.find(r => !d.remove.includes(r.id));
+          if (kept) await updatePurchase(m.lineId, { asset_id: kept.id });
+        }
+        for (const id of d.remove) await deleteAsset(id);
+      }
       await updatePurchase(editPurchaseId, plan.headerData);
       // Chosen recovery periods of new units: set once their lines are depreciated (#125).
       const periods: [string, RecoveryPeriod][] = [];
@@ -851,14 +867,8 @@ export default function ReviewScannedDataDialog({
       for (const a of plan.addUnits) await addLineUnits(a.lineId, a.units);
       for (const id of plan.removedItemIds) await deletePurchase(id);
       for (const [assetId, recovery_period] of periods) await updateAsset(assetId, { recovery_period });
-      for (const a of plan.assetChanges) await updateAsset(a.assetId, a.data);
-      // Quantities that no longer match their equipment: as chosen (#183).
-      for (const m of plan.mismatches) {
-        const d = lineDecisions[m.lineId];
-        if (!d || d.mode === 'leave') continue;
-        if (m.kind === 'lot') await updateAsset(m.records[0].id, { quantity: m.quantity });
-        else for (const id of d.remove) await deleteAsset(id);
-      }
+      const removed = new Set(plan.mismatches.flatMap(m => lineDecisions[m.lineId]?.mode === 'update' ? lineDecisions[m.lineId].remove : []));
+      for (const a of plan.assetChanges) if (!removed.has(a.assetId)) await updateAsset(a.assetId, a.data);
       for (const g of plan.gigChanges) {
         await updateGigFinancial(g.finId, g.settle ? { amount: g.to, amount_settled: g.to } : { amount: g.to });
       }

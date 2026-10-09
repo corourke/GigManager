@@ -588,11 +588,11 @@ describe('ReviewScannedDataDialog: a saved line\'s units (#183)', () => {
 
   const unitRec = (id: string, tag: string) => ({ id, purchase_line_id: 'l1', equipment_item_id: 'i-k12', manufacturer_model: 'QSC K12.2', category: 'Audio',
     tag_number: tag, item_price: 949, item_cost: 949, vendor: 'V', acquisition_date: '2026-03-01', quantity: 1, replacement_value: 1049 });
-  const openSaved = async (quantity: number, records: any[]) => {
+  const openSaved = async (quantity: number, records: any[], tax: 'expense' | 'depreciate' = 'expense') => {
     const svc = await import('../services/purchase.service');
     vi.mocked(svc.getPurchaseWithDetails).mockResolvedValue({
       id: 'h1', vendor: 'V', purchase_date: '2026-03-01', total_inv_amount: 949 * quantity, description: '',
-      items: [{ id: 'l1', row_type: 'line', tax_treatment: 'expense', description: 'K12', quantity, item_price: 949, item_cost: 949,
+      items: [{ id: 'l1', row_type: 'line', tax_treatment: tax, description: 'K12', quantity, item_price: 949, item_cost: 949,
         asset_id: records[0].id, category: 'Small audio parts', purchase_date: '2026-03-01' }],
       assets: records, attachments: [],
     } as any);
@@ -629,6 +629,64 @@ describe('ReviewScannedDataDialog: a saved line\'s units (#183)', () => {
     const assets = await import('../services/asset.service');
     await waitFor(() => expect(assets.deleteAsset).toHaveBeenCalledWith('u2'));
     expect(assets.deleteAsset).toHaveBeenCalledTimes(1);
+  });
+
+  it('fewer pieces on a depreciated line: removing the unit the line points at moves the line to a kept unit first', async () => {
+    // The database refuses to delete a depreciated line's own equipment record (purchases_check_depreciate_has_asset).
+    const svc = await openSaved(2, [unitRec('u1', 'DSL-0101'), unitRec('u2', 'DSL-0102'), unitRec('u3', 'DSL-0103')]
+      .map(r => ({ ...r, recovery_period: 5 })), 'depreciate');
+    const assets = await import('../services/asset.service');
+    let marker = 'u1';
+    const calls: string[] = [];
+    vi.mocked(svc.updatePurchase).mockImplementation(async (id: string, d: any) => {
+      calls.push(`purchase ${id}`);
+      if (id === 'l1' && 'asset_id' in d) marker = d.asset_id;
+      return {} as any;
+    });
+    vi.mocked(assets.deleteAsset).mockImplementation(async (id: string) => {
+      calls.push(`delete ${id}`);
+      if (id === marker) throw new Error('A depreciated purchase line must keep its equipment record');
+    });
+    await userEvent.click(screen.getByRole('button', { name: 'Save Changes' }));
+    await userEvent.click(await screen.findByRole('radio', { name: 'Update the equipment: remove 1 unit' }));
+    await userEvent.click(within(screen.getByRole('group', { name: 'Units to remove: K12' })).getByRole('checkbox', { name: 'DSL-0101' }));
+    await userEvent.click(screen.getByRole('button', { name: /Confirm & Save/ }));
+    await waitFor(() => expect(assets.deleteAsset).toHaveBeenCalledWith('u1'));
+    expect(svc.updatePurchase).toHaveBeenCalledWith('l1', { asset_id: 'u2' });
+    expect(calls.indexOf('purchase l1')).toBeLessThan(calls.indexOf('delete u1'));
+    // The equipment changes go first, so a refusal leaves the purchase as it was.
+    expect(calls.indexOf('delete u1')).toBeLessThan(calls.indexOf('purchase h1'));
+    await waitFor(() => expect(svc.updatePurchase).toHaveBeenCalledWith('h1', expect.anything()));
+  });
+
+  it('a price change on the line skips the units being removed', async () => {
+    const real = await vi.importActual<typeof import('../services/purchase.service')>('../services/purchase.service');
+    const svc = await import('../services/purchase.service');
+    vi.mocked(svc.computeAssetFieldChanges).mockImplementation(real.computeAssetFieldChanges);
+    await openSaved(2, [unitRec('u1', 'DSL-0101'), unitRec('u2', 'DSL-0102'), unitRec('u3', 'DSL-0103')]);
+    const assets = await import('../services/asset.service');
+    const price = screen.getAllByDisplayValue('949')[0];
+    await userEvent.clear(price);
+    await userEvent.type(price, '900');
+    await userEvent.click(screen.getByRole('button', { name: 'Save Changes' }));
+    await userEvent.click(await screen.findByRole('radio', { name: 'Update the equipment: remove 1 unit' }));
+    await userEvent.click(within(screen.getByRole('group', { name: 'Units to remove: K12' })).getByRole('checkbox', { name: 'DSL-0103' }));
+    await userEvent.click(screen.getByRole('button', { name: /Confirm & Save/ }));
+    await waitFor(() => expect(assets.updateAsset).toHaveBeenCalledWith('u1', expect.objectContaining({ item_price: 900 })));
+    expect(assets.updateAsset).toHaveBeenCalledWith('u2', expect.objectContaining({ item_price: 900 }));
+    expect(assets.updateAsset).not.toHaveBeenCalledWith('u3', expect.anything());
+  });
+
+  it('when removing a unit fails, the purchase itself is not saved', async () => {
+    const svc = await openSaved(2, [unitRec('u1', 'DSL-0101'), unitRec('u2', 'DSL-0102'), unitRec('u3', 'DSL-0103')]);
+    const assets = await import('../services/asset.service');
+    vi.mocked(assets.deleteAsset).mockRejectedValue(new Error('refused'));
+    await userEvent.click(screen.getByRole('button', { name: 'Save Changes' }));
+    await userEvent.click(await screen.findByRole('radio', { name: 'Update the equipment: remove 1 unit' }));
+    await userEvent.click(within(screen.getByRole('group', { name: 'Units to remove: K12' })).getByRole('checkbox', { name: 'DSL-0103' }));
+    await userEvent.click(screen.getByRole('button', { name: /Confirm & Save/ }));
+    await waitFor(() => expect(assets.deleteAsset).toHaveBeenCalledWith('u3'));
+    expect(svc.updatePurchase).not.toHaveBeenCalled();
   });
 
   it('fewer pieces on the line: or leave the equipment as it is', async () => {
