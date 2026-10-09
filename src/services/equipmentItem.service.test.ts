@@ -120,6 +120,23 @@ describe('equipmentItem.service', () => {
       expect(kits.eq).toHaveBeenCalledWith('is_container', true);
     });
 
+    it('leaves out the kit being edited, so its own lines aren\'t counted against it (#184)', async () => {
+      const kits = makeChain({ data: [{ id: 'box' }, { id: 'case' }], error: null });
+      const comps = makeChain({ data: [], error: null });
+      const unitCache = makeChain({ data: [], error: null });
+      const itemCache = makeChain({ data: [
+        { kit_id: 'box', equipment_item_id: 'sm58', total_quantity: 2 },
+        { kit_id: 'case', equipment_item_id: 'sm58', total_quantity: 4 },
+      ], error: null });
+      supabase.from.mockImplementation((t: string) => ({
+        kits, kit_components: comps, kit_flattened_cache: unitCache, kit_flattened_item_cache: itemCache,
+      } as any)[t]);
+
+      const counts = await getContainerPieces('org-1', new Map(), 'case');
+      expect(Object.fromEntries(counts)).toEqual({ sm58: 2 });
+      expect(itemCache.in).toHaveBeenCalledWith('kit_id', ['box']);
+    });
+
     it('asks for nothing more when there are no container kits', async () => {
       supabase.from.mockReturnValue(makeChain({ data: [], error: null }));
       expect((await getContainerPieces('org-1', new Map())).size).toBe(0);

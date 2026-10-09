@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
+  isRetired, isAvailable, pieceValue,
   recordKind,
   isInService,
   summarizeItem,
@@ -134,5 +135,42 @@ describe('itemMatchesSearch', () => {
   it('matches everything when the search is blank, and nothing unrelated', () => {
     expect(itemMatchesSearch(item, records, '  ')).toBe(true);
     expect(itemMatchesSearch(item, records, 'trio')).toBe(false);
+  });
+});
+
+// #184 (Cameron, 10-09): only Active is available; a retirement date means retired, like Disposed.
+describe('retired records and piece value (#184)', () => {
+  it('a record with a retirement date is no longer owned', () => {
+    const s = summarizeItem([
+      { id: 'a', quantity: 1, tag_number: 'T1', status: 'Active' },
+      { id: 'b', quantity: 1, tag_number: 'T2', status: 'Active', retired_on: '2026-09-01' },
+    ]);
+    expect(s.owned).toBe(1);
+    expect(s.available).toBe(1);
+  });
+
+  it('isRetired: Disposed, Returned or a retirement date', () => {
+    expect(isRetired({ status: 'Disposed' })).toBe(true);
+    expect(isRetired({ status: 'Returned' })).toBe(true);
+    expect(isRetired({ status: 'Active', retired_on: '2026-09-01' })).toBe(true);
+    expect(isRetired({ status: 'Inactive' })).toBe(false);
+    expect(isRetired({ status: 'Maintenance' })).toBe(false);
+  });
+
+  it('isAvailable: Active and not retired', () => {
+    expect(isAvailable({ status: 'Active' })).toBe(true);
+    expect(isAvailable({ status: null })).toBe(true);
+    expect(isAvailable({ status: 'Inactive' })).toBe(false);
+    expect(isAvailable({ status: 'Maintenance' })).toBe(false);
+    expect(isAvailable({ status: 'Active', retired_on: '2026-09-01' })).toBe(false);
+  });
+
+  it('pieceValue: the average value of one piece, over pieces still owned', () => {
+    expect(pieceValue([
+      { id: 'a', quantity: 1, replacement_value: 100 },
+      { id: 'b', quantity: 3, replacement_value: 20 },
+      { id: 'c', quantity: 1, replacement_value: 999, status: 'Disposed' },
+    ])).toBe(40);
+    expect(pieceValue([{ id: 'a', quantity: 2, replacement_value: null }])).toBe(0);
   });
 });

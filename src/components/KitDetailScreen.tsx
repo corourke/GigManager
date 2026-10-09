@@ -23,12 +23,14 @@ import {
   deleteKit,
   duplicateKit,
   getKitFlattenedContents,
+  getKitFlattenedItems,
   getKitComponentTree,
   countInventoryItems,
   maxTreeDepth,
   KitComponentTreeNode,
 } from '../services/kit.service';
 import { getEntityActivity } from '../services/activityLog.service';
+import { pieceValue, summarizeItem } from '../utils/equipmentItems';
 import ActivityFeed from './ActivityFeed';
 import { History } from 'lucide-react';
 
@@ -49,6 +51,9 @@ interface FlattenedAssetRow {
   asset: any;
 }
 
+/** An "any" line, flattened through nested kits (#184). */
+type FlattenedItemRow = Awaited<ReturnType<typeof getKitFlattenedItems>>[number];
+
 const DEPTH_WARNING_THRESHOLD = 6;
 
 /**
@@ -58,10 +63,26 @@ const DEPTH_WARNING_THRESHOLD = 6;
  * (it's shown as a single sealed unit) — the data is still fetched either
  * way, this is purely a display choice.
  */
-function ComponentTree({ nodes, showContainerContents, level = 0 }: { nodes: KitComponentTreeNode[]; showContainerContents: boolean; level?: number }) {
+function ComponentTree({ nodes, showContainerContents, owned, level = 0 }: {
+  nodes: KitComponentTreeNode[]; showContainerContents: boolean; owned: Map<string, number>; level?: number;
+}) {
   return (
     <ul className={level === 0 ? '' : 'ml-6 border-l border-gray-200 pl-4'}>
       {nodes.map((node) => {
+        if (node.type === 'item') {
+          // "N × any" of an item (#184).
+          const n = node.item ? owned.get(node.item.id) : undefined;
+          return (
+            <li key={node.clientKey} className="py-1">
+              <div className="flex items-center gap-2 text-sm">
+                <Badge variant="outline" className="text-[10px] border-sky-300 bg-sky-50 text-sky-800">Any</Badge>
+                <span className="text-gray-900"><strong>{node.quantity} ×</strong></span>
+                <span className="text-gray-900">{node.item?.manufacturer_model || 'Unknown item'}</span>
+                {n != null && <span className="text-xs text-gray-500">of {n} owned</span>}
+              </div>
+            </li>
+          );
+        }
         if (node.type === 'asset') {
           return (
             <li key={node.clientKey} className="py-1">
@@ -88,7 +109,7 @@ function ComponentTree({ nodes, showContainerContents, level = 0 }: { nodes: Kit
               </Badge>
             </div>
             {!hideChildren && node.children.length > 0 && (
-              <ComponentTree nodes={node.children} showContainerContents={showContainerContents} level={level + 1} />
+              <ComponentTree nodes={node.children} showContainerContents={showContainerContents} owned={owned} level={level + 1} />
             )}
           </li>
         );
@@ -109,6 +130,7 @@ export default function KitDetailScreen({
 }: KitDetailScreenProps) {
   const [kit, setKit] = useState<any>(null);
   const [flattenedAssets, setFlattenedAssets] = useState<FlattenedAssetRow[]>([]);
+  const [flattenedItems, setFlattenedItems] = useState<FlattenedItemRow[]>([]);
   const [componentTree, setComponentTree] = useState<KitComponentTreeNode[]>([]);
   const [showContainerContents, setShowContainerContents] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -124,13 +146,15 @@ export default function KitDetailScreen({
     setIsLoading(true);
     setLoadError(null);
     try {
-      const [data, flattened, tree] = await Promise.all([
+      const [data, flattened, tree, items] = await Promise.all([
         getKit(kitId),
         getKitFlattenedContents(kitId),
         getKitComponentTree(kitId),
+        getKitFlattenedItems(kitId),
       ]);
       setKit(data);
       setFlattenedAssets(flattened as FlattenedAssetRow[]);
+      setFlattenedItems(items ?? []);
       setComponentTree(tree);
 
       const depth = maxTreeDepth(tree);
@@ -183,14 +207,19 @@ export default function KitDetailScreen({
     }).format(amount);
   };
 
+  // "Any" lines are valued at the item's average piece (#184).
+  const itemValue = (row: FlattenedItemRow) => pieceValue(row.item?.records ?? []);
+  const ownedByItem = new Map(flattenedItems.map((r) => [r.equipment_item_id, summarizeItem(r.item?.records ?? []).owned]));
+
   const getTotalValue = () => {
     return flattenedAssets.reduce((total, row) => {
       return total + (row.asset?.replacement_value || 0) * row.total_quantity;
-    }, 0);
+    }, 0) + flattenedItems.reduce((total, row) => total + itemValue(row) * row.total_quantity, 0);
   };
 
   const getTotalItems = () => {
-    return flattenedAssets.reduce((total, row) => total + row.total_quantity, 0);
+    return flattenedAssets.reduce((total, row) => total + row.total_quantity, 0)
+      + flattenedItems.reduce((total, row) => total + row.total_quantity, 0);
   };
 
   // Containers count as one, un-drilled — contrast with getTotalItems above,
@@ -312,7 +341,7 @@ export default function KitDetailScreen({
         <div className="grid grid-cols-1 md:grid-cols-5 gap-6 mb-8">
           <Card className="p-6">
             <p className="text-sm text-gray-600 mb-1">Total Assets</p>
-            <p className="text-3xl text-gray-900">{flattenedAssets.length}</p>
+            <p className="text-3xl text-gray-900">{flattenedAssets.length + flattenedItems.length}</p>
           </Card>
           <Card className="p-6">
             <p className="text-sm text-gray-600 mb-1">Total Items</p>
@@ -339,7 +368,7 @@ export default function KitDetailScreen({
           <p className="text-xs text-gray-500 mb-4">
             Aggregated across this kit and everything nested inside it
           </p>
-          {flattenedAssets.length === 0 ? (
+          {flattenedAssets.length === 0 && flattenedItems.length === 0 ? (
             <div className="text-center py-12">
               <Package className="w-16 h-16 text-gray-300 mx-auto mb-4" />
               <p className="text-gray-600">No assets in this kit</p>
@@ -393,6 +422,29 @@ export default function KitDetailScreen({
                       </TableCell>
                     </TableRow>
                   ))}
+                  {flattenedItems.map((row) => (
+                    <TableRow key={`item-${row.equipment_item_id}`}>
+                      <TableCell>
+                        <div className="text-sm text-gray-900">{row.item?.manufacturer_model}</div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="text-sm text-gray-700">{row.item?.category}</div>
+                        {row.item?.type && <div className="text-xs text-gray-500">{row.item.type}</div>}
+                      </TableCell>
+                      <TableCell>
+                        <div className="text-sm text-gray-500">Any</div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="text-sm text-gray-900">{row.total_quantity}</div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="text-sm text-gray-900">{formatCurrency(itemValue(row))}</div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="text-sm text-gray-900">{formatCurrency(itemValue(row) * row.total_quantity)}</div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
                 </TableBody>
               </Table>
 
@@ -433,7 +485,7 @@ export default function KitDetailScreen({
           {componentTree.length === 0 ? (
             <p className="text-sm text-gray-500">This kit has no components yet.</p>
           ) : (
-            <ComponentTree nodes={componentTree} showContainerContents={showContainerContents} />
+            <ComponentTree nodes={componentTree} showContainerContents={showContainerContents} owned={ownedByItem} />
           )}
         </Card>
 
