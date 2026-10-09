@@ -15,6 +15,8 @@ type TrackingRecord = {
   scanned_by: string;
   notes?: string | null;
   location?: string | null;
+  /** How many of the unit or lot are there as of this row (#185: state, not a delta). */
+  quantity?: number;
   created_at?: string;
   scanned_by_user?: {
     id: string;
@@ -33,6 +35,8 @@ type SubmitScanParams = {
   scannedBy: string;
   scannedAt?: string;
   location?: string | null;
+  /** A direct lot scan: how many were counted (#185). Defaults to 1. */
+  quantity?: number;
 };
 
 type ClearTrackingParams = {
@@ -91,24 +95,21 @@ const getKitAssignment = (packingList: any, kitId: string) => {
   return packingList?.kits?.find((assignment: any) => assignment.kit?.id === kitId) || null;
 };
 
-const getKitAssetIds = (packingList: any, kitId: string) => {
-  return (getKitAssignment(packingList, kitId)?.kit?.assets || [])
-    .map((assetAssignment: any) => assetAssignment.asset_id || assetAssignment.asset?.id || assetAssignment.id)
-    .filter(Boolean);
-};
+const assetIdOf = (a: any) => a.asset_id || a.asset?.id || a.id;
+const quantityOf = (a: any) => Math.max(1, Number(a?.quantity ?? 1) || 1);
 
-/** One physical thing a kit-level scan/toggle cascades to. */
-type CascadeTarget = { kit_id: string; asset_id: string | null };
+/** One physical thing a kit-level scan/toggle cascades to, and how many of it (#185). */
+type CascadeTarget = { kit_id: string; asset_id: string | null; quantity: number };
 
-const getDirectAssetIds = (kit: any): string[] =>
+const getDirectAssets = (kit: any): { asset_id: string; quantity: number }[] =>
   (kit?.direct_assets ?? kit?.assets ?? [])
-    .map((a: any) => a.asset_id || a.asset?.id || a.id)
-    .filter(Boolean);
+    .filter((a: any) => assetIdOf(a))
+    .map((a: any) => ({ asset_id: assetIdOf(a), quantity: quantityOf(a) }));
 
-const getChildKitIds = (packingList: any, kitId: string): string[] =>
+const getChildKits = (packingList: any, kitId: string): { kit_id: string; quantity: number }[] =>
   (packingList?.hierarchy_edges || [])
     .filter((edge: any) => edge.parent_kit_id === kitId)
-    .map((edge: any) => edge.child_kit_id);
+    .map((edge: any) => ({ kit_id: edge.child_kit_id, quantity: quantityOf(edge) }));
 
 /**
  * Every tracking record that toggling `kitId` as a whole writes.
@@ -125,19 +126,23 @@ const getChildKitIds = (packingList: any, kitId: string): string[] =>
  * gets its own sealed-unit treatment instead of leaking its contents out
  * under the top kit's id.
  */
-const getCascadeTargets = (packingList: any, kitId: string, owningKitId: string = kitId): CascadeTarget[] => {
+const getCascadeTargets = (packingList: any, kitId: string, owningKitId: string = kitId, multiplier = 1): CascadeTarget[] => {
   const kit = getKitAssignment(packingList, kitId)?.kit;
 
   if (kit?.is_container) {
+    // The container's contents are fixed: their flattened totals (kit_flattened_cache).
     return [
-      { kit_id: kitId, asset_id: null },
-      ...getKitAssetIds(packingList, kitId).map((assetId: string) => ({ kit_id: kitId, asset_id: assetId })),
+      { kit_id: kitId, asset_id: null, quantity: 1 },
+      ...(kit.assets || []).filter((a: any) => assetIdOf(a))
+        .map((a: any) => ({ kit_id: kitId, asset_id: assetIdOf(a), quantity: quantityOf(a) })),
     ];
   }
 
-  const targets: CascadeTarget[] = getDirectAssetIds(kit).map((assetId) => ({ kit_id: owningKitId, asset_id: assetId }));
-  for (const childKitId of getChildKitIds(packingList, kitId)) {
-    targets.push(...getCascadeTargets(packingList, childKitId, owningKitId));
+  // A non-container kit is transparent: N copies of it is N times everything in it.
+  const targets: CascadeTarget[] = getDirectAssets(kit)
+    .map((a) => ({ kit_id: owningKitId, asset_id: a.asset_id, quantity: a.quantity * multiplier }));
+  for (const child of getChildKits(packingList, kitId)) {
+    targets.push(...getCascadeTargets(packingList, child.kit_id, owningKitId, multiplier * child.quantity));
   }
   return targets;
 };
@@ -288,12 +293,12 @@ export const inventoryTrackingService = {
   },
 
   async submitScan(params: SubmitScanParams) {
-    const { gigId, kitId, assetId, status, organizationId, scannedBy, scannedAt, location } = params;
+    const { gigId, kitId, assetId, status, organizationId, scannedBy, scannedAt, location, quantity } = params;
     const timestamp = scannedAt || new Date().toISOString();
     const packingList = await idbStore.getPackingList(gigId);
     const tracking = packingList?.tracking || [];
 
-    const buildEntry = (targetKitId: string, targetAssetId: string | null): TrackingRecord => ({
+    const buildEntry = (targetKitId: string, targetAssetId: string | null, n = 1): TrackingRecord => ({
       organization_id: organizationId,
       gig_id: gigId,
       kit_id: targetKitId,
@@ -303,14 +308,15 @@ export const inventoryTrackingService = {
       scanned_by: scannedBy,
       notes: getLatestTrackingRecord(tracking, targetKitId, targetAssetId ?? undefined)?.notes || null,
       location: location ?? null,
+      quantity: Math.max(1, Math.floor(n) || 1),
     });
 
     // Scanning a specific asset directly never cascades. Scanning a kit's
     // own row cascades to every scannable unit inside it, respecting
     // container boundaries at every level — see getCascadeTargets.
     const entries: TrackingRecord[] = assetId
-      ? [buildEntry(kitId, assetId)]
-      : getCascadeTargets(packingList, kitId).map((target) => buildEntry(target.kit_id, target.asset_id));
+      ? [buildEntry(kitId, assetId, quantity ?? 1)]
+      : getCascadeTargets(packingList, kitId).map((target) => buildEntry(target.kit_id, target.asset_id, target.quantity));
 
     if (packingList) {
       await idbStore.putPackingList(gigId, appendTrackingEntries(packingList, entries));

@@ -44,6 +44,8 @@ registerSyncHandler('INVENTORY_SCAN', async (payload: any) => {
       scanned_by: payload.scanned_by,
       notes: payload.notes ?? null,
       location: payload.location ?? null,
+      // How many of the unit or lot are there as of this scan (#185); 1 for a unit.
+      quantity: Math.max(1, Math.floor(Number(payload.quantity ?? 1)) || 1),
     });
 
   if (error) {

@@ -142,7 +142,7 @@ describe('packingListService.fetchGigPackingList', () => {
     const { packingListService } = await import('./packingList.service');
     const result = await packingListService.fetchGigPackingList('gig-1');
 
-    expect(result.hierarchy_edges).toEqual([{ parent_kit_id: 'rack', child_kit_id: 'mic-case' }]);
+    expect(result.hierarchy_edges).toEqual([{ parent_kit_id: 'rack', child_kit_id: 'mic-case', quantity: 1 }]);
     expect(result.top_level_kit_ids).toEqual(['rack']);
 
     const rackEntry = result.kits.find((k: any) => k.kit_id === 'rack');
@@ -156,6 +156,35 @@ describe('packingListService.fetchGigPackingList', () => {
     const micCaseEntry = result.kits.find((k: any) => k.kit_id === 'mic-case');
     expect(micCaseEntry?.kit.direct_assets).toEqual([
       { asset_id: 'mic-1', quantity: 2, asset: { id: 'mic-1', manufacturer_model: 'SM58' } },
+    ]);
+  });
+
+  // #185: "any" lines are packed from the item's units and lots; the phone needs the lines,
+  // how many of each item's records are at home, and nested kits' quantities.
+  it('lists each kit\'s "any" lines, and each item\'s units and lots with how many are at home (#185)', async () => {
+    const tableResponses: Record<string, any> = {
+      gig_kit_assignments: { data: [{ kit_id: 'rack', notes: null, kit: { id: 'rack', name: 'Rack', tag_number: null, is_container: false } }], error: null },
+      kit_flattened_cache: { data: [], error: null },
+      kit_components: { data: [
+        { kit_id: 'rack', asset_id: null, child_kit_id: null, equipment_item_id: 'item-xlr', quantity: 10, asset: null, item: { id: 'item-xlr', manufacturer_model: 'XLR Cable, 50 ft' } },
+      ], error: null },
+      equipment_items: { data: [{ id: 'item-xlr', manufacturer_model: 'XLR Cable, 50 ft', records: [
+        { id: 'lot-a', tag_number: null, serial_number: null, quantity: 10, status: 'Active', retired_on: null, created_at: '2026-01-01T00:00:00Z' },
+        { id: 'lot-gone', tag_number: null, serial_number: null, quantity: 2, status: 'Missing', retired_on: '2026-10-09', created_at: '2026-01-02T00:00:00Z' },
+      ] }], error: null },
+      inventory_tracking: { data: [
+        { id: 't1', gig_id: 'other-gig', kit_id: 'k', asset_id: 'lot-a', status: 'On Site', quantity: 4, scanned_at: '2026-10-01T10:00:00Z', created_at: '2026-10-01T10:00:00Z' },
+      ], error: null },
+      gigs: { data: { title: 'Test Gig' }, error: null },
+    };
+    const { createClient } = await import('../../utils/supabase/client');
+    vi.mocked(createClient).mockReturnValue(createSupabaseMock(tableResponses, { data: [], error: null }) as any);
+    const { packingListService } = await import('./packingList.service');
+    const result: any = await packingListService.fetchGigPackingList('gig-1');
+
+    expect(result.kits[0].kit.any_lines).toEqual([{ item_id: 'item-xlr', item_name: 'XLR Cable, 50 ft', quantity: 10 }]);
+    expect(result.item_records['item-xlr']).toEqual([
+      expect.objectContaining({ id: 'lot-a', quantity: 10, at_home: 6 }),
     ]);
   });
 });
