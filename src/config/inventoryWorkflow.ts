@@ -52,3 +52,9 @@ export const SCANNING_MODES: ScanningMode[] = [
  * (inventory_tracking rows are always gig-scoped; there's no "no gig" row).
  */
 export const RETURNED_STATUS = SCANNING_MODES.find((m) => m.id === 'unload')!.resultingStatus;
+
+/**
+ * A partial return (#185): the bucket's pieces that stay at the gig, with quantity = what is
+ * still out. Not a return: the gig keeps them until they come back or are written off.
+ */
+export const NOT_RETURNED_STATUS = 'Not Returned';

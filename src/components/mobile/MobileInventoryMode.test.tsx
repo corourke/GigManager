@@ -5,11 +5,17 @@ import { format } from 'date-fns'
 import MobileInventoryMode from './MobileInventoryMode'
 import { SCANNING_MODES } from '../../config/inventoryWorkflow'
 
+const auth = vi.hoisted(() => ({ role: 'Admin' as string | undefined }))
 vi.mock('../../contexts/AuthContext', () => ({
   useAuth: () => ({
     user: { id: 'user-1' },
     selectedOrganization: { id: 'org-1' },
+    userRole: auth.role,
   }),
+}))
+
+vi.mock('../../services/writeOff.service', () => ({
+  writeOffPieces: vi.fn().mockResolvedValue('split-1'),
 }))
 
 vi.mock('../../utils/idb/store', () => ({
@@ -58,6 +64,8 @@ vi.mock('sonner', () => ({
 import { idbStore } from '../../utils/idb/store'
 import { inventoryTrackingService } from '../../services/mobile/inventoryTracking.service'
 import { act } from '@testing-library/react'
+import { writeOffPieces } from '../../services/writeOff.service'
+import { packingListService } from '../../services/mobile/packingList.service'
 
 describe('MobileInventoryMode', () => {
   beforeEach(() => {
@@ -316,6 +324,160 @@ describe('MobileInventoryMode', () => {
       await act(async () => { await scannerProps.onScan('DI-7') })
       expect(inventoryTrackingService.submitScan).toHaveBeenCalledWith(expect.objectContaining({ kitId: 'top', assetId: 'di-7', status: PACK_OUT }))
     })
+  })
+
+  // #185: a lot line is counted, not ticked: the counter starts at the full line (or what the
+  // kit holds), and fewer leaves the line short. On Unload, fewer asks what happened to the rest.
+  describe('lot counter', () => {
+    const PACK_OUT = SCANNING_MODES[0].resultingStatus
+    const UNLOAD = SCANNING_MODES.find((m) => m.id === 'unload')!
+    const withLot = (tracking: any[] = []) => ({
+      gig_id: 'gig-1',
+      gig_title: 'Warehouse Check-In',
+      top_level_kit_ids: ['top'],
+      hierarchy_edges: [],
+      kits: [{ kit_id: 'top', kit: { id: 'top', name: 'Stage Box', is_container: false,
+        direct_assets: [
+          { asset_id: 'xlr', quantity: 10, asset: { id: 'xlr', manufacturer_model: 'XLR Cable', quantity: 20 } },
+          { asset_id: 'k12', quantity: 1, asset: { id: 'k12', manufacturer_model: 'K12 Speaker', tag_number: 'K12-1' } },
+        ],
+        assets: [{ asset_id: 'xlr', quantity: 10 }, { asset_id: 'k12', quantity: 1 }] } }],
+      tracking,
+    })
+    const onSite = (asset_id: string, quantity: number) =>
+      ({ id: `t-${asset_id}`, gig_id: 'gig-1', kit_id: 'top', asset_id, status: 'On Site', quantity, scanned_at: '2026-10-09T10:00:00.000Z', scanned_by: 'user-1' })
+
+    beforeEach(() => { auth.role = 'Admin' })
+
+    async function countBack(user: ReturnType<typeof userEvent.setup>, minus: number) {
+      await user.click(await screen.findByRole('button', { name: 'Check XLR Cable' }))
+      for (let i = 0; i < minus; i++) await user.click(screen.getByRole('button', { name: 'One fewer' }))
+      await user.click(screen.getByRole('button', { name: 'Confirm' }))
+    }
+
+    it('Pack-Out starts at the full line; fewer packs fewer', async () => {
+      vi.mocked(idbStore.getPackingList).mockImplementation(async () => withLot())
+      const user = userEvent.setup()
+      render(<MobileInventoryMode gigId="gig-1" onSelectGig={vi.fn()} />)
+      await user.click(await screen.findByRole('button', { name: 'Check XLR Cable' }))
+      expect(screen.getByLabelText('How many')).toHaveValue(10)
+      await user.click(screen.getByRole('button', { name: 'One fewer' }))
+      await user.click(screen.getByRole('button', { name: 'Confirm' }))
+      expect(inventoryTrackingService.submitScan).toHaveBeenCalledWith(expect.objectContaining({ kitId: 'top', assetId: 'xlr', quantity: 9, status: PACK_OUT }))
+    })
+
+    it('a lot part-packed shows how many, and isn\'t checked', async () => {
+      vi.mocked(idbStore.getPackingList).mockImplementation(async () => withLot([{ ...onSite('xlr', 7), status: PACK_OUT }]))
+      render(<MobileInventoryMode gigId="gig-1" onSelectGig={vi.fn()} />)
+      expect(await screen.findByText('7 / 10')).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Check XLR Cable' })).toBeInTheDocument()
+    })
+
+    it('a unit still ticks with no counter', async () => {
+      vi.mocked(idbStore.getPackingList).mockImplementation(async () => withLot())
+      const user = userEvent.setup()
+      render(<MobileInventoryMode gigId="gig-1" onSelectGig={vi.fn()} />)
+      await user.click(await screen.findByRole('button', { name: 'Check K12 Speaker' }))
+      expect(screen.queryByLabelText('How many')).not.toBeInTheDocument()
+      expect(inventoryTrackingService.submitScan).toHaveBeenCalledWith(expect.objectContaining({ assetId: 'k12' }))
+    })
+
+    it('Unload: all back closes the bucket', async () => {
+      vi.mocked(idbStore.getPackingList).mockImplementation(async () => withLot([onSite('xlr', 8)]))
+      const user = userEvent.setup()
+      render(<MobileInventoryMode gigId="gig-1" onSelectGig={vi.fn()} />)
+      await user.click(await screen.findByText(UNLOAD.label))
+      await user.click(await screen.findByRole('button', { name: 'Check XLR Cable' }))
+      expect(screen.getByLabelText('How many')).toHaveValue(8) // what went out, not the line
+      await user.click(screen.getByRole('button', { name: 'Confirm' }))
+      expect(inventoryTrackingService.submitScan).toHaveBeenCalledWith(expect.objectContaining({ assetId: 'xlr', quantity: 8, status: UNLOAD.resultingStatus }))
+    })
+
+    it('Unload: "Leave at the gig" writes one Not Returned row with what is still out', async () => {
+      vi.mocked(idbStore.getPackingList).mockImplementation(async () => withLot([onSite('xlr', 10)]))
+      const user = userEvent.setup()
+      render(<MobileInventoryMode gigId="gig-1" onSelectGig={vi.fn()} />)
+      await user.click(await screen.findByText(UNLOAD.label))
+      await countBack(user, 3)
+      expect(screen.getByText('3 not back')).toBeInTheDocument()
+      await user.click(screen.getByRole('button', { name: 'Leave at the gig' }))
+      expect(inventoryTrackingService.submitScan).toHaveBeenCalledTimes(1)
+      expect(inventoryTrackingService.submitScan).toHaveBeenCalledWith(expect.objectContaining({ kitId: 'top', assetId: 'xlr', quantity: 3, status: 'Not Returned' }))
+    })
+
+    it('Unload: "Mark missing" writes the rest off (Admin or Manager, online)', async () => {
+      Object.defineProperty(navigator, 'onLine', { value: true, configurable: true })
+      vi.mocked(packingListService.fetchGigPackingList).mockImplementation(async () => withLot([onSite('xlr', 10)]) as any)
+      vi.mocked(idbStore.getPackingList).mockImplementation(async () => withLot([onSite('xlr', 10)]))
+      const user = userEvent.setup()
+      render(<MobileInventoryMode gigId="gig-1" onSelectGig={vi.fn()} />)
+      await user.click(await screen.findByText(UNLOAD.label))
+      await countBack(user, 3)
+      await user.click(screen.getByRole('button', { name: 'Mark missing' }))
+      expect(writeOffPieces).toHaveBeenCalledWith({ assetId: 'xlr', quantity: 3, gigId: 'gig-1', kitId: 'top', stillOut: 0 })
+      expect(inventoryTrackingService.submitScan).not.toHaveBeenCalled()
+    })
+
+    it('Unload: Staff, or no connection, only get "Leave at the gig"', async () => {
+      auth.role = 'Staff'
+      Object.defineProperty(navigator, 'onLine', { value: true, configurable: true })
+      vi.mocked(packingListService.fetchGigPackingList).mockImplementation(async () => withLot([onSite('xlr', 10)]) as any)
+      vi.mocked(idbStore.getPackingList).mockImplementation(async () => withLot([onSite('xlr', 10)]))
+      const user = userEvent.setup()
+      const { unmount } = render(<MobileInventoryMode gigId="gig-1" onSelectGig={vi.fn()} />)
+      await user.click(await screen.findByText(UNLOAD.label))
+      await countBack(user, 3)
+      expect(screen.getByRole('button', { name: 'Leave at the gig' })).toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: 'Mark missing' })).not.toBeInTheDocument()
+      unmount()
+
+      auth.role = 'Admin'
+      Object.defineProperty(navigator, 'onLine', { value: false, configurable: true })
+      render(<MobileInventoryMode gigId="gig-1" onSelectGig={vi.fn()} />)
+      await user.click(await screen.findByText(UNLOAD.label))
+      await countBack(user, 3)
+      expect(screen.queryByRole('button', { name: 'Mark missing' })).not.toBeInTheDocument()
+    })
+  })
+
+  it('a line in a nested sub-kit (not a container) is tracked under the top kit, like a kit scan writes it', async () => {
+    vi.mocked(idbStore.getPackingList).mockImplementation(async () => ({
+      gig_id: 'gig-1',
+      gig_title: 'Warehouse Check-In',
+      top_level_kit_ids: ['top'],
+      hierarchy_edges: [{ parent_kit_id: 'top', child_kit_id: 'pair', quantity: 1 }],
+      kits: [
+        { kit_id: 'top', kit: { id: 'top', name: 'Stage Box', is_container: false, direct_assets: [], assets: [] } },
+        { kit_id: 'pair', kit: { id: 'pair', name: 'DI Pair', is_container: false,
+          direct_assets: [{ asset_id: 'di', quantity: 1, asset: { id: 'di', manufacturer_model: 'Radial DI', tag_number: 'DI-1' } }],
+          assets: [{ asset_id: 'di', quantity: 1 }] } },
+      ],
+      tracking: [],
+    }))
+    const user = userEvent.setup()
+    render(<MobileInventoryMode gigId="gig-1" onSelectGig={vi.fn()} />)
+    await user.click(await screen.findByRole('button', { name: 'Check Radial DI' }))
+    expect(inventoryTrackingService.submitScan).toHaveBeenCalledWith(expect.objectContaining({ kitId: 'top', assetId: 'di' }))
+  })
+
+  it('scanning a tag finds the kit its row belongs under: a nested container, not the top kit', async () => {
+    vi.mocked(idbStore.getPackingList).mockImplementation(async () => ({
+      gig_id: 'gig-1',
+      gig_title: 'Warehouse Check-In',
+      top_level_kit_ids: ['rack'],
+      hierarchy_edges: [{ parent_kit_id: 'rack', child_kit_id: 'case', quantity: 1 }],
+      kits: [
+        { kit_id: 'rack', kit: { id: 'rack', name: 'Rack', is_container: false, direct_assets: [],
+          assets: [{ asset_id: 'mic', quantity: 1, asset: { id: 'mic', manufacturer_model: 'SM58', tag_number: 'MIC-1' } }] } },
+        { kit_id: 'case', kit: { id: 'case', name: 'Mic Case', tag_number: 'C-1', is_container: true,
+          assets: [{ asset_id: 'mic', quantity: 1, asset: { id: 'mic', manufacturer_model: 'SM58', tag_number: 'MIC-1' } }] } },
+      ],
+      tracking: [],
+    }))
+    render(<MobileInventoryMode gigId="gig-1" onSelectGig={vi.fn()} />)
+    await screen.findByText('Rack')
+    await act(async () => { await scannerProps.onScan('MIC-1') })
+    expect(inventoryTrackingService.submitScan).toHaveBeenCalledWith(expect.objectContaining({ kitId: 'case', assetId: 'mic' }))
   })
 
   it('preserves customized location when switching modes', async () => {
