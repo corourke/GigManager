@@ -19,7 +19,7 @@ This file lives on `main`. Land updates there promptly: a run that starts from `
 |---|---|---|---|
 | [#162](https://github.com/corourke/GigManager/issues/162) | Equipment items and units (serials, tags, quantities, kits); parent of #179–#186 | Mockups approved and merged 10-08 (PR #165, `docs/design/mockups/equipment-units/`); split into sub-issues | See the rows below |
 | [#181](https://github.com/corourke/GigManager/issues/181) | Data grouping review for Cameron | #180 is in prod (158 items); regrouping is now a data change. Coordinator supplies prod data | Equipment Lead |
-| [#183](https://github.com/corourke/GigManager/issues/183)–[#186](https://github.com/corourke/GigManager/issues/186) | Items screens: (b) purchases, CSV import; (c) kit editor, overlap; (d) packing list, gig equipment, scanning; (e) locations, override, maintenance (closes #160) | #182 done; #183 A, B, C merged (PRs #216, #221) and **in prod 10-09**; #183 D (CSV import) off the critical path; follow-ups in [#226](https://github.com/corourke/GigManager/issues/226). #184 PR 1 (#225) and PR 2 (per-item overlap check, #230) merged 10-09: #184 done apart from packing lists (moved to #185) and a small #230 follow-up PR (in-container counts, UTC+12 heading, all short pairs, batch same-unit org scoping). Shared location helper [#231](https://github.com/corourke/GigManager/pull/231) back with the Lead: lot count = sum of newest row per (gig, kit, lot); `quantity` = how many are there now; #185 must write N on every scan path | Equipment Lead: **partial lot returns (Cameron, 10-09): ask at scan time**, leave the rest at the gig (shown "not returned") or mark them missing (write-off; designed in #185's plan). **#186 split (Cameron, 10-09)**: a Locations PR first (shared "N from a lot" scan helper with tests, back-home statuses from workflow config, moves per unit/lot), with #185 built alongside on that helper; override and maintenance stay in a later #186 PR. D by a coordinator sub-agent when the Lead says it's clear |
+| [#183](https://github.com/corourke/GigManager/issues/183)–[#186](https://github.com/corourke/GigManager/issues/186) | Items screens: (b) purchases, CSV import; (c) kit editor, overlap; (d) packing list, gig equipment, scanning; (e) locations, override, maintenance (closes #160) | #182 done; #183 A, B, C merged (PRs #216, #221) and **in prod 10-09**; #183 D (CSV import) off the critical path; follow-ups in [#226](https://github.com/corourke/GigManager/issues/226). #184 PR 1 (#225) and PR 2 (per-item overlap check, #230) merged 10-09: #230 follow-ups merged (#236). **#184 done** apart from a small PR: the same-unit conflict lists only tracked units (Cameron, 10-09). Shared location rule merged (#231): lot count = sum of newest row per (gig, kit, lot); `quantity` = how many are there now. **#185 plan v2 approved by Cameron 10-09** (see #185): write-off = disposal with $0 proceeds; Missing out of owned/available/insured, listed with a badge; only Admins/Managers write off or undo; undo any time unless the year is filed; un-check deletes; swap = back home; several lots = picked automatically (most at home first). PR 1 (migration, web packing list, Not returned list, write-offs) then PR 2 (phone) | Equipment Lead: **partial lot returns (Cameron, 10-09): ask at scan time**, leave the rest at the gig (shown "not returned") or mark them missing (write-off; designed in #185's plan). **#186 split (Cameron, 10-09)**: a Locations PR first (shared "N from a lot" scan helper with tests, back-home statuses from workflow config, moves per unit/lot), with #185 built alongside on that helper; override and maintenance stay in a later #186 PR. D by a coordinator sub-agent when the Lead says it's clear |
 | [#135](https://github.com/corourke/GigManager/issues/135) | Audit and fix 2026 purchase data | Unblocked once the reports are on dev; they show what needs fixing | Coordinator with Cameron; each prod data fix needs his go |
 | [#20](https://github.com/corourke/GigManager/issues/20) | Shared data-access layer under `src/services/` | Batches 1–2 merged (PRs #203, #204). **Paused (Cameron, 10-08) until #186 merges**: batches 3–7 touch the services the equipment refactor and #175 rewrite | Triage resumes at batch 3 once #186 is merged |
 | [#175](https://github.com/corourke/GigManager/issues/175) | Delete gig offered to Managers, but Admin-only | Cameron 10-07: another participating org's Admin must never delete; direction "cancel only when other orgs participate" | Plan approved by Cameron 10-08; **sequenced after the equipment refactor (#183–#186)**. Coordinator builds it in 3 PRs (§3c) |
@@ -54,7 +54,7 @@ This file lives on `main`. Land updates there promptly: a run that starts from `
 
 **[#226](https://github.com/corourke/GigManager/issues/226) items 3, 5, 6 and 8: released to triage (Cameron, 10-09).** One PR per item, one per run, in this order; failing test first; no migrations. Post a short plan comment on #226 before each. Leave #226 open (other items stay parked). Avoid `src/services/conflictDetection*` and the kit files (the Equipment Lead is working there).
 1. ~~**Item 8, URL guards.**~~ **Done: PR #233, merged 10-09.** Staff and Viewer opening `/assets/new`, `/assets/:id/edit` or `/financials` by URL are redirected to their landing page (same rule the menus use, `src/utils/permissions.ts`), with no flash of the form. Route-level, in `src/routes/` (guards or a small role-gate wrapper). Tests: each route × role.
-2. **Item 3, clearing a money field on the unit edit page saves.** In `AssetScreen.tsx` edit mode, clearing item price, item cost, replacement value or sale proceeds must save `null`, not drop the field as `undefined`. Test: clear each field, save, assert the update payload has `null`.
+2. ~~**Item 3, clearing a money field on the unit edit page saves.**~~ **Done: PR #237, merged 10-09.** In `AssetScreen.tsx` edit mode, clearing item price, item cost, replacement value or sale proceeds must save `null`, not drop the field as `undefined`. Test: clear each field, save, assert the update payload has `null`.
 3. **Item 5, $0 invoice total.** In the purchase review (`ReviewScannedDataDialog.tsx`), when the invoice total is $0 (or empty) and the lines add up to more than $0, Save is blocked with "Enter the invoice total, or set it to match the lines ($X)." and a one-click "Use $X" fix. A total that matches its lines, including all-$0, still saves. Test both.
 4. **Item 6, tracked expensed line needs a category.** A purchase line that is tracked as equipment and expensed can't be saved without an expense category: the line shows "Choose an expense category" and Save is blocked until it has one. Untracked lines keep today's rule. Test both.
 
@@ -86,10 +86,33 @@ Not released: #174's UI half shipped in PR #199; its remaining item (the already
 
 (none open: the 10-07 entries are filed as #157–#160, #168–#171, #173–#176 and #178, and their decisions are in §1 and §2)
 
-- **Docs Lead status, 10-09 04:15 UTC.**
-  - The full screenshot refresh for the 10-09 prod release is in PR #229: 38 shots retaken, 14 changed, all reviewed. Equipment stays held.
-  - There's no line for #228's "This screen couldn't load", because the published guide has no troubleshooting or offline section.
-  - Dev is reseeded and holds only the demo data.
+- **Docs Lead status, 10-09 05:45 UTC.**
+  - **PR #235 (merge after the next prod deploy):**
+    - conflict-detection: per-item conflicts and the Equipment needed table (#230);
+    - reporting: Schedule C and Needs attention, with screenshots (#232);
+    - roles-and-access: manager-only addresses (#233).
+  - **PR #234 (seed, merge any time; dev already reseeded):**
+    - recovery period on every depreciated unit;
+    - mileage at the IRS rate;
+    - two Needs attention examples.
+  - **Review fixes (10-09 08:40):**
+    - PR #234 is cut down to `scripts/seed-demo.sql` only. The guide changes had come along by mistake.
+    - PR #235 now says "equipment shared by both kits" (it will follow the Equipment Lead's answer on lots) and describes "none spare · N are in container kits".
+    - Before #235 merges, I'll retake its shots from main after the deploy, so `taken.json`'s `appCommit` names a commit on main.
+  - **Kits draft (#184, "N × any" lines):** on branch `claude/docs-kits-draft`, no PR, held with Equipment.
+  - **STYLE.md has no rule on timing guide changes against prod.** Proposal for Cameron: "The guide describes production; guide changes for features not yet in prod wait in a PR marked 'merge after the next prod deploy'."
+- **Equipment conflicts, two questions from checking #230 on dev (Docs Lead, 10-09):**
+  1. **The shared-unit message also lists lots.** On the Oct 17 gigs it reads "Equipment conflict with kits: Main PA … (Speaker Stand, Tripod, Speakon Speaker Cable, 50 ft, Voltline PD-20 … (#DSL-0211))". The stands and cables are lots, already counted in the per-item shortage, and a lot in two kits isn't "the same unit booked twice". So a lot with plenty spare would still be flagged.
+  2. **The card's "This gig: 4 (Full Band Sound Package × 4)"** reads as four packages. It means 4 speakers from that kit. Wording like "4 via Full Band Sound Package" would be clearer.
+- **Kit editor and kit page notes for #184/#185 (Docs Lead, 10-09, from drafting the Kits page; can follow):**
+  - **Duplicate:** on the kit page it returns to the list rather than the copy (`KitDetailScreen.tsx:182`), and it drops the Tag Number.
+  - **"Items" means three different things:** the Equipment tab, Tracking Type **Items**, and the kit page's "Total Items" vs "Inventory Items". The kit page also still says **Total Assets**, **Assets in Kit** and "Asset".
+  - **"N units owned"** is shown for lots too (`KitScreen.tsx:630`).
+  - **Kit Structure doesn't identify which specific unit a line is:** there's no tag.
+  - **Old "assets or kits" wording remains:** "No assets or kits found", "At least one asset or sub-kit".
+  - **Icon-only buttons have no labels:** add tag (+) and remove line (X).
+  - **Tracking Type descriptions promise packing and scanning behaviour** from #185/#186.
+  - **A kit can hold both "4 × any HX-12P" and a specific HX-12P,** which totals 5. Intended?
 
 ## 4. Agents and documentation
 
@@ -110,11 +133,12 @@ Not released: #174's UI half shipped in PR #199; its remaining item (the already
 
 **Docs Lead** ("GigWrangler Docs Lead", Supabase Dev environment, no prod access) owns the user guide (`website/docs/`) and its screenshots, from the demo organization in dev. It may create GitHub issues. Its decisions so far: visual style A (app match); the demo data and seed (`scripts/seed-demo.sql`, logins in `scripts/README.md`; dev holds only demo data since 10-07); screenshots from `scripts/screenshots/` at a pinned date, refreshed at each production release.
 
-*Docs Lead, next (queued by the coordinator, 10-08 evening):*
-1. **Check the pages tonight's PRs edited** (#197–#201; their sub-agents wrote the sentences, so verify each against dev and fix the wording): `financials/gig-accounting.md` (Booked; Owed to you only on Completed gigs), `getting-started/the-dashboard.md` (Staff see Owned only), `gigs/documents-and-notes.md` (Markdown notes), `gigs/conflict-detection.md`, `gigs/staffing-and-participants.md` (delete confirmation), `gigs/the-gig-list.md`, `team/member-profiles.md` (Edit, Timezone), `team/invitations.md`, `team/team-and-roles.md`, `reference/roles-and-access.md`, `settings/overview.md` (Edit Organization button), `settings/google-calendar.md` (overnight gigs), `financials/reporting.md` (Grey zone, disposal-only years).
-2. **Screenshots now unblocked:** the dashboard cards (#157 is fixed), `team/member-profiles` (the Contacts card no longer clips, #176), the conflict banner, and the Reporting tab's Grey zone.
-3. **Publish `financials/reporting.md`** and link it from the Financials overview and Tax treatment pages.
-4. The demo seed's equipment rework for equipment items (§3d): #192 has merged, so this can start.
+*Docs Lead, next (queued by the coordinator, 10-09 05:40 UTC; PR #229 merged):*
+1. `gigs/conflict-detection.md` for PR #230 (per-item counts, peak demand, new wording, Equipment needed table; back-to-back gigs overlap).
+2. `financials/reporting.md` for PR #232 (Schedule C and Needs attention tabs, with screenshots).
+3. `reference/roles-and-access.md` for PR #233 (manage-only URLs redirect Staff and Viewer).
+4. Draft only: `equipment/kits.md` "N × any" lines (#225), ready for when #185/#186 land.
+All three merges are on main, not in prod yet; time the PR per STYLE.md.
 
 **Triage routine** (daily, ~09:00 UTC). Each run:
 1. Check CI and mergeability on its own open PRs; fix a red or conflicted one by merging `main` in, never by rebasing.

@@ -5,6 +5,12 @@ Append new entries at the top of each section; never edit an old entry to descri
 
 ## Shipped (newest first)
 
+- **#231 shared location rule and #236 overlap follow-ups** (Equipment Lead, merged 10-09): where a unit or lot is (append-only history, lot count summed per gig and kit, ties broken like `compareTrackingRecords`); "in containers" counts every piece again, gig-day heading for UTC+12, every short pair reported, batch same-unit check scoped to the organization.
+
+- **#226 item 3, PR #237** (triage, merged 10-09): clearing a money field on the unit edit page saves null.
+
+- **Demo seed, PR #234** (Docs Lead, merged 10-09): recovery periods on every depreciated unit, mileage at the IRS rate, two Needs attention examples.
+
 - **#184 PR 2, PR #230** (Equipment Lead, merged by the coordinator 10-09): per-item overlap check: "any" lines and specific units count toward their item across overlapping gigs; needed = peak concurrent demand; free = Active, not retired, not in a container; Equipment needed table on the gig's Equipment tab; conflict wording names the item, needed, available and short; gig timezone used for the check. Two review rounds (peak vs sum, empty batch entries, container free count, org scoping, timezones, load-error line).
 
 - **#226 item 8, PR #233** (triage, merged 10-09): Staff and Viewer opening `/assets/new`, `/assets/:id/edit` or `/financials` by URL are redirected to their landing page.

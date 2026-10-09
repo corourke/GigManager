@@ -18,7 +18,7 @@ import {
   type EquipmentItemWithRecords, type ItemFields, type ItemKitLine,
 } from '../services/equipmentItem.service';
 import { getAssetTrackingSummary } from '../services/inventoryManagement.service';
-import { recordKind, summarizeItem, isInService, availableRecordItems } from '../utils/equipmentItems';
+import { recordKind, summarizeItem, isInService } from '../utils/equipmentItems';
 import { useAutoSave } from '../utils/hooks/useAutoSave';
 import { canManage } from '../utils/permissions';
 import type { Organization, User, UserRole, DbAsset } from '../utils/supabase/types';
@@ -82,7 +82,7 @@ export default function ItemDetailScreen({
 }: ItemDetailScreenProps) {
   const [item, setItem] = useState<EquipmentItemWithRecords | null>(null);
   const [tracking, setTracking] = useState<Tracking>(new Map());
-  const [inContainers, setInContainers] = useState(0);
+  const [inContainers, setInContainers] = useState<[number, number]>([0, 0]);
   const [kitLines, setKitLines] = useState<ItemKitLine[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
@@ -97,11 +97,11 @@ export default function ItemDetailScreen({
       const recordIds = loaded.records.map((r) => r.id);
       const [summary, containers, lines] = await Promise.all([
         getAssetTrackingSummary(organization.id),
-        getContainerPieces(organization.id, availableRecordItems([loaded])),
+        getContainerPieces(organization.id, [loaded]),
         getItemKitLines(loaded.id, recordIds),
       ]);
       setTracking(summary);
-      setInContainers(containers.get(loaded.id) ?? 0);
+      setInContainers([containers.all.get(loaded.id) ?? 0, containers.active.get(loaded.id) ?? 0]);
       setKitLines(lines);
     } catch (err: any) {
       setLoadError(err.message || 'Failed to load this item');
@@ -160,7 +160,7 @@ export default function ItemDetailScreen({
     }
   };
 
-  const summary = useMemo(() => (item ? summarizeItem(item.records, inContainers) : null), [item, inContainers]);
+  const summary = useMemo(() => (item ? summarizeItem(item.records, ...inContainers) : null), [item, inContainers]);
   const records = useMemo(() => [...(item?.records ?? [])].sort((a, b) =>
     recordKind(a).localeCompare(recordKind(b)) || unitLabel(a).localeCompare(unitLabel(b))), [item]);
 

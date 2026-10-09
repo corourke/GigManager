@@ -65,7 +65,7 @@ const items = [
 
 vi.mock('../services/equipmentItem.service', () => ({
   getItems: vi.fn(() => Promise.resolve(items)),
-  getContainerPieces: vi.fn(() => Promise.resolve(new Map([['item-xlr25', 10]]))),
+  getContainerPieces: vi.fn(() => Promise.resolve({ all: new Map([['item-xlr25', 10]]), active: new Map([['item-xlr25', 10]]) })),
 }))
 
 vi.mock('../services/asset.service', () => ({

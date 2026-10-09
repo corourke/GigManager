@@ -31,7 +31,7 @@ import { Organization, User, UserRole } from '../utils/supabase/types';
 import { getKit, createKit, updateKit, getKits, getKitsFlattenedSummary, getKitsThatWouldCycle, KitFlattenedSummary } from '../services/kit.service';
 import { getAssets } from '../services/asset.service';
 import { getItems, getContainerPieces } from '../services/equipmentItem.service';
-import { availableRecordItems, isAvailable, isRetired, itemMatchesSearch, pieceValue, recordKind, summarizeItem, type ItemRecord } from '../utils/equipmentItems';
+import { type ContainerPieces, isAvailable, isRetired, itemMatchesSearch, pieceValue, recordKind, summarizeItem, type ItemRecord } from '../utils/equipmentItems';
 import type { DbAsset } from '../utils/supabase/types';
 import { useAutocompleteSuggestions } from '../utils/hooks/useAutocompleteSuggestions';
 
@@ -137,7 +137,7 @@ export default function KitScreen({
   const [tagInput, setTagInput] = useState('');
   // The organization's items and how many of each sit in container kits (#184).
   const [items, setItems] = useState<Map<string, KitItem>>(new Map());
-  const [containerPieces, setContainerPieces] = useState<Map<string, number>>(new Map());
+  const [containerPieces, setContainerPieces] = useState<ContainerPieces>({ all: new Map(), active: new Map() });
 
   const isEditMode = !!kitId;
 
@@ -187,8 +187,8 @@ export default function KitScreen({
         const list = ((await getItems(organization.id)) ?? []) as KitItem[];
         if (!live) return;
         setItems(new Map(list.map((i) => [i.id, { ...i, records: i.records ?? [] }])));
-        const pieces = await getContainerPieces(organization.id, availableRecordItems(list), kitId);
-        if (live) setContainerPieces(pieces ?? new Map());
+        const pieces = await getContainerPieces(organization.id, list, kitId);
+        if (live) setContainerPieces(pieces ?? { all: new Map(), active: new Map() });
       } catch (error) {
         console.error('Error loading equipment items:', error);
       }
@@ -319,7 +319,7 @@ export default function KitScreen({
         ? Array.from(items.values())
           .filter((i) => itemMatchesSearch(i, i.records, pickerSearchQuery))
           .map((i) => {
-            const summary = summarizeItem(i.records, containerPieces.get(i.id) ?? 0);
+            const summary = summarizeItem(i.records, containerPieces.all.get(i.id) ?? 0, containerPieces.active.get(i.id) ?? 0);
             return {
               type: 'item' as const, id: i.id, name: i.manufacturer_model, subtitle: [i.category, i.type].filter(Boolean).join(' • '),
               item: i, owned: summary.owned, available: summary.available,
@@ -626,7 +626,7 @@ export default function KitScreen({
     if (row.equipment_item_id) {
       const item = items.get(row.equipment_item_id);
       if (!item) return null;
-      const s = summarizeItem(item.records, containerPieces.get(item.id) ?? 0);
+      const s = summarizeItem(item.records, containerPieces.all.get(item.id) ?? 0, containerPieces.active.get(item.id) ?? 0);
       const text = `${s.owned} ${s.owned === 1 ? 'unit' : 'units'} owned · ${s.available} available`;
       if (row.quantity <= s.available) return { text, tone: 'muted' };
       const inactive = item.records.filter((r) => !isRetired(r) && r.status === 'Inactive')
