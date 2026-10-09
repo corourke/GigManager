@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Navigate, Outlet, useNavigate, useLocation } from 'react-router';
 import { useAuth } from '../contexts/AuthContext';
 import { useAppShell } from './appShell';
+import { prefetchLandingScreen } from './prefetch';
 import LoginScreen from '../components/LoginScreen';
 import UserProfileCompletionScreen from '../components/UserProfileCompletionScreen';
 import AcceptInvitationScreen from '../components/AcceptInvitationScreen';
@@ -65,6 +66,13 @@ function profileIncomplete(user: User): boolean {
  */
 export function RequireAuth() {
   const { isLoading, user, setUser, profileLoadError, refreshProfile } = useAuth();
+  const signedIn = !!user;
+
+  // Fetch the landing screen's code while the org is being picked, so it is
+  // ready when the first navigation happens.
+  useEffect(() => {
+    if (signedIn) prefetchLandingScreen();
+  }, [signedIn]);
 
   if (isLoading) return <LoadingSpinner />;
   if (!user && profileLoadError) return <ProfileLoadErrorScreen onRetry={() => refreshProfile()} />;

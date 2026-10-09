@@ -11,6 +11,8 @@ vi.mock('./appShell', () => ({
   useAppShell: () => mockUseAppShell(),
 }));
 
+vi.mock('./prefetch', () => ({ prefetchLandingScreen: vi.fn() }));
+
 vi.mock('../contexts/AuthContext', () => ({
   useAuth: () => mockUseAuth(),
 }));
