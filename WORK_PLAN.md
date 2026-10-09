@@ -157,7 +157,7 @@ Not released: #174's UI half shipped in PR #199; its remaining item (the already
 | `gigs/overview.md` | published | 2026-10-07 (Docs Lead, PR #166/#177) | Delete is Admin-only fix lands with #177 |
 | `gigs/participating-organizations.md` | published (PR #222) | 2026-10-07 (Docs Lead) | — |
 | `gigs/schedule.md` | published (PR #222) | 2026-10-07 (Docs Lead) | — |
-| `gigs/staffing-and-participants.md` | published (PR #222) | 2026-10-08 (Docs Lead, PR #220) | #213 estimates documented; #219 TODOs |
+| `gigs/staffing-and-participants.md` | published (PR #222) | 2026-10-09 (Docs Lead, PR #224) | — |
 | `gigs/the-gig-list.md` | published (PR #222) | 2026-10-08 (Docs Lead) | — |
 | `index.mdx` | published | 2026-10-08 (Docs Lead, PR #191, merged) | fixes in |
 | `mobile/biometric-unlock.md` | draft | — | held |
