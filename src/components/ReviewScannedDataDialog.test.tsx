@@ -600,6 +600,11 @@ describe('ReviewScannedDataDialog: a saved line\'s units (#183)', () => {
     await screen.findByRole('button', { name: 'Equipment details: K12' });
     return svc;
   };
+  /** Tick a unit to remove, and choose to delete it. */
+  const removeUnit = async (tag: string, how: 'Delete' | 'Mark Inactive' = 'Delete') => {
+    await userEvent.click(within(screen.getByRole('group', { name: 'Units to remove: K12' })).getByRole('checkbox', { name: tag }));
+    await userEvent.click(screen.getByRole('radio', { name: new RegExp(`^${how}`) }));
+  };
 
   it('more pieces on the line: their serials or tags are entered, and they are added as units', async () => {
     const svc = await openSaved(3, [unitRec('u1', 'DSL-0101'), unitRec('u2', 'DSL-0102')]);
@@ -624,7 +629,7 @@ describe('ReviewScannedDataDialog: a saved line\'s units (#183)', () => {
     expect(confirm).toBeDisabled();
     await userEvent.click(screen.getByRole('radio', { name: 'Update the equipment: remove 1 unit' }));
     expect(confirm).toBeDisabled();
-    await userEvent.click(within(screen.getByRole('group', { name: 'Units to remove: K12' })).getByRole('checkbox', { name: 'DSL-0102' }));
+    await removeUnit('DSL-0102');
     await userEvent.click(confirm);
     const assets = await import('../services/asset.service');
     await waitFor(() => expect(assets.deleteAsset).toHaveBeenCalledWith('u2'));
@@ -650,7 +655,7 @@ describe('ReviewScannedDataDialog: a saved line\'s units (#183)', () => {
     });
     await userEvent.click(screen.getByRole('button', { name: 'Save Changes' }));
     await userEvent.click(await screen.findByRole('radio', { name: 'Update the equipment: remove 1 unit' }));
-    await userEvent.click(within(screen.getByRole('group', { name: 'Units to remove: K12' })).getByRole('checkbox', { name: 'DSL-0101' }));
+    await removeUnit('DSL-0101');
     await userEvent.click(screen.getByRole('button', { name: /Confirm & Save/ }));
     await waitFor(() => expect(assets.deleteAsset).toHaveBeenCalledWith('u1'));
     expect(svc.updatePurchase).toHaveBeenCalledWith('l1', { asset_id: 'u2' });
@@ -671,11 +676,70 @@ describe('ReviewScannedDataDialog: a saved line\'s units (#183)', () => {
     await userEvent.type(price, '900');
     await userEvent.click(screen.getByRole('button', { name: 'Save Changes' }));
     await userEvent.click(await screen.findByRole('radio', { name: 'Update the equipment: remove 1 unit' }));
-    await userEvent.click(within(screen.getByRole('group', { name: 'Units to remove: K12' })).getByRole('checkbox', { name: 'DSL-0103' }));
+    await removeUnit('DSL-0103');
     await userEvent.click(screen.getByRole('button', { name: /Confirm & Save/ }));
     await waitFor(() => expect(assets.updateAsset).toHaveBeenCalledWith('u1', expect.objectContaining({ item_price: 900 })));
     expect(assets.updateAsset).toHaveBeenCalledWith('u2', expect.objectContaining({ item_price: 900 }));
     expect(assets.updateAsset).not.toHaveBeenCalledWith('u3', expect.anything());
+  });
+
+  it('fewer pieces on an expensed line: removing its first unit keeps the line tracked', async () => {
+    const svc = await openSaved(2, [unitRec('u1', 'DSL-0101'), unitRec('u2', 'DSL-0102'), unitRec('u3', 'DSL-0103')]);
+    const assets = await import('../services/asset.service');
+    await userEvent.click(screen.getByRole('button', { name: 'Save Changes' }));
+    await userEvent.click(await screen.findByRole('radio', { name: 'Update the equipment: remove 1 unit' }));
+    await removeUnit('DSL-0101');
+    await userEvent.click(screen.getByRole('button', { name: /Confirm & Save/ }));
+    await waitFor(() => expect(assets.deleteAsset).toHaveBeenCalledWith('u1'));
+    expect(svc.updatePurchase).toHaveBeenCalledWith('l1', { asset_id: 'u2' });
+    expect(vi.mocked(svc.updatePurchase).mock.invocationCallOrder[0]).toBeLessThan(vi.mocked(assets.deleteAsset).mock.invocationCallOrder[0]);
+  });
+
+  it('removed units: asks each time whether to delete them or mark them Inactive', async () => {
+    await openSaved(2, [unitRec('u1', 'DSL-0101'), unitRec('u2', 'DSL-0102'), unitRec('u3', 'DSL-0103')]);
+    await userEvent.click(screen.getByRole('button', { name: 'Save Changes' }));
+    await userEvent.click(await screen.findByRole('radio', { name: 'Update the equipment: remove 1 unit' }));
+    await userEvent.click(within(screen.getByRole('group', { name: 'Units to remove: K12' })).getByRole('checkbox', { name: 'DSL-0103' }));
+    expect(screen.getByRole('button', { name: /Confirm & Save/ })).toBeDisabled();
+    expect(screen.getByRole('radio', { name: /^Delete/ })).toHaveAccessibleName(/kits and scan history go with/);
+    expect(screen.getByRole('radio', { name: /^Mark Inactive/ })).toBeInTheDocument();
+  });
+
+  it('Mark Inactive keeps the unit, unlinked from the line, and keeps the line tracked', async () => {
+    const svc = await openSaved(2, [unitRec('u1', 'DSL-0101'), unitRec('u2', 'DSL-0102'), unitRec('u3', 'DSL-0103')]);
+    const assets = await import('../services/asset.service');
+    await userEvent.click(screen.getByRole('button', { name: 'Save Changes' }));
+    await userEvent.click(await screen.findByRole('radio', { name: 'Update the equipment: remove 1 unit' }));
+    await removeUnit('DSL-0101', 'Mark Inactive');
+    await userEvent.click(screen.getByRole('button', { name: /Confirm & Save/ }));
+    await waitFor(() => expect(assets.updateAsset).toHaveBeenCalledWith('u1', { status: 'Inactive', purchase_line_id: null }));
+    expect(svc.updatePurchase).toHaveBeenCalledWith('l1', { asset_id: 'u2' });
+    expect(assets.deleteAsset).not.toHaveBeenCalled();
+  });
+
+  it('a save without opening the pop-up leaves each unit\'s own value, insurance and period alone', async () => {
+    const svc = await openSaved(3, [unitRec('u1', 'DSL-0101'), { ...unitRec('u2', 'DSL-0102'), replacement_value: 2000, insurance_policy_added: true },
+      unitRec('u3', 'DSL-0103')]);
+    const assets = await import('../services/asset.service');
+    await userEvent.click(screen.getByRole('button', { name: 'Save Changes' }));
+    await waitFor(() => expect(svc.updatePurchase).toHaveBeenCalledWith('h1', expect.anything()));
+    expect(screen.queryByText('Confirm linked record updates')).not.toBeInTheDocument();
+    expect(assets.updateAsset).not.toHaveBeenCalled();
+  });
+
+  it('a value changed in the pop-up goes to every unit', async () => {
+    await openSaved(2, [unitRec('u1', 'DSL-0101'), { ...unitRec('u2', 'DSL-0102'), replacement_value: 2000 }]);
+    const assets = await import('../services/asset.service');
+    await userEvent.click(screen.getByRole('button', { name: 'Equipment details: K12' }));
+    const dialog = within(await screen.findByRole('dialog', { name: 'Equipment details' }));
+    const value = dialog.getByLabelText(/Replacement Value/);
+    await userEvent.clear(value);
+    await userEvent.type(value, '1100');
+    await userEvent.click(dialog.getByRole('button', { name: 'Done' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Save Changes' }));
+    await userEvent.click(await screen.findByRole('button', { name: /Confirm & Save/ }));
+    await waitFor(() => expect(assets.updateAsset).toHaveBeenCalledWith('u1', { replacement_value: 1100 }));
+    expect(assets.updateAsset).toHaveBeenCalledWith('u2', { replacement_value: 1100 });
   });
 
   it('when removing a unit fails, the purchase itself is not saved', async () => {
@@ -684,7 +748,7 @@ describe('ReviewScannedDataDialog: a saved line\'s units (#183)', () => {
     vi.mocked(assets.deleteAsset).mockRejectedValue(new Error('refused'));
     await userEvent.click(screen.getByRole('button', { name: 'Save Changes' }));
     await userEvent.click(await screen.findByRole('radio', { name: 'Update the equipment: remove 1 unit' }));
-    await userEvent.click(within(screen.getByRole('group', { name: 'Units to remove: K12' })).getByRole('checkbox', { name: 'DSL-0103' }));
+    await removeUnit('DSL-0103');
     await userEvent.click(screen.getByRole('button', { name: /Confirm & Save/ }));
     await waitFor(() => expect(assets.deleteAsset).toHaveBeenCalledWith('u3'));
     expect(svc.updatePurchase).not.toHaveBeenCalled();

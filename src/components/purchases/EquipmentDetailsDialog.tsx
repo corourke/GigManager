@@ -140,7 +140,8 @@ export default function EquipmentDetailsDialog({
                 : 'From the purchase line. Change it on the line.'}
               rows={draft.units} onRowsChange={(units) => setDraft((d) => ({ ...d, units }))}
               problems={showProblems ? problems : []}
-              unitBlocked={saved && draft.kind === 'lot' ? 'This line’s equipment is saved as a lot. Splitting a lot into units comes with #186.' : undefined} />
+              unitBlocked={saved && draft.kind === 'lot' ? 'This line’s equipment is saved as a lot. Splitting a lot into units comes with #186.' : undefined}
+              lotBlocked={saved && draft.kind === 'units' ? 'This line’s equipment is saved as units, so it stays units.' : undefined} />
             {saved && draft.kind === 'units' && <p className="mt-2 text-xs text-muted-foreground">Rows with a serial or tag already saved are this line’s units; new rows add units when the purchase is saved.</p>}
           </section>
 

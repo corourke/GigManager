@@ -119,6 +119,8 @@ interface ScannedItem {
   _gigId?: string | null;
   /** The units, or the lot, the saved line already has (#183). */
   _records?: any[];
+  /** The equipment as loaded: per-unit values are sent only when the pop-up changed them. */
+  _savedEquipment?: EquipmentDetails;
 }
 
 interface UpdatePlan {
@@ -140,6 +142,15 @@ interface UpdatePlan {
 }
 
 /** A saved line's quantity now differs from its equipment (#183). */
+/** What to do with a line's equipment when its quantity changed (#183). */
+interface LineDecision {
+  mode: 'update' | 'leave';
+  /** Units ticked to come off the line. */
+  remove: string[];
+  /** Asked each time (Cameron, 10-09): delete them, or keep them as Inactive, off the line. */
+  how?: 'delete' | 'inactive';
+}
+
 interface LineMismatch {
   lineId: string;
   description: string;
@@ -234,7 +245,7 @@ export default function ReviewScannedDataDialog({
   /** The organization's items, for the Equipment details pop-up (#183). */
   const [itemOptions, setItemOptions] = useState<ItemOption[]>([]);
   /** Per saved line whose quantity changed: update its equipment (and which units go), or leave it (#183). */
-  const [lineDecisions, setLineDecisions] = useState<Record<string, { mode: 'update' | 'leave'; remove: string[] }>>({});
+  const [lineDecisions, setLineDecisions] = useState<Record<string, LineDecision>>({});
   /** The line whose Equipment details pop-up is open. */
   const [detailsIndex, setDetailsIndex] = useState<number | null>(null);
   const [originalDate, setOriginalDate] = useState<string | null>(null);
@@ -374,6 +385,7 @@ export default function ReviewScannedDataDialog({
               asset_category: it.asset_id && lineTaxTreatment(it) !== 'depreciate'
                 ? aById[it.asset_id]?.category ?? undefined : undefined,
               equipment: records.length ? savedEquipment(records) : undefined,
+              _savedEquipment: records.length ? savedEquipment(records) : undefined,
               _records: records.length ? records : undefined,
               _purchaseId: it.id,
               _assetId: it.asset_id || null,
@@ -691,11 +703,17 @@ export default function ReviewScannedDataDialog({
         cmp('serial_number', 'Serial Number', row.serial_number);
         cmp('tag_number', 'Tag Number', row.tag_number);
       }
-      cmp('replacement_value', 'Replacement Value', eq.replacement_value);
-      if (!!record.insurance_policy_added !== eq.insured) {
+      // The pop-up shows the first unit's values; a unit edited on its own keeps its own
+      // unless the pop-up changed them (#183).
+      const was = item._savedEquipment;
+      if (!was || eq.replacement_value !== was.replacement_value) cmp('replacement_value', 'Replacement Value', eq.replacement_value);
+      if ((!was || eq.insured !== was.insured) && !!record.insurance_policy_added !== eq.insured) {
         out.push({ field: 'insurance_policy_added', label: 'Insured', from: !!record.insurance_policy_added, to: eq.insured });
       }
-      if (item.tax_treatment === 'depreciate') cmp('recovery_period', 'Recovery period', periodOf(item));
+      // A period chosen in the pop-up, or a unit with none yet (a line newly depreciated).
+      if (item.tax_treatment === 'depreciate' && (!was || eq.recovery_period !== was.recovery_period || record.recovery_period == null)) {
+        cmp('recovery_period', 'Recovery period', periodOf(item));
+      }
       return out;
     };
     const toAssetChange = (item: ScannedItem, record: any, changes: AssetFieldChange[]) => {
@@ -825,7 +843,7 @@ export default function ReviewScannedDataDialog({
     const d = lineDecisions[m.lineId];
     if (!d) return false;
     if (d.mode === 'leave' || m.kind === 'lot') return true;
-    return d.remove.length === m.records.length - m.quantity;
+    return d.remove.length === m.records.length - m.quantity && !!d.how;
   });
 
   const commitUpdate = async (plan: UpdatePlan) => {
@@ -843,7 +861,10 @@ export default function ReviewScannedDataDialog({
           const kept = m.records.find(r => !d.remove.includes(r.id));
           if (kept) await updatePurchase(m.lineId, { asset_id: kept.id });
         }
-        for (const id of d.remove) await deleteAsset(id);
+        for (const id of d.remove) {
+          if (d.how === 'inactive') await updateAsset(id, { status: 'Inactive', purchase_line_id: null });
+          else await deleteAsset(id);
+        }
       }
       await updatePurchase(editPurchaseId, plan.headerData);
       // Chosen recovery periods of new units: set once their lines are depreciated (#125).
@@ -1444,7 +1465,7 @@ export default function ReviewScannedDataDialog({
                   const d = lineDecisions[m.lineId];
                   const have = m.records.reduce((n, r) => n + r.quantity, 0);
                   const extra = have - m.quantity;
-                  const decide = (next: { mode: 'update' | 'leave'; remove: string[] }) => setLineDecisions(prev => ({ ...prev, [m.lineId]: next }));
+                  const decide = (next: LineDecision) => setLineDecisions(prev => ({ ...prev, [m.lineId]: next }));
                   return (
                     <fieldset key={m.lineId} style={{ marginBottom: 8, border: '1px solid #fde68a', background: '#fffbeb', borderRadius: 6, padding: '6px 8px' }}>
                       <legend style={{ fontSize: 11, fontWeight: 600, color: '#374151', padding: '0 4px' }}>{m.description}</legend>
@@ -1462,13 +1483,23 @@ export default function ReviewScannedDataDialog({
                           {m.records.map(r => (
                             <label key={r.id} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, fontFamily: 'monospace' }}>
                               <input type="checkbox" checked={d.remove.includes(r.id)}
-                                onChange={e => decide({ mode: 'update', remove: e.target.checked ? [...d.remove, r.id] : d.remove.filter(x => x !== r.id) })} />
+                                onChange={e => decide({ ...d, remove: e.target.checked ? [...d.remove, r.id] : d.remove.filter(x => x !== r.id) })} />
                               {r.label}
                             </label>
                           ))}
-                          <span style={{ fontSize: 10, color: '#92400e', width: '100%' }}>
-                            Tick {extra}. They are deleted from inventory, with their history.
-                          </span>
+                          <span style={{ fontSize: 10, color: '#92400e', width: '100%' }}>Tick {extra}.</span>
+                        </div>
+                      )}
+                      {m.kind === 'units' && d?.mode === 'update' && d.remove.length > 0 && (
+                        <div role="radiogroup" aria-label={`Removed units: ${m.description}`} style={{ margin: '2px 0 4px 22px', display: 'flex', flexDirection: 'column', gap: 2 }}>
+                          <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11 }}>
+                            <input type="radio" name={`mm-how-${m.lineId}`} checked={d.how === 'delete'} onChange={() => decide({ ...d, how: 'delete' })} />
+                            Delete them: their kits and scan history go with them
+                          </label>
+                          <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11 }}>
+                            <input type="radio" name={`mm-how-${m.lineId}`} checked={d.how === 'inactive'} onChange={() => decide({ ...d, how: 'inactive' })} />
+                            Mark Inactive: kept, with their kits and scans, and no longer on this purchase
+                          </label>
                         </div>
                       )}
                       <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11 }}>

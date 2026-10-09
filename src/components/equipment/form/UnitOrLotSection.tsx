@@ -29,6 +29,8 @@ interface UnitOrLotSectionProps {
   problems?: string[];
   /** Why Unit can't be chosen (an existing lot of more than 1). */
   unitBlocked?: string;
+  /** Why Lot can't be chosen (saved units). */
+  lotBlocked?: string;
   /** Number tags / paste serials / scan (not when editing one record). */
   helpers?: boolean;
   lotError?: string;
@@ -47,7 +49,7 @@ const KINDS = [
  */
 export default function UnitOrLotSection({
   idPrefix = 'units', kind, onKindChange, quantity, onQuantityChange, quantityLocked, quantityNote,
-  rows, onRowsChange, problems = [], unitBlocked, helpers = true, lotError,
+  rows, onRowsChange, problems = [], unitBlocked, lotBlocked, helpers = true, lotError,
 }: UnitOrLotSectionProps) {
   const [tagStart, setTagStart] = useState('');
   const [pasted, setPasted] = useState('');
@@ -89,7 +91,7 @@ export default function UnitOrLotSection({
     <div className="space-y-3">
       <div role="radiogroup" aria-label="Unit or lot" className="grid grid-cols-2 gap-2">
         {KINDS.map(([value, label, Icon, help]) => {
-          const blocked = value === 'units' && !!unitBlocked;
+          const blocked = value === 'units' ? !!unitBlocked : !!lotBlocked;
           return (
             <button key={value} type="button" role="radio" aria-checked={kind === value} disabled={blocked}
               onClick={() => {
@@ -104,7 +106,7 @@ export default function UnitOrLotSection({
           );
         })}
       </div>
-      {unitBlocked && <p className="text-xs text-muted-foreground">{unitBlocked}</p>}
+      {(unitBlocked || lotBlocked) && <p className="text-xs text-muted-foreground">{unitBlocked || lotBlocked}</p>}
 
       {kind === 'lot' ? (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

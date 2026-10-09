@@ -110,6 +110,11 @@ describe('EquipmentDetailsDialog (#183)', () => {
     expect(dialog().getByLabelText('Serial number, unit 3')).toHaveValue('');
   });
 
+  it('a saved line keeps Unit or Lot as saved', () => {
+    open({ saved: true, quantity: 2, value: { ...start, units: [{ id: 'u1', serial_number: 'S1', tag_number: '' }, { id: 'u2', serial_number: 'S2', tag_number: '' }] } });
+    expect(dialog().getByRole('radio', { name: /Lot/ })).toBeDisabled();
+  });
+
   it('a long item name truncates instead of widening the pop-up', () => {
     open({ itemName: 'A very long item name '.repeat(10) });
     expect(screen.getByText(/A very long item name/)).toHaveClass('truncate');
