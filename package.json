@@ -90,6 +90,7 @@
             "build": "vite build",
             "lint": "eslint .",
             "typecheck": "tsc --noEmit",
+            "check:bundle": "node scripts/check-bundle-size.mjs",
             "test": "vitest",
             "test:ui": "vitest --ui",
             "test:run": "vitest run",

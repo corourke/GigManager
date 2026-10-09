@@ -21,27 +21,30 @@ import {
   LogoutRoute,
   LoadingSpinner,
 } from './guards';
+import { ChunkLoadBoundary } from './ChunkLoadBoundary';
 import type { Organization, OrganizationMembership } from '../utils/supabase/types';
 
-// Desktop screens
-import Dashboard from '../components/Dashboard';
-import GigListScreen from '../components/GigListScreen';
-import GigScreen from '../components/GigScreen';
-import GigPage from '../components/gig/GigPage';
-import TeamScreen from '../components/TeamScreen';
-import TeamMemberDetailScreen from '../components/TeamMemberDetailScreen';
-import AssetListScreen from '../components/AssetListScreen';
-import AssetDetailScreen from '../components/AssetDetailScreen';
-import KitListScreen from '../components/KitListScreen';
-import KitScreen from '../components/KitScreen';
-import KitDetailScreen from '../components/KitDetailScreen';
-import InventoryTabScreen from '../components/inventory/InventoryTabScreen';
+// Shell screen, kept eager so sign-in lands without a chunk fetch
 import OrganizationSelectionScreen from '../components/OrganizationSelectionScreen';
-import OrganizationScreen from '../components/OrganizationScreen';
 
-// Larger or rarely opened screens load on demand, keeping the main bundle under
-// the offline cache's 2 MiB per-file limit (#193). The service worker still
-// precaches their chunks, so they work offline too.
+// Screens load on demand, keeping the main bundle well under the offline
+// cache's 2 MiB per-file limit (#193; guarded by `npm run check:bundle`). The
+// service worker still precaches every chunk, so they work offline too. Only
+// the shell (org picker, mobile layout) and the auth guards stay eager.
+// Desktop screens
+const Dashboard = lazy(() => import('../components/Dashboard'));
+const GigListScreen = lazy(() => import('../components/GigListScreen'));
+const GigScreen = lazy(() => import('../components/GigScreen'));
+const GigPage = lazy(() => import('../components/gig/GigPage'));
+const TeamScreen = lazy(() => import('../components/TeamScreen'));
+const TeamMemberDetailScreen = lazy(() => import('../components/TeamMemberDetailScreen'));
+const AssetListScreen = lazy(() => import('../components/AssetListScreen'));
+const AssetDetailScreen = lazy(() => import('../components/AssetDetailScreen'));
+const KitListScreen = lazy(() => import('../components/KitListScreen'));
+const KitScreen = lazy(() => import('../components/KitScreen'));
+const KitDetailScreen = lazy(() => import('../components/KitDetailScreen'));
+const InventoryTabScreen = lazy(() => import('../components/inventory/InventoryTabScreen'));
+const OrganizationScreen = lazy(() => import('../components/OrganizationScreen'));
 const SettingsScreen = lazy(() => import('../components/SettingsScreen'));
 const ImportScreen = lazy(() => import('../components/ImportScreen'));
 const FinancialsScreen = lazy(() => import('../components/FinancialsScreen'));
@@ -53,12 +56,12 @@ const ItemDetailScreen = lazy(() => import('../components/ItemDetailScreen'));
 const AssetScreen = lazy(() => import('../components/AssetScreen'));
 
 // Mobile screens
+const MobileGigList = lazy(() => import('../components/mobile/MobileGigList'));
+const MobileGigDetail = lazy(() => import('../components/mobile/MobileGigDetail'));
+const MobileDashboard = lazy(() => import('../components/mobile/MobileDashboard'));
+const MobileInventoryMode = lazy(() => import('../components/mobile/MobileInventoryMode'));
+const MobileSettings = lazy(() => import('../components/mobile/MobileSettings'));
 import MobileLayout from '../components/mobile/MobileLayout';
-import MobileGigList from '../components/mobile/MobileGigList';
-import MobileGigDetail from '../components/mobile/MobileGigDetail';
-import MobileDashboard from '../components/mobile/MobileDashboard';
-import MobileInventoryMode from '../components/mobile/MobileInventoryMode';
-import MobileSettings from '../components/mobile/MobileSettings';
 import { financialsPath, gigPath, inventoryPath, legacyInventoryTab, parseFinancialsPath, parseGigTab, parseInventoryTab } from './paths';
 
 /** Narrow the (nullable) auth values for org-scoped screens. */
@@ -713,8 +716,7 @@ function DevDemoRoute() {
   return <DevTableDemoScreen onBack={() => navigate('/dashboard')} />;
 }
 
-/** The full route table. Rendered inside <BrowserRouter> by App. */
-export function AppRoutes() {
+function RouteTable() {
   return (
     <Suspense fallback={<LoadingSpinner />}>
       <Routes>
@@ -768,5 +770,17 @@ export function AppRoutes() {
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </Suspense>
+  );
+}
+
+/**
+ * The full route table. Rendered inside <BrowserRouter> by App. A chunk that
+ * fails to load shows a reload prompt instead of a blank screen.
+ */
+export function AppRoutes() {
+  return (
+    <ChunkLoadBoundary>
+      <RouteTable />
+    </ChunkLoadBoundary>
   );
 }
