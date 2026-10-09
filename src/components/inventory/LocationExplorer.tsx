@@ -43,6 +43,9 @@ interface OverrideTarget {
   kitId: string;
   assetId?: string;
   isContainerKit?: boolean;
+  /** Whole-kit override of a logical kit: its own row and the units listed under it. */
+  assetIds?: string[];
+  keepKitRow?: boolean;
   label: string;
 }
 
@@ -412,6 +415,8 @@ export function LocationExplorer({ organizationId, userId, userRole }: LocationE
                                               gigId: group.kitLevelItem!.gig_id,
                                               gigTitle: group.kitLevelItem!.gig_title ?? '',
                                               kitId: group.kitId,
+                                              assetIds: group.assetItems.map((i) => i.asset_id!).filter(Boolean),
+                                              keepKitRow: true,
                                               label: `${group.kitName} (whole kit)`,
                                             })}
                                           >
@@ -451,6 +456,8 @@ export function LocationExplorer({ organizationId, userId, userRole }: LocationE
           kitId={overrideTarget.kitId}
           assetId={overrideTarget.assetId}
           isContainerKit={overrideTarget.isContainerKit}
+          assetIds={overrideTarget.assetIds}
+          keepKitRow={overrideTarget.keepKitRow}
           userId={userId}
           userRole={userRole}
           targetLabel={overrideTarget.label}
