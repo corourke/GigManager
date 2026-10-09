@@ -5,6 +5,8 @@ Append new entries at the top of each section; never edit an old entry to descri
 
 ## Shipped (newest first)
 
+- **#185 PR 1, PR #239** (Equipment Lead, merged 10-09): write off missing equipment (whole or part of a lot, disposal with no proceeds, undo unless the tax year is filed), the gig's Not returned list, Missing out of owned/available/insured, Disposals by record; tracking rows reference their own organization's equipment; status changes into or out of retired statuses follow the write-off rules. **Migration 20261018000000 on dev; prod with the next deploy (Cameron).**
+
 - **Prod deploy, 10-09 ~20:30 UTC** (Cameron): #225, #228, #230, #232, #233, #236, #237, #238 (plus #231, #234, no prod effect). No migrations; prod at 20261017000000. Coordinator verified: new code-split build served (entry 839 KB), Equipment needed table, Needs attention present. Caveat until #240: "N × any" kit lines count in conflicts but aren't on packing lists.
 
 - **User guide, PR #235** (Docs Lead, merged after the prod deploy): per-item conflicts and same-unit rule, Schedule C and Needs attention, manager-only URLs.
