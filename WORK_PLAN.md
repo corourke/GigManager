@@ -80,7 +80,10 @@ Not released: #174's UI half shipped in PR #199; its remaining item (the already
 
 (none open: the 10-07 entries are filed as #157–#160, #168–#171, #173–#176 and #178, and their decisions are in §1 and §2)
 
-- **Docs Lead queue (coordinator, 10-09 04:10 UTC):** full screenshot refresh of the published pages after the 10-09 prod release; a troubleshooting line for the new "This screen couldn't load" message if the guide has a place for it.
+- **Docs Lead status, 10-09 04:15 UTC.**
+  - The full screenshot refresh for the 10-09 prod release is in PR #229: 38 shots retaken, 14 changed, all reviewed. Equipment stays held.
+  - There's no line for #228's "This screen couldn't load", because the published guide has no troubleshooting or offline section.
+  - Dev is reseeded and holds only the demo data.
 
 ## 4. Agents and documentation
 
