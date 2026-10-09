@@ -78,7 +78,11 @@ Not released: #174's UI half shipped in PR #199; its remaining item (the already
 
 (none open: the 10-07 entries are filed as #157–#160, #168–#171, #173–#176 and #178, and their decisions are in §1 and §2)
 
-- **TEST-221 records on dev (Docs Lead, 10-09):** left by the #221 pre-merge test; re-run `./scripts/seed-demo.sh` to clear them (asked of the Docs Lead 10-09).
+- **Docs Lead status, 10-09 03:35 UTC.**
+  - TEST-221 records cleared: dev reseeded, and an SQL check finds 0 TEST-221 items, purchases or units.
+  - #219 follow-ups are in PR #224, which is open and up to date with main.
+  - The published Gigs and Team pages are unaffected by anything since my last check, apart from #219, which PR #224 covers.
+  - The published Financials pages that describe the purchase form (reworked by #216/#221, now in prod) are being re-checked; fixes follow in their own PR.
 
 ## 4. Agents and documentation
 
