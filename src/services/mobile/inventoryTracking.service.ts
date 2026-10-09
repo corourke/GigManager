@@ -236,9 +236,80 @@ const getAnySlotFills = (packingList: any, slot: AnySlot, status: string, gigId:
   return { fills: [...next.entries()].map(([asset_id, quantity]) => ({ asset_id, quantity })), short };
 };
 
+const rootsOf = (packingList: any): string[] =>
+  packingList?.top_level_kit_ids?.length
+    ? packingList.top_level_kit_ids
+    : (packingList?.kits || []).map((a: any) => a.kit?.id).filter(Boolean);
+
+/** Everything on the list a row can be written for, as `kit|asset` keys. */
+const listedKeys = (packingList: any): Set<string> => {
+  const keys = new Set<string>();
+  for (const root of rootsOf(packingList)) {
+    for (const t of [...getCascadeTargets(packingList, root), ...getAnySlotTargets(packingList, root)]) {
+      keys.add(`${t.kit_id}|${t.asset_id ?? ''}`);
+    }
+  }
+  return keys;
+};
+
+/** Units tracked at the gig that aren't on the list (#185): added as extras, or swapped in. */
+const getExtras = (packingList: any): { kit_id: string; asset_id: string }[] => {
+  const listed = listedKeys(packingList);
+  const seen = new Set<string>();
+  const extras: { kit_id: string; asset_id: string }[] = [];
+  for (const row of (packingList?.tracking || []) as TrackingRecord[]) {
+    if (!row.asset_id) continue;
+    const key = `${row.kit_id}|${row.asset_id}`;
+    if (listed.has(key) || seen.has(key)) continue;
+    seen.add(key);
+    extras.push({ kit_id: row.kit_id, asset_id: row.asset_id });
+  }
+  return extras;
+};
+
+const itemIdOf = (packingList: any, assetId: string): string | null => {
+  const extra = packingList?.extra_assets?.[assetId];
+  if (extra) return extra.equipment_item_id ?? null;
+  for (const assignment of packingList?.kits || []) {
+    for (const a of [...(assignment.kit?.assets || []), ...(assignment.kit?.direct_assets || [])]) {
+      if (assetIdOf(a) === assetId && a.asset) return a.asset.equipment_item_id ?? null;
+    }
+  }
+  return null;
+};
+
+/**
+ * Swaps (#185): a listed unit whose newest row is In Warehouse while an extra of the same item
+ * is in its kit was swapped out for that extra, and its line follows the extra from then on.
+ * Each extra stands in for one line, first come first served.
+ */
+const getSwaps = (packingList: any): Map<string, string> => {
+  const tracking = packingList?.tracking || [];
+  const free = getExtras(packingList);
+  const swaps = new Map<string, string>();
+  for (const root of rootsOf(packingList)) {
+    for (const t of getCascadeTargets(packingList, root)) {
+      if (!t.asset_id || t.quantity !== 1) continue;
+      const key = `${t.kit_id}|${t.asset_id}`;
+      if (swaps.has(key)) continue;
+      if (getLatestTrackingRecord(tracking, t.kit_id, t.asset_id)?.status !== RETURNED_STATUS) continue;
+      const item = itemIdOf(packingList, t.asset_id);
+      const i = item ? free.findIndex((e) => e.kit_id === t.kit_id && itemIdOf(packingList, e.asset_id) === item) : -1;
+      if (i < 0) continue;
+      swaps.set(key, free[i].asset_id);
+      free.splice(i, 1);
+    }
+  }
+  return swaps;
+};
+
+const getSwapFor = (packingList: any, kitId: string, assetId: string): string | null =>
+  getSwaps(packingList).get(`${kitId}|${assetId}`) ?? null;
+
 /** Pieces done and to do under `roots`, each line, container and "any" line counted once. */
 const progressUnder = (packingList: any, roots: string[], status: string): { done: number; total: number } => {
   const tracking = packingList?.tracking || [];
+  const swaps = getSwaps(packingList);
   const seen = new Set<string>();
   let done = 0;
   let total = 0;
@@ -248,7 +319,8 @@ const progressUnder = (packingList: any, roots: string[], status: string): { don
       if (seen.has(key)) continue;
       seen.add(key);
       total += t.quantity;
-      done += piecesIn(getLatestTrackingRecord(tracking, t.kit_id, t.asset_id ?? undefined), status, t.quantity);
+      const tracked = swaps.get(key) ?? t.asset_id ?? undefined;
+      done += piecesIn(getLatestTrackingRecord(tracking, t.kit_id, tracked), status, t.quantity);
     }
     for (const slot of getAnySlots(packingList, root)) {
       const key = `${slot.kit_id}|item:${slot.item_id}`;
@@ -262,10 +334,7 @@ const progressUnder = (packingList: any, roots: string[], status: string): { don
 };
 
 /** Packing progress in pieces (#185) across the gig's top-level kits, however they nest. */
-const getScanProgress = (packingList: any, status: string) =>
-  progressUnder(packingList, packingList?.top_level_kit_ids?.length
-    ? packingList.top_level_kit_ids
-    : (packingList?.kits || []).map((a: any) => a.kit?.id).filter(Boolean), status);
+const getScanProgress = (packingList: any, status: string) => progressUnder(packingList, rootsOf(packingList), status);
 
 /** One kit's progress in pieces: what toggling it as a whole covers. */
 const getKitProgress = (packingList: any, kitId: string, status: string) => progressUnder(packingList, [kitId], status);
@@ -292,6 +361,11 @@ const getStillOut = (packingList: any): CascadeTarget[] => {
       if (!latest || latest.status === RETURNED_STATUS || latest.status === NOT_RETURNED_STATUS) continue;
       out.push({ kit_id: t.kit_id, asset_id: t.asset_id, quantity: Math.max(1, Number(latest.quantity ?? t.quantity) || 1) });
     }
+  }
+  for (const e of getExtras(packingList)) {
+    const latest = getLatestTrackingRecord(tracking, e.kit_id, e.asset_id);
+    if (!latest || latest.status === RETURNED_STATUS || latest.status === NOT_RETURNED_STATUS) continue;
+    out.push({ kit_id: e.kit_id, asset_id: e.asset_id, quantity: Math.max(1, Number(latest.quantity ?? 1) || 1) });
   }
   return out;
 };
@@ -420,6 +494,8 @@ export const inventoryTrackingService = {
   getScanProgress,
   getKitProgress,
   getStillOut,
+  getExtras,
+  getSwapFor,
 
   async matchTag(tagNumber: string) {
     const trimmed = tagNumber.trim();
@@ -436,7 +512,7 @@ export const inventoryTrackingService = {
 
     const { data: assets } = await supabase
       .from('assets')
-      .select('id, name, manufacturer_model, description, category, tag_number, status')
+      .select('id, name, manufacturer_model, description, category, tag_number, serial_number, quantity, status, equipment_item_id')
       .eq('tag_number', trimmed)
       .limit(1);
 
@@ -445,6 +521,13 @@ export const inventoryTrackingService = {
     }
 
     return null;
+  },
+
+  /** Keep a unit that isn't on the list with the gig's packing list, so it can be shown (#185). */
+  async addExtraAsset(gigId: string, asset: any) {
+    const packingList = await idbStore.getPackingList(gigId);
+    if (!packingList) return;
+    await idbStore.putPackingList(gigId, { ...packingList, extra_assets: { ...(packingList.extra_assets || {}), [asset.id]: asset } });
   },
 
   async submitScan(params: SubmitScanParams) {

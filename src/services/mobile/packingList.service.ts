@@ -239,6 +239,16 @@ export const packingListService = {
 
     if (trackingError) throw trackingError;
 
+    // Units tracked here that aren't on the list: added as extras or swapped in (#185).
+    const listedIds = new Set([...assetIdsNeeded, ...owned.map((r) => r.id), ...[...directAssetsByKit.values()].flat().map((a: any) => a.asset_id)]);
+    const extraIds = [...new Set((tracking || []).map((r: any) => r.asset_id).filter((id: string | null) => id && !listedIds.has(id)))];
+    const extraAssets: Record<string, any> = {};
+    if (extraIds.length > 0) {
+      const { data: extras, error: extrasError } = await supabase.from('assets').select('*').in('id', extraIds);
+      if (extrasError) throw extrasError;
+      for (const a of (extras || []) as any[]) if (extraIds.includes(a.id)) extraAssets[a.id] = a;
+    }
+
     const scannedByIds = Array.from(new Set((tracking || []).map((record: any) => record.scanned_by).filter(Boolean)));
     let userMap = new Map<string, any>();
 
@@ -285,6 +295,7 @@ export const packingListService = {
       top_level_kit_ids: [...topLevelIds],
       item_records: itemRecords,
       elsewhere,
+      extra_assets: extraAssets,
       tracking: mergedTracking,
       last_synced: Date.now()
     };
