@@ -47,6 +47,7 @@ vi.mock('./GigKitAssignmentsSection', () => ({ default: () => <div data-testid="
 vi.mock('./GigFinancialsSection', () => ({ default: ({ editing }: { editing?: boolean }) => <div data-testid="financials" data-editing={String(editing)} /> }));
 vi.mock('../../services/activityLog.service', () => ({ getGigActivity: vi.fn().mockResolvedValue([]) }));
 vi.mock('../../services/conflictDetection.service', () => ({ checkAllConflicts: vi.fn().mockResolvedValue({ conflicts: [] }) }));
+vi.mock('./EquipmentNeededTable', () => ({ default: ({ gigId }: { gigId: string }) => <div data-testid="equipment-needed" data-gig={gigId} /> }));
 
 const gig = {
   id: 'g1', title: 'Riverside Summer Series', status: 'Booked', start: '2026-07-12T19:00:00Z', end: '2026-07-13T06:30:00Z',
@@ -79,6 +80,12 @@ describe('GigPage (#12)', () => {
     schedule.state = 'idle';
     schedule.flush = () => Promise.resolve();
     vi.mocked(getGig).mockImplementation(() => Promise.resolve(gig as any));
+  });
+
+  it('checks conflicts in the gig\'s own timezone (#184)', async () => {
+    const { checkAllConflicts } = await import('../../services/conflictDetection.service');
+    render(<GigPage {...baseProps} />);
+    await waitFor(() => expect(checkAllConflicts).toHaveBeenCalledWith('g1', gig.start, gig.end, 'America/Los_Angeles'));
   });
 
   it('shows the overview in the agreed order, read-only', async () => {
@@ -247,6 +254,11 @@ describe('GigPage (#12)', () => {
       await waitFor(() => expect(screen.queryByRole('textbox', { name: 'Gig title' })).not.toBeInTheDocument());
       expect(updateGig).not.toHaveBeenCalled();
     });
+  });
+
+  it('shows what the gig needs per item on the Equipment tab (#184)', async () => {
+    render(<GigPage {...baseProps} userRole="Manager" tab="equipment" />);
+    expect(await screen.findByTestId('equipment-needed')).toHaveAttribute('data-gig', 'g1');
   });
 
   it('shows the packing list on the Equipment tab, printed from the page Print menu (#39)', async () => {

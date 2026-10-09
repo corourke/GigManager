@@ -108,3 +108,30 @@ describe('ConflictWarning', () => {
     });
   });
 });
+// #184 (mockup screen 10): not enough of an item across overlapping gigs.
+describe('ConflictWarning: items short (#184)', () => {
+  const short: Conflict = {
+    level: 'conflict', type: 'equipment', gig_id: 'gig-2', gig_title: 'Saturday Club Night',
+    start: '2026-10-10T18:00:00', end: '2026-10-10T23:00:00',
+    details: {
+      conflicting_kits: [],
+      items_short: [{
+        item_name: 'Chauvet Intimidator Trio', needed: 8, available: 6, short: 2,
+        this_gig: { total: 4, kits: [{ kit_name: 'Club Lighting Package', quantity: 4 }] },
+        other_gig: { total: 4, kits: [{ kit_name: 'Club Lighting Package', quantity: 4 }] },
+      }],
+    },
+  };
+
+  it('the compact alert says what is short', () => {
+    render(<ConflictWarning conflicts={[short]} />);
+    expect(screen.getByText(/Not enough equipment: Chauvet Intimidator Trio \(8 needed, 6 available\)/)).toBeInTheDocument();
+  });
+
+  it('the card says how many short on the day, and which kits ask for them', () => {
+    render(<ConflictWarning conflicts={[short]} showAsCard />);
+    const item = screen.getByText('Chauvet Intimidator Trio').closest('p')!;
+    expect(item).toHaveTextContent('Chauvet Intimidator Trio: 8 needed on Oct 10, 6 available. 2 short.');
+    expect(screen.getByText('This gig: 4 (Club Lighting Package × 4) · Saturday Club Night: 4 (Club Lighting Package × 4)')).toBeInTheDocument();
+  });
+});

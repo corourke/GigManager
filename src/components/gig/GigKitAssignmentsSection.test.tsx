@@ -60,6 +60,8 @@ vi.mock('../ui/select', () => ({
   SelectItem: ({ value, children }: any) => <option value={value}>{children}</option>,
 }));
 
+vi.mock('./EquipmentNeededTable', () => ({ default: () => <div data-testid="equipment-needed" /> }));
+
 vi.mock('../../services/conflictDetection.service', () => ({
   checkEquipmentConflicts: vi.fn().mockResolvedValue({ conflicts: [], warnings: [] }),
 }));

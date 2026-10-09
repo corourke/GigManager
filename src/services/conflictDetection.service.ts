@@ -3,6 +3,8 @@ import { handleApiError } from '../utils/api-error-utils';
 import { isNoonUTC } from '../utils/dateUtils';
 import type { OrganizationRole } from '../utils/supabase/types';
 import { assetLabel } from './kit.service';
+import { loadEquipmentNeeds, needsOf } from './equipmentNeeds.service';
+import { itemNeedRows, type ItemNeed, type ItemNeedRow } from '../utils/equipmentNeeds';
 
 const getSupabase = () => createClient();
 
@@ -79,6 +81,36 @@ function classifyOverlap(
     return 'warning';
   }
   return null;
+}
+
+/** An item two overlapping gigs together need more of than are free (#184). */
+export interface ItemShort {
+  item_name: string;
+  needed: number;
+  available: number;
+  short: number;
+  this_gig: ItemNeed;
+  other_gig: ItemNeed;
+}
+
+/** Items short on `rows` (one gig's view) that the other gig also asks for. */
+function itemsShort(rows: readonly ItemNeedRow[], thisNeeds: ReadonlyMap<string, ItemNeed>, otherNeeds: ReadonlyMap<string, ItemNeed>): ItemShort[] {
+  return rows
+    .filter((r) => r.short > 0 && otherNeeds.has(r.itemId))
+    .map((r) => ({
+      item_name: r.name, needed: r.needed, available: r.free, short: r.short,
+      this_gig: thisNeeds.get(r.itemId)!, other_gig: otherNeeds.get(r.itemId)!,
+    }));
+}
+
+/** Per-item counts, or none if they can't be loaded: the other checks still run. */
+async function loadNeedsSafely(kitIds: string[]) {
+  try {
+    return await loadEquipmentNeeds(kitIds);
+  } catch (err) {
+    console.error('Error loading equipment needs:', err);
+    return { ctx: { kits: new Map(), lines: new Map(), assetItem: new Map() }, counts: new Map() };
+  }
 }
 
 function widenedQueryRange(effectiveStart: Date, effectiveEnd: Date) {
@@ -287,12 +319,22 @@ export async function checkEquipmentConflicts(gigId: string, startTime: string, 
       for (const assetId of assetsByKit.get(kitId) ?? []) currentAssetIds.add(assetId);
     }
 
+    // Per item (#184): what this gig and the gigs overlapping it need, against what's free.
+    const levels = new Map(candidateGigs.map((gig: any) => {
+      const { effectiveStart: gigStart, effectiveEnd: gigEnd } = getEffectiveRange(gig.start, gig.end, gig.timezone);
+      return [gig.id, classifyOverlap(currentStart, currentEnd, gigStart, gigEnd)];
+    }));
+    const needsData = await loadNeedsSafely(allKitIds);
+    const thisNeeds = needsOf(kitIds, needsData);
+    const gigKitIds = (gig: any) => (gig.kit_assignments || []).map((a: any) => a.kit_id as string);
+    const overlapping = candidateGigs.filter((gig: any) => levels.get(gig.id) === 'conflict');
+    const rows = itemNeedRows(thisNeeds, overlapping.map((gig: any) => needsOf(gigKitIds(gig), needsData)), needsData.counts);
+
     const conflicts: Conflict[] = [];
     const warnings: Conflict[] = [];
 
     for (const gig of candidateGigs) {
-      const { effectiveStart: gigStart, effectiveEnd: gigEnd } = getEffectiveRange(gig.start, gig.end, gig.timezone);
-      const level = classifyOverlap(currentStart, currentEnd, gigStart, gigEnd);
+      const level = levels.get(gig.id);
       if (!level) continue;
 
       const matching = (gig.kit_assignments || [])
@@ -306,7 +348,8 @@ export async function checkEquipmentConflicts(gigId: string, startTime: string, 
             .sort(),
         }))
         .filter((k: any) => k.shared_assets.length > 0);
-      if (matching.length === 0) continue;
+      const short = level === 'conflict' ? itemsShort(rows, thisNeeds, needsOf(gigKitIds(gig), needsData)) : [];
+      if (matching.length === 0 && short.length === 0) continue;
 
       const entry: Conflict = {
         level,
@@ -315,7 +358,7 @@ export async function checkEquipmentConflicts(gigId: string, startTime: string, 
         gig_title: gig.title,
         start: gig.start,
         end: gig.end,
-        details: { conflicting_kits: matching }
+        details: { conflicting_kits: matching, items_short: short }
       };
       (level === 'conflict' ? conflicts : warnings).push(entry);
     }
@@ -323,6 +366,45 @@ export async function checkEquipmentConflicts(gigId: string, startTime: string, 
     return { conflicts, warnings };
   } catch (err) {
     return handleApiError(err, 'check equipment conflicts');
+  }
+}
+
+const STATUS_ORDER = { short: 0, 'none-spare': 1, enough: 2 } as const;
+
+/**
+ * What a gig needs per item, against what's free when it and the gigs
+ * overlapping it all happen (#184, the gig's "Equipment needed" table).
+ */
+export async function getEquipmentNeeded(gigId: string, startTime: string, endTime: string, timezone?: string): Promise<{ overlapping: number; rows: ItemNeedRow[] }> {
+  const supabase = getSupabase();
+  try {
+    const { data: currentGigKits, error: currentError } = await supabase.from('gig_kit_assignments').select('kit_id').eq('gig_id', gigId);
+    if (currentError) throw currentError;
+    const kitIds = (currentGigKits ?? []).map((a: any) => a.kit_id as string);
+    if (kitIds.length === 0) return { overlapping: 0, rows: [] };
+
+    const { effectiveStart, effectiveEnd } = getEffectiveRange(startTime, endTime, timezone);
+    const { queryStart, queryEnd } = widenedQueryRange(effectiveStart, effectiveEnd);
+    const { data: candidateGigs, error: candidateError } = await supabase
+      .from('gigs')
+      .select('id, start, end, timezone, kit_assignments:gig_kit_assignments!inner(kit_id)')
+      .neq('id', gigId)
+      .neq('status', 'Cancelled')
+      .lte('start', queryEnd)
+      .gte('end', queryStart);
+    if (candidateError) throw candidateError;
+    const overlapping = (candidateGigs ?? []).filter((gig: any) => {
+      const r = getEffectiveRange(gig.start, gig.end, gig.timezone);
+      return rangesOverlap(effectiveStart, effectiveEnd, r.effectiveStart, r.effectiveEnd);
+    });
+    const otherKitIds = overlapping.map((gig: any) => (gig.kit_assignments ?? []).map((a: any) => a.kit_id as string));
+
+    const data = await loadEquipmentNeeds(Array.from(new Set([...kitIds, ...otherKitIds.flat()])));
+    const rows = itemNeedRows(needsOf(kitIds, data), otherKitIds.map((ids: string[]) => needsOf(ids, data)), data.counts)
+      .sort((a, b) => STATUS_ORDER[a.status] - STATUS_ORDER[b.status] || a.name.localeCompare(b.name));
+    return { overlapping: overlapping.length, rows };
+  } catch (err) {
+    return handleApiError(err, 'work out the equipment needed');
   }
 }
 
@@ -459,6 +541,17 @@ export async function checkAllConflictsForGigs(gigs: GigForConflictCheck[]): Pro
         }))
         .filter((k) => k.shared_assets.length > 0);
 
+    // Per item (#184): each gig's needs, and its rows against every gig overlapping it.
+    const needsData = await loadNeedsSafely(allKitIds);
+    const needsByGig = new Map(activeGigs.map((g) => [g.id, needsOf((kitsByGig.get(g.id) ?? []).map((k) => k.kit_id), needsData)]));
+    const ranges = new Map(activeGigs.map((g) => [g.id, getEffectiveRange(g.start, g.end, g.timezone)]));
+    const rowsByGig = new Map(activeGigs.map((g) => {
+      const r = ranges.get(g.id)!;
+      const others = activeGigs.filter((o) => o.id !== g.id && rangesOverlap(r.effectiveStart, r.effectiveEnd, ranges.get(o.id)!.effectiveStart, ranges.get(o.id)!.effectiveEnd));
+      return [g.id, itemNeedRows(needsByGig.get(g.id)!, others.map((o) => needsByGig.get(o.id)!), needsData.counts)];
+    }));
+    const shortFor = (gigId: string, otherId: string) => itemsShort(rowsByGig.get(gigId)!, needsByGig.get(gigId)!, needsByGig.get(otherId)!);
+
     const conflicts: Conflict[] = [];
 
     for (let i = 0; i < activeGigs.length; i++) {
@@ -513,19 +606,21 @@ export async function checkAllConflictsForGigs(gigs: GigForConflictCheck[]): Pro
         }
 
         const overlappingAssetIds = [...assetsA].filter(id => assetsB.has(id));
-        if (overlappingAssetIds.length > 0) {
+        const shortA = shortFor(gigA.id, gigB.id);
+        const shortB = shortFor(gigB.id, gigA.id);
+        if (overlappingAssetIds.length > 0 || shortA.length > 0 || shortB.length > 0) {
           const shared = new Set(overlappingAssetIds);
           conflicts.push({
             level: 'conflict', type: 'equipment',
             gig_id: gigB.id, gig_title: gigB.title,
             start: gigB.start, end: gigB.end,
-            details: { conflicting_asset_ids: overlappingAssetIds, conflicting_kits: kitsSharing(gigB.id, shared), other_gig_id: gigA.id, other_gig_title: gigA.title }
+            details: { conflicting_asset_ids: overlappingAssetIds, conflicting_kits: kitsSharing(gigB.id, shared), items_short: shortB, other_gig_id: gigA.id, other_gig_title: gigA.title }
           });
           conflicts.push({
             level: 'conflict', type: 'equipment',
             gig_id: gigA.id, gig_title: gigA.title,
             start: gigA.start, end: gigA.end,
-            details: { conflicting_asset_ids: overlappingAssetIds, conflicting_kits: kitsSharing(gigA.id, shared), other_gig_id: gigB.id, other_gig_title: gigB.title }
+            details: { conflicting_asset_ids: overlappingAssetIds, conflicting_kits: kitsSharing(gigA.id, shared), items_short: shortA, other_gig_id: gigB.id, other_gig_title: gigB.title }
           });
         }
       }

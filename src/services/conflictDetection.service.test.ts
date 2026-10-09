@@ -5,6 +5,14 @@ vi.mock('../utils/supabase/client', () => ({
   createClient: vi.fn(),
 }));
 
+// #184: per-item counts come from the needs loader; each test sets what it returns.
+const needs = vi.hoisted(() => ({ load: vi.fn() }));
+vi.mock('./equipmentNeeds.service', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('./equipmentNeeds.service')>();
+  return { ...actual, loadEquipmentNeeds: needs.load };
+});
+const noNeeds = () => ({ ctx: { kits: new Map(), lines: new Map(), assetItem: new Map() }, counts: new Map() });
+
 function createQueryBuilder(resolveWith: any) {
   const builder: any = {
     select: vi.fn().mockReturnThis(),
@@ -39,6 +47,7 @@ describe('conflictDetection.service', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.resetModules();
+    needs.load.mockResolvedValue(noNeeds());
   });
 
   it('should export required functions', async () => {
@@ -744,5 +753,120 @@ describe('conflictDetection.service', () => {
       expect(staffConflicts.some(c => c.gig_id === 'gig-2')).toBe(true);
       expect(staffConflicts.some(c => c.gig_id === 'gig-3')).toBe(false);
     });
+  });
+});
+
+// #184 PR 2 (mockup screen 10): overlapping gigs that together need more of an item than are free.
+describe('per-item equipment conflicts (#184)', () => {
+  const trioNeeds = (kitIds: string[]) => ({
+    ctx: {
+      kits: new Map(kitIds.map((id) => [id, { id, name: id === 'light-a' ? 'Club Lighting Package' : 'Club Lighting B', is_container: false }])),
+      lines: new Map(kitIds.map((id) => [id, [{ equipment_item_id: 'trio', quantity: 4 }]])),
+      assetItem: new Map(),
+    },
+    counts: new Map([['trio', { name: 'Chauvet Intimidator Trio', owned: 6, available: 6, inMaintenance: 0, inContainers: 0 }]]),
+  });
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.resetModules();
+  });
+
+  it('checkEquipmentConflicts: names the item, how many are needed and available, and how many short', async () => {
+    needs.load.mockResolvedValue(trioNeeds(['light-a', 'light-b']));
+    const tableResponses: Record<string, any> = {
+      gig_kit_assignments: { data: [{ kit_id: 'light-a' }], error: null },
+      gigs: { data: [{ id: 'gig-2', title: 'Other Gig', start: '2026-10-10T18:00:00Z', end: '2026-10-10T23:00:00Z',
+        kit_assignments: [{ kit_id: 'light-b', kit: { id: 'light-b', name: 'Club Lighting B' } }] }], error: null },
+      kit_flattened_cache: { data: [], error: null },
+    };
+    (createClient as any).mockReturnValue({ from: vi.fn((t: string) => createQueryBuilder(tableResponses[t] || { data: [], error: null })) });
+    const { checkEquipmentConflicts } = await import('./conflictDetection.service');
+
+    const result = await checkEquipmentConflicts('gig-1', '2026-10-10T19:00:00Z', '2026-10-10T23:00:00Z');
+    expect(result.conflicts).toHaveLength(1);
+    expect(result.conflicts[0].details.items_short).toEqual([{
+      item_name: 'Chauvet Intimidator Trio', needed: 8, available: 6, short: 2,
+      this_gig: { total: 4, kits: [{ kit_name: 'Club Lighting Package', quantity: 4 }] },
+      other_gig: { total: 4, kits: [{ kit_name: 'Club Lighting B', quantity: 4 }] },
+    }]);
+    expect(result.conflicts[0].details.conflicting_kits).toEqual([]);
+  });
+
+  it('checkEquipmentConflicts: no conflict when there are enough', async () => {
+    const enough = trioNeeds(['light-a', 'light-b']);
+    enough.counts.get('trio')!.available = 8;
+    needs.load.mockResolvedValue(enough);
+    const tableResponses: Record<string, any> = {
+      gig_kit_assignments: { data: [{ kit_id: 'light-a' }], error: null },
+      gigs: { data: [{ id: 'gig-2', title: 'Other Gig', start: '2026-10-10T18:00:00Z', end: '2026-10-10T23:00:00Z',
+        kit_assignments: [{ kit_id: 'light-b', kit: { id: 'light-b', name: 'Club Lighting B' } }] }], error: null },
+    };
+    (createClient as any).mockReturnValue({ from: vi.fn((t: string) => createQueryBuilder(tableResponses[t] || { data: [], error: null })) });
+    const { checkEquipmentConflicts } = await import('./conflictDetection.service');
+
+    const result = await checkEquipmentConflicts('gig-1', '2026-10-10T19:00:00Z', '2026-10-10T23:00:00Z');
+    expect(result.conflicts).toHaveLength(0);
+  });
+
+  it('checkAllConflictsForGigs: flags both overlapping gigs with the item short', async () => {
+    needs.load.mockResolvedValue(trioNeeds(['light-a', 'light-b']));
+    (createClient as any).mockReturnValue(createBatchMock([
+      { table: 'gig_kit_assignments', response: { data: [
+        { gig_id: 'gig-1', kit_id: 'light-a', kit: { id: 'light-a', name: 'Club Lighting Package' } },
+        { gig_id: 'gig-2', kit_id: 'light-b', kit: { id: 'light-b', name: 'Club Lighting B' } },
+      ], error: null } },
+    ]));
+    const { checkAllConflictsForGigs } = await import('./conflictDetection.service');
+
+    const result = await checkAllConflictsForGigs([
+      { id: 'gig-1', title: 'Gig A', start: '2026-10-10T18:00:00Z', end: '2026-10-10T22:00:00Z' },
+      { id: 'gig-2', title: 'Gig B', start: '2026-10-10T20:00:00Z', end: '2026-10-11T00:00:00Z' },
+    ]);
+    const equipment = result.filter((c) => c.type === 'equipment');
+    expect(equipment.map((c) => c.gig_id).sort()).toEqual(['gig-1', 'gig-2']);
+    expect(equipment[0].details.items_short[0]).toMatchObject({ item_name: 'Chauvet Intimidator Trio', needed: 8, available: 6, short: 2 });
+  });
+});
+
+describe('getEquipmentNeeded (#184)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.resetModules();
+  });
+
+  it('rows for this gig against the gigs that overlap it, shortest first; near-but-not-overlapping gigs don\'t count', async () => {
+    needs.load.mockResolvedValue({
+      ctx: {
+        kits: new Map([['light-a', { id: 'light-a', name: 'A', is_container: false }], ['light-b', { id: 'light-b', name: 'B', is_container: false }], ['pa', { id: 'pa', name: 'PA', is_container: false }]]),
+        lines: new Map([
+          ['light-a', [{ equipment_item_id: 'trio', quantity: 4 }, { equipment_item_id: 'k12', quantity: 2 }]],
+          ['light-b', [{ equipment_item_id: 'trio', quantity: 4 }]],
+          ['pa', [{ equipment_item_id: 'k12', quantity: 6 }]],
+        ]),
+        assetItem: new Map(),
+      },
+      counts: new Map([
+        ['trio', { name: 'Chauvet Intimidator Trio', owned: 6, available: 6, inMaintenance: 0, inContainers: 0 }],
+        ['k12', { name: 'QSC K12.2', owned: 6, available: 5, inMaintenance: 1, inContainers: 0 }],
+      ]),
+    });
+    const tableResponses: Record<string, any> = {
+      gig_kit_assignments: { data: [{ kit_id: 'light-a' }], error: null },
+      gigs: { data: [
+        { id: 'gig-2', start: '2026-10-10T18:00:00Z', end: '2026-10-10T23:00:00Z', kit_assignments: [{ kit_id: 'light-b' }] },
+        // Ends two hours before this gig starts: a warning elsewhere, but not counted here.
+        { id: 'gig-3', start: '2026-10-10T11:00:00Z', end: '2026-10-10T17:00:00Z', kit_assignments: [{ kit_id: 'pa' }] },
+      ], error: null },
+    };
+    (createClient as any).mockReturnValue({ from: vi.fn((t: string) => createQueryBuilder(tableResponses[t] || { data: [], error: null })) });
+    const { getEquipmentNeeded } = await import('./conflictDetection.service');
+
+    const result = await getEquipmentNeeded('gig-1', '2026-10-10T19:00:00Z', '2026-10-10T23:00:00Z');
+    expect(result.overlapping).toBe(1);
+    expect(result.rows.map((r) => [r.name, r.thisGig, r.overlapping, r.needed, r.free, r.status])).toEqual([
+      ['Chauvet Intimidator Trio', 4, 4, 8, 6, 'short'],
+      ['QSC K12.2', 2, 0, 2, 5, 'enough'],
+    ]);
   });
 });
