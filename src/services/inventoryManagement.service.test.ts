@@ -750,6 +750,61 @@ describe('inventoryManagement.service', () => {
       expect(rows.filter((r) => r.asset_id === 'di-1').map((r) => r.quantity)).toEqual([1]);
     });
 
+    // #240 re-review: a unit is packed only where its newest row puts it, across kits and gigs;
+    // a written-off (retired) record is never packed.
+    describe('packed counts follow where things are now', () => {
+      const sm57 = { id: 'item-sm57', manufacturer_model: 'SM57', category: 'Audio' };
+      const u1 = { equipment_item_id: 'item-sm57', tag_number: 'MIC-1', serial_number: null, manufacturer_model: 'SM57', quantity: 1, status: 'Active', retired_on: null };
+      const lot = { equipment_item_id: 'item-xlr', tag_number: null, serial_number: null, manufacturer_model: 'XLR', quantity: 10, status: 'Active', retired_on: null };
+      const row = (gig_id: string, kit_id: string, asset_id: string, at: string, asset: any, over: Record<string, unknown> = {}) => ({
+        id: `${gig_id}-${kit_id}-${asset_id}-${at}`, gig_id, kit_id, asset_id, status: 'Checked Out', quantity: 1, scanned_at: `2026-10-09T${at}:00Z`,
+        created_at: `2026-10-09T${at}:00Z`, asset, ...over,
+      });
+      const setup = (tracking: any[]) => {
+        mockSupabase.rpc = vi.fn().mockResolvedValue({ data: [], error: null });
+        mockSupabase.from.mockImplementation((table: string) => makeQueryChain(({
+          gig_kit_assignments: { data: [
+            { kit_id: 'kit-a', kit: { id: 'kit-a', name: 'Kit A', is_container: false, tag_number: null, organization_id: 'org-1' } },
+            { kit_id: 'kit-b', kit: { id: 'kit-b', name: 'Kit B', is_container: false, tag_number: null, organization_id: 'org-1' } },
+          ], error: null },
+          kits: { data: [
+            { id: 'kit-a', name: 'Kit A', category: null, is_container: false, tag_number: null },
+            { id: 'kit-b', name: 'Kit B', category: null, is_container: false, tag_number: null },
+          ], error: null },
+          kit_components: { data: [
+            { kit_id: 'kit-a', asset_id: null, equipment_item_id: 'item-sm57', child_kit_id: null, quantity: 1, item: sm57 },
+            { kit_id: 'kit-b', asset_id: null, equipment_item_id: 'item-sm57', child_kit_id: null, quantity: 1, item: sm57 },
+            { kit_id: 'kit-a', asset_id: 'cables', child_kit_id: null, quantity: 4, asset: { id: 'cables', ...lot } },
+          ], error: null },
+          assets: { data: [{ equipment_item_id: 'item-sm57', tag_number: 'MIC-1', status: 'Active', retired_on: null }], error: null },
+          inventory_tracking: { data: tracking, error: null },
+        } as Record<string, any>)[table] ?? { data: [], error: null }));
+      };
+      const packedOn = (rows: any[], kit: string, pred: (r: any) => boolean) => rows.find((r) => r.kit_id === kit && pred(r))?.packed;
+
+      it('a unit scanned for kit A, then kit B, is packed on B only', async () => {
+        const { getPackingListReport } = await import('./inventoryManagement.service');
+        setup([row('gig-1', 'kit-a', 'u1', '10:00', u1), row('gig-1', 'kit-b', 'u1', '11:00', u1)]);
+        const rows = await getPackingListReport('org-1', 'gig-1');
+        expect(packedOn(rows, 'kit-a', (r) => r.item_id === 'item-sm57')).toBe(0);
+        expect(packedOn(rows, 'kit-b', (r) => r.item_id === 'item-sm57')).toBe(1);
+      });
+
+      it('a unit since moved to another gig is not packed here', async () => {
+        const { getPackingListReport } = await import('./inventoryManagement.service');
+        setup([row('gig-1', 'kit-a', 'u1', '10:00', u1), row('gig-2', 'kit-x', 'u1', '11:00', u1)]);
+        const rows = await getPackingListReport('org-1', 'gig-1');
+        expect(packedOn(rows, 'kit-a', (r) => r.item_id === 'item-sm57')).toBe(0);
+      });
+
+      it('written-off pieces are never packed', async () => {
+        const { getPackingListReport } = await import('./inventoryManagement.service');
+        setup([row('gig-1', 'kit-a', 'cables', '10:00', { ...lot, status: 'Missing', retired_on: '2026-10-09' }, { quantity: 4 })]);
+        const rows = await getPackingListReport('org-1', 'gig-1');
+        expect(packedOn(rows, 'kit-a', (r) => r.asset_id === 'cables')).toBe(0);
+      });
+    });
+
     // Regression: the old query embedded kit_components -> assets directly
     // off gig_kit_assignments, so a nested sub-kit component (no asset_id
     // of its own) produced a bogus row with every field null instead of

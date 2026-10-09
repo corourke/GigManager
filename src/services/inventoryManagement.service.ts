@@ -3,7 +3,8 @@ import { handleApiError } from '../utils/api-error-utils';
 import { SCANNING_MODES, RETURNED_STATUS } from '../config/inventoryWorkflow';
 import { getKitComponentTree, flattenToScanUnits, type KitComponentTreeNode } from './kit.service';
 import type { DbInventoryTracking } from '../utils/supabase/types';
-import { isRetired } from '../utils/equipmentItems';
+import { isRetired, type ItemRecord } from '../utils/equipmentItems';
+import { bucketsAt, type TrackingRow } from '../utils/locations';
 
 const getSupabase = () => createClient();
 
@@ -642,13 +643,35 @@ export async function getPackingListReport(organizationId: string, gigId: string
       .from('inventory_tracking')
       .select('id, gig_id, kit_id, asset_id, status, location, quantity, scanned_at, scanned_by, notes, created_at, '
         + 'scanned_by_user:users!scanned_by(first_name, last_name, email), '
-        + 'asset:asset_id(equipment_item_id, tag_number, serial_number, manufacturer_model)')
+        + 'asset:asset_id(equipment_item_id, tag_number, serial_number, manufacturer_model, quantity, status, retired_on)')
       .eq('organization_id', organizationId)
       .eq('gig_id', gigId);
 
     if (trackingError) throw trackingError;
 
-    const latest = getLatestByKey((trackingData ?? []) as unknown as DbInventoryTracking[]);
+    const gigRows = ((trackingData ?? []) as any[]).filter((r) => r.gig_id === gigId);
+    const latest = getLatestByKey(gigRows as unknown as DbInventoryTracking[]);
+
+    // Packed means there now (#240 re-review): a unit only where its newest row anywhere puts
+    // it, kit and gig; a lot by its newest row per kit here; a retired record never (bucketsAt).
+    // So every row of what's been tracked here, from any gig.
+    const recordById = new Map<string, ItemRecord>();
+    for (const r of gigRows) if (r.asset_id && r.asset) recordById.set(r.asset_id, { id: r.asset_id, ...r.asset });
+    let everyRow: TrackingRow[] = [];
+    if (recordById.size > 0) {
+      const { data: allRows, error: allRowsError } = await supabase
+        .from('inventory_tracking')
+        .select('id, gig_id, kit_id, asset_id, status, location, quantity, scanned_at, created_at')
+        .eq('organization_id', organizationId)
+        .in('asset_id', [...recordById.keys()]);
+      if (allRowsError) throw allRowsError;
+      everyRow = (allRows ?? []) as TrackingRow[];
+    }
+    const packedIn = (assetId: string | null, kitId: string) => {
+      const record = assetId ? recordById.get(assetId) : undefined;
+      if (!record) return 0;
+      return bucketsAt(everyRow, record, gigId).filter((b) => b.kit_id === kitId).reduce((n, b) => n + b.quantity, 0);
+    };
     const conflictFlags = await getInventoryConflictFlags(organizationId);
 
     // #185: an "any" line of an item with inventory tags is scanned piece by piece; without, counted.
@@ -665,7 +688,6 @@ export async function getPackingListReport(organizationId: string, gigId: string
       }
     }
     const isOut = (r: DbInventoryTracking | undefined) => !!r && r.status !== RETURNED_STATUS;
-    const packedOf = (r: DbInventoryTracking | undefined) => (isOut(r) ? Number((r as any).quantity ?? 1) : 0);
 
     const rows: PackingListRow[] = [];
 
@@ -711,12 +733,14 @@ export async function getPackingListReport(organizationId: string, gigId: string
         for (const unit of units) {
           const unitConflict = conflictFlags.has(unit.kit_id);
           if (unit.kind === 'any') {
-            const forItem = latest.filter((r) => r.kit_id === unit.kit_id && r.asset_id && isOut(r)
+            const forItem = latest.filter((r) => r.kit_id === unit.kit_id && r.asset_id
               && (r as any).asset?.equipment_item_id === unit.item_id && !specific.has(`${r.kit_id}:${r.asset_id}`));
-            const packedUnits = forItem.map((r) => ({
-              asset_id: r.asset_id!, tag_number: (r as any).asset?.tag_number ?? null,
-              serial_number: (r as any).asset?.serial_number ?? null, quantity: Number((r as any).quantity ?? 1),
-            }));
+            const packedUnits = forItem
+              .map((r) => ({
+                asset_id: r.asset_id!, tag_number: (r as any).asset?.tag_number ?? null,
+                serial_number: (r as any).asset?.serial_number ?? null, quantity: packedIn(r.asset_id, unit.kit_id),
+              }))
+              .filter((u) => u.quantity > 0);
             rows.push({
               kit_id: unit.kit_id, kit_name: unit.kit_name, is_container: false, kind: 'any', item_id: unit.item_id,
               asset_id: null, asset_name: unit.asset_name, tag_number: null, quantity: unit.quantity,
@@ -735,7 +759,7 @@ export async function getPackingListReport(organizationId: string, gigId: string
             kind: unit.kind,
             lot_of: unit.lot_of ?? null,
             contents: unit.contents,
-            packed: unit.kind === 'container' ? (isOut(unitRecord) ? unit.quantity : 0) : packedOf(unitRecord),
+            packed: unit.kind === 'container' ? (isOut(unitRecord) ? unit.quantity : 0) : packedIn(unit.asset_id, unit.kit_id),
             asset_id: unit.asset_id,
             asset_name: unit.asset_name,
             tag_number: unit.tag_number,
