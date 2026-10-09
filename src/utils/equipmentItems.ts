@@ -74,6 +74,8 @@ export interface ItemSummary {
   available: number;
   inMaintenance: number;
   inContainers: number;
+  /** Pieces written off as missing (#185): no longer owned, shown apart. */
+  missing: number;
   /** Sum of replacement value × quantity. */
   totalValue: number;
   minValue: number | null;
@@ -87,10 +89,11 @@ export interface ItemSummary {
 /** `inContainers`: every piece inside container kits (shown). `activeInContainers`:
  *  the Active, not-retired ones among them, the only ones "available" loses. */
 export function summarizeItem(records: readonly ItemRecord[], inContainers = 0, activeInContainers = inContainers): ItemSummary {
-  let owned = 0, units = 0, lots = 0, active = 0, inMaintenance = 0, totalValue = 0;
+  let owned = 0, units = 0, lots = 0, active = 0, inMaintenance = 0, missing = 0, totalValue = 0;
   let minValue: number | null = null;
   let maxValue: number | null = null;
   for (const r of records) {
+    if (r.status === 'Missing') missing += pieces(r);
     if (isRetired(r)) continue;
     const n = pieces(r);
     owned += n;
@@ -106,7 +109,7 @@ export function summarizeItem(records: readonly ItemRecord[], inContainers = 0, 
     }
   }
   return {
-    owned, units, lots, inMaintenance, inContainers, totalValue, minValue, maxValue,
+    owned, units, lots, inMaintenance, inContainers, missing, totalValue, minValue, maxValue,
     available: Math.max(0, active - activeInContainers),
   };
 }

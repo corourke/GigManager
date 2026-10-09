@@ -50,6 +50,8 @@ export const ASSET_STATUS_CONFIG = {
   Maintenance: { label: 'Maintenance', color:  'bg-red-100 text-red-700 border-red-300' },
   Disposed:    { label: 'Disposed',    color: 'bg-blue-100 text-blue-800 border-blue-300'},
   Returned:    { label: 'Returned',    color: 'bg-gray-100 text-gray-700 border-gray-300' },
+  // Set only by a write-off (#185), never picked by hand.
+  Missing:     { label: 'Missing',     color: 'bg-rose-100 text-rose-800 border-rose-300' },
 } as const;
 
 export type AssetStatus = keyof typeof ASSET_STATUS_CONFIG;

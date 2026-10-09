@@ -114,6 +114,18 @@ describe('AssetScreen', () => {
     vi.mocked(svc.getAsset).mockResolvedValue({} as any)
   })
 
+  it('a written-off record\'s status can\'t be changed by hand: it says where to undo (#185)', async () => {
+    const svc = await import('../services/asset.service')
+    vi.mocked(svc.getAsset).mockResolvedValue({
+      id: 'u1', organization_id: 'org-1', equipment_item_id: 'item-k12', manufacturer_model: 'QSC K12.2', category: 'Audio',
+      serial_number: 'S1', tag_number: 'T1', quantity: 1, status: 'Missing', retired_on: '2026-10-09', acquisition_date: '2026-03-01',
+    } as any)
+    render(<AssetScreen {...mockProps} assetId="u1" />)
+    expect(await screen.findByText(/Written off as missing/)).toBeInTheDocument()
+    expect(screen.getByRole('combobox', { name: 'Status' })).toBeDisabled()
+    vi.mocked(svc.getAsset).mockResolvedValue({} as any)
+  })
+
   it('clearing a money field on a unit saves null, not nothing (#226)', async () => {
     const svc = await import('../services/asset.service')
     vi.mocked(svc.getAsset).mockResolvedValue({

@@ -10,7 +10,7 @@ interface EquipmentNeededTableProps {
   gigEnd: string;
   gigTimezone?: string;
   /** The viewing organization: only its kits count. */
-  organizationId?: string;
+  organizationId: string;
   /** Change it to reload, e.g. after the gig's kits are saved. */
   refreshKey?: number;
 }

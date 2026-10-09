@@ -80,7 +80,7 @@ export default function ReportingTab({ organizationId, organizationName, onEditA
 
   const income = useMemo(() => data && buildIncomeReport(data.gigRows, year), [data, year]);
   const expenses = useMemo(() => data && buildExpenseReport(data.lines, data.gigRows, data.categories, data.scheduleC, year), [data, year]);
-  const assets = useMemo(() => data && buildAssetReport(data.lines, year), [data, year]);
+  const assets = useMemo(() => data && buildAssetReport(data.lines, year, data.assets), [data, year]);
   const greyZone = useMemo(() => data && buildGreyZoneReport(data.lines, data.equipmentCategories ?? [], year), [data, year]);
   const scheduleC = useMemo(() => data && buildScheduleCSummary(income!, expenses!, data.gigRows, data.scheduleC), [data, income, expenses]);
   const attention = useMemo(() => data && buildNeedsAttentionReport(

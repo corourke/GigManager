@@ -298,6 +298,9 @@ export default function ItemDetailScreen({
               {summary.inContainers > 0 && (
                 <div className="flex justify-between"><span className="text-gray-600">In container kits</span><span className="tabular-nums">{summary.inContainers}</span></div>
               )}
+              {summary.missing > 0 && (
+                <div className="flex justify-between"><span className="text-gray-600">Written off</span><span className="tabular-nums text-rose-700">{`${summary.missing} missing`}</span></div>
+              )}
               {whereTheyAre.length > 0 && (
                 <div className="flex justify-between gap-4">
                   <span className="text-gray-600">Where they are</span>
@@ -342,7 +345,7 @@ export default function ItemDetailScreen({
                           {r.tag_number?.trim() ? (
                             <span className="inline-flex items-center gap-1.5"><Tag className="h-3.5 w-3.5 text-sky-700" aria-hidden />{r.tag_number}</span>
                           ) : kind === 'lot' ? (
-                            <span className="inline-flex items-center gap-1.5 font-sans text-[13px] font-medium text-amber-900"><Layers className="h-3.5 w-3.5 text-amber-700" aria-hidden />{`Lot of ${r.quantity ?? 1}`}</span>
+                            <span className="inline-flex items-center gap-1.5 font-sans text-[13px] font-medium text-amber-900"><Layers className="h-3.5 w-3.5 text-amber-700" aria-hidden />{`Lot of ${r.quantity ?? 1}${r.status === 'Missing' ? ' · Missing' : ''}`}</span>
                           ) : <span className="text-muted-foreground">—</span>}
                         </td>
                         <td className="px-3 py-2 whitespace-nowrap font-mono text-[13px] text-gray-700">{r.serial_number || <span className="text-muted-foreground">—</span>}</td>

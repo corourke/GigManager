@@ -3,7 +3,7 @@ import { render, screen, within, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import ItemDetailScreen from './ItemDetailScreen'
 import { makeUser, makeOrganization } from '../test/factories'
-import { updateItem, getContainerPieces } from '../services/equipmentItem.service'
+import { updateItem, getContainerPieces, getItem } from '../services/equipmentItem.service'
 
 const unit = (n: number, over: Record<string, unknown> = {}) => ({
   id: `k12-${n}`,
@@ -86,6 +86,20 @@ describe('ItemDetailScreen (#182)', () => {
     const inventory = (await screen.findByRole('heading', { name: 'Inventory' })).closest('section')!
     await waitFor(() => expect(within(inventory).getByTestId('available')).toHaveTextContent('4'))
     expect(within(inventory).getByText('In container kits').nextSibling).toHaveTextContent('2')
+  })
+
+  it('shows missing pieces: a Missing badge, their own lot row, and "N missing" by the counts (#185)', async () => {
+    vi.mocked(getItem).mockResolvedValueOnce({
+      ...item,
+      records: [...item.records,
+        { ...item.records[0], id: 'split', tag_number: null, serial_number: null, quantity: 2, status: 'Missing', retired_on: '2026-10-09' }],
+    } as any)
+    render(<ItemDetailScreen {...props} />)
+    const inventory = (await screen.findByRole('heading', { name: 'Inventory' })).closest('section')!
+    expect(within(inventory).getByTestId('owned')).toHaveTextContent('6')
+    expect(within(inventory).getByText('2 missing')).toBeInTheDocument()
+    expect(screen.getByText('Lot of 2 · Missing')).toBeInTheDocument()
+    expect(screen.getAllByText('Missing').length).toBeGreaterThan(0)
   })
 
   it('lists the units with tag, serial, status and replacement value, and opens one', async () => {

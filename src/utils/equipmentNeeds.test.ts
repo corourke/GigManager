@@ -92,6 +92,18 @@ describe('itemNeedRows', () => {
     expect(rows[0].peakGigs.map((g) => g.id).sort()).toEqual(['a', 'b']);
   });
 
+  it('a tie at the peak: the earliest moment is the peak, and each short moment names its own gig (#236)', () => {
+    const thisGig = gig('this', 10, 23, { trio: 1 });
+    const rows = itemNeedRows(thisGig, [gig('morning', 11, 13, { trio: 2 }), gig('evening', 18, 20, { trio: 2 })],
+      new Map([['trio', { name: 'Trio', owned: 2, available: 2, inMaintenance: 0, inContainers: 0 }]]));
+    expect(rows[0]).toMatchObject({ overlapping: 2, needed: 3, short: 1, peakAt: h(11) });
+    expect(rows[0].peakGigs.map((g) => g.id)).toEqual(['morning']);
+    expect(rows[0].shortMoments.map((m) => [m.at, m.needed, m.short, m.gigs.map((g) => g.id)])).toEqual([
+      [h(11), 3, 1, ['morning']],
+      [h(18), 3, 1, ['evening']],
+    ]);
+  });
+
   it('an item no other gig needs is still short when this gig alone asks for more than are free', () => {
     const rows = itemNeedRows(gig('this', 18, 23, { trio: 7 }), [], summaries);
     expect(rows[0]).toMatchObject({ overlapping: 0, needed: 7, short: 1, status: 'short', peakGigs: [] });
