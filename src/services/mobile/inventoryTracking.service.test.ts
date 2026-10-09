@@ -518,6 +518,11 @@ describe('inventoryTrackingService', () => {
         .toEqual({ fills: [{ asset_id: 'lot-b', quantity: 1 }], short: 2 })
     })
 
+    it('leaving pieces at the gig never picks from home either', () => {
+      expect(inventoryTrackingService.getAnySlotFills(list([at('lot-b', 'On Site', 1)]), slot, 'Not Returned', 'gig-1'))
+        .toEqual({ fills: [{ asset_id: 'lot-b', quantity: 1 }], short: 2 })
+    })
+
     it('a full line needs nothing', () => {
       expect(inventoryTrackingService.getAnySlotFills(list([at('lot-b', 'Checked Out', 3)]), slot, 'Checked Out', 'gig-1'))
         .toEqual({ fills: [], short: 0 })
