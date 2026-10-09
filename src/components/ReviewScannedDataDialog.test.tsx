@@ -646,6 +646,7 @@ describe('ReviewScannedDataDialog: a saved line\'s units (#183)', () => {
     vi.mocked(assets.deleteAsset).mockImplementation(async (id: string) => {
       calls.push(`delete ${id}`);
       if (id === marker) throw new Error('A depreciated purchase line must keep its equipment record');
+      return { success: true };
     });
     await userEvent.click(screen.getByRole('button', { name: 'Save Changes' }));
     await userEvent.click(await screen.findByRole('radio', { name: 'Update the equipment: remove 1 unit' }));
