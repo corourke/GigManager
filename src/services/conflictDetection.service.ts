@@ -3,8 +3,9 @@ import { handleApiError } from '../utils/api-error-utils';
 import { isNoonUTC } from '../utils/dateUtils';
 import type { OrganizationRole } from '../utils/supabase/types';
 import { assetLabel } from './kit.service';
+import { recordKind } from '../utils/equipmentItems';
 import { loadEquipmentNeeds, needsOf } from './equipmentNeeds.service';
-import { itemNeedRows, type GigNeeds, type ItemNeed, type ItemNeedRow, type ShortMoment } from '../utils/equipmentNeeds';
+import { containersIn, itemNeedRows, type GigNeeds, type ItemNeed, type ItemNeedRow, type NeedsContext, type ShortMoment } from '../utils/equipmentNeeds';
 
 const getSupabase = () => createClient();
 
@@ -115,6 +116,34 @@ function itemsShort(rows: readonly ItemNeedRow[], thisNeeds: ReadonlyMap<string,
     });
   }
   return out;
+}
+
+/**
+ * The same-unit check names only tracked units: one piece with a serial or
+ * tag (Cameron, 10-09). A lot on two gigs isn't a conflict in itself; the
+ * per-item check says whether there are enough. A row whose asset can't be
+ * read is kept, so a hidden unit still warns.
+ */
+function isTrackedUnit(asset: { serial_number?: string | null; tag_number?: string | null; quantity?: number | string | null } | null | undefined): boolean {
+  return !asset || (recordKind(asset) === 'unit' && Number(asset.quantity ?? 1) === 1);
+}
+
+/** The same-unit key for a container kit: the case itself is one unit (#238 review). */
+const CONTAINER_KEY = 'kit:';
+
+/**
+ * Add each kit's containers to its same-unit set, named by the container. Their contents are
+ * often lots, which the unit check leaves out, so the case is what two gigs can't both have.
+ */
+function addContainerUnits(kitIds: readonly string[], ctx: NeedsContext, assetsByKit: Map<string, Set<string>>, labels: Map<string, string>) {
+  for (const kitId of kitIds) {
+    for (const containerId of containersIn(kitId, ctx)) {
+      const set = assetsByKit.get(kitId) ?? new Set<string>();
+      set.add(CONTAINER_KEY + containerId);
+      assetsByKit.set(kitId, set);
+      labels.set(CONTAINER_KEY + containerId, ctx.kits.get(containerId)?.name ?? 'Unnamed container');
+    }
+  }
 }
 
 /** A gig's needs with its effective time range, for the peak. */
@@ -330,18 +359,22 @@ export async function checkEquipmentConflicts(gigId: string, startTime: string, 
 
     const { data: flattenedRows, error: flattenError } = await supabase
       .from('kit_flattened_cache')
-      .select('kit_id, asset_id, asset:assets(manufacturer_model, tag_number)')
+      .select('kit_id, asset_id, asset:assets(manufacturer_model, tag_number, serial_number, quantity)')
       .in('kit_id', allKitIds);
     if (flattenError) throw flattenError;
 
     const assetsByKit = new Map<string, Set<string>>();
     const labels = new Map<string, string>();
     for (const row of (flattenedRows || []) as any[]) {
+      if (!isTrackedUnit(row.asset)) continue;
       const set = assetsByKit.get(row.kit_id) ?? new Set<string>();
       set.add(row.asset_id);
       assetsByKit.set(row.kit_id, set);
       if (row.asset) labels.set(row.asset_id, assetLabel(row.asset));
     }
+
+    const needsData = await loadNeedsSafely(allKitIds, organizationId);
+    addContainerUnits(allKitIds, needsData.ctx, assetsByKit, labels);
 
     const currentAssetIds = new Set<string>();
     for (const kitId of kitIds) {
@@ -353,7 +386,6 @@ export async function checkEquipmentConflicts(gigId: string, startTime: string, 
       const { effectiveStart: gigStart, effectiveEnd: gigEnd } = getEffectiveRange(gig.start, gig.end, gig.timezone);
       return [gig.id, classifyOverlap(currentStart, currentEnd, gigStart, gigEnd)];
     }));
-    const needsData = await loadNeedsSafely(allKitIds, organizationId);
     const thisNeeds = needsOf(kitIds, needsData);
     const gigKitIds = (gig: any) => (gig.kit_assignments || []).map((a: any) => a.kit_id as string);
     const overlapping = candidateGigs.filter((gig: any) => levels.get(gig.id) === 'conflict');
@@ -522,10 +554,11 @@ export async function checkAllConflictsForGigs(gigs: GigForConflictCheck[], orga
     if (allKitIds.length > 0) {
       const { data: flattenedRows, error: flattenError } = await supabase
         .from('kit_flattened_cache')
-        .select('kit_id, asset_id, asset:assets(manufacturer_model, tag_number)')
+        .select('kit_id, asset_id, asset:assets(manufacturer_model, tag_number, serial_number, quantity)')
         .in('kit_id', allKitIds);
       if (flattenError) throw flattenError;
       for (const row of (flattenedRows || []) as any[]) {
+        if (!isTrackedUnit(row.asset)) continue;
         const set = assetsByKit.get(row.kit_id) ?? new Set<string>();
         set.add(row.asset_id);
         assetsByKit.set(row.kit_id, set);
@@ -557,6 +590,11 @@ export async function checkAllConflictsForGigs(gigs: GigForConflictCheck[], orga
       participantsByGig.set(p.gig_id, list);
     }
 
+    // Per item (#184): each gig's needs. The kit tree also gives each kit's containers.
+    const ownKitIds = (gigId: string) => ownKits.filter((k) => k.gig_id === gigId).map((k) => k.kit_id as string);
+    const needsData = await loadNeedsSafely(Array.from(new Set(activeGigs.flatMap((g) => ownKitIds(g.id)))), organizationId);
+    addContainerUnits(allKitIds, needsData.ctx, assetsByKit, labels);
+
     // Per gig, the union of flattened asset IDs across all of its assigned kits.
     const assetsByGig = new Map<string, Set<string>>();
     const kitsByGig = new Map<string, { kit_id: string; kit_name: string }[]>();
@@ -582,9 +620,7 @@ export async function checkAllConflictsForGigs(gigs: GigForConflictCheck[], orga
         }))
         .filter((k) => k.shared_assets.length > 0);
 
-    // Per item (#184): each gig's needs, and its rows against every gig overlapping it.
-    const ownKitIds = (gigId: string) => ownKits.filter((k) => k.gig_id === gigId).map((k) => k.kit_id as string);
-    const needsData = await loadNeedsSafely(Array.from(new Set(activeGigs.flatMap((g) => ownKitIds(g.id)))), organizationId);
+    // Each gig's rows against every gig overlapping it.
     const timed = new Map(activeGigs.map((g) => [g.id, timedNeeds(g, needsOf(ownKitIds(g.id), needsData))]));
     const rowsByGig = new Map(activeGigs.map((g) => {
       const t = timed.get(g.id)!;
@@ -652,12 +688,14 @@ export async function checkAllConflictsForGigs(gigs: GigForConflictCheck[], orga
         const shortB = shortFor(gigB.id, gigA.id);
         // Each side gets an entry only for its own shortage, or the units both book.
         const shared = new Set(overlappingAssetIds);
+        // Records only: a shared container is named in conflicting_kits.
+        const sharedRecordIds = overlappingAssetIds.filter((id) => !id.startsWith(CONTAINER_KEY));
         if (overlappingAssetIds.length > 0 || shortB.length > 0) {
           conflicts.push({
             level: 'conflict', type: 'equipment',
             gig_id: gigB.id, gig_title: gigB.title,
             start: gigB.start, end: gigB.end,
-            details: { conflicting_asset_ids: overlappingAssetIds, conflicting_kits: kitsSharing(gigB.id, shared), items_short: shortB, other_gig_id: gigA.id, other_gig_title: gigA.title }
+            details: { conflicting_asset_ids: sharedRecordIds, conflicting_kits: kitsSharing(gigB.id, shared), items_short: shortB, other_gig_id: gigA.id, other_gig_title: gigA.title }
           });
         }
         if (overlappingAssetIds.length > 0 || shortA.length > 0) {
@@ -665,7 +703,7 @@ export async function checkAllConflictsForGigs(gigs: GigForConflictCheck[], orga
             level: 'conflict', type: 'equipment',
             gig_id: gigA.id, gig_title: gigA.title,
             start: gigA.start, end: gigA.end,
-            details: { conflicting_asset_ids: overlappingAssetIds, conflicting_kits: kitsSharing(gigA.id, shared), items_short: shortA, other_gig_id: gigB.id, other_gig_title: gigB.title }
+            details: { conflicting_asset_ids: sharedRecordIds, conflicting_kits: kitsSharing(gigA.id, shared), items_short: shortA, other_gig_id: gigB.id, other_gig_title: gigB.title }
           });
         }
       }
