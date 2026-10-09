@@ -145,6 +145,8 @@ export interface CreateManualTrackingParams {
   quantity?: number;
   /** With `assetIds`: how many of each lot (1 when not given). */
   quantities?: Record<string, number>;
+  /** A logical kit with its own (older) kit-only row: move that row too, as a whole-kit override does. */
+  keepKitRow?: boolean;
 }
 
 function getLatestByKey(records: DbInventoryTracking[]): DbInventoryTracking[] {
@@ -472,7 +474,7 @@ export async function getItemsByLocation(
 export async function createManualTrackingRecord(params: CreateManualTrackingParams): Promise<DbInventoryTracking[]> {
   const supabase = getSupabase();
   try {
-    const { organizationId, gigId, kitId, assetId, status, location, notes, createdBy, isContainerKit, assetIds, quantity, quantities } = params;
+    const { organizationId, gigId, kitId, assetId, status, location, notes, createdBy, isContainerKit, assetIds, quantity, quantities, keepKitRow } = params;
     const now = new Date().toISOString();
 
     const buildRecord = (targetAssetId?: string, n = 1) => ({
@@ -511,7 +513,10 @@ export async function createManualTrackingRecord(params: CreateManualTrackingPar
     }
 
     // A logical kit isn't scanned itself: a row per asset under it, as the phone writes (#185).
-    const records = (assetIds ?? []).map((id) => buildRecord(id, quantities?.[id] ?? 1));
+    const records = [
+      ...(keepKitRow ? [buildRecord(undefined)] : []),
+      ...(assetIds ?? []).map((id) => buildRecord(id, quantities?.[id] ?? 1)),
+    ];
     // Only "any" lines: which units or lots fill them is chosen when packing, so there's nothing
     // to move by hand. Say so, rather than report a save that wrote nothing.
     if (records.length === 0) {
@@ -768,7 +773,7 @@ export async function getPackingListReport(organizationId: string, gigId: string
 /**
  * One line per unit, lot or "any" item within a kit (#240 review): nested lines are filed under
  * the owning kit, so 3 SM57s in "Drum mics" and 2 in "Guitar mics" are one line of 5, not 3.
- * Containers stay as they are.
+ * A tracked unit listed twice stays one line of 1. Containers stay as they are.
  */
 function sumRepeatedLines(units: ReturnType<typeof flattenToScanUnits>): ReturnType<typeof flattenToScanUnits> {
   const out: ReturnType<typeof flattenToScanUnits> = [];
@@ -781,7 +786,8 @@ function sumRepeatedLines(units: ReturnType<typeof flattenToScanUnits>): ReturnT
     const key = `${unit.kit_id}:${unit.asset_id ?? ''}:${unit.item_id ?? ''}`;
     const first = byKey.get(key);
     if (first) {
-      first.quantity += unit.quantity;
+      // A tracked unit is one physical thing: listed twice, it's still one line of 1.
+      if (unit.kind !== 'unit') first.quantity += unit.quantity;
       continue;
     }
     const copy = { ...unit };

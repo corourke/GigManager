@@ -34,6 +34,8 @@ interface ManualTrackingOverrideDialogProps {
   assetId?: string;
   isContainerKit?: boolean;
   assetIds?: string[];
+  /** A whole-kit override of a logical kit: its own kit row moves with its units. */
+  keepKitRow?: boolean;
   userId: string;
   userRole?: UserRole;
   onSuccess: () => void;
@@ -52,6 +54,7 @@ export function ManualTrackingOverrideDialog({
   assetId,
   isContainerKit,
   assetIds,
+  keepKitRow,
   userId,
   onSuccess,
   targetLabel,
@@ -90,6 +93,7 @@ export function ManualTrackingOverrideDialog({
         createdBy: userId,
         isContainerKit,
         assetIds,
+        keepKitRow,
       });
       toast.success('Tracking record updated');
       onOpenChange(false);
