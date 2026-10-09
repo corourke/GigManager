@@ -1,7 +1,7 @@
 import { createClient } from '../utils/supabase/client';
 import { handleApiError } from '../utils/api-error-utils';
 import { SCANNING_MODES, RETURNED_STATUS } from '../config/inventoryWorkflow';
-import { getKitComponentTree, flattenToScanUnits } from './kit.service';
+import { getKitComponentTree, flattenToScanUnits, type KitComponentTreeNode } from './kit.service';
 import type { DbInventoryTracking } from '../utils/supabase/types';
 
 const getSupabase = () => createClient();
@@ -86,6 +86,20 @@ export interface PackingListRow {
   kit_id: string;
   kit_name?: string | null;
   is_container: boolean;
+  /** unit / lot: a specific record; any: N of an item (#185); container: a sealed case. */
+  kind?: 'unit' | 'lot' | 'any' | 'container';
+  /** An "any" line's item. */
+  item_id?: string | null;
+  /** A lot line: how many the lot holds. */
+  lot_of?: number | null;
+  /** A container: what it holds. */
+  contents?: string[];
+  /** How many of `quantity` are packed (scanned or counted, not returned). */
+  packed?: number;
+  /** An "any" line: the units and lots packed for it. */
+  packed_units?: { asset_id: string; tag_number: string | null; serial_number: string | null; quantity: number }[];
+  /** An "any" line of an item with no tags: its pieces are counted, not scanned. */
+  counted?: boolean;
   asset_id?: string | null;
   asset_name?: string | null;
   tag_number?: string | null;
@@ -126,6 +140,10 @@ export interface CreateManualTrackingParams {
   createdBy: string;
   isContainerKit?: boolean;
   assetIds?: string[];
+  /** With `assetId`: how many of that lot are there (#185: quantity is state). */
+  quantity?: number;
+  /** With `assetIds`: how many of each lot (1 when not given). */
+  quantities?: Record<string, number>;
 }
 
 function getLatestByKey(records: DbInventoryTracking[]): DbInventoryTracking[] {
@@ -453,10 +471,10 @@ export async function getItemsByLocation(
 export async function createManualTrackingRecord(params: CreateManualTrackingParams): Promise<DbInventoryTracking[]> {
   const supabase = getSupabase();
   try {
-    const { organizationId, gigId, kitId, assetId, status, location, notes, createdBy, isContainerKit, assetIds } = params;
+    const { organizationId, gigId, kitId, assetId, status, location, notes, createdBy, isContainerKit, assetIds, quantity, quantities } = params;
     const now = new Date().toISOString();
 
-    const buildRecord = (targetAssetId?: string) => ({
+    const buildRecord = (targetAssetId?: string, n = 1) => ({
       organization_id: organizationId,
       gig_id: gigId,
       kit_id: kitId,
@@ -466,10 +484,11 @@ export async function createManualTrackingRecord(params: CreateManualTrackingPar
       notes: notes ?? null,
       scanned_at: now,
       scanned_by: createdBy,
+      quantity: Math.max(1, Math.floor(n)),
     });
 
     if (assetId) {
-      const record = buildRecord(assetId);
+      const record = buildRecord(assetId, quantity ?? 1);
       const { data, error } = await supabase
         .from('inventory_tracking')
         .insert(record)
@@ -490,7 +509,9 @@ export async function createManualTrackingRecord(params: CreateManualTrackingPar
       return [data as DbInventoryTracking];
     }
 
-    const records = [buildRecord(undefined), ...(assetIds ?? []).map((id) => buildRecord(id))];
+    // A logical kit isn't scanned itself: a row per asset under it, as the phone writes (#185).
+    const records = (assetIds ?? []).map((id) => buildRecord(id, quantities?.[id] ?? 1));
+    if (records.length === 0) return [];
     const { data, error } = await supabase
       .from('inventory_tracking')
       .insert(records)
@@ -589,24 +610,49 @@ export async function getPackingListReport(organizationId: string, gigId: string
     // instead of one row for the sealed unit). getKitComponentTree walks
     // the real kit_components tree; flattenToScanUnits stops the moment a
     // container is reached, wherever it sits in the hierarchy.
-    const nonContainerAssignments = (assignments ?? []).filter((a: any) => !a.kit?.is_container);
     const scanUnitsByKit = new Map<string, ReturnType<typeof flattenToScanUnits>>();
-    for (const assignment of nonContainerAssignments) {
+    const containerContents = new Map<string, string[]>();
+    for (const assignment of assignments ?? []) {
       const kit = (assignment as any).kit;
-      const tree = await getKitComponentTree(assignment.kit_id);
-      scanUnitsByKit.set(assignment.kit_id, flattenToScanUnits(tree, { id: assignment.kit_id, name: kit.name }));
+      if (kit?.is_container) {
+        // A container assigned on its own is one line, listing what it holds (#185). The
+        // list is a courtesy: if it can't be read, the line still shows.
+        const tree = await getKitComponentTree(assignment.kit_id).catch(() => [] as KitComponentTreeNode[]);
+        containerContents.set(assignment.kit_id, flattenToScanUnits([{
+          clientKey: 'top', type: 'kit', quantity: 1, children: tree,
+          kit: { id: assignment.kit_id, name: kit.name, category: null, is_container: true, tag_number: kit.tag_number ?? null },
+        }], { id: assignment.kit_id, name: kit.name })[0]?.contents ?? []);
+      } else {
+        const tree = await getKitComponentTree(assignment.kit_id);
+        scanUnitsByKit.set(assignment.kit_id, flattenToScanUnits(tree, { id: assignment.kit_id, name: kit.name }));
+      }
     }
 
     const { data: trackingData, error: trackingError } = await supabase
       .from('inventory_tracking')
-      .select('id, gig_id, kit_id, asset_id, status, location, scanned_at, scanned_by, notes, created_at, scanned_by_user:users!scanned_by(first_name, last_name, email)')
+      .select('id, gig_id, kit_id, asset_id, status, location, quantity, scanned_at, scanned_by, notes, created_at, '
+        + 'scanned_by_user:users!scanned_by(first_name, last_name, email), '
+        + 'asset:asset_id(equipment_item_id, tag_number, serial_number, manufacturer_model)')
       .eq('organization_id', organizationId)
       .eq('gig_id', gigId);
 
     if (trackingError) throw trackingError;
 
-    const latest = getLatestByKey((trackingData ?? []) as DbInventoryTracking[]);
+    const latest = getLatestByKey((trackingData ?? []) as unknown as DbInventoryTracking[]);
     const conflictFlags = await getInventoryConflictFlags(organizationId);
+
+    // #185: an "any" line of an item with inventory tags is scanned piece by piece; without, counted.
+    const anyItemIds = [...new Set([...scanUnitsByKit.values()].flat().filter((u) => u.kind === 'any' && u.item_id).map((u) => u.item_id!))];
+    const taggedItems = new Set<string>();
+    if (anyItemIds.length) {
+      const { data: tagged, error: taggedError } = await (supabase.from('assets') as any)
+        .select('equipment_item_id').eq('organization_id', organizationId).in('equipment_item_id', anyItemIds)
+        .not('tag_number', 'is', null);
+      if (taggedError) throw taggedError;
+      for (const a of (tagged ?? []) as { equipment_item_id: string }[]) taggedItems.add(a.equipment_item_id);
+    }
+    const isOut = (r: DbInventoryTracking | undefined) => !!r && r.status !== RETURNED_STATUS;
+    const packedOf = (r: DbInventoryTracking | undefined) => (isOut(r) ? Number((r as any).quantity ?? 1) : 0);
 
     const rows: PackingListRow[] = [];
 
@@ -634,6 +680,9 @@ export async function getPackingListReport(organizationId: string, gigId: string
           // has no quantity of its own) — quantity only varies for a
           // component *inside* a kit's tree, handled below.
           quantity: 1,
+          kind: 'container',
+          contents: containerContents.get(kitId) ?? [],
+          packed: isOut(kitRecord) ? 1 : 0,
           status: kitRecord?.status ?? null,
           location: kitRecord?.location ?? null,
           scanned_at: kitRecord?.scanned_at ?? null,
@@ -643,13 +692,37 @@ export async function getPackingListReport(organizationId: string, gigId: string
           ...group,
         });
       } else {
-        for (const unit of scanUnitsByKit.get(kitId) ?? []) {
+        const units = scanUnitsByKit.get(kitId) ?? [];
+        // A unit on a specific line of the kit doesn't also fill one of its "any" lines.
+        const specific = new Set(units.filter((u) => u.asset_id).map((u) => `${u.kit_id}:${u.asset_id}`));
+        for (const unit of units) {
           const unitConflict = conflictFlags.has(unit.kit_id);
+          if (unit.kind === 'any') {
+            const forItem = latest.filter((r) => r.kit_id === unit.kit_id && r.asset_id && isOut(r)
+              && (r as any).asset?.equipment_item_id === unit.item_id && !specific.has(`${r.kit_id}:${r.asset_id}`));
+            const packedUnits = forItem.map((r) => ({
+              asset_id: r.asset_id!, tag_number: (r as any).asset?.tag_number ?? null,
+              serial_number: (r as any).asset?.serial_number ?? null, quantity: Number((r as any).quantity ?? 1),
+            }));
+            rows.push({
+              kit_id: unit.kit_id, kit_name: unit.kit_name, is_container: false, kind: 'any', item_id: unit.item_id,
+              asset_id: null, asset_name: unit.asset_name, tag_number: null, quantity: unit.quantity,
+              packed: packedUnits.reduce((n, u) => n + u.quantity, 0), packed_units: packedUnits,
+              counted: !taggedItems.has(unit.item_id ?? ''),
+              status: null, location: null, scanned_at: null, scanned_by_name: null, notes: null,
+              has_conflict: unitConflict, ...group,
+            });
+            continue;
+          }
           const unitRecord = latest.find((r) => r.kit_id === unit.kit_id && (r.asset_id ?? null) === unit.asset_id);
           rows.push({
             kit_id: unit.kit_id,
             kit_name: unit.kit_name,
             is_container: unit.is_container,
+            kind: unit.kind,
+            lot_of: unit.lot_of ?? null,
+            contents: unit.contents,
+            packed: unit.kind === 'container' ? (isOut(unitRecord) ? unit.quantity : 0) : packedOf(unitRecord),
             asset_id: unit.asset_id,
             asset_name: unit.asset_name,
             tag_number: unit.tag_number,
@@ -672,7 +745,7 @@ export async function getPackingListReport(organizationId: string, gigId: string
     // twice. (kit_id, asset_id) uniquely identifies a row either way.
     const seen = new Set<string>();
     const dedupedRows = rows.filter((row) => {
-      const key = `${row.kit_id}:${row.asset_id ?? ''}`;
+      const key = `${row.kit_id}:${row.asset_id ?? ''}:${row.item_id ?? ''}`;
       if (seen.has(key)) return false;
       seen.add(key);
       return true;
@@ -815,9 +888,13 @@ export async function getKitTrackingSummary(
       const kitRecord = kitRecords.find((r) => !r.asset_id);
       const assetRecords = kitRecords.filter((r) => r.asset_id);
 
-      const representativeRecord = kitRecord ?? assetRecords[0];
+      // A logical kit isn't scanned itself (#185): its newest row, kit-level or not, says where it is.
+      const newestAsset = assetRecords.reduce<DbInventoryTracking | undefined>(
+        (best, r) => (!best || r.scanned_at > best.scanned_at ? r : best), undefined);
+      const representativeRecord = !isContainer && kitRecord && newestAsset && newestAsset.scanned_at > kitRecord.scanned_at
+        ? newestAsset : kitRecord ?? newestAsset;
       const rawRecord = representativeRecord as any;
-      const status = kitRecord?.status ?? assetRecords[0]?.status ?? null;
+      const status = representativeRecord?.status ?? null;
       // Once returned, the kit isn't actively checked out to the gig that
       // last scanned it — even though the record itself still points at
       // that gig (rows are always gig-scoped).

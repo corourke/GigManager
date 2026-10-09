@@ -769,6 +769,33 @@ describe('flattenToScanUnits', () => {
     ]);
   });
 
+  const item = (quantity: number, id = 'item-k12', model = 'QSC K12.2'): KitComponentTreeNode => ({
+    clientKey: `item-${id}`, type: 'item', quantity, item: { id, manufacturer_model: model, category: 'Audio' } as any, children: [],
+  });
+
+  // #185: "any" lines are packing lines too, and quantities multiply through sub-kits.
+  it('an "any" line becomes a scan unit of its item, under the owning kit', () => {
+    expect(flattenToScanUnits([item(2)], owningKit)).toEqual([
+      expect.objectContaining({ kind: 'any', kit_id: owningKit.id, asset_id: null, item_id: 'item-k12', asset_name: 'QSC K12.2', quantity: 2 }),
+    ]);
+  });
+
+  it('two copies of a non-container sub-kit mean twice everything in it', () => {
+    const units = flattenToScanUnits([kit('kit-pair', false, 2, [asset(3, 'asset-xlr', 'XLR Cable'), item(1)])], owningKit);
+    expect(units.map((u) => [u.kind, u.asset_id ?? u.item_id, u.quantity])).toEqual([['lot', 'asset-xlr', 6], ['any', 'item-k12', 2]]);
+  });
+
+  it('a lot says how many it holds; a tagged unit is a unit', () => {
+    const lot: KitComponentTreeNode = { ...asset(2, 'asset-stands', 'Speaker Stand'), asset: { id: 'asset-stands', manufacturer_model: 'Speaker Stand', tag_number: null, serial_number: null, quantity: 6 } as any };
+    const unit: KitComponentTreeNode = { ...asset(1, 'asset-pd20', 'PD-20'), asset: { id: 'asset-pd20', manufacturer_model: 'PD-20', tag_number: 'DSL-0211' } as any };
+    expect(flattenToScanUnits([lot, unit], owningKit).map((u) => [u.kind, u.lot_of ?? null])).toEqual([['lot', 6], ['unit', null]]);
+  });
+
+  it('a container lists what it holds', () => {
+    const units = flattenToScanUnits([kit('kit-case', true, 1, [asset(8, 'asset-xlr', 'XLR Cable'), item(2), kit('kit-di', false, 1, [])])], owningKit);
+    expect(units[0]).toMatchObject({ kind: 'container', contents: ['8 × XLR Cable', '2 × QSC K12.2', '1 × kit-di'] });
+  });
+
   it('attributes a transparent non-container sub-kit\'s assets to the owning kit, each with its own quantity', () => {
     const units = flattenToScanUnits(
       [kit('kit-lighting', false, 1, [asset(4, 'asset-par', 'LED Par')])],
