@@ -71,6 +71,17 @@ describe('NotReturnedSection (#185)', () => {
     expect(writeOffPieces).toHaveBeenCalledWith({ assetId: 'cables', quantity: 1, gigId: 'gig-1', kitId: 'foh', stillOut: 3 });
   });
 
+  it('after a write-off the row closes its form; the rest of a lot are still listed with their actions', async () => {
+    const ue = userEvent.setup();
+    render(<NotReturnedSection organizationId="org-1" gigId="gig-1" gigEnd={past} canEdit />);
+    const row = () => screen.getByText(/XLR Cable/).closest('li')!;
+    await screen.findByText(/XLR Cable/);
+    await ue.click(within(row()).getByRole('button', { name: 'Mark missing' }));
+    await ue.click(within(row()).getByRole('button', { name: 'Write off' }));
+    await waitFor(() => expect(within(row()).queryByRole('button', { name: 'Write off' })).not.toBeInTheDocument());
+    expect(within(row()).getByRole('button', { name: 'Mark missing' })).toBeInTheDocument();
+  });
+
   it('Mark missing on a unit writes off that one unit', async () => {
     const ue = userEvent.setup();
     render(<NotReturnedSection organizationId="org-1" gigId="gig-1" gigEnd={past} canEdit />);

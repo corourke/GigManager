@@ -134,13 +134,13 @@ function NotReturnedRow({ entry, canEdit, busy, onReturned, onWriteOff }: {
               <Input type="number" min={1} max={entry.quantity} value={count} aria-label="How many are missing"
                 onChange={(ev) => setCount(ev.target.value)} className="h-8 w-20" />
             )}
-            <Button size="sm" variant="destructive" disabled={busy || !valid} onClick={() => onWriteOff(lot ? n : 1)}>Write off</Button>
+            <Button size="sm" variant="destructive" disabled={busy || !valid} onClick={() => { onWriteOff(lot ? n : 1); setAsking(false); }}>Write off</Button>
             <Button size="sm" variant="ghost" onClick={() => setAsking(false)}>Cancel</Button>
           </div>
         ) : (
           <div className="flex items-center gap-2">
             <Button size="sm" variant="outline" disabled={busy} onClick={onReturned}>Returned</Button>
-            <Button size="sm" variant="outline" disabled={busy} onClick={() => setAsking(true)}>Mark missing</Button>
+            <Button size="sm" variant="outline" disabled={busy} onClick={() => { setCount(String(entry.quantity)); setAsking(true); }}>Mark missing</Button>
           </div>
         )
       )}
