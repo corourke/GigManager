@@ -5,6 +5,8 @@ Append new entries at the top of each section; never edit an old entry to descri
 
 ## Shipped (newest first)
 
+- **#183 pieces B and C, PR #221** (Equipment Lead, merged by the coordinator 10-09): shared equipment form sections (What it is / Unit or lot / Insurance) for Add Item, Add unit or lot and the purchase Equipment details pop-up; new purchases save via `create_purchase_transaction_v2` (a line of N units = N records; fixes the prod "serial on a line of 2" error); saved lines add units, or remove them with Delete / Mark Inactive (Cameron 10-09), re-pointing `asset_id` first; Unit/Lot locked once saved; per-unit values kept. Two review rounds (coordinator) and a pre-merge dev test (Docs Lead) found and fixed 4 blocking issues. Future considerations in the PR: no rollback across a multi-step save (RPC later), no org-wide duplicate-tag warning, Track as equipment and CSV import still on v1.
+
 - **#219, PR #223** (coordinator's sub-agent, merged 10-09): the printed sheet's Staff costs rows use the #213 estimate and add up to its summary; `money()` shows cents with two decimals ("$1,582.50"); the edit-mode staffing footer uses en-US grouping.
 
 - **User guide published, PR #222** (Docs Lead, merged 10-09, Cameron's OK): 13 Gigs, Team and Reference pages and the glossary; links to held Equipment/Mobile pages left as plain text.
