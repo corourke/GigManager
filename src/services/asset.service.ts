@@ -199,6 +199,48 @@ export async function getAssetInventoryTracking(assetId: string): Promise<DbInve
 /**
  * Create a new asset
  */
+/**
+ * Several units (or a lot) saved together (#183): one insert, so they all save or
+ * none do. Each gets a "created" entry in its history. Returns the saved records.
+ */
+export async function createAssets(rows: Partial<DbAsset>[]): Promise<DbAsset[]> {
+  if (rows.length === 0) return [];
+  try {
+    const { supabase, user } = await requireAuth();
+    const { data, error } = await (supabase.from('assets') as any)
+      .insert(rows.map((r) => ({ ...r, created_by: user.id, updated_by: user.id })))
+      .select();
+    if (error) throw error;
+    const saved = (data ?? []) as DbAsset[];
+
+    try {
+      const actorDisplayName = `${(user as any).user_metadata?.first_name ?? ''} ${(user as any).user_metadata?.last_name ?? ''}`.trim() || user.email || '';
+      const { data: orgRow } = await (supabase.from('organizations') as any).select('name').eq('id', saved[0]?.organization_id).single();
+      for (const a of saved) {
+        await logActivity({
+          organization_id: a.organization_id,
+          event_type: 'asset.created',
+          entity_type: 'asset',
+          entity_id: a.id,
+          gig_id: null,
+          context: {
+            context_version: 1,
+            actor_display_name: actorDisplayName,
+            actor_org_name: (orgRow as any)?.name ?? '',
+            asset_model: a.manufacturer_model ?? '',
+            category: a.category ?? '',
+          },
+        });
+      }
+    } catch (e) {
+      console.error('Activity log failed:', e);
+    }
+    return saved;
+  } catch (err) {
+    return handleApiError(err, 'create equipment');
+  }
+}
+
 export async function createAsset(assetData: Partial<DbAsset> & { cost?: number }) {
   try {
     const { supabase, user } = await requireAuth();

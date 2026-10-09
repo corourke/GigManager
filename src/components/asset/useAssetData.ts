@@ -5,6 +5,7 @@ import {
   getAssetHistory,
   getAssetInventoryTracking,
   createAsset,
+  createAssets,
   updateAsset,
 } from '../../services/asset.service';
 
@@ -51,11 +52,16 @@ export function useAssetMutations(organizationId: string) {
     onSuccess: invalidateList,
   });
 
+  const createAssetsMutation = useMutation({
+    mutationFn: (rows: Parameters<typeof createAssets>[0]) => createAssets(rows),
+    onSuccess: invalidateList,
+  });
+
   const updateAssetMutation = useMutation({
     mutationFn: (vars: { id: string; data: Parameters<typeof updateAsset>[1] }) =>
       updateAsset(vars.id, vars.data),
     onSuccess: invalidateList,
   });
 
-  return { createAsset: createAssetMutation, updateAsset: updateAssetMutation };
+  return { createAsset: createAssetMutation, createAssets: createAssetsMutation, updateAsset: updateAssetMutation };
 }

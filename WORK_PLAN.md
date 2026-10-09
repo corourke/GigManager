@@ -20,7 +20,7 @@ This file lives on `main`. Land updates there promptly: a run that starts from `
 | [#125](https://github.com/corourke/GigManager/issues/125) | Financials → Reporting: tax-program data export | Part 1 merged (PR #167): recovery period on equipment, and Income / Expenses / Assets reports with CSV | In dev and prod 10-08 (2024–25 set to 7-year per the filed returns). Grey zone merged (PR #201); date-ranged mileage rates merged (PR #202); F1 run on prod 10-08. Next if wanted: Schedule C summary, Needs attention |
 | [#162](https://github.com/corourke/GigManager/issues/162) | Equipment items and units (serials, tags, quantities, kits); parent of #179–#186 | Mockups approved and merged 10-08 (PR #165, `docs/design/mockups/equipment-units/`); split into sub-issues | See the rows below |
 | [#181](https://github.com/corourke/GigManager/issues/181) | Data grouping review for Cameron | #180 is in prod (158 items); regrouping is now a data change. Coordinator supplies prod data | Equipment Lead |
-| [#182](https://github.com/corourke/GigManager/issues/182)–[#186](https://github.com/corourke/GigManager/issues/186) | Items screens: (a) Items tab, item page, unit/lot form, dashboard total (closes #157); (b) purchases, CSV import; (c) kit editor, overlap; (d) packing list, gig equipment, scanning; (e) locations, override, maintenance (closes #160) | (a) can start (#180 on dev 10-08); b and c after a; d after c; e after d | Equipment Lead |
+| [#183](https://github.com/corourke/GigManager/issues/183)–[#186](https://github.com/corourke/GigManager/issues/186) | Items screens: (b) purchases, CSV import; (c) kit editor, overlap; (d) packing list, gig equipment, scanning; (e) locations, override, maintenance (closes #160) | #182 done; #183 A, B, C merged (PRs #216, #221) and **in prod 10-09**; #183 D (CSV import) off the critical path; follow-ups in [#226](https://github.com/corourke/GigManager/issues/226) | Equipment Lead: **#184 next**; D by a coordinator sub-agent when the Lead says it's clear |
 | [#135](https://github.com/corourke/GigManager/issues/135) | Audit and fix 2026 purchase data | Unblocked once the reports are on dev; they show what needs fixing | Coordinator with Cameron; each prod data fix needs his go |
 | [#20](https://github.com/corourke/GigManager/issues/20) | Shared data-access layer under `src/services/` | Batches 1–2 merged (PRs #203, #204). **Paused (Cameron, 10-08) until #186 merges**: batches 3–7 touch the services the equipment refactor and #175 rewrite | Triage resumes at batch 3 once #186 is merged |
 | [#175](https://github.com/corourke/GigManager/issues/175) | Delete gig offered to Managers, but Admin-only | Cameron 10-07: another participating org's Admin must never delete; direction "cancel only when other orgs participate" | Plan approved by Cameron 10-08; **sequenced after the equipment refactor (#183–#186)**. Coordinator builds it in 3 PRs (§3c) |
@@ -28,8 +28,8 @@ This file lives on `main`. Land updates there promptly: a run that starts from `
 
 ## 2. Waiting on Cameron
 
-1. **Prod deploy: goes out right after PR #221 (#183 B+C) merges (Cameron, 10-09; was: hold until #186).** #183 D (CSV import) and #184–#186 follow in a later deploy. Main is on dev (functions deployed from main `571b636` at 23:58 UTC 10-08 — server v46, ai-scan v34, health-check v6; dev migrations match the repo through `20261017000000`). The held deploy carries migrations `20261016000000_staff_rate_unit.sql` (#171) and `20261017000000_purchase_line_units.sql` (#183 piece A, PR #216; on dev 10-08), and everything merged after PR #204; run it with `deploy_prod.sh` (migration before frontend).
-2. **Sentry:** (a) add `VITE_SENTRY_DSN` (React project DSN) to `.env.production.local` before the held prod deploy; the live web app has none baked in (see `docs/technical/deployment.md`, PR #208). (b) Optional: `SENTRY_API_TOKEN`, `SENTRY_ORG_SLUG`, `SENTRY_PROJECT_SLUG` on prod for the health check's Sentry check (reports "not configured" until set). Edge-function `SENTRY_DSN` / `SENTRY_ENVIRONMENT` are set on both projects.
+1. **Main bundle size (coordinator, 10-09):** the prod build's main JS is 2,043,982 bytes, 53 KB under the 2,097,152-byte PWA precache limit (local builds read ~1.97 MB; prod is larger with the real env). The next features will likely cross it; a code-splitting pass should come before #184–#186 land.
+2. **Sentry (optional):** `VITE_SENTRY_DSN` is live in the prod web app (10-09). Still optional: `SENTRY_API_TOKEN`, `SENTRY_ORG_SLUG`, `SENTRY_PROJECT_SLUG` on prod for the health check's Sentry check.
 
 **Decided 10-08, recorded here until done:**
 - The Docs Lead's corrected membership report (private; reported to Cameron directly): no path lets a Manager make anyone an Admin. The remaining backstop gaps are **parked** (Cameron: later). Partner organizations on a shared gig may keep adding, editing and removing each other's no-login contacts (intended). Person-search privacy is fixed by #178 (in prod 10-08).
@@ -78,14 +78,7 @@ Not released: #174's UI half shipped in PR #199; its remaining item (the already
 
 (none open: the 10-07 entries are filed as #157–#160, #168–#171, #173–#176 and #178, and their decisions are in §1 and §2)
 
-- **Docs Lead, 10-08 late: coordinator's next queue.**
-  - **Item 1, staff rate units (#171):** PR #214 (merged), which added demo rates per hour, day and half day, retakes the staffing shots and fixes the wording.
-  - **Item 2, Equipment Items pages: held.** Cameron chose to keep holding all of Equipment until #183–#186 land.
-  - **Item 3, #206:** fixed in PR #215; the guide follows in PR #217.
-  - **#213:** merged in PR #218; the guide follows in PR #220.
-- **"N × any" kit lines before #184–#185 (Docs Lead, 10-08):** expected gaps in the demo data (kit page "Unknown Kit × N", packing list omits them, overlap check ignores them); passed to the Equipment Lead 10-09 for #184/#185.
-
-- **Correction to the private membership finding (§2 item 3), Docs Lead, 10-08.** Tested on dev as the demo Manager, the escalation I reported on 10-07 is **not exploitable**: the `guard_organization_membership` trigger (`20260929000000`) blocks it on every path tried. What remains are low-severity defence-in-depth gaps. The full write-up (paths, test results, suggested fixes) went to Cameron privately on 10-08 to pass on. No migration is urgent; fold the fixes into the next membership or security migration.
+- **TEST-221 records on dev (Docs Lead, 10-09):** left by the #221 pre-merge test; re-run `./scripts/seed-demo.sh` to clear them (asked of the Docs Lead 10-09).
 
 ## 4. Agents and documentation
 

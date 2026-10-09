@@ -17,7 +17,7 @@ vi.mock('./activityLog.service', () => ({
 }));
 
 import { logActivity } from './activityLog.service';
-import { duplicateAsset, getAssetDepreciatedDate } from './asset.service';
+import { duplicateAsset, getAssetDepreciatedDate, createAssets } from './asset.service';
 
 function makeChain(result: { data: any; error: any }) {
   const chain: any = {};
@@ -352,6 +352,32 @@ describe('asset.service', () => {
 
       mockSupabase.from.mockImplementation((t: string) => (t === 'assets' ? assetChain : makeChain({ data: [], error: null })));
       expect(await getAssetDepreciatedDate('a1')).toBeNull();
+    });
+  });
+
+  describe('createAssets (#183)', () => {
+    it('saves several units in one insert, with who made them, and logs each', async () => {
+      const rows = [{ id: 'u1', organization_id: 'org-1', manufacturer_model: 'Shure ULXD2', category: 'Audio' },
+                    { id: 'u2', organization_id: 'org-1', manufacturer_model: 'Shure ULXD2', category: 'Audio' }];
+      const assetChain = makeChain({ data: rows, error: null });
+      mockSupabase.from.mockImplementation((t: string) => (t === 'assets' ? assetChain : makeChain({ data: { name: 'Org' }, error: null })));
+
+      const out = await createAssets([
+        { organization_id: 'org-1', manufacturer_model: 'Shure ULXD2', category: 'Audio', serial_number: 'SN1', quantity: 1 },
+        { organization_id: 'org-1', manufacturer_model: 'Shure ULXD2', category: 'Audio', tag_number: 'T2', quantity: 1 },
+      ]);
+
+      expect(out).toEqual(rows);
+      expect(assetChain.insert).toHaveBeenCalledTimes(1);
+      const inserted = assetChain.insert.mock.calls[0][0];
+      expect(inserted).toHaveLength(2);
+      expect(inserted.every((r: any) => r.created_by === 'user-1' && r.updated_by === 'user-1')).toBe(true);
+      expect(logActivity).toHaveBeenCalledTimes(2);
+    });
+
+    it('saves nothing for no units', async () => {
+      expect(await createAssets([])).toEqual([]);
+      expect(mockSupabase.from).not.toHaveBeenCalled();
     });
   });
 });
