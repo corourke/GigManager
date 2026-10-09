@@ -7,6 +7,7 @@ import { requireAuth } from '../utils/supabase/auth-utils';
 import type {
   ReportPurchaseLine, ReportGigRow, ReportExpenseCategory, ScheduleCLineLabel,
 } from '../utils/taxReports';
+import type { ReportAsset, ReportInvoice } from '../utils/taxSummaryReports';
 
 export interface TaxReportData {
   lines: ReportPurchaseLine[];
@@ -15,6 +16,10 @@ export interface TaxReportData {
   scheduleC: ScheduleCLineLabel[];
   /** Every equipment category name, active or not (the Grey zone report's scope). */
   equipmentCategories: string[];
+  /** Every equipment record (Needs attention: recovery period, cost, disposal date). */
+  assets: ReportAsset[];
+  /** Every purchase's invoice row (Needs attention: lines that don't add up). */
+  invoices: ReportInvoice[];
 }
 
 const PAGE = 1000;
@@ -32,7 +37,7 @@ async function all<T>(query: (from: number, to: number) => PromiseLike<{ data: T
 
 export async function getTaxReportData(organizationId: string): Promise<TaxReportData> {
   const { supabase } = await requireAuth();
-  const [lines, gigRows, categories, scheduleC, equipmentCategories] = await Promise.all([
+  const [lines, gigRows, categories, scheduleC, equipmentCategories, assets, invoices] = await Promise.all([
     all<ReportPurchaseLine>((from, to) => (supabase.from('purchases') as any)
       .select('id, purchase_date, vendor, description, category, quantity, item_cost, line_cost, tax_treatment, asset_id, parent_id, '
         + 'parent:parent_id(purchase_date, vendor), '
@@ -42,7 +47,7 @@ export async function getTaxReportData(organizationId: string): Promise<TaxRepor
       .order('id')
       .range(from, to)),
     all<ReportGigRow>((from, to) => (supabase.from('gig_financials') as any)
-      .select('id, gig_id, direction, stage, amount_settled, paid_at, description, category, mileage, purchase_id, '
+      .select('id, gig_id, direction, stage, amount_settled, paid_at, date, description, category, mileage, purchase_id, '
         + 'staff_assignment_id, external_entity_name, reference_number, '
         + 'counterparty:organizations!counterparty_id(name), gig:gigs(title, start)')
       .eq('organization_id', organizationId)
@@ -66,6 +71,17 @@ export async function getTaxReportData(organizationId: string): Promise<TaxRepor
       if (error) throw error;
       return ((data ?? []) as { name: string }[]).map(r => r.name);
     })(),
+    all<ReportAsset>((from, to) => (supabase.from('assets') as any)
+      .select('id, manufacturer_model, description, category, acquisition_date, item_cost, status, retired_on, recovery_period, purchase_line_id')
+      .eq('organization_id', organizationId)
+      .order('id')
+      .range(from, to)),
+    all<ReportInvoice>((from, to) => (supabase.from('purchases') as any)
+      .select('id, purchase_date, vendor, description, total_inv_amount')
+      .eq('organization_id', organizationId)
+      .eq('row_type', 'header')
+      .order('id')
+      .range(from, to)),
   ]);
-  return { lines, gigRows, categories, scheduleC, equipmentCategories };
+  return { lines, gigRows, categories, scheduleC, equipmentCategories, assets, invoices };
 }
