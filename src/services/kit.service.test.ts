@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { getKits, getKit, getDistinctKitValues, deleteKit, createKit, updateKit, duplicateKit, countInventoryItems, maxTreeDepth, getKitsThatWouldCycle, getKitComponentTree, flattenToScanUnits, KitComponentTreeNode } from './kit.service';
+import { getKitsFlattenedSummary, getKits, getKit, getDistinctKitValues, deleteKit, createKit, updateKit, duplicateKit, countInventoryItems, maxTreeDepth, getKitsThatWouldCycle, getKitComponentTree, flattenToScanUnits, KitComponentTreeNode } from './kit.service';
 import { createClient } from '../utils/supabase/client';
 import { requireAuth } from '../utils/supabase/auth-utils';
 
@@ -438,6 +438,186 @@ describe('kit.service', () => {
           kit_name: 'Original (Copy)'
         })
       }));
+    });
+  });
+
+  describe('duplicateKit with an "any" line (#184)', () => {
+    const originalKit = {
+      id: 'k1', name: 'Main PA', organization_id: 'org-1',
+      kit_components: [
+        { id: 'c1', asset_id: 'a1', child_kit_id: null, equipment_item_id: null, quantity: 1, notes: null },
+        { id: 'c2', asset_id: null, child_kit_id: null, equipment_item_id: 'item-tops', quantity: 4, notes: 'tops' },
+      ],
+    };
+    const setup = (componentsResult: { data: any; error: any }) => {
+      const componentsChain = makeChain(componentsResult);
+      mockSupabase.from.mockImplementation((table: string) => {
+        if (table === 'kits') {
+          const chain = makeChain({ data: originalKit, error: null });
+          chain.insert = vi.fn().mockReturnValue(makeChain({ data: { id: 'k2', name: 'Main PA (Copy)', organization_id: 'org-1' }, error: null }));
+          return chain;
+        }
+        if (table === 'organizations') return makeChain({ data: { name: 'Acme' }, error: null });
+        if (table === 'kit_components') return componentsChain;
+        return makeChain({ data: {}, error: null });
+      });
+      (requireAuth as any).mockResolvedValue({ supabase: mockSupabase, user: { id: 'u1' } });
+      return componentsChain;
+    };
+
+    it('copies an "any" line with its item and quantity', async () => {
+      const chain = setup({ data: null, error: null });
+      await duplicateKit('k1');
+      expect(chain.insert).toHaveBeenCalledWith([
+        { kit_id: 'k2', asset_id: 'a1', child_kit_id: null, equipment_item_id: null, quantity: 1, notes: null },
+        { kit_id: 'k2', asset_id: null, child_kit_id: null, equipment_item_id: 'item-tops', quantity: 4, notes: 'tops' },
+      ]);
+    });
+
+    it('reports a failure to copy the lines instead of returning an empty kit', async () => {
+      setup({ data: null, error: { code: '23514', message: 'kit_components_exactly_one_target' } });
+      await expect(duplicateKit('k1')).rejects.toMatchObject({ message: 'kit_components_exactly_one_target' });
+    });
+
+    it('removes the new kit when its lines can\'t be copied, so no empty copy is left', async () => {
+      const kitChains: any[] = [];
+      const componentsChain = makeChain({ data: null, error: { code: '23514', message: 'refused' } });
+      mockSupabase.from.mockImplementation((table: string) => {
+        if (table === 'kits') {
+          const chain = makeChain({ data: originalKit, error: null });
+          chain.insert = vi.fn().mockReturnValue(makeChain({ data: { id: 'k2', name: 'Main PA (Copy)', organization_id: 'org-1' }, error: null }));
+          kitChains.push(chain);
+          return chain;
+        }
+        if (table === 'kit_components') return componentsChain;
+        return makeChain({ data: { name: 'Acme' }, error: null });
+      });
+      (requireAuth as any).mockResolvedValue({ supabase: mockSupabase, user: { id: 'u1' } });
+      await expect(duplicateKit('k1')).rejects.toMatchObject({ message: 'refused' });
+      const deleted = kitChains.filter((c) => c.delete.mock.calls.length > 0);
+      expect(deleted).toHaveLength(1);
+      expect(deleted[0].eq).toHaveBeenCalledWith('id', 'k2');
+    });
+  });
+
+  describe('"any" lines (#184)', () => {
+    it('getKit selects each line\'s item', async () => {
+      const chain = makeChain({ data: { id: 'kit-1', kit_components: [] }, error: null });
+      mockSupabase.from.mockReturnValue(chain);
+      await getKit('kit-1');
+      const select = String(chain.select.mock.calls[0][0]);
+      expect(select).toContain('equipment_item_id');
+      expect(select).toMatch(/item:equipment_items/);
+    });
+
+    it('createKit writes an "any" line\'s item', async () => {
+      const componentsChain = makeChain({ data: null, error: null });
+      mockSupabase.from.mockImplementation((table: string) => {
+        if (table === 'kits') return makeChain({ data: { id: 'k1', name: 'Main PA', organization_id: 'org-1' }, error: null });
+        if (table === 'kit_components') return componentsChain;
+        return makeChain({ data: { name: 'Acme' }, error: null });
+      });
+      (requireAuth as any).mockResolvedValue({ supabase: mockSupabase, user: { id: 'u1' } });
+      await createKit({ name: 'Main PA', organization_id: 'org-1', components: [{ equipment_item_id: 'item-tops', quantity: 4 }] } as any);
+      expect(componentsChain.insert).toHaveBeenCalledWith([expect.objectContaining({ kit_id: 'k1', equipment_item_id: 'item-tops', asset_id: null, child_kit_id: null, quantity: 4 })]);
+    });
+
+    it('the component tree shows an "any" line as its item, not an unknown kit', async () => {
+      mockSupabase.rpc = vi.fn().mockResolvedValue({ data: [], error: null });
+      mockSupabase.from.mockImplementation((table: string) => {
+        if (table === 'kits') return makeChain({ data: [{ id: 'kit-top', name: 'Main PA', category: null, is_container: false }], error: null });
+        if (table === 'kit_components') {
+          return makeChain({
+            data: [{ kit_id: 'kit-top', asset_id: null, child_kit_id: null, equipment_item_id: 'item-tops', quantity: 4, asset: null,
+              item: { id: 'item-tops', manufacturer_model: 'QSC K12.2', category: 'Audio' } }],
+            error: null,
+          });
+        }
+        return makeChain({ data: [], error: null });
+      });
+      const tree = await getKitComponentTree('kit-top');
+      expect(tree).toEqual([expect.objectContaining({ type: 'item', quantity: 4, item: expect.objectContaining({ manufacturer_model: 'QSC K12.2' }) })]);
+      expect(countInventoryItems(tree)).toBe(4);
+    });
+  });
+
+  describe('getKitsFlattenedSummary counts "any" lines (#184)', () => {
+    it('adds each item line\'s pieces, valued at the item\'s average piece', async () => {
+      mockSupabase.from.mockImplementation((table: string) => {
+        if (table === 'kit_flattened_cache') {
+          return makeChain({ data: [{ kit_id: 'k1', asset_id: 'a1', total_quantity: 1, asset: { replacement_value: 500, manufacturer_model: 'Rack' } }], error: null });
+        }
+        if (table === 'kit_flattened_item_cache') {
+          return makeChain({ data: [{ kit_id: 'k1', equipment_item_id: 'item-tops', total_quantity: 4 }], error: null });
+        }
+        if (table === 'assets') {
+          return makeChain({ data: [
+            { equipment_item_id: 'item-tops', quantity: 1, replacement_value: 1000, status: 'Active' },
+            { equipment_item_id: 'item-tops', quantity: 1, replacement_value: 1200, status: 'Active' },
+          ], error: null });
+        }
+        return makeChain({ data: [], error: null });
+      });
+      const summary = (await getKitsFlattenedSummary(['k1'])).get('k1')!;
+      expect(summary.totalItems).toBe(5);
+      expect(summary.totalValue).toBe(500 + 4 * 1100);
+      expect(summary.itemQuantities?.get('item-tops')).toBe(4);
+    });
+  });
+
+  describe('updateKit with "any" lines (#184)', () => {
+    const existing = [{ id: 'kc-1', asset_id: null, child_kit_id: null, equipment_item_id: 'item-k12' }];
+    const setup = (opts: { updateError?: any; deleteError?: any } = {}) => {
+      const component = { chains: [] as any[] };
+      mockSupabase.from.mockImplementation((table: string) => {
+        if (table === 'kits') return makeChain({ data: { id: 'k1', name: 'Main PA', organization_id: 'org-1', organization: { name: 'Acme' } }, error: null });
+        if (table === 'kit_components') {
+          const chain = makeChain({ data: existing, error: null });
+          chain.update = vi.fn().mockReturnValue(makeChain({ data: null, error: opts.updateError ?? null }));
+          chain.delete = vi.fn().mockReturnValue(makeChain({ data: null, error: opts.deleteError ?? null }));
+          chain.insert = vi.fn().mockReturnValue(makeChain({ data: null, error: null }));
+          component.chains.push(chain);
+          return chain;
+        }
+        if (table === 'equipment_items') return makeChain({ data: { manufacturer_model: 'QSC K12.2' }, error: null });
+        return makeChain({ data: {}, error: null });
+      });
+      (requireAuth as any).mockResolvedValue({ supabase: mockSupabase, user: { id: 'u1' } });
+      return component;
+    };
+    const calls = (c: { chains: any[] }, method: 'insert' | 'update' | 'delete') => c.chains.flatMap((ch) => ch[method].mock.calls);
+
+    it('adds an "any" line, and logs it', async () => {
+      const c = setup();
+      await updateKit('k1', { components: [{ equipment_item_id: 'item-sub', quantity: 2 }] }, []);
+      expect(calls(c, 'insert')).toEqual([[expect.objectContaining({ kit_id: 'k1', equipment_item_id: 'item-sub', asset_id: null, child_kit_id: null, quantity: 2 })]]);
+      expect(logActivity).toHaveBeenCalledWith(expect.objectContaining({ event_type: 'kit.asset_added', context: expect.objectContaining({ asset_model: 'any QSC K12.2', quantity: 2 }) }));
+    });
+
+    it('changes an "any" line\'s quantity', async () => {
+      const c = setup();
+      await updateKit('k1', { components: [{ id: 'kc-1', equipment_item_id: 'item-k12', quantity: 6 }] }, ['kc-1']);
+      expect(calls(c, 'update')).toEqual([[expect.objectContaining({ equipment_item_id: 'item-k12', quantity: 6 })]]);
+    });
+
+    it('removes an "any" line, and logs it', async () => {
+      const c = setup();
+      await updateKit('k1', { components: [] }, ['kc-1']);
+      expect(calls(c, 'delete')).toHaveLength(1);
+      expect(logActivity).toHaveBeenCalledWith(expect.objectContaining({ event_type: 'kit.asset_removed', context: expect.objectContaining({ asset_model: 'any QSC K12.2' }) }));
+    });
+
+    it('a refused quantity change is an error, not "Kit updated"', async () => {
+      setup({ updateError: { code: '42501', message: 'permission denied' } });
+      await expect(updateKit('k1', { components: [{ id: 'kc-1', equipment_item_id: 'item-k12', quantity: 6 }] }, ['kc-1']))
+        .rejects.toMatchObject({ message: 'permission denied' });
+    });
+
+    it('a refused removal is an error, before anything is added', async () => {
+      const c = setup({ deleteError: { code: '42501', message: 'permission denied' } });
+      await expect(updateKit('k1', { components: [{ equipment_item_id: 'item-sub', quantity: 1 }] }, ['kc-1']))
+        .rejects.toMatchObject({ message: 'permission denied' });
+      expect(calls(c, 'insert')).toHaveLength(0);
     });
   });
 

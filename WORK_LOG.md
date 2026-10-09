@@ -5,6 +5,8 @@ Append new entries at the top of each section; never edit an old entry to descri
 
 ## Shipped (newest first)
 
+- **#184 PR 1, PR #225** (Equipment Lead, merged by the coordinator 10-09): kit editor and kit page support "N × any" of an item, with owned/available counts and warnings, grouped Add Components, and kit totals that include "any" lines. Fixes Duplicate kit dropping all lines of a kit with an "any" line; review fixes: a failed Duplicate leaves no empty copy, and kit saves check line delete/update errors. Not yet: packing lists and the overlap check ignore "any" lines (#185, #184 PR 2). Follow-ups: concurrent-edit partial writes (RPC later), nested-container availability display, unpaged item query.
+
 - **#221 pre-merge test (Docs Lead, 10-09):** all paths passed for Admin/Manager/Staff/Viewer except one blocking bug (removing a depreciated line's first unit), fixed before merge; no missing-column errors anywhere. Its "can follow" items, with the coordinator's review notes, are filed as #226. Settled 3d entries removed: the Docs Lead's 10-08 queue (all done), "N × any" gaps (passed to the Equipment Lead for #184/#185), and the membership correction (parked per §2).
 
 - **Prod deploy (10-09, Cameron, `deploy_prod.sh`; verified read-only by the coordinator):** main through PR #221. Migrations `20261016000000_staff_rate_unit` and `20261017000000_purchase_line_units` applied (all 5 prod assignments have a rate_unit; new purchase functions executable by authenticated only, the internal helper by no API role). Edge functions unchanged (server v33, ai-scan v21, health-check v3). Live bundle carries rate units, the #213 estimate, `create_purchase_transaction_v2`, the prod Supabase ref only, and a Sentry DSN. Main bundle 2,043,982 bytes.

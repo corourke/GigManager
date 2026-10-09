@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen, waitFor, fireEvent } from '@testing-library/react'
 import KitDetailScreen from './KitDetailScreen'
-import { getKit } from '../services/kit.service'
+import { getKit, getKitComponentTree, getKitFlattenedItems } from '../services/kit.service'
 import { makeUser, makeOrganization } from '../test/factories'
 import { getBackInHeaderSlot } from '../test/pageFrame'
 
@@ -58,6 +58,7 @@ vi.mock('../services/kit.service', async (importOriginal) => {
         ],
       },
     ]),
+    getKitFlattenedItems: vi.fn().mockResolvedValue([]),
     deleteKit: vi.fn(),
     duplicateKit: vi.fn(),
   }
@@ -149,5 +150,27 @@ describe('KitDetailScreen', () => {
 
     fireEvent.click(screen.getByText('Retry'))
     await waitFor(() => expect(screen.getByText('Full Rack')).toBeInTheDocument())
+  })
+})
+
+// #184: "N × any" of an item on the kit page, instead of "Unknown Kit × N".
+describe('KitDetailScreen: "any" lines (#184)', () => {
+  it('lists an "any" line as its item, and counts it in the totals', async () => {
+    vi.mocked(getKitComponentTree).mockResolvedValueOnce([
+      { clientKey: 'item-k12', type: 'item', quantity: 2, item: { id: 'k12', manufacturer_model: 'QSC K12.2', category: 'Audio' }, children: [] },
+    ] as any)
+    vi.mocked(getKitFlattenedItems).mockResolvedValueOnce([
+      { equipment_item_id: 'k12', total_quantity: 2, item: { id: 'k12', manufacturer_model: 'QSC K12.2', category: 'Audio',
+        records: [{ quantity: 1, replacement_value: 1000, status: 'Active' }, { quantity: 1, replacement_value: 1200, status: 'Active' },
+          { quantity: 1, replacement_value: 1100, status: 'Maintenance' }] } },
+    ] as any)
+    render(<KitDetailScreen {...mockProps} />)
+    const structure = await screen.findByText('Kit Structure')
+    const card = structure.closest('div.p-6') as HTMLElement
+    await waitFor(() => expect(card).toHaveTextContent('Any2 ×QSC K12.2of 3 owned'))
+    expect(card).not.toHaveTextContent('Unknown Kit')
+    // 7 flattened pieces from the assets, plus 2; value 2×150 + 5×20 + 2×1100.
+    expect(screen.getAllByText('Total Items')[0].nextElementSibling).toHaveTextContent('9')
+    expect(screen.getAllByText('Total Value')[0].nextElementSibling).toHaveTextContent('$2,600.00')
   })
 })
