@@ -188,4 +188,35 @@ describe('packingListService.fetchGigPackingList', () => {
       expect.objectContaining({ id: 'lot-a', quantity: 10, at_home: 6, at_gig: 3 }),
     ]);
   });
+
+  // #185 guard rail: Pack-Out warns before packing a unit that's still out at another gig.
+  it('says which units are still out at another gig, and which gig', async () => {
+    const tableResponses: Record<string, any> = {
+      gig_kit_assignments: { data: [{ kit_id: 'rack', notes: null, kit: { id: 'rack', name: 'Rack', tag_number: null, is_container: false } }], error: null },
+      kit_flattened_cache: { data: [
+        { kit_id: 'rack', asset_id: 'k12', total_quantity: 1 },
+        { kit_id: 'rack', asset_id: 'k12-b', total_quantity: 1 },
+        { kit_id: 'rack', asset_id: 'xlr', total_quantity: 10 },
+      ], error: null },
+      kit_components: { data: [], error: null },
+      assets: { data: [
+        { id: 'k12', manufacturer_model: 'K12', tag_number: 'K12-1', quantity: 1, status: 'Active' },
+        { id: 'k12-b', manufacturer_model: 'K12', tag_number: 'K12-2', quantity: 1, status: 'Active' },
+        { id: 'xlr', manufacturer_model: 'XLR', tag_number: null, quantity: 20, status: 'Active' },
+      ], error: null },
+      inventory_tracking: { data: [
+        { id: 't1', gig_id: 'other-gig', kit_id: 'k', asset_id: 'k12', status: 'On Site', quantity: 1, scanned_at: '2026-10-01T10:00:00Z', created_at: '2026-10-01T10:00:00Z' },
+        { id: 't2', gig_id: 'old-gig', kit_id: 'k', asset_id: 'k12-b', status: 'In Warehouse', quantity: 1, scanned_at: '2026-09-01T10:00:00Z', created_at: '2026-09-01T10:00:00Z' },
+        { id: 't3', gig_id: 'other-gig', kit_id: 'k', asset_id: 'xlr', status: 'On Site', quantity: 4, scanned_at: '2026-10-01T10:00:00Z', created_at: '2026-10-01T10:00:00Z' },
+      ], error: null },
+      gigs: { data: [{ id: 'other-gig', title: 'Other Gig' }], error: null },
+    };
+    const { createClient } = await import('../../utils/supabase/client');
+    vi.mocked(createClient).mockReturnValue(createSupabaseMock(tableResponses, { data: [], error: null }) as any);
+    const { packingListService } = await import('./packingList.service');
+    const result: any = await packingListService.fetchGigPackingList('gig-1');
+
+    // Units only: a lot's pieces elsewhere show in what's at home, not as a warning.
+    expect(result.elsewhere).toEqual({ k12: { gig_id: 'other-gig', gig_title: 'Other Gig', status: 'On Site' } });
+  });
 });

@@ -1,6 +1,6 @@
 import { createClient } from '../../utils/supabase/client';
 import { idbStore } from '../../utils/idb/store';
-import { isRetired } from '../../utils/equipmentItems';
+import { isRetired, recordKind } from '../../utils/equipmentItems';
 import { placementOf, type TrackingRow } from '../../utils/locations';
 
 const supabase = createClient();
@@ -189,26 +189,45 @@ export const packingListService = {
     // picked from the one with the most at home, and a tagged unit fills a slot.
     const itemIds = [...new Set([...anyLinesByKit.values()].flat().map((l) => l.item_id))];
     const itemRecords: Record<string, any[]> = {};
+    let owned: any[] = [];
     if (itemIds.length > 0) {
       const { data: items, error: itemsError } = await supabase
         .from('equipment_items')
         .select('id, manufacturer_model, records:assets(id, tag_number, serial_number, quantity, status, retired_on, created_at)')
         .in('id', itemIds);
       if (itemsError) throw itemsError;
-      const owned = ((items || []) as any[]).flatMap((i) => (i.records ?? []).filter((r: any) => !isRetired(r)).map((r: any) => ({ ...r, item_id: i.id })));
-      const { data: placed, error: placedError } = owned.length > 0
-        ? await supabase.from('inventory_tracking')
-          .select('id, gig_id, kit_id, asset_id, status, location, quantity, scanned_at, created_at')
-          .in('asset_id', owned.map((r) => r.id))
-        : { data: [], error: null };
-      if (placedError) throw placedError;
-      for (const r of owned) {
-        const placements = placementOf((placed || []) as TrackingRow[], r);
-        const atHome = placements.find((p) => p.gig_id === null)?.quantity ?? 0;
-        // What this gig held at fetch time, so the phone can tell what's home after its own scans.
-        const atGig = placements.find((p) => p.gig_id === gigId)?.quantity ?? 0;
-        (itemRecords[r.item_id] ??= []).push({ ...r, at_home: atHome, at_gig: atGig });
-      }
+      owned = ((items || []) as any[]).flatMap((i) => (i.records ?? []).filter((r: any) => !isRetired(r)).map((r: any) => ({ ...r, item_id: i.id })));
+    }
+
+    // Where every unit and lot on the list is now: lots' pieces at home for "any" lines, and
+    // units still out at another gig, for Pack-Out's warning (#185).
+    const placedIds = [...new Set([...assetMap.keys(), ...owned.map((r) => r.id)])];
+    const { data: placed, error: placedError } = placedIds.length > 0
+      ? await supabase.from('inventory_tracking')
+        .select('id, gig_id, kit_id, asset_id, status, location, quantity, scanned_at, created_at')
+        .in('asset_id', placedIds)
+      : { data: [], error: null };
+    if (placedError) throw placedError;
+
+    const elsewhere: Record<string, { gig_id: string; gig_title: string | null; status: string }> = {};
+    for (const asset of assetMap.values()) {
+      if (recordKind(asset) !== 'unit') continue;
+      const away = placementOf((placed || []) as TrackingRow[], asset).find((p) => p.gig_id !== null && p.gig_id !== gigId);
+      if (away?.gig_id) elsewhere[asset.id] = { gig_id: away.gig_id, gig_title: null, status: away.status ?? 'Out' };
+    }
+    const awayGigIds = [...new Set(Object.values(elsewhere).map((e) => e.gig_id))];
+    if (awayGigIds.length > 0) {
+      const { data: awayGigs } = await supabase.from('gigs').select('id, title').in('id', awayGigIds);
+      const titles = new Map((Array.isArray(awayGigs) ? awayGigs : []).map((g: any) => [g.id, g.title]));
+      for (const e of Object.values(elsewhere)) e.gig_title = titles.get(e.gig_id) ?? null;
+    }
+
+    for (const r of owned) {
+      const placements = placementOf((placed || []) as TrackingRow[], r);
+      const atHome = placements.find((p) => p.gig_id === null)?.quantity ?? 0;
+      // What this gig held at fetch time, so the phone can tell what's home after its own scans.
+      const atGig = placements.find((p) => p.gig_id === gigId)?.quantity ?? 0;
+      (itemRecords[r.item_id] ??= []).push({ ...r, at_home: atHome, at_gig: atGig });
     }
 
     const { data: tracking, error: trackingError } = await supabase
@@ -265,6 +284,7 @@ export const packingListService = {
       hierarchy_edges: hierarchyEdges,
       top_level_kit_ids: [...topLevelIds],
       item_records: itemRecords,
+      elsewhere,
       tracking: mergedTracking,
       last_synced: Date.now()
     };

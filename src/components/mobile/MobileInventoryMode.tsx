@@ -146,6 +146,8 @@ export default function MobileInventoryMode({ gigId }: MobileInventoryModeProps)
   const [scannerError, setScannerError] = useState<string | null>(null);
   const [noteDialog, setNoteDialog] = useState<NoteDialogState>({ open: false, note: '', maintenanceRequired: false });
   const [counter, setCounter] = useState<CounterState | null>(null);
+  // Pack-Out guard rails (#185): what to confirm before packing, and what to do if confirmed.
+  const [packWarning, setPackWarning] = useState<{ messages: string[]; proceed: () => Promise<void> } | null>(null);
   const [shortReturn, setShortReturn] = useState<ShortReturnState | null>(null);
   // Finish unload (#185): what's still out, and which of it to mark missing.
   const [finishing, setFinishing] = useState<{ kit_id: string; asset_id: string | null; quantity: number; name: string; missing: boolean }[] | null>(null);
@@ -263,6 +265,45 @@ export default function MobileInventoryMode({ gigId }: MobileInventoryModeProps)
     setNoteDialog({ open: false, note: '', maintenanceRequired: false });
   };
 
+  // Before Pack-Out packs a unit or lot (or a whole kit's), what's worth a second look: one in
+  // Maintenance or Inactive, or a unit still out at another gig (#185). Later steps don't ask.
+  const getPackWarnings = useCallback((kitId: string, assetId?: string): string[] => {
+    if (!packingList || selectedMode.id !== SCANNING_MODES[0].id) return [];
+    const assetsById = new Map<string, any>();
+    for (const assignment of packingList.kits || []) {
+      for (const a of [...(assignment.kit?.assets || []), ...(assignment.kit?.direct_assets || [])]) {
+        const id = a.asset_id || a.asset?.id;
+        if (id && a.asset && !assetsById.has(id)) assetsById.set(id, a.asset);
+      }
+    }
+    const ids: string[] = assetId
+      ? [assetId]
+      : inventoryTrackingService.getCascadeTargets(packingList, kitId)
+        .map((t: { asset_id: string | null }) => t.asset_id)
+        .filter((id: string | null): id is string => Boolean(id));
+    const messages: string[] = [];
+    for (const id of new Set(ids)) {
+      const asset = assetsById.get(id);
+      const name = asset?.manufacturer_model || asset?.name || 'An item';
+      if (asset?.status === 'Maintenance' || asset?.status === 'Inactive') {
+        messages.push(`${name} is in ${asset.status}.`);
+      }
+      const away = packingList.elsewhere?.[id];
+      if (away) messages.push(`${name} is still out at ${away.gig_title || 'another gig'} (${away.status}).`);
+    }
+    return messages;
+  }, [packingList, selectedMode]);
+
+  const guardPack = useCallback(async (kitId: string, assetId: string | undefined, proceed: () => Promise<void>) => {
+    const messages = getPackWarnings(kitId, assetId);
+    if (messages.length === 0) {
+      await proceed();
+      return;
+    }
+    setIsScannerOpen(false);
+    setPackWarning({ messages, proceed });
+  }, [getPackWarnings]);
+
   const handleManualToggle = useCallback(async (kitId: string, assetId?: string) => {
     if (!gigId || !packingList || !selectedOrganization || !user) {
       return;
@@ -286,19 +327,21 @@ export default function MobileInventoryMode({ gigId }: MobileInventoryModeProps)
       return;
     }
 
-    await inventoryTrackingService.submitScan({
-      gigId,
-      kitId,
-      assetId,
-      status: selectedMode.resultingStatus,
-      organizationId: selectedOrganization.id,
-      scannedBy: user.id,
-      location: locationInput || null,
-    });
+    await guardPack(kitId, assetId, async () => {
+      await inventoryTrackingService.submitScan({
+        gigId,
+        kitId,
+        assetId,
+        status: selectedMode.resultingStatus,
+        organizationId: selectedOrganization.id,
+        scannedBy: user.id,
+        location: locationInput || null,
+      });
 
-    await refreshPackingList(gigId);
-    toast.success('Item checked');
-  }, [gigId, locationInput, packingList, refreshPackingList, selectedMode, selectedOrganization, user]);
+      await refreshPackingList(gigId);
+      toast.success('Item checked');
+    });
+  }, [gigId, guardPack, locationInput, packingList, refreshPackingList, selectedMode, selectedOrganization, user]);
 
   const scanLot = useCallback(async (kitId: string, assetId: string, quantity: number, status: string) => {
     if (!gigId || !selectedOrganization || !user) return;
@@ -585,18 +628,20 @@ export default function MobileInventoryMode({ gigId }: MobileInventoryModeProps)
         return;
       }
 
-      await inventoryTrackingService.submitScan({
-        gigId,
-        kitId: match.kitId,
-        assetId: match.assetId,
-        status: selectedMode.resultingStatus,
-        organizationId: selectedOrganization.id,
-        scannedBy: user.id,
-        location: locationInput || null,
-      });
+      await guardPack(match.kitId, match.assetId, async () => {
+        await inventoryTrackingService.submitScan({
+          gigId,
+          kitId: match.kitId,
+          assetId: match.assetId,
+          status: selectedMode.resultingStatus,
+          organizationId: selectedOrganization.id,
+          scannedBy: user.id,
+          location: locationInput || null,
+        });
 
-      await refreshPackingList(gigId);
-      toast.success(`Scanned: ${match.label}`);
+        await refreshPackingList(gigId);
+        toast.success(`Scanned: ${match.label}`);
+      });
     } catch (error) {
       console.error('Scan processing failed:', error);
       setScannerError('Failed to process scan. Please try again.');
@@ -919,7 +964,7 @@ export default function MobileInventoryMode({ gigId }: MobileInventoryModeProps)
                                 aria-label={`${isAssetChecked ? 'Uncheck' : 'Check'} ${assetName}`}
                                 className="w-10 flex items-center justify-center shrink-0 active:scale-90 transition-transform"
                                 onClick={() => (isLotLine && !isAssetChecked
-                                  ? openCounter(trackKitId, assetId, assetName, line)
+                                  ? guardPack(trackKitId, assetId, async () => openCounter(trackKitId, assetId, assetName, line))
                                   : handleManualToggle(trackKitId, assetId))}
                               >
                                 <div className={cn(isAssetChecked ? 'text-emerald-500' : 'text-muted-foreground')}>
@@ -1061,6 +1106,30 @@ export default function MobileInventoryMode({ gigId }: MobileInventoryModeProps)
               <Button variant="outline" className="h-11" onClick={() => void markMissing()}>Mark missing</Button>
             ) : null}
             <Button className="h-11" onClick={() => void leaveAtGig()}>Leave at the gig</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={packWarning !== null} onOpenChange={(open) => (!open ? setPackWarning(null) : undefined)}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Before you pack</DialogTitle>
+          </DialogHeader>
+          <ul className="space-y-1 text-sm">
+            {packWarning?.messages.map((message) => (
+              <li key={message} className="flex items-start gap-2">
+                <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0 text-amber-600" />
+                <span>{message}</span>
+              </li>
+            ))}
+          </ul>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button variant="outline" className="h-11" onClick={() => setPackWarning(null)}>Cancel</Button>
+            <Button className="h-11" onClick={() => {
+              const proceed = packWarning?.proceed;
+              setPackWarning(null);
+              if (proceed) void proceed();
+            }}>Pack anyway</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
