@@ -480,6 +480,68 @@ describe('MobileInventoryMode', () => {
     expect(inventoryTrackingService.submitScan).toHaveBeenCalledWith(expect.objectContaining({ kitId: 'case', assetId: 'mic' }))
   })
 
+  // #185: Finish unload settles what didn't come back: leave it at the gig (default), or, for
+  // an Admin or Manager online, mark it missing.
+  describe('Finish unload', () => {
+    const UNLOAD = SCANNING_MODES.find((m) => m.id === 'unload')!
+    const atGig = () => ({
+      gig_id: 'gig-1',
+      gig_title: 'Warehouse Check-In',
+      top_level_kit_ids: ['top'],
+      hierarchy_edges: [],
+      kits: [{ kit_id: 'top', kit: { id: 'top', name: 'Stage Box', is_container: false,
+        direct_assets: [
+          { asset_id: 'k12', quantity: 1, asset: { id: 'k12', manufacturer_model: 'K12 Speaker', tag_number: 'K12-1' } },
+          { asset_id: 'xlr', quantity: 10, asset: { id: 'xlr', manufacturer_model: 'XLR Cable' } },
+        ],
+        assets: [{ asset_id: 'k12', quantity: 1 }, { asset_id: 'xlr', quantity: 10 }] } }],
+      tracking: [
+        { id: 't1', gig_id: 'gig-1', kit_id: 'top', asset_id: 'k12', status: 'On Site', quantity: 1, scanned_at: '2026-10-09T10:00:00.000Z', scanned_by: 'user-1' },
+        { id: 't2', gig_id: 'gig-1', kit_id: 'top', asset_id: 'xlr', status: 'On Site', quantity: 6, scanned_at: '2026-10-09T10:00:00.000Z', scanned_by: 'user-1' },
+      ],
+    })
+
+    beforeEach(() => {
+      auth.role = 'Admin'
+      Object.defineProperty(navigator, 'onLine', { value: true, configurable: true })
+      vi.mocked(packingListService.fetchGigPackingList).mockImplementation(async () => atGig() as any)
+      vi.mocked(idbStore.getPackingList).mockImplementation(async () => atGig())
+    })
+
+    it('only shows on Unload, and lists what is still out', async () => {
+      const user = userEvent.setup()
+      render(<MobileInventoryMode gigId="gig-1" onSelectGig={vi.fn()} />)
+      await screen.findByText('Stage Box')
+      expect(screen.queryByRole('button', { name: 'Finish unload' })).not.toBeInTheDocument()
+      await user.click(screen.getByText(UNLOAD.label))
+      await user.click(screen.getByRole('button', { name: 'Finish unload' }))
+      expect(screen.getByText('2 still out')).toBeInTheDocument()
+      expect(screen.getByText('K12 Speaker · 1')).toBeInTheDocument()
+      expect(screen.getByText('XLR Cable · 6')).toBeInTheDocument()
+    })
+
+    it('leaves them at the gig by default; Missing writes that one off', async () => {
+      const user = userEvent.setup()
+      render(<MobileInventoryMode gigId="gig-1" onSelectGig={vi.fn()} />)
+      await user.click(await screen.findByText(UNLOAD.label))
+      await user.click(screen.getByRole('button', { name: 'Finish unload' }))
+      await user.click(screen.getByRole('checkbox', { name: 'K12 Speaker missing' }))
+      await user.click(screen.getByRole('button', { name: 'Done' }))
+      expect(writeOffPieces).toHaveBeenCalledWith({ assetId: 'k12', quantity: 1, gigId: 'gig-1', kitId: 'top', stillOut: 0 })
+      expect(vi.mocked(inventoryTrackingService.submitScan).mock.calls.map((c: any) => [c[0].assetId, c[0].quantity, c[0].status]))
+        .toEqual([['xlr', 6, 'Not Returned']])
+    })
+
+    it('Staff only get "leave at the gig"', async () => {
+      auth.role = 'Staff'
+      const user = userEvent.setup()
+      render(<MobileInventoryMode gigId="gig-1" onSelectGig={vi.fn()} />)
+      await user.click(await screen.findByText(UNLOAD.label))
+      await user.click(screen.getByRole('button', { name: 'Finish unload' }))
+      expect(screen.queryByRole('checkbox', { name: 'K12 Speaker missing' })).not.toBeInTheDocument()
+    })
+  })
+
   it('preserves customized location when switching modes', async () => {
     const user = userEvent.setup()
 
