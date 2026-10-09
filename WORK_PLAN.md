@@ -129,11 +129,12 @@ Not released: #174's UI half shipped in PR #199; its remaining item (the already
 
 **Docs Lead** ("GigWrangler Docs Lead", Supabase Dev environment, no prod access) owns the user guide (`website/docs/`) and its screenshots, from the demo organization in dev. It may create GitHub issues. Its decisions so far: visual style A (app match); the demo data and seed (`scripts/seed-demo.sql`, logins in `scripts/README.md`; dev holds only demo data since 10-07); screenshots from `scripts/screenshots/` at a pinned date, refreshed at each production release.
 
-*Docs Lead, next (queued by the coordinator, 10-08 evening):*
-1. **Check the pages tonight's PRs edited** (#197–#201; their sub-agents wrote the sentences, so verify each against dev and fix the wording): `financials/gig-accounting.md` (Booked; Owed to you only on Completed gigs), `getting-started/the-dashboard.md` (Staff see Owned only), `gigs/documents-and-notes.md` (Markdown notes), `gigs/conflict-detection.md`, `gigs/staffing-and-participants.md` (delete confirmation), `gigs/the-gig-list.md`, `team/member-profiles.md` (Edit, Timezone), `team/invitations.md`, `team/team-and-roles.md`, `reference/roles-and-access.md`, `settings/overview.md` (Edit Organization button), `settings/google-calendar.md` (overnight gigs), `financials/reporting.md` (Grey zone, disposal-only years).
-2. **Screenshots now unblocked:** the dashboard cards (#157 is fixed), `team/member-profiles` (the Contacts card no longer clips, #176), the conflict banner, and the Reporting tab's Grey zone.
-3. **Publish `financials/reporting.md`** and link it from the Financials overview and Tax treatment pages.
-4. The demo seed's equipment rework for equipment items (§3d): #192 has merged, so this can start.
+*Docs Lead, next (queued by the coordinator, 10-09 05:40 UTC; PR #229 merged):*
+1. `gigs/conflict-detection.md` for PR #230 (per-item counts, peak demand, new wording, Equipment needed table; back-to-back gigs overlap).
+2. `financials/reporting.md` for PR #232 (Schedule C and Needs attention tabs, with screenshots).
+3. `reference/roles-and-access.md` for PR #233 (manage-only URLs redirect Staff and Viewer).
+4. Draft only: `equipment/kits.md` "N × any" lines (#225), ready for when #185/#186 land.
+All three merges are on main, not in prod yet; time the PR per STYLE.md.
 
 **Triage routine** (daily, ~09:00 UTC). Each run:
 1. Check CI and mergeability on its own open PRs; fix a red or conflicted one by merging `main` in, never by rebasing.
