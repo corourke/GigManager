@@ -5,6 +5,8 @@ Append new entries at the top of each section; never edit an old entry to descri
 
 ## Shipped (newest first)
 
+- **Code-splitting PR 1, PR #228** (coordinator's sub-agent, merged 10-09): 18 remaining screens lazy-loaded; ChunkLoadBoundary ("This screen couldn't load… Reload"); landing-screen prefetch after sign-in; `npm run check:bundle` in CI (entry chunk ≤ 1.2 MB, built with a dummy Sentry DSN). Main chunk 2,043,871 → 838,807 bytes prod-shaped. Also fixes a `useAutoSave` timer leak (the 2 s "saved" reset was never cleared on unmount), which surfaced as an unhandled "window is not defined" in CI.
+
 - **#184 PR 1, PR #225** (Equipment Lead, merged by the coordinator 10-09): kit editor and kit page support "N × any" of an item, with owned/available counts and warnings, grouped Add Components, and kit totals that include "any" lines. Fixes Duplicate kit dropping all lines of a kit with an "any" line; review fixes: a failed Duplicate leaves no empty copy, and kit saves check line delete/update errors. Not yet: packing lists and the overlap check ignore "any" lines (#185, #184 PR 2). Follow-ups: concurrent-edit partial writes (RPC later), nested-container availability display, unpaged item query.
 
 - **#221 pre-merge test (Docs Lead, 10-09):** all paths passed for Admin/Manager/Staff/Viewer except one blocking bug (removing a depreciated line's first unit), fixed before merge; no missing-column errors anywhere. Its "can follow" items, with the coordinator's review notes, are filed as #226. Settled 3d entries removed: the Docs Lead's 10-08 queue (all done), "N × any" gaps (passed to the Equipment Lead for #184/#185), and the membership correction (parked per §2).
