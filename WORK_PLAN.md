@@ -28,8 +28,8 @@ This file lives on `main`. Land updates there promptly: a run that starts from `
 
 ## 2. Waiting on Cameron
 
-1. **Prod deploy: READY (coordinator, 10-09 ~02:00 UTC).** PR #221 merged (`c18c523`). Run `./deploy_prod.sh` from main. Pending prod migrations (checked read-only): `20261016000000_staff_rate_unit`, `20261017000000_purchase_line_units` (additive; dependencies present on prod). Edge functions unchanged since prod's v33 (redeploy is a no-op). Carries every PR merged after #204 (#205, #207–#223 excluding open ones). Before running: add `VITE_SENTRY_DSN` to `.env.production.local` (item 2).
-2. **Sentry:** (a) add `VITE_SENTRY_DSN` (React project DSN) to `.env.production.local` before the held prod deploy; the live web app has none baked in (see `docs/technical/deployment.md`, PR #208). (b) Optional: `SENTRY_API_TOKEN`, `SENTRY_ORG_SLUG`, `SENTRY_PROJECT_SLUG` on prod for the health check's Sentry check (reports "not configured" until set). Edge-function `SENTRY_DSN` / `SENTRY_ENVIRONMENT` are set on both projects.
+1. **Main bundle size (coordinator, 10-09):** the prod build's main JS is 2,043,982 bytes, 53 KB under the 2,097,152-byte PWA precache limit (local builds read ~1.97 MB; prod is larger with the real env). The next features will likely cross it; a code-splitting pass should come before #184–#186 land.
+2. **Sentry (optional):** `VITE_SENTRY_DSN` is live in the prod web app (10-09). Still optional: `SENTRY_API_TOKEN`, `SENTRY_ORG_SLUG`, `SENTRY_PROJECT_SLUG` on prod for the health check's Sentry check.
 
 **Decided 10-08, recorded here until done:**
 - The Docs Lead's corrected membership report (private; reported to Cameron directly): no path lets a Manager make anyone an Admin. The remaining backstop gaps are **parked** (Cameron: later). Partner organizations on a shared gig may keep adding, editing and removing each other's no-login contacts (intended). Person-search privacy is fixed by #178 (in prod 10-08).

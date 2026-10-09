@@ -5,6 +5,8 @@ Append new entries at the top of each section; never edit an old entry to descri
 
 ## Shipped (newest first)
 
+- **Prod deploy (10-09, Cameron, `deploy_prod.sh`; verified read-only by the coordinator):** main through PR #221. Migrations `20261016000000_staff_rate_unit` and `20261017000000_purchase_line_units` applied (all 5 prod assignments have a rate_unit; new purchase functions executable by authenticated only, the internal helper by no API role). Edge functions unchanged (server v33, ai-scan v21, health-check v3). Live bundle carries rate units, the #213 estimate, `create_purchase_transaction_v2`, the prod Supabase ref only, and a Sentry DSN. Main bundle 2,043,982 bytes.
+
 - **#183 pieces B and C, PR #221** (Equipment Lead, merged by the coordinator 10-09): shared equipment form sections (What it is / Unit or lot / Insurance) for Add Item, Add unit or lot and the purchase Equipment details pop-up; new purchases save via `create_purchase_transaction_v2` (a line of N units = N records; fixes the prod "serial on a line of 2" error); saved lines add units, or remove them with Delete / Mark Inactive (Cameron 10-09), re-pointing `asset_id` first; Unit/Lot locked once saved; per-unit values kept. Two review rounds (coordinator) and a pre-merge dev test (Docs Lead) found and fixed 4 blocking issues. Future considerations in the PR: no rollback across a multi-step save (RPC later), no org-wide duplicate-tag warning, Track as equipment and CSV import still on v1.
 
 - **#219, PR #223** (coordinator's sub-agent, merged 10-09): the printed sheet's Staff costs rows use the #213 estimate and add up to its summary; `money()` shows cents with two decimals ("$1,582.50"); the edit-mode staffing footer uses en-US grouping.
