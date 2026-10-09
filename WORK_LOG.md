@@ -5,6 +5,8 @@ Append new entries at the top of each section; never edit an old entry to descri
 
 ## Shipped (newest first)
 
+- **User guide, PRs #224 and #227** (Docs Lead, merged 10-09): #219 follow-ups (print staff costs, Staffing-card footer shot); Financials pages caught up with the purchase rework in prod (#216, #221). TEST-221 records cleared from dev by reseeding.
+
 - **Code-splitting PR 1, PR #228** (coordinator's sub-agent, merged 10-09): 18 remaining screens lazy-loaded; ChunkLoadBoundary ("This screen couldn't load… Reload"); landing-screen prefetch after sign-in; `npm run check:bundle` in CI (entry chunk ≤ 1.2 MB, built with a dummy Sentry DSN). Main chunk 2,043,871 → 838,807 bytes prod-shaped. Also fixes a `useAutoSave` timer leak (the 2 s "saved" reset was never cleared on unmount), which surfaced as an unhandled "window is not defined" in CI.
 
 - **#184 PR 1, PR #225** (Equipment Lead, merged by the coordinator 10-09): kit editor and kit page support "N × any" of an item, with owned/available counts and warnings, grouped Add Components, and kit totals that include "any" lines. Fixes Duplicate kit dropping all lines of a kit with an "any" line; review fixes: a failed Duplicate leaves no empty copy, and kit saves check line delete/update errors. Not yet: packing lists and the overlap check ignore "any" lines (#185, #184 PR 2). Follow-ups: concurrent-edit partial writes (RPC later), nested-container availability display, unpaged item query.
