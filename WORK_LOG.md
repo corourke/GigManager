@@ -5,6 +5,8 @@ Append new entries at the top of each section; never edit an old entry to descri
 
 ## Shipped (newest first)
 
+- **#238** (Equipment Lead, merged 10-09): same-unit conflicts list only tracked units; a container kit booked on two overlapping gigs counts as one shared unit.
+
 - **#231 shared location rule and #236 overlap follow-ups** (Equipment Lead, merged 10-09): where a unit or lot is (append-only history, lot count summed per gig and kit, ties broken like `compareTrackingRecords`); "in containers" counts every piece again, gig-day heading for UTC+12, every short pair reported, batch same-unit check scoped to the organization.
 
 - **#226 item 3, PR #237** (triage, merged 10-09): clearing a money field on the unit edit page saves null.
