@@ -344,7 +344,7 @@ export default function AssetScreen({
     const normalizedData = normalizeFormData(shaped) as Record<string, any>;
     for (const f of ['item_price', 'item_cost', 'replacement_value', 'liquidation_amt'] as const) {
       const v = normalizedData[f];
-      normalizedData[f] = v === null || v === '' ? undefined : typeof v === 'string' ? parseFloat(v) : v;
+      normalizedData[f] = v === null || v === '' ? null : typeof v === 'string' ? parseFloat(v) : v;
     }
     const q = normalizedData.quantity;
     normalizedData.quantity = q === null || q === '' ? undefined : typeof q === 'string' ? parseInt(q) : q;
