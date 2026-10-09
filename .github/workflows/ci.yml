@@ -35,7 +35,13 @@ jobs:
           # real project is contacted during a build
           VITE_SUPABASE_URL: https://placeholder.supabase.co
           VITE_SUPABASE_ANON_KEY: ci-placeholder-anon-key
+          # A real DSN keeps ~72 KB of @sentry in the main chunk; a dummy one
+          # makes CI measure the prod-shaped bundle
+          VITE_SENTRY_DSN: https://public@o0.ingest.sentry.io/0
         run: npm run build
+
+      - name: Check bundle size
+        run: npm run check:bundle
 
   rls:
     # Applies every migration to a throwaway Postgres 17 and checks tenant
