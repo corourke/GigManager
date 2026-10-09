@@ -1,5 +1,7 @@
 import { createClient } from '../../utils/supabase/client';
 import { idbStore } from '../../utils/idb/store';
+import { isRetired } from '../../utils/equipmentItems';
+import { placementOf, type TrackingRow } from '../../utils/locations';
 
 const supabase = createClient();
 
@@ -80,7 +82,7 @@ export const packingListService = {
     // themselves are kept (deduped) as hierarchy_edges below, so the UI can
     // render the real nested structure instead of flat sibling cards.
     const descendantIds = new Set<string>();
-    const hierarchyEdges: { parent_kit_id: string; child_kit_id: string }[] = [];
+    const hierarchyEdges: { parent_kit_id: string; child_kit_id: string; quantity: number }[] = [];
     const seenEdgeKeys = new Set<string>();
     for (const assignment of topLevel) {
       const { data: tree, error: treeError } = await supabase.rpc('get_kit_hierarchy_tree', {
@@ -92,7 +94,8 @@ export const packingListService = {
         const key = `${edge.parent_kit_id}:${edge.child_kit_id}`;
         if (!seenEdgeKeys.has(key)) {
           seenEdgeKeys.add(key);
-          hierarchyEdges.push({ parent_kit_id: edge.parent_kit_id, child_kit_id: edge.child_kit_id });
+          // How many copies of the sub-kit: a scan of the parent multiplies through it (#185).
+          hierarchyEdges.push({ parent_kit_id: edge.parent_kit_id, child_kit_id: edge.child_kit_id, quantity: Number(edge.quantity ?? 1) || 1 });
         }
       }
     }
@@ -149,12 +152,22 @@ export const packingListService = {
     // (see inventoryTracking.service.ts's getKitAssetIds), and must keep
     // including everything nested inside, container boundaries included.
     const { data: directRows, error: directError } = allKitIds.length > 0
-      ? await supabase.from('kit_components').select('kit_id, asset_id, quantity, asset:assets(*)').in('kit_id', allKitIds)
+      ? await supabase.from('kit_components')
+        .select('kit_id, asset_id, equipment_item_id, quantity, asset:assets(*), item:equipment_items(id, manufacturer_model)')
+        .in('kit_id', allKitIds)
       : { data: [], error: null };
     if (directError) throw directError;
 
     const directAssetsByKit = new Map<string, any[]>();
+    // "Any" lines (#185): N of an item, packed from its units and lots.
+    const anyLinesByKit = new Map<string, { item_id: string; item_name: string; quantity: number }[]>();
     for (const row of (directRows || []) as any[]) {
+      if (!row.asset_id && row.equipment_item_id) {
+        const lines = anyLinesByKit.get(row.kit_id) ?? [];
+        lines.push({ item_id: row.equipment_item_id, item_name: row.item?.manufacturer_model ?? 'Unknown item', quantity: Number(row.quantity ?? 1) || 1 });
+        anyLinesByKit.set(row.kit_id, lines);
+        continue;
+      }
       if (!row.asset_id) continue; // a sub-kit component, not an asset — it gets its own row via hierarchy_edges instead
       const list = directAssetsByKit.get(row.kit_id) ?? [];
       list.push({ asset_id: row.asset_id, quantity: row.quantity, asset: row.asset || null });
@@ -168,8 +181,32 @@ export const packingListService = {
         ...node.kit,
         assets: assetsByKit.get(node.kit_id) || [],
         direct_assets: directAssetsByKit.get(node.kit_id) || [],
+        any_lines: anyLinesByKit.get(node.kit_id) || [],
       },
     }));
+
+    // Each "any" item's units and lots still owned, with how many are at home (#185): lots are
+    // picked from the one with the most at home, and a tagged unit fills a slot.
+    const itemIds = [...new Set([...anyLinesByKit.values()].flat().map((l) => l.item_id))];
+    const itemRecords: Record<string, any[]> = {};
+    if (itemIds.length > 0) {
+      const { data: items, error: itemsError } = await supabase
+        .from('equipment_items')
+        .select('id, manufacturer_model, records:assets(id, tag_number, serial_number, quantity, status, retired_on, created_at)')
+        .in('id', itemIds);
+      if (itemsError) throw itemsError;
+      const owned = ((items || []) as any[]).flatMap((i) => (i.records ?? []).filter((r: any) => !isRetired(r)).map((r: any) => ({ ...r, item_id: i.id })));
+      const { data: placed, error: placedError } = owned.length > 0
+        ? await supabase.from('inventory_tracking')
+          .select('id, gig_id, kit_id, asset_id, status, location, quantity, scanned_at, created_at')
+          .in('asset_id', owned.map((r) => r.id))
+        : { data: [], error: null };
+      if (placedError) throw placedError;
+      for (const r of owned) {
+        const atHome = placementOf((placed || []) as TrackingRow[], r).find((p) => p.gig_id === null)?.quantity ?? 0;
+        (itemRecords[r.item_id] ??= []).push({ ...r, at_home: atHome });
+      }
+    }
 
     const { data: tracking, error: trackingError } = await supabase
       .from('inventory_tracking')
@@ -224,6 +261,7 @@ export const packingListService = {
       kits: kitAssignments,
       hierarchy_edges: hierarchyEdges,
       top_level_kit_ids: [...topLevelIds],
+      item_records: itemRecords,
       tracking: mergedTracking,
       last_synced: Date.now()
     };

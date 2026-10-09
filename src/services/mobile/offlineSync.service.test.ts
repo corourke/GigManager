@@ -75,7 +75,18 @@ describe('offlineSyncService — INVENTORY_SCAN handler', () => {
       scanned_by: 'user-1',
       notes: 'test note',
       location: null,
+      quantity: 1,
     })
+  })
+
+  it('records how many pieces the scan says (#185: quantity is state)', async () => {
+    const chain = makeChain({ data: null, error: null })
+    mockFrom.mockReturnValue(chain)
+    await offlineSyncService.syncItem(outboxItem('INVENTORY_SCAN', {
+      organization_id: 'org-1', gig_id: 'gig-1', kit_id: 'kit-1', asset_id: 'cables', status: 'Checked Out',
+      scanned_at: '2026-10-09T10:00:00Z', scanned_by: 'user-1', quantity: 7,
+    }))
+    expect(chain.insert).toHaveBeenCalledWith(expect.objectContaining({ asset_id: 'cables', quantity: 7 }))
   })
 
   it('coerces absent asset_id to null', async () => {

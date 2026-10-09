@@ -177,6 +177,41 @@ describe('inventoryTrackingService', () => {
     expect(written).toHaveLength(3)
   })
 
+  // #185: every scan records how many pieces (quantity is state). A kit scan writes each lot with
+  // its line's N, multiplied through nested non-container kits; a container's contents carry their totals.
+  it('a kit scan writes each lot with its line\'s quantity, multiplied through nested kits (#185)', async () => {
+    vi.mocked(idbStore.getPackingList).mockResolvedValue({
+      gig_id: 'gig-1',
+      hierarchy_edges: [{ parent_kit_id: 'kit-top', child_kit_id: 'kit-pair', quantity: 2 }, { parent_kit_id: 'kit-top', child_kit_id: 'kit-case', quantity: 1 }],
+      kits: [
+        { kit: { id: 'kit-top', is_container: false, direct_assets: [{ asset_id: 'xlr', quantity: 4 }] } },
+        { kit: { id: 'kit-pair', is_container: false, direct_assets: [{ asset_id: 'di', quantity: 3 }] } },
+        { kit: { id: 'kit-case', is_container: true, assets: [{ asset_id: 'mic', quantity: 6 }] } },
+      ],
+      tracking: [],
+    })
+    await inventoryTrackingService.submitScan({
+      gigId: 'gig-1', kitId: 'kit-top', status: 'Checked Out', organizationId: 'org-1', scannedBy: 'user-1', scannedAt: '2026-10-09T10:00:00.000Z',
+    })
+    const written = (vi.mocked(idbStore.putPackingList).mock.calls[0][1] as any).tracking as any[]
+    expect(written.map((r) => [r.kit_id, r.asset_id, r.quantity])).toEqual(expect.arrayContaining([
+      ['kit-top', 'xlr', 4], ['kit-top', 'di', 6], ['kit-case', null, 1], ['kit-case', 'mic', 6],
+    ]))
+    expect(vi.mocked(offlineSyncService.queueTrackingUpdate).mock.calls.map((c: any) => c[0].quantity)).toEqual(expect.arrayContaining([4, 6, 1, 6]))
+  })
+
+  it('a direct lot scan records the count given; a unit scan records 1 (#185)', async () => {
+    vi.mocked(idbStore.getPackingList).mockResolvedValue({ gig_id: 'gig-1', kits: [], tracking: [] })
+    await inventoryTrackingService.submitScan({
+      gigId: 'gig-1', kitId: 'kit-1', assetId: 'cables', quantity: 7, status: 'Checked Out', organizationId: 'org-1', scannedBy: 'user-1',
+    })
+    await inventoryTrackingService.submitScan({
+      gigId: 'gig-1', kitId: 'kit-1', assetId: 'k12', status: 'Checked Out', organizationId: 'org-1', scannedBy: 'user-1',
+    })
+    const queued = vi.mocked(offlineSyncService.queueTrackingUpdate).mock.calls.map((c: any) => [c[0].asset_id, c[0].quantity])
+    expect(queued).toEqual([['cables', 7], ['k12', 1]])
+  })
+
   it('updates only the latest record note for the selected item', async () => {
     vi.mocked(idbStore.getPackingList).mockResolvedValue({
       gig_id: 'gig-1',
