@@ -1145,7 +1145,13 @@ Tracks equipment check-in/check-out status at gigs.
   - Only Admins and Managers can write off or undo. Both write an `activity_log` entry: `asset.written_off` / `asset.write_off_undone`.
   - **In the app** (#242): the gig's Not returned list asks for confirmation before writing off (naming the pieces and the tax-year effect). The activity log context is `quantity`, `kit_id`, `note`, `split_from` (write-off) and `quantity`, `merged_from` (undo), with no gig title or model; the entries are labelled "Equipment Written Off" and "Write-off Undone" in `activityLog.events.ts`. A Missing record's status, Retired On and disposal amount are read-only on the equipment form and never part of its save payload. The locked-year refusal from `undo_write_off` ("...Record the equipment as found instead.") is replaced in `undoWriteOff` by the app's wording (`src/utils/writeOffMessages.ts`), since there is no "found" action.
 - **Data integrity.** A tracking row's `asset_id` and `kit_id`, when set, belong to the row's `organization_id`. This is checked in the write policy.
-- Today every write path records `quantity` 1. Recording N for lots is #185 PR 2 (the scan flows).
+- **Quantities on the phone (#185 PR 2):**
+  - A kit scan writes each line's quantity, multiplied through nested kits. A container writes its flattened totals.
+  - A lot line is counted, not ticked. The counter starts at what the kit holds from an earlier step (on Unload, what went out), or at the full line. Fewer leaves the line short.
+  - An "any" line fills from what its kit already holds of the item, then from lots at home: the most at home first, ties to the older lot (`pickLots`). One row per lot, saying the lot's new count in that kit. Tagged units are never picked; scanning one fills a slot. Unload never picks from home.
+  - Fewer back on Unload asks: **Leave at the gig** writes the partial-return row above, and **Mark missing** calls `write_off_pieces` (online, Admin or Manager). **Finish unload** does the same for everything still out; a container is left as one sealed unit.
+  - A unit not on the list can be **added as an extra** (a row in the kit) or **swapped** for a listed unit of the same item. The swapped-out unit gets an `In Warehouse` row, and its line follows the unit swapped in from then on. Nothing else records the swap.
+  - Pack-Out asks before packing a unit or lot in Maintenance or Inactive, or a unit still out at another gig.
 - RLS is **ENABLED** on this table. Users with gig access can manage inventory tracking.
 
 ---
