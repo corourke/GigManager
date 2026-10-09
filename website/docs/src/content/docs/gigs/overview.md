@@ -11,7 +11,8 @@ off it: participants, schedule, staffing, financials, equipment, and attachments
 ## The gig list
 
 **Gigs** in the top nav opens the list. Switch between **List** and **Calendar**
-with the toggle at the top right.
+with the toggle at the top right. See [The gig list](/gigs/the-gig-list/) and
+[Calendar view](/gigs/calendar-view/).
 
 The list is split into **Upcoming** and **Past** tabs, each with a live count. A gig
 stays in Upcoming until its last day is over in the gig's time zone. Next to the
@@ -38,7 +39,7 @@ the gig from the calendar). Below the header are up to four tabs:
 
 | Tab | What it shows |
 | --- | --- |
-| **Overview** | Schedule, Venue, Notes & attachments, Participants, and your organization's Staffing. |
+| **Overview** | [Schedule](/gigs/schedule/), Venue, [Notes & attachments](/gigs/documents-and-notes/), [Participants](/gigs/participating-organizations/), and your organization's [Staffing](/gigs/staffing-and-participants/). Any [conflicts](/gigs/conflict-detection/) with other gigs show at the top. |
 | **Equipment** | The kits assigned to the gig, and its packing list. |
 | **Financials** | Money in and money out for the gig — Admins and Managers only. See [Financials](/financials/overview/). |
 | **History** | The gig's [change history](/gigs/change-history/). |

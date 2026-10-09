@@ -1,7 +1,6 @@
 ---
 title: Participating organizations
 description: Add the venue, acts, agencies and other organizations to a gig, set the client, and keep their day-of contacts.
-draft: true
 sidebar:
   order: 6
 ---

@@ -1,7 +1,6 @@
 ---
 title: Access requests & moderation
 description: Ask for a higher role in an organization, and how Admins and platform moderators approve or reject the request.
-draft: true
 sidebar:
   order: 2
 ---

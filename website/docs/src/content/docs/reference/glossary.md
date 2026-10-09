@@ -1,7 +1,6 @@
 ---
 title: Glossary
 description: The terms GigWrangler uses, in alphabetical order, with links to the pages that explain them.
-draft: true
 sidebar:
   order: 3
 ---
@@ -42,7 +41,7 @@ The words this guide uses for the things in GigWrangler. Statuses and other valu
 : A person you can call at a participating organization for a particular gig, such as a venue's production manager. A contact doesn't need a GigWrangler account. See [Participating organizations](/gigs/participating-organizations/).
 
 **Container**
-: A kit whose **Tracking Type** is **Container**: the whole kit, and everything nested in it, is scanned as one unit. The other choice is **Items**, where each component is scanned individually. See [Kits](/equipment/kits/).
+: A kit whose **Tracking Type** is **Container**: the whole kit, and everything nested in it, is scanned as one unit. The other choice is **Items**, where each component is scanned individually.
 
 **Date Hold**
 : A gig status: the dates are held but nothing is committed. New gigs start here. See [Status](/gigs/overview/#status).
@@ -54,13 +53,13 @@ The words this guide uses for the things in GigWrangler. Statuses and other valu
 : A single job, with its dates, status, participants, schedule, staffing, equipment and money. See [Gigs overview](/gigs/overview/).
 
 **Kit**
-: A named group of assets and other kits, such as "FOH rack", that you assign to a gig as one package. Kits can nest inside other kits. See [Kits](/equipment/kits/).
+: A named group of assets and other kits, such as "FOH rack", that you assign to a gig as one package. Kits can nest inside other kits.
 
 **Manager**
 : The role that runs gigs, equipment and financials day to day but can't make or change Admins. See [Roles & access](/reference/roles-and-access/).
 
 **Manifest**
-: A printable checklist of gear and where it stands, which you can check off on screen. **Print manifest** on the Locations tab opens one for a location. See [Inventory reports](/equipment/inventory-reports/).
+: A printable checklist of gear and where it stands, which you can check off on screen. **Print manifest** on the Locations tab opens one for a location.
 
 **Member**
 : A person on an organization's **Team**, with a role. See [Team](/team/overview/).
@@ -72,7 +71,7 @@ The words this guide uses for the things in GigWrangler. Statuses and other valu
 : A company, venue or act that owns its own gigs, team, equipment and financials. A person can belong to several. See [Getting into an organization](/getting-started/organizations/).
 
 **Packing list**
-: Every asset to bring for a gig, listed from the kits assigned to it. Open it from the gig's **Equipment** tab. See [Inventory reports](/equipment/inventory-reports/).
+: Every asset to bring for a gig, listed from the kits assigned to it. Open it from the gig's **Equipment** tab.
 
 **Participant**
 : An organization taking part in a gig, such as a venue, an act or a vendor, with a role on that gig. Your own organization is added automatically. See [Participating organizations](/gigs/participating-organizations/).

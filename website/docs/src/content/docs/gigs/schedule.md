@@ -1,7 +1,6 @@
 ---
 title: Schedule / run of day
 description: Build the timeline of a gig in edit mode, from load-in to load-out, with times in the gig's time zone.
-draft: true
 sidebar:
   order: 7
 ---

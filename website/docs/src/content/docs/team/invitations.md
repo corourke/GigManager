@@ -1,7 +1,6 @@
 ---
 title: Inviting members
 description: Invite someone by email with a role, add an existing user, and manage pending invitations.
-draft: true
 sidebar:
   order: 3
 ---

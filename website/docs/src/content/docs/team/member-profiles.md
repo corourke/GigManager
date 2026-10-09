@@ -1,7 +1,6 @@
 ---
 title: Member profiles & contacts
 description: View and edit a member's details, and use the Contacts list on an organization.
-draft: true
 sidebar:
   order: 5
 ---
