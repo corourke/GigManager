@@ -542,6 +542,60 @@ describe('MobileInventoryMode', () => {
     })
   })
 
+  // #185 guard rails: Pack-Out asks before packing a unit that's in Maintenance or Inactive,
+  // or still out at another gig. Later steps don't ask: it's already packed.
+  describe('Pack-Out warnings', () => {
+    const list = (status = 'Active', elsewhere: any = {}) => ({
+      gig_id: 'gig-1',
+      gig_title: 'Warehouse Check-In',
+      top_level_kit_ids: ['top'],
+      hierarchy_edges: [],
+      kits: [{ kit_id: 'top', kit: { id: 'top', name: 'Stage Box', is_container: false,
+        direct_assets: [{ asset_id: 'k12', quantity: 1, asset: { id: 'k12', manufacturer_model: 'K12 Speaker', tag_number: 'K12-1', status } }],
+        assets: [{ asset_id: 'k12', quantity: 1, asset: { id: 'k12', manufacturer_model: 'K12 Speaker', tag_number: 'K12-1', status } }] } }],
+      elsewhere,
+      tracking: [],
+    })
+
+    it('asks before packing a unit in Maintenance', async () => {
+      vi.mocked(idbStore.getPackingList).mockImplementation(async () => list('Maintenance'))
+      const user = userEvent.setup()
+      render(<MobileInventoryMode gigId="gig-1" onSelectGig={vi.fn()} />)
+      await user.click(await screen.findByRole('button', { name: 'Check K12 Speaker' }))
+      expect(screen.getByText('K12 Speaker is in Maintenance.')).toBeInTheDocument()
+      expect(inventoryTrackingService.submitScan).not.toHaveBeenCalled()
+      await user.click(screen.getByRole('button', { name: 'Pack anyway' }))
+      expect(inventoryTrackingService.submitScan).toHaveBeenCalledWith(expect.objectContaining({ assetId: 'k12' }))
+    })
+
+    it('asks before packing a unit still out at another gig, for a scan or a whole kit', async () => {
+      vi.mocked(idbStore.getPackingList).mockImplementation(async () =>
+        list('Active', { k12: { gig_id: 'other', gig_title: 'Other Gig', status: 'On Site' } }))
+      const user = userEvent.setup()
+      render(<MobileInventoryMode gigId="gig-1" onSelectGig={vi.fn()} />)
+      await screen.findByText('Stage Box')
+      await act(async () => { await scannerProps.onScan('K12-1') })
+      expect(screen.getByText('K12 Speaker is still out at Other Gig (On Site).')).toBeInTheDocument()
+      await user.click(screen.getByRole('button', { name: 'Cancel' }))
+      expect(inventoryTrackingService.submitScan).not.toHaveBeenCalled()
+
+      const kitRow = screen.getByText('Stage Box').closest('.flex.items-stretch') as HTMLElement
+      await user.click(kitRow.querySelector('button') as HTMLElement)
+      expect(screen.getByText('K12 Speaker is still out at Other Gig (On Site).')).toBeInTheDocument()
+      expect(inventoryTrackingService.submitScan).not.toHaveBeenCalled()
+    })
+
+    it('later steps don\'t ask', async () => {
+      vi.mocked(idbStore.getPackingList).mockImplementation(async () => list('Maintenance'))
+      const user = userEvent.setup()
+      render(<MobileInventoryMode gigId="gig-1" onSelectGig={vi.fn()} />)
+      await user.click(await screen.findByText(SCANNING_MODES[2].label))
+      await user.click(screen.getByRole('button', { name: 'Check K12 Speaker' }))
+      expect(screen.queryByText('K12 Speaker is in Maintenance.')).not.toBeInTheDocument()
+      expect(inventoryTrackingService.submitScan).toHaveBeenCalled()
+    })
+  })
+
   it('preserves customized location when switching modes', async () => {
     const user = userEvent.setup()
 
