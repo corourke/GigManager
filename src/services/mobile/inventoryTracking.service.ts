@@ -196,8 +196,9 @@ const getAnySlotTargets = (packingList: any, kitId: string): CascadeTarget[] =>
 /**
  * The rows that fill an "any" line in `status` (#185), each saying the record's new count under
  * the line's kit. First whatever the kit already holds of the item in an earlier status moves
- * on at the same count; then, except on Unload, lots at home make up the rest, most at home
- * first (pickLots). Tagged units are never picked: they're scanned one by one.
+ * on at the same count; then, except on Unload or when leaving pieces at the gig, lots at home
+ * make up the rest, most at home first (pickLots). Tagged units are never picked: they're
+ * scanned one by one.
  */
 const getAnySlotFills = (packingList: any, slot: AnySlot, status: string, gigId: string) => {
   const tracking: TrackingRecord[] = packingList?.tracking || [];
@@ -217,7 +218,7 @@ const getAnySlotFills = (packingList: any, slot: AnySlot, status: string, gigId:
   }
 
   let short = Math.max(0, need);
-  if (need > 0 && status !== RETURNED_STATUS) {
+  if (need > 0 && status !== RETURNED_STATUS && status !== NOT_RETURNED_STATUS) {
     // at_home is as of the fetch; what this gig took or put back since moves it.
     const hereRows = tracking.filter((t) => t.gig_id === gigId) as TrackingRow[];
     const lots = records.filter((r) => recordKind(r) === 'lot').map((r) => {
