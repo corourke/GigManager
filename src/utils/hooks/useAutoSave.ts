@@ -39,6 +39,9 @@ export function useAutoSave<T>({
   const lastFailedDataRef = useRef<string | null>(null);
   // The save on its way to the server, so flushAsync can wait for it too.
   const inFlightRef = useRef<Promise<SaveResult> | null>(null);
+  // The "saved" → idle reset, cleared on unmount so it never fires after teardown.
+  const savedResetRef = useRef<NodeJS.Timeout | null>(null);
+  const mountedRef = useRef(true);
 
   const doSave = useCallback(async (data: T): Promise<SaveResult> => {
     const dataString = JSON.stringify(data);
@@ -58,7 +61,10 @@ export function useAutoSave<T>({
         onSuccess(data);
       }
       
-      setTimeout(() => {
+      if (savedResetRef.current) clearTimeout(savedResetRef.current);
+      // A save flushed on unmount can finish afterwards: no reset timer then.
+      if (mountedRef.current) savedResetRef.current = setTimeout(() => {
+        savedResetRef.current = null;
         setSaveState((current) => (current === 'saved' ? 'idle' : current));
       }, 2000);
       return { ok: true };
@@ -136,7 +142,13 @@ export function useAutoSave<T>({
   }, [performSave]);
 
   useEffect(() => {
+    mountedRef.current = true;
     return () => {
+      mountedRef.current = false;
+      if (savedResetRef.current) {
+        clearTimeout(savedResetRef.current);
+        savedResetRef.current = null;
+      }
       if (timeoutRef.current) {
         clearTimeout(timeoutRef.current);
         if (dataToSaveRef.current) {

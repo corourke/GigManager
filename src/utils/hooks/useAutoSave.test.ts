@@ -66,6 +66,36 @@ describe('useAutoSave', () => {
     expect(result.current.saveState).toBe('idle');
   });
 
+  it('clears the "saved" reset timer on unmount, so it never fires after teardown', async () => {
+    const { result, unmount } = renderHook(() => useAutoSave({ gigId, onSave: mockOnSave }));
+
+    await act(async () => {
+      result.current.saveNow({ title: 'Test' });
+    });
+    expect(result.current.saveState).toBe('saved');
+    expect(vi.getTimerCount()).toBe(1); // the 2 s "saved" → idle reset
+
+    unmount();
+
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it('a save flushed on unmount leaves no reset timer behind when it finishes', async () => {
+    const { result, unmount } = renderHook(() => useAutoSave({ gigId, onSave: mockOnSave }));
+
+    act(() => {
+      result.current.triggerSave({ title: 'Pending' });
+    });
+    unmount(); // flushes the pending save
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(mockOnSave).toHaveBeenCalledWith({ title: 'Pending' });
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
   it('handles save errors', async () => {
     const testError = new Error('Save failed');
     const failingSave = vi.fn().mockRejectedValue(testError);
