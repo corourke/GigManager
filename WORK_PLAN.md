@@ -17,7 +17,7 @@ This file lives on `main`. Land updates there promptly: a run that starts from `
 
 | # | Item | State | Next / owner |
 |---|---|---|---|
-| [#125](https://github.com/corourke/GigManager/issues/125) | Financials → Reporting: tax-program data export | Part 1 merged (PR #167): recovery period on equipment, and Income / Expenses / Assets reports with CSV | In dev and prod 10-08 (2024–25 set to 7-year per the filed returns). Grey zone merged (PR #201); date-ranged mileage rates merged (PR #202); F1 run on prod 10-08. Next if wanted: Schedule C summary, Needs attention |
+| [#125](https://github.com/corourke/GigManager/issues/125) | Financials → Reporting: tax-program data export | Categories, recovery periods, Income / Expenses / Assets (+ Disposals) / Grey zone reports and mileage rates done and in prod | Last two reports (Schedule C summary, Needs attention) building (coordinator, §3c); then close. F4–F6 moved to #135 |
 | [#162](https://github.com/corourke/GigManager/issues/162) | Equipment items and units (serials, tags, quantities, kits); parent of #179–#186 | Mockups approved and merged 10-08 (PR #165, `docs/design/mockups/equipment-units/`); split into sub-issues | See the rows below |
 | [#181](https://github.com/corourke/GigManager/issues/181) | Data grouping review for Cameron | #180 is in prod (158 items); regrouping is now a data change. Coordinator supplies prod data | Equipment Lead |
 | [#183](https://github.com/corourke/GigManager/issues/183)–[#186](https://github.com/corourke/GigManager/issues/186) | Items screens: (b) purchases, CSV import; (c) kit editor, overlap; (d) packing list, gig equipment, scanning; (e) locations, override, maintenance (closes #160) | #182 done; #183 A, B, C merged (PRs #216, #221) and **in prod 10-09**; #183 D (CSV import) off the critical path; follow-ups in [#226](https://github.com/corourke/GigManager/issues/226) | Equipment Lead: **#184 next**; D by a coordinator sub-agent when the Lead says it's clear |
@@ -58,6 +58,8 @@ This file lives on `main`. Land updates there promptly: a run that starts from `
 2. **Item 3, clearing a money field on the unit edit page saves.** In `AssetScreen.tsx` edit mode, clearing item price, item cost, replacement value or sale proceeds must save `null`, not drop the field as `undefined`. Test: clear each field, save, assert the update payload has `null`.
 3. **Item 5, $0 invoice total.** In the purchase review (`ReviewScannedDataDialog.tsx`), when the invoice total is $0 (or empty) and the lines add up to more than $0, Save is blocked with "Enter the invoice total, or set it to match the lines ($X)." and a one-click "Use $X" fix. A total that matches its lines, including all-$0, still saves. Test both.
 4. **Item 6, tracked expensed line needs a category.** A purchase line that is tracked as equipment and expensed can't be saved without an expense category: the line shows "Choose an expense category" and Save is blocked until it has one. Untracked lines keep today's rule. Test both.
+
+**[#125](https://github.com/corourke/GigManager/issues/125): Schedule C summary and Needs attention reports** (Cameron 10-09: build both, then close #125; plan on the issue). Coordinator, by sub-agent: building. No migration. Data fixes F4–F6 moved to #135.
 
 **PAUSED (Cameron, 10-08): don't start any #20 batch until #186 merges.** Batches 3–7 collide with #183–#186 and #175. Triage: skip #20 and do a `docs/` pass instead.
 
